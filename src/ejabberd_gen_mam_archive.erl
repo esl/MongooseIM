@@ -1,34 +1,34 @@
 -module(ejabberd_gen_mam_archive).
 
--callback archive_size(Size :: integer(), Host :: ejabberd:server(),
-                       ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
+-callback archive_size(Size :: integer(), Host :: jlib:server(),
+                       ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jlib:jid())
                       -> integer().
 
--callback archive_message(_Result, ejabberd:server(),
+-callback archive_message(_Result, jlib:server(),
                           MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
-                          LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
-                          SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) ->
+                          LocJID :: jlib:jid(), RemJID :: jlib:jid(),
+                          SrcJID :: jlib:jid(), Dir :: atom(), Packet :: any()) ->
     ok | {error, timeout}.
 
--callback lookup_messages(Result :: any(), Host :: ejabberd:server(),
+-callback lookup_messages(Result :: any(), Host :: jlib:server(),
                           Params :: map()) -> Result when
       Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
--callback remove_archive(Acc :: map(), Host :: ejabberd:server(),
-    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid()) -> map().
+-callback remove_archive(Acc :: map(), Host :: jlib:server(),
+    ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jlib:jid()) -> map().
 
--callback purge_single_message(Result :: purge_single_message_result(), Host :: ejabberd:server(),
+-callback purge_single_message(Result :: purge_single_message_result(), Host :: jlib:server(),
                                MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
-                               ArchiveJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
+                               ArchiveJID :: jlib:jid(), Now :: mod_mam:unix_timestamp())
                               -> purge_single_message_result().
 
--callback purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
-                                  ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+-callback purge_multiple_messages(Result :: any(), Host :: jlib:server(),
+                                  ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jlib:jid(),
                                   Borders :: mod_mam:borders() | undefined,
                                   Start :: mod_mam:unix_timestamp() | undefined,
                                   End :: mod_mam:unix_timestamp() | undefined,
                                   Now :: mod_mam:unix_timestamp(),
-                                  WithJID :: ejabberd:jid() | undefined) ->
+                                  WithJID :: jlib:jid() | undefined) ->
     ok | {error, 'not-allowed'}.
 
 -type purge_single_message_result() :: ok | {error, 'not-allowed' | 'not-found' | term()}.

@@ -35,7 +35,7 @@ start_link() ->
 
 %% @doc Handle custom IQ.
 %% Called from mod_muc_room.
--spec process_iq(ejabberd:server(), ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(),
+-spec process_iq(jlib:server(), jlib:jid(), jlib:jid(), mongoose_acc:t(),
         jlib:iq()) -> error | ignore.
 process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
     case ets:lookup(tbl_name(), {XMLNS, Host}) of
@@ -47,13 +47,13 @@ process_iq(Host, From, RoomJID, Acc, IQ = #iq{xmlns = XMLNS}) ->
     end.
 
 
--spec register_iq_handler(ejabberd:server(), binary(), module(), atom(), any()) -> ok.
+-spec register_iq_handler(jlib:server(), binary(), module(), atom(), any()) -> ok.
 register_iq_handler(Host, XMLNS, Module, Fun, Opts) ->
     gen_server:cast(srv_name(),
                     {register_iq_handler, Host, XMLNS, Module, Fun, Opts}).
 
 
--spec unregister_iq_handler(ejabberd:server(), binary()) -> ok.
+-spec unregister_iq_handler(jlib:server(), binary()) -> ok.
 unregister_iq_handler(Host, XMLNS) ->
     gen_server:cast(srv_name(),
                     {unregister_iq_handler, Host, XMLNS}).

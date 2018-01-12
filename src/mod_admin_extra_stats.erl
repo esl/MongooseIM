@@ -80,7 +80,7 @@ stats(Name) ->
     end.
 
 
--spec stats(binary(), ejabberd:server()) -> integer() | {error, string()}.
+-spec stats(binary(), jlib:server()) -> integer() | {error, string()}.
 stats(Name, Host) ->
     case Name of
         <<"registeredusers">> ->

@@ -27,7 +27,7 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--record(mam_prefs, {host_user :: {ejabberd:server(), ejabberd:user()},
+-record(mam_prefs, {host_user :: {jlib:server(), jlib:user()},
                     default_mode,
                     always_rules :: list(),
                     never_rules  :: list()
@@ -39,7 +39,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jlib:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     mnesia:create_table(mam_prefs,
             [{disc_copies, [node()]},
@@ -59,7 +59,7 @@ start(Host, Opts) ->
     end.
 
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jlib:server()) -> any().
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -78,7 +78,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(), list()) -> 'ok'.
+-spec start_pm(jlib:server(), list()) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -87,7 +87,7 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(ejabberd:server()) -> 'ok'.
+-spec stop_pm(jlib:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -99,7 +99,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc_muc
 
--spec start_muc(ejabberd:server(), list()) -> 'ok'.
+-spec start_muc(jlib:server(), list()) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -108,7 +108,7 @@ start_muc(Host, _Opts) ->
     ok.
 
 
--spec stop_muc(ejabberd:server()) -> 'ok'.
+-spec stop_muc(jlib:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -120,9 +120,9 @@ stop_muc(Host) ->
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
--spec get_behaviour(Default :: behaviour(), Host :: ejabberd:server(),
-    ArcID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
-    RemJID :: ejabberd:jid()) -> any().
+-spec get_behaviour(Default :: behaviour(), Host :: jlib:server(),
+    ArcID :: mod_mam:archive_id(), LocJID :: jlib:jid(),
+    RemJID :: jlib:jid()) -> any().
 get_behaviour(DefaultBehaviour, _Host,
               _ArcID,
               LocJID=#jid{},
@@ -134,8 +134,8 @@ get_behaviour(DefaultBehaviour, _Host,
     end.
 
 
--spec get_behaviour(mam_prefs(), LocJID :: ejabberd:jid(),
-                    RemJID :: ejabberd:jid()) -> behaviour().
+-spec get_behaviour(mam_prefs(), LocJID :: jlib:jid(),
+                    RemJID :: jlib:jid()) -> behaviour().
 get_behaviour(#mam_prefs{default_mode = always, never_rules=NeverJIDs}, LocJID, RemJID) ->
     IsNever = match_jid(LocJID, RemJID, NeverJIDs),
     case IsNever of
@@ -162,11 +162,11 @@ get_behaviour(#mam_prefs{default_mode = roster,
     end.
 
 
--spec set_prefs(Result :: any(), Host :: ejabberd:server(),
-                ArcID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(),
+-spec set_prefs(Result :: any(), Host :: jlib:server(),
+                ArcID :: mod_mam:archive_id(), ArcJID :: jlib:jid(),
                 DefaultMode :: mod_mam:archive_behaviour(),
-                AlwaysJIDs :: [ejabberd:literal_jid()],
-                NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+                AlwaysJIDs :: [jlib:literal_jid()],
+                NeverJIDs :: [jlib:literal_jid()]) -> any().
 set_prefs(_Result, _Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
         set_prefs1(ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs)
@@ -190,8 +190,8 @@ set_prefs1(_ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ok.
 
 
--spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
-                _ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()
+-spec get_prefs(mod_mam:preference(), _Host :: jlib:server(),
+                _ArcId :: mod_mam:archive_id(), ArcJID :: jlib:jid()
                 ) -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
     SU = su_key(ArcJID),
@@ -219,21 +219,21 @@ remove_archive(Acc, _Host, _ArcID, ArcJID) ->
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec su_key(ejabberd:jid()) -> ejabberd:simple_bare_jid().
+-spec su_key(jlib:jid()) -> jlib:simple_bare_jid().
 su_key(#jid{lserver=LocLServer, luser=LocLUser}) ->
     {LocLServer, LocLUser}.
 
 
--spec jids(ejabberd:jid(),
-    [ejabberd:literal_jid() | ejabberd:simple_bare_jid() | ejabberd:simple_jid()]
-    ) -> [ejabberd:literal_jid()].
+-spec jids(jlib:jid(),
+    [jlib:literal_jid() | jlib:simple_bare_jid() | jlib:simple_jid()]
+    ) -> [jlib:literal_jid()].
 jids(ArcJID, Rules) ->
     [jid:to_binary(rule_to_jid(ArcJID, Rule)) || Rule <- Rules].
 
 
--spec rule_to_jid(ejabberd:jid(),
-    ejabberd:luser() | ejabberd:simple_bare_jid() | ejabberd:simple_jid()
-    ) -> ejabberd:simple_jid().
+-spec rule_to_jid(jlib:jid(),
+    jlib:luser() | jlib:simple_bare_jid() | jlib:simple_jid()
+    ) -> jlib:simple_jid().
 rule_to_jid(#jid{lserver=LServer}, RemLUser) when is_binary(RemLUser) ->
     {RemLUser, LServer, <<>>};
 rule_to_jid(_ArcJID, {RemLServer, RemLUser, RemLResource}) ->
@@ -242,14 +242,14 @@ rule_to_jid(_ArcJID, {RemLServer, RemLUser}) ->
     {RemLUser, RemLServer, <<>>}.
 
 
--spec rules(ejabberd:jid(), [ejabberd:literal_jid()]) ->
-    [ejabberd:literal_jid() | ejabberd:simple_bare_jid() | ejabberd:simple_jid()].
+-spec rules(jlib:jid(), [jlib:literal_jid()]) ->
+    [jlib:literal_jid() | jlib:simple_bare_jid() | jlib:simple_jid()].
 rules(ArcJID, BinJIDs) ->
     [rule(ArcJID, jid:from_binary(BinJID)) || BinJID <- BinJIDs].
 
 
--spec rule(ejabberd:jid(), ejabberd:jid()) ->
-    ejabberd:literal_jid() | ejabberd:simple_bare_jid() | ejabberd:simple_jid().
+-spec rule(jlib:jid(), jlib:jid()) ->
+    jlib:literal_jid() | jlib:simple_bare_jid() | jlib:simple_jid().
 rule(#jid{lserver=LServer}, #jid{lserver=LServer, luser=RemLUser, lresource = <<>>}) ->
     RemLUser;
 rule(_ArcJID, #jid{lserver=RemLServer, luser=RemLUser, lresource = <<>>}) ->
@@ -258,12 +258,12 @@ rule(_ArcJID, #jid{lserver=RemLServer, luser=RemLUser, lresource=RemLResource}) 
     {RemLServer, RemLUser, RemLResource}.
 
 
--spec is_bare_jid(ejabberd:jid()) -> boolean().
+-spec is_bare_jid(jlib:jid()) -> boolean().
 is_bare_jid(#jid{lresource = <<>>}) -> true;
 is_bare_jid(_)                      -> false.
 
 
--spec match_jid(ejabberd:jid(), ejabberd:jid(), [any()]) -> boolean().
+-spec match_jid(jlib:jid(), jlib:jid(), [any()]) -> boolean().
 match_jid(ArcJID, JID, JIDs) ->
     case is_bare_jid(JID) of
     true ->

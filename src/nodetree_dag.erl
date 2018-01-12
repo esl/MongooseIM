@@ -165,7 +165,7 @@ get_subnodes_tree(Host, Node, From) ->
 %%====================================================================
 oid(Key, Name) -> {Key, Name}.
 
-%% Key    = ejabberd:jid() | host()
+%% Key    = jlib:jid() | host()
 %% Node = string()
 -spec find_node(
         Key :: mod_pubsub:hostPubsub(),
@@ -177,7 +177,7 @@ find_node(Key, Node) ->
         [NodeRec] -> NodeRec
     end.
 
-%% Key     = ejabberd:jid() | host()
+%% Key     = jlib:jid() | host()
 %% Default = term()
 %% Options = [{Key = atom(), Value = term()}]
 find_opt(Key, Default, Options) ->
@@ -218,7 +218,7 @@ remove_config_parent(Node, [H | T], Acc) ->
 
 -spec validate_parentage(
         Key            :: mod_pubsub:hostPubsub(),
-        Owners         :: [ejabberd:ljid(), ...],
+        Owners         :: [jlib:ljid(), ...],
         ParentNodes    :: [mod_pubsub:nodeId()])
     -> true | {error, exml:element()}.
 validate_parentage(_Key, _Owners, []) ->

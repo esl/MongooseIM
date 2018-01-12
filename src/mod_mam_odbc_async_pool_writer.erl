@@ -184,9 +184,9 @@ stop_worker(Proc) ->
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
--spec archive_message(_Result, ejabberd:server(), MessID :: mod_mam:message_id(),
-                      ArchiveID :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
-                      RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: atom(),
+-spec archive_message(_Result, jlib:server(), MessID :: mod_mam:message_id(),
+                      ArchiveID :: mod_mam:archive_id(), LocJID :: jlib:jid(),
+                      RemJID :: jlib:jid(), SrcJID :: jlib:jid(), Dir :: atom(),
                       Packet :: any()) -> ok.
 archive_message(_Result, Host,
                 MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
@@ -234,30 +234,30 @@ worker_queue_length(SrvName) ->
     end.
 
 
--spec archive_size(Size :: integer(), Host :: ejabberd:server(),
-                   ArchiveID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
+-spec archive_size(Size :: integer(), Host :: jlib:server(),
+                   ArchiveID :: mod_mam:archive_id(), ArcJID :: jlib:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
     wait_flushing(Host, ArcID),
     Size.
 
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), Host :: jlib:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now}) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
 %% #rh
--spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+-spec remove_archive(Acc :: map(), Host :: jlib:server(),
                      RoomId :: mod_mam:archive_id(),
-                     RoomJID :: ejabberd:jid()) -> map().
+                     RoomJID :: jlib:jid()) -> map().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
     wait_flushing(Host, ArcID),
     Acc.
 
--spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
+-spec purge_single_message(Result :: any(), Host :: jlib:server(),
                            MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
-                           RoomJID :: ejabberd:jid(), Now :: mod_mam:unix_timestamp())
+                           RoomJID :: jlib:jid(), Now :: mod_mam:unix_timestamp())
                           -> ok | {error, 'not-allowed' | 'not-found'}.
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
@@ -265,13 +265,13 @@ purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     Result.
 
 
--spec purge_multiple_messages(Result :: any(), Host :: ejabberd:server(),
-                              RoomID :: mod_mam:archive_id(), ArchiveID :: ejabberd:jid(),
+-spec purge_multiple_messages(Result :: any(), Host :: jlib:server(),
+                              RoomID :: mod_mam:archive_id(), ArchiveID :: jlib:jid(),
                               Borders :: mod_mam:borders() | undefined,
                               Start :: mod_mam:unix_timestamp() | undefined,
                               End :: mod_mam:unix_timestamp() | undefined,
                               Now :: mod_mam:unix_timestamp(),
-                              WithJID :: ejabberd:jid() | undefined) -> ok | {error, 'not-allowed'}.
+                              WithJID :: jlib:jid() | undefined) -> ok | {error, 'not-allowed'}.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
     wait_flushing_before(Host, ArcID, End, Now),

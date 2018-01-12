@@ -22,7 +22,7 @@
 -define(MONGOOSEIM_ADHOC_HRL, true).
 
 -record(adhoc_request, {lang :: ejabberd:lang(),
-                        node :: ejabberd:server(),
+                        node :: jlib:server(),
                         session_id :: binary(),
                         action :: binary(),
                         xdata :: exml:element() | false,
@@ -30,7 +30,7 @@
                        }).
 
 -record(adhoc_response, {lang :: ejabberd:lang(),
-                         node :: ejabberd:server(),
+                         node :: jlib:server(),
                          session_id :: binary(),
                          status :: atom(),
                          default_action = <<>> :: binary(),

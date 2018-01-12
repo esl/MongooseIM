@@ -55,31 +55,31 @@
 -callback set_node(PubsubNode :: pubsubNode()) ->
     ok | {result, NodeIdx::nodeIdx()} | {error, exml:element()}.
 
--callback get_node(Host :: host(), NodeId :: nodeId(), From :: ejabberd:jid()) ->
+-callback get_node(Host :: host(), NodeId :: nodeId(), From :: jlib:jid()) ->
     pubsubNode() | {error, exml:element()}.
 
 -callback get_node(Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
 
 -callback get_node(NodeIdx :: nodeIdx()) -> pubsubNode() | {error, exml:element()}.
 
--callback get_nodes(Host :: host(), From :: ejabberd:jid()) -> [pubsubNode()].
+-callback get_nodes(Host :: host(), From :: jlib:jid()) -> [pubsubNode()].
 
 -callback get_nodes(Host :: host()) -> [pubsubNode()].
 
--callback get_parentnodes(Host :: host(), NodeId :: nodeId(), From :: ejabberd:jid()) ->
+-callback get_parentnodes(Host :: host(), NodeId :: nodeId(), From :: jlib:jid()) ->
     [pubsubNode()] | {error, exml:element()}.
 
--callback get_parentnodes_tree(Host :: host(), NodeId :: nodeId(), From :: ejabberd:jid()) ->
+-callback get_parentnodes_tree(Host :: host(), NodeId :: nodeId(), From :: jlib:jid()) ->
     [{0, [pubsubNode(), ...]}].
 
--callback get_subnodes(Host :: host(), NodeId :: nodeId(), From :: ejabberd:jid()) -> [pubsubNode()].
+-callback get_subnodes(Host :: host(), NodeId :: nodeId(), From :: jlib:jid()) -> [pubsubNode()].
 
--callback get_subnodes_tree(Host :: host(), NodeId :: nodeId(), From :: ejabberd:jid()) -> [pubsubNode()].
+-callback get_subnodes_tree(Host :: host(), NodeId :: nodeId(), From :: jlib:jid()) -> [pubsubNode()].
 
 -callback create_node(Host :: host(),
                       NodeId :: nodeId(),
                       Type :: binary(),
-                      Owner :: ejabberd:jid(),
+                      Owner :: jlib:jid(),
                       Options :: nodeOptions(),
                       Parents :: [nodeId()]) ->
     {ok, NodeIdx::nodeIdx()} | {error, exml:element()} | {error, {virtual, {host(), nodeId()}}}.

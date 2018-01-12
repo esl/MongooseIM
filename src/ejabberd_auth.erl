@@ -81,7 +81,7 @@
 start() ->
     lists:foreach(fun start/1, ?MYHOSTS).
 
--spec start(Host :: ejabberd:server()) -> 'ok'.
+-spec start(Host :: jlib:server()) -> 'ok'.
 start(Host) ->
     ensure_metrics(Host),
     lists:foreach(
@@ -89,7 +89,7 @@ start(Host) ->
               M:start(Host)
       end, auth_modules(Host)).
 
--spec stop(Host :: ejabberd:server()) -> 'ok'.
+-spec stop(Host :: jlib:server()) -> 'ok'.
 stop(Host) ->
     lists:foreach(
       fun(M) ->
@@ -97,7 +97,7 @@ stop(Host) ->
       end, auth_modules(Host)).
 
 %% This is only executed by ejabberd_c2s for non-SASL auth client
--spec plain_password_required(Server :: ejabberd:server()) -> boolean().
+-spec plain_password_required(Server :: jlib:server()) -> boolean().
 plain_password_required(Server) ->
     lists:any(
       fun(M) ->
@@ -171,15 +171,15 @@ authorize_loop([M | Modules], Creds) ->
     end.
 
 %% @doc Check if the user and password can login in server.
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(User :: jlib:user(),
+                     Server :: jlib:server(),
                      Password :: binary() ) -> boolean().
 check_password(User, Server, Password) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     do_check_password(LUser, LServer, Password).
 
--spec do_check_password(ejabberd:luser(), ejabberd:lserver(), binary()) -> boolean().
+-spec do_check_password(jlib:luser(), jlib:lserver(), binary()) -> boolean().
 do_check_password(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
     false;
 do_check_password(LUser, LServer, Password) ->
@@ -189,8 +189,8 @@ do_check_password(LUser, LServer, Password) ->
     end.
 
 %% @doc Check if the user and password can login in server.
--spec check_password(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec check_password(User :: jlib:user(),
+                     Server :: jlib:server(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
@@ -199,8 +199,8 @@ check_password(User, Server, Password, Digest, DigestGen) ->
     LServer = jid:nameprep(Server),
     do_check_password(LUser, LServer, Password, Digest, DigestGen).
 
--spec do_check_password(User :: ejabberd:luser(),
-                     Server :: ejabberd:lserver(),
+-spec do_check_password(User :: jlib:luser(),
+                     Server :: jlib:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
@@ -225,8 +225,8 @@ check_password_with_authmodule(User, Server, Password) ->
     LServer = jid:nameprep(Server),
     do_check_password_with_authmodule(LUser, LServer, Password).
 
--spec do_check_password_with_authmodule(LUser :: ejabberd:luser(),
-                                        LServer :: ejabberd:lserver(),
+-spec do_check_password_with_authmodule(LUser :: jlib:luser(),
+                                        LServer :: jlib:lserver(),
                                         Password :: binary()
                                        ) -> 'false' | {'true', authmodule()}.
 do_check_password_with_authmodule(LUser, LServer, _)
@@ -246,8 +246,8 @@ check_password_with_authmodule(User, Server, Password, Digest, DigestGen) ->
     LServer = jid:nameprep(Server),
     do_check_password_with_authmodule(LUser, LServer, Password, Digest, DigestGen).
 
--spec do_check_password_with_authmodule(LUser :: ejabberd:luser(),
-                                        LServer :: ejabberd:lserver(),
+-spec do_check_password_with_authmodule(LUser :: jlib:luser(),
+                                        LServer :: jlib:lserver(),
                                         Password :: binary(),
                                         Digest :: binary(),
                                         DigestGen :: fun()
@@ -283,8 +283,8 @@ check_digest(<<>>, _, <<>>, _) ->
 check_digest(Digest, DigestGen, _Password, Passwd) ->
     Digest == DigestGen(Passwd).
 
--spec set_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec set_password(User :: jlib:user(),
+                   Server :: jlib:server(),
                    Password :: binary()
                   ) -> ok | {error, empty_password | not_allowed | invalid_jid}.
 set_password(_, _, <<"">>) ->
@@ -305,8 +305,8 @@ do_set_password(LUser, LServer, Password) ->
       end, {error, not_allowed}, auth_modules(LServer)).
 
 
--spec try_register(User :: ejabberd:user(),
-                   Server :: ejabberd:server(),
+-spec try_register(User :: jlib:user(),
+                   Server :: jlib:server(),
                    Password :: binary()
                    ) -> ok | {error, exists | not_allowed | invalid_jid | null_password}.
 try_register(_, _, <<"">>) ->
@@ -316,7 +316,7 @@ try_register(User, Server, Password) ->
     LServer = jid:nodeprep(Server),
     do_try_register(LUser, LServer, Password).
 
--spec do_try_register(ejabberd:luser(), ejabberd:lserver(), binary())
+-spec do_try_register(jlib:luser(), jlib:lserver(), binary())
         -> ok | {error, exists | not_allowed | invalid_jid}.
 do_try_register(LUser, LServer, _) when LUser =:= error; LServer =:= error ->
     {error, invalid_jid};
@@ -351,7 +351,7 @@ do_try_register_in_backend([M | Backends], LUser, LServer, Password) ->
     end.
 
 %% @doc Registered users list do not include anonymous users logged
--spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-spec dirty_get_registered_users() -> [jlib:simple_bare_jid()].
 dirty_get_registered_users() ->
     lists:flatmap(
       fun(M) ->
@@ -360,8 +360,8 @@ dirty_get_registered_users() ->
 
 
 %% @doc Registered users list do not include anonymous users logged
--spec get_vh_registered_users(Server :: ejabberd:server()
-                             ) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jlib:server()
+                             ) -> [jlib:simple_bare_jid()].
 get_vh_registered_users(Server) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users(LServer).
@@ -375,8 +375,8 @@ do_get_vh_registered_users(LServer) ->
       end, auth_modules(LServer)).
 
 
--spec get_vh_registered_users(Server :: ejabberd:server(),
-                              Opts :: [any()]) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: jlib:server(),
+                              Opts :: [any()]) -> [jlib:simple_bare_jid()].
 get_vh_registered_users(Server, Opts) ->
     LServer = jid:nameprep(Server),
     do_get_vh_registered_users(LServer, Opts).
@@ -390,7 +390,7 @@ do_get_vh_registered_users(LServer, Opts) ->
         end, auth_modules(LServer)).
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server()
+-spec get_vh_registered_users_number(Server :: jlib:server()
                                     ) -> integer().
 get_vh_registered_users_number(Server) ->
     LServer = jid:nameprep(Server),
@@ -406,7 +406,7 @@ do_get_vh_registered_users_number(LServer) ->
             end, auth_modules(LServer))).
 
 
--spec get_vh_registered_users_number(Server :: ejabberd:server(),
+-spec get_vh_registered_users_number(Server :: jlib:server(),
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(Server, Opts) ->
     LServer = jid:nameprep(Server),
@@ -423,8 +423,8 @@ do_get_vh_registered_users_number(LServer, Opts) ->
 
 
 %% @doc Get the password of the user.
--spec get_password(User :: ejabberd:user(),
-                   Server :: ejabberd:server()) -> binary() | false.
+-spec get_password(User :: jlib:user(),
+                   Server :: jlib:server()) -> binary() | false.
 get_password(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -441,8 +441,8 @@ do_get_password(LUser, LServer) ->
         end, false, auth_modules(LServer)).
 
 
--spec get_password_s(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> binary().
+-spec get_password_s(User :: jlib:user(),
+                     Server :: jlib:server()) -> binary().
 get_password_s(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -459,7 +459,7 @@ do_get_password_s(LUser, LServer) ->
         end, <<"">>, auth_modules(LServer)).
 
 %% @doc Get the password(like thing) of the user and the auth module.
--spec get_passterm_with_authmodule(ejabberd:user(), ejabberd:server()) -> R when
+-spec get_passterm_with_authmodule(jlib:user(), jlib:server()) -> R when
       R :: {passterm(), authmodule()}
          | {'false', 'none'}.
 get_passterm_with_authmodule(User, Server) ->
@@ -480,8 +480,8 @@ do_get_passterm_with_authmodule(LUser, LServer) ->
 
 %% @doc Returns true if the user exists in the DB or if an anonymous user is
 %% logged under the given name
--spec is_user_exists(User :: ejabberd:user(),
-                     Server :: ejabberd:server()) -> boolean().
+-spec is_user_exists(User :: jlib:user(),
+                     Server :: jlib:server()) -> boolean().
 is_user_exists(<<"">>, _) ->
     false;
 is_user_exists(User, Server) ->
@@ -512,8 +512,8 @@ does_user_exist_timed(LUser, LServer) ->
 %% Check if the user exists in all authentications module except the module
 %% passed as parameter
 -spec is_user_exists_in_other_modules(Module :: authmodule(),
-                                      User :: ejabberd:user(),
-                                      Server :: ejabberd:server()
+                                      User :: jlib:user(),
+                                      Server :: jlib:server()
                                       ) -> boolean() | 'maybe'.
 is_user_exists_in_other_modules(Module, User, Server) ->
     LUser = jid:nodeprep(User),
@@ -547,8 +547,8 @@ does_user_exist_in_other_modules_loop([AuthModule|AuthModules], User, Server) ->
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server()) -> ok | error | {error, not_allowed}.
+-spec remove_user(User :: jlib:user(),
+                  Server :: jlib:server()) -> ok | error | {error, not_allowed}.
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -566,8 +566,8 @@ do_remove_user(LUser, LServer) ->
 %% when one returns 'ok' the loop stops;
 %% if no method returns 'ok' then it returns the error message
 %% indicated by the last method attempted.
--spec remove_user(User :: ejabberd:user(),
-                  Server :: ejabberd:server(),
+-spec remove_user(User :: jlib:user(),
+                  Server :: jlib:server(),
                   Password :: binary()
                   ) -> ok | not_exists | not_allowed | bad_request | error.
 remove_user(User, Server, Password) ->
@@ -619,7 +619,7 @@ auth_modules() ->
 
 
 %% Return the list of authenticated modules for a given host
--spec auth_modules(Server :: ejabberd:lserver()) -> [authmodule()].
+-spec auth_modules(Server :: jlib:lserver()) -> [authmodule()].
 auth_modules(LServer) ->
     Method = ejabberd_config:get_local_option({auth_method, LServer}),
     Methods = get_auth_method_as_a_list(Method),
@@ -634,7 +634,7 @@ ensure_metrics(Host) ->
     [mongoose_metrics:ensure_metric(Host, ?METRIC(Metric), histogram)
      || Metric <- Metrics].
 
--spec timed_call(ejabberd:lserver(), term(), fun(), list()) -> term().
+-spec timed_call(jlib:lserver(), term(), fun(), list()) -> term().
 timed_call(LServer, Metric, Fun, Args) ->
     {Time, Result} = timer:tc(Fun, Args),
     mongoose_metrics:update(LServer, ?METRIC(Metric), Time),

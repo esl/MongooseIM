@@ -20,21 +20,21 @@
 -export([should_publish/4, sender_id/3]).
 
 
--callback should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: exml:element()) ->
+-callback should_publish(From :: jlib:jid(), To :: jlib:jid(), Packet :: exml:element()) ->
     boolean().
--callback sender_id(From :: ejabberd:jid(), Packet :: exml:element()) -> SenderId :: binary().
+-callback sender_id(From :: jlib:jid(), Packet :: exml:element()) -> SenderId :: binary().
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec should_publish(Host :: ejabberd:server(), From :: ejabberd:jid(),
-                     To :: ejabberd:jid(), Packet :: exml:element()) -> boolean().
+-spec should_publish(Host :: jlib:server(), From :: jlib:jid(),
+                     To :: jlib:jid(), Packet :: exml:element()) -> boolean().
 should_publish(Host, From, To, Packet) ->
     PluginModule = plugin_module(Host),
     PluginModule:should_publish(From, To, Packet).
 
--spec sender_id(Host :: ejabberd:server(), From :: ejabberd:jid(), Packet :: exml:element()) ->
+-spec sender_id(Host :: jlib:server(), From :: jlib:jid(), Packet :: exml:element()) ->
     SenderId :: binary().
 sender_id(Host, From, Packet) ->
     PluginModule = plugin_module(Host),
@@ -44,7 +44,7 @@ sender_id(Host, From, Packet) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
--spec plugin_module(Host :: ejabberd:server()) -> Module :: atom().
+-spec plugin_module(Host :: jlib:server()) -> Module :: atom().
 plugin_module(Host) ->
     gen_mod:get_module_opt(Host, mod_event_pusher_push, plugin_module,
                            mod_event_pusher_push_plugin_defaults).

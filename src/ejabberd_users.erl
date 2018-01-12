@@ -23,7 +23,7 @@ srv_name() ->
     ejabberd_users.
 
 
--spec srv_name(ejabberd:server() | string()) -> atom().
+-spec srv_name(jlib:server() | string()) -> atom().
 srv_name(Host) ->
     gen_mod:get_module_proc(Host, srv_name()).
 
@@ -32,7 +32,7 @@ tbl_name() ->
     ejabberd_users.
 
 
--spec tbl_name(ejabberd:server() | string()) -> atom().
+-spec tbl_name(jlib:server() | string()) -> atom().
 tbl_name(Host) ->
     gen_mod:get_module_proc(Host, tbl_name()).
 
@@ -40,7 +40,7 @@ tbl_name(Host) ->
 %% API
 %%====================================================================
 
--spec start(ejabberd:server()) -> 'ok'.
+-spec start(jlib:server()) -> 'ok'.
 start(Host) ->
     UserProc = srv_name(Host),
     UserChildSpec =
@@ -55,21 +55,21 @@ start(Host) ->
     ok.
 
 
--spec stop(ejabberd:server()) -> 'ok'.
+-spec stop(jlib:server()) -> 'ok'.
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
 
 -spec start_link(ProcName :: atom(),
-                 Host :: ejabberd:server())
+                 Host :: jlib:server())
       -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(ProcName, Host) ->
     gen_server:start_link({local, ProcName}, ?MODULE, [Host], []).
 
 
--spec does_user_exist(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver() | string()) -> boolean().
+-spec does_user_exist(LUser :: jlib:luser(),
+                     LServer :: jlib:lserver() | string()) -> boolean().
 does_user_exist(LUser, LServer) ->
     case does_cached_user_exist(LUser, LServer) of
         true -> true;
@@ -88,8 +88,8 @@ does_user_exist(LUser, LServer) ->
 %%====================================================================
 
 -spec remove_user(Acc :: mongoose_acc:t(),
-                  LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver() | string()) -> mongoose_acc:t().
+                  LUser :: jlib:luser(),
+                  LServer :: jlib:lserver() | string()) -> mongoose_acc:t().
 remove_user(Acc, LUser, LServer) ->
     delete_user(LUser, LServer),
     Acc.
@@ -105,7 +105,7 @@ remove_user(Acc, LUser, LServer) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([ejabberd:server() | string(), ...]) -> {'ok', #state{}}.
+-spec init([jlib:server() | string(), ...]) -> {'ok', #state{}}.
 init([Host]) ->
     Tab = tbl_name(Host),
     TabOpts = [named_table, public, set,
@@ -169,13 +169,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% Helpers
 %%====================================================================
 
--spec does_stored_user_exist(ejabberd:luser(), ejabberd:lserver()) -> boolean().
+-spec does_stored_user_exist(jlib:luser(), jlib:lserver()) -> boolean().
 does_stored_user_exist(LUser, LServer) ->
     ejabberd_auth:is_user_exists(LUser, LServer)
     andalso not is_anonymous_user(LUser, LServer).
 
 
--spec is_anonymous_user(ejabberd:luser(), ejabberd:lserver()) -> boolean().
+-spec is_anonymous_user(jlib:luser(), jlib:lserver()) -> boolean().
 is_anonymous_user(LUser, LServer) ->
     case lists:member(ejabberd_auth_anonymous, ejabberd_auth:auth_modules(LServer)) of
         true ->
@@ -185,14 +185,14 @@ is_anonymous_user(LUser, LServer) ->
     end.
 
 
--spec does_cached_user_exist(ejabberd:luser(), ejabberd:lserver() | string()) -> boolean().
+-spec does_cached_user_exist(jlib:luser(), jlib:lserver() | string()) -> boolean().
 does_cached_user_exist(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
     ets:info(Tab) =/= undefined andalso ets:member(Tab, Key).
 
 
--spec put_user_into_cache(ejabberd:luser(), ejabberd:lserver()) -> 'ok'.
+-spec put_user_into_cache(jlib:luser(), jlib:lserver()) -> 'ok'.
 put_user_into_cache(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
@@ -200,7 +200,7 @@ put_user_into_cache(LUser, LServer) ->
     ok.
 
 
--spec delete_user(ejabberd:luser(), ejabberd:lserver() | string()) -> 'ok'.
+-spec delete_user(jlib:luser(), jlib:lserver() | string()) -> 'ok'.
 delete_user(LUser, LServer) ->
     Key = key(LUser, LServer),
     Tab = tbl_name(LServer),
@@ -208,7 +208,7 @@ delete_user(LUser, LServer) ->
     ok.
 
 
--spec key(ejabberd:luser(), ejabberd:lserver()
-         ) -> {ejabberd:luser(), ejabberd:lserver()}.
+-spec key(jlib:luser(), jlib:lserver()
+         ) -> {jlib:luser(), jlib:lserver()}.
 key(LUser, LServer) ->
     {LUser, LServer}.

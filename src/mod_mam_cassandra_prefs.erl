@@ -31,7 +31,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(), _) -> 'ok'.
+-spec start(jlib:server(), _) -> 'ok'.
 start(Host, Opts) ->
     compile_params_module(Opts),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -48,7 +48,7 @@ start(Host, Opts) ->
     end.
 
 
--spec stop(ejabberd:server()) -> 'ok'.
+-spec stop(jlib:server()) -> 'ok'.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -67,7 +67,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(), _) -> 'ok'.
+-spec start_pm(jlib:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -76,7 +76,7 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(ejabberd:server()) -> 'ok'.
+-spec stop_pm(jlib:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -88,7 +88,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc_muc
 
--spec start_muc(ejabberd:server(), _) -> 'ok'.
+-spec start_muc(jlib:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -97,7 +97,7 @@ start_muc(Host, _Opts) ->
     ok.
 
 
--spec stop_muc(ejabberd:server()) -> 'ok'.
+-spec stop_muc(jlib:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -126,8 +126,8 @@ prepared_queries() ->
 %% Internal functions and callbacks
 
 -spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-                    Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
-                    LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid()) -> any().
+                    Host :: jlib:server(), ArchiveID :: mod_mam:archive_id(),
+                    LocJID :: jlib:jid(), RemJID :: jlib:jid()) -> any().
 get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
     BUserJID = mod_mam_utils:bare_jid(LocJID),
     BRemBareJID = mod_mam_utils:bare_jid(RemJID),
@@ -147,11 +147,11 @@ get_behaviour(DefaultBehaviour, Host, _UserID, LocJID, RemJID) ->
     end.
 
 
--spec set_prefs(Result :: any(), Host :: ejabberd:server(),
-                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+-spec set_prefs(Result :: any(), Host :: jlib:server(),
+                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jlib:jid(),
                 DefaultMode :: mod_mam:archive_behaviour(),
-                AlwaysJIDs :: [ejabberd:literal_jid()],
-                NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+                AlwaysJIDs :: [jlib:literal_jid()],
+                NeverJIDs :: [jlib:literal_jid()]) -> any().
 set_prefs(_Result, Host, _UserID, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
         set_prefs1(Host, UserJID, DefaultMode, AlwaysJIDs, NeverJIDs)
@@ -186,8 +186,8 @@ encode_row(BUserJID, BRemoteJID, Behaviour, Timestamp) ->
       behaviour => Behaviour, '[timestamp]' => Timestamp}.
 
 
--spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
-                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
+-spec get_prefs(mod_mam:preference(), _Host :: jlib:server(),
+                ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jlib:jid())
                -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     BUserJID = mod_mam_utils:bare_jid(UserJID),
@@ -198,8 +198,8 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
--spec remove_archive(any(), ejabberd:server(), mod_mam:archive_id(),
-                     ejabberd:jid()) -> any().
+-spec remove_archive(any(), jlib:server(), mod_mam:archive_id(),
+                     jlib:jid()) -> any().
 remove_archive(Acc, _Host, _UserID, UserJID) ->
     PoolName = pool_name(UserJID),
     BUserJID = mod_mam_utils:bare_jid(UserJID),
@@ -209,7 +209,7 @@ remove_archive(Acc, _Host, _UserID, UserJID) ->
     Acc.
 
 
--spec query_behaviour(ejabberd:server(), UserJID :: ejabberd:jid(), BUserJID :: binary() | string(),
+-spec query_behaviour(jlib:server(), UserJID :: jlib:jid(), BUserJID :: binary() | string(),
                       BRemJID :: binary() | string(), BRemBareJID :: binary() | string()) -> any().
 query_behaviour(_Host, UserJID, BUserJID, BRemJID, BRemBareJID) ->
     PoolName = pool_name(UserJID),
@@ -241,11 +241,11 @@ decode_behaviour(<<"N">>) -> never.
 
 -spec decode_prefs_rows([[term()]],
                         DefaultMode :: mod_mam:archive_behaviour(),
-                        AlwaysJIDs :: [ejabberd:literal_jid()],
-                        NeverJIDs :: [ejabberd:literal_jid()]) -> {
+                        AlwaysJIDs :: [jlib:literal_jid()],
+                        NeverJIDs :: [jlib:literal_jid()]) -> {
                              mod_mam:archive_behaviour(),
-                         [ejabberd:literal_jid()],
-                         [ejabberd:literal_jid()]
+                         [jlib:literal_jid()],
+                         [jlib:literal_jid()]
                         }.
 decode_prefs_rows([], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs};
@@ -276,6 +276,6 @@ params_helper(Params) ->
                                       [proplists:get_value(pool_name, Params, default)
                                       ]))).
 
--spec pool_name(ejabberd:jid()) -> term().
+-spec pool_name(jlib:jid()) -> term().
 pool_name(_UserJID) ->
     mod_mam_cassandra_prefs_params:pool_name().

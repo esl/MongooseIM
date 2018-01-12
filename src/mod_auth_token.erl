@@ -48,18 +48,18 @@
 -type serialized() :: binary().
 -type token() :: #token{}.
 -type token_type() :: access | refresh | provision.
--type validation_result() :: {ok, module(), ejabberd:user()}
-                           | {ok, module(), ejabberd:user(), binary()}
+-type validation_result() :: {ok, module(), jlib:user()}
+                           | {ok, module(), jlib:user(), binary()}
                            | error().
 
 -callback revoke(Owner) -> ok | not_found when
-      Owner :: ejabberd:jid().
+      Owner :: jlib:jid().
 
 -callback get_valid_sequence_number(Owner) -> integer() when
-      Owner :: ejabberd:jid().
+      Owner :: jlib:jid().
 
 -callback clean_tokens(Owner) -> ok when
-      Owner :: ejabberd:jid().
+      Owner :: jlib:jid().
 
 -define(A2B(A), atom_to_binary(A, utf8)).
 -define(B2A(B), binary_to_atom(B, utf8)).
@@ -71,7 +71,7 @@
 %% gen_mod callbacks
 %%
 
--spec start(ejabberd:server(), list()) -> ok.
+-spec start(jlib:server(), list()) -> ok.
 start(Domain, Opts) ->
     gen_mod:start_backend_module(?MODULE, default_opts(Opts)),
     mod_disco:register_feature(Domain, ?NS_ESL_TOKEN_AUTH),
@@ -83,7 +83,7 @@ start(Domain, Opts) ->
     ejabberd_commands:register_commands(commands()),
     ok.
 
--spec stop(ejabberd:server()) -> ok.
+-spec stop(jlib:server()) -> ok.
 stop(Domain) ->
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Domain, ?NS_ESL_TOKEN_AUTH),
     [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
@@ -124,7 +124,7 @@ token_with_mac(#token{mac_signature = undefined, token_body = undefined} = T) ->
     MAC = keyed_hash(Body, user_hmac_opts(T#token.type, T#token.user_jid)),
     T#token{token_body = Body, mac_signature = MAC}.
 
--spec user_hmac_opts(token_type(), ejabberd:jid()) -> [{any(), any()}].
+-spec user_hmac_opts(token_type(), jlib:jid()) -> [{any(), any()}].
 user_hmac_opts(TokenType, User) ->
     lists:keystore(key, 1, hmac_opts(),
                    {key, get_key_for_user(TokenType, User)}).
@@ -165,7 +165,7 @@ deserialize(Serialized) when is_binary(Serialized) ->
     get_token_as_record(Serialized).
 
 -spec revoke(Owner) -> ok | not_found | error when
-      Owner :: ejabberd:jid().
+      Owner :: jlib:jid().
 revoke(Owner) ->
     try
         mod_auth_token_backend:revoke(Owner)
@@ -243,7 +243,7 @@ is_revoked(#token{type = refresh, sequence_no = TokenSeqNo} = T) ->
                true
     end.
 
--spec process_iq(ejabberd:jid(), mongoose_acc:t(), ejabberd:jid(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()} | error().
+-spec process_iq(jlib:jid(), mongoose_acc:t(), jlib:jid(), jlib:iq()) -> {mongoose_acc:t(), jlib:iq()} | error().
 process_iq(From, To, Acc, #iq{xmlns = ?NS_ESL_TOKEN_AUTH} = IQ) ->
     IQResp = case lists:member(From#jid.lserver, ?MYHOSTS) of
         true -> process_local_iq(From, To, IQ);
@@ -286,7 +286,7 @@ seconds_to_datetime(Seconds) ->
 utc_now_as_seconds() ->
     datetime_to_seconds(calendar:universal_time()).
 
--spec token(token_type(), ejabberd:jid()) -> token() | error().
+-spec token(token_type(), jlib:jid()) -> token() | error().
 token(Type, User) ->
     T = #token{type = Type,
                expiry_datetime = expiry_datetime(User#jid.lserver, Type, utc_now_as_seconds()),
@@ -309,7 +309,7 @@ token(Type, User) ->
 %%                              {{validity_period, refresh}, {13, days}}]}
 %%           ]}.
 -spec expiry_datetime(Domain, Type, UTCSeconds) -> ExpiryDatetime when
-      Domain :: ejabberd:server(),
+      Domain :: jlib:server(),
       Type :: token_type(),
       UTCSeconds :: non_neg_integer(),
       ExpiryDatetime :: calendar:datetime().
@@ -317,7 +317,7 @@ expiry_datetime(Domain, Type, UTCSeconds) ->
     Period = get_validity_period(Domain, Type),
     seconds_to_datetime(UTCSeconds + period_to_seconds(Period)).
 
--spec get_validity_period(ejabberd:server(), token_type()) -> period().
+-spec get_validity_period(jlib:server(), token_type()) -> period().
 get_validity_period(Domain, Type) ->
     gen_mod:get_module_opt(Domain, ?MODULE, {validity_period, Type},
                            default_validity_period(Type)).
@@ -364,7 +364,7 @@ get_token_as_record(BToken) ->
          end,
     T1#token{token_body = join_fields(T1)}.
 
--spec get_key_for_user(token_type(), ejabberd:jid()) -> binary().
+-spec get_key_for_user(token_type(), jlib:jid()) -> binary().
 get_key_for_user(TokenType, User) ->
     UsersHost = User#jid.lserver,
     KeyName = key_name(TokenType),
@@ -394,7 +394,7 @@ revoke_token_command(Owner) ->
             {error, "Internal server error"}
     end.
 
--spec clean_tokens(User :: ejabberd:user(), Server :: ejabberd:server()) -> ok.
+-spec clean_tokens(User :: jlib:user(), Server :: jlib:server()) -> ok.
 clean_tokens(User, Server) ->
     try
         Owner = jid:make(User, Server, <<>>),

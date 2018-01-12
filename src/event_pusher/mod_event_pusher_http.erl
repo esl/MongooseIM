@@ -11,7 +11,7 @@
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
 
--callback should_make_req(Packet :: exml:element(), From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
+-callback should_make_req(Packet :: exml:element(), From :: jlib:jid(), To :: jlib:jid()) -> boolean().
 
 -include("mod_event_pusher_events.hrl").
 -include("jlib.hrl").

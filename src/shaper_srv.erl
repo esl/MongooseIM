@@ -72,30 +72,30 @@ worker_count(_Host) ->
     10.
 
 
--spec worker_names(ejabberd:server()) -> [atom()].
+-spec worker_names(jlib:server()) -> [atom()].
 worker_names(Host) ->
     [worker_name(Host, N) || N <- lists:seq(0, worker_count(Host) - 1)].
 
 
--spec worker_name(ejabberd:server(), integer()) -> atom().
+-spec worker_name(jlib:server(), integer()) -> atom().
 worker_name(_Host, N) ->
     list_to_atom(worker_prefix() ++ integer_to_list(N)).
 
 
--spec select_worker(ejabberd:server(), _) -> atom().
+-spec select_worker(jlib:server(), _) -> atom().
 select_worker(Host, Tag) ->
     N = worker_number(Host, Tag),
     worker_name(Host, N).
 
 
--spec worker_number(ejabberd:server(), _) -> non_neg_integer().
+-spec worker_number(jlib:server(), _) -> non_neg_integer().
 worker_number(Host, Tag) ->
     erlang:phash2(Tag, worker_count(Host)).
 
 
 %% @doc Shapes the caller from executing the action.
--spec wait(_Host :: ejabberd:server(), _Action :: atom(),
-           _FromJID :: ejabberd:jid() | global, _Size :: integer()
+-spec wait(_Host :: jlib:server(), _Action :: atom(),
+           _FromJID :: jlib:jid() | global, _Size :: integer()
            ) -> ok | {error, max_delay_reached}.
 wait(Host, Action, FromJID, Size) ->
     gen_server:call(select_worker(Host, FromJID), {wait, Host, Action, FromJID, Size}).
@@ -158,8 +158,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--type key() :: {global | ejabberd:server(), atom(), ejabberd:jid()}.
--spec new_key(ejabberd:server() | global, atom(), ejabberd:jid()) -> key().
+-type key() :: {global | jlib:server(), atom(), jlib:jid()}.
+-spec new_key(jlib:server() | global, atom(), jlib:jid()) -> key().
 new_key(Host, Action, FromJID) ->
     {Host, Action, FromJID}.
 
@@ -213,9 +213,9 @@ default_shaper() ->
     none.
 
 
--spec get_shaper_name('global' | ejabberd:server(),
+-spec get_shaper_name('global' | jlib:server(),
                       Action :: atom(),
-                      ejabberd:jid(),
+                      jlib:jid(),
                       Default :: 'none') -> 'allow' | 'none'.
 get_shaper_name(Host, Action, FromJID, Default) ->
     case acl:match_rule(Host, Action, FromJID) of

@@ -49,7 +49,7 @@ elem_to_end_microseconds(El) ->
     maybe_microseconds(exml_query:path(El, [{element, <<"end">>}, cdata], <<>>)).
 
 
--spec elem_to_with_jid(exml:element()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec elem_to_with_jid(exml:element()) -> 'error' | 'undefined' | jlib:jid().
 elem_to_with_jid(El) ->
     maybe_jid(exml_query:path(El, [{element, <<"with">>}, cdata], <<>>)).
 
@@ -72,12 +72,12 @@ form_to_end_microseconds(El) ->
     maybe_microseconds(form_field_value_s(El, <<"end">>)).
 
 
--spec form_to_with_jid(exml:element()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec form_to_with_jid(exml:element()) -> 'error' | 'undefined' | jlib:jid().
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
 
 
--spec maybe_jid(binary()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec maybe_jid(binary()) -> 'error' | 'undefined' | jlib:jid().
 maybe_jid(<<>>) ->
     undefined;
 maybe_jid(JID) when is_binary(JID) ->

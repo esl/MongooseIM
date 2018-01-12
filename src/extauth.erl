@@ -87,22 +87,22 @@ get_process_name(Host, Integer) ->
     gen_mod:get_module_proc(lists:append([erlang:binary_to_list(Host), integer_to_list(Integer)]), eauth).
 
 
--spec check_password(ejabberd:user(), ejabberd:server(), binary()) -> boolean().
+-spec check_password(jlib:user(), jlib:server(), binary()) -> boolean().
 check_password(User, Server, Password) ->
     call_port(Server, [<<"auth">>, User, Server, Password]).
 
 
--spec is_user_exists(ejabberd:user(), ejabberd:server()) -> boolean().
+-spec is_user_exists(jlib:user(), jlib:server()) -> boolean().
 is_user_exists(User, Server) ->
     call_port(Server, [<<"isuser">>, User, Server]).
 
 
--spec set_password(ejabberd:user(), ejabberd:server(), binary()) -> any().
+-spec set_password(jlib:user(), jlib:server(), binary()) -> any().
 set_password(User, Server, Password) ->
     call_port(Server, [<<"setpass">>, User, Server, Password]).
 
 
--spec try_register(ejabberd:user(), ejabberd:server(), binary()
+-spec try_register(jlib:user(), jlib:server(), binary()
                   ) -> ok | {error, not_allowed}.
 try_register(User, Server, Password) ->
     case call_port(Server, [<<"tryregister">>, User, Server, Password]) of
@@ -111,17 +111,17 @@ try_register(User, Server, Password) ->
     end.
 
 
--spec remove_user(ejabberd:user(), ejabberd:server()) -> any().
+-spec remove_user(jlib:user(), jlib:server()) -> any().
 remove_user(User, Server) ->
     call_port(Server, [<<"removeuser">>, User, Server]).
 
 
--spec remove_user(ejabberd:user(), ejabberd:server(), binary()) -> any().
+-spec remove_user(jlib:user(), jlib:server(), binary()) -> any().
 remove_user(User, Server, Password) ->
     call_port(Server, [<<"removeuser3">>, User, Server, Password]).
 
 
--spec call_port(ejabberd:server(), [any(), ...]) -> any().
+-spec call_port(jlib:server(), [any(), ...]) -> any().
 call_port(Server, Msg) ->
     LServer = jid:nameprep(Server),
     ProcessName = get_process_name(LServer, random_instance(get_instances(LServer))),

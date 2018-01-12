@@ -109,7 +109,7 @@ from_element(El) when is_tuple(El) ->
     % ref and timestamp will be filled in by strip/2
     #{element => El, name => Name, type => Type, mongoose_acc => true}.
 
--spec from_element(exml:element() | jlib:iq(), ejabberd:jid(), ejabberd:jid()) -> t().
+-spec from_element(exml:element() | jlib:iq(), jlib:jid(), jlib:jid()) -> t().
 from_element(El, From, To) ->
     Acc = from_element(El),
     M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
@@ -228,7 +228,7 @@ strip(Acc, El) ->
 -spec record_sending(t(), exml:element(), atom(), any()) -> t().
 record_sending(Acc, Stanza, Module, Result) ->
     record_sending(Acc, none, none, Stanza, Module, Result).
--spec record_sending(t(),ejabberd:jid()|none,ejabberd:jid()|none, exml:element(), atom(), any()) -> t().
+-spec record_sending(t(),jlib:jid()|none,jlib:jid()|none, exml:element(), atom(), any()) -> t().
 record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
     mongoose_acc:append(send_result, Result, Acc).
 

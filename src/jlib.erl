@@ -79,6 +79,24 @@
 
 -type iq() :: #iq{}.
 
+-type user()      :: binary().
+-type server()    :: binary().
+-type resource()  :: binary().
+-type luser()     :: binary().
+-type lserver()   :: binary().
+-type lresource() :: binary().
+
+-type jid() :: #jid{}.
+-type ljid() :: {luser(), lserver(), lresource()}.
+
+%% A tuple-style JID
+-type simple_jid() :: {user(), server(), resource()}.
+
+-type simple_bare_jid() :: {LUser :: luser(), LServer :: lserver()}.
+
+%% A tuple-style JID without resource part
+-type literal_jid() :: binary().
+
 -type rsm_in() :: #rsm_in{}.
 -type rsm_out() :: #rsm_out{}.
 
@@ -87,7 +105,14 @@
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
               xmlch/0,
-              iq/0
+              iq/0,
+              jid/0,
+              ljid/0,
+              simple_bare_jid/0,
+              simple_jid/0,
+              literal_jid/0,
+              user/0, server/0, resource/0,
+              luser/0, lserver/0, lresource/0
              ]).
 
 %% Datetime format where all or some elements may be 'false' or integer()
@@ -179,7 +204,7 @@ make_config_change_message(Status) ->
                                                  attrs = [{<<"code">>, Status}]}]}]}.
 
 
--spec make_invitation(From :: ejabberd:jid(), Password :: binary(),
+-spec make_invitation(From :: jid(), Password :: binary(),
                       Reason :: binary()) -> exml:element().
 make_invitation(From, Password, Reason) ->
     Elements = [#xmlel{name = <<"invite">>,
@@ -216,7 +241,7 @@ form_field({Var, Value}) ->
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
--spec make_voice_approval_form(From :: ejabberd:simple_jid() | ejabberd:jid(),
+-spec make_voice_approval_form(From :: simple_jid() | jid(),
                                Nick :: binary(), Role :: binary()) -> exml:element().
 make_voice_approval_form(From, Nick, Role) ->
   Fields = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_MUC_REQUEST},
@@ -249,8 +274,8 @@ replace_from_to_attrs(From, To, Attrs) ->
     Attrs4.
 
 
--spec replace_from_to(From :: ejabberd:simple_jid() | ejabberd:jid(),
-                      To :: ejabberd:simple_jid() | ejabberd:jid(),
+-spec replace_from_to(From :: simple_jid() | jid(),
+                      To :: simple_jid() | jid(),
                       XE :: exml:element()) -> exml:element().
 replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = replace_from_to_attrs(jid:to_binary(From),
@@ -264,13 +289,13 @@ remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = lists:keydelete(Attr, 1, Attrs),
     XE#xmlel{attrs = NewAttrs}.
 
--spec iq_query_info(exml:element()) -> 'invalid' | 'not_iq' | 'reply' | jlib:iq().
+-spec iq_query_info(exml:element()) -> 'invalid' | 'not_iq' | 'reply' | iq().
 iq_query_info(El) ->
     iq_info_internal(El, request).
 
 
 -spec iq_query_or_response_info(exml:element()) ->
-                                'invalid' | 'not_iq' | 'reply' | jlib:iq().
+                                'invalid' | 'not_iq' | 'reply' | iq().
 iq_query_or_response_info(El) ->
     iq_info_internal(El, any).
 
@@ -293,7 +318,7 @@ extract_xmlns(_) ->
     <<>>.
 
 -spec iq_info_internal(exml:element(), Filter :: 'any' | 'request') ->
-                                'invalid' | 'not_iq' | 'reply' | jlib:iq().
+                                'invalid' | 'not_iq' | 'reply' | iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
                         children = Els}, Filter) when Name == <<"iq">> ->
     %% Filter is either request or any.  If it is request, any replies
@@ -349,7 +374,7 @@ iq_type_to_binary(result) -> <<"result">>;
 iq_type_to_binary(error) -> <<"error">>;
 iq_type_to_binary(_) -> invalid.
 
--spec iq_to_xml(jlib:iq()) -> exml:element().
+-spec iq_to_xml(iq()) -> exml:element().
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
     #xmlel{name = <<"iq">>,
         attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
@@ -434,7 +459,7 @@ rsm_decode(#xmlel{}=SubEl) ->
     end.
 
 
--spec rsm_parse_element(exml:element(), jlib:rsm_in()) -> jlib:rsm_in().
+-spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
 rsm_parse_element(#xmlel{name = <<"max">>, attrs = []}=Elem, RsmIn) ->
     CountStr = xml:get_tag_cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
@@ -454,7 +479,7 @@ rsm_parse_element(_, RsmIn)->
     RsmIn.
 
 
--spec rsm_encode('none' | jlib:rsm_out()) -> [exml:element()].
+-spec rsm_encode('none' | rsm_out()) -> [exml:element()].
 rsm_encode(none)->
     [];
 rsm_encode(RsmOut)->
@@ -462,7 +487,7 @@ rsm_encode(RsmOut)->
             children = lists:reverse(rsm_encode_out(RsmOut))}].
 
 
--spec rsm_encode_out(jlib:rsm_out()) -> [exml:element()].
+-spec rsm_encode_out(rsm_out()) -> [exml:element()].
 rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
     El = rsm_encode_first(First, Index, []),
     El2 = rsm_encode_last(Last, El),
@@ -547,7 +572,7 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
-                       FromJID :: ejabberd:simple_jid() | ejabberd:jid(),
+                       FromJID :: simple_jid() | jid(),
                        Desc :: iodata()) -> exml:element().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {TString, TzString} = timestamp_to_iso(DateTime, Timezone),

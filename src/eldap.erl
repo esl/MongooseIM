@@ -140,8 +140,8 @@
 
 -record(eldap,
         {version = ?LDAP_VERSION :: non_neg_integer(),
-         hosts = []              :: [ejabberd:server()],
-         host                    :: ejabberd:server() | undefined,
+         hosts = []              :: [jlib:server()],
+         host                    :: jlib:server() | undefined,
          port = 389              :: inet:port_number(),
          sockmod = gen_tcp       :: ssl | gen_tcp,
          tls = none              :: none | tls,

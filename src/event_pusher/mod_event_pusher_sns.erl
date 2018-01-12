@@ -8,11 +8,11 @@
 -include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
--callback user_guid(UserJID :: ejabberd:jid()) -> user_guid().
--callback message_attributes(TopicARN :: topic_arn(), UserJID :: ejabberd:jid(),
+-callback user_guid(UserJID :: jlib:jid()) -> user_guid().
+-callback message_attributes(TopicARN :: topic_arn(), UserJID :: jlib:jid(),
                              IsOnline :: boolean()) -> attributes().
--callback message_attributes(TopicARN :: topic_arn(), From :: ejabberd:jid(),
-                             To :: ejabberd:jid(), MessageType :: pm | muc,
+-callback message_attributes(TopicARN :: topic_arn(), From :: jlib:jid(),
+                             To :: jlib:jid(), MessageType :: pm | muc,
                              Packet :: exml:element()) -> attributes().
 
 %%%===================================================================
@@ -40,7 +40,7 @@
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
 
--spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> ok.
+-spec start(Host :: jlib:server(), Opts :: proplists:proplist()) -> ok.
 start(Host, Opts) ->
     application:ensure_all_started(erlcloud),
     application:ensure_all_started(worker_pool),
@@ -61,7 +61,7 @@ start(Host, Opts) ->
 
     ok.
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jlib:server()) -> ok.
 stop(Host) ->
     wpool:stop(pool_name(Host)),
     ok.
@@ -77,7 +77,7 @@ push_event(_, _) ->
 %%% Internal functions
 %%%===================================================================
 
--spec user_presence_changed(UserJID :: ejabberd:jid(), IsOnline :: boolean()) -> ok.
+-spec user_presence_changed(UserJID :: jlib:jid(), IsOnline :: boolean()) -> ok.
 user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
     Topic = opt(Host, presence_updates_topic),
     case Topic of
@@ -92,8 +92,8 @@ user_presence_changed(#jid{lserver = Host} = UserJID, IsOnline) ->
     end,
     ok.
 
-%% @doc Handles the packet and if needed publishes an SNS notification
--spec handle_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
+%% @doc Handles packet and if needed publishes SNS notification
+-spec handle_packet(From :: jlib:jid(), To :: jlib:jid(),
                     Packet :: exml:element()) -> ok | skip.
 handle_packet(From = #jid{lserver = Host}, To, Packet) ->
     ?DEBUG("SNS Packet handle~n    from ~p ~n    to ~p~n    packet ~p.", [From, To, Packet]),
@@ -117,8 +117,8 @@ handle_packet(From = #jid{lserver = Host}, To, Packet) ->
             async_publish(Host, TopicARN, Content, Attributes)
     end.
 
-%% @doc Start publish process notification to AWS SNS service. Content should be a valid JSON term
--spec async_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
+%% @doc Start publish process notification to AWS SNS service. Content should be valid JSON term
+-spec async_publish(Host :: jlib:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> ok.
 async_publish(Host, TopicARN, Content, Attributes) ->
     Retry = opt(Host, publish_retry_count, 2),
@@ -127,7 +127,7 @@ async_publish(Host, TopicARN, Content, Attributes) ->
                available_worker).
 
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
--spec try_publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
+-spec try_publish(Host :: jlib:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes(), TryCount :: integer()) -> MessageId :: string() | dropped | scheduled.
 try_publish(Host, TopicARN, Content, _Attributes, Retry) when Retry < 0 ->
     ?WARNING_MSG("Dropped SNS notification ~p", [{Host, TopicARN, Content}]),
@@ -149,7 +149,7 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
     end.
 
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
--spec publish(Host :: ejabberd:lserver(), topic_arn(), Content :: jiffy:json_value(),
+-spec publish(Host :: jlib:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> MessageId :: string().
 publish(Host, TopicARN, Content, Attributes) ->
     EncodedContent = jiffy:encode(Content),
@@ -157,7 +157,7 @@ publish(Host, TopicARN, Content, Attributes) ->
                          undefined, maps:to_list(Attributes), aws_handle(Host)).
 
 %% @doc Returns AWS SNS handle base on configured AWS credentials
--spec aws_handle(Host :: ejabberd:lserver()) -> aws_config().
+-spec aws_handle(Host :: jlib:lserver()) -> aws_config().
 aws_handle(Host) ->
     AccessKeyId = opt(Host, access_key_id),
     SecretKey = opt(Host, secret_access_key),
@@ -166,7 +166,7 @@ aws_handle(Host) ->
     erlcloud_sns:new(AccessKeyId, SecretKey, SNSHost).
 
 %% @doc Returns notification topic based on packet type and module configuration
--spec get_topic(Host :: ejabberd:lserver(), Packet :: exml:element()) -> topic() | undefined.
+-spec get_topic(Host :: jlib:lserver(), Packet :: exml:element()) -> topic() | undefined.
 get_topic(Host, Packet) ->
     case message_type(Packet) of
         pm ->
@@ -179,7 +179,7 @@ get_topic(Host, Packet) ->
 
 
 %% @doc Constructs SNS TopicArn from given topic suffix
--spec make_topic_arn(Host :: ejabberd:lserver(), Topic :: topic()) -> topic_arn().
+-spec make_topic_arn(Host :: jlib:lserver(), Topic :: topic()) -> topic_arn().
 make_topic_arn(Host, Topic) ->
     AWSRegion = opt(Host, region),
     AWSAccountId = opt(Host, account_id),
@@ -196,12 +196,12 @@ message_type(Packet) ->
     end.
 
 %% Getter for module options
--spec opt(Host :: ejabberd:lserver(), Option :: atom()) -> Value :: term() | undefined.
+-spec opt(Host :: jlib:lserver(), Option :: atom()) -> Value :: term() | undefined.
 opt(Host, Option) ->
     opt(Host, Option, undefined).
 
 %% Getter for module options with default value
--spec opt(Host :: ejabberd:lserver(), Option :: atom(), Default :: term()) ->
+-spec opt(Host :: jlib:lserver(), Option :: atom(), Default :: term()) ->
     Value :: term().
 opt(Host, Option, Default) ->
     gen_mod:get_module_opt(Host, ?MODULE, Option, Default).
@@ -209,32 +209,32 @@ opt(Host, Option, Default) ->
 %% ----------------------------------------------------------------------
 %% Callbacks
 
--spec user_guid(Host :: ejabberd:lserver(), UserJID :: ejabberd:jid()) -> user_guid().
+-spec user_guid(Host :: jlib:lserver(), UserJID :: jlib:jid()) -> user_guid().
 user_guid(Host, UserJID) ->
     PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:user_guid(UserJID).
 
--spec message_attributes(Host :: ejabberd:lserver(), TopicARN :: topic_arn(),
-                         UserJID :: ejabberd:jid(), IsOnline :: boolean()) ->
+-spec message_attributes(Host :: jlib:lserver(), TopicARN :: topic_arn(),
+                         UserJID :: jlib:jid(), IsOnline :: boolean()) ->
                                 attributes().
 message_attributes(Host, TopicARN, UserJID, IsOnline) ->
     PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, UserJID, IsOnline).
 
--spec message_attributes(Host :: ejabberd:lserver(), TopicARN :: topic_arn(),
-                         From :: ejabberd:jid(), To :: ejabberd:jid(), MessageType :: pm | muc,
+-spec message_attributes(Host :: jlib:lserver(), TopicARN :: topic_arn(),
+                         From :: jlib:jid(), To :: jlib:jid(), MessageType :: pm | muc,
                          Packet :: exml:element()) -> attributes().
 message_attributes(Host, TopicARN, From, To, MessageType, Packet) ->
     PluginModule = opt(Host, plugin_module, mod_event_pusher_sns_defaults),
     PluginModule:message_attributes(TopicARN, From, To, MessageType, Packet).
 
--spec calc_backoff_time(Host :: ejabberd:lserver(), integer()) -> integer().
+-spec calc_backoff_time(Host :: jlib:lserver(), integer()) -> integer().
 calc_backoff_time(Host, Retry) ->
     MaxRetry = opt(Host, publish_retry_count),
     BaseTime = opt(Host, publish_retry_time_ms, 50),
     BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
     crypto:rand_uniform(BackoffMaxTime - BaseTime, BackoffMaxTime).
 
--spec pool_name(Host :: ejabberd:lserver()) -> atom().
+-spec pool_name(Host :: jlib:lserver()) -> atom().
 pool_name(Host) ->
     gen_mod:get_module_proc(Host, ?MODULE).

@@ -7,52 +7,52 @@
 %%%-------------------------------------------------------------------
 -module(ejabberd_gen_auth).
 
--callback start(Host :: ejabberd:lserver()) -> ok.
+-callback start(Host :: jlib:lserver()) -> ok.
 
--callback stop(Host :: ejabberd:lserver()) -> ok.
+-callback stop(Host :: jlib:lserver()) -> ok.
 
--callback store_type(Host :: ejabberd:lserver()) -> scram | plain | external.
+-callback store_type(Host :: jlib:lserver()) -> scram | plain | external.
 
--callback set_password(User :: ejabberd:luser(),
-                       Server :: ejabberd:lserver(),
+-callback set_password(User :: jlib:luser(),
+                       Server :: jlib:lserver(),
                        Password :: binary()
                       ) -> ok | {error, not_allowed | invalid_jid}.
 
 -callback authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                                | {error, any()}.
 
--callback try_register(User :: ejabberd:luser(),
-                       Server :: ejabberd:lserver(),
+-callback try_register(User :: jlib:luser(),
+                       Server :: jlib:lserver(),
                        Password :: binary()
                        ) -> ok | {error, exists | not_allowed | term()}.
 
--callback dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-callback dirty_get_registered_users() -> [jlib:simple_bare_jid()].
 
--callback get_vh_registered_users(Server :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
+-callback get_vh_registered_users(Server :: jlib:lserver()) -> [jlib:simple_bare_jid()].
 
--callback get_vh_registered_users(Server :: ejabberd:lserver(), Opts :: list()) ->
-    [ejabberd:simple_bare_jid()].
+-callback get_vh_registered_users(Server :: jlib:lserver(), Opts :: list()) ->
+    [jlib:simple_bare_jid()].
 
--callback get_vh_registered_users_number(Server :: ejabberd:lserver()) -> integer().
+-callback get_vh_registered_users_number(Server :: jlib:lserver()) -> integer().
 
--callback get_vh_registered_users_number(Server :: ejabberd:lserver(), Opts :: list()) -> integer().
+-callback get_vh_registered_users_number(Server :: jlib:lserver(), Opts :: list()) -> integer().
 
--callback get_password(User :: ejabberd:luser(),
-                       Server :: ejabberd:lserver()) -> ejabberd_auth:passterm() | false.
+-callback get_password(User :: jlib:luser(),
+                       Server :: jlib:lserver()) -> ejabberd_auth:passterm() | false.
 
--callback get_password_s(User :: ejabberd:luser(),
-                         Server :: ejabberd:lserver()) -> binary().
+-callback get_password_s(User :: jlib:luser(),
+                         Server :: jlib:lserver()) -> binary().
 
--callback does_user_exist(User :: ejabberd:luser(),
-                          Server :: ejabberd:lserver()
+-callback does_user_exist(User :: jlib:luser(),
+                          Server :: jlib:lserver()
                          ) -> boolean() | {error, atom()}.
 
--callback remove_user(User :: ejabberd:luser(),
-                      Server :: ejabberd:lserver()
+-callback remove_user(User :: jlib:luser(),
+                      Server :: jlib:lserver()
                       ) -> ok | {error, not_allowed}.
 
--callback remove_user(User :: ejabberd:luser(),
-                      Server :: ejabberd:lserver(),
+-callback remove_user(User :: jlib:luser(),
+                      Server :: jlib:lserver(),
                       Password :: binary()
                       ) -> ok | {error, not_exists | not_allowed | bad_request}.
 

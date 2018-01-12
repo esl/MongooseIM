@@ -61,13 +61,13 @@
                  | 'roomconfig_change_enabledlogging'
                  | 'text'.
 
--type jid_nick_role() :: {ejabberd:jid(), mod_muc:nick(), mod_muc:role()}.
--type jid_nick() :: {ejabberd:jid(), mod_muc:nick()}.
+-type jid_nick_role() :: {jlib:jid(), mod_muc:nick(), mod_muc:role()}.
+-type jid_nick() :: {jlib:jid(), mod_muc:nick()}.
 -type dir_type() :: 'plain' | 'subdirs'.
 -type dir_name() :: 'room_jid' | 'room_name'.
 -type file_format() :: 'html' | 'plaintext'.
 
--record(logstate, {host         :: ejabberd:server(),
+-record(logstate, {host         :: jlib:server(),
                    out_dir      :: binary(),
                    dir_type     :: dir_type(),
                    dir_name     :: dir_name(),
@@ -88,13 +88,13 @@
 %%====================================================================
 
 %% @doc Starts the server
--spec start_link(ejabberd:server(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
+-spec start_link(jlib:server(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
 
--spec start(ejabberd:server(), _) -> {'error', _}
+-spec start(jlib:server(), _) -> {'error', _}
                                   | {'ok', 'undefined' | pid()}
                                   | {'ok', 'undefined' | pid(), _}.
 start(Host, Opts) ->
@@ -109,7 +109,7 @@ start(Host, Opts) ->
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 
--spec stop(ejabberd:server()) -> 'ok'
+-spec stop(jlib:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -117,14 +117,14 @@ stop(Host) ->
     supervisor:delete_child(ejabberd_sup, Proc).
 
 
--spec add_to_log(ejabberd:server(), Type :: any(), Data :: any(), mod_muc:room(),
+-spec add_to_log(jlib:server(), Type :: any(), Data :: any(), mod_muc:room(),
                  list()) -> 'ok'.
 add_to_log(Host, Type, Data, Room, Opts) ->
     gen_server:cast(get_proc_name(Host),
                     {add_to_log, Type, Data, Room, Opts}).
 
 
--spec check_access_log(ejabberd:server(), ejabberd:jid()) -> any().
+-spec check_access_log(jlib:server(), jlib:jid()) -> any().
 check_access_log(Host, From) ->
     case catch gen_server:call(get_proc_name(Host),
                                {check_access_log, Host, From}) of
@@ -134,7 +134,7 @@ check_access_log(Host, From) ->
             Res
     end.
 
--spec set_room_occupants(ejabberd:server(), RoomPID :: pid(), RoomJID :: ejabberd:jid(),
+-spec set_room_occupants(jlib:server(), RoomPID :: pid(), RoomJID :: jlib:jid(),
                          Occupants :: [mod_muc_room:user()]) -> ok.
 set_room_occupants(Host, RoomPID, RoomJID, Occupants) ->
     gen_server:cast(get_proc_name(Host), {set_room_occupants, RoomPID, RoomJID, Occupants}).
@@ -150,7 +150,7 @@ set_room_occupants(Host, RoomPID, RoomJID, Occupants) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([list() | ejabberd:server(), ...]) -> {'ok', logstate()}.
+-spec init([list() | jlib:server(), ...]) -> {'ok', logstate()}.
 init([Host, Opts]) ->
     OutDir = list_to_binary(gen_mod:get_opt(outdir, Opts, "www/muc")),
     DirType = gen_mod:get_opt(dirtype, Opts, subdirs),
@@ -192,7 +192,7 @@ init([Host, Opts]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 -spec handle_call('stop'
-            | {'check_access_log', 'global' | ejabberd:server(), ejabberd:jid()},
+            | {'check_access_log', 'global' | jlib:server(), jlib:jid()},
         From :: any(), logstate()) -> {'reply', 'allow' | 'deny', logstate()}
                                     | {'stop', 'normal', 'ok', _}.
 handle_call({check_access_log, ServerHost, FromJID}, _From, State) ->
@@ -209,7 +209,7 @@ handle_call(stop, _From, State) ->
 %%--------------------------------------------------------------------
 -spec handle_cast
     ({add_to_log, any(), any(), mod_muc:room(), list()}, logstate()) -> {'noreply', logstate()};
-    ({set_room_occupants, pid(), ejabberd:jid(), [mod_muc_room:user()]}, logstate()) ->
+    ({set_room_occupants, pid(), jlib:jid(), [mod_muc_room:user()]}, logstate()) ->
         {noreply, logstate()}.
 handle_cast({add_to_log, Type, Data, Room, Opts}, State) ->
     case catch add_to_log2(Type, Data, Room, Opts, State) of
@@ -311,7 +311,7 @@ add_to_log2(kickban, {Nick, Reason, Code}, Room, Opts, State) ->
 %% Core
 
 -spec build_filename_string(calendar:datetime(), OutDir :: binary(),
-        RoomJID :: ejabberd:literal_jid(), dir_type(), dir_name(), file_format())
+        RoomJID :: jlib:literal_jid(), dir_type(), dir_name(), file_format())
             -> {binary(), binary(), binary()}.
 build_filename_string(TimeStamp, OutDir, RoomJID, DirType, DirName, FileFormat) ->
     {{Year, Month, Day}, _Time} = TimeStamp,
@@ -345,7 +345,7 @@ build_filename_string(TimeStamp, OutDir, RoomJID, DirType, DirName, FileFormat) 
     {Fd, Fn, Fnrel}.
 
 
--spec get_room_name(ejabberd:literal_jid()) -> mod_muc:room().
+-spec get_room_name(jlib:literal_jid()) -> mod_muc:room().
 get_room_name(RoomJID) ->
     JID = jid:from_binary(RoomJID),
     JID#jid.user.
@@ -392,7 +392,7 @@ write_last_lines(F, ImagesDir, _FileFormat) ->
 
 
 -spec add_message_to_log(mod_muc:nick(), Message :: atom() | tuple(),
-    RoomJID :: ejabberd:simple_jid() | ejabberd:jid(), Opts :: list(), State :: logstate()) -> ok.
+    RoomJID :: jlib:simple_jid() | jlib:jid(), Opts :: list(), State :: logstate()) -> ok.
 add_message_to_log(Nick1, Message, RoomJID, Opts, State) ->
     #logstate{out_dir = OutDir,
            dir_type = DirType,

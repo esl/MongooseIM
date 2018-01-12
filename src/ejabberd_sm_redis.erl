@@ -48,7 +48,7 @@ get_sessions() ->
                                     Sessions)
                   end, Keys).
 
--spec get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(jlib:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
     Keys = ejabberd_redis:cmd(["KEYS", hash(Server)]),
     lists:flatmap(fun(K) ->
@@ -63,22 +63,22 @@ get_sessions(Server) ->
                                     Sessions)
                   end, Keys).
 
--spec get_sessions(ejabberd:user(), ejabberd:server()) -> [ejabberd_sm:session()].
+-spec get_sessions(jlib:user(), jlib:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server)]),
 
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
--spec get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()
+-spec get_sessions(jlib:user(), jlib:server(), jlib:resource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
 
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
--spec create_session(User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
-                     Resource :: ejabberd:resource(),
+-spec create_session(User :: jlib:user(),
+                     Server :: jlib:server(),
+                     Resource :: jlib:resource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     OldSessions = get_sessions(User, Server, Resource),
@@ -103,9 +103,9 @@ create_session(User, Server, Resource, Session) ->
 
 
 -spec delete_session(SID :: ejabberd_sm:sid(),
-                     User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
-                     Resource :: ejabberd:resource()) -> ok.
+                     User :: jlib:user(),
+                     Server :: jlib:server(),
+                     Resource :: jlib:resource()) -> ok.
 delete_session(SID, User, Server, Resource) ->
     Sessions = get_sessions(User, Server, Resource),
     case lists:keysearch(SID, #session.sid, Sessions) of

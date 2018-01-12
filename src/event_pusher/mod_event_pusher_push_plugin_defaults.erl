@@ -25,7 +25,7 @@
 %%--------------------------------------------------------------------
 
 %% Callback 'should_publish'
--spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: exml:element()) ->
+-spec should_publish(From :: jlib:jid(), To :: jlib:jid(), Packet :: exml:element()) ->
                             boolean().
 should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, _Packet) ->
     try ejabberd_users:does_user_exist(LUser, LServer) of
@@ -47,7 +47,7 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
     end.
 
 %% Callback 'sender_id'
--spec sender_id(From :: ejabberd:jid(), Packet :: exml:element()) -> SenderId :: binary().
+-spec sender_id(From :: jlib:jid(), Packet :: exml:element()) -> SenderId :: binary().
 sender_id(From, Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> ->

@@ -98,8 +98,8 @@ start_link() ->
 %% For both functions, returning a 'drop' or 'done' atom terminates the procedure,
 %% while returning a tuple means 'proceed' and the tuple is passed to
 %% the next module in sequence.
--spec route(From   :: ejabberd:jid(),
-    To     :: ejabberd:jid(),
+-spec route(From   :: jlib:jid(),
+    To     :: jlib:jid(),
     Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
@@ -118,8 +118,8 @@ route(From, To, Acc, El) ->
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
--spec route_error(From   :: ejabberd:jid(),
-                  To     :: ejabberd:jid(),
+-spec route_error(From   :: jlib:jid(),
+                  To     :: jlib:jid(),
                   Acc :: mongoose_acc:t(),
                   ErrPacket :: exml:element()) -> mongoose_acc:t().
 route_error(From, To, Acc, ErrPacket) ->
@@ -130,7 +130,7 @@ route_error(From, To, Acc, ErrPacket) ->
             Acc
     end.
 
--spec route_error_reply(ejabberd:jid(), ejabberd:jid(), mongoose_acc:t(), exml:element()) ->
+-spec route_error_reply(jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:element()) ->
     mongoose_acc:t().
 route_error_reply(From, To, Acc, Error) ->
     ErrorReply = jlib:make_error_reply(Acc, Error),
@@ -445,8 +445,8 @@ make_routing_module_source(Mods) ->
         "get_routing_module_list() -> ~p.~n",
         [Mods]))).
 
--spec route(From   :: ejabberd:jid(),
-            To     :: ejabberd:jid(),
+-spec route(From   :: jlib:jid(),
+            To     :: jlib:jid(),
             Acc    :: mongoose_acc:t(),
             Packet :: exml:element(),
             [atom()]) -> mongoose_acc:t().

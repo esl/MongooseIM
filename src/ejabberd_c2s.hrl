@@ -29,9 +29,9 @@
                 tls_options = [],
                 authenticated = false :: authenticated_state(),
                 jid                  :: ejabberd:jid() | undefined,
-                user = <<>>          :: ejabberd:user(),
-                server = <<>>     :: ejabberd:server(),
-                resource = <<>>      :: ejabberd:resource(),
+                user = <<>>          :: jlib:user(),
+                server = <<>>     :: jlib:server(),
+                resource = <<>>      :: jlib:resource(),
                 sid                  :: ejabberd_sm:sid() | undefined,
                 %% We have _subscription to_ these users' presence status;
                 %% i.e. they send us presence updates.

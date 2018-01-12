@@ -63,10 +63,10 @@
 -include("eldap.hrl").
 
 -record(state,
-       {host = <<"">>          :: ejabberd:lserver(),
+       {host = <<"">>          :: jlib:lserver(),
         eldap_id = <<"">>      :: binary(),
         bind_eldap_id = <<"">> :: binary(),
-        servers = []           :: [ejabberd:lserver()],
+        servers = []           :: [jlib:lserver()],
         backups = []           :: [binary()],
         port = ?LDAP_PORT      :: inet:port_number(),
         tls_options = []       :: list(),
@@ -95,7 +95,7 @@ handle_info(_Info, State) -> {noreply, State}.
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Host :: ejabberd:lserver()) -> ok.
+-spec start(Host :: jlib:lserver()) -> ok.
 start(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [Host]},
@@ -104,7 +104,7 @@ start(Host) ->
     {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec),
     ok.
 
--spec stop(Host :: ejabberd:lserver()) -> ok.
+-spec stop(Host :: jlib:lserver()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(host_config_update, Host, ?MODULE, config_change, 50),
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
@@ -119,7 +119,7 @@ start_link(Host) ->
 
 terminate(_Reason, _State) -> ok.
 
--spec init(Host :: ejabberd:lserver()) -> {'ok', state()}.
+-spec init(Host :: jlib:lserver()) -> {'ok', state()}.
 init(Host) ->
     State = parse_options(Host),
     eldap_pool:start_link(State#state.eldap_id,
@@ -146,8 +146,8 @@ config_change(Acc, _, _, _) ->
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver(),
+-spec check_password(LUser :: jlib:luser(),
+                     LServer :: jlib:lserver(),
                      Password :: binary()) -> boolean().
 check_password(_LUser, _LServer, <<"">>) -> false;
 check_password(LUser, LServer, Password) ->
@@ -156,8 +156,8 @@ check_password(LUser, LServer, Password) ->
         Result -> Result
     end.
 
--spec check_password(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver(),
+-spec check_password(LUser :: jlib:luser(),
+                     LServer :: jlib:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
@@ -166,8 +166,8 @@ check_password(LUser, LServer, Password, _Digest,
     check_password(LUser, LServer, Password).
 
 
--spec set_password(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
+-spec set_password(LUser :: jlib:luser(),
+                   LServer :: jlib:lserver(),
                    Password :: binary())
       -> ok | {error, not_allowed | invalid_jid}.
 set_password(LUser, LServer, Password) ->
@@ -180,7 +180,7 @@ set_password(LUser, LServer, Password) ->
     end.
 
 
--spec try_register(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec try_register(LUser :: jlib:luser(), LServer :: jlib:lserver(),
                    Password :: binary()) -> ok | {error, exists}.
 try_register(LUser, LServer, Password) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
@@ -197,7 +197,7 @@ try_register(LUser, LServer, Password) ->
     end.
 
 
--spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-spec dirty_get_registered_users() -> [jlib:simple_bare_jid()].
 dirty_get_registered_users() ->
     LServers = ejabberd_config:get_vh_by_auth_method(ldap),
     lists:flatmap(fun (LServer) ->
@@ -206,8 +206,8 @@ dirty_get_registered_users() ->
                   LServers).
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver()
-                             ) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(LServer :: jlib:lserver()
+                             ) -> [jlib:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     case catch get_vh_registered_users_ldap(LServer) of
       {'EXIT', _} -> [];
@@ -215,35 +215,35 @@ get_vh_registered_users(LServer) ->
     end.
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver(),
-                              Opts :: list()) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(LServer :: jlib:lserver(),
+                              Opts :: list()) -> [jlib:simple_bare_jid()].
 get_vh_registered_users(LServer, _) ->
     get_vh_registered_users(LServer).
 
 
--spec get_vh_registered_users_number(LServer :: ejabberd:lserver()) -> integer().
+-spec get_vh_registered_users_number(LServer :: jlib:lserver()) -> integer().
 get_vh_registered_users_number(LServer) ->
     length(get_vh_registered_users(LServer)).
 
 
--spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
+-spec get_vh_registered_users_number(LServer :: jlib:lserver(),
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
 
 
--spec get_password(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver()) -> binary() | false.
+-spec get_password(LUser :: jlib:luser(),
+                   LServer :: jlib:lserver()) -> binary() | false.
 get_password(_LUser, _LServer) -> false.
 
 
--spec get_password_s(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver()) -> binary().
+-spec get_password_s(LUser :: jlib:luser(),
+                     LServer :: jlib:lserver()) -> binary().
 get_password_s(_LUser, _LServer) -> <<"">>.
 
 
--spec does_user_exist(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver()
+-spec does_user_exist(LUser :: jlib:luser(),
+                     LServer :: jlib:lserver()
                      ) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
     case catch is_user_exists_ldap(LUser, LServer) of
@@ -252,8 +252,8 @@ does_user_exist(LUser, LServer) ->
     end.
 
 
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver()
+-spec remove_user(LUser :: jlib:luser(),
+                  LServer :: jlib:lserver()
                   ) -> ok | {error, not_allowed}.
 remove_user(LUser, LServer) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
@@ -263,8 +263,8 @@ remove_user(LUser, LServer) ->
     end.
 
 
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver(),
+-spec remove_user(LUser :: jlib:luser(),
+                  LServer :: jlib:lserver(),
                   Password :: binary()
                   ) -> ok | {error, not_exists | not_allowed}.
 remove_user(LUser, LServer, Password) ->
@@ -283,8 +283,8 @@ remove_user(LUser, LServer, Password) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
--spec check_password_ldap(LUser :: ejabberd:luser(),
-                          LServer :: ejabberd:lserver(),
+-spec check_password_ldap(LUser :: jlib:luser(),
+                          LServer :: jlib:lserver(),
                           Password :: binary()) -> boolean().
 check_password_ldap(LUser, LServer, Password) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
@@ -298,8 +298,8 @@ check_password_ldap(LUser, LServer, Password) ->
     end.
 
 
--spec get_vh_registered_users_ldap(LServer :: ejabberd:lserver()
-                                  ) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users_ldap(LServer :: jlib:lserver()
+                                  ) -> [jlib:simple_bare_jid()].
 get_vh_registered_users_ldap(LServer) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     UIDs = State#state.uids,
@@ -322,7 +322,7 @@ get_vh_registered_users_ldap(LServer) ->
     end.
 
 -spec get_users_from_ldap_entries(list(), [{binary()} | {binary(), binary()}],
-                                  ejabberd:lserver(), state()) -> list().
+                                  jlib:lserver(), state()) -> list().
 get_users_from_ldap_entries(LDAPEntries, UIDs, LServer, State) ->
     lists:flatmap(
       fun(#eldap_entry{attributes = Attrs,
@@ -336,7 +336,7 @@ get_users_from_ldap_entries(LDAPEntries, UIDs, LServer, State) ->
       LDAPEntries).
 
 -spec get_user_from_ldap_attributes([{binary()} | {binary(), binary()}],
-                                    [{binary(), [binary()]}], ejabberd:lserver())
+                                    [{binary(), [binary()]}], jlib:lserver())
                                    -> list().
 get_user_from_ldap_attributes(UIDs, Attributes, LServer) ->
     case eldap_utils:find_ldap_attrs(UIDs, Attributes) of
@@ -349,8 +349,8 @@ get_user_from_ldap_attributes(UIDs, Attributes, LServer) ->
             end
     end.
 
--spec is_user_exists_ldap(LUser :: ejabberd:luser(),
-                          LServer :: ejabberd:lserver()) -> boolean().
+-spec is_user_exists_ldap(LUser :: jlib:luser(),
+                          LServer :: jlib:lserver()) -> boolean().
 is_user_exists_ldap(LUser, LServer) ->
     {ok, State} = eldap_utils:get_state(LServer, ?MODULE),
     case find_user_dn(LUser, State) of
@@ -368,7 +368,7 @@ handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
 
--spec find_user_dn(LUser :: ejabberd:luser(),
+-spec find_user_dn(LUser :: jlib:luser(),
                    State :: state()) -> 'false' | binary().
 find_user_dn(LUser, State) ->
     ResAttrs = result_attrs(State),
@@ -485,7 +485,7 @@ result_attrs(#state{uids = UIDs,
 %%% Auxiliary functions
 %%%----------------------------------------------------------------------
 
--spec parse_options(Host :: ejabberd:lserver()) -> state().
+-spec parse_options(Host :: jlib:lserver()) -> state().
 parse_options(Host) ->
     Cfg = eldap_utils:get_config(Host, []),
     EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),

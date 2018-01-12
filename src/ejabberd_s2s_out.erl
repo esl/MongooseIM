@@ -977,7 +977,7 @@ is_verify_res(_) ->
 
 -include_lib("kernel/include/inet.hrl").
 
--spec get_addr_port(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_addr_port(jlib:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_addr_port(Server) ->
     Res = srv_lookup(Server),
     case Res of
@@ -1000,7 +1000,7 @@ get_addr_port(Server) ->
     end.
 
 
--spec srv_lookup(ejabberd:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
+-spec srv_lookup(jlib:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
 srv_lookup(Server) ->
     Options = case ejabberd_config:get_local_option(s2s_dns_options) of
                   L when is_list(L) -> L;
@@ -1015,7 +1015,7 @@ srv_lookup(Server) ->
 %% has a "_xmpp-server._tcp." but not a "_jabber._tcp." record and
 %% we don't get a DNS reply for the "_xmpp-server._tcp." lookup. In this
 %% case we'll give up when we get the "_jabber._tcp." nxdomain reply.
--spec srv_lookup(ejabberd:server(),
+-spec srv_lookup(jlib:server(),
                  Timeout :: non_neg_integer(),
                  Retries :: pos_integer()
                  ) -> {'error', atom()} | {'ok', inet:hostent()}.
@@ -1198,7 +1198,7 @@ fsm_limit_opts() ->
     end.
 
 
--spec get_addr_list(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_addr_list(jlib:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_addr_list(Server) ->
     case get_predefined_addresses(Server) of
         [] ->
@@ -1213,7 +1213,7 @@ get_addr_list(Server) ->
 
 
 %% @doc Get IPs predefined for a given s2s domain in the configuration
--spec get_predefined_addresses(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_predefined_addresses(jlib:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
     S2SAddr = ejabberd_config:get_local_option({s2s_addr, Server}),
     do_get_predefined_addresses(S2SAddr).

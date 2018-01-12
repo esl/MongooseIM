@@ -108,7 +108,7 @@ remove_user(LUser, LServer) ->
     SServer = mongoose_rdbms:escape(LServer),
     rdbms_queries:remove_offline_messages(LServer, SUser, SServer).
 
--spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
+-spec remove_expired_messages(jlib:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(LServer) ->
     TimeStamp = p1_time_compat:timestamp(),
@@ -122,7 +122,7 @@ remove_expired_messages(LServer) ->
     end.
 -spec remove_old_messages(LServer, Timestamp) ->
     {error, term()} | {ok, HowManyRemoved} when
-    LServer :: ejabberd:lserver(),
+    LServer :: jlib:lserver(),
     Timestamp :: erlang:timestamp(),
     HowManyRemoved :: integer().
 remove_old_messages(LServer, TimeStamp) ->

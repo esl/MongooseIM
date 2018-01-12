@@ -15,7 +15,7 @@
 -export([encode_error/6]).
 
 -type encoded_packet_handler() ::
-    fun((From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: exml:element()) -> any()).
+    fun((From :: jlib:jid(), To :: jlib:jid(), Packet :: exml:element()) -> any()).
 
 -type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
                        | {error, bad_request} | ignore.
@@ -26,14 +26,14 @@
 %% Behaviour callbacks
 %%====================================================================
 
--callback decode(From :: ejabberd:jid(), To :: ejabberd:jid(), Stanza :: exml:element()) ->
+-callback decode(From :: jlib:jid(), To :: jlib:jid(), Stanza :: exml:element()) ->
     decode_result().
 
--callback encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
-                 RoomUS :: ejabberd:simple_bare_jid(), % may be just service domain
+-callback encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
+                 RoomUS :: jlib:simple_bare_jid(), % may be just service domain
                  HandleFun :: encoded_packet_handler()) -> any().
 
--callback encode_error(ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
+-callback encode_error(ErrMsg :: tuple(), OrigFrom :: jlib:jid(), OrigTo :: jlib:jid(),
                        OrigPacket :: exml:element(), HandleFun :: encoded_packet_handler()) ->
     any().
 
@@ -41,8 +41,8 @@
 %% API
 %%====================================================================
 
--spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: ejabberd:jid(),
-                   OrigTo :: ejabberd:jid(), OrigPacket :: exml:element(),
+-spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: jlib:jid(),
+                   OrigTo :: jlib:jid(), OrigPacket :: exml:element(),
                    HandleFun :: encoded_packet_handler()) -> any().
 encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     ErrorElem = make_error_elem(ErrMsg),

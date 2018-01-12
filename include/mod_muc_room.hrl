@@ -70,8 +70,8 @@
                   }).
 
 -record(state, {room                :: mod_muc:room(),
-                host                :: ejabberd:server(),
-                server_host         :: ejabberd:server(),
+                host                :: jlib:server(),
+                server_host         :: jlib:server(),
                 access              :: mod_muc:access(),
                 jid                 :: ejabberd:jid(),
                 config = #config{}  :: mod_muc_room:config(),
@@ -100,6 +100,6 @@
 -type muc_online_users() :: #muc_online_users{
         us :: ejabberd:simple_bare_jid(),
         room :: mod_muc:room(),
-        host :: ejabberd:server()
+        host :: jlib:server()
        }.
 

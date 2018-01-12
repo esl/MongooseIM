@@ -81,76 +81,76 @@
 -type subscription_state() :: none  | from | to | both | remove.
 
 -callback init(Host, Opts) -> ok when
-    Host :: ejabberd:server(),
+    Host :: jlib:server(),
     Opts :: list().
 -callback transaction(LServer, F) -> {aborted, Reason} | {atomic, Result} when
-    LServer :: ejabberd:lserver(),
+    LServer :: jlib:lserver(),
     F :: fun(),
     Reason :: any(),
     Result :: any().
 -callback read_roster_version(LUser, LServer) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
     Result :: binary() | error.
 -callback write_roster_version(LUser, LServer, InTransaction, Ver) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
     InTransaction :: boolean(),
     Ver :: binary(),
     Result :: any().
 -callback get_roster(LUser, LServer) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
     Result :: [roster()].
 -callback get_subscription_lists(Acc, LUser, LServer) -> Result when
     Acc :: term(),
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
     Result :: term().
 -callback roster_subscribe_t(LUser, LServer, LJid, SJid) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    LJid :: jlib:simple_jid(),
     SJid :: roster(),
     Result :: term().
 -callback remove_user(LUser, LServer) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
     Result :: term().
 -callback update_roster_t(LUser, LServer, LJid, Item) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    LJid :: jlib:simple_jid(),
     Item :: roster(),
     Result :: term().
 -callback del_roster_t(LUser, LServer, LJid) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    LJid :: ejabberd:simple_jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    LJid :: jlib:simple_jid(),
     Result :: term().
 -callback get_roster_entry(LUser, LServer, Jid) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    Jid :: ejabberd:simple_jid() | ejabberd:ljid() |ejabberd:jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    Jid :: jlib:simple_jid() | jlib:ljid() |jlib:jid(),
     Result :: roster() | does_not_exist | error.
 -callback get_roster_entry(LUser, LServer, Jid, full) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    Jid :: ejabberd:simple_jid() | ejabberd:ljid() |ejabberd:jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    Jid :: jlib:simple_jid() | jlib:ljid() |jlib:jid(),
     Result :: roster() | does_not_exist | error.
 -callback get_roster_entry_t(LUser, LServer, Jid) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    Jid :: ejabberd:simple_jid() | ejabberd:ljid() |ejabberd:jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    Jid :: jlib:simple_jid() | jlib:ljid() |jlib:jid(),
     Result :: roster() | does_not_exist | error.
 -callback get_roster_entry_t(LUser, LServer, Jid, full) -> Result when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
-    Jid :: ejabberd:simple_jid() | ejabberd:ljid() |ejabberd:jid(),
+    LUser :: jlib:luser(),
+    LServer :: jlib:lserver(),
+    Jid :: jlib:simple_jid() | jlib:ljid() |jlib:jid(),
     Result :: roster() | does_not_exist | error.
 
 -callback raw_to_record(LServer, Item) -> Result when
-    LServer :: ejabberd:lserver(),
+    LServer :: jlib:lserver(),
     Item :: term(),
     Result :: error | roster().
 
@@ -202,8 +202,8 @@ get_roster_entry_t(LUser, LServer, Jid, full) ->
     mod_roster_backend:get_roster_entry_t(jid:nameprep(LUser), LServer,
                                           jid_arg_to_lower(Jid), full).
 
--spec jid_arg_to_lower(JID :: ejabberd:simple_jid() | ejabberd:jid() | binary()) ->
-    error | ejabberd:simple_jid().
+-spec jid_arg_to_lower(JID :: jlib:simple_jid() | jlib:jid() | binary()) ->
+    error | jlib:simple_jid().
 jid_arg_to_lower(Jid) when is_binary(Jid) ->
     RJid = jid:from_binary(Jid),
     jid:to_lower(RJid);
@@ -347,7 +347,7 @@ create_sub_el(Items, Version) ->
             children = Items}].
 
 -spec get_user_roster(mongoose_acc:t(),
-                      {ejabberd:luser(), ejabberd:lserver()}) ->
+                      {jlib:luser(), jlib:lserver()}) ->
     mongoose_acc:t().
 get_user_roster(#{show_full_roster := true} = Acc, {LUser, LServer}) ->
     Roster = get_roster(LUser, LServer),
@@ -419,9 +419,9 @@ do_process_item_set(JID1,
 -spec set_roster_item(User :: binary(),
                       LUser :: binary(),
                       LServer :: binary(),
-                      LJID :: ejabberd:simple_jid() | error,
-                      From ::ejabberd:jid(),
-                      To ::ejabberd:jid(),
+                      LJID :: jlib:simple_jid() | error,
+                      From ::jlib:jid(),
+                      To ::jlib:jid(),
                       Item2 :: fun( (roster()) -> roster())) -> ok.
 set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
     F = fun () ->
@@ -608,7 +608,7 @@ transaction(LServer, F) ->
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
-                      JID ::ejabberd:jid(),
+                      JID ::jlib:jid(),
                       Type :: sub_presence(),
                       Reason :: any()) ->
     mongoose_acc:t().
@@ -620,7 +620,7 @@ in_subscription(Acc, User, Server, JID, Type, Reason) ->
 -spec out_subscription(Acc:: mongoose_acc:t(),
                        User :: binary(),
                        Server :: binary(),
-                       JID ::ejabberd:jid(),
+                       JID ::jlib:jid(),
                        Type :: sub_presence()) ->
     mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, Type) ->
@@ -866,11 +866,11 @@ set_items(User, Server, SubEl) ->
     transaction(LServer, F).
 
 %% @doc add a contact to roster, or update
--spec set_roster_entry(ejabberd:jid(), binary(), binary(), [binary()]) -> ok|error.
+-spec set_roster_entry(jlib:jid(), binary(), binary(), [binary()]) -> ok|error.
 set_roster_entry(UserJid, ContactBin, Name, Groups) ->
     set_roster_entry(UserJid, ContactBin, Name, Groups, unchanged).
 
--spec set_roster_entry(UserJid ::ejabberd:jid(),
+-spec set_roster_entry(UserJid ::jlib:jid(),
                        ContactBin :: binary(),
                        Name :: binary() | unchanged,
                        Groups :: [binary()] | unchanged,
@@ -913,7 +913,7 @@ modify_roster_item(Item, Name, Groups, NewSubscription) ->
 
 %% @doc remove from roster - in practice it means changing
 %% subscription state to 'remove'
--spec remove_from_roster(UserJid ::ejabberd:jid(),
+-spec remove_from_roster(UserJid ::jlib:jid(),
                          ContactBin :: binary()) -> ok|error.
 remove_from_roster(UserJid, ContactBin) ->
     set_roster_entry(UserJid, ContactBin, unchanged, unchanged, remove).
@@ -973,9 +973,9 @@ process_item_attrs_ws(Item, []) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec get_jid_info(_ :: term(),
-                   User :: ejabberd:luser(),
-                   Server :: ejabberd:lserver(),
-                   JID ::ejabberd:jid() | ejabberd:ljid()) -> {subscription_state(), [binary()]}.
+                   User :: jlib:luser(),
+                   Server :: jlib:lserver(),
+                   JID ::jlib:jid() | jlib:ljid()) -> {subscription_state(), [binary()]}.
 get_jid_info(_, User, Server, JID) ->
     case get_roster_entry(User, Server, JID, full) of
         error -> {none, []};

@@ -153,14 +153,14 @@
            id      :: Nidx::mod_pubsub:nodeIdx(),
            parents :: [Node::mod_pubsub:nodeId()],
            type    :: Type::binary(),
-           owners  :: [Owner::ejabberd:ljid(), ...],
+           owners  :: [Owner::jlib:ljid(), ...],
            options :: Opts::mod_pubsub:nodeOptions()
           }
         ).
 
 -type(pubsubState() ::
         #pubsub_state{
-           stateid       :: {Entity::ejabberd:ljid(), Nidx::mod_pubsub:nodeIdx()},
+           stateid       :: {Entity::jlib:ljid(), Nidx::mod_pubsub:nodeIdx()},
            items         :: [ItemId::mod_pubsub:itemId()],
            affiliation   :: Affs::mod_pubsub:affiliation(),
            subscriptions :: [{Sub::mod_pubsub:subscription(), SubId::mod_pubsub:subId()}]
@@ -170,8 +170,8 @@
 -type(pubsubItem() ::
         #pubsub_item{
            itemid       :: {ItemId::mod_pubsub:itemId(), Nidx::mod_pubsub:nodeIdx()},
-           creation     :: {erlang:timestamp(), ejabberd:ljid()},
-           modification :: {erlang:timestamp(), ejabberd:ljid()},
+           creation     :: {erlang:timestamp(), jlib:ljid()},
+           modification :: {erlang:timestamp(), jlib:ljid()},
            payload      :: mod_pubsub:payload()
           }
         ).
@@ -187,7 +187,7 @@
         #pubsub_last_item{
            nodeid   :: mod_pubsub:nodeIdx(),
            itemid   :: mod_pubsub:itemId(),
-           creation :: {erlang:timestamp(), ejabberd:ljid()},
+           creation :: {erlang:timestamp(), jlib:ljid()},
            payload  :: mod_pubsub:payload()
           }
         ).
@@ -247,7 +247,7 @@ stop(Host) ->
 default_host() ->
     <<"pubsub.@HOST@">>.
 
--spec process_packet(Acc :: mongoose_acc:t(), From ::ejabberd:jid(), To ::ejabberd:jid(), El :: exml:element(),
+-spec process_packet(Acc :: mongoose_acc:t(), From ::jlib:jid(), To ::jlib:jid(), El :: exml:element(),
                      Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
     Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
@@ -508,8 +508,8 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 
 -spec disco_local_identity(
         Acc    :: [exml:element()],
-          _From  ::ejabberd:jid(),
-          To     ::ejabberd:jid(),
+          _From  ::jlib:jid(),
+          To     ::jlib:jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
         -> [exml:element()].
@@ -541,8 +541,8 @@ disco_local_identity(Acc, _Host, _Node, _Lang) ->
 
 -spec disco_local_features(
         Acc    :: [exml:element()],
-          _From  ::ejabberd:jid(),
-          To     ::ejabberd:jid(),
+          _From  ::jlib:jid(),
+          To     ::jlib:jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
         -> [binary(), ...].
@@ -561,8 +561,8 @@ disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_sm_identity(
         Acc  :: empty | [exml:element()],
-          From ::ejabberd:jid(),
-          To   ::ejabberd:jid(),
+          From ::jlib:jid(),
+          To   ::jlib:jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> [exml:element()].
@@ -604,8 +604,8 @@ disco_identity(Host, Node, From) ->
 
 -spec disco_sm_features(
         Acc  :: empty | {result, Features::[Feature::binary()]},
-          From ::ejabberd:jid(),
-          To   ::ejabberd:jid(),
+          From ::jlib:jid(),
+          To   ::jlib:jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> {result, Features::[Feature::binary()]}.
@@ -638,8 +638,8 @@ disco_features(Host, Node, From) ->
     end.
 
 -spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
-                     From ::ejabberd:jid(),
-                     To ::ejabberd:jid(),
+                     From ::jlib:jid(),
+                     To ::jlib:jid(),
                      Node :: mod_pubsub:nodeId(),
                      Lang :: binary()) -> {result, [exml:element()]}.
 disco_sm_items(empty, From, To, Node, Lang) ->
@@ -652,7 +652,7 @@ disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 -spec disco_items(
         Host :: mod_pubsub:host(),
           Node :: mod_pubsub:nodeId(),
-          From :: ejabberd:jid())
+          From :: jlib:jid())
         -> [exml:element()].
 disco_items(Host, <<>>, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
@@ -750,7 +750,7 @@ notify_send_loop(ServerHost, Action) ->
 -spec out_subscription(Acc:: mongoose_acc:t(),
                        User :: binary(),
                        Server :: binary(),
-                       JID ::ejabberd:jid(),
+                       JID ::jlib:jid(),
                        Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, subscribed) ->
@@ -768,7 +768,7 @@ out_subscription(Acc, _, _, _, _) ->
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
-                      JID ::ejabberd:jid(),
+                      JID ::jlib:jid(),
                       Type :: mod_roster:sub_presence(),
                       _:: any()) ->
     mongoose_acc:t().
@@ -872,7 +872,7 @@ handle_call(stop, _From, State) ->
 handle_cast(_Msg, State) -> {noreply, State}.
 
 -spec handle_info(
-        _     :: {route, From::ejabberd:jid(), To::ejabberd:jid(), Packet::exml:element()},
+        _     :: {route, From::jlib:jid(), To::jlib:jid(), Packet::exml:element()},
           State :: state())
         -> {noreply, state()}.
 
@@ -963,8 +963,8 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
           Access     :: atom(),
           Plugins    :: [binary(), ...],
           Host       :: mod_pubsub:hostPubsub(),
-          From       ::ejabberd:jid(),
-          To         ::ejabberd:jid(),
+          From       ::jlib:jid(),
+          To         ::jlib:jid(),
           Packet     :: exml:element())
         -> ok.
 
@@ -1157,7 +1157,7 @@ iq_disco_info(Host, SNode, From, Lang) ->
 -spec iq_disco_items(
         Host   :: mod_pubsub:host(),
           Node   :: <<>> | mod_pubsub:nodeId(),
-          From   ::ejabberd:jid(),
+          From   ::jlib:jid(),
           Rsm    :: none | jlib:rsm_in())
         -> {result, [exml:element()]} | {error, term()}.
 iq_disco_items(Host, <<>>, From, _RSM) ->
@@ -1227,8 +1227,8 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                       NodeItems),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
 
--spec iq_sm(From ::ejabberd:jid(),
-            To   ::ejabberd:jid(),
+-spec iq_sm(From ::jlib:jid(),
+            To   ::jlib:jid(),
             Acc :: mongoose_acc:t(),
             IQ   :: jlib:iq())
         -> {mongoose_acc:t(), jlib:iq()}.
@@ -1258,7 +1258,7 @@ iq_get_vcard(Lang) ->
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
-                From ::ejabberd:jid(),
+                From ::jlib:jid(),
                 IQType :: get | set,
                 QueryEl :: exml:element(),
                 Lang :: binary()) -> {result, [exml:element()]} | {error, exml:element()}.
@@ -1267,7 +1267,7 @@ iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
-                From ::ejabberd:jid(),
+                From ::jlib:jid(),
                 IQType :: 'get' | 'set',
                 QueryEl :: exml:element(),
                 Lang :: binary(),
@@ -1393,7 +1393,7 @@ iq_pubsub_set_options(Host, Node, SetOptionsAttrs, SetOptionsSubEls) ->
 -spec iq_pubsub_owner(
         Host       :: mod_pubsub:host(),
           ServerHost :: binary(),
-          From       ::ejabberd:jid(),
+          From       ::jlib:jid(),
           IQType     :: 'get' | 'set',
           SubEl      :: exml:element(),
           Lang       :: binary())
@@ -1810,7 +1810,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
         Host          :: mod_pubsub:host(),
           ServerHost    :: binary(),
           Node        :: <<>> | mod_pubsub:nodeId(),
-          Owner         ::ejabberd:jid(),
+          Owner         ::jlib:jid(),
           Type          :: binary(),
           Access        :: atom(),
           Configuration :: [exml:element()])
@@ -1943,7 +1943,7 @@ create_node_make_reply(Node) ->
 -spec delete_node(
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
-          Owner :: ejabberd:jid())
+          Owner :: jlib:jid())
         -> {result, [exml:element(), ...]}
 %%%
                | {error, exml:element()}.
@@ -2031,7 +2031,7 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
 -spec subscribe_node(
         Host          :: mod_pubsub:host(),
           Node          :: mod_pubsub:nodeId(),
-          From          ::ejabberd:jid(),
+          From          ::jlib:jid(),
           JID           :: binary(),
           Configuration :: [exml:element()])
         -> {result, [exml:element(), ...]}
@@ -2168,8 +2168,8 @@ subscribe_node_reply(Subscriber, SubAttrs) ->
 -spec unsubscribe_node(
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
-          From  ::ejabberd:jid(),
-          JID   :: binary() | ejabberd:ljid(),
+          From  ::jlib:jid(),
+          JID   :: binary() | jlib:ljid(),
           SubId :: mod_pubsub:subId())
         -> {result, []}
 %%%
@@ -2202,7 +2202,7 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
         Host       :: mod_pubsub:host(),
           ServerHost :: binary(),
           Node       :: mod_pubsub:nodeId(),
-          Publisher  ::ejabberd:jid(),
+          Publisher  ::jlib:jid(),
           ItemId     :: <<>> | mod_pubsub:itemId(),
           Payload    :: mod_pubsub:payload())
         -> {result, [exml:element(), ...]}
@@ -2345,7 +2345,7 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
 -spec delete_item(
         Host      :: mod_pubsub:host(),
           Node      :: mod_pubsub:nodeId(),
-          Publisher ::ejabberd:jid(),
+          Publisher ::jlib:jid(),
           ItemId    :: mod_pubsub:itemId())
         -> {result, []}
 %%%
@@ -2407,7 +2407,7 @@ delete_item_transaction(Host, Publisher, ItemId,
 -spec purge_node(
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
-          Owner :: ejabberd:jid())
+          Owner :: jlib:jid())
         -> {result, []}
 %%%
                | {error, exml:element()}.
@@ -2456,7 +2456,7 @@ purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type,
 %% to read the items.
 -spec get_items(Host :: mod_pubsub:host(),
                 Node :: mod_pubsub:nodeId(),
-                From ::ejabberd:jid(),
+                From ::jlib:jid(),
                 SubId :: mod_pubsub:subId(),
                 SMaxItems :: binary(),
                 ItemIds :: [mod_pubsub:itemId()],
@@ -2615,7 +2615,7 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
 -spec get_affiliations(
         Host    :: mod_pubsub:host(),
           Node    :: mod_pubsub:nodeId(),
-          JID     ::ejabberd:jid(),
+          JID     ::jlib:jid(),
           Plugins :: [binary()])
         -> {result, [exml:element(), ...]}
 %%%
@@ -2659,7 +2659,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
             Error
     end.
 
--spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: ejabberd:jid()) ->
+-spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jlib:jid()) ->
     {result, [exml:element(), ...]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
@@ -2703,7 +2703,7 @@ get_affiliations_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
 -spec set_affiliations(
         Host        :: mod_pubsub:host(),
           Node        :: mod_pubsub:nodeId(),
-          From        ::ejabberd:jid(),
+          From        ::jlib:jid(),
           EntitiesEls :: [exml:element()])
         -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
 %%%
@@ -2907,7 +2907,7 @@ write_sub(Nidx, Subscriber, SubId, Options) ->
 %% @spec (Host, Node, JID, Plugins) -> {error, Reason} | {result, Response}
 %%         Host = host()
 %%         Node = pubsubNode()
-%%         JID =ejabberd:jid()
+%%         JID =jlib:jid()
 %%         Plugins = [Plugin::string()]
 %%         Reason = stanzaError()
 %%         Response = [pubsubIQResponse()]
@@ -3114,8 +3114,8 @@ notify_subscription_change(Host, Node, JID, Sub) ->
     ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
-                                          From :: ejabberd:ljid(),
-                                          Owners :: [ejabberd:ljid(), ...],
+                                          From :: jlib:ljid(),
+                                          Owners :: [jlib:ljid(), ...],
                                           AccessModel :: mod_pubsub:accessModel(),
                                           AllowedGroups :: [binary()]) ->
     {PresenceSubscription :: boolean(), RosterGroup :: boolean()}.
@@ -3177,7 +3177,7 @@ subscription_to_string(_) -> <<"none">>.
 
 -spec service_jid(
         Host :: mod_pubsub:host())
-        ->ejabberd:jid().
+        ->jlib:jid().
 service_jid(Host) ->
     case Host of
         {U, S, _} -> {jid, U, S, <<>>, U, S, <<>>};
@@ -3185,7 +3185,7 @@ service_jid(Host) ->
     end.
 
 %% @spec (LJID, NotifyType, Depth, NodeOptions, SubOptions) -> boolean()
-%%        LJID =ejabberd:jid()
+%%        LJID =jlib:jid()
 %%        NotifyType = items | nodes
 %%        Depth = integer()
 %%        NodeOptions = [{atom(), term()}]
@@ -3213,7 +3213,7 @@ sub_option_can_deliver(_, _, {deliver, false}) -> false;
 sub_option_can_deliver(_, _, {expire, When}) -> timestamp() < When;
 sub_option_can_deliver(_, _, _) -> true.
 
--spec presence_can_deliver(Entity :: ejabberd:ljid(), PresenceBasedDelivery :: boolean()) -> boolean().
+-spec presence_can_deliver(Entity :: jlib:ljid(), PresenceBasedDelivery :: boolean()) -> boolean().
 presence_can_deliver(_, false) ->
     true;
 presence_can_deliver({User, Server, <<>>}, true) ->
@@ -3225,9 +3225,9 @@ presence_can_deliver({User, Server, Resource}, true) ->
     end.
 
 -spec state_can_deliver(
-        Entity::ejabberd:ljid(),
+        Entity::jlib:ljid(),
           SubOptions :: mod_pubsub:subOptions() | [])
-        -> [ejabberd:ljid()].
+        -> [jlib:ljid()].
 state_can_deliver({U, S, R}, []) -> [{U, S, R}];
 state_can_deliver({U, S, R}, SubOptions) ->
     case lists:keysearch(show_values, 1, SubOptions) of
@@ -3248,10 +3248,10 @@ state_can_deliver({U, S, R}, SubOptions) ->
     end.
 
 -spec get_resource_state(
-        Entity     :: ejabberd:ljid(),
+        Entity     :: jlib:ljid(),
           ShowValues :: [binary()],
-          JIDs       :: [ejabberd:ljid()])
-        -> [ejabberd:ljid()].
+          JIDs       :: [jlib:ljid()])
+        -> [jlib:ljid()].
 get_resource_state({U, S, R}, ShowValues, JIDs) ->
     case ejabberd_sm:get_session_pid(U, S, R) of
         none ->
@@ -4197,7 +4197,7 @@ transaction(Host, Fun, Trans) ->
     Retry = 1,
     transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
 
--spec transaction_retry(Host :: binary() | ejabberd:simple_jid(),
+-spec transaction_retry(Host :: binary() | jlib:simple_jid(),
                         ServerHost :: binary(),
                         Fun :: fun(() -> tuple()),
                         Trans :: atom(),

@@ -121,7 +121,7 @@ commands() ->
 %%%
 %%% Vcard
 %%%
--spec get_vcard(ejabberd:user(), ejabberd:server(), any())
+-spec get_vcard(jlib:user(), jlib:server(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name) ->
     Acc = mongoose_acc:new(),
@@ -132,7 +132,7 @@ get_vcard(User, Host, Name) ->
             {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
 
--spec get_vcard(ejabberd:user(), ejabberd:server(), any(), any())
+-spec get_vcard(jlib:user(), jlib:server(), any(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
     Acc = mongoose_acc:new(),
@@ -143,7 +143,7 @@ get_vcard(User, Host, Name, Subname) ->
             {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
 
--spec set_vcard(ejabberd:user(), ejabberd:server(), [binary()],
+-spec set_vcard(jlib:user(), jlib:server(), [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, SomeContent) ->
     Acc = mongoose_acc:new(),
@@ -154,7 +154,7 @@ set_vcard(User, Host, Name, SomeContent) ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
 
--spec set_vcard(ejabberd:user(), ejabberd:server(), [binary()], [binary()],
+-spec set_vcard(jlib:user(), jlib:server(), [binary()], [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, Subname, SomeContent) ->
     Acc = mongoose_acc:new(),
@@ -169,7 +169,7 @@ set_vcard(User, Host, Name, Subname, SomeContent) ->
 %%
 %% Internal vcard
 
--spec get_module_resource(ejabberd:server()) -> string().
+-spec get_module_resource(jlib:server()) -> string().
 get_module_resource(Server) ->
     case gen_mod:get_module_opt(Server, ?MODULE, module_resource, none) of
         none -> atom_to_list(?MODULE);
@@ -177,7 +177,7 @@ get_module_resource(Server) ->
     end.
 
 
--spec get_vcard_content(mongoose_acc:t(), ejabberd:user(), ejabberd:server(), any())
+-spec get_vcard_content(mongoose_acc:t(), jlib:user(), jlib:server(), any())
                        -> {error, string()} | list(binary()).
 get_vcard_content(Acc, User, Server, Data) ->
     JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
@@ -203,7 +203,7 @@ get_vcard([Data1, Data2], A1) ->
 get_vcard([Data], A1) ->
     exml_query:subelements(A1, Data).
 
--spec set_vcard_content(mongoose_acc:t(), ejabberd:user(), ejabberd:server(), Data :: [binary()],
+-spec set_vcard_content(mongoose_acc:t(), jlib:user(), jlib:server(), Data :: [binary()],
                         ContentList :: binary() | [binary()]) -> {ok, string()}.
 set_vcard_content(Acc, U, S, D, SomeContent) when is_binary(SomeContent) ->
     set_vcard_content(Acc, U, S, D, [SomeContent]);

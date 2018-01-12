@@ -2,20 +2,20 @@
 
 -callback start(list()) -> any().
 -callback get_sessions() -> [ejabberd_sm:ses_tuple()].
--callback get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
--callback get_sessions(ejabberd:user(), ejabberd:server()) ->
+-callback get_sessions(jlib:server()) -> [ejabberd_sm:ses_tuple()].
+-callback get_sessions(jlib:user(), jlib:server()) ->
     [ejabberd_sm:session()].
--callback get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()
+-callback get_sessions(jlib:user(), jlib:server(), jlib:resource()
                       ) -> [ejabberd_sm:session()].
--callback create_session(_User :: ejabberd:user(),
-                         _Server :: ejabberd:server(),
-                         _Resource :: ejabberd:resource(),
+-callback create_session(_User :: jlib:user(),
+                         _Server :: jlib:server(),
+                         _Resource :: jlib:resource(),
                          Session :: ejabberd_sm:session()) ->
     ok | {error, term()}.
 -callback delete_session(ejabberd_sm:sid(),
-                         _User :: ejabberd:user(),
-                         _Server :: ejabberd:server(),
-                         _Resource :: ejabberd:resource()) -> ok.
+                         _User :: jlib:user(),
+                         _Server :: jlib:server(),
+                         _Resource :: jlib:resource()) -> ok.
 -callback cleanup(Node :: atom()) -> any().
 -callback total_count() -> integer().
 -callback unique_count() -> integer().
@@ -32,34 +32,34 @@ start(Mod, Opts) ->
 get_sessions(Mod) ->
     Mod:get_sessions().
 
--spec get_sessions(module(), ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(module(), jlib:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Mod, Server) ->
     Mod:get_sessions(Server).
 
--spec get_sessions(module(), ejabberd:user(), ejabberd:server()) ->
+-spec get_sessions(module(), jlib:user(), jlib:server()) ->
     [ejabberd_sm:session()].
 get_sessions(Mod, User, Server) ->
     Mod:get_sessions(User, Server).
 
 -spec get_sessions(module(),
-                   ejabberd:user(),
-                   ejabberd:server(),
-                   ejabberd:resource()) ->
+                   jlib:user(),
+                   jlib:server(),
+                   jlib:resource()) ->
     [ejabberd_sm:session()].
 get_sessions(Mod, User, Server, Resource) ->
     Mod:get_sessions(User, Server, Resource).
 
--spec create_session(Mod :: module(), User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
-                     Resource :: ejabberd:resource(),
+-spec create_session(Mod :: module(), User :: jlib:user(),
+                     Server :: jlib:server(),
+                     Resource :: jlib:resource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(Mod, User, Server, Resource, Session) ->
     Mod:create_session(User, Server, Resource, Session).
 
 -spec delete_session(Mod :: module(), Sid :: ejabberd_sm:sid(),
-                     User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
-                     Resource :: ejabberd:resource()) -> ok.
+                     User :: jlib:user(),
+                     Server :: jlib:server(),
+                     Resource :: jlib:resource()) -> ok.
 delete_session(Mod, Sid, User, Server, Resource) ->
     Mod:delete_session(Sid, User, Server, Resource).
 

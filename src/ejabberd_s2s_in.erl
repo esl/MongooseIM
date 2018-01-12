@@ -59,7 +59,7 @@
                 tls_required = false  :: boolean(),
                 tls_certverify = false :: boolean(),
                 tls_options = []      :: [{_, _}],
-                server                :: ejabberd:server() | undefined,
+                server                :: jlib:server() | undefined,
                 authenticated = false :: boolean(),
                 auth_domain           :: binary() | undefined,
                 connections = dict:new(),
@@ -403,7 +403,7 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: ejabberd:jid(), To :: ejabberd:jid(), El :: exml:element(), StateData :: state()) ->
+-spec route_incoming_stanza(From :: jlib:jid(), To :: jlib:jid(), El :: exml:element(), StateData :: state()) ->
     mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
     LFrom = From#jid.lserver,
@@ -579,7 +579,7 @@ send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 
 
--spec change_shaper(state(), Host :: 'global' | binary(), ejabberd:jid()) -> any().
+-spec change_shaper(state(), Host :: 'global' | binary(), jlib:jid()) -> any().
 change_shaper(StateData, Host, JID) ->
     Shaper = acl:match_rule(Host, StateData#state.shaper, JID),
     (StateData#state.sockmod):change_shaper(StateData#state.socket, Shaper).

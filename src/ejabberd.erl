@@ -44,23 +44,6 @@
                  | fast_tls
                  | ejabberd_zlib.
 
--type user()      :: binary().
--type server()    :: binary().
--type resource()  :: binary().
--type luser()     :: binary().
--type lserver()   :: binary().
--type lresource() :: binary().
-
--type jid() :: #jid{}.
--type ljid() :: {luser(), lserver(), lresource()}.
-
-%% A tuple-style JID
--type simple_jid() :: {user(), server(), resource()}.
-
-%% A tuple-style JID without resource part
--type simple_bare_jid() :: {LUser :: luser(), LServer :: lserver()}.
--type literal_jid() :: binary().
-
 %% Incoming event from XML stream. Used everywhere in xmlstream fsm modules
 -type xml_stream_item() :: 'closed'
                           | 'timeout'
@@ -71,12 +54,7 @@
 
 -export_type([lang/0,
               sockmod/0,
-              jid/0, simple_jid/0, simple_bare_jid/0,
-              xml_stream_item/0,
-              user/0, server/0, resource/0,
-              luser/0, lserver/0, lresource/0,
-              literal_jid/0,
-              ljid/0
+              xml_stream_item/0
              ]).
 
 start() ->

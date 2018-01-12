@@ -25,12 +25,12 @@
 -include_lib("exml/include/exml.hrl").
 -include("mongoose_ns.hrl").
 
--record(jid, {user = <<>>      :: ejabberd:user(),
-              server = <<>>    :: ejabberd:server(),
-              resource = <<>>  :: ejabberd:resource(),
-              luser = <<>>     :: ejabberd:luser(),
-              lserver = <<>>   :: ejabberd:lserver(),
-              lresource = <<>> :: ejabberd:lresource()
+-record(jid, {user = <<>>      :: jlib:user(),
+              server = <<>>    :: jlib:server(),
+              resource = <<>>  :: jlib:resource(),
+              luser = <<>>     :: jlib:luser(),
+              lserver = <<>>   :: jlib:lserver(),
+              lresource = <<>> :: jlib:lresource()
              }).
 
 -record(iq, {id = <<>>    :: binary(),

@@ -70,7 +70,7 @@
 
 -export_type([broadcast/0]).
 
--type packet() :: {ejabberd:jid(), ejabberd:jid(), exml:element()}.
+-type packet() :: {jlib:jid(), jlib:jid(), exml:element()}.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -120,7 +120,7 @@ del_aux_field(Key, #state{aux_fields = Opts} = State) ->
     State#state{aux_fields = Opts1}.
 
 
--spec get_subscription(From :: ejabberd:jid() | ejabberd:simple_jid(),
+-spec get_subscription(From :: jlib:jid() | jlib:simple_jid(),
                        State :: state()) -> 'both' | 'from' | 'none' | 'to'.
 get_subscription(From = #jid{}, StateData) ->
     get_subscription(jid:to_lower(From), StateData);
@@ -828,7 +828,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             {wait, Acc2, StateData}
     end.
 
--spec do_open_session(mongoose_acc:t(), ejabberd:jid(), state()) ->
+-spec do_open_session(mongoose_acc:t(), jlib:jid(), state()) ->
     {stop | established, mongoose_acc:t(), state()}.
 do_open_session(Acc, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
@@ -1289,8 +1289,8 @@ process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
     finish_state(Act, StateName, NextState).
 
 -spec preprocess_and_ship(Acc :: mongoose_acc:t(),
-                          From :: ejabberd:jid(),
-                          To :: ejabberd:jid(),
+                          From :: jlib:jid(),
+                          To :: jlib:jid(),
                           El :: exml:element(),
                           StateData :: state()) -> {ok | resume, mongoose_acc:t(), state()}.
 preprocess_and_ship(Acc, From, To, El, StateData) ->
@@ -1344,8 +1344,8 @@ handle_routed(<<"message">>, _From, To, Acc, StateData) ->
 handle_routed(_, _From, _To, Acc, StateData) ->
     {ignore, Acc, StateData}.
 
--spec handle_routed_iq(From :: ejabberd:jid(),
-                       To :: ejabberd:jid(),
+-spec handle_routed_iq(From :: jlib:jid(),
+                       To :: jlib:jid(),
                        Acc :: mongoose_acc:t(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, StateData) ->
@@ -1353,8 +1353,8 @@ handle_routed_iq(From, To, Acc, StateData) ->
     Qi = mongoose_acc:get(iq_query_info, Acc1),
     handle_routed_iq(From, To, Acc1, Qi, StateData).
 
--spec handle_routed_iq(From :: ejabberd:jid(),
-                       To :: ejabberd:jid(),
+-spec handle_routed_iq(From :: jlib:jid(),
+                       To :: jlib:jid(),
                        Acc :: mongoose_acc:t(),
                        IQ :: invalid | not_iq | reply | jlib:iq(),
                        StateData :: state()) -> routing_result().
@@ -1449,7 +1449,7 @@ privacy_list_push_iq(PrivListName) ->
                          children = [#xmlel{name = <<"list">>,
                                             attrs = [{<<"name">>, PrivListName}]}]}]}.
 
--spec handle_routed_presence(From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec handle_routed_presence(From :: jlib:jid(), To :: jlib:jid(),
                              Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Acc, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
@@ -1491,8 +1491,8 @@ handle_routed_presence(From, To, Acc, StateData) ->
     end.
 
 -spec handle_routed_available_presence(State :: state(),
-                                       From :: ejabberd:jid(),
-                                       To :: ejabberd:jid(),
+                                       From :: jlib:jid(),
+                                       To :: jlib:jid(),
                                        Acc :: mongoose_acc:t()) -> routing_result().
 handle_routed_available_presence(State, From, To, Acc) ->
     {Acc1, Res} = privacy_check_packet(Acc, To, in, State),
@@ -1644,13 +1644,13 @@ should_close_session(resume_session) -> true;
 should_close_session(session_established) -> true;
 should_close_session(_) -> false.
 
--spec generate_random_resource() -> ejabberd:lresource().
+-spec generate_random_resource() -> jlib:lresource().
 generate_random_resource() ->
     list_to_binary(
       lists:concat(
         [randoms:get_string() | tuple_to_list(p1_time_compat:timestamp())])).
 
--spec change_shaper(state(), ejabberd:jid()) -> any().
+-spec change_shaper(state(), jlib:jid()) -> any().
 change_shaper(StateData, JID) ->
     Shaper = acl:match_rule(StateData#state.server,
                             StateData#state.shaper, JID),
@@ -1696,7 +1696,7 @@ do_send_element(El, StateData) ->
 
 
 -spec send_header(State :: state(),
-                  Server :: ejabberd:server(),
+                  Server :: jlib:server(),
                   Version :: binary(),
                   Lang :: ejabberd:lang()) -> any().
 send_header(StateData, Server, Version, Lang)
@@ -1836,8 +1836,8 @@ get_conn_type(StateData) ->
     end.
 
 
--spec process_presence_probe(From :: ejabberd:simple_jid() | ejabberd:jid(),
-                             To :: ejabberd:jid(),
+-spec process_presence_probe(From :: jlib:simple_jid() | jlib:jid(),
+                             To :: jlib:jid(),
                              Acc :: mongoose_acc:t(),
                              State :: state()) -> mongoose_acc:t().
 process_presence_probe(From, To, Acc, StateData) ->
@@ -1864,8 +1864,8 @@ process_presence_probe(From, To, Acc, StateData) ->
     end.
 
 -spec check_privacy_and_route_probe(StateData :: state(),
-                                    From :: ejabberd:jid(),
-                                    To :: ejabberd:jid(),
+                                    From :: jlib:jid(),
+                                    To :: jlib:jid(),
                                     Acc :: mongoose_acc:t(),
                                     Packet :: exml:element()) -> mongoose_acc:t().
 check_privacy_and_route_probe(StateData, From, To, Acc, Packet) ->
@@ -1925,7 +1925,7 @@ specifically_visible_to(LFrom, #state{pres_invis = Invisible} = S) ->
 
 %% @doc User updates his presence (non-directed presence packet)
 -spec presence_update(Acc :: mongoose_acc:t(),
-                      From :: 'undefined' | ejabberd:jid(),
+                      From :: 'undefined' | jlib:jid(),
                       State :: state()) -> {mongoose_acc:t(), state()}.
 presence_update(Acc, From, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
@@ -1991,7 +1991,7 @@ presence_update(Acc, From, StateData) ->
     end.
 
 -spec presence_update_to_available(Acc :: mongoose_acc:t(),
-                                   From :: ejabberd:jid(),
+                                   From :: jlib:jid(),
                                    Packet :: exml:element(),
                                    StateData :: state()) -> {mongoose_acc:t(), state()}.
 presence_update_to_available(Acc, From, Packet, StateData) ->
@@ -2019,7 +2019,7 @@ presence_update_to_available(Acc, From, Packet, StateData) ->
                                    Acc :: mongoose_acc:t(),
                                    OldPriority :: integer(),
                                    NewPriority :: integer(),
-                                   From :: ejabberd:jid(),
+                                   From :: jlib:jid(),
                                    Packet :: exml:element(),
                                    StateData :: state()) -> {mongoose_acc:t(), state()}.
 presence_update_to_available(true, Acc, _, NewPriority, From, Packet, StateData) ->
@@ -2128,7 +2128,7 @@ check_privacy_and_route(Acc, StateData) ->
     check_privacy_and_route(Acc, mongoose_acc:get(from_jid, Acc), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
-                              FromRoute :: ejabberd:jid(),
+                              FromRoute :: jlib:jid(),
                               StateData :: state()) -> mongoose_acc:t().
 check_privacy_and_route(Acc, FromRoute, StateData) ->
     From = mongoose_acc:get(from_jid, Acc),
@@ -2148,8 +2148,8 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
 
 
 -spec privacy_check_packet(Packet :: exml:element(),
-                           From :: ejabberd:jid(),
-                           To :: ejabberd:jid(),
+                           From :: jlib:jid(),
+                           To :: jlib:jid(),
                            Dir :: 'in' | 'out',
                            StateData :: state()) -> allow|deny|block.
 privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
@@ -2160,7 +2160,7 @@ privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
     Res.
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
-                           To :: ejabberd:jid(),
+                           To :: jlib:jid(),
                            Dir :: 'in' | 'out',
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, To, Dir, StateData) ->
@@ -2173,8 +2173,8 @@ privacy_check_packet(Acc, To, Dir, StateData) ->
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                            Packet :: exml:element(),
-                           From :: ejabberd:jid(),
-                           To :: ejabberd:jid(),
+                           From :: jlib:jid(),
+                           To :: jlib:jid(),
                            Dir :: 'in' | 'out',
                            StateData :: state()) -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
@@ -2204,7 +2204,7 @@ presence_broadcast(Acc, JIDSet, StateData) ->
 
 -spec presence_broadcast_to_trusted(Acc :: mongoose_acc:t(),
                                     State :: state(),
-                                    From :: 'undefined' | ejabberd:jid(),
+                                    From :: 'undefined' | jlib:jid(),
                                     T :: jid_set(),
                                     A :: jid_set(),
                                     Packet :: exml:element()) -> mongoose_acc:t().
@@ -2221,7 +2221,7 @@ presence_broadcast_to_trusted(Acc, StateData, From, T, A, Packet) ->
       end, Acc, gb_sets:to_list(A)).
 
 -spec presence_broadcast_first(mongoose_acc:t(),
-                               From :: 'undefined' | ejabberd:jid(),
+                               From :: 'undefined' | jlib:jid(),
                                State :: state(),
                                Packet :: exml:element()) -> {mongoose_acc:t(), state()}.
 presence_broadcast_first(Acc0, From, StateData, Packet) ->
@@ -2249,7 +2249,7 @@ presence_broadcast_first(Acc0, From, StateData, Packet) ->
     end.
 
 -spec roster_change(Acc :: mongoose_acc:t(),
-                    IJID :: ejabberd:simple_jid() | ejabberd:jid(),
+                    IJID :: jlib:simple_jid() | jlib:jid(),
                     ISubscription :: from | to | both | none,
                     State :: state()) -> {mongoose_acc:t(), state()}.
 roster_change(Acc, IJID, ISubscription, StateData) ->
@@ -2345,7 +2345,7 @@ get_priority_from_presence(PresencePacket) ->
     end.
 
 -spec process_privacy_iq(Acc :: mongoose_acc:t(),
-                         To :: ejabberd:jid(),
+                         To :: jlib:jid(),
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc0, To, StateData) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
@@ -2371,7 +2371,7 @@ process_privacy_iq(Acc0, To, StateData) ->
 
 -spec process_privacy_iq(Acc :: mongoose_acc:t(),
                          Type :: get | set,
-                         To :: ejabberd:jid(),
+                         To :: jlib:jid(),
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc, get, To, StateData) ->
     From = mongoose_acc:get(from_jid, Acc),
@@ -2429,8 +2429,8 @@ resend_offline_message(A, StateData, From, To, Packet, in) ->
 
 -spec check_privacy_and_route_or_ignore(Acc :: mongoose_acc:t(),
                                         StateData :: state(),
-                                        From :: ejabberd:jid(),
-                                        To :: ejabberd:jid(),
+                                        From :: jlib:jid(),
+                                        To :: jlib:jid(),
                                         Packet :: exml:element(),
                                         Dir :: in | out) -> any().
 check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, Dir) ->
@@ -2564,7 +2564,7 @@ is_ip_blacklisted({IP, _Port}) ->
 
 %% @doc Check from attributes.
 -spec check_from(El, C2SJID) -> Result when
-      El :: exml:element(), C2SJID :: ejabberd:jid(),
+      El :: exml:element(), C2SJID :: jlib:jid(),
       Result :: 'invalid-from'  | exml:element().
 check_from(El, #jid{ luser = C2SU, lserver = C2SS, lresource = C2SR }) ->
     case xml:get_tag_attr(<<"from">>, El) of
@@ -2710,8 +2710,8 @@ blocking_presence_to_contacts(Action, [Jid|JIDs], StateData) ->
     end,
     blocking_presence_to_contacts(Action, JIDs, StateData).
 
--type pack_tree() :: gb_trees:tree(binary() | ejabberd:simple_jid(),
-                                   binary() | ejabberd:simple_jid()).
+-type pack_tree() :: gb_trees:tree(binary() | jlib:simple_jid(),
+                                   binary() | jlib:simple_jid()).
 
 %% @doc Try to reduce the heap footprint of the four presence sets
 %% by ensuring that we re-use strings and Jids wherever possible.
@@ -2741,8 +2741,8 @@ pack_jid_set(Set, Pack) ->
     {gb_sets:from_list(PackedJids), NewPack}.
 
 
--spec pack_jids([{_, _, _}], Pack :: pack_tree(), Acc :: [ejabberd:simple_jid()]) ->
-    {[ejabberd:simple_jid()], pack_tree()}.
+-spec pack_jids([{_, _, _}], Pack :: pack_tree(), Acc :: [jlib:simple_jid()]) ->
+    {[jlib:simple_jid()], pack_tree()}.
 pack_jids([], Pack, Acc) -> {Acc, Pack};
 pack_jids([{U, S, R}=Jid | Jids], Pack, Acc) ->
     case gb_trees:lookup(Jid, Pack) of

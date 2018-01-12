@@ -120,7 +120,7 @@ set_default_list(LUser, LServer, Name) ->
             {error, {aborted, Reason}}
     end.
 
--spec set_default_list_t(ejabberd:luser(), ejabberd:lserver(), Name :: binary()) ->
+-spec set_default_list_t(jlib:luser(), jlib:lserver(), Name :: binary()) ->
     ok | {error, not_found}.
 set_default_list_t(LUser, LServer, Name) ->
     case mnesia:read({privacy, {LUser, LServer}}) of

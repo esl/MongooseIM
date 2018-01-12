@@ -21,7 +21,7 @@
 %% API
 %%====================================================================
 
--spec decode(From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec decode(From :: jlib:jid(), To :: jlib:jid(),
              Stanza :: jlib:iq() | exml:element()) -> mod_muc_light_codec:decode_result().
 decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza)
   when ToU =/= <<>> ->
@@ -42,8 +42,8 @@ decode(From, _To, #iq{} = IQ) ->
 decode(_, _, _) ->
     {error, bad_request}.
 
--spec encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
-             RoomUS :: ejabberd:simple_bare_jid(),
+-spec encode(Request :: muc_light_encode_request(), OriginalSender :: jlib:jid(),
+             RoomUS :: jlib:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     US = jid:to_lus(Sender),
@@ -83,7 +83,7 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
     end.
 
 -spec encode_error(
-        ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
+        ErrMsg :: tuple(), OrigFrom :: jlib:jid(), OrigTo :: jlib:jid(),
         OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
     any().
 encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
@@ -125,7 +125,7 @@ ensure_id({_, Id}) -> Id.
 %% IQ decoding
 %%====================================================================
 
--spec decode_iq(From :: ejabberd:jid(), IQ :: jlib:iq()) ->
+-spec decode_iq(From :: jlib:jid(), IQ :: jlib:iq()) ->
     {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = get, sub_el = _QueryEl, id = ID }) ->
     {ok, {get, #config{ id = ID }}};
@@ -233,8 +233,8 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
 %% Encoding
 %%====================================================================
 
--spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: ejabberd:jid(),
-                  SenderJID :: ejabberd:jid(),
+-spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: jlib:jid(),
+                  SenderJID :: jlib:jid(),
                   HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
@@ -376,8 +376,8 @@ kv_to_el(Key, Value) ->
 envelope(XMLNS, Children) ->
     [ #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, XMLNS}], children = Children } ].
 
--spec bcast_aff_messages(Room :: ejabberd:jid(), OldAffUsers :: aff_users(),
-                         NewAffUsers :: aff_users(), SenderJID :: ejabberd:jid(),
+-spec bcast_aff_messages(Room :: jlib:jid(), OldAffUsers :: aff_users(),
+                         NewAffUsers :: aff_users(), SenderJID :: jlib:jid(),
                          ChangedAffUsers :: aff_users(),
                          HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _) ->
@@ -418,7 +418,7 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
                      NotifForNewcomer, HandleFun),
     bcast_aff_messages(Room, OldAffUsers, RNewAffUsers, SenderJID, ChangedAffUsers, HandleFun).
 
--spec msg_to_leaving_user(Room :: ejabberd:jid(), User :: ejabberd:simple_bare_jid(),
+-spec msg_to_leaving_user(Room :: jlib:jid(), User :: jlib:simple_bare_jid(),
                           HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     UserBin = jid:to_binary({ToU, ToS, <<>>}),
@@ -428,7 +428,7 @@ msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     NotifForLeaving = envelope(?NS_MUC_USER, [ aff_user_to_item({User, none}), status(<<"321">>) ]),
     send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, NotifForLeaving, HandleFun).
 
--spec send_to_aff_user(From :: ejabberd:jid(), ToU :: ejabberd:luser(), ToS :: ejabberd:lserver(),
+-spec send_to_aff_user(From :: jlib:jid(), ToU :: jlib:luser(), ToS :: jlib:lserver(),
                        Name :: binary(), Attrs :: [{binary(), binary()}],
                        Children :: [jlib:xmlch()],
                        HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
@@ -439,8 +439,8 @@ send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
                      children = Children },
     HandleFun(From, To, Packet).
 
--spec jids_from_room_with_resource(RoomUS :: ejabberd:simple_bare_jid(), binary()) ->
-    {ejabberd:jid(), binary()}.
+-spec jids_from_room_with_resource(RoomUS :: jlib:simple_bare_jid(), binary()) ->
+    {jlib:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     FromBin = jid:to_binary({RoomU, RoomS, Resource}),
     From = jid:make_noprep({RoomU, RoomS, Resource}),

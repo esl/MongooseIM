@@ -19,8 +19,8 @@
         ]).
 
 -record(subhost_mapping, {
-          subhost :: ejabberd:server(),
-          host :: ejabberd:server()
+          subhost :: jlib:server(),
+          host :: jlib:server()
          }).
 
 -define(TAB, subhost_mappings).
@@ -44,7 +44,7 @@ stop() ->
 %% API
 %%---------------------------------------------------------------
 
--spec 'register'(Host :: ejabberd:server(), SubHost :: ejabberd:server()) ->
+-spec 'register'(Host :: jlib:server(), SubHost :: jlib:server()) ->
     ok | {error, exists}.
 register(Host, SubHost) ->
     ejabberd_hooks:run(register_subhost, [SubHost]),
@@ -53,7 +53,7 @@ register(Host, SubHost) ->
         false -> {error, exists}
     end.
 
--spec 'unregister'(SubHost :: ejabberd:server()) -> true.
+-spec 'unregister'(SubHost :: jlib:server()) -> true.
 unregister(SubHost) ->
     case get_host(SubHost) of
         {ok, Host} -> ejabberd_hooks:run(unregister_subhost, [SubHost]);
@@ -61,7 +61,7 @@ unregister(SubHost) ->
     end,
     ets:delete(?TAB, SubHost).
 
--spec get_host(SubHost :: ejabberd:server()) -> {ok, ejabberd:server()} | undefined.
+-spec get_host(SubHost :: jlib:server()) -> {ok, jlib:server()} | undefined.
 get_host(SubHost) ->
     case ets:lookup(?TAB, SubHost) of
         [#subhost_mapping{ host = Host }] -> {ok, Host};

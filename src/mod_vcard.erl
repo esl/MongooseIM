@@ -116,7 +116,7 @@
 
 -callback search_reported_fields(VHost, Lang) ->
     Res :: term() when
-    VHost :: ejabberd:lserver(),
+    VHost :: jlib:lserver(),
     Lang :: binary().
 
 -spec default_search_fields() -> list().
@@ -134,7 +134,7 @@ default_search_fields() ->
      {<<"Organization Name">>, <<"orgname">>},
      {<<"Organization Unit">>, <<"orgunit">>}].
 
--spec get_results_limit(ejabberd:lserver()) -> non_neg_integer() | infinity.
+-spec get_results_limit(jlib:lserver()) -> non_neg_integer() | infinity.
 get_results_limit(LServer) ->
     case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
         infinity ->
@@ -171,7 +171,7 @@ stop(VHost) ->
 %% mongoose_packet_handler callbacks
 %%--------------------------------------------------------------------
 
--spec process_packet(Acc :: mongoose_acc:t(), From ::ejabberd:jid(), To ::ejabberd:jid(),
+-spec process_packet(Acc :: mongoose_acc:t(), From ::jlib:jid(), To ::jlib:jid(),
                      Packet :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, Packet, Pid) ->
     Pid ! {route, From, To, Acc, Packet}.
@@ -317,7 +317,7 @@ unsafe_set_vcard(From, VCARD) ->
 
 -spec set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
-      From ::ejabberd:jid(),
+      From ::jlib:jid(),
       VCARD :: exml:element(),
       Result :: ok | error().
 set_vcard(ok, _From, _VCARD) ->
