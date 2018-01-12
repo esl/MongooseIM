@@ -84,7 +84,7 @@ innodb_file_format=BARRACUDA
 innodb_file_format_max=BARRACUDA
 innodb_file_per_table=true
 ```
-For versions `5.7.9` and later, all of the above options are set correctly by default.
+For versions `5.7.9` and newer, all of the above options are set correctly by default.
 ## PostgreSQL
 
 **Can be used for:**
