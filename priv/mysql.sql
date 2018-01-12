@@ -19,7 +19,8 @@
 
 -- Needs MySQL (at least 5.5.14) with innodb back-end
 -- See the MongooseIM Database Backends documentation for how to configure
--- MySQL versions 5.5.14 to 5.7.6 to use this schema
+-- MySQL versions 5.5.14 to 5.7.8 to use this schema.
+-- Later versions are compatible by default.
 
 CREATE TABLE users (
     username varchar(250) PRIMARY KEY,
