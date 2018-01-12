@@ -25,10 +25,13 @@
 tcp_to_tls(TCPSocket,Opts) ->
   Module = proplists:get_value(tls_module, Opts, fast_tls),
   NewOpts = proplists:delete(tls_module,Opts),
-  {ok,TLSSocket} = Module:tcp_to_tls(TCPSocket,NewOpts),
-  #ejabberd_tls_socket{ tls_module = Module,
-                        tcp_socket = TCPSocket,
-                        tls_socket = TLSSocket }.
+  case Module:tcp_to_tls(TCPSocket,NewOpts) of
+    {ok,TLSSocket} ->
+      {ok, #ejabberd_tls_socket{ tls_module = Module,
+                                 tcp_socket = TCPSocket,
+                                 tls_socket = TLSSocket }};
+    Error -> Error
+  end.
 
 ?FN_WRP2(send).
 
