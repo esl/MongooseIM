@@ -74,6 +74,8 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
         * `{timeout, Val}` - the time after which an inactive user is disconnected.
         * `{ping_rate, Val}` - the Ping rate points to the time between pings sent by server.
 	 By declaring this field you enable server-side pinging.
+        * `{max_stanza_size, Val}` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
+         **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
         * `{ejabberd_service, Params}` - this enables external component connections over WebSockets.
 	 See the [ejabberd_service](#ejabberd_service) section for more details how to configure it.
 
