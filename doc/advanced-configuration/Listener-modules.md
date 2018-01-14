@@ -24,7 +24,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
  Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
 * `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
-* `max_stanza_size` (positive integer, default: 65536) - Maximum allowed incoming stanza size.
+* `max_stanza_size` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
  **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 * `backlog` (positive integer, default 100) - overrides the default TCP backlog value
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
@@ -142,7 +142,7 @@ Please refer to the [Advanced configuration](../Advanced-configuration.md) for m
 ### Configuration
 
 * `shaper` (atom, default: `s2s_shaper`) - Connection shaper to use for incoming S2S data.
-* `max_stanza_size` (positive integer, default: 131072) - Maximum allowed incoming stanza size.
+* `max_stanza_size` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
  **Warning:** this limit is checked **after** input data parsing, so it does not apply to the input data size itself.
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
