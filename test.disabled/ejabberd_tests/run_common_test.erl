@@ -233,9 +233,10 @@ prepare(Test) ->
     io:format("cover: compiled ~p~n", [Compiled]).
 
 analyze(Test, CoverOpts) ->
-    io:format("Coverage analyzing~n"),
+    io:format("Coverage analyzing @ ~p~n", [os:timestamp()]),
     Nodes = get_ejabberd_nodes(Test),
-    multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
+    MulticallResult = multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
+    io:format("Analyze multicall result: ~p @ ~p~n", [MulticallResult, os:timestamp()]),
     Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     [cover:import(File) || File <- Files],
