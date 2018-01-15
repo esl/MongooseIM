@@ -40,8 +40,8 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec get_disco_items(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]} | term().
+-spec get_disco_items(Acc :: term(), From :: jlib:jid(), To :: jlib:jid(),
+                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, _To, <<"">>, _Lang) ->
     {ok, Domains} = mod_global_distrib_mapping:all_domains(),
     NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),

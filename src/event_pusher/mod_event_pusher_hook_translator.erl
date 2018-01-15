@@ -56,8 +56,8 @@ filter_local_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
     end,
     {From, To, Acc, Packet}.
 
--spec user_send_packet(mongoose_acc:t(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                       Packet :: jlib:xmlel()) -> mongoose_acc:t().
+-spec user_send_packet(mongoose_acc:t(), From :: jlib:jid(), To :: jlib:jid(),
+                       Packet :: exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
     case chat_type(Acc) of
         false -> skip;
@@ -70,7 +70,7 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
--spec user_present(mongoose_acc:t(), UserJID :: ejabberd:jid()) -> mongoose_acc:t().
+-spec user_present(mongoose_acc:t(), UserJID :: jlib:jid()) -> mongoose_acc:t().
 user_present(Acc, #jid{} = UserJID) ->
     mod_event_pusher:push_event(Acc, UserJID#jid.lserver,
                                 #user_status_event{jid = UserJID, status = online}),

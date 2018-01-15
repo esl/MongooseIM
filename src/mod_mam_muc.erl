@@ -442,7 +442,7 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     Result = lookup_messages(Host, Params),
     handle_lookup_result(Result, From, IQ, Params).
 
--spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()}, ejabberd:jid(),
+-spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()}, jlib:jid(),
                            ejabberd:iq(), map()) ->
     ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
 handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->

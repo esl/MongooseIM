@@ -1004,7 +1004,7 @@ action_to_shaper_name(Action) ->
 action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 
--spec wait_shaper(ejabberd:server(), mam_iq:action(), ejabberd:jid()) ->
+-spec wait_shaper(jlib:server(), mam_iq:action(), jlib:jid()) ->
     'ok' | {'error', 'max_delay_reached'}.
 wait_shaper(Host, Action, From) ->
     case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of

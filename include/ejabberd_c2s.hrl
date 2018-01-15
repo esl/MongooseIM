@@ -6,7 +6,7 @@
 -define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
 -define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
--type jid_set() :: gb_sets:set(ejabberd:simple_jid()).
+-type jid_set() :: gb_sets:set(jlib:simple_jid()).
 
 -type authenticated_state() :: boolean() | resumed | replaced.
 
@@ -28,7 +28,7 @@
                 tls_enabled = false   :: boolean(),
                 tls_options = [],
                 authenticated = false :: authenticated_state(),
-                jid                  :: ejabberd:jid() | undefined,
+                jid                  :: jlib:jid() | undefined,
                 user = <<>>          :: jlib:user(),
                 server = <<>>     :: jlib:server(),
                 resource = <<>>      :: jlib:resource(),
@@ -95,7 +95,7 @@
 -type blocking_type() :: 'block' | 'unblock'.
 
 -type broadcast_type() :: {exit, Reason :: binary()}
-                        | {item, IJID :: ejabberd:simple_jid() | ejabberd:jid(),
+                        | {item, IJID :: jlib:simple_jid() | jlib:jid(),
                            ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mongoose_privacy:userlist(),
                            PrivListName :: binary()}
@@ -107,7 +107,7 @@
 
 -type broadcast_result() :: {new_state, NewState :: state()}
                           | {exit, Reason :: binary()}
-                          | {send_new, From :: ejabberd:jid(), To :: ejabberd:jid(),
+                          | {send_new, From :: jlib:jid(), To :: jlib:jid(),
                              Packet :: exml:element(),
                              NewState :: state()}.
 

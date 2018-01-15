@@ -119,7 +119,7 @@ from_element(El, From, To) ->
 from_map(M) ->
     maps:put(mongoose_acc, true, M).
 
--spec update_element(t(), xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+-spec update_element(t(), xmlel(), jlib:jid(), jlib:jid()) -> t().
 update_element(Acc, Element, From, To) ->
     update(Acc, from_element(Element, From, To)).
 

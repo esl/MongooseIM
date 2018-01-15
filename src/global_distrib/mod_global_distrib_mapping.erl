@@ -153,8 +153,8 @@ session_closed(Acc, _SID, UserJid, _Info, _Reason) ->
     Acc.
 
 -spec packet_to_component(Acc :: mongoose_acc:t(),
-                          From :: ejabberd:jid(),
-                          To :: ejabberd:jid()) -> mongoose_acc:t().
+                          From :: jlib:jid(),
+                          To :: jlib:jid()) -> mongoose_acc:t().
 packet_to_component(Acc, From, _To) ->
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     Acc.
