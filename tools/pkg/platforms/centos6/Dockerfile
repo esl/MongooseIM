@@ -8,7 +8,7 @@ RUN wget http://packages.erlang-solutions.com/erlang-solutions-1.0-1.noarch.rpm
 RUN rpm -Uvh erlang-solutions-1.0-1.noarch.rpm
 RUN yum --setopt=obsoletes=0 install -y sudo telnet lsof vim gcc rpm-build make automake \
                                         expat-devel git gcc-c++ kernel-devel openssl-devel \
-                                        yum-utils chrpath erlang-18.3-1.el6 \
+                                        yum-utils chrpath esl-erlang-18.3-1 \
  && yum clean all
 
 # Deploy key for fetching private GitHub repositories
