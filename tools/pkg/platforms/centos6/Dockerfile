@@ -13,7 +13,7 @@ RUN yum --setopt=obsoletes=0 install -y sudo telnet lsof vim gcc rpm-build make 
 
 # Clone esl/package-buildscripts
 ENV BUILDSCRIPTS_REPO https://github.com/esl/package-buildscripts
-ENV BUILDSCRIPTS_REF 8a44113fd8f68a2ea7c064f1d8ea9971db443f4c
+ENV BUILDSCRIPTS_REF b514ba5338f7507a1f7d47ed4e21c1e59b137c41
 RUN git clone BUILDSCRIPTS_REPO package-buildscripts \
  && cd package-buildscripts && git checkout $BUILDSCRIPTS_REF
 
