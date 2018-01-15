@@ -50,7 +50,8 @@
           open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,
           opts :: proplists:proplist() | undefined,
-          ping_rate :: integer() | none
+          ping_rate :: integer() | none,
+          max_stanza_size :: integer() | infinity
          }).
 
 -type socket() :: #websocket{}.
@@ -79,9 +80,10 @@ websocket_init(Transport, Req, Opts) ->
     Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
             Timeout = gen_mod:get_opt(timeout, Opts, infinity),
             PingRate = gen_mod:get_opt(ping_rate, Opts, none),
+            MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
             ?DEBUG("ping rate is ~p", [PingRate]),
             maybe_send_ping_request(PingRate),
-    State = #ws_state{opts = Opts, ping_rate = PingRate},
+    State = #ws_state{opts = Opts, ping_rate = PingRate, max_stanza_size = MaxStanzaSize},
     {ok, Req1, State, Timeout}.
 
 % Called when a text message arrives.
@@ -142,17 +144,21 @@ websocket_terminate(_Reason, _Req, _State) ->
 %%--------------------------------------------------------------------
 
 handle_text(Text, Req, #ws_state{ parser = undefined } = State) ->
-    ParserOpts = get_parser_opts(Text),
+    ParserOpts = get_parser_opts(Text, State),
     {ok, Parser} = exml_stream:new_parser(ParserOpts),
     handle_text(Text, Req, State#ws_state{ parser = Parser });
 handle_text(Text, Req, #ws_state{parser = Parser} = State) ->
-    {ok, NewParser, Elements} = exml_stream:parse(Parser, Text),
-    State1 = State#ws_state{ parser = NewParser },
-    case maybe_start_fsm(Elements, Req, State1) of
-        {ok, Req1, State2} ->
-            process_client_elements(Elements, Req1, State2);
-        {shutdown, _, _} = Shutdown ->
-            Shutdown
+    case exml_stream:parse(Parser, Text) of
+    {ok, NewParser, Elements} ->
+        State1 = State#ws_state{ parser = NewParser },
+        case maybe_start_fsm(Elements, Req, State1) of
+            {ok, Req1, State2} ->
+                process_client_elements(Elements, Req1, State2);
+            {shutdown, _, _} = Shutdown ->
+                Shutdown
+        end;
+    {error, Reason} ->
+        process_parse_error(Reason, Req, State)
     end.
 
 process_client_elements(Elements, Req, #ws_state{fsm_pid = FSM} = State) ->
@@ -160,6 +166,12 @@ process_client_elements(Elements, Req, #ws_state{fsm_pid = FSM} = State) ->
     [send_to_fsm(FSM, process_client_stream_end(
                 replace_stream_ns(Elem, State1), State1)) || Elem <- Elements1],
     {ok, Req, State1}.
+
+process_parse_error(Reason, Req, #ws_state{fsm_pid = undefined} = State) ->
+    {shutdown, Req, State};
+process_parse_error(Reason, Req, #ws_state{fsm_pid = FSM} = State) ->
+    send_to_fsm(FSM, {xmlstreamerror, Reason}),
+    {ok, Req, State}.
 
 send_to_fsm(FSM, #xmlel{} = Element) ->
     send_to_fsm(FSM, {xmlstreamelement, Element});
@@ -306,6 +318,11 @@ replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
     end;
 replace_stream_ns(Element, _State) ->
     Element.
+
+get_parser_opts(Text, #ws_state{ max_stanza_size = infinity } = State) ->
+    [{max_child_size, 0} | get_parser_opts(Text)];
+get_parser_opts(Text, #ws_state{ max_stanza_size = MaxStanzaSize } = State) ->
+    [{max_child_size, MaxStanzaSize} | get_parser_opts(Text)].
 
 get_parser_opts(<<"<open", _/binary>>) ->
     [{infinite_stream, true}, {autoreset, true}]; % new-type WS
