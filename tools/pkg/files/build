@@ -8,7 +8,7 @@ if [ x"$VER" == x"" ]; then
     exit 1
 fi
 
-cd necromancer
+cd package-buildscripts
 cd scripts/mongooseim/rpm/
 cp ../../../scripts/common.sh .
-exec bash necromancer_spell ${VER} ${REVISION}
+exec bash ./script.sh ${VER} ${REVISION}
