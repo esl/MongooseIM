@@ -36,6 +36,8 @@ after_success:
         - tree _build/mim1/rel/mongooseim/priv
         - tree _build/mim2/rel/mongooseim/priv
         - tree _build/mim3/rel/mongooseim/priv
+        - erl -eval "io:format(\"Import: ~p~n\", [catch cover:import(\"_build/mim1/rel/mongooseim/priv/cover/mongooseim@localhost.coverdata\")]), io:format(\"Analyse: ~p~n\", [catch cover:analyse()]), init:stop()." -noshell
+        - erl -eval "io:format(\"Import: ~p~n\", [catch cover:import(\"_build/mim3/rel/mongooseim/priv/cover/mongooseim@localhost.coverdata\")]), io:format(\"Analyse: ~p~n\", [catch cover:analyse()]), init:stop()." -noshell
         - ./rebar3 coveralls send
         - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
