@@ -82,8 +82,8 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_store_message(drop) -> drop;
-                         ({jid(), jid(), mongoose_acc:t(), exml:packet()}) ->
-                                 drop | {jid(), jid(), mongoose_acc:t(), exml:packet()}.
+                         ({jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:packet()}) ->
+                                 drop | {jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:packet()}.
 maybe_store_message(drop) -> drop;
 maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
     LocalHost = opt(local_host),
@@ -116,7 +116,7 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             drop
     end.
 
--spec reroute_messages(mongoose_acc:t(), jid(), jid()) -> [mongoose_acc:t()].
+-spec reroute_messages(mongoose_acc:t(), jlib:jid(), jlib:jid()) -> [mongoose_acc:t()].
 reroute_messages(Acc, From, To) ->
     Key = get_index_key(From, To),
     StoredMessages =
@@ -186,7 +186,7 @@ delete_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
 get_index_key(From, To) ->
     {jid:to_lower(From), jid:to_lower(To)}.
 
--spec do_insert_in_store(ResendAt :: integer(), {jid(), jid(), mongoose_acc:t(), exml:packet()}) -> any().
+-spec do_insert_in_store(ResendAt :: integer(), {jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:packet()}) -> any().
 do_insert_in_store(ResendAt, FPacket) ->
     case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of
         true -> add_index(ResendAt, FPacket);

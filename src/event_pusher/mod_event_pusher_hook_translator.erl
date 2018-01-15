@@ -43,7 +43,7 @@ stop(Host) ->
 
 -spec filter_local_packet(drop) -> drop;
                          (RoutingData) -> RoutingData
-                                              when RoutingData :: {jid(), jid(), mongoose_acc:t()}.
+                                              when RoutingData :: {jlib:jid(), jlib:jid(), mongoose_acc:t()}.
 filter_local_packet(drop) ->
     drop;
 filter_local_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->

@@ -28,7 +28,8 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec send(ejabberd:lserver() | pid(), {jid(), jid(), mongoose_acc:t(), xmlel:packet()}) -> ok.
+
+-spec send(jlib:lserver() | pid(), {jlib:jid(), jlib:jid(), mongoose_acc:t(), xmlel:packet()}) -> ok.
 send(Server, Packet) when is_binary(Server) ->
     Worker = get_process_for(Server),
     send(Worker, Packet);

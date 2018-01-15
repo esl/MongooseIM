@@ -163,7 +163,7 @@ resolve_endpoints(Endpoints) ->
       end,
       Endpoints).
 
--spec recipient_to_worker_key(jid() | ljid(), ejabberd:lserver()) -> binary().
+-spec recipient_to_worker_key(jlib:jid() | jlib:ljid(), jlib:lserver()) -> binary().
 recipient_to_worker_key(#jid{} = Jid, GlobalHost) ->
     recipient_to_worker_key(jid:to_lower(Jid), GlobalHost);
 recipient_to_worker_key({_, GlobalHost, _} = Jid, GlobalHost) ->
@@ -179,7 +179,7 @@ server_to_mgr_name(Server) ->
 server_to_sup_name(Server) ->
     gen_mod:get_module_proc(Server, mod_global_distrib_server_sup).
 
--spec maybe_update_mapping(From :: jid(), mongoose_acc:t()) -> any().
+-spec maybe_update_mapping(From :: jlib:jid(), mongoose_acc:t()) -> any().
 maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
     ok;
 maybe_update_mapping(From, Acc) ->

@@ -69,7 +69,7 @@ delete_for_domain(Domain) when is_binary(Domain) ->
     delete_domain(Domain),
     ets_cache:delete(?DOMAIN_TAB, Domain).
 
--spec for_jid(jid() | ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec for_jid(jlib:jid() | jlib:ljid()) -> {ok, Host :: jlib:lserver()} | error.
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
@@ -77,16 +77,16 @@ for_jid({_, _, _} = Jid) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, Time),
     R.
 
--spec insert_for_jid(jid() | ljid()) -> ok.
+-spec insert_for_jid(jlib:jid() | jlib:ljid()) -> ok.
 insert_for_jid(Jid) ->
     LocalHost = opt(local_host),
     do_insert_for_jid(Jid, LocalHost, fun put_session/1).
 
--spec insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver()) -> ok.
+-spec insert_for_jid(jlib:jid() | jlib:ljid(), Host :: jlib:lserver()) -> ok.
 insert_for_jid(Jid, Host) when is_binary(Host) ->
     do_insert_for_jid(Jid, Host, fun(_) -> ok end).
 
--spec clear_cache(jid()) -> ok.
+-spec clear_cache(jlib:jid()) -> ok.
 clear_cache(#jid{} = Jid) ->
     GlobalHost = opt(global_host),
     case jid:to_lower(Jid) of
@@ -96,7 +96,7 @@ clear_cache(#jid{} = Jid) ->
             ets_cache:delete(?DOMAIN_TAB, SubHost)
     end.
 
--spec delete_for_jid(jid() | ljid()) -> ok.
+-spec delete_for_jid(jlib:jid() | jlib:ljid()) -> ok.
 delete_for_jid(#jid{} = Jid) -> delete_for_jid(jid:to_lower(Jid));
 delete_for_jid({_, _, _} = Jid) ->
     lists:foreach(
@@ -136,7 +136,7 @@ deps(Host, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jid(), Info :: list()) ->
+-spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jlib:jid(), Info :: list()) ->
     mongoose_acc:t().
 session_opened(Acc, _SID, UserJid, _Info) ->
     insert_for_jid(UserJid),
@@ -144,7 +144,7 @@ session_opened(Acc, _SID, UserJid, _Info) ->
 
 -spec session_closed(mongoose_acc:t(),
                      ejabberd_sm:sid(),
-                     UserJID :: jid(),
+                     UserJID :: jlib:jid(),
                      Info :: list(),
                      _Status :: any()) ->
     mongoose_acc:t().
@@ -228,7 +228,7 @@ stop() ->
 
     mod_global_distrib_mapping_backend:stop().
 
--spec normalize_jid(ljid()) -> [binary()].
+-spec normalize_jid(jlib:ljid()) -> [binary()].
 normalize_jid({_, _, _} = FullJid) ->
     case jid:to_bare(FullJid) of
         FullJid -> [jid:to_binary(FullJid)];
@@ -265,7 +265,7 @@ put_domain(Key) ->
 delete_domain(Key) ->
     mod_global_distrib_mapping_backend:delete_domain(Key).
 
--spec do_insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver(),
+-spec do_insert_for_jid(jlib:jid() | jlib:ljid(), Host :: jlib:lserver(),
                         PutSession :: fun((binary()) -> ok | error)) -> ok.
 do_insert_for_jid(#jid{} = Jid, Host, PutSession) ->
     do_insert_for_jid(jid:to_lower(Jid), Host, PutSession);
@@ -276,7 +276,8 @@ do_insert_for_jid({_, _, _} = Jid, Host, PutSession) ->
       end,
       normalize_jid(Jid)).
 
--spec do_lookup_jid(ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
+
+-spec do_lookup_jid(jlib:ljid()) -> {ok, Host :: jlib:lserver()} | error.
 do_lookup_jid({_, _, _} = Jid) ->
     BinJid = jid:to_binary(Jid),
     LookupInDB = fun(BJid) -> fun() -> get_session(BJid) end end,

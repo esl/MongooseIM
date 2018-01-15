@@ -311,7 +311,7 @@ make_reply_from_type(<<"error">>) ->
 make_reply_from_type(_) ->
     {invalid, invalid}.
 
--spec extract_xmlns([xmlel()]) -> binary().
+-spec extract_xmlns([exml:element()]) -> binary().
 extract_xmlns([Element]) ->
     xml:get_tag_attr_s(<<"xmlns">>, Element);
 extract_xmlns(_) ->
@@ -811,7 +811,7 @@ ip_to_list(IP) ->
    , Type :: binary()
    , Condition :: binary()
    , SpecTag :: binary()
-   , SpecNs :: binary() | undefined) -> xmlel().
+   , SpecNs :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er = stanza_error(Code, Type, Condition),
     Spec = #xmlel{ name = SpecTag, attrs = [{<<"xmlns">>, SpecNs}]},
@@ -822,7 +822,7 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
 
 -spec stanza_error( Code :: binary()
                  , Type :: binary()
-                 , Condition :: binary() | undefined) -> xmlel().
+                 , Condition :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition) ->
   #xmlel{ name = <<"error">>
        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
@@ -835,7 +835,7 @@ stanza_error(Code, Type, Condition) ->
                   , Type :: binary()
                   , Condition :: binary()
                   , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> xmlel().
+                  , Text :: binary()) -> exml:element().
 stanza_errort(Code, Type, Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"error">>
@@ -849,7 +849,7 @@ stanza_errort(Code, Type, Condition, Lang, Text) ->
                              }]
         }.
 
--spec stream_error(Condition :: binary()) -> xmlel().
+-spec stream_error(Condition :: binary()) -> exml:element().
 stream_error(Condition) ->
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
@@ -860,7 +860,7 @@ stream_error(Condition) ->
 
 -spec stream_errort( Condition :: binary()
                   , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> xmlel().
+                  , Text :: binary()) -> exml:element().
 stream_errort(Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"stream:error">>

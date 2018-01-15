@@ -70,7 +70,7 @@ remove_metadata(Acc, Key) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_reroute(drop) -> drop;
-                   ({jid(), jid(), mongoose_acc:t()}) -> drop | {jid(), jid(), mongoose_acc:t()}.
+                   ({jlib:jid(), jlib:jid(), mongoose_acc:t()}) -> drop | {jlib:jid(), jlib:jid(), mongoose_acc:t()}.
 maybe_reroute(drop) -> drop;
 maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
@@ -167,7 +167,7 @@ start() ->
 stop() ->
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
 
--spec lookup_recipients_host(jid(), binary(), binary()) -> {ok, binary()} | error.
+-spec lookup_recipients_host(jlib:jid(), binary(), binary()) -> {ok, binary()} | error.
 lookup_recipients_host(#jid{luser = <<>>, lserver = LServer}, LocalHost, GlobalHost)
   when LServer == LocalHost; LServer == GlobalHost ->
     {ok, LocalHost};
