@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+VER=$1
+REVISION=${2:-1}
+
+if [ x"$VER" == x"" ]; then
+    echo "$0: which version to build?"
+    exit 1
+fi
+
+cd necromancer
+cd scripts/mongooseim/rpm/
+cp ../../../scripts/common.sh .
+exec bash necromancer_spell ${VER} ${REVISION}

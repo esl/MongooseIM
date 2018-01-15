@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -e
+
+. env/build-run
+
+PLATFORM=$1
+DOCKERFILE=platforms/$PLATFORM/Dockerfile
+KEY1=files/esl-sign-private.key
+KEY2=files/necromancer.gpg.key
+
+[ x"$PLATFORM" = x"" ] && ( echo "$0: what platform to build for?"; exit 1 )
+[ ! -f "$DOCKERFILE" ] && ( echo "$0: $DOCKERFILE not available"; exit 2 )
+[ ! -f "$KEY1" ] && ( echo "$0: $KEY1 not available"; exit 3 )
+[ ! -f "$KEY2" ] && ( echo "$0: $KEY2 not available"; exit 4 )
+
+docker build -f $DOCKERFILE -t $BUILD_CONTAINER_PREFIX.$PLATFORM .
+
