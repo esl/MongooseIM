@@ -13,15 +13,17 @@ RUN yum --setopt=obsoletes=0 install -y sudo telnet lsof vim gcc rpm-build rpm-s
                    git gcc-c++ kernel-devel openssl openssl-devel yum-utils chrpath erlang-18.3-1.el7.centos \
  && yum clean all
 
+# Deploy key for fetching private GitHub repositories
+COPY files/docker.id_rsa     /root/.ssh/id_rsa
+COPY files/docker.id_rsa.pub /root/.ssh/id_rsa.pub
+COPY files/known_hosts       /root/.ssh/known_hosts
+RUN  chmod go-wr             /root/.ssh/id_rsa
+
 # Clone esl/package-buildscripts
-ENV BUILDSCRIPTS_REPO https://github.com/esl/package-buildscripts
+ENV BUILDSCRIPTS_REPO git@github.com:esl/package-buildscripts
 ENV BUILDSCRIPTS_REF b514ba5338f7507a1f7d47ed4e21c1e59b137c41
 RUN git clone $BUILDSCRIPTS_REPO package-buildscripts \
  && cd package-buildscripts && git checkout $BUILDSCRIPTS_REF
-
-# Deploy key for fetching private GitHub repositories
-COPY files/necromancer-docker.id_rsa     /root/.ssh/id_rsa
-COPY files/necromancer-docker.id_rsa.pub /root/.ssh/id_rsa.pub
 
 # GPG key for signing the packages
 COPY files/necromancer.gpg.key /root/gpg.key
