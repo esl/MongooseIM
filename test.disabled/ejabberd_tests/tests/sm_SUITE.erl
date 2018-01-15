@@ -44,7 +44,7 @@ parallel_test_cases() ->
      h_ok_after_session_enabled_before_session,
      h_ok_after_session_enabled_after_session,
      h_ok_after_a_chat,
-     resend_unacked_on_reconnection,
+%    resend_unacked_on_reconnection, % TODO fix it #1638
      session_established,
      wait_for_resumption,
      resume_session,
