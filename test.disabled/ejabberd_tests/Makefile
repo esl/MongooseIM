@@ -73,8 +73,7 @@ test_preset: $(PREPARE)
 
 do_cover_test_preset: $(PREPARE)
 	erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
-		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) cover=true \
-		> $@.log 2>&1 || (cat $@.log; exit 1)
+		-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET) cover=true
 
 test: $(PREPARE)
 	erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
