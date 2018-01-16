@@ -72,7 +72,7 @@ init(_) ->
     RefresherSpec = #{
       id => mod_global_distrib_hosts_refresher,
       start => {mod_global_distrib_hosts_refresher, start_link, []},
-      restart => temporary, % to change
+      restart => transient,
       shutdown => 5000
     },
     {ok, {SupFlags, [RefresherSpec]}}.
