@@ -21,7 +21,7 @@
 -include("mongoose.hrl").
 
 -export([start_link/1, init/1]).
--export([get_connection/1]).
+-export([get_connection/1, is_available/1]).
 -export([start_pool/3, stop_pool/2]).
 
 %%--------------------------------------------------------------------
@@ -53,6 +53,10 @@ get_connection(Server) ->
         Result ->
             Result
     end.
+
+-spec is_available(Server :: jid:lserver()) -> boolean().
+is_available(Server) ->
+    pong == mod_global_distrib_server_mgr:ping_proc(Server).
 
 -spec start_pool(Supervisor :: pid(),
                  Endpoint :: mod_global_distrib_utils:endpoint(),

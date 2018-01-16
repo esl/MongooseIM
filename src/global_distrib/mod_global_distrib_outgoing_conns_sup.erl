@@ -5,7 +5,7 @@
 -include("mongoose.hrl").
 
 -export([start_link/0, init/1]).
--export([add_server/1, get_connection/1]).
+-export([add_server/1, get_connection/1, ensure_server_started/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -37,8 +37,8 @@ add_server(Server) ->
                       "state='started_by_other',pid='~p'", [Server, Pid]),
             ok;
         Error ->
-            ?INFO_MSG("event=outgoing_conn_start_progress,server='~s',"
-                      "state='failed',error='~p'", [Server, Error]),
+            ?ERROR_MSG("event=outgoing_conn_start_progress,server='~s',"
+                       "state='failed',error='~p'", [Server, Error]),
             Error
     end.
 
@@ -69,9 +69,20 @@ get_connection(Server, RetriesLeft) ->
 
 init(_) ->
     SupFlags = #{ strategy => one_for_one, intensity => 5, period => 5 },
-    {ok, {SupFlags, []}}.
+    RefresherSpec = #{
+      id => mod_global_distrib_hosts_refresher,
+      start => {mod_global_distrib_hosts_refresher, start_link, []},
+      restart => temporary, % to change
+      shutdown => 5000
+    },
+    {ok, {SupFlags, [RefresherSpec]}}.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
+ensure_server_started(Server) ->
+    case mod_global_distrib_server_sup:is_available(Server) of
+        false -> add_server(Server);
+        true -> ok
+    end.

@@ -27,7 +27,7 @@
 -export([start/1, stop/0,
          put_session/1, get_session/1, delete_session/1,
          put_domain/1, get_domain/1, delete_domain/1,
-         get_endpoints/1, get_domains/0]).
+         get_endpoints/1, get_domains/0, get_hosts/0]).
 
 -export([init/1, handle_info/2]).
 

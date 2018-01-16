@@ -21,7 +21,7 @@
 -behaviour(gen_server).
 
 -export([start_link/2]).
--export([get_connection/1]).
+-export([get_connection/1, ping_proc/1]).
 -export([force_refresh/1, close_disabled/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -73,6 +73,15 @@ close_disabled(Server) ->
 -spec get_connection(Server :: jid:lserver()) -> {ok, pid()} | {error, any()}.
 get_connection(Server) ->
     do_call(Server, get_connection).
+
+%% `ping_proc` instead of just `ping` to emphasize that this call does not ping
+%% some remote server but the manager process instead
+-spec ping_proc(Server :: jid:lserver()) -> pong | pang.
+ping_proc(Server) ->
+    case catch do_call(Server, ping_proc) of
+        pong -> pong;
+        _Error -> pang
+    end.
 
 %%--------------------------------------------------------------------
 %% Debug API
@@ -129,7 +138,9 @@ handle_call(close_disabled, _From, #state{ disabled = Disabled } = State) ->
 handle_call(get_enabled_endpoints, _From, State) ->
     {reply, [ CI#endpoint_info.endpoint || CI <- State#state.enabled ], State};
 handle_call(get_disabled_endpoints, _From, State) ->
-    {reply, [ CI#endpoint_info.endpoint || CI <- State#state.disabled ], State}.
+    {reply, [ CI#endpoint_info.endpoint || CI <- State#state.disabled ], State};
+handle_call(ping_proc, _From, State) ->
+    {reply, pong, State}.
 
 handle_cast(Msg, State) ->
     ?WARNING_MSG("event=unknown_msg,msg='~p'", [Msg]),

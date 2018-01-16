@@ -32,7 +32,7 @@
 -export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache/1]).
 -export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
          session_opened/4, session_closed/5]).
--export([endpoints/1]).
+-export([endpoints/1, hosts/0]).
 
 -type endpoint() :: mod_global_distrib_utils:endpoint().
 
@@ -49,8 +49,8 @@
 -callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_endpoints(Host :: binary()) ->
-    {ok, [endpoint()]}.
+-callback get_endpoints(Host :: binary()) -> {ok, [endpoint()]}.
+-callback get_hosts() -> [Host :: ejabberd:lserver()].
 
 %%--------------------------------------------------------------------
 %% API
@@ -121,6 +121,9 @@ all_domains() ->
 -spec endpoints(Host :: jid:lserver()) -> {ok, [endpoint()]}.
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
+
+hosts() ->
+    mod_global_distrib_mapping_backend:get_hosts().
 
 %%--------------------------------------------------------------------
 %% gen_mod API
