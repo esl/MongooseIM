@@ -1,0 +1,8 @@
+#!/usr/bin/env escript
+
+main(_) ->
+    io:format("Import 1: ~p~n", [catch (cover:import("_build/mim1/rel/mongooseim/priv/cover/mongooseim@localhost.coverdata"))]),
+    io:format("Analyse 1: ~p~n", [catch (cover:analyse())]),
+    cover:reset(),
+    io:format("Import 3: ~p~n", [catch (cover:import("_build/mim3/rel/mongooseim/priv/cover/mongooseim3@localhost.coverdata"))]),
+    io:format("Analyse 3: ~p~n", [catch (cover:analyse())]).
