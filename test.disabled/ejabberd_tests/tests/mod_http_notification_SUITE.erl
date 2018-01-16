@@ -107,17 +107,17 @@ proper_http_message_encode_decode(Config) ->
     Server = escalus_users:get_host(Config, alice),
     BobJid = escalus_users:get_jid(Config, bob),
 
-    escalus:story(Config, [{alice, 1}],
-        fun(Alice) -> escalus:send(Alice, escalus_stanza:chat_to(BobJid, Message)) end),
+    escalus:story(Config, [{alice, 1}, {bob,1}],
+        fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(BobJid, Message)),
+            escalus:wait_for_stanzas(Bob, 2)
+        end),
 
-    Bob = login_send_presence(Config, bob),
-
-    escalus:wait_for_stanzas(Bob, 2),
     Body = receive
                {got_http_request, Bin} ->
                    Bin
            after 5000 ->
-            ct:fail(http_request_timeout)
+                ct:fail(http_request_timeout)
            end,
     ExtractedAndDecoded = escalus_ejabberd:rpc(cow_qs, parse_qs,[Body]),
     ExpectedList = [{<<"author">>,<<Sender/binary>>},
@@ -126,8 +126,7 @@ proper_http_message_encode_decode(Config) ->
         {<<"message">>,<<Message/binary>>}],
     SortedExtractedAndDecoded = lists:sort(ExtractedAndDecoded),
     SortedExpectedList = lists:sort(ExpectedList),
-    ?assertEqual(SortedExpectedList, SortedExtractedAndDecoded),
-    escalus_client:stop(Config, Bob).
+    ?assertEqual(SortedExpectedList, SortedExtractedAndDecoded).
 
 simple_message(Config) ->
     %% we expect one notification message
