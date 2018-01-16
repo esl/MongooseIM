@@ -33,10 +33,6 @@ after_failure:
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
 after_success:
-        - tree _build/mim1/rel/mongooseim/priv
-        - tree _build/mim2/rel/mongooseim/priv
-        - tree _build/mim3/rel/mongooseim/priv
-        - escript check_cover
         - ./rebar3 coveralls send
         - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ]; then tools/travis-build-and-push-docker.sh; fi
 
