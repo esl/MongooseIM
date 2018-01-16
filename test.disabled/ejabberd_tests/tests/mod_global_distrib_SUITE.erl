@@ -246,7 +246,9 @@ generic_end_per_testcase(CaseName, Config) ->
                   lists:foreach(fun({Id, _, _, _}) ->
                                         supervisor:terminate_child(SupRef, Id)
                                 end, OutgoingConns),
-                  [] = supervisor:which_children(SupRef)
+                    ct:log("~p~n", [supervisor:which_children(SupRef)]),
+                  [{mod_global_distrib_hosts_refresher, _, worker, _Modules}] =
+                    supervisor:which_children(SupRef)
               catch
                   _:{noproc, _} ->
                       ct:pal("Sender supervisor not found in ~p", [NodeName])
