@@ -1,3 +1,49 @@
+# [MongooseIM 2.1.1](https://github.com/esl/MongooseIM/releases/tag/2.1.1) - 2018-01-16
+
+## Added
+
+- Event Pusher - a module that unifies all outgoing event channels: HTTP, Push Notifications etc. (#1414)
+- TLS-secured connections to databases (#1545, #1556, #1564, #1578, #1585, #1587)
+- Dedicated API in `ejabberd_auth` for accessing parameters in `auth_opts` tuple (#1593)
+- Experimental Global Distribution extension (#1604)
+- Max allowed stanza size may be now configured for `mod_websockets` (#1641)
+
+## Changed
+
+- Project structure has been transformed to single application layout (#1580, #1590)
+- Message Archive Management v0.2 support is now deprecated and will be removed in 3.0.0beta1 (#1514, #1591)
+- MySQL schema now uses `utf8mb4` encoding and `ROW_FORMAT=DYNAMIC`. MySQL versions older than 5.5.14 are no longer supported. (#1611, #1633)
+- MongooseIM now uses updated and decoupled fork of `exometer` (#1600)
+
+## Fixed
+
+- User process crash when IQ result/error with Privacy Lists/Blocking Command namespace was received. (#1597)
+- MongooseIM build failed on macOS High Sierra due to old version of `fast_tls` (#1606)
+- Error type returned when VCard is not found (#1547)
+- Race condition in `mod_muc` on room PID registration (#1608)
+- Unnecessary transformations in `mod_vcard_ldap` (#1607)
+- MongooseIM build on 32-bit systems (#1574)
+- One of the hooks in `mod_mam_odbc_arch` wasn't properly disabled on module stop (#1576)
+- Event Pusher HTTP backend used invalid hostname to fetch options (#1630)
+- `mod_websockets:close/1` didn't work. (#1603)
+
+## Other
+
+- Removed unused API from `jlib.erl` (#1390)
+- Git now treats minified JavaScript files as binaries (#1635)
+- Message Archive Management refactoring (#1425)
+- Documentation fixes and improvements (#1500, #1503, #1513, #1538, #1550, #1563, #1567, #1568, #1577, #1579, #1581, #1584, #1586, #1592, #1594, #1618)
+- Tests improvements and refactoring (#1523, #1625, #1642, #1643, #1656)
+- Code & style improvements (#1515, #1540, #1548, #1572)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-10-24..2018-01-16%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-10-24..2018-01-16%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-10-24&to=2018-01-16&type=c)
+
+Special thanks to our contributors: @andrewvmail @igors !
+
 # [MongooseIM 2.1.0](https://github.com/esl/MongooseIM/releases/tag/2.1.0) - 2017-10-24
 
 ## Added
