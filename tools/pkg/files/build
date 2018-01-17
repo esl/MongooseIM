@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 VER=$1
 REVISION=${2:-1}
 
@@ -10,5 +12,5 @@ fi
 
 cd package-buildscripts
 cd scripts/mongooseim/rpm/
-cp ../../../scripts/common.sh .
-exec bash ./script.sh ${VER} ${REVISION}
+bash ./script.sh ${VER} ${REVISION}
+cp -i mongooseim-*.rpm /packages/
