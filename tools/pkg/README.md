@@ -57,8 +57,7 @@ You will be asked for verifying GitHub's SSH key fingerprint
 and at the end of the process for entering the signing key password.
 The latter is empty, just press enter.
 If all goes well, the package will land in `packages`
-subdirectory - mounted as a container volume - along with its checksum
-in `packages/sha256sum`.
+subdirectory - mounted as a container volume.
 
 
 ## Publishing the package
