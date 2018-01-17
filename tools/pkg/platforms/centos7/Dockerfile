@@ -23,7 +23,7 @@ RUN  chmod go-wr             /root/.ssh/id_rsa
 
 # Clone esl/package-buildscripts
 ENV BUILDSCRIPTS_REPO git@github.com:esl/package-buildscripts
-ENV BUILDSCRIPTS_REF b514ba5338f7507a1f7d47ed4e21c1e59b137c41
+ENV BUILDSCRIPTS_REF no-hardcoded-home
 RUN git clone $BUILDSCRIPTS_REPO package-buildscripts \
  && cd package-buildscripts && git checkout $BUILDSCRIPTS_REF
 
