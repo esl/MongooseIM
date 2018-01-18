@@ -353,7 +353,7 @@ sm_filter_offline_message(Other, _From, _To, _Packet) ->
 server_host(#jid{lserver=LServer}) ->
     LServer.
 
--spec is_action_allowed(Action :: mam_iqaction(), From :: jlib:jid(),
+-spec is_action_allowed(Action :: mam_iq:action(), From :: jlib:jid(),
                         To :: jlib:jid()) -> boolean().
 is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
     case acl:match_rule(Host, Action, From, default) of
