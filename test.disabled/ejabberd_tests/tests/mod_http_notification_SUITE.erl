@@ -12,6 +12,7 @@
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 %%%===================================================================
@@ -25,11 +26,11 @@ all() ->
     ].
 
 all_tests() ->
-    [simple_message, simple_message_no_listener, simple_message_failing_listener].
+    [simple_message, simple_message_no_listener, simple_message_failing_listener, proper_http_message_encode_decode].
 
 groups() ->
     [{mod_http_notification_tests, [sequence], all_tests()},
-    {mod_http_notification_tests_with_prefix, [sequence], all_tests()}].
+        {mod_http_notification_tests_with_prefix, [sequence], all_tests()}].
 
 
 suite() ->
@@ -85,7 +86,10 @@ start_http_listener(simple_message, Prefix) ->
 start_http_listener(simple_message_no_listener, _) ->
     ok;
 start_http_listener(simple_message_failing_listener, Prefix) ->
-    http_helper:start(8000, Prefix, fun(Req) -> Req end).
+    http_helper:start(8000, Prefix, fun(Req) -> Req end);
+start_http_listener(proper_http_message_encode_decode, Prefix) ->
+    Pid = self(),
+    http_helper:start(8000, Prefix, fun(Req) -> process_notification(Req, Pid) end).
 
 process_notification(Req, Pid) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
@@ -96,6 +100,33 @@ process_notification(Req, Pid) ->
 %%%===================================================================
 %%% offline tests
 %%%===================================================================
+proper_http_message_encode_decode(Config) ->
+    Receiver= <<"bob">>,
+    Message = <<"Hi Test!&escape=Hello">>,
+    Sender = <<"alice">>,
+    Server = escalus_users:get_host(Config, alice),
+    BobJid = escalus_users:get_jid(Config, bob),
+
+    escalus:story(Config, [{alice, 1}, {bob,1}],
+        fun(Alice, Bob) ->
+            escalus:send(Alice, escalus_stanza:chat_to(BobJid, Message)),
+            escalus:wait_for_stanzas(Bob, 2)
+        end),
+
+    Body = receive
+               {got_http_request, Bin} ->
+                   Bin
+           after 5000 ->
+                ct:fail(http_request_timeout)
+           end,
+    ExtractedAndDecoded = escalus_ejabberd:rpc(cow_qs, parse_qs,[Body]),
+    ExpectedList = [{<<"author">>,<<Sender/binary>>},
+        {<<"server">>,<<Server/binary>>},
+        {<<"receiver">>,<<Receiver/binary>>},
+        {<<"message">>,<<Message/binary>>}],
+    SortedExtractedAndDecoded = lists:sort(ExtractedAndDecoded),
+    SortedExpectedList = lists:sort(ExpectedList),
+    ?assertEqual(SortedExpectedList, SortedExtractedAndDecoded).
 
 simple_message(Config) ->
     %% we expect one notification message
@@ -104,7 +135,7 @@ simple_message(Config) ->
     Body = receive
                {got_http_request, Bin} -> Bin
            after 2000 ->
-                   error(missing_request)
+            error(missing_request)
            end,
 
     {_, _} = binary:match(Body, <<"alice">>),

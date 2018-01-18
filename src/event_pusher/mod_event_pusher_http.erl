@@ -59,12 +59,12 @@ make_req(Host, Sender, Receiver, Message) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
-    Query = <<"author=", Sender/binary, "&server=", Host/binary,
-              "&receiver=", Receiver/binary, "&message=", Message/binary>>,
+    EncodedQuery = cow_qs:qs([{<<"author">>, Sender},
+        {<<"server">>, Host}, {<<"receiver">>, Receiver}, {<<"message">>, Message}]),
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     T0 = os:timestamp(),
-    {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Query) of
+    {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, EncodedQuery) of
                          {ok, _} ->
                              {ok, timer:now_diff(os:timestamp(), T0)};
                          {error, Reason} ->
