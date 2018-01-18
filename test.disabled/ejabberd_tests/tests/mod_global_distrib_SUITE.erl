@@ -24,6 +24,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-define(HOSTS_REFRESH_INTERVAL, 200).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -41,7 +43,7 @@ all() ->
 
 groups() ->
     [{mod_global_distrib, [shuffle],
-      [
+      [test_host_refreshing,
        test_pm_between_users_at_different_locations,
        test_pm_between_users_before_available_presence,
        test_muc_conversation_on_one_host,
@@ -147,6 +149,7 @@ init_per_group(_, Config0) ->
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
                   Opts0 = ?config(extra_config, Config1) ++
 		         [{local_host, LocalHost},
+                          {hosts_refresh_interval, ?HOSTS_REFRESH_INTERVAL},
                           {global_host, "localhost"},
                           {endpoints, [listen_endpoint(ReceiverPort)]},
                           {tls_opts, [
@@ -246,7 +249,6 @@ generic_end_per_testcase(CaseName, Config) ->
                   lists:foreach(fun({Id, _, _, _}) ->
                                         supervisor:terminate_child(SupRef, Id)
                                 end, OutgoingConns),
-                    ct:log("~p~n", [supervisor:which_children(SupRef)]),
                   [{mod_global_distrib_hosts_refresher, _, worker, _Modules}] =
                     supervisor:which_children(SupRef)
               catch
@@ -272,6 +274,29 @@ test_advertised_endpoints_override_endpoints(Config) ->
     true = lists:all(fun({ok, E}) ->
                              lists:sort(iptuples_to_string(E)) =:=
                                  lists:sort(advertised_endpoints()) end, Endps).
+
+test_host_refreshing(_Config) ->
+    timer:sleep(?HOSTS_REFRESH_INTERVAL + 20), % Let's wait to be sure refresher added children
+    Children = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
+    ct:log("children: ~p~n", [Children]),
+    [EuropeHost] = lists:filtermap(fun({europe_node1, Host, _}) -> {true, list_to_binary(Host)};
+                                      (_) -> false end, get_hosts()),
+    EuropeSup = binary_to_atom(<<"mod_global_distrib_server_sup_", EuropeHost/binary>>, utf8),
+    [EuropePid] = lists:filtermap(fun({Sup, Pid, supervisor, _}) -> {Sup =:= EuropeSup, Pid};
+                                   (_) -> false end,
+                                      Children),
+
+    erlang:exit(EuropePid, kill),
+
+    ChildrenNoEurope = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
+    timer:sleep(?HOSTS_REFRESH_INTERVAL + 20),
+    ChildrenWithEurope = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
+
+    ct:log("Children: ~p~nEuropeSup: ~p~n, EuropePid: ~p~nChildrenNoEuropoe: ~p~n, ChildrenWithEurope: ~p~nDifference: ~p~n",
+    [Children, EuropeSup, EuropePid, ChildrenNoEurope, ChildrenWithEurope, ChildrenWithEurope -- ChildrenNoEurope]),
+
+    [{EuropeSup, _, _, _}] = ChildrenWithEurope -- ChildrenNoEurope,
+    ok.
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
