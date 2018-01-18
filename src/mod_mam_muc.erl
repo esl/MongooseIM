@@ -402,10 +402,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
-    Params0 = mam_iq:query_to_lookup_params(IQ, param(Host, max_result_limit, 50),
-                                            param(Host, default_result_limit, 50),
-                                            ExtraParamsModule),
+    Params0 = mam_iq:query_to_lookup_params(IQ, max_result_limit(Host),
+                                            default_result_limit(Host),
+                                            extra_params_module(Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
@@ -435,10 +434,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
-    ExtraParamsModule = gen_mod:get_module_opt(Host, ?MODULE, extra_lookup_params, undefined),
-    Params0 = mam_iq:form_to_lookup_params(IQ, param(Host, max_result_limit, 50),
-                                           param(Host, default_result_limit, 50),
-                                           ExtraParamsModule),
+    Params0 = mam_iq:form_to_lookup_params(IQ, max_result_limit(Host),
+                                           default_result_limit(Host),
+                                           extra_params_module(Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     Result = lookup_messages(Host, Params),
     handle_lookup_result(Result, From, IQ, Params).
@@ -765,12 +763,17 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
                [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
 
-
 %% ----------------------------------------------------------------------
-%% Dynamic params module
+%% Dynamic params
 
-param(Host, Opt, Default) ->
-    mod_mam_utils:param(?MODULE, Host, Opt, Default).
+extra_params_module(Host) ->
+    mod_mam_utils:param(?MODULE, Host, extra_lookup_params, undefined).
+
+max_result_limit(Host) ->
+    mod_mam_utils:param(?MODULE, Host, max_result_limit, 50).
+
+default_result_limit(Host) ->
+    mod_mam_utils:param(?MODULE, Host, default_result_limit, 50).
 
 is_archivable_message(Host, Dir, Packet) ->
     mod_mam_utils:call_is_archivable_message(?MODULE, Host, Dir, Packet).

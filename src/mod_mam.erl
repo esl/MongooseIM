@@ -435,10 +435,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    ExtraParamsModule = param(Host, extra_lookup_params, undefined),
-    Params0 = mam_iq:query_to_lookup_params(IQ, param(Host, max_result_limit, 50),
-                                            param(Host, default_result_limit, 50),
-                                            ExtraParamsModule),
+    Params0 = mam_iq:query_to_lookup_params(IQ, max_result_limit(Host),
+                                            default_result_limit(Host),
+                                            extra_params_module(Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
@@ -469,10 +468,9 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    ExtraParamsModule = param(Host, extra_lookup_params, undefined),
-    Params0 = mam_iq:form_to_lookup_params(IQ, param(Host, max_result_limit, 50),
-                                           param(Host, default_result_limit, 50),
-                                           ExtraParamsModule),
+    Params0 = mam_iq:form_to_lookup_params(IQ, max_result_limit(Host),
+                                           default_result_limit(Host),
+                                           extra_params_module(Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     PageSize = maps:get(page_size, Params),
     case lookup_messages(Host, Params) of
@@ -815,10 +813,16 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver=LServer, luser=LUser}, IQ) 
 
 
 %% ----------------------------------------------------------------------
-%% Dynamic params module
+%% Dynamic params
 
-param(Host, Opt, Default) ->
-    mod_mam_utils:param(?MODULE, Host, Opt, Default).
+extra_params_module(Host) ->
+    mod_mam_utils:param(?MODULE, Host, extra_lookup_params, undefined).
+
+max_result_limit(Host) ->
+    mod_mam_utils:param(?MODULE, Host, max_result_limit, 50).
+
+default_result_limit(Host) ->
+    mod_mam_utils:param(?MODULE, Host, default_result_limit, 50).
 
 is_archivable_message(Host, Dir, Packet) ->
     mod_mam_utils:call_is_archivable_message(?MODULE, Host, Dir, Packet).

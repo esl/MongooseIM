@@ -289,33 +289,27 @@ get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     get_module_opt(Host, Module, Opt, Default).
 
+
 %% @doc Non-atomic! You have been warned.
 -spec set_module_opt(ejabberd:server(), module(), _Opt, _Value) -> boolean().
 set_module_opt(Host, Module, Opt, Value) ->
-    Key = {Module, Host},
-    OptsList = ets:lookup(ejabberd_modules, Key),
-    case OptsList of
+    case ets:lookup(ejabberd_modules, {Module, Host}) of
         [] ->
             false;
         [#ejabberd_module{opts = Opts}] ->
             Updated = set_opt(Opt, Opts, Value),
-            ets:update_element(ejabberd_modules, Key,
-                               {#ejabberd_module.opts, Updated})
+            set_module_opts(Host, Module, Updated)
     end.
 
-%% @doc Non-atomic! You have been warned.
--spec set_module_opts(ejabberd:server(), module(), _Opts) -> boolean().
+
+%% @doc Replaces all module options
+-spec set_module_opts(ejabberd:server(), module(), _Opts) -> true.
 set_module_opts(Host, Module, Opts0) ->
     Opts = proplists:unfold(Opts0),
-    Key = {Module, Host},
-    OptsList = ets:lookup(ejabberd_modules, Key),
-    case OptsList of
-        [] ->
-            false;
-        [#ejabberd_module{opts = _Opts}] ->
-            ets:update_element(ejabberd_modules, Key,
-                               {#ejabberd_module.opts, Opts})
-    end.
+    ets:insert(ejabberd_modules,
+               #ejabberd_module{module_host = {Module, Host},
+                                opts = Opts}).
+
 
 -spec set_module_opt_by_subhost(
         SubHost :: ejabberd:server(),

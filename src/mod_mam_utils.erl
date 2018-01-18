@@ -1067,9 +1067,12 @@ error_on_sql_error(_HostOrConn, _Query, Result) ->
 wrapper_id() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
+-spec param(module(), Host :: ejabberd:lserver(), Opt :: term(), Default :: term()) -> term().
 param(Module, Host, Opt, Default) ->
     gen_mod:get_module_opt(Host, Module, Opt, Default).
 
+-spec call_is_archivable_message(module(), Host :: ejabberd:lserver(),
+                                 Dir :: incoming | outgoing, Packet :: jlib:xmlel()) -> boolean().
 call_is_archivable_message(Module, Host, Dir, Packet) ->
     {IsArchivableModule, IsArchivableFunction} =
         case param(Module, Host, is_archivable_message, undefined) of
@@ -1086,10 +1089,10 @@ call_is_archivable_message(Module, Host, Dir, Packet) ->
                  [Module, Dir, Packet, ArchiveChatMarkers]).
 
 %% @doc Enable support for `<archived/>' element from MAM v0.2
-%% -spec add_archived_element(Host :: ejabberd:lserver()) -> boolean().
+-spec add_archived_element(module(), Host :: ejabberd:lserver()) -> boolean().
 add_archived_element(Module, Host) ->
     param(Module, Host, add_archived_element, false).
 
-%% -spec add_stanzaid_element(Host :: ejabberd:lserver()) -> boolean().
+-spec add_stanzaid_element(module(), Host :: ejabberd:lserver()) -> boolean().
 add_stanzaid_element(Module, Host) ->
     not param(Module, Host, no_stanzaid_element, false).
