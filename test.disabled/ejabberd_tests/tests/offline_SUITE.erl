@@ -158,7 +158,7 @@ is_chat(Content) ->
 %%%===================================================================
 
 logout(Config, User) ->
-    escalus_client:stop(Config, User).
+    mongoose_helper:logout_user(Config, User).
 
 login_send_presence(Config, User) ->
     {ok, Client} = escalus_client:start(Config, User, <<"new-session">>),
