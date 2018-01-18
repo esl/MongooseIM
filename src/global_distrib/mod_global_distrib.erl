@@ -30,16 +30,16 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jlib:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
--spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jlib:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{message_ttl, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:lserver()) -> any().
+-spec stop(Host :: jlib:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -127,11 +127,11 @@ maybe_initialize_metadata(Acc) ->
             mongoose_acc:put(global_distrib, Metadata, Acc)
     end.
 
--spec get_bound_connection(Server :: ejabberd:lserver()) -> pid().
+-spec get_bound_connection(Server :: jlib:lserver()) -> pid().
 get_bound_connection(Server) ->
     get_bound_connection(Server, get({connection, Server})).
 
--spec get_bound_connection(Server :: ejabberd:lserver(), pid() | undefined) -> pid().
+-spec get_bound_connection(Server :: jlib:lserver(), pid() | undefined) -> pid().
 get_bound_connection(Server, undefined) ->
     Pid = mod_global_distrib_sender:get_process_for(Server),
     put({connection, Server}, Pid),

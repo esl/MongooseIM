@@ -28,11 +28,11 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jlib:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jlib:server()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 

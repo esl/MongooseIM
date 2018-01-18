@@ -104,7 +104,7 @@ plain_password_required(Server) ->
               M:plain_password_required()
       end, auth_modules(Server)).
 
--spec set_opts(Host :: ejabberd:server(),
+-spec set_opts(Host :: jlib:server(),
                KVs :: [tuple()]) ->  {atomic|aborted, _}.
 set_opts(Host, KVs) ->
     OldOpts = ejabberd_config:get_local_option(auth_opts, Host),
@@ -114,7 +114,7 @@ set_opts(Host, KVs) ->
     NewOpts = lists:foldl(AccFunc, OldOpts, KVs),
     ejabberd_config:add_local_option({auth_opts, Host}, NewOpts).
 
--spec get_opt(Host :: ejabberd:server(),
+-spec get_opt(Host :: jlib:server(),
               Opt :: atom(),
               Default :: ejabberd:value()) -> undefined | ejabberd:value().
 get_opt(Host, Opt, Default) ->

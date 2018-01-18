@@ -37,7 +37,7 @@
 %%--------------------------------------------------------------------
 
 -spec start_link(Endpoint :: mod_global_distrib_utils:endpoint(),
-                 Server :: ejabberd:lserver()) -> {ok, pid()} | {error, any()}.
+                 Server :: jlib:lserver()) -> {ok, pid()} | {error, any()}.
 start_link(Endpoint, Server) ->
     gen_server:start_link(?MODULE, [Endpoint, Server], []).
 

@@ -36,14 +36,14 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jlib:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     ResendAfterMs = proplists:get_value(resend_after_ms, Opts0, 200),
     ResendAfter = p1_time_compat:convert_time_unit(ResendAfterMs, milli_seconds, native),
     Opts = [{resend_after, ResendAfter}, {max_retries, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:lserver()) -> any().
+-spec stop(Host :: jlib:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 

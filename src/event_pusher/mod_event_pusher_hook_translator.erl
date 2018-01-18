@@ -29,11 +29,11 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jlib:server(), Opts :: proplists:proplist()) -> any().
 start(Host, _Opts) ->
     ejabberd_hooks:add(hooks(Host)).
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jlib:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)).
 
@@ -76,8 +76,8 @@ user_present(Acc, #jid{} = UserJID) ->
                                 #user_status_event{jid = UserJID, status = online}),
     Acc.
 
--spec user_not_present(mongoose_acc:t(), User :: ejabberd:luser(), Server :: ejabberd:lserver(),
-                       Resource :: ejabberd:lresource(), Status :: any()) -> mongoose_acc:t().
+-spec user_not_present(mongoose_acc:t(), User :: jlib:luser(), Server :: jlib:lserver(),
+                       Resource :: jlib:lresource(), Status :: any()) -> mongoose_acc:t().
 user_not_present(Acc, User, Host, Resource, _Status) ->
     UserJID = jid:make_noprep(User, Host, Resource),
     mod_event_pusher:push_event(Acc, Host, #user_status_event{jid = UserJID, status = offline}),
@@ -97,7 +97,7 @@ chat_type(Acc) ->
         _ -> false
     end.
 
--spec hooks(Host :: ejabberd:server()) -> [ejabberd_hooks:hook()].
+-spec hooks(Host :: jlib:server()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->
     [
      {filter_local_packet, Host, ?MODULE, filter_local_packet, 90},

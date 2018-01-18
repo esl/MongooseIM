@@ -64,7 +64,7 @@ ensure_metric(Metric, Type) ->
 any_binary_to_atom(Binary) ->
     binary_to_atom(base64:encode(Binary), latin1).
 
--spec start(module(), Host :: ejabberd:lserver(), Opts :: proplists:proplist(),
+-spec start(module(), Host :: jlib:lserver(), Opts :: proplists:proplist(),
             StartFun :: fun(() -> any())) -> any().
 start(Module, Host, Opts, StartFun) ->
     check_host(global_host, Opts),
@@ -80,7 +80,7 @@ start(Module, Host, Opts, StartFun) ->
             ok
     end.
 
--spec stop(module(), Host :: ejabberd:lserver(), StopFun :: fun(() -> any())) ->
+-spec stop(module(), Host :: jlib:lserver(), StopFun :: fun(() -> any())) ->
                   any().
 stop(Module, Host, StopFun) ->
     case catch opt(Module, global_host) of
@@ -91,7 +91,7 @@ stop(Module, Host, StopFun) ->
             ok
     end.
 
--spec deps(module(), Host :: ejabberd:lserver(), Opts :: proplists:proplist(),
+-spec deps(module(), Host :: jlib:lserver(), Opts :: proplists:proplist(),
            DepsFun :: fun((proplists:proplist()) -> gen_mod:deps_list())) ->
                            gen_mod:deps_list().
 deps(_Module, Host, Opts, DepsFun) ->
@@ -171,11 +171,11 @@ recipient_to_worker_key({_, GlobalHost, _} = Jid, GlobalHost) ->
 recipient_to_worker_key({_, Domain, _}, _GlobalHost) ->
     Domain.
 
--spec server_to_mgr_name(Server :: ejabberd:lserver()) -> atom().
+-spec server_to_mgr_name(Server :: jlib:lserver()) -> atom().
 server_to_mgr_name(Server) ->
     gen_mod:get_module_proc(Server, mod_global_distrib_server_mgr).
 
--spec server_to_sup_name(Server :: ejabberd:lserver()) -> atom().
+-spec server_to_sup_name(Server :: jlib:lserver()) -> atom().
 server_to_sup_name(Server) ->
     gen_mod:get_module_proc(Server, mod_global_distrib_server_sup).
 

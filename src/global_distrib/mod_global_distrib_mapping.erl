@@ -52,7 +52,7 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec for_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec for_domain(Domain :: binary()) -> {ok, Host :: jlib:lserver()} | error.
 for_domain(Domain) when is_binary(Domain) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
     {Time, R} = timer:tc(ets_cache, lookup, [?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end]),
@@ -106,11 +106,11 @@ delete_for_jid({_, _, _} = Jid) ->
       end,
       normalize_jid(Jid)).
 
--spec all_domains() -> {ok, [ejabberd:lserver()]}.
+-spec all_domains() -> {ok, [jlib:lserver()]}.
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
--spec endpoints(Host :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec endpoints(Host :: jlib:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
 
@@ -118,17 +118,17 @@ endpoints(Host) ->
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jlib:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{backend, redis}, {redis, [no_opts]}, {cache_missed, true},
             {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:lserver()) -> any().
+-spec stop(Host :: jlib:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
--spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jlib:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
