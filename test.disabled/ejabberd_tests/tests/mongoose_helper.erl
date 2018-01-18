@@ -19,6 +19,8 @@
 
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
+-export([successful_rpc/3]).
+-export([logout_user/2]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -214,3 +216,42 @@ forget_persistent_rooms() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [muc_room]),
     escalus_ejabberd:rpc(mnesia, clear_table, [muc_registered]),
     ok.
+
+-spec successful_rpc(atom(), atom(), list()) -> term().
+successful_rpc(Module, Function, Args) ->
+    case escalus_ejabberd:rpc(Module, Function, Args) of
+        {badrpc, Reason} ->
+            ct:fail({badrpc, Module, Function, Args, Reason});
+        Result ->
+            Result
+    end.
+
+%% This function is a version of escalus_client:stop/2
+%% that ensures that c2s process is dead.
+%% This allows to avoid race conditions.
+logout_user(Config, User) ->
+    Resource = escalus_client:resource(Alice),
+    User = escalus_client:username(Alice),
+    Server = escalus_client:server(Alice),
+    Result = successful_rpc(ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]),
+	case Result of
+		none ->
+			%% This case can be a side effect of some error, you should
+			%% check your test when you see the message.
+			ct:pal("issue=user_not_registered jid=~ts@~ts/~ts",
+				   [User, Server, Resource]),
+			escalus_client:stop(Config, User);
+		Pid when is_pid(Pid) ->
+			MonitorRef = erlang:monitor(process, Pid),
+			escalus_client:stop(Config, User),
+			%% Wait for pid to die
+			receive
+				{'DOWN', MonitorRef, _, _, _} ->
+					ok
+				after 10000 ->
+					ct:pal("issue=c2s_still_alive "
+							"jid=~ts@~ts/~ts pid=~p",
+						   [User, Server, Resource, Pid]),
+					ct:fail({logout_user_failed, {User, Resource, Pid}})
+			end
+	end.
