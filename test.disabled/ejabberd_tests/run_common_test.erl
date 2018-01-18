@@ -228,9 +228,14 @@ prepare(Test) ->
     Apps = get_apps(),
     Nodes = get_ejabberd_nodes(Test),
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
-    Compiled = multicall(Nodes, mongoose_cover_helper, start, [Apps],
-                         cover_timeout()),
-    io:format("cover: compiled ~p~n", [Compiled]).
+    %% Time is in microseconds
+    {Time, Compiled} = timer:tc(fun() ->
+                    multicall(Nodes, mongoose_cover_helper, start, [Apps],
+                              cover_timeout())
+                        end),
+    io:format("cover: compiled ~p~n", [Compiled]),
+    report_progress("Cover compilation took ~ts~n", [microseconds_to_string(Time)]),
+    ok.
 
 analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
@@ -410,10 +415,15 @@ report_time(Description, Fun) ->
     after
         Microseconds = timer:now_diff(os:timestamp(), Start),
         Time = microseconds_to_string(Microseconds),
-		io:format("~ts took ~ts~n", [Time])
+		io:format("~ts took ~ts~n", [Description, Time])
 	end.
 
 microseconds_to_string(Microseconds) ->
 	Milliseconds = Microseconds div 1000,
     SecondsFloat = Milliseconds / 1000,
     io_lib:format("~.3f seconds", [SecondsFloat]).
+
+%% Writes onto travis console directly
+report_progress(Format, Args) ->
+    Message = io_lib:format(Format, Args),
+    file:write_file("/tmp/progress", Message, [append]).
