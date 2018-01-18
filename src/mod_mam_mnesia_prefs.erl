@@ -23,7 +23,7 @@
          remove_archive/4,
          remove_archive/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 

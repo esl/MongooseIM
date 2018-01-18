@@ -19,7 +19,7 @@
 
 -behaviour(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 

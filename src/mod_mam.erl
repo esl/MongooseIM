@@ -101,7 +101,7 @@
          is_jid_in_user_roster/2]).
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
 -include_lib("exml/include/exml.hrl").

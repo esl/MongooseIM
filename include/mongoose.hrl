@@ -27,43 +27,13 @@
 -define(MYNAME,  hd(ejabberd_config:get_global_option(hosts))).
 -define(MYLANG,  ejabberd_config:get_global_option(language)).
 
--define(MSGS_DIR,    "msgs").
 -define(CONFIG_PATH, "etc/ejabberd.cfg").
 
--define(EJABBERD_URI, "http://www.process-one.net/en/ejabberd/").
 -define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim.html">>).
-
--define(S2STIMEOUT, 600000).
-
-%%-define(DBGFSM, true).
 
 %% ---------------------------------
 %% Logging mechanism
 -include("mongoose_logger.hrl").
-
--record(session, {sid,
-                  usr,
-                  us,
-                  priority,
-                  info
-                 }).
-
--record(scram,
-        {storedkey = <<"">>,
-         serverkey = <<"">>,
-         salt = <<"">>,
-         iterationcount = 0 :: integer()}).
-
--type scram() :: #scram{}.
-
--type sm_session() :: #session{}.
-
--record(route, {
-          domain :: binary(),
-          handler :: mongoose_packet_handler:t()
-         }).
-
--record(external_component, {domain, handler, node}).
 
 -define(DEPRECATED,
     ok).
@@ -72,11 +42,3 @@
 %% so that parts of the code not yet rewritten still work. Eventually all those things
 %% will go away. This macro denotes a function called in a deprecated way.
 
--define(TEMPORARY, ok).
-%% just a marker - oftentimes we create a mongoose_acc just because we call a hook
-%% while the 'real' accumulator doesn't yet reach this point, so for compatibility
-%% we have to mock it. This macro is to mark such places in the code.
-
-
--define(DUMP(Acc),
-    mongoose_acc:dump(Acc)).

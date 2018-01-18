@@ -4,7 +4,7 @@
 -behaviour(mod_event_pusher).
 
 -include("mod_event_pusher_events.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 

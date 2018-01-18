@@ -16,7 +16,7 @@
 -module(mod_global_distrib_server_mgr).
 -author('piotr.nosek@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behaviour(gen_server).
 

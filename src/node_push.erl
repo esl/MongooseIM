@@ -13,7 +13,7 @@
 -author('rafal.slota@erlang-solutions.com').
 -behaviour(gen_pubsub_node).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("pubsub.hrl").
 

@@ -9,7 +9,7 @@
          null_strategy/0]).
 
 -include("amp.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -spec determine_strategy(amp_strategy(), jlib:jid() | undefined, jlib:jid() | undefined, #xmlel{}, amp_event()) ->

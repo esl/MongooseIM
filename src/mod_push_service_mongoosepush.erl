@@ -13,7 +13,7 @@
 -author('rafal.slota@erlang-solutions.com').
 -behavior(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %%--------------------------------------------------------------------

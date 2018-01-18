@@ -7,7 +7,7 @@
         ]).
 
 -include("amp.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -spec verify_support(any(), amp_rules()) -> [ amp_rule_support() ].

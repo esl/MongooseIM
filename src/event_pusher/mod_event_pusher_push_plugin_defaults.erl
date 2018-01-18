@@ -15,7 +15,7 @@
 -author('rafal.slota@erlang-solutions.com').
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% Callback API
 -export([should_publish/3, sender_id/2]).

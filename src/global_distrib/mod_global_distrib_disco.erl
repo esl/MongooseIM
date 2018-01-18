@@ -19,7 +19,7 @@
 
 -behaviour(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([start/2, stop/1, get_disco_items/5]).

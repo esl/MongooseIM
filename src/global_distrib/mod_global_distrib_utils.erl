@@ -17,7 +17,7 @@
 -module(mod_global_distrib_utils).
 -author('konrad.zemek@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([

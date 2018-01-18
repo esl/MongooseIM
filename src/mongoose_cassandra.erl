@@ -16,7 +16,7 @@
 -module(mongoose_cassandra).
 -author('rafal.slota@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("cqerl/include/cqerl.hrl").
 

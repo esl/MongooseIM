@@ -18,7 +18,7 @@
         ]).
 
 -include("amp.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_c2s.hrl").
 

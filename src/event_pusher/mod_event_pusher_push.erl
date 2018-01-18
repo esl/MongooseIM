@@ -16,7 +16,7 @@
 -xep([{xep, 357}, {version, "0.2.1"}]).
 
 -include("mod_event_pusher_events.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %%--------------------------------------------------------------------

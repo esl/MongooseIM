@@ -18,7 +18,7 @@
 
 -behaviour(supervisor).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([start_link/1, init/1]).
 -export([get_connection/1]).

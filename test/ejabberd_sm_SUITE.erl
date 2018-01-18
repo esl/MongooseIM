@@ -3,8 +3,8 @@
 -include_lib("common_test/include/ct.hrl").
 
 -include("ejabberd_c2s.hrl").
--include("ejabberd.hrl").
--include_lib("ejabberd/include/session.hrl").
+-include("mongoose.hrl").
+-include_lib("session.hrl").
 -compile([export_all]).
 
 

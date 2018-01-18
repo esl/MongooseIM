@@ -13,7 +13,7 @@
 -module(mod_aws_sns).
 -author("Rafal Slota").
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behavior(gen_mod).
 

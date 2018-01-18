@@ -1,6 +1,6 @@
 -module(mod_http_notification).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behaviour(gen_mod).
 

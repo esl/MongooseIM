@@ -6,7 +6,7 @@
 %% This work was sponsored by Grindr LLC
 
 -include("amp.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([extract_requested_rules/1,

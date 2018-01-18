@@ -52,9 +52,9 @@
 -define(CC_KEY, 'cc').
 -define(CC_DISABLED, undefined).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
--include_lib("ejabberd/include/session.hrl").
+-include_lib("session.hrl").
 
 
 -type classification() :: 'ignore' | 'forward'.

@@ -19,7 +19,7 @@
 
 -behaviour(mod_global_distrib_mapping).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(JIDS_ETS, mod_global_distrib_mapping_redis_jids).
 -define(DOMAINS_ETS, mod_global_distrib_mapping_redis_domains).
