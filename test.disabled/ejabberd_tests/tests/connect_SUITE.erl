@@ -37,33 +37,39 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, c2s_noproc}, %% should be first, uses vanilla config
-     {group, starttls},
-     {group, feature_order},
-     {group, tls}
+    [ {group, fast_tls}
+     ,{group, just_tls}
     ].
 
 groups() ->
-    [{c2s_noproc, [], [reset_stream_noproc,
-                       starttls_noproc,
-                       compress_noproc,
-                       bad_xml,
-                       invalid_host,
-                       invalid_stream_namespace,
-                       pre_xmpp_1_0_stream]},
-     {starttls, test_cases()},
-     {tls, [parallel], [auth_bind_pipelined_session,
-                        auth_bind_pipelined_auth_failure |
-                        generate_tls_vsn_tests() ++ cipher_test_cases()]},
-     {feature_order, [parallel], [stream_features_test,
-                                  tls_authenticate,
-                                  tls_compression_fail,
-                                  tls_compression_authenticate_fail,
-                                  tls_authenticate_compression,
-                                  auth_compression_bind_session,
-                                  auth_bind_compression_session,
-                                  bind_server_generated_resource]}
+    [ {c2s_noproc, [], [reset_stream_noproc,
+                        starttls_noproc,
+                        compress_noproc,
+                        bad_xml,
+                        invalid_host,
+                        invalid_stream_namespace,
+                        pre_xmpp_1_0_stream]},
+      {starttls, test_cases()},
+      {tls, [parallel], [auth_bind_pipelined_session,
+                         auth_bind_pipelined_auth_failure |
+                         generate_tls_vsn_tests() ++ cipher_test_cases()]},
+      {feature_order, [parallel], [stream_features_test,
+                                   tls_authenticate,
+                                   tls_compression_fail,
+                                   tls_compression_authenticate_fail,
+                                   tls_authenticate_compression,
+                                   auth_compression_bind_session,
+                                   auth_bind_compression_session,
+                                   bind_server_generated_resource]},
+      {just_tls,all_groups()},
+      {fast_tls,all_groups()}
     ].
+
+all_groups()->
+    [{group, c2s_noproc},
+        {group, starttls},
+        {group, feature_order},
+        {group, tls}].
 
 test_cases() ->
     generate_tls_vsn_tests() ++
@@ -101,6 +107,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(c2s_noproc, Config) ->
+    config_ejabberd_node_tls(Config,
+                             fun mk_value_for_starttls_config_pattern/0),
+    ejabberd_node_utils:restart_application(mongooseim),
     Config;
 init_per_group(starttls, Config) ->
     config_ejabberd_node_tls(Config,
@@ -120,6 +129,14 @@ init_per_group(feature_order, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
+init_per_group(just_tls,Config)->
+    case catch list_to_integer(erlang:system_info(otp_release)) of
+        I when is_integer(I) andalso I>=19 ->
+            [{tls_module, just_tls} | Config];
+        _ -> {skip,"just_tls backend is supported only since OTP19"}
+    end;
+init_per_group(fast_tls,Config)->
+    [{tls_module, fast_tls} | Config];
 init_per_group(_, Config) ->
     Config.
 
@@ -196,7 +213,7 @@ should_fail_with_sslv3(Config) ->
         _ ->
             error(client_connected_using_sslv3)
     catch
-        error:closed ->
+        error:_ ->
             ok
     end.
 
@@ -256,7 +273,11 @@ clients_can_connect_with_advertised_ciphers(Config) ->
                          ciphers_working_with_ssl_clients(Config))).
 
 'clients_can_connect_with_DHE-RSA-AES256-SHA_only'(Config) ->
-    Config1 = [{c2s_port, 5233} | Config],
+    Port = case ?config(tls_module, Config) of
+               just_tls -> 5263; %mim3 secondary_c2s port
+               fast_tls -> 5233  %mim2 secondary_c2s port
+           end,
+    Config1 = [{c2s_port, Port} | Config],
     CiphersStr = os:cmd("openssl ciphers 'DHE-RSA-AES256-SHA'"),
     ct:pal("Available cipher suites for : ~s", [CiphersStr]),
     ct:pal("Openssl version: ~s", [os:cmd("openssl version")]),
@@ -560,7 +581,11 @@ assert_cert_file_exists() ->
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
 config_ejabberd_node_tls(Config, Fun) ->
-    ejabberd_node_utils:modify_config_file([Fun()], Config).
+    TLSModConf = "{tls_module," ++ atom_to_list(?config(tls_module, Config)) ++ "},",
+    ejabberd_node_utils:modify_config_file([Fun(), {tls_module, TLSModConf}], Config).
+
+mk_value_for_starttls_config_pattern() ->
+    {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls,"}.
 
 mk_value_for_tls_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, tls,"}.
