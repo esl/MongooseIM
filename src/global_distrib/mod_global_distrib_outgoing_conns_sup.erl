@@ -68,14 +68,9 @@ get_connection(Server, RetriesLeft) ->
 %%--------------------------------------------------------------------
 
 init(_) ->
+    ?DEBUG("CONNS OUT starting ~p", [mod_global_distrib_utils:opt(mod_global_distrib, local_host)]),
     SupFlags = #{ strategy => one_for_one, intensity => 5, period => 5 },
-    RefresherSpec = #{
-      id => mod_global_distrib_hosts_refresher,
-      start => {mod_global_distrib_hosts_refresher, start_link, []},
-      restart => transient,
-      shutdown => 5000
-    },
-    {ok, {SupFlags, [RefresherSpec]}}.
+    {ok, {SupFlags, []}}.
 
 %%--------------------------------------------------------------------
 %% Helpers

@@ -1,5 +1,5 @@
 %%%==============================================================================
-%% Copyright 2017 Erlang Solutions Ltd.
+%% Copyright 2018 Erlang Solutions Ltd.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 -include("ejabberd.hrl").
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% gen_server API
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 %% gen_mod API
 -export([deps/2, start/2, stop/1]).
@@ -35,10 +35,6 @@
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-
--spec start_link() -> pid() | term().
-start_link() ->
-    start_link(default_interval()).
 
 -spec start_link(Milliseconds :: non_neg_integer()) -> pid() | term().
 start_link(RefreshInterval) ->
@@ -67,8 +63,9 @@ deps(Host, Opts) ->
 %%--------------------------------------------------------------------
 
 init([RefreshInterval]) ->
-    self() ! refresh,
-    {ok, [{refresh_interval, RefreshInterval}]}.
+    ?DEBUG("refresher starting with interval ~p~n", [RefreshInterval]),
+    schedule_refresh(RefreshInterval),
+    {ok, RefreshInterval}.
 
 handle_call(_Request, _From, State) ->
     {noreply, State}.
@@ -76,16 +73,13 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info(refresh, [{refresh_interval, Int}] = State) ->
-    ?DEBUG("Refreshing hosts, checking if there exists a supervisor for all of them~n", []),
-    Hosts = mod_global_distrib_mapping:hosts(),
-    ?DEBUG("Discovered hosts: ~p~n", [Hosts]),
-    lists:map(fun maybe_add/1, Hosts),
-    timer:send_after(Int, self(), refresh),
-    {noreply, State}.
+handle_info(refresh, Interval) ->
+    refresh(),
+    schedule_refresh(Interval),
+    {noreply, Interval}.
 
-terminate(Reason, _State, _Data) ->
-    ?DEBUG("REFRESHER has shutdown with reason ~p", [Reason]),
+terminate(Reason, _State) ->
+    ?ERROR_MSG("mod_global_distrib_refresher terminated with reason: ~p", [Reason]),
     ok.
 
 
@@ -93,19 +87,41 @@ terminate(Reason, _State, _Data) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
+
 -spec deps(Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Opts) ->
     [{mod_global_distrib_mapping, Opts, hard}].
 
 -spec start() -> any().
 start() ->
+    start_outgoing_conns_sup(),
+    Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval, default_interval()),
+    Child = #{
+      id => mod_global_distrib_hosts_refresher,
+      start => {?MODULE, start_link, [Interval]},
+      restart => transient,
+      shutdown => 5000,
+      modules => [mod_global_distrib_outgoing_conns_sup]
+    },
+    {ok, _} = supervisor:start_child(mod_global_distrib_outgoing_conns_sup, Child),
     ok.
 
 -spec stop() -> any().
 stop() ->
+    stop_outgoing_conns_sup(),
     ok.
 
-maybe_add(Host) ->
+refresh() ->
+    ?DEBUG("Refreshing hosts, checking if there exists a supervisor for all of them~n", []),
+    Hosts = mod_global_distrib_mapping:hosts(),
+    ?DEBUG("Discovered hosts: ~p~n", [Hosts]),
+    lists:map(fun maybe_add_host/1, Hosts),
+    ok.
+
+schedule_refresh(Interval) ->
+  erlang:send_after(Interval, self(), refresh).
+
+maybe_add_host(Host) ->
     ?DEBUG("Checking host ~p (on host ~p)~n", [Host, local_host()]),
     case local_host() of
         Host ->
@@ -118,5 +134,23 @@ default_interval() ->
     3000.
 
 local_host() ->
-    [{local_host, Host}] = ets:lookup(mod_global_distrib, local_host),
-    Host.
+    mod_global_distrib_utils:opt(?MODULE, local_host).
+
+start_outgoing_conns_sup() ->
+  ConnsSup = mod_global_distrib_outgoing_conns_sup,
+    ChildSpec = #{
+      id => ConnsSup,
+      start => {ConnsSup, start_link, []},
+      restart => permanent,
+      shutdown => 5000,
+      type => supervisor,
+      modules => [ConnsSup]
+     },
+  supervisor:start_child(ejabberd_sup, ChildSpec),
+  ok.
+
+
+stop_outgoing_conns_sup() ->
+  ConnsSup = mod_global_distrib_outgoing_conns_sup,
+  supervisor:terminate_child(ejabberd_sup, ConnsSup),
+  supervisor:delete_child(ejabberd_sup, ConnsSup).

@@ -154,11 +154,11 @@ deps(Opts) ->
     CacheOpts = proplists:get_value(cache, Opts, []),
     BounceOpts = proplists:get_value(bounce, Opts, []),
 
-    Deps0 = [{mod_global_distrib_hosts_refresher, Opts, hard},
-             {mod_global_distrib_mapping, CacheOpts ++ Opts, hard},
+    Deps0 = [{mod_global_distrib_mapping, CacheOpts ++ Opts, hard},
              {mod_global_distrib_disco, Opts, hard},
              {mod_global_distrib_receiver, ConnectionsOpts ++ Opts, hard},
-             {mod_global_distrib_sender, ConnectionsOpts ++ Opts, hard}],
+             {mod_global_distrib_sender, ConnectionsOpts ++ Opts, hard},
+             {mod_global_distrib_hosts_refresher, Opts, hard}],
     case BounceOpts of
         false -> Deps0;
         _ -> [{mod_global_distrib_bounce, BounceOpts ++ Opts, hard} | Deps0]
