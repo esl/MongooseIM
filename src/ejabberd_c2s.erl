@@ -176,12 +176,17 @@ init([{SockMod, Socket}, Opts]) ->
                {_, ZlibLimit} -> {true, ZlibLimit};
                _ -> {false, 0}
            end,
-    StartTLS = lists:member(starttls, Opts),
+    Verify = case lists:member(verify_peer, Opts) of
+                 true -> verify_peer;
+                 false -> verify_none
+             end,
+    StartTLS = lists:member(starttls, Opts) orelse Verify =:= verify_peer,
     StartTLSRequired = lists:member(starttls_required, Opts),
     TLSEnabled = lists:member(tls, Opts),
     TLS = StartTLS orelse StartTLSRequired orelse TLSEnabled,
     TLSOpts1 =
     lists:filter(fun({certfile, _}) -> true;
+                    ({cafile, _}) -> true;
                     ({ciphers, _}) -> true;
                     ({protocol_options, _}) -> true;
                     ({dhfile, _}) -> true;
@@ -189,7 +194,7 @@ init([{SockMod, Socket}, Opts]) ->
                     ({ssl_options, _}) -> true;
                     (_) -> false
                  end, Opts),
-    TLSOpts = [verify_none | TLSOpts1],
+    TLSOpts = verify_opts(Verify) ++ TLSOpts1,
     IP = peerip(SockMod, Socket),
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
@@ -214,6 +219,7 @@ init([{SockMod, Socket}, Opts]) ->
                                          tls_required   = StartTLSRequired,
                                          tls_enabled    = TLSEnabled,
                                          tls_options    = TLSOpts,
+                                         verify         = Verify,
                                          streamid       = new_id(),
                                          access         = Access,
                                          shaper         = Shaper,
@@ -319,7 +325,7 @@ wait_for_legacy_auth(#state{} = S) ->
     fsm_next_state(wait_for_auth, S).
 
 stream_start_features_before_auth(#state{server = Server} = S) ->
-    Creds = mongoose_credentials:new(Server),
+    Creds = maybe_add_cert(mongoose_credentials:new(Server), S),
     SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
     send_element(S, stream_features(determine_features(SockMod, S))),
@@ -360,7 +366,7 @@ determine_features(SockMod, #state{tls = TLS, tls_enabled = TLSEnabled,
                                    tls_required = TLSRequired,
                                    server = Server} = S) ->
     OtherFeatures = maybe_compress_feature(SockMod, S)
-                 ++ maybe_sasl_mechanisms(Server)
+                 ++ maybe_sasl_mechanisms(S)
                  ++ hook_enabled_features(Server),
     case can_use_tls(SockMod, TLS, TLSEnabled) of
         true ->
@@ -378,13 +384,13 @@ maybe_compress_feature(SockMod, #state{zlib = {ZLib, _}}) ->
         _ -> []
     end.
 
-maybe_sasl_mechanisms(Server) ->
+maybe_sasl_mechanisms(#state{server = Server} = S) ->
     case cyrsasl:listmech(Server) of
         [] -> [];
         Mechanisms ->
             [#xmlel{name = <<"mechanisms">>,
                     attrs = [{<<"xmlns">>, ?NS_SASL}],
-                    children = [ mechanism(S) || S <- Mechanisms ]}]
+                    children = [ mechanism(M) || M <- Mechanisms, filter_mechanism(M,S) ]}]
     end.
 
 hook_enabled_features(Server) ->
@@ -413,6 +419,13 @@ compression_zlib() ->
 mechanism(S) ->
     #xmlel{name = <<"mechanism">>,
            children = [#xmlcdata{content = S}]}.
+
+filter_mechanism(<<"EXTERNAL">>, S) ->
+    case get_peer_cert(S) of
+        error -> false;
+        _ -> true
+    end;
+filter_mechanism(_, _) -> true.
 
 get_xml_lang(Attrs) ->
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
@@ -502,6 +515,26 @@ wait_for_auth({xmlstreamerror, _}, StateData) ->
     {stop, normal, StateData};
 wait_for_auth(closed, StateData) ->
     {stop, normal, StateData}.
+
+
+verify_opts(verify_none) -> [verify_none];
+verify_opts(verify_peer) -> [].
+
+get_peer_cert(#state{ tls_enabled = true,
+                      verify      = verify_peer,
+                      socket      = Socket,
+                      sockmod     = ejabberd_socket }) ->
+    case ejabberd_socket:get_peer_certificate(Socket) of
+        {ok, Cert} -> Cert;
+        _ -> error
+    end;
+get_peer_cert(_) -> error.
+
+maybe_add_cert(Creds, S) ->
+    case get_peer_cert(S) of
+        error -> Creds;
+        Cert -> mongoose_credentials:set(Creds, client_cert, Cert)
+    end.
 
 maybe_legacy_auth(error, Acc, El, StateData, U, _P, _D, R) ->
     ?INFO_MSG("(~w) Forbidden legacy authentication for "

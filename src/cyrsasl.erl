@@ -48,7 +48,7 @@
                              password_type :: password_type()
                             }.
 -type mechanism() :: binary().
--type password_type() :: plain | digest | scram.
+-type password_type() :: plain | digest | scram | cert.
 
 -record(sasl_state, {service :: binary(),
                      myname :: jid:server(),
@@ -122,9 +122,9 @@ listmech(Host) ->
                              {'EXIT', {undef, [{Module, store_type, []} | _]}} ->
                                  ?WARNING_MSG("~p doesn't implement the function store_type/0",
                                               [Module]),
-                                 [];
+                                 [{'/=','$2', cert}];
                              _Else ->
-                                 []
+                                 [{'/=','$2', cert}]
                          end,
                          ['$1']}]),
     filter_mechanisms(Host, Mechs,
