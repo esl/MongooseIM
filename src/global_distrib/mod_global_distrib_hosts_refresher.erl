@@ -50,8 +50,8 @@ start_link(RefreshInterval) ->
 %%--------------------------------------------------------------------
 
 -spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts0) ->
-    Opts = [{message_ttl, 4} | Opts0],
+start(Host, Opts) ->
+    ?DEBUG("Opts in refresher: ~p~n", [Opts]),
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:lserver()) -> any().
@@ -106,8 +106,17 @@ stop() ->
     ok.
 
 maybe_add(Host) ->
-    ?DEBUG("Checking host ~p~n", [Host]),
-    mod_global_distrib_outgoing_conns_sup:ensure_server_started(Host).
+    ?DEBUG("Checking host ~p (on host ~p)~n", [Host, local_host()]),
+    case local_host() of
+        Host ->
+            ok;
+        _ ->
+            mod_global_distrib_outgoing_conns_sup:ensure_server_started(Host)
+    end.
 
 default_interval() ->
     3000.
+
+local_host() ->
+    [{local_host, Host}] = ets:lookup(mod_global_distrib, local_host),
+    Host.
