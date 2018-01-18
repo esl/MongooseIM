@@ -46,7 +46,7 @@ done
 cp *.log ${LOG_DIR_ROOT}
 cp test.disabled/ejabberd_tests/*.log ${LOG_DIR_ROOT}
 
-cp -Rp /var/log/* ${CT_REPORTS}/system || echo "Failed to copy /var/log"
+cp -p /var/log/dmesg ${CT_REPORTS}/system/ || echo "Failed to copy /var/log/dmesg"
 
 ERL_CRASH_FILE=test.disabled/ejabberd_tests/erl_crash.dump
 if [ -f "$ERL_CRASH_FILE" ]; then
