@@ -18,20 +18,18 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
--export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
+-export([escape_binary/2, unescape_binary/2, connect/2, disconnect/1,
+         query/3, prepare/6, execute/4]).
 
 %% API
 
--spec escape_format(mongoose_rdbms:pool()) -> atom().
-escape_format(Pool) ->
-    case mongoose_rdbms_sup:get_option(Pool, odbc_server_type) of
-        pgsql ->
-            hex;
-        mssql ->
-            mssql_hex;
-        _ ->
-            simple_escape
-    end.
+-spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
+escape_binary(Pool, Bin) when is_binary(Bin) ->
+    escape_binary(Pool, server_type(Pool), Bin).
+
+-spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
+unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+    bin_to_hex:hex_to_bin(Bin).
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
@@ -61,10 +59,10 @@ query(Connection, Query, Timeout) ->
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, {[binary()], [fun((term()) -> tuple())]}}.
 prepare(Pool, Connection, _Name, Table, Fields, Statement) ->
-    BinEscapeFormat = escape_format(Pool),
     {ok, TableDesc} = odbc:describe_table(Connection, unicode:characters_to_list(Table)),
     SplitQuery = binary:split(iolist_to_binary(Statement), <<"?">>, [global]),
-    ParamMappers = [field_name_to_mapper(BinEscapeFormat, TableDesc, Field) || Field <- Fields],
+    ServerType = server_type(Pool),
+    ParamMappers = [field_name_to_mapper(Pool, ServerType, TableDesc, Field) || Field <- Fields],
     {ok, {SplitQuery, ParamMappers}}.
 
 -spec execute(Connection :: term(), Statement :: {[binary()], [fun((term()) -> tuple())]},
@@ -89,13 +87,14 @@ parse({error, Reason}) ->
 parse(Other) ->
     Other.
 
--spec field_name_to_mapper(BinEscFormat :: atom(), TableDesc :: proplists:proplist(),
+-spec field_name_to_mapper(Pool :: mongoose_rdbms:pool(), ServerType :: atom(),
+                           TableDesc :: proplists:proplist(),
                            FieldName :: binary()) -> fun((term()) -> tuple()).
-field_name_to_mapper(BinEscFormat, TableDesc, FieldName) ->
+field_name_to_mapper(Pool, ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case ODBCType of
         T when T =:= 'SQL_BINARY'; T =:= 'SQL_VARBINARY'; T =:= 'SQL_LONGVARBINARY' ->
-            fun(P) -> {[<<"'">>, mongoose_rdbms:escape_binary(BinEscFormat, P), <<"'">>], []} end;
+            fun(P) -> {[escape_binary(Pool, ServerType, P)], []} end;
         'SQL_LONGVARCHAR' ->
             fun(P) -> {[<<"'">>, mongoose_rdbms:escape(P), <<"'">>], []} end;
         'SQL_BIGINT' ->
@@ -123,3 +122,15 @@ unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc,
     NewQueryAcc = [InlineQuery, QueryHead | QueryAcc],
     NewParamsAcc = ODBCParam ++ ParamsAcc,
     unsplit_query(QueryRest, NextParamMappers, Params, NewQueryAcc, NewParamsAcc).
+
+-spec server_type(mongoose_rdbms:pool()) -> atom().
+server_type(Pool) ->
+    mongoose_rdbms_sup:get_option(Pool, odbc_server_type).
+
+-spec escape_binary(mongoose_rdbms:pool(), ServerType :: atom(), binary()) -> iodata().
+escape_binary(Pool, pgsql, Bin) ->
+    mongoose_rdbms_pgsql:escape_binary(Pool, Bin);
+escape_binary(Pool, mysql, Bin) ->
+    mongoose_rdbms_mysql:escape_binary(Pool, Bin);
+escape_binary(_Pool, _ServerType, Bin) ->
+    [$', bin_to_hex:bin_to_hex(Bin), $'].

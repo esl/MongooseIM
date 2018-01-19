@@ -147,8 +147,7 @@ archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet) ->
     SRoomID = integer_to_list(RoomID),
     SFromNick = mongoose_rdbms:escape(FromNick),
     Data = packet_to_stored_binary(Host, Packet),
-    EscFormat = mongoose_rdbms:escape_format(Host),
-    SData = mongoose_rdbms:escape_binary(EscFormat, Data),
+    SData = mongoose_rdbms:escape_binary(Host, Data),
     SMessID = integer_to_list(MessID),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
     STextBody = mongoose_rdbms:escape(TextBody),
@@ -165,7 +164,7 @@ write_message(Host, SMessID, SRoomID, SFromNick, SData, STextBody) ->
       ["INSERT INTO ", "mam_muc_message", " ",
               "(id, room_id, nick_name, message, search_body) "
        "VALUES ('", SMessID, "', '", SRoomID, "', "
-               "'", SFromNick, "', '", SData, "', '", STextBody, "')"]),
+               "'", SFromNick, "', ", SData, ", '", STextBody, "')"]),
     ok.
 
 
@@ -390,18 +389,16 @@ before_id(ID, Filter) ->
 -spec rows_to_uniform_format([raw_row()], jid:server(), jid:jid()) ->
                                     [mod_mam_muc:row()].
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
-    EscFormat = mongoose_rdbms:escape_format(Host),
-    DbEngine = mongoose_rdbms:db_engine(Host),
-    [row_to_uniform_format(Host, DbEngine, EscFormat, Row, RoomJID) || Row <- MessageRows].
+    Pool = mongoose_rdbms_sup:pool(Host),
+    [row_to_uniform_format(Host, Pool, Row, RoomJID) || Row <- MessageRows].
 
 
--spec row_to_uniform_format(jid:server(), atom(), atom(),
-                            raw_row(), jid:jid()) -> mod_mam_muc:row().
-row_to_uniform_format(Host, DbEngine, EscFormat, {BMessID, BNick, SDataRaw}, RoomJID) ->
+-spec row_to_uniform_format(jid:server(), mongoose_rdbms:pool(), raw_row(), jid:jid()) ->
+                                   mod_mam_muc:row().
+row_to_uniform_format(Host, Pool, {BMessID, BNick, SDataRaw}, RoomJID) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = jid:replace_resource(RoomJID, BNick),
-    SData = mongoose_rdbms:unescape_odbc_binary(DbEngine, SDataRaw),
-    Data = mongoose_rdbms:unescape_binary(EscFormat, SData),
+    Data = mongoose_rdbms:unescape_binary(Pool, SDataRaw),
     Packet = stored_binary_to_packet(Host, Data),
     {MessID, SrcJID, Packet}.
 
@@ -646,4 +643,3 @@ stored_binary_to_packet(Host, Bin) ->
 -spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
-

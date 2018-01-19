@@ -31,7 +31,8 @@
 
 -behaviour(gen_server).
 
--callback escape_format(Pool :: pool()) -> atom().
+-callback escape_binary(Pool :: pool(), binary()) -> iodata().
+-callback unescape_binary(Pool :: pool(), binary()) -> binary().
 -callback connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
 -callback disconnect(Connection :: term()) -> any().
@@ -56,10 +57,8 @@
          print_state/1]).
 
 %% BLOB escaping
--export([escape_format/1,
-         escape_binary/2,
-         unescape_binary/2,
-         unescape_odbc_binary/2]).
+-export([escape_binary/2,
+         unescape_binary/2]).
 
 %% count / integra types decoding
 -export([result_to_integer/1]).
@@ -213,44 +212,23 @@ escape_like(S) ->
     rdbms_queries:escape_like_string(S).
 
 
--spec escape_format(server()) -> hex | simple_escape.
-escape_format(HostOrPool) ->
+-spec escape_binary(server(), binary()) -> iodata().
+escape_binary(HostOrPool, Bin) when is_binary(Bin) ->
     Pool = mongoose_rdbms_sup:pool(HostOrPool),
-    mongoose_rdbms_backend:escape_format(Pool).
+    mongoose_rdbms_backend:escape_binary(Pool, Bin).
 
--spec escape_binary('hex' | 'simple_escape', binary()) -> binary() | string().
-escape_binary(hex, Bin) when is_binary(Bin) ->
-    <<"\\\\x", (bin_to_hex:bin_to_hex(Bin))/binary>>;
-escape_binary(mssql_hex, Bin) when is_binary(Bin) ->
-    bin_to_hex:bin_to_hex(Bin);
-escape_binary(simple_escape, Bin) when is_binary(Bin) ->
-    escape(Bin).
 
--spec unescape_binary('hex' | 'simple_escape', binary()) -> binary().
-unescape_binary(hex, <<"\\x", Bin/binary>>) when is_binary(Bin) ->
-    hex_to_bin(Bin);
-unescape_binary(_, Bin) ->
-    Bin.
+-spec unescape_binary(server(), binary()) -> binary().
+unescape_binary(HostOrPool, Bin) when is_binary(Bin) ->
+    Pool = mongoose_rdbms_sup:pool(HostOrPool),
+    mongoose_rdbms_backend:unescape_binary(Pool, Bin).
 
--spec unescape_odbc_binary(atom(), binary()) -> binary().
-unescape_odbc_binary(odbc, Bin) when is_binary(Bin)->
-    hex_to_bin(Bin);
-unescape_odbc_binary(_, Bin) ->
-    Bin.
 
 -spec result_to_integer(binary() | integer()) -> integer().
 result_to_integer(Int) when is_integer(Int) ->
     Int;
 result_to_integer(Bin) when is_binary(Bin) ->
     binary_to_integer(Bin).
-
--spec hex_to_bin(binary()) -> <<_:_*1>>.
-hex_to_bin(Bin) when is_binary(Bin) ->
-    << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
-
--spec hex_to_int(byte(), byte()) -> integer().
-hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
-    list_to_integer([X, Y], 16).
 
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().
 to_bool(B) when is_binary(B) ->
