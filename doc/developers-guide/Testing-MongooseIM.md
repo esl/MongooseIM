@@ -3,8 +3,8 @@
 These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
 They are very useful for developing/debugging libraries.
 
-The test suites are located in `apps/ejabberd/tests/` directory.
-To run all of them, use `./rebar3 ct`; to run just a selected suite, use `./rebar3 ct SUITE=my_selected_SUITE`.
+The test suites are located in `test/` directory.
+To run all of them, use `./rebar3 ct`; to run just a selected suite, use `./rebar3 ct --suite test/my_selected_SUITE`.
 Rebar recompiles all the code automatically, there is no need for a separate compilation step.
 
 If all the tests pass, you wll get no output and summary log will be available in ct.log.
