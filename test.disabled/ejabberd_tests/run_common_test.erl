@@ -235,11 +235,17 @@ prepare(Test) ->
 analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
     Nodes = get_ejabberd_nodes(Test),
-    multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
+    report_time("Export cover data from MongooseIM nodes", fun() ->
+            multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
+        end),
     Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
-    [cover:import(File) || File <- Files],
-    cover:export("/tmp/mongoose_combined.coverdata"),
+    report_time("Import cover data into run_common_test node", fun() ->
+            [cover:import(File) || File <- Files]
+        end),
+    report_time("Export merged cover data", fun() ->
+			cover:export("/tmp/mongoose_combined.coverdata")
+		end),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
             make_html(modules_to_analyze(CoverOpts));
@@ -380,7 +386,7 @@ multicall(Nodes, M, F, A, Timeout) ->
     Rs.
 
 cover_timeout() ->
-    timer:seconds(60).
+    timer:minutes(3).
 
 %% Source: https://gist.github.com/jbpotonnier/1310406
 group_by(F, L) ->
@@ -395,3 +401,19 @@ host_vars(Host)    -> host_param(vars, Host).
 host_param(Name, {_, Params}) ->
     {Name, Param} = lists:keyfind(Name, 1, Params),
     Param.
+
+report_time(Description, Fun) ->
+	io:format("~nExecuting ~ts~n", [Description]),
+	Start = os:timestamp(),
+    try
+        Fun()
+    after
+        Microseconds = timer:now_diff(os:timestamp(), Start),
+        Time = microseconds_to_string(Microseconds),
+		io:format("~ts took ~ts~n", [Time])
+	end.
+
+microseconds_to_string(Microseconds) ->
+	Milliseconds = Microseconds div 1000,
+    SecondsFloat = Milliseconds / 1000,
+    io_lib:format("~.3f seconds", [SecondsFloat]).
