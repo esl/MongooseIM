@@ -176,14 +176,14 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 %% query. Therefore each execution of given fun gets list of several result rows (by default 100 at
 %% most).
 %% --------------------------------------------------------
--spec cql_foldl(PoolName :: pool_name(), UserJID :: jlib:iq() | undefined, Module :: atom(),
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: jlib:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term()) ->
                        {ok, AccOut :: term()} | {error, Reason :: any()}.
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
     cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, 3).
 
--spec cql_foldl(PoolName :: pool_name(), UserJID :: jlib:iq() | undefined, Module :: atom(),
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: jlib:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term(), TryCount :: non_neg_integer()) ->
                        {ok, AccOut :: term()} | {error, Reason :: any()}.
