@@ -122,18 +122,18 @@
 -type borders()             :: #mam_borders{}.
 -type lookup_result() :: {TotalCount :: non_neg_integer() | undefined,
                           Offset :: non_neg_integer() | undefined,
-                          MessageRows :: [{message_id(), jlib:jid(), exml:element()}]}.
+                          MessageRows :: [{message_id(), jid:jid(), exml:element()}]}.
 
 %% Internal types
 -type iterator_fun() :: fun(() -> {'ok', {_, _}}).
--type rewriter_fun() :: fun((JID :: jlib:literal_jid())
-                            -> jlib:literal_jid()).
+-type rewriter_fun() :: fun((JID :: jid:literal_jid())
+                            -> jid:literal_jid()).
 -type restore_option() :: {rewrite_jids, rewriter_fun() | [{binary(), binary()}]}
                         | new_message_ids.
 
 -type preference() :: {DefaultMode :: archive_behaviour(),
-                       AlwaysJIDs  :: [jlib:literal_jid()],
-                       NeverJIDs   :: [jlib:literal_jid()]}.
+                       AlwaysJIDs  :: [jid:literal_jid()],
+                       NeverJIDs   :: [jid:literal_jid()]}.
 -export_type([rewriter_fun/0,
               borders/0,
               preference/0,
@@ -149,7 +149,7 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec delete_archive(jlib:server(), jlib:user()) -> 'ok'.
+-spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(Server, User)
   when is_binary(Server), is_binary(User) ->
     ?DEBUG("Remove user ~p from ~p.", [User, Server]),
@@ -160,7 +160,7 @@ delete_archive(Server, User)
     ok.
 
 
--spec archive_size(jlib:server(), jlib:user()) -> integer().
+-spec archive_size(jid:server(), jid:user()) -> integer().
 archive_size(Server, User)
   when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
@@ -169,7 +169,7 @@ archive_size(Server, User)
     archive_size(Host, ArcID, ArcJID).
 
 
--spec archive_id(jlib:server(), jlib:user()) -> integer().
+-spec archive_id(jid:server(), jid:user()) -> integer().
 archive_id(Server, User)
   when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
@@ -179,7 +179,7 @@ archive_id(Server, User)
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(Host :: jlib:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
     case gen_mod:get_opt(archive_groupchats, Opts, undefined) of
@@ -227,7 +227,7 @@ start(Host, Opts) ->
     ok.
 
 
--spec stop(Host :: jlib:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
@@ -255,7 +255,7 @@ stop(Host) ->
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec process_mam_iq(From :: jlib:jid(), To :: jlib:jid(), Acc :: mongoose_acc:t(),
+-spec process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                      IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
 process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
     Action = mam_iq:action(IQ),
@@ -284,8 +284,8 @@ process_mam_iq(From=#jid{lserver=Host}, To, Acc, IQ) ->
 %%
 %% Note: for outgoing messages, the server MUST use the value of the 'to'
 %%       attribute as the target JID.
--spec user_send_packet(Acc :: map(), From :: jlib:jid(),
-                       To :: jlib:jid(),
+-spec user_send_packet(Acc :: map(), From :: jid:jid(),
+                       To :: jid:jid(),
                        Packet :: exml:element()) -> map().
 user_send_packet(Acc, From, To, Packet) ->
     ?DEBUG("Send packet~n    from ~p ~n    to ~p~n    packet ~p.",
@@ -301,8 +301,8 @@ user_send_packet(Acc, From, To, Packet) ->
 %%
 %% Return drop to drop the packet, or the original input to let it through.
 %% From and To are jid records.
--type fpacket() :: {From :: jlib:jid(),
-                    To :: jlib:jid(),
+-type fpacket() :: {From :: jid:jid(),
+                    To :: jid:jid(),
                     Acc :: mongoose_acc:t(),
                     Packet :: exml:element()}.
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
@@ -334,7 +334,7 @@ process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
 %% @doc A ejabberd's callback with diferent order of arguments.
--spec remove_user(mongoose_acc:t(), jlib:user(), jlib:server()) -> mongoose_acc:t().
+-spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
@@ -349,12 +349,12 @@ sm_filter_offline_message(Other, _From, _To, _Packet) ->
 %% ----------------------------------------------------------------------
 %% Internal functions
 
--spec server_host(jlib:jid()) -> jlib:lserver().
+-spec server_host(jid:jid()) -> jid:lserver().
 server_host(#jid{lserver=LServer}) ->
     LServer.
 
--spec is_action_allowed(Action :: mam_iq:action(), From :: jlib:jid(),
-                        To :: jlib:jid()) -> boolean().
+-spec is_action_allowed(Action :: mam_iq:action(), From :: jid:jid(),
+                        To :: jid:jid()) -> boolean().
 is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
     case acl:match_rule(Host, Action, From, default) of
         allow   -> true;
@@ -362,18 +362,18 @@ is_action_allowed(Action, From, To=#jid{lserver=Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
--spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: jlib:jid(),
-                                   To :: jlib:jid()) -> boolean().
+-spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: jid:jid(),
+                                   To :: jid:jid()) -> boolean().
 is_action_allowed_by_default(_Action, From, To) ->
     compare_bare_jids(From, To).
 
 
--spec compare_bare_jids(jlib:simple_jid() | jlib:jid(),
-                        jlib:simple_jid() | jlib:jid()) -> boolean().
+-spec compare_bare_jids(jid:simple_jid() | jid:jid(),
+                        jid:simple_jid() | jid:jid()) -> boolean().
 compare_bare_jids(JID1, JID2) ->
     jid:to_bare(JID1) =:= jid:to_bare(JID2).
 
--spec handle_mam_iq('mam_get_prefs', From :: jlib:jid(), To :: jlib:jid(),
+-spec handle_mam_iq('mam_get_prefs', From :: jid:jid(), To :: jid:jid(),
                     IQ :: jlib:iq()) -> jlib:iq() | {error, term(), jlib:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
@@ -393,7 +393,7 @@ handle_mam_iq(Action, From, To, IQ) ->
             handle_purge_multiple_messages(To, IQ)
     end.
 
--spec handle_set_prefs(jlib:jid(), jlib:iq()) ->
+-spec handle_set_prefs(jid:jid(), jlib:iq()) ->
                               jlib:iq() | {error, term(), jlib:iq()}.
 handle_set_prefs(ArcJID=#jid{},
                  IQ=#iq{sub_el = PrefsEl}) ->
@@ -414,7 +414,7 @@ handle_set_prefs_result({error, Reason},
     return_error_iq(IQ, Reason).
 
 
--spec handle_get_prefs(jlib:jid(), IQ :: jlib:iq()) ->
+-spec handle_get_prefs(jid:jid(), IQ :: jlib:iq()) ->
                               jlib:iq() | {error, term(), jlib:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     Host = server_host(ArcJID),
@@ -432,7 +432,7 @@ handle_get_prefs_result({error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
 
 
--spec handle_lookup_messages(From :: jlib:jid(), ArcJID :: jlib:jid(),
+-spec handle_lookup_messages(From :: jid:jid(), ArcJID :: jid:jid(),
                              IQ :: jlib:iq()) ->
                                     jlib:iq() | {error, term(), jlib:iq()}.
 handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
@@ -466,7 +466,7 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     end.
 
 
--spec handle_set_message_form(From :: jlib:jid(), ArcJID :: jlib:jid(),
+-spec handle_set_message_form(From :: jid:jid(), ArcJID :: jid:jid(),
                               IQ :: jlib:iq()) ->
     jlib:iq() | ignore | {error, term(), jlib:iq()}.
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
@@ -527,14 +527,14 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
      || M <- MessageRows],
     {FirstMessID, LastMessID}.
 
--spec handle_get_message_form(jlib:jid(), jlib:jid(), jlib:iq()) ->
+-spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
                                      jlib:iq().
 handle_get_message_form(_From=#jid{lserver = Host}, _ArcJID=#jid{}, IQ=#iq{}) ->
     return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages
--spec handle_purge_multiple_messages(jlib:jid(), IQ :: jlib:iq()) ->
+-spec handle_purge_multiple_messages(jid:jid(), IQ :: jlib:iq()) ->
                                             jlib:iq() | {error, term(), jlib:iq()}.
 handle_purge_multiple_messages(ArcJID=#jid{},
                                IQ=#iq{sub_el = PurgeEl}) ->
@@ -554,7 +554,7 @@ handle_purge_multiple_messages(ArcJID=#jid{},
     return_purge_multiple_message_iq(IQ, Res).
 
 
--spec handle_purge_single_message(jlib:jid(), IQ :: jlib:iq()) ->
+-spec handle_purge_single_message(jid:jid(), IQ :: jlib:iq()) ->
                                          jlib:iq() | {error, term(), jlib:iq()}.
 handle_purge_single_message(ArcJID=#jid{},
                             IQ=#iq{sub_el = PurgeEl}) ->
@@ -580,7 +580,7 @@ determine_amp_strategy(Strategy, _, _, _, _) ->
     Strategy.
 
 -spec handle_package(Dir :: incoming | outgoing, ReturnMessID :: boolean(),
-                     LocJID :: jlib:jid(), RemJID :: jlib:jid(), SrcJID :: jlib:jid(),
+                     LocJID :: jid:jid(), RemJID :: jid:jid(), SrcJID :: jid:jid(),
                      Packet :: exml:element()) -> MaybeMessID :: binary() | undefined.
 handle_package(Dir, ReturnMessID,
                LocJID = #jid{},
@@ -630,19 +630,19 @@ is_interesting(Host, LocJID, RemJID, ArcID) ->
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(jlib:server(), jlib:jid()) ->
+-spec archive_id_int(jid:server(), jid:jid()) ->
                             non_neg_integer() | undefined.
 archive_id_int(Host, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_id, Host, undefined, [Host, ArcJID]).
 
 
--spec archive_size(jlib:server(), archive_id(), jlib:jid()) -> integer().
+-spec archive_size(jid:server(), archive_id(), jid:jid()) -> integer().
 archive_size(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run_fold(mam_archive_size, Host, 0, [Host, ArcID, ArcJID]).
 
 
--spec get_behaviour(jlib:server(), archive_id(), LocJID :: jlib:jid(),
-                    RemJID :: jlib:jid(), Default :: 'always') -> atom().
+-spec get_behaviour(jid:server(), archive_id(), LocJID :: jid:jid(),
+                    RemJID :: jid:jid(), Default :: 'always') -> atom().
 get_behaviour(Host, ArcID,
               LocJID=#jid{},
               RemJID=#jid{}, DefaultBehaviour) ->
@@ -650,17 +650,17 @@ get_behaviour(Host, ArcID,
                             [Host, ArcID, LocJID, RemJID]).
 
 
--spec set_prefs(jlib:server(), archive_id(), ArcJID :: jlib:jid(),
-                DefaultMode :: atom(), AlwaysJIDs :: [jlib:literal_jid()],
-                NeverJIDs :: [jlib:literal_jid()]) -> any().
+-spec set_prefs(jid:server(), archive_id(), ArcJID :: jid:jid(),
+                DefaultMode :: atom(), AlwaysJIDs :: [jid:literal_jid()],
+                NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ejabberd_hooks:run_fold(mam_set_prefs, Host, {error, not_implemented},
                             [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 
 %% @doc Load settings from the database.
--spec get_prefs(Host :: jlib:server(), ArcID :: archive_id(),
-                ArcJID :: jlib:jid(), GlobalDefaultMode :: archive_behaviour()
+-spec get_prefs(Host :: jid:server(), ArcID :: archive_id(),
+                ArcJID :: jid:jid(), GlobalDefaultMode :: archive_behaviour()
                ) -> preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     ejabberd_hooks:run_fold(mam_get_prefs, Host,
@@ -668,12 +668,12 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
                             [Host, ArcID, ArcJID]).
 
 
--spec remove_archive(jlib:server(), archive_id(), jlib:jid()) -> 'ok'.
+-spec remove_archive(jid:server(), archive_id(), jid:jid()) -> 'ok'.
 remove_archive(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 
--spec lookup_messages(Host :: jlib:server(),
+-spec lookup_messages(Host :: jid:server(),
                       Params :: map()) ->
     {ok, mod_mam:lookup_result()}
     | {error, 'policy-violation'}
@@ -692,9 +692,9 @@ lookup_messages(Host, #{search_text := SearchText} = Params) ->
     end.
 
 
--spec archive_message(Host :: jlib:server(), MessID :: message_id(),
-                      ArcID :: archive_id(), LocJID :: jlib:jid(), RemJID :: jlib:jid(),
-                      SrcJID :: jlib:jid(), Dir :: incoming | outgoing, Packet :: term()
+-spec archive_message(Host :: jid:server(), MessID :: message_id(),
+                      ArcID :: archive_id(), LocJID :: jid:jid(), RemJID :: jid:jid(),
+                      SrcJID :: jid:jid(), Dir :: incoming | outgoing, Packet :: term()
                      ) -> ok | {error, timeout}.
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     StartT = os:timestamp(),
@@ -704,9 +704,9 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     mongoose_metrics:update(Host, [backends, ?MODULE, archive], Diff),
     R.
 
--spec purge_single_message(Host :: jlib:server(),
+-spec purge_single_message(Host :: jid:server(),
                            MessID :: message_id(), ArcID :: archive_id(),
-                           ArcJID :: jlib:jid(),
+                           ArcJID :: jid:jid(),
                            Now :: unix_timestamp()) ->
                                   ok  | {error, 'not-found'}
                                       | {error, Reason :: term()}.
@@ -714,11 +714,11 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
     ejabberd_hooks:run_fold(mam_purge_single_message, Host, ok,
                             [Host, MessID, ArcID, ArcJID, Now]).
 
--spec purge_multiple_messages(Host :: jlib:server(), ArcID :: archive_id(),
-                              ArcJID  :: jlib:jid(), Borders :: borders() | undefined,
+-spec purge_multiple_messages(Host :: jid:server(), ArcID :: archive_id(),
+                              ArcJID  :: jid:jid(), Borders :: borders() | undefined,
                               Start :: unix_timestamp() | undefined,
                               End :: unix_timestamp() | undefined,
-                              Now :: unix_timestamp(), WithJID :: jlib:jid() | undefined) ->
+                              Now :: unix_timestamp(), WithJID :: jid:jid() | undefined) ->
                                      ok | {error, Reason :: term()}.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) ->
     ejabberd_hooks:run_fold(mam_purge_multiple_messages, Host, ok,
@@ -728,7 +728,7 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID) 
 %% Helpers
 
 -type messid_jid_packet() :: {MessId :: integer(),
-                              SrcJID :: jlib:jid(),
+                              SrcJID :: jid:jid(),
                               Packet :: exml:element()}.
 -spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) ->
     exml:element().

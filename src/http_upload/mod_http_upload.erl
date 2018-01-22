@@ -45,7 +45,7 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     SubHost = subhost(Host),
@@ -62,7 +62,7 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
 
 
--spec stop(Host :: jlib:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     SubHost = subhost(Host),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030),
@@ -75,7 +75,7 @@ stop(Host) ->
     mod_disco:unregister_subhost(Host, SubHost).
 
 
--spec iq_handler(From :: jlib:jid(), To :: jlib:jid(), Acc :: mongoose_acc:t(),
+-spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
@@ -107,7 +107,7 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
     {Acc, Res}.
 
 
--spec get_disco_identity(Acc :: term(), From :: jlib:jid(), To :: jlib:jid(),
+-spec get_disco_identity(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                          Node :: binary(), ejabberd:lang()) -> [exml:element()] | term().
 get_disco_identity(Acc, _From, _To, _Node = <<>>, Lang) ->
     [#xmlel{name = <<"identity">>,
@@ -118,7 +118,7 @@ get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_items(Acc :: term(), From :: jlib:jid(), To :: jlib:jid(),
+-spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                       Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
     Item = #xmlel{name  = <<"item">>,
@@ -130,7 +130,7 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_features(Acc :: term(), From :: jlib:jid(), To :: jlib:jid(),
+-spec get_disco_features(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                          Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_features({result, Nodes}, _From, _To, _Node = <<>>, _Lang) ->
     {result, [?NS_HTTP_UPLOAD_025, ?NS_HTTP_UPLOAD_030 | Nodes]};
@@ -140,7 +140,7 @@ get_disco_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_info(Acc :: [exml:element()], jlib:server(), module(), Node :: binary(),
+-spec get_disco_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
                      Lang :: ejabberd:lang()) -> [exml:element()].
 get_disco_info(Acc, SubHost, _Mod, _Node = <<>>, _Lang) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
@@ -158,7 +158,7 @@ get_disco_info(Acc, _Host, _Mod, _Node, _Lang) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec subhost(Host :: jlib:server()) -> binary().
+-spec subhost(Host :: jid:server()) -> binary().
 subhost(Host) ->
     gen_mod:get_module_opt_subhost(Host, ?MODULE, ?DEFAULT_SUBHOST).
 
@@ -181,12 +181,12 @@ compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers) ->
     IQ#iq{type = result, sub_el =[Slot]}.
 
 
--spec token_bytes(jlib:server()) -> pos_integer().
+-spec token_bytes(jid:server()) -> pos_integer().
 token_bytes(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, token_bytes, ?DEFAULT_TOKEN_BYTES).
 
 
--spec max_file_size(jlib:server()) -> pos_integer() | undefined.
+-spec max_file_size(jid:server()) -> pos_integer() | undefined.
 max_file_size(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, max_file_size, ?DEFAULT_MAX_FILE_SIZE).
 
@@ -199,12 +199,12 @@ with_default_backend(Opts) ->
     end.
 
 
--spec module_opts(jlib:server()) -> proplists:proplist().
+-spec module_opts(jid:server()) -> proplists:proplist().
 module_opts(Host) ->
     gen_mod:get_module_opts(Host, ?MODULE).
 
 
--spec generate_token(jlib:server()) -> binary().
+-spec generate_token(jid:server()) -> binary().
 generate_token(Host) ->
     base16:encode(crypto:strong_rand_bytes(token_bytes(Host))).
 

@@ -73,7 +73,7 @@ pool_spec(Pool, Size) ->
     {Pool, {wpool, start_pool, [pool_proc(Pool), Opts]}, transient, 2000, supervisor, dynamic}.
 
 
--spec get_pids(jlib:server() | atom()) -> [pid()].
+-spec get_pids(jid:server() | atom()) -> [pid()].
 get_pids(HostOrPool) ->
     PoolProc = pool_proc(HostOrPool),
     case whereis(PoolProc) of

@@ -128,7 +128,7 @@ socket_type() ->
 %%% mongoose_packet_handler callback
 %%%----------------------------------------------------------------------
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jlib:jid(), To :: jlib:jid(),
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
     El :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
     Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.

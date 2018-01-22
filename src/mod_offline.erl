@@ -67,17 +67,17 @@
 %% default value for the maximum number of user messages
 -define(MAX_USER_MESSAGES, infinity).
 
--type msg() :: #offline_msg{us :: {jlib:luser(), jlib:lserver()},
+-type msg() :: #offline_msg{us :: {jid:luser(), jid:lserver()},
                           timestamp :: erlang:timestamp(),
                           expire :: erlang:timestamp() | never,
-                          from ::jlib:jid(),
-                          to ::jlib:jid(),
+                          from ::jid:jid(),
+                          to ::jid:jid(),
                           packet :: exml:element()}.
 
 -export_type([msg/0]).
 
 -record(state, {
-    host :: jlib:server(),
+    host :: jid:server(),
     access_max_user_messages,
     message_poppers = monitored_map:new() ::
         monitored_map:t({LUser :: binary(), LServer :: binary}, pid())
@@ -90,26 +90,26 @@
     Host :: binary(),
     Opts :: list().
 -callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
-    LUser :: jlib:luser(),
-    LServer :: jlib:lserver(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     Reason :: term(),
     Result :: list(#offline_msg{}).
 -callback write_messages(LUser, LServer, Msgs) ->
     ok | {error, Reason}  when
-    LUser :: jlib:luser(),
-    LServer :: jlib:lserver(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     Msgs :: list(),
     Reason :: term().
 -callback count_offline_messages(LUser, LServer, MaxToArchive) -> integer() when
-      LUser :: jlib:luser(),
-      LServer :: jlib:lserver(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver(),
       MaxToArchive :: integer().
 -callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
-    Host :: jlib:lserver(),
+    Host :: jid:lserver(),
     Reason :: term(),
     Count :: integer().
 -callback remove_old_messages(Host, Timestamp) -> {error, Reason} | {ok, Count} when
-    Host :: jlib:lserver(),
+    Host :: jid:lserver(),
     Timestamp :: erlang:timestamp(),
     Reason :: term(),
     Count :: integer().
@@ -193,8 +193,8 @@ write_messages(Acc, LUser, LServer, Msgs) ->
             discard_warn_sender(Acc, Msgs)
     end.
 
--spec is_message_count_threshold_reached(integer(), jlib:luser(),
-                                         jlib:lserver(), integer()) ->
+-spec is_message_count_threshold_reached(integer(), jid:luser(),
+                                         jid:lserver(), integer()) ->
     boolean().
 is_message_count_threshold_reached(infinity, _LUser, _LServer, _Len) ->
     false;

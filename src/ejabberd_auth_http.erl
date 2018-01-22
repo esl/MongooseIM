@@ -76,7 +76,7 @@ store_type(Server) ->
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(jlib:luser(), jlib:lserver(), binary()) -> boolean().
+-spec check_password(jid:luser(), jid:lserver(), binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
     case scram:enabled(LServer) of
         false ->
@@ -88,7 +88,7 @@ check_password(LUser, LServer, Password) ->
             {ok, true} =:= verify_scram_password(LUser, LServer, Password)
     end.
 
--spec check_password(jlib:luser(), jlib:lserver(), binary(), binary(), fun()) -> boolean().
+-spec check_password(jid:luser(), jid:lserver(), binary(), binary(), fun()) -> boolean().
 check_password(LUser, LServer, Password, Digest, DigestGen) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
@@ -102,7 +102,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             end
     end.
 
--spec set_password(jlib:luser(), jlib:lserver(), binary()) -> ok | {error, not_allowed}.
+-spec set_password(jid:luser(), jid:lserver(), binary()) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
     PasswordFinal = case scram:enabled(LServer) of
                         true -> scram:serialize(scram:password_to_scram(
@@ -115,7 +115,7 @@ set_password(LUser, LServer, Password) ->
         {error, _} -> {error, not_allowed}
     end.
 
--spec try_register(jlib:luser(), jlib:lserver(), binary()) ->
+-spec try_register(jid:luser(), jid:lserver(), binary()) ->
     ok | {error, exists | not_allowed}.
 try_register(LUser, LServer, Password) ->
     PasswordFinal = case scram:enabled(LServer) of
@@ -133,11 +133,11 @@ try_register(LUser, LServer, Password) ->
 dirty_get_registered_users() ->
     [].
 
--spec get_vh_registered_users(jlib:lserver()) -> [].
+-spec get_vh_registered_users(jid:lserver()) -> [].
 get_vh_registered_users(_Server) ->
     [].
 
--spec get_vh_registered_users(jlib:lserver(), list()) -> [].
+-spec get_vh_registered_users(jid:lserver(), list()) -> [].
 get_vh_registered_users(_Server, _Opts) ->
     [].
 
@@ -145,11 +145,11 @@ get_vh_registered_users(_Server, _Opts) ->
 get_vh_registered_users_number(_Server) ->
     0.
 
--spec get_vh_registered_users_number(jlib:lserver(), list()) -> 0.
+-spec get_vh_registered_users_number(jid:lserver(), list()) -> 0.
 get_vh_registered_users_number(_Server, _Opts) ->
     0.
 
--spec get_password(jlib:luser(), jlib:lserver()) -> ejabberd_auth:passterm() | false.
+-spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
     case make_req(get, <<"get_password">>, LUser, LServer, <<"">>) of
         {error, _} ->
@@ -163,21 +163,21 @@ get_password(LUser, LServer) ->
             end
     end.
 
--spec get_password_s(jlib:luser(), jlib:lserver()) -> binary().
+-spec get_password_s(jid:luser(), jid:lserver()) -> binary().
 get_password_s(User, Server) ->
     case get_password(User, Server) of
         Pass when is_binary(Pass) -> Pass;
         _ -> <<>>
     end.
 
--spec does_user_exist(jlib:luser(), jlib:lserver()) -> boolean().
+-spec does_user_exist(jid:luser(), jid:lserver()) -> boolean().
 does_user_exist(LUser, LServer) ->
     case make_req(get, <<"user_exists">>, LUser, LServer, <<"">>) of
         {ok, <<"true">>} -> true;
         _ -> false
     end.
 
--spec remove_user(jlib:luser(), jlib:lserver()) ->
+-spec remove_user(jid:luser(), jid:lserver()) ->
     ok | {error, not_allowed}.
 remove_user(LUser, LServer) ->
     case remove_user_req(LUser, LServer, <<"">>, <<"remove_user">>) of
@@ -185,7 +185,7 @@ remove_user(LUser, LServer) ->
         _ -> {error, not_allowed}
     end.
 
--spec remove_user(jlib:luser(), jlib:lserver(), binary()) ->
+-spec remove_user(jid:luser(), jid:lserver(), binary()) ->
     ok | {error, not_allowed | not_exists | bad_request}.
 remove_user(LUser, LServer, Password) ->
     case scram:enabled(LServer) of

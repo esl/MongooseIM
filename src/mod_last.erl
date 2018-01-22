@@ -55,32 +55,32 @@
 %% Backend callbacks
 
 -callback init(Host, Opts) -> ok when
-    Host    :: jlib:server(),
+    Host    :: jid:server(),
     Opts    :: list().
 
 -callback get_last(LUser, LServer) -> Result when
-    LUser   :: jlib:luser(),
-    LServer :: jlib:lserver(),
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver(),
     Reason  :: term(),
     Result  :: {ok, non_neg_integer(), binary()} | {error, Reason} | not_found.
 
 -callback count_active_users(LServer, Timestamp) -> Result when
-    LServer :: jlib:lserver(),
+    LServer :: jid:lserver(),
     Timestamp :: non_neg_integer(),
     Result :: non_neg_integer().
 
 -callback set_last_info(LUser, LServer, Timestamp, Status) -> Result when
-    LUser   :: jlib:luser(),
-    LServer :: jlib:lserver(),
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver(),
     Timestamp :: non_neg_integer(),
     Status  :: binary(),
     Result  :: ok | {error, term()}.
 
 -callback remove_user(LUser, LServer) -> ok | {error, term()} when
-    LUser   :: jlib:luser(),
-    LServer :: jlib:lserver().
+    LUser   :: jid:luser(),
+    LServer :: jid:lserver().
 
--spec start(jlib:server(), list()) -> 'ok'.
+-spec start(jid:server(), list()) -> 'ok'.
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
 
@@ -96,7 +96,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(unset_presence_hook, Host, ?MODULE, on_presence_update, 50),
     ejabberd_hooks:add(session_cleanup, Host, ?MODULE, session_cleanup, 50).
 
--spec stop(jlib:server()) -> ok.
+-spec stop(jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
@@ -108,7 +108,7 @@ stop(Host) ->
 %%%
 %%% Uptime of ejabberd node
 %%%
--spec process_local_iq(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq())
+-spec process_local_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq())
         -> {mongoose_acc:t(), jlib:iq()}.
 process_local_iq(_From, _To, Acc,
     #iq{type = Type, sub_el = SubEl} = IQ) ->
@@ -143,7 +143,7 @@ now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
 %%%
 %%% Serve queries about user last online
 %%%
--spec process_sm_iq(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_sm_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
@@ -171,7 +171,7 @@ process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     end.
 
 -spec make_response(jlib:iq(), SubEl :: 'undefined' | [exml:element()],
-                    jlib:luser(), jlib:lserver(), allow | deny) -> jlib:iq().
+                    jid:luser(), jid:lserver(), allow | deny) -> jlib:iq().
 make_response(IQ, SubEl, _, _, deny) ->
     IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]};
 make_response(IQ, SubEl, LUser, LServer, allow) ->
@@ -209,11 +209,11 @@ make_response(IQ, SubEl, LUser, LServer, allow) ->
 get_last(LUser, LServer) ->
     mod_last_backend:get_last(LUser, LServer).
 
--spec count_active_users(jlib:lserver(), non_neg_integer()) -> non_neg_integer().
+-spec count_active_users(jid:lserver(), non_neg_integer()) -> non_neg_integer().
 count_active_users(LServer, Timestamp) ->
     mod_last_backend:count_active_users(LServer, Timestamp).
 
--spec on_presence_update(map(), jlib:user(), jlib:server(), jlib:resource(),
+-spec on_presence_update(map(), jid:user(), jid:server(), jid:resource(),
                          Status :: binary()) -> map() | {error, term()}.
 on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
     TimeStamp = now_to_seconds(p1_time_compat:timestamp()),
@@ -222,12 +222,12 @@ on_presence_update(Acc, LUser, LServer, _Resource, Status) ->
         E -> E
     end.
 
--spec store_last_info(jlib:user(), jlib:server(), non_neg_integer(),
+-spec store_last_info(jid:user(), jid:server(), non_neg_integer(),
                       Status :: binary()) -> ok | {error, term()}.
 store_last_info(LUser, LServer, TimeStamp, Status) ->
     mod_last_backend:set_last_info(LUser, LServer, TimeStamp, Status).
 
--spec get_last_info(jlib:luser(), jlib:lserver())
+-spec get_last_info(jid:luser(), jid:lserver())
         -> 'not_found' | {'ok', integer(), string()}.
 get_last_info(LUser, LServer) ->
     case get_last(LUser, LServer) of
@@ -235,7 +235,7 @@ get_last_info(LUser, LServer) ->
         Res -> Res
     end.
 
--spec remove_user(mongoose_acc:t(), jlib:user(), jlib:server()) -> mongoose_acc:t().
+-spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -244,8 +244,8 @@ remove_user(Acc, User, Server) ->
     Acc.
 
 %% TODO fix
--spec session_cleanup(Acc :: map(), LUser :: jlib:luser(), LServer :: jlib:lserver(),
-                      LResource :: jlib:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
+                      LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, LUser, LServer, LResource, _SID) ->
     on_presence_update(Acc, LUser, LServer, LResource, <<>>).
 

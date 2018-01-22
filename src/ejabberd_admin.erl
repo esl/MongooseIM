@@ -305,8 +305,8 @@ send_service_message_all_mucs(Subject, AnnouncementText) ->
 %%% Account management
 %%%
 
--spec register(User :: jlib:user(),
-               Host :: jlib:server(),
+-spec register(User :: jid:user(),
+               Host :: jid:server(),
                Password :: binary()) -> {'cannot_register', io_lib:chars()}
                                       | {'exists', io_lib:chars()}
                                       | {'ok', io_lib:chars()}.
@@ -325,23 +325,23 @@ register(User, Host, Password) ->
     end.
 
 
--spec unregister(User :: jlib:user(),
-                 Host :: jlib:server()) -> {'ok', []}.
+-spec unregister(User :: jid:user(),
+                 Host :: jid:server()) -> {'ok', []}.
 unregister(User, Host) ->
     ejabberd_auth:remove_user(User, Host),
     {ok, ""}.
 
--spec registered_users(Host :: jlib:server()) -> [jlib:user()].
+-spec registered_users(Host :: jid:server()) -> [jid:user()].
 registered_users(Host) ->
     Users = ejabberd_auth:get_vh_registered_users(Host),
     SUsers = lists:sort(Users),
     lists:map(fun({U, _S}) -> U end, SUsers).
 
--spec import_users(Filename :: string()) -> [{ok, jlib:user()} |
-                                             {exists, jlib:user()} |
-                                             {not_allowed, jlib:user()} |
-                                             {invalid_jid, jlib:user()} |
-                                             {null_password, jlib:user()} |
+-spec import_users(Filename :: string()) -> [{ok, jid:user()} |
+                                             {exists, jid:user()} |
+                                             {not_allowed, jid:user()} |
+                                             {invalid_jid, jid:user()} |
+                                             {null_password, jid:user()} |
                                              {bad_csv, binary()}].
 import_users(File) ->
     FileStream = stdio:file(File),
@@ -351,11 +351,11 @@ import_users(File) ->
     do_import(CsvStream, WorkersQueue).
 
 -spec do_import(CsvStream :: stdio:stream(), Workers :: queue:queue()) ->
-    [{ok, jlib:user()} |
-     {exists, jlib:user()} |
-     {not_allowed, jlib:user()} |
-     {invalid_jid, jlib:user()} |
-     {null_password, jlib:user()} |
+    [{ok, jid:user()} |
+     {exists, jid:user()} |
+     {not_allowed, jid:user()} |
+     {invalid_jid, jid:user()} |
+     {null_password, jid:user()} |
      {bad_csv, binary()}].
 do_import({}, WorkersQueue) ->
     Workers = queue:to_list(WorkersQueue),
@@ -374,11 +374,11 @@ spawn_link_workers() ->
       _ <- lists:seq(1, ?REGISTER_WORKERS_NUM)].
 
 -spec get_results_from_registrator(Worker :: pid()) ->
-    [{ok, jlib:user()} |
-     {exists, jlib:user()} |
-     {not_allowed, jlib:user()} |
-     {invalid_jid, jlib:user()} |
-     {null_password, jlib:user()} |
+    [{ok, jid:user()} |
+     {exists, jid:user()} |
+     {not_allowed, jid:user()} |
+     {invalid_jid, jid:user()} |
+     {null_password, jid:user()} |
      {bad_csv, binary()}].
 get_results_from_registrator(Pid) ->
     Pid ! get_result,
@@ -403,11 +403,11 @@ registrator_proc(Manager, Result) ->
     end,
     ok.
 
--spec do_register([binary()]) -> {ok, jlib:user()} |
-                                 {exists, jlib:user()} |
-                                 {not_allowed, jlib:user()} |
-                                 {invalid_jid, jlib:user()} |
-                                 {null_password, jlib:user()} |
+-spec do_register([binary()]) -> {ok, jid:user()} |
+                                 {exists, jid:user()} |
+                                 {not_allowed, jid:user()} |
+                                 {invalid_jid, jid:user()} |
+                                 {null_password, jid:user()} |
                                  {bad_csv, binary()}.
 do_register([User, Host, Password]) ->
     case ejabberd_auth:try_register(User, Host, Password) of

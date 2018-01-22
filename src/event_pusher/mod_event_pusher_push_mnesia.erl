@@ -26,19 +26,19 @@
 
 -record(push_subscription, {
           user_jid    :: key() | undefined,
-          pubsub_jid  :: jlib:jid(),
+          pubsub_jid  :: jid:jid(),
           pubsub_node :: mod_event_pusher_push:pubsub_node(),
           form        :: mod_event_pusher_push:form()
          }).
 
--type key()     :: jlib:simple_bare_jid().
+-type key()     :: jid:simple_bare_jid().
 -type sub_record()  :: #push_subscription{}.
 
 %%--------------------------------------------------------------------
 %% Backend callbacks
 %%--------------------------------------------------------------------
 
--spec init(Host :: jlib:server(), Opts :: list()) -> ok.
+-spec init(Host :: jid:server(), Opts :: list()) -> ok.
 init(_Host, _Opts) ->
     mnesia:create_table(push_subscription,
                         [{disc_copies, [node()]},
@@ -48,7 +48,7 @@ init(_Host, _Opts) ->
     ok.
 
 
--spec enable(UserJID :: jlib:jid(), PubsubJID :: jlib:jid(),
+-spec enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
              Node :: mod_event_pusher_push:pubsub_node(), Form :: mod_event_pusher_push:form()) ->
                     ok | {error, Reason :: term()}.
 enable(User, PubSub, Node, Forms) ->
@@ -56,7 +56,7 @@ enable(User, PubSub, Node, Forms) ->
     write(make_record(User, PubSub, Node, Forms)).
 
 
--spec disable(UserJID :: jlib:jid(), PubsubJID :: jlib:jid(),
+-spec disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
               Node :: mod_event_pusher_push:pubsub_node()) -> ok | {error, Reason :: term()}.
 disable(User, undefined, undefined) ->
     delete(key(User));
@@ -85,8 +85,8 @@ disable(User, PubsubJID, Node) ->
     end.
 
 
--spec get_publish_services(User :: jlib:jid()) ->
-                                  {ok, [{PubSub :: jlib:jid(),
+-spec get_publish_services(User :: jid:jid()) ->
+                                  {ok, [{PubSub :: jid:jid(),
                                          Node :: mod_event_pusher_push:pubsub_node(),
                                          Form :: mod_event_pusher_push:form()}]} |
                                                  {error, Reason :: term()}.
@@ -134,7 +134,7 @@ delete(Key) ->
 exec(F) ->
     mnesia:sync_dirty(F).
 
--spec make_record(UserJID :: jlib:jid(), PubsubJID :: jlib:jid(),
+-spec make_record(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                   Node :: mod_event_pusher_push:pubsub_node(),
                   Form :: mod_event_pusher_push:form()) -> sub_record().
 make_record(UserJID, PubsubJID, Node, Form) ->
@@ -145,6 +145,6 @@ make_record(UserJID, PubsubJID, Node, Form) ->
        form = Form
       }.
 
--spec key(jlib:jid()) -> key().
+-spec key(jid:jid()) -> key().
 key(JID) ->
     jid:to_lus(JID).

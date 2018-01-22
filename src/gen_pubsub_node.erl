@@ -99,33 +99,33 @@
                                  ServerHost :: binary(),
                                  Node :: nodeId(),
                                  ParentNode :: nodeId(),
-                                 Owner :: jlib:jid(),
+                                 Owner :: jid:jid(),
                                  Access :: atom()) ->
     {result, boolean()}.
 
--callback create_node(NodeIdx :: nodeIdx(), Owner :: jlib:jid()) -> {result, {default, broadcast}}.
+-callback create_node(NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, {default, broadcast}}.
 
 -callback delete_node(Nodes :: [pubsubNode(), ...]) ->
     {result,
         {default, broadcast,
             [{pubsubNode(),
-                    [{jlib:ljid(), [{subscription(), subId()}]}, ...]}, ...]
+                    [{jid:ljid(), [{subscription(), subId()}]}, ...]}, ...]
             }
         }
     |
     {result,
         {[],
             [{pubsubNode(),
-                    [{jlib:ljid(), [{subscription(), subId()}]}, ...]}, ...]
+                    [{jid:ljid(), [{subscription(), subId()}]}, ...]}, ...]
             }
         }.
 
--callback purge_node(NodeIdx :: nodeIdx(), Owner :: jlib:jid()) ->
+-callback purge_node(NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
     {result, {default, broadcast}} | {error, exml:element()}.
 
 -callback subscribe_node(NodeIdx :: nodeIdx(),
-        Sender :: jlib:jid(),
-        Subscriber :: jlib:jid(),
+        Sender :: jid:jid(),
+        Subscriber :: jid:jid(),
         AccessModel :: accessModel(),
         SendLast :: 'never' | 'on_sub' | 'on_sub_and_presence',
         PresenceSubscription :: boolean(),
@@ -137,14 +137,14 @@
     {error, exml:element()}.
 
 -callback unsubscribe_node(NodeIdx :: nodeIdx(),
-        Sender :: jlib:jid(),
-        Subscriber :: jlib:jid(),
+        Sender :: jid:jid(),
+        Subscriber :: jid:jid(),
         SubId :: subId()) ->
     {result, default} | {error, exml:element()}.
 
--callback publish_item(ServerHost :: jlib:server(),
+-callback publish_item(ServerHost :: jid:server(),
         NodeId :: nodeIdx(),
-        Publisher :: jlib:jid(),
+        Publisher :: jid:jid(),
         PublishModel :: publishModel(),
         MaxItems :: non_neg_integer(),
         ItemId :: <<>> | itemId(),
@@ -154,7 +154,7 @@
     {result, {default, broadcast, [itemId()]}} | {error, exml:element()}.
 
 -callback delete_item(NodeIdx :: nodeIdx(),
-        Publisher :: jlib:jid(),
+        Publisher :: jid:jid(),
         PublishModel :: publishModel(),
         ItemId :: <<>> | itemId()) ->
     {result, {default, broadcast}} | {error, exml:element()}.
@@ -164,38 +164,38 @@
         ItemIds :: [itemId()]) ->
     {result, {[itemId()], [itemId()]}}.
 
--callback get_node_affiliations(NodeIdx :: nodeIdx()) -> {result, [{jlib:ljid(), affiliation()}]}.
+-callback get_node_affiliations(NodeIdx :: nodeIdx()) -> {result, [{jid:ljid(), affiliation()}]}.
 
--callback get_entity_affiliations(Host :: host(), Owner :: jlib:jid()) ->
+-callback get_entity_affiliations(Host :: host(), Owner :: jid:jid()) ->
     {result, [{pubsubNode(), affiliation()}]}.
 
--callback get_affiliation(NodeIdx :: nodeIdx(), Owner :: jlib:jid()) -> {result, affiliation()}.
+-callback get_affiliation(NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, affiliation()}.
 
--callback set_affiliation(NodeIdx :: nodeIdx(), Owner :: jlib:jid(), Affiliation :: affiliation()) ->
+-callback set_affiliation(NodeIdx :: nodeIdx(), Owner :: jid:jid(), Affiliation :: affiliation()) ->
     ok | {error, exml:element()}.
 
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
     {result,
-        [{jlib:ljid(), subscription(), subId()}] |
-        [{jlib:ljid(), none}, ...]
+        [{jid:ljid(), subscription(), subId()}] |
+        [{jid:ljid(), none}, ...]
         }.
 
--callback get_entity_subscriptions(Host :: host(), Key :: jlib:jid()) ->
-    {result, [{pubsubNode(), subscription(), subId(), jlib:ljid()}]}.
+-callback get_entity_subscriptions(Host :: host(), Key :: jid:jid()) ->
+    {result, [{pubsubNode(), subscription(), subId(), jid:ljid()}]}.
 
--callback get_subscriptions(NodeIdx :: nodeIdx(), Owner :: jlib:jid()) ->
+-callback get_subscriptions(NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
     {result, [{subscription(), subId()}]}.
 
--callback get_pending_nodes(Host :: host(), Owner :: jlib:jid()) -> {result, [nodeId()]}.
+-callback get_pending_nodes(Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
 
 -callback get_states(NodeIdx::nodeIdx()) -> {result, [pubsubState()]}.
 
--callback get_state(NodeIdx :: nodeIdx(), Key :: jlib:ljid()) -> pubsubState().
+-callback get_state(NodeIdx :: nodeIdx(), Key :: jid:ljid()) -> pubsubState().
 
 -callback set_state(State::pubsubState()) -> ok | {error, exml:element()}.
 
 -callback get_items(NodeIdx :: nodeIdx(),
-        JID :: jlib:jid(),
+        JID :: jid:jid(),
         AccessModel :: accessModel(),
         PresenceSubscription :: boolean(),
         RosterGroup :: boolean(),
@@ -203,12 +203,12 @@
         RSM :: none | jlib:rsm_in()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, exml:element()}.
 
--callback get_items(NodeIdx :: nodeIdx(), From :: jlib:jid(), RSM :: none | jlib:rsm_in()) ->
+-callback get_items(NodeIdx :: nodeIdx(), From :: jid:jid(), RSM :: none | jlib:rsm_in()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}}.
 
 -callback get_item(NodeIdx :: nodeIdx(),
         ItemId :: itemId(),
-        JID :: jlib:jid(),
+        JID :: jid:jid(),
         AccessModel :: accessModel(),
         PresenceSubscription :: boolean(),
         RosterGroup :: boolean(),

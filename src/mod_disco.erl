@@ -55,7 +55,7 @@
 
 -type feature() :: any().
 
--spec start(jlib:server(), list()) -> 'ok'.
+-spec start(jid:server(), list()) -> 'ok'.
 start(Host, Opts) ->
     [catch ets:new(Name, [named_table, ordered_set, public]) || Name <-
         [disco_features, disco_extra_domains, disco_sm_features, disco_sm_nodes, disco_subhosts]],
@@ -69,7 +69,7 @@ start(Host, Opts) ->
     lists:foreach(fun(Domain) -> register_extra_domain(Host, Domain) end, ExtraDomains).
 
 
--spec stop(jlib:server()) -> ok.
+-spec stop(jid:server()) -> ok.
 stop(Host) ->
     unregister_host(Host),
     ejabberd_hooks:delete(disco_local_identity, Host, ?MODULE, get_local_identity, 100).
@@ -128,31 +128,31 @@ unregister_host(Host) ->
                   ets:match(disco_subhosts, {{'_', Host}})),
     ok.
 
--spec register_feature(jlib:server(), feature()) -> 'true'.
+-spec register_feature(jid:server(), feature()) -> 'true'.
 register_feature(Host, Feature) ->
     catch ets:new(disco_features, [named_table, ordered_set, public]),
     ets:insert(disco_features, {{Feature, Host}}).
 
 
--spec unregister_feature(jlib:server(), feature()) -> 'true'.
+-spec unregister_feature(jid:server(), feature()) -> 'true'.
 unregister_feature(Host, Feature) ->
     catch ets:new(disco_features, [named_table, ordered_set, public]),
     ets:delete(disco_features, {Feature, Host}).
 
 
--spec register_extra_domain(jlib:server(), binary()) -> 'true'.
+-spec register_extra_domain(jid:server(), binary()) -> 'true'.
 register_extra_domain(Host, Domain) ->
     catch ets:new(disco_extra_domains, [named_table, ordered_set, public]),
     ets:insert(disco_extra_domains, {{Domain, Host}}).
 
 
--spec unregister_extra_domain(jlib:server(), binary()) -> 'true'.
+-spec unregister_extra_domain(jid:server(), binary()) -> 'true'.
 unregister_extra_domain(Host, Domain) ->
     catch ets:new(disco_extra_domains, [named_table, ordered_set, public]),
     ets:delete(disco_extra_domains, {Domain, Host}).
 
 
--spec process_local_iq_items(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_local_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_local_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
@@ -174,7 +174,7 @@ process_local_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubE
             {Acc, IQ#iq{type = error, sub_el = [SubEl, Error]}}
     end.
 
--spec process_local_iq_info(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_local_iq_info(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_local_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
@@ -204,8 +204,8 @@ process_local_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl
     end.
 
 -spec get_local_identity(Acc :: [exml:element()],
-                        From :: jlib:jid(),
-                        To :: jlib:jid(),
+                        From :: jid:jid(),
+                        To :: jid:jid(),
                         Node :: binary(),
                         Lang :: ejabberd:lang()) -> [exml:element()].
 get_local_identity(Acc, _From, _To, <<>>, _Lang) ->
@@ -218,8 +218,8 @@ get_local_identity(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
 
 
 -spec get_local_features(Acc :: 'empty' | {'error', _} | {'result', _},
-                        From :: jlib:jid(),
-                        To :: jlib:jid(),
+                        From :: jid:jid(),
+                        To :: jid:jid(),
                         Node :: binary(),
                         Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_features({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
@@ -241,7 +241,7 @@ get_local_features(Acc, _From, _To, Node, _Lang) when is_binary(Node) ->
     end.
 
 
--spec features_to_xml(FeatureList :: [{feature(), jlib:server()}]
+-spec features_to_xml(FeatureList :: [{feature(), jid:server()}]
                      ) -> [exml:element()].
 features_to_xml(FeatureList) ->
     %% Avoid duplicating features
@@ -263,8 +263,8 @@ domain_to_xml(Domain) ->
 
 
 -spec get_local_services(Acc :: 'empty' | {'error', _} | {'result', _},
-                         From :: jlib:jid(),
-                         To :: jlib:jid(),
+                         From :: jid:jid(),
+                         To :: jid:jid(),
                          Node :: binary(),
                          Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
@@ -289,7 +289,7 @@ get_local_services(empty, _From, _To, _Node, _Lang) ->
 
 
 -type route() :: binary().
--spec get_vh_services(jlib:server()) -> [route()].
+-spec get_vh_services(jid:server()) -> [route()].
 get_vh_services(Host) ->
     VHosts = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
     lists:filter(fun(Route) ->
@@ -313,7 +313,7 @@ check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec process_sm_iq_items(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_sm_iq_items(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {string(), jlib:iq()}.
 process_sm_iq_items(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
@@ -341,8 +341,8 @@ process_sm_iq_items(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} 
 
 
 -spec get_sm_items(Acc :: 'empty' | {'error', _} | {'result', _},
-                   From :: jlib:jid(),
-                   To :: jlib:jid(),
+                   From :: jid:jid(),
+                   To :: jid:jid(),
                    Node :: binary(),
                    Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_sm_items({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
@@ -374,7 +374,7 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
     end.
 
 
--spec is_presence_subscribed(jlib:jid(), jlib:jid()) -> boolean().
+-spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserver=LServer}) ->
     % TODO this one probably could be smarter too
     A = mongoose_acc:new(),
@@ -387,7 +387,7 @@ is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserv
     orelse User == LUser andalso Server == LServer.
 
 
--spec process_sm_iq_info(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_sm_iq_info(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq()}.
 process_sm_iq_info(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
@@ -420,8 +420,8 @@ process_sm_iq_info(From, To, Acc, #iq{type = get, lang = Lang, sub_el = SubEl} =
 
 
 -spec get_sm_identity(Acc :: [exml:element()],
-                      From :: jlib:jid(),
-                      To :: jlib:jid(),
+                      From :: jid:jid(),
+                      To :: jid:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> [exml:element()].
 get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) ->
@@ -436,8 +436,8 @@ get_sm_identity(Acc, _From, #jid{luser = LUser, lserver=LServer}, _Node, _Lang) 
 
 
 -spec get_sm_features(empty | any(),
-                      From :: jlib:jid(),
-                      To :: jlib:jid(),
+                      From :: jid:jid(),
+                      To :: jid:jid(),
                       Node :: binary(),
                       Lang :: ejabberd:lang()) -> any().
 get_sm_features(empty, From, To, _Node, _Lang) ->
@@ -453,7 +453,7 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_user_resources(jlib:user(), jlib:server()) -> [exml:element()].
+-spec get_user_resources(jid:user(), jid:server()) -> [exml:element()].
 get_user_resources(User, Server) ->
     Rs = ejabberd_sm:get_user_resources(User, Server),
     lists:map(fun(R) ->
@@ -470,7 +470,7 @@ make_node_attr(Node) -> [{<<"node">>, Node}].
 
 %%% Support for: XEP-0157 Contact Addresses for XMPP Services
 
--spec get_info(Acc :: [exml:element()], jlib:server(), module(), Node :: binary(),
+-spec get_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
         Lang :: ejabberd:lang()) -> [exml:element()].
 get_info(Acc, Host, Mod, Node, _Lang) when Node == <<>> ->
     Module = case Mod of
@@ -491,7 +491,7 @@ get_info(Acc, _, _, _Node, _) ->
     Acc.
 
 
--spec get_fields_xml(jlib:server(), module()) -> [exml:element()].
+-spec get_fields_xml(jid:server(), module()) -> [exml:element()].
 get_fields_xml(Host, Module) ->
     Fields = gen_mod:get_module_opt(Host, ?MODULE, server_info, []),
 

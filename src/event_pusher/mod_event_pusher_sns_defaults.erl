@@ -26,14 +26,14 @@
 %% -------------------------------------------------------------------
 %% @doc Returns user's GUID for SNS notification based on his JID.
 %% -------------------------------------------------------------------
--spec user_guid(UserJID :: jlib:jid()) -> mod_event_pusher_sns:user_guid().
+-spec user_guid(UserJID :: jid:jid()) -> mod_event_pusher_sns:user_guid().
 user_guid(#jid{} = UserJID) ->
     jid:to_binary(jid:to_lower(jid:to_bare(UserJID))).
 
 %% -------------------------------------------------------------------
 %% @doc Returns SNS Message Attributes for presence change notification.
 %% -------------------------------------------------------------------
--spec message_attributes(TopicARN :: mod_event_pusher_sns:topic_arn(), UserJID :: jlib:jid(),
+-spec message_attributes(TopicARN :: mod_event_pusher_sns:topic_arn(), UserJID :: jid:jid(),
                          IsOnline :: boolean()) -> mod_event_pusher_sns:attributes().
 message_attributes(_TopicARN, _UserJID, _IsOnline) ->
     #{}.
@@ -41,8 +41,8 @@ message_attributes(_TopicARN, _UserJID, _IsOnline) ->
 %% -------------------------------------------------------------------
 %% @doc Returns SNS Message Attributes for message notification.
 %% -------------------------------------------------------------------
--spec message_attributes(TopicARN :: mod_event_pusher_sns:topic_arn(), From :: jlib:jid(),
-                         To :: jlib:jid(), MessageType :: pm | muc, Packet :: exml:element()) ->
+-spec message_attributes(TopicARN :: mod_event_pusher_sns:topic_arn(), From :: jid:jid(),
+                         To :: jid:jid(), MessageType :: pm | muc, Packet :: exml:element()) ->
     mod_event_pusher_sns:attributes().
 message_attributes(_TopicARN, _From, _To, _MessageType, _Packet) ->
     #{}.

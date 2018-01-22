@@ -29,7 +29,7 @@
 %%--------------------------------------------------------------------
 
 
--spec send(jlib:lserver() | pid(), {jlib:jid(), jlib:jid(), mongoose_acc:t(), xmlel:packet()}) -> ok.
+-spec send(jid:lserver() | pid(), {jid:jid(), jid:jid(), mongoose_acc:t(), xmlel:packet()}) -> ok.
 send(Server, Packet) when is_binary(Server) ->
     Worker = get_process_for(Server),
     send(Worker, Packet);
@@ -44,7 +44,7 @@ send(Worker, {From, _To, _Acc, _Packet} = FPacket) ->
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{listen_port, 5555},
             {connections_per_endpoint, 1},
@@ -52,7 +52,7 @@ start(Host, Opts0) ->
             {disabled_gc_interval, 60} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: jlib:lserver()) -> any().
+-spec stop(Host :: jid:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -80,7 +80,7 @@ stop() ->
     supervisor:terminate_child(ejabberd_sup, ConnsSup),
     supervisor:delete_child(ejabberd_sup, ConnsSup).
 
--spec get_process_for(jlib:lserver()) -> pid().
+-spec get_process_for(jid:lserver()) -> pid().
 get_process_for(Server) ->
     mod_global_distrib_outgoing_conns_sup:get_connection(Server).
 

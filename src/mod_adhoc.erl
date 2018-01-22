@@ -72,8 +72,8 @@ hooks(Host) ->
 %%-------------------------------------------------------------------------
 
 -spec get_local_commands(Acc :: [exml:element()],
-                         From :: jlib:jid(),
-                         To :: jlib:jid(),
+                         From :: jid:jid(),
+                         To :: jid:jid(),
                          NS :: binary(),
                          ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
 get_local_commands(Acc, _From, #jid{lserver = LServer} = _To, <<"">>, Lang) ->
@@ -102,8 +102,8 @@ get_local_commands(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 -spec get_sm_commands(Acc :: [exml:element()],
-                      From :: jlib:jid(),
-                      To :: jlib:jid(),
+                      From :: jid:jid(),
+                      To :: jid:jid(),
                       NS :: binary(),
                       ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
 get_sm_commands(Acc, _From, #jid{lserver = LServer} = To, <<"">>, Lang) ->
@@ -133,8 +133,8 @@ get_sm_commands(Acc, _From, _To, _Node, _Lang) ->
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
 -spec get_local_identity(Acc :: [exml:element()],
-                         From :: jlib:jid(),
-                         To :: jlib:jid(),
+                         From :: jid:jid(),
+                         To :: jid:jid(),
                          NS :: binary(),
                          ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
 get_local_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
@@ -154,8 +154,8 @@ get_local_identity(Acc, _From, _To, _Node, _Lang) ->
 
 %% @doc On disco info request to the ad-hoc node, return automation/command-list.
 -spec get_sm_identity(Acc :: [exml:element()],
-                     From :: jlib:jid(),
-                     To :: jlib:jid(),
+                     From :: jid:jid(),
+                     To :: jid:jid(),
                      NS :: binary(),
                      ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
 get_sm_identity(Acc, _From, _To, ?NS_COMMANDS, Lang) ->
@@ -169,8 +169,8 @@ get_sm_identity(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 -spec get_local_features(Acc :: [exml:element()],
-                         From :: jlib:jid(),
-                         To :: jlib:jid(),
+                         From :: jid:jid(),
+                         To :: jid:jid(),
                          NS :: binary(),
                          ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
 get_local_features(Acc, _From, _To, <<"">>, _Lang) ->
@@ -191,8 +191,8 @@ get_local_features(Acc, _From, _To, _Node, _Lang) ->
 %%-------------------------------------------------------------------------
 
 -spec get_sm_features(Acc :: [exml:element()],
-                             From :: jlib:jid(),
-                             To :: jlib:jid(),
+                             From :: jid:jid(),
+                             To :: jid:jid(),
                              NS :: binary(),
                              ejabberd:lang()) -> {result, [exml:element()]} | [exml:element()].
 get_sm_features(Acc, _From, _To, <<"">>, _Lang) ->
@@ -209,19 +209,19 @@ get_sm_features(Acc, _From, _To, _Node, _Lang) ->
 
 %%-------------------------------------------------------------------------
 
--spec process_local_iq(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_local_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), ignore | jlib:iq()}.
 process_local_iq(From, To, Acc, IQ) ->
     {Acc, process_adhoc_request(From, To, IQ, adhoc_local_commands)}.
 
 
--spec process_sm_iq(jlib:jid(), jlib:jid(), mongoose_acc:t(), jlib:iq()) ->
+-spec process_sm_iq(jid:jid(), jid:jid(), mongoose_acc:t(), jlib:iq()) ->
     {mongoose_acc:t(), ignore | jlib:iq()}.
 process_sm_iq(From, To, Acc, IQ) ->
     {Acc, process_adhoc_request(From, To, IQ, adhoc_sm_commands)}.
 
 
--spec process_adhoc_request(jlib:jid(), jlib:jid(), jlib:iq(),
+-spec process_adhoc_request(jid:jid(), jid:jid(), jlib:iq(),
         Hook :: atom()) -> ignore | jlib:iq().
 process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
     ?DEBUG("About to parse ~p...", [IQ]),
@@ -245,8 +245,8 @@ process_adhoc_request(From, To, #iq{sub_el = SubEl} = IQ, Hook) ->
 
 
 -spec ping_item(Acc :: [exml:element()],
-                From :: jlib:jid(),
-                To :: jlib:jid(),
+                From :: jid:jid(),
+                To :: jid:jid(),
                 ejabberd:lang()) -> {result, [exml:element()]}.
 ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
     Items = case Acc of
@@ -263,8 +263,8 @@ ping_item(Acc, _From, #jid{lserver = Server} = _To, Lang) ->
 
 
 -spec ping_command(Acc :: _,
-                   From :: jlib:jid(),
-                   To :: jlib:jid(),
+                   From :: jid:jid(),
+                   To :: jid:jid(),
                    adhoc:request()) -> {error, _} | adhoc:response().
 ping_command(_Acc, _From, _To,
              #adhoc_request{lang = Lang,

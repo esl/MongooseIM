@@ -30,7 +30,7 @@
                            Server :: binary(),
                            User :: binary(),
                            PrivacyList :: userlist(),
-                           To :: jlib:jid(),
+                           To :: jid:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
     Acc1 = case Acc0 of
@@ -47,8 +47,8 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
                            Server :: binary(),
                            User :: binary(),
                            PrivacyList :: userlist(),
-                           From :: jlib:jid(),
-                           To :: jlib:jid(),
+                           From :: jid:jid(),
+                           To :: jid:jid(),
                            Dir :: 'in' | 'out') -> {mongoose_acc:t(), allow|deny|block}.
 privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
     % see if we have just Acc or also stanza to check - may have different name/type

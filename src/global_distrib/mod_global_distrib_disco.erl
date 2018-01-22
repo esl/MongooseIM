@@ -28,11 +28,11 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: jlib:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -40,7 +40,7 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec get_disco_items(Acc :: term(), From :: jlib:jid(), To :: jlib:jid(),
+-spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                       Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, _To, <<"">>, _Lang) ->
     {ok, Domains} = mod_global_distrib_mapping:all_domains(),

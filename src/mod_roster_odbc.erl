@@ -35,16 +35,16 @@
 
 -export([raw_to_record/2]).
 
--spec init(jlib:server(), list()) -> ok.
+-spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec transaction(LServer :: jlib:lserver(), F :: fun()) ->
+-spec transaction(LServer :: jid:lserver(), F :: fun()) ->
     {aborted, Reason :: any()} | {atomic, Result :: any()}.
 transaction(LServer, F) ->
     mongoose_rdbms:sql_transaction(LServer, F).
 
--spec read_roster_version(jlib:luser(), jlib:lserver())
+-spec read_roster_version(jid:luser(), jid:lserver())
 -> binary() | error.
 read_roster_version(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),

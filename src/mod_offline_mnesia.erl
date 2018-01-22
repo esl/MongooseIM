@@ -106,7 +106,7 @@ remove_user(User, Server) ->
         end,
     mnesia:transaction(F).
 
--spec remove_expired_messages(jlib:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
+-spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(_Host) ->
     TimeStamp = p1_time_compat:timestamp(),
@@ -124,7 +124,7 @@ remove_expired_messages(_Host) ->
             {ok, Result}
     end.
 
--spec remove_old_messages(jlib:lserver(), erlang:timestamp()) ->
+-spec remove_old_messages(jid:lserver(), erlang:timestamp()) ->
     {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_old_messages(_Host, TimeStamp) ->

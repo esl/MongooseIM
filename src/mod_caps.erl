@@ -153,7 +153,7 @@ read_caps([_ | Tail], Result) ->
     read_caps(Tail, Result);
 read_caps([], Result) -> Result.
 
--spec user_send_packet(mongoose_acc:t(), jlib:jid(), jlib:jid(), exml:element()) -> mongoose_acc:t().
+-spec user_send_packet(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc,
                  #jid{luser = User, lserver = Server} = From,
                  #jid{luser = User, lserver = Server,
@@ -173,7 +173,7 @@ user_send_packet(Acc,
 user_send_packet(Acc, _From, _To, _Pkt) ->
     Acc.
 
--spec user_receive_packet(mongoose_acc:t(), jlib:jid(), jlib:jid(), jlib:jid(), exml:element()) -> mongoose_acc:t().
+-spec user_receive_packet(mongoose_acc:t(), jid:jid(), jid:jid(), jid:jid(), exml:element()) -> mongoose_acc:t().
 user_receive_packet(Acc, #jid{lserver = Server}, From, _To,
                     #xmlel{name = <<"presence">>, attrs = Attrs,
                            children = Els}) ->
@@ -400,7 +400,7 @@ terminate(_Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--spec feature_request(mongoose_acc:t(), jlib:server(), jlib:jid(), caps(), [binary()]) ->
+-spec feature_request(mongoose_acc:t(), jid:server(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
 feature_request(Acc, Host, From, Caps,
                 [SubNode | Tail] = SubNodes) ->
@@ -443,7 +443,7 @@ feature_request(Acc, Host, From, Caps, []) ->
     ejabberd_hooks:run_fold(caps_recognised, Host, Acc,
                             [From, self(), get_features_list(Host, Caps)]).
 
--spec feature_response(mongoose_acc:t(), jlib:iq(), jlib:server(), jlib:jid(), caps(), [binary()]) ->
+-spec feature_response(mongoose_acc:t(), jlib:iq(), jid:server(), jid:jid(), caps(), [binary()]) ->
     mongoose_acc:t().
 feature_response(Acc, #iq{type = result,
                      sub_el = [#xmlel{children = Els}]},

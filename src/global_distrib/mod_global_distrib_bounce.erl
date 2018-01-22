@@ -36,14 +36,14 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     ResendAfterMs = proplists:get_value(resend_after_ms, Opts0, 200),
     ResendAfter = p1_time_compat:convert_time_unit(ResendAfterMs, milli_seconds, native),
     Opts = [{resend_after, ResendAfter}, {max_retries, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: jlib:lserver()) -> any().
+-spec stop(Host :: jid:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -82,8 +82,8 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_store_message(drop) -> drop;
-                         ({jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:packet()}) ->
-                                 drop | {jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:packet()}.
+                         ({jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) ->
+                                 drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}.
 maybe_store_message(drop) -> drop;
 maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
     LocalHost = opt(local_host),
@@ -116,7 +116,7 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             drop
     end.
 
--spec reroute_messages(mongoose_acc:t(), jlib:jid(), jlib:jid()) -> [mongoose_acc:t()].
+-spec reroute_messages(mongoose_acc:t(), jid:jid(), jid:jid()) -> [mongoose_acc:t()].
 reroute_messages(Acc, From, To) ->
     Key = get_index_key(From, To),
     StoredMessages =
@@ -186,7 +186,7 @@ delete_index(ResendAt, {From, To, _Acc, _Packet} = FPacket) ->
 get_index_key(From, To) ->
     {jid:to_lower(From), jid:to_lower(To)}.
 
--spec do_insert_in_store(ResendAt :: integer(), {jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:packet()}) -> any().
+-spec do_insert_in_store(ResendAt :: integer(), {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) -> any().
 do_insert_in_store(ResendAt, FPacket) ->
     case ets:insert_new(?MESSAGE_STORE, {ResendAt, FPacket}) of
         true -> add_index(ResendAt, FPacket);

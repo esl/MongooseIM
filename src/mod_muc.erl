@@ -82,10 +82,10 @@
 -type affiliation() :: admin | owner | member | outcast | none.
 -type room() :: binary().
 -type nick() :: binary().
--type room_host() :: jlib:simple_bare_jid().
+-type room_host() :: jid:simple_bare_jid().
 -type packet() :: exml:element().
 -type from_to_packet() ::
-        {From :: jlib:jid(), To :: jlib:jid(), Acc :: mongoose_acc:t(),
+        {From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
          Packet :: packet()}.
 -type access() :: {_AccessRoute, _AccessCreate, _AccessAdmin, _AccessPersistent}.
 
@@ -115,12 +115,12 @@
 }).
 
 -type muc_registered() :: #muc_registered{
-                             us_host    :: jlib:literal_jid(),
+                             us_host    :: jid:literal_jid(),
                              nick       :: nick()
                             }.
 
--record(state, {host                :: jlib:server(),
-                server_host         :: jlib:literal_jid(),
+-record(state, {host                :: jid:server(),
+                server_host         :: jid:literal_jid(),
                 access,
                 history_size        :: integer(),
                 default_room_opts   :: list(),
@@ -144,14 +144,14 @@
 %% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
--spec start_link(jlib:server(), list())
+-spec start_link(jid:server(), list())
             -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
 
--spec start(jlib:server(), _) ->
+-spec start(jid:server(), _) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(Host, Opts) ->
     ensure_metrics(Host),
@@ -167,7 +167,7 @@ start(Host, Opts) ->
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 
--spec stop(jlib:server()) -> 'ok'
+-spec stop(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop(Host) ->
     stop_supervisor(Host),
@@ -187,7 +187,7 @@ stop_gen_server(Host) ->
 %% C) mod_muc:stop was called, and each room is being terminated
 %%    In this case, the mod_muc process died before the room processes
 %%    So the message sending must be catched
--spec room_destroyed(jlib:server(), room(), pid()) -> 'ok'.
+-spec room_destroyed(jid:server(), room(), pid()) -> 'ok'.
 room_destroyed(Host, Room, Pid) ->
     F = fun() -> mnesia:delete_object(#muc_online_room{name_host = {Room, Host}, pid = Pid}) end,
     {atomic, ok} = mnesia:transaction(F),
@@ -197,14 +197,14 @@ room_destroyed(Host, Room, Pid) ->
 %% @doc Create a room.
 %% If Opts = default, the default room options are used.
 %% Else use the passed options as defined in mod_muc_room.
--spec create_instant_room(jlib:server(), Name :: room(),
-    From :: jlib:jid(), Nick :: nick(), Opts :: list()) -> any().
+-spec create_instant_room(jid:server(), Name :: room(),
+    From :: jid:jid(), Nick :: nick(), Opts :: list()) -> any().
 create_instant_room(Host, Name, From, Nick, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, {create_instant, Name, From, Nick, Opts}).
 
 
--spec store_room(jlib:server(), room(), list())
+-spec store_room(jid:server(), room(), list())
             -> {'aborted', _} | {'atomic', _}.
 store_room(Host, Name, Opts) ->
     F = fun() ->
@@ -214,7 +214,7 @@ store_room(Host, Name, Opts) ->
     mnesia:transaction(F).
 
 
--spec restore_room(jlib:server(), room())
+-spec restore_room(jid:server(), room())
                                     -> 'error' | 'undefined' | [any()].
 restore_room(Host, Name) ->
     case catch mnesia:dirty_read(muc_room, {Name, Host}) of
@@ -225,7 +225,7 @@ restore_room(Host, Name) ->
     end.
 
 
--spec forget_room(jlib:server(), room()) -> 'ok'.
+-spec forget_room(jid:server(), room()) -> 'ok'.
 forget_room(Host, Name) ->
     F = fun() ->
                 mnesia:delete({muc_room, {Name, Host}})
@@ -235,8 +235,8 @@ forget_room(Host, Name) ->
     ok.
 
 
--spec process_iq_disco_items(Host :: jlib:server(), From :: jlib:jid(),
-        To :: jlib:jid(), jlib:iq()) -> mongoose_acc:t().
+-spec process_iq_disco_items(Host :: jid:server(), From :: jid:jid(),
+        To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().
 process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
     Rsm = jlib:rsm_decode(IQ),
     Res = IQ#iq{type = result,
@@ -248,7 +248,7 @@ process_iq_disco_items(Host, From, To, #iq{lang = Lang} = IQ) ->
                           jlib:iq_to_xml(Res)).
 
 
--spec can_use_nick(jlib:server(), jlib:jid(), nick()) -> boolean().
+-spec can_use_nick(jid:server(), jid:jid(), nick()) -> boolean().
 can_use_nick(_Host, _JID, <<>>) ->
     false;
 can_use_nick(Host, JID, Nick) ->
@@ -280,7 +280,7 @@ can_use_nick(Host, JID, Nick) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
--spec init([jlib:server() | list(), ...]) -> {'ok', state()}.
+-spec init([jid:server() | list(), ...]) -> {'ok', state()}.
 init([Host, Opts]) ->
     mnesia:create_table(muc_room,
                         [{disc_copies, [node()]},
@@ -457,7 +457,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
--spec start_supervisor(jlib:server()) -> {'error', _}
+-spec start_supervisor(jid:server()) -> {'error', _}
                                            | {'ok', 'undefined' | pid()}
                                            | {'ok', 'undefined' | pid(), _}.
 start_supervisor(Host) ->
@@ -473,7 +473,7 @@ start_supervisor(Host) ->
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
 
--spec stop_supervisor(jlib:server()) -> 'ok'
+-spec stop_supervisor(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
@@ -482,8 +482,8 @@ stop_supervisor(Host) ->
 
 
 -spec process_packet(Acc :: mongoose_acc:t(),
-                     From :: jlib:jid(),
-                     To :: jlib:simple_jid() | jlib:jid(),
+                     From :: jid:jid(),
+                     To :: jid:simple_jid() | jid:jid(),
                      El :: exml:element(),
                      State :: state()) -> ok | mongoose_acc:t().
 process_packet(Acc, From, To, El, #state{
@@ -680,8 +680,8 @@ route_by_type(<<"presence">>, _Routed, _State) ->
     ok.
 
 
--spec check_user_can_create_room('global' | jlib:server(),
-        'allow' | atom(), jlib:jid(), room()) -> boolean().
+-spec check_user_can_create_room('global' | jid:server(),
+        'allow' | atom(), jid:jid(), room()) -> boolean().
 check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
     case acl:match_rule(ServerHost, AccessCreate, From) of
         allow ->
@@ -691,7 +691,7 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
             false
     end.
 
--spec load_permanent_rooms(Host :: jlib:server(), Srv :: jlib:server(),
+-spec load_permanent_rooms(Host :: jid:server(), Srv :: jid:server(),
         Access :: access(), HistorySize :: 'undefined' | integer(),
         RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
 load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
@@ -722,10 +722,10 @@ load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuth
 
       end, RoomsToLoad).
 
--spec start_new_room(Host :: 'undefined' | jlib:server(),
-        Srv :: jlib:server(), Access :: access(), room(),
+-spec start_new_room(Host :: 'undefined' | jid:server(),
+        Srv :: jid:server(), Access :: access(), room(),
         HistorySize :: 'undefined' | integer(), RoomShaper :: shaper:shaper(),
-        HttpAuthPool :: none | mongoose_http_client:pool(), From :: jlib:jid(), nick(),
+        HttpAuthPool :: none | mongoose_http_client:pool(), From :: jid:jid(), nick(),
         DefRoomOpts :: 'undefined' | [any()])
             -> {'error', _}
              | {'ok', 'undefined' | pid()}
@@ -756,7 +756,7 @@ register_room_or_stop_if_duplicate(Host, Room, Pid) ->
             {ok, OldPid}
     end.
 
--spec register_room('undefined' | jlib:server(), room(),
+-spec register_room('undefined' | jid:server(), room(),
                     'undefined' | pid()) -> {'aborted', _} | {'atomic', _}.
 register_room(Host, Room, Pid) ->
     F = fun() ->
@@ -770,7 +770,7 @@ register_room(Host, Room, Pid) ->
     mnesia:transaction(F).
 
 
--spec room_jid_to_pid(RoomJID :: jlib:jid()) -> {ok, pid()} | {error, not_found}.
+-spec room_jid_to_pid(RoomJID :: jid:jid()) -> {ok, pid()} | {error, not_found}.
 room_jid_to_pid(#jid{luser=RoomName, lserver=MucService}) ->
     case mnesia:dirty_read(muc_online_room, {RoomName, MucService}) of
         [R] ->
@@ -797,7 +797,7 @@ iq_disco_info(Lang) ->
      #xmlel{name = <<"feature">>, attrs = [{<<"var">>, ?NS_VCARD}]}].
 
 
--spec iq_disco_items(jlib:server(), jlib:jid(), ejabberd:lang(),
+-spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
         Rsm :: none | jlib:rsm_in()) -> any().
 iq_disco_items(Host, From, Lang, none) ->
     lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
@@ -831,7 +831,7 @@ iq_disco_items(Host, From, Lang, Rsm) ->
              end, Rooms) ++ RsmOut.
 
 
--spec get_vh_rooms(jlib:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
+-spec get_vh_rooms(jid:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
 get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
     AllRooms = lists:sort(get_vh_rooms(Host)),
     Count = erlang:length(AllRooms),
@@ -915,14 +915,14 @@ xfield(Type, Label, Var, Val, Lang) ->
 %%       with the returned Name already created, nor mark the generated Name
 %%       as <<"already used">>.  But in practice, it is unique enough. See
 %%       http://xmpp.org/extensions/xep-0045.html#createroom-unique
--spec iq_get_unique(jlib:jid()) -> jlib:xmlcdata().
+-spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
         #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
                                                          randoms:get_string()]))}.
 
 
--spec iq_get_register_info('undefined' | jlib:server(),
-        jlib:simple_jid() | jlib:jid(), ejabberd:lang())
+-spec iq_get_register_info('undefined' | jid:server(),
+        jid:simple_jid() | jid:jid(), ejabberd:lang())
             -> [exml:element(), ...].
 iq_get_register_info(Host, From, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
@@ -954,8 +954,8 @@ iq_get_register_info(Host, From, Lang) ->
                         xfield(<<"text-single">>, <<"Nickname">>, <<"nick">>, Nick, Lang)]}].
 
 
--spec iq_set_register_info(jlib:server(),
-        jlib:simple_jid() | jlib:jid(), nick(), ejabberd:lang())
+-spec iq_set_register_info(jid:server(),
+        jid:simple_jid() | jid:jid(), nick(), ejabberd:lang())
             -> {'error', exml:element()} | {'result', []}.
 iq_set_register_info(Host, From, Nick, Lang) ->
     {LUser, LServer, _} = jid:to_lower(From),
@@ -970,7 +970,7 @@ iq_set_register_info(Host, From, Nick, Lang) ->
             {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
--spec iq_set_register_info_t(Host :: jlib:server(), LUS :: jlib:simple_bare_jid(),
+-spec iq_set_register_info_t(Host :: jid:server(), LUS :: jid:simple_bare_jid(),
                              Nick :: binary()) -> fun(() -> ok | false).
 iq_set_register_info_t(Host, LUS, <<>>) ->
     fun() ->
@@ -996,7 +996,7 @@ iq_set_register_info_t(Host, LUS, Nick) ->
             false
     end.
 
--spec process_iq_register_set(jlib:server(),jlib:jid(), exml:element(), ejabberd:lang()) ->
+-spec process_iq_register_set(jid:server(),jid:jid(), exml:element(), ejabberd:lang()) ->
     {error, exml:element()} | {result, []}.
 process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
     case xml:get_subtag(SubEl, <<"remove">>) of
@@ -1013,8 +1013,8 @@ process_iq_register_set(Host, From, #xmlel{ children = Els } = SubEl, Lang) ->
             iq_set_register_info(Host, From, <<>>, Lang)
     end.
 
--spec process_register(XMLNS :: binary(), Type :: binary(), Host :: jlib:server(),
-                       From ::jlib:jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
+-spec process_register(XMLNS :: binary(), Type :: binary(), Host :: jid:server(),
+                       From ::jid:jid(), Lang :: ejabberd:lang(), XEl :: exml:element()) ->
     {error, exml:element()} | {result, []}.
 process_register(?NS_XDATA, <<"cancel">>, _Host, _From, _Lang, _XEl) ->
     {result, []};
@@ -1046,7 +1046,7 @@ iq_get_vcard(Lang) ->
                                     "\nCopyright (c) 2003-2011 ProcessOne">>}]}].
 
 
--spec broadcast_service_message(jlib:server(), binary() | string()) -> ok.
+-spec broadcast_service_message(jid:server(), binary() | string()) -> ok.
 broadcast_service_message(Host, Msg) ->
     lists:foreach(
       fun(#muc_online_room{pid = Pid}) ->
@@ -1055,7 +1055,7 @@ broadcast_service_message(Host, Msg) ->
       end, get_vh_rooms(Host)).
 
 
--spec get_vh_rooms(jlib:server()) -> [muc_online_room()].
+-spec get_vh_rooms(jid:server()) -> [muc_online_room()].
 get_vh_rooms(Host) ->
     mnesia:dirty_select(muc_online_room,
                         [{#muc_online_room{name_host = '$1', _ = '_'},
@@ -1078,7 +1078,7 @@ clean_table_from_bad_node(Node) ->
     mnesia:async_dirty(F).
 
 
--spec clean_table_from_bad_node(node(), jlib:server()) -> any().
+-spec clean_table_from_bad_node(node(), jid:server()) -> any().
 clean_table_from_bad_node(Node, Host) ->
     F = fun() ->
                 Es = mnesia:select(
@@ -1098,15 +1098,15 @@ clean_table_from_bad_node(Node, Host) ->
 %% Hooks handlers
 %%====================================================================
 
--spec is_room_owner(Acc :: boolean(), Room :: jlib:jid(), User :: jlib:jid()) -> boolean().
+-spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().
 is_room_owner(_, Room, User) ->
     mod_muc_room:is_room_owner(Room, User) =:= {ok, true}.
 
--spec muc_room_pid(Acc :: any(), Room :: jlib:jid()) -> {ok, pid()} | {error, not_found}.
+-spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, pid()} | {error, not_found}.
 muc_room_pid(_, Room) ->
     room_jid_to_pid(Room).
 
--spec can_access_room(Acc :: boolean(), Room :: jlib:jid(), User :: jlib:jid()) ->
+-spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
 can_access_room(_, Room, User) ->
     case mod_muc_room:can_access_room(Room, User) of
@@ -1114,7 +1114,7 @@ can_access_room(_, Room, User) ->
         {ok, CanAccess} -> CanAccess
     end.
 
--spec can_access_identity(Acc :: boolean(), Room :: jlib:jid(), User :: jlib:jid()) ->
+-spec can_access_identity(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
 can_access_identity(_, Room, User) ->
     case mod_muc_room:can_access_identity(Room, User) of

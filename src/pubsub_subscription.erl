@@ -150,7 +150,7 @@ create_table() ->
     end.
 
 -spec add_subscription(
-          _JID    :: jlib:ljid(),
+          _JID    :: jid:ljid(),
           _NodeId :: mod_pubsub:nodeIdx(),
           Options :: [] | mod_pubsub:subOptions())
         -> SubId :: mod_pubsub:subId().
@@ -171,7 +171,7 @@ delete_subscription(_JID, _NodeId, SubID) ->
     mnesia:delete({pubsub_subscription, SubID}).
 
 -spec read_subscription(
-          _JID    :: jlib:ljid(),
+          _JID    :: jid:ljid(),
           _NodeId :: _,
           SubID   :: mod_pubsub:subId())
         -> mod_pubsub:pubsubSubscription()
@@ -184,7 +184,7 @@ read_subscription(_JID, _NodeId, SubID) ->
     end.
 
 -spec write_subscription(
-          _JID    :: jlib:ljid(),
+          _JID    :: jid:ljid(),
           _NodeId :: _,
           SubID   :: mod_pubsub:subId(),
           Options :: mod_pubsub:subOptions())

@@ -79,24 +79,6 @@
 
 -type iq() :: #iq{}.
 
--type user()      :: binary().
--type server()    :: binary().
--type resource()  :: binary().
--type luser()     :: binary().
--type lserver()   :: binary().
--type lresource() :: binary().
-
--type jid() :: #jid{}.
--type ljid() :: {luser(), lserver(), lresource()}.
-
-%% A tuple-style JID
--type simple_jid() :: {user(), server(), resource()}.
-
--type simple_bare_jid() :: {LUser :: luser(), LServer :: lserver()}.
-
-%% A tuple-style JID without resource part
--type literal_jid() :: binary().
-
 -type rsm_in() :: #rsm_in{}.
 -type rsm_out() :: #rsm_out{}.
 
@@ -105,14 +87,7 @@
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
               xmlch/0,
-              iq/0,
-              jid/0,
-              ljid/0,
-              simple_bare_jid/0,
-              simple_jid/0,
-              literal_jid/0,
-              user/0, server/0, resource/0,
-              luser/0, lserver/0, lresource/0
+              iq/0
              ]).
 
 %% Datetime format where all or some elements may be 'false' or integer()
@@ -204,7 +179,7 @@ make_config_change_message(Status) ->
                                                  attrs = [{<<"code">>, Status}]}]}]}.
 
 
--spec make_invitation(From :: jid(), Password :: binary(),
+-spec make_invitation(From :: jid:jid(), Password :: binary(),
                       Reason :: binary()) -> exml:element().
 make_invitation(From, Password, Reason) ->
     Elements = [#xmlel{name = <<"invite">>,
@@ -241,7 +216,7 @@ form_field({Var, Value}) ->
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
--spec make_voice_approval_form(From :: simple_jid() | jid(),
+-spec make_voice_approval_form(From :: jid:simple_jid() | jid:jid(),
                                Nick :: binary(), Role :: binary()) -> exml:element().
 make_voice_approval_form(From, Nick, Role) ->
   Fields = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_MUC_REQUEST},
@@ -274,8 +249,8 @@ replace_from_to_attrs(From, To, Attrs) ->
     Attrs4.
 
 
--spec replace_from_to(From :: simple_jid() | jid(),
-                      To :: simple_jid() | jid(),
+-spec replace_from_to(From :: jid:simple_jid() | jid:jid(),
+                      To :: jid:simple_jid() | jid:jid(),
                       XE :: exml:element()) -> exml:element().
 replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = replace_from_to_attrs(jid:to_binary(From),
@@ -572,7 +547,7 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
-                       FromJID :: simple_jid() | jid(),
+                       FromJID :: jid:simple_jid() | jid:jid(),
                        Desc :: iodata()) -> exml:element().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {TString, TzString} = timestamp_to_iso(DateTime, Timezone),

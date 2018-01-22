@@ -68,8 +68,8 @@ remove_smid(Acc, SID, _JID, _Info, _Reason) ->
     end,
     Acc.
 
--spec session_cleanup(Acc :: map(), LUser :: jlib:luser(), LServer :: jlib:lserver(),
-                      LResource :: jlib:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
+                      LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
     remove_smid(Acc, SID, undefined, undefined, undefined).
 

@@ -29,11 +29,11 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:server(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
 start(Host, _Opts) ->
     ejabberd_hooks:add(hooks(Host)).
 
--spec stop(Host :: jlib:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)).
 
@@ -43,7 +43,7 @@ stop(Host) ->
 
 -spec filter_local_packet(drop) -> drop;
                          (RoutingData) -> RoutingData
-                                              when RoutingData :: {jlib:jid(), jlib:jid(), mongoose_acc:t()}.
+                                              when RoutingData :: {jid:jid(), jid:jid(), mongoose_acc:t()}.
 filter_local_packet(drop) ->
     drop;
 filter_local_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
@@ -56,7 +56,7 @@ filter_local_packet({From, To = #jid{lserver = Host}, Acc, Packet}) ->
     end,
     {From, To, Acc, Packet}.
 
--spec user_send_packet(mongoose_acc:t(), From :: jlib:jid(), To :: jlib:jid(),
+-spec user_send_packet(mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                        Packet :: exml:element()) -> mongoose_acc:t().
 user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
     case chat_type(Acc) of
@@ -70,14 +70,14 @@ user_send_packet(Acc, From, To, Packet = #xmlel{name = <<"message">>}) ->
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
--spec user_present(mongoose_acc:t(), UserJID :: jlib:jid()) -> mongoose_acc:t().
+-spec user_present(mongoose_acc:t(), UserJID :: jid:jid()) -> mongoose_acc:t().
 user_present(Acc, #jid{} = UserJID) ->
     mod_event_pusher:push_event(Acc, UserJID#jid.lserver,
                                 #user_status_event{jid = UserJID, status = online}),
     Acc.
 
--spec user_not_present(mongoose_acc:t(), User :: jlib:luser(), Server :: jlib:lserver(),
-                       Resource :: jlib:lresource(), Status :: any()) -> mongoose_acc:t().
+-spec user_not_present(mongoose_acc:t(), User :: jid:luser(), Server :: jid:lserver(),
+                       Resource :: jid:lresource(), Status :: any()) -> mongoose_acc:t().
 user_not_present(Acc, User, Host, Resource, _Status) ->
     UserJID = jid:make_noprep(User, Host, Resource),
     mod_event_pusher:push_event(Acc, Host, #user_status_event{jid = UserJID, status = offline}),
@@ -97,7 +97,7 @@ chat_type(Acc) ->
         _ -> false
     end.
 
--spec hooks(Host :: jlib:server()) -> [ejabberd_hooks:hook()].
+-spec hooks(Host :: jid:server()) -> [ejabberd_hooks:hook()].
 hooks(Host) ->
     [
      {filter_local_packet, Host, ?MODULE, filter_local_packet, 90},

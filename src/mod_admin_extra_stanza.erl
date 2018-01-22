@@ -119,9 +119,9 @@ send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
 
 
 
--spec send_packet_all_resources(FromJID :: 'error' | jlib:jid(),
-                                ToUser :: jlib:user(),
-                                ToServer :: jlib:server(),
+-spec send_packet_all_resources(FromJID :: 'error' | jid:jid(),
+                                ToUser :: jid:user(),
+                                ToServer :: jid:server(),
                                 exml:element()) -> 'ok'.
 send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
     case ejabberd_sm:get_user_resources(ToUser, ToServer) of
@@ -137,7 +137,7 @@ send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
     end.
 
 
--spec send_packet_all_resources(jlib:jid(), ToU :: binary(), ToS :: binary(),
+-spec send_packet_all_resources(jid:jid(), ToU :: binary(), ToS :: binary(),
                                 ToR :: binary(), exml:element()) -> mongoose_acc:t().
 send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
     ToJID = jid:make(ToU, ToS, ToR),
@@ -160,7 +160,7 @@ build_packet(message_headline, [Subject, Body]) ->
           }.
 
 
--spec send_stanza_c2s(jlib:user(), jlib:server(), jlib:resource(),
+-spec send_stanza_c2s(jid:user(), jid:server(), jid:resource(),
                       Stanza :: binary()) -> {Res, string()} when
     Res :: user_does_not_exist | bad_stanza | ok.
 send_stanza_c2s(Username, Host, Resource, Stanza) ->

@@ -41,7 +41,7 @@
 -type endpoint_info() :: #endpoint_info{}.
 
 -record(state, {
-          server :: jlib:lserver(),
+          server :: jid:lserver(),
           supervisor :: pid(),
           enabled :: [endpoint_info()],
           disabled :: [endpoint_info()],
@@ -57,20 +57,20 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(Server :: jlib:lserver(), ServerSup :: pid()) -> {ok, pid()} | {error, any()}.
+-spec start_link(Server :: jid:lserver(), ServerSup :: pid()) -> {ok, pid()} | {error, any()}.
 start_link(Server, ServerSup) ->
     Name = mod_global_distrib_utils:server_to_mgr_name(Server),
     gen_server:start_link({local, Name}, ?MODULE, [Server, ServerSup], []).
 
--spec force_refresh(Server :: jlib:lserver()) -> ok.
+-spec force_refresh(Server :: jid:lserver()) -> ok.
 force_refresh(Server) ->
     do_call(Server, force_refresh).
 
--spec close_disabled(Server :: jlib:lserver()) -> ok.
+-spec close_disabled(Server :: jid:lserver()) -> ok.
 close_disabled(Server) ->
     do_call(Server, close_disabled).
 
--spec get_connection(Server :: jlib:lserver()) -> pid() | {error, any()}.
+-spec get_connection(Server :: jid:lserver()) -> pid() | {error, any()}.
 get_connection(Server) ->
     do_call(Server, get_connection).
 
@@ -78,11 +78,11 @@ get_connection(Server) ->
 %% Debug API
 %%--------------------------------------------------------------------
 
--spec get_enabled_endpoints(Server :: jlib:lserver()) -> [endpoint()].
+-spec get_enabled_endpoints(Server :: jid:lserver()) -> [endpoint()].
 get_enabled_endpoints(Server) ->
     do_call(Server, get_enabled_endpoints).
 
--spec get_disabled_endpoints(Server :: jlib:lserver()) -> [endpoint()].
+-spec get_disabled_endpoints(Server :: jid:lserver()) -> [endpoint()].
 get_disabled_endpoints(Server) ->
     do_call(Server, get_disabled_endpoints).
 
@@ -237,7 +237,7 @@ terminate(_Reason, _State) ->
 %% Internal functions
 %%--------------------------------------------------------------------
 
--spec do_call(Server :: jlib:lserver(), Msg :: any()) -> any().
+-spec do_call(Server :: jid:lserver(), Msg :: any()) -> any().
 do_call(Server, Msg) ->
     MgrName = mod_global_distrib_utils:server_to_mgr_name(Server),
     gen_server:call(MgrName, Msg).
@@ -290,7 +290,7 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
               [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)]),
     State#state{ pending_endpoints = FinalPendingEndpoints }.
 
--spec get_endpoints(Server :: jlib:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Server) ->
     {ok, EndpointsToResolve} =
     case ejabberd_config:get_local_option({global_distrib_addr, Server}) of

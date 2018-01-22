@@ -14,26 +14,26 @@
 -include("jlib.hrl").
 
 
--callback route(From :: jlib:jid(), To :: jlib:jid(),
+-callback route(From :: jid:jid(), To :: jid:jid(),
                    Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    done | {jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:element()}.
+    done | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 
--callback filter(From :: jlib:jid(), To :: jlib:jid(),
+-callback filter(From :: jid:jid(), To :: jid:jid(),
     Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    drop | {jlib:jid(), jlib:jid(), mongoose_acc:t(), exml:element()}.
+    drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 
 
 -export([call_route/5, call_filter/5]).
 
--spec call_route(Module :: module(), From :: jlib:jid(),
-    To :: jlib:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    done | {jlib:jid(), jlib:jid(), mongoose_acc:t()}.
+-spec call_route(Module :: module(), From :: jid:jid(),
+    To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
+    done | {jid:jid(), jid:jid(), mongoose_acc:t()}.
 call_route(Module, From, To, Acc, Packet) ->
     Module:route(From, To, Acc, Packet).
 
 
--spec call_filter(Module :: module(), From :: jlib:jid(),
-    To :: jlib:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
-    drop | {jlib:jid(), jlib:jid(), mongoose_acc:t()}.
+-spec call_filter(Module :: module(), From :: jid:jid(),
+    To :: jid:jid(), Acc :: mongoose_acc:t(), Packet :: exml:element()) ->
+    drop | {jid:jid(), jid:jid(), mongoose_acc:t()}.
 call_filter(Module, From, To, Acc, Packet) ->
     Module:filter(From, To, Acc, Packet).

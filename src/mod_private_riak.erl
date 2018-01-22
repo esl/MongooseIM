@@ -26,11 +26,11 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--spec init(jlib:lserver(), list()) -> ok.
+-spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec multi_set_data(jlib:luser(), jlib:lserver(), [{binary(), exml:element()}]) ->
+-spec multi_set_data(jid:luser(), jid:lserver(), [{binary(), exml:element()}]) ->
     ok | {error, term()}.
 multi_set_data(LUser, LServer, NS2XML) ->
     R = [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
@@ -40,11 +40,11 @@ multi_set_data(LUser, LServer, NS2XML) ->
         false -> ok
     end.
 
--spec multi_get_data(jlib:luser(), jlib:lserver(), [{binary(), term()}]) -> [any()].
+-spec multi_get_data(jid:luser(), jid:lserver(), [{binary(), term()}]) -> [any()].
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_private_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
--spec remove_user(jlib:luser(), jlib:lserver()) -> ok.
+-spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     KeyFilter = [[<<"starts_with">>, LUser]],
     Bucket = bucket_type(LServer),

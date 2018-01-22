@@ -6,7 +6,7 @@
 -define(STREAM_MGMT_RESUME_TIMEOUT, 600).  %% seconds
 -define(CONSTRAINT_CHECK_TIMEOUT, 5).  %% seconds
 
--type jid_set() :: gb_sets:set(jlib:simple_jid()).
+-type jid_set() :: gb_sets:set(jid:simple_jid()).
 
 -type authenticated_state() :: boolean() | resumed | replaced.
 
@@ -28,10 +28,10 @@
                 tls_enabled = false   :: boolean(),
                 tls_options = [],
                 authenticated = false :: authenticated_state(),
-                jid                  :: jlib:jid() | undefined,
-                user = <<>>          :: jlib:user(),
-                server = <<>>     :: jlib:server(),
-                resource = <<>>      :: jlib:resource(),
+                jid                  :: jid:jid() | undefined,
+                user = <<>>          :: jid:user(),
+                server = <<>>     :: jid:server(),
+                resource = <<>>      :: jid:resource(),
                 sid                  :: ejabberd_sm:sid() | undefined,
                 %% We have _subscription to_ these users' presence status;
                 %% i.e. they send us presence updates.
@@ -95,7 +95,7 @@
 -type blocking_type() :: 'block' | 'unblock'.
 
 -type broadcast_type() :: {exit, Reason :: binary()}
-                        | {item, IJID :: jlib:simple_jid() | jlib:jid(),
+                        | {item, IJID :: jid:simple_jid() | jid:jid(),
                            ISubscription :: from | to | both | none | remove}
                         | {privacy_list, PrivList :: mongoose_privacy:userlist(),
                            PrivListName :: binary()}
@@ -107,7 +107,7 @@
 
 -type broadcast_result() :: {new_state, NewState :: state()}
                           | {exit, Reason :: binary()}
-                          | {send_new, From :: jlib:jid(), To :: jlib:jid(),
+                          | {send_new, From :: jid:jid(), To :: jid:jid(),
                              Packet :: exml:element(),
                              NewState :: state()}.
 

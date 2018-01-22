@@ -126,7 +126,7 @@ set_server_acks(EnableServerAcks) ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(jlib:server(), [option()]) -> any().
+-spec start(jid:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
         start_backend(Opts),

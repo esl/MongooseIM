@@ -59,7 +59,7 @@ commands() ->
 %%% Last Activity
 %%%
 
--spec set_last(jlib:user(), jlib:server(), _, _) -> {Res, string()} when
+-spec set_last(jid:user(), jid:server(), _, _) -> {Res, string()} when
     Res :: ok | user_does_not_exist.
 set_last(User, Server, Timestamp, Status) ->
     case ejabberd_auth:is_user_exists(User, Server) of

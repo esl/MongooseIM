@@ -41,14 +41,14 @@
 
 -define(PUSH_FORM_TYPE, <<"urn:xmpp:push:summary">>).
 
--callback init(Host :: jlib:server(), Opts :: list()) -> ok.
--callback enable(UserJID :: jlib:jid(), PubsubJID :: jlib:jid(),
+-callback init(Host :: jid:server(), Opts :: list()) -> ok.
+-callback enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                  Node :: pubsub_node(), Form :: form()) ->
     ok | {error, Reason :: term()}.
--callback disable(UserJID :: jlib:jid(), PubsubJID :: jlib:jid(),
+-callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                   Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
--callback get_publish_services(User :: jlib:jid()) ->
-    {ok, [{PubSub :: jlib:jid(), Node :: pubsub_node(), Form :: form()}]} |
+-callback get_publish_services(User :: jid:jid()) ->
+    {ok, [{PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}]} |
     {error, Reason :: term()}.
 
 %% Types
@@ -60,7 +60,7 @@
 %% Module callbacks
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
 
@@ -81,7 +81,7 @@ start(Host, Opts) ->
 
     ok.
 
--spec stop(Host :: jlib:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 90),
 
@@ -117,7 +117,7 @@ remove_user(Acc, LUser, LServer) ->
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     Acc.
 
--spec iq_handler(From :: jlib:jid(), To :: jlib:jid(), Acc :: mongoose_acc:t(),
+-spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) ->
     {mongoose_acc:t(), jlib:iq() | ignore}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
@@ -142,7 +142,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
 %% Router callbacks
 %%--------------------------------------------------------------------
 
--spec handle_publish_response(BareRecipient :: jlib:jid(), PubsubJID :: jlib:jid(),
+-spec handle_publish_response(BareRecipient :: jid:jid(), PubsubJID :: jid:jid(),
                               Node :: pubsub_node(), Result :: timeout | jlib:iq()) -> ok.
 handle_publish_response(_BareRecipient, _PubsubJID, _Node, timeout) ->
     ok;
@@ -158,7 +158,7 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec publish_message(From :: jlib:jid(), To :: jlib:jid(), Packet :: exml:element()) -> ok.
+-spec publish_message(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> ok.
 publish_message(From, To = #jid{lserver = Host}, Packet) ->
     ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
@@ -183,8 +183,8 @@ publish_message(From, To = #jid{lserver = Host}, Packet) ->
 %%--------------------------------------------------------------------
 
 -spec parse_request(Request :: exml:element()) ->
-    {enable, jlib:jid(), pubsub_node(), form()} |
-    {disable, jlib:jid(), pubsub_node()} |
+    {enable, jid:jid(), pubsub_node(), form()} |
+    {disable, jid:jid(), pubsub_node()} |
     bad_request.
 parse_request(#xmlel{name = <<"enable">>} = Request) ->
     JID = jid:from_binary(exml_query:attr(Request, <<"jid">>, <<>>)),
@@ -236,7 +236,7 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec push_notification_iq(Host :: jlib:server(), From :: jlib:jid(),
+-spec push_notification_iq(Host :: jid:server(), From :: jid:jid(),
                            Packet :: exml:element(), Node :: pubsub_node(), Form :: form()) -> jlib:iq().
 push_notification_iq(Host, From, Packet, Node, Form) ->
     ContentFields =
@@ -278,10 +278,10 @@ make_form_field({Name, Value}) ->
            attrs = [{<<"var">>, Name}],
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
--spec cast(Host :: jlib:server(), F :: atom(), A :: [any()]) -> any().
+-spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
 cast(Host, F, A) ->
     cast(Host, ?MODULE, F, A).
 
--spec cast(Host :: jlib:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+-spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
     wpool:cast(gen_mod:get_module_proc(Host, ?MODULE), {M, F, A}, available_worker).

@@ -33,15 +33,15 @@
 -define(BUCKET_TYPE, <<"vcard">>).
 -define(YZ_VCARD_INDEX, <<"vcard">>).
 
--spec init(jlib:lserver(), list()) -> ok.
+-spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec remove_user(jlib:luser(), jlib:lserver()) -> ok.
+-spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     mongoose_riak:delete(bucket_type(LServer), LUser, [{dw, 2}]).
 
--spec set_vcard(jlib:user(), jlib:lserver(), exml:item(), term()) ->
+-spec set_vcard(jid:user(), jid:lserver(), exml:item(), term()) ->
     ok | {error, term()}.
 set_vcard(User, VHost, VCard, _VCardSearch) ->
     BucketType = bucket_type(VHost),
@@ -50,7 +50,7 @@ set_vcard(User, VHost, VCard, _VCardSearch) ->
     Obj = riakc_obj:new(BucketType, LUser, VCardEncoded, "application/xml"),
     mongoose_riak:put(Obj).
 
--spec get_vcard(jlib:luser(), jlib:lserver()) ->
+-spec get_vcard(jid:luser(), jid:lserver()) ->
     {ok, term()} | {error, term()}.
 get_vcard(LUser, LServer) ->
     BucketType = bucket_type(LServer),
@@ -70,7 +70,7 @@ get_vcard(LUser, LServer) ->
             Other
     end.
 
--spec search(jlib:lserver(), list()) -> list().
+-spec search(jid:lserver(), list()) -> list().
 search(VHost, Data) ->
     YZQuery = make_yz_query(Data, []),
     do_search(YZQuery, VHost).
@@ -91,7 +91,7 @@ do_search(YZQueryIn, VHost) ->
             []
     end.
 
--spec search_fields(jlib:lserver()) -> list().
+-spec search_fields(jid:lserver()) -> list().
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
 

@@ -25,17 +25,17 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(Host :: jlib:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(_Host, _Opts) ->
     ok.
 
 
--spec stop(Host :: jlib:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(_Host) ->
     ok.
 
 
--spec deps(_Host :: jlib:server(), Opts :: proplists:proplist()) ->
+-spec deps(_Host :: jid:server(), Opts :: proplists:proplist()) ->
                   gen_mod:deps_list().
 deps(_Host, Opts0) ->
     Opts = normalize(Opts0),
