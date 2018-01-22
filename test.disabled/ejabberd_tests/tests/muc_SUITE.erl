@@ -2799,7 +2799,7 @@ kicked_after_sending_malformed_presence(Config1) ->
         Stanza = stanza_muc_enter_room(Room, Username),
         escalus:send(Bob, Stanza),
         Presence = escalus:wait_for_stanza(Bob),
-      ct:log("Presence :: ~p", [Presence]),
+        ct:log("Presence :: ~p", [Presence]),
         is_self_presence(Bob, ?config(room, Config), Presence),
         escalus:assert(is_message, escalus:wait_for_stanza(Bob)), %% subject
         %% WHEN The user sends a malformed presence
@@ -2808,7 +2808,7 @@ kicked_after_sending_malformed_presence(Config1) ->
 
         %% THAN He is kicked from the room
         PresenceUn = escalus:wait_for_stanza(Bob),
-      ct:log("PresenceUn :: ~p", [PresenceUn]),
+        ct:log("PresenceUn :: ~p", [PresenceUn]),
         escalus:assert(is_presence_with_type, [<<"unavailable">>], PresenceUn),
         escalus:assert(is_stanza_from, [room_address(Room, Username)], PresenceUn),
 
@@ -2818,7 +2818,7 @@ kicked_after_sending_malformed_presence(Config1) ->
         KateStanza = stanza_muc_enter_room(Room, KateUsername),
         escalus:send(Kate, KateStanza),
         KatePresence = escalus:wait_for_stanza(Kate),
-      ct:log("KatePresence :: ~p", [KatePresence]),
+        ct:log("KatePresence :: ~p", [KatePresence]),
         is_self_presence(Kate, ?config(room, Config), KatePresence),
         escalus:assert(is_message, escalus:wait_for_stanza(Kate)), %% subject
         ok
