@@ -34,11 +34,3 @@
 %% ---------------------------------
 %% Logging mechanism
 -include("mongoose_logger.hrl").
-
--define(DEPRECATED,
-    ok).
-%%    lager:error("Deprecated call", [])).
-%% Not to break things, we often change a function arity or pattern but keep the old one
-%% so that parts of the code not yet rewritten still work. Eventually all those things
-%% will go away. This macro denotes a function called in a deprecated way.
-

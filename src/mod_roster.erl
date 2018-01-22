@@ -993,7 +993,6 @@ get_roster_old(LUser, LServer) ->
     get_roster_old(LServer, LUser, LServer).
 
 get_roster_old(DestServer, LUser, LServer) ->
-    ?DEPRECATED,
     A = mongoose_acc:new(),
     A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
     mongoose_acc:get(roster, A2, []).
