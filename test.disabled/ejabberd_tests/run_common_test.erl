@@ -412,14 +412,14 @@ host_param(Name, {_, Params}) ->
     Param.
 
 report_time(Description, Fun) ->
-	io:format("~nExecuting ~ts~n", [Description]),
+	report_progress("~nExecuting ~ts~n", [Description]),
 	Start = os:timestamp(),
     try
         Fun()
     after
         Microseconds = timer:now_diff(os:timestamp(), Start),
         Time = microseconds_to_string(Microseconds),
-		io:format("~ts took ~ts~n", [Description, Time])
+		report_progress("~ts took ~ts~n", [Description, Time])
 	end.
 
 microseconds_to_string(Microseconds) ->
