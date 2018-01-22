@@ -18,14 +18,12 @@ PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 RIAK_DIR=/etc/riak
 
-TRAVIS_DB_PASSWORD=$(cat /tmp/travis_db_password)
-
 SSLDIR=${BASE}/${TOOLS}/ssl
 
 if [ $DB = 'mysql' ]; then
     echo "Configuring mysql"
-    sudo service mysql stop || echo "Failed to stop mysql"
-    mkdir ${SQL_TEMP_DIR}
+    sudo -n service mysql stop || echo "Failed to stop mysql"
+    mkdir -p ${SQL_TEMP_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     openssl rsa -in ${SSLDIR}/fake_key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
     docker run -d \
@@ -33,7 +31,7 @@ if [ $DB = 'mysql' ]; then
         -e MYSQL_ROOT_PASSWORD=secret \
         -e MYSQL_DATABASE=ejabberd \
         -e MYSQL_USER=ejabberd \
-        -e MYSQL_PASSWORD=$TRAVIS_DB_PASSWORD \
+        -e MYSQL_PASSWORD=mongooseim_secret \
         -v ${DB_CONF_DIR}/mysql.cnf:${MYSQL_DIR}/mysql.cnf:ro \
         -v ${MIM_PRIV_DIR}/mysql.sql:/docker-entrypoint-initdb.d/mysql.sql:ro \
         -v ${BASE}/${TOOLS}/docker-setup-mysql.sh:/docker-entrypoint-initdb.d/docker-setup-mysql.sh \
@@ -51,7 +49,6 @@ elif [ $DB = 'pgsql' ]; then
     cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
     docker run -d \
            -e SQL_TEMP_DIR=${SQL_TEMP_DIR} \
-           -e TRAVIS_DB_PASSWORD=${TRAVIS_DB_PASSWORD} \
            -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
            -v ${BASE}/${TOOLS}/docker-setup-postgres.sh:/docker-entrypoint-initdb.d/docker-setup-postgres.sh \
            -p 5432:5432 --name=mongooseim-pgsql postgres
@@ -64,7 +61,7 @@ ServerName           = localhost
 Port                 = 5432
 Database             = ejabberd
 Username             = ejabberd
-Password             = ${TRAVIS_DB_PASSWORD}
+Password             = mongooseim_secret
 sslmode              = verify-full
 Protocol             = 9.3.5
 Debug                = 1
@@ -80,7 +77,7 @@ elif [ $DB = 'riak' ]; then
     sudo cp ${DB_CONF_DIR}/riak.conf ${RIAK_DIR}/riak.conf
     sudo service riak restart
     echo "Setup Riak"
-    sudo tools/setup_riak $TRAVIS_DB_PASSWORD
+    sudo tools/setup_riak mongooseim_secret
 
 elif [ $DB = 'cassandra' ]; then
     docker image pull cassandra:${CASSANDRA_VERSION}
