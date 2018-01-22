@@ -19,6 +19,7 @@
 
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
+-export([successful_rpc/3]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -93,13 +94,18 @@ clear_last_activity(Config, User) ->
 
 do_clear_last_activity(Config, User) when is_atom(User)->
     [U, S, _P] = escalus_users:get_usp(Config, carol),
-    escalus_ejabberd:rpc(mod_last, remove_user, [U, S]);
+    Acc = new_mongoose_acc(),
+    successful_rpc(mod_last, remove_user, [Acc, U, S]);
 do_clear_last_activity(_Config, User) when is_binary(User) ->
     U = escalus_utils:get_username(User),
     S = escalus_utils:get_server(User),
-    escalus_ejabberd:rpc(mod_last, remove_user, [U, S]);
+    Acc = new_mongoose_acc(),
+    successful_rpc(mod_last, remove_user, [Acc, U, S]);
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
+
+new_mongoose_acc() ->
+    successful_rpc(mongoose_acc, new, []).
 
 clear_caps_cache(CapsNode) ->
     ok = ?RPC(mod_caps, delete_caps, [CapsNode]).
@@ -214,3 +220,12 @@ forget_persistent_rooms() ->
     escalus_ejabberd:rpc(mnesia, clear_table, [muc_room]),
     escalus_ejabberd:rpc(mnesia, clear_table, [muc_registered]),
     ok.
+
+-spec successful_rpc(atom(), atom(), list()) -> term().
+successful_rpc(Module, Function, Args) ->
+    case escalus_ejabberd:rpc(Module, Function, Args) of
+        {badrpc, Reason} ->
+            ct:fail({badrpc, Module, Function, Args, Reason});
+        Result ->
+            Result
+    end.

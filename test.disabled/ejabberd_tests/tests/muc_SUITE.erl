@@ -4227,7 +4227,7 @@ given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant)
     {MessageBin, Result}.
 
 forget_room(MUCHost, RoomName) ->
-    escalus_ejabberd:rpc(mod_muc, forget_room, [domain(), MUCHost, RoomName]).
+    ok = escalus_ejabberd:rpc(mod_muc, forget_room, [MUCHost, RoomName]).
 
 wait_for_room_to_be_stopped(Pid, Timeout) ->
     Ref = erlang:monitor(process, Pid),
