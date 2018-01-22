@@ -41,11 +41,13 @@ main(RawArgs) ->
         process_results(Results)
     catch Type:Reason ->
         Stacktrace = erlang:get_stacktrace(),
+        io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
+                               [Type, Reason, Stacktrace]),
         error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
                                [Type, Reason, Stacktrace]),
         %% Waiting for messages to be flushed
-        timer:sleep(50),
-        init:stop("Test failed")
+        timer:sleep(5000),
+        init:stop("run_common_test:main/1 crashed")
     end.
 
 run(#opts{test = quick, cover = Cover, spec = Spec}) ->

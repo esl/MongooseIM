@@ -12,6 +12,7 @@ echo $(s3_url ${CT_REPORTS})
 
 mkdir -p ${CT_REPORTS}/small
 mkdir -p ${CT_REPORTS}/big
+mkdir -p ${CT_REPORTS}/system
 
 if [ -d _build/test/logs ]; then
 	cp -Rp _build/test/logs/* ${CT_REPORTS}/small
@@ -44,6 +45,14 @@ done
 
 cp *.log ${LOG_DIR_ROOT}
 cp test.disabled/ejabberd_tests/*.log ${LOG_DIR_ROOT}
+
+cp -p /var/log/dmesg ${CT_REPORTS}/system/ || echo "Failed to copy /var/log/dmesg"
+
+ERL_CRASH_FILE=test.disabled/ejabberd_tests/erl_crash.dump
+if [ -f "$ERL_CRASH_FILE" ]; then
+	echo "Uploading erl_crash.dump"
+	cp "$ERL_CRASH_FILE" ${CT_REPORTS}/
+fi
 
 aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
 
