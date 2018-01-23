@@ -140,6 +140,7 @@ handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
     NewParser = reset_parser(Parser, State#state.max_stanza_size),
     NewState = State#state{socket = TLSSocket,
                            sock_mod = fast_tls,
+                           stanza_chunk_size = 0,
                            parser = NewParser},
     case fast_tls:recv_data(TLSSocket, <<"">>) of
         {ok, TLSData} ->
@@ -152,6 +153,7 @@ handle_call({compress, ZlibSocket}, _From,
     NewParser = reset_parser(Parser, State#state.max_stanza_size),
     NewState = State#state{socket = ZlibSocket,
                            sock_mod = ejabberd_zlib,
+                           stanza_chunk_size = 0,
                            parser = NewParser},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
@@ -165,7 +167,7 @@ handle_call({compress, ZlibSocket}, _From,
     end;
 handle_call({become_controller, C2SPid}, _From, State) ->
     Parser = reset_parser(State#state.parser, State#state.max_stanza_size),
-    NewState = State#state{c2s_pid = C2SPid, parser = Parser},
+    NewState = State#state{c2s_pid = C2SPid, parser = Parser, stanza_chunk_size = 0},
     activate_socket(NewState),
     Reply = ok,
     {reply, Reply, NewState, ?HIBERNATE_TIMEOUT};
