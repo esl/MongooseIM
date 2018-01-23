@@ -41,11 +41,13 @@ main(RawArgs) ->
         process_results(Results)
     catch Type:Reason ->
         Stacktrace = erlang:get_stacktrace(),
+        io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
+                               [Type, Reason, Stacktrace]),
         error_logger:error_msg("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
                                [Type, Reason, Stacktrace]),
         %% Waiting for messages to be flushed
-        timer:sleep(50),
-        init:stop("Test failed")
+        timer:sleep(5000),
+        init:stop("run_common_test:main/1 crashed")
     end.
 
 run(#opts{test = quick, cover = Cover, spec = Spec}) ->
@@ -228,18 +230,31 @@ prepare(Test) ->
     Apps = get_apps(),
     Nodes = get_ejabberd_nodes(Test),
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
-    Compiled = multicall(Nodes, mongoose_cover_helper, start, [Apps],
-                         cover_timeout()),
-    io:format("cover: compiled ~p~n", [Compiled]).
+    %% Time is in microseconds
+    {Time, Compiled} = timer:tc(fun() ->
+                    multicall(Nodes, mongoose_cover_helper, start, [Apps],
+                              cover_timeout())
+                        end),
+    travis_fold("cover compiled output", fun() ->
+            io:format("cover: compiled ~p~n", [Compiled])
+        end),
+    report_progress("~nCover compilation took ~ts~n", [microseconds_to_string(Time)]),
+    ok.
 
 analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
     Nodes = get_ejabberd_nodes(Test),
-    multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout()),
+    report_time("Export cover data from MongooseIM nodes", fun() ->
+            multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
+        end),
     Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
-    [cover:import(File) || File <- Files],
-    cover:export("/tmp/mongoose_combined.coverdata"),
+    report_time("Import cover data into run_common_test node", fun() ->
+            [cover:import(File) || File <- Files]
+        end),
+    report_time("Export merged cover data", fun() ->
+			cover:export("/tmp/mongoose_combined.coverdata")
+		end),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
             make_html(modules_to_analyze(CoverOpts));
@@ -380,7 +395,7 @@ multicall(Nodes, M, F, A, Timeout) ->
     Rs.
 
 cover_timeout() ->
-    timer:seconds(60).
+    timer:minutes(3).
 
 %% Source: https://gist.github.com/jbpotonnier/1310406
 group_by(F, L) ->
@@ -395,3 +410,36 @@ host_vars(Host)    -> host_param(vars, Host).
 host_param(Name, {_, Params}) ->
     {Name, Param} = lists:keyfind(Name, 1, Params),
     Param.
+
+report_time(Description, Fun) ->
+	report_progress("~nExecuting ~ts~n", [Description]),
+	Start = os:timestamp(),
+    try
+        Fun()
+    after
+        Microseconds = timer:now_diff(os:timestamp(), Start),
+        Time = microseconds_to_string(Microseconds),
+		report_progress("~ts took ~ts~n", [Description, Time])
+	end.
+
+microseconds_to_string(Microseconds) ->
+	Milliseconds = Microseconds div 1000,
+    SecondsFloat = Milliseconds / 1000,
+    io_lib:format("~.3f seconds", [SecondsFloat]).
+
+%% Writes onto travis console directly
+report_progress(Format, Args) ->
+    Message = io_lib:format(Format, Args),
+    file:write_file("/tmp/progress", Message, [append]).
+
+travis_fold(Description, Fun) ->
+    case os:getenv("TRAVIS_JOB_ID") of
+        false ->
+            Fun();
+        _ ->
+            io:format("travis_fold:start:~ts~n", [Description]),
+            Result = Fun(),
+            io:format("travis_fold:end:~ts~n", [Description]),
+            Result
+    end.
+
