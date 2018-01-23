@@ -248,8 +248,8 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
                     maybe_add_arcid_elems(RoomJID,
                                           mess_id_to_external_binary(MessID),
                                              Packet,
-                                             add_archived_element(Host),
-                                             add_stanzaid_element(Host));
+                                             mod_mam_params:add_archived_element(?MODULE, Host),
+                                             mod_mam_params:add_stanzaid_element(?MODULE, Host));
                 {error, _} -> Packet
             end;
         false -> Packet
@@ -402,9 +402,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:query_to_lookup_params(IQ, max_result_limit(Host),
-                                            default_result_limit(Host),
-                                            extra_params_module(Host)),
+    Params0 = mam_iq:query_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
+                                            mod_mam_params:default_result_limit(?MODULE, Host),
+                                            mod_mam_params:extra_params_module(?MODULE, Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     case lookup_messages(Host, Params) of
         {error, 'policy-violation'} ->
@@ -434,9 +434,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
-    Params0 = mam_iq:form_to_lookup_params(IQ, max_result_limit(Host),
-                                           default_result_limit(Host),
-                                           extra_params_module(Host)),
+    Params0 = mam_iq:form_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
+                                           mod_mam_params:default_result_limit(?MODULE, Host),
+                                           mod_mam_params:extra_params_module(?MODULE, Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
     Result = lookup_messages(Host, Params),
     handle_lookup_result(Result, From, IQ, Params).
@@ -598,7 +598,7 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.%Result :: any(),
 lookup_messages(Host, #{search_text := SearchText} = Params) ->
-    case SearchText /= undefined andalso not mod_mam_utils:has_full_text_search(?MODULE, Host) of
+    case SearchText /= undefined andalso not mod_mam_params:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
         false ->
@@ -763,23 +763,9 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
                [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
 
-%% ----------------------------------------------------------------------
-%% Dynamic params
-
-extra_params_module(Host) ->
-    mod_mam_utils:param(?MODULE, Host, extra_lookup_params, undefined).
-
-max_result_limit(Host) ->
-    mod_mam_utils:param(?MODULE, Host, max_result_limit, 50).
-
-default_result_limit(Host) ->
-    mod_mam_utils:param(?MODULE, Host, default_result_limit, 50).
-
+-spec is_archivable_message(Host :: ejabberd:lserver(), Dir :: incoming | outgoing,
+                            Packet :: exml:element()) -> boolean().
 is_archivable_message(Host, Dir, Packet) ->
-    mod_mam_utils:call_is_archivable_message(?MODULE, Host, Dir, Packet).
-
-add_archived_element(Host) ->
-    mod_mam_utils:add_archived_element(?MODULE, Host).
-
-add_stanzaid_element(Host) ->
-    mod_mam_utils:add_stanzaid_element(?MODULE, Host).
+    {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
+    ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
+    erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).
