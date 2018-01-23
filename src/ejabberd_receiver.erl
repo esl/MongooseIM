@@ -136,12 +136,10 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
-    NewParser = reset_parser(Parser, State#state.max_stanza_size),
-    NewState = State#state{socket = TLSSocket,
-                           sock_mod = fast_tls,
-                           stanza_chunk_size = 0,
-                           parser = NewParser},
+handle_call({starttls, TLSSocket}, _From, State) ->
+    ParserState = reset_parser(State),
+    NewState = ParserState#state{socket = TLSSocket,
+                                 sock_mod = fast_tls},
     case fast_tls:recv_data(TLSSocket, <<"">>) of
         {ok, TLSData} ->
             {reply, ok, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
@@ -149,12 +147,10 @@ handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
             {stop, normal, ok, NewState}
     end;
 handle_call({compress, ZlibSocket}, _From,
-  #state{parser = Parser, c2s_pid = C2SPid} = State) ->
-    NewParser = reset_parser(Parser, State#state.max_stanza_size),
-    NewState = State#state{socket = ZlibSocket,
-                           sock_mod = ejabberd_zlib,
-                           stanza_chunk_size = 0,
-                           parser = NewParser},
+  #state{c2s_pid = C2SPid} = State) ->
+    ParserState = reset_parser(State),
+    NewState = ParserState#state{socket = ZlibSocket,
+                                 sock_mod = ejabberd_zlib},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
             {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
@@ -166,8 +162,8 @@ handle_call({compress, ZlibSocket}, _From,
             {stop, normal, ok, NewState}
     end;
 handle_call({become_controller, C2SPid}, _From, State) ->
-    Parser = reset_parser(State#state.parser, State#state.max_stanza_size),
-    NewState = State#state{c2s_pid = C2SPid, parser = Parser, stanza_chunk_size = 0},
+    ParserState = reset_parser(State),
+    NewState = ParserState#state{c2s_pid = C2SPid},
     activate_socket(NewState),
     Reply = ok,
     {reply, Reply, NewState, ?HIBERNATE_TIMEOUT};
@@ -368,15 +364,17 @@ element_wrapper(#xmlel{} = XMLElement) ->
 element_wrapper(Element) ->
     Element.
 
-reset_parser(Parser, infinity) ->
-    reset_parser(Parser, 0);
-reset_parser(undefined, MaxSize) ->
+reset_parser(#state{parser = undefined, max_stanza_size = Size} = State) ->
+    MaxSize = case Size of
+                  infinity -> 0;
+                  _ -> Size
+              end,
     {ok, NewParser} = exml_stream:new_parser([{start_tag, <<"stream:stream">>},
                                               {max_child_size, MaxSize}]),
-    NewParser;
-reset_parser(Parser, _MaxSize) ->
+    State#state{parser = NewParser, stanza_chunk_size = 0};
+reset_parser(#state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
-    NewParser.
+    State#state{parser = NewParser, stanza_chunk_size = 0}.
 
 free_parser(undefined) ->
     ok;
