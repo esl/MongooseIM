@@ -137,8 +137,8 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({starttls, TLSSocket}, _From, State) ->
-    ParserState = reset_parser(State),
-    NewState = ParserState#state{socket = TLSSocket,
+    StateAfterReset = reset_parser(State),
+    NewState = StateAfterReset#state{socket = TLSSocket,
                                  sock_mod = fast_tls},
     case fast_tls:recv_data(TLSSocket, <<"">>) of
         {ok, TLSData} ->
@@ -148,8 +148,8 @@ handle_call({starttls, TLSSocket}, _From, State) ->
     end;
 handle_call({compress, ZlibSocket}, _From,
   #state{c2s_pid = C2SPid} = State) ->
-    ParserState = reset_parser(State),
-    NewState = ParserState#state{socket = ZlibSocket,
+    StateAfterReset = reset_parser(State),
+    NewState = StateAfterReset#state{socket = ZlibSocket,
                                  sock_mod = ejabberd_zlib},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
@@ -162,8 +162,8 @@ handle_call({compress, ZlibSocket}, _From,
             {stop, normal, ok, NewState}
     end;
 handle_call({become_controller, C2SPid}, _From, State) ->
-    ParserState = reset_parser(State),
-    NewState = ParserState#state{c2s_pid = C2SPid},
+    StateAfterReset = reset_parser(State),
+    NewState = StateAfterReset#state{c2s_pid = C2SPid},
     activate_socket(NewState),
     Reply = ok,
     {reply, Reply, NewState, ?HIBERNATE_TIMEOUT};
