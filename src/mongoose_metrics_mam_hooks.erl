@@ -7,7 +7,7 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_metrics_mam_hooks).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([get_hooks/1]).
@@ -69,25 +69,25 @@ get_hooks(Host) ->
 
 
 -spec mam_get_prefs(Result :: any(),
-                    Host :: ejabberd:server(),
+                    Host :: jid:server(),
                     _ArcID :: mod_mam:archive_id(),
-                    _ArcJID :: ejabberd:jid()) -> any().
+                    _ArcJID :: jid:jid()) -> any().
 mam_get_prefs(Result, Host, _ArcID, _ArcJID) ->
     mongoose_metrics:update(Host, modMamPrefsGets, 1),
     Result.
 
--spec mam_set_prefs(Result :: any(), Host :: ejabberd:server(),
-    _ArcID :: mod_mam:archive_id(), _ArcJID :: ejabberd:jid(),
-    _DefaultMode :: any(), _AlwaysJIDs :: [ejabberd:literal_jid()],
-    _NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+-spec mam_set_prefs(Result :: any(), Host :: jid:server(),
+    _ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
+    _DefaultMode :: any(), _AlwaysJIDs :: [jid:literal_jid()],
+    _NeverJIDs :: [jid:literal_jid()]) -> any().
 mam_set_prefs(Result, Host, _ArcID, _ArcJID, _DefaultMode, _AlwaysJIDs, _NeverJIDs) ->
     mongoose_metrics:update(Host, modMamPrefsSets, 1),
     Result.
 
 -spec mam_remove_archive(Acc :: map(),
-                         Host :: ejabberd:server(),
+                         Host :: jid:server(),
                          _ArcID :: mod_mam:archive_id(),
-                         _ArcJID :: ejabberd:jid()) -> metrics_notify_return().
+                         _ArcJID :: jid:jid()) -> metrics_notify_return().
 mam_remove_archive(Acc, Host, _ArcID, _ArcJID) ->
     mongoose_metrics:update(Host, modMamArchiveRemoved, 1),
     Acc.
@@ -106,38 +106,38 @@ mam_lookup_messages(Result = {ok, {_TotalCount, _Offset, MessageRows}},
 mam_lookup_messages(Result = {error, _}, _Host, _Params) ->
     Result.
 
--spec mam_archive_message(Result :: any(), Host :: ejabberd:server(),
+-spec mam_archive_message(Result :: any(), Host :: jid:server(),
     _MessId :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
-    _LocJID :: ejabberd:jid(), _RemJID :: ejabberd:jid(),
-    _SrcJID :: ejabberd:jid(), _Dir :: atom(), _Packet :: jlib:xmlel()) -> any().
+    _LocJID :: jid:jid(), _RemJID :: jid:jid(),
+    _SrcJID :: jid:jid(), _Dir :: atom(), _Packet :: exml:element()) -> any().
 mam_archive_message(Result, Host,
     _MessID, _ArcID, _LocJID, _RemJID, _SrcJID, _Dir, _Packet) ->
     mongoose_metrics:update(Host, modMamArchived, 1),
     Result.
 
 -spec mam_flush_messages(Acc :: map(),
-                         Host :: ejabberd:server(),
+                         Host :: jid:server(),
                          MessageCount :: integer()) -> metrics_notify_return().
 mam_flush_messages(Acc, Host, MessageCount) ->
     mongoose_metrics:update(Host, modMamFlushed, MessageCount),
     Acc.
 
 %% #rh
--spec mam_drop_message(Acc :: map(), Host :: ejabberd:server()) -> metrics_notify_return().
+-spec mam_drop_message(Acc :: map(), Host :: jid:server()) -> metrics_notify_return().
 mam_drop_message(Acc, Host) ->
     mongoose_metrics:update(Host, modMamDropped, 1),
     Acc.
 
 %% #rh
--spec mam_drop_iq(Acc :: map(), Host :: ejabberd:server(), _To :: ejabberd:jid(),
-    _IQ :: ejabberd:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
+-spec mam_drop_iq(Acc :: map(), Host :: jid:server(), _To :: jid:jid(),
+    _IQ :: jlib:iq(), _Action :: any(), _Reason :: any()) -> metrics_notify_return().
 mam_drop_iq(Acc, Host, _To, _IQ, _Action, _Reason) ->
     mongoose_metrics:update(Host, modMamDroppedIQ, 1),
     Acc.
 
 %% #rh
 -spec mam_drop_messages(Acc :: map(),
-                        Host :: ejabberd:server(),
+                        Host :: jid:server(),
                         Count :: integer()) -> metrics_notify_return().
 mam_drop_messages(Acc, Host, Count) ->
     mongoose_metrics:update(Host, modMamDropped2, Count),
@@ -199,16 +199,16 @@ mam_muc_drop_iq(Acc, Host, _To, _IQ, _Action, _Reason) ->
 mam_muc_drop_messages(Host, Count) ->
     mongoose_metrics:update(Host, modMucMamDropped2, Count).
 
--spec mam_muc_purge_single_message(Result :: any(), Host :: ejabberd:server(),
+-spec mam_muc_purge_single_message(Result :: any(), Host :: jid:server(),
     _MessID :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
-    _ArcJID :: ejabberd:jid(), _Now :: mod_mam:unix_timestamp()) -> any().
+    _ArcJID :: jid:jid(), _Now :: mod_mam:unix_timestamp()) -> any().
 mam_muc_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
     mongoose_metrics:update(Host, modMucMamSinglePurges, 1),
     Result.
 
 -spec mam_muc_purge_multiple_messages(Result :: any(),
-    Host :: ejabberd:server(), _ArcID :: mod_mam:archive_id(),
-    _ArcJID :: ejabberd:jid(), _Borders :: any(), _Start :: any(),
+    Host :: jid:server(), _ArcID :: mod_mam:archive_id(),
+    _ArcJID :: jid:jid(), _Borders :: any(), _Start :: any(),
     _End :: any(), _Now :: mod_mam:unix_timestamp(), _WithJID :: any()) -> any().
 mam_muc_purge_multiple_messages(Result, Host,
     _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->

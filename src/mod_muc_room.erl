@@ -54,7 +54,7 @@
          terminate/3,
          code_change/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 
@@ -111,7 +111,7 @@
 -type config() :: #config{}.
 -type user() :: #user{}.
 -type activity() :: #activity{}.
--type stanzaid() :: {binary(), ejabberd:resource()}.
+-type stanzaid() :: {binary(), jid:resource()}.
 -type new_user_strategy() :: 'allowed'
                            | 'conflict_registered'
                            | 'conflict_use'
@@ -121,8 +121,8 @@
                            | 'require_password'
                            | 'user_banned'
                            | 'http_auth'.
--type users_dict() :: dict:dict(ejabberd:simple_jid(), user()).
--type sessions_dict() :: dict:dict(mod_muc:nick(), ejabberd:jid()).
+-type users_dict() :: dict:dict(jid:simple_jid(), user()).
+-type sessions_dict() :: dict:dict(mod_muc:nick(), jid:jid()).
 
 -define(MAX_USERS_DEFAULT_LIST,
         [5, 10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000]).
@@ -153,10 +153,10 @@
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
--spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
+-spec start(Host :: jid:server(), ServerHost :: jid:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
-            Creator :: ejabberd:jid(), Nick :: mod_muc:nick(),
+            Creator :: jid:jid(), Nick :: mod_muc:nick(),
             DefRoomOpts :: list()) -> {'error', _}
                                           | {'ok', 'undefined' | pid()}
                                           | {'ok', 'undefined' | pid(), _}.
@@ -165,7 +165,7 @@ start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
     ?SUPERVISOR_START.
 
 
--spec start(Host :: ejabberd:server(), ServerHost :: ejabberd:server(),
+-spec start(Host :: jid:server(), ServerHost :: jid:server(),
             Access :: _, Room :: mod_muc:room(), HistorySize :: integer(),
             RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool(),
             Opts :: list()) -> {'error', _}
@@ -192,8 +192,8 @@ start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool
 stop(Pid) ->
     gen_fsm:stop(Pid).
 
--spec get_room_users(RoomJID :: ejabberd:jid()) -> {ok, [user()]}
-                                                 | {error, not_found}.
+-spec get_room_users(RoomJID :: jid:jid()) -> {ok, [user()]}
+                                             | {error, not_found}.
 get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
@@ -202,7 +202,7 @@ get_room_users(RoomJID) ->
             {error, Reason}
     end.
 
--spec is_room_owner(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+-spec is_room_owner(RoomJID :: jid:jid(), UserJID :: jid:jid()) ->
     {ok, boolean()} | {error, not_found}.
 is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
@@ -213,7 +213,7 @@ is_room_owner(RoomJID, UserJID) ->
     end.
 
 %% @doc Return true if UserJID can read room messages
--spec can_access_room(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+-spec can_access_room(RoomJID :: jid:jid(), UserJID :: jid:jid()) ->
             {ok, boolean()} | {error, not_found}.
 can_access_room(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
@@ -224,7 +224,7 @@ can_access_room(RoomJID, UserJID) ->
     end.
 
 %% @doc Return true if UserJID can read real user JIDs
--spec can_access_identity(RoomJID :: ejabberd:jid(), UserJID :: ejabberd:jid()) ->
+-spec can_access_identity(RoomJID :: jid:jid(), UserJID :: jid:jid()) ->
     {ok, boolean()} | {error, not_found}.
 can_access_identity(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
@@ -312,14 +312,14 @@ read_hibernate_timeout(Host) ->
 %% @doc In the locked state StateData contains the same settings it previously
 %% held for the normal_state. The fsm awaits either a confirmation or a
 %% configuration form from the creator. Responds with error to any other queries.
--spec locked_error({'route', ejabberd:jid(), _, mongoose_acc:t(), jlib:xmlel()},
+-spec locked_error({'route', jid:jid(), _, mongoose_acc:t(), exml:element()},
                    statename(), state()) -> fsm_return().
 locked_error({route, From, ToNick, Acc, #xmlel{attrs = Attrs} = Packet},
              NextState, StateData) ->
     ?INFO_MSG("Wrong stanza: ~p", [Packet]),
     ErrText = <<"This room is locked">>,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    Err = jlib:make_error_reply(Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
                                                ToNick),
                           From, Acc, Err),
@@ -327,8 +327,8 @@ locked_error({route, From, ToNick, Acc, #xmlel{attrs = Attrs} = Packet},
 
 %% @doc  Receive the room-creating Stanza. Will crash if any other stanza is
 %% received in this state.
--spec initial_state({'route', From :: ejabberd:jid(), To :: mod_muc:nick(),
-                    Acc :: mongoose_acc:t(), Presence :: jlib:xmlel()}, state()) -> fsm_return().
+-spec initial_state({'route', From :: jid:jid(), To :: mod_muc:nick(),
+                    Acc :: mongoose_acc:t(), Presence :: exml:element()}, state()) -> fsm_return().
 initial_state({route, From, ToNick, _Acc, % TOODOO
               #xmlel{name = <<"presence">>} = Presence}, StateData) ->
     %% this should never happen so crash if it does
@@ -348,7 +348,7 @@ initial_state({route, From, ToNick, _Acc, % TOODOO
     end.
 
 
--spec is_query_allowed(jlib:xmlel()) -> boolean().
+-spec is_query_allowed(exml:element()) -> boolean().
 is_query_allowed(Query) ->
     X = xml:get_subtag(Query, <<"x">>),
     xml:get_subtag(Query, <<"destroy">>) =/= false orelse
@@ -357,27 +357,27 @@ is_query_allowed(Query) ->
         xml:get_tag_attr_s(<<"type">>, X)== <<"cancel">>)).
 
 
--spec locked_state_process_owner_iq(ejabberd:jid(), jlib:xmlel(),
+-spec locked_state_process_owner_iq(jid:jid(), exml:element(),
         ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result', _)
-            -> {{'error', jlib:xmlel()}, statename()}
-               | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+            -> {{'error', exml:element()}, statename()}
+               | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
     Result = case is_query_allowed(Query) of
                  true ->
                      process_iq_owner(From, set, Lang, Query, StateData);
                  false ->
-                     {error, ?ERRT_ITEM_NOT_FOUND(Lang, <<"Query not allowed">>)}
+                     {error, mongoose_xmpp_errors:item_not_found(Lang, <<"Query not allowed">>)}
              end,
     {Result, normal_state};
 locked_state_process_owner_iq(From, Query, Lang, get, StateData) ->
     {process_iq_owner(From, get, Lang, Query, StateData), locked_state};
 locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
-    {{error, ?ERRT_ITEM_NOT_FOUND(Lang, <<"Wrong type">>)}, locked_state}.
+    {{error, mongoose_xmpp_errors:item_not_found(Lang, <<"Wrong type">>)}, locked_state}.
 
 
 %% @doc Destroy room / confirm instant room / configure room
--spec locked_state({'route', From :: ejabberd:jid(), To :: mod_muc:nick(),
-                    Acc :: mongoose_acc:t(), Packet :: jlib:xmlel()}, state()) -> fsm_return().
+-spec locked_state({'route', From :: jid:jid(), To :: mod_muc:nick(),
+                    Acc :: mongoose_acc:t(), Packet :: exml:element()}, state()) -> fsm_return().
 locked_state({route, From, _ToNick, Acc,
               #xmlel{name = <<"iq">>} = Packet}, StateData) ->
     #iq{lang = Lang, sub_el = Query} = IQ = jlib:iq_query_info(Packet),
@@ -387,7 +387,7 @@ locked_state({route, From, _ToNick, Acc,
                 locked_state_process_owner_iq(From, Query, Lang, IQ#iq.type, StateData);
             false ->
                 ErrText = <<"This room is locked">>,
-                {{error, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)}, locked_state}
+                {{error, mongoose_xmpp_errors:item_not_found(Lang, ErrText)}, locked_state}
         end,
     MkQueryResult = fun(Res) ->
                         IQ#iq{type = result,
@@ -431,8 +431,8 @@ locked_state(Call, StateData) ->
     locked_error(Call, locked_state, StateData).
 
 
--spec normal_state({route, From :: ejabberd:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
-                   Packet :: jlib:xmlel()}, state()) -> fsm_return().
+-spec normal_state({route, From :: jid:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
+                   Packet :: exml:element()}, state()) -> fsm_return().
 normal_state({route, From, <<>>, _Acc,
               #xmlel{name = <<"message">>, attrs = Attrs} = Packet},
              StateData) ->
@@ -648,7 +648,7 @@ maybe_prepare_room_queue(RoomQueue, StateData) ->
             next_normal_state(StateData1)
     end.
 
--type info_msg() :: {process_user_presence | process_user_message, ejabberd:jid()}
+-type info_msg() :: {process_user_presence | process_user_message, jid:jid()}
                     | process_room_queue.
 -spec handle_info(info_msg(), statename(), state()) -> fsm_return().
 handle_info({process_user_presence, From}, normal_state = _StateName, StateData) ->
@@ -770,20 +770,20 @@ unavailable_presence(ItemAttrs, ReasonT) ->
                                                  attrs = [{<<"code">>, <<"332">>}]}
                                          ]}]}.
 
--spec occupant_jid(user(), 'undefined' | ejabberd:jid()) -> 'error' | ejabberd:jid().
+-spec occupant_jid(user(), 'undefined' | jid:jid()) -> 'error' | jid:jid().
 occupant_jid(#user{nick=Nick}, RoomJID) ->
     jid:replace_resource(RoomJID, Nick).
 
 
 -spec route(atom() | pid() | port() | {atom(), _} | {'via', _, _},
-    From :: ejabberd:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
-    Pkt :: jlib:xmlel()) -> 'ok'.
+    From :: jid:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
+    Pkt :: exml:element()) -> 'ok'.
 route(Pid, From, ToNick, Acc, Packet) ->
     gen_fsm:send_event(Pid, {route, From, ToNick, Acc, Packet}).
 
 
--spec process_groupchat_message(ejabberd:simple_jid() | ejabberd:jid(),
-                                jlib:xmlel(), state()) -> fsm_return().
+-spec process_groupchat_message(jid:simple_jid() | jid:jid(),
+                                exml:element(), state()) -> fsm_return().
 process_groupchat_message(From, #xmlel{name = <<"message">>,
                                        attrs = Attrs} = Packet,
                           StateData) ->
@@ -853,7 +853,7 @@ process_message_from_allowed_user(From, #xmlel{attrs = Attrs} = Packet,
             end;
         false ->
             ErrText = <<"Visitors are not allowed to send messages to all occupants">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
             next_normal_state(StateData)
     end.
@@ -893,9 +893,9 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
     Err = case (StateData#state.config)#config.allow_change_subj of
-              true -> ?ERRT_FORBIDDEN(Lang, <<"Only moderators and participants are allowed"
+              true -> mongoose_xmpp_errors:forbidden(Lang, <<"Only moderators and participants are allowed"
                                               " to change the subject in this room">>);
-              _ -> ?ERRT_FORBIDDEN(Lang, <<"Only moderators are allowed"
+              _ -> mongoose_xmpp_errors:forbidden(Lang, <<"Only moderators are allowed"
                                            " to change the subject in this room">>)
           end,
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
@@ -936,13 +936,13 @@ save_persistent_room_state(StateData) ->
 %% an implementation MAY allow users with certain privileges
 %% (e.g., a room owner, room admin, or service-level admin)
 %% to send messages to the room even if those users are not occupants.
--spec is_allowed_nonparticipant(ejabberd:jid(), state()) -> boolean().
+-spec is_allowed_nonparticipant(jid:jid(), state()) -> boolean().
 is_allowed_nonparticipant(JID, StateData) ->
     get_service_affiliation(JID, StateData) =:= owner.
 
 %% @doc Get information of this participant, or default values.
 %% If the JID is not a participant, return values for a service message.
--spec get_participant_data(ejabberd:simple_jid() | ejabberd:jid(), state()) -> {_, _}.
+-spec get_participant_data(jid:simple_jid() | jid:jid(), state()) -> {_, _}.
 get_participant_data(From, StateData) ->
     case dict:find(jid:to_lower(From), StateData#state.users) of
         {ok, #user{nick = FromNick, role = Role}} ->
@@ -955,15 +955,15 @@ get_participant_data(From, StateData) ->
 %% Presence processing
 
 %% @doc Process presence stanza and destroy the room, if it is empty.
--spec process_presence(From :: ejabberd:jid(), Nick :: mod_muc:nick(),
-                       Packet :: jlib:xmlel(), state()) -> fsm_return().
+-spec process_presence(From :: jid:jid(), Nick :: mod_muc:nick(),
+                       Packet :: exml:element(), state()) -> fsm_return().
 process_presence(From, ToNick, Presence, StateData) ->
     StateData1 = process_presence1(From, ToNick, Presence, StateData),
     destroy_temporary_room_if_empty(StateData1, normal_state).
 
 
--spec process_presence(From :: ejabberd:jid(), Nick :: mod_muc:nick(),
-        Presence :: jlib:xmlel(), state(), statename()) -> fsm_return().
+-spec process_presence(From :: jid:jid(), Nick :: mod_muc:nick(),
+        Presence :: exml:element(), state(), statename()) -> fsm_return().
 process_presence(From, ToNick, Presence, StateData, NextState) ->
     StateData1 = process_presence(From, ToNick, Presence, StateData),
     rewrite_next_state(NextState, StateData1).
@@ -1000,9 +1000,9 @@ next_normal_state(#state{hibernate_timeout = Timeout} = StateData) ->
     {next_state, normal_state, StateData, Timeout}.
 
 -spec process_presence1(From, Nick, Packet, state()) -> state() when
-      From :: ejabberd:jid(),
+      From :: jid:jid(),
       Nick :: mod_muc:nick(),
-      Packet :: jlib:xmlel().
+      Packet :: exml:element().
 process_presence1(From, Nick, #xmlel{name = <<"presence">>, attrs = Attrs} = Packet,
                   StateData = #state{}) ->
     Type = xml:get_attr_s(<<"type">>, Attrs),
@@ -1029,7 +1029,7 @@ process_presence1(From, Nick, #xmlel{name = <<"presence">>, attrs = Attrs} = Pac
     end.
 
 
--spec process_simple_presence(ejabberd:jid(), jlib:xmlel(), state()) -> state().
+-spec process_simple_presence(jid:jid(), exml:element(), state()) -> state().
 process_simple_presence(From, Packet, StateData) ->
     NewPacket = check_and_strip_visitor_status(From, Packet, StateData),
     NewState = add_user_presence(From, NewPacket, StateData),
@@ -1037,8 +1037,8 @@ process_simple_presence(From, Packet, StateData) ->
     NewState.
 
 
--spec process_presence_error(ejabberd:simple_jid() | ejabberd:jid(),
-                             jlib:xmlel(), ejabberd:lang(), state()) -> state().
+-spec process_presence_error(jid:simple_jid() | jid:jid(),
+                             exml:element(), ejabberd:lang(), state()) -> state().
 process_presence_error(From, Packet, Lang, StateData) ->
     case is_user_online(From, StateData) of
         true ->
@@ -1050,7 +1050,7 @@ process_presence_error(From, Packet, Lang, StateData) ->
     end.
 
 
--spec process_presence_unavailable(ejabberd:jid(), jlib:xmlel(), state())
+-spec process_presence_unavailable(jid:jid(), exml:element(), state())
                                     -> state().
 process_presence_unavailable(From, Packet, StateData) ->
     case is_user_online(From, StateData) of
@@ -1068,7 +1068,7 @@ process_presence_unavailable(From, Packet, StateData) ->
     end.
 
 
--spec choose_nick_change_strategy(ejabberd:jid(), binary(), state())
+-spec choose_nick_change_strategy(jid:jid(), binary(), state())
     -> 'allowed' | 'conflict_registered' | 'conflict_use' | 'not_allowed_visitor'.
 choose_nick_change_strategy(From, Nick, StateData) ->
     case {is_nick_exists(Nick, StateData),
@@ -1086,29 +1086,29 @@ choose_nick_change_strategy(From, Nick, StateData) ->
     end.
 
 
--spec process_presence_nick_change(ejabberd:jid(), mod_muc:nick(), jlib:xmlel(),
+-spec process_presence_nick_change(jid:jid(), mod_muc:nick(), exml:element(),
         ejabberd:lang(), state()) -> state().
 process_presence_nick_change(From, Nick, Packet, Lang, StateData) ->
     case choose_nick_change_strategy(From, Nick, StateData) of
         not_allowed_visitor ->
             ErrText = <<"Visitors are not allowed to change their nicknames in this room">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_use ->
             ErrText = <<"That nickname is already in use by another occupant">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_registered ->
             ErrText = <<"That nickname is registered by another person">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         allowed ->
             change_nick(From, Nick, StateData)
     end.
 
 
--spec check_and_strip_visitor_status(ejabberd:jid(), jlib:xmlel(), state())
-                                        -> jlib:xmlel().
+-spec check_and_strip_visitor_status(jid:jid(), exml:element(), state())
+                                        -> exml:element().
 check_and_strip_visitor_status(From, Packet, StateData) ->
     case {(StateData#state.config)#config.allow_visitor_status,
           is_visitor(From, StateData)} of
@@ -1119,14 +1119,14 @@ check_and_strip_visitor_status(From, Packet, StateData) ->
     end.
 
 
--spec handle_new_user(ejabberd:jid(), mod_muc:nick(), jlib:xmlel(), state(),
+-spec handle_new_user(jid:jid(), mod_muc:nick(), exml:element(), state(),
                       [{binary(), binary()}]) -> state().
 handle_new_user(From, Nick = <<>>, _Packet, StateData, Attrs) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
     ErrText = <<"No nickname">>,
     Error =jlib:make_error_reply(
                 #xmlel{name = <<"presence">>},
-                ?ERRT_JID_MALFORMED(Lang, ErrText)),
+                mongoose_xmpp_errors:jid_malformed(Lang, ErrText)),
     %ejabberd_route(From, To, Packet),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick), From, Error),
     StateData;
@@ -1134,7 +1134,7 @@ handle_new_user(From, Nick, Packet, StateData, _Attrs) ->
     add_new_user(From, Nick, Packet, StateData).
 
 
--spec is_user_online(ejabberd:simple_jid() | ejabberd:jid(), state()) -> boolean().
+-spec is_user_online(jid:simple_jid() | jid:jid(), state()) -> boolean().
 is_user_online(JID, StateData) ->
     LJID = jid:to_lower(JID),
     dict:is_key(LJID, StateData#state.users).
@@ -1142,7 +1142,7 @@ is_user_online(JID, StateData) ->
 
 %% @doc Check if the user is occupant of the room, or at least is an admin
 %% or owner.
--spec is_occupant_or_admin(ejabberd:jid(), state()) -> boolean().
+-spec is_occupant_or_admin(jid:jid(), state()) -> boolean().
 is_occupant_or_admin(JID, StateData) ->
     FAffiliation = get_affiliation(JID, StateData),
     FRole = get_role(JID, StateData),
@@ -1154,8 +1154,8 @@ is_occupant_or_admin(JID, StateData) ->
 %%% Handle IQ queries of vCard
 %%%
 
--spec is_user_online_iq(_, ejabberd:jid(), state())
-            -> {'false', _, ejabberd:jid()} | {'true', _, ejabberd:jid()}.
+-spec is_user_online_iq(_, jid:jid(), state())
+            -> {'false', _, jid:jid()} | {'true', _, jid:jid()}.
 is_user_online_iq(StanzaId, JID, StateData) when JID#jid.lresource /= <<>> ->
     {is_user_online(JID, StateData), StanzaId, JID};
 is_user_online_iq(StanzaId, JID, StateData) when JID#jid.lresource == <<>> ->
@@ -1170,20 +1170,20 @@ is_user_online_iq(StanzaId, JID, StateData) when JID#jid.lresource == <<>> ->
     end.
 
 
--spec handle_iq_vcard(ejabberd:jid(), ejabberd:simple_jid() | ejabberd:jid(),
-                      binary(), any(), jlib:xmlel()) ->
-                {ejabberd:simple_jid() | ejabberd:jid(), jlib:xmlel()}.
+-spec handle_iq_vcard(jid:jid(), jid:simple_jid() | jid:jid(),
+                      binary(), any(), exml:element()) ->
+                {jid:simple_jid() | jid:jid(), exml:element()}.
 handle_iq_vcard(FromFull, ToJID, StanzaId, NewId, Packet) ->
     ToBareJID = jid:to_bare(ToJID),
     IQ = jlib:iq_query_info(Packet),
     handle_iq_vcard2(FromFull, ToJID, ToBareJID, StanzaId, NewId, IQ, Packet).
 
 
--spec handle_iq_vcard2(FromFull :: ejabberd:jid(),
-        ToJID :: ejabberd:simple_jid() | ejabberd:jid(),
-        ToBareJID :: ejabberd:simple_jid() | ejabberd:jid(),
-        binary(), _NewID, 'invalid' | 'not_iq' | 'reply' | ejabberd:iq(),
-        jlib:xmlel()) -> {ejabberd:simple_jid() | ejabberd:jid(), jlib:xmlel()}.
+-spec handle_iq_vcard2(FromFull :: jid:jid(),
+        ToJID :: jid:simple_jid() | jid:jid(),
+        ToBareJID :: jid:simple_jid() | jid:jid(),
+        binary(), _NewID, 'invalid' | 'not_iq' | 'reply' | jlib:iq(),
+        exml:element()) -> {jid:simple_jid() | jid:jid(), exml:element()}.
 handle_iq_vcard2(_FromFull, ToJID, ToBareJID, StanzaId, _NewId,
          #iq{type = get, xmlns = ?NS_VCARD}, Packet)
   when ToBareJID /= ToJID ->
@@ -1192,7 +1192,7 @@ handle_iq_vcard2(_FromFull, ToJID, _ToBareJID, _StanzaId, NewId, _IQ, Packet) ->
     {ToJID, change_stanzaid(NewId, Packet)}.
 
 
--spec stanzaid_pack(binary(), ejabberd:resource()) -> binary().
+-spec stanzaid_pack(binary(), jid:resource()) -> binary().
 stanzaid_pack(OriginalId, Resource) ->
     Data64 = base64:encode(<<"ejab\0", OriginalId/binary, 0, Resource/binary>>),
     <<"berd", Data64/binary>>.
@@ -1205,7 +1205,7 @@ stanzaid_unpack(<<"berd", StanzaIdBase64/binary>>) ->
     {OriginalId, Resource}.
 
 
--spec change_stanzaid(binary(), jlib:xmlel()) -> jlib:xmlel().
+-spec change_stanzaid(binary(), exml:element()) -> exml:element().
 change_stanzaid(NewId, Packet) ->
     XE = #xmlel{attrs = Attrs} = jlib:remove_attr(<<"id">>, Packet),
     XE#xmlel{attrs = [{<<"id">>, NewId} | Attrs]}.
@@ -1257,7 +1257,7 @@ binary_to_affiliation(Affiliation) ->
 
 %% @doc Decide the fate of the message and its sender
 %% Returns: continue_delivery | forget_message | {expulse_sender, Reason}
--spec decide_fate_message(binary(), jlib:xmlel(), ejabberd:simple_jid() | ejabberd:jid(),
+-spec decide_fate_message(binary(), exml:element(), jid:simple_jid() | jid:jid(),
         state()) -> 'continue_delivery'
                   | 'forget_message'
                   | {'expulse_sender', string()}.
@@ -1290,7 +1290,7 @@ decide_fate_message(_, _, _, _) ->
 %% @doc Check if the elements of this error stanza indicate
 %% that the sender is a dead participant.
 %% If so, return true to kick the participant.
--spec check_error_kick(jlib:xmlel()) -> boolean().
+-spec check_error_kick(exml:element()) -> boolean().
 check_error_kick(Packet) ->
     case get_error_condition(Packet) of
         <<"gone">>                      -> true;
@@ -1306,7 +1306,7 @@ check_error_kick(Packet) ->
     end.
 
 
--spec get_error_condition(jlib:xmlel()) -> binary().
+-spec get_error_condition(exml:element()) -> binary().
 get_error_condition(Packet) ->
     case catch get_error_condition2(Packet) of
         {condition, ErrorCondition} ->
@@ -1316,7 +1316,7 @@ get_error_condition(Packet) ->
     end.
 
 
--spec get_error_condition2(jlib:xmlel()) -> {condition, binary()}.
+-spec get_error_condition2(exml:element()) -> {condition, binary()}.
 get_error_condition2(Packet) ->
     #xmlel{children = EEls} = xml:get_subtag(Packet, <<"error">>),
     [Condition] = [Name || #xmlel{name = Name,
@@ -1325,7 +1325,7 @@ get_error_condition2(Packet) ->
     {condition, Condition}.
 
 
--spec expulse_participant(jlib:xmlel(), ejabberd:jid(), state(), binary()) -> state().
+-spec expulse_participant(exml:element(), jid:jid(), state(), binary()) -> state().
 expulse_participant(Packet, From, StateData, Reason1) ->
     ErrorCondition = get_error_condition(Packet),
     Reason2 = <<Reason1/binary, ": ", ErrorCondition/binary>>,
@@ -1351,7 +1351,7 @@ access_persistent(#state{access=Access}) ->
     AccessPersistent.
 
 
--spec set_affiliation(ejabberd:jid(), mod_muc:affiliation(), state()) -> state().
+-spec set_affiliation(jid:jid(), mod_muc:affiliation(), state()) -> state().
 set_affiliation(JID, Affiliation, StateData)
         when is_atom(Affiliation) ->
     LJID = jid:to_bare(jid:to_lower(JID)),
@@ -1362,7 +1362,7 @@ set_affiliation(JID, Affiliation, StateData)
     StateData#state{affiliations = Affiliations}.
 
 
--spec set_affiliation_and_reason(ejabberd:jid(), mod_muc:affiliation(), term(),
+-spec set_affiliation_and_reason(jid:jid(), mod_muc:affiliation(), term(),
                                  state()) -> state().
 set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
         when is_atom(Affiliation) ->
@@ -1374,7 +1374,7 @@ set_affiliation_and_reason(JID, Affiliation, Reason, StateData)
     StateData#state{affiliations = Affiliations}.
 
 
--spec get_affiliation(ejabberd:jid(), state()) -> mod_muc:affiliation().
+-spec get_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
 get_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
     case acl:match_rule(StateData#state.server_host, AccessAdmin, JID) of
@@ -1388,8 +1388,8 @@ get_affiliation(JID, StateData) ->
             lookup_affiliation([ LJID, LJID1, LJID2, LJID3 ], StateData#state.affiliations)
     end.
 
--spec lookup_affiliation(JIDs :: [ejabberd:simple_jid()],
-                         Affiliations :: dict:dict(ejabberd:simple_jid(), mod_muc:affiliation())) ->
+-spec lookup_affiliation(JIDs :: [jid:simple_jid()],
+                         Affiliations :: dict:dict(jid:simple_jid(), mod_muc:affiliation())) ->
     mod_muc:affiliation().
 lookup_affiliation([ JID | RJIDs ], Affiliations) ->
     case dict:find(JID, Affiliations) of
@@ -1400,7 +1400,7 @@ lookup_affiliation([ JID | RJIDs ], Affiliations) ->
 lookup_affiliation([], _Affiliations) ->
     none.
 
--spec get_service_affiliation(ejabberd:jid(), state()) -> mod_muc:affiliation().
+-spec get_service_affiliation(jid:jid(), state()) -> mod_muc:affiliation().
 get_service_affiliation(JID, StateData) ->
     AccessAdmin = access_admin(StateData),
     case acl:match_rule(StateData#state.server_host, AccessAdmin, JID) of
@@ -1411,7 +1411,7 @@ get_service_affiliation(JID, StateData) ->
     end.
 
 
--spec set_role(JID :: ejabberd:jid(), Role :: mod_muc:role(), state()) -> state().
+-spec set_role(JID :: jid:jid(), Role :: mod_muc:role(), state()) -> state().
 set_role(JID, none, StateData) ->
     erase_matched_users(JID, StateData);
 set_role(JID, Role, StateData) ->
@@ -1419,7 +1419,7 @@ set_role(JID, Role, StateData) ->
                          JID, StateData).
 
 
--spec get_role( ejabberd:jid(), state()) -> mod_muc:role().
+-spec get_role( jid:jid(), state()) -> mod_muc:role().
 get_role(JID, StateData) ->
     LJID = jid:to_lower(JID),
     case dict:find(LJID, StateData#state.users) of
@@ -1444,7 +1444,7 @@ get_default_role(none, StateData) ->
     end.
 
 
--spec is_visitor(ejabberd:jid(), state()) -> boolean().
+-spec is_visitor(jid:jid(), state()) -> boolean().
 is_visitor(Jid, StateData) ->
     get_role(Jid, StateData) =:= visitor.
 
@@ -1496,7 +1496,7 @@ get_max_users_admin_threshold(StateData) ->
                mod_muc, max_users_admin_threshold, 5).
 
 
--spec get_user_activity(ejabberd:simple_jid() | ejabberd:jid(), state())
+-spec get_user_activity(jid:simple_jid() | jid:jid(), state())
                         -> activity().
 get_user_activity(JID, StateData) ->
     case treap:lookup(jid:to_lower(JID),
@@ -1516,7 +1516,7 @@ get_user_activity(JID, StateData) ->
     end.
 
 
--spec store_user_activity(ejabberd:simple_jid() | ejabberd:jid(), activity(),
+-spec store_user_activity(jid:simple_jid() | jid:jid(), activity(),
                          state()) -> state().
 store_user_activity(JID, UserActivity, StateData) ->
     MinMessageInterval =
@@ -1637,7 +1637,7 @@ is_last_session(Nick, StateData) ->
         _ -> false
     end.
 
--spec add_online_user(ejabberd:jid(), mod_muc:nick(), mod_muc:role(), state())
+-spec add_online_user(jid:jid(), mod_muc:nick(), mod_muc:role(), state())
                         -> state().
 add_online_user(JID, Nick, Role, StateData) ->
     LJID = jid:to_lower(JID),
@@ -1657,12 +1657,12 @@ add_online_user(JID, Nick, Role, StateData) ->
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
 
--spec remove_online_user(ejabberd:jid(), state()) -> state().
+-spec remove_online_user(jid:jid(), state()) -> state().
 remove_online_user(JID, StateData) ->
     remove_online_user(JID, StateData, <<>>).
 
 
--spec remove_online_user(ejabberd:jid(), state(), Reason :: binary()) -> state().
+-spec remove_online_user(jid:jid(), state(), Reason :: binary()) -> state().
 remove_online_user(JID, StateData, Reason) ->
 
     LJID = jid:to_lower(JID),
@@ -1683,7 +1683,7 @@ remove_online_user(JID, StateData, Reason) ->
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
 
--spec filter_presence(jlib:xmlel()) -> jlib:xmlel().
+-spec filter_presence(exml:element()) -> exml:element().
 filter_presence(#xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
     FEls = lists:filter(
              fun(#xmlcdata{}) ->
@@ -1698,7 +1698,7 @@ filter_presence(#xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
     #xmlel{name = <<"presence">>, attrs = Attrs, children = FEls}.
 
 
--spec strip_status(jlib:xmlel()) -> jlib:xmlel().
+-spec strip_status(exml:element()) -> exml:element().
 strip_status(#xmlel{name = <<"presence">>, attrs = Attrs,
                     children = Els}) ->
     FEls = lists:filter(
@@ -1709,7 +1709,7 @@ strip_status(#xmlel{name = <<"presence">>, attrs = Attrs,
     #xmlel{name = <<"presence">>, attrs = Attrs, children = FEls}.
 
 
--spec add_user_presence(ejabberd:jid(), jlib:xmlel(), state()) -> state().
+-spec add_user_presence(jid:jid(), exml:element(), state()) -> state().
 add_user_presence(JID, Presence, StateData) ->
     LJID = jid:to_lower(JID),
     FPresence = filter_presence(Presence),
@@ -1722,7 +1722,7 @@ add_user_presence(JID, Presence, StateData) ->
     notify_users_modified(StateData#state{users = Users}).
 
 
--spec add_user_presence_un(ejabberd:simple_jid() | ejabberd:jid(), jlib:xmlel(),
+-spec add_user_presence_un(jid:simple_jid() | jid:jid(), exml:element(),
                         state()) -> state().
 add_user_presence_un(JID, Presence, StateData) ->
     LJID = jid:to_lower(JID),
@@ -1741,14 +1741,14 @@ is_nick_exists(Nick, StateData) ->
     dict:is_key(Nick, StateData#state.sessions).
 
 
--spec find_jids_by_nick(mod_muc:nick(), state()) -> [ejabberd:jid()].
+-spec find_jids_by_nick(mod_muc:nick(), state()) -> [jid:jid()].
 find_jids_by_nick(Nick, StateData) ->
     case dict:find(Nick, StateData#state.sessions) of
         error -> [];
         {ok, JIDs} -> JIDs
     end.
 
--spec is_new_nick_of_online_user(ejabberd:simple_jid() | ejabberd:jid(), mod_muc:nick(),
+-spec is_new_nick_of_online_user(jid:simple_jid() | jid:jid(), mod_muc:nick(),
                                  state()) -> boolean() | user_is_offline.
 is_new_nick_of_online_user(JID, Nick, StateData) ->
     LJID = jid:to_lower(JID),
@@ -1757,7 +1757,7 @@ is_new_nick_of_online_user(JID, Nick, StateData) ->
         error -> user_is_offline
     end.
 
--spec is_user_limit_reached(ejabberd:jid(), mod_muc:affiliation(), state()) -> boolean().
+-spec is_user_limit_reached(jid:jid(), mod_muc:affiliation(), state()) -> boolean().
 is_user_limit_reached(From, Affiliation, StateData) ->
     MaxUsers = get_max_users(StateData),
     MaxAdminUsers = case MaxUsers of
@@ -1791,8 +1791,8 @@ is_next_session_of_occupant(From, Nick, StateData) ->
         end, Jids)
   end.
 
--spec choose_new_user_strategy(ejabberd:jid(), mod_muc:nick(),
-        mod_muc:affiliation(), mod_muc:role(), [jlib:xmlcdata() | jlib:xmlel()],
+-spec choose_new_user_strategy(jid:jid(), mod_muc:nick(),
+        mod_muc:affiliation(), mod_muc:role(), [jlib:xmlcdata() | exml:element()],
         state()) -> new_user_strategy().
 choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
@@ -1815,7 +1815,7 @@ choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
             choose_new_user_password_strategy(From, Els, StateData)
     end.
 
--spec choose_new_user_password_strategy(ejabberd:jid(), [jlib:xmlcdata() | jlib:xmlel()],
+-spec choose_new_user_password_strategy(jid:jid(), [jlib:xmlcdata() | exml:element()],
                                         state()) -> new_user_strategy().
 choose_new_user_password_strategy(From, Els, StateData) ->
     ServiceAffiliation = get_service_affiliation(From, StateData),
@@ -1828,7 +1828,7 @@ choose_new_user_password_strategy(From, Els, StateData) ->
                 end
     end.
 
--spec add_new_user(ejabberd:jid(), mod_muc:nick(), jlib:xmlel(), state()
+-spec add_new_user(jid:jid(), mod_muc:nick(), exml:element(), state()
                    ) -> state().
 add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateData) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
@@ -1837,34 +1837,34 @@ add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet, StateDa
     case choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) of
         limit_reached ->
             % max user reached and user is not admin or owner
-            Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE_WAIT),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable_wait()),
             route_error(Nick, From, Err, StateData);
         user_banned ->
             ErrText = <<"You have been banned from this room">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         require_membership ->
             ErrText = <<"Membership is required to enter this room">>,
             Err = jlib:make_error_reply(
-                Packet, ?ERRT_REGISTRATION_REQUIRED(Lang, ErrText)),
+                Packet, mongoose_xmpp_errors:registration_required(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_use ->
             ErrText = <<"That nickname is already in use by another occupant">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         conflict_registered ->
             ErrText = <<"That nickname is registered by another person">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_CONFLICT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:conflict(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         require_password ->
             ErrText = <<"A password is required to enter this room">>,
             Err = jlib:make_error_reply(
-                Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+                Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         invalid_password ->
             ErrText = <<"Incorrect password">>,
             Err = jlib:make_error_reply(
-                Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+                Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
             route_error(Nick, From, Err, StateData);
         http_auth ->
             Password = extract_password(Els),
@@ -1933,12 +1933,12 @@ decode_json_auth_response(Body) ->
 
 reply_not_authorized(From, Nick, Packet, StateData, ErrText) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_AUTHORIZED(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_authorized(Lang, ErrText)),
     route_error(Nick, From, Err, StateData).
 
 reply_service_unavailable(From, Nick, Packet, StateData, ErrText) ->
     Lang = xml:get_attr_s(<<"xml:lang">>, Packet#xmlel.attrs),
-    Err = jlib:make_error_reply(Packet, ?ERRT_SERVICE_UNAVAILABLE(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
     route_error(Nick, From, Err, StateData).
 
 do_add_new_user(From, Nick, #xmlel{attrs = Attrs, children = Els} = Packet,
@@ -1979,7 +1979,7 @@ check_password(#state{http_auth_pool = none}, _Password) ->
 check_password(#state{http_auth_pool = _Pool}, _Password) ->
     http_auth.
 
--spec extract_password([jlib:xmlcdata() | jlib:xmlel()]) -> 'false' | binary().
+-spec extract_password([jlib:xmlcdata() | exml:element()]) -> 'false' | binary().
 extract_password([]) ->
     false;
 extract_password([#xmlel{attrs = Attrs} = El | Els]) ->
@@ -1998,7 +1998,7 @@ extract_password([_ | Els]) ->
     extract_password(Els).
 
 
--spec count_stanza_shift(mod_muc:nick(), [jlib:xmlcdata() | jlib:xmlel()],
+-spec count_stanza_shift(mod_muc:nick(), [jlib:xmlcdata() | exml:element()],
                         state()) -> any().
 count_stanza_shift(Nick, Els, StateData) ->
     HL = lqueue_to_list(StateData#state.history),
@@ -2083,7 +2083,7 @@ calc_shift(MaxSize, Size, Shift, [S | TSizes]) ->
     calc_shift(MaxSize, Size - S, Shift + 1, TSizes).
 
 
--spec extract_history([jlib:xmlcdata() | jlib:xmlel()], Type :: binary()) ->
+-spec extract_history([jlib:xmlcdata() | exml:element()], Type :: binary()) ->
     false | non_neg_integer() | calendar:datetime1970().
 extract_history([], _Type) ->
     false;
@@ -2113,14 +2113,14 @@ parse_history_val(AttrVal, _) ->
             false
     end.
 
--spec send_update_presence(ejabberd:jid(), Reason :: binary(), state()) -> any().
+-spec send_update_presence(jid:jid(), Reason :: binary(), state()) -> any().
 send_update_presence(JID, Reason, StateData) ->
     foreach_matched_jid(fun(J) ->
                           send_new_presence(J, Reason, StateData)
                         end, JID, StateData).
 
 
--spec foreach_matched_jid(fun((_) -> 'ok'), ejabberd:jid(), state()) -> ok.
+-spec foreach_matched_jid(fun((_) -> 'ok'), jid:jid(), state()) -> ok.
 foreach_matched_jid(F, JID, #state{users=Users}) ->
     LJID = jid:to_lower(JID),
     case LJID of
@@ -2143,7 +2143,7 @@ foreach_matched_jid(F, JID, #state{users=Users}) ->
     end.
 
 
--spec foreach_matched_user(fun((_) -> 'ok'), ejabberd:simple_jid() | ejabberd:jid(),
+-spec foreach_matched_user(fun((_) -> 'ok'), jid:simple_jid() | jid:jid(),
                            state()) -> ok.
 foreach_matched_user(F, JID, #state{users=Users}) ->
     LJID = jid:to_lower(JID),
@@ -2169,14 +2169,14 @@ foreach_user(F, #state{users=Users}) ->
     dict_foreach_value(F, Users).
 
 
--spec erase_matched_users(ejabberd:simple_jid() | ejabberd:jid(), state()) -> state().
+-spec erase_matched_users(jid:simple_jid() | jid:jid(), state()) -> state().
 erase_matched_users(JID, StateData=#state{users=Users, sessions=Sessions}) ->
     LJID = jid:to_lower(JID),
     {NewUsers, NewSessions} = erase_matched_users_dict(LJID, Users, Sessions),
     notify_users_modified(StateData#state{users=NewUsers, sessions=NewSessions}).
 
 
--spec erase_matched_users_dict('error' | ejabberd:simple_jid(),
+-spec erase_matched_users_dict('error' | jid:simple_jid(),
                                users_dict(), sessions_dict()) -> any().
 erase_matched_users_dict({U, S, <<>>}, Users, Sessions) ->
     FF = fun({U0, S0, _} = J, #user{nick=Nick}, {Us, Ss}) when U =:= U0 andalso S =:= S0->
@@ -2190,7 +2190,7 @@ erase_matched_users_dict(LJID, Users, Sessions) ->
     {dict:erase(LJID, Users), dict:erase(Nick, Sessions)}.
 
 
--spec update_matched_users(F :: fun((user()) -> user()), JID :: ejabberd:jid(),
+-spec update_matched_users(F :: fun((user()) -> user()), JID :: jid:jid(),
                            state()) -> state().
 update_matched_users(F, JID, StateData=#state{users=Users}) ->
     LJID = jid:to_lower(JID),
@@ -2199,7 +2199,7 @@ update_matched_users(F, JID, StateData=#state{users=Users}) ->
 
 
 -spec update_matched_users_dict(fun((user()) -> user()),
-                              'error' | ejabberd:simple_jid(), users_dict()) -> any().
+                              'error' | jid:simple_jid(), users_dict()) -> any().
 update_matched_users_dict(F, {U, S, <<>>}, Users) ->
     FF = fun({U0, S0, _} = J, User, Us) when U =:= U0 andalso S =:= S0->
                  dict:store(J, F(User), Us);
@@ -2213,12 +2213,12 @@ update_matched_users_dict(F, LJID, Users) ->
         error -> Users
     end.
 
--spec send_new_presence_un(ejabberd:jid(), state()) -> 'ok'.
+-spec send_new_presence_un(jid:jid(), state()) -> 'ok'.
 send_new_presence_un(NJID, StateData) ->
     send_new_presence_un(NJID, <<>>, StateData).
 
 
--spec send_new_presence_un(ejabberd:jid(), binary(), state()) -> 'ok'.
+-spec send_new_presence_un(jid:jid(), binary(), state()) -> 'ok'.
 send_new_presence_un(NJID, Reason, StateData) ->
     {ok, #user{nick = Nick}} = dict:find(jid:to_lower(NJID), StateData#state.users),
     case is_last_session(Nick, StateData) of
@@ -2235,17 +2235,17 @@ send_new_presence_un(NJID, Reason, StateData) ->
     end.
 
 
--spec send_new_presence(ejabberd:jid(), state()) -> 'ok'.
+-spec send_new_presence(jid:jid(), state()) -> 'ok'.
 send_new_presence(NJID, StateData) ->
     send_new_presence(NJID, <<>>, StateData).
 
 
--spec send_new_presence(ejabberd:jid(), binary(), state()) -> 'ok'.
+-spec send_new_presence(jid:jid(), binary(), state()) -> 'ok'.
 send_new_presence(NJID, Reason, StateData) ->
     send_new_presence_to(NJID, Reason, dict:to_list(StateData#state.users), StateData).
 
 
--spec send_new_presence_to(ejabberd:jid(), binary(), [{ejabberd:jid(), user()}], state()) -> 'ok'.
+-spec send_new_presence_to(jid:jid(), binary(), [{jid:jid(), user()}], state()) -> 'ok'.
 send_new_presence_to(NJID, Reason, Receivers, StateData) ->
     {ok, #user{ role = Role } = User} = dict:find(jid:to_lower(NJID), StateData#state.users),
     Affiliation = get_affiliation(NJID, StateData),
@@ -2312,7 +2312,7 @@ send_new_presence_to_single(NJID, #user{jid = RealJID, nick = Nick, last_presenc
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
                           ReceiverInfo#user.jid, Packet).
 
--spec send_existing_presences(ejabberd:jid(), state()) -> 'ok'.
+-spec send_existing_presences(jid:jid(), state()) -> 'ok'.
 send_existing_presences(ToJID, StateData) ->
     LToJID = jid:to_lower(ToJID),
     {ok, #user{jid = RealToJID, role = Role, nick = _Nick}} =
@@ -2329,8 +2329,8 @@ send_existing_presences(ToJID, StateData) ->
                 end
         end, dict:to_list(StateData#state.users)).
 
--spec send_existing_presence({ejabberd:simple_jid(), mod_muc_room_user()}, mod_muc:role(),
-                             jid(), state()) -> mongoose_acc:t().
+-spec send_existing_presence({jid:simple_jid(), mod_muc_room_user()}, mod_muc:role(),
+                             jid:jid(), state()) -> mongoose_acc:t().
 send_existing_presence({_LJID, #user{jid = FromJID, nick = FromNick,
                                     role = FromRole, last_presence = Presence}},
                        Role, RealToJID, StateData) ->
@@ -2372,7 +2372,7 @@ send_config_update(Type, StateData) ->
         end, dict:to_list(StateData#state.users)).
 
 
--spec send_invitation(ejabberd:jid(), ejabberd:jid(), binary(), state()) -> mongoose_acc:t().
+-spec send_invitation(jid:jid(), jid:jid(), binary(), state()) -> mongoose_acc:t().
 send_invitation(From, To, Reason, StateData=#state{host=Host,
                                                    server_host=ServerHost,
                                                    jid=RoomJID}) ->
@@ -2394,7 +2394,7 @@ now_to_usec({MSec, Sec, USec}) ->
     (MSec*1000000 + Sec)*1000000 + USec.
 
 
--spec change_nick(ejabberd:jid(), binary(), state()) -> state().
+-spec change_nick(jid:jid(), binary(), state()) -> state().
 change_nick(JID, Nick, StateData) ->
     LJID = jid:to_lower(JID),
     {ok, #user{nick = OldNick}} =
@@ -2413,7 +2413,7 @@ change_nick(JID, Nick, StateData) ->
     NewStateData.
 
 
--spec send_nick_changing(ejabberd:jid(), mod_muc:nick(), state()) -> 'ok'.
+-spec send_nick_changing(jid:jid(), mod_muc:nick(), state()) -> 'ok'.
 send_nick_changing(JID, OldNick, StateData) ->
     User = dict:find(jid:to_lower(JID), StateData#state.users),
     {ok, #user{jid = RealJID,
@@ -2457,18 +2457,18 @@ is_nick_change_public(UserInfo, RoomConfig) ->
     orelse
     RoomConfig#config.anonymous == false.
 
--spec status_code(integer()) -> jlib:xmlel().
+-spec status_code(integer()) -> exml:element().
 status_code(Code) ->
     #xmlel{name = <<"status">>,
            attrs = [{<<"code">>, integer_to_binary(Code)}]}.
 
 -spec nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
-    jlib:xmlel() when
-      MaybeJID :: 'undefined' | ejabberd:jid(),
+    exml:element() when
+      MaybeJID :: 'undefined' | jid:jid(),
       Nick :: mod_muc:nick(),
       Affiliation :: mod_muc:affiliation(),
       Role :: mod_muc:role(),
-      MaybeCode :: 'undefined' | jlib:xmlel().
+      MaybeCode :: 'undefined' | exml:element().
 nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
     presence(<<"unavailable">>,
              [muc_user_x([muc_user_item(MaybeJID, Nick, Affiliation, Role),
@@ -2476,20 +2476,20 @@ nick_unavailable_presence(MaybeJID, Nick, Affiliation, Role, MaybeCode) ->
                          ++ [MaybeCode || MaybeCode /= undefined])]).
 
 -spec nick_available_presence(LastPresence, MaybeJID, Affiliation,
-                              Role, MaybeCode) -> jlib:xmlel() when
-      LastPresence :: jlib:xmlel(),
-      MaybeJID :: 'undefined' | ejabberd:jid(),
+                              Role, MaybeCode) -> exml:element() when
+      LastPresence :: exml:element(),
+      MaybeJID :: 'undefined' | jid:jid(),
       Affiliation :: mod_muc:affiliation(),
       Role :: mod_muc:role(),
-      MaybeCode :: 'undefined' | jlib:xmlel().
+      MaybeCode :: 'undefined' | exml:element().
 nick_available_presence(LastPresence, MaybeJID, Affiliation, Role, MaybeCode) ->
     Item = muc_user_item(MaybeJID, undefined, Affiliation, Role),
     xml:append_subtags(LastPresence,
                        [muc_user_x([Item] ++ [MaybeCode
                                               || MaybeCode /= undefined])]).
 
--spec muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) -> jlib:xmlel() when
-      MaybeJID :: 'undefined' | ejabberd:jid(),
+-spec muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) -> exml:element() when
+      MaybeJID :: 'undefined' | jid:jid(),
       MaybeNick :: 'undefined' | mod_muc:nick(),
       Affiliation :: mod_muc:affiliation(),
       Role :: mod_muc:role().
@@ -2501,13 +2501,13 @@ muc_user_item(MaybeJID, MaybeNick, Affiliation, Role) ->
                    [{<<"affiliation">>, affiliation_to_binary(Affiliation)},
                     {<<"role">>, role_to_binary(Role)}]}.
 
--spec muc_user_x([jlib:xmlel()]) -> jlib:xmlel().
+-spec muc_user_x([exml:element()]) -> exml:element().
 muc_user_x(Children) ->
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_MUC_USER}],
            children = Children}.
 
--spec presence(binary(), [jlib:xmlel()]) -> jlib:xmlel().
+-spec presence(binary(), [exml:element()]) -> exml:element().
 %% Add and validate other types if need be.
 presence(<<"unavailable">> = Type, Children) ->
     #xmlel{name = <<"presence">>,
@@ -2551,7 +2551,7 @@ lqueue_to_list(#lqueue{queue = Q1}) ->
     queue:to_list(Q1).
 
 
--spec add_message_to_history(mod_muc:nick(), ejabberd:jid(), jlib:xmlel(),
+-spec add_message_to_history(mod_muc:nick(), jid:jid(), exml:element(),
                             state()) -> state().
 add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     HaveSubject = case xml:get_subtag(Packet, <<"subject">>) of
@@ -2584,7 +2584,7 @@ add_message_to_history(FromNick, FromJID, Packet, StateData) ->
     StateData#state{history = Q1}.
 
 
--spec send_history(ejabberd:jid(), Shift :: non_neg_integer(), state()) -> boolean().
+-spec send_history(jid:jid(), Shift :: non_neg_integer(), state()) -> boolean().
 send_history(JID, Shift, StateData) ->
     lists:foldl(
       fun({Nick, Packet, HaveSubject, _TimeStamp, _Size}, B) ->
@@ -2596,7 +2596,7 @@ send_history(JID, Shift, StateData) ->
       end, false, lists:nthtail(Shift, lqueue_to_list(StateData#state.history))).
 
 
--spec send_subject(ejabberd:jid(), ejabberd:lang(), state()) -> mongoose_acc:t().
+-spec send_subject(jid:jid(), ejabberd:lang(), state()) -> mongoose_acc:t().
 send_subject(JID, _Lang, StateData = #state{subject = <<>>, subject_author = <<>>}) ->
     Packet = #xmlel{name = <<"message">>,
                     attrs = [{<<"type">>, <<"groupchat">>}],
@@ -2619,7 +2619,7 @@ send_subject(JID, _Lang, StateData) ->
         Packet).
 
 
--spec check_subject(jlib:xmlel()) -> 'false' | binary().
+-spec check_subject(exml:element()) -> 'false' | binary().
 check_subject(Packet) ->
     case xml:get_subtag(Packet, <<"subject">>) of
         false ->
@@ -2641,15 +2641,15 @@ can_change_subject(Role, StateData) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Admin stuff
 
--spec process_iq_admin(ejabberd:jid(), get | set, ejabberd:lang(), jlib:xmlel(), state()) ->
-    state() | {error, jlib:xmlel()}.
+-spec process_iq_admin(jid:jid(), get | set, ejabberd:lang(), exml:element(), state()) ->
+    state() | {error, exml:element()}.
 process_iq_admin(From, set, Lang, SubEl, StateData) ->
     #xmlel{children = Items} = SubEl,
     process_admin_items_set(From, Items, Lang, StateData);
 process_iq_admin(From, get, Lang, SubEl, StateData) ->
     case xml:get_subtag(SubEl, <<"item">>) of
         false ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         Item ->
             FAffiliation = get_affiliation(From, StateData),
             FRole = get_role(From, StateData),
@@ -2664,10 +2664,10 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
                     {result, Items, StateData};
                 {_, {role, _}} ->
                     ErrText = <<"Moderator privileges required">>,
-                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)};
                 {_, {affiliation, _}} ->
                     ErrText = <<"Administrator privileges required">>,
-                    {error, ?ERRT_FORBIDDEN(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)};
                 {_, Error} ->
                     Error
             end
@@ -2678,15 +2678,15 @@ process_iq_admin(From, get, Lang, SubEl, StateData) ->
 extract_role_or_affiliation(Item) ->
     case {xml:get_tag_attr(<<"role">>, Item), xml:get_tag_attr(<<"affiliation">>, Item)} of
         {false, false} ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         {false, {value, BAffiliation}} ->
             case catch binary_to_affiliation(BAffiliation) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                 Affiliation -> {affiliation, Affiliation}
             end;
         {{value, BRole}, _} ->
             case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                 Role -> {role, Role}
             end
     end.
@@ -2710,7 +2710,7 @@ iq_admin_allowed(get, affiliation, _, Role, State) ->
     lists:member(Role, Cfg#config.maygetmemberlist).
 
 
--spec items_with_role(mod_muc:role(), state()) -> [jlib:xmlel()].
+-spec items_with_role(mod_muc:role(), state()) -> [exml:element()].
 items_with_role(BRole, StateData) ->
     lists:map(
       fun({_, U}) ->
@@ -2718,7 +2718,7 @@ items_with_role(BRole, StateData) ->
       end, search_role(BRole, StateData)).
 
 
--spec items_with_affiliation(mod_muc:affiliation(), state()) -> [jlib:xmlel()].
+-spec items_with_affiliation(mod_muc:affiliation(), state()) -> [exml:element()].
 items_with_affiliation(BAffiliation, StateData) ->
     lists:map(
       fun({JID, {Affiliation, Reason}}) ->
@@ -2734,7 +2734,7 @@ items_with_affiliation(BAffiliation, StateData) ->
       end, search_affiliation(BAffiliation, StateData)).
 
 
--spec user_to_item(user(), state()) -> jlib:xmlel().
+-spec user_to_item(user(), state()) -> exml:element().
 user_to_item(#user{role = Role,
            nick = Nick,
            jid = JID
@@ -2768,8 +2768,8 @@ search_affiliation(Affiliation, StateData) when is_atom(Affiliation) ->
       end, dict:to_list(StateData#state.affiliations)).
 
 
--spec process_admin_items_set(ejabberd:jid(), [jlib:xmlel(), ...], ejabberd:lang(), state()) ->
-    {'error', jlib:xmlel()} | {'result', [], state()}.
+-spec process_admin_items_set(jid:jid(), [exml:element(), ...], ejabberd:lang(), state()) ->
+    {'error', exml:element()} | {'result', [], state()}.
 process_admin_items_set(UJID, Items, Lang, StateData) ->
     UAffiliation = get_affiliation(UJID, StateData),
     URole = get_role(UJID, StateData),
@@ -2845,11 +2845,11 @@ process_admin_item_set_unsafe({JID, affiliation, A, Reason}, _UJID, SD) ->
     send_update_presence(JID, Reason, SD1),
     SD1.
 
--type res_row() :: {ejabberd:simple_jid() | ejabberd:jid(),
+-type res_row() :: {jid:simple_jid() | jid:jid(),
                     'affiliation' | 'role', any(), any()}.
--type find_changed_items_res() :: {'error', jlib:xmlel()} | {'result', [res_row()]}.
--spec find_changed_items(ejabberd:jid(), mod_muc:affiliation(), mod_muc:role(),
-                         [jlib:xmlel()], ejabberd:lang(), state(), [res_row()]) ->
+-type find_changed_items_res() :: {'error', exml:element()} | {'result', [res_row()]}.
+-spec find_changed_items(jid:jid(), mod_muc:affiliation(), mod_muc:role(),
+                         [exml:element()], ejabberd:lang(), state(), [res_row()]) ->
     find_changed_items_res().
 find_changed_items(_UJID, _UAffiliation, _URole, [], _Lang, _StateData, Res) ->
     {result, Res};
@@ -2866,12 +2866,12 @@ find_changed_items(UJID, UAffiliation, URole,
             Err
     end;
 find_changed_items(_UJID, _UAffiliation, _URole, _Items, _Lang, _StateData, _Res) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 -spec get_affected_jid(Attrs :: [{binary(), binary()}],
                        Lang :: ejabberd:lang(),
                        StateData :: state()) ->
-    {value, jid()} | {error, exml:element()}.
+    {value,jid:jid()} | {error, exml:element()}.
 get_affected_jid(Attrs, Lang, StateData) ->
     case {xml:get_attr(<<"jid">>, Attrs), xml:get_attr(<<"nick">>, Attrs)} of
         {{value, S}, _} ->
@@ -2879,7 +2879,7 @@ get_affected_jid(Attrs, Lang, StateData) ->
                 error ->
                     ErrText = <<(translate:translate(Lang, <<"Jabber ID ">>))/binary,
                                 S/binary, (translate:translate(Lang, <<" is invalid">>))/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 J ->
                     {value, J}
             end;
@@ -2889,15 +2889,15 @@ get_affected_jid(Attrs, Lang, StateData) ->
                     ErrText
                     = <<(translate:translate(Lang, <<"Nickname ">>))/binary, N/binary,
                         (translate:translate(Lang, <<" does not exist in the room">>))/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 [FirstSessionJid | _RestOfSessions] ->
                     {value, FirstSessionJid}
             end;
         _ ->
-            {error, ?ERR_BAD_REQUEST}
+            {error, mongoose_xmpp_errors:bad_request()}
     end.
 
--spec check_changed_item(jid(), mod_muc:affiliation(), mod_muc:role(), jid(), exml:element(),
+-spec check_changed_item(jid:jid(), mod_muc:affiliation(), mod_muc:role(),jid:jid(), exml:element(),
                          [exml:element()], ejabberd:lang(), state(), [res_row()]) ->
     find_changed_items_res().
 check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Item, Items,
@@ -2919,7 +2919,7 @@ check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Ite
                                               Items, Lang, StateData, Res);
                 true -> find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData,
                                            [{JID, role, Role, decode_reason(Item)} | Res]);
-                _ -> {error, ?ERR_NOT_ALLOWED}
+                _ -> {error, mongoose_xmpp_errors:not_allowed()}
             end;
         {affiliation, Affiliation} ->
             ServiceAf = get_service_affiliation(JID, StateData),
@@ -2939,13 +2939,13 @@ check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Ite
                 true -> find_changed_items(UJID, UAffiliation, URole, Items, Lang, StateData,
                                            [{jid:to_bare(JID), affiliation,
                                              Affiliation, decode_reason(Item)} | Res]);
-                cancel -> {error, ?ERR_NOT_ALLOWED};
-                false -> {error, ?ERR_FORBIDDEN}
+                cancel -> {error, mongoose_xmpp_errors:not_allowed()};
+                false -> {error, mongoose_xmpp_errors:forbidden()}
             end;
         Err -> Err
     end.
 
--spec is_owner(UJID :: jid(), StateData :: state()) -> boolean().
+-spec is_owner(UJID ::jid:jid(), StateData :: state()) -> boolean().
 is_owner(UJID, StateData) ->
     case search_affiliation(owner, StateData) of
         [{OJID, _}] -> jid:to_bare(OJID) /= jid:to_lower(jid:to_bare(UJID));
@@ -2957,13 +2957,13 @@ is_owner(UJID, StateData) ->
 which_property_changed(Attrs, Lang) ->
     case {xml:get_attr(<<"role">>, Attrs), xml:get_attr(<<"affiliation">>, Attrs)} of
         {false, false} ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         {false, {value, BAffiliation}} ->
             case catch binary_to_affiliation(BAffiliation) of
                 {'EXIT', _} ->
                     ErrText1 = <<(translate:translate(Lang, <<"Invalid affiliation ">>))/binary,
                                  BAffiliation/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText1)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText1)};
                 Affiliation ->
                     {affiliation, Affiliation}
             end;
@@ -2972,7 +2972,7 @@ which_property_changed(Attrs, Lang) ->
                 {'EXIT', _} ->
                     ErrText1 = <<(translate:translate(Lang, <<"Invalid role ">>))/binary,
                                  BRole/binary>>,
-                    {error, ?ERRT_BAD_REQUEST(Lang, ErrText1)};
+                    {error, mongoose_xmpp_errors:bad_request(Lang, ErrText1)};
                 Role ->
                     {role, Role}
             end
@@ -3143,14 +3143,14 @@ can_change_ra(_FAffiliation, _FRole,
     false.
 
 
--spec send_kickban_presence(ejabberd:jid(), binary(), Code :: binary(),
+-spec send_kickban_presence(jid:jid(), binary(), Code :: binary(),
                             state()) -> any().
 send_kickban_presence(JID, Reason, Code, StateData) ->
     NewAffiliation = get_affiliation(JID, StateData),
     send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData).
 
 
--spec send_kickban_presence(ejabberd:simple_jid() | ejabberd:jid(),
+-spec send_kickban_presence(jid:simple_jid() | jid:jid(),
                             Reason :: binary(), Code :: binary(),
                             mod_muc:affiliation(), state()) -> any().
 send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData) ->
@@ -3161,7 +3161,7 @@ send_kickban_presence(JID, Reason, Code, NewAffiliation, StateData) ->
     end, JID, StateData).
 
 
--spec send_kickban_presence1(ejabberd:jid(), Reason :: binary(), Code :: binary(),
+-spec send_kickban_presence1(jid:jid(), Reason :: binary(), Code :: binary(),
                              mod_muc:affiliation(), state()) -> 'ok'.
 send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
     {ok, #user{jid = RealJID,
@@ -3205,20 +3205,20 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Owner stuff
 
--spec process_iq_owner(ejabberd:jid(), get | set, ejabberd:lang(), jlib:xmlel(), state()) ->
-    {error, jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+-spec process_iq_owner(jid:jid(), get | set, ejabberd:lang(), exml:element(), state()) ->
+    {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 process_iq_owner(From, Type, Lang, SubEl, StateData) ->
     case get_affiliation(From, StateData) of
         owner ->
             process_authorized_iq_owner(From, Type, Lang, SubEl, StateData);
         _ ->
             ErrText = <<"Owner privileges required">>,
-            {error, ?ERRT_FORBIDDEN(Lang, ErrText)}
+            {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)}
     end.
 
--spec process_authorized_iq_owner(ejabberd:jid(), get | set, ejabberd:lang(),
-                                  jlib:xmlel(), state()) ->
-    {error, jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+-spec process_authorized_iq_owner(jid:jid(), get | set, ejabberd:lang(),
+                                  exml:element(), state()) ->
+    {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 process_authorized_iq_owner(From, set, Lang, SubEl, StateData) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
@@ -3233,7 +3233,7 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData) ->
                 {?NS_XDATA, <<"submit">>} ->
                     process_authorized_submit_owner(From, XEl, StateData);
                 _ ->
-                    {error, ?ERR_BAD_REQUEST}
+                    {error, mongoose_xmpp_errors:bad_request()}
             end;
         [#xmlel{name = <<"destroy">>} = SubEl1] ->
             ?INFO_MSG("Destroyed MUC room ~s by the owner ~s",
@@ -3252,15 +3252,15 @@ process_authorized_iq_owner(From, get, Lang, SubEl, StateData) ->
                 {'EXIT', _} ->
                     InvAffT = translate:translate(Lang, <<"Invalid affiliation ">>),
                     ErrText = <<InvAffT/binary, BAffiliation/binary>>,
-                    {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)};
+                    {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
                 Affiliation ->
                     Items = items_with_affiliation(Affiliation, StateData),
                     {result, Items, StateData}
             end
     end.
 
--spec process_authorized_submit_owner(From :: jid(), XEl :: exml:element(), StateData :: state()) ->
-    {error, jlib:xmlel()} | {result, [jlib:xmlel() | jlib:xmlcdata()], state() | stop}.
+-spec process_authorized_submit_owner(From ::jid:jid(), XEl :: exml:element(), StateData :: state()) ->
+    {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
 process_authorized_submit_owner(_From, #xmlel{ children = [] } = _XEl, StateData) ->
     %confrm an instant room
     {result, [], StateData};
@@ -3271,10 +3271,10 @@ process_authorized_submit_owner(From, XEl, StateData) ->
          andalso is_allowed_room_name_desc_limits(XEl, StateData)
          andalso is_password_settings_correct(XEl, StateData) of
         true -> set_config(XEl, StateData);
-        false -> {error, ?ERR_NOT_ACCEPTABLE}
+        false -> {error, mongoose_xmpp_errors:not_acceptable()}
     end.
 
--spec is_allowed_log_change(jlib:xmlel(), state(), ejabberd:jid()) -> boolean().
+-spec is_allowed_log_change(exml:element(), state(), jid:jid()) -> boolean().
 is_allowed_log_change(XEl, StateData, From) ->
     case lists:keymember(<<"muc#roomconfig_enablelogging">>, 1,
              jlib:parse_xdata_submit(XEl)) of
@@ -3286,7 +3286,7 @@ is_allowed_log_change(XEl, StateData, From) ->
     end.
 
 
--spec is_allowed_persistent_change(jlib:xmlel(), state(), ejabberd:jid()) -> boolean().
+-spec is_allowed_persistent_change(exml:element(), state(), jid:jid()) -> boolean().
 is_allowed_persistent_change(XEl, StateData, From) ->
     case lists:keymember(<<"muc#roomconfig_persistentroom">>, 1,
              jlib:parse_xdata_submit(XEl)) of
@@ -3300,7 +3300,7 @@ is_allowed_persistent_change(XEl, StateData, From) ->
 
 %% @doc Check if the Room Name and Room Description defined in the Data Form
 %% are conformant to the configured limits
--spec is_allowed_room_name_desc_limits(jlib:xmlel(), state()) -> boolean().
+-spec is_allowed_room_name_desc_limits(exml:element(), state()) -> boolean().
 is_allowed_room_name_desc_limits(XEl, StateData) ->
     IsNameAccepted =
     case lists:keysearch(<<"muc#roomconfig_roomname">>, 1,
@@ -3326,7 +3326,7 @@ is_allowed_room_name_desc_limits(XEl, StateData) ->
 
 %% @doc Return false if:
 %% <<"the password for a password-protected room is blank">>
--spec is_password_settings_correct(jlib:xmlel(), state()) -> boolean().
+-spec is_password_settings_correct(exml:element(), state()) -> boolean().
 is_password_settings_correct(XEl, StateData) ->
     Config = StateData#state.config,
     OldProtected = Config#config.password_protected,
@@ -3371,8 +3371,8 @@ get_default_room_maxusers(RoomState) ->
     (RoomState2#state.config)#config.max_users.
 
 
--spec get_config(ejabberd:lang(), state(), ejabberd:jid())
-            -> {'result', [jlib:xmlel(), ...], state()}.
+-spec get_config(ejabberd:lang(), state(), jid:jid())
+            -> {'result', [exml:element(), ...], state()}.
 get_config(Lang, StateData, From) ->
     AccessPersistent = access_persistent(StateData),
     Config = StateData#state.config,
@@ -3561,12 +3561,12 @@ whois_field(Lang, Config) ->
                        OptModerators,
                        OptAnyone]}.
 
--spec set_config(jlib:xmlel(), state()) -> any().
+-spec set_config(exml:element(), state()) -> any().
 set_config(XEl, StateData) ->
     XData = jlib:parse_xdata_submit(XEl),
     case XData of
         invalid ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             case set_xoption(XData, StateData#state.config) of
                 #config{} = Config ->
@@ -3613,7 +3613,7 @@ notify_config_change_and_get_type(_, _, _, _, _StateData) ->
         <<"false">> -> set_xoption(Opts, Config#config{Opt = false});
         <<"1">> -> set_xoption(Opts, Config#config{Opt = true});
         <<"true">> -> set_xoption(Opts, Config#config{Opt = true});
-        _ -> {error, ?ERR_BAD_REQUEST}
+        _ -> {error, mongoose_xmpp_errors:bad_request()}
     end).
 
 -define(SET_NAT_XOPT(Opt, Val),
@@ -3622,13 +3622,13 @@ notify_config_change_and_get_type(_, _, _, _, _StateData) ->
                I > 0 ->
         set_xoption(Opts, Config#config{Opt = I});
         _ ->
-        {error, ?ERR_BAD_REQUEST}
+        {error, mongoose_xmpp_errors:bad_request()}
     end).
 
 -define(SET_XOPT(Opt, Val),
     set_xoption(Opts, Config#config{Opt = Val})).
 
--spec set_xoption([{binary(), [binary()]}], config()) -> config() | {error, jlib:xmlel()}.
+-spec set_xoption([{binary(), [binary()]}], config()) -> config() | {error, exml:element()}.
 set_xoption([], Config) ->
     Config;
 set_xoption([{<<"muc#roomconfig_roomname">>, [Val]} | Opts], Config) ->
@@ -3674,7 +3674,7 @@ set_xoption([{<<"muc#roomconfig_whois">>, [Val]} | Opts], Config) ->
     <<"anyone">> ->
         ?SET_XOPT(anonymous, false);
     _ ->
-        {error, ?ERR_BAD_REQUEST}
+        {error, mongoose_xmpp_errors:bad_request()}
     end;
 set_xoption([{<<"muc#roomconfig_maxusers">>, [Val]} | Opts], Config) ->
     case Val of
@@ -3696,7 +3696,7 @@ set_xoption([{<<"FORM_TYPE">>, _} | Opts], Config) ->
     %% Ignore our FORM_TYPE
     set_xoption(Opts, Config);
 set_xoption([_ | _Opts], _Config) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 
 -spec change_config(config(), state()) -> {'result', [], state()}.
@@ -3830,7 +3830,7 @@ make_opts(StateData) ->
     ].
 
 
--spec destroy_room(jlib:xmlel(), state()) -> {result, [], stop}.
+-spec destroy_room(exml:element(), state()) -> {result, [], stop}.
 destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
@@ -3851,13 +3851,13 @@ destroy_room(DestroyEl, StateData) ->
 %% location and the reason for the room destruction was provided by the
 %% room owner, the presence stanza MUST include that information.
 %% @end
--spec remove_each_occupant_from_room(jlib:xmlel(), state()) -> any().
+-spec remove_each_occupant_from_room(exml:element(), state()) -> any().
 remove_each_occupant_from_room(DestroyEl, StateData) ->
     Packet = presence_stanza_of_type_unavailable(DestroyEl),
     send_to_occupants(Packet, StateData).
 
 
--spec send_to_occupants(jlib:xmlel(), state()) -> any().
+-spec send_to_occupants(exml:element(), state()) -> any().
 send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
     F = fun(User=#user{jid=UserJID}) ->
         ejabberd_router:route(occupant_jid(User, RoomJID), UserJID, Packet)
@@ -3865,7 +3865,7 @@ send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
     foreach_user(F, StateData).
 
 
--spec presence_stanza_of_type_unavailable(jlib:xmlel()) -> jlib:xmlel().
+-spec presence_stanza_of_type_unavailable(exml:element()) -> exml:element().
 presence_stanza_of_type_unavailable(DestroyEl) ->
     ItemEl = #xmlel{
         name = <<"item">>,
@@ -3883,14 +3883,14 @@ presence_stanza_of_type_unavailable(DestroyEl) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Disco
 
--spec feature(binary()) -> jlib:xmlel().
+-spec feature(binary()) -> exml:element().
 feature(Var) ->
     #xmlel{name = <<"feature">>,
            attrs = [{<<"var">>, Var}]}.
 
 
 -spec config_opt_to_feature(boolean(), Fiftrue :: binary(), Fiffalse :: binary())
-                            -> jlib:xmlel().
+                            -> exml:element().
 config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
     case Opt of
         true -> feature(Fiftrue);
@@ -3898,11 +3898,11 @@ config_opt_to_feature(Opt, Fiftrue, Fiffalse) ->
     end.
 
 
--spec process_iq_disco_info(ejabberd:jid(), 'get' | 'set', ejabberd:lang(),
-                            state()) -> {'error', jlib:xmlel()}
-                                      | {'result', [jlib:xmlel(), ...], state()}.
+-spec process_iq_disco_info(jid:jid(), 'get' | 'set', ejabberd:lang(),
+                            state()) -> {'error', exml:element()}
+                                      | {'result', [exml:element(), ...], state()}.
 process_iq_disco_info(_From, set, _Lang, _StateData) ->
-    {error, ?ERR_NOT_ALLOWED};
+    {error, mongoose_xmpp_errors:not_allowed()};
 process_iq_disco_info(_From, get, Lang, StateData) ->
     Config = StateData#state.config,
     {result, [#xmlel{name = <<"identity">>,
@@ -3925,7 +3925,7 @@ process_iq_disco_info(_From, get, Lang, StateData) ->
              ] ++ iq_disco_info_extras(Lang, StateData), StateData}.
 
 
--spec rfieldt(binary(), binary(), binary()) -> jlib:xmlel().
+-spec rfieldt(binary(), binary(), binary()) -> exml:element().
 rfieldt(Type, Var, Val) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type}, {<<"var">>, Var}],
@@ -3933,7 +3933,7 @@ rfieldt(Type, Var, Val) ->
                               children = [#xmlcdata{content = Val}]}]}.
 
 
--spec rfield(binary(), binary(), binary() | iolist(), ejabberd:lang()) -> jlib:xmlel().
+-spec rfield(binary(), binary(), binary() | iolist(), ejabberd:lang()) -> exml:element().
 rfield(Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"label">>, translate:translate(Lang, Label)},
@@ -3942,7 +3942,7 @@ rfield(Label, Var, Val, Lang) ->
                               children = [#xmlcdata{content = Val}]}]}.
 
 
--spec iq_disco_info_extras(ejabberd:lang(), state()) -> [jlib:xmlel(), ...].
+-spec iq_disco_info_extras(ejabberd:lang(), state()) -> [exml:element(), ...].
 iq_disco_info_extras(Lang, StateData) ->
     Len = length(dict:to_list(StateData#state.users)),
     RoomDescription = (StateData#state.config)#config.description,
@@ -3957,11 +3957,11 @@ iq_disco_info_extras(Lang, StateData) ->
                        ]}].
 
 
--spec process_iq_disco_items(ejabberd:jid(), 'get' | 'set', ejabberd:lang(),
-                            state()) -> {'error', jlib:xmlel()}
-                                      | {'result', [jlib:xmlel()], state()}.
+-spec process_iq_disco_items(jid:jid(), 'get' | 'set', ejabberd:lang(),
+                            state()) -> {'error', exml:element()}
+                                      | {'result', [exml:element()], state()}.
 process_iq_disco_items(_From, set, _Lang, _StateData) ->
-    {error, ?ERR_NOT_ALLOWED};
+    {error, mongoose_xmpp_errors:not_allowed()};
 process_iq_disco_items(From, get, _Lang, StateData) ->
     case (StateData#state.config)#config.public_list of
     true ->
@@ -3971,7 +3971,7 @@ process_iq_disco_items(From, get, _Lang, StateData) ->
         true ->
             {result, get_mucroom_disco_items(StateData), StateData};
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
         end
     end.
 
@@ -3986,7 +3986,7 @@ get_title(StateData) ->
     end.
 
 
--spec get_roomdesc_reply(ejabberd:jid(), state(), Tail :: binary()
+-spec get_roomdesc_reply(jid:jid(), state(), Tail :: binary()
                         ) -> 'false' | {'item', _}.
 get_roomdesc_reply(JID, StateData, Tail) ->
     IsOccupantOrAdmin = is_occupant_or_admin(JID, StateData),
@@ -4015,13 +4015,13 @@ get_roomdesc_tail(StateData, Lang) ->
     <<" (", Desc/binary, CountBin/binary, ")">>.
 
 
--spec get_mucroom_disco_items(state()) -> [jlib:xmlel()].
+-spec get_mucroom_disco_items(state()) -> [exml:element()].
 get_mucroom_disco_items(StateData=#state{jid=RoomJID}) ->
     [disco_item(User, RoomJID)
      || {_LJID, User} <- dict:to_list(StateData#state.users)].
 
 
--spec disco_item(user(), 'undefined' | ejabberd:jid()) -> jlib:xmlel().
+-spec disco_item(user(), 'undefined' | jid:jid()) -> exml:element().
 disco_item(User=#user{nick=Nick}, RoomJID) ->
     #xmlel{
         name = <<"item">>,
@@ -4030,7 +4030,7 @@ disco_item(User=#user{nick=Nick}, RoomJID) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle voice request or approval (XEP-0045 7.13, 8.6)
--spec check_voice_approval(From :: ejabberd:jid(), Els :: [jlib:xmlel()],
+-spec check_voice_approval(From :: jid:jid(), Els :: [exml:element()],
         Lang :: ejabberd:lang(), StateData :: state()
         ) -> {form, BRole :: binary()}
            | {role, BRole :: binary(), RoomNick :: mod_muc:nick()}
@@ -4042,22 +4042,22 @@ check_voice_approval(From, [#xmlel{name = <<"x">>,
     case Items of
         [_Form, _Role] ->
             case catch binary_to_role(BRole) of
-                {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                 _ -> {form, BRole}
             end;
         _ ->
             case {get_role(From, StateData),
                   get_field(<<"muc#request_allow">>, Items),
                   get_field(<<"muc#roomnick">>, Items)} of
-                {moderator, <<"true">>, false} -> {error, ?ERR_BAD_REQUEST};
+                {moderator, <<"true">>, false} -> {error, mongoose_xmpp_errors:bad_request()};
                 {moderator, <<"true">>, RoomNick} -> {role, BRole, RoomNick};
                 {moderator, _, _} -> ok;
-                _ -> {error, ?ERR_NOT_ALLOWED}
+                _ -> {error, mongoose_xmpp_errors:not_allowed()}
             end
     end.
 
 
--spec get_field(binary(), [jlib:xmlcdata() | jlib:xmlel()]) -> any().
+-spec get_field(binary(), [jlib:xmlcdata() | exml:element()]) -> any().
 get_field(Var, [#xmlel{name = <<"field">>, attrs = Attrs} = Item|Items])
     when is_binary(Var) ->
     case xml:get_attr(<<"var">>, Attrs) of
@@ -4075,9 +4075,9 @@ get_field(_Var, []) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Invitation support
 
--spec check_invitation(ejabberd:simple_jid() | ejabberd:jid(),
-        [jlib:xmlcdata() | jlib:xmlel()], ejabberd:lang(), state())
-            -> {'error', _} | {'ok', ejabberd:jid()}.
+-spec check_invitation(jid:simple_jid() | jid:jid(),
+        [jlib:xmlcdata() | exml:element()], ejabberd:lang(), state())
+            -> {'error', _} | {'ok', jid:jid()}.
 check_invitation(FromJID, Els, Lang, StateData) ->
     try
         unsafe_check_invitation(FromJID, Els, Lang, StateData)
@@ -4085,8 +4085,8 @@ check_invitation(FromJID, Els, Lang, StateData) ->
     end.
 
 
--spec unsafe_check_invitation(ejabberd:jid(), [jlib:xmlcdata() | jlib:xmlel()],
-                              ejabberd:lang(), state()) -> {ok, [ejabberd:jid()]}.
+-spec unsafe_check_invitation(jid:jid(), [jlib:xmlcdata() | exml:element()],
+                              ejabberd:lang(), state()) -> {ok, [jid:jid()]}.
 unsafe_check_invitation(FromJID, Els, Lang,
                         StateData=#state{host=Host, server_host=ServerHost, jid=RoomJID}) ->
     FAffiliation = get_affiliation(FromJID, StateData),
@@ -4095,7 +4095,7 @@ unsafe_check_invitation(FromJID, Els, Lang,
                 orelse (FAffiliation == owner),
     case CanInvite of
         false ->
-            throw({error, ?ERR_FORBIDDEN});
+            throw({error, mongoose_xmpp_errors:forbidden()});
         true ->
             InviteEls = find_invite_elems(Els),
             %% Decode all JIDs first, so we fail early if any JID is invalid.
@@ -4110,9 +4110,9 @@ unsafe_check_invitation(FromJID, Els, Lang,
             {ok, JIDs}
     end.
 
--spec create_invite(FromJID :: jid(), InviteEl :: exml:element(),
+-spec create_invite(FromJID ::jid:jid(), InviteEl :: exml:element(),
                     Lang :: ejabberd:lang(), StateData :: state()) ->
-    {JID :: jid(), Reason :: binary(), Msg :: exml:element()}.
+    {JID ::jid:jid(), Reason :: binary(), Msg :: exml:element()}.
 create_invite(FromJID, InviteEl, Lang, StateData) ->
     JID = decode_destination_jid(InviteEl),
     %% Create an invitation message and send it to the user.
@@ -4135,15 +4135,15 @@ create_invite(FromJID, InviteEl, Lang, StateData) ->
             OutInviteEl, BodyEl, PasswdEl, Reason),
     {JID, Reason, Msg}.
 
--spec decode_destination_jid(jlib:xmlel()) -> ejabberd:jid().
+-spec decode_destination_jid(exml:element()) -> jid:jid().
 decode_destination_jid(InviteEl) ->
     case jid:from_binary(xml:get_tag_attr_s(<<"to">>, InviteEl)) of
-      error -> throw({error, ?ERR_JID_MALFORMED});
+      error -> throw({error, mongoose_xmpp_errors:jid_malformed()});
       JID   -> JID
     end.
 
 
--spec find_invite_elems([jlib:xmlcdata() | jlib:xmlel()]) -> [jlib:xmlel()].
+-spec find_invite_elems([jlib:xmlcdata() | exml:element()]) -> [exml:element()].
 find_invite_elems(Els) ->
     case xml:remove_cdata(Els) of
     [#xmlel{name = <<"x">>, children = Els1} = XEl] ->
@@ -4151,7 +4151,7 @@ find_invite_elems(Els) ->
         ?NS_MUC_USER ->
             ok;
         _ ->
-            throw({error, ?ERR_BAD_REQUEST})
+            throw({error, mongoose_xmpp_errors:bad_request()})
         end,
 
         InviteEls =
@@ -4160,14 +4160,14 @@ find_invite_elems(Els) ->
             [_|_] ->
                 InviteEls;
             _ ->
-                throw({error, ?ERR_BAD_REQUEST})
+                throw({error, mongoose_xmpp_errors:bad_request()})
         end;
     _ ->
-        throw({error, ?ERR_BAD_REQUEST})
+        throw({error, mongoose_xmpp_errors:bad_request()})
     end.
 
 
--spec create_password_elem(state()) -> [jlib:xmlel()].
+-spec create_password_elem(state()) -> [exml:element()].
 create_password_elem(#state{config=#config{password_protected=IsProtected,
                                            password=Password}}) ->
     case IsProtected of
@@ -4180,8 +4180,8 @@ create_password_elem(#state{config=#config{password_protected=IsProtected,
     end.
 
 
--spec invite_body_elem(ejabberd:jid(), binary(), ejabberd:lang(), state()
-                      ) -> jlib:xmlel().
+-spec invite_body_elem(jid:jid(), binary(), ejabberd:lang(), state()
+                      ) -> exml:element().
 invite_body_elem(FromJID, Reason, Lang, StateData) ->
     Text = invite_body_text(FromJID, Reason, Lang, StateData),
     #xmlel{
@@ -4189,7 +4189,7 @@ invite_body_elem(FromJID, Reason, Lang, StateData) ->
         children = [#xmlcdata{content = Text}]}.
 
 
--spec invite_body_text(ejabberd:jid(), binary(), ejabberd:lang(), state()) -> binary().
+-spec invite_body_text(jid:jid(), binary(), ejabberd:lang(), state()) -> binary().
 invite_body_text(FromJID, Reason, Lang,
         #state{
             jid=RoomJID,
@@ -4214,9 +4214,9 @@ invite_body_text(FromJID, Reason, Lang,
     <<IMessage/binary, BPassword/binary, BReason/binary>>.
 
 
--spec create_invite_message_elem(Inv :: jlib:xmlel(), Body :: jlib:xmlel(),
-        Passwd :: [jlib:xmlel()], Reason :: binary()
-        ) -> jlib:xmlel().
+-spec create_invite_message_elem(Inv :: exml:element(), Body :: exml:element(),
+        Passwd :: [exml:element()], Reason :: binary()
+        ) -> exml:element().
 create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
     when is_list(PasswdEl), is_binary(Reason) ->
     UserXEl = #xmlel{
@@ -4232,8 +4232,8 @@ create_invite_message_elem(InviteEl, BodyEl, PasswdEl, Reason)
 %% @doc Handle a message sent to the room by a non-participant.
 %% If it is a decline, send to the inviter.
 %% Otherwise, an error message is sent to the sender.
--spec handle_roommessage_from_nonparticipant(jlib:xmlel(), ejabberd:lang(),
-                    state(), ejabberd:simple_jid() | ejabberd:jid()) -> mongoose_acc:t().
+-spec handle_roommessage_from_nonparticipant(exml:element(), ejabberd:lang(),
+                    state(), jid:simple_jid() | jid:jid()) -> mongoose_acc:t().
 handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
     case catch check_decline_invitation(Packet) of
         {true, DeclineData} ->
@@ -4246,8 +4246,8 @@ handle_roommessage_from_nonparticipant(Packet, Lang, StateData, From) ->
 %% @doc Check in the packet is a decline. If so, also returns the splitted
 %% packet. This function must be catched, because it crashes when the packet
 %% is not a decline message.
--spec check_decline_invitation(jlib:xmlel()) ->
-    {'true', {jlib:xmlel(), jlib:xmlel(), jlib:xmlel(), 'error' | ejabberd:jid()}}.
+-spec check_decline_invitation(exml:element()) ->
+    {'true', {exml:element(), exml:element(), exml:element(), 'error' | jid:jid()}}.
 check_decline_invitation(Packet) ->
     #xmlel{name = <<"message">>} = Packet,
     XEl = xml:get_subtag(Packet, <<"x">>),
@@ -4260,8 +4260,8 @@ check_decline_invitation(Packet) ->
 
 %% @doc Send the decline to the inviter user.
 %% The original stanza must be slightly modified.
--spec send_decline_invitation({jlib:xmlel(), jlib:xmlel(), jlib:xmlel(), ejabberd:jid()},
-        ejabberd:jid(), ejabberd:simple_jid() | ejabberd:jid()) -> mongoose_acc:t().
+-spec send_decline_invitation({exml:element(), exml:element(), exml:element(), jid:jid()},
+        jid:jid(), jid:simple_jid() | jid:jid()) -> mongoose_acc:t().
 send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
     FromString = jid:to_binary(FromJID),
     #xmlel{name = <<"decline">>, attrs = DAttrs, children = DEls} = DEl,
@@ -4274,20 +4274,20 @@ send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
 
 %% @doc Given an element and a new subelement,
 %% replace the instance of the subelement in element with the new subelement.
--spec replace_subelement(jlib:xmlel(), jlib:xmlel()) -> jlib:xmlel().
+-spec replace_subelement(exml:element(), exml:element()) -> exml:element().
 replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
     {_, NameNewSubEl, _, _} = NewSubEl,
     SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
     XE#xmlel{children = SubEls2}.
 
--spec send_error_only_occupants(binary(), jlib:xmlel(),
+-spec send_error_only_occupants(binary(), exml:element(),
                                 binary() | nonempty_string(),
-                                ejabberd:jid(), ejabberd:jid()) -> mongoose_acc:t().
+                                jid:jid(), jid:jid()) -> mongoose_acc:t().
 send_error_only_occupants(What, Packet, Lang, RoomJID, From)
   when is_binary(What) ->
     ErrText = <<"Only occupants are allowed to send ",
                 What/bytes, " to the conference">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     ejabberd_router:route(RoomJID, From, Err).
 
 
@@ -4314,7 +4314,7 @@ add_to_log(Type, Data, StateData) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Users number checking
 
--spec tab_add_online_user(ejabberd:jid(), state()) -> any().
+-spec tab_add_online_user(jid:jid(), state()) -> any().
 tab_add_online_user(JID, StateData) ->
     {LUser, LServer, _} = jid:to_lower(JID),
     US = {LUser, LServer},
@@ -4325,7 +4325,7 @@ tab_add_online_user(JID, StateData) ->
         #muc_online_users{us = US, room = Room, host = Host}).
 
 
--spec tab_remove_online_user(ejabberd:simple_jid() | ejabberd:jid(), state()) -> any().
+-spec tab_remove_online_user(jid:simple_jid() | jid:jid(), state()) -> any().
 tab_remove_online_user(JID, StateData) ->
     {LUser, LServer, _} = jid:to_lower(JID),
     US = {LUser, LServer},
@@ -4336,7 +4336,7 @@ tab_remove_online_user(JID, StateData) ->
         #muc_online_users{us = US, room = Room, host = Host}).
 
 
--spec tab_count_user(ejabberd:jid()) -> non_neg_integer().
+-spec tab_count_user(jid:jid()) -> non_neg_integer().
 tab_count_user(JID) ->
     {LUser, LServer, _} = jid:to_lower(JID),
     US = {LUser, LServer},
@@ -4369,7 +4369,7 @@ route_message(#routed_message{allowed = true, type = <<"groupchat">>,
           MessageShaperInterval} of
         {true, _, _} ->
             ErrText = <<"Traffic rate limit is exceeded">>,
-            Err = jlib:make_error_reply(Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
             ejabberd_router:route(StateData#state.jid, From, Err),
             StateData;
         {false, true, 0} ->
@@ -4419,7 +4419,7 @@ route_message(#routed_message{allowed = true, type = <<"chat">>, from = From, pa
     lang = Lang}, StateData) ->
     ErrText = <<"It is not allowed to send private messages to the conference">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     ejabberd_router:route(
         StateData#state.jid,
         From, Err),
@@ -4441,7 +4441,7 @@ route_message(#routed_message{allowed = true, type = Type, from = From,
 route_message(#routed_message{allowed = true, from = From, packet = Packet,
                               lang = Lang}, StateData) ->
     ErrText = <<"Improper message type">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)),
     ejabberd_router:route(StateData#state.jid,
                           From, Err),
     StateData;
@@ -4463,7 +4463,7 @@ schedule_queue_processing_when_empty(_RoomQueueEmpty, _RoomShaper,
                                      _RoomShaperInterval, StateData) ->
     StateData.
 
--spec route_error(mod_muc:nick(), ejabberd:jid(), jlib:xmlel(), state()) -> state().
+-spec route_error(mod_muc:nick(), jid:jid(), exml:element(), state()) -> state().
 route_error(Nick, From, Error, StateData) ->
     %% TODO: s/Nick/<<>>/
     ejabberd_router:route(jid:replace_resource(StateData#state.jid, Nick),
@@ -4471,8 +4471,8 @@ route_error(Nick, From, Error, StateData) ->
     StateData.
 
 
--spec route_voice_approval('ok' | {'error', jlib:xmlel()} | {'form', binary()}
-        | {'role', binary(), binary()}, ejabberd:jid(), jlib:xmlel(),
+-spec route_voice_approval('ok' | {'error', exml:element()} | {'form', binary()}
+        | {'role', binary(), binary()}, jid:jid(), exml:element(),
         ejabberd:lang(), state()) -> state().
 route_voice_approval({error, ErrType}, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
@@ -4500,16 +4500,16 @@ route_voice_approval({role, BRole, Nick}, From, Packet, Lang, StateData) ->
     end;
 route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
     ejabberd_router:route(StateData#state.jid, From,
-                          jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST)),
+                          jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request())),
     StateData.
 
 
 -spec route_invitation(InvitationsOrError,
                        From, Packet, Lang, state()) -> state() when
-      InvitationsOrError :: {'error', jlib:xmlcdata() | jlib:xmlel()}
-                          | {'ok', ejabberd:jid()},
-      From :: ejabberd:simple_jid() | ejabberd:jid(),
-      Packet :: jlib:xmlel(),
+      InvitationsOrError :: {'error', jlib:xmlcdata() | exml:element()}
+                          | {'ok', jid:jid()},
+      From :: jid:simple_jid() | jid:jid(),
+      Packet :: exml:element(),
       Lang :: ejabberd:lang().
 route_invitation({error, Error}, From, Packet, _Lang, StateData) ->
     Err = jlib:make_error_reply(Packet, Error),
@@ -4561,7 +4561,7 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
     case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
         ignore -> ok;
         error ->
-            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(RoomJID, From, Acc, Err)
     end,
     {ok, StateData};
@@ -4569,12 +4569,12 @@ route_iq(_Acc, #routed_iq{iq = reply}, StateData) ->
     {ok, StateData};
 route_iq(Acc, #routed_iq{packet = Packet, from = From}, StateData) ->
     Err = jlib:make_error_reply(
-        Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+        Packet, mongoose_xmpp_errors:feature_not_implemented()),
     ejabberd_router:route(StateData#state.jid, From, Acc, Err),
     {ok, StateData}.
 
 
--spec do_route_iq(mongoose_acc:t(), {result, [jlib:xmlel()], state()} | {error, jlib:xmlel()},
+-spec do_route_iq(mongoose_acc:t(), {result, [exml:element()], state()} | {error, exml:element()},
                   routed_iq(), state()) -> {ok | stop, state()}.
 do_route_iq(Acc, Res1, #routed_iq{iq = #iq{xmlns = XMLNS, sub_el = SubEl} = IQ,
     from = From}, StateData) ->
@@ -4615,7 +4615,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     lang = Lang, nick = ToNick}, StateData) ->
     ErrText = <<"It is not allowed to send private messages of type groupchat">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_BAD_REQUEST(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:bad_request(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(
        StateData#state.jid,
@@ -4627,7 +4627,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     lang = Lang, nick = ToNick, jid = false}, StateData) ->
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(
        StateData#state.jid,
@@ -4654,7 +4654,7 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = f
     lang = Lang, nick = ToNick}, StateData) ->
     ErrText = <<"It is not allowed to send private messages">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_FORBIDDEN(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:forbidden(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(StateData#state.jid, ToNick), From, Err),
     StateData.
@@ -4668,7 +4668,7 @@ route_nick_iq(#routed_nick_iq{allow_query = true, online = {true, _, _}, jid = f
     packet = Packet, lang = Lang, from = From, nick = ToNick}, StateData) ->
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
-        Packet, ?ERRT_ITEM_NOT_FOUND(Lang, ErrText)),
+        Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(
         jid:replace_resource(
        StateData#state.jid, ToNick),
@@ -4693,17 +4693,17 @@ route_nick_iq(#routed_nick_iq{packet = Packet, lang = Lang, nick = ToNick,
                               from = From}, StateData) ->
     ErrText = <<"Queries to the conference members are "
                 "not allowed in this room">>,
-    Err = jlib:make_error_reply(Packet, ?ERRT_NOT_ALLOWED(Lang, ErrText)),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
     RouteFrom = jid:replace_resource(StateData#state.jid, ToNick),
     ejabberd_router:route(RouteFrom, From, Err).
 
 
--spec decode_reason(jlib:xmlel()) -> binary().
+-spec decode_reason(exml:element()) -> binary().
 decode_reason(Elem) ->
     xml:get_path_s(Elem, [{elem, <<"reason">>}, cdata]).
 
 
--spec xfield(binary(), any(), binary(), binary(), ejabberd:lang()) -> jlib:xmlel().
+-spec xfield(binary(), any(), binary(), binary(), ejabberd:lang()) -> exml:element().
 xfield(Type, Label, Var, Val, Lang) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"type">>, Type},
@@ -4713,7 +4713,7 @@ xfield(Type, Label, Var, Val, Lang) ->
                               children = [#xmlcdata{content = Val}]}]}.
 
 
--spec boolxfield(any(), binary(), any(), ejabberd:lang()) -> jlib:xmlel().
+-spec boolxfield(any(), binary(), any(), ejabberd:lang()) -> exml:element().
 boolxfield(Label, Var, Val, Lang) ->
     xfield(<<"boolean">>, Label, Var,
         case Val of

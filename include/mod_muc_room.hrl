@@ -53,7 +53,7 @@
     %% Full JID
     %% The `user@host/resource' by which an online user is identified
     %% outside the context of a room.
-    jid     :: ejabberd:jid(),
+    jid     :: jid:jid(),
     nick    :: mod_muc:nick(),
     role    :: mod_muc:role(),
     last_presence
@@ -70,10 +70,10 @@
                   }).
 
 -record(state, {room                :: mod_muc:room(),
-                host                :: ejabberd:server(),
-                server_host         :: ejabberd:server(),
+                host                :: jid:server(),
+                server_host         :: jid:server(),
                 access              :: mod_muc:access(),
-                jid                 :: ejabberd:jid(),
+                jid                 :: jid:jid(),
                 config = #config{}  :: mod_muc_room:config(),
                 users = dict:new(),
                 sessions = dict:new(),
@@ -98,8 +98,8 @@
          }).
 
 -type muc_online_users() :: #muc_online_users{
-        us :: ejabberd:simple_bare_jid(),
+        us :: jid:simple_bare_jid(),
         room :: mod_muc:room(),
-        host :: ejabberd:server()
+        host :: jid:server()
        }.
 

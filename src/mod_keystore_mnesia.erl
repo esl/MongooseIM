@@ -7,7 +7,7 @@
 -include("mod_keystore.hrl").
 
 -spec init(Domain, Opts) -> ok when
-      Domain :: ejabberd:server(),
+      Domain :: jid:server(),
       Opts :: [any()].
 init(_Domain, _Opts) ->
     mnesia:create_table(key,

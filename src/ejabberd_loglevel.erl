@@ -32,7 +32,7 @@
          set_custom/2,
          clear_custom/0, clear_custom/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export_type([loglevel/0]).
 -type loglevel() :: none | critical | error | warning | info | debug.

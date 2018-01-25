@@ -32,7 +32,7 @@
          produce_response/4,
          produce_response/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("adhoc.hrl").
 
@@ -43,7 +43,7 @@
 
 %% @doc Parse an ad-hoc request.  Return either an adhoc_request record or
 %% an {error, ErrorType} tuple.
--spec parse_request(ejabberd:iq()) -> request() | {error, jlib:xmlel()}.
+-spec parse_request(jlib:iq()) -> request() | {error, exml:element()}.
 parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}) ->
     ?DEBUG("entering parse_request...", []),
     Node = xml:get_tag_attr_s(<<"node">>, SubEl),
@@ -65,10 +65,10 @@ parse_request(#iq{type = set, lang = Lang, sub_el = SubEl, xmlns = ?NS_COMMANDS}
                    xdata = XData,
                    others = Others};
 parse_request(_) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 %% @doc Borrowed from mod_vcard.erl
--spec find_xdata_el(jlib:xmlel()) -> false | jlib:xmlel().
+-spec find_xdata_el(exml:element()) -> false | exml:element().
 find_xdata_el(#xmlel{children = SubEls}) ->
     find_xdata_el1(SubEls).
 
@@ -103,7 +103,7 @@ produce_response(#adhoc_request{lang = Lang,
 %% record, filling in values for language, node and session id from
 %% the request.
 -spec produce_response(request(), Status :: atom(), DefaultAction :: binary(),
-                       Elements :: [jlib:xmlel()]) -> jlib:xmlel().
+                       Elements :: [exml:element()]) -> exml:element().
 produce_response(Request, Status, DefaultAction, Elements) ->
     #adhoc_request{lang = Lang, node = Node, session_id = SessionID} = Request,
     produce_response(#adhoc_response{lang = Lang, node = Node, session_id = SessionID,
@@ -113,7 +113,7 @@ produce_response(Request, Status, DefaultAction, Elements) ->
 
 %% @doc Produce a <command/> node to use as response from an adhoc_response
 %% record.
--spec produce_response(response()) -> jlib:xmlel().
+-spec produce_response(response()) -> exml:element().
 produce_response(#adhoc_response{lang = _Lang,
                                  node = Node,
                                  session_id = ProvidedSessionID,

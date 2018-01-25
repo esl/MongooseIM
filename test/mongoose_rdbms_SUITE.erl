@@ -1,7 +1,7 @@
 -module(mongoose_rdbms_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -compile([export_all]).
 

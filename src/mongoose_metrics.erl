@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(mongoose_metrics).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mongoose_metrics_definitions.hrl").
 
 %% API
@@ -67,7 +67,7 @@ create_global_metrics() ->
                   ?GLOBAL_COUNTERS),
     create_data_metrics().
 
--spec init_predefined_host_metrics(ejabberd:lserver()) -> ok.
+-spec init_predefined_host_metrics(jid:lserver()) -> ok.
 init_predefined_host_metrics(Host) ->
     create_metrics(Host),
     metrics_hooks(add, Host),
@@ -81,7 +81,7 @@ init_subscriptions() ->
                 subscribe_to_all(Name, Interval)
         end, Reporters).
 
--spec create_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {ok, already_present}.
+-spec create_generic_hook_metric(jid:lserver(), atom()) -> ok | {ok, already_present}.
 create_generic_hook_metric(Host, Hook) ->
     FilteredHookName = filter_hook(Hook),
     do_create_generic_hook_metric(Host, FilteredHookName).
@@ -92,14 +92,14 @@ ensure_db_pool_metric(Pool) ->
                   {function, mongoose_metrics, get_odbc_data_stats, [[Pool]], proplist,
                    [workers | ?INET_STATS]}).
 
--spec update(Host :: ejabberd:lserver() | global, Name :: term() | list(),
+-spec update(Host :: jid:lserver() | global, Name :: term() | list(),
              Change :: term()) -> any().
 update(Host, Name, Change) when is_list(Name) ->
     exometer:update(name_by_all_metrics_are_global(Host, Name), Change);
 update(Host, Name, Change) ->
     update(Host, [Name], Change).
 
--spec ensure_metric(ejabberd:lserver() | global, atom() | list(), term()) -> ok | {error, term()}.
+-spec ensure_metric(jid:lserver() | global, atom() | list(), term()) -> ok | {error, term()}.
 ensure_metric(Host, Metric, Type) when is_tuple(Type) ->
     ensure_metric(Host, Metric, Type, element(1, Type));
 ensure_metric(Host, Metric, Type) ->
@@ -127,7 +127,7 @@ get_global_metric_names() ->
 get_aggregated_values(Metric) ->
     exometer:aggregate([{{['_', Metric], '_', '_'}, [], [true]}], [one, count, value]).
 
--spec increment_generic_hook_metric(ejabberd:lserver(), atom()) -> ok | {error, any()}.
+-spec increment_generic_hook_metric(jid:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->
     FilteredHook = filter_hook(Hook),
     do_increment_generic_hook_metric(Host, FilteredHook).
@@ -167,7 +167,7 @@ pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
         _ -> WhenNot
     end.
 
--spec name_by_all_metrics_are_global(Host :: ejabberd:lserver() | global,
+-spec name_by_all_metrics_are_global(Host :: jid:lserver() | global,
                                      Name :: list()) -> FinalName :: list().
 name_by_all_metrics_are_global(Host, Name) ->
     pick_by_all_metrics_are_global([global | Name], [Host | Name]).
@@ -176,14 +176,14 @@ get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
--spec do_create_generic_hook_metric(Host :: ejabberd:lserver() | global, Metric :: list()) ->
+-spec do_create_generic_hook_metric(Host :: jid:lserver() | global, Metric :: list()) ->
     ok | {ok, already_present}.
 do_create_generic_hook_metric(_, [_, skip]) ->
     ok;
 do_create_generic_hook_metric(Host, Metric) ->
     ensure_metric(Host, Metric, spiral).
 
--spec do_increment_generic_hook_metric(Host :: ejabberd:lserver() | global, Name :: list()) ->
+-spec do_increment_generic_hook_metric(Host :: jid:lserver() | global, Name :: list()) ->
     ok | {error, any()}.
 do_increment_generic_hook_metric(_, [_, skip]) ->
     ok;
@@ -315,7 +315,7 @@ filter_hook(mam_muc_purge_multiple_messages) -> skip;
 
 filter_hook(Hook) -> Hook.
 
--spec create_metrics(ejabberd:server()) -> 'ok'.
+-spec create_metrics(jid:server()) -> 'ok'.
 create_metrics(Host) ->
     lists:foreach(fun(Name) -> ensure_metric(Host, Name, spiral) end, ?GENERAL_SPIRALS),
     lists:foreach(fun(Name) -> ensure_metric(Host, Name, counter) end, ?TOTAL_COUNTERS).
@@ -331,7 +331,7 @@ ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
         undefined -> exometer:new(PrefixedMetric, Type)
     end.
 
--spec metrics_hooks('add' | 'delete', ejabberd:server()) -> 'ok'.
+-spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.
 metrics_hooks(Op, Host) ->
     lists:foreach(fun(Hook) ->
         apply(ejabberd_hooks, Op, Hook)

@@ -14,7 +14,7 @@
                                     AffUsersChanged :: aff_users(), PrevVersion :: binary()}
                                  | {error, any()}.
 
--type remove_user_return() :: [{RoomUS :: ejabberd:simple_bare_jid(),
+-type remove_user_return() :: [{RoomUS :: jid:simple_bare_jid(),
                                 modify_aff_users_return()}].
 
 -export_type([modify_aff_users_return/0, remove_user_return/0]).
@@ -25,66 +25,66 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--callback start(Host :: ejabberd:server(), MUCHost :: ejabberd:server()) -> ok.
+-callback start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
 
--callback stop(Host :: ejabberd:server(), MUCHost :: ejabberd:server()) -> ok.
+-callback stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
 
 %% ------------------------ General room management ------------------------
 
--callback create_room(RoomUS :: ejabberd:simple_bare_jid(), Config :: config(),
+-callback create_room(RoomUS :: jid:simple_bare_jid(), Config :: config(),
                       AffUsers :: aff_users(), Version :: binary()) ->
-    {ok, FinalRoomUS :: ejabberd:simple_bare_jid()} | {error, exists}.
+    {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 
--callback destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
+-callback destroy_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists}.
 
--callback room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
+-callback room_exists(RoomUS :: jid:simple_bare_jid()) -> boolean().
 
--callback get_user_rooms(UserUS :: ejabberd:simple_bare_jid(),
-                         MUCServer :: ejabberd:lserver() | undefined) ->
-    [RoomUS :: ejabberd:simple_bare_jid()].
+-callback get_user_rooms(UserUS :: jid:simple_bare_jid(),
+                         MUCServer :: jid:lserver() | undefined) ->
+    [RoomUS :: jid:simple_bare_jid()].
 
--callback get_user_rooms_count(UserUS :: ejabberd:simple_bare_jid(),
-                               MUCServer :: ejabberd:lserver()) ->
+-callback get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
+                               MUCServer :: jid:lserver()) ->
     non_neg_integer().
 
--callback remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
+-callback remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
     remove_user_return() | {error, term()}.
 
 %% ------------------------ Configuration manipulation ------------------------
 
--callback get_config(RoomUS :: ejabberd:simple_bare_jid()) ->
+-callback get_config(RoomUS :: jid:simple_bare_jid()) ->
     {ok, config(), Version :: binary()} | {error, not_exists}.
 
--callback get_config(RoomUS :: ejabberd:simple_bare_jid(), Key :: atom()) ->
+-callback get_config(RoomUS :: jid:simple_bare_jid(), Key :: atom()) ->
     {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
 
--callback set_config(RoomUS :: ejabberd:simple_bare_jid(), Config :: config(),
+-callback set_config(RoomUS :: jid:simple_bare_jid(), Config :: config(),
                      Version :: binary()) -> {ok, PrevVersion :: binary()} | {error, not_exists}.
 
--callback set_config(RoomUS :: ejabberd:simple_bare_jid(), Key :: atom(),
+-callback set_config(RoomUS :: jid:simple_bare_jid(), Key :: atom(),
                      Val :: term(), Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 
 %% ------------------------ Blocking manipulation ------------------------
 
--callback get_blocking(UserUS :: ejabberd:simple_bare_jid(), MUCServer :: ejabberd:lserver()) ->
+-callback get_blocking(UserUS :: jid:simple_bare_jid(), MUCServer :: jid:lserver()) ->
     [blocking_item()].
 
--callback get_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                       MUCServer :: ejabberd:lserver(),
+-callback get_blocking(UserUS :: jid:simple_bare_jid(),
+                       MUCServer :: jid:lserver(),
                        WhatWhos :: [{blocking_what(), blocking_who()}]) ->
     blocking_action().
 
--callback set_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                       MUCServer :: ejabberd:lserver(),
+-callback set_blocking(UserUS :: jid:simple_bare_jid(),
+                       MUCServer :: jid:lserver(),
                        BlockingItems :: [blocking_item()]) -> ok.
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--callback get_aff_users(RoomUS :: ejabberd:simple_bare_jid()) ->
+-callback get_aff_users(RoomUS :: jid:simple_bare_jid()) ->
     {ok, aff_users(), Version :: binary()} | {error, not_exists}.
 
--callback modify_aff_users(RoomUS :: ejabberd:simple_bare_jid(),
+-callback modify_aff_users(RoomUS :: jid:simple_bare_jid(),
                            AffUsersChanges :: aff_users(),
                            ExternalCheck :: external_check_fun(),
                            Version :: binary()) ->
@@ -92,7 +92,7 @@
 
 %% ------------------------ Getting room configuration ------------------------
 
--callback get_info(RoomUS :: ejabberd:simple_bare_jid()) ->
+-callback get_info(RoomUS :: jid:simple_bare_jid()) ->
     {ok, config(), aff_users(), Version :: binary()} | {error, not_exists}.
 
 %% ------------------------ API for tests ------------------------

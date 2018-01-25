@@ -8,7 +8,7 @@
 -export([start/0, node_id/0]).
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %%====================================================================

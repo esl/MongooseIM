@@ -13,7 +13,7 @@
 %% API
 -export([decode/3, encode/4, encode_error/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
@@ -21,8 +21,8 @@
 %% API
 %%====================================================================
 
--spec decode(From :: ejabberd:jid(), To :: ejabberd:jid(),
-             Stanza :: ejabberd:iq() | jlib:xmlel()) -> mod_muc_light_codec:decode_result().
+-spec decode(From :: jid:jid(), To :: jid:jid(),
+             Stanza :: jlib:iq() | exml:element()) -> mod_muc_light_codec:decode_result().
 decode(_From, #jid{ luser = ToU } = _To, #xmlel{ name = <<"presence">> } = Stanza)
   when ToU =/= <<>> ->
     case {exml_query:path(Stanza, [{element, <<"x">>}, {attr, <<"xmlns">>}]),
@@ -42,8 +42,8 @@ decode(From, _To, #iq{} = IQ) ->
 decode(_, _, _) ->
     {error, bad_request}.
 
--spec encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
-             RoomUS :: ejabberd:simple_bare_jid(),
+-spec encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
+             RoomUS :: jid:simple_bare_jid(),
              HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> any().
 encode({#msg{} = Msg, AffUsers}, Sender, {RoomU, RoomS} = RoomUS, HandleFun) ->
     US = jid:to_lus(Sender),
@@ -83,8 +83,8 @@ encode(OtherCase, Sender, RoomUS, HandleFun) ->
     end.
 
 -spec encode_error(
-        ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
-        OrigPacket :: jlib:xmlel(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
+        ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
+        OrigPacket :: exml:element(), HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
     any().
 encode_error(_, OrigFrom, OrigTo, #xmlel{ name = <<"presence">> } = OrigPacket, HandleFun) ->
     %% The only error case for valid presence is registration-required for room creation
@@ -98,7 +98,7 @@ encode_error(ErrMsg, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
 %% Message decoding
 %%====================================================================
 
--spec decode_message(Packet :: jlib:xmlel()) ->
+-spec decode_message(Packet :: exml:element()) ->
     {ok, muc_light_packet()} | {error, bad_request} | ignore.
 decode_message(#xmlel{ attrs = Attrs, children = Children }) ->
     decode_message_by_type(lists:keyfind(<<"type">>, 1, Attrs),
@@ -125,8 +125,8 @@ ensure_id({_, Id}) -> Id.
 %% IQ decoding
 %%====================================================================
 
--spec decode_iq(From :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
-    {ok, muc_light_packet() | muc_light_disco() | ejabberd:iq()} | {error, bad_request} | ignore.
+-spec decode_iq(From :: jid:jid(), IQ :: jlib:iq()) ->
+    {ok, muc_light_packet() | muc_light_disco() | jlib:iq()} | {error, bad_request} | ignore.
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = get, sub_el = _QueryEl, id = ID }) ->
     {ok, {get, #config{ id = ID }}};
 decode_iq(_From, #iq{ xmlns = ?NS_MUC_OWNER, type = set, sub_el = QueryEl, id = ID }) ->
@@ -233,8 +233,8 @@ parse_blocking_list([Item | RItemsEls], ItemsAcc) ->
 %% Encoding
 %%====================================================================
 
--spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: ejabberd:jid(),
-                  SenderJID :: ejabberd:jid(),
+-spec encode_meta(Request :: muc_light_encode_request(), RoomJID :: jid:jid(),
+                  SenderJID :: jid:jid(),
                   HandleFun :: mod_muc_light_codec:encoded_packet_handler()) ->
     {iq_reply, ID :: binary()} |
     {iq_reply, XMLNS :: binary(), Els :: [jlib:xmlch()], ID :: binary()} |
@@ -340,7 +340,7 @@ encode_meta({set, #config{} = Config, AffUsers}, RoomJID, _SenderJID, HandleFun)
 
 %% --------------------------- Helpers ---------------------------
 
--spec aff_user_to_item(aff_user()) -> jlib:xmlel().
+-spec aff_user_to_item(aff_user()) -> exml:element().
 aff_user_to_item({User, Aff}) ->
     UserBin = jid:to_binary(User),
     {RoleBin, NickEl} = case Aff of
@@ -353,7 +353,7 @@ aff_user_to_item({User, Aff}) ->
                      {<<"jid">>, UserBin},
                      {<<"role">>, RoleBin} | NickEl] }.
 
--spec blocking_to_el(BlockingItem :: blocking_item(), Service :: binary()) -> jlib:xmlel().
+-spec blocking_to_el(BlockingItem :: blocking_item(), Service :: binary()) -> exml:element().
 blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
     WhoBin = jid:to_binary({WhoU, WhoS, <<>>}),
     Value = case What of
@@ -368,7 +368,7 @@ blocking_to_el({What, Action, {WhoU, WhoS}}, Service) ->
                      {<<"order">>, <<"1">>}
                     ] }.
 
--spec kv_to_el(binary(), binary()) -> jlib:xmlel().
+-spec kv_to_el(binary(), binary()) -> exml:element().
 kv_to_el(Key, Value) ->
     #xmlel{ name = Key, children = [#xmlcdata{ content = Value }] }.
 
@@ -376,8 +376,8 @@ kv_to_el(Key, Value) ->
 envelope(XMLNS, Children) ->
     [ #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, XMLNS}], children = Children } ].
 
--spec bcast_aff_messages(Room :: ejabberd:jid(), OldAffUsers :: aff_users(),
-                         NewAffUsers :: aff_users(), SenderJID :: ejabberd:jid(),
+-spec bcast_aff_messages(Room :: jid:jid(), OldAffUsers :: aff_users(),
+                         NewAffUsers :: aff_users(), SenderJID :: jid:jid(),
                          ChangedAffUsers :: aff_users(),
                          HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 bcast_aff_messages(_, [], [], _, _, _) ->
@@ -418,7 +418,7 @@ bcast_aff_messages(Room, OldAffUsers, [{{ToU, ToS}, _} | RNewAffUsers],
                      NotifForNewcomer, HandleFun),
     bcast_aff_messages(Room, OldAffUsers, RNewAffUsers, SenderJID, ChangedAffUsers, HandleFun).
 
--spec msg_to_leaving_user(Room :: ejabberd:jid(), User :: ejabberd:simple_bare_jid(),
+-spec msg_to_leaving_user(Room :: jid:jid(), User :: jid:simple_bare_jid(),
                           HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
 msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     UserBin = jid:to_binary({ToU, ToS, <<>>}),
@@ -428,7 +428,7 @@ msg_to_leaving_user(Room, {ToU, ToS} = User, HandleFun) ->
     NotifForLeaving = envelope(?NS_MUC_USER, [ aff_user_to_item({User, none}), status(<<"321">>) ]),
     send_to_aff_user(From, ToU, ToS, <<"presence">>, Attrs, NotifForLeaving, HandleFun).
 
--spec send_to_aff_user(From :: ejabberd:jid(), ToU :: ejabberd:luser(), ToS :: ejabberd:lserver(),
+-spec send_to_aff_user(From :: jid:jid(), ToU :: jid:luser(), ToS :: jid:lserver(),
                        Name :: binary(), Attrs :: [{binary(), binary()}],
                        Children :: [jlib:xmlch()],
                        HandleFun :: mod_muc_light_codec:encoded_packet_handler()) -> ok.
@@ -439,15 +439,15 @@ send_to_aff_user(From, ToU, ToS, Name, Attrs, Children, HandleFun) ->
                      children = Children },
     HandleFun(From, To, Packet).
 
--spec jids_from_room_with_resource(RoomUS :: ejabberd:simple_bare_jid(), binary()) ->
-    {ejabberd:jid(), binary()}.
+-spec jids_from_room_with_resource(RoomUS :: jid:simple_bare_jid(), binary()) ->
+    {jid:jid(), binary()}.
 jids_from_room_with_resource({RoomU, RoomS}, Resource) ->
     FromBin = jid:to_binary({RoomU, RoomS, Resource}),
     From = jid:make_noprep({RoomU, RoomS, Resource}),
     {From, FromBin}.
 
 -spec make_iq_result(FromBin :: binary(), ToBin :: binary(), ID :: binary(),
-                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> jlib:xmlel().
+                     XMLNS :: binary(), Els :: [jlib:xmlch()] | undefined) -> exml:element().
 make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Attrs = [
              {<<"from">>, FromBin},
@@ -458,13 +458,13 @@ make_iq_result(FromBin, ToBin, ID, XMLNS, Els) ->
     Query = make_query_el(XMLNS, Els),
     #xmlel{ name = <<"iq">>, attrs = Attrs, children = Query }.
 
--spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [jlib:xmlel()].
+-spec make_query_el(binary(), [jlib:xmlch()] | undefined) -> [exml:element()].
 make_query_el(_, undefined) ->
     [];
 make_query_el(XMLNS, Els) ->
     [#xmlel{ name = <<"query">>, attrs = [{<<"xmlns">>, XMLNS}], children = Els }].
 
--spec status(Code :: binary()) -> xmlel().
+-spec status(Code :: binary()) -> exml:element().
 status(Code) -> #xmlel{ name = <<"status">>, attrs = [{<<"code">>, Code}] }.
 
 %%====================================================================

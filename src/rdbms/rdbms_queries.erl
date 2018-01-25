@@ -114,7 +114,7 @@
 
 -define(ODBC_TYPE, (mongoose_rdbms_type:get())).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %
 %% -----------------

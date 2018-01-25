@@ -11,7 +11,7 @@
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
 
--callback should_make_req(Packet :: exml:element(), From :: jid(), To :: jid()) -> boolean().
+-callback should_make_req(Packet :: exml:element(), From :: jid:jid(), To :: jid:jid()) -> boolean().
 
 -include("mod_event_pusher_events.hrl").
 -include("jlib.hrl").
@@ -19,7 +19,7 @@
 %% API
 -export([start/2, stop/1, push_event/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -define(DEFAULT_POOL_NAME, http_pool).

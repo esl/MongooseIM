@@ -30,7 +30,7 @@
 -behavior(gen_mod).
 -behavior(gen_server).
 -xep([{xep, 199}, {version, "2.0"}]).
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -define(SUPERVISOR, ejabberd_sup).
@@ -204,7 +204,7 @@ iq_ping(_From, _To, Acc, #iq{type = Type, sub_el = SubEl} = IQ) ->
         {get, #xmlel{name = <<"ping">>}} ->
             {Acc, IQ#iq{type = result, sub_el = []}};
         _ ->
-            {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_FEATURE_NOT_IMPLEMENTED]}}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:feature_not_implemented()]}}
     end.
 
 user_online(Acc, _SID, JID, _Info) ->

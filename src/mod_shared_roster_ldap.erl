@@ -44,7 +44,7 @@
 
 -export([config_change/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
 
@@ -186,7 +186,7 @@ get_jid_info({Subscription, Groups}, User, Server, JID) ->
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
-                      JID :: jid(),
+                      JID ::jid:jid(),
                       Type :: mod_roster:sub_presence(),
                       _Reason :: any()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
@@ -202,7 +202,7 @@ in_subscription(Acc, User, Server, JID, Type, _Reason) ->
 -spec out_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
-                      JID :: jid(),
+                      JID ::jid:jid(),
                       Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t() | {stop, mongoose_acc:t()}.
 out_subscription(Acc, User, Server, JID, Type) ->

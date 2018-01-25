@@ -19,7 +19,7 @@
 
 -behaviour(mod_global_distrib_mapping).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(JIDS_ETS, mod_global_distrib_mapping_redis_jids).
 -define(DOMAINS_ETS, mod_global_distrib_mapping_redis_domains).
@@ -77,7 +77,7 @@ put_session(Jid) ->
     ets:insert(?JIDS_ETS, {Jid}),
     do_put(Jid, opt(local_host)).
 
--spec get_session(Jid :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec get_session(Jid :: binary()) -> {ok, Host :: jid:lserver()} | error.
 get_session(Jid) ->
     do_get(Jid).
 
@@ -91,7 +91,7 @@ put_domain(Domain) ->
     {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
     do_put(Domain, opt(local_host)).
 
--spec get_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec get_domain(Domain :: binary()) -> {ok, Host :: jid:lserver()} | error.
 get_domain(Domain) ->
     do_get(Domain).
 
@@ -109,7 +109,7 @@ get_domains() ->
     Keys = [domains_key(Host, Node) || {Host, Node} <- Nodes],
     {ok, _Domains} = q([<<"SUNION">> | Keys]).
 
--spec get_endpoints(Host :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec get_endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Host) ->
     Nodes = [_ | _] = get_nodes(Host), %% TODO: error: unknown host
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
@@ -159,7 +159,7 @@ nodes_key() ->
     LocalHost = opt(local_host),
     nodes_key(LocalHost).
 
--spec nodes_key(Host :: ejabberd:lserver()) -> binary().
+-spec nodes_key(Host :: jid:lserver()) -> binary().
 nodes_key(Host) ->
     <<Host/binary, "#{nodes}">>.
 
@@ -167,7 +167,7 @@ nodes_key(Host) ->
 endpoints_key() ->
     key(<<"endpoints">>).
 
--spec endpoints_key(Host :: ejabberd:lserver(), Node :: binary()) -> binary().
+-spec endpoints_key(Host :: jid:lserver(), Node :: binary()) -> binary().
 endpoints_key(Host, Node) ->
     key(Host, Node, <<"endpoints">>).
 
@@ -175,7 +175,7 @@ endpoints_key(Host, Node) ->
 domains_key() ->
     key(<<"domains">>).
 
--spec domains_key(Host :: ejabberd:lserver(), Node :: binary()) -> binary().
+-spec domains_key(Host :: jid:lserver(), Node :: binary()) -> binary().
 domains_key(Host, Node) ->
     key(Host, Node, <<"domains">>).
 
@@ -185,7 +185,7 @@ key(Type) ->
     Node = atom_to_binary(node(), latin1),
     key(LocalHost, Node, Type).
 
--spec key(Host :: ejabberd:lserver(), Node :: binary(), Type :: binary()) -> binary().
+-spec key(Host :: jid:lserver(), Node :: binary(), Type :: binary()) -> binary().
 key(Host, Node, Type) ->
     <<Host/binary, "#", Node/binary, "#{", Type/binary, "}">>.
 
@@ -202,7 +202,7 @@ do_put(Key, Host) ->
     {ok, _} = q([<<"SET">>, Key, Host, <<"EX">>, expire_after()]),
     ok.
 
--spec do_get(Key :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec do_get(Key :: binary()) -> {ok, Host :: jid:lserver()} | error.
 do_get(Key) ->
     case q([<<"GET">>, Key]) of
         {ok, undefined} -> error;
@@ -222,7 +222,7 @@ do_delete(Key) ->
 refresh_hosts() ->
     q([<<"SADD">>, <<"hosts">>, opt(local_host)]).
 
--spec get_hosts() -> [Host :: ejabberd:lserver()].
+-spec get_hosts() -> [Host :: jid:lserver()].
 get_hosts() ->
     {ok, Hosts} = q([<<"SMEMBERS">>, <<"hosts">>]),
     Hosts.
@@ -237,7 +237,7 @@ refresh_nodes() ->
     end,
     q([<<"HSET">>, NodesKey, atom_to_binary(node(), latin1), Now]).
 
--spec get_nodes(Host :: ejabberd:lserver()) -> [Node :: binary()].
+-spec get_nodes(Host :: jid:lserver()) -> [Node :: binary()].
 get_nodes(Host) ->
     {ok, Nodes} = q([<<"HKEYS">>, nodes_key(Host)]),
     Nodes.

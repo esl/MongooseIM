@@ -30,7 +30,7 @@
 -export([delete_room/3]).
 
 -include("mod_muc_light.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 
@@ -217,10 +217,10 @@ make_room_config(Name, Subject) ->
                           {<<"subject">>, Subject}]
            }.
 
--spec muc_light_room_name_to_jid_and_aff(UserJID :: ejabberd:jid(),
+-spec muc_light_room_name_to_jid_and_aff(UserJID :: jid:jid(),
                                          RoomName :: binary(),
-                                         Domain :: ejabberd:lserver()) ->
-    {ok, ejabberd:jid(), aff()} | {error, given_user_does_not_occupy_any_room}.
+                                         Domain :: jid:lserver()) ->
+    {ok, jid:jid(), aff()} | {error, given_user_does_not_occupy_any_room}.
 muc_light_room_name_to_jid_and_aff(UserJID, RoomName, Domain) ->
     UserUS = jid:to_lus(UserJID),
     case get_user_rooms(UserUS, Domain) of
@@ -233,13 +233,13 @@ muc_light_room_name_to_jid_and_aff(UserJID, RoomName, Domain) ->
             {ok, jid:make(RU, RS, <<>>), UserAff}
     end.
 
--spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid(), Domain :: ejabberd:lserver()) ->
-    [ejabberd:simple_bare_jid()].
+-spec get_user_rooms(UserUS :: jid:simple_bare_jid(), Domain :: jid:lserver()) ->
+    [jid:simple_bare_jid()].
 get_user_rooms(UserUS, Domain) ->
     mod_muc_light_db_backend:get_user_rooms(UserUS, Domain).
 
--spec get_room_name_and_user_aff(RoomUS :: ejabberd:simple_bare_jid(),
-                                 UserUS :: ejabberd:simple_bare_jid()) ->
+-spec get_room_name_and_user_aff(RoomUS :: jid:simple_bare_jid(),
+                                 UserUS :: jid:simple_bare_jid()) ->
     {ok, RoomName :: binary(), UserAff :: aff()} | {error, not_exists}.
 get_room_name_and_user_aff(RoomUS, UserUS) ->
     case mod_muc_light_db_backend:get_info(RoomUS) of
@@ -251,11 +251,11 @@ get_room_name_and_user_aff(RoomUS, UserUS) ->
             Error
     end.
 
--type find_room_acc() :: {ok, RoomUS :: ejabberd:simple_bare_jid(), UserAff :: aff()} | none.
+-type find_room_acc() :: {ok, RoomUS :: jid:simple_bare_jid(), UserAff :: aff()} | none.
 
 -spec find_room_and_user_aff_by_room_name(RoomName :: binary(),
-                                          UserUS :: ejabberd:simple_bare_jid()) ->
-    fun((RoomUS :: ejabberd:simple_bare_jid(), find_room_acc()) -> find_room_acc()). 
+                                          UserUS :: jid:simple_bare_jid()) ->
+    fun((RoomUS :: jid:simple_bare_jid(), find_room_acc()) -> find_room_acc()).
 find_room_and_user_aff_by_room_name(RoomName, UserUS) ->
     fun (RoomUS, none) ->
             case get_room_name_and_user_aff(RoomUS, UserUS) of

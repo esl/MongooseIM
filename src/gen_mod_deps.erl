@@ -16,7 +16,7 @@
 
 -module(gen_mod_deps).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -type gen_mod_params() :: proplists:proplist().
 -type gen_mod_list() :: [{module(), gen_mod_params()}].
@@ -28,7 +28,7 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start_modules(Host :: ejabberd:server(), Modules :: gen_mod_list()) -> ok.
+-spec start_modules(Host :: jid:server(), Modules :: gen_mod_list()) -> ok.
 start_modules(Host, Modules) ->
     replace_modules(Host, [], Modules).
 
@@ -39,7 +39,7 @@ start_modules(Host, Modules) ->
 %% so for certain arguments a still-needed dependency might be removed.
 %% Thus, the function is meant to replace all modules on the host.
 %% @end
--spec replace_modules(Host :: ejabberd:server(), OldModules :: gen_mod_list(),
+-spec replace_modules(Host :: jid:server(), OldModules :: gen_mod_list(),
                       NewModules :: gen_mod_list()) -> ok.
 replace_modules(Host, OldModules0, NewModules0) ->
     OldModulesMap = resolve_deps(Host, OldModules0),
@@ -79,11 +79,11 @@ replace_modules(Host, OldModules0, NewModules0) ->
 %%
 %% In this case, mod_b will still be started.
 %% @end
--spec resolve_deps(Host :: ejabberd:server(), Modules :: gen_mod_list()) ->
+-spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_list()) ->
                           gen_mod_map().
 resolve_deps(Host, ModuleQueue) -> resolve_deps(Host, ModuleQueue, #{}).
 
--spec resolve_deps(Host :: ejabberd:server(), Modules :: gen_mod_list(),
+-spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_list(),
                    Acc :: gen_mod_map()) -> gen_mod_map().
 resolve_deps(_Host, [], KnownModules) -> KnownModules;
 resolve_deps(Host, [{Module, Args} | ModuleQueue], KnownModules) ->
@@ -141,7 +141,7 @@ merge_args(Module, PreviousArgs, Args) ->
 
 %% Sorting resolved dependencies
 
--spec sort_deps(Host :: ejabberd:server(), ModuleMap :: gen_mod_map()) ->
+-spec sort_deps(Host :: jid:server(), ModuleMap :: gen_mod_map()) ->
                        gen_mod_list().
 sort_deps(Host, ModuleMap) ->
     DepsGraph = digraph:new([acyclic, private]),
@@ -160,7 +160,7 @@ sort_deps(Host, ModuleMap) ->
     end.
 
 
--spec process_module_dep(Host :: ejabberd:server(), Module :: module(),
+-spec process_module_dep(Host :: jid:server(), Module :: module(),
                          Args :: gen_mod_params(),
                          DepsGraph :: digraph:graph()) -> ok.
 process_module_dep(Host, Module, Args, DepsGraph) ->

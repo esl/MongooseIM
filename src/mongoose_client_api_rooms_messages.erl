@@ -13,8 +13,9 @@
 -export([from_json/2]).
 -export([encode/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
 
 init(_Transport, _Req, _Opts) ->
@@ -83,8 +84,8 @@ from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
     Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),
     {true, Req3, State}.
 
--spec build_message(From :: binary(), To :: ejabberd:jid(), ID :: binary(), Body :: binary()) ->
-    jlib:xmlel().
+-spec build_message(From :: binary(), To :: jid:jid(), ID :: binary(), Body :: binary()) ->
+    exml:element().
 build_message(From, To, ID, Body) ->
     Attrs = [{<<"from">>, From},
              {<<"to">>, jid:to_binary(To)},

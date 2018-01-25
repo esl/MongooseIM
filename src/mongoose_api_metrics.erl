@@ -15,7 +15,7 @@
 %%==============================================================================
 -module(mongoose_api_metrics).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% mongoose_api callbacks
 -export([prefix/0,
@@ -128,11 +128,11 @@ global_metrics(_Bindings) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
--spec get_available_hosts() -> [ejabberd:server()].
+-spec get_available_hosts() -> [jid:server()].
 get_available_hosts() ->
     ?MYHOSTS.
 
--spec get_available_metrics(Host :: ejabberd:server()) -> [any()].
+-spec get_available_metrics(Host :: jid:server()) -> [any()].
 get_available_metrics(Host) ->
     mongoose_metrics:get_host_metric_names(Host).
 
@@ -154,7 +154,7 @@ get_sum_metrics() ->
 get_sum_metric(Metric) ->
     mongoose_metrics:get_aggregated_values(Metric).
 
--spec get_host_metrics(undefined | global | ejabberd:server()) -> [{_, _}].
+-spec get_host_metrics(undefined | global | jid:server()) -> [{_, _}].
 get_host_metrics(Host) ->
     Metrics = mongoose_metrics:get_metric_values(Host),
     [{prep_name(NameParts), Value} || {[_Host | NameParts], Value} <- Metrics].

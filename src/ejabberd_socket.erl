@@ -46,7 +46,7 @@
          close/1,
          sockname/1, peername/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -record(socket_state, {sockmod    :: ejabberd:sockmod(),
                        socket     :: term(),

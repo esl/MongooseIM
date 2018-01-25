@@ -23,14 +23,14 @@
          multi_get_data/3,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
--spec init(ejabberd:lserver(), list()) -> ok.
+-spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec multi_set_data(ejabberd:luser(), ejabberd:lserver(), [{binary(), jlib:xmlel()}]) ->
+-spec multi_set_data(jid:luser(), jid:lserver(), [{binary(), exml:element()}]) ->
     ok | {error, term()}.
 multi_set_data(LUser, LServer, NS2XML) ->
     R = [set_private_data(LUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
@@ -40,11 +40,11 @@ multi_set_data(LUser, LServer, NS2XML) ->
         false -> ok
     end.
 
--spec multi_get_data(ejabberd:luser(), ejabberd:lserver(), [{binary(), term()}]) -> [any()].
+-spec multi_get_data(jid:luser(), jid:lserver(), [{binary(), term()}]) -> [any()].
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_private_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
+-spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     KeyFilter = [[<<"starts_with">>, LUser]],
     Bucket = bucket_type(LServer),

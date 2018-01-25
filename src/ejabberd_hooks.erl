@@ -51,9 +51,9 @@
 -export([add/1,
          delete/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
--type hook() :: {atom(), ejabberd:server() | global, module(), fun() | atom(), integer()}.
+-type hook() :: {atom(), jid:server() | global, module(), fun() | atom(), integer()}.
 
 -record(state, {}).
 
@@ -69,7 +69,7 @@ start_link() ->
 %% The integer sequence is used to sort the calls:
 %% low numbers are executed before high numbers.
 -spec add(Hook :: atom(),
-          Host :: ejabberd:server() | global,
+          Host :: jid:server() | global,
           Function :: fun() | atom(),
           Seq :: integer()) -> ok.
 add(Hook, Host, Function, Seq) when is_function(Function) ->
@@ -79,7 +79,7 @@ add(Hook, Host, Function, Seq) when is_function(Function) ->
 %% The integer sequence is used to sort the calls:
 %% low numbers are executed before high numbers.
 -spec add(Hook :: atom(),
-          Host :: ejabberd:server() | global,
+          Host :: jid:server() | global,
           Module :: atom(),
           Function :: fun() | atom(),
           Seq :: integer()) -> ok.
@@ -99,14 +99,14 @@ add_or_del(AddOrDel, Hooks) ->
 %% @doc Delete a module and function from this hook.
 %% It is important to indicate exactly the same information than when the call was added.
 -spec delete(Hook :: atom(),
-             Host :: ejabberd:server() | global,
+             Host :: jid:server() | global,
              Function :: fun() | atom(),
              Seq :: integer()) -> ok.
 delete(Hook, Host, Function, Seq) when is_function(Function) ->
     delete(Hook, Host, undefined, Function, Seq).
 
 -spec delete(Hook :: atom(),
-             Host :: ejabberd:server() | global,
+             Host :: jid:server() | global,
              Module :: atom(),
              Function :: fun() | atom(),
              Seq :: integer()) -> ok.
@@ -125,7 +125,7 @@ run(Hook, Args) ->
     run_fold(Hook, global, #{}, Args).
 
 -spec run(Hook :: atom(),
-          Host :: ejabberd:server() | global,
+          Host :: jid:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
     run_fold(Hook, Host, mongoose_acc:new(), Args).

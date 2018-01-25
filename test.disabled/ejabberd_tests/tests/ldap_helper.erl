@@ -3,10 +3,10 @@
 -behaviour(escalus_user_db).
 
 % copied from ejabberd_auth_ldap
--record(state, {host = <<"">>          :: ejabberd:server(),
+-record(state, {host = <<"">>          :: jid:server(),
                 eldap_id = <<"">>      :: binary(),
                 bind_eldap_id = <<"">> :: binary(),
-                servers = []           :: [ejabberd:server()],
+                servers = []           :: [jid:server()],
                 backups = []           :: [binary()],
                 port = 389             :: inet:port_number(),
                 tls_options = []       :: list(),

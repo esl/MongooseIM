@@ -17,7 +17,7 @@
 -author("bartek").
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
@@ -71,7 +71,7 @@ is_acc(_) ->
 
 %% this is a temporary hack - right now processes receive accumulators and stanzas, it is all
 %% mixed up so we have to cater for this
--spec to_element(xmlel() | t()) -> xmlel().
+-spec to_element(exml:element() | t()) -> exml:element().
 to_element(A) ->
     case is_acc(A) of
         true -> get(element, A, undefined);
@@ -93,7 +93,7 @@ from_kv(K, V) ->
 %% @doc This one has an alternative form because normally an acc carries an xml element, as
 %% received from client, but sometimes messages are generated internally (broadcast) by sm
 %% and sent to c2s
--spec from_element(xmlel() | iq() | tuple()) -> t().
+-spec from_element(exml:element() | jlib:iq() | tuple()) -> t().
 from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
     Type = exml_query:attr(El, <<"type">>, undefined),
     #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
@@ -109,7 +109,7 @@ from_element(El) when is_tuple(El) ->
     % ref and timestamp will be filled in by strip/2
     #{element => El, name => Name, type => Type, mongoose_acc => true}.
 
--spec from_element(xmlel() | iq(), ejabberd:jid(), ejabberd:jid()) -> t().
+-spec from_element(exml:element() | jlib:iq(), jid:jid(), jid:jid()) -> t().
 from_element(El, From, To) ->
     Acc = from_element(El),
     M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
@@ -119,7 +119,7 @@ from_element(El, From, To) ->
 from_map(M) ->
     maps:put(mongoose_acc, true, M).
 
--spec update_element(t(), xmlel(), ejabberd:jid(), ejabberd:jid()) -> t().
+-spec update_element(t(), exml:element(), jid:jid(), jid:jid()) -> t().
 update_element(Acc, Element, From, To) ->
     update(Acc, from_element(Element, From, To)).
 
@@ -203,7 +203,7 @@ strip(Acc) ->
     strip(Acc, get(element, Acc)).
 
 %% @doc alt version in case we want to replace the xmlel we are sending
--spec strip(t(), xmlel()) -> t().
+-spec strip(t(), exml:element()) -> t().
 strip(Acc, El) ->
     Acc1 = from_element(El),
     Attributes = [ref, timestamp],
@@ -225,10 +225,10 @@ strip(Acc, El) ->
 %% There are two versions because when we send xml element from c2s then
 %% there is no From and To args available, everything is already in the stanza
 %% while from ejabberd_router:route we get bare stanza and two jids.
--spec record_sending(t(), xmlel(), atom(), any()) -> t().
+-spec record_sending(t(), exml:element(), atom(), any()) -> t().
 record_sending(Acc, Stanza, Module, Result) ->
     record_sending(Acc, none, none, Stanza, Module, Result).
--spec record_sending(t(), jid()|none, jid()|none, xmlel(), atom(), any()) -> t().
+-spec record_sending(t(),jid:jid()|none,jid:jid()|none, exml:element(), atom(), any()) -> t().
 record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
     mongoose_acc:append(send_result, Result, Acc).
 

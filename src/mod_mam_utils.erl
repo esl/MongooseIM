@@ -108,13 +108,16 @@
                    valid_behavior/1]}).
 -endif.
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+
+-include("mod_mam.hrl").
+-include("mongoose_rsm.hrl").
 
 -define(MAYBE_BIN(X), (is_binary(X) orelse (X) =:= undefined)).
 
@@ -231,10 +234,10 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 %% -----------------------------------------------------------------------
 %% XML
 
--spec maybe_add_arcid_elems(To :: ejabberd:simple_jid()  | ejabberd:jid(),
-                            MessID :: binary(), Packet :: jlib:xmlel(),
+-spec maybe_add_arcid_elems(To :: jid:simple_jid()  | jid:jid(),
+                            MessID :: binary(), Packet :: exml:element(),
                             AddArchived :: boolean(), AddStanzaid :: boolean()) ->
-          AlteredPacket :: jlib:xmlel().
+          AlteredPacket :: exml:element().
 maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
     BareTo = jid:to_binary(jid:to_bare(To)),
     WithArchived = case AddArchived of
@@ -253,7 +256,7 @@ maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
 
 
 %% @doc Return true, if the first element points on `By'.
--spec is_arcid_elem_for(ElemName :: binary(), jlib:xmlel(), By :: binary()) -> boolean().
+-spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
 is_arcid_elem_for(<<"archived">>, #xmlel{name = <<"archived">>, attrs=As}, By) ->
     lists:member({<<"by">>, By}, As);
 is_arcid_elem_for(<<"stanza-id">>, #xmlel{name = <<"stanza-id">>, attrs=As}, By) ->
@@ -263,13 +266,13 @@ is_arcid_elem_for(_, _, _) ->
     false.
 
 -spec replace_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
-                         Packet :: jlib:xmlel()) -> jlin:xmlel().
+                         Packet :: exml:element()) -> exml:element().
 replace_arcid_elem(ElemName, By, Id, Packet) ->
     append_arcid_elem(ElemName, By, Id,
                        delete_arcid_elem(ElemName, By, Packet)).
 
 -spec append_arcid_elem(ElemName :: binary(), By :: binary(), Id :: binary(),
-                        Packet :: jlib:xmlel()) ->jlib:xmlel().
+                        Packet :: exml:element()) ->exml:element().
 append_arcid_elem(<<"stanza-id">>, By, Id, Packet) ->
     Archived = #xmlel{
                   name = <<"stanza-id">>,
@@ -281,7 +284,7 @@ append_arcid_elem(ElemName, By, Id, Packet) ->
                   attrs=[{<<"by">>, By}, {<<"id">>, Id}]},
     xml:append_subtags(Packet, [Archived]).
 
--spec delete_arcid_elem(ElemName :: binary(), By :: binary(), jlib:xmlel()) -> jlib:xmlel().
+-spec delete_arcid_elem(ElemName :: binary(), By :: binary(), exml:element()) -> exml:element().
 delete_arcid_elem(ElemName, By, Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_arcid_elem_for(ElemName, C, By)]}.
 
@@ -291,8 +294,8 @@ is_x_user_element(#xmlel{name = <<"x">>, attrs = As}) ->
 is_x_user_element(_) ->
     false.
 
--spec replace_x_user_element(FromJID :: ejabberd:jid(), Role :: mod_muc:role(),
-                             Affiliation :: mod_muc:affiliation(), jlib:xmlel()) -> jlib:xmlel().
+-spec replace_x_user_element(FromJID :: jid:jid(), Role :: mod_muc:role(),
+                             Affiliation :: mod_muc:affiliation(), exml:element()) -> exml:element().
 replace_x_user_element(FromJID, Role, Affiliation, Packet) ->
     append_x_user_element(FromJID, Role, Affiliation,
                           delete_x_user_element(Packet)).
@@ -312,11 +315,11 @@ x_user_item(FromJID, Role, Affiliation) ->
                 {<<"jid">>, jid:to_binary(FromJID)},
                 {<<"role">>, atom_to_binary(Role, latin1)}]}.
 
--spec delete_x_user_element(jlib:xmlel()) -> jlib:xmlel().
+-spec delete_x_user_element(exml:element()) -> exml:element().
 delete_x_user_element(Packet=#xmlel{children=Cs}) ->
     Packet#xmlel{children=[C || C <- Cs, not is_x_user_element(C)]}.
 
--spec packet_to_x_user_jid(jlib:xmlel()) -> ejabberd:jid() | error | undefined.
+-spec packet_to_x_user_jid(exml:element()) -> jid:jid() | error | undefined.
 packet_to_x_user_jid(#xmlel{children=Cs}) ->
     case [C || C <- Cs, is_x_user_element(C)] of
         [] -> undefined;
@@ -351,7 +354,7 @@ get_one_of_path(_Elem, [], Def) ->
 %% rather than state changes such as Chat State Notifications, would be archived.
 %% @end
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
-                            Packet :: jlib:xmlel(), boolean()) -> boolean().
+                            Packet :: exml:element(), boolean()) -> boolean().
 is_archivable_message(Mod, Dir, Packet=#xmlel{name = <<"message">>}, ArchiveChatMarkers) ->
     Type = exml_query:attr(Packet, <<"type">>, <<"normal">>),
     is_valid_message_type(Mod, Dir, Type) andalso
@@ -393,23 +396,23 @@ has_chat_marker(Packet) ->
     end.
 
 %% @doc Forms `<forwarded/>' element, according to the XEP.
--spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
+-spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
                    MessageUID :: term(), DateTime :: calendar:datetime(),
-                   SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
+                   SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, DateTime, SrcJID) ->
     wrap_message(MamNs, Packet, QueryID, MessageUID, wrapper_id(), DateTime, SrcJID).
 
--spec wrap_message(MamNs :: binary(), Packet :: jlib:xmlel(), QueryID :: binary(),
+-spec wrap_message(MamNs :: binary(), Packet :: exml:element(), QueryID :: binary(),
                    MessageUID :: term(), WrapperI :: binary(), DateTime :: calendar:datetime(),
-                   SrcJID :: ejabberd:jid()) -> Wrapper :: jlib:xmlel().
+                   SrcJID :: jid:jid()) -> Wrapper :: exml:element().
 wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, DateTime, SrcJID) ->
     #xmlel{ name = <<"message">>,
             attrs = [{<<"id">>, WrapperID}],
             children = [result(MamNs, QueryID, MessageUID,
                                [forwarded(Packet, DateTime, SrcJID)])] }.
 
--spec forwarded(jlib:xmlel(), calendar:datetime(), ejabberd:jid())
-               -> jlib:xmlel().
+-spec forwarded(exml:element(), calendar:datetime(), jid:jid())
+               -> exml:element().
 forwarded(Packet, DateTime, SrcJID) ->
     #xmlel{
        name = <<"forwarded">>,
@@ -420,7 +423,7 @@ forwarded(Packet, DateTime, SrcJID) ->
        %% Also, mod_mam_muc will replace it again with SrcJID
        children = [delay(DateTime, SrcJID), replace_from_attribute(SrcJID, Packet)]}.
 
--spec delay(calendar:datetime(), ejabberd:jid()) -> jlib:xmlel().
+-spec delay(calendar:datetime(), jid:jid()) -> exml:element().
 delay(DateTime, SrcJID) ->
     jlib:timestamp_to_xml(DateTime, utc, SrcJID, <<>>).
 
@@ -431,8 +434,8 @@ replace_from_attribute(From, Packet=#xmlel{attrs = Attrs}) ->
 
 %% @doc Generates tag `<result />'.
 %% This element will be added in each forwarded message.
--spec result(binary(), _, MessageUID :: binary(), Children :: [jlib:xmlel(), ...])
-            -> jlib:xmlel().
+-spec result(binary(), _, MessageUID :: binary(), Children :: [exml:element(), ...])
+            -> exml:element().
 result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
     %% <result xmlns='urn:xmpp:mam:tmp' queryid='f27' id='28482-98726-73623' />
     #xmlel{
@@ -450,7 +453,7 @@ result(MamNs, QueryID, MessageUID, Children) when is_list(Children) ->
 -spec result_set(FirstId :: binary() | undefined,
                  LastId :: binary() | undefined,
                  FirstIndexI :: non_neg_integer() | undefined,
-                 CountI :: non_neg_integer() | undefined) -> jlib:xmlel().
+                 CountI :: non_neg_integer() | undefined) -> exml:element().
 result_set(FirstId, LastId, undefined, undefined)
   when ?MAYBE_BIN(FirstId), ?MAYBE_BIN(LastId) ->
     %% Simple response
@@ -486,7 +489,7 @@ result_set(FirstId, LastId, FirstIndexI, CountI)
        children = FirstEl ++ LastEl ++ [CountEl]}.
 
 
--spec result_query(jlib:xmlcdata() | jlib:xmlel(), binary()) -> jlib:xmlel().
+-spec result_query(jlib:xmlcdata() | exml:element(), binary()) -> exml:element().
 result_query(SetEl, Namespace) ->
     #xmlel{
        name = <<"query">>,
@@ -494,9 +497,9 @@ result_query(SetEl, Namespace) ->
        children = [SetEl]}.
 
 -spec result_prefs(DefaultMode :: archive_behaviour(),
-                   AlwaysJIDs :: [ejabberd:literal_jid()],
-                   NeverJIDs :: [ejabberd:literal_jid()],
-                   Namespace :: binary()) -> jlib:xmlel().
+                   AlwaysJIDs :: [jid:literal_jid()],
+                   NeverJIDs :: [jid:literal_jid()],
+                   Namespace :: binary()) -> exml:element().
 result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
     AlwaysEl = #xmlel{name = <<"always">>,
                       children = encode_jids(AlwaysJIDs)},
@@ -510,14 +513,14 @@ result_prefs(DefaultMode, AlwaysJIDs, NeverJIDs, Namespace) ->
       }.
 
 
--spec encode_jids([binary() | string()]) -> [jlib:xmlel()].
+-spec encode_jids([binary() | string()]) -> [exml:element()].
 encode_jids(JIDs) ->
     [#xmlel{name = <<"jid">>, children = [#xmlcdata{content = JID}]}
      || JID <- JIDs].
 
 
 %% Make fin message introduced in MAM 0.3
--spec make_fin_message(binary(), boolean(), boolean(), jlib:xmlel(), binary()) -> jlib:xmlel().
+-spec make_fin_message(binary(), boolean(), boolean(), exml:element(), binary()) -> exml:element().
 make_fin_message(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
     #xmlel{
        name = <<"message">>,
@@ -534,7 +537,7 @@ make_fin_element_v03(MamNs, IsComplete, IsStable, ResultSetEl, QueryID) ->
        children = [ResultSetEl]}.
 
 %% MAM v0.4.1 and above
--spec make_fin_element(binary(), boolean(), boolean(), jlib:xmlel()) -> jlib:xmlel().
+-spec make_fin_element(binary(), boolean(), boolean(), exml:element()) -> exml:element().
 make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
     #xmlel{
        name = <<"fin">>,
@@ -544,7 +547,7 @@ make_fin_element(MamNs, IsComplete, IsStable, ResultSetEl) ->
        children = [ResultSetEl]}.
 
 
--spec parse_prefs(PrefsEl :: jlib:xmlel()) -> mod_mam:preference().
+-spec parse_prefs(PrefsEl :: exml:element()) -> mod_mam:preference().
 parse_prefs(El = #xmlel{ name = <<"prefs">> }) ->
     Default = exml_query:attr(El, <<"default">>),
     AlwaysJIDs = parse_jid_list(El, <<"always">>),
@@ -558,7 +561,7 @@ valid_behavior(<<"never">>)  -> never;
 valid_behavior(<<"roster">>) -> roster.
 
 
--spec parse_jid_list(jlib:xmlel(), binary()) -> [ejabberd:literal_jid()].
+-spec parse_jid_list(exml:element(), binary()) -> [jid:literal_jid()].
 parse_jid_list(El, Name) ->
     case exml_query:subelement(El, Name) of
         undefined -> [];
@@ -587,7 +590,7 @@ binary_jid_to_lower(BinJid) when is_binary(BinJid) ->
 skip_bad_jids(MaybeJids) ->
     [Jid || Jid <- MaybeJids, is_binary(Jid)].
 
--spec borders_decode(jlib:xmlel()) -> 'undefined' | mod_mam:borders().
+-spec borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
 borders_decode(QueryEl) ->
     AfterID  = tag_id(QueryEl, <<"after_id">>),
     BeforeID = tag_id(QueryEl, <<"before_id">>),
@@ -595,7 +598,7 @@ borders_decode(QueryEl) ->
     ToID     = tag_id(QueryEl, <<"to_id">>),
     borders(AfterID, BeforeID, FromID, ToID).
 
--spec form_borders_decode(jlib:xmlel()) -> 'undefined' | mod_mam:borders().
+-spec form_borders_decode(exml:element()) -> 'undefined' | mod_mam:borders().
 form_borders_decode(QueryEl) ->
     AfterID  = form_field_mess_id(QueryEl, <<"after_id">>),
     BeforeID = form_field_mess_id(QueryEl, <<"before_id">>),
@@ -620,17 +623,17 @@ borders(AfterID, BeforeID, FromID, ToID) ->
     }.
 
 
--spec tag_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
+-spec tag_id(exml:element(), binary()) -> 'undefined' | integer().
 tag_id(QueryEl, Name) ->
     BExtMessID = exml_query:attr(QueryEl, Name, <<>>),
     maybe_external_binary_to_mess_id(BExtMessID).
 
--spec form_field_mess_id(jlib:xmlel(), binary()) -> 'undefined' | integer().
+-spec form_field_mess_id(exml:element(), binary()) -> 'undefined' | integer().
 form_field_mess_id(QueryEl, Name) ->
     BExtMessID = form_field_value_s(QueryEl, Name),
     maybe_external_binary_to_mess_id(BExtMessID).
 
--spec decode_optimizations(jlib:xmlel()) -> 'false' | 'opt_count' | 'true'.
+-spec decode_optimizations(exml:element()) -> 'false' | 'opt_count' | 'true'.
 decode_optimizations(QueryEl) ->
     case {exml_query:subelement(QueryEl, <<"simple">>),
           exml_query:subelement(QueryEl, <<"opt_count">>)} of
@@ -639,7 +642,7 @@ decode_optimizations(QueryEl) ->
         _              -> true
     end.
 
--spec form_decode_optimizations(jlib:xmlel()) -> false | opt_count | true.
+-spec form_decode_optimizations(exml:element()) -> false | opt_count | true.
 form_decode_optimizations(QueryEl) ->
     case {form_field_value(QueryEl, <<"simple">>),
           form_field_value(QueryEl, <<"opt_count">>)} of
@@ -668,7 +671,7 @@ is_mam_namespace(_)          -> false.
 %% -----------------------------------------------------------------------
 %% Forms
 
--spec form_field_value(jlib:xmlel(), binary()) -> undefined | binary().
+-spec form_field_value(exml:element(), binary()) -> undefined | binary().
 form_field_value(QueryEl, Name) ->
     case exml_query:subelement(QueryEl, <<"x">>) of
         undefined ->
@@ -689,7 +692,7 @@ undefined_to_empty(undefined) -> <<>>;
 undefined_to_empty(X)         -> X.
 
 %% @doc Return first matched field
--spec find_field(list(jlib:xmlel()), binary()) -> undefined | jlib:xmlel().
+-spec find_field(list(exml:element()), binary()) -> undefined | exml:element().
 find_field([#xmlel{ name = <<"field">> } = Field | Fields], Name) ->
     case exml_query:attr(Field, <<"var">>) of
         Name -> Field;
@@ -700,12 +703,12 @@ find_field([_|Fields], Name) -> %% skip whitespaces
 find_field([], _Name) ->
     undefined.
 
--spec field_to_value(jlib:xmlel()) -> binary().
+-spec field_to_value(exml:element()) -> binary().
 field_to_value(FieldEl) ->
     exml_query:path(FieldEl, [{element, <<"value">>}, cdata], <<>>).
 
--spec message_form(Mod :: mod_mam | mod_mam_muc, Host :: ejabberd:lserver(), binary()) ->
-    jlib:xmlel().
+-spec message_form(Mod :: mod_mam | mod_mam_muc, Host :: jid:lserver(), binary()) ->
+    exml:element().
 message_form(Module, Host, MamNs) ->
     SubEl = #xmlel{name = <<"x">>,
                    attrs = [{<<"xmlns">>, <<"jabber:x:data">>},
@@ -769,8 +772,8 @@ normalize_search_text(Text, WordSeparator) ->
     Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
     re:replace(Re1, "\s+", WordSeparator, ReOpts).
 
--spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server(),
-                            Packet :: xmlel()) -> string().
+-spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: jid:server(),
+                            Packet :: exml:element()) -> string().
 packet_to_search_body(Module, Host, Packet) ->
     case has_full_text_search(Module, Host) of
         true ->
@@ -780,15 +783,15 @@ packet_to_search_body(Module, Host, Packet) ->
         false -> ""
     end.
 
--spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server()) -> boolean().
+-spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().
 has_full_text_search(Module, Host) ->
     gen_mod:get_module_opt(Host, Module, full_text_search, true).
 
 %% -----------------------------------------------------------------------
 %% JID serialization
 
--spec jid_to_opt_binary(UserJID :: ejabberd:jid(), JID :: ejabberd:jid()
-                        ) -> ejabberd:literal_jid().
+-spec jid_to_opt_binary(UserJID :: jid:jid(), JID :: jid:jid()
+                        ) -> jid:literal_jid().
 jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
                   #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
     <<>>;
@@ -811,8 +814,8 @@ jid_to_opt_binary(_,
     <<LServer/binary, $@, LUser/binary, $/, LResource/binary>>.
 
 
--spec expand_minified_jid(UserJID :: ejabberd:jid(),
-                          OptJID :: ejabberd:literal_jid()) -> ejabberd:literal_jid().
+-spec expand_minified_jid(UserJID :: jid:jid(),
+                          OptJID :: jid:literal_jid()) -> jid:literal_jid().
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
 expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
@@ -822,7 +825,7 @@ expand_minified_jid(UserJID, Encoded) ->
     expand_minified_jid(Part, UserJID, Encoded).
 
 -spec expand_minified_jid('nomatch' | {non_neg_integer(), 1},
-            ejabberd:jid(), Encoded :: ejabberd:luser() | binary()) -> binary().
+            jid:jid(), Encoded :: jid:luser() | binary()) -> binary().
 expand_minified_jid(nomatch,  #jid{lserver=ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
 expand_minified_jid({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
@@ -870,12 +873,12 @@ is_loaded_application(AppName) when is_atom(AppName) ->
 
 %% -----------------------------------------------------------------------
 %% Other
--spec bare_jid(undefined | ejabberd:jid()) -> undefined | binary().
+-spec bare_jid(undefined | jid:jid()) -> undefined | binary().
 bare_jid(undefined) -> undefined;
 bare_jid(JID) ->
     jid:to_binary(jid:to_bare(jid:to_lower(JID))).
 
--spec full_jid(ejabberd:jid()) -> binary().
+-spec full_jid(jid:jid()) -> binary().
 full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
 
@@ -909,7 +912,7 @@ calculate_msg_id_borders(Borders, Start, End) ->
     {apply_start_border(Borders, StartID),
      apply_end_border(Borders, EndID)}.
 
--spec calculate_msg_id_borders(rsm_in() | undefined,
+-spec calculate_msg_id_borders(jlib:rsm_in() | undefined,
                                mod_mam:borders() | undefined,
                                mod_mam:unix_timestamp() | undefined,
                                mod_mam:unix_timestamp() | undefined) -> R when
@@ -1001,7 +1004,7 @@ action_to_shaper_name(Action) ->
 action_to_global_shaper_name(Action) -> list_to_atom(atom_to_list(Action) ++ "_global_shaper").
 
 
--spec wait_shaper(ejabberd:server(), mam_iq:action(), ejabberd:jid()) ->
+-spec wait_shaper(jid:server(), mam_iq:action(), jid:jid()) ->
     'ok' | {'error', 'max_delay_reached'}.
 wait_shaper(Host, Action, From) ->
     case shaper_srv:wait(Host, action_to_shaper_name(Action), From, 1) of
@@ -1014,7 +1017,7 @@ wait_shaper(Host, Action, From) ->
 %% -----------------------------------------------------------------------
 %% Ejabberd
 
--spec send_message(ejabberd:jid(), ejabberd:jid(), jlib:xmlel()
+-spec send_message(jid:jid(), jid:jid(), exml:element()
                   ) -> mongoose_acc:t().
 
 -ifdef(MAM_COMPACT_FORWARDED).
@@ -1031,7 +1034,7 @@ send_message(From, To, Mess) ->
 -endif.
 
 
--spec is_jid_in_user_roster(ejabberd:jid(), ejabberd:jid()) -> boolean().
+-spec is_jid_in_user_roster(jid:jid(), jid:jid()) -> boolean().
 is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
                       #jid{} = RemJID) ->
     RemBareJID = jid:to_bare(RemJID),
@@ -1042,12 +1045,12 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
     Subscription == from orelse Subscription == both.
 
 
--spec success_sql_query(atom() | ejabberd:server(), _) -> any().
+-spec success_sql_query(atom() | jid:server(), _) -> any().
 success_sql_query(HostOrConn, Query) ->
     Result = mongoose_rdbms:sql_query(HostOrConn, Query),
     error_on_sql_error(HostOrConn, Query, Result).
 
--spec success_sql_execute(atom() | ejabberd:server(), atom(), [term()]) -> any().
+-spec success_sql_execute(atom() | jid:server(), atom(), [term()]) -> any().
 success_sql_execute(HostOrConn, Name, Params) ->
     Result = mongoose_rdbms:execute(HostOrConn, Name, Params),
     error_on_sql_error(HostOrConn, Name, Result).

@@ -50,13 +50,13 @@
         ]).
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server()) -> ok.
+-spec start(Host :: jid:server()) -> ok.
 start(Host) ->
     UsernameKey = ejabberd_auth:get_opt(Host, jwt_username_key),
     true = is_atom(UsernameKey) andalso UsernameKey /= undefined,
@@ -68,7 +68,7 @@ start(Host) ->
                            {jwt_algorithm, list_to_binary(JWTAlgorithm)}]),
     ok.
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(_Host) ->
     ok.
 
@@ -80,8 +80,8 @@ store_type(_Server) ->
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver(),
+-spec check_password(LUser :: jid:luser(),
+                     LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
     Key = case ejabberd_auth:get_opt(LServer, jwt_secret) of
@@ -110,8 +110,8 @@ check_password(LUser, LServer, Password) ->
     end.
 
 
--spec check_password(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver(),
+-spec check_password(LUser :: jid:luser(),
+                     LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
@@ -119,67 +119,67 @@ check_password(LUser, LServer, Password, _Digest, _DigestGen) ->
     check_password(LUser, LServer, Password).
 
 
--spec set_password(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
+-spec set_password(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
                    Password :: binary()) -> ok | {error, not_allowed | invalid_jid}.
 set_password(_LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 
--spec try_register(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
+-spec try_register(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, exists | not_allowed}.
 try_register(_LUser, _LServer, _Password) ->
     {error, not_allowed}.
 
 
--spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
 dirty_get_registered_users() ->
     [].
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver()
-                             ) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(LServer :: jid:lserver()
+                             ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(_LServer) ->
     [].
 
 
 -type query_keyword() :: from | to | limit | offset | prefix.
 -type query_value() :: integer() | binary().
--spec get_vh_registered_users(LServer :: ejabberd:lserver(),
+-spec get_vh_registered_users(LServer :: jid:lserver(),
                               Query :: [{query_keyword(), query_value()}]
-                              ) -> [ejabberd:simple_bare_jid()].
+                              ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer, _) ->
     get_vh_registered_users(LServer).
 
 
--spec get_vh_registered_users_number(LServer :: ejabberd:server()
+-spec get_vh_registered_users_number(LServer :: jid:server()
                                     ) -> non_neg_integer().
 get_vh_registered_users_number(_LServer) ->
     0.
 
 
--spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
+-spec get_vh_registered_users_number(LServer :: jid:lserver(),
                                      Query :: [{prefix, binary()}]
                                      ) -> integer().
 get_vh_registered_users_number(LServer, _) ->
     get_vh_registered_users_number(LServer).
 
 
--spec get_password(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver()) -> binary() | false.
+-spec get_password(LUser :: jid:luser(),
+                   LServer :: jid:lserver()) -> binary() | false.
 get_password(_LUser, _LServer) ->
     false.
 
 
--spec get_password_s(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver()) -> binary().
+-spec get_password_s(LUser :: jid:luser(),
+                     LServer :: jid:lserver()) -> binary().
 get_password_s(_LUser, _LServer) ->
     <<"">>.
 
--spec does_user_exist(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver()
+-spec does_user_exist(LUser :: jid:luser(),
+                     LServer :: jid:lserver()
                      ) -> boolean() | {error, atom()}.
 does_user_exist(_LUser, _LServer) ->
     true.
@@ -187,16 +187,16 @@ does_user_exist(_LUser, _LServer) ->
 
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver()
+-spec remove_user(LUser :: jid:luser(),
+                  LServer :: jid:lserver()
                   ) -> ok | {error, not_allowed}.
 remove_user(_LUser, _LServer) ->
     ok.
 
 
 %% @doc Remove user if the provided password is correct.
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver(),
+-spec remove_user(LUser :: jid:luser(),
+                  LServer :: jid:lserver(),
                   Password :: binary()
                   ) -> ok | {error, not_exists | not_allowed | bad_request}.
 remove_user(_LUser, _LServer, _Password) ->

@@ -41,27 +41,27 @@
 %% General room queries
 %%====================================================================
 
--spec select_room_id(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
+-spec select_room_id(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 select_room_id(RoomU, RoomS) ->
     ["SELECT id FROM muc_light_rooms WHERE luser = '", ?ESC(RoomU), "'"
                                      " AND lserver = '", ?ESC(RoomS), "'"].
 
 -spec select_room_id_and_version(
-        RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
+        RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 select_room_id_and_version(RoomU, RoomS) ->
     ["SELECT id, version FROM muc_light_rooms WHERE luser = '", ?ESC(RoomU), "'"
                                               " AND lserver = '", ?ESC(RoomS), "'"].
 
--spec select_user_rooms(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver()) -> iolist().
+-spec select_user_rooms(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
 select_user_rooms(LUser, LServer) ->
     select_user_rooms(LUser, LServer, "r.luser, r.lserver").
 
--spec select_user_rooms_count(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver()) -> iolist().
+-spec select_user_rooms_count(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
 select_user_rooms_count(LUser, LServer) ->
     select_user_rooms(LUser, LServer, "COUNT(*)").
 
--spec select_user_rooms(LUser :: ejabberd:luser(),
-                        LServer :: ejabberd:lserver(),
+-spec select_user_rooms(LUser :: jid:luser(),
+                        LServer :: jid:lserver(),
                         ReturnStatement :: iodata()) -> iolist().
 select_user_rooms(LUser, LServer, ReturnStatement) ->
     ["SELECT ", ReturnStatement,
@@ -69,18 +69,18 @@ select_user_rooms(LUser, LServer, ReturnStatement) ->
      " WHERE o.luser = '", ?ESC(LUser), "' AND o.lserver = '", ?ESC(LServer), "'"].
 
 -spec insert_room(
-        RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver(), Version :: binary()) -> iolist().
+        RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
 insert_room(RoomU, RoomS, Version) ->
     ["INSERT INTO muc_light_rooms (luser, lserver, version)"
      " VALUES ('", ?ESC(RoomU), "', '", ?ESC(RoomS), "', '", ?ESC(Version), "')"].
 
 -spec update_room_version(
-        RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver(), Version :: binary()) -> iolist().
+        RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
 update_room_version(RoomU, RoomS, Version) ->
     ["UPDATE muc_light_rooms SET version = '", ?ESC(Version), "'"
      " WHERE luser = '", ?ESC(RoomU), "' AND lserver = '", ?ESC(RoomS), "'"].
 
--spec delete_room(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
+-spec delete_room(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 delete_room(RoomU, RoomS) ->
     ["DELETE FROM muc_light_rooms"
      " WHERE luser = '", ?ESC(RoomU), "' AND lserver = '", ?ESC(RoomS), "'"].
@@ -89,7 +89,7 @@ delete_room(RoomU, RoomS) ->
 %% Affiliations
 %%====================================================================
 
--spec select_affs(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
+-spec select_affs(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 select_affs(RoomU, RoomS) ->
     ["SELECT version, o.luser, o.lserver, aff"
      " FROM muc_light_rooms AS r LEFT OUTER JOIN muc_light_occupants AS o ON r.id = o.room_id"
@@ -99,15 +99,15 @@ select_affs(RoomU, RoomS) ->
 select_affs(RoomID) ->
     ["SELECT luser, lserver, aff FROM muc_light_occupants WHERE room_id = ", bin(RoomID)].
 
--spec insert_aff(RoomID :: integer() | binary(), UserU :: ejabberd:luser(),
-                 UserS :: ejabberd:lserver(), Aff :: aff()) -> iolist().
+-spec insert_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
+                 UserS :: jid:lserver(), Aff :: aff()) -> iolist().
 insert_aff(RoomID, UserU, UserS, Aff) ->
     ["INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
      " VALUES(", bin(RoomID), ", '", ?ESC(UserU), "', '", ?ESC(UserS), "', ",
               mod_muc_light_db_odbc:aff_atom2db(Aff), ")"].
 
--spec update_aff(RoomID :: integer() | binary(), UserU :: ejabberd:luser(),
-                 UserS :: ejabberd:lserver(), Aff :: aff()) -> iolist().
+-spec update_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
+                 UserS :: jid:lserver(), Aff :: aff()) -> iolist().
 update_aff(RoomID, UserU, UserS, Aff) ->
     ["UPDATE muc_light_occupants SET aff = ", mod_muc_light_db_odbc:aff_atom2db(Aff),
      " WHERE room_id = ", bin(RoomID), " AND luser = '", ?ESC(UserU), "'"
@@ -117,8 +117,8 @@ update_aff(RoomID, UserU, UserS, Aff) ->
 delete_affs(RoomID) ->
     ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID)].
 
--spec delete_aff(RoomID :: integer() | binary(), UserU :: ejabberd:luser(),
-                 UserS :: ejabberd:lserver()) ->
+-spec delete_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
+                 UserS :: jid:lserver()) ->
     iolist().
 delete_aff(RoomID, UserU, UserS) ->
     ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID),
@@ -133,13 +133,13 @@ delete_aff(RoomID, UserU, UserS) ->
 select_config(RoomID) ->
     ["SELECT opt, val FROM muc_light_config WHERE room_id = ", bin(RoomID)].
 
--spec select_config(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver()) -> iolist().
+-spec select_config(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 select_config(RoomU, RoomS) ->
     ["SELECT version, opt, val",
      " FROM muc_light_rooms AS r LEFT OUTER JOIN muc_light_config AS c ON r.id = c.room_id"
      " WHERE r.luser = '", ?ESC(RoomU), "' AND r.lserver = '", ?ESC(RoomS), "'"].
 
--spec select_config(RoomU :: ejabberd:luser(), RoomS :: ejabberd:lserver(), Key :: binary()) ->
+-spec select_config(RoomU :: jid:luser(), RoomS :: jid:lserver(), Key :: binary()) ->
     iolist().
 select_config(RoomU, RoomS, Key) ->
     [ select_config(RoomU, RoomS), " AND key = '", Key, "'" ].
@@ -162,13 +162,13 @@ delete_config(RoomID) ->
 %% Blocking
 %%====================================================================
 
--spec select_blocking(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver()) -> iolist().
+-spec select_blocking(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
 select_blocking(LUser, LServer) ->
     ["SELECT what, who FROM muc_light_blocking WHERE luser = '", ?ESC(LUser), "'",
                                                " AND lserver = '", ?ESC(LServer), "'"].
 
--spec select_blocking_cnt(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
-                           WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) -> iolist().
+-spec select_blocking_cnt(LUser :: jid:luser(), LServer :: jid:lserver(),
+                           WhatWhos :: [{blocking_who(), jid:simple_bare_jid()}]) -> iolist().
 select_blocking_cnt(LUser, LServer, WhatWhos) ->
     [ _ | WhatWhosWhere ] = lists:flatmap(
                               fun({What, Who}) ->
@@ -179,14 +179,14 @@ select_blocking_cnt(LUser, LServer, WhatWhos) ->
                                               " AND lserver = '", ?ESC(LServer), "'",
                                               " AND (", WhatWhosWhere, ")"].
 
--spec insert_blocking(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec insert_blocking(LUser :: jid:luser(), LServer :: jid:lserver(),
                        What :: blocking_what(), Who :: blocking_who()) -> iolist().
 insert_blocking(LUser, LServer, What, Who) ->
     ["INSERT INTO muc_light_blocking (luser, lserver, what, who)"
      " VALUES ('", ?ESC(LUser), "', '", ?ESC(LServer), "', ",
                mod_muc_light_db_odbc:what_atom2db(What), ", '", ?ESC(jid:to_binary(Who)), "')"].
 
--spec delete_blocking(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
+-spec delete_blocking(LUser :: jid:luser(), LServer :: jid:lserver(),
                          What :: blocking_what(), Who :: blocking_who()) -> iolist().
 delete_blocking(LUser, LServer, What, Who) ->
     ["DELETE FROM muc_light_blocking WHERE luser = '", ?ESC(LUser), "'"
@@ -194,7 +194,7 @@ delete_blocking(LUser, LServer, What, Who) ->
                                      " AND what = ", mod_muc_light_db_odbc:what_atom2db(What),
                                      " AND who = '", ?ESC(jid:to_binary(Who)), "'"].
 
--spec delete_blocking(UserU :: ejabberd:luser(), UserS :: ejabberd:lserver()) -> iolist().
+-spec delete_blocking(UserU :: jid:luser(), UserS :: jid:lserver()) -> iolist().
 delete_blocking(UserU, UserS) ->
     ["DELETE FROM muc_light_blocking"
      " WHERE luser = '", ?ESC(UserU), "' AND lserver = '", ?ESC(UserS), "'"].

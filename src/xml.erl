@@ -36,7 +36,7 @@
          get_path_s/2,
          replace_tag_attr/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -type xmlel_or_cdata() :: jlib:xmlch().
@@ -64,7 +64,7 @@ get_cdata([], S) ->
     S.
 
 
--spec get_tag_cdata(jlib:xmlel()) -> binary().
+-spec get_tag_cdata(exml:element()) -> binary().
 get_tag_cdata(#xmlel{children = Els}) ->
     get_cdata(Els).
 
@@ -89,22 +89,22 @@ get_attr_s(AttrName, Attrs) ->
             context_default(AttrName)
     end.
 
--spec get_tag_attr(binary(), jlib:xmlel()) -> 'false' | {'value', binary()}.
+-spec get_tag_attr(binary(), exml:element()) -> 'false' | {'value', binary()}.
 get_tag_attr(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr(AttrName, Attrs).
 
 
--spec get_tag_attr_s(binary(), jlib:xmlel()) -> binary().
+-spec get_tag_attr_s(binary(), exml:element()) -> binary().
 get_tag_attr_s(AttrName, #xmlel{attrs = Attrs}) ->
     get_attr_s(AttrName, Attrs).
 
 
--spec get_subtag(jlib:xmlel(), binary()) -> 'false' | jlib:xmlel().
+-spec get_subtag(exml:element(), binary()) -> 'false' | exml:element().
 get_subtag(#xmlel{children = Els}, Name) ->
     get_subtag1(Els, Name).
 
 
--spec get_subtag1([xmlel_or_cdata()], binary()) -> 'false' | jlib:xmlel().
+-spec get_subtag1([xmlel_or_cdata()], binary()) -> 'false' | exml:element().
 get_subtag1([El | Els], Name) ->
     case El of
         #xmlel{name = Name} ->
@@ -116,13 +116,13 @@ get_subtag1([], _) ->
     false.
 
 
--spec append_subtags(jlib:xmlel(), [xmlel_or_cdata()]) -> jlib:xmlel().
+-spec append_subtags(exml:element(), [xmlel_or_cdata()]) -> exml:element().
 append_subtags(XE = #xmlel{children = SubTags1}, SubTags2) ->
     XE#xmlel{children = SubTags1 ++ SubTags2}.
 
 
--spec get_path_s(jlib:xmlel(), [{elem, binary()} | {attr, binary()} | cdata]) ->
-    iodata() | jlib:xmlel().
+-spec get_path_s(exml:element(), [{elem, binary()} | {attr, binary()} | cdata]) ->
+    iodata() | exml:element().
 get_path_s(El, []) ->
     El;
 get_path_s(El, [{elem, Name} | Path]) ->
@@ -138,8 +138,8 @@ get_path_s(El, [cdata]) ->
     get_tag_cdata(El).
 
 
--spec replace_tag_attr(Attr :: binary(), Value :: binary(), jlib:xmlel()
-                      ) -> jlib:xmlel().
+-spec replace_tag_attr(Attr :: binary(), Value :: binary(), exml:element()
+                      ) -> exml:element().
 replace_tag_attr(Attr, Value, XE = #xmlel{attrs = Attrs}) ->
     Attrs1 = lists:keydelete(Attr, 1, Attrs),
     Attrs2 = [{Attr, Value} | Attrs1],

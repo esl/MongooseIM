@@ -55,14 +55,14 @@
          get_local_config/0,
          get_host_local_config/0]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -define(CONFIG_RELOAD_TIMEOUT, 30000).
 
 -type key() :: atom()
-             | {key(), ejabberd:server() | atom() | list()}
+             | {key(), jid:server() | atom() | list()}
              | {atom(), atom(), atom()}
              | binary(). % TODO: binary is questionable here
 
@@ -1158,8 +1158,8 @@ compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
     L = sort_config(Opts ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
 
--spec check_hosts([ejabberd:server()], [ejabberd:server()]) -> {[ejabberd:server()],
-                                                                [ejabberd:server()]}.
+-spec check_hosts([jid:server()], [jid:server()]) -> {[jid:server()],
+                                                                [jid:server()]}.
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
@@ -1167,7 +1167,7 @@ check_hosts(NewHosts, OldHosts) ->
     ListToDel = sets:to_list(sets:subtract(Old, New)),
     {ListToDel, ListToAdd}.
 
--spec add_virtual_host(Host :: ejabberd:server()) -> any().
+-spec add_virtual_host(Host :: jid:server()) -> any().
 add_virtual_host(Host) ->
     ?DEBUG("Register host:~p", [Host]),
     ejabberd_local:register_host(Host).
@@ -1178,7 +1178,7 @@ can_be_ignored(Key) when is_atom(Key);
     L = [domain_certfile, s2s, all_metrics_are_global, odbc],
     lists:member(Key, L).
 
--spec remove_virtual_host(ejabberd:server()) -> any().
+-spec remove_virtual_host(jid:server()) -> any().
 remove_virtual_host(Host) ->
     ?DEBUG("Unregister host :~p", [Host]),
     ejabberd_local:unregister_host(Host).
@@ -1227,7 +1227,7 @@ group_host_changes(Changes) when is_list(Changes) ->
      || {Group, MaybeDeepList} <- dict:to_list(D)].
 
 %% match all hosts
--spec get_host_local_config() -> [{local_config, {term(), ejabberd:server()}, term()}].
+-spec get_host_local_config() -> [{local_config, {term(), jid:server()}, term()}].
 get_host_local_config() ->
     mnesia:dirty_match_object({local_config, {'_', '_'}, '_'}).
 
@@ -1244,7 +1244,7 @@ get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
 -spec is_not_host_specific(atom()
-                           | {atom(), ejabberd:server()}
+                           | {atom(), jid:server()}
                            | {atom(), atom(), atom()}) -> boolean().
 is_not_host_specific(Key) when is_atom(Key) ->
     true;

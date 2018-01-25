@@ -23,7 +23,7 @@
 -export([register_smid/2,
          get_sid/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(sm_session, {smid, sid}).
@@ -68,8 +68,8 @@ remove_smid(Acc, SID, _JID, _Info, _Reason) ->
     end,
     Acc.
 
--spec session_cleanup(Acc :: map(), LUser :: ejabberd:luser(), LServer :: ejabberd:lserver(),
-                      LResource :: ejabberd:lresource(), SID :: ejabberd_sm:sid()) -> any().
+-spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
+                      LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
     remove_smid(Acc, SID, undefined, undefined, undefined).
 

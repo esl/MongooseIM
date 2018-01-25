@@ -63,24 +63,31 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl"). % only used to define stream types
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
+-include("mongoose_rsm.hrl").
 
 %% Stream types defined in exml/include/exml_stream.hrl
 -type xmlstreamstart()  :: #xmlstreamstart{}.
 -type xmlstreamend()    :: #xmlstreamend{}.
--type xmlstreamel() :: xmlel() | xmlstreamstart() | xmlstreamend().
+-type xmlstreamel() :: exml:element() | xmlstreamstart() | xmlstreamend().
 
 -type xmlcdata()  :: #xmlcdata{}.
 
--type xmlch() :: xmlel() | xmlcdata(). % (XML ch)ild
+-type xmlch() :: exml:element() | xmlcdata(). % (XML ch)ild
 
 -type binary_pair() :: {binary(), binary()}.
 
--export_type([xmlel/0, xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
+-type iq() :: #iq{}.
+
+-type rsm_in() :: #rsm_in{}.
+-type rsm_out() :: #rsm_out{}.
+
+-export_type([xmlstreamstart/0, xmlstreamend/0, xmlstreamel/0,
               binary_pair/0,
               rsm_in/0, rsm_out/0,
               xmlcdata/0,
-              xmlch/0
+              xmlch/0,
+              iq/0
              ]).
 
 %% Datetime format where all or some elements may be 'false' or integer()
@@ -101,7 +108,7 @@
                        'false' | non_neg_integer()}.
 
 
--spec make_result_iq_reply(xmlel()) -> xmlel().
+-spec make_result_iq_reply(exml:element()) -> exml:element().
 make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = make_result_iq_reply_attrs(Attrs),
     XE#xmlel{attrs = NewAttrs}.
@@ -129,9 +136,9 @@ make_result_iq_reply_attrs(Attrs) ->
     [{<<"type">>, <<"result">>} | Attrs5].
 
 
--spec make_error_reply(xmlel() | mongoose_acc:t(),
-                       xmlcdata() | xmlel()) ->
-    xmlel() | mongoose_acc:t().
+-spec make_error_reply(exml:element() | mongoose_acc:t(),
+                       xmlcdata() | exml:element()) ->
+    exml:element() | mongoose_acc:t().
 make_error_reply(#xmlel{name = Name, attrs = Attrs,
                         children = SubTags}, Error) ->
     NewAttrs = make_error_reply_attrs(Attrs),
@@ -163,7 +170,7 @@ make_error_reply_attrs(Attrs) ->
     Attrs6.
 
 
--spec make_config_change_message(binary()) -> xmlel().
+-spec make_config_change_message(binary()) -> exml:element().
 make_config_change_message(Status) ->
     #xmlel{name = <<"message">>, attrs = [{<<"type">>, <<"groupchat">>}],
            children = [#xmlel{name = <<"x">>,
@@ -172,8 +179,8 @@ make_config_change_message(Status) ->
                                                  attrs = [{<<"code">>, Status}]}]}]}.
 
 
--spec make_invitation(From :: ejabberd:jid(), Password :: binary(),
-                      Reason :: binary()) -> xmlel().
+-spec make_invitation(From :: jid:jid(), Password :: binary(),
+                      Reason :: binary()) -> exml:element().
 make_invitation(From, Password, Reason) ->
     Elements = [#xmlel{name = <<"invite">>,
                        attrs = [{<<"from">>, jid:to_binary(From)}]}],
@@ -196,7 +203,7 @@ make_invitation(From, Password, Reason) ->
 
 -spec form_field({binary(), binary(), binary()}
                | {binary(), binary()}
-               | {binary(), binary(), binary(), binary()}) -> xmlel().
+               | {binary(), binary(), binary(), binary()}) -> exml:element().
 form_field({Var, Type, Value, Label}) ->
     Field = form_field({Var, Type, Value}),
     Field#xmlel{attrs = [{<<"label">>, Label} | Field#xmlel.attrs]};
@@ -209,8 +216,8 @@ form_field({Var, Value}) ->
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 
--spec make_voice_approval_form(From :: ejabberd:simple_jid() | ejabberd:jid(),
-                               Nick :: binary(), Role :: binary()) -> xmlel().
+-spec make_voice_approval_form(From :: jid:simple_jid() | jid:jid(),
+                               Nick :: binary(), Role :: binary()) -> exml:element().
 make_voice_approval_form(From, Nick, Role) ->
   Fields = [{<<"FORM_TYPE">>, <<"hidden">>, ?NS_MUC_REQUEST},
     {<<"muc#role">>, <<"text-single">>, Role, <<"Request role">>},
@@ -242,9 +249,9 @@ replace_from_to_attrs(From, To, Attrs) ->
     Attrs4.
 
 
--spec replace_from_to(From :: ejabberd:simple_jid() | ejabberd:jid(),
-                      To :: ejabberd:simple_jid() | ejabberd:jid(),
-                      XE :: xmlel()) -> xmlel().
+-spec replace_from_to(From :: jid:simple_jid() | jid:jid(),
+                      To :: jid:simple_jid() | jid:jid(),
+                      XE :: exml:element()) -> exml:element().
 replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = replace_from_to_attrs(jid:to_binary(From),
                                      jid:to_binary(To),
@@ -252,18 +259,18 @@ replace_from_to(From, To, XE = #xmlel{attrs = Attrs}) ->
     XE#xmlel{attrs = NewAttrs}.
 
 
--spec remove_attr(binary(), xmlel()) -> xmlel().
+-spec remove_attr(binary(), exml:element()) -> exml:element().
 remove_attr(Attr, XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = lists:keydelete(Attr, 1, Attrs),
     XE#xmlel{attrs = NewAttrs}.
 
--spec iq_query_info(xmlel()) -> 'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
+-spec iq_query_info(exml:element()) -> 'invalid' | 'not_iq' | 'reply' | iq().
 iq_query_info(El) ->
     iq_info_internal(El, request).
 
 
--spec iq_query_or_response_info(xmlel()) ->
-                                'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
+-spec iq_query_or_response_info(exml:element()) ->
+                                'invalid' | 'not_iq' | 'reply' | iq().
 iq_query_or_response_info(El) ->
     iq_info_internal(El, any).
 
@@ -279,14 +286,14 @@ make_reply_from_type(<<"error">>) ->
 make_reply_from_type(_) ->
     {invalid, invalid}.
 
--spec extract_xmlns([xmlel()]) -> binary().
+-spec extract_xmlns([exml:element()]) -> binary().
 extract_xmlns([Element]) ->
     xml:get_tag_attr_s(<<"xmlns">>, Element);
 extract_xmlns(_) ->
     <<>>.
 
--spec iq_info_internal(xmlel(), Filter :: 'any' | 'request') ->
-  'invalid' | 'not_iq' | 'reply' | ejabberd:iq().
+-spec iq_info_internal(exml:element(), Filter :: 'any' | 'request') ->
+                                'invalid' | 'not_iq' | 'reply' | iq().
 iq_info_internal(#xmlel{name = Name, attrs = Attrs,
                         children = Els}, Filter) when Name == <<"iq">> ->
     %% Filter is either request or any.  If it is request, any replies
@@ -342,7 +349,7 @@ iq_type_to_binary(result) -> <<"result">>;
 iq_type_to_binary(error) -> <<"error">>;
 iq_type_to_binary(_) -> invalid.
 
--spec iq_to_xml(ejabberd:iq()) -> xmlel().
+-spec iq_to_xml(iq()) -> exml:element().
 iq_to_xml(#iq{id = ID, type = Type, sub_el = SubEl}) when ID /= "" ->
     #xmlel{name = <<"iq">>,
         attrs = [{<<"id">>, ID}, {<<"type">>, iq_type_to_binary(Type)}],
@@ -354,14 +361,14 @@ iq_to_xml(#iq{type = Type, sub_el = SubEl}) ->
 
 %% @doc Convert `#iq.sub_el' back to `#xmlel.children'.
 %% @end
--spec sub_el_to_els([xmlel()] | xmlel()) -> [xmlel()].
+-spec sub_el_to_els([exml:element()] | exml:element()) -> [exml:element()].
 %% for requests.
 sub_el_to_els(#xmlel{}=E) -> [E];
 %% for replies.
 sub_el_to_els(Es) when is_list(Es) -> Es.
 
 
--spec parse_xdata_submit(xmlel()) -> 'invalid' | [{binary(), [binary()]}].
+-spec parse_xdata_submit(exml:element()) -> 'invalid' | [{binary(), [binary()]}].
 parse_xdata_submit(El) ->
     #xmlel{attrs = Attrs, children = Els} = El,
     case xml:get_attr_s(<<"type">>, Attrs) of
@@ -372,12 +379,12 @@ parse_xdata_submit(El) ->
     end.
 
 
--spec parse_xdata_fields([xmlcdata() | xmlel()]) ->
+-spec parse_xdata_fields([xmlcdata() | exml:element()]) ->
     [{binary(), [binary()]}].
 parse_xdata_fields(Els) ->
     lists:reverse(parse_xdata_fields(Els, [])).
 
--spec parse_xdata_fields([xmlcdata() | xmlel()], [{binary(), [binary()]}]) ->
+-spec parse_xdata_fields([xmlcdata() | exml:element()], [{binary(), [binary()]}]) ->
     [{binary(), [binary()]}].
 parse_xdata_fields([], Res) ->
     Res;
@@ -400,7 +407,7 @@ parse_xdata_fields([_ | Els], Res) ->
     parse_xdata_fields(Els, Res).
 
 
--spec parse_xdata_values([xmlcdata() | xmlel()], [binary()]) -> [binary()].
+-spec parse_xdata_values([xmlcdata() | exml:element()], [binary()]) -> [binary()].
 parse_xdata_values([], Res) ->
     Res;
 parse_xdata_values([#xmlel{name = Name,
@@ -415,8 +422,7 @@ parse_xdata_values([#xmlel{name = Name,
 parse_xdata_values([_ | Els], Res) ->
     parse_xdata_values(Els, Res).
 
-
--spec rsm_decode(xmlel() | iq()) -> 'none' | rsm_in().
+-spec rsm_decode(exml:element() | iq()) -> 'none' | #rsm_in{}.
 rsm_decode(#iq{sub_el=SubEl})->
     rsm_decode(SubEl);
 rsm_decode(#xmlel{}=SubEl) ->
@@ -428,7 +434,7 @@ rsm_decode(#xmlel{}=SubEl) ->
     end.
 
 
--spec rsm_parse_element(xmlel(), rsm_in()) -> rsm_in().
+-spec rsm_parse_element(exml:element(), rsm_in()) -> rsm_in().
 rsm_parse_element(#xmlel{name = <<"max">>, attrs = []}=Elem, RsmIn) ->
     CountStr = xml:get_tag_cdata(Elem),
     {Count, _} = string:to_integer(binary_to_list(CountStr)),
@@ -448,7 +454,7 @@ rsm_parse_element(_, RsmIn)->
     RsmIn.
 
 
--spec rsm_encode('none' | rsm_out()) -> [xmlel()].
+-spec rsm_encode('none' | rsm_out()) -> [exml:element()].
 rsm_encode(none)->
     [];
 rsm_encode(RsmOut)->
@@ -456,7 +462,7 @@ rsm_encode(RsmOut)->
             children = lists:reverse(rsm_encode_out(RsmOut))}].
 
 
--spec rsm_encode_out(rsm_out()) -> [xmlel()].
+-spec rsm_encode_out(rsm_out()) -> [exml:element()].
 rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
     El = rsm_encode_first(First, Index, []),
     El2 = rsm_encode_last(Last, El),
@@ -465,7 +471,7 @@ rsm_encode_out(#rsm_out{count=Count, index=Index, first=First, last=Last})->
 
 -spec rsm_encode_first(First :: undefined | binary(),
                        Index :: 'undefined' | integer(),
-                       Arr::[xmlel()]) -> [xmlel()].
+                       Arr::[exml:element()]) -> [exml:element()].
 rsm_encode_first(undefined, undefined, Arr) ->
     Arr;
 rsm_encode_first(First, undefined, Arr) ->
@@ -475,14 +481,14 @@ rsm_encode_first(First, Index, Arr) ->
             children = [#xmlcdata{content = First}]}|Arr].
 
 
--spec rsm_encode_last(Last :: 'undefined', Arr :: [xmlel()]) -> [xmlel()].
+-spec rsm_encode_last(Last :: 'undefined', Arr :: [exml:element()]) -> [exml:element()].
 rsm_encode_last(undefined, Arr) -> Arr;
 rsm_encode_last(Last, Arr) ->
     [#xmlel{name = <<"last">>, children = [#xmlcdata{content = Last}]}|Arr].
 
 
 -spec rsm_encode_count(Count :: 'undefined' | pos_integer(),
-                       Arr :: [xmlel()]) -> [xmlel()].
+                       Arr :: [exml:element()]) -> [exml:element()].
 rsm_encode_count(undefined, Arr)-> Arr;
 rsm_encode_count(Count, Arr)->
     [#xmlel{name = <<"count">>, children = [#xmlcdata{content = i2b(Count)}]} | Arr].
@@ -541,8 +547,8 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
-                       FromJID :: ejabberd:simple_jid() | ejabberd:jid(),
-                       Desc :: iodata()) -> xmlel().
+                       FromJID :: jid:simple_jid() | jid:jid(),
+                       Desc :: iodata()) -> exml:element().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {TString, TzString} = timestamp_to_iso(DateTime, Timezone),
     Text = [#xmlcdata{content = Desc}],
@@ -780,7 +786,7 @@ ip_to_list(IP) ->
    , Type :: binary()
    , Condition :: binary()
    , SpecTag :: binary()
-   , SpecNs :: binary() | undefined) -> xmlel().
+   , SpecNs :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
     Er = stanza_error(Code, Type, Condition),
     Spec = #xmlel{ name = SpecTag, attrs = [{<<"xmlns">>, SpecNs}]},
@@ -791,7 +797,7 @@ stanza_error(Code, Type, Condition, SpecTag, SpecNs) ->
 
 -spec stanza_error( Code :: binary()
                  , Type :: binary()
-                 , Condition :: binary() | undefined) -> xmlel().
+                 , Condition :: binary() | undefined) -> exml:element().
 stanza_error(Code, Type, Condition) ->
   #xmlel{ name = <<"error">>
        , attrs = [{<<"code">>, Code}, {<<"type">>, Type}]
@@ -804,7 +810,7 @@ stanza_error(Code, Type, Condition) ->
                   , Type :: binary()
                   , Condition :: binary()
                   , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> xmlel().
+                  , Text :: binary()) -> exml:element().
 stanza_errort(Code, Type, Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"error">>
@@ -818,7 +824,7 @@ stanza_errort(Code, Type, Condition, Lang, Text) ->
                              }]
         }.
 
--spec stream_error(Condition :: binary()) -> xmlel().
+-spec stream_error(Condition :: binary()) -> exml:element().
 stream_error(Condition) ->
   #xmlel{ name = <<"stream:error">>
        , children = [ #xmlel{ name = Condition
@@ -829,7 +835,7 @@ stream_error(Condition) ->
 
 -spec stream_errort( Condition :: binary()
                   , Lang :: ejabberd:lang()
-                  , Text :: binary()) -> xmlel().
+                  , Text :: binary()) -> exml:element().
 stream_errort(Condition, Lang, Text) ->
   Txt = translate:translate(Lang, Text),
   #xmlel{ name = <<"stream:error">>

@@ -29,7 +29,7 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
--spec get_worker(From :: ejabberd:lserver()) -> atom().
+-spec get_worker(From :: jid:lserver()) -> atom().
 get_worker(From) when is_binary(From) ->
     Name = mod_global_distrib_utils:any_binary_to_atom(From),
     case whereis(Name) of

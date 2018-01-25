@@ -13,7 +13,7 @@
 -author('rafal.slota@erlang-solutions.com').
 -behavior(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %%--------------------------------------------------------------------
@@ -45,7 +45,7 @@
 %% Module callbacks
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
 
@@ -57,7 +57,7 @@ start(Host, Opts) ->
 
     ok.
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
     wpool_sup:stop_pool(pool_name(Host, wpool)),
@@ -69,7 +69,7 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 %% Hook 'push_notifications'
--spec push_notifications(AccIn :: term(), Host :: ejabberd:server(),
+-spec push_notifications(AccIn :: term(), Host :: jid:server(),
                          Notifications :: [#{binary() => binary()}],
                          Options :: #{binary() => binary()}) -> ok.
 push_notifications(AccIn, Host, Notifications, Options) ->
@@ -94,7 +94,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec http_notification(Host :: ejabberd:server(), post,
+-spec http_notification(Host :: jid:server(), post,
                         binary(), proplists:proplist(), binary()) ->
     ok | {error, Reason :: term()}.
 http_notification(Host, Method, URL, ReqHeaders, Payload) ->
@@ -142,11 +142,11 @@ make_notification(v2, Notification, Options) ->
         topic => maps:get(<<"topic">>, Options, null)
     }}.
 
--spec cast(Host :: ejabberd:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+-spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
     wpool:cast(pool_name(Host, wpool), {M, F, A}, available_worker).
 
--spec pool_name(Host :: ejabberd:server(), Base0 :: atom()) -> atom().
+-spec pool_name(Host :: jid:server(), Base0 :: atom()) -> atom().
 pool_name(Host, Base0) ->
     Base = list_to_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(Base0)),
     gen_mod:get_module_proc(Host, Base).

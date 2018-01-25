@@ -15,9 +15,9 @@
 -export([encode_error/6]).
 
 -type encoded_packet_handler() ::
-    fun((From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> any()).
+    fun((From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> any()).
 
--type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | ejabberd:iq()}
+-type decode_result() :: {ok, muc_light_packet() | muc_light_disco() | jlib:iq()}
                        | {error, bad_request} | ignore.
 
 -export_type([encoded_packet_handler/0, decode_result/0]).
@@ -26,46 +26,46 @@
 %% Behaviour callbacks
 %%====================================================================
 
--callback decode(From :: ejabberd:jid(), To :: ejabberd:jid(), Stanza :: jlib:xmlel()) ->
+-callback decode(From :: jid:jid(), To :: jid:jid(), Stanza :: exml:element()) ->
     decode_result().
 
--callback encode(Request :: muc_light_encode_request(), OriginalSender :: ejabberd:jid(),
-                 RoomUS :: ejabberd:simple_bare_jid(), % may be just service domain
+-callback encode(Request :: muc_light_encode_request(), OriginalSender :: jid:jid(),
+                 RoomUS :: jid:simple_bare_jid(), % may be just service domain
                  HandleFun :: encoded_packet_handler()) -> any().
 
--callback encode_error(ErrMsg :: tuple(), OrigFrom :: ejabberd:jid(), OrigTo :: ejabberd:jid(),
-                       OrigPacket :: jlib:xmlel(), HandleFun :: encoded_packet_handler()) ->
+-callback encode_error(ErrMsg :: tuple(), OrigFrom :: jid:jid(), OrigTo :: jid:jid(),
+                       OrigPacket :: exml:element(), HandleFun :: encoded_packet_handler()) ->
     any().
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: ejabberd:jid(),
-                   OrigTo :: ejabberd:jid(), OrigPacket :: jlib:xmlel(),
+-spec encode_error(ErrMsg :: tuple(), ExtraChildren :: [jlib:xmlch()], OrigFrom :: jid:jid(),
+                   OrigTo :: jid:jid(), OrigPacket :: exml:element(),
                    HandleFun :: encoded_packet_handler()) -> any().
 encode_error(ErrMsg, ExtraChildren, OrigFrom, OrigTo, OrigPacket, HandleFun) ->
     ErrorElem = make_error_elem(ErrMsg),
     ErrorPacket = jlib:make_error_reply(OrigPacket#xmlel{ children = ExtraChildren }, ErrorElem),
     HandleFun(OrigTo, OrigFrom, ErrorPacket).
 
--spec make_error_elem(tuple()) -> jlib:xmlel().
+-spec make_error_elem(tuple()) -> exml:element().
 make_error_elem({error, not_allowed}) ->
-    ?ERR_NOT_ALLOWED;
+    mongoose_xmpp_errors:not_allowed();
 make_error_elem({error, bad_request}) ->
-    ?ERR_BAD_REQUEST;
+    mongoose_xmpp_errors:bad_request();
 make_error_elem({error, item_not_found}) ->
-    ?ERR_ITEM_NOT_FOUND;
+    mongoose_xmpp_errors:item_not_found();
 make_error_elem({error, conflict}) ->
-    ?ERR_CONFLICT;
+    mongoose_xmpp_errors:conflict();
 make_error_elem({error, bad_request, Text}) ->
-    ?ERRT_BAD_REQUEST(<<"en">>, iolist_to_binary(Text));
+    mongoose_xmpp_errors:bad_request(<<"en">>, iolist_to_binary(Text));
 make_error_elem({error, feature_not_implemented}) ->
-    ?ERR_FEATURE_NOT_IMPLEMENTED;
+    mongoose_xmpp_errors:feature_not_implemented();
 make_error_elem({error, internal_server_error}) ->
-    ?ERR_INTERNAL_SERVER_ERROR;
+    mongoose_xmpp_errors:internal_server_error();
 make_error_elem({error, registration_required}) ->
-    ?ERR_REGISTRATION_REQUIRED;
+    mongoose_xmpp_errors:registration_required();
 make_error_elem({error, _}) ->
-    ?ERR_BAD_REQUEST.
+    mongoose_xmpp_errors:bad_request().
 

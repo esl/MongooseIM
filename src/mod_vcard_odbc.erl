@@ -37,7 +37,7 @@
          search_fields/1,
          search_reported_fields/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 
@@ -63,12 +63,12 @@ get_vcard(LUser, LServer) ->
             case exml:parse(SVCARD) of
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard xml ~p~n~p", [Reason, SVCARD]),
-                    {error, ?ERR_SERVICE_UNAVAILABLE};
+                    {error, mongoose_xmpp_errors:service_unavailable()};
                 {ok, VCARD} ->
                     {ok, [VCARD]}
             end;
         {selected, []} ->
-            {error, ?ERR_ITEM_NOT_FOUND}
+            {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 set_vcard(User, VHost, VCard, VCardSearch) ->

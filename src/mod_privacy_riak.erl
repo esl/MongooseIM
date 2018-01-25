@@ -35,7 +35,7 @@
          replace_privacy_list/4,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
@@ -66,7 +66,7 @@ get_list_names(LUser, LServer) ->
     Names = get_list_names_only(LUser, LServer),
     {ok, {Default, Names}}.
 
--spec get_default_list_name(ejabberd:luser(), ejabberd:lserver()) -> binary() | none.
+-spec get_default_list_name(jid:luser(), jid:lserver()) -> binary() | none.
 get_default_list_name(LUser, LServer) ->
     case mongoose_riak:get(?BKT_DEFAULT_LIST(LServer), LUser) of
         {ok, Obj} ->
@@ -74,7 +74,7 @@ get_default_list_name(LUser, LServer) ->
         _ -> none
     end.
 
--spec get_list_names_only(ejabberd:luser(), ejabberd:lserver()) -> list(binary()).
+-spec get_list_names_only(jid:luser(), jid:lserver()) -> list(binary()).
 get_list_names_only(LUser, LServer) ->
     case mongoose_riak:fetch_type(?BKT_LISTS_NAMES(LServer), LUser) of
         {ok, Set} ->

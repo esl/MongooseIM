@@ -19,7 +19,7 @@
 
 -behaviour(gen_server).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
@@ -37,7 +37,7 @@
 %%--------------------------------------------------------------------
 
 -spec start_link(Endpoint :: mod_global_distrib_utils:endpoint(),
-                 Server :: ejabberd:lserver()) -> {ok, pid()} | {error, any()}.
+                 Server :: jid:lserver()) -> {ok, pid()} | {error, any()}.
 start_link(Endpoint, Server) ->
     gen_server:start_link(?MODULE, [Endpoint, Server], []).
 

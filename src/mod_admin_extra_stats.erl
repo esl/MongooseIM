@@ -34,7 +34,7 @@
     stats/1, stats/2
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 %%%
@@ -80,7 +80,7 @@ stats(Name) ->
     end.
 
 
--spec stats(binary(), ejabberd:server()) -> integer() | {error, string()}.
+-spec stats(binary(), jid:server()) -> integer() | {error, string()}.
 stats(Name, Host) ->
     case Name of
         <<"registeredusers">> ->

@@ -36,9 +36,10 @@
          full_jid/1
          ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mongoose_rsm.hrl").
 
 -callback encode(binary()) -> binary().
 -callback decode(binary()) -> binary().
@@ -268,7 +269,7 @@ message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID) ->
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
   {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
@@ -505,7 +506,7 @@ row_to_message_id(#{id := MsgID}) ->
                            Now) ->
                                   ok  | {error, 'not-supported'} when
       Host :: server_host(), MessID :: message_id(),
-      _UserID :: user_id(), UserJID :: jid(),
+      _UserID :: user_id(), UserJID :: jid:jid(),
       Now :: unix_timestamp().
 purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
     PoolName = pool_name(UserJID),
@@ -536,11 +537,11 @@ purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
                               Start, End, Now, WithJID) ->
                                      ok when
       Host :: server_host(), _UserID :: user_id(),
-      UserJID :: jid(), Borders :: mam_borders(),
+      UserJID ::jid:jid(), Borders :: mod_mam:borders(),
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),
-      WithJID :: jid()  | undefined.
+      WithJID :: jid:jid()  | undefined.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, Now, WithJID) ->
     %% Simple query without calculating offset and total count
@@ -565,7 +566,7 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 -spec extract_messages(PoolName, UserJID, Host, Filter, IMax, ReverseLimit) ->
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jid(),
+      UserJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       IMax :: pos_integer(),
@@ -593,7 +594,7 @@ extract_messages(PoolName, UserJID, _Host, Filter, IMax, true) ->
 -spec calc_index(PoolName, UserJID, Host, Filter, MessID) -> Count
                                                                  when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jid(),
+      UserJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       MessID :: message_id(),
@@ -608,7 +609,7 @@ calc_index(PoolName, UserJID, Host, Filter, MessID) ->
 -spec calc_before(PoolName, UserJID, Host, Filter, MessID) -> Count
                                                                   when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jid(),
+      UserJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       MessID :: message_id(),
@@ -622,7 +623,7 @@ calc_before(PoolName, UserJID, Host, Filter, MessID) ->
 -spec calc_count(PoolName, UserJID, Host, Filter) -> Count
                                                          when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jid(),
+      UserJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       Count :: non_neg_integer().
@@ -639,7 +640,7 @@ calc_count(PoolName, UserJID, _Host, Filter) ->
 -spec offset_to_start_id(PoolName, UserJID, Filter, Offset) -> Id
                                                                    when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jlib:jid(),
+      UserJID :: jid:jid(),
       Offset :: non_neg_integer(),
       Filter :: filter(),
       Id :: non_neg_integer() | undefined.
@@ -668,7 +669,7 @@ offset_to_start_id(PoolName, UserJID, Filter, Offset) when is_integer(Offset), O
 %% @doc Saves offset hint for future use in order to speed up queries with similar offset
 %% Hint is save only if previous offset hint was 50+ entires from current query
 %% This function returns given StartId as passthrough for convenience
--spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), UserJID :: jlib:jid(),
+-spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), UserJID :: jid:jid(),
                              Filter :: filter(), HintOffset :: non_neg_integer(),
                              NewOffset :: non_neg_integer(),
                              StartId :: non_neg_integer() | undefined) ->
@@ -693,7 +694,7 @@ maybe_save_offset_hint(PoolName, UserJID, Filter, HintOffset, NewOffset, StartId
 -spec calc_offset_to_start_id(PoolName, UserJID, Filter, Offset) -> Id
                                                                         when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jlib:jid(),
+      UserJID :: jid:jid(),
       Offset :: non_neg_integer(),
       Filter :: filter(),
       Id :: non_neg_integer() | undefined.
@@ -777,12 +778,12 @@ filter_to_cql() ->
 -spec calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
                                                                                      when
       PoolName :: mongoose_cassandra:pool_name(),
-      UserJID :: jid(),
+      UserJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
-      RSM :: rsm_in() | undefined,
+      RSM :: jlib:rsm_in() | undefined,
       Offset :: non_neg_integer().
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _UserJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
@@ -796,7 +797,7 @@ calc_offset(PoolName, UserJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = 
 calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
 
--spec maybe_full_jid(undefined | ejabberd:jid()) -> undefined | binary().
+-spec maybe_full_jid(undefined | jid:jid()) -> undefined | binary().
 maybe_full_jid(undefined) -> <<>>;
 maybe_full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
@@ -889,6 +890,6 @@ params_helper(Params) ->
 db_message_format() ->
     mod_mam_cassandra_arch_params:db_message_format().
 
--spec pool_name(jid()) -> term().
+-spec pool_name(jid:jid()) -> term().
 pool_name(_UserJid) ->
     mod_mam_cassandra_arch_params:pool_name().

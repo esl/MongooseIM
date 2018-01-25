@@ -2,7 +2,7 @@
 
 -behaviour(lasse_handler).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([init/3]).

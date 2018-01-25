@@ -19,7 +19,7 @@
          set_prefs/7,
          remove_archive/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -28,7 +28,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(), _) -> 'ok'.
+-spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -44,7 +44,7 @@ start(Host, Opts) ->
     end.
 
 
--spec stop(ejabberd:server()) -> 'ok'.
+-spec stop(jid:server()) -> 'ok'.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -63,7 +63,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(), _) -> 'ok'.
+-spec start_pm(jid:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -72,7 +72,7 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(ejabberd:server()) -> 'ok'.
+-spec stop_pm(jid:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -84,7 +84,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc_muc
 
--spec start_muc(ejabberd:server(), _) -> 'ok'.
+-spec start_muc(jid:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:add(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -93,7 +93,7 @@ start_muc(Host, _Opts) ->
     ok.
 
 
--spec stop_muc(ejabberd:server()) -> 'ok'.
+-spec stop_muc(jid:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_get_behaviour, Host, ?MODULE, get_behaviour, 50),
     ejabberd_hooks:delete(mam_muc_get_prefs, Host, ?MODULE, get_prefs, 50),
@@ -106,8 +106,8 @@ stop_muc(Host) ->
 %% Internal functions and callbacks
 
 -spec get_behaviour(Default :: mod_mam:archive_behaviour(),
-        Host :: ejabberd:server(), ArchiveID :: mod_mam:archive_id(),
-        LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid()) -> any().
+        Host :: jid:server(), ArchiveID :: mod_mam:archive_id(),
+        LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
 get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     RemLJID      = jid:to_lower(RemJID),
     SRemLBareJID = esc_jid(jid:to_bare(RemLJID)),
@@ -121,11 +121,11 @@ get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
     end.
 
 
--spec set_prefs(Result :: any(), Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid(),
+-spec set_prefs(Result :: any(), Host :: jid:server(),
+        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
         DefaultMode :: mod_mam:archive_behaviour(),
-        AlwaysJIDs :: [ejabberd:literal_jid()],
-        NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+        AlwaysJIDs :: [jid:literal_jid()],
+        NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(_Result, Host, UserID, _ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     try
         set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs)
@@ -174,8 +174,8 @@ run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
         run_transaction_or_retry_on_deadlock(F, UserID, Retries-1)
     end.
 
--spec get_prefs(mod_mam:preference(), _Host :: ejabberd:server(),
-        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: ejabberd:jid())
+-spec get_prefs(mod_mam:preference(), _Host :: jid:server(),
+        ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
             -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
@@ -189,8 +189,8 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
 
 
 %% #rh
--spec remove_archive(map(), ejabberd:server(), mod_mam:archive_id(),
-                     ejabberd:jid()) -> map().
+-spec remove_archive(map(), jid:server(), mod_mam:archive_id(),
+                     jid:jid()) -> map().
 remove_archive(Acc, Host, UserID, _ArcJID) ->
     SUserID = integer_to_list(UserID),
     {updated, _} =
@@ -202,7 +202,7 @@ remove_archive(Acc, Host, UserID, _ArcJID) ->
     Acc.
 
 
--spec query_behaviour(ejabberd:server(), SUserID :: string(),
+-spec query_behaviour(jid:server(), SUserID :: string(),
         SRemLJID :: binary() | string(), SRemLBareJID :: binary() | string()
         ) -> any().
 query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
@@ -240,7 +240,7 @@ decode_behaviour(<<"A">>) -> always;
 decode_behaviour(<<"N">>) -> never.
 
 
--spec esc_jid(ejabberd:simple_jid() | ejabberd:jid()) -> binary().
+-spec esc_jid(jid:simple_jid() | jid:jid()) -> binary().
 esc_jid(JID) ->
     mongoose_rdbms:escape(jid:to_binary(JID)).
 
@@ -257,7 +257,7 @@ encode_config_row(SUserID, SBehavour, SJID) ->
     [", ('", SUserID, "', '", SBehavour, "', '", SJID, "')"].
 
 
--spec sql_transaction_map(ejabberd:server(), [iolist(), ...]) -> any().
+-spec sql_transaction_map(jid:server(), [iolist(), ...]) -> any().
 sql_transaction_map(LServer, Queries) ->
     AtomicF = fun() ->
         [mod_mam_utils:success_sql_query(LServer, Query) || Query <- Queries]
@@ -265,11 +265,11 @@ sql_transaction_map(LServer, Queries) ->
     mongoose_rdbms:sql_transaction(LServer, AtomicF).
 
 
--spec decode_prefs_rows([{binary() | ejabberd:jid(), binary()}],
+-spec decode_prefs_rows([{binary() | jid:jid(), binary()}],
         DefaultMode :: mod_mam:archive_behaviour(),
-        AlwaysJIDs :: [ejabberd:literal_jid()],
-        NeverJIDs :: [ejabberd:literal_jid()]) ->
-    {mod_mam:archive_behaviour(), [ejabberd:literal_jid()], [ejabberd:literal_jid()]}.
+        AlwaysJIDs :: [jid:literal_jid()],
+        NeverJIDs :: [jid:literal_jid()]) ->
+    {mod_mam:archive_behaviour(), [jid:literal_jid()], [jid:literal_jid()]}.
 decode_prefs_rows([{<<>>, Behavour}|Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, decode_behaviour(Behavour), AlwaysJIDs, NeverJIDs);
 decode_prefs_rows([{JID, <<"A">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->

@@ -52,8 +52,10 @@
 -define(CC_KEY, 'cc').
 -define(CC_DISABLED, undefined).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
+-include_lib("session.hrl").
+
 
 -type classification() :: 'ignore' | 'forward'.
 
@@ -111,11 +113,11 @@ iq_handler(From, _To,  Acc, #iq{type = set, sub_el = #xmlel{name = Operation,
             {Acc, IQ#iq{type=result, sub_el=[]}};
         {error, _Error} ->
             ?WARNING_MSG("Error enabling / disabling carbons: ~p", [Result]),
-            {Acc, IQ#iq{type=error, sub_el = [?ERR_BAD_REQUEST]}}
+            {Acc, IQ#iq{type=error, sub_el = [mongoose_xmpp_errors:bad_request()]}}
     end;
 
 iq_handler(_From, _To, Acc, IQ, _CC) ->
-    {Acc, IQ#iq{type=error, sub_el = [?ERR_NOT_ALLOWED]}}.
+    {Acc, IQ#iq{type=error, sub_el = [mongoose_xmpp_errors:not_allowed()]}}.
 
 user_send_packet(Acc, From, To, Packet) ->
     check_and_forward(From, To, Packet, sent),

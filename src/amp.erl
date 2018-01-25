@@ -6,7 +6,7 @@
 %% This work was sponsored by Grindr LLC
 
 -include("amp.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([extract_requested_rules/1,
@@ -52,7 +52,7 @@ extract_requested_rules(#xmlel{} = Stanza) ->
         _    -> none
     end.
 
--spec make_response(amp_rule(), jid(), #xmlel{}) -> #xmlel{}.
+-spec make_response(amp_rule(), jid:jid(), #xmlel{}) -> #xmlel{}.
 make_response(Rule, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),
     OriginalSender = jid:to_binary(User),
@@ -69,7 +69,7 @@ make_response(Rule, User, Packet) ->
            children = [Amp]}.
 
 
--spec make_error_response([amp_error()], [amp_any_rule()], jid(), #xmlel{})
+-spec make_error_response([amp_error()], [amp_any_rule()], jid:jid(), #xmlel{})
                          -> #xmlel{}.
 make_error_response([E|_] = Errors, [_|_] = Rules, User, Packet) ->
     OriginalId = exml_query:attr(Packet, <<"id">>, <<"original-id-missing">>),
@@ -133,7 +133,7 @@ strip_amp_el(#xmlel{children = Children} = Elem) ->
 %%      but filter out server->client AMPed responses.
 %%      We can distinguish them by the fact that s2c messages MUST have
 %%      a 'status' attr on the <amp> element.
--spec is_amp_request(xmlel()) -> boolean().
+-spec is_amp_request(exml:element()) -> boolean().
 is_amp_request(Stanza) ->
     Amp = exml_query:subelement(Stanza, <<"amp">>),
     (undefined =/= Amp)

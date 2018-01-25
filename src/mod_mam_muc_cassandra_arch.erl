@@ -36,9 +36,10 @@
          apply_start_border/2,
          apply_end_border/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mongoose_rsm.hrl").
 
 -record(mam_muc_ca_filter, {
           room_jid,
@@ -266,7 +267,7 @@ message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID) ->
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
   {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
@@ -507,7 +508,7 @@ row_to_message_id(#{id := MsgID}) ->
                            Now) ->
                                   ok  | {error, 'not-supported'} when
       Host :: server_host(), MessID :: message_id(),
-      _RoomID :: user_id(), RoomJID :: jid(),
+      _RoomID :: user_id(), RoomJID :: jid:jid(),
       Now :: unix_timestamp().
 purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
     PoolName = pool_name(RoomJID),
@@ -534,11 +535,11 @@ purge_single_message(_Result, _Host, MessID, _RoomID, RoomJID, _Now) ->
                               Start, End, Now, WithNick) ->
                                      ok when
       Host :: server_host(), _RoomID :: user_id(),
-      RoomJID :: jid(), Borders :: mam_borders(),
+      RoomJID :: jid:jid(), Borders :: mod_mam:borders(),
       Start :: unix_timestamp()  | undefined,
       End :: unix_timestamp()  | undefined,
       Now :: unix_timestamp(),
-      WithNick :: jid()  | undefined.
+      WithNick :: jid:jid()  | undefined.
 purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
                         Start, End, Now, WithNick) ->
     %% Simple query without calculating offset and total count
@@ -563,7 +564,7 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 -spec extract_messages(PoolName, RoomJID, Host, Filter, IMax, ReverseLimit) ->
                               [Row] when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jid(),
+      RoomJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       IMax :: pos_integer(),
@@ -591,7 +592,7 @@ extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
 -spec calc_index(PoolName, RoomJID, Host, Filter, MessID) -> Count
                                                                  when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jid(),
+      RoomJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       MessID :: message_id(),
@@ -606,7 +607,7 @@ calc_index(PoolName, RoomJID, Host, Filter, MessID) ->
 -spec calc_before(PoolName, RoomJID, Host, Filter, MessID) -> Count
                                                                   when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jid(),
+      RoomJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       MessID :: message_id(),
@@ -620,7 +621,7 @@ calc_before(PoolName, RoomJID, Host, Filter, MessID) ->
 -spec calc_count(PoolName, RoomJID, Host, Filter) -> Count
                                                          when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jid(),
+      RoomJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       Count :: non_neg_integer().
@@ -636,7 +637,7 @@ calc_count(PoolName, RoomJID, _Host, Filter) ->
 %% Uses previously calculated offsets to speed up queries
 -spec offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid:jid(),
       Offset :: non_neg_integer(),
       Filter :: filter(),
       Id :: non_neg_integer() | undefined.
@@ -665,7 +666,7 @@ offset_to_start_id(PoolName, RoomJID, Filter, Offset) when is_integer(Offset), O
 %% @doc Saves offset hint for future use in order to speed up queries with similar offset
 %% Hint is save only if previous offset hint was 50+ entires from current query
 %% This function returns given StartId as passthrough for convenience
--spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), RoomJID :: jlib:jid(),
+-spec maybe_save_offset_hint(PoolName :: mongoose_cassandra:pool_name(), RoomJID :: jid:jid(),
                              Filter :: filter(), HintOffset :: non_neg_integer(),
                              NewOffset :: non_neg_integer(),
                              StartId :: non_neg_integer() | undefined) ->
@@ -691,7 +692,7 @@ maybe_save_offset_hint(PoolName, RoomJID, Filter, HintOffset, NewOffset, StartId
 -spec calc_offset_to_start_id(PoolName, RoomJID, Filter, Offset) -> Id
                                                                         when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jlib:jid(),
+      RoomJID :: jid:jid(),
       Offset :: non_neg_integer(),
       Filter :: filter(),
       Id :: non_neg_integer() | undefined.
@@ -780,12 +781,12 @@ filter_to_cql() ->
 -spec calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM) -> Offset
                                                                                      when
       PoolName :: mongoose_cassandra:pool_name(),
-      RoomJID :: jid(),
+      RoomJID :: jid:jid(),
       Host :: server_hostname(),
       Filter :: filter(),
       PageSize :: non_neg_integer(),
       TotalCount :: non_neg_integer(),
-      RSM :: rsm_in() | undefined,
+      RSM :: jlib:rsm_in() | undefined,
       Offset :: non_neg_integer().
 %% Requesting the Last Page in a Result Set
 calc_offset(_W, _RoomJID, _LS, _F, PS, TC, #rsm_in{direction = before, id = undefined}) ->
@@ -896,6 +897,6 @@ params_helper(Params) ->
 db_message_format() ->
     mod_mam_muc_cassandra_arch_params:db_message_format().
 
--spec pool_name(jid()) -> term().
+-spec pool_name(jid:jid()) -> term().
 pool_name(_UserJid) ->
     mod_mam_muc_cassandra_arch_params:pool_name().

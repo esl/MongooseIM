@@ -28,14 +28,14 @@
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback push_event(Host :: ejabberd:lserver(), Event :: event()) -> any().
+-callback push_event(Host :: jid:lserver(), Event :: event()) -> any().
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
 %% @doc Pushes the event to each backend registered with the event_pusher.
--spec push_event(mongoose_acc:t(), Host :: ejabberd:server(), Event :: event()) -> mongoose_acc:t().
+-spec push_event(mongoose_acc:t(), Host :: jid:server(), Event :: event()) -> mongoose_acc:t().
 push_event(Acc, Host, Event) ->
     [B:push_event(Host, Event) || B <- ets:lookup_element(ets_name(Host), backends, 2)],
     Acc.
@@ -44,20 +44,20 @@ push_event(Acc, Host, Event) ->
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(_Host, Opts) ->
     Backends = get_backends(Opts),
     BackendDeps = [{B, DepOpts, hard} || {B, DepOpts} <- Backends],
     [{mod_event_pusher_hook_translator, hard} | BackendDeps].
 
--spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts) ->
     create_ets(Host),
     Backends = get_backends(Opts),
     ets:insert(ets_name(Host), {backends, [B || {B, _} <- Backends]}),
     ejabberd_hooks:add(push_event, Host, ?MODULE, push_event, 90).
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     ejabberd_hooks:delete(push_event, Host, ?MODULE, push_event, 90),
     ets:delete(ets_name(Host)).
@@ -75,11 +75,11 @@ get_backends(Opts) ->
 translate_backend(Backend) ->
     list_to_atom(?MODULE_STRING ++ "_" ++ atom_to_list(Backend)).
 
--spec ets_name(Host :: ejabberd:server()) -> atom().
+-spec ets_name(Host :: jid:server()) -> atom().
 ets_name(Host) ->
     gen_mod:get_module_proc(Host, ?MODULE).
 
--spec create_ets(Host :: ejabberd:server()) -> any().
+-spec create_ets(Host :: jid:server()) -> any().
 create_ets(Host) ->
     Self = self(),
     Heir = case whereis(ejabberd_sup) of

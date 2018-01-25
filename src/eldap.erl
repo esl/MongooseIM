@@ -65,7 +65,7 @@
 
 -behaviour(gen_fsm).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% External exports
 -export([start_link/1, start_link/6]).
@@ -140,8 +140,8 @@
 
 -record(eldap,
         {version = ?LDAP_VERSION :: non_neg_integer(),
-         hosts = []              :: [ejabberd:server()],
-         host                    :: ejabberd:server() | undefined,
+         hosts = []              :: [jid:server()],
+         host                    :: jid:server() | undefined,
          port = 389              :: inet:port_number(),
          sockmod = gen_tcp       :: ssl | gen_tcp,
          tls = none              :: none | tls,

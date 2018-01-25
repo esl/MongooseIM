@@ -11,7 +11,7 @@
 
 -include("mod_roster.hrl").
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behaviour(mod_roster).
 
@@ -35,14 +35,14 @@
 -define(ROSTER_BUCKET(LServer), {<<"rosters">>, LServer}).
 -define(VER_BUCKET(LServer), {<<"roster_versions">>, LServer}).
 
--spec init(ejabberd:server(), list()) -> ok.
+-spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok. % Common Riak pool is used
 
 %% WARNING: Riak does not support *real* transactions, so we are in fact applying
 %% all accumulated changes with no rollback support so it is possible to end up with
 %% inconsistent state e.g. if Riak connectivity goes down in the middle of application.
--spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
+-spec transaction(LServer :: jid:lserver(), F :: fun()) ->
     {aborted, Reason :: any()} | {atomic, Result :: any()}.
 transaction(_LServer, F) ->
     put(riak_roster_t, []),
@@ -81,7 +81,7 @@ del_roster_t(LUser, LServer, LJID) ->
 
 %% --------------------- Outside "transactions" -------------------------------
 
--spec read_roster_version(ejabberd:luser(), ejabberd:lserver()) -> binary() | error.
+-spec read_roster_version(jid:luser(), jid:lserver()) -> binary() | error.
 read_roster_version(LUser, LServer) ->
     case mongoose_riak:get(?VER_BUCKET(LServer), LUser) of
         {ok, VerObj} -> riakc_obj:get_value(VerObj);
@@ -130,7 +130,7 @@ find_in_rostermap(LJID, RosterMap) ->
         error -> does_not_exist
     end.
 
--spec roster_entry_strip(ejabberd:simple_jid(), mod_roster:roster() | does_not_exist) ->
+-spec roster_entry_strip(jid:simple_jid(), mod_roster:roster() | does_not_exist) ->
     mod_roster:roster() | does_not_exist.
 roster_entry_strip(_, does_not_exist) ->
     does_not_exist;
@@ -150,7 +150,7 @@ get_rostermap(LUser, LServer) ->
 unpack_item(ItemReg) ->
     binary_to_term(ItemReg).
 
--spec get_t_roster(LUser :: ejabberd:luser(), LServer :: ejabberd:lserver()) ->
+-spec get_t_roster(LUser :: jid:luser(), LServer :: jid:lserver()) ->
     riakc_map:crdt_map().
 get_t_roster(LUser, LServer) ->
     case get({riak_roster_t, {LUser, LServer}}) of
@@ -165,9 +165,9 @@ get_t_roster(LUser, LServer) ->
             RosterMap
     end.
 
--spec set_t_roster(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
-                   LJID :: ejabberd:simple_jid(),
+-spec set_t_roster(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
+                   LJID :: jid:simple_jid(),
                    Item :: mod_roster:roster()) -> any().
 set_t_roster(LUser, LServer, LJID, Item) ->
     RosterMap1 = get_t_roster(LUser, LServer),
@@ -175,9 +175,9 @@ set_t_roster(LUser, LServer, LJID, Item) ->
         riakc_map:update({jid:to_binary(LJID), register},
                          fun(R) -> riakc_register:set(term_to_binary(Item), R) end, RosterMap1)).
 
--spec del_t_roster(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
-                   LJID :: ejabberd:simple_jid()) -> any().
+-spec del_t_roster(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
+                   LJID :: jid:simple_jid()) -> any().
 del_t_roster(LUser, LServer, LJID) ->
     RosterMap1 = get_t_roster(LUser, LServer),
     RosterMap = case catch riakc_map:erase({jid:to_binary(LJID), register}, RosterMap1) of

@@ -35,7 +35,7 @@
 -export([ref/1, reload_dispatch/1]).
 -export([start_cowboy/2, stop_cowboy/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -type options()  :: [any()].
 -type path() :: iodata().
 -type paths() :: [path()].

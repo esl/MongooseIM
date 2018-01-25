@@ -224,23 +224,23 @@ access_model_to_subscription(_) -> subscribed.
                             Whitelisted :: boolean()) -> ok | {error, exml:element()}.
 authorize_subscription(false, _Affiliation, _PendingSubscription, _AccessModel,
                        _PresenceSubscription, _RosterGroup, _Whitelisted) ->
-    {error, ?ERR_EXTENDED((?ERR_BAD_REQUEST), <<"invalid-jid">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"invalid-jid">>)};
 authorize_subscription(_SenderMatchesSubscriber, Affiliation, _PendingSubscription, _AccessModel,
                        _PresenceSubscription, _RosterGroup, _Whitelisted)
   when (Affiliation == outcast) or (Affiliation == publish_only) ->
-    {error, ?ERR_FORBIDDEN};
+    {error, mongoose_xmpp_errors:forbidden()};
 authorize_subscription(_SenderMatchesSubscriber, _Affiliation, true, _AccessModel,
                        _PresenceSubscription, _RosterGroup, _Whitelisted) ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_AUTHORIZED), <<"pending-subscription">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_authorized()), <<"pending-subscription">>)};
 authorize_subscription(_SenderMatchesSubscriber, Affiliation, _PendingSubscription, presence,
                        false, _RosterGroup, _Whitelisted) when Affiliation /= owner ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_AUTHORIZED), <<"presence-subscription-required">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_authorized()), <<"presence-subscription-required">>)};
 authorize_subscription(_SenderMatchesSubscriber, Affiliation, _PendingSubscription, roster,
                        _PresenceSubscription, false, _Whitelisted) when Affiliation /= owner ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_AUTHORIZED), <<"not-in-roster-group">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_authorized()), <<"not-in-roster-group">>)};
 authorize_subscription(_SenderMatchesSubscriber, Affiliation, _PendingSubscription, whitelist,
                        _PresenceSubscription, _RosterGroup, false) when Affiliation /= owner ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_ALLOWED), <<"closed-node">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_allowed()), <<"closed-node">>)};
 authorize_subscription(_SenderMatchesSubscriber, _Affiliation, _PendingSubscription, _AccessModel,
                        _PresenceSubscription, _RosterGroup, _Whitelisted) ->
     ok.
@@ -276,7 +276,7 @@ unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
                     {result, default};
                 false ->
                     {error,
-                     ?ERR_EXTENDED((?ERR_UNEXPECTED_REQUEST_CANCEL), <<"not-subscribed">>)}
+                     ?ERR_EXTENDED((mongoose_xmpp_errors:unexpected_request_cancel()), <<"not-subscribed">>)}
             end;
         remove_all_subs ->
             delete_subscriptions(SubKey, Nidx, Subscriptions, SubState),
@@ -287,10 +287,10 @@ unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     end.
 
 authenticate_unsubscribe(false, _Subscriptions, _SubIdExists, _SubId) ->
-    {error, ?ERR_FORBIDDEN};
+    {error, mongoose_xmpp_errors:forbidden()};
 authenticate_unsubscribe(_SenderMatchesSubscriber, [], _SubIdExists, _SubId) ->
     %% Requesting entity is not a subscriber
-    {error, ?ERR_EXTENDED((?ERR_UNEXPECTED_REQUEST_CANCEL), <<"not-subscribed">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:unexpected_request_cancel()), <<"not-subscribed">>)};
 authenticate_unsubscribe(_SenderMatchesSubscriber, _Subscriptions, true, _SubId) ->
     %% Subid supplied, so use that.
     sub_id_exists;
@@ -301,7 +301,7 @@ authenticate_unsubscribe(_SenderMatchesSubscriber, [_], _SubIdExists, _SubId) ->
     %% No subid supplied, but there's only one matching subscription
     remove_only_sub;
 authenticate_unsubscribe(_SenderMatchesSubscriber, _Subscriptions, _SubIdExists, _SubId) ->
-    {error, ?ERR_EXTENDED((?ERR_BAD_REQUEST), <<"subid-required">>)}.
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"subid-required">>)}.
 
 delete_subscriptions(SubKey, Nidx, Subscriptions, SubState) ->
     NewSubs = lists:foldl(fun ({Subscription, SubId}, Acc) ->
@@ -367,7 +367,7 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
               (Subscribed == true),
     case Allowed of
         false  ->
-            {error, ?ERR_FORBIDDEN};
+            {error, mongoose_xmpp_errors:forbidden()};
         true ->
             case MaxItems > 0 of
                true ->
@@ -437,7 +437,7 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
     end,
     case Allowed of
         false ->
-            {error, ?ERR_FORBIDDEN};
+            {error, mongoose_xmpp_errors:forbidden()};
         true ->
             case lists:member(ItemId, Items) of
                 true ->
@@ -466,9 +466,9 @@ delete_foreign_item(Nidx, ItemId, owner) ->
                     (_, Res) ->
                         Res
                 end,
-                {error, ?ERR_ITEM_NOT_FOUND}, States);
+                {error, mongoose_xmpp_errors:item_not_found()}, States);
 delete_foreign_item(_Nidx, _ItemId, _Affiliation) ->
-    {error, ?ERR_ITEM_NOT_FOUND}.
+    {error, mongoose_xmpp_errors:item_not_found()}.
 
 purge_node(Nidx, Owner) ->
     SubKey = jid:to_lower(Owner),
@@ -487,7 +487,7 @@ purge_node(Nidx, Owner) ->
                 States),
             {result, {default, broadcast}};
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 %% @doc <p>Return the current affiliations for the given user</p>
@@ -591,7 +591,7 @@ set_subscriptions(Nidx, Owner, Subscription, SubId) ->
             case Subscription of
                 none ->
                     {error,
-                        ?ERR_EXTENDED((?ERR_BAD_REQUEST), <<"not-subscribed">>)};
+                        ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"not-subscribed">>)};
                 _ ->
                     new_subscription(Nidx, Owner, Subscription, SubState)
             end;
@@ -602,7 +602,7 @@ set_subscriptions(Nidx, Owner, Subscription, SubId) ->
             end;
         {<<>>, [_ | _]} ->
             {error,
-                ?ERR_EXTENDED((?ERR_BAD_REQUEST), <<"subid-required">>)};
+                ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"subid-required">>)};
         _ ->
             case Subscription of
                 none -> unsub_with_subid(Nidx, SubId, SubState);
@@ -707,7 +707,7 @@ get_state(Nidx, Key) ->
 %% @doc <p>Write a state into database.</p>
 set_state(State) when is_record(State, pubsub_state) ->
     mnesia:write(State).
-%set_state(_) -> {error, ?ERR_INTERNAL_SERVER_ERROR}.
+%set_state(_) -> {error, mongoose_xmpp_errors:internal_server_error()}.
 
 %% @doc <p>Delete a state from database.</p>
 del_state(Nidx, Key) ->
@@ -744,7 +744,7 @@ get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM
 get_item(Nidx, ItemId) ->
     case mnesia:read({pubsub_item, {ItemId, Nidx}}) of
         [Item] when is_record(Item, pubsub_item) -> {result, Item};
-        _ -> {error, ?ERR_ITEM_NOT_FOUND}
+        _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
@@ -762,22 +762,22 @@ get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _Sub
 
 authorize_get_item(Affiliation, _AccessModel, _PresenceSubscription, _RosterGroup, _Whitelisted)
   when (Affiliation == outcast) or (Affiliation == publish_only) ->
-    {error, ?ERR_FORBIDDEN};
+    {error, mongoose_xmpp_errors:forbidden()};
 authorize_get_item(_Affiliation, presence, false, _RosterGroup, _Whitelisted) ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_AUTHORIZED), <<"presence-subscription-required">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_authorized()), <<"presence-subscription-required">>)};
 authorize_get_item(_Affiliation, roster, _PresenceSubscription, false, _Whitelisted) ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_AUTHORIZED), <<"not-in-roster-group">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_authorized()), <<"not-in-roster-group">>)};
 authorize_get_item(_Affiliation, whitelist, _PresenceSubscription, _RosterGroup, false) ->
-    {error, ?ERR_EXTENDED((?ERR_NOT_ALLOWED), <<"closed-node">>)};
+    {error, ?ERR_EXTENDED((mongoose_xmpp_errors:not_allowed()), <<"closed-node">>)};
 authorize_get_item(_Affiliation, authorize, _PresenceSubscription, _RosterGroup, false) ->
-    {error, ?ERR_FORBIDDEN};
+    {error, mongoose_xmpp_errors:forbidden()};
 authorize_get_item(_Affiliation, _AccessModel, _PresenceSubscription, _RosterGroup, _Whitelisted) ->
     ok.
 
 %% @doc <p>Write an item into database.</p>
 set_item(Item) when is_record(Item, pubsub_item) ->
     mnesia:write(Item).
-%set_item(_) -> {error, ?ERR_INTERNAL_SERVER_ERROR}.
+%set_item(_) -> {error, mongoose_xmpp_errors:internal_server_error()}.
 
 %% @doc <p>Delete an item from database.</p>
 del_item(Nidx, ItemId) ->

@@ -38,14 +38,14 @@
     push_alltoall/2
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
--type simple_roster() :: {User :: ejabberd:user(),
-                         Server :: ejabberd:server(),
+-type simple_roster() :: {User :: jid:user(),
+                         Server :: jid:server(),
                          Group :: binary(),
                          Nick :: binary()}.
 -type jids_nick_subs_ask_grp() :: {Jids :: list(),
@@ -60,9 +60,9 @@
                         Group :: binary() | string()}.
 
 -type delete_action() :: {'delete', Subs :: [atom()], Asks :: [atom()],
-                                    [ejabberd:user()], Contacts :: [binary()]}.
+                                    [jid:user()], Contacts :: [binary()]}.
 -type list_action() :: {'list', Subs :: [atom()], Asks :: [atom()],
-                                [ejabberd:user()], Contacts :: [binary()]}.
+                                [jid:user()], Contacts :: [binary()]}.
 
 
 %%%
@@ -156,10 +156,10 @@ commands() ->
 %%% Roster
 %%%
 
--spec add_rosteritem(LocalUser :: ejabberd:user(),
-                     LocalServer :: ejabberd:server(),
-                     User :: ejabberd:user(),
-                     Server :: ejabberd:server(),
+-spec add_rosteritem(LocalUser :: jid:user(),
+                     LocalServer :: jid:server(),
+                     User :: jid:user(),
+                     Server :: jid:server(),
                      Nick :: binary(),
                      Group :: binary() | string(),
                      Subs :: subs()) -> {Res, string()} when
@@ -192,10 +192,10 @@ do_add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
 
 
 %% @doc returns result of mnesia or odbc transaction
--spec subscribe(LocalUser :: ejabberd:user(),
-                LocalServer :: ejabberd:server(),
-                User :: ejabberd:user(),
-                Server :: ejabberd:server(),
+-spec subscribe(LocalUser :: jid:user(),
+                LocalServer :: jid:server(),
+                User :: jid:user(),
+                Server :: jid:server(),
                 Nick :: binary(),
                 Group :: binary() | string(),
                 Subs :: subs(),
@@ -208,10 +208,10 @@ subscribe(LU, LS, User, Server, Nick, Group, SubscriptionS, _Xattrs) ->
     mod_roster:set_items(LU, LS, QueryEl).
 
 
--spec delete_rosteritem(LocalUser :: ejabberd:user(),
-                        LocalServer :: ejabberd:server(),
-                        User :: ejabberd:user(),
-                        Server :: ejabberd:server()) -> {Res, string()} when
+-spec delete_rosteritem(LocalUser :: jid:user(),
+                        LocalServer :: jid:server(),
+                        User :: jid:user(),
+                        Server :: jid:server()) -> {Res, string()} when
     Res :: ok | error | user_does_not_exist.
 delete_rosteritem(LocalUser, LocalServer, User, Server) ->
     case ejabberd_auth:is_user_exists(LocalUser, LocalServer) of
@@ -232,10 +232,10 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
 
 
 %% @doc returns result of mnesia or odbc transaction
--spec unsubscribe(LocalUser :: ejabberd:user(),
-                  LocalServer :: ejabberd:server(),
-                  User :: ejabberd:user(),
-                  Server :: ejabberd:server()) -> any().
+-spec unsubscribe(LocalUser :: jid:user(),
+                  LocalServer :: jid:server(),
+                  User :: jid:user(),
+                  Server :: jid:server()) -> any().
 unsubscribe(LU, LS, User, Server) ->
     ItemEl = build_roster_item(User, Server, remove),
     QueryEl = #xmlel{ name = <<"query">>,
@@ -247,7 +247,7 @@ unsubscribe(LU, LS, User, Server) ->
 %% Get Roster
 %% -----------------------------
 
--spec get_roster(ejabberd:user(), ejabberd:server()) ->
+-spec get_roster(jid:user(), jid:server()) ->
     [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -284,7 +284,7 @@ make_roster(Roster) ->
 %% Push Roster from file
 %%-----------------------------
 
--spec push_roster(file:name(), ejabberd:user(), ejabberd:server()) -> 'ok'.
+-spec push_roster(file:name(), jid:user(), jid:server()) -> 'ok'.
 push_roster(File, User, Server) ->
     {ok, [Roster]} = file:consult(File),
     subscribe_roster({User, Server, <<"">>, User}, roster_list_to_binary(Roster)).
@@ -327,7 +327,7 @@ subscribe_roster({Name1, Server1, Group1, Nick1}, [{Name2, Server2, Group2, Nick
     subscribe_roster({Name1, Server1, Group1, Nick1}, Roster).
 
 
--spec push_alltoall(ejabberd:server(), binary()) -> 'ok'.
+-spec push_alltoall(jid:server(), binary()) -> 'ok'.
 push_alltoall(S, G) ->
     Users = ejabberd_auth:get_vh_registered_users(S),
     Users2 = build_list_users(G, Users, []),
@@ -336,7 +336,7 @@ push_alltoall(S, G) ->
 
 
 -spec build_list_users(Group :: binary(),
-                       [ejabberd:simple_bare_jid()],
+                       [jid:simple_bare_jid()],
                        Res :: [simple_roster()]) -> [].
 build_list_users(_Group, [], Res) ->
     Res;
@@ -348,16 +348,16 @@ build_list_users(Group, [{User, Server}|Users], Res) ->
 %%       Action = {add, Nick, Subs, Group} | remove
 %% @doc Push to the roster of account LU@LS the contact U@S.
 %% The specific action to perform is defined in Action.
--spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
-        ejabberd:server(), Action :: push_action()) -> 'ok'.
+-spec push_roster_item(jid:luser(), jid:lserver(), jid:user(),
+        jid:server(), Action :: push_action()) -> 'ok'.
 push_roster_item(LU, LS, U, S, Action) ->
     lists:foreach(fun(R) ->
                 push_roster_item(LU, LS, R, U, S, Action)
         end, ejabberd_sm:get_user_resources(LU, LS)).
 
 
--spec push_roster_item(ejabberd:luser(), ejabberd:lserver(), ejabberd:user(),
-        ejabberd:user(), ejabberd:server(), Action :: push_action()) -> mongoose_acc:t().
+-spec push_roster_item(jid:luser(), jid:lserver(), jid:user(),
+        jid:user(), jid:server(), Action :: push_action()) -> mongoose_acc:t().
 push_roster_item(LU, LS, R, U, S, Action) ->
     LJID = jid:make(LU, LS, R),
     BroadcastEl = build_broadcast(U, S, Action),
@@ -366,8 +366,8 @@ push_roster_item(LU, LS, R, U, S, Action) ->
     ResIQ = build_iq_roster_push(Item),
     ejabberd_router:route(LJID, LJID, ResIQ).
 
--spec build_roster_item(ejabberd:user(), ejabberd:server(), push_action()
-                       ) -> jlib:xmlel().
+-spec build_roster_item(jid:user(), jid:server(), push_action()
+                       ) -> exml:element().
 build_roster_item(U, S, {add, Nick, Subs, Group}) ->
     #xmlel{ name = <<"item">>,
        attrs = [{<<"jid">>, jid:to_binary(jid:make(U, S, <<"">>))},
@@ -381,7 +381,7 @@ build_roster_item(U, S, remove) ->
                 {<<"subscription">>, <<"remove">>}]}.
 
 
--spec build_iq_roster_push(jlib:xmlcdata() | jlib:xmlel()) -> jlib:xmlel().
+-spec build_iq_roster_push(jlib:xmlcdata() | exml:element()) -> exml:element().
 build_iq_roster_push(Item) ->
     #xmlel{ name = <<"iq">>,
            attrs = [{<<"type">>, <<"set">>}, {<<"id">>, <<"push">>}],
@@ -389,7 +389,7 @@ build_iq_roster_push(Item) ->
                                attrs = [{<<"xmlns">>, ?NS_ROSTER}],
                                children = [Item]}] }.
 
--spec build_broadcast(U :: ejabberd:user(), S :: ejabberd:server(),
+-spec build_broadcast(U :: jid:user(), S :: jid:server(),
                       push_action()) -> ejabberd_c2s:broadcast().
 build_broadcast(U, S, {add, _Nick, Subs, _Group}) ->
     build_broadcast(U, S, list_to_existing_atom(binary_to_list(Subs)));

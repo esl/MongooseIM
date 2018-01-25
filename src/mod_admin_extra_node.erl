@@ -35,7 +35,7 @@
          remove_node/1
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 %%%

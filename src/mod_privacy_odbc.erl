@@ -41,7 +41,7 @@
          replace_privacy_list/4,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
@@ -128,7 +128,7 @@ set_default_list(LUser, LServer, Name) ->
             {error, Reason}
     end.
 
--spec set_default_list_t(LUser :: ejabberd:luser(), Name :: binary()) -> ok | {error, not_found}.
+-spec set_default_list_t(LUser :: jid:luser(), Name :: binary()) -> ok | {error, not_found}.
 set_default_list_t(LUser, Name) ->
     case sql_get_privacy_list_names_t(LUser) of
         {selected, []} ->

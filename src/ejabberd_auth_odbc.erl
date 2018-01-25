@@ -53,7 +53,8 @@
 
 -export([scram_passwords/2, scram_passwords/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
+-include("scram.hrl").
 
 -define(DEFAULT_SCRAMMIFY_COUNT, 10000).
 -define(DEFAULT_SCRAMMIFY_INTERVAL, 1000).
@@ -79,16 +80,16 @@ store_type(Server) ->
 authorize(Creds) ->
     ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
 
--spec check_password(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver(),
+-spec check_password(LUser :: jid:luser(),
+                     LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
     Username = mongoose_rdbms:escape(LUser),
     true == check_password_wo_escape(Username, LServer, Password).
 
 
--spec check_password(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver(),
+-spec check_password(LUser :: jid:luser(),
+                     LServer :: jid:lserver(),
                      Password :: binary(),
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
@@ -114,8 +115,8 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             false %% Typical error is database not accessible
     end.
 
--spec check_password_wo_escape(LUser::ejabberd:luser(),
-                               LServer::ejabberd:lserver(),
+-spec check_password_wo_escape(LUser::jid:luser(),
+                               LServer::jid:lserver(),
                                Password::binary()) -> boolean() | not_exists.
 check_password_wo_escape(LUser, LServer, Password) ->
     try rdbms_queries:get_password(LServer, LUser) of
@@ -140,8 +141,8 @@ check_password_wo_escape(LUser, LServer, Password) ->
     end.
 
 
--spec set_password(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
+-spec set_password(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
@@ -155,8 +156,8 @@ set_password(LUser, LServer, Password) ->
             {error, not_allowed}
     end.
 
--spec try_register(LUser :: ejabberd:luser(),
-                   LServer :: ejabberd:lserver(),
+-spec try_register(LUser :: jid:luser(),
+                   LServer :: jid:lserver(),
                    Password :: binary()
                    ) -> ok | {error, exists}.
 try_register(LUser, LServer, Password) ->
@@ -169,7 +170,7 @@ try_register(LUser, LServer, Password) ->
             {error, exists}
     end.
 
--spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
 dirty_get_registered_users() ->
     Servers = ejabberd_config:get_vh_by_auth_method(odbc),
     lists:flatmap(
@@ -178,7 +179,7 @@ dirty_get_registered_users() ->
       end, Servers).
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(LServer :: jid:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
     case catch rdbms_queries:list_users(LServer) of
         {selected, Res} ->
@@ -188,8 +189,8 @@ get_vh_registered_users(LServer) ->
     end.
 
 
--spec get_vh_registered_users(LServer :: ejabberd:lserver(), Opts :: list()
-                             ) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(LServer :: jid:lserver(), Opts :: list()
+                             ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts) ->
     case catch rdbms_queries:list_users(LServer, Opts) of
         {selected, Res} ->
@@ -199,7 +200,7 @@ get_vh_registered_users(LServer, Opts) ->
     end.
 
 
--spec get_vh_registered_users_number(LServer :: ejabberd:lserver()
+-spec get_vh_registered_users_number(LServer :: jid:lserver()
                                     ) -> integer().
 get_vh_registered_users_number(LServer) ->
     case catch rdbms_queries:users_number(LServer) of
@@ -212,7 +213,7 @@ get_vh_registered_users_number(LServer) ->
     end.
 
 
--spec get_vh_registered_users_number(LServer :: ejabberd:lserver(),
+-spec get_vh_registered_users_number(LServer :: jid:lserver(),
                                      Opts :: list()) -> integer().
 get_vh_registered_users_number(LServer, Opts) ->
     case catch rdbms_queries:users_number(LServer, Opts) of
@@ -223,7 +224,7 @@ get_vh_registered_users_number(LServer, Opts) ->
     end.
 
 
--spec get_password(ejabberd:luser(), ejabberd:lserver()) -> ejabberd_auth:passterm() | false.
+-spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
     case catch rdbms_queries:get_password(LServer, Username) of
@@ -241,8 +242,8 @@ get_password(LUser, LServer) ->
     end.
 
 
--spec get_password_s(LUser :: ejabberd:user(),
-                     LServer :: ejabberd:server()) -> binary().
+-spec get_password_s(LUser :: jid:user(),
+                     LServer :: jid:server()) -> binary().
 get_password_s(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
     case catch rdbms_queries:get_password(LServer, Username) of
@@ -253,8 +254,8 @@ get_password_s(LUser, LServer) ->
     end.
 
 
--spec does_user_exist(LUser :: ejabberd:luser(),
-                     LServer :: ejabberd:lserver()
+-spec does_user_exist(LUser :: jid:luser(),
+                     LServer :: jid:lserver()
                     ) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
@@ -273,8 +274,8 @@ does_user_exist(LUser, LServer) ->
 
 %% @doc Remove user.
 %% Note: it may return ok even if there was some problem removing the user.
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver()
+-spec remove_user(LUser :: jid:luser(),
+                  LServer :: jid:lserver()
                   ) -> ok.
 remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
@@ -283,8 +284,8 @@ remove_user(LUser, LServer) ->
 
 
 %% @doc Remove user if the provided password is correct.
--spec remove_user(LUser :: ejabberd:luser(),
-                  LServer :: ejabberd:lserver(),
+-spec remove_user(LUser :: jid:luser(),
+                  LServer :: jid:lserver(),
                   Password :: binary()
                  ) -> ok | {error, not_exists | not_allowed}.
 remove_user(LUser, LServer, Password) ->
@@ -317,7 +318,7 @@ prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
     PassDetailsEscaped = mongoose_rdbms:escape(PassDetails),
     {<<>>, PassDetailsEscaped}.
 
--spec prepare_password(Server :: ejabberd:server(), Password :: binary()) ->
+-spec prepare_password(Server :: jid:server(), Password :: binary()) ->
     PreparedPassword :: {binary(), binary()} | binary().
 prepare_password(Server, Password) ->
     case scram:enabled(Server) of

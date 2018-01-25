@@ -33,7 +33,7 @@
          set_ping/2,
          disable_ping/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 

@@ -39,7 +39,7 @@
          terminate/3,
          code_change/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
@@ -50,7 +50,7 @@
 -define(DEFAULT_MAXPAUSE, 120).
 -define(DEFAULT_CLIENT_ACKS, false).
 
--type cached_response() :: {rid(), TStamp :: integer(), jlib:xmlel()}.
+-type cached_response() :: {rid(), TStamp :: integer(), exml:element()}.
 -type rid() :: pos_integer().
 
 -record(state, {from            :: binary() | undefined,
@@ -65,7 +65,7 @@
                 rid             :: rid() | undefined,
                 %% Requests deferred for later processing because
                 %% of having Rid greater than expected.
-                deferred = []   :: [{rid(), {mod_bosh:event_type(), jlib:xmlel()}}],
+                deferred = []   :: [{rid(), {mod_bosh:event_type(), exml:element()}}],
                 client_acks = ?DEFAULT_CLIENT_ACKS :: boolean(),
                 sent = []       :: [cached_response()],
                 %% Allowed inactivity period in seconds.
@@ -126,7 +126,7 @@ start_supervisor() ->
 -spec handle_request(Pid :: pid(),
                     {EventTag :: mod_bosh:event_type(),
                      Handler :: pid(),
-                     Body :: jlib:xmlel()}) -> ok.
+                     Body :: exml:element()}) -> ok.
 handle_request(Pid, Request) ->
     gen_fsm:send_all_state_event(Pid, Request).
 
@@ -471,7 +471,7 @@ resend_cached({_Rid, _, CachedBody}, S) ->
 
 
 -spec process_acked_stream_event({EventTag :: mod_bosh:event_type(),
-                                    Body :: jlib:xmlel(),
+                                    Body :: exml:element(),
                                     Rid :: 'undefined' | rid()},
                                 SName :: any(),
                                 S :: state() ) -> state().
@@ -572,7 +572,7 @@ maybe_send_report(#state{} = S) ->
     send_or_store([], S).
 
 
--spec process_stream_event(mod_bosh:event_type(), jlib:xmlel(), _SName,
+-spec process_stream_event(mod_bosh:event_type(), exml:element(), _SName,
                            state()) -> state().
 process_stream_event(pause, Body, SName, State) ->
     Seconds = binary_to_integer(exml_query:attr(Body, <<"pause">>)),
@@ -639,7 +639,7 @@ send_or_store(Data, State) ->
 
 %% @doc send_to_handler() assumes that Handlers is not empty!
 %% Be sure that's the case if calling it.
--spec send_to_handler([any()] | jlib:xmlel(), state()) -> state() | no_valid_handler.
+-spec send_to_handler([any()] | exml:element(), state()) -> state() | no_valid_handler.
 send_to_handler(Data, State) ->
     case pick_handler(State) of
         {Handler, NS} ->
@@ -667,7 +667,7 @@ pick_handler(#state{ handlers = Handlers, rid = Rid } = S) ->
 
 
 -spec send_to_handler({_, atom() | pid() | port() | {atom(), atom()}},
-                      Wrapped :: [any()] | jlib:xmlel(),
+                      Wrapped :: [any()] | exml:element(),
                       State :: state() ) -> state().
 send_to_handler({_, Pid}, #xmlel{name = <<"body">>} = Wrapped, State) ->
     send_wrapped_to_handler(Pid, Wrapped, State);
@@ -681,7 +681,7 @@ send_to_handler({Rid, Pid}, Data, State) ->
 %% and the *only one* actually performing a send
 %% to the cowboy_loop_handler serving a HTTP request.
 -spec send_wrapped_to_handler(atom() | pid() | port() | {atom(), atom()},
-                              Wrapped :: jlib:xmlel(),
+                              Wrapped :: exml:element(),
                               State :: state()) -> state().
 send_wrapped_to_handler(Pid, Wrapped, #state{handlers = []} = State) ->
     Pid ! {bosh_reply, Wrapped},
@@ -808,7 +808,7 @@ return_surplus_handlers(SName, #state{pending = Pending} = S)
     send_or_store(Pending, S#state{pending = []}).
 
 
--spec bosh_unwrap(EventTag :: mod_bosh:event_type(), jlib:xmlel(), state())
+-spec bosh_unwrap(EventTag :: mod_bosh:event_type(), exml:element(), state())
    -> {[jlib:xmlstreamel()], state()}.
 bosh_unwrap(StreamEvent, Body, #state{} = S)
   when StreamEvent =:= streamstart ->
@@ -842,7 +842,7 @@ bosh_unwrap(normal, Body, #state{sid = Sid} = State) ->
      State}.
 
 
--spec get_client_acks(streamstart, jlib:xmlel(), boolean()) -> boolean().
+-spec get_client_acks(streamstart, exml:element(), boolean()) -> boolean().
 get_client_acks(streamstart, Element, Default) ->
     case exml_query:attr(Element, <<"ack">>) of
         undefined ->
@@ -855,7 +855,7 @@ get_client_acks(streamstart, Element, Default) ->
     end.
 
 
--spec get_attr(Attr :: binary(), jlib:xmlel(), integer()) -> any().
+-spec get_attr(Attr :: binary(), exml:element(), integer()) -> any().
 get_attr(Attr, Element, Default) ->
     case exml_query:attr(Element, Attr) of
         undefined ->
@@ -876,7 +876,7 @@ stream_start(From, To) ->
                              {<<"xmlns:stream">>, ?NS_STREAM}]}.
 
 
--spec bosh_wrap([any()], rid(), state()) -> {jlib:xmlel(), state()}.
+-spec bosh_wrap([any()], rid(), state()) -> {exml:element(), state()}.
 bosh_wrap(Elements, Rid, #state{} = S) ->
     EventsStanzas = lists:partition(fun is_stream_event/1, Elements),
     {{Body, Children}, NS} = case EventsStanzas of
@@ -914,7 +914,7 @@ is_stream_event(_) ->
 
 
 %% @doc Bosh body for a session creation response.
--spec bosh_stream_start_body(jlib:xmlstreamstart(), state()) -> jlib:xmlel().
+-spec bosh_stream_start_body(jlib:xmlstreamstart(), state()) -> exml:element().
 bosh_stream_start_body(#xmlstreamstart{attrs = Attrs}, #state{} = S) ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"wait">>, integer_to_binary(S#state.wait)},
@@ -954,7 +954,7 @@ server_ack(ServerAcks, Rid) ->
 
 
 %% @doc Bosh body for an ordinary stream element(s).
--spec bosh_body(state()) -> jlib:xmlel().
+-spec bosh_body(state()) -> exml:element().
 bosh_body(#state{} = S) ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"sid">>, S#state.sid},
@@ -962,7 +962,7 @@ bosh_body(#state{} = S) ->
            children = []}.
 
 
--spec bosh_stream_end_body() -> jlib:xmlel().
+-spec bosh_stream_end_body() -> exml:element().
 bosh_stream_end_body() ->
     #xmlel{name = <<"body">>,
            attrs = [{<<"type">>, <<"terminate">>},

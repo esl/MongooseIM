@@ -62,7 +62,7 @@
          force_clear/0
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
@@ -72,19 +72,19 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(Host :: ejabberd:server(), MUCHost :: ejabberd:server()) -> ok.
+-spec start(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
 start(_Host, _MUCHost) ->
     ok.
 
--spec stop(Host :: ejabberd:server(), MUCHost :: ejabberd:server()) -> ok.
+-spec stop(Host :: jid:server(), MUCHost :: jid:server()) -> ok.
 stop(_Host, _MUCHost) ->
     ok.
 
 %% ------------------------ General room management ------------------------
 
--spec create_room(RoomUS :: ejabberd:simple_bare_jid(), Config :: config(),
+-spec create_room(RoomUS :: jid:simple_bare_jid(), Config :: config(),
                   AffUsers :: aff_users(), Version :: binary()) ->
-    {ok, FinalRoomUS :: ejabberd:simple_bare_jid()} | {error, exists}.
+    {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room(RoomUS, Config, AffUsers, Version) ->
     MainHost = main_host(RoomUS),
     {atomic, Res}
@@ -92,23 +92,23 @@ create_room(RoomUS, Config, AffUsers, Version) ->
         MainHost, fun() -> create_room_transaction(RoomUS, Config, AffUsers, Version) end),
     Res.
 
--spec destroy_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
+-spec destroy_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists | not_empty}.
 destroy_room(RoomUS) ->
     MainHost = main_host(RoomUS),
     {atomic, Res}
     = mongoose_rdbms:sql_transaction(MainHost, fun() -> destroy_room_transaction(RoomUS) end),
     Res.
 
--spec room_exists(RoomUS :: ejabberd:simple_bare_jid()) -> boolean().
+-spec room_exists(RoomUS :: jid:simple_bare_jid()) -> boolean().
 room_exists({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
     {selected, Res} = mongoose_rdbms:sql_query(
                            MainHost, mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)),
     Res /= [].
 
--spec get_user_rooms(UserUS :: ejabberd:simple_bare_jid(),
-                     MUCServer :: ejabberd:lserver() | undefined) ->
-    [RoomUS :: ejabberd:simple_bare_jid()].
+-spec get_user_rooms(UserUS :: jid:simple_bare_jid(),
+                     MUCServer :: jid:lserver() | undefined) ->
+    [RoomUS :: jid:simple_bare_jid()].
 get_user_rooms({LUser, LServer}, undefined) ->
     SQL = mod_muc_light_db_odbc_sql:select_user_rooms(LUser, LServer),
     lists:usort(lists:flatmap(
@@ -122,8 +122,8 @@ get_user_rooms({LUser, LServer}, MUCServer) ->
                              MainHost, mod_muc_light_db_odbc_sql:select_user_rooms(LUser, LServer)),
     Rooms.
 
--spec get_user_rooms_count(UserUS :: ejabberd:simple_bare_jid(),
-                           MUCServer :: ejabberd:lserver()) ->
+-spec get_user_rooms_count(UserUS :: jid:simple_bare_jid(),
+                           MUCServer :: jid:lserver()) ->
     non_neg_integer().
 get_user_rooms_count({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
@@ -132,7 +132,7 @@ get_user_rooms_count({LUser, LServer}, MUCServer) ->
         MainHost, mod_muc_light_db_odbc_sql:select_user_rooms_count(LUser, LServer)),
     mongoose_rdbms:result_to_integer(Cnt).
 
--spec remove_user(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
+-spec remove_user(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return() | {error, term()}.
 remove_user({_, UserS} = UserUS, Version) ->
     {atomic, Res}
@@ -141,7 +141,7 @@ remove_user({_, UserS} = UserUS, Version) ->
 
 %% ------------------------ Configuration manipulation ------------------------
 
--spec get_config(RoomUS :: ejabberd:simple_bare_jid()) ->
+-spec get_config(RoomUS :: jid:simple_bare_jid()) ->
     {ok, config(), Version :: binary()} | {error, not_exists}.
 get_config({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
@@ -161,7 +161,7 @@ get_config({RoomU, RoomS} = RoomUS) ->
             {ok, Config, Version}
     end.
 
--spec get_config(RoomUS :: ejabberd:simple_bare_jid(), Key :: atom()) ->
+-spec get_config(RoomUS :: jid:simple_bare_jid(), Key :: atom()) ->
     {ok, term(), Version :: binary()} | {error, not_exists | invalid_opt}.
 get_config({RoomU, RoomS} = RoomUS, Key) ->
     MainHost = main_host(RoomUS),
@@ -183,7 +183,7 @@ get_config({RoomU, RoomS} = RoomUS, Key) ->
     end.
 
 
--spec set_config(RoomUS :: ejabberd:simple_bare_jid(), Config :: config(), Version :: binary()) ->
+-spec set_config(RoomUS :: jid:simple_bare_jid(), Config :: config(), Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config(RoomUS, ConfigChanges, Version) ->
     MainHost = main_host(RoomUS),
@@ -192,7 +192,7 @@ set_config(RoomUS, ConfigChanges, Version) ->
         MainHost, fun() -> set_config_transaction(RoomUS, ConfigChanges, Version) end),
     Res.
 
--spec set_config(RoomUS :: ejabberd:simple_bare_jid(),
+-spec set_config(RoomUS :: jid:simple_bare_jid(),
                  Key :: atom(), Val :: term(), Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
 set_config(RoomJID, Key, Val, Version) ->
@@ -200,7 +200,7 @@ set_config(RoomJID, Key, Val, Version) ->
 
 %% ------------------------ Blocking manipulation ------------------------
 
--spec get_blocking(UserUS :: ejabberd:simple_bare_jid(), MUCServer :: ejabberd:lserver()) ->
+-spec get_blocking(UserUS :: jid:simple_bare_jid(), MUCServer :: jid:lserver()) ->
     [blocking_item()].
 get_blocking({LUser, LServer}, MUCServer) ->
     MainHost = main_host(MUCServer),
@@ -208,9 +208,9 @@ get_blocking({LUser, LServer}, MUCServer) ->
     {selected, WhatWhos} = mongoose_rdbms:sql_query(MainHost, SQL),
     [ {what_db2atom(What), deny, jid:to_lus(jid:from_binary(Who))} || {What, Who} <- WhatWhos ].
 
--spec get_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                   MUCServer :: ejabberd:lserver(),
-                   WhatWhos :: [{blocking_who(), ejabberd:simple_bare_jid()}]) ->
+-spec get_blocking(UserUS :: jid:simple_bare_jid(),
+                   MUCServer :: jid:lserver(),
+                   WhatWhos :: [{blocking_who(), jid:simple_bare_jid()}]) ->
     blocking_action().
 get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
     MainHost = main_host(MUCServer),
@@ -221,8 +221,8 @@ get_blocking({LUser, LServer}, MUCServer, WhatWhos) ->
         _ -> deny
     end.
 
--spec set_blocking(UserUS :: ejabberd:simple_bare_jid(),
-                   MUCServer :: ejabberd:lserver(),
+-spec set_blocking(UserUS :: jid:simple_bare_jid(),
+                   MUCServer :: jid:lserver(),
                    BlockingItems :: [blocking_item()]) -> ok.
 set_blocking(_UserUS, _MUCServer, []) ->
     ok;
@@ -239,7 +239,7 @@ set_blocking({LUser, LServer} = UserUS, MUCServer, [{What, allow, Who} | RBlocki
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec get_aff_users(RoomUS :: ejabberd:simple_bare_jid()) ->
+-spec get_aff_users(RoomUS :: jid:simple_bare_jid()) ->
     {ok, aff_users(), Version :: binary()} | {error, not_exists}.
 get_aff_users({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
@@ -253,7 +253,7 @@ get_aff_users({RoomU, RoomS} = RoomUS) ->
             {ok, lists:sort(AffUsers), Version}
     end.
 
--spec modify_aff_users(RoomUS :: ejabberd:simple_bare_jid(),
+-spec modify_aff_users(RoomUS :: jid:simple_bare_jid(),
                        AffUsersChanges :: aff_users(),
                        ExternalCheck :: external_check_fun(),
                        Version :: binary()) ->
@@ -268,7 +268,7 @@ modify_aff_users(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
 
 %% ------------------------ Misc ------------------------
 
--spec get_info(RoomUS :: ejabberd:simple_bare_jid()) ->
+-spec get_info(RoomUS :: jid:simple_bare_jid()) ->
     {ok, config(), aff_users(), Version :: binary()} | {error, not_exists}.
 get_info({RoomU, RoomS} = RoomUS) ->
     MainHost = main_host(RoomUS),
@@ -330,10 +330,10 @@ force_clear() ->
 %% ------------------------ General room management ------------------------
 
 %% Expects config to have unique fields!
--spec create_room_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+-spec create_room_transaction(RoomUS :: jid:simple_bare_jid(),
                               Config :: config(), AffUsers :: aff_users(),
                               Version :: binary()) ->
-    {ok, FinalRoomUS :: ejabberd:simple_bare_jid()} | {error, exists}.
+    {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
     RoomU = case NodeCandidate of
                 <<>> -> mod_muc_light_utils:bin_ts();
@@ -372,7 +372,7 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
             {ok, {RoomU, RoomS}}
     end.
 
--spec destroy_room_transaction(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
+-spec destroy_room_transaction(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists}.
 destroy_room_transaction({RoomU, RoomS}) ->
     case mongoose_rdbms:sql_query_t(mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)) of
         {selected, [{RoomID}]} ->
@@ -387,7 +387,7 @@ destroy_room_transaction({RoomU, RoomS}) ->
             {error, not_exists}
     end.
 
--spec remove_user_transaction(UserUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
+-spec remove_user_transaction(UserUS :: jid:simple_bare_jid(), Version :: binary()) ->
     mod_muc_light_db:remove_user_return().
 remove_user_transaction({UserU, UserS} = UserUS, Version) ->
     Rooms = get_user_rooms(UserUS, undefined),
@@ -401,7 +401,7 @@ remove_user_transaction({UserU, UserS} = UserUS, Version) ->
 
 %% ------------------------ Configuration manipulation ------------------------
 
--spec set_config_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+-spec set_config_transaction(RoomUS :: jid:simple_bare_jid(),
                              ConfigChanges :: config(),
                              Version :: binary()) ->
     {ok, PrevVersion :: binary()} | {error, not_exists}.
@@ -428,7 +428,7 @@ set_config_transaction({RoomU, RoomS} = RoomUS, ConfigChanges, Version) ->
 
 %% ------------------------ Affiliations manipulation ------------------------
 
--spec modify_aff_users_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+-spec modify_aff_users_transaction(RoomUS :: jid:simple_bare_jid(),
                                    AffUsersChanges :: aff_users(),
                                    CheckFun :: external_check_fun(),
                                    Version :: binary()) ->
@@ -443,7 +443,7 @@ modify_aff_users_transaction({RoomU, RoomS} = RoomUS, AffUsersChanges, CheckFun,
             {error, not_exists}
     end.
 
--spec modify_aff_users_transaction(RoomUS :: ejabberd:simple_bare_jid(),
+-spec modify_aff_users_transaction(RoomUS :: jid:simple_bare_jid(),
                                    RoomID :: binary(),
                                    AffUsersChanges :: aff_users(),
                                    CheckFun :: external_check_fun(),
@@ -471,7 +471,7 @@ modify_aff_users_transaction(RoomUS, RoomID, AffUsersChanges, CheckFun, PrevVers
 
 -spec apply_aff_users_transaction(RoomID :: binary(),
                                   AffUsersChanges :: aff_users(),
-                                  JoiningUsers :: [ejabberd:simple_bare_jid()]) -> ok.
+                                  JoiningUsers :: [jid:simple_bare_jid()]) -> ok.
 apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers) ->
     lists:foreach(
       fun({{UserU, UserS}, none}) ->
@@ -490,7 +490,7 @@ apply_aff_users_transaction(RoomID, AffUsersChanged, JoiningUsers) ->
               end
       end, AffUsersChanged).
 
--spec update_room_version_transaction(RoomUS :: ejabberd:simple_bare_jid(), Version :: binary()) ->
+-spec update_room_version_transaction(RoomUS :: jid:simple_bare_jid(), Version :: binary()) ->
     {updated, integer()}.
 update_room_version_transaction({RoomU, RoomS}, Version) ->
     {updated, _} = mongoose_rdbms:sql_query_t(
@@ -498,7 +498,7 @@ update_room_version_transaction({RoomU, RoomS}, Version) ->
 
 %% ------------------------ Common ------------------------
 
--spec main_host(JIDOrServer :: ejabberd:simple_bare_jid() | binary()) -> ejabberd:lserver().
+-spec main_host(JIDOrServer :: jid:simple_bare_jid() | binary()) -> jid:lserver().
 main_host({_, RoomS}) ->
     main_host(RoomS);
 main_host(MUCServer) ->

@@ -35,7 +35,7 @@
          process_sm_iq/4
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
@@ -57,7 +57,7 @@ process_local_iq(#jid{user = User, server = Server, resource = Resource}, _To,
     {Acc, get_ip({User, Server, Resource}, IQ)};
 
 process_local_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}}.
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
 
 process_sm_iq(#jid{user = User, server = Server, resource = Resource},
@@ -67,10 +67,10 @@ process_sm_iq(#jid{user = User, server = Server, resource = Resource},
     {Acc, get_ip({User, Server, Resource}, IQ)};
 
 process_sm_iq(_From, _To, Acc, #iq{type = 'get', sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_FORBIDDEN]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:forbidden()]}};
 
 process_sm_iq(_From, _To, Acc, #iq{type = 'set', sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}}.
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}}.
 
 get_ip({User, Server, Resource},
        #iq{sub_el = #xmlel{} = SubEl} = IQ) ->
@@ -90,6 +90,6 @@ get_ip({User, Server, Resource},
         _ ->
             IQ#iq{
               type = 'error',
-              sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]
+              sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]
              }
     end.

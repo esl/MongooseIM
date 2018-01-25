@@ -34,7 +34,7 @@
 -export([filter_out_prevented/3]).
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mod_muc_light.hrl").
 
 -type user_defined_schema_item() :: FieldName :: string()
@@ -46,8 +46,8 @@
 -type user_config_defaults() :: [user_config_defaults_item()].
 
 -type change_aff_success() :: {ok, NewAffUsers :: aff_users(), ChangedAffUsers :: aff_users(),
-                               JoiningUsers :: [ejabberd:simple_bare_jid()],
-                               LeavingUsers :: [ejabberd:simple_bare_jid()]}.
+                               JoiningUsers :: [jid:simple_bare_jid()],
+                               LeavingUsers :: [jid:simple_bare_jid()]}.
 
 -type new_owner_flag() :: none | pick | promoted.
 
@@ -136,15 +136,15 @@ bin_ts() ->
     MicroB = integer_to_binary(Micro),
     <<MegaB/binary, $-, SecsB/binary, $-, MicroB/binary>>.
 
--spec room_limit_reached(UserUS :: ejabberd:simple_bare_jid(), RoomS :: ejabberd:lserver()) ->
+-spec room_limit_reached(UserUS :: jid:simple_bare_jid(), RoomS :: jid:lserver()) ->
     boolean().
 room_limit_reached(UserUS, RoomS) ->
     room_limit_reached(
       UserUS, RoomS, gen_mod:get_module_opt_by_subhost(
                        RoomS, mod_muc_light, rooms_per_user, ?DEFAULT_ROOMS_PER_USER)).
 
--spec filter_out_prevented(FromUS :: ejabberd:simple_bare_jid(),
-                          RoomUS :: ejabberd:simple_bare_jid(),
+-spec filter_out_prevented(FromUS :: jid:simple_bare_jid(),
+                          RoomUS :: jid:simple_bare_jid(),
                           AffUsers :: aff_users()) -> aff_users().
 filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
     RoomsPerUser = gen_mod:get_module_opt_by_subhost(
@@ -167,8 +167,8 @@ filter_out_prevented(FromUS, {RoomU, MUCServer} = RoomUS, AffUsers) ->
 
 %% ---------------- Checks ----------------
 
--spec room_limit_reached(UserUS :: ejabberd:simple_bare_jid(),
-                         RoomS :: ejabberd:lserver(),
+-spec room_limit_reached(UserUS :: jid:simple_bare_jid(),
+                         RoomS :: jid:lserver(),
                          RoomsPerUser :: infinity | pos_integer()) ->
     boolean().
 room_limit_reached(_UserUS, _RoomS, infinity) ->
@@ -178,9 +178,9 @@ room_limit_reached(UserUS, RoomS, RoomsPerUser) ->
 
 %% ---------------- Filter for blocking ----------------
 
--spec filter_out_loop(FromUS :: ejabberd:simple_bare_jid(),
-                      MUCServer :: ejabberd:lserver(),
-                      BlockingQuery :: [{blocking_what(), ejabberd:simple_bare_jid()}],
+-spec filter_out_loop(FromUS :: jid:simple_bare_jid(),
+                      MUCServer :: jid:lserver(),
+                      BlockingQuery :: [{blocking_what(), jid:simple_bare_jid()}],
                       RoomsPerUser :: rooms_per_user(),
                       AffUsers :: aff_users()) -> aff_users().
 filter_out_loop(FromUS, MUCServer, BlockingQuery, RoomsPerUser,
@@ -280,8 +280,8 @@ apply_aff_users_change(AU, AUC, NO) ->
                              AffUsersChanges :: aff_users(),
                              ChangesDone :: aff_users(),
                              NewOwner :: new_owner_flag(),
-                             JoiningAcc :: [ejabberd:simple_bare_jid()],
-                             LeavingAcc :: [ejabberd:simple_bare_jid()]) ->
+                             JoiningAcc :: [jid:simple_bare_jid()],
+                             LeavingAcc :: [jid:simple_bare_jid()]) ->
     change_aff_success() | {error, bad_request}.
 apply_aff_users_change([], NAU, [], CD, _NO, JA, LA) ->
     %% User list must be sorted ascending but acc is currently sorted descending

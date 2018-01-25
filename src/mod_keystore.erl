@@ -19,7 +19,7 @@
               key_name/0,
               raw_key/0]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("mod_keystore.hrl").
 
 -define(DEFAULT_RAM_KEY_SIZE, 2048).
@@ -33,7 +33,7 @@
 %% A key ID is used to uniquely identify a key for storage backends.
 %% It's used to maintain separate instances of a key with the same name
 %% for different virtual hosts.
--type key_id() :: {key_name(), ejabberd:server()}.
+-type key_id() :: {key_name(), jid:server()}.
 -type raw_key() :: binary().
 -type key_list() :: [{key_id(), raw_key()}].
 -type key_type() :: ram | {file, file:name_all()}.
@@ -41,7 +41,7 @@
 -type key() :: #key{id :: key_id(), key :: raw_key()}.
 
 -callback init(Domain, Opts) -> ok when
-      Domain :: ejabberd:server(),
+      Domain :: jid:server(),
       Opts :: [any()].
 
 %% Cluster members race to decide whose key gets stored in the distributed database.
@@ -58,7 +58,7 @@
 %% gen_mod callbacks
 %%
 
--spec start(ejabberd:server(), list()) -> ok.
+-spec start(jid:server(), list()) -> ok.
 start(Domain, Opts) ->
     validate_opts(Opts),
     create_keystore_ets(),
@@ -69,7 +69,7 @@ start(Domain, Opts) ->
       || {Hook, Handler, Priority} <- hook_handlers() ],
     ok.
 
--spec stop(ejabberd:server()) -> ok.
+-spec stop(jid:server()) -> ok.
 stop(Domain) ->
     [ ejabberd_hooks:delete(Hook, Domain, ?MODULE, Handler, Priority)
       || {Hook, Handler, Priority} <- hook_handlers() ],
@@ -140,7 +140,7 @@ does_table_exist(NameOrTID) ->
 init_keys(Domain, Opts) ->
     [ init_key(K, Domain, Opts) || K <- proplists:get_value(keys, Opts, []) ].
 
--spec init_key({key_name(), key_type()}, ejabberd:server(), list()) -> ok.
+-spec init_key({key_name(), key_type()}, jid:server(), list()) -> ok.
 init_key({KeyName, {file, Path}}, Domain, _Opts) ->
     {ok, Data} = file:read_file(Path),
     true = ets_store_key({KeyName, Domain}, Data),

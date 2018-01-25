@@ -54,7 +54,7 @@
 -xep([{xep, 248}, {version, "0.2"}]).
 -xep([{xep, 277}, {version, "0.6.1"}]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("adhoc.hrl").
 -include("jlib.hrl").
 -include("pubsub.hrl").
@@ -133,10 +133,10 @@
               publishModel/0
              ]).
 
-%% -type payload() defined here because the -type xmlel() is not accessible
+%% -type payload() defined here because the -type exml:element() is not accessible
 %% from pubsub.hrl
--type(payload() :: [] | [xmlel(), ...]).
--type(publishOptions() :: undefined | xmlel()).
+-type(payload() :: [] | [exml:element(), ...]).
+-type(publishOptions() :: undefined | exml:element()).
 
 -export_type([
               pubsubNode/0,
@@ -153,14 +153,14 @@
            id      :: Nidx::mod_pubsub:nodeIdx(),
            parents :: [Node::mod_pubsub:nodeId()],
            type    :: Type::binary(),
-           owners  :: [Owner::ljid(), ...],
+           owners  :: [Owner::jid:ljid(), ...],
            options :: Opts::mod_pubsub:nodeOptions()
           }
         ).
 
 -type(pubsubState() ::
         #pubsub_state{
-           stateid       :: {Entity::ljid(), Nidx::mod_pubsub:nodeIdx()},
+           stateid       :: {Entity::jid:ljid(), Nidx::mod_pubsub:nodeIdx()},
            items         :: [ItemId::mod_pubsub:itemId()],
            affiliation   :: Affs::mod_pubsub:affiliation(),
            subscriptions :: [{Sub::mod_pubsub:subscription(), SubId::mod_pubsub:subId()}]
@@ -170,8 +170,8 @@
 -type(pubsubItem() ::
         #pubsub_item{
            itemid       :: {ItemId::mod_pubsub:itemId(), Nidx::mod_pubsub:nodeIdx()},
-           creation     :: {erlang:timestamp(), ljid()},
-           modification :: {erlang:timestamp(), ljid()},
+           creation     :: {erlang:timestamp(), jid:ljid()},
+           modification :: {erlang:timestamp(), jid:ljid()},
            payload      :: mod_pubsub:payload()
           }
         ).
@@ -187,7 +187,7 @@
         #pubsub_last_item{
            nodeid   :: mod_pubsub:nodeIdx(),
            itemid   :: mod_pubsub:itemId(),
-           creation :: {erlang:timestamp(), ljid()},
+           creation :: {erlang:timestamp(), jid:ljid()},
            payload  :: mod_pubsub:payload()
           }
         ).
@@ -247,7 +247,7 @@ stop(Host) ->
 default_host() ->
     <<"pubsub.@HOST@">>.
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(), El :: exml:element(),
+-spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
     Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
@@ -507,12 +507,12 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %%
 
 -spec disco_local_identity(
-        Acc    :: [xmlel()],
-          _From  :: jid(),
-          To     :: jid(),
+        Acc    :: [exml:element()],
+          _From  ::jid:jid(),
+          To     ::jid:jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
-        -> [xmlel()].
+        -> [exml:element()].
 disco_local_identity(Acc, _From, To, Node, Lang) ->
     LServer = To#jid.lserver,
     disco_local_identity(Acc, LServer, Node, Lang).
@@ -540,9 +540,9 @@ disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
 -spec disco_local_features(
-        Acc    :: [xmlel()],
-          _From  :: jid(),
-          To     :: jid(),
+        Acc    :: [exml:element()],
+          _From  ::jid:jid(),
+          To     ::jid:jid(),
           Node   :: <<>> | mod_pubsub:nodeId(),
           Lang   :: binary())
         -> [binary(), ...].
@@ -560,12 +560,12 @@ disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
 disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_sm_identity(
-        Acc  :: empty | [xmlel()],
-          From :: jid(),
-          To   :: jid(),
+        Acc  :: empty | [exml:element()],
+          From ::jid:jid(),
+          To   ::jid:jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
-        -> [xmlel()].
+        -> [exml:element()].
 disco_sm_identity(empty, From, To, Node, Lang) ->
     disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
@@ -604,8 +604,8 @@ disco_identity(Host, Node, From) ->
 
 -spec disco_sm_features(
         Acc  :: empty | {result, Features::[Feature::binary()]},
-          From :: jid(),
-          To   :: jid(),
+          From ::jid:jid(),
+          To   ::jid:jid(),
           Node :: mod_pubsub:nodeId(),
           Lang :: binary())
         -> {result, Features::[Feature::binary()]}.
@@ -637,11 +637,11 @@ disco_features(Host, Node, From) ->
         _ -> []
     end.
 
--spec disco_sm_items(Acc :: empty | {result, [xmlel()]},
-                     From :: jid(),
-                     To :: jid(),
+-spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
+                     From ::jid:jid(),
+                     To ::jid:jid(),
                      Node :: mod_pubsub:nodeId(),
-                     Lang :: binary()) -> {result, [xmlel()]}.
+                     Lang :: binary()) -> {result, [exml:element()]}.
 disco_sm_items(empty, From, To, Node, Lang) ->
     disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
@@ -652,8 +652,8 @@ disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 -spec disco_items(
         Host :: mod_pubsub:host(),
           Node :: mod_pubsub:nodeId(),
-          From :: jid())
-        -> [xmlel()].
+          From :: jid:jid())
+        -> [exml:element()].
 disco_items(Host, <<>>, From) ->
     Action = fun (#pubsub_node{nodeid = {_, Node},
                                options = Options, type = Type, id = Nidx, owners = O},
@@ -750,7 +750,7 @@ notify_send_loop(ServerHost, Action) ->
 -spec out_subscription(Acc:: mongoose_acc:t(),
                        User :: binary(),
                        Server :: binary(),
-                       JID :: jid(),
+                       JID ::jid:jid(),
                        Type :: mod_roster:sub_presence()) ->
     mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, subscribed) ->
@@ -768,7 +768,7 @@ out_subscription(Acc, _, _, _, _) ->
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
-                      JID :: jid(),
+                      JID ::jid:jid(),
                       Type :: mod_roster:sub_presence(),
                       _:: any()) ->
     mongoose_acc:t().
@@ -872,7 +872,7 @@ handle_call(stop, _From, State) ->
 handle_cast(_Msg, State) -> {noreply, State}.
 
 -spec handle_info(
-        _     :: {route, From::jid(), To::jid(), Packet::xmlel()},
+        _     :: {route, From::jid:jid(), To::jid:jid(), Packet::exml:element()},
           State :: state())
         -> {noreply, state()}.
 
@@ -963,9 +963,9 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
           Access     :: atom(),
           Plugins    :: [binary(), ...],
           Host       :: mod_pubsub:hostPubsub(),
-          From       :: jid(),
-          To         :: jid(),
-          Packet     :: xmlel())
+          From       ::jid:jid(),
+          To         ::jid:jid(),
+          Packet     :: exml:element())
         -> ok.
 
 %%--------------------------------------------------------------------
@@ -1044,7 +1044,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{} ->
-            Err = jlib:make_error_reply(Packet, ?ERR_FEATURE_NOT_IMPLEMENTED),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(To, From, Err);
         _ ->
             ok
@@ -1060,7 +1060,7 @@ do_route(_ServerHost, _Access, _Plugins, Host, From,
                 none ->
                     ok;
                 invalid ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
                     ejabberd_router:route(To, From, Err);
                 XFields ->
                     handle_authorization_response(Host, From, To, Packet, XFields)
@@ -1076,7 +1076,7 @@ do_route(_ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
         <<"result">> ->
             ok;
         _ ->
-            Err = jlib:make_error_reply(Packet, ?ERR_ITEM_NOT_FOUND),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -1157,9 +1157,9 @@ iq_disco_info(Host, SNode, From, Lang) ->
 -spec iq_disco_items(
         Host   :: mod_pubsub:host(),
           Node   :: <<>> | mod_pubsub:nodeId(),
-          From   :: jid(),
-          Rsm    :: none | rsm_in())
-        -> {result, [xmlel()]} | {error, term()}.
+          From   ::jid:jid(),
+          Rsm    :: none | jlib:rsm_in())
+        -> {result, [exml:element()]} | {error, term()}.
 iq_disco_items(Host, <<>>, From, _RSM) ->
     {result,
      lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = Options}) ->
@@ -1227,11 +1227,11 @@ iq_disco_items_transaction(Host, From, Node, RSM,
                       NodeItems),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
 
--spec iq_sm(From :: jid(),
-            To   :: jid(),
+-spec iq_sm(From ::jid:jid(),
+            To   ::jid:jid(),
             Acc :: mongoose_acc:t(),
-            IQ   :: iq())
-        -> {mongoose_acc:t(), iq()}.
+            IQ   :: jlib:iq())
+        -> {mongoose_acc:t(), jlib:iq()}.
 iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang} = IQ) ->
     ServerHost = To#jid.lserver,
     LOwner = jid:to_lower(jid:to_bare(To)),
@@ -1252,27 +1252,27 @@ iq_get_vcard(Lang) ->
     [#xmlel{name = <<"FN">>, attrs = [],
             children = [#xmlcdata{content = <<"ejabberd/mod_pubsub">>}]},
      #xmlel{name = <<"URL">>, attrs = [],
-            children = [#xmlcdata{content = ?EJABBERD_URI}]},
+            children = [#xmlcdata{content = ?MONGOOSE_URI}]},
      #xmlel{name = <<"DESC">>, attrs = [],
             children = [#xmlcdata{content = Desc}]}].
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
-                From :: jid(),
+                From ::jid:jid(),
                 IQType :: get | set,
-                QueryEl :: xmlel(),
-                Lang :: binary()) -> {result, [xmlel()]} | {error, xmlel()}.
+                QueryEl :: exml:element(),
+                Lang :: binary()) -> {result, [exml:element()]} | {error, exml:element()}.
 iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
     iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, all, plugins(ServerHost)).
 
 -spec iq_pubsub(Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
-                From :: jid(),
+                From ::jid:jid(),
                 IQType :: 'get' | 'set',
-                QueryEl :: xmlel(),
+                QueryEl :: exml:element(),
                 Lang :: binary(),
                 Access :: atom(),
-                Plugins :: [binary(), ...]) -> {result, [xmlel()]} | {error, xmlel()}.
+                Plugins :: [binary(), ...]) -> {result, [exml:element()]} | {error, exml:element()}.
 iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
           Lang, Access, Plugins) ->
     case xml:remove_cdata(SubEls) of
@@ -1302,11 +1302,11 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
                 {set, <<"options">>} ->
                     iq_pubsub_set_options(Host, Node, ActionAttrs, ActionSubEls);
                 _ ->
-                    {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
+                    {error, mongoose_xmpp_errors:feature_not_implemented()}
             end;
         Other ->
             ?INFO_MSG("Too many actions: ~p", [Other]),
-            {error, ?ERR_BAD_REQUEST}
+            {error, mongoose_xmpp_errors:bad_request()}
     end.
 
 iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, CreateEl, QueryEl) ->
@@ -1318,7 +1318,7 @@ iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, CreateEl, Qu
     case lists:member(Type, Plugins) of
         false ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"create-nodes">>)};
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"create-nodes">>)};
         true ->
             create_node(Host, ServerHost, Node, From, Type, Access, Config)
     end.
@@ -1333,9 +1333,9 @@ iq_pubsub_set_publish(Host, ServerHost, Node, From, Access, PublishSubEls, Query
             publish_item(Host, ServerHost, Node, From, ItemId,
                          Payload, Access, PublishOptions);
         [] ->
-            {error, extended_error(?ERR_BAD_REQUEST, <<"item-required">>)};
+            {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)};
         _ ->
-            {error, extended_error(?ERR_BAD_REQUEST, <<"invalid-payload">>)}
+            {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-payload">>)}
     end.
 
 iq_pubsub_set_retract(Host, Node, From, RetractAttrs, RetractSubEls) ->
@@ -1350,7 +1350,7 @@ iq_pubsub_set_retract(Host, Node, From, RetractAttrs, RetractSubEls) ->
             delete_item(Host, Node, From, ItemId, ForceNotify);
         _ ->
             {error,
-             extended_error(?ERR_BAD_REQUEST, <<"item-required">>)}
+             extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
     end.
 
 iq_pubsub_set_subscribe(Host, Node, From, QueryEl, SubscribeAttrs) ->
@@ -1393,11 +1393,11 @@ iq_pubsub_set_options(Host, Node, SetOptionsAttrs, SetOptionsSubEls) ->
 -spec iq_pubsub_owner(
         Host       :: mod_pubsub:host(),
           ServerHost :: binary(),
-          From       :: jid(),
+          From       ::jid:jid(),
           IQType     :: 'get' | 'set',
-          SubEl      :: xmlel(),
+          SubEl      :: exml:element(),
           Lang       :: binary())
-        -> {result, [xmlel()]}
+        -> {result, [exml:element()]}
            | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
     #xmlel{children = SubEls} = SubEl,
@@ -1425,11 +1425,11 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
                 {set, <<"affiliations">>} ->
                     set_affiliations(Host, Node, From, xml:remove_cdata(Els));
                 _ ->
-                    {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
+                    {error, mongoose_xmpp_errors:feature_not_implemented()}
             end;
         _ ->
             ?INFO_MSG("Too many actions: ~p", [Action]),
-            {error, ?ERR_BAD_REQUEST}
+            {error, mongoose_xmpp_errors:bad_request()}
     end.
 
 iq_command(Host, ServerHost, From, IQ, Access, Plugins) ->
@@ -1460,7 +1460,7 @@ adhoc_request(Host, _ServerHost, Owner,
         {result, XForm} ->
             case lists:keysearch(node, 1, XForm) of
                 {value, {_, Node}} -> send_pending_auth_events(Request, Host, Node, Owner);
-                false -> {error, extended_error(?ERR_BAD_REQUEST, <<"bad-payload">>)}
+                false -> {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"bad-payload">>)}
             end;
         Error -> Error
     end;
@@ -1475,7 +1475,7 @@ adhoc_request(Host, ServerHost, Owner,
                   Plugins);
 adhoc_request(_Host, _ServerHost, _Owner, Other, _Access, _Plugins) ->
     ?DEBUG("Couldn't process ad hoc command:~n~p", [Other]),
-    {error, ?ERR_ITEM_NOT_FOUND}.
+    {error, mongoose_xmpp_errors:item_not_found()}.
 
 %% @doc <p>Sends the process pending subscriptions XForm for Host to Owner.</p>
 send_pending_node_form(Request, Host, Owner, Plugins) ->
@@ -1484,7 +1484,7 @@ send_pending_node_form(Request, Host, Owner, Plugins) ->
              end,
     case lists:filter(Filter, Plugins) of
         [] ->
-            {error, ?ERR_FEATURE_NOT_IMPLEMENTED};
+            {error, mongoose_xmpp_errors:feature_not_implemented()};
         Ps ->
             XOpts = [#xmlel{name = <<"option">>, attrs = [],
                             children = [#xmlel{name = <<"value">>,
@@ -1517,7 +1517,7 @@ get_pending_nodes(Host, Owner, Plugins) ->
 adhoc_get_pending_parse_options(Host, #xmlel{name = <<"x">>} = XEl) ->
     case jlib:parse_xdata_submit(XEl) of
         invalid ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         XData2 ->
             case set_xoption(Host, XData2, []) of
                 NewOpts when is_list(NewOpts) -> {result, NewOpts};
@@ -1526,7 +1526,7 @@ adhoc_get_pending_parse_options(Host, #xmlel{name = <<"x">>} = XEl) ->
     end;
 adhoc_get_pending_parse_options(_Host, XData) ->
     ?INFO_MSG("Bad XForm: ~p", [XData]),
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 %% @doc <p>Send a subscription approval form to Owner for all pending
 %% subscriptions on Host and Node.</p>
@@ -1554,10 +1554,10 @@ get_node_subscriptions_transaction(Host, Owner, #pubsub_node{id = Nidx, type = T
         true ->
             case node_call(Host, Type, get_affiliation, [Nidx, Owner]) of
                 {result, owner} -> node_call(Host, Type, get_node_subscriptions, [Nidx]);
-                _ -> {error, ?ERR_FORBIDDEN}
+                _ -> {error, mongoose_xmpp_errors:forbidden()}
             end;
         false ->
-            {error, ?ERR_FEATURE_NOT_IMPLEMENTED}
+            {error, mongoose_xmpp_errors:feature_not_implemented()}
     end.
 
 %%% authorization handling
@@ -1686,11 +1686,11 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
                     %% XXX: notify about subscription state change, section 12.11
                     ok;
                 _ ->
-                    Err = jlib:make_error_reply(Packet, ?ERR_INTERNAL_SERVER_ERROR),
+                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
                     ejabberd_router:route(To, From, Err)
             end;
         _ ->
-            Err = jlib:make_error_reply(Packet, ?ERR_NOT_ACCEPTABLE),
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -1706,7 +1706,7 @@ handle_authorization_response_transaction(Host, FromLJID, Subscriber, Allow, Nod
             {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
             update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs);
         false ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
@@ -1725,7 +1725,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
             send_authorization_approval(Host, Subscriber, Node, NewSub),
             {result, ok};
         _ ->
-            {error, ?ERR_UNEXPECTED_REQUEST}
+            {error, mongoose_xmpp_errors:unexpected_request()}
     end.
 
 -define(XFIELD(Type, Label, Var, Val),
@@ -1810,13 +1810,13 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
         Host          :: mod_pubsub:host(),
           ServerHost    :: binary(),
           Node        :: <<>> | mod_pubsub:nodeId(),
-          Owner         :: jid(),
+          Owner         ::jid:jid(),
           Type          :: binary(),
           Access        :: atom(),
-          Configuration :: [xmlel()])
-        -> {result, [xmlel(), ...]}
+          Configuration :: [exml:element()])
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 create_node(Host, ServerHost, Node, Owner, Type) ->
     create_node(Host, ServerHost, Node, Owner, Type, all, []).
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
@@ -1833,7 +1833,7 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
                     Error
             end;
         false ->
-            {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"nodeid-required">>)}
+            {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"nodeid-required">>)}
     end;
 create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
     Type = select_type(ServerHost, Host, Node, GivenType),
@@ -1844,7 +1844,7 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                         XEl;
                     _ ->
                         ?INFO_MSG("Node ~p; bad configuration: ~p", [Node, Configuration]),
-                        {error, ?ERR_BAD_REQUEST}
+                        {error, mongoose_xmpp_errors:bad_request()}
                 end,
     case parse_create_node_options_if_possible(Host, Type, ConfigXEl) of
         {result, NodeOptions} ->
@@ -1875,7 +1875,7 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
 parse_create_node_options_if_possible(Host, Type, #xmlel{} = ConfigXEl) ->
     case jlib:parse_xdata_submit(ConfigXEl) of
         invalid ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         XData ->
             case set_xoption(Host, XData, node_options(Host, Type)) of
                 NewOpts when is_list(NewOpts) -> {result, NewOpts};
@@ -1898,7 +1898,7 @@ create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions
         {result, true} ->
             create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions);
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions) ->
@@ -1943,12 +1943,12 @@ create_node_make_reply(Node) ->
 -spec delete_node(
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
-          Owner :: jid())
-        -> {result, [xmlel(), ...]}
+          Owner :: jid:jid())
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 delete_node(_Host, <<>>, _Owner) ->
-    {error, ?ERR_NOT_ALLOWED};
+    {error, mongoose_xmpp_errors:not_allowed()};
 delete_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> delete_node_transaction(Host, Owner, Node, PubSubNode) end,
     ServerHost = serverhost(Host),
@@ -2005,7 +2005,7 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
                 Error -> Error
             end;
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 %% @see node_hometree:subscribe_node/5
@@ -2031,12 +2031,12 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
 -spec subscribe_node(
         Host          :: mod_pubsub:host(),
           Node          :: mod_pubsub:nodeId(),
-          From          :: jid(),
+          From          ::jid:jid(),
           JID           :: binary(),
-          Configuration :: [xmlel()])
-        -> {result, [xmlel(), ...]}
+          Configuration :: [exml:element()])
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 subscribe_node(Host, Node, From, JID, Configuration) ->
     SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
                   {result, GoodSubOpts} -> GoodSubOpts;
@@ -2078,7 +2078,7 @@ subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode) ->
 subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case lists:member(<<"subscribe">>, Features) of
         false ->
-            {error, extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
+            {error, extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscribe">>)};
         true ->
             subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features)
     end.
@@ -2086,7 +2086,7 @@ subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Fe
 subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case get_option(PubSubNode#pubsub_node.options, subscribe) of
         false ->
-            {error, extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscribe">>)};
+            {error, extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscribe">>)};
         true ->
             subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features)
     end.
@@ -2095,19 +2095,19 @@ subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Fe
     case {SubOpts /= [], lists:member(<<"subscription-options">>, Features)} of
         {true, false} ->
            {error,
-            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)};
+            extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)};
         _ ->
             subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber, PubSubNode)
     end.
 
 subscribe_node_transaction_step4(_Host, invalid, _From, _Subscriber, _PubSubNode) ->
-    {error, extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
+    {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
 subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
                                  #pubsub_node{options = Options, type = Type,
                                               id = Nidx, owners = O}) ->
     case check_subs_limit(Host, Type, Nidx) of
         true ->
-           {error, extended_error(?ERR_NOT_ALLOWED, <<"closed-node">>)};
+           {error, extended_error(mongoose_xmpp_errors:not_allowed(), <<"closed-node">>)};
         false ->
             AccessModel = get_option(Options, access_model),
             SendLast = get_option(Options, send_last_published_item),
@@ -2168,12 +2168,12 @@ subscribe_node_reply(Subscriber, SubAttrs) ->
 -spec unsubscribe_node(
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
-          From  :: jid(),
-          JID   :: binary() | ljid(),
+          From  ::jid:jid(),
+          JID   :: binary() | jid:ljid(),
           SubId :: mod_pubsub:subId())
         -> {result, []}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 unsubscribe_node(Host, Node, From, JID, SubId) when is_binary(JID) ->
     unsubscribe_node(Host, Node, From, string_to_ljid(JID), SubId);
 unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
@@ -2202,12 +2202,12 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
         Host       :: mod_pubsub:host(),
           ServerHost :: binary(),
           Node       :: mod_pubsub:nodeId(),
-          Publisher  :: jid(),
+          Publisher  ::jid:jid(),
           ItemId     :: <<>> | mod_pubsub:itemId(),
           Payload    :: mod_pubsub:payload())
-        -> {result, [xmlel(), ...]}
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
@@ -2231,20 +2231,20 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
 
                 Errors = [ %% [{Condition :: boolean(), Reason :: term()}]
                     {not PublishFeature,
-                     extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"publish">>)},
+                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"publish">>)},
                     {not PubOptsFeature andalso PublishOptions /= undefined,
-                     extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported,
+                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported,
                                     <<"publish-options">>)},
                     {PayloadSize > PayloadMaxSize,
-                     extended_error(?ERR_NOT_ACCEPTABLE, <<"payload-too-big">>)},
+                     extended_error(mongoose_xmpp_errors:not_acceptable(), <<"payload-too-big">>)},
                     {(PayloadCount == 0) and (Payload == []),
-                     extended_error(?ERR_BAD_REQUEST, <<"payload-required">>)},
+                     extended_error(mongoose_xmpp_errors:bad_request(), <<"payload-required">>)},
                     {(PayloadCount > 1) or (PayloadCount == 0),
-                     extended_error(?ERR_BAD_REQUEST, <<"invalid-payload">>)},
+                     extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-payload">>)},
                     {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
-                     extended_error(?ERR_BAD_REQUEST, <<"item-forbidden">>)},
+                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-forbidden">>)},
                     {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
-                     extended_error(?ERR_BAD_REQUEST, <<"item-required">>)}
+                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
                 ],
 
                 case lists:keyfind(true, 1, Errors) of
@@ -2261,7 +2261,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                     children = [#xmlel{name = <<"publish">>, attrs = node_attr(Node),
                                        children = [#xmlel{name = <<"item">>,
                                                           attrs = item_attr(ItemId)}]}]}],
-    ErrorItemNotFound = ?ERR_ITEM_NOT_FOUND,
+    ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
@@ -2313,7 +2313,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
 
 autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
                                     Type, Access, ItemId, Payload) ->
-    ErrorItemNotFound = ?ERR_ITEM_NOT_FOUND,
+    ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
     case lists:member(<<"auto-create">>, plugin_features(Host, Type)) of
         true ->
             case create_node(Host, ServerHost, Node, Publisher, Type, Access, []) of
@@ -2345,15 +2345,15 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
 -spec delete_item(
         Host      :: mod_pubsub:host(),
           Node      :: mod_pubsub:nodeId(),
-          Publisher :: jid(),
+          Publisher ::jid:jid(),
           ItemId    :: mod_pubsub:itemId())
         -> {result, []}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 delete_item(Host, Node, Publisher, ItemId) ->
     delete_item(Host, Node, Publisher, ItemId, false).
 delete_item(_, <<>>, _, _, _) ->
-    {error, extended_error(?ERR_BAD_REQUEST, <<"node-required">>)};
+    {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
     Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
@@ -2389,11 +2389,11 @@ delete_item_transaction(Host, Publisher, ItemId,
                     node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]);
                 false ->
                     {error,
-                     extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"delete-items">>)}
+                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"delete-items">>)}
             end;
         false ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)}
     end.
 
 %% @doc <p>Delete all items of specified node owned by JID.</p>
@@ -2407,10 +2407,10 @@ delete_item_transaction(Host, Publisher, ItemId,
 -spec purge_node(
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
-          Owner :: jid())
+          Owner :: jid:jid())
         -> {result, []}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 purge_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
@@ -2439,13 +2439,13 @@ purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type,
           get_option(Options, persist_items)} of
         {false, _, _} ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"purge-nodes">>)};
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"purge-nodes">>)};
         {_, false, _} ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
         {_, _, false} ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
         _ -> node_call(Host, Type, purge_node, [Nidx, Owner])
     end.
 
@@ -2456,11 +2456,11 @@ purge_node_transaction(Host, Owner, #pubsub_node{options = Options, type = Type,
 %% to read the items.
 -spec get_items(Host :: mod_pubsub:host(),
                 Node :: mod_pubsub:nodeId(),
-                From :: jid(),
+                From ::jid:jid(),
                 SubId :: mod_pubsub:subId(),
                 SMaxItems :: binary(),
                 ItemIds :: [mod_pubsub:itemId()],
-                Rsm :: none | rsm_in()) -> {result, [xmlel(), ...]} | {error, xmlel()}.
+                Rsm :: none | jlib:rsm_in()) -> {result, [exml:element(), ...]} | {error, exml:element()}.
 get_items(Host, Node, From, SubId, <<>>, ItemIds, RSM) ->
     MaxItems = case get_max_items_node(Host) of
                    undefined -> ?MAXITEMS;
@@ -2469,7 +2469,7 @@ get_items(Host, Node, From, SubId, <<>>, ItemIds, RSM) ->
     get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems);
 get_items(Host, Node, From, SubId, SMaxItems, ItemIds, RSM) ->
     MaxItems = case catch binary_to_integer(SMaxItems) of
-                   {'EXIT', _} -> {error, ?ERR_BAD_REQUEST};
+                   {'EXIT', _} -> {error, mongoose_xmpp_errors:bad_request()};
                    Val -> Val
                end,
     get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems).
@@ -2501,10 +2501,10 @@ get_items_transaction(Host, From, RSM, SubId,
           lists:member(<<"persistent-items">>, Features)} of
         {false, _} ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"retrieve-items">>)};
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"retrieve-items">>)};
         {_, false} ->
            {error,
-            extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"persistent-items">>)};
+            extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"persistent-items">>)};
         _ ->
             AccessModel = get_option(Options, access_model),
             AllowedGroups = get_option(Options, roster_groups_allowed, []),
@@ -2615,11 +2615,11 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
 -spec get_affiliations(
         Host    :: mod_pubsub:host(),
           Node    :: mod_pubsub:nodeId(),
-          JID     :: jid(),
+          JID     ::jid:jid(),
           Plugins :: [binary()])
-        -> {result, [xmlel(), ...]}
+        -> {result, [exml:element(), ...]}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     Result = lists:foldl(
                fun(Type, {Status, Acc}) ->
@@ -2631,7 +2631,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                {Status, [Affs | Acc]};
                            false ->
                                {{error,
-                                 extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
+                                 extended_error(mongoose_xmpp_errors:feature_not_implemented(),
                                                 unsupported, <<"retrieve-affiliations">>)},
                                 Acc}
                        end
@@ -2659,13 +2659,13 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
             Error
     end.
 
--spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jid()) ->
-    {result, [xmlel(), ...]} | {error, xmlel()}.
+-spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jid:jid()) ->
+    {result, [exml:element(), ...]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, []}} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         {result, {_, Affs}} ->
             Entities =
             lists:flatmap(fun({_, none}) ->
@@ -2693,21 +2693,21 @@ get_affiliations_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
                 {result, owner} ->
                     node_call(Host, Type, get_node_affiliations, [Nidx]);
                 _ ->
-                    {error, ?ERR_FORBIDDEN}
+                    {error, mongoose_xmpp_errors:forbidden()}
             end;
         false ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"modify-affiliations">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"modify-affiliations">>)}
     end.
 
 -spec set_affiliations(
         Host        :: mod_pubsub:host(),
           Node        :: mod_pubsub:nodeId(),
-          From        :: jid(),
-          EntitiesEls :: [xmlel()])
+          From        ::jid:jid(),
+          EntitiesEls :: [exml:element()])
         -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
 %%%
-               | {error, xmlel()}.
+               | {error, exml:element()}.
 set_affiliations(Host, Node, From, EntitiesEls) ->
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun
@@ -2727,7 +2727,7 @@ set_affiliations(Host, Node, From, EntitiesEls) ->
                            [], EntitiesEls),
     case Entities of
         error ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             Action = fun (PubSubNode) ->
                              set_affiliations_transaction(Host, Owner, PubSubNode, Entities)
@@ -2764,13 +2764,13 @@ set_affiliations_transaction(Host, Owner,
                     NewPubSubPayload = #xmlel{ name = <<"pubsub">>,
                                                attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
                                                children = [AffiliationsPayload] },
-                    {error, {?ERR_NOT_ACCEPTABLE, [NewPubSubPayload]}};
+                    {error, {mongoose_xmpp_errors:not_acceptable(), [NewPubSubPayload]}};
                 _ ->
                     set_validated_affiliations_transaction(Host, N, Owners, Entities),
                     {result, []}
             end;
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 set_validated_affiliations_transaction(Host, #pubsub_node{ type = Type, id = Nidx } = N,
@@ -2814,7 +2814,7 @@ get_options_transaction(Host, Node, JID, SubId, Lang, #pubsub_node{type = Type, 
             get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type);
         false ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)}
     end.
 
 get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type) ->
@@ -2824,18 +2824,18 @@ get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type) ->
     case {SubId, SubIds} of
         {_, []} ->
             {error,
-             extended_error(?ERR_NOT_ACCEPTABLE, <<"not-subscribed">>)};
+             extended_error(mongoose_xmpp_errors:not_acceptable(), <<"not-subscribed">>)};
         {<<>>, [SID]} ->
             read_sub(Node, Nidx, Subscriber, SID, Lang);
         {<<>>, _} ->
             {error,
-             extended_error(?ERR_NOT_ACCEPTABLE, <<"subid-required">>)};
+             extended_error(mongoose_xmpp_errors:not_acceptable(), <<"subid-required">>)};
         {_, _} ->
             case lists:member(SubId, SubIds) of
                 true ->
                     read_sub(Node, Nidx, Subscriber, SubId, Lang);
                 false ->
-                    {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"invalid-subid">>)}
+                    {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"invalid-subid">>)}
             end
     end.
 
@@ -2872,7 +2872,7 @@ set_options_transaction(Host, JID, SubId, Configuration, #pubsub_node{type = Typ
             set_options_helper(Host, Configuration, JID, Nidx, SubId, Type);
         false ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"subscription-options">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)}
     end.
 
 set_options_helper(Host, Configuration, JID, Nidx, SubId, Type) ->
@@ -2885,29 +2885,29 @@ set_options_helper(Host, Configuration, JID, Nidx, SubId, Type) ->
     SubIds = [Id || {Sub, Id} <- Subs, Sub == subscribed],
     case {SubId, SubIds} of
         {_, []} ->
-            {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"not-subscribed">>)};
+            {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"not-subscribed">>)};
         {<<>>, [SID]} ->
             write_sub(Nidx, Subscriber, SID, SubOpts);
         {<<>>, _} ->
-            {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"subid-required">>)};
+            {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"subid-required">>)};
         {_, _} ->
             write_sub(Nidx, Subscriber, SubId, SubOpts)
     end.
 
 write_sub(_Nidx, _Subscriber, _SubId, invalid) ->
-    {error, extended_error(?ERR_BAD_REQUEST, <<"invalid-options">>)};
+    {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
 write_sub(_Nidx, _Subscriber, _SubId, []) ->
     {result, []};
 write_sub(Nidx, Subscriber, SubId, Options) ->
     case pubsub_subscription:set_subscription(Subscriber, Nidx, SubId, Options) of
         {result, _} -> {result, []};
-        {error, _} -> {error, extended_error(?ERR_NOT_ACCEPTABLE, <<"invalid-subid">>)}
+        {error, _} -> {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"invalid-subid">>)}
     end.
 
 %% @spec (Host, Node, JID, Plugins) -> {error, Reason} | {result, Response}
 %%         Host = host()
 %%         Node = pubsubNode()
-%%         JID = jid()
+%%         JID =jid:jid()
 %%         Plugins = [Plugin::string()]
 %%         Reason = stanzaError()
 %%         Response = [pubsubIQResponse()]
@@ -2924,7 +2924,7 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                          {Status, [Subs | Acc]};
                                      false ->
                                          {{error,
-                                           extended_error(?ERR_FEATURE_NOT_IMPLEMENTED,
+                                           extended_error(mongoose_xmpp_errors:feature_not_implemented(),
                                                           unsupported,
                                                           <<"retrieve-subscriptions">>)},
                                           Acc}
@@ -3031,11 +3031,11 @@ get_subscriptions_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) -
                 {result, owner} ->
                     node_call(Host, Type, get_node_subscriptions, [Nidx]);
                 _ ->
-                    {error, ?ERR_FORBIDDEN}
+                    {error, mongoose_xmpp_errors:forbidden()}
             end;
         false ->
             {error,
-             extended_error(?ERR_FEATURE_NOT_IMPLEMENTED, unsupported, <<"manage-subscriptions">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"manage-subscriptions">>)}
     end.
 
 get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
@@ -3067,7 +3067,7 @@ set_subscriptions(Host, Node, From, EntitiesEls) ->
                            end, [], EntitiesEls),
     case Entities of
         error ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             Action = fun (PubSubNode) ->
                              set_subscriptions_transaction(Host, Owner, Node, PubSubNode, Entities)
@@ -3090,10 +3090,10 @@ set_subscriptions_transaction(Host, Owner, Node,
                         [], Entities),
             case Result of
                 [] -> {result, []};
-                _ -> {error, ?ERR_NOT_ACCEPTABLE}
+                _ -> {error, mongoose_xmpp_errors:not_acceptable()}
             end;
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 set_subscription_transaction(Host, Node, Nidx, Type, {JID, Sub, SubId}, Acc) ->
@@ -3114,8 +3114,8 @@ notify_subscription_change(Host, Node, JID, Sub) ->
     ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
-                                          From :: ljid(),
-                                          Owners :: [ljid(), ...],
+                                          From :: jid:ljid(),
+                                          Owners :: [jid:ljid(), ...],
                                           AccessModel :: mod_pubsub:accessModel(),
                                           AllowedGroups :: [binary()]) ->
     {PresenceSubscription :: boolean(), RosterGroup :: boolean()}.
@@ -3177,7 +3177,7 @@ subscription_to_string(_) -> <<"none">>.
 
 -spec service_jid(
         Host :: mod_pubsub:host())
-        -> jid().
+        ->jid:jid().
 service_jid(Host) ->
     case Host of
         {U, S, _} -> {jid, U, S, <<>>, U, S, <<>>};
@@ -3185,7 +3185,7 @@ service_jid(Host) ->
     end.
 
 %% @spec (LJID, NotifyType, Depth, NodeOptions, SubOptions) -> boolean()
-%%        LJID = jid()
+%%        LJID =jid:jid()
 %%        NotifyType = items | nodes
 %%        Depth = integer()
 %%        NodeOptions = [{atom(), term()}]
@@ -3213,7 +3213,7 @@ sub_option_can_deliver(_, _, {deliver, false}) -> false;
 sub_option_can_deliver(_, _, {expire, When}) -> timestamp() < When;
 sub_option_can_deliver(_, _, _) -> true.
 
--spec presence_can_deliver(Entity :: ljid(), PresenceBasedDelivery :: boolean()) -> boolean().
+-spec presence_can_deliver(Entity :: jid:ljid(), PresenceBasedDelivery :: boolean()) -> boolean().
 presence_can_deliver(_, false) ->
     true;
 presence_can_deliver({User, Server, <<>>}, true) ->
@@ -3225,9 +3225,9 @@ presence_can_deliver({User, Server, Resource}, true) ->
     end.
 
 -spec state_can_deliver(
-        Entity::ljid(),
+        Entity::jid:ljid(),
           SubOptions :: mod_pubsub:subOptions() | [])
-        -> [ljid()].
+        -> [jid:ljid()].
 state_can_deliver({U, S, R}, []) -> [{U, S, R}];
 state_can_deliver({U, S, R}, SubOptions) ->
     case lists:keysearch(show_values, 1, SubOptions) of
@@ -3248,10 +3248,10 @@ state_can_deliver({U, S, R}, SubOptions) ->
     end.
 
 -spec get_resource_state(
-        Entity     :: ljid(),
+        Entity     :: jid:ljid(),
           ShowValues :: [binary()],
-          JIDs       :: [ljid()])
-        -> [ljid()].
+          JIDs       :: [jid:ljid()])
+        -> [jid:ljid()].
 get_resource_state({U, S, R}, ShowValues, JIDs) ->
     case ejabberd_sm:get_session_pid(U, S, R) of
         none ->
@@ -3644,7 +3644,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB_OWNER}],
                      children = [ConfigureEl]}]};
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 get_default(Host, Node, _From, Lang) ->
@@ -3826,10 +3826,10 @@ set_configure(Host, Node, From, Els, Lang) ->
             case {xml:get_tag_attr_s(<<"xmlns">>, XEl), xml:get_tag_attr_s(<<"type">>, XEl)} of
                 {?NS_XDATA, <<"cancel">>} -> {result, []};
                 {?NS_XDATA, <<"submit">>} -> set_configure_submit(Host, Node, From, XEl, Lang);
-                _ -> {error, ?ERR_BAD_REQUEST}
+                _ -> {error, mongoose_xmpp_errors:bad_request()}
             end;
         _ ->
-            {error, ?ERR_BAD_REQUEST}
+            {error, mongoose_xmpp_errors:bad_request()}
     end.
 
 set_configure_submit(Host, Node, User, XEl, Lang) ->
@@ -3851,11 +3851,11 @@ set_configure_transaction(Host, User, XEl, #pubsub_node{ type = Type, id = Nidx 
     case node_call(Host, Type, get_affiliation, [Nidx, User]) of
         {result, owner} ->
             case jlib:parse_xdata_submit(XEl) of
-                invalid -> {error, ?ERR_BAD_REQUEST};
+                invalid -> {error, mongoose_xmpp_errors:bad_request()};
                 XData -> set_configure_valid_transaction(Host, NodeRec, XData)
             end;
         _ ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 set_configure_valid_transaction(Host, #pubsub_node{ type = Type, options = Options } = NodeRec,
@@ -3887,7 +3887,7 @@ add_opt(Key, Value, Opts) ->
                       _ -> error
                   end,
         case BoolVal of
-            error -> {error, ?ERR_NOT_ACCEPTABLE};
+            error -> {error, mongoose_xmpp_errors:not_acceptable()};
             _ -> set_xoption(Host, Opts, add_opt(Opt, BoolVal, NewOpts))
         end).
 
@@ -3900,10 +3900,10 @@ add_opt(Key, Value, Opts) ->
                 if (Max =:= undefined) orelse (IVal =< Max) ->
                         set_xoption(Host, Opts, add_opt(Opt, IVal, NewOpts));
                    true ->
-                        {error, ?ERR_NOT_ACCEPTABLE}
+                        {error, mongoose_xmpp_errors:not_acceptable()}
                 end;
             _ ->
-                {error, ?ERR_NOT_ACCEPTABLE}
+                {error, mongoose_xmpp_errors:not_acceptable()}
         end).
 
 -define(SET_ALIST_XOPT(Opt, Val, Vals),
@@ -3911,7 +3911,7 @@ add_opt(Key, Value, Opts) ->
             true ->
                 set_xoption(Host, Opts, add_opt(Opt, binary_to_atom(Val, utf8), NewOpts));
             false ->
-                {error, ?ERR_NOT_ACCEPTABLE}
+                {error, mongoose_xmpp_errors:not_acceptable()}
         end).
 
 -define(SET_LIST_XOPT(Opt, Val),
@@ -4197,7 +4197,7 @@ transaction(Host, Fun, Trans) ->
     Retry = 1,
     transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
 
--spec transaction_retry(Host :: binary() | ejabberd:simple_jid(),
+-spec transaction_retry(Host :: binary() | jid:simple_jid(),
                         ServerHost :: binary(),
                         Fun :: fun(() -> tuple()),
                         Trans :: atom(),
@@ -4206,7 +4206,7 @@ transaction(Host, Fun, Trans) ->
     {result, any()}
     | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
 transaction_retry(_Host, _ServerHost, _Fun, _Trans, _DBType, 0) ->
-    {error, ?ERR_INTERNAL_SERVER_ERROR};
+    {error, mongoose_xmpp_errors:internal_server_error()};
 transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->
     case catch mnesia:Trans(Fun) of
         {result, Result} ->
@@ -4219,16 +4219,16 @@ transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->
             {error, Error};
         {aborted, Reason} ->
             ?ERROR_MSG("transaction return internal error: ~p~n", [{aborted, Reason}]),
-            {error, ?ERR_INTERNAL_SERVER_ERROR};
+            {error, mongoose_xmpp_errors:internal_server_error()};
         {'EXIT', {timeout, _} = Reason} ->
             ?ERROR_MSG("transaction return internal error: ~p~n", [Reason]),
             transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count - 1);
         {'EXIT', Reason} ->
             ?ERROR_MSG("transaction return internal error: ~p~n", [{'EXIT', Reason}]),
-            {error, ?ERR_INTERNAL_SERVER_ERROR};
+            {error, mongoose_xmpp_errors:internal_server_error()};
         Other ->
             ?ERROR_MSG("transaction return internal error: ~p~n", [Other]),
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 %%%% helpers
@@ -4278,7 +4278,7 @@ items_els(Items) ->
     [#xmlel{name = <<"item">>, attrs = item_attr(ItemId, Publisher), children = Payload}
      || #pubsub_item{itemid = {ItemId, _}, publisher = Publisher, payload = Payload } <- Items].
 
--spec add_message_type(Message :: xmlel(), Type :: atom()) -> xmlel().
+-spec add_message_type(Message :: exml:element(), Type :: atom()) -> exml:element().
 add_message_type(Message, normal) -> Message;
 add_message_type(#xmlel{name = <<"message">>, attrs = Attrs, children = Els}, Type) ->
     #xmlel{name = <<"message">>,

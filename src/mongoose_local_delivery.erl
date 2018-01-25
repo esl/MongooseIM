@@ -7,7 +7,7 @@
 -module(mongoose_local_delivery).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %% API

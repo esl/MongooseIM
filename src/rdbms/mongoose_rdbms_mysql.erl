@@ -18,7 +18,7 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(MYSQL_PORT, 3306).
 

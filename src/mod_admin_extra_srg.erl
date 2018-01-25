@@ -39,7 +39,7 @@
     srg_user_del/4
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").
 -include("jlib.hrl").
@@ -106,7 +106,7 @@ commands() ->
 %%%
 
 -type group() :: binary().
--spec srg_create(group(), ejabberd:server(), ejabberd:user(),
+-spec srg_create(group(), jid:server(), jid:user(),
                  Description :: binary(), Display :: binary() | []) -> 'ok'.
 srg_create(Group, Host, Name, Description, Display) ->
     DisplayList = case Display of
@@ -120,40 +120,40 @@ srg_create(Group, Host, Name, Description, Display) ->
     ok.
 
 
--spec srg_delete(group(), ejabberd:server()) -> 'ok'.
+-spec srg_delete(group(), jid:server()) -> 'ok'.
 srg_delete(Group, Host) ->
     {atomic, ok} = mod_shared_roster:delete_group(Host, Group),
     ok.
 
 
--spec srg_list(ejabberd:server()) -> [group()].
+-spec srg_list(jid:server()) -> [group()].
 srg_list(Host) ->
     lists:sort(mod_shared_roster:list_groups(Host)).
 
 
--spec srg_get_info(group(), ejabberd:server()) -> [{string(), string()}].
+-spec srg_get_info(group(), jid:server()) -> [{string(), string()}].
 srg_get_info(Group, Host) ->
     Opts = mod_shared_roster:get_group_opts(Host, Group),
     [{io_lib:format("~p", [Title]),
       io_lib:format("~p", [Value])} || {Title, Value} <- Opts].
 
 
--spec srg_get_members(group(), ejabberd:server()) -> [binary()].
+-spec srg_get_members(group(), jid:server()) -> [binary()].
 srg_get_members(Group, Host) ->
     Members = mod_shared_roster:get_group_explicit_users(Host, Group),
     [jid:to_binary(jid:make(MUser, MServer, <<"">>))
      || {MUser, MServer} <- Members].
 
 
--spec srg_user_add(ejabberd:user(), ejabberd:server(),
-                   group(), GroupHost :: ejabberd:server()) -> 'ok'.
+-spec srg_user_add(jid:user(), jid:server(),
+                   group(), GroupHost :: jid:server()) -> 'ok'.
 srg_user_add(User, Host, Group, GroupHost) ->
     {atomic, ok} = mod_shared_roster:add_user_to_group(GroupHost, {User, Host}, Group),
     ok.
 
 
--spec srg_user_del(ejabberd:user(), ejabberd:server(),
-                   group(), GroupHost :: ejabberd:server()) -> 'ok'.
+-spec srg_user_del(jid:user(), jid:server(),
+                   group(), GroupHost :: jid:server()) -> 'ok'.
 srg_user_del(User, Host, Group, GroupHost) ->
     {atomic, ok} = mod_shared_roster:remove_user_from_group(GroupHost, {User, Host}, Group),
     ok.

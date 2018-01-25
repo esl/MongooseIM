@@ -6,14 +6,14 @@
 %%% - mam_message_compressed_eterm
 -module(mam_message).
 
--callback encode(jlib:xmlel()) -> binary().
--callback decode(binary()) -> jlib:xmlel().
+-callback encode(exml:element()) -> binary().
+-callback decode(binary()) -> exml:element().
 
 -export([encode/2, decode/2]).
 
--spec encode(module(), jlib:xmlel()) -> binary().
+-spec encode(module(), exml:element()) -> binary().
 encode(Mod, Packet) -> Mod:encode(Packet).
 
--spec decode(module(), binary()) -> jlib:xmlel().
+-spec decode(module(), binary()) -> exml:element().
 decode(Mod, Bin) -> Mod:decode(Bin).
 

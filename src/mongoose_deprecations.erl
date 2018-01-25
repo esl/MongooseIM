@@ -20,7 +20,7 @@
 %% Test API
 -export([log_with_lvl/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(DEPRECATION_TAB, deprecations).         % ETS table name
 -define(DEFAULT_COOLDOWN_HOURS, 6).             % default cooldown time

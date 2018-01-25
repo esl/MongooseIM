@@ -51,7 +51,7 @@
          search_reported_fields/2]).
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("eldap.hrl").
 -include("mod_vcard.hrl").
 -include("jlib.hrl").
@@ -164,7 +164,7 @@ get_vcard(LUser, LServer) ->
     end.
 
 set_vcard(_User, _VHost, _VCard, _VCardSearch) ->
-    {error, ?ERR_NOT_ALLOWED}.
+    {error, mongoose_xmpp_errors:not_allowed()}.
 
 search(LServer, Data) ->
     Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),

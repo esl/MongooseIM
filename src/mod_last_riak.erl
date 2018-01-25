@@ -45,7 +45,7 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(TIMESTAMP_IDX, {integer_index, "timestamp"}).
 
@@ -56,12 +56,12 @@
          set_last_info/4,
          remove_user/2]).
 
--spec init(ejabberd:server(), list()) ->ok.
+-spec init(jid:server(), list()) ->ok.
 init(_VHost, _Opts) ->
     %% we are using common riak pool
     ok.
 
--spec get_last(ejabberd:luser(), ejabberd:lserver()) ->
+-spec get_last(jid:luser(), jid:lserver()) ->
     {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
 get_last(LUser, LServer) ->
     case mongoose_riak:get(bucket_type(LServer), LUser) of
@@ -76,7 +76,7 @@ get_last(LUser, LServer) ->
             {error, Reason}
     end.
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+-spec count_active_users(jid:lserver(), non_neg_integer()) -> non_neg_integer().
 count_active_users(LServer, TimeStamp) ->
     Idx = {index, bucket_type(LServer), ?TIMESTAMP_IDX, TimeStamp+1, infinity()},
     RedMF = {modfun, riak_kv_mapreduce, reduce_count_inputs},
@@ -84,7 +84,7 @@ count_active_users(LServer, TimeStamp) ->
     {ok, [{0, [Count]}]}  = mongoose_riak:mapred(Idx, Red),
     Count.
 
--spec set_last_info(ejabberd:luser(), ejabberd:lserver(), non_neg_integer(),
+-spec set_last_info(jid:luser(), jid:lserver(), non_neg_integer(),
                     binary()) -> ok | {error, term()}.
 set_last_info(LUser, LServer, Timestamp, Status) ->
     Obj = riakc_obj:new(bucket_type(LServer), LUser, Status),
@@ -94,7 +94,7 @@ set_last_info(LUser, LServer, Timestamp, Status) ->
 
     mongoose_riak:put(FinalObj).
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver())  -> ok.
+-spec remove_user(jid:luser(), jid:lserver())  -> ok.
 remove_user(LUser, LServer) ->
     mongoose_riak:delete(bucket_type(LServer), LUser).
 

@@ -37,7 +37,7 @@
          try_register/5,
          process_iq/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 start(Host, Opts) ->
@@ -117,7 +117,7 @@ handle_set(IQ, ClientJID, ServerJID, Source) ->
     #iq{sub_el = Query} = IQ,
     case which_child_elements(Query) of
         bad_request ->
-            error_response(IQ, ?ERR_BAD_REQUEST);
+            error_response(IQ, mongoose_xmpp_errors:bad_request());
         only_remove_child ->
             attempt_cancelation(ClientJID, ServerJID, IQ);
         various_elements_present ->
@@ -126,7 +126,7 @@ handle_set(IQ, ClientJID, ServerJID, Source) ->
                     Credentials = get_username_and_password_values(Query),
                     register_or_change_password(Credentials, ClientJID, ServerJID, IQ, Source);
                 false ->
-                    error_response(IQ, ?ERR_BAD_REQUEST)
+                    error_response(IQ, mongoose_xmpp_errors:bad_request())
             end
     end.
 
@@ -165,7 +165,7 @@ register_or_change_password(Credentials, ClientJID, #jid{lserver = ServerDomain}
                                          ClientJID, IQ, Children, IPAddr, Lang);
         false ->
             %% This is not described in XEP 0077.
-            error_response(IQ, ?ERR_FORBIDDEN)
+            error_response(IQ, mongoose_xmpp_errors:forbidden())
     end.
 
 attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el = Child} = IQ) ->
@@ -188,7 +188,7 @@ attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el
             ejabberd_auth:remove_user(Username, UserDomain),
             ignore;
         false ->
-            error_response(IQ, ?ERR_NOT_ALLOWED)
+            error_response(IQ, mongoose_xmpp_errors:not_allowed())
     end.
 
 inband_registration_and_cancelation_allowed(_, no_JID) ->
@@ -238,7 +238,7 @@ try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, L
             end;
         false ->
             ErrText = <<"Users are not allowed to register accounts so quickly">>,
-            error_response(IQ, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText))
+            error_response(IQ, mongoose_xmpp_errors:resource_constraint(Lang, ErrText))
     end.
 
 %% @doc Try to change password and return IQ response
@@ -249,21 +249,21 @@ try_set_password(User, Server, Password, IQ, SubEl, Lang) ->
                 ok ->
                     IQ#iq{type = result, sub_el = [SubEl]};
                 {error, empty_password} ->
-                    error_response(IQ, [SubEl, ?ERR_BAD_REQUEST]);
+                    error_response(IQ, [SubEl, mongoose_xmpp_errors:bad_request()]);
                 {error, not_allowed} ->
-                    error_response(IQ, [SubEl, ?ERR_NOT_ALLOWED]);
+                    error_response(IQ, [SubEl, mongoose_xmpp_errors:not_allowed()]);
                 {error, invalid_jid} ->
-                    error_response(IQ, [SubEl, ?ERR_ITEM_NOT_FOUND])
+                    error_response(IQ, [SubEl, mongoose_xmpp_errors:item_not_found()])
             end;
         false ->
             ErrText = <<"The password is too weak">>,
-            error_response(IQ, [SubEl, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)])
+            error_response(IQ, [SubEl, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)])
     end.
 
 try_register(User, Server, Password, SourceRaw, Lang) ->
     case jid:is_nodename(User) of
         false ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         _ ->
             JID = jid:make(User, Server, <<>>),
             Access = gen_mod:get_module_opt(Server, ?MODULE, access, all),
@@ -271,9 +271,9 @@ try_register(User, Server, Password, SourceRaw, Lang) ->
             case {acl:match_rule(Server, Access, JID),
                   check_ip_access(SourceRaw, IPAccess)} of
                 {deny, _} ->
-                    {error, ?ERR_FORBIDDEN};
+                    {error, mongoose_xmpp_errors:forbidden()};
                 {_, deny} ->
-                    {error, ?ERR_FORBIDDEN};
+                    {error, mongoose_xmpp_errors:forbidden()};
                 {allow, allow} ->
                     verify_password_and_register(JID, Password, SourceRaw, Lang)
             end
@@ -285,13 +285,13 @@ verify_password_and_register(#jid{ user = User, server = Server } = JID,
         true ->
             case ejabberd_auth:try_register(User, Server, Password) of
                 {error, exists} ->
-                    {error, ?ERR_CONFLICT};
+                    {error, mongoose_xmpp_errors:conflict()};
                 {error, invalid_jid} ->
-                    {error, ?ERR_JID_MALFORMED};
+                    {error, mongoose_xmpp_errors:jid_malformed()};
                 {error, not_allowed} ->
-                    {error, ?ERR_NOT_ALLOWED};
+                    {error, mongoose_xmpp_errors:not_allowed()};
                 {error, null_password} ->
-                    {error, ?ERR_NOT_ACCEPTABLE};
+                    {error, mongoose_xmpp_errors:not_acceptable()};
                 _ ->
                     send_welcome_message(JID),
                     send_registration_notifications(JID, SourceRaw),
@@ -299,7 +299,7 @@ verify_password_and_register(#jid{ user = User, server = Server } = JID,
             end;
         false ->
             ErrText = <<"The password is too weak">>,
-            {error, ?ERRT_NOT_ACCEPTABLE(Lang, ErrText)}
+            {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)}
     end.
 
 send_welcome_message(JID) ->

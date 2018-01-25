@@ -23,6 +23,7 @@
          form_field_value_s/2]).
 
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 -type action() :: 'mam_get_prefs'
                  | 'mam_lookup_messages'
@@ -34,9 +35,9 @@
 
 -export_type([action/0]).
 
--callback extra_lookup_params(iq(), map()) -> map().
+-callback extra_lookup_params(jlib:iq(), map()) -> map().
 
--spec action(ejabberd:iq()) -> action().
+-spec action(jlib:iq()) -> action().
 action(IQ = #iq{xmlns = ?NS_MAM}) ->
     action_v02(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
@@ -95,17 +96,17 @@ fix_rsm(RSM=#rsm_in{id = BExtMessID}) when is_binary(BExtMessID) ->
     RSM#rsm_in{id = MessID}.
 
 
--spec elem_to_start_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
+-spec elem_to_start_microseconds(exml:element()) -> 'undefined' | non_neg_integer().
 elem_to_start_microseconds(El) ->
     maybe_microseconds(exml_query:path(El, [{element, <<"start">>}, cdata], <<>>)).
 
 
--spec elem_to_end_microseconds(jlib:xmlel()) -> 'undefined' | non_neg_integer().
+-spec elem_to_end_microseconds(exml:element()) -> 'undefined' | non_neg_integer().
 elem_to_end_microseconds(El) ->
     maybe_microseconds(exml_query:path(El, [{element, <<"end">>}, cdata], <<>>)).
 
 
--spec elem_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec elem_to_with_jid(exml:element()) -> 'error' | 'undefined' | jid:jid().
 elem_to_with_jid(El) ->
     maybe_jid(exml_query:path(El, [{element, <<"with">>}, cdata], <<>>)).
 
@@ -128,18 +129,18 @@ form_to_end_microseconds(El) ->
     maybe_microseconds(form_field_value_s(El, <<"end">>)).
 
 
--spec form_to_with_jid(jlib:xmlel()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec form_to_with_jid(exml:element()) -> 'error' | 'undefined' | jid:jid().
 form_to_with_jid(El) ->
     maybe_jid(form_field_value_s(El, <<"with">>)).
 
 
--spec maybe_jid(binary()) -> 'error' | 'undefined' | ejabberd:jid().
+-spec maybe_jid(binary()) -> 'error' | 'undefined' | jid:jid().
 maybe_jid(<<>>) ->
     undefined;
 maybe_jid(JID) when is_binary(JID) ->
     jid:from_binary(JID).
 
--spec query_to_lookup_params(iq(), integer(), integer(), undefined | module()) -> map().
+-spec query_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) -> map().
 query_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params = Params0#{
@@ -156,7 +157,7 @@ query_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResult
     maybe_add_extra_lookup_params(Module, Params, IQ).
 
 
--spec form_to_lookup_params(iq(), integer(), integer(), undefined | module()) -> map().
+-spec form_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) -> map().
 form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params = Params0#{

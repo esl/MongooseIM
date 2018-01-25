@@ -22,8 +22,9 @@
 -callback decode(binary()) -> term().
 
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 %% API
 -export([start/2,
@@ -488,7 +489,7 @@ stored_binary_to_packet(Host, Bin) ->
     Module = db_message_codec(Host),
     mam_message:decode(Module, Bin).
 
--spec db_message_codec(Host :: ejabberd:server()) -> module().
+-spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_xml).
 

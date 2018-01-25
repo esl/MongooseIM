@@ -13,7 +13,7 @@
 -author('rafal.slota@erlang-solutions.com').
 -behaviour(gen_pubsub_node).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("pubsub.hrl").
 
@@ -101,7 +101,7 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
         true ->
             do_publish_item(ServerHost, PublishOptions, ElPayload);
         false ->
-            {error, ?ERR_FORBIDDEN}
+            {error, mongoose_xmpp_errors:forbidden()}
     end.
 
 do_publish_item(ServerHost, PublishOptions,
@@ -114,10 +114,10 @@ do_publish_item(ServerHost, PublishOptions,
                                [ServerHost, NotificationForms, OptionMap]),
             {result, default};
         _ ->
-            {error, mod_pubsub:extended_error(?ERR_CONFLICT, <<"precondition-not-met">>)}
+            {error, mod_pubsub:extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
     end;
 do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 remove_extra_items(Nidx, MaxItems, ItemIds) ->
     node_flat:remove_extra_items(Nidx, MaxItems, ItemIds).
@@ -203,7 +203,7 @@ is_allowed_to_publish(PublishModel, Affiliation) ->
               or (Affiliation == publish_only)).
 
 
--spec parse_form(undefined | jlib:xmlel()) -> invalid_form | #{atom() => binary()}.
+-spec parse_form(undefined | exml:element()) -> invalid_form | #{atom() => binary()}.
 parse_form(undefined) ->
     #{};
 parse_form(Form) ->

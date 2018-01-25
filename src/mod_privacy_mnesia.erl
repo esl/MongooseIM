@@ -41,7 +41,7 @@
          replace_privacy_list/4,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
@@ -120,7 +120,7 @@ set_default_list(LUser, LServer, Name) ->
             {error, {aborted, Reason}}
     end.
 
--spec set_default_list_t(ejabberd:luser(), ejabberd:lserver(), Name :: binary()) ->
+-spec set_default_list_t(jid:luser(), jid:lserver(), Name :: binary()) ->
     ok | {error, not_found}.
 set_default_list_t(LUser, LServer, Name) ->
     case mnesia:read({privacy, {LUser, LServer}}) of

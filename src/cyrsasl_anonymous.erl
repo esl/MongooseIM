@@ -40,7 +40,7 @@ start(_Opts) ->
 stop() ->
     ok.
 
--spec mech_new(Host :: ejabberd:server(),
+-spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
 mech_new(_Host, Creds) ->
     {ok, #state{creds = Creds}}.

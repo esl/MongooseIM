@@ -18,7 +18,7 @@
 
 -behaviour(supervisor).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([start_link/1, init/1]).
 -export([get_connection/1]).
@@ -28,18 +28,18 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start_link(Server :: ejabberd:lserver()) -> {ok, pid()} | {error, any()}.
+-spec start_link(Server :: jid:lserver()) -> {ok, pid()} | {error, any()}.
 start_link(Server) ->
     SupName = mod_global_distrib_utils:server_to_sup_name(Server),
     supervisor:start_link({local, SupName}, ?MODULE, [Server]).
 
--spec get_connection(Server :: ejabberd:lserver()) -> pid().
+-spec get_connection(Server :: jid:lserver()) -> pid().
 get_connection(Server) ->
     mod_global_distrib_server_mgr:get_connection(Server).
 
 -spec start_pool(Supervisor :: pid(),
                  Endpoint :: mod_global_distrib_utils:endpoint(),
-                 Server :: ejabberd:lserver()) ->
+                 Server :: jid:lserver()) ->
     {ok, atom(), pid()} | {error, any()}.
 start_pool(Supervisor, Endpoint, Server) ->
     PoolRef = endpoint_to_atom(Endpoint),

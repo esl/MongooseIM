@@ -33,7 +33,7 @@
     private_set/3
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -66,7 +66,7 @@ commands() ->
 %% $ mongooseimctl private_get badlop localhost aa bb
 %% <aa xmlns='bb'>Cluth</aa>
 
--spec private_get(ejabberd:user(), ejabberd:server(), binary(), binary()) ->
+-spec private_get(jid:user(), jid:server(), binary(), binary()) ->
     {error, string()} | string().
 private_get(Username, Host, Element, Ns) ->
     Acc = mongoose_acc:new(),
@@ -90,7 +90,7 @@ do_private_get(Acc, Username, Host, Element, Ns) ->
              children = [SubEl] }] = ResIq#iq.sub_el,
     exml:to_binary(SubEl).
 
--spec private_set(ejabberd:user(), ejabberd:server(),
+-spec private_set(jid:user(), jid:server(),
                   ElementString :: binary()) -> {Res, string()} when
     Res :: ok | user_does_not_exist | user_does_not_exist | not_loaded.
 private_set(Username, Host, ElementString) ->
@@ -128,6 +128,6 @@ do_private_set2(Acc, Username, Host, Xml) ->
             {not_loaded, io_lib:format("Module mod_private is not loaded on host ~s", [Host])}
     end.
 
--spec is_private_module_loaded(ejabberd:server()) -> true | false.
+-spec is_private_module_loaded(jid:server()) -> true | false.
 is_private_module_loaded(Server) ->
     lists:member(mod_private, gen_mod:loaded_modules(Server)).

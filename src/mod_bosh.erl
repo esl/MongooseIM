@@ -31,7 +31,7 @@
 %% For testing and debugging
 -export([get_session_socket/1, store_session/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include("mod_bosh.hrl").
@@ -70,7 +70,7 @@
               | 'item_not_found'
               | 'no_body'
               | 'policy_violation'
-              | {'bosh_reply', jlib:xmlel()}
+              | {'bosh_reply', exml:element()}
               | {'close', _}
               | {'wrong_method', _}.
 
@@ -126,7 +126,7 @@ set_server_acks(EnableServerAcks) ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 
--spec start(ejabberd:server(), [option()]) -> any().
+-spec start(jid:server(), [option()]) -> any().
 start(_Host, Opts) ->
     try
         start_backend(Opts),
@@ -238,7 +238,7 @@ start_backend(Opts) ->
     gen_mod:start_backend_module(mod_bosh, Opts, []),
     mod_bosh_backend:start(Opts).
 
--spec event_type(jlib:xmlel()) -> event_type().
+-spec event_type(exml:element()) -> event_type().
 event_type(Body) ->
     %% Order of checks is important:
     %% stream restart has got sid attribute,
@@ -271,7 +271,7 @@ event_type(Body) ->
     end.
 
 
--spec forward_body(req(), jlib:xmlel(), rstate())
+-spec forward_body(req(), exml:element(), rstate())
             -> {'loop', _, rstate()} | {'ok', req(), rstate()}.
 forward_body(Req, #xmlel{} = Body, S) ->
     try
@@ -295,7 +295,7 @@ forward_body(Req, #xmlel{} = Body, S) ->
     end.
 
 
--spec handle_request(pid(), {event_type(), jlib:xmlel()}) -> 'ok'.
+-spec handle_request(pid(), {event_type(), exml:element()}) -> 'ok'.
 handle_request(Socket, {EventType, Body}) ->
     mod_bosh_socket:handle_request(Socket, {EventType, self(), Body}).
 
@@ -310,7 +310,7 @@ get_session_socket(Sid) ->
     end.
 
 
--spec maybe_start_session(req(), jlib:xmlel()) -> {boolean(), req()}.
+-spec maybe_start_session(req(), exml:element()) -> {boolean(), req()}.
 maybe_start_session(Req, Body) ->
     try
         Hosts = ejabberd_config:get_global_option(hosts),
@@ -332,7 +332,7 @@ maybe_start_session(Req, Body) ->
     end.
 
 
--spec start_session(_, jlib:xmlel()) -> any().
+-spec start_session(_, exml:element()) -> any().
 start_session(Peer, Body) ->
     Sid = make_sid(),
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer),
@@ -376,7 +376,7 @@ terminal_condition(Condition, Req) ->
     terminal_condition(Condition, [], Req).
 
 
--spec terminal_condition(binary(), [jlib:xmlel()], cowboy_req:req())
+-spec terminal_condition(binary(), [exml:element()], cowboy_req:req())
             -> cowboy_req:req().
 terminal_condition(Condition, Details, Req) ->
     Body = terminal_condition_body(Condition, Details),
@@ -384,7 +384,7 @@ terminal_condition(Condition, Details, Req) ->
     strip_ok(cowboy_req:reply(200, Headers, Body, Req)).
 
 
--spec terminal_condition_body(binary(), [jlib:xmlel()]) -> binary().
+-spec terminal_condition_body(binary(), [exml:element()]) -> binary().
 terminal_condition_body(Condition, Children) ->
     exml:to_binary(#xmlel{name = <<"body">>,
                           attrs = [{<<"type">>, <<"terminate">>},

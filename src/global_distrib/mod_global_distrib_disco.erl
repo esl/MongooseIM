@@ -19,7 +19,7 @@
 
 -behaviour(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([start/2, stop/1, get_disco_items/5]).
@@ -28,11 +28,11 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -40,8 +40,8 @@ stop(Host) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec get_disco_items(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]} | term().
+-spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
+                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, _To, <<"">>, _Lang) ->
     {ok, Domains} = mod_global_distrib_mapping:all_domains(),
     NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),

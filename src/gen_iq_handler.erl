@@ -42,9 +42,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
--record(state, {host     :: ejabberd:server(),
+-record(state, {host     :: jid:server(),
                 module   :: module(),
                 function :: atom()
                }).
@@ -59,13 +59,13 @@
 %%====================================================================
 
 %% @doc Starts the server
--spec start_link(ejabberd:server(), atom(), atom()
+-spec start_link(jid:server(), atom(), atom()
                 ) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Host, Module, Function) ->
     gen_server:start_link(?MODULE, [Host, Module, Function], []).
 
 
--spec add_iq_handler(component(), Host :: ejabberd:server(), NS :: ns(),
+-spec add_iq_handler(component(), Host :: jid:server(), NS :: ns(),
     Module :: atom(), Function :: atom(), Type :: type()) -> any().
 add_iq_handler(Component, Host, NS, Module, Function, Type) ->
     case Type of
@@ -93,7 +93,7 @@ add_iq_handler(Component, Host, NS, Module, Function, Type) ->
 
 
 -spec remove_iq_handler(Component :: component(),
-                        Host :: ejabberd:server(),
+                        Host :: jid:server(),
                         NS :: ns()) -> any().
 remove_iq_handler(Component, Host, NS) ->
     Component:unregister_iq_handler(Host, NS).
@@ -113,10 +113,10 @@ stop_iq_handler(_Module, _Function, Opts) ->
     end.
 
 
--spec handle(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
-             Opts :: options(), From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec handle(Host :: jid:server(), Module :: atom(), Function :: atom(),
+             Opts :: options(), From :: jid:jid(), To :: jid:jid(),
              mongoose_acc:t(),
-             IQ :: ejabberd:iq()) -> 'ok' | 'todo' | pid() | mongoose_acc:t()
+             IQ :: jlib:iq()) -> 'ok' | 'todo' | pid() | mongoose_acc:t()
                                   | {'error', 'lager_not_running'}
                                   | {'process_iq', _, _, _}.
 handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
@@ -135,9 +135,9 @@ handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
     end.
 
 
--spec process_iq(Host :: ejabberd:server(), Module :: atom(), Function :: atom(),
-                 From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: ejabberd:iq()) -> mongoose_acc:t() | {'error', 'lager_not_running'}.
+-spec process_iq(Host :: jid:server(), Module :: atom(), Function :: atom(),
+                 From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+                 IQ :: jlib:iq()) -> mongoose_acc:t() | {'error', 'lager_not_running'}.
 process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
     case catch Module:Function(From, To, Acc, IQ) of
         {'EXIT', Reason} ->

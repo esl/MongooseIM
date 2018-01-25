@@ -38,9 +38,10 @@
 -behaviour(gen_mod).
 -behaviour(gen_server).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
+-include("mongoose_rsm.hrl").
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -115,7 +116,7 @@
 
 -callback search_reported_fields(VHost, Lang) ->
     Res :: term() when
-    VHost :: ejabberd:lserver(),
+    VHost :: jid:lserver(),
     Lang :: binary().
 
 -spec default_search_fields() -> list().
@@ -133,7 +134,7 @@ default_search_fields() ->
      {<<"Organization Name">>, <<"orgname">>},
      {<<"Organization Unit">>, <<"orgunit">>}].
 
--spec get_results_limit(ejabberd:lserver()) -> non_neg_integer() | infinity.
+-spec get_results_limit(jid:lserver()) -> non_neg_integer() | infinity.
 get_results_limit(LServer) ->
     case gen_mod:get_module_opt(LServer, mod_vcard, matches, ?JUD_MATCHES) of
         infinity ->
@@ -170,7 +171,7 @@ stop(VHost) ->
 %% mongoose_packet_handler callbacks
 %%--------------------------------------------------------------------
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
+-spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
                      Packet :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, Packet, Pid) ->
     Pid ! {route, From, To, Acc, Packet}.
@@ -254,7 +255,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Hook handlers
 %%--------------------------------------------------------------------
 process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
     DescCData = #xmlcdata{content = [<<"MongooseIM XMPP Server">>,
                                      <<"\nCopyright (c) Erlang Solutions Ltd.">>]},
@@ -288,11 +289,11 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                 E:R ->
                     ?ERROR_MSG("~p", [{E, R}]),
                     IQ#iq{type = error,
-                          sub_el = [VCARD, ?ERR_INTERNAL_SERVER_ERROR]}
+                          sub_el = [VCARD, mongoose_xmpp_errors:internal_server_error()]}
             end;
         _ ->
             IQ#iq{type = error,
-                  sub_el = [VCARD, ?ERR_NOT_ALLOWED]}
+                  sub_el = [VCARD, mongoose_xmpp_errors:not_allowed()]}
     end,
     {Acc, Res};
 process_sm_iq(_From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
@@ -305,7 +306,7 @@ process_sm_iq(_From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
         Else ->
             ?ERROR_MSG("~p", [Else]),
             IQ#iq{type = error,
-                  sub_el = [SubEl, ?ERR_INTERNAL_SERVER_ERROR]}
+                  sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
     end,
     {Acc, Res}.
 
@@ -316,8 +317,8 @@ unsafe_set_vcard(From, VCARD) ->
 
 -spec set_vcard(HandlerAcc, From, VCARD) -> Result when
       HandlerAcc :: ok | error(),
-      From :: jid(),
-      VCARD :: jlib:xmlel(),
+      From ::jid:jid(),
+      VCARD :: exml:element(),
       Result :: ok | error().
 set_vcard(ok, _From, _VCARD) ->
     ?DEBUG("hook call already handled - skipping", []),
@@ -381,7 +382,7 @@ config_change(Acc, _, _, _) ->
 do_route(_VHost, From, #jid{user = User,
                             resource =Resource} = To, Acc, _IQ)
   when (User /= <<"">>) or (Resource /= <<"">>) ->
-    Err = jlib:make_error_reply(Acc, ?ERR_SERVICE_UNAVAILABLE),
+    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Err);
 do_route(VHost, From, To, Acc, #iq{type = set,
                                       xmlns = ?NS_SEARCH,
@@ -392,13 +393,13 @@ do_route(VHost, From, To, Acc, #iq{type = set,
     RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
         false ->
-            Err = jlib:make_error_reply(Acc, ?ERR_BAD_REQUEST),
+            Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
             ejabberd_router:route(To, From, Err);
         _ ->
             XData = jlib:parse_xdata_submit(XDataEl),
             case XData of
                 invalid ->
-                    Err = jlib:make_error_reply(Acc, ?ERR_BAD_REQUEST),
+                    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
                     ejabberd_router:route(To, From, Err);
                 _ ->
                     {SearchResult, RSMOutEls} = search_result(Lang, To, VHost, XData, RSMIn),
@@ -427,7 +428,7 @@ do_route(VHost, From, To, _Acc, #iq{type = get,
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, #iq{type = set,
                                        xmlns = ?NS_DISCO_INFO}) ->
-    Err = jlib:make_error_reply(Acc, ?ERR_NOT_ALLOWED),
+    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
     ejabberd_router:route(To, From, Err);
 do_route(VHost, From, To, _Acc, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
@@ -452,7 +453,7 @@ do_route(VHost, From, To, _Acc, #iq{type = get,
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, #iq{type=set,
                                        xmlns = ?NS_DISCO_ITEMS}) ->
-    Err = jlib:make_error_reply(Acc, ?ERR_NOT_ALLOWED),
+    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
     ejabberd_router:route(To, From, Err);
 do_route(_VHost, From, To, _Acc, #iq{ type = get,
                                          xmlns = ?NS_DISCO_ITEMS} = IQ) ->
@@ -471,7 +472,7 @@ do_route(_VHost, From, To, _Acc, #iq{ type = get,
                                children = iq_get_vcard(Lang)}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, _IQ) ->
-    Err = jlib:make_error_reply(Acc, ?ERR_SERVICE_UNAVAILABLE),
+    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Err).
 
 iq_get_vcard(_Lang) ->

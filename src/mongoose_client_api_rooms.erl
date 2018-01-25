@@ -13,7 +13,7 @@
 -export([to_json/2]).
 -export([from_json/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 

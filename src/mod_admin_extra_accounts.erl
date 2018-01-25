@@ -40,7 +40,7 @@
     check_account/2,
     check_password/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 
 %%%
@@ -99,7 +99,7 @@ commands() ->
 %%% Accounts
 %%%
 
--spec set_password(ejabberd:user(), ejabberd:server(), binary()) ->
+-spec set_password(jid:user(), jid:server(), binary()) ->
     {error, string()} | {ok, string()}.
 set_password(User, Host, Password) ->
     case ejabberd_auth:set_password(User, Host, Password) of
@@ -109,7 +109,7 @@ set_password(User, Host, Password) ->
             {error, Reason}
     end.
 
--spec check_password(ejabberd:user(), ejabberd:server(), binary()) ->  {Res, string()} when
+-spec check_password(jid:user(), jid:server(), binary()) ->  {Res, string()} when
     Res :: ok | incorrect | user_does_not_exist.
 check_password(User, Host, Password) ->
     case ejabberd_auth:is_user_exists(User, Host) of
@@ -128,7 +128,7 @@ check_password(User, Host, Password) ->
                           " exist", [Password, User, Host])}
     end.
 
--spec check_account(ejabberd:user(), ejabberd:server()) -> {Res, string()} when
+-spec check_account(jid:user(), jid:server()) -> {Res, string()} when
     Res :: ok | user_does_not_exist.
 check_account(User, Host) ->
     case ejabberd_auth:is_user_exists(User, Host) of
@@ -139,7 +139,7 @@ check_account(User, Host) ->
     end.
 
 
--spec check_password_hash(ejabberd:user(), ejabberd:server(),
+-spec check_password_hash(jid:user(), jid:server(),
                           Hash :: binary(), Method :: string()) ->
     {error, string()} | {ok, string()} | {incorrect, string()}.
 check_password_hash(User, Host, PasswordHash, HashMethod) ->
@@ -168,7 +168,7 @@ get_sha(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 
--spec num_active_users(ejabberd:server(), integer()) -> non_neg_integer().
+-spec num_active_users(jid:server(), integer()) -> non_neg_integer().
 num_active_users(Host, Days) ->
     {MegaSecs, Secs, _MicroSecs} = p1_time_compat:timestamp(),
     TimeStamp = MegaSecs * 1000000 + Secs,
@@ -190,7 +190,7 @@ delete_old_users(Days) ->
     {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
 
 
--spec delete_old_users_vhost(ejabberd:server(), integer()) -> {'ok', string()}.
+-spec delete_old_users_vhost(jid:server(), integer()) -> {'ok', string()}.
 delete_old_users_vhost(Host, Days) ->
     %% Get the list of registered users
     Users = ejabberd_auth:get_vh_registered_users(Host),
@@ -199,8 +199,8 @@ delete_old_users_vhost(Host, Days) ->
     {ok, io_lib:format("Deleted ~p users: ~p", [N, UR])}.
 
 
--spec delete_old_users(Days :: integer(), Users :: [ejabberd:simple_bare_jid()]) ->
-    {removed, non_neg_integer(), [ejabberd:simple_bare_jid()]}.
+-spec delete_old_users(Days :: integer(), Users :: [jid:simple_bare_jid()]) ->
+    {removed, non_neg_integer(), [jid:simple_bare_jid()]}.
 delete_old_users(Days, Users) ->
     %% Convert older time
     SecOlder = Days*24*60*60,
@@ -215,7 +215,7 @@ delete_old_users(Days, Users) ->
                                 end, Users),
     {removed, length(UsersRemoved), UsersRemoved}.
 
--spec delete_old_user(User :: ejabberd:simple_bare_jid(),
+-spec delete_old_user(User :: jid:simple_bare_jid(),
                       TimeStampNow :: non_neg_integer(),
                       SecOlder :: non_neg_integer()) -> boolean().
 delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
@@ -225,8 +225,8 @@ delete_old_user({LUser, LServer}, TimeStampNow, SecOlder) ->
         _ -> false
     end.
 
--spec delete_old_user_if_nonactive_long_enough(LUser :: ejabberd:luser(),
-                                               LServer :: ejabberd:lserver(),
+-spec delete_old_user_if_nonactive_long_enough(LUser :: jid:luser(),
+                                               LServer :: jid:lserver(),
                                                TimeStampNow :: non_neg_integer(),
                                                SecOlder :: non_neg_integer()) -> boolean().
 delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder) ->
@@ -250,7 +250,7 @@ delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder)
             true
     end.
 
--spec ban_account(ejabberd:user(), ejabberd:server(), binary() | string()) ->
+-spec ban_account(jid:user(), jid:server(), binary() | string()) ->
     {ok, string()} | {error, string()}.
 ban_account(User, Host, ReasonText) ->
     Reason = mod_admin_extra_sessions:prepare_reason(ReasonText),
@@ -263,7 +263,7 @@ ban_account(User, Host, ReasonText) ->
             {error, ErrorReason}
     end.
 
--spec kick_sessions(ejabberd:user(), ejabberd:server(), binary()) -> [mongoose_acc:t()].
+-spec kick_sessions(jid:user(), jid:server(), binary()) -> [mongoose_acc:t()].
 kick_sessions(User, Server, Reason) ->
     lists:map(
         fun(Resource) ->
@@ -273,8 +273,8 @@ kick_sessions(User, Server, Reason) ->
 
 
 -spec set_random_password(User, Server, Reason) -> Result when
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
+      User :: jid:user(),
+      Server :: jid:server(),
       Reason :: binary(),
       Result :: 'ok' | {error, any()}.
 set_random_password(User, Server, Reason) ->

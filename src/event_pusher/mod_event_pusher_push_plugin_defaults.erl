@@ -15,7 +15,7 @@
 -author('rafal.slota@erlang-solutions.com').
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% Callback API
 -export([should_publish/3, sender_id/2]).
@@ -25,7 +25,7 @@
 %%--------------------------------------------------------------------
 
 %% Callback 'should_publish'
--spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) ->
+-spec should_publish(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) ->
                             boolean().
 should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, _Packet) ->
     try ejabberd_users:does_user_exist(LUser, LServer) of
@@ -47,7 +47,7 @@ is_offline(#jid{luser = LUser, lserver = LServer}) ->
     end.
 
 %% Callback 'sender_id'
--spec sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
+-spec sender_id(From :: jid:jid(), Packet :: exml:element()) -> SenderId :: binary().
 sender_id(From, Packet) ->
     case exml_query:attr(Packet, <<"type">>) of
         <<"chat">> ->

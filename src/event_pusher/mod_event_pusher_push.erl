@@ -16,7 +16,7 @@
 -xep([{xep, 357}, {version, "0.2.1"}]).
 
 -include("mod_event_pusher_events.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %%--------------------------------------------------------------------
@@ -41,14 +41,14 @@
 
 -define(PUSH_FORM_TYPE, <<"urn:xmpp:push:summary">>).
 
--callback init(Host :: ejabberd:server(), Opts :: list()) -> ok.
--callback enable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
+-callback init(Host :: jid:server(), Opts :: list()) -> ok.
+-callback enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                  Node :: pubsub_node(), Form :: form()) ->
     ok | {error, Reason :: term()}.
--callback disable(UserJID :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
+-callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                   Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
--callback get_publish_services(User :: ejabberd:jid()) ->
-    {ok, [{PubSub :: ejabberd:jid(), Node :: pubsub_node(), Form :: form()}]} |
+-callback get_publish_services(User :: jid:jid()) ->
+    {ok, [{PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}]} |
     {error, Reason :: term()}.
 
 %% Types
@@ -60,7 +60,7 @@
 %% Module callbacks
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
 
@@ -81,7 +81,7 @@ start(Host, Opts) ->
 
     ok.
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 90),
 
@@ -117,10 +117,11 @@ remove_user(Acc, LUser, LServer) ->
     mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, LUser, LServer}),
     Acc.
 
--spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq()}.
+-spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+                 IQ :: jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq() | ignore}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = get, sub_el = SubEl}) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
     Res = case parse_request(Request) of
               {enable, BarePubsubJID, Node, FormFields} ->
@@ -132,7 +133,7 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
                          jid:to_bare(From), BarePubsubJID, Node),
                   IQ#iq{type = result, sub_el = []};
               bad_request ->
-                  IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
+                  IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
           end,
     {Acc, Res}.
 
@@ -141,8 +142,8 @@ iq_handler(From, _To, Acc, IQ = #iq{type = set, sub_el = Request}) ->
 %% Router callbacks
 %%--------------------------------------------------------------------
 
--spec handle_publish_response(BareRecipient :: ejabberd:jid(), PubsubJID :: ejabberd:jid(),
-                              Node :: pubsub_node(), Result :: timeout | iq()) -> ok.
+-spec handle_publish_response(BareRecipient :: jid:jid(), PubsubJID :: jid:jid(),
+                              Node :: pubsub_node(), Result :: timeout | jlib:iq()) -> ok.
 handle_publish_response(_BareRecipient, _PubsubJID, _Node, timeout) ->
     ok;
 handle_publish_response(_BareRecipient, _PubsubJID, _Node, #iq{type = result}) ->
@@ -157,7 +158,7 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec publish_message(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> ok.
+-spec publish_message(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> ok.
 publish_message(From, To = #jid{lserver = Host}, Packet) ->
     ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
@@ -182,8 +183,8 @@ publish_message(From, To = #jid{lserver = Host}, Packet) ->
 %%--------------------------------------------------------------------
 
 -spec parse_request(Request :: exml:element()) ->
-    {enable, ejabberd:jid(), pubsub_node(), form()} |
-    {disable, ejabberd:jid(), pubsub_node()} |
+    {enable, jid:jid(), pubsub_node(), form()} |
+    {disable, jid:jid(), pubsub_node()} |
     bad_request.
 parse_request(#xmlel{name = <<"enable">>} = Request) ->
     JID = jid:from_binary(exml_query:attr(Request, <<"jid">>, <<>>)),
@@ -212,7 +213,7 @@ parse_request(#xmlel{name = <<"disable">>} = Request) ->
 parse_request(_) ->
     bad_request.
 
--spec parse_form(undefined | jlib:xmlel()) -> invalid_form | form().
+-spec parse_form(undefined | exml:element()) -> invalid_form | form().
 parse_form(undefined) ->
     [];
 parse_form(Form) ->
@@ -235,8 +236,8 @@ parse_form(Form) ->
             invalid_form
     end.
 
--spec push_notification_iq(Host :: ejabberd:server(), From :: ejabberd:jid(),
-                           Packet :: jlib:xmlel(), Node :: pubsub_node(), Form :: form()) -> iq().
+-spec push_notification_iq(Host :: jid:server(), From :: jid:jid(),
+                           Packet :: exml:element(), Node :: pubsub_node(), Form :: form()) -> jlib:iq().
 push_notification_iq(Host, From, Packet, Node, Form) ->
     ContentFields =
         [
@@ -257,7 +258,7 @@ push_notification_iq(Host, From, Packet, Node, Form) ->
         ] ++ maybe_publish_options(Form)}
     ]}.
 
-    -spec maybe_publish_options(form()) -> [jlib:xmlel()].
+    -spec maybe_publish_options(form()) -> [exml:element()].
 maybe_publish_options([]) ->
     [];
 maybe_publish_options(FormFields) ->
@@ -266,21 +267,21 @@ maybe_publish_options(FormFields) ->
                         make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
                        ]}].
 
--spec make_form(form()) -> jlib:xmlel().
+-spec make_form(form()) -> exml:element().
 make_form(Fields) ->
     #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
            children = [make_form_field(Field) || Field <- Fields]}.
 
--spec make_form_field(form_field()) -> jlib:xmlel().
+-spec make_form_field(form_field()) -> exml:element().
 make_form_field({Name, Value}) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
--spec cast(Host :: ejabberd:server(), F :: atom(), A :: [any()]) -> any().
+-spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
 cast(Host, F, A) ->
     cast(Host, ?MODULE, F, A).
 
--spec cast(Host :: ejabberd:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
+-spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
     wpool:cast(gen_mod:get_module_proc(Host, ?MODULE), {M, F, A}, available_worker).

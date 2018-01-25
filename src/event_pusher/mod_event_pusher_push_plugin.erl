@@ -14,27 +14,27 @@
 -author('rafal.slota@erlang-solutions.com').
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([should_publish/4, sender_id/3]).
 
 
--callback should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) ->
+-callback should_publish(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) ->
     boolean().
--callback sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
+-callback sender_id(From :: jid:jid(), Packet :: exml:element()) -> SenderId :: binary().
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
 
--spec should_publish(Host :: ejabberd:server(), From :: ejabberd:jid(),
-                     To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> boolean().
+-spec should_publish(Host :: jid:server(), From :: jid:jid(),
+                     To :: jid:jid(), Packet :: exml:element()) -> boolean().
 should_publish(Host, From, To, Packet) ->
     PluginModule = plugin_module(Host),
     PluginModule:should_publish(From, To, Packet).
 
--spec sender_id(Host :: ejabberd:server(), From :: ejabberd:jid(), Packet :: jlib:xmlel()) ->
+-spec sender_id(Host :: jid:server(), From :: jid:jid(), Packet :: exml:element()) ->
     SenderId :: binary().
 sender_id(Host, From, Packet) ->
     PluginModule = plugin_module(Host),
@@ -44,7 +44,7 @@ sender_id(Host, From, Packet) ->
 %% Helper functions
 %%--------------------------------------------------------------------
 
--spec plugin_module(Host :: ejabberd:server()) -> Module :: atom().
+-spec plugin_module(Host :: jid:server()) -> Module :: atom().
 plugin_module(Host) ->
     gen_mod:get_module_opt(Host, mod_event_pusher_push, plugin_module,
                            mod_event_pusher_push_plugin_defaults).

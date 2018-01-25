@@ -8,7 +8,7 @@
 -export([to_json/2]).
 -export([rest_init/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 init(_Transport, _Req, _Opts) ->

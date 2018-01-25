@@ -19,7 +19,7 @@
 
 -behaviour(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
@@ -30,16 +30,16 @@
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
--spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{message_ttl, 4} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:lserver()) -> any().
+-spec stop(Host :: jid:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
@@ -70,7 +70,7 @@ remove_metadata(Acc, Key) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_reroute(drop) -> drop;
-                   ({jid(), jid(), mongoose_acc:t()}) -> drop | {jid(), jid(), mongoose_acc:t()}.
+                   ({jid:jid(), jid:jid(), mongoose_acc:t()}) -> drop | {jid:jid(), jid:jid(), mongoose_acc:t()}.
 maybe_reroute(drop) -> drop;
 maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
@@ -127,11 +127,11 @@ maybe_initialize_metadata(Acc) ->
             mongoose_acc:put(global_distrib, Metadata, Acc)
     end.
 
--spec get_bound_connection(Server :: ejabberd:lserver()) -> pid().
+-spec get_bound_connection(Server :: jid:lserver()) -> pid().
 get_bound_connection(Server) ->
     get_bound_connection(Server, get({connection, Server})).
 
--spec get_bound_connection(Server :: ejabberd:lserver(), pid() | undefined) -> pid().
+-spec get_bound_connection(Server :: jid:lserver(), pid() | undefined) -> pid().
 get_bound_connection(Server, undefined) ->
     Pid = mod_global_distrib_sender:get_process_for(Server),
     put({connection, Server}, Pid),
@@ -167,7 +167,7 @@ start() ->
 stop() ->
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
 
--spec lookup_recipients_host(jid(), binary(), binary()) -> {ok, binary()} | error.
+-spec lookup_recipients_host(jid:jid(), binary(), binary()) -> {ok, binary()} | error.
 lookup_recipients_host(#jid{luser = <<>>, lserver = LServer}, LocalHost, GlobalHost)
   when LServer == LocalHost; LServer == GlobalHost ->
     {ok, LocalHost};

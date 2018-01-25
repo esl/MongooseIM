@@ -15,14 +15,14 @@
 
 -opaque t() ::
     #mongoose_credentials{ %% These values are always present.
-                           lserver :: ejabberd:lserver(),
+                           lserver :: jid:lserver(),
                            %% Authorization success / failure registry.
                            registry :: [{ejabberd_gen_auth:t(), auth_event()}],
                            %% These values are dependent on the ejabberd_auth backend in use.
                            %% Each backend may require different values to be present.
                            extra :: [proplists:property()] }.
 
--spec new(ejabberd:server()) -> mongoose_credentials:t().
+-spec new(jid:server()) -> mongoose_credentials:t().
 new(Server) ->
     case jid:nameprep(Server) of
         error -> error(nameprep_failed, [Server]);
@@ -30,7 +30,7 @@ new(Server) ->
             #mongoose_credentials{lserver = LServer}
     end.
 
--spec lserver(t()) -> ejabberd:lserver().
+-spec lserver(t()) -> jid:lserver().
 lserver(#mongoose_credentials{lserver = S}) -> S.
 
 %% @doc Calls erlang:error/2 when Key is not found!

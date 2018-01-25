@@ -73,7 +73,7 @@ publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher
             case find_opt(node_type, Options) of
                 collection ->
                     {error,
-                        ?ERR_EXTENDED((?ERR_NOT_ALLOWED), <<"publish">>)};
+                        ?ERR_EXTENDED((mongoose_xmpp_errors:not_allowed()), <<"publish">>)};
                 _ ->
                     node_hometree:publish_item(ServerHost, Nidx, Publisher, Model, MaxItems,
                                                ItemId, ItemPublisher, Payload, PublishOptions)

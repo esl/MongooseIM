@@ -17,14 +17,14 @@
 -export([archive_id/3,
          remove_archive/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(), _) -> 'ok'.
+-spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -40,7 +40,7 @@ start(Host, Opts) ->
     end.
 
 
--spec stop(ejabberd:server()) -> 'ok'.
+-spec stop(jid:server()) -> 'ok'.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -59,7 +59,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(), _) -> 'ok'.
+-spec start_pm(jid:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
@@ -72,7 +72,7 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(ejabberd:server()) -> 'ok'.
+-spec stop_pm(jid:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
@@ -88,7 +88,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(), _) -> 'ok'.
+-spec start_muc(jid:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
@@ -101,7 +101,7 @@ start_muc(Host, _Opts) ->
     ok.
 
 
--spec stop_muc(ejabberd:server()) -> 'ok'.
+-spec stop_muc(jid:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, archive_id, 50),
     case gen_mod:get_module_opt(Host, ?MODULE, auto_remove, false) of
@@ -117,16 +117,16 @@ stop_muc(Host) ->
 %%====================================================================
 %% API
 %%====================================================================
--spec archive_id(undefined | mod_mam:archive_id(), ejabberd:server(),
-                 ejabberd:jid()) -> mod_mam:archive_id().
+-spec archive_id(undefined | mod_mam:archive_id(), jid:server(),
+                 jid:jid()) -> mod_mam:archive_id().
 archive_id(undefined, Host, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     query_archive_id(Host, Server, UserName);
 archive_id(ArcID, _Host, _ArcJID) ->
     ArcID.
 
--spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+-spec remove_archive(Acc :: map(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
-                     ArchiveJID :: ejabberd:jid()) -> map().
+                     ArchiveJID :: jid:jid()) -> map().
 remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = mongoose_rdbms:escape(UserName),
     SServer   = mongoose_rdbms:escape(Server),
@@ -141,7 +141,7 @@ remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserNam
 %% Internal functions
 %%====================================================================
 
--spec query_archive_id(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> integer().
+-spec query_archive_id(jid:server(), jid:lserver(), jid:user()) -> integer().
 query_archive_id(Host, Server, UserName) ->
     SServer   = mongoose_rdbms:escape(Server),
     SUserName = mongoose_rdbms:escape(UserName),
@@ -157,7 +157,7 @@ query_archive_id(Host, Server, UserName) ->
             query_archive_id(Host, Server, UserName)
     end.
 
--spec create_user_archive(ejabberd:server(), ejabberd:lserver(), ejabberd:user()) -> 'ok'.
+-spec create_user_archive(jid:server(), jid:lserver(), jid:user()) -> 'ok'.
 create_user_archive(Host, Server, UserName) ->
     SServer   = mongoose_rdbms:escape(Server),
     SUserName = mongoose_rdbms:escape(UserName),

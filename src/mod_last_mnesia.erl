@@ -15,7 +15,7 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([init/2,
@@ -24,7 +24,7 @@
          set_last_info/4,
          remove_user/2]).
 
--spec init(ejabberd:server(), list()) -> ok.
+-spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->
     mnesia:create_table(last_activity,
                         [{disc_copies, [node()]},
@@ -32,7 +32,7 @@ init(_Host, _Opts) ->
                           record_info(fields, last_activity)}]),
     ok.
 
--spec get_last(ejabberd:luser(), ejabberd:lserver()) ->
+-spec get_last(jid:luser(), jid:lserver()) ->
     {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
 get_last(LUser, LServer) ->
     case catch mnesia:dirty_read(last_activity, {LUser, LServer}) of
@@ -43,14 +43,14 @@ get_last(LUser, LServer) ->
             {ok, TimeStamp, Status}
     end.
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+-spec count_active_users(jid:lserver(), non_neg_integer()) -> non_neg_integer().
 count_active_users(LServer, TimeStamp) ->
     MS = [{{last_activity, {'_', LServer}, '$1', '_'},
         [{'>', '$1', TimeStamp}],
         [true]}],
     ets:select_count(last_activity, MS).
 
--spec set_last_info(ejabberd:luser(), ejabberd:lserver(),
+-spec set_last_info(jid:luser(), jid:lserver(),
                     non_neg_integer(), binary()) -> ok | {error, term()}.
 set_last_info(LUser, LServer, TimeStamp, Status) ->
     US = {LUser, LServer},
@@ -61,7 +61,7 @@ set_last_info(LUser, LServer, TimeStamp, Status) ->
     end,
     wrap_transaction_result(mnesia:transaction(F)).
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
+-spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() -> mnesia:delete({last_activity, US}) end,

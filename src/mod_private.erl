@@ -35,7 +35,7 @@
          remove_user/3,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -xep([{xep, 49}, {version, "1.2"}]).
 
@@ -120,16 +120,16 @@ process_sm_iq(
                 {error, Reason} ->
                     ?ERROR_MSG("~p:multi_set_data failed ~p for ~ts@~ts.",
                                [mod_private_backend, Reason, LUser, LServer]),
-                    error_iq(IQ, ?ERR_INTERNAL_SERVER_ERROR);
+                    error_iq(IQ, mongoose_xmpp_errors:internal_server_error());
                 {aborted, Reason} ->
                     ?ERROR_MSG("~p:multi_set_data aborted ~p for ~ts@~ts.",
                                [mod_private_backend, Reason, LUser, LServer]),
-                    error_iq(IQ, ?ERR_INTERNAL_SERVER_ERROR)
+                    error_iq(IQ, mongoose_xmpp_errors:internal_server_error())
             end;
         not_allowed ->
-            error_iq(IQ, ?ERR_NOT_ALLOWED);
+            error_iq(IQ, mongoose_xmpp_errors:not_allowed());
         forbidden ->
-            error_iq(IQ, ?ERR_FORBIDDEN)
+            error_iq(IQ, mongoose_xmpp_errors:forbidden())
     end,
     {Acc, Res}.
 

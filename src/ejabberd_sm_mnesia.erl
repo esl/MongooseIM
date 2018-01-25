@@ -10,7 +10,8 @@
 
 -behavior(ejabberd_gen_sm).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
+-include("session.hrl").
 
 -export([start/1,
          get_sessions/0,
@@ -45,7 +46,7 @@ get_sessions() ->
         end).
 
 
--spec get_sessions(ejabberd:server()) -> [ejabberd_sm:ses_tuple()].
+-spec get_sessions(jid:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
     Sessions = mnesia:dirty_select(
         session,
@@ -55,20 +56,20 @@ get_sessions(Server) ->
     [ {USR, SID, Pri, Info} || [USR, SID, Pri, Info] <- Sessions ].
 
 
--spec get_sessions(ejabberd:user(), ejabberd:server()) -> [ejabberd_sm:session()].
+-spec get_sessions(jid:user(), jid:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
     mnesia:dirty_index_read(session, {User, Server}, #session.us).
 
 
--spec get_sessions(ejabberd:user(), ejabberd:server(), ejabberd:resource()
+-spec get_sessions(jid:user(), jid:server(), jid:resource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
     mnesia:dirty_index_read(session, {User, Server, Resource}, #session.usr).
 
 
--spec create_session(_User :: ejabberd:user(),
-                     _Server :: ejabberd:server(),
-                     _Resource :: ejabberd:resource(),
+-spec create_session(_User :: jid:user(),
+                     _Server :: jid:server(),
+                     _Resource :: jid:resource(),
                      Session :: ejabberd_sm:session()) -> ok | {error, term()}.
 create_session(User, Server, Resource, Session) ->
     case get_sessions(User, Server, Resource) of
@@ -83,9 +84,9 @@ create_session(User, Server, Resource, Session) ->
     end.
 
 -spec delete_session(ejabberd_sm:sid(),
-                     _User :: ejabberd:user(),
-                     _Server :: ejabberd:server(),
-                     _Resource :: ejabberd:resource()) -> ok.
+                     _User :: jid:user(),
+                     _Server :: jid:server(),
+                     _Resource :: jid:resource()) -> ok.
 delete_session(SID, _User, _Server, _Resource) ->
     mnesia:sync_dirty(fun() ->
                               mnesia:delete({session, SID})

@@ -2,7 +2,7 @@
 
 -behaviour(supervisor).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export([start_link/0, init/1]).
 -export([add_server/1, get_connection/1]).
@@ -15,7 +15,7 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
--spec add_server(Server :: ejabberd:lserver()) -> ok | {error, any()}.
+-spec add_server(Server :: jid:lserver()) -> ok | {error, any()}.
 add_server(Server) ->
     SupName = mod_global_distrib_utils:server_to_sup_name(Server),
     ServerSupSpec = #{
@@ -31,7 +31,7 @@ add_server(Server) ->
         Error -> Error
     end.
 
--spec get_connection(Server :: ejabberd:lserver()) -> pid().
+-spec get_connection(Server :: jid:lserver()) -> pid().
 get_connection(Server) ->
     case whereis(mod_global_distrib_utils:server_to_sup_name(Server)) of
         undefined -> ok = add_server(Server);

@@ -16,7 +16,7 @@
          stop/1
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
@@ -51,7 +51,7 @@ process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                 {ok, Lst} ->
                     {result, blocking_query_response(Lst)};
                 {error, _} ->
-                    {error, ?ERR_INTERNAL_SERVER_ERROR}
+                    {error, mongoose_xmpp_errors:internal_server_error()}
             end,
     mongoose_acc:put(iq_result, IqRes, Acc);
 process_iq_get(Val, _, _, _, _) ->
@@ -91,13 +91,13 @@ process_iq_set(Val, _, _, _) ->
                               LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
     {ok, [binary()], [listitem()], block | unblock | unblock_all}
-    | {error, jlib:xmlel()}.
+    | {error, exml:element()}.
 %% fail if current default list could not be retrieved
 process_blocking_iq_set(_, Acc, _, _, {error, _}, _) ->
-    {Acc, {error, ?ERR_INTERNAL_SERVER_ERROR}};
+    {Acc, {error, mongoose_xmpp_errors:internal_server_error()}};
 %% reject block request with empty jid list
 process_blocking_iq_set(block, Acc, _, _, _, []) ->
-    {Acc, {error, ?ERR_BAD_REQUEST}};
+    {Acc, {error, mongoose_xmpp_errors:bad_request()}};
 process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs) ->
     %% check who is being added / removed
     {NType, Changed, NewList} = blocking_list_modify(Type, Usrs, CurrList),
@@ -109,9 +109,9 @@ process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs) ->
                 ok ->
                     {Acc, {ok, Changed, NewList, NType}};
                 {error, not_found} ->
-                    {Acc, {error, ?ERR_ITEM_NOT_FOUND}};
+                    {Acc, {error, mongoose_xmpp_errors:item_not_found()}};
                 {error, _Reason} ->
-                {Acc, {error, ?ERR_INTERNAL_SERVER_ERROR}}
+                {Acc, {error, mongoose_xmpp_errors:internal_server_error()}}
             end
     end.
 

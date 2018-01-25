@@ -45,7 +45,7 @@
          handle_info/3,
          terminate/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").
@@ -59,7 +59,7 @@
                 tls_required = false  :: boolean(),
                 tls_certverify = false :: boolean(),
                 tls_options = []      :: [{_, _}],
-                server                :: ejabberd:server() | undefined,
+                server                :: jid:server() | undefined,
                 authenticated = false :: boolean(),
                 auth_domain           :: binary() | undefined,
                 connections = dict:new(),
@@ -98,20 +98,6 @@
          "xmlns:db='jabber:server:dialback' "
          "id='", (StateData#state.streamid)/binary, "'", Version/binary, ">">>)
        ).
-
--define(STREAM_TRAILER, <<"</stream:stream>">>).
-
--define(INVALID_NAMESPACE_ERR,
-        exml:to_binary(?SERR_INVALID_NAMESPACE)).
-
--define(HOST_UNKNOWN_ERR,
-        exml:to_binary(?SERR_HOST_UNKNOWN)).
-
--define(INVALID_FROM_ERR,
-        exml:to_binary(?SERR_INVALID_FROM)).
-
--define(INVALID_XML_ERR,
-        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -163,7 +149,7 @@ init([{SockMod, Socket}, Opts]) ->
                                (_) -> false
                             end, Opts),
     TLSOpts = lists:append(TLSOpts1, TLSOpts2),
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, wait_for_stream,
      #state{socket = Socket,
             sockmod = SockMod,
@@ -209,7 +195,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     ?INFO_MSG("Closing s2s connection: ~s <--> ~s (~s)",
                       [StateData#state.server, RemoteServer, CertError]),
                     send_text(StateData, exml:to_binary(
-                                ?SERRT_POLICY_VIOLATION(<<"en">>, CertError))),
+                                mongoose_xmpp_errors:policy_violation(<<"en">>, CertError))),
                     {atomic, Pid} = ejabberd_s2s:find_connection(
                                       jid:make(<<"">>, Server, <<"">>),
                                       jid:make(<<"">>, RemoteServer, <<"">>)),
@@ -240,12 +226,12 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?STREAM_HEADER(<<"">>)),
             {next_state, stream_established, StateData};
         _ ->
-            send_text(StateData, ?INVALID_NAMESPACE_ERR),
+            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
             {stop, normal, StateData}
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?STREAM_HEADER(<<"">>))/binary, (?INVALID_XML_ERR)/binary,
+              <<(?STREAM_HEADER(<<"">>))/binary, (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary,
                 (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(timeout, StateData) ->
@@ -314,7 +300,7 @@ wait_for_feature_request({xmlstreamend, _Name}, StateData) ->
     send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 wait_for_feature_request({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_feature_request(closed, StateData) ->
     {stop, normal, StateData}.
@@ -323,7 +309,7 @@ wait_for_feature_request(closed, StateData) ->
 -spec stream_established(ejabberd:xml_stream_item(), state()) -> fsm_return().
 stream_established({xmlstreamelement, El}, StateData) ->
     cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     case is_key_packet(El) of
         {key, To, From, Id, Key} ->
             ?DEBUG("GET KEY: ~p", [{To, From, Id, Key}]),
@@ -346,10 +332,10 @@ stream_established({xmlstreamelement, El}, StateData) ->
                      StateData#state{connections = Conns,
                                      timer = Timer}};
                 {_, false} ->
-                    send_text(StateData, ?HOST_UNKNOWN_ERR),
+                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:host_unknown())),
                     {stop, normal, StateData};
                 {false, _} ->
-                    send_text(StateData, ?INVALID_FROM_ERR),
+                    send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_from())),
                     {stop, normal, StateData}
             end;
         {verify, To, From, Id, Key} ->
@@ -410,14 +396,14 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(timeout, StateData) ->
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: jid(), To :: jid(), El :: xmlel(), StateData :: state()) ->
+-spec route_incoming_stanza(From :: jid:jid(), To :: jid:jid(), El :: exml:element(), StateData :: state()) ->
     mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
     LFrom = From#jid.lserver,
@@ -588,12 +574,12 @@ send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()) -> binary().
+-spec send_element(state(), exml:element()) -> binary().
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 
 
--spec change_shaper(state(), Host :: 'global' | binary(), ejabberd:jid()) -> any().
+-spec change_shaper(state(), Host :: 'global' | binary(), jid:jid()) -> any().
 change_shaper(StateData, Host, JID) ->
     Shaper = acl:match_rule(Host, StateData#state.shaper, JID),
     (StateData#state.sockmod):change_shaper(StateData#state.socket, Shaper).
@@ -615,7 +601,7 @@ cancel_timer(Timer) ->
     end.
 
 
--spec is_key_packet(jlib:xmlel()) -> 'false' | {'key', _, _, _, binary()}
+-spec is_key_packet(exml:element()) -> 'false' | {'key', _, _, _, binary()}
                                   | {'verify', _, _, _, binary()}.
 is_key_packet(#xmlel{name = Name, attrs = Attrs,
                      children = Els}) when Name == <<"db:result">> ->

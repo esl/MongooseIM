@@ -40,7 +40,7 @@
          remove_user/3,
          updated_list/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_privacy.hrl").
 
@@ -166,10 +166,10 @@ process_iq_get(Acc,
                           ListName = xml:get_attr(<<"name">>, Attrs),
                           process_list_get(LUser, LServer, ListName);
                       _ ->
-                          {error, ?ERR_BAD_REQUEST}
+                          {error, mongoose_xmpp_errors:bad_request()}
                   end;
               _ ->
-                  {error, ?ERR_BAD_REQUEST}
+                  {error, mongoose_xmpp_errors:bad_request()}
           end,
     mongoose_acc:put(iq_result, Res, Acc);
 process_iq_get(Val, _, _, _, _) ->
@@ -182,7 +182,7 @@ process_lists_get(LUser, LServer, Active) ->
         {error, not_found} ->
             {result, [empty_list_names_query()]};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 process_list_get(LUser, LServer, {value, Name}) ->
@@ -191,12 +191,12 @@ process_list_get(LUser, LServer, {value, Name}) ->
             LItems = lists:map(fun item_to_xml/1, List),
             {result, [list_query_result(Name, LItems)]};
         {error, not_found} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end;
 process_list_get(_LUser, _LServer, false) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
     #jid{luser = LUser, lserver = LServer} = From,
@@ -213,10 +213,10 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
                       <<"default">> ->
                           process_default_set(LUser, LServer, ListName);
                       _ ->
-                          {error, ?ERR_BAD_REQUEST}
+                          {error, mongoose_xmpp_errors:bad_request()}
                   end;
               _ ->
-                  {error, ?ERR_BAD_REQUEST}
+                  {error, mongoose_xmpp_errors:bad_request()}
           end,
     mongoose_acc:put(iq_result, Res, Acc);
 process_iq_set(Val, _, _, _) ->
@@ -227,16 +227,16 @@ process_default_set(LUser, LServer, {value, Name}) ->
         ok ->
             {result, []};
         {error, not_found} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end;
 process_default_set(LUser, LServer, false) ->
     case mod_privacy_backend:forget_default_list(LUser, LServer) of
         ok ->
             {result, []};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 process_active_set(LUser, LServer, {value, Name}) ->
@@ -245,9 +245,9 @@ process_active_set(LUser, LServer, {value, Name}) ->
             NeedDb = is_list_needdb(List),
             {result, [], #userlist{name = Name, list = List, needdb = NeedDb}};
         {error, not_found} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end;
 process_active_set(_LUser, _LServer, false) ->
     {result, [], #userlist{}}.
@@ -255,14 +255,14 @@ process_active_set(_LUser, _LServer, false) ->
 process_list_set(LUser, LServer, {value, Name}, Els) ->
     case parse_items(Els) of
         false ->
-            {error, ?ERR_BAD_REQUEST};
+            {error, mongoose_xmpp_errors:bad_request()};
         remove ->
             remove_privacy_list(LUser, LServer, Name);
         List ->
             replace_privacy_list(LUser, LServer, Name, List)
     end;
 process_list_set(_LUser, _LServer, false, _Els) ->
-    {error, ?ERR_BAD_REQUEST}.
+    {error, mongoose_xmpp_errors:bad_request()}.
 
 remove_privacy_list(LUser, LServer, Name) ->
     case mod_privacy_backend:remove_privacy_list(LUser, LServer, Name) of
@@ -272,9 +272,9 @@ remove_privacy_list(LUser, LServer, Name) ->
             {result, []};
         %% TODO if Name == Active -> conflict
         {error, conflict} ->
-            {error, ?ERR_CONFLICT};
+            {error, mongoose_xmpp_errors:conflict()};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 replace_privacy_list(LUser, LServer, Name, List) ->
@@ -285,7 +285,7 @@ replace_privacy_list(LUser, LServer, Name, List) ->
             broadcast_privacy_list(LUser, LServer, Name, UserList),
             {result, []};
         {error, _Reason} ->
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 is_list_needdb(Items) ->

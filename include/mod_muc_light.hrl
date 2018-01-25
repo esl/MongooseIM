@@ -26,11 +26,11 @@
 -type raw_config() :: [{Key :: binary(), Value :: binary()}].
 
 -type aff() :: owner | member | none.
--type aff_user() :: {ejabberd:simple_bare_jid(), aff()}.
+-type aff_user() :: {jid:simple_bare_jid(), aff()}.
 -type aff_users() :: [aff_user()].
 -type validation_error() :: {error, {Key :: binary(), Reason :: atom()}}.
 
--type external_check_fun() :: fun((RoomUS :: ejabberd:simple_bare_jid(),
+-type external_check_fun() :: fun((RoomUS :: jid:simple_bare_jid(),
                                    NewAffUsers :: aff_users()) ->
                                    ok | {error, any()}).
 
@@ -38,14 +38,14 @@
 
 -type blocking_what() :: user | room.
 -type blocking_action() :: allow | deny.
--type blocking_who() :: ejabberd:simple_bare_jid().
+-type blocking_who() :: jid:simple_bare_jid().
 -type blocking_item() :: {
         What :: blocking_what(),
         Action :: blocking_action(),
         Who :: blocking_who()
        }.
 
--type disco_room_info() :: {RoomUS :: ejabberd:simple_bare_jid(),
+-type disco_room_info() :: {RoomUS :: jid:simple_bare_jid(),
                             RoomName :: binary(),
                             RoomVersion :: binary()}.
 

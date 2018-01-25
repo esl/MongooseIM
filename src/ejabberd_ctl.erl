@@ -56,7 +56,7 @@
 
 -include("ejabberd_ctl.hrl").
 -include("ejabberd_commands.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -type format() :: integer | string | binary | {list, format()}.
 -type format_type() :: binary() | string() | char().

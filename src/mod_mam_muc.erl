@@ -99,7 +99,7 @@
         [send_message/3]).
 
 
--include_lib("ejabberd.hrl").
+-include_lib("mongoose.hrl").
 -include_lib("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -118,14 +118,14 @@
 -type row_batch() :: {TotalCount :: non_neg_integer(),
                       Offset :: non_neg_integer(),
                       MessageRows :: [row()]}.
--type row() :: {mod_mam:message_id(), ejabberd:jid(), jlib:xmlel()}.
+-type row() :: {mod_mam:message_id(), jid:jid(), exml:element()}.
 
 -export_type([row/0, row_batch/0]).
 
 %% ----------------------------------------------------------------------
 %% API
 
--spec delete_archive(ejabberd:server(), ejabberd:user()) -> 'ok'.
+-spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ?DEBUG("Remove room ~p from ~p.", [RoomName, SubHost]),
     ArcJID = jid:make(RoomName, SubHost, <<>>),
@@ -135,7 +135,7 @@ delete_archive(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) -
     ok.
 
 
--spec archive_size(ejabberd:server(), ejabberd:user()) -> integer().
+-spec archive_size(jid:server(), jid:user()) -> integer().
 
 archive_size(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ArcJID = jid:make(RoomName, SubHost, <<>>),
@@ -144,7 +144,7 @@ archive_size(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     archive_size(Host, ArcID, ArcJID).
 
 
--spec archive_id(ejabberd:server(), ejabberd:user()) -> integer().
+-spec archive_id(jid:server(), jid:user()) -> integer().
 archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
     ArcJID = jid:make(RoomName, SubHost, <<>>),
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
@@ -154,7 +154,7 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for MUC archives
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam_muc starting", []),
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
@@ -185,7 +185,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(forget_room, MUCHost, ?MODULE, forget_room, 90),
     ok.
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, mod_mam_muc, mod_muc:default_host()),
@@ -223,8 +223,8 @@ filter_room_packet(Packet, EventData) ->
 
 
 %% @doc Archive without validation.
--spec archive_room_packet(Packet :: packet(), FromNick :: ejabberd:user(),
-                          FromJID :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
+-spec archive_room_packet(Packet :: packet(), FromNick :: jid:user(),
+                          FromJID :: jid:jid(), RoomJID :: jid:jid(),
                           Role :: mod_muc:role(), Affiliation :: mod_muc:affiliation()) -> packet().
 archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affiliation) ->
     {ok, Host} = mongoose_subhosts:get_host(RoomJID#jid.lserver),
@@ -262,8 +262,8 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 %% to the user on their bare JID (i.e. `From.luser'),
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
--spec room_process_mam_iq(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                          IQ :: ejabberd:iq()) -> {mongoose_acc:t(), ejabberd:iq() | 'ignore'}.
+-spec room_process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+                          IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | 'ignore'}.
 room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
     Action = mam_iq:action(IQ),
     Res = case is_action_allowed(Action, From, To) of
@@ -284,20 +284,20 @@ room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
 
 %% #rh
 %% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(map(), ejabberd:lserver(), binary()) -> map().
+-spec forget_room(map(), jid:lserver(), binary()) -> map().
 forget_room(Acc, LServer, RoomName) ->
     forget_room(LServer, RoomName),
     Acc.
 
 %% @doc This hook is called from `mod_muc:forget_room(Host, Name)'.
--spec forget_room(ejabberd:lserver(), binary()) -> 'ok'.
+-spec forget_room(jid:lserver(), binary()) -> 'ok'.
 forget_room(LServer, RoomName) ->
     delete_archive(LServer, RoomName).
 
 %% ----------------------------------------------------------------------
 %% Internal functions
 
--spec is_action_allowed(atom(), ejabberd:jid(), ejabberd:jid()) -> boolean().
+-spec is_action_allowed(atom(), jid:jid(), jid:jid()) -> boolean().
 is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
     case acl:match_rule(Host, Action, From, default) of
         allow -> true;
@@ -305,14 +305,13 @@ is_action_allowed(Action, From, To = #jid{lserver = Host}) ->
         default -> is_action_allowed_by_default(Action, From, To)
     end.
 
--spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: ejabberd:jid(),
-                                   To :: ejabberd:jid()) -> boolean().
+-spec is_action_allowed_by_default(Action :: mam_iq:action(), From :: jid:jid(),
+                                   To :: jid:jid()) -> boolean().
 is_action_allowed_by_default(Action, From, To) ->
     is_room_action_allowed_by_default(Action, From, To).
 
-
 -spec is_room_action_allowed_by_default(Action :: mam_iq:action(),
-                                        From :: ejabberd:jid(), To :: ejabberd:jid()) -> boolean().
+                                        From :: jid:jid(), To :: jid:jid()) -> boolean().
 is_room_action_allowed_by_default(Action, From, To) ->
     case mam_iq:action_type(Action) of
         set -> is_room_owner(From, To);
@@ -320,27 +319,26 @@ is_room_action_allowed_by_default(Action, From, To) ->
     end.
 
 
--spec is_room_owner(User :: ejabberd:jid(), Room :: ejabberd:jid()) -> boolean().
+-spec is_room_owner(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_room_owner(User, Room) ->
     ejabberd_hooks:run_fold(is_muc_room_owner, Room#jid.lserver, false, [Room, User]).
 
 
 %% @doc Return true if user element should be removed from results
--spec is_user_identity_hidden(User :: ejabberd:jid(), Room :: ejabberd:jid()) -> boolean().
+-spec is_user_identity_hidden(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 is_user_identity_hidden(User, Room) ->
     case ejabberd_hooks:run_fold(can_access_identity, Room#jid.lserver, false, [Room, User]) of
         CanAccess when is_boolean(CanAccess) -> not CanAccess;
         _ -> true
     end.
 
--spec can_access_room(User :: ejabberd:jid(), Room :: ejabberd:jid()) -> boolean().
+-spec can_access_room(User :: jid:jid(), Room :: jid:jid()) -> boolean().
 can_access_room(User, Room) ->
     ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
 
-
--spec handle_mam_iq(mam_iq:action(), From :: ejabberd:jid(), ejabberd:jid(),
-                    ejabberd:iq()) ->
-                           ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_mam_iq('mam_get_prefs', From :: jid:jid(), jid:jid(),
+                    jlib:iq()) ->
+                           jlib:iq() | {error, any(), jlib:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
         mam_get_prefs ->
@@ -359,8 +357,8 @@ handle_mam_iq(Action, From, To, IQ) ->
             handle_purge_multiple_messages(To, IQ)
     end.
 
--spec handle_set_prefs(ejabberd:jid(), ejabberd:iq()) ->
-                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_set_prefs(jid:jid(), jlib:iq()) ->
+                              jlib:iq() | {error, any(), jlib:iq()}.
 handle_set_prefs(ArcJID = #jid{},
                  IQ = #iq{sub_el = PrefsEl}) ->
     {DefaultMode, AlwaysJIDs, NeverJIDs} = parse_prefs(PrefsEl),
@@ -379,8 +377,8 @@ handle_set_prefs_result({error, Reason},
     return_error_iq(IQ, Reason).
 
 
--spec handle_get_prefs(ejabberd:jid(), ejabberd:iq()) ->
-                              ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_get_prefs(jid:jid(), jlib:iq()) ->
+                              jlib:iq() | {error, any(), jlib:iq()}.
 handle_get_prefs(ArcJID=#jid{}, IQ=#iq{}) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -396,8 +394,8 @@ handle_get_prefs_result({error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
 
 
--spec handle_lookup_messages(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-                             IQ :: ejabberd:iq()) -> ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_lookup_messages(From :: jid:jid(), ArcJID :: jid:jid(),
+                             IQ :: jlib:iq()) -> jlib:iq() | {error, any(), jlib:iq()}.
 handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
                        #iq{xmlns = MamNs, sub_el = QueryEl} = IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
@@ -430,9 +428,9 @@ handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
     end.
 
 
--spec handle_set_message_form(From :: ejabberd:jid(), ArcJID :: ejabberd:jid(),
-                              IQ :: ejabberd:iq()) ->
-                                     ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
+-spec handle_set_message_form(From :: jid:jid(), ArcJID :: jid:jid(),
+                              IQ :: jlib:iq()) ->
+                                  jlib:iq() | ignore | {error, term(), jlib:iq()}.
 handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
     ArcID = archive_id_int(Host, ArcJID),
@@ -444,9 +442,9 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID, IQ) ->
     Result = lookup_messages(Host, Params),
     handle_lookup_result(Result, From, IQ, Params).
 
--spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()}, ejabberd:jid(),
-                           ejabberd:iq(), map()) ->
-    ejabberd:iq() | ignore | {error, term(), ejabberd:iq()}.
+-spec handle_lookup_result({ok, mod_mam:lookup_result()} | {error, term()}, jid:jid(),
+                           jlib:iq(), map()) ->
+    jlib:iq() | ignore | {error, term(), jlib:iq()}.
 handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->
     case Result of
         {error, Reason} ->
@@ -507,15 +505,15 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
      || Row <- MessageRows],
     {FirstMessID, LastMessID}.
 
--spec handle_get_message_form(ejabberd:jid(), ejabberd:jid(), ejabberd:iq()) ->
-                                     ejabberd:iq().
+-spec handle_get_message_form(jid:jid(), jid:jid(), jlib:iq()) ->
+                                     jlib:iq().
 handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq{}) ->
     return_message_form_iq(Host, IQ).
 
 
 %% @doc Purging multiple messages.
--spec handle_purge_multiple_messages(ejabberd:jid(), ejabberd:iq()) ->
-                                            ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_purge_multiple_messages(jid:jid(), jlib:iq()) ->
+                                            jlib:iq() | {error, any(), jlib:iq()}.
 handle_purge_multiple_messages(ArcJID = #jid{},
                                IQ = #iq{sub_el = PurgeEl}) ->
     Now = p1_time_compat:system_time(micro_seconds),
@@ -534,8 +532,8 @@ handle_purge_multiple_messages(ArcJID = #jid{},
     return_purge_multiple_message_iq(IQ, Res).
 
 
--spec handle_purge_single_message(ejabberd:jid(), ejabberd:iq()) ->
-                                         ejabberd:iq() | {error, any(), ejabberd:iq()}.
+-spec handle_purge_single_message(jid:jid(), jlib:iq()) ->
+                                         jlib:iq() | {error, any(), jlib:iq()}.
 handle_purge_single_message(ArcJID = #jid{},
                             IQ = #iq{sub_el = PurgeEl}) ->
     Now = p1_time_compat:system_time(micro_seconds),
@@ -549,19 +547,19 @@ handle_purge_single_message(ArcJID = #jid{},
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
--spec archive_id_int(ejabberd:server(), ejabberd:jid()) -> integer() | undefined.
+-spec archive_id_int(jid:server(), jid:jid()) -> integer() | undefined.
 archive_id_int(Host, ArcJID = #jid{}) ->
     ejabberd_hooks:run_fold(mam_muc_archive_id, Host, undefined, [Host, ArcJID]).
 
 
--spec archive_size(ejabberd:server(), mod_mam:archive_id(), ejabberd:jid())
+-spec archive_size(jid:server(), mod_mam:archive_id(), jid:jid())
                   -> integer().
 archive_size(Host, ArcID, ArcJID = #jid{}) ->
     ejabberd_hooks:run_fold(mam_muc_archive_size, Host, 0, [Host, ArcID, ArcJID]).
 
 
--spec get_behaviour(ejabberd:server(), mod_mam:archive_id(),
-                    LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
+-spec get_behaviour(jid:server(), mod_mam:archive_id(),
+                    LocJID :: jid:jid(), RemJID :: jid:jid(),
                     DefaultBehaviour :: 'always') -> any().
 get_behaviour(Host, ArcID,
               LocJID = #jid{},
@@ -570,33 +568,33 @@ get_behaviour(Host, ArcID,
                             [Host, ArcID, LocJID, RemJID]).
 
 
--spec set_prefs(Host :: ejabberd:server(), ArcID :: mod_mam:archive_id(),
-                ArcJID :: ejabberd:jid(), DefaultMode :: mod_mam:archive_behaviour(),
-                AlwaysJIDs :: [ejabberd:literal_jid()],
-                NeverJIDs :: [ejabberd:literal_jid()]) -> any().
+-spec set_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
+                ArcJID :: jid:jid(), DefaultMode :: mod_mam:archive_behaviour(),
+                AlwaysJIDs :: [jid:literal_jid()],
+                NeverJIDs :: [jid:literal_jid()]) -> any().
 set_prefs(Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     ejabberd_hooks:run_fold(mam_muc_set_prefs, Host, {error, not_implemented},
                             [Host, ArcID, ArcJID, DefaultMode, AlwaysJIDs, NeverJIDs]).
 
 
 %% @doc Load settings from the database.
--spec get_prefs(Host :: ejabberd:server(), ArcID :: mod_mam:archive_id(),
-                ArcJID :: ejabberd:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
+-spec get_prefs(Host :: jid:server(), ArcID :: mod_mam:archive_id(),
+                ArcJID :: jid:jid(), GlobalDefaultMode :: mod_mam:archive_behaviour())
                -> mod_mam:preference() | {error, Reason :: term()}.
 get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
     ejabberd_hooks:run_fold(mam_muc_get_prefs, Host,
                             {GlobalDefaultMode, [], []},
                             [Host, ArcID, ArcJID]).
 
--spec remove_archive(ejabberd:server(), mod_mam:archive_id() | undefined,
-                     ejabberd:jid()) -> 'ok'.
+-spec remove_archive(jid:server(), mod_mam:archive_id() | undefined,
+                     jid:jid()) -> 'ok'.
 remove_archive(Host, ArcID, ArcJID = #jid{}) ->
     ejabberd_hooks:run(mam_muc_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 
 
 %% See description in mod_mam.
--spec lookup_messages(Host :: ejabberd:server(), Params :: map()) ->
+-spec lookup_messages(Host :: jid:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.%Result :: any(),
@@ -610,19 +608,19 @@ lookup_messages(Host, #{search_text := SearchText} = Params) ->
     end.
 
 
--spec archive_message(ejabberd:server(), MessId :: mod_mam:message_id(),
-                      ArcId :: mod_mam:archive_id(), LocJID :: ejabberd:jid(),
-                      RemJID :: ejabberd:jid(), SrcJID :: ejabberd:jid(), Dir :: 'incoming',
+-spec archive_message(jid:server(), MessId :: mod_mam:message_id(),
+                      ArcId :: mod_mam:archive_id(), LocJID :: jid:jid(),
+                      RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
                       packet()) -> any().
 archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,
                             [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
 
 
--spec purge_single_message(Host :: ejabberd:server(),
+-spec purge_single_message(Host :: jid:server(),
                            MessID :: mod_mam:message_id(),
                            ArcID :: mod_mam:archive_id(),
-                           ArcJID :: ejabberd:jid(),
+                           ArcJID :: jid:jid(),
                            Now :: unix_timestamp()) ->
                                   ok  | {error, 'not-found'}
                                       | {error, Reason :: term()}.
@@ -631,12 +629,12 @@ purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
                             [Host, MessID, ArcID, ArcJID, Now]).
 
 
--spec purge_multiple_messages(Host :: ejabberd:server(),
-                              ArcID :: mod_mam:archive_id(), ArcJID :: ejabberd:jid(),
+-spec purge_multiple_messages(Host :: jid:server(),
+                              ArcID :: mod_mam:archive_id(), ArcJID :: jid:jid(),
                               Borders :: mod_mam:borders() | undefined,
                               Start :: unix_timestamp() | undefined,
                               End :: unix_timestamp() | undefined,
-                              Now :: unix_timestamp(), WithJID :: ejabberd:jid() | undefined) ->
+                              Now :: unix_timestamp(), WithJID :: jid:jid() | undefined) ->
                                      ok | {error, Reason :: term()}.
 purge_multiple_messages(Host, ArcID, ArcJID, Borders,
                         Start, End, Now, WithJID) ->
@@ -646,8 +644,8 @@ purge_multiple_messages(Host, ArcID, ArcJID, Borders,
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec message_row_to_xml(binary(), jid(), boolean(), boolean(), row(), binary() | undefined) ->
-                                jlib:xmlel().
+-spec message_row_to_xml(binary(), jid:jid(), boolean(), boolean(), row(), binary() | undefined) ->
+                                exml:element().
 message_row_to_xml(MamNs, ReceiverJID, HideUser, SetClientNs, {MessID, SrcJID, Packet}, QueryID) ->
 
     {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
@@ -691,18 +689,18 @@ handle_error_iq(_Host, _To, _Action, IQ) ->
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
-    {error, timeout, IQ#iq{type = error, sub_el = [?ERR_SERVICE_UNAVAILABLE]}};
+    {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
 return_error_iq(IQ, not_implemented) ->
-    {error, not_implemented, IQ#iq{type = error, sub_el = [?ERR_FEATURE_NOT_IMPLEMENTED]}};
+    {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
 return_error_iq(IQ, missing_with_jid) ->
-    Error =  ?ERRT_BAD_REQUEST(<<"en">>,
+    Error =  mongoose_xmpp_errors:bad_request(<<"en">>,
                                <<"Limited set of queries allowed in the conversation mode.",
                                  "Missing with_jid filter">>),
     {error, bad_request, IQ#iq{type = error, sub_el = [Error]}};
 return_error_iq(IQ, Reason) ->
-    {error, Reason, IQ#iq{type = error, sub_el = [?ERR_INTERNAL_SERVER_ERROR]}}.
+    {error, Reason, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error()]}}.
 
--spec return_action_not_allowed_error_iq(ejabberd:iq()) -> ejabberd:iq().
+-spec return_action_not_allowed_error_iq(jlib:iq()) -> jlib:iq().
 return_action_not_allowed_error_iq(IQ) ->
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"not-allowed">>,
                                  <<"en">>, <<"The action is not allowed.">>),
@@ -713,11 +711,11 @@ return_purge_multiple_message_iq(IQ, ok) ->
 return_purge_multiple_message_iq(IQ, {error, Reason}) ->
     return_error_iq(IQ, Reason).
 
--spec return_purge_success(ejabberd:iq()) -> ejabberd:iq().
+-spec return_purge_success(jlib:iq()) -> jlib:iq().
 return_purge_success(IQ) ->
     IQ#iq{type = result, sub_el = []}.
 
--spec return_purge_not_found_error_iq(ejabberd:iq()) -> ejabberd:iq().
+-spec return_purge_not_found_error_iq(jlib:iq()) -> jlib:iq().
 return_purge_not_found_error_iq(IQ) ->
     %% Message not found.
     ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"item-not-found">>, <<"en">>,
@@ -726,19 +724,19 @@ return_purge_not_found_error_iq(IQ) ->
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
--spec return_max_delay_reached_error_iq(ejabberd:iq()) -> ejabberd:iq().
+-spec return_max_delay_reached_error_iq(jlib:iq()) -> jlib:iq().
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
-    ErrorEl = ?ERRT_RESOURCE_CONSTRAINT(
+    ErrorEl = mongoose_xmpp_errors:resource_constraint(
                  <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
 
--spec return_purge_single_message_iq(ejabberd:iq(),
+-spec return_purge_single_message_iq(jlib:iq(),
                                      ok  | {error, 'not-found'}
                                      | {error, Reason :: term()}) ->
-                                            ejabberd:iq()
-                                                | {error, any(), ejabberd:iq()}.
+                                            jlib:iq()
+                                                | {error, any(), jlib:iq()}.
 return_purge_single_message_iq(IQ, ok) ->
     return_purge_success(IQ);
 return_purge_single_message_iq(IQ, {error, 'not-found'}) ->

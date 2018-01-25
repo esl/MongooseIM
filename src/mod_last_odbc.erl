@@ -15,7 +15,7 @@
 -behaviour(mod_last).
 
 -include("mod_last.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([init/2,
@@ -24,11 +24,11 @@
          set_last_info/4,
          remove_user/2]).
 
--spec init(ejabberd:server(), list()) -> ok.
+-spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec get_last(ejabberd:luser(), ejabberd:lserver()) ->
+-spec get_last(jid:luser(), jid:lserver()) ->
     {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
 get_last(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
@@ -45,7 +45,7 @@ get_last(LUser, LServer) ->
         Reason -> {error, {invalid_result, Reason}}
     end.
 
--spec count_active_users(ejabberd:lserver(), non_neg_integer()) -> non_neg_integer().
+-spec count_active_users(jid:lserver(), non_neg_integer()) -> non_neg_integer().
 count_active_users(LServer, TimeStamp) ->
     TimeStampBin = integer_to_binary(TimeStamp),
     WhereClause = <<"where seconds > ", TimeStampBin/binary >>,
@@ -56,7 +56,7 @@ count_active_users(LServer, TimeStamp) ->
             0
     end.
 
--spec set_last_info(ejabberd:luser(), ejabberd:lserver(),
+-spec set_last_info(jid:luser(), jid:lserver(),
                     non_neg_integer(), binary()) ->
     ok | {error, term()}.
 set_last_info(LUser, LServer, TimeStamp, Status) ->
@@ -65,7 +65,7 @@ set_last_info(LUser, LServer, TimeStamp, Status) ->
     State = mongoose_rdbms:escape(Status),
     wrap_odbc_result(rdbms_queries:set_last_t(LServer, Username, Seconds, State)).
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok | {error, term()}.
+-spec remove_user(jid:luser(), jid:lserver()) -> ok | {error, term()}.
 remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape(LUser),
     wrap_odbc_result(rdbms_queries:del_last(LServer, Username)).

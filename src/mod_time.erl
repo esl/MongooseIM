@@ -8,7 +8,7 @@
 -author('ludwik.bukowski@erlang-solutions.com').
 -behaviour(gen_mod).
 -export([start/2, stop/1, process_local_iq/4]).
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -xep([{xep, 202}, {version, "2.0"}]).
 -xep([{xep, 82}, {version, "1.1"}]).
@@ -27,7 +27,7 @@ stop(Host) ->
 
 
 process_local_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 
 process_local_iq(_From, _To, Acc, #iq{type = get} = IQ) ->
     {UTC, TZODiff} = calculate_time(),

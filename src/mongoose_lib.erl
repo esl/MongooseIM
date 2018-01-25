@@ -1,7 +1,7 @@
 -module(mongoose_lib).
 -export([bin_to_int/1, log_if_backend_error/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% @doc string:to_integer/1 for binaries
 bin_to_int(Bin) ->

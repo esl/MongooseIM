@@ -25,8 +25,9 @@
          send_message/3
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 
 start() ->
     mongoose_commands:register(commands()).
@@ -400,7 +401,7 @@ subscription(Caller, Other, Action) ->
     Act = binary_to_existing_atom(Action, latin1),
     run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
 
--spec run_subscription(subscribe | subscribed, jid(), jid()) -> ok.
+-spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
 run_subscription(Type, CallerJid, OtherJid) ->
     StanzaType = atom_to_binary(Type, latin1),
     A = create_acc(CallerJid, <<"presence">>, StanzaType, OtherJid),

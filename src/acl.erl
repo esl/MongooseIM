@@ -34,27 +34,27 @@
          match_rule/3,
          match_rule/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -export_type([rule/0, host/0]).
 
 -type rule() :: 'all' | 'none' | atom().
--type host() :: ejabberd:server() | 'global'.
+-type host() :: jid:server() | 'global'.
 -type acl_name() :: {atom(), host()}.
 -type regexp() :: iolist() | binary().
 -type aclspec() :: all
                 | none
-                | {user, ejabberd:user()}
-                | {user, ejabberd:user(), ejabberd:server()}
-                | {server, ejabberd:server()}
-                | {resource, ejabberd:resource()}
+                | {user, jid:user()}
+                | {user, jid:user(), jid:server()}
+                | {server, jid:server()}
+                | {resource, jid:resource()}
                 | {user_regexp, regexp()}
-                | {user_regexp, regexp(), ejabberd:server()}
+                | {user_regexp, regexp(), jid:server()}
                 | {server_regexp, regexp()}
                 | {resource_regexp, regexp()}
                 | {node_regexp, regexp(), regexp()}
                 | {user_glob, regexp()}
-                | {user_glob, regexp(), ejabberd:server()}
+                | {user_glob, regexp(), jid:server()}
                 | {server_glob, regexp()}
                 | {resource_glob, regexp()}
                 | {node_glob, regexp(), regexp()}.
@@ -120,7 +120,7 @@ normalize_spec(none) ->
 
 -spec match_rule(Host :: host(),
                  Rule :: rule(),
-                 JID :: ejabberd:jid()) -> allow | deny | term().
+                 JID :: jid:jid()) -> allow | deny | term().
 match_rule(Host, Rule, JID) ->
     match_rule(Host, Rule, JID, deny).
 
@@ -160,7 +160,7 @@ merge_acls(Global, HostLocal) ->
     end.
 
 -spec match_acls(ACLs :: [{any(), rule()}],
-                 JID :: ejabberd:jid(),
+                 JID :: jid:jid(),
                  Host :: host()) -> deny | term().
 match_acls([], _, _Host) ->
     deny;
@@ -173,7 +173,7 @@ match_acls([{Value, ACL} | ACLs], JID, Host) ->
     end.
 
 -spec match_acl(ACL :: rule(),
-                JID :: ejabberd:jid(),
+                JID :: jid:jid(),
                 Host :: host()) -> boolean().
 match_acl(all, _JID, _Host) ->
     true;
@@ -185,7 +185,7 @@ match_acl(ACL, JID, Host) ->
     Pred = fun(#acl{aclspec = S}) -> match(S, LJID, Host) end,
     lists:any(Pred, AllSpecs).
 
--spec is_server_valid(host(), ejabberd:server()) -> boolean().
+-spec is_server_valid(host(), jid:server()) -> boolean().
 is_server_valid(Host, Host) ->
     true;
 is_server_valid(global, JIDServer) ->
@@ -193,7 +193,7 @@ is_server_valid(global, JIDServer) ->
 is_server_valid(_Host, _JIDServer) ->
     false.
 
--spec match(aclspec(), ejabberd:simple_jid(), host()) -> boolean().
+-spec match(aclspec(), jid:simple_jid(), host()) -> boolean().
 match(all, _LJID, _Host) ->
     true;
 match({user, U}, {User, Server, _Resource}, Host) ->

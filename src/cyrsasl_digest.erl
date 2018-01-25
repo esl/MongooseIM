@@ -32,16 +32,16 @@
          mech_new/2,
          mech_step/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behaviour(cyrsasl).
 
 -record(state, {step :: integer(),
                 nonce,
-                username :: ejabberd:user() | undefined,
+                username :: jid:user() | undefined,
                 authzid,
                 auth_module :: ejabberd_auth:authmodule(),
-                host :: ejabberd:server(),
+                host :: jid:server(),
                 creds :: mongoose_credentials:t()
               }).
 
@@ -51,7 +51,7 @@ start(_Opts) ->
 stop() ->
     ok.
 
--spec mech_new(Host :: ejabberd:server(),
+-spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, #state{}}.
 mech_new(Host, Creds) ->
     {ok, #state{step = 1,
@@ -187,7 +187,7 @@ binary_reverse(<<H, T/binary>>) ->
 %% then digest-uri can be like xmpp/server3.example.org/jabber.example.org
 %% In that case, ejabberd only checks the service name, not the host.
 -spec is_digesturi_valid(DigestURICase :: binary(),
-                         JabberHost :: 'undefined' | ejabberd:server()) -> boolean().
+                         JabberHost :: 'undefined' | jid:server()) -> boolean().
 is_digesturi_valid(DigestURICase, JabberHost) ->
     DigestURI = stringprep:tolower(DigestURICase),
     case catch binary:split(DigestURI, <<"/">>) of
@@ -220,7 +220,7 @@ hex(<<N, Ns/binary>>, Res) ->
 
 
 -spec response(KeyVals :: [{binary(), binary()}],
-               User :: ejabberd:user(),
+               User :: jid:user(),
                Passwd :: binary(),
                Nonce :: binary(),
                AuthzId :: binary(),

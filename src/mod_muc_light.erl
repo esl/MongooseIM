@@ -44,10 +44,11 @@
 -module(mod_muc_light).
 -author('piotr.nosek@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 -include("mod_roster.hrl").
+-include("mongoose_rsm.hrl").
 
 -behaviour(gen_mod).
 -behaviour(mongoose_packet_handler).
@@ -94,11 +95,11 @@ standard_default_config() -> [{"roomname", "Untitled"}, {"subject", ""}].
 default_host() ->
     <<"muclight.@HOST@">>.
 
--spec default_config(MUCServer :: ejabberd:lserver()) -> config().
+-spec default_config(MUCServer :: jid:lserver()) -> config().
 default_config(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, default_config, []).
 
--spec config_schema(MUCServer :: ejabberd:lserver()) -> config_schema().
+-spec config_schema(MUCServer :: jid:lserver()) -> config_schema().
 config_schema(MUCServer) ->
     gen_mod:get_module_opt_by_subhost(MUCServer, ?MODULE, config_schema, undefined).
 
@@ -106,9 +107,9 @@ config_schema(MUCServer) ->
 %% Administration API
 %%====================================================================
 
--spec try_to_create_room(CreatorUS :: ejabberd:simple_bare_jid(), RoomJID :: ejabberd:jid(),
+-spec try_to_create_room(CreatorUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(),
                          CreationCfg :: create_req_props()) ->
-    {ok, ejabberd:simple_bare_jid(), create_req_props()}
+    {ok, jid:simple_bare_jid(), create_req_props()}
     | {error, validation_error() | bad_request | exists}.
 try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
@@ -135,7 +136,7 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
             {error, bad_request}
     end.
 
--spec delete_room(RoomUS :: ejabberd:simple_bare_jid()) -> ok | {error, not_exists}.
+-spec delete_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists}.
 delete_room(RoomUS) ->
     mod_muc_light_db_backend:destroy_room(RoomUS).
 
@@ -143,7 +144,7 @@ delete_room(RoomUS) ->
 %% gen_mod callbacks
 %%====================================================================
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> ok.
+-spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
     %% Prevent sending service-unavailable on groupchat messages
 
@@ -186,7 +187,7 @@ start(Host, Opts) ->
 
     ok.
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     MUCHost = gen_mod:get_module_opt_subhost(Host, ?MODULE, default_host()),
     ejabberd_router:unregister_route(MUCHost),
@@ -218,15 +219,15 @@ hooks(Host, MUCHost) ->
 %% Routing
 %%====================================================================
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
-                     El :: xmlel(), Extra :: any()) -> any().
+-spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(),
+                     El :: exml:element(), Extra :: any()) -> any().
 process_packet(Acc, From, To, El, _Extra) ->
     process_decoded_packet(From, To, mod_muc_light_codec_backend:decode(From, To, El), Acc, El).
 
--spec process_decoded_packet(From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec process_decoded_packet(From :: jid:jid(), To :: jid:jid(),
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      Acc :: mongoose_acc:t(),
-                     OrigPacket :: jlib:xmlel()) -> any().
+                     OrigPacket :: exml:element()) -> any().
 process_decoded_packet(From, To, {ok, {set, #create{} = Create}}, _Acc, OrigPacket) ->
     FromUS = jid:to_lus(From),
     case not mod_muc_light_utils:room_limit_reached(FromUS, To#jid.lserver) of
@@ -244,7 +245,6 @@ process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _Acc, OrigPa
     RouteFun = fun ejabberd_router:route/3,
     case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
         true ->
-            ?TEMPORARY,
             Res = handle_blocking(From, To, Blocking),
             case (mongoose_acc:is_acc(Res) or (Res == ok)) of
                 true ->
@@ -282,16 +282,16 @@ process_decoded_packet(From, To, _InvalidReq, _Acc, OrigPacket) ->
 %% Hook handlers
 %%====================================================================
 
--spec prevent_service_unavailable(Acc :: map(), From :: jid(), To :: jid(),
-                                  Packet :: jlib:xmlel()) -> map() | {stop, map()}.
+-spec prevent_service_unavailable(Acc :: map(), From ::jid:jid(), To ::jid:jid(),
+                                  Packet :: exml:element()) -> map() | {stop, map()}.
 prevent_service_unavailable(Acc, _From, _To, Packet) ->
     case xml:get_tag_attr_s(<<"type">>, Packet) of
         <<"groupchat">> -> {stop, Acc};
         _Type -> Acc
     end.
 
--spec get_muc_service(Acc :: {result, [jlib:xmlel()]}, From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      NS :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]}.
+-spec get_muc_service(Acc :: {result, [exml:element()]}, From :: jid:jid(), To :: jid:jid(),
+                      NS :: binary(), ejabberd:lang()) -> {result, [exml:element()]}.
 get_muc_service({result, Nodes}, _From, #jid{lserver = LServer} = _To, <<"">>, _Lang) ->
     XMLNS = case gen_mod:get_module_opt_by_subhost(
                    LServer, ?MODULE, legacy_mode, ?DEFAULT_LEGACY_MODE) of
@@ -322,7 +322,7 @@ remove_user(Acc, User, Server) ->
             Acc
     end.
 
--spec add_rooms_to_roster(Acc :: mongoose_acc:t(), UserUS :: ejabberd:simple_bare_jid()) ->
+-spec add_rooms_to_roster(Acc :: mongoose_acc:t(), UserUS :: jid:simple_bare_jid()) ->
     mongoose_acc:t().
 add_rooms_to_roster(Acc, UserUS) ->
     Items = mongoose_acc:get(roster, Acc, []),
@@ -342,8 +342,8 @@ add_rooms_to_roster(Acc, UserUS) ->
       end, Items, Info),
     mongoose_acc:put(roster, NewItems, Acc).
 
--spec process_iq_get(Acc :: mongoose_acc:t(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                     IQ :: ejabberd:iq(), ActiveList :: binary()) ->
+-spec process_iq_get(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
+                     IQ :: jlib:iq(), ActiveList :: binary()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
@@ -358,15 +358,15 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
             Result = {result, ResponseChildren},
             {stop, mongoose_acc:put(iq_result, Result, Acc)};
         {{ok, {get, #blocking{}}}, false} ->
-            Result = {error, ?ERR_BAD_REQUEST},
+            Result = {error, mongoose_xmpp_errors:bad_request()},
             {stop, mongoose_acc:put(iq_result, Result, Acc)};
         _ ->
-            Result = {error, ?ERR_BAD_REQUEST},
+            Result = {error, mongoose_xmpp_errors:bad_request()},
             mongoose_acc:put(iq_result, Result, Acc)
     end.
 
--spec process_iq_set(Acc :: mongoose_acc:t(), From :: ejabberd:jid(),
-                     To :: ejabberd:jid(), IQ :: ejabberd:iq()) ->
+-spec process_iq_set(Acc :: mongoose_acc:t(), From :: jid:jid(),
+                     To :: jid:jid(), IQ :: jlib:iq()) ->
     {stop, mongoose_acc:t()} | mongoose_acc:t().
 process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
     MUCHost = gen_mod:get_module_opt_subhost(FromS, ?MODULE, default_host()),
@@ -377,7 +377,7 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
             case lists:any(ConditionFun, Items) of
                 true ->
-                    {stop, mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)};
+                    {stop, mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)};
                 false ->
                     ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), MUCHost, Items),
                     mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun),
@@ -385,25 +385,25 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
                     {stop, mongoose_acc:put(iq_result, {result, ResponseChildren}, Acc)}
             end;
         {{ok, {set, #blocking{}}}, false} ->
-            {stop, mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)};
+            {stop, mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)};
         _ ->
-            mongoose_acc:put(iq_result, {error, ?ERR_BAD_REQUEST}, Acc)
+            mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
     end.
 
--spec is_room_owner(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) -> boolean().
+-spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().
 is_room_owner(_, Room, User) ->
     owner == get_affiliation(Room, User).
 
--spec muc_room_pid(Acc :: any(), Room :: ejabberd:jid()) -> {ok, processless}.
+-spec muc_room_pid(Acc :: any(), Room :: jid:jid()) -> {ok, processless}.
 muc_room_pid(_, _) ->
     {ok, processless}.
 
--spec can_access_room(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+-spec can_access_room(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
 can_access_room(_, Room, User) ->
     none =/= get_affiliation(Room, User).
 
--spec can_access_identity(Acc :: boolean(), Room :: ejabberd:jid(), User :: ejabberd:jid()) ->
+-spec can_access_identity(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) ->
     boolean().
 can_access_identity(_Acc, _Room, _User) ->
     %% User JIDs are explicit in MUC Light but this hook is about appending
@@ -425,9 +425,9 @@ get_affiliation(Room, User) ->
             none
     end.
 
--spec create_room(From :: ejabberd:jid(), FromUS :: ejabberd:simple_bare_jid(),
-                  To :: ejabberd:jid(), Create :: create_req_props(), OrigPacket :: jlib:xmlel()) ->
-    jlib:xmlel().
+-spec create_room(From :: jid:jid(), FromUS :: jid:simple_bare_jid(),
+                  To :: jid:jid(), Create :: create_req_props(), OrigPacket :: exml:element()) ->
+    exml:element().
 create_room(From, FromUS, To, Create0, OrigPacket) ->
     case try_to_create_room(FromUS, To, Create0) of
         {ok, FinalRoomUS, Details} ->
@@ -445,8 +445,8 @@ create_room(From, FromUS, To, Create0, OrigPacket) ->
               {error, bad_request, ErrorText}, From, To, OrigPacket, fun ejabberd_router:route/3)
     end.
 
--spec process_create_aff_users_if_valid(MUCServer :: ejabberd:lserver(),
-                                        Creator :: ejabberd:simple_bare_jid(),
+-spec process_create_aff_users_if_valid(MUCServer :: jid:lserver(),
+                                        Creator :: jid:simple_bare_jid(),
                                         AffUsers :: aff_users()) ->
     {ok, aff_users()} | {error, bad_request}.
 process_create_aff_users_if_valid(MUCServer, Creator, AffUsers) ->
@@ -460,7 +460,7 @@ process_create_aff_users_if_valid(MUCServer, Creator, AffUsers) ->
             {error, bad_request}
     end.
 
--spec process_create_aff_users(Creator :: ejabberd:simple_bare_jid(), AffUsers :: aff_users(),
+-spec process_create_aff_users(Creator :: jid:simple_bare_jid(), AffUsers :: aff_users(),
                                EqualOccupants :: boolean()) ->
     {ok, aff_users()} | {error, bad_request}.
 process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
@@ -473,13 +473,13 @@ process_create_aff_users(Creator, AffUsers, EqualOccupants) ->
 creator_aff(true) -> member;
 creator_aff(false) -> owner.
 
--spec handle_disco_info_get(From :: jid(), To :: jid(), DiscoInfo :: disco_info_req_props()) -> ok.
+-spec handle_disco_info_get(From ::jid:jid(), To ::jid:jid(), DiscoInfo :: disco_info_req_props()) -> ok.
 handle_disco_info_get(From, To, DiscoInfo) ->
     mod_muc_light_codec_backend:encode({get, DiscoInfo}, From, jid:to_lus(To),
                                        fun ejabberd_router:route/3).
 
--spec handle_disco_items_get(From :: jid(), To :: jid(), DiscoItems :: disco_items_req_props(),
-                             OrigPacket :: jlib:xmlel()) -> ok.
+-spec handle_disco_items_get(From ::jid:jid(), To ::jid:jid(), DiscoItems :: disco_items_req_props(),
+                             OrigPacket :: exml:element()) -> ok.
 handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
     case catch mod_muc_light_db_backend:get_user_rooms(jid:to_lus(From), To#jid.lserver) of
         {error, Error} ->
@@ -503,7 +503,7 @@ handle_disco_items_get(From, To, DiscoItems0, OrigPacket) ->
             end
     end.
 
--spec get_rooms_info(Rooms :: [ejabberd:simple_bare_jid()]) -> [disco_room_info()].
+-spec get_rooms_info(Rooms :: [jid:simple_bare_jid()]) -> [disco_room_info()].
 get_rooms_info([]) ->
     [];
 get_rooms_info([{RoomU, _} = RoomUS | RRooms]) ->
@@ -573,13 +573,13 @@ find_room_pos(RoomUSBin, RoomsInfo) ->
         #jid{ luser = RoomU, lserver = RoomS } -> find_room_pos({RoomU, RoomS}, RoomsInfo, 1)
     end.
 
--spec find_room_pos(RoomUS :: ejabberd:simple_bare_jid(), RoomsInfo :: [disco_room_info()],
+-spec find_room_pos(RoomUS :: jid:simple_bare_jid(), RoomsInfo :: [disco_room_info()],
                     Pos :: pos_integer()) -> pos_integer() | {error, item_not_found}.
 find_room_pos(RoomUS, [{RoomUS, _, _} | _], Pos) -> Pos;
 find_room_pos(RoomUS, [_ | RRooms], Pos) -> find_room_pos(RoomUS, RRooms, Pos + 1);
 find_room_pos(_, [], _) -> {error, item_not_found}.
 
--spec handle_blocking(From :: ejabberd:jid(), To :: ejabberd:jid(),
+-spec handle_blocking(From :: jid:jid(), To :: jid:jid(),
                       BlockingReq :: {get | set, blocking_req_props()}) ->
     {error, bad_request} | ok.
 handle_blocking(From, To, {get, #blocking{} = Blocking}) ->
@@ -597,14 +597,14 @@ handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
             ok
     end.
 
--spec bcast_removed_user(UserUS :: ejabberd:simple_bare_jid(),
+-spec bcast_removed_user(UserUS :: jid:simple_bare_jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
                          Version :: binary()) -> ok.
 bcast_removed_user({UserU, UserS}, AffectedRooms, Version) ->
     bcast_removed_user(jid:make_noprep(UserU, UserS, <<>>), AffectedRooms,
                        Version, mod_muc_light_utils:bin_ts()).
 
--spec bcast_removed_user(UserJID :: ejabberd:jid(),
+-spec bcast_removed_user(UserJID :: jid:jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),
                          Version :: binary(),
                          PacketID :: binary()) -> ok.

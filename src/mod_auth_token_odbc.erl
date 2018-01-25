@@ -6,12 +6,12 @@
          clean_tokens/1]).
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% Assumption: all sequence numbers less than the current valid one
 %%             are not valid.
 -spec get_valid_sequence_number(JID) -> integer() when
-      JID :: ejabberd:jid().
+      JID :: jid:jid().
 get_valid_sequence_number(#jid{lserver = LServer} = JID) ->
     BBareJID = jid:to_binary(jid:to_bare(JID)),
     EBareJID = mongoose_rdbms:escape(BBareJID),
@@ -31,7 +31,7 @@ valid_sequence_number_query(EOwner) when is_binary(EOwner) ->
        "WHERE owner = '", EOwner/bytes, "'; ">>].
 
 -spec revoke(JID) -> ok | not_found when
-      JID :: ejabberd:jid().
+      JID :: jid:jid().
 revoke(#jid{lserver = LServer} = JID) ->
     BBareJID = jid:to_binary(jid:to_bare(JID)),
     EBareJID = mongoose_rdbms:escape(BBareJID),
@@ -47,7 +47,7 @@ revoke_query(EOwner) when is_binary(EOwner) ->
     [<<"UPDATE auth_token SET seq_no=seq_no+1 WHERE owner = '", EOwner/bytes, "';">>].
 
 -spec clean_tokens(Owner) -> ok when
-      Owner :: ejabberd:jid().
+      Owner :: jid:jid().
 clean_tokens(#jid{lserver = LServer} = Owner) ->
     BBareJID = jid:to_binary(jid:to_bare(Owner)),
     EBareJID = mongoose_rdbms:escape(BBareJID),

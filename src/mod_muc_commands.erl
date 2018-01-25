@@ -27,7 +27,7 @@
 -export([send_message_to_room/4]).
 -export([kick_user_from_room/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 

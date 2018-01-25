@@ -25,7 +25,7 @@
          search_fields/1,
          search_reported_fields/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 -include_lib("riakc/include/riakc.hrl").
@@ -33,15 +33,15 @@
 -define(BUCKET_TYPE, <<"vcard">>).
 -define(YZ_VCARD_INDEX, <<"vcard">>).
 
--spec init(ejabberd:lserver(), list()) -> ok.
+-spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->
     ok.
 
--spec remove_user(ejabberd:luser(), ejabberd:lserver()) -> ok.
+-spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     mongoose_riak:delete(bucket_type(LServer), LUser, [{dw, 2}]).
 
--spec set_vcard(ejabberd:user(), ejabberd:lserver(), exml:item(), term()) ->
+-spec set_vcard(jid:user(), jid:lserver(), exml:item(), term()) ->
     ok | {error, term()}.
 set_vcard(User, VHost, VCard, _VCardSearch) ->
     BucketType = bucket_type(VHost),
@@ -50,7 +50,7 @@ set_vcard(User, VHost, VCard, _VCardSearch) ->
     Obj = riakc_obj:new(BucketType, LUser, VCardEncoded, "application/xml"),
     mongoose_riak:put(Obj).
 
--spec get_vcard(ejabberd:luser(), ejabberd:lserver()) ->
+-spec get_vcard(jid:luser(), jid:lserver()) ->
     {ok, term()} | {error, term()}.
 get_vcard(LUser, LServer) ->
     BucketType = bucket_type(LServer),
@@ -62,15 +62,15 @@ get_vcard(LUser, LServer) ->
                     {ok, [XMLEl]};
                 {error, Reason} ->
                     ?WARNING_MSG("not sending bad vcard reason=~p, xml=~n~p", [Reason, XMLBin]),
-                    {error, ?ERR_SERVICE_UNAVAILABLE}
+                    {error, mongoose_xmpp_errors:service_unavailable()}
             end;
         {error, notfound} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         Other ->
             Other
     end.
 
--spec search(ejabberd:lserver(), list()) -> list().
+-spec search(jid:lserver(), list()) -> list().
 search(VHost, Data) ->
     YZQuery = make_yz_query(Data, []),
     do_search(YZQuery, VHost).
@@ -91,7 +91,7 @@ do_search(YZQueryIn, VHost) ->
             []
     end.
 
--spec search_fields(ejabberd:lserver()) -> list().
+-spec search_fields(jid:lserver()) -> list().
 search_fields(_VHost) ->
     mod_vcard:default_search_fields().
 

@@ -53,7 +53,7 @@
 %% packet handler callback
 -export([process_packet/5]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,
@@ -91,8 +91,6 @@
         "id='~s' from='~s'>">>
        ).
 
--define(STREAM_TRAILER, <<"</stream:stream>">>).
-
 -define(INVALID_HEADER_ERR,
         <<"<stream:stream "
         "xmlns:stream='http://etherx.jabber.org/streams'>"
@@ -108,13 +106,6 @@
         "</stream:error>"
         "</stream:stream>">>
        ).
-
--define(INVALID_XML_ERR,
-        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
--define(INVALID_NS_ERR,
-        exml:to_binary(?SERR_INVALID_NAMESPACE)).
--define(CONFLICT_ERR,
-        exml:to_binary(?SERR_CONFLICT)).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -137,8 +128,8 @@ socket_type() ->
 %%% mongoose_packet_handler callback
 %%%----------------------------------------------------------------------
 
--spec process_packet(Acc :: mongoose_acc:t(), From :: jid(), To :: jid(),
-    El :: xmlel(), Pid :: pid()) -> any().
+-spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
+    El :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
     Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
 
@@ -214,7 +205,7 @@ wait_for_stream({xmlstreamerror, _}, StateData) ->
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
     send_text(StateData, <<(iolist_to_binary(Header))/binary,
-                           (?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+                           (mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_stream(closed, StateData) ->
     {stop, normal, StateData}.
@@ -234,7 +225,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
                             {next_state, stream_established, StateData};
                         {error, Reason} ->
                             ?ERROR_MSG("Error in component handshake: ~p", [Reason]),
-                            send_text(StateData, ?CONFLICT_ERR),
+                            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:stream_conflict())),
                             {stop, normal, StateData}
                     end;
                 _ ->
@@ -247,7 +238,7 @@ wait_for_handshake({xmlstreamelement, El}, StateData) ->
 wait_for_handshake({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_handshake({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_handshake(closed, StateData) ->
     {stop, normal, StateData}.
@@ -287,7 +278,7 @@ stream_established({xmlstreamelement, El}, StateData) ->
             ejabberd_router:route(FromJID, ToJID, NewEl);
        true ->
             ?INFO_MSG("Not valid Name (~p) or error in FromJID (~p) or ToJID (~p)~n", [Name, FromJID, ToJID]),
-            Err = jlib:make_error_reply(NewEl, ?ERR_BAD_REQUEST),
+            Err = jlib:make_error_reply(NewEl, mongoose_xmpp_errors:bad_request()),
             send_element(StateData, Err),
             error
     end,
@@ -296,7 +287,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     % TODO ??
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
-    send_text(StateData, <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+    send_text(StateData, <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 stream_established(closed, StateData) ->
     % TODO ??
@@ -369,7 +360,7 @@ handle_info({route, From, To, Acc}, StateName, StateData) ->
             Text = exml:to_binary(Packet#xmlel{ attrs = Attrs2 }),
             send_text(StateData, Text);
         deny ->
-            ejabberd_router:route_error_reply(To, From, Acc, ?ERR_NOT_ALLOWED)
+            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:not_allowed())
     end,
     {next_state, StateName, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
@@ -413,7 +404,7 @@ send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()) -> binary().
+-spec send_element(state(), exml:element()) -> binary().
 send_element(StateData, El) ->
     send_text(StateData, exml:to_binary(El)).
 

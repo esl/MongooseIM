@@ -22,21 +22,21 @@
 -define(MONGOOSEIM_ADHOC_HRL, true).
 
 -record(adhoc_request, {lang :: ejabberd:lang(),
-                        node :: ejabberd:server(),
+                        node :: jid:server(),
                         session_id :: binary(),
                         action :: binary(),
-                        xdata :: jlib:xmlel() | false,
+                        xdata :: exml:element() | false,
                         others
                        }).
 
 -record(adhoc_response, {lang :: ejabberd:lang(),
-                         node :: ejabberd:server(),
+                         node :: jid:server(),
                          session_id :: binary(),
                          status :: atom(),
                          default_action = <<>> :: binary(),
                          actions = [],
                          notes = [] :: [tuple()],
-                         elements = [] :: [jlib:xmlel()]
+                         elements = [] :: [exml:element()]
                         }).
 
 -endif.

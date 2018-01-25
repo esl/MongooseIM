@@ -43,15 +43,15 @@
     user_sessions_info/2
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
 -type status() :: binary().
--type u_s_r_p_st() :: { User    :: ejabberd:user(),
-                        Server  :: ejabberd:server(),
-                        Res     :: ejabberd:resource(),
+-type u_s_r_p_st() :: { User    :: jid:user(),
+                        Server  :: jid:server(),
+                        Res     :: jid:resource(),
                         Prio    :: integer(),
                         Status  :: status()}.
 -type formatted_user_info() :: {USR :: string(),
@@ -61,7 +61,7 @@
                                 Prio :: integer(),
                                 NodeS :: string(),
                                 Uptime :: integer()}.
--type usr_nowpid_p_i() :: {ejabberd:simple_jid(),
+-type usr_nowpid_p_i() :: {jid:simple_jid(),
                            {Now :: erlang:timestamp(), Pid :: identifier()},
                            Prio :: integer(),
                            Info :: string()}.
@@ -171,12 +171,12 @@ commands() ->
 %%% Sessions
 %%%
 
--spec num_resources(ejabberd:user(), ejabberd:server()) -> non_neg_integer().
+-spec num_resources(jid:user(), jid:server()) -> non_neg_integer().
 num_resources(User, Host) ->
     length(ejabberd_sm:get_user_resources(User, Host)).
 
 
--spec resource_num(ejabberd:user(), ejabberd:server(), integer()) -> binary() | string().
+-spec resource_num(jid:user(), jid:server(), integer()) -> binary() | string().
 resource_num(User, Host, Num) ->
     Resources = ejabberd_sm:get_user_resources(User, Host),
     case (0<Num) and (Num=<length(Resources)) of
@@ -187,14 +187,14 @@ resource_num(User, Host, Num) ->
     end.
 
 
--spec kick_session(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+-spec kick_session(jid:user(), jid:server(), jid:resource(),
         ReasonText :: binary()) -> 'ok'.
 kick_session(User, Server, Resource, ReasonText) ->
     kick_this_session(User, Server, Resource, prepare_reason(ReasonText)),
     ok.
 
 
--spec kick_this_session(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+-spec kick_this_session(jid:user(), jid:server(), jid:resource(),
         Reason :: binary()) -> mongoose_acc:t().
 kick_this_session(User, Server, Resource, Reason) ->
     ejabberd_sm:route(
@@ -216,7 +216,7 @@ prepare_reason(StringList) ->
     prepare_reason(string:join(StringList, "_")).
 
 
--spec status_num('all' | ejabberd:server(), status()) -> non_neg_integer().
+-spec status_num('all' | jid:server(), status()) -> non_neg_integer().
 status_num(Host, Status) ->
     length(get_status_list(Host, Status)).
 
@@ -226,7 +226,7 @@ status_num(Status) ->
     status_num(all, Status).
 
 
--spec status_list('all' | ejabberd:server(), status()) -> [u_s_r_p_st()].
+-spec status_list('all' | jid:server(), status()) -> [u_s_r_p_st()].
 status_list(Host, Status) ->
     Res = get_status_list(Host, Status),
     [{U, S, R, P, St} || {U, S, R, P, St} <- Res].
@@ -237,7 +237,7 @@ status_list(Status) ->
     status_list(all, Status).
 
 
--spec get_status_list('all' | ejabberd:server(), status()) -> [u_s_r_p_st()].
+-spec get_status_list('all' | jid:server(), status()) -> [u_s_r_p_st()].
 get_status_list(Host, StatusRequired) ->
     Sessions0 = case Host of
         all -> ejabberd_sm:get_full_session_list();
@@ -261,7 +261,7 @@ connected_users_info() ->
     connected_users_info(all).
 
 
--spec connected_users_info('all' | ejabberd:server()) -> [formatted_user_info()].
+-spec connected_users_info('all' | jid:server()) -> [formatted_user_info()].
 connected_users_info(Host) ->
     USRIs = case Host of
         all -> ejabberd_sm:get_full_session_list();
@@ -270,7 +270,7 @@ connected_users_info(Host) ->
     lists:map(fun format_user_info/1, USRIs).
 
 
--spec set_presence(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+-spec set_presence(jid:user(), jid:server(), jid:resource(),
         Type :: binary(), Show :: binary() | string(), Status :: binary() | string(),
         Prio :: binary() | string()) -> 'ok'.
 set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
@@ -289,7 +289,7 @@ set_presence(User, Host, Resource, Type, Show, Status, Priority) ->
     p1_fsm_old:send_event(Pid, Message).
 
 
--spec user_sessions_info(ejabberd:user(), ejabberd:server()) -> [formatted_user_info()].
+-spec user_sessions_info(jid:user(), jid:server()) -> [formatted_user_info()].
 user_sessions_info(User, Host) ->
     Resources = ejabberd_sm:get_user_resources(User, Host),
     lists:foldl(fun(Res, Acc) ->

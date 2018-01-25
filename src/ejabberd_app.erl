@@ -31,7 +31,7 @@
 
 -export([start_modules/0, start/2, prep_stop/1, stop/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 
 %%%

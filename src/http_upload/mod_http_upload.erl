@@ -21,7 +21,7 @@
 -xep([{xep, 363}, {version, "0.3.0"}]).
 
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -define(DEFAULT_TOKEN_BYTES, 32).
 -define(DEFAULT_MAX_FILE_SIZE, 10 * 1024 * 1024). % 10 MB
@@ -45,7 +45,7 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     SubHost = subhost(Host),
@@ -62,7 +62,7 @@ start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, with_default_backend(Opts), [create_slot]).
 
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     SubHost = subhost(Host),
     gen_iq_handler:remove_iq_handler(ejabberd_local, SubHost, ?NS_HTTP_UPLOAD_030),
@@ -75,11 +75,11 @@ stop(Host) ->
     mod_disco:unregister_subhost(Host, SubHost).
 
 
--spec iq_handler(From :: ejabberd:jid(), To :: ejabberd:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: ejabberd:iq()) ->
-    {mongoose_acc:t(), ejabberd:iq() | ignore}.
+-spec iq_handler(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
+                 IQ :: jlib:iq()) ->
+    {mongoose_acc:t(), jlib:iq() | ignore}.
 iq_handler(_From, _To, Acc, IQ = #iq{type = set, sub_el = SubEl}) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, ?ERR_NOT_ALLOWED]}};
+    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_el = Request}) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     Res = case parse_request(Request) of
@@ -102,13 +102,13 @@ iq_handler(_From, _To = #jid{lserver = SubHost}, Acc, IQ = #iq{type = get, sub_e
             end;
 
         bad_request ->
-            IQ#iq{type = error, sub_el = [Request, ?ERR_BAD_REQUEST]}
+            IQ#iq{type = error, sub_el = [Request, mongoose_xmpp_errors:bad_request()]}
     end,
     {Acc, Res}.
 
 
--spec get_disco_identity(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                         Node :: binary(), ejabberd:lang()) -> [jlib:xmlel()] | term().
+-spec get_disco_identity(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
+                         Node :: binary(), ejabberd:lang()) -> [exml:element()] | term().
 get_disco_identity(Acc, _From, _To, _Node = <<>>, Lang) ->
     [#xmlel{name = <<"identity">>,
             attrs = [{<<"category">>, <<"store">>},
@@ -118,8 +118,8 @@ get_disco_identity(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_items(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                      Node :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]} | term().
+-spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
+                      Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, #jid{lserver = Host} = _To, <<"">>, Lang) ->
     Item = #xmlel{name  = <<"item">>,
                   attrs = [{<<"jid">>, subhost(Host)}, {<<"name">>, my_disco_name(Lang)}]},
@@ -130,8 +130,8 @@ get_disco_items(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_features(Acc :: term(), From :: ejabberd:jid(), To :: ejabberd:jid(),
-                         Node :: binary(), ejabberd:lang()) -> {result, [jlib:xmlel()]} | term().
+-spec get_disco_features(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
+                         Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_features({result, Nodes}, _From, _To, _Node = <<>>, _Lang) ->
     {result, [?NS_HTTP_UPLOAD_025, ?NS_HTTP_UPLOAD_030 | Nodes]};
 get_disco_features(empty, From, To, Node, Lang) ->
@@ -140,8 +140,8 @@ get_disco_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
 
--spec get_disco_info(Acc :: [jlib:xmlel()], ejabberd:server(), module(), Node :: binary(),
-                     Lang :: ejabberd:lang()) -> [jlib:xmlel()].
+-spec get_disco_info(Acc :: [exml:element()], jid:server(), module(), Node :: binary(),
+                     Lang :: ejabberd:lang()) -> [exml:element()].
 get_disco_info(Acc, SubHost, _Mod, _Node = <<>>, _Lang) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     case max_file_size(Host) of
@@ -158,7 +158,7 @@ get_disco_info(Acc, _Host, _Mod, _Node, _Lang) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec subhost(Host :: ejabberd:server()) -> binary().
+-spec subhost(Host :: jid:server()) -> binary().
 subhost(Host) ->
     gen_mod:get_module_opt_subhost(Host, ?MODULE, ?DEFAULT_SUBHOST).
 
@@ -168,10 +168,10 @@ my_disco_name(Lang) ->
     translate:translate(Lang, <<"HTTP File Upload">>).
 
 
--spec compose_iq_reply(IQ :: ejabberd:iq(), Namespace :: binary(),
+-spec compose_iq_reply(IQ :: jlib:iq(), Namespace :: binary(),
                        PutUrl :: binary(), GetUrl :: binary(),
                        Headers :: #{binary() => binary()}) ->
-                              Reply :: ejabberd:iq().
+                              Reply :: jlib:iq().
 compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers) ->
     Slot = #xmlel{
               name     = <<"slot">>,
@@ -181,12 +181,12 @@ compose_iq_reply(IQ, Namespace, PutUrl, GetUrl, Headers) ->
     IQ#iq{type = result, sub_el =[Slot]}.
 
 
--spec token_bytes(ejabberd:server()) -> pos_integer().
+-spec token_bytes(jid:server()) -> pos_integer().
 token_bytes(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, token_bytes, ?DEFAULT_TOKEN_BYTES).
 
 
--spec max_file_size(ejabberd:server()) -> pos_integer() | undefined.
+-spec max_file_size(jid:server()) -> pos_integer() | undefined.
 max_file_size(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, max_file_size, ?DEFAULT_MAX_FILE_SIZE).
 
@@ -199,17 +199,17 @@ with_default_backend(Opts) ->
     end.
 
 
--spec module_opts(ejabberd:server()) -> proplists:proplist().
+-spec module_opts(jid:server()) -> proplists:proplist().
 module_opts(Host) ->
     gen_mod:get_module_opts(Host, ?MODULE).
 
 
--spec generate_token(ejabberd:server()) -> binary().
+-spec generate_token(jid:server()) -> binary().
 generate_token(Host) ->
     base16:encode(crypto:strong_rand_bytes(token_bytes(Host))).
 
 
--spec file_too_large_error(MaxFileSize :: non_neg_integer(), Namespace :: binary()) -> jlib:exml().
+-spec file_too_large_error(MaxFileSize :: non_neg_integer(), Namespace :: binary()) -> exml:element().
 file_too_large_error(MaxFileSize, Namespace) ->
     MaxFileSizeBin = integer_to_binary(MaxFileSize),
     MaxSizeEl = #xmlel{name = <<"max-file-size">>,
@@ -217,7 +217,7 @@ file_too_large_error(MaxFileSize, Namespace) ->
     FileTooLargeEl = #xmlel{name = <<"file-too-large">>,
                             attrs = [{<<"xmlns">>, Namespace}],
                             children = [MaxSizeEl]},
-    Error0 = ?ERR_NOT_ACCEPTABLE,
+    Error0 = mongoose_xmpp_errors:not_acceptable(),
     Error0#xmlel{children = [FileTooLargeEl | Error0#xmlel.children]}.
 
 

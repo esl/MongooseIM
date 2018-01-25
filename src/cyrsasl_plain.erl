@@ -31,7 +31,7 @@
 -xep([{xep, 78}, {version, "2.5"}]).
 -behaviour(cyrsasl).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 start(_Opts) ->
     cyrsasl:register_mechanism(<<"PLAIN">>, ?MODULE, plain),
@@ -40,7 +40,7 @@ start(_Opts) ->
 stop() ->
     ok.
 
--spec mech_new(Host :: ejabberd:server(),
+-spec mech_new(Host :: jid:server(),
                Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
 mech_new(_Host, Creds) ->
     {ok, Creds}.

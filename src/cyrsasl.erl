@@ -34,7 +34,7 @@
          server_start/3,
          server_step/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -record(sasl_mechanism, {
           mechanism,
@@ -51,7 +51,7 @@
 -type password_type() :: plain | digest | scram.
 
 -record(sasl_state, {service :: binary(),
-                     myname :: ejabberd:server(),
+                     myname :: jid:server(),
                      realm :: binary(),
                      mech_mod :: sasl_module(),
                      mech_state :: any(),
@@ -61,13 +61,13 @@
 
 % Either a simple error tag or an error tag + <text> field
 -type error() :: {error, binary() | {binary(), binary()}}
-               | {error, binary() | {binary(), binary()}, ejabberd:user()}.
+               | {error, binary() | {binary(), binary()}, jid:user()}.
 
 -export_type([mechanism/0,
               password_type/0,
               error/0]).
 
--callback mech_new(Host :: ejabberd:server(),
+-callback mech_new(Host :: jid:server(),
                    Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
 
 -callback mech_step(State :: tuple(),
@@ -108,7 +108,7 @@ check_credentials(_State, Creds) ->
             {ok, Creds}
     end.
 
--spec listmech(ejabberd:server()) -> [mechanism()].
+-spec listmech(jid:server()) -> [mechanism()].
 listmech(Host) ->
     Mechs = ets:select(sasl_mechanism,
                        [{#sasl_mechanism{mechanism = '$1',
@@ -134,7 +134,7 @@ listmech(Host) ->
                         fun(H) -> gen_mod:is_loaded(H, mod_auth_token) end}]).
 
 -spec server_new(Service :: binary(),
-                 ServerFQDN :: ejabberd:server(),
+                 ServerFQDN :: jid:server(),
                  UserRealm :: binary(),
                  _SecFlags :: [any()],
                  Creds :: mongoose_credentials:t()) -> sasl_state().
@@ -150,7 +150,7 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
                                         | {ok, term(), term()}
                                         | {error, binary()}
                                         | {'continue', _, sasl_state()}
-                                        | {'error', binary(), ejabberd:user()}.
+                                        | {'error', binary(), jid:user()}.
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
         true ->
@@ -195,7 +195,7 @@ server_step(State, ClientIn) ->
 
 %% @doc Remove the anonymous mechanism from the list if not enabled for the
 %% given host
--spec filter_mechanisms(ejabberd:server(), [mechanism()],
+-spec filter_mechanisms(jid:server(), [mechanism()],
                         [{mechanism(), fun()}]) -> [mechanism()].
 filter_mechanisms(Host, Mechanisms, UnwantedMechanisms) ->
     lists:foldl(fun({Mechanism, FilterFun}, Acc) ->

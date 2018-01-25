@@ -35,7 +35,7 @@
     send_stanza_c2s/4
     ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -97,7 +97,7 @@ send_message_headline(From, To, Subject, Body) ->
 %% If the user is local and is online in several resources, the packet is sent
 %%      to all its resources.
 -spec send_packet_all_resources(FromJIDStr :: binary(), ToJIDString :: binary(),
-                                jlib:xmlel()) -> {Res, string()} when
+                                exml:element()) -> {Res, string()} when
     Res :: bad_jid | ok.
 send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
     FromJID = jid:from_binary(FromJIDString),
@@ -119,10 +119,10 @@ send_packet_all_resources(FromJIDString, ToJIDString, Packet) ->
 
 
 
--spec send_packet_all_resources(FromJID :: 'error' | ejabberd:jid(),
-                                ToUser :: ejabberd:user(),
-                                ToServer :: ejabberd:server(),
-                                jlib:xmlel()) -> 'ok'.
+-spec send_packet_all_resources(FromJID :: 'error' | jid:jid(),
+                                ToUser :: jid:user(),
+                                ToServer :: jid:server(),
+                                exml:element()) -> 'ok'.
 send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
     case ejabberd_sm:get_user_resources(ToUser, ToServer) of
         [] ->
@@ -137,15 +137,15 @@ send_packet_all_resources(FromJID, ToUser, ToServer, Packet) ->
     end.
 
 
--spec send_packet_all_resources(ejabberd:jid(), ToU :: binary(), ToS :: binary(),
-                                ToR :: binary(), jlib:xmlel()) -> mongoose_acc:t().
+-spec send_packet_all_resources(jid:jid(), ToU :: binary(), ToS :: binary(),
+                                ToR :: binary(), exml:element()) -> mongoose_acc:t().
 send_packet_all_resources(FromJID, ToU, ToS, ToR, Packet) ->
     ToJID = jid:make(ToU, ToS, ToR),
     ejabberd_router:route(FromJID, ToJID, Packet).
 
 
 -spec build_packet('message_chat' | 'message_headline',
-                  SubjectBody :: [binary() | string(), ...]) -> jlib:xmlel().
+                  SubjectBody :: [binary() | string(), ...]) -> exml:element().
 build_packet(message_chat, [Body]) ->
     #xmlel{ name = <<"message">>,
            attrs = [{<<"type">>, <<"chat">>}, {<<"id">>, list_to_binary(randoms:get_string())}],
@@ -160,7 +160,7 @@ build_packet(message_headline, [Subject, Body]) ->
           }.
 
 
--spec send_stanza_c2s(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+-spec send_stanza_c2s(jid:user(), jid:server(), jid:resource(),
                       Stanza :: binary()) -> {Res, string()} when
     Res :: user_does_not_exist | bad_stanza | ok.
 send_stanza_c2s(Username, Host, Resource, Stanza) ->

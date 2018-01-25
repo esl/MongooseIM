@@ -13,7 +13,7 @@
 -module(mod_aws_sns).
 -author("Rafal Slota").
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 -behavior(gen_mod).
 
@@ -27,12 +27,12 @@
 deps(_Host, Opts) ->
     [{mod_event_pusher, [{backends, [{sns, Opts}]}], hard}].
 
--spec start(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> any().
 start(_Host, _Opts) ->
     ?WARNING_MSG("mod_aws_sns is deprecated and will be removed in the future.~n"
                  "Please use mod_event_pusher with sns backend.~n"
                  "Refer to mod_event_pusher documentation for more information.", []).
 
--spec stop(Host :: ejabberd:server()) -> ok.
+-spec stop(Host :: jid:server()) -> ok.
 stop(_Host) ->
     ok.

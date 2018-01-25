@@ -3,8 +3,8 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("../include/ejabberd.hrl").
-
+-include_lib("../include/mongoose.hrl").
+-include("../include/external_component.hrl").
 
 all() ->
     [ registering, registering_with_local ].

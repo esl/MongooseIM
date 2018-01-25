@@ -36,7 +36,7 @@
          remove_old_messages/2,
          remove_user/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
 
@@ -106,7 +106,7 @@ remove_user(User, Server) ->
         end,
     mnesia:transaction(F).
 
--spec remove_expired_messages(ejabberd:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
+-spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_expired_messages(_Host) ->
     TimeStamp = p1_time_compat:timestamp(),
@@ -124,7 +124,7 @@ remove_expired_messages(_Host) ->
             {ok, Result}
     end.
 
--spec remove_old_messages(ejabberd:lserver(), erlang:timestamp()) ->
+-spec remove_old_messages(jid:lserver(), erlang:timestamp()) ->
     {error, term()} | {ok, HowManyRemoved} when
     HowManyRemoved :: integer().
 remove_old_messages(_Host, TimeStamp) ->

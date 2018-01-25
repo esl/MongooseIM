@@ -282,7 +282,7 @@ To cut the long story short:
 
 -behaviour(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([run_custom_hook/1]).

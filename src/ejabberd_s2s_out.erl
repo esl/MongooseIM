@@ -56,7 +56,7 @@
          test_get_addr_port/1,
          get_addr_port/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,
@@ -128,17 +128,6 @@
         "to='~s'~s>">>
        ).
 
--define(STREAM_TRAILER, <<"</stream:stream>">>).
-
--define(INVALID_NAMESPACE_ERR,
-        exml:to_binary(?SERR_INVALID_NAMESPACE)).
-
--define(HOST_UNKNOWN_ERR,
-        exml:to_binary(?SERR_HOST_UNKNOWN)).
-
--define(INVALID_XML_ERR,
-        exml:to_binary(?SERR_XML_NOT_WELL_FORMED)).
-
 -define(SOCKET_DEFAULT_RESULT, {error, badarg}).
 
 %%%----------------------------------------------------------------------
@@ -205,7 +194,7 @@ init([From, Server, Type]) ->
                             start_connection(self()),
                             {false, {Pid, Key, SID}}
                     end,
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {ok, open_socket, #state{use_v10 = UseV10,
                              tls = TLS,
                              tls_required = TLSRequired,
@@ -347,7 +336,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
         {<<"jabber:server">>, <<"">>, true} when StateData#state.use_v10 ->
             {next_state, wait_for_features, StateData#state{db_enabled = false}, ?FSMTIMEOUT};
         {NSProvided, DB, _} ->
-            send_text(StateData, ?INVALID_NAMESPACE_ERR),
+            send_text(StateData, exml:to_binary(mongoose_xmpp_errors:invalid_namespace())),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid namespace).~n"
                       "Namespace provided: ~p~nNamespace expected: \"jabber:server\"~n"
                       "xmlns:db provided: ~p~nAll attributes: ~p",
@@ -356,7 +345,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData0) ->
     end;
 wait_for_stream({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("Closing s2s connection: ~s -> ~s (invalid xml)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
@@ -427,7 +416,7 @@ wait_for_validation({xmlstreamerror, _}, StateData) ->
     ?INFO_MSG("wait for validation: ~s -> ~s (xmlstreamerror)",
               [StateData#state.myname, StateData#state.server]),
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     {stop, normal, StateData};
 wait_for_validation(timeout, #state{verify = {VPid, VKey, SID}} = StateData)
   when is_pid(VPid) and is_binary(VKey) and is_binary(SID) ->
@@ -465,7 +454,7 @@ wait_for_features({xmlstreamelement, El}, StateData) ->
             handle_parsed_features({SASLEXT, StartTLS, StartTLSRequired, StateData});
         _ ->
             send_text(StateData,
-                      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                       (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -476,7 +465,7 @@ wait_for_features({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_features({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for features: xmlstreamerror", []),
     {stop, normal, StateData};
 wait_for_features(timeout, StateData) ->
@@ -506,7 +495,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                                     }, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -522,7 +511,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
                      StateData#state{socket = undefined}, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -530,7 +519,7 @@ wait_for_auth_result({xmlstreamelement, El}, StateData) ->
             end;
         _ ->
             send_text(StateData,
-                      <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                      <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
             ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                       [StateData#state.myname, StateData#state.server]),
@@ -541,7 +530,7 @@ wait_for_auth_result({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_auth_result({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for auth result: xmlstreamerror", []),
     {stop, normal, StateData};
 wait_for_auth_result(timeout, StateData) ->
@@ -577,7 +566,7 @@ wait_for_starttls_proceed({xmlstreamelement, El}, StateData) ->
                     {next_state, wait_for_stream, NewStateData, ?FSMTIMEOUT};
                 _ ->
                     send_text(StateData,
-                              <<(exml:to_binary(?SERR_BAD_FORMAT))/binary,
+                              <<(mongoose_xmpp_errors:bad_format_bin())/binary,
                               (?STREAM_TRAILER)/binary>>),
                     ?INFO_MSG("Closing s2s connection: ~s -> ~s (bad format)",
                               [StateData#state.myname, StateData#state.server]),
@@ -593,7 +582,7 @@ wait_for_starttls_proceed({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 wait_for_starttls_proceed({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("wait for starttls proceed: xmlstreamerror", []),
     {stop, normal, StateData};
 wait_for_starttls_proceed(timeout, StateData) ->
@@ -658,7 +647,7 @@ stream_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
-              <<(?INVALID_XML_ERR)/binary, (?STREAM_TRAILER)/binary>>),
+              <<(mongoose_xmpp_errors:xml_not_well_formed_bin())/binary, (?STREAM_TRAILER)/binary>>),
     ?INFO_MSG("stream established: ~s -> ~s (xmlstreamerror)",
               [StateData#state.myname, StateData#state.server]),
     {stop, normal, StateData};
@@ -757,20 +746,20 @@ handle_info({send_text, Text}, StateName, StateData) ->
     ?ERROR_MSG("{s2s_out:send_text, Text}: ~p~n", [{send_text, Text}]), % is it ever called?
     send_text(StateData, Text),
     cancel_timer(StateData#state.timer),
-    Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+    Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
     {next_state, StateName, StateData#state{timer = Timer},
      get_timeout_interval(StateName)};
 handle_info({send_element, Acc, El}, StateName, StateData) ->
     case StateName of
         stream_established ->
             cancel_timer(StateData#state.timer),
-            Timer = erlang:start_timer(?S2STIMEOUT, self(), []),
+            Timer = erlang:start_timer(ejabberd_s2s:timeout(), self(), []),
             send_element(StateData, El),
             {next_state, StateName, StateData#state{timer = Timer}};
         %% In this state we bounce all message: We are waiting before
         %% trying to reconnect
         wait_before_retry ->
-            bounce_element(Acc, El, ?ERR_REMOTE_SERVER_NOT_FOUND),
+            bounce_element(Acc, El, mongoose_xmpp_errors:remote_server_not_found()),
             {next_state, StateName, StateData};
         relay_to_bridge ->
             %% In this state we relay all outbound messages
@@ -780,7 +769,7 @@ handle_info({send_element, Acc, El}, StateName, StateData) ->
             case catch Mod:Fun(El) of
                 {'EXIT', Reason} ->
                     ?ERROR_MSG("Error while relaying to bridge: ~p", [Reason]),
-                    bounce_element(Acc, El, ?ERR_INTERNAL_SERVER_ERROR),
+                    bounce_element(Acc, El, mongoose_xmpp_errors:internal_server_error()),
                     wait_before_reconnect(StateData);
                 _ ->
                     {next_state, StateName, StateData}
@@ -821,8 +810,8 @@ terminate(Reason, StateName, StateData) ->
               {StateData#state.myname, StateData#state.server}, self())
     end,
     %% bounce queue manage by process and Erlang message queue
-    bounce_queue(StateData#state.queue, ?ERR_REMOTE_SERVER_NOT_FOUND),
-    bounce_messages(?ERR_REMOTE_SERVER_NOT_FOUND),
+    bounce_queue(StateData#state.queue, mongoose_xmpp_errors:remote_server_not_found()),
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found()),
     case StateData#state.socket of
         undefined ->
             ok;
@@ -848,11 +837,11 @@ send_text(StateData, Text) ->
     ejabberd_socket:send(StateData#state.socket, Text).
 
 
--spec send_element(state(), jlib:xmlel()|mongoose_acc:t()) -> 'ok'.
+-spec send_element(state(), exml:element()|mongoose_acc:t()) -> 'ok'.
 send_element(StateData, #xmlel{} = El) ->
     send_text(StateData, exml:to_binary(El)).
 
--spec send_element(state(), mongoose_acc:t(), jlib:xmlel()) -> mongoose_acc:t().
+-spec send_element(state(), mongoose_acc:t(), exml:element()) -> mongoose_acc:t().
 send_element(StateData, Acc, El) ->
     send_text(StateData, exml:to_binary(El)),
     Acc.
@@ -870,7 +859,7 @@ send_queue(StateData, Q) ->
 
 
 %% @doc Bounce a single message (xmlel)
--spec bounce_element(Acc :: mongoose_acc:t(), El :: xmlel(), Error :: xmlel()) -> 'ok'.
+-spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> 'ok'.
 bounce_element(Acc, El, Error) ->
     case mongoose_acc:get(type, Acc) of
         <<"error">> -> ok;
@@ -883,7 +872,7 @@ bounce_element(Acc, El, Error) ->
     end.
 
 
--spec bounce_queue(Q :: element_queue(), Error :: jlib:xmlel()) -> 'ok'.
+-spec bounce_queue(Q :: element_queue(), Error :: exml:element()) -> 'ok'.
 bounce_queue(Q, Error) ->
     case queue:out(Q) of
         {{value, {Acc, El}}, Q1} ->
@@ -910,7 +899,7 @@ cancel_timer(Timer) ->
     end.
 
 
--spec bounce_messages(jlib:xmlel()) -> 'ok'.
+-spec bounce_messages(exml:element()) -> 'ok'.
 bounce_messages(Error) ->
     receive
         {send_element, Acc, El} ->
@@ -964,7 +953,7 @@ send_db_request(StateData) ->
     end.
 
 
--spec is_verify_res(jlib:xmlel()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
+-spec is_verify_res(exml:element()) -> 'false' | {'result', _, _, _, _} | {'verify', _, _, _, _}.
 is_verify_res(#xmlel{name = Name,
                      attrs = Attrs}) when Name == <<"db:result">> ->
     {result,
@@ -988,7 +977,7 @@ is_verify_res(_) ->
 
 -include_lib("kernel/include/inet.hrl").
 
--spec get_addr_port(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_addr_port(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_addr_port(Server) ->
     Res = srv_lookup(Server),
     case Res of
@@ -1011,7 +1000,7 @@ get_addr_port(Server) ->
     end.
 
 
--spec srv_lookup(ejabberd:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
+-spec srv_lookup(jid:server()) -> {'error', atom()} | {'ok', inet:hostent()}.
 srv_lookup(Server) ->
     Options = case ejabberd_config:get_local_option(s2s_dns_options) of
                   L when is_list(L) -> L;
@@ -1026,7 +1015,7 @@ srv_lookup(Server) ->
 %% has a "_xmpp-server._tcp." but not a "_jabber._tcp." record and
 %% we don't get a DNS reply for the "_xmpp-server._tcp." lookup. In this
 %% case we'll give up when we get the "_jabber._tcp." nxdomain reply.
--spec srv_lookup(ejabberd:server(),
+-spec srv_lookup(jid:server(),
                  Timeout :: non_neg_integer(),
                  Retries :: pos_integer()
                  ) -> {'error', atom()} | {'ok', inet:hostent()}.
@@ -1156,8 +1145,8 @@ get_timeout_interval(StateName) ->
 -spec wait_before_reconnect(state()) -> fsm_return().
 wait_before_reconnect(StateData) ->
     %% bounce queue manage by process and Erlang message queue
-    bounce_queue(StateData#state.queue, ?ERR_REMOTE_SERVER_NOT_FOUND),
-    bounce_messages(?ERR_REMOTE_SERVER_NOT_FOUND),
+    bounce_queue(StateData#state.queue, mongoose_xmpp_errors:remote_server_not_found()),
+    bounce_messages(mongoose_xmpp_errors:remote_server_not_found()),
     cancel_timer(StateData#state.timer),
     Delay = case StateData#state.delay_to_retry of
                 undefined_delay ->
@@ -1209,7 +1198,7 @@ fsm_limit_opts() ->
     end.
 
 
--spec get_addr_list(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_addr_list(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_addr_list(Server) ->
     case get_predefined_addresses(Server) of
         [] ->
@@ -1224,7 +1213,7 @@ get_addr_list(Server) ->
 
 
 %% @doc Get IPs predefined for a given s2s domain in the configuration
--spec get_predefined_addresses(ejabberd:server()) -> [{inet:ip_address(), inet:port_number()}].
+-spec get_predefined_addresses(jid:server()) -> [{inet:ip_address(), inet:port_number()}].
 get_predefined_addresses(Server) ->
     S2SAddr = ejabberd_config:get_local_option({s2s_addr, Server}),
     do_get_predefined_addresses(S2SAddr).

@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_metrics_hooks).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -export([get_hooks/1]).
@@ -37,7 +37,7 @@
          privacy_list_push/5
         ]).
 
--type hook() :: [atom() | ejabberd:server() | integer(), ...].
+-type hook() :: [atom() | jid:server() | integer(), ...].
 -type t() :: hook().
 -type metrics_notify_return() ::
                 map()
@@ -73,14 +73,14 @@ get_hooks(Host) ->
      [user_ping_timeout,      Host, ?MODULE, user_ping_timeout, 50]
      | mongoose_metrics_mam_hooks:get_hooks(Host)].
 
--spec sm_register_connection_hook(map(), tuple(), ejabberd:jid(), term()
+-spec sm_register_connection_hook(map(), tuple(), jid:jid(), term()
                                  ) -> metrics_notify_return().
 sm_register_connection_hook(Acc, _, #jid{server = Server}, _) ->
     mongoose_metrics:update(Server, sessionSuccessfulLogins, 1),
     mongoose_metrics:update(Server, sessionCount, 1),
     Acc.
 
--spec sm_remove_connection_hook(map(), tuple(), ejabberd:jid(),
+-spec sm_remove_connection_hook(map(), tuple(), jid:jid(),
                                 term(), ejabberd_sm:close_reason()
                                ) -> metrics_notify_return().
 sm_remove_connection_hook(Acc, _, #jid{server = Server}, _, _Reason) ->
@@ -93,15 +93,15 @@ auth_failed(Acc, _, Server) ->
     mongoose_metrics:update(Server, sessionAuthFails, 1),
     Acc.
 
--spec user_send_packet(map(), ejabberd:jid(), tuple(), tuple()
+-spec user_send_packet(map(), jid:jid(), tuple(), tuple()
                       ) -> metrics_notify_return().
 user_send_packet(Acc, #jid{server = Server}, _, Packet) ->
     mongoose_metrics:update(Server, xmppStanzaSent, 1),
     user_send_packet_type(Server, Packet),
     Acc.
 
--spec user_send_packet_type(Server :: ejabberd:server(),
-                            Packet :: jlib:xmlel()) -> ok | {error, not_found}.
+-spec user_send_packet_type(Server :: jid:server(),
+                            Packet :: exml:element()) -> ok | {error, not_found}.
 user_send_packet_type(Server, #xmlel{name = <<"message">>}) ->
     mongoose_metrics:update(Server, xmppMessageSent, 1);
 user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
@@ -109,14 +109,14 @@ user_send_packet_type(Server, #xmlel{name = <<"iq">>}) ->
 user_send_packet_type(Server, #xmlel{name = <<"presence">>}) ->
     mongoose_metrics:update(Server, xmppPresenceSent, 1).
 
--spec user_receive_packet(map(), ejabberd:jid(), tuple(), tuple(), tuple()) -> term().
+-spec user_receive_packet(map(), jid:jid(), tuple(), tuple(), tuple()) -> term().
 user_receive_packet(Acc, #jid{server = Server}, _, _, Packet) ->
     mongoose_metrics:update(Server, xmppStanzaReceived, 1),
     user_receive_packet_type(Server, Packet),
     Acc.
 
--spec user_receive_packet_type(Server :: ejabberd:server(),
-                               Packet :: jlib:xmlel()) -> ok | {error, not_found}.
+-spec user_receive_packet_type(Server :: jid:server(),
+                               Packet :: exml:element()) -> ok | {error, not_found}.
 user_receive_packet_type(Server, #xmlel{name = <<"message">>}) ->
     mongoose_metrics:update(Server, xmppMessageReceived, 1);
 user_receive_packet_type(Server, #xmlel{name = <<"iq">>}) ->
@@ -130,13 +130,13 @@ xmpp_bounce_message(Acc) ->
     mongoose_metrics:update(Server, xmppMessageBounced, 1),
     Acc.
 
--spec xmpp_stanza_dropped(mongoose_acc:t(), ejabberd:jid(), ejabberd:jid(), xmlel()) ->
+-spec xmpp_stanza_dropped(mongoose_acc:t(), jid:jid(), jid:jid(), exml:element()) ->
     metrics_notify_return().
 xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
     mongoose_metrics:update(Server, xmppStanzaDropped, 1),
     Acc.
 
--spec xmpp_send_element(Acc :: map(), Server :: ejabberd:server()) -> ok | metrics_notify_return().
+-spec xmpp_send_element(Acc :: map(), Server :: jid:server()) -> ok | metrics_notify_return().
 xmpp_send_element(Acc, _El) ->
     Server = mongoose_acc:get(server, Acc),
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
@@ -158,12 +158,12 @@ xmpp_send_element(Acc, _El) ->
 
 %% Roster
 
--spec roster_get(list(), {_, ejabberd:server()}) -> list().
+-spec roster_get(list(), {_, jid:server()}) -> list().
 roster_get(Acc, {_, Server}) ->
     mongoose_metrics:update(Server, modRosterGets, 1),
     Acc.
 
--spec roster_set(Acc :: map(), JID :: ejabberd:jid(), tuple(), tuple()) ->
+-spec roster_set(Acc :: map(), JID :: jid:jid(), tuple(), tuple()) ->
     metrics_notify_return().
 roster_set(Acc, #jid{server = Server}, _, _) ->
     mongoose_metrics:update(Server, modRosterSets, 1),
@@ -179,7 +179,7 @@ roster_in_subscription(Acc, _, Server, _, unsubscribed, _) ->
 roster_in_subscription(Acc, _, _, _, _, _) ->
     Acc.
 
--spec roster_push(map(), ejabberd:jid(), term()) -> metrics_notify_return().
+-spec roster_push(map(), jid:jid(), term()) -> metrics_notify_return().
 roster_push(Acc, #jid{server = Server}, _) ->
     mongoose_metrics:update(Server, modRosterPush, 1),
     Acc.
@@ -187,27 +187,27 @@ roster_push(Acc, #jid{server = Server}, _) ->
 %% Register
 
 %% #rh
--spec register_user(map(), binary(), ejabberd:server()) -> metrics_notify_return().
+-spec register_user(map(), binary(), jid:server()) -> metrics_notify_return().
 register_user(Acc, _, Server) ->
     mongoose_metrics:update(Server, modRegisterCount, 1),
     Acc.
 
--spec remove_user(map(), binary(), ejabberd:server()) -> metrics_notify_return().
+-spec remove_user(map(), binary(), jid:server()) -> metrics_notify_return().
 remove_user(Acc, _, Server) ->
     mongoose_metrics:update(Server, modUnregisterCount, 1),
     Acc.
 
 %% Privacy
 
--spec privacy_iq_get(term(), ejabberd:jid(), ejabberd:jid(), term(), term()) -> term().
+-spec privacy_iq_get(term(), jid:jid(), jid:jid(), term(), term()) -> term().
 privacy_iq_get(Acc, #jid{server  = Server}, _, _, _) ->
     mongoose_metrics:update(Server, modPrivacyGets, 1),
     Acc.
 
 -spec privacy_iq_set(Acc :: term(),
-                     From :: ejabberd:jid(),
-                     _To :: ejabberd:jid(),
-                     _IQ :: ejabberd:iq()) -> ok | metrics_notify_return() | term().
+                     From :: jid:jid(),
+                     _To :: jid:jid(),
+                     _IQ :: jlib:iq()) -> ok | metrics_notify_return() | term().
 privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
@@ -222,8 +222,8 @@ privacy_iq_set(Acc, #jid{server = Server}, _To, #iq{sub_el = SubEl}) ->
     Acc.
 
 -spec privacy_list_push(Acc :: map(),
-                        _From :: ejabberd:jid(),
-                        To :: ejabberd:jid(),
+                        _From :: jid:jid(),
+                        To :: jid:jid(),
                         Broadcast :: ejabberd_c2s:broadcast(),
                         SessionCount :: non_neg_integer()) -> ok | metrics_notify_return().
 privacy_list_push(Acc, _From, #jid{server = Server} = _To, _Broadcast, SessionCount) ->
@@ -235,7 +235,7 @@ user_ping_timeout(Acc, _JID) ->
 
 -spec privacy_check_packet(Acc :: mongoose_acc:t(),
                           binary(),
-                          Server :: ejabberd:server(),
+                          Server :: jid:server(),
                           term(), term(), term()) -> mongoose_acc:t().
 privacy_check_packet(Acc, _, Server, _, {_, _, _, _}, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),

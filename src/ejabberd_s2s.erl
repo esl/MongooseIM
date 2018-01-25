@@ -46,7 +46,8 @@
          allow_host/2,
          incoming_s2s_number/0,
          outgoing_s2s_number/0,
-         domain_utf8_to_ascii/1
+         domain_utf8_to_ascii/1,
+         timeout/0
         ]).
 
 %% Hooks callbacks
@@ -59,14 +60,14 @@
 %% ejabberd API
 -export([get_info_s2s_connections/1]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 
 -define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER, 1).
 -define(DEFAULT_MAX_S2S_CONNECTIONS_NUMBER_PER_NODE, 1).
 
--type fromto() :: {'global' | ejabberd:server(), ejabberd:server()}.
+-type fromto() :: {'global' | jid:server(), jid:server()}.
 -record(s2s, {
           fromto,
           pid
@@ -175,7 +176,7 @@ node_cleanup(Acc, Node) ->
     Res = mnesia:async_dirty(F),
     maps:put(cleanup_result, Res, Acc).
 
--spec key({ejabberd:lserver(), ejabberd:lserver()}, binary()) ->
+-spec key({jid:lserver(), jid:lserver()}, binary()) ->
     binary().
 key({From, To}, StreamID) ->
     Secret = get_or_generate_secret(),
@@ -259,10 +260,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
--spec do_route(From :: ejabberd:jid(),
-               To :: ejabberd:jid(),
+-spec do_route(From :: jid:jid(),
+               To :: jid:jid(),
                Acc :: mongoose_acc:t(),
-               Packet :: xmlel()) ->
+               Packet :: exml:element()) ->
         done. % this is the 'last resort' router, it always returns 'done'.
 do_route(From, To, Acc, Packet) ->
     ?DEBUG("s2s manager~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
@@ -288,14 +289,14 @@ do_route(From, To, Acc, Packet) ->
                 <<"result">> -> done;
                 _ ->
                     Err = jlib:make_error_reply(
-                            Packet, ?ERR_SERVICE_UNAVAILABLE),
+                            Packet, mongoose_xmpp_errors:service_unavailable()),
                     ejabberd_router:route(To, From, Acc, Err)
             end,
             done
     end.
 
--spec find_connection(From :: ejabberd:jid(),
-                      To :: ejabberd:jid()) -> {'aborted', _} | {'atomic', _}.
+-spec find_connection(From :: jid:jid(),
+                      To :: jid:jid()) -> {'aborted', _} | {'atomic', _}.
 find_connection(From, To) ->
     #jid{lserver = MyServer} = From,
     #jid{lserver = Server} = To,
@@ -357,12 +358,12 @@ maybe_open_several_connections(From, To, MyServer, Server, FromTo,
             {aborted, error}
     end.
 
--spec choose_connection(From :: ejabberd:jid(),
+-spec choose_connection(From :: jid:jid(),
                         Connections :: [s2s()]) -> any().
 choose_connection(From, Connections) ->
     choose_pid(From, [C#s2s.pid || C <- Connections]).
 
--spec choose_pid(From :: ejabberd:jid(), Pids :: [pid()]) -> pid().
+-spec choose_pid(From :: jid:jid(), Pids :: [pid()]) -> pid().
 choose_pid(From, Pids) ->
     Pids1 = case [P || P <- Pids, node(P) == node()] of
                 [] -> Pids;
@@ -376,8 +377,8 @@ choose_pid(From, Pids) ->
     ?DEBUG("Using ejabberd_s2s_out ~p~n", [Pid]),
     Pid.
 
--spec open_several_connections(N :: pos_integer(), MyServer :: ejabberd:server(),
-    Server :: ejabberd:server(), From :: ejabberd:jid(), FromTo :: fromto(),
+-spec open_several_connections(N :: pos_integer(), MyServer :: jid:server(),
+    Server :: jid:server(), From :: jid:jid(), FromTo :: fromto(),
     MaxS2S :: pos_integer(), MaxS2SPerNode :: pos_integer())
       -> {'aborted', _} | {'atomic', _}.
 open_several_connections(N, MyServer, Server, From, FromTo,
@@ -394,8 +395,8 @@ open_several_connections(N, MyServer, Server, From, FromTo,
             {atomic, choose_pid(From, PIDs)}
     end.
 
--spec new_connection(MyServer :: ejabberd:server(), Server :: ejabberd:server(),
-    From :: ejabberd:jid(), FromTo :: fromto(), MaxS2S :: pos_integer(),
+-spec new_connection(MyServer :: jid:server(), Server :: jid:server(),
+    From :: jid:jid(), FromTo :: fromto(), MaxS2S :: pos_integer(),
     MaxS2SPerNode :: pos_integer()) -> {'aborted', _} | {'atomic', _}.
 new_connection(MyServer, Server, From, FromTo,
                MaxS2SConnectionsNumber, MaxS2SConnectionsNumberPerNode) ->
@@ -454,7 +455,7 @@ needed_connections_number(Ls, MaxS2SConnectionsNumber,
 %% Description: Return true if the destination must be considered as a
 %% service.
 %% --------------------------------------------------------------------
--spec is_service(ejabberd:jid(), ejabberd:jid()) -> boolean().
+-spec is_service(jid:jid(), jid:jid()) -> boolean().
 is_service(From, To) ->
     LFromDomain = From#jid.lserver,
     case ejabberd_config:get_local_option({route_subdomains, LFromDomain}) of
@@ -478,11 +479,13 @@ parent_domains(<<$., Rest/binary>>, Acc) ->
 parent_domains(<<_, Rest/binary>>, Acc) ->
     parent_domains(Rest, Acc).
 
--spec send_element(pid(), mongoose_acc:t(), xmlel()) ->
-    {'send_element', mongoose_acc:t(), xmlel()}.
+-spec send_element(pid(), mongoose_acc:t(), exml:element()) ->
+    {'send_element', mongoose_acc:t(), exml:element()}.
 send_element(Pid, Acc, El) ->
     Pid ! {send_element, Acc, El}.
 
+timeout() ->
+    600000.
 %%--------------------------------------------------------------------
 %% Function: domain_utf8_to_ascii(Domain) -> binary() | false
 %% Description: Converts a UTF-8 domain to ASCII (IDNA)

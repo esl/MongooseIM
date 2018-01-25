@@ -72,10 +72,11 @@
 -export([do_filter/3]).
 -export([do_route/4]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_privacy.hrl").
+-include("session.hrl").
 
 -record(state, {}).
 -type state() :: #state{}.
@@ -85,14 +86,14 @@
 
 -type session() :: #session{
                       sid      :: sid(),
-                      usr      :: ejabberd:simple_jid(),
-                      us       :: ejabberd:simple_bare_jid(),
+                      usr      :: jid:simple_jid(),
+                      us       :: jid:simple_bare_jid(),
                       priority :: priority(),
                       info     :: list()
                      }.
 
 %% Session representation as 4-tuple.
--type ses_tuple() :: {USR :: ejabberd:simple_jid(),
+-type ses_tuple() :: {USR :: jid:simple_jid(),
                       Sid :: ejabberd_sm:sid(),
                       Prio :: priority(),
                       Info :: list()}.
@@ -124,13 +125,11 @@ start_link() ->
 
 
 -spec route(From, To, Packet) -> Acc when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
-      Packet :: jlib:xmlel() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
+      From :: jid:jid(),
+      To :: jid:jid(),
+      Packet :: exml:element() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    ?DEPRECATED, % used by MAM
-%%    ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
     route(From, To, mongoose_acc:from_element(Packet, From, To));
 route(From, To, {broadcast, Payload}) ->
     route(From, To, mongoose_acc:new(), {broadcast, Payload});
@@ -160,8 +159,8 @@ route(From, To, Acc, El) ->
 
 -spec open_session(SID, User, Server, Resource, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
+      User :: jid:user(),
+      Server :: jid:server(),
       Resource :: binary(),
       Info :: 'undefined' | [any()],
       ReplacedPids :: [pid()].
@@ -170,8 +169,8 @@ open_session(SID, User, Server, Resource, Info) ->
 
 -spec open_session(SID, User, Server, Resource, Priority, Info) -> ReplacedPids when
       SID :: 'undefined' | sid(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
+      User :: jid:user(),
+      Server :: jid:server(),
       Resource :: binary(),
       Priority :: integer() | undefined,
       Info :: 'undefined' | [any()],
@@ -186,9 +185,9 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
 
 -spec close_session(SID, User, Server, Resource, Reason) -> ok when
       SID :: 'undefined' | sid(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource(),
       Reason :: close_reason().
 close_session(SID, User, Server, Resource, Reason) ->
     LUser = jid:nodeprep(User),
@@ -205,7 +204,7 @@ close_session(SID, User, Server, Resource, Reason) ->
     ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
                        [SID, JID, Info, Reason]).
 
--spec store_info(ejabberd:user(), ejabberd:server(), ejabberd:resource(),
+-spec store_info(jid:user(), jid:server(), jid:resource(),
                  {any(), any()}) -> {ok, {any(), any()}} | {error, offline}.
 store_info(User, Server, Resource, {Key, _Value} = KV) ->
     case get_session(User, Server, Resource) of
@@ -227,9 +226,9 @@ store_info(User, Server, Resource, {Key, _Value} = KV) ->
 
 -spec check_in_subscription(Acc, User, Server, JID, Type, Reason) -> any() | {stop, false} when
       Acc :: any(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      JID :: ejabberd:jid(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      JID :: jid:jid(),
       Type :: any(),
       Reason :: any().
 check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
@@ -242,20 +241,20 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
 
 -spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
       Acc :: map(),
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
-      Packet :: jlib:xmlel().
+      From :: jid:jid(),
+      To :: jid:jid(),
+      Packet :: exml:element().
 bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
     Acc1 = ejabberd_hooks:run_fold(xmpp_bounce_message,
                             Server,
                             Acc,
                             []),
-    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable()),
     Acc2 = ejabberd_router:route(To, From, Acc1, Err),
     {stop, Acc2}.
 
--spec disconnect_removed_user(mongoose_acc:t(), User :: ejabberd:user(),
-                              Server :: ejabberd:server()) -> mongoose_acc:t().
+-spec disconnect_removed_user(mongoose_acc:t(), User :: jid:user(),
+                              Server :: jid:server()) -> mongoose_acc:t().
 disconnect_removed_user(Acc, User, Server) ->
     ejabberd_sm:route(jid:make(<<>>, <<>>, <<>>),
                       jid:make(User, Server, <<>>),
@@ -263,7 +262,7 @@ disconnect_removed_user(Acc, User, Server) ->
                       {broadcast, {exit, <<"User removed">>}}).
 
 
--spec get_user_resources(User :: ejabberd:user(), Server :: ejabberd:server()) -> [binary()].
+-spec get_user_resources(User :: jid:user(), Server :: jid:server()) -> [binary()].
 get_user_resources(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -272,9 +271,9 @@ get_user_resources(User, Server) ->
 
 
 -spec get_session_ip(User, Server, Resource) -> undefined | {inet:ip_address(), integer()} when
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource().
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource().
 get_session_ip(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -289,9 +288,9 @@ get_session_ip(User, Server, Resource) ->
 
 
 -spec get_session(User, Server, Resource) -> offline | ses_tuple() when
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource().
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource().
 get_session(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -306,7 +305,7 @@ get_session(User, Server, Resource) ->
              Session#session.priority,
              Session#session.info}
     end.
--spec get_raw_sessions(ejabberd:user(), ejabberd:server()) -> [sm_session()].
+-spec get_raw_sessions(jid:user(), jid:server()) -> [session()].
 get_raw_sessions(User, Server) ->
     clean_session_list(
       ejabberd_gen_sm:get_sessions(sm_backend(), jid:nodeprep(User), jid:nameprep(Server))).
@@ -315,9 +314,9 @@ get_raw_sessions(User, Server) ->
       Acc :: mongoose_acc:t(),
       Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource(),
       Prio :: 'undefined' | integer(),
       Presence :: any(),
       Info :: 'undefined' | [any()].
@@ -331,9 +330,9 @@ set_presence(Acc, SID, User, Server, Resource, Priority, Presence, Info) ->
       Acc :: mongoose_acc:t(),
       Acc1 :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource(),
       Status :: any(),
       Info :: 'undefined' | [any()].
 unset_presence(Acc, SID, User, Server, Resource, Status, Info) ->
@@ -346,9 +345,9 @@ unset_presence(Acc, SID, User, Server, Resource, Status, Info) ->
 
 -spec close_session_unset_presence(SID, User, Server, Resource, Status, Reason) -> ok when
       SID :: 'undefined' | sid(),
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource(),
       Status :: any(),
       Reason :: close_reason().
 close_session_unset_presence(SID, User, Server, Resource, Status, Reason) ->
@@ -360,9 +359,9 @@ close_session_unset_presence(SID, User, Server, Resource, Status, Reason) ->
 
 
 -spec get_session_pid(User, Server, Resource) -> none | pid() when
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource().
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource().
 get_session_pid(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -392,12 +391,12 @@ get_total_sessions_number() ->
     ejabberd_gen_sm:total_count(sm_backend()).
 
 
--spec get_vh_session_number(ejabberd:server()) -> non_neg_integer().
+-spec get_vh_session_number(jid:server()) -> non_neg_integer().
 get_vh_session_number(Server) ->
     length(ejabberd_gen_sm:get_sessions(sm_backend(), Server)).
 
 
--spec get_vh_session_list(ejabberd:server()) -> [ses_tuple()].
+-spec get_vh_session_list(jid:server()) -> [ses_tuple()].
 get_vh_session_list(Server) ->
     ejabberd_gen_sm:get_sessions(sm_backend(), Server).
 
@@ -551,9 +550,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec set_session(SID, User, Server, Resource, Prio, Info) -> ok | {error, any()} when
       SID :: sid() | 'undefined',
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource(),
       Prio :: priority(),
       Info :: undefined | [any()].
 set_session(SID, User, Server, Resource, Priority, Info) ->
@@ -576,9 +575,9 @@ do_filter(From, To, Packet) ->
 
 -spec do_route(Acc, From, To, Payload) -> Acc when
     Acc :: mongoose_acc:t(),
-    From :: ejabberd:jid(),
-    To :: ejabberd:jid(),
-    Payload :: jlib:xmlel() | ejabberd_c2s:broadcast().
+    From :: jid:jid(),
+    To :: jid:jid(),
+    Payload :: exml:element() | ejabberd_c2s:broadcast().
 do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
     ?DEBUG("from=~p, to=~p, broadcast=~p", [From, To, Broadcast]),
     #jid{ luser = LUser, lserver = LServer, lresource = LResource} = To,
@@ -628,10 +627,10 @@ do_route(Acc, From, To, El) ->
     Acc.
 
 -spec do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) -> boolean() when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel(),
+      Packet :: exml:element(),
       Type :: 'subscribe' | 'subscribed' | 'unsubscribe' | 'unsubscribed',
       Reason :: any().
 do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
@@ -649,10 +648,10 @@ do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
 
 -spec do_route_no_resource_presence(Type, From, To, Acc, Packet) -> boolean() when
       Type :: binary(),
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel().
+      Packet :: exml:element().
 do_route_no_resource_presence(<<"subscribe">>, From, To, Acc, Packet) ->
     Reason = xml:get_path_s(Packet, [{elem, <<"status">>}, cdata]),
     do_route_no_resource_presence_prv(From, To, Acc, Packet, subscribe, Reason);
@@ -669,10 +668,10 @@ do_route_no_resource_presence(_, _, _, _, _) ->
 -spec do_route_no_resource(Name, Type, From, To, Acc, El) -> Result when
       Name :: undefined | binary(),
       Type :: any(),
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      El :: xmlel(),
+      El :: exml:element(),
       Result ::ok | stop | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
 do_route_no_resource(<<"presence">>, Type, From, To, Acc, El) ->
     case do_route_no_resource_presence(Type, From, To, Acc, El) of
@@ -699,10 +698,10 @@ do_route_no_resource(_, _, _, _, _, _) ->
 -spec do_route_offline(Name, Type, From, To, Acc, Packet) -> ok | stop when
       Name :: 'undefined' | binary(),
       Type :: binary(),
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel().
+      Packet :: exml:element().
 do_route_offline(<<"message">>, _, From, To, Acc, Packet)  ->
     Drop = ejabberd_hooks:run_fold(sm_filter_offline_message, To#jid.lserver,
                    false, [From, To, Packet]),
@@ -718,17 +717,17 @@ do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Acc, _Packet) ->
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Acc, _Packet) ->
     ok;
 do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_SERVICE_UNAVAILABLE),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable()),
     ejabberd_router:route(To, From, Acc, Err);
 do_route_offline(_, _, _, _, _, _) ->
     ?DEBUG("packet droped~n", []),
     ok.
 
 %% Backward compatibility
--spec broadcast_packet(From :: ejabberd:jid(),
-                       To :: ejabberd:jid(),
+-spec broadcast_packet(From :: jid:jid(),
+                       To :: jid:jid(),
                        Acc :: mongoose_acc:t(),
-                       El :: xmlel()) -> ok.
+                       El :: exml:element()) -> ok.
 broadcast_packet(From, To, Acc, El) ->
     #jid{user = User, server = Server} = To,
     lists:foreach(
@@ -744,10 +743,10 @@ broadcast_packet(From, To, Acc, El) ->
 %% for the target session/resource to which a stanza is addressed,
 %% or if there are no current sessions for the user.
 -spec is_privacy_allow(From, To, Acc, Packet) -> boolean() when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel() | mongoose_acc:t().
+      Packet :: exml:element() | mongoose_acc:t().
 is_privacy_allow(From, To, Acc, Packet) ->
     User = To#jid.user,
     Server = To#jid.server,
@@ -759,10 +758,10 @@ is_privacy_allow(From, To, Acc, Packet) ->
 %% @doc Check if privacy rules allow this delivery
 %% Function copied from ejabberd_c2s.erl
 -spec is_privacy_allow(From, To, Acc, Packet, PrivacyList) -> boolean() when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel(),
+      Packet :: exml:element(),
       PrivacyList :: mongoose_privacy:userlist().
 is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
     User = To#jid.user,
@@ -773,10 +772,10 @@ is_privacy_allow(_From, To, Acc, _Packet, PrivacyList) ->
 
 
 -spec route_message(From, To, Acc, Packet) -> Res when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: xmlel(),
+      Packet :: exml:element(),
       Res :: ok | stop | mongoose_acc:t() | {stop, mongoose_acc:t()}.
 route_message(From, To, Acc, Packet) ->
     LUser = To#jid.luser,
@@ -828,7 +827,7 @@ route_message_by_type(_, From, To, Acc, Packet) ->
             end;
         _ ->
             Err = jlib:make_error_reply(
-                Packet, ?ERR_SERVICE_UNAVAILABLE),
+                Packet, mongoose_xmpp_errors:service_unavailable()),
             ejabberd_router:route(To, From, Acc, Err)
     end.
 
@@ -861,14 +860,14 @@ clean_session_list([S1, S2 | Rest], Res) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec get_user_present_pids(LUser, LServer) -> [{priority(), pid()}] when
-      LUser :: ejabberd:luser(),
-      LServer :: ejabberd:lserver().
+      LUser :: jid:luser(),
+      LServer :: jid:lserver().
 get_user_present_pids(LUser, LServer) ->
     Ss = clean_session_list(ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer)),
     [{S#session.priority, element(2, S#session.sid)} || S <- Ss, is_integer(S#session.priority)].
 
--spec get_user_present_resources(LUser :: ejabberd:user(),
-                                 LServer :: ejabberd:server()
+-spec get_user_present_resources(LUser :: jid:user(),
+                                 LServer :: jid:server()
                                 ) -> [{priority(), binary()}].
 get_user_present_resources(LUser, LServer) ->
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
@@ -879,9 +878,9 @@ get_user_present_resources(LUser, LServer) ->
 
 %% @doc On new session, check if some existing connections need to be replace
 -spec check_for_sessions_to_replace(User, Server, Resource) -> ReplacedPids when
-      User :: ejabberd:user(),
-      Server :: ejabberd:server(),
-      Resource :: ejabberd:resource(),
+      User :: jid:user(),
+      Server :: jid:server(),
+      Resource :: jid:resource(),
       ReplacedPids :: [pid()].
 check_for_sessions_to_replace(User, Server, Resource) ->
     LUser = jid:nodeprep(User),
@@ -896,9 +895,9 @@ check_for_sessions_to_replace(User, Server, Resource) ->
     AllReplacedSessionPids.
 
 -spec check_existing_resources(LUser, LServer, LResource) -> ReplacedSessionsPIDs when
-      LUser :: 'error' | ejabberd:luser() | tuple(),
-      LServer :: 'error' | ejabberd:lserver() | tuple(),
-      LResource :: 'error' | ejabberd:lresource() | [byte()] | tuple(),
+      LUser :: 'error' | jid:luser() | tuple(),
+      LServer :: 'error' | jid:lserver() | tuple(),
+      LResource :: 'error' | jid:lresource() | [byte()] | tuple(),
       ReplacedSessionsPIDs :: ordsets:ordset(pid()).
 check_existing_resources(LUser, LServer, LResource) ->
     %% A connection exist with the same resource. We replace it:
@@ -911,7 +910,7 @@ check_existing_resources(LUser, LServer, LResource) ->
     end.
 
 
--spec check_max_sessions(LUser :: ejabberd:user(), LServer :: ejabberd:server(),
+-spec check_max_sessions(LUser :: jid:user(), LServer :: jid:server(),
                          ReplacedPIDs :: [pid()]) -> AllReplacedPIDs :: ordsets:ordset(pid()).
 check_max_sessions(LUser, LServer, ReplacedPIDs) ->
     %% If the max number of sessions for a given is reached, we replace the
@@ -939,8 +938,8 @@ check_max_sessions(LUser, LServer, ReplacedPIDs) ->
 %% This option defines the max number of time a given users are allowed to
 %% log in. Defaults to infinity
 -spec get_max_user_sessions(LUser, Host) -> infinity | pos_integer() when
-      LUser :: ejabberd:user(),
-      Host :: ejabberd:server().
+      LUser :: jid:user(),
+      Host :: jid:server().
 get_max_user_sessions(LUser, Host) ->
     case acl:match_rule(
            Host, max_user_sessions, jid:make(LUser, Host, <<>>)) of
@@ -952,10 +951,10 @@ get_max_user_sessions(LUser, Host) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -spec process_iq(From, To, Acc, Packet) -> Result when
-      From :: ejabberd:jid(),
-      To :: ejabberd:jid(),
+      From :: jid:jid(),
+      To :: jid:jid(),
       Acc :: mongoose_acc:t(),
-      Packet :: jlib:xmlel(),
+      Packet :: exml:element(),
       Result :: ok | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
 process_iq(From, To, Acc0, Packet) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
@@ -977,18 +976,18 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
                                   From, To, Acc, IQ);
         [] ->
             Err = jlib:make_error_reply(
-                    Packet, ?ERR_SERVICE_UNAVAILABLE),
+                    Packet, mongoose_xmpp_errors:service_unavailable()),
             ejabberd_router:route(To, From, Acc, Err)
     end;
 process_iq(reply, _From, _To, _Acc, _Packet) ->
     ok;
 process_iq(_, From, To, Acc, Packet) ->
-    Err = jlib:make_error_reply(Packet, ?ERR_BAD_REQUEST),
+    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
     ejabberd_router:route(To, From, Acc, Err),
     ok.
 
 
--spec force_update_presence({binary(), ejabberd:server()}) -> 'ok'.
+-spec force_update_presence({binary(), jid:server()}) -> 'ok'.
 force_update_presence({LUser, LServer}) ->
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     lists:foreach(fun(#session{sid = {_, Pid}}) ->

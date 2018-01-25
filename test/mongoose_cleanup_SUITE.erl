@@ -196,7 +196,7 @@ unload_meck(Mods) ->
 
 -spec get_fake_session() ->
     {U :: binary(), S :: binary(), R :: binary(),
-     JID :: ejabberd:jid(), SID :: ejabberd_sm:sid()}.
+     JID :: jid:jid(), SID :: ejabberd_sm:sid()}.
 get_fake_session() ->
     U = <<"someuser">>,
     S = ?HOST,

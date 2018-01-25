@@ -62,13 +62,13 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
                 Other -> Other
             end;
         _ ->
-            {error, ?ERR_CONFLICT}
+            {error, mongoose_xmpp_errors:conflict()}
     end.
 
 delete_node(Key, Node) ->
     case find_node(Key, Node) of
         false ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         Record ->
             lists:foreach(fun (#pubsub_node{options = Opts} = Child) ->
                         NewOpts = remove_config_parent(Node, Opts),
@@ -92,7 +92,7 @@ get_node(Host, Node, _From) ->
 
 get_node(Host, Node) ->
     case find_node(Host, Node) of
-        false -> {error, ?ERR_ITEM_NOT_FOUND};
+        false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
 
@@ -108,7 +108,7 @@ get_nodes(Key) ->
 get_parentnodes(Host, Node, _From) ->
     case find_node(Host, Node) of
         false ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{parents = Parents} ->
             Q = qlc:q([N
                         || #pubsub_node{nodeid = {NHost, NNode}} = N
@@ -132,7 +132,7 @@ get_subnodes(Host, <<>>) ->
     get_subnodes_helper(Host, <<>>);
 get_subnodes(Host, Node) ->
     case find_node(Host, Node) of
-        false -> {error, ?ERR_ITEM_NOT_FOUND};
+        false -> {error, mongoose_xmpp_errors:item_not_found()};
         _ -> get_subnodes_helper(Host, Node)
     end.
 
@@ -165,7 +165,7 @@ get_subnodes_tree(Host, Node, From) ->
 %%====================================================================
 oid(Key, Name) -> {Key, Name}.
 
-%% Key    = jlib:jid() | host()
+%% Key    = jid:jid() | host()
 %% Node = string()
 -spec find_node(
         Key :: mod_pubsub:hostPubsub(),
@@ -177,7 +177,7 @@ find_node(Key, Node) ->
         [NodeRec] -> NodeRec
     end.
 
-%% Key     = jlib:jid() | host()
+%% Key     = jid:jid() | host()
 %% Default = term()
 %% Options = [{Key = atom(), Value = term()}]
 find_opt(Key, Default, Options) ->
@@ -218,9 +218,9 @@ remove_config_parent(Node, [H | T], Acc) ->
 
 -spec validate_parentage(
         Key            :: mod_pubsub:hostPubsub(),
-        Owners         :: [ljid(), ...],
+        Owners         :: [jid:ljid(), ...],
         ParentNodes    :: [mod_pubsub:nodeId()])
-    -> true | {error, xmlel()}.
+    -> true | {error, exml:element()}.
 validate_parentage(_Key, _Owners, []) ->
     true;
 validate_parentage(Key, Owners, [[] | T]) ->
@@ -230,13 +230,13 @@ validate_parentage(Key, Owners, [<<>> | T]) ->
 validate_parentage(Key, Owners, [ParentID | T]) ->
     case find_node(Key, ParentID) of
         false ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{owners = POwners, options = POptions} ->
             NodeType = find_opt(node_type, ?DEFAULT_NODETYPE, POptions),
             MutualOwners = [O || O <- Owners, PO <- POwners, O == PO],
             case {MutualOwners, NodeType} of
-                {[], _} -> {error, ?ERR_FORBIDDEN};
+                {[], _} -> {error, mongoose_xmpp_errors:forbidden()};
                 {_, collection} -> validate_parentage(Key, Owners, T);
-                {_, _} -> {error, ?ERR_NOT_ALLOWED}
+                {_, _} -> {error, mongoose_xmpp_errors:not_allowed()}
             end
     end.

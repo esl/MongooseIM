@@ -33,7 +33,7 @@
 
 -export([raw_to_record/2]).
 
--spec init(ejabberd:server(), list()) -> ok.
+-spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->
     mnesia:create_table(roster,
                         [{disc_copies, [node()]},
@@ -45,12 +45,12 @@ init(_Host, _Opts) ->
     mnesia:add_table_index(roster_version, us),
     ok.
 
--spec transaction(LServer :: ejabberd:lserver(), F :: fun()) ->
+-spec transaction(LServer :: jid:lserver(), F :: fun()) ->
     {aborted, Reason :: any()} | {atomic, Result :: any()}.
 transaction(_LServer, F) ->
     mnesia:transaction(F).
 
--spec read_roster_version(ejabberd:luser(), ejabberd:lserver()) -> binary() | error.
+-spec read_roster_version(jid:luser(), jid:lserver()) -> binary() | error.
 read_roster_version(LUser, LServer) ->
     US = {LUser, LServer},
     case mnesia:dirty_read(roster_version, US) of
@@ -58,8 +58,8 @@ read_roster_version(LUser, LServer) ->
         [] -> error
     end.
 
--spec write_roster_version(LUser :: ejabberd:luser(),
-                           LServer :: ejabberd:lserver(),
+-spec write_roster_version(LUser :: jid:luser(),
+                           LServer :: jid:lserver(),
                            InTransaction :: boolean(),
                            Ver :: binary()) -> ok.
 write_roster_version(LUser, LServer, true, Ver) ->

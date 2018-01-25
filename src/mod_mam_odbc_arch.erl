@@ -42,9 +42,10 @@
         [apply_start_border/2,
          apply_end_border/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mongoose_rsm.hrl").
 
 %% ----------------------------------------------------------------------
 %% Types
@@ -59,7 +60,7 @@
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(ejabberd:server(), _) -> 'ok'.
+-spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
     case lists:keyfind(hand_made_partitions, 1, Opts) of
         false -> ok;
@@ -90,7 +91,7 @@ start(Host, Opts) ->
     ok.
 
 
--spec stop(ejabberd:server()) -> ok.
+-spec stop(jid:server()) -> ok.
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
         true ->
@@ -109,7 +110,7 @@ stop(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(), _) -> 'ok'.
+-spec start_pm(jid:server(), _) -> 'ok'.
 start_pm(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -125,7 +126,7 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(ejabberd:server()) -> ok.
+-spec stop_pm(jid:server()) -> ok.
 stop_pm(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -144,7 +145,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(), _) -> 'ok'.
+-spec start_muc(jid:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
         true ->
@@ -184,14 +185,14 @@ encode_direction(incoming) -> <<"I">>;
 encode_direction(outgoing) -> <<"O">>.
 
 
--spec archive_size(Size :: integer(), Host :: ejabberd:server(),
-                   ArcId :: mod_mam:archive_id(), ArcJID :: ejabberd:jid()) -> integer().
+-spec archive_size(Size :: integer(), Host :: jid:server(),
+                   ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, UserID, _UserJID) when is_integer(Size) ->
     {selected, [{BSize}]} = mod_mam_utils:success_sql_execute(Host, mam_archive_size, [UserID]),
     mongoose_rdbms:result_to_integer(BSize).
 
 
--spec index_hint_sql(ejabberd:server()) -> string().
+-spec index_hint_sql(jid:server()) -> string().
 index_hint_sql(Host) ->
     case mongoose_rdbms:db_engine(Host) of
         mysql ->
@@ -201,10 +202,10 @@ index_hint_sql(Host) ->
     end.
 
 
--spec archive_message(_Result, Host :: ejabberd:server(),
+-spec archive_message(_Result, Host :: jid:server(),
                       MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
-                      LocJID :: ejabberd:jid(), RemJID :: ejabberd:jid(),
-                      SrcJID :: ejabberd:jid(), Dir :: atom(), Packet :: any()) -> ok.
+                      LocJID :: jid:jid(), RemJID :: jid:jid(),
+                      SrcJID :: jid:jid(), Dir :: atom(), Packet :: any()) -> ok.
 archive_message(Result, Host, MessID, UserID,
                 LocJID, RemJID, SrcJID, Dir, Packet) ->
     try
@@ -234,7 +235,7 @@ do_archive_message(_Result, Host, MessID, UserID,
                   SRemLResource, SDir, SSrcJID, SData, STextBody).
 
 
--spec write_message(Host :: ejabberd:server(), Table :: string(),
+-spec write_message(Host :: jid:server(), Table :: string(),
                     SMessID :: string(), SUserID :: string(), SBareRemJID :: string(),
                     SRemLResource :: string(), SDir :: string(), SSrcJID :: string(),
                     SData :: string(), TextBody :: string()) -> 'ok'.
@@ -269,7 +270,7 @@ prepare_insert(Name, NumRows) ->
     mongoose_rdbms:prepare(Name, Table, Fields, Query),
     ok.
 
--spec lookup_messages(Result :: any(), Host :: ejabberd:server(), Params :: map()) ->
+-spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
                              {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
@@ -499,9 +500,9 @@ row_to_message_id({BMessID, _, _}) ->
 
 
 %% #rh
--spec remove_archive(Acc :: map(), Host :: ejabberd:server(),
+-spec remove_archive(Acc :: map(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
-                     RoomJID :: ejabberd:jid()) -> map().
+                     RoomJID :: jid:jid()) -> map().
 remove_archive(Acc, Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
@@ -510,10 +511,10 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
        "WHERE user_id = '", escape_user_id(UserID), "'"]),
     Acc.
 
--spec purge_single_message(Result :: any(), Host :: ejabberd:server(),
+-spec purge_single_message(Result :: any(), Host :: jid:server(),
                            MessID :: mod_mam:message_id(),
                            ArchiveID :: mod_mam:archive_id(),
-                           RoomJID :: ejabberd:jid(),
+                           RoomJID :: jid:jid(),
                            Now :: mod_mam:unix_timestamp()) ->
                                   ok  | {error, 'not-allowed'  | 'not-found'}.
 purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
@@ -529,14 +530,14 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
     end.
 
 -spec purge_multiple_messages(Result :: any(),
-                              Host :: ejabberd:server(),
+                              Host :: jid:server(),
                               ArchiveID :: mod_mam:archive_id(),
-                              RoomJID :: ejabberd:jid(),
+                              RoomJID :: jid:jid(),
                               Borders :: mod_mam:borders()  | undefined,
                               Start :: mod_mam:unix_timestamp()  | undefined,
                               End :: mod_mam:unix_timestamp()  | undefined,
                               Now :: mod_mam:unix_timestamp(),
-                              WithJID :: ejabberd:jid()  | undefined) ->
+                              WithJID :: jid:jid()  | undefined) ->
                                      ok  | {error, 'not-allowed'}.
 purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
                         Start, End, _Now, WithJID) ->
@@ -552,8 +553,8 @@ purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
 %% Columns are `["id", "from_jid", "message"]'.
--type msg() :: {binary(), ejabberd:literal_jid(), binary()}.
--spec extract_messages(Host :: ejabberd:server(),
+-type msg() :: {binary(), jid:literal_jid(), binary()}.
+-spec extract_messages(Host :: jid:server(),
                        Filter :: filter(), IOffset :: non_neg_integer(), IMax :: pos_integer(),
                        ReverseLimit :: boolean()) -> [msg()].
 extract_messages(_Host, _Filter, _IOffset, 0, _) ->
@@ -593,7 +594,7 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
 %% be returned instead.
 %% @end
 %% "SELECT COUNT(*) as "index" FROM mam_message WHERE id <= '",  UID
--spec calc_index(Host :: ejabberd:server(),
+-spec calc_index(Host :: jid:server(),
                  Filter :: filter(), IndexHintSQL :: string(),
                  SUID :: escaped_message_id()) -> non_neg_integer().
 calc_index(Host, Filter, IndexHintSQL, SUID) ->
@@ -609,7 +610,7 @@ calc_index(Host, Filter, IndexHintSQL, SUID) ->
 %% The element with the passed UID can be already deleted.
 %% @end
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE id < '",  UID
--spec calc_before(Host :: ejabberd:server(),
+-spec calc_before(Host :: jid:server(),
                   Filter :: filter(), IndexHintSQL :: string(), SUID :: escaped_message_id()) ->
                       non_neg_integer().
 calc_before(Host, Filter, IndexHintSQL, SUID) ->
@@ -623,7 +624,7 @@ calc_before(Host, Filter, IndexHintSQL, SUID) ->
 
 %% @doc Get the total result set size.
 %% "SELECT COUNT(*) as "count" FROM mam_message WHERE "
--spec calc_count(Host :: ejabberd:server(),
+-spec calc_count(Host :: jid:server(),
                  Filter :: filter(), IndexHintSQL :: string()) -> non_neg_integer().
 calc_count(Host, Filter, IndexHintSQL) ->
     {selected, [{BCount}]} =
@@ -634,10 +635,10 @@ calc_count(Host, Filter, IndexHintSQL) ->
     mongoose_rdbms:result_to_integer(BCount).
 
 
--spec prepare_filter(Host :: ejabberd:server(), UserID :: mod_mam:archive_id(),
-                     UserJID :: ejabberd:jid(), Borders :: mod_mam:borders(),
+-spec prepare_filter(Host :: jid:server(), UserID :: mod_mam:archive_id(),
+                     UserJID :: jid:jid(), Borders :: mod_mam:borders(),
                      Start :: mod_mam:unix_timestamp() | undefined,
-                     End :: mod_mam:unix_timestamp() | undefined, WithJID :: ejabberd:jid(),
+                     End :: mod_mam:unix_timestamp() | undefined, WithJID :: jid:jid(),
                      SearchText :: string() | undefined)
                     -> filter().
 prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
@@ -693,7 +694,7 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) 
 %%    direction = before | aft | undefined,
 %%    id = binary() | undefined,
 %%    index = non_neg_integer() | undefined}
--spec calc_offset(Host :: ejabberd:server(),
+-spec calc_offset(Host :: jid:server(),
                   Filter :: filter(), IndexHintSQL :: string(), PageSize :: non_neg_integer(),
                   TotalCount :: non_neg_integer(), RSM :: jlib:rsm_in()) -> non_neg_integer().
 calc_offset(_LS, _F, _IH, _PS, _TC, #rsm_in{direction = undefined, index = Index})
@@ -750,11 +751,11 @@ stored_binary_to_packet(Host, Bin) ->
     Module = db_message_codec(Host),
     mam_message:decode(Module, Bin).
 
--spec db_jid_codec(ejabberd:server()) -> module().
+-spec db_jid_codec(jid:server()) -> module().
 db_jid_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini).
 
--spec db_message_codec(ejabberd:server()) -> module().
+-spec db_message_codec(jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
 

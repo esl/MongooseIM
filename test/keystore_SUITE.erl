@@ -178,7 +178,7 @@ mock_mongoose_metrics() ->
 
 %% Use a function like this in your module which is a client of mod_keystore.
 -spec get_key(Domain, KeyName) -> Result when
-      Domain :: ejabberd:server(),
+      Domain :: jid:server(),
       KeyName :: mod_keystore:key_name(),
       Result :: mod_keystore:key_list().
 get_key(Domain, KeyName) ->

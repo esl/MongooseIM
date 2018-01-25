@@ -57,7 +57,7 @@
 %% helpers to be used from backend moudules
 -export([is_expired_message/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("amp.hrl").
 -include("mod_offline.hrl").
@@ -67,17 +67,17 @@
 %% default value for the maximum number of user messages
 -define(MAX_USER_MESSAGES, infinity).
 
--type msg() :: #offline_msg{us :: {ejabberd:luser(), ejabberd:lserver()},
+-type msg() :: #offline_msg{us :: {jid:luser(), jid:lserver()},
                           timestamp :: erlang:timestamp(),
                           expire :: erlang:timestamp() | never,
-                          from :: jid(),
-                          to :: jid(),
+                          from ::jid:jid(),
+                          to ::jid:jid(),
                           packet :: exml:element()}.
 
 -export_type([msg/0]).
 
 -record(state, {
-    host :: ejabberd:server(),
+    host :: jid:server(),
     access_max_user_messages,
     message_poppers = monitored_map:new() ::
         monitored_map:t({LUser :: binary(), LServer :: binary}, pid())
@@ -90,26 +90,26 @@
     Host :: binary(),
     Opts :: list().
 -callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     Reason :: term(),
     Result :: list(#offline_msg{}).
 -callback write_messages(LUser, LServer, Msgs) ->
     ok | {error, Reason}  when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     Msgs :: list(),
     Reason :: term().
 -callback count_offline_messages(LUser, LServer, MaxToArchive) -> integer() when
-      LUser :: ejabberd:luser(),
-      LServer :: ejabberd:lserver(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver(),
       MaxToArchive :: integer().
 -callback remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
-    Host :: ejabberd:lserver(),
+    Host :: jid:lserver(),
     Reason :: term(),
     Count :: integer().
 -callback remove_old_messages(Host, Timestamp) -> {error, Reason} | {ok, Count} when
-    Host :: ejabberd:lserver(),
+    Host :: jid:lserver(),
     Timestamp :: erlang:timestamp(),
     Reason :: term(),
     Count :: integer().
@@ -193,8 +193,8 @@ write_messages(Acc, LUser, LServer, Msgs) ->
             discard_warn_sender(Acc, Msgs)
     end.
 
--spec is_message_count_threshold_reached(integer(), ejabberd:luser(),
-                                         ejabberd:lserver(), integer()) ->
+-spec is_message_count_threshold_reached(integer(), jid:luser(),
+                                         jid:lserver(), integer()) ->
     boolean().
 is_message_count_threshold_reached(infinity, _LUser, _LServer, _Len) ->
     false;
@@ -558,7 +558,7 @@ discard_warn_sender(Acc, Msgs) ->
               Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
               amp_failed_event(Packet, From),
               Err = jlib:make_error_reply(
-                      Packet, ?ERRT_RESOURCE_CONSTRAINT(Lang, ErrText)),
+                      Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
               ejabberd_router:route(To, From, Acc, Err)
       end, Msgs).
 

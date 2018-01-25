@@ -15,8 +15,9 @@
 -export([maybe_integer_qs_val/1]).
 -export([maybe_before_to_us/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
+-include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
 
 init(_Transport, _Req, _Opts) ->

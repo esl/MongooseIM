@@ -16,7 +16,7 @@
 -module(mongoose_cassandra).
 -author('rafal.slota@erlang-solutions.com').
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("cqerl/include/cqerl.hrl").
 
@@ -114,7 +114,7 @@ now_to_usec({MSec, Sec, USec}) ->
 %% split given rows into batches of 50 rows and will fall back to smaller batches if
 %% Cassandra rejects the query due to its size being to big.
 %% --------------------------------------------------------
--spec cql_write(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
+-spec cql_write(PoolName :: pool_name(), UserJID :: jid:jid(), Module :: atom(),
                 QueryName :: query_name(), Rows :: [parameters()]) ->
                        ok | {error, Reason :: any()}.
 cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
@@ -129,7 +129,7 @@ cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
 %% Note that Cassandra doesn't like big batches and there's not retry login when query size will
 %% be exceeded like in cql_write/5.
 %% --------------------------------------------------------
--spec cql_write_async(PoolName :: pool_name(), UserJID :: jid(), Module :: atom(),
+-spec cql_write_async(PoolName :: pool_name(), UserJID :: jid:jid(), Module :: atom(),
                       QueryName :: query_name(), Rows :: [parameters()]) ->
                              ok | {error, Reason :: any()}.
 cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
@@ -157,7 +157,7 @@ cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
 %% @doc Execute read query to cassandra (select).
 %% Returns all rows at once even if there are several query pages.
 %% --------------------------------------------------------
--spec cql_read(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
+-spec cql_read(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                QueryName :: query_name(), Params :: parameters()) ->
                       {ok, Rows :: [row()]} | {error, Reason :: any()}.
 cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
@@ -176,14 +176,14 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 %% query. Therefore each execution of given fun gets list of several result rows (by default 100 at
 %% most).
 %% --------------------------------------------------------
--spec cql_foldl(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term()) ->
                        {ok, AccOut :: term()} | {error, Reason :: any()}.
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
     cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, 3).
 
--spec cql_foldl(PoolName :: pool_name(), UserJID :: jid() | undefined, Module :: atom(),
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
                 row_fold_fun(), AccIn :: term(), TryCount :: non_neg_integer()) ->
                        {ok, AccOut :: term()} | {error, Reason :: any()}.

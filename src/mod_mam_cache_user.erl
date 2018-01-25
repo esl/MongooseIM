@@ -31,7 +31,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(state, {}).
@@ -47,7 +47,7 @@ group_name() ->
     mod_mam_cache.
 
 
--spec su_key(ejabberd:jid()) -> ejabberd:simple_bare_jid().
+-spec su_key(jid:jid()) -> jid:simple_bare_jid().
 su_key(#jid{lserver = LServer, luser = LUser}) ->
     {LServer, LUser}.
 
@@ -56,7 +56,7 @@ su_key(#jid{lserver = LServer, luser = LUser}) ->
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(Host :: ejabberd:server(), Opts :: list()) -> any().
+-spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     start_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -72,7 +72,7 @@ start(Host, Opts) ->
             ok
     end.
 
--spec stop(Host :: ejabberd:server()) -> any().
+-spec stop(Host :: jid:server()) -> any().
 stop(Host) ->
     stop_server(Host),
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -105,7 +105,7 @@ stop_server(_Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
 
--spec start_pm(ejabberd:server(), list()) -> 'ok'.
+-spec start_pm(jid:server(), list()) -> 'ok'.
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -113,7 +113,7 @@ start_pm(Host, _Opts) ->
     ok.
 
 
--spec stop_pm(ejabberd:server()) -> 'ok'.
+-spec stop_pm(jid:server()) -> 'ok'.
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -124,7 +124,7 @@ stop_pm(Host) ->
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(ejabberd:server(), list()) -> 'ok'.
+-spec start_muc(jid:server(), list()) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:add(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -132,7 +132,7 @@ start_muc(Host, _Opts) ->
     ok.
 
 
--spec stop_muc(ejabberd:server()) -> 'ok'.
+-spec stop_muc(jid:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, cached_archive_id, 30),
     ejabberd_hooks:delete(mam_muc_archive_id, Host, ?MODULE, store_archive_id, 70),
@@ -149,8 +149,8 @@ start_link() ->
     gen_server:start_link({local, srv_name()}, ?MODULE, [], []).
 
 
--spec cached_archive_id('undefined', _Host :: ejabberd:server(),
-                        ArcJID :: ejabberd:jid()) -> ejabberd:user().
+-spec cached_archive_id('undefined', _Host :: jid:server(),
+                        ArcJID :: jid:jid()) -> jid:user().
 cached_archive_id(undefined, _Host, ArcJID) ->
     case lookup_archive_id(ArcJID) of
         not_found ->
@@ -161,17 +161,17 @@ cached_archive_id(undefined, _Host, ArcJID) ->
     end.
 
 
--spec store_archive_id(ejabberd:user(), ejabberd:server(), ejabberd:jid())
-        -> ejabberd:user().
+-spec store_archive_id(jid:user(), jid:server(), jid:jid())
+        -> jid:user().
 store_archive_id(UserID, _Host, ArcJID) ->
     maybe_cache_archive_id(ArcJID, UserID),
     UserID.
 
 
 %% #rh
--spec remove_archive(Acc :: map(), _Host :: ejabberd:server(),
-                     _UserID :: ejabberd:user(),
-                     ArcJID :: ejabberd:jid()) -> map().
+-spec remove_archive(Acc :: map(), _Host :: jid:server(),
+                     _UserID :: jid:user(),
+                     ArcJID :: jid:jid()) -> map().
 remove_archive(Acc, _Host, _UserID, ArcJID) ->
     clean_cache(ArcJID),
     Acc.
@@ -180,7 +180,7 @@ remove_archive(Acc, _Host, _UserID, ArcJID) ->
 %% Internal functions
 %%====================================================================
 
--spec maybe_cache_archive_id(ejabberd:jid(), ejabberd:user()) -> ejabberd:user() | ok.
+-spec maybe_cache_archive_id(jid:jid(), jid:user()) -> jid:user() | ok.
 maybe_cache_archive_id(ArcJID, UserID) ->
     case erase(mam_not_cached_flag) of
         undefined ->
@@ -192,12 +192,12 @@ maybe_cache_archive_id(ArcJID, UserID) ->
 
 %% @doc Put the user id into cache.
 %% @private
--spec cache_archive_id(ejabberd:jid(), ejabberd:user()) -> ok.
+-spec cache_archive_id(jid:jid(), jid:user()) -> ok.
 cache_archive_id(ArcJID, UserID) ->
     gen_server:call(srv_name(), {cache_archive_id, ArcJID, UserID}).
 
 
--spec lookup_archive_id(ejabberd:jid()) -> ejabberd:user() | not_found.
+-spec lookup_archive_id(jid:jid()) -> jid:user() | not_found.
 lookup_archive_id(ArcJID) ->
     try
         ets:lookup_element(tbl_name_archive_id(), su_key(ArcJID), 2)
@@ -206,7 +206,7 @@ lookup_archive_id(ArcJID) ->
     end.
 
 
--spec clean_cache(ejabberd:jid()) -> 'ok'.
+-spec clean_cache(jid:jid()) -> 'ok'.
 clean_cache(ArcJID) ->
     %% Send a broadcast message.
     case pg2:get_members(group_name()) of

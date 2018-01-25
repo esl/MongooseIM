@@ -11,7 +11,7 @@
          search_fields/1,
          search_reported_fields/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
 
@@ -38,7 +38,7 @@ get_vcard(LUser, LServer) ->
          end,
     case mnesia:transaction(F) of
         {atomic, []} ->
-            {error, ?ERR_ITEM_NOT_FOUND};
+            {error, mongoose_xmpp_errors:item_not_found()};
         {atomic, Rs} ->
             Els = lists:map(fun(R) ->
                                     R#vcard.vcard
@@ -46,7 +46,7 @@ get_vcard(LUser, LServer) ->
             {ok, Els};
         {aborted, Reason} ->
             ?ERROR_MSG("vCard lookup failed in process_sm_iq: ~p", [Reason]),
-            {error, ?ERR_INTERNAL_SERVER_ERROR}
+            {error, mongoose_xmpp_errors:internal_server_error()}
     end.
 
 set_vcard(User, VHost, VCard, VCardSearch) ->

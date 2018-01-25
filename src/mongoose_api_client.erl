@@ -14,7 +14,7 @@
 -author("ludwikbukowski").
 -include("mongoose_api.hrl").
 -include("jlib.hrl").
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% ejabberd_cowboy exports
 -export([cowboy_router_paths/2, to_json/2, from_json/2]).

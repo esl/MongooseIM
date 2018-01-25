@@ -41,7 +41,7 @@
          delete_listener/2
         ]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% We do not block on send anymore.
 -define(TCP_SEND_TIMEOUT, 15000).

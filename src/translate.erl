@@ -30,7 +30,9 @@
 -export([start/0,
          translate/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
+
+-define(MSGS_DIR,    "msgs").
 
 %%
 %% Public

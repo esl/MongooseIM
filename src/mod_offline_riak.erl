@@ -32,7 +32,7 @@
 -export([remove_user/2]).
 -export([count_offline_messages/3]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
 -include_lib("riakc/include/riakc.hrl").
@@ -43,13 +43,13 @@
 
 -define(INFINITY, 99999999999). %% Wed, 16 Nov 5138 09:46:39 GMT
 
--spec init(Host :: ejabberd:lserver(), Opts :: []) -> ok.
+-spec init(Host :: jid:lserver(), Opts :: []) -> ok.
 init(_Host, _Opts) ->
     ok.
 
 -spec pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     Reason :: term(),
     Result :: list(mod_offline:msg()).
 pop_messages(LUser, LServer) ->
@@ -60,8 +60,8 @@ pop_messages(LUser, LServer) ->
 
 -spec write_messages(LUser, LServer, Msgs) ->
     ok  when
-    LUser :: ejabberd:luser(),
-    LServer :: ejabberd:lserver(),
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
     Msgs :: list().
 write_messages(LUser, LServer, Msgs) ->
     [write_msg(LUser, LServer, Msg) || Msg <- Msgs],
@@ -69,8 +69,8 @@ write_messages(LUser, LServer, Msgs) ->
 
 -spec count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     integer() when
-      LUser :: ejabberd:luser(),
-      LServer :: ejabberd:lserver(),
+      LUser :: jid:luser(),
+      LServer :: jid:lserver(),
       MaxArchivedMsgs :: integer().
 count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     {ok, IdxResult} = mongoose_riak:get_index(bucket_type(LServer), ?USER_IDX,
@@ -78,7 +78,7 @@ count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
     length(IdxResult?INDEX_RESULTS.keys).
 
 -spec remove_expired_messages(Host) -> {error, Reason} | {ok, Count} when
-    Host :: ejabberd:lserver(),
+    Host :: jid:lserver(),
     Reason :: term(),
     Count :: integer().
 remove_expired_messages(Host) ->
@@ -90,7 +90,7 @@ remove_expired_messages(Host) ->
     {ok, length(Keys)}.
 
 -spec remove_old_messages(Host, Days) -> {error, Reason} | {ok, Count} when
-    Host :: ejabberd:lserver(),
+    Host :: jid:lserver(),
     Days :: erlang:timestamp(),
     Reason :: term(),
     Count :: integer().
@@ -164,7 +164,7 @@ pop_msg(Key, LUser, LServer, To) ->
     end.
 
 
--spec bucket_type(ejabberd:lserver()) -> {binary(), ejabberd:lserver()}.
+-spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(LServer) ->
     {<<"offline">>, LServer}.
 

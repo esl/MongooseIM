@@ -30,7 +30,7 @@
 %% Callbacks
 -export([participant_limit_check/2]).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_light.hrl").
 
@@ -40,15 +40,15 @@
 %% API
 %%====================================================================
 
--spec handle_request(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-                     OrigPacket :: jlib:xmlel(), Request :: muc_light_packet()) -> ok.
+-spec handle_request(From :: jid:jid(), RoomJID :: jid:jid(),
+                     OrigPacket :: exml:element(), Request :: muc_light_packet()) -> ok.
 handle_request(From, To, OrigPacket, Request) ->
     RoomUS = jid:to_lus(To),
     AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
     Response = process_request(From, RoomUS, Request, AffUsersRes),
     send_response(From, To, RoomUS, OrigPacket, Response).
 
--spec maybe_forget(RoomUS :: ejabberd:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
+-spec maybe_forget(RoomUS :: jid:simple_bare_jid(), NewAffUsers :: aff_users()) -> any().
 maybe_forget({RoomU, RoomS} = RoomUS, []) ->
     ejabberd_hooks:run(forget_room, RoomS, [RoomS, RoomU]),
     mod_muc_light_db_backend:destroy_room(RoomUS);
@@ -59,7 +59,7 @@ maybe_forget(_, _) ->
 %% Callbacks
 %%====================================================================
 
--spec participant_limit_check(RoomUS :: ejabberd:simple_bare_jid(),
+-spec participant_limit_check(RoomUS :: jid:simple_bare_jid(),
                               NewAffUsers :: aff_users()) ->
     ok | {error, occupant_limit_exceeded}.
 participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
@@ -74,8 +74,8 @@ participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
 %% Packet handling
 %%====================================================================
 
--spec process_request(From :: ejabberd:jid(),
-                      RoomUS :: ejabberd:simple_bare_jid(),
+-spec process_request(From :: jid:jid(),
+                      RoomUS :: jid:simple_bare_jid(),
                       Request :: muc_light_packet(),
                       AffUsersRes :: {ok, aff_users()} | {error, term()}) ->
     packet_processing_result().
@@ -87,9 +87,9 @@ process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
     process_request(Request, From, UserUS, RoomUS, Auth, AffUsers).
 
 -spec process_request(Request :: muc_light_packet(),
-                      From :: jid(),
-                      UserUS :: ejabberd:simple_bare_jid(),
-                      RoomUS :: ejabberd:simple_bare_jid(),
+                      From ::jid:jid(),
+                      UserUS :: jid:simple_bare_jid(),
+                      RoomUS :: jid:simple_bare_jid(),
                       Auth :: false | aff_user(),
                       AffUsers :: aff_users()) ->
     packet_processing_result().
@@ -147,7 +147,7 @@ process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
 %% --------- Config set ---------
 
 -spec process_config_set(ConfigReq :: config_req_props(),
-                         RoomUS :: ejabberd:simple_bare_jid(),
+                         RoomUS :: jid:simple_bare_jid(),
                          UserAff :: member | owner, AffUsers :: aff_users(),
                          UserAllowedToConfigure :: boolean()) ->
     {set, config_req_props()} | {error, not_allowed} | validation_error().
@@ -173,9 +173,9 @@ process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanCo
 %% Member can only add new members or leave
 -spec validate_aff_changes_by_member(AffUsersChanges :: aff_users(),
                                    AffUsersChangesAcc :: aff_users(),
-                                   UserUS :: ejabberd:simple_bare_jid(),
-                                   OwnerUS :: ejabberd:simple_bare_jid(),
-                                   RoomUS :: ejabberd:simple_bare_jid(),
+                                   UserUS :: jid:simple_bare_jid(),
+                                   OwnerUS :: jid:simple_bare_jid(),
+                                   RoomUS :: jid:simple_bare_jid(),
                                    AllCanInvite :: boolean()) ->
     {ok, aff_users()} | {error, not_allowed}.
 validate_aff_changes_by_member([], Acc, _UserUS, _OwnerUS, _RoomUS, _AllCanInvite) ->
@@ -195,7 +195,7 @@ validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomU
     {error, not_allowed}.
 
 -spec process_aff_set(AffReq :: affiliations_req_props(),
-                      RoomUS :: ejabberd:simple_bare_jid(),
+                      RoomUS :: jid:simple_bare_jid(),
                       ValidateResult :: {ok, aff_users()} | {error, not_allowed}) ->
     {set, affiliations_req_props(), OldAffUsers :: aff_users(), NewAffUsers :: aff_users()}
     | {error, not_allowed}.
@@ -222,8 +222,8 @@ process_aff_set(_AffReq, _RoomUS, Error) ->
 %% Response processing
 %%====================================================================
 
--spec send_response(From :: ejabberd:jid(), RoomJID :: ejabberd:jid(),
-                    RoomUS :: ejabberd:simple_bare_jid(), OrigPacket :: jlib:xmlel(),
+-spec send_response(From :: jid:jid(), RoomJID :: jid:jid(),
+                    RoomUS :: jid:simple_bare_jid(), OrigPacket :: exml:element(),
                     Result :: packet_processing_result()) -> ok.
 send_response(From, RoomJID, _RoomUS, OrigPacket, {error, _} = Err) ->
     mod_muc_light_codec_backend:encode_error(

@@ -19,7 +19,7 @@
 
 -behaviour(gen_mod).
 
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
@@ -52,7 +52,7 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec for_domain(Domain :: binary()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec for_domain(Domain :: binary()) -> {ok, Host :: jid:lserver()} | error.
 for_domain(Domain) when is_binary(Domain) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
     {Time, R} = timer:tc(ets_cache, lookup, [?DOMAIN_TAB, Domain, fun() -> get_domain(Domain) end]),
@@ -69,7 +69,7 @@ delete_for_domain(Domain) when is_binary(Domain) ->
     delete_domain(Domain),
     ets_cache:delete(?DOMAIN_TAB, Domain).
 
--spec for_jid(jid() | ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
+-spec for_jid(jid:jid() | jid:ljid()) -> {ok, Host :: jid:lserver()} | error.
 for_jid(#jid{} = Jid) -> for_jid(jid:to_lower(Jid));
 for_jid({_, _, _} = Jid) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCHES, 1),
@@ -77,16 +77,16 @@ for_jid({_, _, _} = Jid) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_FETCH_TIME, Time),
     R.
 
--spec insert_for_jid(jid() | ljid()) -> ok.
+-spec insert_for_jid(jid:jid() | jid:ljid()) -> ok.
 insert_for_jid(Jid) ->
     LocalHost = opt(local_host),
     do_insert_for_jid(Jid, LocalHost, fun put_session/1).
 
--spec insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver()) -> ok.
+-spec insert_for_jid(jid:jid() | jid:ljid(), Host :: jid:lserver()) -> ok.
 insert_for_jid(Jid, Host) when is_binary(Host) ->
     do_insert_for_jid(Jid, Host, fun(_) -> ok end).
 
--spec clear_cache(jid()) -> ok.
+-spec clear_cache(jid:jid()) -> ok.
 clear_cache(#jid{} = Jid) ->
     GlobalHost = opt(global_host),
     case jid:to_lower(Jid) of
@@ -96,7 +96,7 @@ clear_cache(#jid{} = Jid) ->
             ets_cache:delete(?DOMAIN_TAB, SubHost)
     end.
 
--spec delete_for_jid(jid() | ljid()) -> ok.
+-spec delete_for_jid(jid:jid() | jid:ljid()) -> ok.
 delete_for_jid(#jid{} = Jid) -> delete_for_jid(jid:to_lower(Jid));
 delete_for_jid({_, _, _} = Jid) ->
     lists:foreach(
@@ -106,11 +106,11 @@ delete_for_jid({_, _, _} = Jid) ->
       end,
       normalize_jid(Jid)).
 
--spec all_domains() -> {ok, [ejabberd:lserver()]}.
+-spec all_domains() -> {ok, [jid:lserver()]}.
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
--spec endpoints(Host :: ejabberd:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
 
@@ -118,17 +118,17 @@ endpoints(Host) ->
 %% gen_mod API
 %%--------------------------------------------------------------------
 
--spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
+-spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
     Opts = [{backend, redis}, {redis, [no_opts]}, {cache_missed, true},
             {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
--spec stop(Host :: ejabberd:lserver()) -> any().
+-spec stop(Host :: jid:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
--spec deps(Host :: ejabberd:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
+-spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Host, Opts) ->
     mod_global_distrib_utils:deps(?MODULE, Host, Opts, fun deps/1).
 
@@ -136,7 +136,7 @@ deps(Host, Opts) ->
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
--spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jid(), Info :: list()) ->
+-spec session_opened(mongoose_acc:t(), ejabberd_sm:sid(), UserJID :: jid:jid(), Info :: list()) ->
     mongoose_acc:t().
 session_opened(Acc, _SID, UserJid, _Info) ->
     insert_for_jid(UserJid),
@@ -144,7 +144,7 @@ session_opened(Acc, _SID, UserJid, _Info) ->
 
 -spec session_closed(mongoose_acc:t(),
                      ejabberd_sm:sid(),
-                     UserJID :: jid(),
+                     UserJID :: jid:jid(),
                      Info :: list(),
                      _Status :: any()) ->
     mongoose_acc:t().
@@ -153,8 +153,8 @@ session_closed(Acc, _SID, UserJid, _Info, _Reason) ->
     Acc.
 
 -spec packet_to_component(Acc :: mongoose_acc:t(),
-                          From :: ejabberd:jid(),
-                          To :: ejabberd:jid()) -> mongoose_acc:t().
+                          From :: jid:jid(),
+                          To :: jid:jid()) -> mongoose_acc:t().
 packet_to_component(Acc, From, _To) ->
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     Acc.
@@ -228,7 +228,7 @@ stop() ->
 
     mod_global_distrib_mapping_backend:stop().
 
--spec normalize_jid(ljid()) -> [binary()].
+-spec normalize_jid(jid:ljid()) -> [binary()].
 normalize_jid({_, _, _} = FullJid) ->
     case jid:to_bare(FullJid) of
         FullJid -> [jid:to_binary(FullJid)];
@@ -265,7 +265,7 @@ put_domain(Key) ->
 delete_domain(Key) ->
     mod_global_distrib_mapping_backend:delete_domain(Key).
 
--spec do_insert_for_jid(jid() | ljid(), Host :: ejabberd:lserver(),
+-spec do_insert_for_jid(jid:jid() | jid:ljid(), Host :: jid:lserver(),
                         PutSession :: fun((binary()) -> ok | error)) -> ok.
 do_insert_for_jid(#jid{} = Jid, Host, PutSession) ->
     do_insert_for_jid(jid:to_lower(Jid), Host, PutSession);
@@ -276,7 +276,8 @@ do_insert_for_jid({_, _, _} = Jid, Host, PutSession) ->
       end,
       normalize_jid(Jid)).
 
--spec do_lookup_jid(ljid()) -> {ok, Host :: ejabberd:lserver()} | error.
+
+-spec do_lookup_jid(jid:ljid()) -> {ok, Host :: jid:lserver()} | error.
 do_lookup_jid({_, _, _} = Jid) ->
     BinJid = jid:to_binary(Jid),
     LookupInDB = fun(BJid) -> fun() -> get_session(BJid) end end,
