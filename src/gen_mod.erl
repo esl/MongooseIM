@@ -52,6 +52,7 @@
          set_opt/3,
          get_module_opt/4,
          set_module_opt/4,
+         set_module_opts/3,
          get_module_opts/2,
          get_opt_subhost/3,
          get_opt_subhost/4,
@@ -288,19 +289,27 @@ get_module_opt_by_subhost(SubHost, Module, Opt, Default) ->
     {ok, Host} = mongoose_subhosts:get_host(SubHost),
     get_module_opt(Host, Module, Opt, Default).
 
+
 %% @doc Non-atomic! You have been warned.
 -spec set_module_opt(jid:server(), module(), _Opt, _Value) -> boolean().
 set_module_opt(Host, Module, Opt, Value) ->
-    Key = {Module, Host},
-    OptsList = ets:lookup(ejabberd_modules, Key),
-    case OptsList of
+    case ets:lookup(ejabberd_modules, {Module, Host}) of
         [] ->
             false;
         [#ejabberd_module{opts = Opts}] ->
             Updated = set_opt(Opt, Opts, Value),
-            ets:update_element(ejabberd_modules, Key,
-                               {#ejabberd_module.opts, Updated})
+            set_module_opts(Host, Module, Updated)
     end.
+
+
+%% @doc Replaces all module options
+-spec set_module_opts(ejabberd:server(), module(), _Opts) -> true.
+set_module_opts(Host, Module, Opts0) ->
+    Opts = proplists:unfold(Opts0),
+    ets:insert(ejabberd_modules,
+               #ejabberd_module{module_host = {Module, Host},
+                                opts = Opts}).
+
 
 -spec set_module_opt_by_subhost(
         SubHost :: jid:server(),
@@ -345,7 +354,8 @@ loaded_modules_with_opts(Host) ->
 
 -spec set_module_opts_mnesia(jid:server(), module(), [any()]
                             ) -> {'aborted', _} | {'atomic', _}.
-set_module_opts_mnesia(Host, Module, Opts) ->
+set_module_opts_mnesia(Host, Module, Opts0) ->
+    Opts = proplists:unfold(Opts0),
     Modules = case ejabberd_config:get_local_option({modules, Host}) of
         undefined ->
             [];

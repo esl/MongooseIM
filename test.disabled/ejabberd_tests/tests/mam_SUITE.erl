@@ -554,9 +554,9 @@ init_per_group(muc06, Config) ->
     [{props, mam06_props()}, {with_rsm, true}|Config];
 
 init_per_group(muc_configurable_archiveid, Config) ->
-    Config ++ [{params_backup, rpc_apply(mod_mam_muc_params, params, [])}];
+    Config ++ [{params_backup, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam_muc])}];
 init_per_group(configurable_archiveid, Config) ->
-    [{params_backup, rpc_apply(mod_mam_params, params, [])} | Config];
+    [{params_backup, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam])} | Config];
 
 init_per_group(muc_rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
@@ -603,11 +603,14 @@ end_per_group(G, Config) when G == rsm_all; G == mam_purge; G == nostore;
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
     ParamsB = proplists:get_value(params_backup, Config),
-    rpc_apply(mod_mam_muc, set_params, [ParamsB]),
+    lists:foreach(fun({Key, Value}) ->
+                          rpc_apply(gen_mod, set_module_opt, [host(), mod_mam, Key, Value])
+                  end,
+                  ParamsB),
     Config;
 end_per_group(configurable_archiveid, Config) ->
     ParamsB = proplists:get_value(params_backup, Config),
-    rpc_apply(mod_mam, overwrite_params, [ParamsB]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, ParamsB]),
     Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);
@@ -616,7 +619,6 @@ end_per_group(Group, Config) ->
     B = basic_group(Group),
     Config1 = end_state(C, B, Config),
     Config2 = end_modules(C, B, Config1),
-    purge_params_modules(),
     escalus_fresh:clean(),
     delete_users(Config2).
 
@@ -813,8 +815,7 @@ init_state(C, muc_light, Config) ->
 init_state(_C, prefs_cases, Config) ->
     Config;
 init_state(_C, policy_violation, Config) ->
-    rpc_apply(mod_mam, set_params,
-              [ [{max_result_limit, 5}] ]),
+    rpc_apply(gen_mod, set_module_opt, [host(), mod_mam, max_result_limit, 5]),
     Config;
 init_state(_, _, Config) ->
     clean_archives(Config).
@@ -867,43 +868,36 @@ init_per_testcase(C=muc_archive_request, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_no_elements, Config) ->
-    rpc_apply(mod_mam_muc, set_params,
-              [ [no_stanzaid_element] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, [no_stanzaid_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_both_elements, Config) ->
-    rpc_apply(mod_mam_muc, set_params,
-              [ [add_archived_element] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, [add_archived_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_only_stanzaid, Config) ->
-    rpc_apply(mod_mam_muc, set_params,
-              [ [] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, []]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_only_archived, Config) ->
-    rpc_apply(mod_mam_muc, set_params,
-              [ [no_stanzaid_element, add_archived_element] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam_muc, [add_archived_element, no_stanzaid_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=no_elements, Config) ->
-    rpc_apply(mod_mam, overwrite_params,
-              [ [no_stanzaid_element] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, [no_stanzaid_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=both_elements, Config) ->
-    rpc_apply(mod_mam, overwrite_params,
-              [ [add_archived_element] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, [add_archived_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=only_stanzaid, Config) ->
-    rpc_apply(mod_mam, overwrite_params,
-              [ [] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, []]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=only_archived, Config) ->
-    rpc_apply(mod_mam, overwrite_params,
-              [ [no_stanzaid_element, add_archived_element] ]),
+    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, [no_stanzaid_element,
+                                                           add_archived_element]]),
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_message_with_archived_and_stanzaid, Config) ->
@@ -1073,12 +1067,6 @@ stop_module(Host, Mod) ->
 just_stop_module(Host, Mod) ->
     {atomic, ok} = rpc_apply(gen_mod, stop_module, [Host, Mod]),
     ok.
-
-purge_params_modules() ->
-    rpc_apply(code, delete, [mod_mam_params]),
-    rpc_apply(code, purge, [mod_mam_params]),
-    rpc_apply(code, delete, [mod_mam_muc_params]),
-    rpc_apply(code, purge, [mod_mam_muc_params]).
 
 %%--------------------------------------------------------------------
 %% Group name helpers
@@ -2808,5 +2796,3 @@ when_pm_message_is_sent(Sender, Receiver, Body) ->
 
 then_pm_message_is_received(Receiver, Body) ->
     escalus:assert(is_chat_message, [Body], escalus:wait_for_stanza(Receiver)).
-
-
