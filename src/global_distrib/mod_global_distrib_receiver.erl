@@ -203,10 +203,3 @@ start_listener({Addr, Port} = Ref, RetriesLeft) ->
 -spec stop_listeners() -> any().
 stop_listeners() ->
     lists:foreach(fun ranch:stop_listener/1, endpoints()).
-
-add_connection_to_sender(drop) -> drop;
-add_connection_to_sender({From, To, Acc0, Packet} = FPacket) ->
-    Origin = mod_global_distrib:get_metadata(Acc0, origin),
-    Mgr = mod_global_distrib_utils:server_to_sup_name(Origin),
-    mod_global_distrib_server_sup:start_pool(Server, )
-    Acc0.
