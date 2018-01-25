@@ -72,7 +72,8 @@ groups() ->
       [
        test_in_order_messages_on_multiple_connections,
        test_muc_conversation_history,
-       test_in_order_messages_on_multiple_connections_with_bounce,
+       % XXX Disabled, see #1683
+%      test_in_order_messages_on_multiple_connections_with_bounce,
        test_messages_bounced_in_order
       ]},
      {rebalancing, [shuffle],
