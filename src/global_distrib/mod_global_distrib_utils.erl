@@ -182,16 +182,33 @@ server_to_sup_name(Server) ->
 -spec maybe_update_mapping(From :: jid:jid(), mongoose_acc:t()) -> any().
 maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
     ok;
+maybe_update_mapping(#jid{luser = <<>>, lserver = LServer} = From, Acc) ->
+  case opt(mod_global_distrib, global_host) of
+    LServer -> ok;
+    _ ->
+      ensure_domain_inserted(Acc, From)
+  end;
 maybe_update_mapping(From, Acc) ->
-    Origin = mod_global_distrib:get_metadata(Acc, origin),
     case mod_global_distrib_mapping:for_jid(From) of
-        error -> mod_global_distrib_mapping:insert_for_jid(From, Origin);
-        _ -> ok
+      error ->
+        Origin = mod_global_distrib:get_metadata(Acc, origin),
+        mod_global_distrib_mapping:insert_for_jid(From, Origin);
+      _ ->
+        ok
     end.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+ensure_domain_inserted(Acc, From) ->
+  case mod_global_distrib_mapping:for_domain(From) of
+        error ->
+          Origin = mod_global_distrib:get_metadata(Acc, origin),
+          mod_global_distrib_mapping:insert_for_domain(From, Origin);
+        _ ->
+          ok
+  end.
 
 -spec check_host(local_host | global_host, Opts :: proplists:proplist()) -> true.
 check_host(Key, Opts) ->
