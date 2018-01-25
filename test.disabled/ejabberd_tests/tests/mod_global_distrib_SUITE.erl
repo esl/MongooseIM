@@ -38,13 +38,13 @@ all() ->
      {group, invalidation},
      {group, multi_connection},
      {group, rebalancing},
-     {group, advertised_endpoints}
+     {group, advertised_endpoints},
+     {group, host_refresher}
     ].
 
 groups() ->
     [{mod_global_distrib, [shuffle],
-      [test_host_refreshing,
-       test_pm_between_users_at_different_locations,
+      [test_pm_between_users_at_different_locations,
        test_pm_between_users_before_available_presence,
        test_muc_conversation_on_one_host,
        test_component_disconnect,
@@ -58,6 +58,8 @@ groups() ->
        test_update_senders_host_by_ejd_service
        %% TODO: Add test case fo global_distrib_addr option
       ]},
+     {host_refresher, [],
+      [test_host_refreshing]},
      {cluster_restart, [],
       [
        test_location_disconnect
@@ -278,7 +280,9 @@ test_advertised_endpoints_override_endpoints(Config) ->
 test_host_refreshing(_Config) ->
     timer:sleep(?HOSTS_REFRESH_INTERVAL + 20), % Let's wait to be sure refresher added children
     Children = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
-    ct:log("children: ~p~n", [Children]),
+    ct:log("children in asia: ~p~n", [Children]),
+    ct:log("redis: ~p~n", [rpc(asia_node, mod_global_distrib_mapping, hosts, [])]),
+    ct:log("children in europe1: ~p~n", [rpc(europe_node1, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup])]),
     [EuropeHost] = lists:filtermap(fun({europe_node1, Host, _}) -> {true, list_to_binary(Host)};
                                       (_) -> false end, get_hosts()),
     EuropeSup = binary_to_atom(<<"mod_global_distrib_server_sup_", EuropeHost/binary>>, utf8),

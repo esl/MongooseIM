@@ -20,7 +20,7 @@
 
 -behavior(gen_server).
 -behavior(gen_mod).
--include("ejabberd.hrl").
+-include("mongoose.hrl").
 
 %% API
 -export([start_link/1]).
@@ -47,7 +47,7 @@ start_link(RefreshInterval) ->
 
 -spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts) ->
-    ?DEBUG("Opts in refresher: ~p~n", [Opts]),
+    ?ERROR_MSG("Opts in refresher: ~p~n", [Opts]),
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:lserver()) -> any().
@@ -63,7 +63,7 @@ deps(Host, Opts) ->
 %%--------------------------------------------------------------------
 
 init([RefreshInterval]) ->
-    ?DEBUG("refresher starting with interval ~p~n", [RefreshInterval]),
+    ?ERROR_MSG("refresher starting with interval ~p~n", [RefreshInterval]),
     schedule_refresh(RefreshInterval),
     {ok, RefreshInterval}.
 
@@ -112,9 +112,9 @@ stop() ->
     ok.
 
 refresh() ->
-    ?DEBUG("Refreshing hosts, checking if there exists a supervisor for all of them~n", []),
+    ?ERROR_MSG("Refreshing hosts, checking if there exists a supervisor for all of them~n", []),
     Hosts = mod_global_distrib_mapping:hosts(),
-    ?DEBUG("Discovered hosts: ~p~n", [Hosts]),
+    ?ERROR_MSG("Discovered hosts: ~p~n", [Hosts]),
     lists:map(fun maybe_add_host/1, Hosts),
     ok.
 
