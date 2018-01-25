@@ -51,6 +51,7 @@
                 shaper_state,
                 c2s_pid,
                 max_stanza_size,
+                stanza_chunk_size,
                 parser,
                 timeout}).
 -type state() :: #state{}.
@@ -123,6 +124,7 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
                 sock_mod = SockMod,
                 shaper_state = ShaperState,
                 max_stanza_size = MaxStanzaSize,
+                stanza_chunk_size = 0,
                 timeout = Timeout}}.
 
 %%--------------------------------------------------------------------
@@ -134,11 +136,10 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
-    NewParser = reset_parser(Parser, State#state.max_stanza_size),
-    NewState = State#state{socket = TLSSocket,
-                           sock_mod = fast_tls,
-                           parser = NewParser},
+handle_call({starttls, TLSSocket}, _From, State) ->
+    StateAfterReset = reset_parser(State),
+    NewState = StateAfterReset#state{socket = TLSSocket,
+                                 sock_mod = fast_tls},
     case fast_tls:recv_data(TLSSocket, <<"">>) of
         {ok, TLSData} ->
             {reply, ok, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
@@ -146,11 +147,10 @@ handle_call({starttls, TLSSocket}, _From, #state{parser = Parser} = State) ->
             {stop, normal, ok, NewState}
     end;
 handle_call({compress, ZlibSocket}, _From,
-  #state{parser = Parser, c2s_pid = C2SPid} = State) ->
-    NewParser = reset_parser(Parser, State#state.max_stanza_size),
-    NewState = State#state{socket = ZlibSocket,
-                           sock_mod = ejabberd_zlib,
-                           parser = NewParser},
+  #state{c2s_pid = C2SPid} = State) ->
+    StateAfterReset = reset_parser(State),
+    NewState = StateAfterReset#state{socket = ZlibSocket,
+                                 sock_mod = ejabberd_zlib},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
             {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
@@ -162,8 +162,8 @@ handle_call({compress, ZlibSocket}, _From,
             {stop, normal, ok, NewState}
     end;
 handle_call({become_controller, C2SPid}, _From, State) ->
-    Parser = reset_parser(State#state.parser, State#state.max_stanza_size),
-    NewState = State#state{c2s_pid = C2SPid, parser = Parser},
+    StateAfterReset = reset_parser(State),
+    NewState = StateAfterReset#state{c2s_pid = C2SPid},
     activate_socket(NewState),
     Reply = ok,
     {reply, Reply, NewState, ?HIBERNATE_TIMEOUT};
@@ -313,25 +313,31 @@ process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
 %% Data processing for connectors receivind data as string.
 process_data(Data, #state{parser = Parser,
                           shaper_state = ShaperState,
+                          stanza_chunk_size = ChunkSize,
                           c2s_pid = C2SPid} = State) ->
     ?DEBUG("Received XML on stream = \"~s\"", [Data]),
     Size = size(Data),
-    mongoose_metrics:update(global,
-                              [data, xmpp, received, xml_stanza_size], Size),
-
     maybe_run_keep_alive_hook(Size, State),
     {C2SEvents, NewParser} =
         case exml_stream:parse(Parser, Data) of
             {ok, NParser, Elems} -> {[wrap_if_xmlel(E) || E <- Elems], NParser};
             {error, Reason} -> {[{xmlstreamerror, Reason}], Parser}
         end,
+    NewChunkSize = update_stanza_size(C2SEvents, ChunkSize, Size),
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
     [gen_fsm:send_event(C2SPid, Event) || Event <- C2SEvents],
     maybe_pause(Pause, State),
-    State#state{parser = NewParser, shaper_state = NewShaperState}.
+    State#state{parser = NewParser, shaper_state = NewShaperState, stanza_chunk_size = NewChunkSize}.
 
 wrap_if_xmlel(#xmlel{} = E) -> {xmlstreamelement, E};
 wrap_if_xmlel(E) -> E.
+
+update_stanza_size([_|_], ChunkSize, Size) ->
+    mongoose_metrics:update(global,
+                            [data, xmpp, received, xml_stanza_size], ChunkSize + Size),
+    0;
+update_stanza_size(_, ChunkSize, Size) ->
+    ChunkSize + Size.
 
 maybe_pause(_, #state{c2s_pid = undefined}) ->
     ok;
@@ -358,15 +364,17 @@ element_wrapper(#xmlel{} = XMLElement) ->
 element_wrapper(Element) ->
     Element.
 
-reset_parser(Parser, infinity) ->
-    reset_parser(Parser, 0);
-reset_parser(undefined, MaxSize) ->
+reset_parser(#state{parser = undefined, max_stanza_size = Size} = State) ->
+    MaxSize = case Size of
+                  infinity -> 0;
+                  _ -> Size
+              end,
     {ok, NewParser} = exml_stream:new_parser([{start_tag, <<"stream:stream">>},
                                               {max_child_size, MaxSize}]),
-    NewParser;
-reset_parser(Parser, _MaxSize) ->
+    State#state{parser = NewParser, stanza_chunk_size = 0};
+reset_parser(#state{parser = Parser} = State) ->
     {ok, NewParser} = exml_stream:reset_parser(Parser),
-    NewParser.
+    State#state{parser = NewParser, stanza_chunk_size = 0}.
 
 free_parser(undefined) ->
     ok;
