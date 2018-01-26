@@ -4,7 +4,7 @@
 
 -compile([native, {hipe, [o3]}, {inline, [hex/1]}]).
 
--export([bin_to_hex/1]).
+-export([bin_to_hex/1, hex_to_bin/1]).
 
 bin_to_hex(B) when is_binary(B) ->
   bin_to_hex(B, <<>>).
@@ -23,6 +23,14 @@ bin_to_hex_(<<A:8, B:8, C:8, D:8, E:8, F:8, G:8, H:8, Rest/binary>>, Acc) ->
     Rest,
     <<Acc/binary,
       ?H(A), ?H(B), ?H(C), ?H(D), ?H(E), ?H(F), ?H(G), ?H(H)>>).
+
+-spec hex_to_bin(binary()) -> <<_:_*1>>.
+hex_to_bin(Bin) when is_binary(Bin) ->
+    << <<(hex_to_int(X, Y))>> || <<X, Y>> <= Bin>>.
+
+-spec hex_to_int(byte(), byte()) -> integer().
+hex_to_int(X, Y) when is_integer(X), is_integer(Y) ->
+    list_to_integer([X, Y], 16).
 
 hex(X) ->
   element(

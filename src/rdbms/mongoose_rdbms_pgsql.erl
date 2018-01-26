@@ -22,13 +22,20 @@
 
 -define(PGSQL_PORT, 5432).
 
--export([escape_format/1, connect/2, disconnect/1, query/3, prepare/6, execute/4]).
+-export([escape_binary/2, unescape_binary/2, connect/2, disconnect/1,
+         query/3, prepare/6, execute/4]).
 
 %% API
 
--spec escape_format(mongoose_rdbms:pool()) -> atom().
-escape_format(_Pool) ->
-    hex.
+-spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
+escape_binary(_Pool, Bin) when is_binary(Bin) ->
+    [<<"E'\\\\x">>, bin_to_hex:bin_to_hex(Bin), <<"'::bytea">>].
+
+-spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
+unescape_binary(_Pool, <<"\\x", Bin/binary>>) ->
+    bin_to_hex:hex_to_bin(Bin);
+unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+    Bin.
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
                      {ok, Connection :: term()} | {error, Reason :: any()}.
