@@ -2,7 +2,6 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("public_key/include/PKCS-FRAME.hrl").
 
 -define(DOMAIN1, <<"localhost">>).
 -define(USERNAME, <<"10857839">>).
