@@ -24,8 +24,10 @@ mech_new(_Host, Creds) ->
     Cert ->
       DerCert = public_key:pkix_encode('Certificate', Cert, plain),
       PemCert = public_key:pem_encode([{'Certificate', DerCert, not_encrypted}]),
+      ExtraFields = get_common_name(Cert) ++ get_xmpp_addresses(Cert),
       {ok, #state{creds = mongoose_credentials:extend(Creds, [ {pem_cert, PemCert},
                                                                {der_cert, DerCert}
+                                                               | ExtraFields
                                                              ])}}
   end.
 
@@ -38,7 +40,6 @@ mech_step(#state{creds = Creds}, <<"">>) ->
 mech_step(#state{creds = Creds}, User) ->
   authorize(mongoose_credentials:set(Creds, requested_name, User)).
 
-
 authorize(Creds) ->
   %% auth backend is responsible to add username to Creds.
   case ejabberd_auth:authorize(Creds) of
@@ -47,5 +48,14 @@ authorize(Creds) ->
     _ -> {error, <<"not-authorized">>}
   end.
 
+get_common_name(Cert) ->
+  case cert_utils:get_common_name(Cert) of
+    error -> [];
+    CN -> [{common_name, CN}]
+  end.
 
-
+get_xmpp_addresses(Cert) ->
+  case cert_utils:get_xmpp_addresses(Cert) of
+    [] -> [];
+    XmmpAddresses -> [{xmpp_addressses, XmmpAddresses}]
+  end.
