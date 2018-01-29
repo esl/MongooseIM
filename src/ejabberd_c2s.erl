@@ -195,6 +195,7 @@ init([{SockMod, Socket}, Opts]) ->
                     (_) -> false
                  end, Opts),
     TLSOpts = verify_opts(Verify) ++ TLSOpts1,
+    [ssl_crl_cache:insert({file, CRL}) || CRL <- proplists:get_value(crlfiles, Opts, [])],
     IP = peerip(SockMod, Socket),
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
