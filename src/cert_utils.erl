@@ -1,106 +1,87 @@
 -module(cert_utils).
 -author('denys.gonchar@erlang-solutions.com').
 
--export([ get_cert_domains/1 ]).
-        
+-export([ get_cert_domains/1,
+          get_common_name/1,
+          get_xmpp_addresses/1,
+          get_dns_addresses/1
+        ]).
+
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").
 -include("jlib.hrl").
 
 -type certificate() :: #'Certificate'{}.
 
--spec get_cert_domains(certificate()) ->  [any()].
+-spec get_common_name(certificate()) -> string() | error.
+get_common_name(Cert) ->
+  try
+    {rdnSequence, RDNSequence} = Cert#'Certificate'.tbsCertificate#'TBSCertificate'.subject,
+    [{ok, {_, CN}}] = ['OTP-PUB-KEY':decode('X520CommonName', V) ||
+      AtributesList <- RDNSequence,
+      #'AttributeTypeAndValue'{type = ?'id-at-commonName', value = V} <- AtributesList],
+    CN
+  catch
+    _:_ -> error
+  end.
+
+
+-spec get_xmpp_addresses(certificate()) -> [any()].
+get_xmpp_addresses(Cert) ->
+  try
+    Extensions = Cert#'Certificate'.tbsCertificate#'TBSCertificate'.extensions,
+    [BinVal] = [convert_to_bin(V) ||
+      #'Extension'{extnID = ?'id-ce-subjectAltName', extnValue = V} <- Extensions],
+    {ok, SANs} = 'OTP-PUB-KEY':decode('SubjectAltName', BinVal),
+    [begin
+       {ok, XmppAddr} = 'XmppAddr':decode('XmppAddr', V),
+       XmppAddr
+     end || {otherName, #'AnotherName'{'type-id' = ?'id-on-xmppAddr', value = V}} <- SANs]
+  catch
+    _:_ -> []
+  end.
+
+
+-spec get_dns_addresses(certificate()) -> [any()].
+get_dns_addresses(Cert) ->
+  try
+    Extensions = Cert#'Certificate'.tbsCertificate#'TBSCertificate'.extensions,
+    [BinVal] = [convert_to_bin(V) ||
+      #'Extension'{extnID = ?'id-ce-subjectAltName', extnValue = V} <- Extensions],
+    {ok, SANs} = 'OTP-PUB-KEY':decode('SubjectAltName', BinVal),
+    [DNS || {dNSName, DNS} <- SANs]
+  catch
+    _:_ -> []
+  end.
+
+
+-spec get_cert_domains(certificate()) -> [any()].
 get_cert_domains(Cert) ->
-    {rdnSequence, Subject} =
-        (Cert#'Certificate'.tbsCertificate)#'TBSCertificate'.subject,
-    Extensions =
-        (Cert#'Certificate'.tbsCertificate)#'TBSCertificate'.extensions,
-    lists:flatmap(
-      fun(#'AttributeTypeAndValue'{type = ?'id-at-commonName',
-                                   value = Val}) ->
-              case 'OTP-PUB-KEY':decode('X520CommonName', Val) of
-                  {ok, {_, D1}} ->
-                      D = convert_decoded_cn(D1),
-                      get_lserver_from_decoded_cn(D);
-                  _ ->
-                      []
-              end;
-         (_) ->
-              []
-      end, lists:flatten(Subject)) ++
-        lists:flatmap(
-          fun(#'Extension'{extnID = ?'id-ce-subjectAltName',
-                           extnValue = Val}) ->
-                  BVal = convert_extnval_to_bin(Val),
-                  DSAN = 'OTP-PUB-KEY':decode('SubjectAltName', BVal),
-                  get_lserver_from_decoded_extnval(DSAN);
-             (_) ->
-                  []
-          end, Extensions).
+  CN = get_common_name(Cert),
+  Addresses = get_xmpp_addresses(Cert),
+  Domains = get_dns_addresses(Cert),
+  lists:flatten(get_lserver_from_addr(CN,false) ++
+    [get_lserver_from_addr(Addr,true) || Addr <- Addresses, is_binary(Addr)] ++
+    [get_lserver_from_addr(DNS,false) || DNS <- Domains, is_list(DNS)]).
 
 
-convert_decoded_cn(Val) when is_list(Val) ->
-    list_to_binary(Val);
-convert_decoded_cn(Val) when is_binary(Val) ->
-    Val;
-convert_decoded_cn(_) ->
-    error.
+convert_to_bin(Val) when is_list(Val) ->
+  list_to_binary(Val);
+convert_to_bin(Val) ->
+  Val.
 
-get_lserver_from_decoded_cn(error) ->
-    [];
-get_lserver_from_decoded_cn(D) ->
-    case jid:from_binary(D) of
-        #jid{luser = <<"">>,
-             lserver = LD,
-             lresource = <<"">>} ->
-            [LD];
-        _ ->
-            []
-    end.
 
-get_lserver_from_decoded_extnval({ok, SANs}) ->
-    lists:flatmap(
-      fun({otherName,
-           #'AnotherName'{'type-id' = ?'id-on-xmppAddr',
-                          value = XmppAddr
-                         }}) ->
-              D = 'XmppAddr':decode('XmppAddr', XmppAddr),
-              get_idna_lserver_from_decoded_xmpp_addr(D);
-         ({dNSName, D}) when is_list(D) ->
-              JID = jid:from_binary(list_to_binary(D)),
-              get_lserver_from_jid(JID);
-         (_) ->
-              []
-      end, SANs);
-get_lserver_from_decoded_extnval(_) ->
-    [].
+get_lserver_from_addr(V, UTF8) when is_binary(V); is_list(V) ->
+  Val = convert_to_bin(V),
+  case {jid:from_binary(Val), UTF8} of
+    {#jid{luser = <<"">>, lserver = LD, lresource = <<"">>}, true} ->
+      case ejabberd_s2s:domain_utf8_to_ascii(LD) of
+        false -> [];
+        PCLD -> [PCLD]
+      end;
+    {#jid{luser = <<"">>, lserver = LD, lresource = <<"">>}, _} -> [LD];
+    _ -> []
+  end;
+get_lserver_from_addr(_, _) -> [].
 
-get_idna_lserver_from_decoded_xmpp_addr({ok, D}) when is_binary(D) ->
-    case jid:from_binary(D) of
-        #jid{luser = <<"">>,
-             lserver = LD,
-             lresource = <<"">>} ->
-            case ejabberd_s2s:domain_utf8_to_ascii(LD) of
-                false ->
-                    [];
-                PCLD ->
-                    [PCLD]
-            end;
-        _ ->
-            []
-    end;
-get_idna_lserver_from_decoded_xmpp_addr(_) ->
-    [].
 
-get_lserver_from_jid(#jid{luser = <<"">>,
-                     lserver = LD,
-                     lresource = <<"">>}) ->
-    [LD];
-get_lserver_from_jid(_) ->
-    [].
-
-convert_extnval_to_bin(Val) when is_list(Val) ->
-    list_to_binary(Val);
-convert_extnval_to_bin(Val) ->
-    Val.
-    
