@@ -194,8 +194,8 @@ groups() -> [
                 mediated_invite,
                 one2one_chat_to_muc,
                 exit_room,
-                exit_room_with_status
-                %kicked_after_sending_malformed_presence
+                exit_room_with_status,
+                kicked_after_sending_malformed_presence
                 ]},
         {owner, [parallel], [
                 %% fails, see testcase
