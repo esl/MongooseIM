@@ -384,7 +384,7 @@ enable_push_for_user(User, Service, EnableOpts) ->
 
 
 get_push_logs(Service, DeviceToken, _Config) ->
-    wait_for(timer:seconds(10), fun() ->
+    wait_for(timer:seconds(20), fun() ->
         PushMock = connect_to(Service),
         {ok, 200, Body} = h2_req(PushMock, get, <<"/activity">>),
         #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
