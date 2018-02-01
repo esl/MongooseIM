@@ -2789,11 +2789,13 @@ exit_room_with_status(Config1) ->
     end),
     destroy_room(Config).
 
+%GIVEN Kate in the room, to ensure that the room does not get stopped
+%WHEN Bob sends malformed presence
+%THEN Bob gets kicked. Join Alice to check that Bob is not in the room. Kate and Bob receive presence unavailable.
 kicked_after_sending_malformed_presence(Config1) ->
     AliceSpec = given_fresh_spec(Config1, alice),
     Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1},{alice, 1}], fun(Bob, Kate, Alice) ->
-        %% GIVEN An user is in the room
         Room = ?config(room, Config),
         KateUsername = escalus_utils:get_username(Kate),
         KateStanza = stanza_muc_enter_room(Room, KateUsername),
@@ -2806,25 +2808,19 @@ kicked_after_sending_malformed_presence(Config1) ->
         escalus:send(Bob, Stanza),
         escalus:wait_for_stanza(Bob),
         is_presence_from(Bob, ?config(room, Config),escalus:wait_for_stanza(Bob)),
-
-        %escalus:assert(is_message, escalus:wait_for_stanza(Bob)), %% subject
-        %% WHEN The user sends a malformed presence
         Error = stanza_to_room(escalus_stanza:presence(<<"error">>), Room, Username),
         escalus:send(Bob, Error),
-
-        %% THAN He is kicked from the room
         escalus:wait_for_stanza(Bob),
-        escalus:assert(is_presence_with_type, [<<"unavailable">>], BobStanza = escalus:wait_for_stanza(Bob)),
+        BobStanza = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>], BobStanza),
         escalus:assert(is_stanza_from, [room_address(Room, Username)], BobStanza),
 
-        %% THAN He is actually kicked
-        %% Alice should not receive his presence
         AliceUsername = escalus_utils:get_username(Alice),
         AliceStanza = stanza_muc_enter_room(Room, AliceUsername),
         escalus:send(Alice, AliceStanza),
         escalus:wait_for_stanza(Alice),
         is_self_presence(Alice, ?config(room, Config), escalus:wait_for_stanza(Alice)),
-        escalus:assert(is_message, escalus:wait_for_stanza(Alice)), %% subject
+        escalus:assert(is_message, escalus:wait_for_stanza(Alice)),
         ok
     end),
     destroy_room(Config).
