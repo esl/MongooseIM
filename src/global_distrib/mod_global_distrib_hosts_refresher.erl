@@ -47,7 +47,6 @@ start_link(RefreshInterval) ->
 
 -spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts) ->
-    ?DEBUG("Opts in refresher: ~p~n", [Opts]),
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:lserver()) -> any().
@@ -67,10 +66,12 @@ init([RefreshInterval]) ->
     schedule_refresh(RefreshInterval),
     {ok, RefreshInterval}.
 
-handle_call(_Request, _From, State) ->
+handle_call(Request, From, State) ->
+    ?ERROR_MSG("issue=unknown_call request=~p from=~p", [Request, From]),
     {noreply, State}.
 
-handle_cast(_Request, State) ->
+handle_cast(Request, State) ->
+    ?ERROR_MSG("issue=unknown_cast request=~p", [Request]),
     {noreply, State}.
 
 handle_info(refresh, Interval) ->
@@ -78,9 +79,10 @@ handle_info(refresh, Interval) ->
     schedule_refresh(Interval),
     {noreply, Interval}.
 
-terminate(Reason, _State) ->
-    ?ERROR_MSG("mod_global_distrib_refresher terminated with reason: ~p", [Reason]),
-    ok.
+terminate(normal, _State) ->
+    ?INFO("mod_global_distrib_refresher has terminated with reason: normal", []);
+terminate(Reason, State) ->
+    ?ERROR_MSG("mod_global_distrib_refresher terminated with reason: ~p state=~p", [Reason, State]).
 
 
 %%--------------------------------------------------------------------
@@ -95,7 +97,7 @@ deps(Opts) ->
 -spec start() -> any().
 start() ->
     start_outgoing_conns_sup(),
-    Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval, default_interval()),
+    Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval, default_refresh_interval()),
     Child = #{
       id => mod_global_distrib_hosts_refresher,
       start => {?MODULE, start_link, [Interval]},
@@ -112,9 +114,8 @@ stop() ->
     ok.
 
 refresh() ->
-    ?DEBUG("Refreshing hosts, checking if there exists a supervisor for all of them~n", []),
+    ?DEBUG("Refreshing hosts, checking if there exists a connection pool for all of them", []),
     Hosts = mod_global_distrib_mapping:hosts(),
-    ?DEBUG("Discovered hosts: ~p~n", [Hosts]),
     lists:map(fun maybe_add_host/1, Hosts),
     ok.
 
@@ -122,15 +123,15 @@ schedule_refresh(Interval) ->
   erlang:send_after(Interval, self(), refresh).
 
 maybe_add_host(Host) ->
-    ?DEBUG("Checking host ~p (on host ~p)~n", [Host, local_host()]),
     case local_host() of
         Host ->
             ok;
         _ ->
+            ?DEBUG("reason=maybe_add_host host=~p local_host=~p", [Host, local_host()]),
             mod_global_distrib_outgoing_conns_sup:ensure_server_started(Host)
     end.
 
-default_interval() ->
+default_refresh_interval() ->
     3000.
 
 local_host() ->
