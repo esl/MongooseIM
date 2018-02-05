@@ -27,7 +27,8 @@
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
 -export([start/2, stop/1, deps/2]).
--export([for_domain/1, insert_for_domain/1, delete_for_domain/1, all_domains/0]).
+-export([for_domain/1, insert_for_domain/1, insert_for_domain/2,
+         delete_for_domain/1, all_domains/0]).
 -export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache/1]).
 -export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
          session_opened/4, session_closed/5]).
@@ -62,7 +63,11 @@ for_domain(Domain) when is_binary(Domain) ->
 -spec insert_for_domain(Domain :: binary()) -> ok.
 insert_for_domain(Domain) when is_binary(Domain) ->
     LocalHost = opt(local_host),
-    ets_cache:update(?DOMAIN_TAB, Domain, {ok, LocalHost}, fun() -> put_domain(Domain) end).
+    do_insert_for_domain(Domain, LocalHost, fun put_domain/1).
+
+-spec insert_for_domain(Domain :: binary(), Host :: binary()) -> ok.
+insert_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
+    do_insert_for_domain(Domain, Host, fun(_) -> ok end).
 
 -spec delete_for_domain(Domain :: binary()) -> ok.
 delete_for_domain(Domain) when is_binary(Domain) ->
@@ -276,6 +281,10 @@ do_insert_for_jid({_, _, _} = Jid, Host, PutSession) ->
       end,
       normalize_jid(Jid)).
 
+-spec do_insert_for_domain(Domain :: binary(), Host :: jid:lserver(),
+                           PutDomain :: fun((binary()) -> ok | error)) -> ok.
+do_insert_for_domain(Domain, Host, PutDomain) ->
+    ets_cache:update(?DOMAIN_TAB, Domain, {ok, Host}, fun() -> PutDomain(Domain) end).
 
 -spec do_lookup_jid(jid:ljid()) -> {ok, Host :: jid:lserver()} | error.
 do_lookup_jid({_, _, _} = Jid) ->
