@@ -80,7 +80,7 @@ handle_info(refresh, Interval) ->
     {noreply, Interval}.
 
 terminate(normal, _State) ->
-    ?INFO("mod_global_distrib_refresher has terminated with reason: normal", []);
+    ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: normal", []);
 terminate(Reason, State) ->
     ?ERROR_MSG("mod_global_distrib_refresher terminated with reason: ~p state=~p", [Reason, State]).
 
