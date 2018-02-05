@@ -186,7 +186,7 @@ maybe_update_mapping(#jid{luser = <<>>, lserver = LServer} = From, Acc) ->
   case opt(mod_global_distrib, global_host) of
     LServer -> ok;
     _ ->
-      ensure_domain_inserted(Acc, From)
+      ensure_domain_inserted(Acc, From#jid.lserver)
   end;
 maybe_update_mapping(From, Acc) ->
     case mod_global_distrib_mapping:for_jid(From) of
@@ -201,11 +201,12 @@ maybe_update_mapping(From, Acc) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-ensure_domain_inserted(Acc, From) ->
-  case mod_global_distrib_mapping:for_domain(From) of
+-spec ensure_domain_inserted(mongoose_acc:t(), jid:lserver()) -> ok.
+ensure_domain_inserted(Acc, Domain) ->
+  case mod_global_distrib_mapping:for_domain(Domain) of
         error ->
           Origin = mod_global_distrib:get_metadata(Acc, origin),
-          mod_global_distrib_mapping:insert_for_domain(From, Origin);
+          mod_global_distrib_mapping:insert_for_domain(Domain, Origin);
         _ ->
           ok
   end.
