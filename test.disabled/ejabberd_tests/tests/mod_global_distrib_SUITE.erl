@@ -278,29 +278,18 @@ test_advertised_endpoints_override_endpoints(Config) ->
                                  lists:sort(advertised_endpoints()) end, Endps).
 
 test_host_refreshing(_Config) ->
-    timer:sleep(?HOSTS_REFRESH_INTERVAL + 20), % Let's wait to be sure refresher added children
-    Children = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
-    ct:log("children in asia: ~p~n", [Children]),
-    ct:log("redis: ~p~n", [rpc(asia_node, mod_global_distrib_mapping, hosts, [])]),
-    ct:log("children in europe1: ~p~n", [rpc(europe_node1, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup])]),
+    eventually_true("wait for refresher to converge trees states",
+                    fun() -> trees_for_connections_present() end, ?HOSTS_REFRESH_INTERVAL, 2),
+    ConnectionSups = out_connection_sups(asia_node),
     [EuropeHost] = lists:filtermap(fun({europe_node1, Host, _}) -> {true, list_to_binary(Host)};
                                       (_) -> false end, get_hosts()),
-    EuropeSup = binary_to_atom(<<"mod_global_distrib_server_sup_", EuropeHost/binary>>, utf8),
+    EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [EuropeHost]),
     [EuropePid] = lists:filtermap(fun({Sup, Pid, supervisor, _}) -> {Sup =:= EuropeSup, Pid};
-                                   (_) -> false end,
-                                      Children),
-
+                                     (_) -> false end,
+                                      ConnectionSups),
     erlang:exit(EuropePid, kill),
-
-    ChildrenNoEurope = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
-    timer:sleep(?HOSTS_REFRESH_INTERVAL + 20),
-    ChildrenWithEurope = rpc(asia_node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
-
-    ct:log("Children: ~p~nEuropeSup: ~p~n, EuropePid: ~p~nChildrenNoEuropoe: ~p~n, ChildrenWithEurope: ~p~nDifference: ~p~n",
-    [Children, EuropeSup, EuropePid, ChildrenNoEurope, ChildrenWithEurope, ChildrenWithEurope -- ChildrenNoEurope]),
-
-    [{EuropeSup, _, _, _}] = ChildrenWithEurope -- ChildrenNoEurope,
-    ok.
+    eventually_true("wait for refresher to add tree for europe",
+                    fun() -> tree_for_sup_present(asia_node, EuropeSup) end, ?HOSTS_REFRESH_INTERVAL, 2).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -968,6 +957,32 @@ mock_inet() ->
 
 unmock_inet(Pids) ->
     execute_on_each_node(meck, unload, [inet]).
+
+eventually_true(Description, _Predicate, Interval, 0) ->
+    ct:fail({eventually_true_failed, Description});
+eventually_true(Description, Predicate, Interval, Retries) ->
+    case Predicate() of
+        true ->
+            ok;
+        false ->
+            timer:sleep(Interval),
+            eventually_true(Description, Predicate, Interval, Retries - 1)
+    end.
+
+out_connection_sups(Node) ->
+    Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
+    lists:filter(fun({Sup, _, _, _}) -> Sup =/= mod_global_distrib_hosts_refresher end, Children).
+
+trees_for_connections_present() ->
+    AsiaChildren = out_connection_sups(asia_node),
+    Europe1Children = out_connection_sups(europe_node1),
+    Europe2Children = out_connection_sups(europe_node2),
+    lists:all(fun(Host) -> length(Host) > 0 end, [AsiaChildren, Europe1Children, Europe2Children]).
+
+tree_for_sup_present(Node, ExpectedSup) ->
+    Children = out_connection_sups(Node),
+    lists:any(fun({Sup, _, _, _}) -> Sup =:= ExpectedSup;
+                 (_) -> false end, Children).
 
 
 %% ------------------------------- rebalancing helpers -----------------------------------
