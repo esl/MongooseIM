@@ -7,7 +7,7 @@
 * Client connections:
     * over TCP (with TLS/STARTTLS available) as defined in
     [RFC 6120](https://tools.ietf.org/html/rfc6120)
-    * over WebsSockets as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395)
+    * over WebSockets as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395)
     * over HTTP(S) long-polling (BOSH) as defined in
     [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
     [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
