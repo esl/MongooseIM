@@ -56,6 +56,9 @@ ensure_metric(Metric, Type) ->
                                                         Interval)
               end,
               Reporters);
+        {ok, already_present} ->
+            ?INFO_MSG("issue=metric_already_exists,metric=\"~p\",type=\"~p\"", [Metric, Type]),
+            ok;
         Other ->
             ?WARNING_MSG("issue=cannot_create_metric,metric=\"~p\",type=\"~p\",reason=\"~p\"",
                          [Metric, Type, Other]),
