@@ -102,7 +102,8 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
                     nothing_to_log
             end,
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
-            send_back_error(FPacket),
+            ejabberd_router:route_error_reply(To, From, Acc0,
+                                             mongoose_xmpp_errors:service_unavailable()),
             FPacket;
         OldTTL ->
             ?DEBUG("Storing global message id=~s from=~s to=~s to "
@@ -116,10 +117,6 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             do_insert_in_store(ResendAt, {From, To, Acc, Packet}),
             drop
     end.
-
-send_back_error({From, To, Acc, Packet}) ->
-    Err = jlib:make_error_reply(Packet, mongoose_xmppp_errors:TYPE_OF_ERROR_HERE()),
-    ejabberd_router:route(To, From, Acc, Err).
 
 -spec reroute_messages(mongoose_acc:t(), jid:jid(), jid:jid()) -> [mongoose_acc:t()].
 reroute_messages(Acc, From, To) ->
