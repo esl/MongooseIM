@@ -82,7 +82,6 @@ make -C test.disabled/ejabberd_tests quicktest
 
 Start a new tmux and paste the commands.
 
-
 ## Step-by-step breakdown
 
 `make devrel` builds four server nodes, preconfigured for a wide range of features covered by end-to-end tests.
@@ -200,11 +199,47 @@ Altogether, we have eight preset configuration.
 
 If you want to dig deeper, consult `.travis.yml` and `tools/travis-test.sh`, everything we do is there.
 
+### Gathering test reports from Travis tests
+
+If you test your MongooseIM fork on Travis, you might want to access test reports (which also include node logs and crash dumps) that are created by the test runner.
+
+#### Uploading reports to S3
+
+Our script uses AWS CLI to upload test results to an S3 bucket.
+Simply set [relevant environment variables](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html) in your repository settings on Travis (at least `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` have to be set), and enjoy test reports landing straight into your bucket (`AWS_BUCKET` variable should store the bucket's name).
+
+#### Uploading reports to Google Drive
+
+To store test results in Google Drive you need to [create a new project and obtain service account credentials](https://developers.google.com/identity/protocols/OAuth2ServiceAccount).
+You must also add Google Drive API to your project - to do this, navigate to *APIs & Services* in your project console and find & add *Google Drive API* in the *Library* tab.
+Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds.json | base64`) and use the result as `GDRIVE_SERVICE_ACCOUNT_CREDENTIALS` environment variable in your Travis repository settings.
+
+##### Sharing reports with your personal account
+
+The uploaded files will belong to the project that you created, i.e. will not be immediately visible from your personal Google Drive UI.
+To be able to access from your personal account, you can share the reports' directory with your account.
+To do this, we suggest using [gdrive](https://github.com/prasmussen/gdrive) utility:
+
+```sh
+$ go get github.com/prasmussen/gdrive # install gdrive (requires go language)
+$ # Create a directory where all test results will be uploaded.
+$ # This command assumes that service account credentials file
+$ # you downloaded previously is saved under path `/tmp/serviceAccountCredentials`
+$ ~/go/bin/gdrive mkdir -c /tmp --service-account serviceAccountCredentials --parent root mongooseim-test-reports
+Directory 12345abcdef created
+$ # Note the id of the created directory and use it (along with your email) in the next command
+$ ~/go/bin/gdrive share -c /tmp --service-account serviceAccountCredentials --role writer --type user --email 'your.email@gmail.com' '1234abcdef'
+```
+
+Set `GDRIVE_PARENT_DIR` environment variable of your Travis build to ID of the directory you created in the previous step.
+
+##### Additional notes
+
+Be aware that uploads to Google Drive will take much longer time than upload to S3 and you may encounter rate limiting errors if you perform many builds in a short timespan.
+
 ## Load testing
 
 Alongside CI, we do also CLT (Continuous Load Testing).
 We have our own load testing infrastructure, called Tide, which is triggered after every successful test run, and gives us a feedback on changes to MongooseIM performance.
 
 Test results are publicly available on the [Hello Tide!](http://tide.erlang-solutions.com/public) page.
-
-

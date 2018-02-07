@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -o pipefail
 IFS=$'\n\t'
 
 PRESET="internal_mnesia"
@@ -31,9 +31,7 @@ done
 source tools/travis-common-vars.sh
 source tools/travis-helpers.sh
 
-CAN_PRINT_S3_URL=${TRAVIS_SECURE_ENV_VARS:-false}
-
-if [ "$CAN_PRINT_S3_URL" == 'true' ]; then
+if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -201,4 +199,3 @@ else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
 fi
-
