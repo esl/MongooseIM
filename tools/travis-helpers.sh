@@ -1,4 +1,5 @@
 ct_reports_base_dir() {
+    local PR=${TRAVIS_PULL_REQUEST:-false}
     if [ ${PR} == false ]; then
         echo "branch"
     else

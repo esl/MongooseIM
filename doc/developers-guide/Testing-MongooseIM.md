@@ -214,24 +214,16 @@ To store test results in Google Drive you need to [create a new project and obta
 You must also add Google Drive API to your project - to do this, navigate to *APIs & Services* in your project console and find & add *Google Drive API* in the *Library* tab.
 Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds.json | base64`) and use the result as `GDRIVE_SERVICE_ACCOUNT_CREDENTIALS` environment variable in your Travis repository settings.
 
-##### Sharing reports with your personal account
+##### Saving reports on your personal account
 
 The uploaded files will belong to the project that you created, i.e. will not be immediately visible from your personal Google Drive UI.
-To be able to access from your personal account, you can share the reports' directory with your account.
-To do this, we suggest using [gdrive](https://github.com/prasmussen/gdrive) utility:
-
-```sh
-$ go get github.com/prasmussen/gdrive # install gdrive (requires go language)
-$ # Create a directory where all test results will be uploaded.
-$ # This command assumes that service account credentials file
-$ # you downloaded previously is saved under path `/tmp/serviceAccountCredentials`
-$ ~/go/bin/gdrive mkdir -c /tmp --service-account serviceAccountCredentials --parent root mongooseim-test-reports
-Directory 12345abcdef created
-$ # Note the id of the created directory and use it (along with your email) in the next command
-$ ~/go/bin/gdrive share -c /tmp --service-account serviceAccountCredentials --role writer --type user --email 'your.email@gmail.com' '1234abcdef'
-```
-
-Set `GDRIVE_PARENT_DIR` environment variable of your Travis build to ID of the directory you created in the previous step.
+To be able to upload files to your personal account, you can share the reports' directory with the project account.
+First, note ID of the project's user that you created to gain the service account credentials (e.g. `test-123@fair-smile-123456.iam.gserviceaccount.com`).
+You can see this [on the Service Accounts tab of the project console](https://console.developers.google.com/iam-admin/serviceaccounts/project).
+Now, create a directory on your Google Drive that will serve as the test root directory.
+Go into the directory's sharing options and paste in the project's user ID, granting it write access.
+Click to expand the *advanced* sharing options and note the ID of the shared directory that's displayed in the share link (e.g. if the link is `https://drive.google.com/drive/folders/1234567890abcdef?usp=sharing`, the directory's ID is `1234567890abcdef`).
+Finally, set `GDRIVE_PARENT_DIR` environment variable of your Travis build to the directory ID that you noted in the previous step.
 
 ##### Additional notes
 
