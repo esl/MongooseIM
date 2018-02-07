@@ -225,10 +225,6 @@ Go into the directory's sharing options and paste in the project's user ID, gran
 Click to expand the *advanced* sharing options and note the ID of the shared directory that's displayed in the share link (e.g. if the link is `https://drive.google.com/drive/folders/1234567890abcdef?usp=sharing`, the directory's ID is `1234567890abcdef`).
 Finally, set `GDRIVE_PARENT_DIR` environment variable of your Travis build to the directory ID that you noted in the previous step.
 
-##### Additional notes
-
-Be aware that uploads to Google Drive will take much longer time than upload to S3 and you may encounter rate limiting errors if you perform many builds in a short timespan.
-
 ## Load testing
 
 Alongside CI, we do also CLT (Continuous Load Testing).

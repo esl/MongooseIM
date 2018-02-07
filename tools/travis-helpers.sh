@@ -1,12 +1,3 @@
-ct_reports_base_dir() {
-    local PR=${TRAVIS_PULL_REQUEST:-false}
-    if [ ${PR} == false ]; then
-        echo "branch"
-    else
-        echo "PR"
-    fi
-}
-
 ct_reports_dir() {
   local BUILD_NO=${TRAVIS_BUILD_NUMBER:-ct_reports}
   local PRESET_NAME=${PRESET:-default}
