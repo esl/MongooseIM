@@ -71,9 +71,10 @@ start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
-start_ping(Host, JID) ->
+start_ping(Host, JID) when JID#jid.lresource =/= <<>> ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
-    gen_server:cast(Proc, {start_ping, JID}).
+    gen_server:cast(Proc, {start_ping, JID});
+start_ping(_Host, _JID) -> ok.
 
 stop_ping(Host, JID) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
@@ -270,4 +271,3 @@ wait_for_process_to_stop(Pid) ->
         1000 ->
             {error, still_running}
     end.
-
