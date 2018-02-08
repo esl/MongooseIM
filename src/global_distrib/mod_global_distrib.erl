@@ -76,9 +76,13 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
-    case lookup_recipients_host(To, LocalHost, GlobalHost) of
+    %% If target_host_override is set (typically when routed out of bounce storage),
+    %% host lookup is skipped and messages are routed to target_host_override value.
+    TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
+    case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
-            ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
+            ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost,
+                               [From, To, LocalHost]),
             ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
                    [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL,
@@ -86,7 +90,8 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
             {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
-            ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost, [From, To]),
+            ejabberd_hooks:run(mod_global_distrib_known_recipient,
+                               GlobalHost, [From, To, TargetHost]),
             case get_metadata(Acc, ttl) of
                 0 ->
                     ?INFO_MSG("event=ttl_zero,id=~s,from=~s,to=~s,found_at=~s",
@@ -99,8 +104,9 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
                            [get_metadata(Acc, id), jid:to_binary(From),
                             jid:to_binary(To), TargetHost, TTL]),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
+                    Acc2 = remove_metadata(Acc1, target_host_override),
                     Worker = get_bound_connection(TargetHost),
-                    mod_global_distrib_sender:send(Worker, {From, To, Acc1, Packet}),
+                    mod_global_distrib_sender:send(Worker, {From, To, Acc2, Packet}),
                     drop
             end;
 
@@ -166,6 +172,16 @@ start() ->
 -spec stop() -> any().
 stop() ->
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
+
+-spec lookup_recipients_host(TargetHost :: binary() | undefined,
+                             To :: jid:jid(),
+                             LocalHost :: binary(),
+                             GlobalHost :: binary()) ->
+    {ok, binary()} | error.
+lookup_recipients_host(undefined, To, LocalHost, GlobalHost) ->
+    lookup_recipients_host(To, LocalHost, GlobalHost);
+lookup_recipients_host(TargetHost, _To, _LocalHost, _GlobalHost) ->
+    {ok, TargetHost}.
 
 -spec lookup_recipients_host(jid:jid(), binary(), binary()) -> {ok, binary()} | error.
 lookup_recipients_host(#jid{luser = <<>>, lserver = LServer}, LocalHost, GlobalHost)

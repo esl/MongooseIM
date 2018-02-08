@@ -29,7 +29,7 @@
 
 -export([start_link/0, start/2, stop/1]).
 -export([init/1, handle_info/2, handle_cast/2, handle_call/3, code_change/3, terminate/2]).
--export([maybe_store_message/1, reroute_messages/3]).
+-export([maybe_store_message/1, reroute_messages/4]).
 -export([bounce_queue_size/0]).
 
 %%--------------------------------------------------------------------
@@ -116,8 +116,11 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             drop
     end.
 
--spec reroute_messages(mongoose_acc:t(), jid:jid(), jid:jid()) -> [mongoose_acc:t()].
-reroute_messages(Acc, From, To) ->
+-spec reroute_messages(SomeAcc :: mongoose_acc:t(),
+                       From :: jid:jid(),
+                       To :: jid:jid(),
+                       TargetHost :: binary()) -> mongoose_acc:t().
+reroute_messages(Acc, From, To, TargetHost) ->
     Key = get_index_key(From, To),
     StoredMessages =
         lists:filtermap(
@@ -134,7 +137,7 @@ reroute_messages(Acc, From, To) ->
             ?DEBUG("Routing ~B previously stored messages addressed from ~s to ~s",
                    [length(StoredMessages), jid:to_binary(From), jid:to_binary(To)])
     end,
-    [ejabberd_router:route(F, T, A, P) || {F, T, A, P} <- StoredMessages],
+    lists:foreach(pa:bind(fun reroute_message/2, TargetHost), StoredMessages),
     Acc.
 
 %%--------------------------------------------------------------------
@@ -151,6 +154,13 @@ bounce_queue_size() ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec reroute_message(TargetHost :: binary(),
+                      FPacket :: {jid:jid(), jid:jid(), mongoose_acc:t(), exml:packet()}) ->
+                             any().
+reroute_message(TargetHost, {From, To, Acc0, Packet}) ->
+    Acc = mod_global_distrib:put_metadata(Acc0, target_host_override, TargetHost),
+    ejabberd_router:route(From, To, Acc, Packet).
 
 -spec start() -> any().
 start() ->
