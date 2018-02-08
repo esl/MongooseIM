@@ -351,6 +351,8 @@ handle_info({send_element, El}, StateName, StateData) ->
     {next_state, StateName, StateData};
 handle_info({route, From, To, Acc}, StateName, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
+    ?DEBUG("event=packet_to_component,component=\"~s\",from=\"~s\",to=\"~s\"",
+           [component_host(StateData), jid:to_binary(From), jid:to_binary(To)]),
     case acl:match_rule(global, StateData#state.access, From) of
         allow ->
             ejabberd_hooks:run_fold(packet_to_component, global, Acc, [From, To]),
@@ -401,6 +403,7 @@ print_state(State) ->
 
 -spec send_text(state(), binary()) -> binary().
 send_text(StateData, Text) ->
+    ?DEBUG("event=send_text,component=\"~s\",text=\"~s\"", [component_host(StateData), Text]),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 
@@ -413,6 +416,9 @@ send_element(StateData, El) ->
 new_id() ->
     randoms:get_string().
 
+-spec component_host(state()) -> binary() | undefined.
+component_host(#state{ host = undefined }) -> "undefined";
+component_host(#state{ host = Host }) -> Host.
 
 -spec fsm_limit_opts(maybe_improper_list()) -> [{'max_queue', integer()}].
 fsm_limit_opts(Opts) ->

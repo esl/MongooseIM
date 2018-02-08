@@ -102,8 +102,6 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
                     nothing_to_log
             end,
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
-            ejabberd_router:route_error_reply(To, From, Acc0,
-                                             mongoose_xmpp_errors:service_unavailable()),
             FPacket;
         OldTTL ->
             ?DEBUG("Storing global message id=~s from=~s to=~s to "
