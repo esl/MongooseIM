@@ -1,0 +1,1 @@
+V	201019081623Z		01	unknown	/C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Server
