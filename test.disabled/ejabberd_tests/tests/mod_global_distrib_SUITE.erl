@@ -353,7 +353,7 @@ test_component_on_one_host(Config) ->
 
     Comp = component_SUITE:connect_component(ComponentConfig),
 
-    test_connection_user_component(Config, Comp).
+    test_connection_to_component(Config, Comp).
 
 test_components_on_different_hosts(Config) ->
     BaseConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>}],
@@ -363,7 +363,7 @@ test_components_on_different_hosts(Config) ->
 
     Components = [component_SUITE:connect_component(C) || C <- [Config1, Config2, Config3]],
 
-    [test_connection_user_component(Config, Comp) || Comp <- Components].
+    [test_connection_to_component(Config, Comp) || Comp <- Components].
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
@@ -847,7 +847,7 @@ redis_query(Node, Query) ->
     RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
 
-test_connection_user_component(Config, {Comp, Addr, Name}) ->
+test_connection_to_component(Config, {Comp, Addr, Name}) ->
     Story = fun(User) ->
                     Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
                     escalus:send(User, Msg1),
