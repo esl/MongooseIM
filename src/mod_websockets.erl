@@ -107,10 +107,12 @@ websocket_handle(Any, Req, State) ->
 
 % Other messages from the system are handled here.
 websocket_info({send, Text}, Req, State) ->
+    ?DEBUG("Sent text: ~s", [Text]),
     {reply, {text, Text}, Req, State};
 websocket_info({send_xml, XML}, Req, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
+    ?DEBUG("Sent XML: ~s", [Text]),
     {reply, {text, Text}, Req, State};
 websocket_info({set_ping, Value}, Req, State = #ws_state{ping_rate = none})
   when is_integer(Value) and (Value > 0)->
