@@ -53,7 +53,8 @@ groups() ->
        test_component_unregister,
        test_update_senders_host,
        test_update_senders_host_by_ejd_service,
-       test_components_on_different_hosts
+       test_components_on_different_hosts,
+       test_component_referenced_before_connecting
        %% TODO: Add test case fo global_distrib_addr option
       ]},
      {cluster_restart, [],
@@ -354,6 +355,23 @@ test_component_on_one_host(Config) ->
     Comp = component_SUITE:connect_component(ComponentConfig),
 
     test_connection_to_component(Config, Comp).
+
+test_component_referenced_before_connecting(Config) ->
+    ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
+                       {port, 8888}, {component, <<"test_service">>}],
+
+    Story = fun(User) ->
+                    Msg1 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi!">>),
+                    escalus:send(User, Msg1),
+                    {Comp, _, _} = component_SUITE:connect_component(ComponentConfig),
+                    Msg1 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi!">>),
+                    escalus:send(User, Msg1),
+                    Reply = escalus:wait_for_stanza(Comp, 5000),
+                    ct:log("reply: ~p", [Reply]),
+                    escalus:assert(is_chat_message, [<<"Hi!">>], Reply) end,
+
+    escalus:fresh_story(Config, [{eve, 1}], Story).
+
 
 test_components_on_different_hosts(Config) ->
     BaseConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>}],
