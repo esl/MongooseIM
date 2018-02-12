@@ -363,12 +363,13 @@ test_component_referenced_before_connecting(Config) ->
     Story = fun(User) ->
                     Msg1 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi!">>),
                     escalus:send(User, Msg1),
+                    Error = escalus:wait_for_stanza(User, 5000),
+                    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
                     {Comp, _, _} = component_SUITE:connect_component(ComponentConfig),
-                    Msg1 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi!">>),
-                    escalus:send(User, Msg1),
+                    Msg2 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi2!">>),
+                    escalus:send(User, Msg2),
                     Reply = escalus:wait_for_stanza(Comp, 5000),
-                    ct:log("reply: ~p", [Reply]),
-                    escalus:assert(is_chat_message, [<<"Hi!">>], Reply) end,
+                    escalus:assert(is_chat_message, [<<"Hi2!">>], Reply) end,
 
     escalus:fresh_story(Config, [{eve, 1}], Story).
 
