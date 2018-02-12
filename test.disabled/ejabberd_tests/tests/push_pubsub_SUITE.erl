@@ -189,7 +189,7 @@ publish_succeeds_with_valid_options(Config) ->
 
             PublishIQ = publish_iq(Alice, Node, Content, Options),
             escalus:send(Alice, PublishIQ),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
 
             ok
 
@@ -287,7 +287,7 @@ rest_service_gets_correct_payload_silent_v2(Config) ->
 send_notification(User, Node, Notification, Options) ->
     PublishIQ = publish_iq(User, Node, Notification, Options),
     escalus:send(User, PublishIQ),
-    escalus:assert(is_result, escalus:wait_for_stanza(User)).
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
 get_mocked_request() ->
     {Req, BodyRaw} = next_rest_req(),

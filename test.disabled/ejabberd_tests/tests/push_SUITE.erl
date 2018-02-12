@@ -234,7 +234,7 @@ enable_should_succeed_without_form(Config) ->
             PubsubJID = pubsub_jid(Config),
 
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             ok
         end).
@@ -258,13 +258,13 @@ enable_should_accept_correct_from(Config) ->
             PubsubJID = pubsub_jid(Config),
 
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>, [])),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>, [
                 {<<"secret1">>, <<"token1">>},
                 {<<"secret2">>, <<"token2">>}
             ])),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             ok
         end).
@@ -314,7 +314,7 @@ disable_all(Config) ->
             PubsubJID = pubsub_jid(Config),
 
             escalus:send(Bob, disable_stanza(PubsubJID)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             ok
         end).
@@ -326,7 +326,7 @@ disable_node(Config) ->
             PubsubJID = pubsub_jid(Config),
 
             escalus:send(Bob, disable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             ok
         end).
@@ -353,7 +353,7 @@ pm_no_msg_notifications_if_user_online(Config) ->
             PubsubJID = pubsub_jid(Config),
 
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
 
@@ -369,7 +369,7 @@ pm_msg_notify_if_user_offline(Config) ->
 
             AliceJID = bare_jid(Alice),
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
             become_unavailable(Bob),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
@@ -401,7 +401,7 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>,
                                             [{<<"field1">>, <<"value1">>},
                                              {<<"field2">>, <<"value2">>}])),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
             become_unavailable(Bob),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
@@ -428,11 +428,11 @@ pm_msg_notify_stops_after_disabling(Config) ->
 
             %% Enable
             escalus:send(Bob, enable_stanza(PubsubJID, <<"NodeId">>, [])),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
             %% Disable
             escalus:send(Bob, disable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Bob)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
             become_unavailable(Bob),
 
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
@@ -474,7 +474,7 @@ muclight_no_msg_notifications_if_user_online(Config) ->
 
             create_room(Room, [bob, alice, kate], Config),
             escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Kate),
 
             Msg = <<"Heyah!">>,
@@ -495,7 +495,7 @@ muclight_msg_notify_if_user_offline(Config) ->
 
             create_room(Room, [bob, alice, kate], Config),
             escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Alice),
 
             Msg = <<"Heyah!">>,
@@ -531,7 +531,7 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
             escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>,
                                             [{<<"field1">>, <<"value1">>},
                                              {<<"field2">>, <<"value2">>}])),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Alice),
 
             Msg = <<"Heyah!">>,
@@ -562,11 +562,11 @@ muclight_msg_notify_stops_after_disabling(Config) ->
 
             %% Enable
             escalus:send(Alice, enable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
 
             %% Disable
             escalus:send(Alice, disable_stanza(PubsubJID, <<"NodeId">>)),
-            escalus:assert(is_result, escalus:wait_for_stanza(Alice)),
+            escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
             become_unavailable(Alice),
 
             Msg = <<"Heyah!">>,
