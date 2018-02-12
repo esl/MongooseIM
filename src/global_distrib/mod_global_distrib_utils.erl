@@ -184,6 +184,10 @@ server_to_mgr_name(Server) ->
 server_to_sup_name(Server) ->
     gen_mod:get_module_proc(Server, mod_global_distrib_server_sup).
 
+%% IMPORTANT! Regarding mod_global_distrib_mapping:insert_for_*/2:
+%% These functions with arity 2 will call cache update functions with
+%% dummy update functions, so they will result only in cache update with
+%% no backend side effects.
 -spec maybe_update_mapping(From :: jid:jid(), mongoose_acc:t()) -> any().
 maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
     ok;
