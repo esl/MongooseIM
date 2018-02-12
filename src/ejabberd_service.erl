@@ -416,7 +416,7 @@ send_element(StateData, El) ->
 new_id() ->
     randoms:get_string().
 
--spec component_host(state()) -> binary() | undefined.
+-spec component_host(state()) -> binary() | string().
 component_host(#state{ host = undefined }) -> "undefined";
 component_host(#state{ host = Host }) -> Host.
 
