@@ -28,6 +28,7 @@ add_server(Server) ->
      },
     case supervisor:start_child(?MODULE, ServerSupSpec) of
         {ok, _} -> ok;
+        {error, {already_started, _}} -> ok;
         Error -> Error
     end.
 

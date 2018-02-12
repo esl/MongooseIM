@@ -44,6 +44,8 @@ stop(Host) ->
                       Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
 get_disco_items({result, Nodes}, _From, _To, <<"">>, _Lang) ->
     {ok, Domains} = mod_global_distrib_mapping:all_domains(),
+    ?DEBUG("event=domains_fetched_for_disco,domains=\"~p\",input_nodes=\"~p\"",
+           [Domains, Nodes]),
     NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),
     FilteredDomains = [Domain || Domain <- Domains, not gb_sets:is_member(Domain, NameSet)],
     ?DEBUG("Adding global domains ~p to disco results", [FilteredDomains]),

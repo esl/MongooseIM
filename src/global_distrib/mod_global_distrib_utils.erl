@@ -46,7 +46,7 @@ binary_to_metric_atom(Binary) ->
     list_to_atom(List).
 
 ensure_metric(Metric, Type) ->
-    case mongoose_metrics:ensure_metric(global, Metric, Type) of
+    case catch mongoose_metrics:ensure_metric(global, Metric, Type) of
         ok ->
             Reporters = exometer_report:list_reporters(),
             Interval = mongoose_metrics:get_report_interval(),
@@ -56,7 +56,12 @@ ensure_metric(Metric, Type) ->
                                                         Interval)
               end,
               Reporters);
+        {ok, already_present} ->
+            ?INFO_MSG("issue=metric_already_exists,metric=\"~p\",type=\"~p\"", [Metric, Type]),
+            ok;
         Other ->
+            ?WARNING_MSG("issue=cannot_create_metric,metric=\"~p\",type=\"~p\",reason=\"~p\"",
+                         [Metric, Type, Other]),
             Other
     end.
 
@@ -179,19 +184,41 @@ server_to_mgr_name(Server) ->
 server_to_sup_name(Server) ->
     gen_mod:get_module_proc(Server, mod_global_distrib_server_sup).
 
+%% IMPORTANT! Regarding mod_global_distrib_mapping:insert_for_*/2:
+%% These functions with arity 2 will call cache update functions with
+%% dummy update functions, so they will result only in cache update with
+%% no backend side effects.
 -spec maybe_update_mapping(From :: jid:jid(), mongoose_acc:t()) -> any().
 maybe_update_mapping(_From, #{name := <<"presence">>, type := <<"unavailable">>}) ->
     ok;
+maybe_update_mapping(#jid{luser = <<>>, lserver = LServer} = From, Acc) ->
+    case opt(mod_global_distrib, global_host) of
+        LServer -> ok;
+        _ ->
+            ensure_domain_inserted(Acc, From#jid.lserver)
+    end;
 maybe_update_mapping(From, Acc) ->
-    Origin = mod_global_distrib:get_metadata(Acc, origin),
     case mod_global_distrib_mapping:for_jid(From) of
-        error -> mod_global_distrib_mapping:insert_for_jid(From, Origin);
-        _ -> ok
+        error ->
+            Origin = mod_global_distrib:get_metadata(Acc, origin),
+            mod_global_distrib_mapping:insert_for_jid(From, Origin);
+        _ ->
+            ok
     end.
 
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+-spec ensure_domain_inserted(mongoose_acc:t(), jid:lserver()) -> ok.
+ensure_domain_inserted(Acc, Domain) ->
+    case mod_global_distrib_mapping:for_domain(Domain) of
+        error ->
+            Origin = mod_global_distrib:get_metadata(Acc, origin),
+            mod_global_distrib_mapping:insert_for_domain(Domain, Origin);
+        _ ->
+            ok
+    end.
 
 -spec check_host(local_host | global_host, Opts :: proplists:proplist()) -> true.
 check_host(Key, Opts) ->
