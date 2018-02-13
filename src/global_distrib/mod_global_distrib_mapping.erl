@@ -125,7 +125,7 @@ endpoints(Host) ->
 
 -spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
-    Opts = [{backend, redis}, {redis, [no_opts]}, {cache_missed, true},
+    Opts = [{advertised_endpoints, false}, {backend, redis}, {redis, [no_opts]}, {cache_missed, true},
             {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
