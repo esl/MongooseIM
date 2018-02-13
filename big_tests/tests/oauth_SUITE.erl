@@ -444,8 +444,8 @@ get_provision_key(Domain) ->
 
 make_vcard(Config, User) ->
     T = <<"<vCard xmlns='vcard-temp'>"
-          "  <FN>Full Name</FN>"
-          "  <NICKNAME>{{nick}}</NICKNAME>"
+          "<FN>Full Name</FN>"
+          "<NICKNAME>{{nick}}</NICKNAME>"
           "</vCard>">>,
     escalus_stanza:from_template(T, [{nick, escalus_users:get_username(Config, User)}]).
 
