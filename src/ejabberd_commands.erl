@@ -260,12 +260,8 @@ init() ->
 register_commands(Commands) ->
     lists:foreach(
       fun(Command) ->
-              case ets:insert_new(ejabberd_commands, Command) of
-                  true ->
-                      ok;
-                  false ->
-                      ?DEBUG("This command is already defined:~n~p", [Command])
-              end
+              Inserted = ets:insert_new(ejabberd_commands, Command),
+              ?DEBUG_IF(not Inserted, "This command is already defined:~n~p", [Command])
       end,
       Commands).
 

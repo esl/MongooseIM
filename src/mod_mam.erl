@@ -178,14 +178,11 @@ archive_id(Server, User)
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam starting", []),
-    case gen_mod:get_opt(archive_groupchats, Opts, undefined) of
-        undefined ->
-            ?WARNING_MSG("mod_mam is enabled without explicit archive_groupchats option value."
-                         " It will default to `false` in one of future releases."
-                         " Please check the mod_mam documentation for more details.", []);
-        _ ->
-            ok
-    end,
+    ?WARNING_MSG_IF(
+       gen_mod:get_opt(archive_groupchats, Opts, undefined) == undefined,
+       "mod_mam is enabled without explicit archive_groupchats option value."
+       " It will default to `false` in one of future releases."
+       " Please check the mod_mam documentation for more details.", []),
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
         undefined -> ok;
         _ ->

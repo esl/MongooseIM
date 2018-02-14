@@ -1037,12 +1037,7 @@ handle_local_config_add(#local_config{key = riak_server}) ->
 handle_local_config_add(#local_config{key = cassandra_servers}) ->
     mongoose_cassandra:start();
 handle_local_config_add(#local_config{key = Key} = El) ->
-    case can_be_ignored(Key) of
-        true ->
-            ok;
-        false ->
-            ?WARNING_MSG("local config add ~p option unhandled", [El])
-    end.
+    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config add ~p option unhandled", [El]).
 
 handle_local_config_del(#local_config{key = riak_server}) ->
     mongoose_riak:stop();
@@ -1052,12 +1047,7 @@ handle_local_config_del(#local_config{key = node_start}) ->
     %% do nothing with it
     ok;
 handle_local_config_del(#local_config{key = Key} = El) ->
-    case can_be_ignored(Key) of
-        true ->
-            ok;
-        false ->
-            ?WARNING_MSG("local config change: ~p unhandled", [El])
-    end.
+    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
 
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(compare_listeners(Old, New));
@@ -1070,12 +1060,7 @@ handle_local_config_change({cassandra_servers, _Old, _New}) ->
     mongoose_cassandra:start(),
     ok;
 handle_local_config_change({Key, _Old, _New} = El) ->
-    case can_be_ignored(Key) of
-        true ->
-            ok;
-        false ->
-            ?WARNING_MSG("local config change: ~p unhandled", [El])
-    end.
+    ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
 
 %% ----------------------------------------------------------------
 %% LOCAL HOST CONFIG
@@ -1089,12 +1074,7 @@ handle_local_hosts_config_add({{ldap, _Host}, _}) ->
 handle_local_hosts_config_add({{modules, Host}, Modules}) ->
     gen_mod_deps:start_modules(Host, Modules);
 handle_local_hosts_config_add({{Key, _Host}, _} = El) ->
-    case can_be_ignored(Key) of
-        true ->
-            ok;
-        false ->
-            ?WARNING_MSG("local hosts config add option: ~p unhandled", [El])
-    end.
+    ?WARNING_MSG_IF(not can_be_ignored(Key), "local hosts config add option: ~p unhandled", [El]).
 
 handle_local_hosts_config_del({{auth, Host}, Opts}) ->
     case lists:keyfind(auth_method, 1, Opts) of
@@ -1112,12 +1092,8 @@ handle_local_hosts_config_del({{ldap, _Host}, _I}) ->
 handle_local_hosts_config_del({{modules, Host}, Modules}) ->
     lists:foreach(fun({Mod, _}) -> gen_mod:stop_module(Host, Mod) end, Modules);
 handle_local_hosts_config_del({{Key, _}, _} =El) ->
-    case can_be_ignored(Key) of
-        true ->
-            ok;
-        false ->
-            ?WARNING_MSG("local hosts config delete option: ~p unhandled", [El])
-    end.
+    ?WARNING_MSG_IF(not can_be_ignored(Key),
+                    "local hosts config delete option: ~p unhandled", [El]).
 
 handle_local_hosts_config_change({{auth, Host}, OldVals, _}) ->
     case lists:keyfind(auth_method, 1, OldVals) of
@@ -1136,12 +1112,8 @@ handle_local_hosts_config_change({{ldap, Host}, _OldConfig, NewConfig}) ->
 handle_local_hosts_config_change({{modules, Host}, OldModules, NewModules}) ->
     gen_mod_deps:replace_modules(Host, OldModules, NewModules);
 handle_local_hosts_config_change({{Key, _Host}, _Old, _New} = El) ->
-    case can_be_ignored(Key) of
-        true ->
-            ok;
-        false ->
-            ?WARNING_MSG("local hosts config change option: ~p unhandled", [El])
-    end.
+    ?WARNING_MSG_IF(not can_be_ignored(Key),
+                    "local hosts config change option: ~p unhandled", [El]).
 
 methods_to_auth_modules(L) when is_list(L) ->
     [list_to_atom("ejabberd_auth_" ++ atom_to_list(M)) || M <- L];

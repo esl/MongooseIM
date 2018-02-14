@@ -83,13 +83,11 @@ start_listeners() ->
 report_duplicated_portips(L) ->
     LKeys = [Port || {Port, _, _} <- L],
     LNoDupsKeys = proplists:get_keys(L),
-    case LKeys -- LNoDupsKeys of
-        [] -> ok;
-        Dups ->
-            ?CRITICAL_MSG("In the ejabberd configuration there are duplicated "
-                          "Port number + IP address:~n  ~p",
-                          [Dups])
-  end.
+    Dups = LKeys -- LNoDupsKeys,
+    ?CRITICAL_MSG_IF(Dups /= [],
+                     "In the ejabberd configuration there are duplicated "
+                     "Port number + IP address:~n  ~p",
+                     [Dups]).
 
 -spec start(Port :: _,
             Module :: atom() | tuple(),
