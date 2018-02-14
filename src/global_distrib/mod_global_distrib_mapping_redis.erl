@@ -273,7 +273,7 @@ refresh_endpoints() ->
     AdvertisedEndpoints = opt(advertised_endpoints),
     LocalEndpoints = mod_global_distrib_receiver:endpoints(),
     FinalEndpoints = case AdvertisedEndpoints of
-                         false -> LocalEndpoints; % TODO: do we need to match on `[]`?
+                         false -> LocalEndpoints;
                          Endpoints -> Endpoints
                      end,
     ?INFO_MSG("AdvertisedEndpoints=~p, LocalEndpoints=~p, FinalEndpoints=~p",
