@@ -877,6 +877,8 @@ redis_query(Node, Query) ->
     RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
 
+%% A fake address we don't try to connect to.
+%% Used in test_advertised_endpoints_override_endpoints testcase.
 advertised_endpoints() ->
     [{ {231, 110, 1, 4}, 2222}].
 
