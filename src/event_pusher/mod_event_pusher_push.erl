@@ -105,8 +105,9 @@ push_event(_, _) ->
     ok.
 
 do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
-    mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet) andalso
-        publish_message(From, To, Packet).
+    mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet)
+    andalso exml_query:subelement(Packet, <<"body">>) /= undefined
+    andalso publish_message(From, To, Packet).
 
 %% Hook 'remove_user'
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
