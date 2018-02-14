@@ -276,8 +276,8 @@ refresh_endpoints() ->
                          false -> LocalEndpoints; % TODO: do we need to match on `[]`?
                          Endpoints -> Endpoints
                      end,
-    ?ERROR_MSG("GlobalEndpoints=~p,LocalEndpoints=~p,FinalEndpoints=~p", [AdvertisedEndpoints, LocalEndpoints, FinalEndpoints]),
-    set_endpoints(mod_global_distrib_receiver:endpoints()).
+    ?INFO_MSG("AdvertisedEndpoints=~p,LocalEndpoints=~p,FinalEndpoints=~p", [AdvertisedEndpoints, LocalEndpoints, FinalEndpoints]),
+    set_endpoints(FinalEndpoints).
 
 -spec set_endpoints(Endpoints :: [mod_global_distrib_utils:endpoint()]) -> any().
 set_endpoints(Endpoints) ->
