@@ -35,7 +35,8 @@ all() ->
      {group, start_checks},
      {group, invalidation},
      {group, multi_connection},
-     {group, rebalancing}
+     {group, rebalancing},
+     {group, advertised_endpoints}
     ].
 
 groups() ->
@@ -81,6 +82,10 @@ groups() ->
        disable_endpoint_on_refresh,
        wait_for_connection,
        closed_connection_is_removed_from_disabled
+      ]},
+     {advertised_endpoints, [],
+      [
+       test_advertised_endpoints_override_endpoints
       ]}
     ].
 
@@ -102,7 +107,7 @@ init_per_suite(Config) ->
             CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
             CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
             CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
-            escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath},
+            escalus:init_per_suite([{add_advertised_endpoints, []}, {certfile, CertPath}, {cafile, CACertPath},
                                     {extra_config, []}, {redis_extra_config, []} | Config]);
         _ ->
             {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
@@ -129,11 +134,14 @@ init_per_group(rebalancing, Config) ->
     RedisExtraConfig = [{refresh_after, 3600}],
     init_per_group(rebalancing_generic, [{extra_config, ExtraConfig},
                                          {redis_extra_config, RedisExtraConfig} | Config]);
+init_per_group(advertised_endpoints, Config) ->
+    init_per_group(advertised_endpoints_generic,
+                   [{add_advertised_endpoints, [{asia_node, advertised_endpoints()}]} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts = ?config(extra_config, Config1) ++
+                  Opts0 = ?config(extra_config, Config1) ++
 		         [{local_host, LocalHost},
                           {global_host, "localhost"},
                           {endpoints, [listen_endpoint(ReceiverPort)]},
@@ -143,6 +151,7 @@ init_per_group(_, Config0) ->
                                      ]},
                           {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
                           {resend_after_ms, 500}],
+                  Opts = maybe_add_advertised_enpoints(NodeName, Opts0, Config1),
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
@@ -168,6 +177,15 @@ init_per_group(_, Config0) ->
     {SomeNode, _, _} = hd(get_hosts()),
     NodesKey = rpc(SomeNode, mod_global_distrib_mapping_redis, nodes_key, []),
     [{nodes_key, NodesKey}, {escalus_user_db, xmpp} | Config2].
+
+maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
+    Endpoints = proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), []),
+    case Endpoints of
+        [] ->
+            Opts;
+         E ->
+            [{advertised_endpoints, E} | Opts]
+    end.
 
 end_per_group(start_checks, Config) ->
     Config;
@@ -241,6 +259,12 @@ generic_end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 %% Service discovery test
 %%--------------------------------------------------------------------
+
+test_advertised_endpoints_override_endpoints(Config) ->
+    GetEndpoints = fun({NodeName, _, _}) ->
+                            rpc(europe_node1, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
+    Endps = lists:map(GetEndpoints, get_hosts()),
+    true = lists:all(fun({ok, E}) -> E =:= advertised_endpoints() end, Endps).
 
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
@@ -852,6 +876,9 @@ jids(Client) ->
 redis_query(Node, Query) ->
     RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
+
+advertised_endpoints() ->
+    [{ {231, 110, 1, 4}, 2222}].
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 
