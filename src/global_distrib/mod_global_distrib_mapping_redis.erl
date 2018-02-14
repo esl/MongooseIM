@@ -271,12 +271,13 @@ refresh_jid(Jid) ->
 -spec refresh_endpoints() -> any().
 refresh_endpoints() ->
     AdvertisedEndpoints = opt(advertised_endpoints),
-    LocalEndpoints = opt(endpoints),
+    LocalEndpoints = mod_global_distrib_receiver:endpoints(),
     FinalEndpoints = case AdvertisedEndpoints of
                          false -> LocalEndpoints; % TODO: do we need to match on `[]`?
                          Endpoints -> Endpoints
                      end,
-    ?INFO_MSG("AdvertisedEndpoints=~p,LocalEndpoints=~p,FinalEndpoints=~p", [AdvertisedEndpoints, LocalEndpoints, FinalEndpoints]),
+    ?INFO_MSG("AdvertisedEndpoints=~p, LocalEndpoints=~p, FinalEndpoints=~p",
+              [AdvertisedEndpoints, LocalEndpoints, FinalEndpoints]),
     set_endpoints(FinalEndpoints).
 
 -spec set_endpoints(Endpoints :: [mod_global_distrib_utils:endpoint()]) -> any().

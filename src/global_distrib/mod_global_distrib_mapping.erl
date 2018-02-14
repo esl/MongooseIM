@@ -125,7 +125,9 @@ endpoints(Host) ->
 
 -spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
-    Opts = [{advertised_endpoints, false}, {backend, redis}, {redis, [no_opts]}, {cache_missed, true},
+    AdvEndpoints = get_advertised_endpoints(Opts0),
+    ?ERROR_MSG("AdvEndpoints: ~p", [AdvEndpoints]),
+    Opts = [{advertised_endpoints, AdvEndpoints}, {backend, redis}, {redis, [no_opts]}, {cache_missed, true},
             {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
@@ -297,4 +299,15 @@ do_lookup_jid({_, _, _} = Jid) ->
                 Jid -> Other;
                 BareJid -> ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
             end
+    end.
+
+-spec get_advertised_endpoints(Opts :: [{Key :: term(), Value :: term()}]) -> [mod_global_distrib_utils:endpoint()].
+get_advertised_endpoints(Opts) ->
+    Conns = proplists:get_value(connections, Opts, []),
+    AdvEndps = proplists:get_value(advertised_endpoints, Conns, []),
+    case mod_global_distrib_utils:resolve_endpoints(AdvEndps) of
+        [] ->
+            false;
+        Endpoints ->
+            Endpoints
     end.
