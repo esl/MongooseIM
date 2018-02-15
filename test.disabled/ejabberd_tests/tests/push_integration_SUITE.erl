@@ -378,7 +378,7 @@ enable_push_for_user(User, Service, EnableOpts) ->
     escalus:send(User, enable_stanza(PubsubJID, NodeName,
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
-    escalus:assert(is_result, escalus:wait_for_stanza(User)),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)),
     become_unavailable(User),
     DeviceToken.
 
