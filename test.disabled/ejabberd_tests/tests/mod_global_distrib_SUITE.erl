@@ -262,7 +262,7 @@ generic_end_per_testcase(CaseName, Config) ->
 
 test_advertised_endpoints_override_endpoints(Config) ->
     GetEndpoints = fun({NodeName, _, _}) ->
-                            rpc(europe_node1, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
+                            rpc(NodeName, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
     Endps = lists:map(GetEndpoints, get_hosts()),
     true = lists:all(fun({ok, E}) -> E =:= advertised_endpoints() end, Endps).
 
