@@ -63,6 +63,13 @@ get_connection(Server, RetriesLeft) ->
             Pid
     end.
 
+-spec ensure_server_started(Server :: jid:lserver()) -> ok | {error, any()}.
+ensure_server_started(Server) ->
+    case mod_global_distrib_server_sup:is_available(Server) of
+        false -> add_server(Server);
+        true -> ok
+    end.
+
 %%--------------------------------------------------------------------
 %% supervisor callback
 %%--------------------------------------------------------------------
@@ -72,12 +79,3 @@ init(_) ->
     SupFlags = #{ strategy => one_for_one, intensity => 5, period => 5 },
     {ok, {SupFlags, []}}.
 
-%%--------------------------------------------------------------------
-%% Helpers
-%%--------------------------------------------------------------------
-
-ensure_server_started(Server) ->
-    case mod_global_distrib_server_sup:is_available(Server) of
-        false -> add_server(Server);
-        true -> ok
-    end.

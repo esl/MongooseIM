@@ -118,12 +118,12 @@ opt(Module, Key) ->
 
 -spec opt(module(), Key :: atom(), Default :: term()) -> Value :: term().
 opt(Module, Key, Default) ->
-  try
-      opt(Module, Key)
-  catch
-      error:_Error ->
-        Default
-  end.
+    try
+        opt(Module, Key)
+    catch
+        error:_Error ->
+            Default
+    end.
 
 -spec cast_or_call(Target :: pid() | atom(), Message :: term()) -> any().
 cast_or_call(Target, Message) ->

@@ -68,7 +68,7 @@ init([RefreshInterval]) ->
 
 handle_call(Request, From, State) ->
     ?ERROR_MSG("issue=unknown_call request=~p from=~p", [Request, From]),
-    {noreply, State}.
+    {reply, {error, unknown_request}, State}.
 
 handle_cast(Request, State) ->
     ?ERROR_MSG("issue=unknown_cast request=~p", [Request]),
@@ -80,9 +80,7 @@ handle_info(refresh, Interval) ->
     {noreply, Interval}.
 
 terminate(normal, _State) ->
-    ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: normal", []);
-terminate(Reason, State) ->
-    ?ERROR_MSG("mod_global_distrib_refresher terminated with reason: ~p state=~p", [Reason, State]).
+    ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: normal", []).
 
 
 %%--------------------------------------------------------------------

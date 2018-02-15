@@ -50,7 +50,7 @@
 -callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
 -callback get_endpoints(Host :: binary()) -> {ok, [endpoint()]}.
--callback get_hosts() -> [Host :: ejabberd:lserver()].
+-callback get_hosts() -> [Host :: jid:lserver()].
 
 %%--------------------------------------------------------------------
 %% API
