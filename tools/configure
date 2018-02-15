@@ -14,7 +14,7 @@
                reltool_vars     = "rel/configure.vars.config",
                system           = "no",
                user             = "",
-               script_dir       = "$(cd ${0%/*} && pwd)",
+               script_dir       = "$(cd \"${0%/*}\" && pwd)",
                bin_dir          = undefined,
                etc_dir          = "$RUNNER_BASE_DIR/etc",
                lib_dir          = undefined,

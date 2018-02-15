@@ -104,10 +104,22 @@ process_args(["-exact_sname", TargetName | Rest], Acc, _) ->
 process_args([Arg | Rest], Acc, Opts) ->
     process_args(Rest, [Arg | Acc], Opts).
 
-
 start_epmd() ->
-    [] = os:cmd(epmd_path() ++ " -daemon"),
+    Port = open_port({spawn_executable, epmd_path()},
+                     [exit_status, stderr_to_stdout, {args, ["-daemon"]}]),
+    [] = wait_epmd(Port, []),
+    catch port_close(Port),
     ok.
+
+wait_epmd(Port, Data) ->
+    receive
+        {Port, {data, NewData}} ->
+            wait_epmd(Port, Data++NewData);
+        {Port, {exit_status, 0}} ->
+            Data;
+        {Port, {exit_status, E}} ->
+            throw({badarg, E, Data})
+    end.
 
 epmd_path() ->
     ErtsBinDir = filename:dirname(escript:script_name()),
