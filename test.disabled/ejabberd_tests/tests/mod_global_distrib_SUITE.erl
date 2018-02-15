@@ -183,7 +183,7 @@ maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
     case Endpoints of
         [] ->
             Opts;
-         E ->
+        E ->
             [{advertised_endpoints, E} | Opts]
     end.
 
