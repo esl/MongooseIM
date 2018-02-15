@@ -43,7 +43,7 @@ callback returns `true`.
         {push, [
             {backend, mnesia},
             {wpool, [{workers, 200}]},
-            {plugin_module, mod_event_pusher_push_plugin_default}
+            {plugin_module, mod_event_pusher_push_plugin_defaults}
         ]}
     ]}
 ]}
