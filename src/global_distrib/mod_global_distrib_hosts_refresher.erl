@@ -101,7 +101,7 @@ start() ->
       start => {?MODULE, start_link, [Interval]},
       restart => transient,
       shutdown => 5000,
-      modules => [mod_global_distrib_outgoing_conns_sup]
+      modules => [mod_global_distrib_hosts_refresher]
     },
     {ok, _} = supervisor:start_child(mod_global_distrib_outgoing_conns_sup, Child),
     ok.
@@ -118,7 +118,7 @@ refresh() ->
     ok.
 
 schedule_refresh(Interval) ->
-  erlang:send_after(Interval, self(), refresh).
+    erlang:send_after(Interval, self(), refresh).
 
 maybe_add_host(Host) ->
     case local_host() of
@@ -136,7 +136,7 @@ local_host() ->
     mod_global_distrib_utils:opt(?MODULE, local_host).
 
 start_outgoing_conns_sup() ->
-  ConnsSup = mod_global_distrib_outgoing_conns_sup,
+    ConnsSup = mod_global_distrib_outgoing_conns_sup,
     ChildSpec = #{
       id => ConnsSup,
       start => {ConnsSup, start_link, []},
