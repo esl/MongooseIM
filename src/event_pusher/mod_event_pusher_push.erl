@@ -105,8 +105,14 @@ push_event(_, _) ->
     ok.
 
 do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
-    mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet) andalso
-        publish_message(From, To, Packet).
+    %% First condition means that we won't try to push messages without
+    %% <body/> element because it is required later in payload generation.
+    %% In such case we don't care about plugin's decision, so it is checked
+    %% as a second condition.
+    %% Messages with empty body will still be pushed.
+    exml_query:subelement(Packet, <<"body">>) /= undefined
+    andalso mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet)
+    andalso publish_message(From, To, Packet).
 
 %% Hook 'remove_user'
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
