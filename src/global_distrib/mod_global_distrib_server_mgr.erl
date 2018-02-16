@@ -295,7 +295,7 @@ get_endpoints(Server) ->
     {ok, EndpointsToResolve} =
     case ejabberd_config:get_local_option({global_distrib_addr, Server}) of
         undefined -> mod_global_distrib_mapping:endpoints(Server);
-        Endpoints -> {ok, Endpoints}
+        Endpoints -> {ok, mod_global_distrib_utils:resolve_endpoints(Endpoints)}
     end,
     {ok, EndpointsToResolve}.
 
