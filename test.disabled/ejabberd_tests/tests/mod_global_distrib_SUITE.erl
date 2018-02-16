@@ -152,6 +152,7 @@ init_per_group(_, Config0) ->
                           {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
                           {resend_after_ms, 500}],
                   Opts = maybe_add_advertised_enpoints(NodeName, Opts0, Config1),
+                  ct:log("Opts: ~p", [Opts]),
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
@@ -184,7 +185,13 @@ maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
         [] ->
             Opts;
          E ->
-            [{advertised_endpoints, E} | Opts]
+            Connections = case lists:keyfind(connections, 1, Opts) of %TODO refactor
+                              false ->
+                                  [];
+                              C -> C
+                          end,
+            NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
+            [NewConnections | Opts]
     end.
 
 end_per_group(start_checks, Config) ->
@@ -880,7 +887,10 @@ redis_query(Node, Query) ->
 %% A fake address we don't try to connect to.
 %% Used in test_advertised_endpoints_override_endpoints testcase.
 advertised_endpoints() ->
-    [{ {231, 110, 1, 4}, 2222}].
+    [
+     { "231.110.1.4", 2222},
+     {"somefakedomain.com", 80}
+    ].
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 
