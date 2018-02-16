@@ -297,7 +297,7 @@ get_endpoints(Server) ->
         undefined -> mod_global_distrib_mapping:endpoints(Server);
         Endpoints -> {ok, Endpoints}
     end,
-    {ok, mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve)}.
+    {ok, EndpointsToResolve}.
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],
                       OldEnabled :: [endpoint_pid_tuple()]) ->
