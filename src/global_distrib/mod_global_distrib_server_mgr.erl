@@ -52,7 +52,7 @@
          }).
 
 -type state() :: #state{}.
-
+-include_lib("kernel/include/inet.hrl").
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -317,11 +317,12 @@ enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
                          enabled = Enabled, server = Server } = State) ->
     case lists:keytake(Endpoint, #endpoint_info.endpoint, Disabled) of
         false ->
-            case catch mod_global_distrib_server_sup:start_pool(Supervisor, Endpoint, Server) of
+            ReadyEndpoint = maybe_resolve_domain_name(Endpoint),
+            case catch mod_global_distrib_server_sup:start_pool(Supervisor, ReadyEndpoint, Server) of
                 {ok, ConnPoolRef, ConnPoolPid} ->
                     MonitorRef = monitor(process, ConnPoolPid),
                     EndpointInfo = #endpoint_info{
-                                      endpoint = Endpoint,
+                                      endpoint = ReadyEndpoint,
                                       conn_pool_ref = ConnPoolRef,
                                       conn_pool_pid = ConnPoolPid,
                                       monitor_ref = MonitorRef
@@ -333,6 +334,19 @@ enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
         {value, EndpointInfo, NewDisabled} ->
             {ok, State#state{ enabled = [EndpointInfo | Enabled], disabled = NewDisabled }}
     end.
+
+-spec maybe_resolve_domain_name(endpoint()) -> endpoint().
+maybe_resolve_domain_name({Domain, Port}) when is_binary(Domain) ->
+    {ok, #hostent{h_addr_list = Addresses}} = inet:gethostbyname(binary_to_list(Domain)),
+    Address = pick_address(Addresses),
+    ?ERROR_MSG("resolved domain name ~p to ip ~p", [Domain, Address]),
+    {Address, Port};
+maybe_resolve_domain_name({Addr, _Port} = Endpoint) when is_tuple(Addr) ->
+    Endpoint.
+
+pick_address(Addresses) ->
+    Ind = random:uniform(length(Addresses)),
+    lists:nth(Ind, Addresses).
 
 -spec disable(Endpoint :: endpoint(), State :: state()) -> {ok, state()} | {error, any()}.
 disable(Endpoint, #state{ disabled = Disabled, enabled = Enabled } = State) ->
