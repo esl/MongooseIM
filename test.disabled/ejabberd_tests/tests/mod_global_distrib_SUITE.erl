@@ -269,9 +269,9 @@ generic_end_per_testcase(CaseName, Config) ->
 
 test_advertised_endpoints_override_endpoints(Config) ->
     GetEndpoints = fun({NodeName, _, _}) ->
-                            rpc(europe_node1, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
+                            rpc(NodeName, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
     Endps = lists:map(GetEndpoints, get_hosts()),
-    true = lists:all(fun({ok, E}) -> E =:= advertised_endpoints() end, Endps).
+    true = lists:all(fun({ok, E}) -> binary_endpoints_to_string_endpoints(E) =:= advertised_endpoints() end, Endps).
 
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
@@ -891,6 +891,11 @@ advertised_endpoints() ->
      { "231.110.1.4", 2222},
      {"somefakedomain.com", 80}
     ].
+
+binary_endpoints_to_string_endpoints([]) ->
+    [];
+binary_endpoints_to_string_endpoints([{Addr, Port} | Endps]) when is_binary(Addr) ->
+    [{binary_to_list(Addr), Port} | binary_endpoints_to_string_endpoints(Endps)].
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 

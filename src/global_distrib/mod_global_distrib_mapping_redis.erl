@@ -276,8 +276,6 @@ refresh_endpoints() ->
                          false -> LocalEndpoints;
                          Endpoints -> Endpoints
                      end,
-    ?INFO_MSG("AdvertisedEndpoints=~p, LocalEndpoints=~p, FinalEndpoints=~p",
-              [AdvertisedEndpoints, LocalEndpoints, FinalEndpoints]),
     set_endpoints(FinalEndpoints).
 
 -spec set_endpoints(Endpoints :: [mod_global_distrib_utils:endpoint()]) -> any().
@@ -287,15 +285,23 @@ set_endpoints(Endpoints) ->
     refresh_set(EndpointsKey, BinEndpoints).
 
 -spec endpoint_to_binary(mod_global_distrib_utils:endpoint()) -> binary().
-endpoint_to_binary({IpAddr, Port}) ->
-    iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]).
+endpoint_to_binary({IpAddr, Port}) when is_tuple(IpAddr) ->
+    iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]);
+endpoint_to_binary({Domain, Port}) when is_binary(Domain) ->
+    iolist_to_binary([Domain, "#", integer_to_binary(Port)]).
 
 -spec binary_to_endpoint(binary()) -> mod_global_distrib_utils:endpoint().
 binary_to_endpoint(Bin) ->
     [Addr, BinPort] = binary:split(Bin, <<"#">>),
-    {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
+    IpAddrOrDomain = case mod_global_distrib_mapping:is_domain(Addr) of
+                         false ->
+                             {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
+                             IpAddr;
+                         true ->
+                             Addr
+                     end,
     Port = binary_to_integer(BinPort),
-    {IpAddr, Port}.
+    {IpAddrOrDomain, Port}.
 
 -spec refresh_domains() -> any().
 refresh_domains() ->

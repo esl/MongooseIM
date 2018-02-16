@@ -33,6 +33,9 @@
 -export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
          session_opened/4, session_closed/5]).
 -export([endpoints/1]).
+-export([is_domain/1]). % TODO probably move these exports along with their helper functions to utils
+
+-type endpoint() :: endpoint().
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -115,7 +118,7 @@ delete_for_jid({_, _, _} = Jid) ->
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
--spec endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec endpoints(Host :: jid:lserver()) -> {ok, [endpoint()]}.
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
 
@@ -300,7 +303,7 @@ do_lookup_jid({_, _, _} = Jid) ->
             end
     end.
 
--spec get_advertised_endpoints(Opts :: [{Key :: term(), Value :: term()}]) -> [mod_global_distrib_utils:endpoint()].
+-spec get_advertised_endpoints(Opts :: [{Key :: term(), Value :: term()}]) -> [endpoint()].
 get_advertised_endpoints(Opts) ->
     Conns = proplists:get_value(connections, Opts, []),
     AdvEndps = proplists:get_value(advertised_endpoints, Conns),
@@ -308,5 +311,31 @@ get_advertised_endpoints(Opts) ->
         undefined ->
             false;
         Endpoints ->
-            mod_global_distrib_utils:resolve_endpoints(Endpoints)
+            {WithIp, WithDomain} = endpoints_with_ipaddr_and_domains(Endpoints),
+            mod_global_distrib_utils:resolve_endpoints(WithIp) ++ parse_domains(WithDomain)
     end.
+
+-spec endpoints_with_ipaddr_and_domains(AllEndpoints :: [endpoint()])
+                                       -> {IpEndpoints :: [endpoint()], DomainEndpoints :: [endpoint()]}.
+endpoints_with_ipaddr_and_domains(Endpoints) ->
+    WithDomain = lists:filter(fun({Domain, _Port}) ->
+                                        is_domain(Domain) end, Endpoints),
+    WithIp = Endpoints -- WithDomain,
+    {WithIp, WithDomain}.
+
+-spec is_domain(any()) -> boolean().
+is_domain(Domain) when is_tuple(Domain) -> false; %% probably not needed unless moved to utils (this clasue)
+is_domain(Domain) ->
+    case inet:parse_address(Domain) of
+        {error, einval} ->
+            true;
+        {ok, _IpAddr} ->
+            false
+    end.
+
+parse_domains([]) ->
+    [];
+parse_domains([{D, Port} | Domains]) when is_binary(D) ->
+    [{D, Port} | parse_domains(Domains)];
+parse_domains([{D, Port} | Domains]) when is_list(D) ->
+    [{list_to_binary(D), Port} | parse_domains(Domains)].

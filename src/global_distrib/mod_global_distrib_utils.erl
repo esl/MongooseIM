@@ -27,7 +27,8 @@
          server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2
         ]).
 
--type endpoint() :: {inet:ip_address(), inet:port_number()}.
+-type domain_name() :: binary().
+-type endpoint() :: {inet:ip_address() | domain_name(), inet:port_number()}.
 
 -export_type([endpoint/0]).
 
