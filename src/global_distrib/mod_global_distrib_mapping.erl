@@ -325,6 +325,8 @@ endpoints_with_ipaddr_and_domains(Endpoints) ->
 
 -spec is_domain(any()) -> boolean().
 is_domain(Domain) when is_tuple(Domain) -> false; %% probably not needed unless moved to utils (this clasue)
+is_domain(Domain) when is_binary(Domain) ->
+    is_domain(binary_to_list(Domain));
 is_domain(Domain) ->
     case inet:parse_address(Domain) of
         {error, einval} ->
