@@ -271,8 +271,7 @@ test_advertised_endpoints_override_endpoints(Config) ->
     GetEndpoints = fun({NodeName, _, _}) ->
                             rpc(NodeName, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
     Endps = lists:map(GetEndpoints, get_hosts()),
-    true = lists:all(fun({ok, E}) -> ct:log("1: ~p~n2: ~p", [endpoints_to_string(E), advertised_endpoints()]), lists:sort(endpoints_to_string(E)) =:= lists:sort(advertised_endpoints()) end, Endps),
-    test_pm_between_users_at_different_locations(Config).
+    true = lists:all(fun({ok, E}) -> lists:sort(iptuples_to_string(E)) =:= lists:sort(advertised_endpoints()) end, Endps).
 
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
@@ -893,12 +892,13 @@ advertised_endpoints() ->
      {"127.0.0.1", 7777}
     ].
 
-endpoints_to_string([]) ->
+iptuples_to_string([]) ->
     [];
-endpoints_to_string([{Addr, Port} | Endps]) when is_binary(Addr) ->
-    [{binary_to_list(Addr), Port} | endpoints_to_string(Endps)];
-endpoints_to_string([{Addr, Port} | Endps]) when is_tuple(Addr) ->
-    [{inet_parse:ntoa(Addr), Port} | endpoints_to_string(Endps)].
+iptuples_to_string([{Addr, Port} | Endps]) when is_tuple(Addr) ->
+    [{inet_parse:ntoa(Addr), Port} | iptuples_to_string(Endps)];
+iptuples_to_string([E | Endps]) ->
+    [E | iptuples_to_string(Endps)].
+
 
 
 

@@ -311,17 +311,8 @@ get_advertised_endpoints(Opts) ->
         undefined ->
             false;
         Endpoints ->
-            {WithIp, WithDomain} = endpoints_with_ipaddr_and_domains(Endpoints),
-            mod_global_distrib_utils:resolve_endpoints(WithIp) ++ parse_domains(WithDomain)
+            Endpoints
     end.
-
--spec endpoints_with_ipaddr_and_domains(AllEndpoints :: [endpoint()])
-                                       -> {IpEndpoints :: [endpoint()], DomainEndpoints :: [endpoint()]}.
-endpoints_with_ipaddr_and_domains(Endpoints) ->
-    WithDomain = lists:filter(fun({Domain, _Port}) ->
-                                        is_domain(Domain) end, Endpoints),
-    WithIp = Endpoints -- WithDomain,
-    {WithIp, WithDomain}.
 
 -spec is_domain(any()) -> boolean().
 is_domain(Domain) when is_tuple(Domain) -> false;

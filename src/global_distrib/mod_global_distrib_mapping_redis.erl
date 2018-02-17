@@ -287,8 +287,8 @@ set_endpoints(Endpoints) ->
 -spec endpoint_to_binary(mod_global_distrib_utils:endpoint()) -> binary().
 endpoint_to_binary({IpAddr, Port}) when is_tuple(IpAddr) ->
     iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]);
-endpoint_to_binary({Domain, Port}) when is_binary(Domain) ->
-    iolist_to_binary([Domain, "#", integer_to_binary(Port)]).
+endpoint_to_binary({Domain, Port}) when is_list(Domain) ->
+    iolist_to_binary([list_to_binary(Domain), "#", integer_to_binary(Port)]).
 
 -spec binary_to_endpoint(binary()) -> mod_global_distrib_utils:endpoint().
 binary_to_endpoint(Bin) ->
@@ -298,7 +298,7 @@ binary_to_endpoint(Bin) ->
                              {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
                              IpAddr;
                          true ->
-                             Addr
+                             binary_to_list(Addr)
                      end,
     Port = binary_to_integer(BinPort),
     {IpAddrOrDomain, Port}.
