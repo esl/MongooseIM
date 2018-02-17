@@ -156,18 +156,22 @@ create_ets(Name, Type) ->
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
 resolve_endpoints(Endpoints) ->
-    lists:flatmap(
-      fun({Addr, Port}) ->
-              case to_ip_tuples(Addr) of
-                  {ok, IpAddrs} ->
-                      [{IpAddr, Port} || IpAddr <- IpAddrs];
-                  {error, {Reasonv6, Reasonv4}} ->
-                      ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
-                                 [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
-                      error({Reasonv6, Reasonv4})
-              end
-      end,
+    lists:foldl(fun resolve_endpoint/2,
+      [],
       Endpoints).
+
+resolve_endpoint({Addr, _Port} = E, Endpoints) when is_tuple(Addr) ->
+    [E | Endpoints];
+resolve_endpoint({Addr, Port}, Endpoints) ->
+    case to_ip_tuples(Addr) of
+        {ok, IpAddrs} ->
+            Endpoints ++ [{IpAddr, Port} || IpAddr <- IpAddrs];
+        {error, {Reasonv6, Reasonv4}} ->
+            ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
+                       [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
+            error({Reasonv6, Reasonv4})
+    end.
+
 
 -spec recipient_to_worker_key(jid:jid() | jid:ljid(), jid:lserver()) -> binary().
 recipient_to_worker_key(#jid{} = Jid, GlobalHost) ->
@@ -245,12 +249,13 @@ translate_opt(Opt) ->
 -spec to_ip_tuples(Addr :: inet:ip_address() | string()) ->
                          {ok, [inet:ip_address()]} | {error, {V6 :: atom(), V4 :: atom()}}.
 to_ip_tuples(Addr) ->
-    case inet:getaddrs(Addr, inet6) of
-        {ok, Av6s} -> {ok, Av6s};
-        {error, Reasonv6} ->
-            case inet:getaddrs(Addr, inet) of
-                {ok, Av4s} -> {ok, Av4s};
-                {error, Reasonv4} -> {error, {Reasonv6, Reasonv4}}
-            end
+    case {inet:getaddrs(Addr, inet6), inet:getaddrs(Addr, inet4)} of
+        {{error, Reason6}, {error, Reason4}} ->
+            {error, {Reason6, Reason4}};
+        {Addrs, {error, _}} ->
+            Addrs;
+        {{error, _}, Addrs} ->
+            Addrs;
+        {{ok, Addrs6}, {ok, Addrs4}} ->
+            {ok, Addrs6 ++ Addrs4}
     end.
-
