@@ -249,7 +249,7 @@ translate_opt(Opt) ->
 -spec to_ip_tuples(Addr :: inet:ip_address() | string()) ->
                          {ok, [inet:ip_address()]} | {error, {V6 :: atom(), V4 :: atom()}}.
 to_ip_tuples(Addr) ->
-    case {inet:getaddrs(Addr, inet6), inet:getaddrs(Addr, inet4)} of
+    case {inet:getaddrs(Addr, inet6), inet:getaddrs(Addr, inet)} of
         {{error, Reason6}, {error, Reason4}} ->
             {error, {Reason6, Reason4}};
         {Addrs, {error, _}} ->
