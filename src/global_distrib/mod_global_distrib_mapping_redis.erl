@@ -293,7 +293,7 @@ endpoint_to_binary({Domain, Port}) when is_list(Domain) ->
 -spec binary_to_endpoint(binary()) -> mod_global_distrib_utils:endpoint().
 binary_to_endpoint(Bin) ->
     [Addr, BinPort] = binary:split(Bin, <<"#">>),
-    IpAddrOrDomain = case mod_global_distrib_mapping:is_domain(Addr) of
+    IpAddrOrDomain = case mod_global_distrib_utils:is_domain(Addr) of
                          false ->
                              {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
                              IpAddr;

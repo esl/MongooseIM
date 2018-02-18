@@ -271,8 +271,7 @@ test_advertised_endpoints_override_endpoints(Config) ->
     GetEndpoints = fun({NodeName, _, _}) ->
                             rpc(NodeName, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
     Endps = lists:map(GetEndpoints, get_hosts()),
-    true = lists:all(fun({ok, E}) -> lists:sort(iptuples_to_string(E)) =:= lists:sort(advertised_endpoints()) end, Endps),
-    test_pm_between_users_at_different_locations(Config).
+    true = lists:all(fun({ok, E}) -> lists:sort(iptuples_to_string(E)) =:= lists:sort(advertised_endpoints()) end, Endps).
 
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).

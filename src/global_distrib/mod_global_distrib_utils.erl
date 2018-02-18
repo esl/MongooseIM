@@ -24,7 +24,8 @@
          start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
          binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
-         server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2
+         server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
+         is_domain/1
         ]).
 
 -type domain_name() :: string().
@@ -258,4 +259,16 @@ to_ip_tuples(Addr) ->
             Addrs;
         {{ok, Addrs6}, {ok, Addrs4}} ->
             {ok, Addrs6 ++ Addrs4}
+    end.
+
+-spec is_domain(any()) -> boolean().
+is_domain(Domain) when is_tuple(Domain) -> false;
+is_domain(Domain) when is_binary(Domain) ->
+    is_domain(binary_to_list(Domain));
+is_domain(Domain) ->
+    case inet:parse_address(Domain) of
+        {error, einval} ->
+            true;
+        {ok, _IpAddr} ->
+            false
     end.

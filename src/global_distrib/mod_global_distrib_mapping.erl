@@ -33,7 +33,6 @@
 -export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
          session_opened/4, session_closed/5]).
 -export([endpoints/1]).
--export([is_domain/1]). % TODO probably move these exports along with their helper functions to utils
 
 -type endpoint() :: endpoint().
 
@@ -313,22 +312,3 @@ get_advertised_endpoints(Opts) ->
         Endpoints ->
             Endpoints
     end.
-
--spec is_domain(any()) -> boolean().
-is_domain(Domain) when is_tuple(Domain) -> false;
-is_domain(Domain) when is_binary(Domain) ->
-    is_domain(binary_to_list(Domain));
-is_domain(Domain) ->
-    case inet:parse_address(Domain) of
-        {error, einval} ->
-            true;
-        {ok, _IpAddr} ->
-            false
-    end.
-
-parse_domains([]) ->
-    [];
-parse_domains([{D, Port} | Domains]) when is_binary(D) ->
-    [{D, Port} | parse_domains(Domains)];
-parse_domains([{D, Port} | Domains]) when is_list(D) ->
-    [{list_to_binary(D), Port} | parse_domains(Domains)].
