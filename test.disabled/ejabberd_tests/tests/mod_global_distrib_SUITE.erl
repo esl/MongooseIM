@@ -136,7 +136,8 @@ init_per_group(rebalancing, Config) ->
                                          {redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(advertised_endpoints, Config) ->
     init_per_group(advertised_endpoints_generic,
-                   [{add_advertised_endpoints, [{asia_node, advertised_endpoints()}]} | Config]);
+                   [{add_advertised_endpoints,
+                     [{asia_node, advertised_endpoints()}]} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
@@ -152,7 +153,6 @@ init_per_group(_, Config0) ->
                           {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
                           {resend_after_ms, 500}],
                   Opts = maybe_add_advertised_enpoints(NodeName, Opts0, Config1),
-                  ct:log("Opts: ~p", [Opts]),
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
@@ -179,20 +179,6 @@ init_per_group(_, Config0) ->
     NodesKey = rpc(SomeNode, mod_global_distrib_mapping_redis, nodes_key, []),
     [{nodes_key, NodesKey}, {escalus_user_db, xmpp} | Config2].
 
-maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
-    Endpoints = proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), []),
-    case Endpoints of
-        [] ->
-            Opts;
-         E ->
-            Connections = case lists:keyfind(connections, 1, Opts) of %TODO refactor
-                              false ->
-                                  [];
-                              C -> C
-                          end,
-            NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
-            [NewConnections | Opts]
-    end.
 
 end_per_group(start_checks, Config) ->
     Config;
@@ -269,9 +255,14 @@ generic_end_per_testcase(CaseName, Config) ->
 
 test_advertised_endpoints_override_endpoints(Config) ->
     GetEndpoints = fun({NodeName, _, _}) ->
-                            rpc(NodeName, mod_global_distrib_mapping_redis, get_endpoints, [<<"fed1">>]) end,
+                            rpc(NodeName,
+                                mod_global_distrib_mapping_redis,
+                                get_endpoints,
+                                [<<"fed1">>]) end,
     Endps = lists:map(GetEndpoints, get_hosts()),
-    true = lists:all(fun({ok, E}) -> lists:sort(iptuples_to_string(E)) =:= lists:sort(advertised_endpoints()) end, Endps).
+    true = lists:all(fun({ok, E}) ->
+                             lists:sort(iptuples_to_string(E)) =:=
+                                 lists:sort(advertised_endpoints()) end, Endps).
 
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
@@ -899,8 +890,20 @@ iptuples_to_string([{Addr, Port} | Endps]) when is_tuple(Addr) ->
 iptuples_to_string([E | Endps]) ->
     [E | iptuples_to_string(Endps)].
 
-
-
+maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
+    Endpoints = proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), []),
+    case Endpoints of
+        [] ->
+            Opts;
+        E ->
+            Connections = case lists:keyfind(connections, 1, Opts) of
+                              false ->
+                                  [];
+                              C -> C
+                          end,
+            NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
+            [NewConnections | Opts]
+    end.
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 
