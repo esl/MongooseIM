@@ -230,6 +230,7 @@ prepare(Test) ->
     Apps = get_apps(),
     Nodes = get_ejabberd_nodes(Test),
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
+    import_code_paths(hd(Nodes)),
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
                     multicall(Nodes, mongoose_cover_helper, start, [Apps],
@@ -280,13 +281,16 @@ make_html(Modules) ->
     Fun = fun(Module, {CAcc, NCAcc}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
+                  %% We assume that import_code_paths/1 was called earlier
                   case cover:analyse(Module, module) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
                           catch cover:analyse_to_file(Module, FilePathC, [html]),
                           {CAcc + C, NCAcc + NC};
-                      _ ->
+                      Reason ->
+                          error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
+                                                 [Module, Reason]),
                           {CAcc, NCAcc}
                   end
           end,
@@ -443,3 +447,9 @@ travis_fold(Description, Fun) ->
             Result
     end.
 
+%% Import code paths from a running node.
+%% It allows cover:analyse/2 to find source file by calling
+%% Module:module_info(compiled).
+import_code_paths(FromNode) when is_atom(FromNode) ->
+    Paths = rpc:call(FromNode, code, get_path, []),
+    code:add_paths(Paths).
