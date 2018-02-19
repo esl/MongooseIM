@@ -166,7 +166,9 @@ resolve_endpoint({Addr, _Port} = E, Endpoints) when is_tuple(Addr) ->
 resolve_endpoint({Addr, Port}, Endpoints) ->
     case to_ip_tuples(Addr) of
         {ok, IpAddrs} ->
-            Endpoints ++ [{IpAddr, Port} || IpAddr <- IpAddrs];
+            Resolved = Endpoints ++ [{IpAddr, Port} || IpAddr <- IpAddrs],
+            ?INFO_MSG_IF(is_domain(Addr), "Domain ~p resolved to: ~p", [Addr, IpAddrs]),
+            Resolved;
         {error, {Reasonv6, Reasonv4}} ->
             ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
                        [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),

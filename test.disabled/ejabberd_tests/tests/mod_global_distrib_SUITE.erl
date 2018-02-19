@@ -85,7 +85,8 @@ groups() ->
       ]},
      {advertised_endpoints, [],
       [
-       test_advertised_endpoints_override_endpoints
+       test_advertised_endpoints_override_endpoints,
+       test_pm_between_users_at_different_locations
       ]}
     ].
 
@@ -135,9 +136,13 @@ init_per_group(rebalancing, Config) ->
     init_per_group(rebalancing_generic, [{extra_config, ExtraConfig},
                                          {redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(advertised_endpoints, Config) ->
+    load_suite_module_on_nodes(),
+    MockingFun = mock_inet_and_wait(),
+    Pids = execute_on_each_node(erlang, spawn, [MockingFun]), % it is spawned remotely because unstick needs a context
+    Config2 = [{meck_handlers, Pids} | Config],
     init_per_group(advertised_endpoints_generic,
-                   [{add_advertised_endpoints,
-                     [{asia_node, advertised_endpoints()}]} | Config]);
+               [{add_advertised_endpoints,
+                 [{asia_node, advertised_endpoints()}]} | Config2]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
@@ -179,7 +184,10 @@ init_per_group(_, Config0) ->
     NodesKey = rpc(SomeNode, mod_global_distrib_mapping_redis, nodes_key, []),
     [{nodes_key, NodesKey}, {escalus_user_db, xmpp} | Config2].
 
-
+end_per_group(advertised_endpoints, Config) ->
+    Pids = ?config(meck_handlers, Config),
+    unmock_inet(Pids),
+        Config;
 end_per_group(start_checks, Config) ->
     Config;
 end_per_group(invalidation, Config) ->
@@ -879,9 +887,11 @@ redis_query(Node, Query) ->
 %% Used in test_advertised_endpoints_override_endpoints testcase.
 advertised_endpoints() ->
     [
-     {"google.com", 80},
-     {"127.0.0.1", 7777}
+     {fake_domain(), 7777}
     ].
+
+fake_domain() ->
+    "somefakedomain.com".
 
 iptuples_to_string([]) ->
     [];
@@ -904,6 +914,43 @@ maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
             NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
             [NewConnections | Opts]
     end.
+
+load_suite_module_on_nodes() ->
+    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
+    ct:log("~p", [execute_on_each_node(code, load_binary, [?MODULE, Filename, Binary])]).
+
+execute_on_each_node(M, F, A) ->
+    lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
+
+mock_inet_and_wait() ->
+    WaitFN = fun Wait() ->
+                     receive
+                         stop ->
+                             meck:unload(inet),
+                             exit(normal);
+                         {ping, Pid} ->
+                             Pid ! pong;
+                         _ ->
+                             Wait()
+                     end
+             end,
+    fun() ->
+            meck:new(inet, [non_strict, passthrough, unstick]),
+            meck:expect(inet, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
+                                           (_, inet6) -> {error, "No ipv6 address"} end),
+            WaitFN()
+    end.
+
+unmock_inet(Pids) ->
+    lists:foreach(fun(Pid) -> Pid ! stop end, Pids),
+    lists:foreach(fun(Pid) -> Pid ! {ping, self()} end, Pids),
+    receive
+        pong ->
+            ct:fail(got_ping)
+    after 5000 ->
+            ok
+    end.
+
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 

@@ -297,7 +297,6 @@ get_endpoints(Server) ->
         Endpoints -> {ok, Endpoints}
     end,
     Resolved = mod_global_distrib_utils:resolve_endpoints(EndpointsToResolve),
-    ?ERROR_MSG("To resolve: ~p, resolved to: ~p", [EndpointsToResolve, Resolved]),
     {ok, Resolved}.
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],
