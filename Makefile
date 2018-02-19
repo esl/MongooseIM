@@ -6,7 +6,7 @@ SILENCE_COVER += | grep -v "WARNING: Deleting data for module"
 LOG_SILENCE_COVER=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log $(SILENCE_COVER); exit 1))
 XEP_TOOL = tools/xep_tool
 EBIN = ebin
-DEVNODES = mim1 mim2 mim3 fed1
+DEVNODES = mim1 mim2 mim3 fed1 reg1
 
 # Top-level targets aka user interface
 

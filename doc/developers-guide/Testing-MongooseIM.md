@@ -55,6 +55,13 @@ $ cd $MONGOOSEIM/_build/fed1/rel/mongooseim
 $ ./bin/mongooseimctl live
 ```
 
+In shell #6:
+
+```sh
+$ cd $MONGOOSEIM/_build/reg1/rel/mongooseim
+$ ./bin/mongooseimctl live
+```
+
 Back to shell #1:
 
 ```sh
@@ -73,10 +80,12 @@ tmux new-window -n mim1 '_build/mim1/rel/mongooseim/bin/mongooseimctl live'
 tmux new-window -n mim2 '_build/mim2/rel/mongooseim/bin/mongooseimctl live'
 tmux new-window -n mim3 '_build/mim3/rel/mongooseim/bin/mongooseimctl live'
 tmux new-window -n fed1 '_build/fed1/rel/mongooseim/bin/mongooseimctl live'
+tmux new-window -n reg1 '_build/fed1/rel/mongooseim/bin/mongooseimctl live'
 _build/mim1/rel/mongooseim/bin/mongooseimctl started
 _build/mim2/rel/mongooseim/bin/mongooseimctl started
 _build/mim3/rel/mongooseim/bin/mongooseimctl started
 _build/fed1/rel/mongooseim/bin/mongooseimctl started
+_build/reg1/rel/mongooseim/bin/mongooseimctl started
 make -C test.disabled/ejabberd_tests quicktest
 ```
 
@@ -90,6 +99,7 @@ Start a new tmux and paste the commands.
 - `$MONGOOSEIM/_build/mim1/rel`, for most test SUITEs
 - `$MONGOOSEIM/_build/mim*/rel`, in order to test cluster-related commands;;
 - `$MONGOOSEIM/_build/fed1/rel`, in order to test XMPP federation (server to server communication, S2S).
+- `$MONGOOSEIM/_build/reg1/rel`, in order to test global distribution feature.
 
 In general, running a server in the interactive mode (i.e. `mongooseimctl live`) is not required to test it, but it's convenient as any warnings and errors can be spotted in real time.
 It's also easy to inspect the server state or trace execution (e.g. using `dbg`) in case of anything going wrong in some of the tests.
