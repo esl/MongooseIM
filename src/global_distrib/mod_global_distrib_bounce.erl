@@ -94,13 +94,9 @@ maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
             ToBin = jid:to_binary(To),
             ?DEBUG("Not storing global message id=~s from=~s to=~s as bounce_ttl=0",
                    [Id, FromBin, ToBin]),
-            case To#jid.luser of
-                <<>> -> % It's a component!
-                    ?ERROR_MSG("event=message_to_component_ttl_zero,id=~s,from=~s,to=~s",
-                               [Id, FromBin, ToBin]);
-                _ ->
-                    nothing_to_log
-            end,
+            ?ERROR_MSG_IF(To#jid.luser == <<>>,
+                          "event=message_to_component_ttl_zero,id=~s,from=~s,to=~s",
+                          [Id, FromBin, ToBin]),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
             FPacket;
         OldTTL ->
@@ -131,12 +127,9 @@ reroute_messages(Acc, From, To, TargetHost) ->
                   end
           end,
           ets:take(?MS_BY_TARGET, Key)),
-    case StoredMessages of
-        [] -> ok;
-        _ ->
-            ?DEBUG("Routing ~B previously stored messages addressed from ~s to ~s",
-                   [length(StoredMessages), jid:to_binary(From), jid:to_binary(To)])
-    end,
+    ?DEBUG_IF(StoredMessages =/= [],
+              "Routing ~B previously stored messages addressed from ~s to ~s",
+              [length(StoredMessages), jid:to_binary(From), jid:to_binary(To)]),
     lists:foreach(pa:bind(fun reroute_message/2, TargetHost), StoredMessages),
     Acc.
 

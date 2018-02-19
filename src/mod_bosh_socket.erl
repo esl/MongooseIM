@@ -502,13 +502,8 @@ rid(#state{} = S, Rid) when is_integer(Rid), Rid > 0 ->
 determine_report_action(undefined, false, _, _) ->
     {noreport, undefined};
 determine_report_action(undefined, true, Rid, LastProcessed) ->
-    case Rid+1 == LastProcessed of
-        true ->
-            {noreport, undefined};
-        false ->
-            ?WARNING_MSG("expected 'ack' attribute on ~p~n", [Rid]),
-            {noreport, undefined}
-    end;
+    ?WARNING_MSG_IF(Rid+1 /= LastProcessed, "expected 'ack' attribute on ~p~n", [Rid]),
+    {noreport, undefined};
 determine_report_action(BinAck, _, _, LastProcessed) ->
     Ack = binary_to_integer(BinAck),
     case {LastProcessed, is_valid_ack(Ack, LastProcessed)} of
