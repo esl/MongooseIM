@@ -53,20 +53,6 @@ MIM1=${BASE}/_build/mim1/rel/mongooseim
 MIM2=${BASE}/_build/mim2/rel/mongooseim
 MIM3=${BASE}/_build/mim3/rel/mongooseim
 FED1=${BASE}/_build/fed1/rel/mongooseim
-MIM1CTL=${MIM1}/bin/mongooseimctl
-MIM2CTL=${MIM2}/bin/mongooseimctl
-MIM3CTL=${MIM3}/bin/mongooseimctl
-FED1CTL=${FED1}/bin/mongooseimctl
-
-NODES=(${MIM1CTL} ${MIM2CTL} ${MIM3CTL} ${FED1CTL})
-
-start_node() {
-  echo -n "${1} start: "
-  ${1} start && echo ok || echo failed
-  ${1} started
-  ${1} status
-  echo
-}
 
 summaries_dir() {
   if [ `uname` = "Darwin" ]; then
@@ -142,9 +128,7 @@ run_tests() {
   echo "Running big tests (tests/ejabberd_tests)"
   echo "############################"
 
-  for node in ${NODES[@]}; do
-    start_node $node;
-  done
+  time ${TOOLS}/start-nodes.sh
 
   # Start all additional services
   start_services
