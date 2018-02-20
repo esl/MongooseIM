@@ -34,6 +34,8 @@
          session_opened/4, session_closed/5]).
 -export([endpoints/1]).
 
+-type endpoint() :: mod_global_distrib_utils:endpoint().
+
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
