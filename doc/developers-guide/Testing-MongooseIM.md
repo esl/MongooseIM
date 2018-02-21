@@ -218,7 +218,7 @@ Once downloaded, encode the credentials file with base64 (e.g. `cat serviceCreds
 
 The uploaded files will belong to the project that you created, i.e. will not be immediately visible from your personal Google Drive UI.
 To be able to upload files to your personal account, you can share the reports' directory with the project account.
-First, note ID of the project's user that you created to gain the service account credentials (e.g. `test-123@fair-smile-123456.iam.gserviceaccount.com`).
+First, note the ID of the project's user that you created to gain the service account credentials (e.g. `test-123@fair-smile-123456.iam.gserviceaccount.com`).
 You can see this [on the Service Accounts tab of the project console](https://console.developers.google.com/iam-admin/serviceaccounts/project).
 Now, create a directory on your Google Drive that will serve as the test root directory.
 Go into the directory's sharing options and paste in the project's user ID, granting it write access.

@@ -9,7 +9,7 @@ addons:
         - odbc-postgresql
         - slapd
         - ldap-utils
-        - golang
+        - golang # used for google drive test results upload
 before_install:
         - tools/configure $REL_CONFIG
 install:
@@ -38,7 +38,7 @@ after_script:
         - tools/travis-prepare-log-dir.sh
         - if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
         - if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
-        - dd if=/dev/urandom of=/tmp/serviceAccountCredentials bs=1 conv=notrunc count=$(wc -c /tmp/serviceAccountCredentials | awk '{print $1}')
+        - tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 services:
         - redis-server
