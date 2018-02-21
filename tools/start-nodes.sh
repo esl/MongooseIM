@@ -1,38 +1,43 @@
 #!/usr/bin/env bash
 
 # This script has no arguments
+# You can override a list of nodes to start by using DEV_NODES env variable
+# DEV_NODES="mim1 mim2" ./tools/start-nodes.sh
 
+# Stop script on an error
+set -e
+
+# We use BASE and DEV_NODES_ARRAY variables from here
 source tools/travis-common-vars.sh
 
-MIM1=${BASE}/_build/mim1/rel/mongooseim
-MIM2=${BASE}/_build/mim2/rel/mongooseim
-MIM3=${BASE}/_build/mim3/rel/mongooseim
-FED1=${BASE}/_build/fed1/rel/mongooseim
-MIM1CTL=${MIM1}/bin/mongooseimctl
-MIM2CTL=${MIM2}/bin/mongooseimctl
-MIM3CTL=${MIM3}/bin/mongooseimctl
-FED1CTL=${FED1}/bin/mongooseimctl
-
-NODES=(${MIM1CTL} ${MIM2CTL} ${MIM3CTL} ${FED1CTL})
-
+# Starts node in background
+# First argument is node directory name
+# Does not fail if the node is already running (but prints a message)
+# Fails if release for the node is not compiled
 start_node() {
   echo -n "${1} start: "
-  ${1} start && echo ok || echo failed
+  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl start && echo ok || echo failed
   echo
 }
 
+# Ensures that node is up
+# Prints node information
+# First argument is node directory name
+# Fails if the node does not appear after 1 minute
 wait_for_node() {
   echo -n "waiting for ${1}: "
   echo
-  ${1} started
-  ${1} status
+  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl started
+  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl status
   echo
 }
 
-for node in ${NODES[@]}; do
+# DEV_NODES_ARRAY is defined in travis-common-vars.sh
+# and contains node names mim1, mim2, ...
+for node in ${DEV_NODES_ARRAY[@]}; do
   start_node $node;
 done
 
-for node in ${NODES[@]}; do
+for node in ${DEV_NODES_ARRAY[@]}; do
   wait_for_node $node;
 done

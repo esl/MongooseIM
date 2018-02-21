@@ -49,11 +49,6 @@ trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
 
 echo ${BASE}
 
-MIM1=${BASE}/_build/mim1/rel/mongooseim
-MIM2=${BASE}/_build/mim2/rel/mongooseim
-MIM3=${BASE}/_build/mim3/rel/mongooseim
-FED1=${BASE}/_build/fed1/rel/mongooseim
-
 summaries_dir() {
   if [ `uname` = "Darwin" ]; then
     echo `ls -dt ${1} | head -n 1`
@@ -167,11 +162,11 @@ run_tests() {
 }
 
 enable_tls_dist () {
-  for node in "$MIM1" "$MIM2" "$MIM3" "$FED1"; do
+  for node in ${DEV_NODES_ARRAY[@]}; do
     # Reenable commented out TLS dist options,
     # i.e. remove the single leading comment character on lines
     # commented out with just a single comment character.
-    $SED -i -e 's/^#\([^#]\)/\1/' "$node"/etc/vm.dist.args
+    $SED -i -e 's/^#\([^#]\)/\1/' ${BASE}/_build/"$node"/rel/mongooseim/etc/vm.dist.args
   done
 }
 
