@@ -337,31 +337,53 @@ resend_more_offline_messages_than_buffer_size(Config) ->
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob).
 
+send_and_log(From, To, Msg) ->
+    ct:log("sending msg: ~p~n", [Msg]),
+    escalus:send(From, escalus_stanza:chat_to(To, Msg)).
+
+assert_and_log(Msg, Stanza) ->
+    ct:log("asserting Msg: ~n~p~n to Stanza:~n~p~n", [Msg, Stanza]),
+    escalus:assert(is_chat_message, [Msg], Stanza).
+
+
 resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
-    {Bob, _} = given_fresh_user(Config, bob),
-    {Alice, AliceSpec0} = given_fresh_user(Config, alice),
+    {Bob, BobSpec0} = given_fresh_user(Config, bob),
+    ct:log("Bob: ~p~nBob Spec: ~p~n", [Bob, BobSpec0]),
+    ConnectionSteps = [start_stream,stream_features,maybe_use_ssl,authenticate,
+                       maybe_use_compression,bind,session,maybe_stream_resumption,
+                       maybe_use_carbons],
+    {Alice, AliceSpec0} = given_fresh_user([{connection_steps, ConnectionSteps} | Config], alice),
+    ct:log("Alice: ~p~nAlice Spec: ~p~n", [Alice, AliceSpec0]),
         discard_vcard_update(Alice),
         %% Bob sends some messages to Alice.
-        [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
+        [send_and_log(Bob, Alice, Msg)
          || Msg <- Messages],
         %% Alice receives the messages.
-        Stanzas = escalus:wait_for_stanzas(Alice, length(Messages)),
-        [escalus:assert(is_chat_message, [Msg], Stanza)
-         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+        Stanzas0 = escalus:wait_for_stanzas(Alice, length(Messages) + 10),
+        Stanzas = lists:sublist(Stanzas0, length(Messages)),
+        ct:log("up to 13 stanzas that came at all: ~p~n", [Stanzas]),
+        ct:log("stanzas that should be messages ~p~n", [Stanzas]),
+        ct:log("zipped list: ~p~n", [lists:zip(Messages, Stanzas)]),
+        [assert_and_log(Msg, Stanza) || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
         %% Alice disconnects without acking the messages.
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob),
     wait_until_disconnected(AliceSpec0, 1000),
 
+    ct:log("--------", []),
+
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     AliceSpec = [{manual_ack, true} | AliceSpec0],
+    ct:log("AliceSpecs: ~p~n", [AliceSpec]),
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec),
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    OfflineMsgs = [escalus_connection:get_stanza(NewAlice, {msg, I})
-                   || I <- lists:seq(1, length(Messages))],
-    [escalus:assert(is_chat_message, [Msg], Stanza)
+    StanzasNewAlice0 = escalus:wait_for_stanzas(NewAlice, length(Messages) + 10),
+    OfflineMsgs = lists:sublist(StanzasNewAlice0, length(Messages)),
+    ct:log("up to 13 stanzas that came at all: ~p~n", [StanzasNewAlice0]),
+    ct:log("OfflineMsgs: ~n~p~n", [OfflineMsgs]),
+    [assert_and_log(Msg, Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, OfflineMsgs)],
     %% Alice acks the delayed messages so they won't go again
     %% to the offline store.
@@ -880,7 +902,14 @@ given_fresh_spec(Config, User) ->
 
 given_fresh_user(Config, UserName) ->
     Spec = given_fresh_spec(Config, UserName),
-    given_fresh_user_with_spec(Spec).
+    case proplists:is_defined(connection_steps, Config) of
+        true ->
+            Spec2 = [{connection_steps, proplists:get_value(connection_steps, Config)} | Spec];
+        false ->
+            Spec2 = Spec
+    end,
+    ct:log("Spec2: ~p~n", [Spec2]),
+    given_fresh_user_with_spec(Spec2).
 
 given_fresh_user_with_spec(Spec) ->
     {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec),
