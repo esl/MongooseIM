@@ -56,8 +56,6 @@
 -export([archive_id_int/2]).
 -export([handle_set_message_form/3]).
 -export([handle_lookup_result/4]).
--export([send_messages_and_iq_result/4]).
--export([send_messages_and_fin_message/4]).
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -91,7 +89,7 @@
 %% Other
 -import(mod_mam_utils,
         [mess_id_to_external_binary/1,
-         is_last_page/4]).
+         is_complete_result_page/4]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -456,7 +454,7 @@ handle_lookup_result(Result, From, IQ, #{owner_jid := ArcJID} = Params) ->
 
 send_messages_and_fin_message({TotalCount, Offset, MessageRows}, From,
                               #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
-                              #{owner_jid := ArcJID, page_size := PageSize}) ->
+                              #{owner_jid := ArcJID} = Params) ->
     %% send IQ result
     ResIQ = IQ#iq{type = result, sub_el = []},
     ejabberd_router:route(ArcJID, From, jlib:iq_to_xml(ResIQ)),
@@ -467,25 +465,25 @@ send_messages_and_fin_message({TotalCount, Offset, MessageRows}, From,
                                                  QueryID, MessageRows, true),
 
     %% send fin message
-    IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+    IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
     IsStable = true,
     ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-    FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
+    FinMsg = make_fin_message(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, QueryID),
     ejabberd_sm:route(ArcJID, From, FinMsg).
 
 send_messages_and_iq_result({TotalCount, Offset, MessageRows}, From,
                             #iq{xmlns = MamNs, sub_el = QueryEl} = IQ,
-                            #{owner_jid := ArcJID, page_size := PageSize}) ->
+                            #{owner_jid := ArcJID} = Params) ->
     %% Forward messages
     QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
                                                  QueryID, MessageRows, true),
 
     %% Make fin iq
-    IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+    IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
     IsStable = true,
     ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-    FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+    FinElem = make_fin_element(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl),
     IQ#iq{type = result, sub_el = [FinElem]}.
 
 forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->

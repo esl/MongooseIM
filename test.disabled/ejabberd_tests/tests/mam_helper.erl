@@ -17,6 +17,8 @@
 
 -compile(export_all).
 
+-export([wait_for_complete_archive_response/3]).
+
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -155,6 +157,19 @@ assert_respond_query_id(_P, _ExpectedQueryId, #result_iq{query_id=not_supported}
     ok;
 assert_respond_query_id(_P, ExpectedQueryId, #result_iq{query_id=QueryId}) ->
     ?assert_equal(ExpectedQueryId, QueryId).
+
+%% @doc Calls wait_archive_respond and checks "complete" field value
+%%
+%% Common ExpectedCompleteValue values are <<"true">> or <<"false">>.
+%% Be aware, that if the attribute is missing in respond XML,
+%% than ExpectedCompleteValue should be <<"false">>.
+wait_for_complete_archive_response(P, Alice, ExpectedCompleteValue)
+      when is_binary(ExpectedCompleteValue) ->
+    Result = wait_archive_respond(P, Alice),
+    ParsedIQ = parse_result_iq(P, Result),
+    ?assert_equal_extra(ExpectedCompleteValue,
+                        ParsedIQ#result_iq.complete,
+                        #{mam_props => P, parsed_iq => ParsedIQ}).
 
 make_iso_time(Micro) ->
     Now = usec:to_now(Micro),
@@ -582,23 +597,28 @@ parse_fin_and_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=FinMsg}) ->
     Fin = exml_query:subelement(FinMsg, <<"fin">>),
     Set = exml_query:subelement(Fin, <<"set">>),
     QueryId = exml_query:attr(Fin, <<"queryid">>),
-    parse_set_and_iq(IQ, Set, QueryId).
+    %% MongooseIM does not add complete attribute, if complete is false
+    Complete = exml_query:attr(Fin, <<"complete">>, <<"false">>),
+    parse_set_and_iq(IQ, Set, QueryId, Complete).
 
 %% MAM v0.4
 parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
     Fin = exml_query:subelement(IQ, <<"fin">>),
     Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set, not_supported).
+    %% MongooseIM does not add complete attribute, if complete is false
+    Complete = exml_query:attr(Fin, <<"complete">>, <<"false">>),
+    parse_set_and_iq(IQ, Set, not_supported, Complete).
 
 %% MAM v0.2
 parse_legacy_iq(IQ) ->
     Fin = exml_query:subelement(IQ, <<"query">>),
     Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set, not_supported).
+    parse_set_and_iq(IQ, Set, not_supported, not_supported).
 
-parse_set_and_iq(IQ, Set, QueryId) ->
+parse_set_and_iq(IQ, Set, QueryId, Complete) ->
     #result_iq{
         query_id    = QueryId,
+        complete    = Complete,
         from        = exml_query:attr(IQ, <<"from">>),
         to          = exml_query:attr(IQ, <<"to">>),
         id          = exml_query:attr(IQ, <<"id">>),

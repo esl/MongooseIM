@@ -80,7 +80,7 @@
          calculate_msg_id_borders/3,
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
-         is_last_page/4,
+         is_complete_result_page/4,
          wait_shaper/3]).
 
 %% Ejabberd
@@ -969,23 +969,58 @@ maybe_previous_id(X) ->
     X - 1.
 
 
--spec is_last_page(PageSize, TotalCount, Offset, MessageRows) -> boolean() when
+%% @doc Returns true, if the current page is the final one in the result set.
+%% If there are more pages with messages, than this function returns false.
+%%
+%% PageSize - maximum number of messages extracted in one lookup.
+%% TotalCount - total number of messages in the Result Set.
+%% Result Set - is subset of all messages in user's archive,
+%% in a specified time period.
+%% MessageRows - stuff we are about to send to the user.
+%% Params - lookup parameters, coming from mam_iq module.
+%%
+%% TotalCount and Offset can be undefined, in case we use IsSimple=true.
+%% IsSimple=true tells the server not to do heavy `SELECT COUNT(*)' queries.
+%%
+%% TODO It is possible to set complete flag WITH IsSimple=true,
+%%      if we select one extra message from archive, but don't send it to the client.
+%%      It's the most efficient way to query archive, if the client side does
+%%      not care about the total number of messages and if it's stateless
+%%      (i.e. web interface).
+-spec is_complete_result_page(TotalCount, Offset, MessageRows, Params) ->
+    boolean() when
+    TotalCount  :: non_neg_integer()|undefined,
+    Offset      :: non_neg_integer()|undefined,
+    MessageRows :: list(),
+    Params      :: mam_iq:lookup_params().
+is_complete_result_page(TotalCount, Offset, MessageRows,
+                        #{page_size := PageSize} = Params) ->
+    case maps:get(ordering_direction, Params, forward) of
+        forward ->
+            is_most_recent_page(PageSize, TotalCount, Offset, MessageRows);
+        backward ->
+            Offset =:= 0
+   end.
+
+%% @doc Returns true, if the current page contains the most recent messages.
+%% If there are some more recent messages in archive, this function returns false.
+-spec is_most_recent_page(PageSize, TotalCount, Offset, MessageRows) -> boolean() when
     PageSize    :: non_neg_integer(),
     TotalCount  :: non_neg_integer()|undefined,
     Offset      :: non_neg_integer()|undefined,
     MessageRows :: list().
-is_last_page(PageSize, _TotalCount, _Offset, MessageRows)
+is_most_recent_page(PageSize, _TotalCount, _Offset, MessageRows)
     when length(MessageRows) < PageSize ->
     true;
-is_last_page(PageSize, TotalCount, Offset, MessageRows)
+is_most_recent_page(PageSize, TotalCount, Offset, MessageRows)
   when is_integer(TotalCount), is_integer(Offset),
        length(MessageRows) =:= PageSize ->
     %% Number of messages on skipped pages from the beginning plus the current page
     PagedCount = Offset + PageSize,
     TotalCount =:= PagedCount; %% false means full page but not the last one in the result set
-is_last_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
+is_most_recent_page(_PageSize, _TotalCount, _Offset, _MessageRows) ->
     %% When is_integer(TotalCount), is_integer(Offset)
-    %%     it's not possible case: the page is bigger then page size.
+    %%     it's not possible case: the page is bigger than page size.
     %% Otherwise either TotalCount or Offset is undefined because of optimizations.
     false.
 
