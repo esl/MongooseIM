@@ -157,9 +157,7 @@ create_ets(Name, Type) ->
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
 resolve_endpoints(Endpoints) ->
-    lists:foldl(fun resolve_endpoint/2,
-      [],
-      Endpoints).
+    lists:foldl(fun resolve_endpoint/2, [], Endpoints).
 
 resolve_endpoint({Addr, _Port} = E, Endpoints) when is_tuple(Addr) ->
     [E | Endpoints];
