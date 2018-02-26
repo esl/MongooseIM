@@ -47,8 +47,9 @@
 
 %% conf reload
 -export([reload_local/0,
-         reload_cluster/0,
+         reload_cluster/1,
          apply_changes_remote/4,
+         apply_changes_remote_unsafe/2,
          apply_changes/5]).
 
 -export([compute_config_version/2,
@@ -859,8 +860,8 @@ reload_local() ->
 msg(Fmt, Args) ->
     lists:flatten(io_lib:format(Fmt, Args)).
 
--spec reload_cluster() -> {ok, string()} | no_return().
-reload_cluster() ->
+-spec reload_cluster(SafetyMode :: string()) -> {ok, string()} | no_return().
+reload_cluster("hard") ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -874,31 +875,62 @@ reload_cluster() ->
     State1 = State0#state{override_global = true,
                           override_local  = true, override_acls = true},
     case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
+        {ok, _CurrentNode} ->
+            %% apply on other nodes
+            RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
+                                      [ConfigFile, ConfigDiff,
+                                       ConfigVersion, FileVersion],
+                                      30000),
+            prepare_success_result(RPCResult);
+        Error -> % TODO can it happen at all??
+            prepare_fail_result(Error, ConfigFile)
+    end;
+reload_cluster("soft") ->
+    {ok, "not implemented yet"};
+reload_cluster("none") ->
+    CurrentNode = node(),
+    ConfigFile = get_ejabberd_config_path(),
+    State0 = parse_file(ConfigFile),
+    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
+    ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
+    State1 = State0#state{override_global = true,
+                          override_local  = true, override_acls = true},
+    case catch apply_changes_unsafe(CC, LC, LHC, State1) of
         {ok, CurrentNode} ->
             %% apply on other nodes
-            {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigDiff,
-                                    ConfigVersion, FileVersion],
+            RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote_unsafe,
+                                   [ConfigFile, ConfigDiff],
                                    30000),
-            {S1, F1} = group_nodes_results([{ok, node()} | S], F),
-            ResultText = (groups_to_string("# Reloaded:", S1)
-                          ++ groups_to_string("\n# Failed:", F1)),
-            case F1 of
-                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
-                [_ | _] ->
-                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
-                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
-                                 [FailedUpdateOrRPC])
-            end,
-            {ok, ResultText};
-        Error ->
-            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
-                         [CurrentNode, Error]),
-            ?WARNING_MSG("cluster config reload failed!~n"
-                         "config file: ~s~n"
-                         "reason: ~ts", [ConfigFile, Reason]),
-            exit(Reason)
-    end.
+            prepare_success_result(RPCResult);
+        Error -> % TODO can it happen at all??
+            prepare_fail_result(Error, ConfigFile)
+    end;
+reload_cluster(SafetyMode) when is_list(SafetyMode) ->
+    ?WARNING_MSG("Reload failed due to unknown safety mode: ~s", [SafetyMode]),
+    exit(msg("Unknown safety mode ~s. ", [SafetyMode])).
+
+prepare_fail_result(Error, ConfigFile) ->
+    Reason = msg("failed to apply config on node: ~p~nreason: ~p",
+                 [node(), Error]),
+    ?WARNING_MSG("cluster config reload failed!~n"
+                 "config file: ~s~n"
+                 "reason: ~ts", [ConfigFile, Reason]),
+    exit(Reason).
+
+
+prepare_success_result({S, F}) ->
+    {S1, F1} = group_nodes_results([{ok, node()} | S], F),
+    ResultText = (groups_to_string("# Reloaded:", S1)
+                  ++ groups_to_string("\n# Failed:", F1)),
+    case F1 of
+        [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
+        [_ | _] ->
+            FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
+            ?WARNING_MSG("cluster config reload failed on nodes: ~p",
+                         [FailedUpdateOrRPC])
+    end,
+    {ok, ResultText}.
+
 
 -spec groups_to_string(string(), [string()]) -> string().
 groups_to_string(_Header, []) ->
@@ -970,6 +1002,25 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
             {error, Node, io_lib:format("Mismatching config file", [])}
     end.
 
+apply_changes_remote_unsafe(NewConfigFilePath, ConfigDiff) ->
+    Node = node(),
+    {CC, LC, LHC} = ConfigDiff,
+    State0 = parse_file(NewConfigFilePath),
+    State1 = State0#state{override_global = false,
+                          override_local  = true,
+                          override_acls   = false},
+    case catch apply_changes_unsafe(CC, LC, LHC, State1) of
+        {ok, Node} = R ->
+            ?WARNING_MSG("remote config reload succeeded", []),
+            R;
+        UnknownResult ->
+            ?WARNING_MSG("remote config reload failed! "
+                         "can't apply desired config", []),
+            {error, Node,
+             lists:flatten(io_lib:format("~p", [UnknownResult]))}
+    end.
+
+
 -spec apply_changes(term(), term(), term(), state(), binary()) ->
                            {ok, node()} | {error, node(), string()}.
 apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
@@ -984,6 +1035,10 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
             exit("Outdated configuration on node; cannot apply new one")
     end,
     %% apply config
+    apply_changes_unsafe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State).
+
+
+apply_changes_unsafe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State) ->
     set_opts(State),
 
     reload_config(ConfigChanges),
