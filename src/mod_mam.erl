@@ -89,7 +89,7 @@
 %% Other
 -import(mod_mam_utils,
         [mess_id_to_external_binary/1,
-         is_last_page/4]).
+         is_complete_result_page/4]).
 
 %% ejabberd
 -import(mod_mam_utils,
@@ -470,7 +470,6 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
                                            mod_mam_params:default_result_limit(?MODULE, Host),
                                            mod_mam_params:extra_params_module(?MODULE, Host)),
     Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
-    PageSize = maps:get(page_size, Params),
     case lookup_messages(Host, Params) of
         {error, Reason} ->
             report_issue(Reason, mam_lookup_failed, ArcJID, IQ),
@@ -484,10 +483,10 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
                                                          QueryID, MessageRows, true),
 
             %% Make fin message
-            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+            IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            FinMsg = make_fin_message(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl, QueryID),
+            FinMsg = make_fin_message(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl, QueryID),
             ejabberd_sm:route(ArcJID, From, FinMsg),
 
             %% IQ was sent above
@@ -497,10 +496,10 @@ handle_set_message_form(#jid{} = From, #jid{} = ArcJID,
             {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
                                                          QueryID, MessageRows, true),
             %% Make fin iq
-            IsLastPage = is_last_page(PageSize, TotalCount, Offset, MessageRows),
+            IsComplete = is_complete_result_page(TotalCount, Offset, MessageRows, Params),
             IsStable = true,
             ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            FinElem = make_fin_element(IQ#iq.xmlns, IsLastPage, IsStable, ResultSetEl),
+            FinElem = make_fin_element(IQ#iq.xmlns, IsComplete, IsStable, ResultSetEl),
             IQ#iq{type = result, sub_el = [FinElem]}
     end.
 

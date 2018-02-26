@@ -71,7 +71,8 @@
     first_index     :: non_neg_integer() | undefined,
     last            :: binary() | undefined,
     query_id        :: binary() | not_supported,
-    count           :: non_neg_integer()
+    count           :: non_neg_integer(),
+    complete        :: binary() | undefined
 }).
 
 -record(error_iq, {
