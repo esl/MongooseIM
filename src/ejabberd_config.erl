@@ -875,7 +875,7 @@ reload_cluster("hard") ->
     State1 = State0#state{override_global = true,
                           override_local  = true, override_acls = true},
     case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
-        {ok, _CurrentNode} ->
+        {ok, CurrentNode} ->
             %% apply on other nodes
             RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
                                       [ConfigFile, ConfigDiff,
