@@ -261,6 +261,7 @@ to_ip_tuples(Addr) ->
             {ok, Addrs6 ++ Addrs4}
     end.
 
+% @doc Checks that a host address passed as argument is a domain name
 -spec is_domain(any()) -> boolean().
 is_domain(Domain) when is_tuple(Domain) -> false;
 is_domain(Domain) when is_binary(Domain) ->
