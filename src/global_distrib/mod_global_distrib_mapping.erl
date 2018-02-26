@@ -34,7 +34,7 @@
          session_opened/4, session_closed/5]).
 -export([endpoints/1]).
 
--type endpoint() :: endpoint().
+-type endpoint() :: mod_global_distrib_utils:endpoint().
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -49,7 +49,8 @@
 -callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_endpoints(Host :: binary()) -> {ok, [{inet:ip_address(), inet:port()}]} | error.
+-callback get_endpoints(Host :: binary()) ->
+    {ok, [mod_global_distrib_utils:endpoint()]}.
 
 %%--------------------------------------------------------------------
 %% API

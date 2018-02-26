@@ -261,17 +261,22 @@ generic_end_per_testcase(CaseName, Config) ->
 %% Service discovery test
 %%--------------------------------------------------------------------
 
+%% Requires module mod_global_distrib to be started with argument advertised_endpoints
+%% for each host in get_hosts().
+%% Reads Redis to confirm that endpoints (in Redis) are overwritten
+%% with `advertised_endpoints` option value
 test_advertised_endpoints_override_endpoints(Config) ->
-    GetEndpoints = fun({NodeName, _, _}) ->
-                            rpc(NodeName,
-                                mod_global_distrib_mapping_redis,
-                                get_endpoints,
-                                [<<"fed1">>]) end,
-    Endps = lists:map(GetEndpoints, get_hosts()),
+    Endps = execute_on_each_node(mod_global_distrib_mapping_redis,
+                                 get_endpoints,
+                                 [<<"fed1">>]),
     true = lists:all(fun({ok, E}) ->
                              lists:sort(iptuples_to_string(E)) =:=
                                  lists:sort(advertised_endpoints()) end, Endps).
 
+%% When run in mod_global_distrib group - tests simple case of connection
+%% between two users connected to different clusters.
+%% When run in advertised_endpoints group it tests whether it is possible
+%% to connect to a node that is advertising itself with a domain name.
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
 
@@ -917,7 +922,7 @@ maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
 
 load_suite_module_on_nodes() ->
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    ct:log("~p", [execute_on_each_node(code, load_binary, [?MODULE, Filename, Binary])]).
+    execute_on_each_node(code, load_binary, [?MODULE, Filename, Binary]).
 
 execute_on_each_node(M, F, A) ->
     lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
