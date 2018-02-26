@@ -33,9 +33,43 @@
                  | 'mam_set_message_form'
                  | 'mam_get_message_form'.
 
--export_type([action/0]).
+-type lookup_params() :: #{
+        archive_id => mod_mam:archive_id(),
+        owner_jid => jid:jid(),
+        rsm => jlib:rsm_in() | undefined,
+        max_result_limit => non_neg_integer(),
+        %% Contains page size value provided by client or enforced by server.
+        %% It's a final value used by backend DB modules.
+        page_size => non_neg_integer(),
+        ordering_direction => backward | forward,
+        %% unix_timestamp() is in microseconds
+        now => mod_mam:unix_timestamp(),
+        %% Filtering by date
+        start_ts => mod_mam:unix_timestamp() | undefined,
+        end_ts => mod_mam:unix_timestamp() | undefined,
+        %% Filtering by contact
+        with_jid => jid:jid() | undefined,
+        %% Filtering by body text
+        search_text => binary() | undefined,
+        %% Filtering Result Set based on message ids
+        borders =>  mod_mam:borders() | undefined,
+        %% Affects 'policy-violation' for a case when:
+        %% - user does not use forms to query archive
+        %% - user does not provide "set" element
+        %% see form_to_lookup_params for more info
+        limit_passed => boolean(),
+        %% Optimizations flags
+        %% see form_to_lookup_params for more info
+        is_simple => true | false | opt_count,
+        %% Can have more fields, added in maybe_add_extra_lookup_params function
+        %% in runtime
+        atom() => _
+      }.
 
--callback extra_lookup_params(jlib:iq(), map()) -> map().
+-export_type([action/0]).
+-export_type([lookup_params/0]).
+
+-callback extra_lookup_params(jlib:iq(), lookup_params()) -> lookup_params().
 
 -spec action(jlib:iq()) -> action().
 action(IQ = #iq{xmlns = ?NS_MAM}) ->
@@ -140,14 +174,15 @@ maybe_jid(<<>>) ->
 maybe_jid(JID) when is_binary(JID) ->
     jid:from_binary(JID).
 
--spec query_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) -> map().
+-spec query_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) ->
+    lookup_params().
 query_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params = Params0#{
                %% Filtering by date.
                %% Start :: integer() | undefined
-               start_ts => mam_iq:elem_to_start_microseconds(QueryEl),
-               end_ts => mam_iq:elem_to_end_microseconds(QueryEl),
+               start_ts => elem_to_start_microseconds(QueryEl),
+               end_ts => elem_to_end_microseconds(QueryEl),
                %% Filtering by contact.
                search_text => undefined,
                with_jid => elem_to_with_jid(QueryEl),
@@ -157,16 +192,17 @@ query_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResult
     maybe_add_extra_lookup_params(Module, Params, IQ).
 
 
--spec form_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) -> map().
+-spec form_to_lookup_params(jlib:iq(), integer(), integer(), undefined | module()) ->
+    lookup_params().
 form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultLimit, Module) ->
     Params0 = common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit),
     Params = Params0#{
                %% Filtering by date.
                %% Start :: integer() | undefined
-               start_ts => mam_iq:form_to_start_microseconds(QueryEl),
-               end_ts => mam_iq:form_to_end_microseconds(QueryEl),
+               start_ts => form_to_start_microseconds(QueryEl),
+               end_ts => form_to_end_microseconds(QueryEl),
                %% Filtering by contact.
-               with_jid => mam_iq:form_to_with_jid(QueryEl),
+               with_jid => form_to_with_jid(QueryEl),
                %% Filtering by text
                search_text => mod_mam_utils:form_to_text(QueryEl),
 
@@ -189,18 +225,27 @@ form_to_lookup_params(#iq{sub_el = QueryEl} = IQ, MaxResultLimit, DefaultResultL
                is_simple => mod_mam_utils:form_decode_optimizations(QueryEl)},
     maybe_add_extra_lookup_params(Module, Params, IQ).
 
+-spec common_lookup_params(exml:element(), non_neg_integer(), non_neg_integer()) ->
+    lookup_params().
 common_lookup_params(QueryEl, MaxResultLimit, DefaultResultLimit) ->
-    Limit = mam_iq:elem_to_limit(QueryEl),
+    RSM = fix_rsm(jlib:rsm_decode(QueryEl)),
+    Limit = elem_to_limit(QueryEl),
     #{now => p1_time_compat:system_time(micro_seconds),
-      rsm => mam_iq:fix_rsm(jlib:rsm_decode(QueryEl)),
+      rsm => RSM,
       max_result_limit => MaxResultLimit,
       page_size => min(MaxResultLimit,
                        mod_mam_utils:maybe_integer(Limit, DefaultResultLimit)),
-      limit_passed => Limit =/= <<>>}.
+      limit_passed => Limit =/= <<>>,
+      ordering_direction => ordering_direction(RSM)}.
 
+-spec lookup_params_with_archive_details(lookup_params(), term(), jid:jid()) ->
+    lookup_params().
 lookup_params_with_archive_details(Params, ArcID, ArcJID) ->
     Params#{archive_id => ArcID,
             owner_jid => ArcJID}.
+
+ordering_direction(#rsm_in{direction = before}) -> backward;
+ordering_direction(_) -> forward.
 
 maybe_add_extra_lookup_params(undefined, Params, _) ->
     Params;
