@@ -969,8 +969,8 @@ reload_softly(ApplyChangesFun, Args) ->
 
 is_config_file_fresh() ->
     [{last_loaded, LastLoaded}] = ets:lookup(config_reload_info, last_loaded),
-    LastModified = filelib:last_modified(get_ejabberd_config_path()),
-    ?ERROR_MSG("LastLoaded = ~p~nLastModified = ~p~nLastLoaded < LastModified = ~p", [LastLoaded, LastModified, LastLoaded < LastModified]),
+    LastModified = calendar:local_time_to_universal_time(filelib:last_modified(get_ejabberd_config_path())),
+    ?ERROR_MSG("config path: ~p~nLastLoaded = ~p~nLastModified = ~p~nLastLoaded < LastModified = ~p", [get_ejabberd_config_path(), LastLoaded, LastModified, LastLoaded < LastModified]),
     LastLoaded < LastModified.
 
 prepare_fail_result(Error, ConfigFile) ->
@@ -1108,7 +1108,7 @@ apply_changes_unsafe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State
     reload_config(ConfigChanges),
     reload_local_config(LocalConfigChanges),
     reload_local_hosts_config(LocalHostsChanges),
-    ets:insert(config_reload_info, {last_laoded, timestamp()}),
+    ets:insert(config_reload_info, {last_loaded, timestamp()}),
 
     {ok, node()}.
 
