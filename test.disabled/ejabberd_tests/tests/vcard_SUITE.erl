@@ -29,7 +29,9 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("../../../include/jlib.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
+-include_lib("escalus/include/escalus.hrl").
+-include_lib("exml/include/exml.hrl").
 
 %% Element CData
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
