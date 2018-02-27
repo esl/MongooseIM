@@ -48,6 +48,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/1,
+         reload_softly/0,
          apply_changes_remote/4,
          apply_changes_remote_unsafe/2,
          apply_changes/5]).
@@ -154,10 +155,14 @@ start() ->
     mnesia:add_table_copy(local_config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
+    ets:new(config_reload_info, [public, named_table]),
+    ets:insert(config_reload_info, {last_loaded, timestamp()}),
     %% This start time is used by mod_last:
     add_local_option(node_start, p1_time_compat:timestamp()),
     ok.
 
+timestamp() ->
+    calendar:now_to_universal_time(erlang:timestamp()).
 
 %% @doc Get the filename of the ejabberd configuration file.
 %% The filename can be specified with: erl -config "/path/to/ejabberd.cfg".
@@ -855,6 +860,7 @@ reload_local() ->
             error(Msg)
     end.
 
+
 %% Won't be unnecessarily evaluated if used as an argument
 %% to lager parse transform.
 msg(Fmt, Args) ->
@@ -881,12 +887,18 @@ reload_cluster("hard") ->
                                       [ConfigFile, ConfigDiff,
                                        ConfigVersion, FileVersion],
                                       30000),
-            prepare_success_result(RPCResult);
+            prepare_result(RPCResult);
         Error -> % TODO can it happen at all??
             prepare_fail_result(Error, ConfigFile)
     end;
 reload_cluster("soft") ->
-    {ok, "not implemented yet"};
+    case reload_softly() of
+        {error, _, Msg} ->
+            {ok, msg("Failed to apply config on node ~p: ~p", [node(), Msg])};
+        {ok, _} ->
+            RPCResult = rpc:multicall(nodes(), ?MODULE, reload_softly, []),
+            prepare_result(RPCResult)
+    end;
 reload_cluster("none") ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
@@ -901,13 +913,39 @@ reload_cluster("none") ->
             RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote_unsafe,
                                    [ConfigFile, ConfigDiff],
                                    30000),
-            prepare_success_result(RPCResult);
+            prepare_result(RPCResult);
         Error -> % TODO can it happen at all??
             prepare_fail_result(Error, ConfigFile)
     end;
 reload_cluster(SafetyMode) when is_list(SafetyMode) ->
     ?WARNING_MSG("Reload failed due to unknown safety mode: ~s", [SafetyMode]),
     exit(msg("Unknown safety mode ~s. ", [SafetyMode])).
+
+reload_softly() ->
+    case is_config_file_more_fresh() of
+        false ->
+            {error, node(), "Config file was modified before current config was laoded and `soft` safety check was chosen."};
+        true ->
+            CurrentNode = node(),
+            ConfigFile = get_ejabberd_config_path(),
+            State0 = parse_file(ConfigFile),
+            ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
+            ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
+            State1 = State0#state{override_global = true,
+                                  override_local  = true, override_acls = true},
+            case catch apply_changes_unsafe(CC, LC, LHC, State1) of
+                {ok, CurrentNode} ->
+                    {ok, CurrentNode};
+                Error ->
+                    Error
+            end
+    end.
+
+is_config_file_more_fresh() ->
+    [{last_loaded, LastLoaded}] = ets:lookup(config_reload_info, last_loaded),
+    LastModified = filelib:last_modified(get_ejabberd_config_path()),
+    ?ERROR_MSG("LastLoaded = ~p~nLastModified = ~p~nLastLoaded < LastModified = ~p", [LastLoaded, LastModified, LastLoaded < LastModified]),
+    LastLoaded < LastModified.
 
 prepare_fail_result(Error, ConfigFile) ->
     Reason = msg("failed to apply config on node: ~p~nreason: ~p",
@@ -918,7 +956,7 @@ prepare_fail_result(Error, ConfigFile) ->
     exit(Reason).
 
 
-prepare_success_result({S, F}) ->
+prepare_result({S, F}) ->
     {S1, F1} = group_nodes_results([{ok, node()} | S], F),
     ResultText = (groups_to_string("# Reloaded:", S1)
                   ++ groups_to_string("\n# Failed:", F1)),
@@ -1044,6 +1082,7 @@ apply_changes_unsafe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State
     reload_config(ConfigChanges),
     reload_local_config(LocalConfigChanges),
     reload_local_hosts_config(LocalHostsChanges),
+    ets:insert(config_reload_info, {last_laoded, timestamp()}),
 
     {ok, node()}.
 
