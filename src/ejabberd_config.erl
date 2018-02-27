@@ -48,7 +48,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/1,
-         reload_softly/0,
+         reload_softly/3,
          apply_changes_remote/4,
          apply_changes_remote_unsafe/2,
          apply_changes/5]).
@@ -888,15 +888,23 @@ reload_cluster("hard") ->
                                        ConfigVersion, FileVersion],
                                       30000),
             prepare_result(RPCResult);
-        Error -> % TODO can it happen at all??
+        Error ->
             prepare_fail_result(Error, ConfigFile)
     end;
 reload_cluster("soft") ->
-    case reload_softly() of
+    CurrentNode = node(),
+    ConfigFile = get_ejabberd_config_path(),
+    State0 = parse_file(ConfigFile),
+    ConfigDiff = get_config_diff(State0),
+    State1 = State0#state{override_global = true,
+                          override_local  = true, override_acls = true},
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
+    case reload_softly(ConfigDiff, State1, ConfigVersion) of
         {error, _, Msg} ->
             {ok, msg("Failed to apply config on node ~p: ~p", [node(), Msg])};
         {ok, _} ->
-            RPCResult = rpc:multicall(nodes(), ?MODULE, reload_softly, []),
+            RPCResult = rpc:multicall(nodes(), ?MODULE, reload_softly, [ConfigDiff, State1, ConfigDiff]),
             prepare_result(RPCResult)
     end;
 reload_cluster("none") ->
@@ -904,10 +912,12 @@ reload_cluster("none") ->
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
     ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
     ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     State1 = State0#state{override_global = true,
                           override_local  = true, override_acls = true},
-    case catch apply_changes_unsafe(CC, LC, LHC, State1) of
+    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% apply on other nodes
             RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote_unsafe,
@@ -921,22 +931,16 @@ reload_cluster(SafetyMode) when is_list(SafetyMode) ->
     ?WARNING_MSG("Reload failed due to unknown safety mode: ~s", [SafetyMode]),
     exit(msg("Unknown safety mode ~s. ", [SafetyMode])).
 
-reload_softly() ->
+reload_softly({CC, LC, LHC}, State1, ConfigVersion) ->
     case is_config_file_more_fresh() of
         false ->
             {error, node(), "Config file was modified before current config was laoded and `soft` safety check was chosen."};
         true ->
-            CurrentNode = node(),
-            ConfigFile = get_ejabberd_config_path(),
-            State0 = parse_file(ConfigFile),
-            ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
-            ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
-            State1 = State0#state{override_global = true,
-                                  override_local  = true, override_acls = true},
-            case catch apply_changes_unsafe(CC, LC, LHC, State1) of
+            case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
                 {ok, CurrentNode} ->
                     {ok, CurrentNode};
                 Error ->
+                    ?ERROR_MSG("Error while reloading softly: ~p", [Error]),
                     Error
             end
     end.
