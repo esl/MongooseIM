@@ -47,9 +47,12 @@
 
 %% conf reload
 -export([reload_local/0,
+         reload_cluster_hard/0,
+         reload_cluster_soft/0,
+         reload_cluster_none/0,
+         reload_softly_locally/3,
          reload_cluster/1,
          reload_softly_remote/2,
-         reload_softly/3,
          apply_changes_remote/4,
          apply_changes_remote_unsafe/2,
          apply_changes/5]).
@@ -869,6 +872,17 @@ msg(Fmt, Args) ->
 
 -spec reload_cluster(SafetyMode :: string()) -> {ok, string()} | no_return().
 reload_cluster("hard") ->
+    reload_cluster_hard();
+reload_cluster("soft") ->
+    reload_cluster_soft();
+reload_cluster("none") ->
+    reload_cluster_none();
+reload_cluster(SafetyMode) when is_list(SafetyMode) ->
+    ?WARNING_MSG("Reload failed due to unknown safety mode: ~s", [SafetyMode]),
+    exit(msg("Unknown safety mode ~s. ", [SafetyMode])).
+
+
+reload_cluster_hard() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -891,8 +905,10 @@ reload_cluster("hard") ->
             prepare_result(RPCResult);
         Error ->
             prepare_fail_result(Error, ConfigFile)
-    end;
-reload_cluster("soft") ->
+    end.
+
+
+reload_cluster_soft() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -901,14 +917,16 @@ reload_cluster("soft") ->
                           override_local  = true, override_acls = true},
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
-    case reload_softly(ConfigDiff, State1, ConfigVersion) of
+    case reload_softly_locally(ConfigDiff, State1, ConfigVersion) of
         {error, _, Msg} ->
             {ok, msg("Failed to apply config on node ~p: ~p", [node(), Msg])};
         {ok, _} ->
             RPCResult = rpc:multicall(nodes(), ?MODULE, reload_softly_remote, [ConfigFile, ConfigDiff]),
             prepare_result(RPCResult)
-    end;
-reload_cluster("none") ->
+    end.
+
+
+reload_cluster_none() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -925,19 +943,22 @@ reload_cluster("none") ->
                                    [ConfigFile, ConfigDiff],
                                    30000),
             prepare_result(RPCResult);
-        Error -> % TODO can it happen at all??
+        Error ->
             prepare_fail_result(Error, ConfigFile)
-    end;
-reload_cluster(SafetyMode) when is_list(SafetyMode) ->
-    ?WARNING_MSG("Reload failed due to unknown safety mode: ~s", [SafetyMode]),
-    exit(msg("Unknown safety mode ~s. ", [SafetyMode])).
+    end.
 
-reload_softly({CC, LC, LHC}, State1, ConfigVersion) ->
-    case is_config_file_more_fresh() of
+reload_softly_locally({CC, LC, LHC}, State1, ConfigVersion) ->
+    reload_softly(fun apply_changes/5, [CC, LC, LHC, State1, ConfigVersion]).
+
+reload_softly_remote(ConfigFile, ConfigDiff) ->
+    reload_softly(fun apply_changes_remote_unsafe/2, [ConfigFile, ConfigDiff]).
+
+reload_softly(ApplyChangesFun, Args) ->
+    case is_config_file_fresh() of
         false ->
             {error, node(), "Config file was modified before current config was laoded and `soft` safety check was chosen."};
         true ->
-            case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
+            case catch erlang:apply(ApplyChangesFun, Args) of
                 {ok, CurrentNode} ->
                     {ok, CurrentNode};
                 {_, ErrorMsg} ->
@@ -946,21 +967,7 @@ reload_softly({CC, LC, LHC}, State1, ConfigVersion) ->
             end
     end.
 
-reload_softly_remote(ConfigFile, {CC, LC, LHC} = ConfigDiff) ->
-    case is_config_file_more_fresh() of
-        false ->
-            {error, node(), "Config file was modified before current config was laoded and `soft` safety check was chosen."};
-        true ->
-            case catch apply_changes_remote_unsafe(ConfigFile, ConfigDiff) of
-                {ok, CurrentNode} ->
-                    {ok, CurrentNode};
-                {_, ErrorMsg} ->
-                    ?ERROR_MSG("Error while reloading softly: ~p", [ErrorMsg]),
-                    {error, node(), ErrorMsg}
-            end
-    end.
-
-is_config_file_more_fresh() ->
+is_config_file_fresh() ->
     [{last_loaded, LastLoaded}] = ets:lookup(config_reload_info, last_loaded),
     LastModified = filelib:last_modified(get_ejabberd_config_path()),
     ?ERROR_MSG("LastLoaded = ~p~nLastModified = ~p~nLastLoaded < LastModified = ~p", [LastLoaded, LastModified, LastLoaded < LastModified]),
