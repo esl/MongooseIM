@@ -58,9 +58,14 @@ negative_response() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Backend = case mongoose_helper:is_odbc_enabled(Host) of
+              true -> odbc;
+              false -> mnesia
+            end,
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
         [{host, binary_to_list(muc_light_domain())},
-         {rooms_in_rosters, true}]),
+         {rooms_in_rosters, true}, {backend, Backend}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
