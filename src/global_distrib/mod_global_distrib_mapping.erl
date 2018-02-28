@@ -50,7 +50,7 @@
 -callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
 -callback get_endpoints(Host :: binary()) ->
-    {ok, [mod_global_distrib_utils:endpoint()]}.
+    {ok, [endpoint()]}.
 
 %%--------------------------------------------------------------------
 %% API
