@@ -25,7 +25,7 @@
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
          binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
          server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
-         is_domain/1
+         parse_address/1
         ]).
 
 -type domain_name() :: string().
@@ -261,15 +261,24 @@ to_ip_tuples(Addr) ->
             {ok, Addrs6 ++ Addrs4}
     end.
 
-% @doc Checks that a host address passed as argument is a domain name
--spec is_domain(any()) -> boolean().
-is_domain(Domain) when is_tuple(Domain) -> false;
-is_domain(Domain) when is_binary(Domain) ->
-    is_domain(binary_to_list(Domain));
-is_domain(Domain) ->
-    case inet:parse_address(Domain) of
+-spec parse_address(binary() | string() | inet:ip_address()) ->
+                                inet:ip_address() | domain_name().
+parse_address(DomainOrIp) when is_binary(DomainOrIp) ->
+    parse_address(binary_to_list(DomainOrIp));
+parse_address(Ip) when is_tuple(Ip) ->
+    {ip, Ip};
+parse_address(DomainOrIp) ->
+    case inet:parse(DomainOrIp) of
         {error, einval} ->
+            {domain, DomainOrIp};
+        {ok, Ip} ->
+            {ip, Ip}
+    end.
+
+is_domain(DomainOrIp) ->
+    case parse_address(DomainOrIp) of
+        {domain, _} ->
             true;
-        {ok, _IpAddr} ->
+        _ ->
             false
     end.
