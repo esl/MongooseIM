@@ -58,7 +58,7 @@ start() ->
             {_, RiakAddr} = get_riak_opt(address, RiakOpts),
             {_, RiakPort} = get_riak_opt(port, RiakOpts),
             {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
-            SecurityOptsKeys = [credentials, cacertfile],
+            SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
             SecurityOpts = [get_riak_opt(OptKey, RiakOpts) ||
                                OptKey <- SecurityOptsKeys],
             RiakPBOpts = [auto_reconnect, keepalive],
