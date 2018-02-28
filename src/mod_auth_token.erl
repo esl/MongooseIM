@@ -12,7 +12,7 @@
          stop/1]).
 
 %% Hook handlers
--export([clean_tokens/2]).
+-export([clean_tokens/3]).
 
 %% gen_iq_handler handlers
 -export([process_iq/4]).
@@ -394,12 +394,13 @@ revoke_token_command(Owner) ->
             {error, "Internal server error"}
     end.
 
--spec clean_tokens(User :: jid:user(), Server :: jid:server()) -> ok.
-clean_tokens(User, Server) ->
+-spec clean_tokens(mongoose_acc:t(), User :: jid:user(), Server :: jid:server()) -> mongoose_acc:t().
+clean_tokens(Acc, User, Server) ->
     try
         Owner = jid:make(User, Server, <<>>),
         mod_auth_token_backend:clean_tokens(Owner)
     catch
         E:R -> ?ERROR_MSG("clean_tokens backend error: ~p", [{E, R}]),
                ok
-    end.
+    end,
+    Acc.
