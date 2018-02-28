@@ -968,8 +968,7 @@ trees_for_connections_present() ->
 
 tree_for_sup_present(Node, ExpectedSup) ->
     Children = out_connection_sups(Node),
-    lists:any(fun({Sup, _, _, _}) -> Sup =:= ExpectedSup;
-                 (_) -> false end, Children).
+    lists:keyfind(ExpectedSup, 1, Children) =/= false.
 
 
 %% ------------------------------- rebalancing helpers -----------------------------------
