@@ -157,7 +157,7 @@ init_per_group(_, Config0) ->
                                      ]},
                           {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
                           {resend_after_ms, 500}],
-                  Opts = maybe_add_advertised_enpoints(NodeName, Opts0, Config1),
+                  Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
@@ -905,7 +905,7 @@ iptuples_to_string([{Addr, Port} | Endps]) when is_tuple(Addr) ->
 iptuples_to_string([E | Endps]) ->
     [E | iptuples_to_string(Endps)].
 
-maybe_add_advertised_enpoints(NodeName, Opts, Config) ->
+maybe_add_advertised_endpoints(NodeName, Opts, Config) ->
     Endpoints = proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), []),
     case Endpoints of
         [] ->
