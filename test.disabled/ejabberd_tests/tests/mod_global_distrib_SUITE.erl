@@ -283,7 +283,7 @@ test_host_refreshing(_Config) ->
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
     {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
-    erlang:exit(EuropePid, kill),
+    erlang:exit(EuropePid, kill), % it's ok to kill temporary process
     wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 2, ?HOSTS_REFRESH_INTERVAL).
 
 %% When run in mod_global_distrib group - tests simple case of connection
