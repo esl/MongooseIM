@@ -278,8 +278,7 @@ test_advertised_endpoints_override_endpoints(Config) ->
                                  lists:sort(advertised_endpoints()) end, Endps).
 
 test_host_refreshing(_Config) ->
-    eventually_true("wait for refresher to converge trees states",
-                    fun() -> trees_for_connections_present() end, ?HOSTS_REFRESH_INTERVAL, 2),
+    wait_until(fun() -> trees_for_connections_present() end, true, 2, ?HOSTS_REFRESH_INTERVAL),
     ConnectionSups = out_connection_sups(asia_node),
     [EuropeHost] = lists:filtermap(fun({europe_node1, Host, _}) -> {true, list_to_binary(Host)};
                                       (_) -> false end, get_hosts()),
@@ -288,8 +287,7 @@ test_host_refreshing(_Config) ->
                                      (_) -> false end,
                                       ConnectionSups),
     erlang:exit(EuropePid, kill),
-    eventually_true("wait for refresher to add tree for europe",
-                    fun() -> tree_for_sup_present(asia_node, EuropeSup) end, ?HOSTS_REFRESH_INTERVAL, 2).
+    wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, true, 2, ?HOSTS_REFRESH_INTERVAL).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -957,17 +955,6 @@ mock_inet() ->
 
 unmock_inet(Pids) ->
     execute_on_each_node(meck, unload, [inet]).
-
-eventually_true(Description, _Predicate, Interval, 0) ->
-    ct:fail({eventually_true_failed, Description});
-eventually_true(Description, Predicate, Interval, Retries) ->
-    case Predicate() of
-        true ->
-            ok;
-        false ->
-            timer:sleep(Interval),
-            eventually_true(Description, Predicate, Interval, Retries - 1)
-    end.
 
 out_connection_sups(Node) ->
     Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
