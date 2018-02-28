@@ -9,6 +9,7 @@ addons:
         - odbc-postgresql
         - slapd
         - ldap-utils
+        - golang # used for google drive test results upload
 before_install:
         - tools/configure $REL_CONFIG
 install:
@@ -29,11 +30,15 @@ after_failure:
 
 after_success:
         - ./rebar3 coveralls send
-        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ]; then tools/travis-build-and-push-docker.sh; fi
+        - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
+            then tools/travis-build-and-push-docker.sh;
+          fi
 
 after_script:
-        - sudo pip install awscli --ignore-installed six
-        - if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then tools/travis-upload-to-s3.sh; fi
+        - tools/travis-prepare-log-dir.sh
+        - if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+        - if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+        - tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 services:
         - redis-server
@@ -84,4 +89,3 @@ deploy:
   on:
     tags: true
     condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
-
