@@ -280,12 +280,9 @@ test_advertised_endpoints_override_endpoints(Config) ->
 test_host_refreshing(_Config) ->
     wait_until(fun() -> trees_for_connections_present() end, true, 2, ?HOSTS_REFRESH_INTERVAL),
     ConnectionSups = out_connection_sups(asia_node),
-    [EuropeHost] = lists:filtermap(fun({europe_node1, Host, _}) -> {true, list_to_binary(Host)};
-                                      (_) -> false end, get_hosts()),
-    EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [EuropeHost]),
-    [EuropePid] = lists:filtermap(fun({Sup, Pid, supervisor, _}) -> {Sup =:= EuropeSup, Pid};
-                                     (_) -> false end,
-                                      ConnectionSups),
+    {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
+    EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
+    {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
     erlang:exit(EuropePid, kill),
     wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, true, 2, ?HOSTS_REFRESH_INTERVAL).
 
