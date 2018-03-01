@@ -137,12 +137,10 @@ init_per_group(rebalancing, Config) ->
                                          {redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(advertised_endpoints, Config) ->
     load_suite_module_on_nodes(),
-    MockingFun = mock_inet_and_wait(),
-    Pids = execute_on_each_node(erlang, spawn, [MockingFun]), % it is spawned remotely because unstick needs a context
-    Config2 = [{meck_handlers, Pids} | Config],
+    mock_inet_on_each_node(),
     init_per_group(advertised_endpoints_generic,
                [{add_advertised_endpoints,
-                 [{asia_node, advertised_endpoints()}]} | Config2]);
+                 [{asia_node, advertised_endpoints()}]} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
@@ -924,37 +922,20 @@ load_suite_module_on_nodes() ->
     {_Module, Binary, Filename} = code:get_object_code(?MODULE),
     execute_on_each_node(code, load_binary, [?MODULE, Filename, Binary]).
 
+mock_inet_on_each_node() ->
+    Nodes = lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()),
+    lists:map(fun(Node) -> rpc:block_call(Node, ?MODULE, mock_inet, []) end, Nodes).
+
 execute_on_each_node(M, F, A) ->
     lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
 
-mock_inet_and_wait() ->
-    WaitFN = fun Wait() ->
-                     receive
-                         stop ->
-                             meck:unload(inet),
-                             exit(normal);
-                         {ping, Pid} ->
-                             Pid ! pong;
-                         _ ->
-                             Wait()
-                     end
-             end,
-    fun() ->
-            meck:new(inet, [non_strict, passthrough, unstick]),
-            meck:expect(inet, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
-                                           (_, inet6) -> {error, "No ipv6 address"} end),
-            WaitFN()
-    end.
+mock_inet() ->
+    meck:new(inet, [non_strict, passthrough, unstick]),
+    meck:expect(inet, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
+                                   (_, inet6) -> {error, "No ipv6 address"} end).
 
 unmock_inet(Pids) ->
-    lists:foreach(fun(Pid) -> Pid ! stop end, Pids),
-    lists:foreach(fun(Pid) -> Pid ! {ping, self()} end, Pids),
-    receive
-        pong ->
-            ct:fail(got_ping)
-    after 5000 ->
-            ok
-    end.
+    execute_on_each_node(meck, unload, [inet]).
 
 
 %% ------------------------------- rebalancing helpers -----------------------------------
