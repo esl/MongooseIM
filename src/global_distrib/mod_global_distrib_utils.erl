@@ -268,7 +268,7 @@ parse_address(DomainOrIp) when is_binary(DomainOrIp) ->
 parse_address(Ip) when is_tuple(Ip) ->
     {ip, Ip};
 parse_address(DomainOrIp) ->
-    case inet:parse(DomainOrIp) of
+    case inet:parse_address(DomainOrIp) of
         {error, einval} ->
             {domain, DomainOrIp};
         {ok, Ip} ->
