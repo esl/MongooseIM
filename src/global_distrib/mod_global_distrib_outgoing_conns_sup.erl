@@ -26,19 +26,42 @@ add_server(Server) ->
       type => supervisor,
       modules => dynamic
      },
+    ?INFO_MSG("event=outgoing_conn_start_progress,server='~s',state='starting'", [Server]),
     case supervisor:start_child(?MODULE, ServerSupSpec) of
-        {ok, _} -> ok;
-        {error, {already_started, _}} -> ok;
-        Error -> Error
+        {ok, Pid} ->
+            ?INFO_MSG("event=outgoing_conn_start_progress,server='~s',"
+                      "state='started',pid='~p'", [Server, Pid]),
+            ok;
+        {error, {already_started, Pid}} ->
+            ?INFO_MSG("event=outgoing_conn_start_progress,server='~s',"
+                      "state='started_by_other',pid='~p'", [Server, Pid]),
+            ok;
+        Error ->
+            ?INFO_MSG("event=outgoing_conn_start_progress,server='~s',"
+                      "state='failed',error='~p'", [Server, Error]),
+            Error
     end.
 
 -spec get_connection(Server :: jid:lserver()) -> pid().
 get_connection(Server) ->
-    case whereis(mod_global_distrib_utils:server_to_sup_name(Server)) of
-        undefined -> ok = add_server(Server);
-        _ -> ok
-    end,
-    mod_global_distrib_server_sup:get_connection(Server).
+    get_connection(Server, 5).
+
+-spec get_connection(Server :: jid:lserver(), RetriesLeft :: non_neg_integer()) ->
+    pid() | no_return().
+get_connection(Server, 0) ->
+    ?ERROR_MSG("event=cannot_acquire_outgoing_connection,server='~s'", [Server]),
+    throw({error, {cannot_acquire_outgoing_connection, Server}});
+get_connection(Server, RetriesLeft) ->
+    case mod_global_distrib_server_sup:get_connection(Server) of
+        {error, not_available} ->
+            %% add_server is a synchronous call that, if succeeds,
+            %% returns after the outgoing conn layer is ready,
+            %% so we may retry immediately
+            add_server(Server),
+            get_connection(Server, RetriesLeft - 1);
+        {ok, Pid} ->
+            Pid
+    end.
 
 %%--------------------------------------------------------------------
 %% supervisor callback
