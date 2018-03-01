@@ -16,6 +16,7 @@ install:
         - ./rebar3 compile
         - make dev
         - tools/travis-build-tests.sh
+        - pip install --user codecov
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
@@ -29,6 +30,7 @@ after_failure:
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
 after_success:
+        - codecov
         - ./rebar3 coveralls send
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
             then tools/travis-build-and-push-docker.sh;
