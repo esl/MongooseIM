@@ -105,7 +105,7 @@ elif [ "$DB" = 'riak' ]; then
     docker start mongooseim-riak
     echo "Waiting for docker healthcheck"
     echo ""
-    time tools/wait_for_healthcheck.sh mongooseim-riak
+    tools/wait_for_healthcheck.sh mongooseim-riak
     echo "Waiting for a listener to appear"
     tools/wait_for_service.sh mongooseim-riak 8098
     # Use riak-admin from inside the container

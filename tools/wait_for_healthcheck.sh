@@ -9,8 +9,28 @@
 # or
 # ./tools/wait_for_healthcheck.sh "$CONTAINER"
 #
+# TIMEOUT argument documentation
+# ------------------------------
+#
+# TIMEOUT is number of times we try to get healthcheck status.
+# Because we wait one second between tries, it can be interpreted as
+# number of seconds we wait.
+#
 # with 5 seconds timeout:
 # TIMEOUT=5 ./tools/wait_for_healthcheck.sh "$CONTAINER"
+#
+# If call to docker daemon gets blocked for a long time
+# (for example, if docker daemon is down),
+# that TIMEOUT would not work as expected.
+#
+# If "docker inspect" takes some time to execute, than TIMEOUT does not work
+# as expected.
+#
+# This command always fails:
+# TIMEOUT=0 ./tools/wait_for_healthcheck.sh "$CONTAINER"
+#
+# This command would try to get healthcheck status once:
+# TIMEOUT=1 ./tools/wait_for_healthcheck.sh "$CONTAINER"
 
 set -e
 
@@ -22,14 +42,6 @@ CONTAINER="$1"
 # Default timeout is 1 minute
 TIMEOUT="${TIMEOUT:-60}"
 
-# Stop waiting after timeout using a background task
-MAIN_PID=$BASHPID
-(sleep "$TIMEOUT"; echo ""; echo "Killed by timeout"; kill $MAIN_PID) &
-# Get pid of a background task
-KILLER_PID=$!
-# Kill the process on exit
-trap "kill $KILLER_PID" EXIT
-
 # Gets a health check of a container
 # Usage example:
 # health_status "$CONTAINER"
@@ -38,10 +50,13 @@ function health_status
     docker inspect --format '{{json .State.Health.Status }}' "$1"
 }
 
-while [ $(health_status "$CONTAINER")"" != "\"healthy\"" ]
-do
-    printf "."
+for i in $(seq 0 ${TIMEOUT}); do
+    if [ $(health_status "$CONTAINER")"" = "\"healthy\"" ]; then
+        echo -e "\nWaiting is done after $i seconds"
+        exit 0
+    fi
+    echo -n "."
     sleep 1
 done
-echo ""
-echo "Waiting is done"
+echo -e "\nKilled by timeout"
+exit 1
