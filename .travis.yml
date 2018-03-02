@@ -45,7 +45,6 @@ after_script:
 services:
         - redis-server
         - docker
-        - riak
 
 branches:
         only:
