@@ -497,14 +497,12 @@ format_array_to_list(Module, CallsPerLineArray, Acc) ->
 get_source_path(Module) when is_atom(Module) ->
     try
         AbsPath = proplists:get_value(source, Module:module_info(compile)),
-        string:prefix(AbsPath, get_repo_dir())
-    of nomatch ->
-        error_logger:warning_msg("issue=get_source_path_failed reason=nomatch module=~p", [Module]),
-        atom_to_list(Module) ++ ".erl";
-       Name ->
-           Name
-    catch _:_ ->
-        error_logger:warning_msg("issue=get_source_path_failed module=~p", [Module]),
+        string_prefix(AbsPath, get_repo_dir())
+    catch Error:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        error_logger:warning_msg("issue=get_source_path_failed module=~p "
+                                  "reason=~p:~p stacktrace=~1000p",
+                                 [Module, Error, Reason, Stacktrace]),
         atom_to_list(Module) ++ ".erl"
     end.
 
@@ -513,10 +511,17 @@ get_repo_dir() ->
     MongoosePath = proplists:get_value(source, mongooseim:module_info(compile)),
     string_suffix(MongoosePath, "src/mongooseim.erl").
 
+%% Removes string prefix
+%% string:prefix/2 that works for any version of erlang and does not return nomatch
+string_prefix([H|String], [H|Prefix]) ->
+    string_prefix(String, Prefix);
+string_prefix(String, []) ->
+    String.
+
 %% Removes string suffix
 string_suffix(String, Suffix) ->
     StringR = lists:reverse(String),
     SuffixR = lists:reverse(Suffix),
-    lists:reverse(string:prefix(StringR, SuffixR)).
+    lists:reverse(string_prefix(StringR, SuffixR)).
 
 %% ------------------------------------------------------------------
