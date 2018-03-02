@@ -83,11 +83,11 @@ start(Host, Opts) ->
             ok
     end,
 
+    prepare_insert(insert_mam_message, 1),
     mongoose_rdbms:prepare(mam_archive_size, mam_message, [user_id],
                            [<<"SELECT COUNT(*) FROM mam_message ">>,
                             index_hint_sql(Host),
                             <<"WHERE user_id = ?">>]),
-
     ok.
 
 
@@ -212,43 +212,16 @@ archive_message(Result, Host, MessID, UserID,
         do_archive_message(Result, Host, MessID, UserID,
                            LocJID, RemJID, SrcJID, Dir, Packet)
     catch _Type:Reason ->
+            ?ERROR_MSG("event=archive_message_failed mess_id=~p user_id=~p "
+                       "loc_jid=~p rem_jid=~p src_jid=~p dir=~p reason='~p' stacktrace=~p",
+                       [MessID, UserID, LocJID, RemJID, SrcJID, Dir,
+                        Reason, erlang:get_stacktrace()]),
             {error, Reason}
     end.
 
-do_archive_message(_Result, Host, MessID, UserID,
-                   LocJID = #jid{},
-                   RemJID = #jid{lresource = RemLResource},
-                   SrcJID, Dir, Packet) ->
-    SUserID = integer_to_list(UserID),
-    SBareRemJID = minify_and_escape_bare_jid(Host, LocJID, RemJID),
-    SSrcJID = minify_and_escape_jid(Host, LocJID, SrcJID),
-    SDir = binary_to_list(encode_direction(Dir)),
-    SRemLResource = mongoose_rdbms:escape(RemLResource),
-    Data = packet_to_stored_binary(Host, Packet),
-    TextBody = mod_mam_utils:packet_to_search_body(mod_mam, Host, Packet),
-    STextBody = mongoose_rdbms:escape(TextBody),
-    SData = mongoose_rdbms:escape_binary(Host, Data),
-    SMessID = integer_to_list(MessID),
-    Table = "mam_message",
-    write_message(Host, Table, SMessID, SUserID, SBareRemJID,
-                  SRemLResource, SDir, SSrcJID, SData, STextBody).
-
-
--spec write_message(Host :: jid:server(), Table :: string(),
-                    SMessID :: string(), SUserID :: string(), SBareRemJID :: string(),
-                    SRemLResource :: string(), SDir :: string(), SSrcJID :: string(),
-                    SData :: binary(), TextBody :: string()) -> 'ok'.
-write_message(Host, Table, SMessID, SUserID, SBareRemJID,
-              SRemLResource, SDir, SSrcJID, SData, STextBody) ->
-    {updated, 1} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["INSERT INTO ", Table, " (id, user_id, remote_bare_jid, "
-           "remote_resource, direction, "
-           "from_jid, message, search_body) "
-           "VALUES ('", SMessID, "', '", SUserID, "', '", SBareRemJID, "', "
-           "'", SRemLResource, "', '", SDir, "', ",
-           "'", SSrcJID, "', ", SData, ", '", STextBody, "');"]),
+do_archive_message(_Result, Host, MessID, UserID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+    Row = prepare_message(Host, MessID, UserID, LocJID, RemJID, SrcJID, Dir, Packet),
+    {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_message, Row),
     ok.
 
 prepare_message(Host, MessID, UserID, LocJID = #jid{}, RemJID = #jid{lresource = RemLResource},
@@ -636,7 +609,7 @@ calc_count(Host, Filter, IndexHintSQL) ->
                      UserJID :: jid:jid(), Borders :: mod_mam:borders(),
                      Start :: mod_mam:unix_timestamp() | undefined,
                      End :: mod_mam:unix_timestamp() | undefined, WithJID :: jid:jid(),
-                     SearchText :: string() | undefined)
+                     SearchText :: binary() | undefined)
                     -> filter().
 prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) ->
     {SWithJID, SWithResource} =
@@ -660,7 +633,7 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
                          EndID :: mod_mam:message_id() | undefined,
                          SWithJID :: escaped_jid() | undefined,
                          SWithResource :: escaped_resource() | undefined,
-                         SearchText :: string() | undefined) -> filter().
+                         SearchText :: binary() | undefined) -> filter().
 prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) ->
     ["WHERE user_id='", escape_user_id(UserID), "'",
      case StartID of
@@ -720,9 +693,6 @@ escape_user_id(UserID) when is_integer(UserID) ->
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(Host, LocJID, JID) ->
     mongoose_rdbms:escape(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
-
-minify_and_escape_jid(Host, LocJID, JID) ->
-    mongoose_rdbms:escape(jid_to_stored_binary(Host, LocJID, JID)).
 
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;

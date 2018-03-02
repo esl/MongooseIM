@@ -29,7 +29,7 @@
 
 -spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
 escape_binary(_Pool, Bin) when is_binary(Bin) ->
-    [<<"E'\\\\x">>, bin_to_hex:bin_to_hex(Bin), <<"'::bytea">>].
+    [<<"decode('">>, base64:encode(Bin), <<"','base64')">>].
 
 -spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
 unescape_binary(_Pool, <<"\\x", Bin/binary>>) ->
