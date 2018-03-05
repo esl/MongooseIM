@@ -114,8 +114,7 @@ stop() ->
 refresh() ->
     ?DEBUG("Refreshing hosts, checking if there exists a connection pool for all of them", []),
     Hosts = mod_global_distrib_mapping:hosts(),
-    lists:map(fun maybe_add_host/1, Hosts),
-    ok.
+    lists:foreach(fun maybe_add_host/1, Hosts).
 
 schedule_refresh(Interval) ->
     erlang:send_after(Interval, self(), refresh).
