@@ -46,6 +46,9 @@ get_connection(Server) ->
             %% so the main outgoing_conns_sup becomes a synchronisation point
             %% because it's impossible to learn that the server_sup is `already_started`
             %% without it finishing the init first (thus finishing the init of mgr as well).
+            %%
+            %% TODO: Write a test for it, once we establish a good way to reproduce
+            %%       race conditions in tests!
             {error, not_available};
         Result ->
             Result
