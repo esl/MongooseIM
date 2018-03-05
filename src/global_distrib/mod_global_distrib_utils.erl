@@ -21,7 +21,7 @@
 -include("jlib.hrl").
 
 -export([
-         start/4, deps/4, stop/3, opt/2, opt/3, cast_or_call/2, cast_or_call/3, cast_or_call/4,
+         start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
          binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
          server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
@@ -114,15 +114,6 @@ opt(Module, Key) ->
     catch
         error:badarg ->
             error(atom_to_list(Module) ++ " required option unset: " ++ atom_to_list(Key))
-    end.
-
--spec opt(module(), Key :: atom(), Default :: term()) -> Value :: term().
-opt(Module, Key, Default) ->
-    try
-        opt(Module, Key)
-    catch
-        error:_Error ->
-            Default
     end.
 
 -spec cast_or_call(Target :: pid() | atom(), Message :: term()) -> any().

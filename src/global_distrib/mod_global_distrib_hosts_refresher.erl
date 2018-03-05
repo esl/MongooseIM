@@ -46,7 +46,8 @@ start_link(RefreshInterval) ->
 %%--------------------------------------------------------------------
 
 -spec start(Host :: ejabberd:lserver(), Opts :: proplists:proplist()) -> any().
-start(Host, Opts) ->
+start(Host, Opts0) ->
+    Opts = [{hosts_refresh_interval, default_refresh_interval()} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: ejabberd:lserver()) -> any().
@@ -95,7 +96,7 @@ deps(Opts) ->
 -spec start() -> any().
 start() ->
     start_outgoing_conns_sup(),
-    Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval, default_refresh_interval()),
+    Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval),
     Child = #{
       id => ?MODULE,
       start => {?MODULE, start_link, [Interval]},
