@@ -86,8 +86,8 @@ all() -> [
           {group, room_management},
           {group, http_auth_no_server},
           {group, http_auth},
-          {group, hibernation},
-          {group, room_registration_race_condition}
+          {group, hibernation}
+%          {group, room_registration_race_condition}
         ].
 
 groups() -> [

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -o pipefail
 IFS=$'\n\t'
 
 PRESET="internal_mnesia"
@@ -31,9 +31,7 @@ done
 source tools/travis-common-vars.sh
 source tools/travis-helpers.sh
 
-CAN_PRINT_S3_URL=${TRAVIS_SECURE_ENV_VARS:-false}
-
-if [ "$CAN_PRINT_S3_URL" == 'true' ]; then
+if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -48,25 +46,6 @@ trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM
 trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
 
 echo ${BASE}
-
-MIM1=${BASE}/_build/mim1/rel/mongooseim
-MIM2=${BASE}/_build/mim2/rel/mongooseim
-MIM3=${BASE}/_build/mim3/rel/mongooseim
-FED1=${BASE}/_build/fed1/rel/mongooseim
-MIM1CTL=${MIM1}/bin/mongooseimctl
-MIM2CTL=${MIM2}/bin/mongooseimctl
-MIM3CTL=${MIM3}/bin/mongooseimctl
-FED1CTL=${FED1}/bin/mongooseimctl
-
-NODES=(${MIM1CTL} ${MIM2CTL} ${MIM3CTL} ${FED1CTL})
-
-start_node() {
-  echo -n "${1} start: "
-  ${1} start && echo ok || echo failed
-  ${1} started
-  ${1} status
-  echo
-}
 
 summaries_dir() {
   if [ `uname` = "Darwin" ]; then
@@ -142,9 +121,7 @@ run_tests() {
   echo "Running big tests (tests/ejabberd_tests)"
   echo "############################"
 
-  for node in ${NODES[@]}; do
-    start_node $node;
-  done
+  time ${TOOLS}/start-nodes.sh
 
   # Start all additional services
   start_services
@@ -183,11 +160,11 @@ run_tests() {
 }
 
 enable_tls_dist () {
-  for node in "$MIM1" "$MIM2" "$MIM3" "$FED1"; do
+  for node in ${DEV_NODES_ARRAY[@]}; do
     # Reenable commented out TLS dist options,
     # i.e. remove the single leading comment character on lines
     # commented out with just a single comment character.
-    $SED -i -e 's/^#\([^#]\)/\1/' "$node"/etc/vm.dist.args
+    $SED -i -e 's/^#\([^#]\)/\1/' ${BASE}/_build/"$node"/rel/mongooseim/etc/vm.dist.args
   done
 }
 
@@ -201,4 +178,3 @@ else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
 fi
-

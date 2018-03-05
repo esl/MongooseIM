@@ -287,7 +287,17 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                           sub_el = [VCARD, Reason]}
             catch
                 E:R ->
-                    ?ERROR_MSG("~p", [{E, R}]),
+                    Stack = erlang:get_stacktrace(),
+                    ?ERROR_MSG("issue=process_sm_iq_set_failed "
+                                "reason=~p:~p "
+                                "stacktrace=~1000p "
+                                "from=~ts "
+                                "to=~ts "
+                                "sub_el=~ts",
+                                [E, R, Stack,
+                                 jid:to_binary(From),
+                                 jid:to_binary(To),
+                                 exml:to_binary(VCARD)]),
                     IQ#iq{type = error,
                           sub_el = [VCARD, mongoose_xmpp_errors:internal_server_error()]}
             end;
@@ -296,15 +306,25 @@ process_sm_iq(From, To, Acc, #iq{type = set, sub_el = VCARD} = IQ) ->
                   sub_el = [VCARD, mongoose_xmpp_errors:not_allowed()]}
     end,
     {Acc, Res};
-process_sm_iq(_From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+process_sm_iq(From, To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     #jid{luser = LUser, lserver = LServer} = To,
-    Res = case catch mod_vcard_backend:get_vcard(LUser, LServer) of
+    Res = try mod_vcard_backend:get_vcard(LUser, LServer) of
         {ok, VCARD} ->
             IQ#iq{type = result, sub_el = VCARD};
         {error, Reason} ->
-            IQ#iq{type = error, sub_el = [SubEl, Reason]};
-        Else ->
-            ?ERROR_MSG("~p", [Else]),
+            IQ#iq{type = error, sub_el = [SubEl, Reason]}
+        catch E:R ->
+            Stack = erlang:get_stacktrace(),
+            ?ERROR_MSG("issue=process_sm_iq_get_failed "
+                        "reason=~p:~p "
+                        "stacktrace=~1000p "
+                        "from=~ts "
+                        "to=~ts "
+                        "sub_el=~ts",
+                        [E, R, Stack,
+                         jid:to_binary(From),
+                         jid:to_binary(To),
+                         exml:to_binary(SubEl)]),
             IQ#iq{type = error,
                   sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
     end,

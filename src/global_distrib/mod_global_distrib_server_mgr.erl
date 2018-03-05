@@ -69,7 +69,7 @@ force_refresh(Server) ->
 close_disabled(Server) ->
     do_call(Server, close_disabled).
 
--spec get_connection(Server :: jid:lserver()) -> pid() | {error, any()}.
+-spec get_connection(Server :: jid:lserver()) -> {ok, pid()} | {error, any()}.
 get_connection(Server) ->
     do_call(Server, get_connection).
 
@@ -116,7 +116,7 @@ handle_call(get_connection, From, #state{ enabled = [], pending_gets = PendingGe
     {noreply, State#state{ pending_gets = queue:in(From, PendingGets) }};
 handle_call(get_connection, _From, #state{ enabled = Enabled } = State) ->
     Connection = pick_connection(Enabled),
-    {reply, Connection, State};
+    {reply, {ok, Connection}, State};
 handle_call(force_refresh, _From, State) ->
     {reply, ok, refresh_connections(State)};
 handle_call(close_disabled, _From, #state{ disabled = Disabled } = State) ->
@@ -156,7 +156,7 @@ handle_info(process_pending_get, #state{ pending_gets = PendingGets,
     case queue:out(PendingGets) of
         {{value, From}, NewPendingGets} ->
             Connection = pick_connection(Enabled),
-            gen_server:reply(From, Connection),
+            gen_server:reply(From, {ok, Connection}),
 
             NState0 = State#state{ pending_gets = NewPendingGets },
             maybe_schedule_process_get(NState0);

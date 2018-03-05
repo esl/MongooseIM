@@ -93,7 +93,7 @@ groups() ->
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},
      {require, europe_node2, {hosts, mim2, node}},
-     {require, asia_node, {hosts, fed, node}} |
+     {require, asia_node, {hosts, reg, node}} |
      escalus:suite()].
 
 %%--------------------------------------------------------------------
@@ -588,9 +588,9 @@ test_in_order_messages_on_multiple_connections_with_bounce(Config) ->
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
               %% Send 99 messages, some while server knows the mapping and some when it doesn't
-              send_steps(Alice, Eve, 99, <<"fed1">>),
+              send_steps(Alice, Eve, 99, <<"reg1">>),
               %% Make sure that the last message is sent when the mapping is known
-              set_mapping(europe_node1, Eve, <<"fed1">>),
+              set_mapping(europe_node1, Eve, <<"reg1">>),
               escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"100">>)),
 
               %% Check that all stanzas were received in order
@@ -619,7 +619,7 @@ test_messages_bounced_in_order(Config) ->
 
               %% Restore the mapping so that bounce eventually succeeds
               ?assertEqual(undefined, get_mapping(europe_node1, Eve)),
-              set_mapping(europe_node1, Eve, <<"fed1">>),
+              set_mapping(europe_node1, Eve, <<"reg1">>),
 
               lists:foreach(
                 fun(I) ->
@@ -666,8 +666,8 @@ test_update_senders_host_by_ejd_service(Config) ->
       fun(Eve) ->
               %% Eve is connected to asia_node
               EveJid = rpc(asia_node, jid, from_binary, [escalus_client:full_jid(Eve)]),
-              {ok, <<"fed1">>} = rpc(europe_node1, mod_global_distrib_mapping, for_jid, [EveJid]),
-              {ok, <<"fed1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid]),
+              {ok, <<"reg1">>} = rpc(europe_node1, mod_global_distrib_mapping, for_jid, [EveJid]),
+              {ok, <<"reg1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid]),
 
               ok = rpc(asia_node, mod_global_distrib_mapping, delete_for_jid, [EveJid]),
               GetCachesFun
@@ -691,20 +691,20 @@ test_update_senders_host_by_ejd_service(Config) ->
               escalus:send(Eve, escalus_stanza:chat_to(Addr, <<"hi">>)),
               escalus:wait_for_stanza(Comp),
 
-              {ok, <<"fed1">>} = rpc(europe_node1, mod_global_distrib_mapping, for_jid, [EveJid]),
-              {ok, <<"fed1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
+              {ok, <<"reg1">>} = rpc(europe_node1, mod_global_distrib_mapping, for_jid, [EveJid]),
+              {ok, <<"reg1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
       end).
 
 %% -------------------------------- Rebalancing --------------------------------
 
 enable_new_endpoint_on_refresh(Config) ->
-    get_connection(europe_node1, <<"fed1">>),
+    get_connection(europe_node1, <<"reg1">>),
 
-    {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
 
-    {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     %% One new pool and one new endpoint
     [NewEndpoint] = Pools2 -- Pools1,
@@ -715,16 +715,16 @@ enable_new_endpoint_on_refresh(Config) ->
 disable_endpoint_on_refresh(Config) ->
     enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
 
-    get_connection(europe_node1, <<"fed1">>),
+    get_connection(europe_node1, <<"reg1">>),
 
-    {Enabled1, Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    {Enabled1, Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"reg1">>),
     [_, _] = Enabled1,
     [] = Disabled1,
 
     hide_extra_endpoint(asia_node),
-    trigger_rebalance(europe_node1, <<"fed1">>),
+    trigger_rebalance(europe_node1, <<"reg1">>),
 
-    {Enabled2, Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    {Enabled2, Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     %% 2 pools open even after disable
     [] = Pools1 -- Pools2,
@@ -748,7 +748,7 @@ wait_for_connection(Config) ->
     end,
 
     refresh_mappings(asia_node, Config),
-    trigger_rebalance(europe_node1, <<"fed1">>),
+    trigger_rebalance(europe_node1, <<"reg1">>),
 
     receive
         Conn when is_pid(Conn) -> ok;
@@ -758,16 +758,16 @@ wait_for_connection(Config) ->
     end.
 
 closed_connection_is_removed_from_disabled(_Config) ->
-    get_connection(europe_node1, <<"fed1">>),
+    get_connection(europe_node1, <<"reg1">>),
     set_endpoints(asia_node, []),
-    trigger_rebalance(europe_node1, <<"fed1">>),
+    trigger_rebalance(europe_node1, <<"reg1">>),
 
-    {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"fed1">>),
+    {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     % Will drop connections and prevent them from reconnecting
     restart_receiver(asia_node, [listen_endpoint(10001)]),
 
-    wait_until(fun() -> get_outgoing_connections(europe_node1, <<"fed1">>) end,
+    wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
                {[], [], []}, 5, 1000).
 
 %%--------------------------------------------------------------------
@@ -778,7 +778,7 @@ get_hosts() ->
     [
      {europe_node1, "localhost.bis", 5555},
      {europe_node2, "localhost.bis", 6666},
-     {asia_node, "fed1", 7777}
+     {asia_node, "reg1", 7777}
     ].
 
 listen_endpoint(NodeName) when is_atom(NodeName) ->
@@ -789,7 +789,8 @@ listen_endpoint(Port) ->
 
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
-    ct_rpc:call(Node, M, F, A).
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    escalus_ct:rpc_call(Node, M, F, A, timer:seconds(30), Cookie).
 
 wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
     wait_until(Fun, ExpectedValue, Attempts, SleepTime, []).
@@ -848,14 +849,14 @@ send_steps(From, To, Max, ToHost) ->
 
 next_send_step(_From, _To, I, Max, _ToReset, _KnowsMapping, _ToHost) when I > Max -> ok;
 next_send_step(From, To, I, Max, 0, KnowsMapping, ToHost) ->
-    ct:print("Reset: I: ~B", [I]),
+    ct:log("Reset: I: ~B", [I]),
     case KnowsMapping of
         true -> delete_mapping(europe_node1, To);
         false -> set_mapping(europe_node1, To, ToHost)
     end,
     next_send_step(From, To, I, Max, Max div 10, not KnowsMapping, ToHost);
 next_send_step(From, To, I, Max, ToReset, KnowsMapping, ToHost) ->
-    ct:print("I: ~B ~B ~B", [I, Max, ToReset]),
+    ct:log("I: ~B ~B ~B", [I, Max, ToReset]),
     Stanza = escalus_stanza:chat_to(To, integer_to_binary(I)),
     escalus_client:send(From, Stanza),
     next_send_step(From, To, I + 1, Max, ToReset - 1, KnowsMapping, ToHost).
@@ -943,7 +944,7 @@ unmock_inet(Pids) ->
 spawn_connection_getter(SenderNode) ->
     TestPid = self(),
     spawn(fun() ->
-                  Conn = get_connection(SenderNode, <<"fed1">>),
+                  Conn = get_connection(SenderNode, <<"reg1">>),
                   TestPid ! Conn
           end).
 
@@ -953,7 +954,7 @@ enable_extra_endpoint(ListenNode, SenderNode, Port, Config) ->
 
     restart_receiver(ListenNode, [NewEndpoint, OriginalEndpoint]),
     refresh_mappings(ListenNode, Config),
-    trigger_rebalance(SenderNode, <<"fed1">>),
+    trigger_rebalance(SenderNode, <<"reg1">>),
 
     NewEndpoint.
 

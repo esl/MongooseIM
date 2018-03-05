@@ -9,12 +9,14 @@ addons:
         - odbc-postgresql
         - slapd
         - ldap-utils
+        - golang # used for google drive test results upload
 before_install:
         - tools/configure $REL_CONFIG
 install:
         - ./rebar3 compile
         - make dev
         - tools/travis-build-tests.sh
+        - pip install --user codecov
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
@@ -28,17 +30,21 @@ after_failure:
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
 after_success:
+        - codecov
         - ./rebar3 coveralls send
-        - if [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ]; then tools/travis-build-and-push-docker.sh; fi
+        - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
+            then tools/travis-build-and-push-docker.sh;
+          fi
 
 after_script:
-        - sudo pip install awscli --ignore-installed six
-        - if [ $TRAVIS_SECURE_ENV_VARS == 'true' ]; then tools/travis-upload-to-s3.sh; fi
+        - tools/travis-prepare-log-dir.sh
+        - if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+        - if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+        - tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 services:
         - redis-server
         - docker
-        - riak
 
 branches:
         only:
@@ -84,4 +90,3 @@ deploy:
   on:
     tags: true
     condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
-

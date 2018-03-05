@@ -98,7 +98,7 @@ For testing purposes there's a different make target available:
 
     $ make devrel
 
-which will generate releases `mim1`, `mim2`, `mim3`, `fed1` in `$REPO/_build/` and prepare them for testing and generating coverage reports.
+which will generate releases `mim1`, `mim2`, `mim3`, `fed1`, `reg1` in `$REPO/_build/` and prepare them for testing and generating coverage reports.
 
 To run the tests (from project's root directory, i.e. `$REPO`):
 

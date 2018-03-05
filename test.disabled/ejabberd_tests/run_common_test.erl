@@ -230,6 +230,7 @@ prepare(Test) ->
     Apps = get_apps(),
     Nodes = get_ejabberd_nodes(Test),
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
+    import_code_paths(hd(Nodes)),
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
                     multicall(Nodes, mongoose_cover_helper, start, [Apps],
@@ -255,6 +256,9 @@ analyze(Test, CoverOpts) ->
     report_time("Export merged cover data", fun() ->
 			cover:export("/tmp/mongoose_combined.coverdata")
 		end),
+    report_time("Export merged cover data in codecov.json format", fun() ->
+            export_codecov_json()
+        end),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
             make_html(modules_to_analyze(CoverOpts));
@@ -280,13 +284,16 @@ make_html(Modules) ->
     Fun = fun(Module, {CAcc, NCAcc}) ->
                   FileName = lists:flatten(io_lib:format("~s.COVER.html",[Module])),
 
+                  %% We assume that import_code_paths/1 was called earlier
                   case cover:analyse(Module, module) of
                       {ok, {Module, {C, NC}}} ->
                           file:write(File, row(atom_to_list(Module), C, NC, percent(C,NC),"coverage/"++FileName)),
                           FilePathC = filename:join([CoverageDir, FileName]),
                           catch cover:analyse_to_file(Module, FilePathC, [html]),
                           {CAcc + C, NCAcc + NC};
-                      _ ->
+                      Reason ->
+                          error_logger:error_msg("issue=cover_analyse_failed module=~p reason=~p",
+                                                 [Module, Reason]),
                           {CAcc, NCAcc}
                   end
           end,
@@ -443,3 +450,78 @@ travis_fold(Description, Fun) ->
             Result
     end.
 
+%% Import code paths from a running node.
+%% It allows cover:analyse/2 to find source file by calling
+%% Module:module_info(compiled).
+import_code_paths(FromNode) when is_atom(FromNode) ->
+    Paths = rpc:call(FromNode, code, get_path, []),
+    code:add_paths(Paths).
+
+%% covecov.json cover format
+%% ------------------------------------------------------------------
+
+%% Writes codecov.json into root of the repo directory
+%%
+%% Format:
+%%
+%% {"coverage": {
+%%     "src/mod_mam.erl": [0, 1, 4, null]
+%% }}
+%%
+%% Where:
+%%
+%% - 0 - zero hits
+%% - null - lines, that are not executed (comments, patterns...)
+%% - 1 - called once
+%% - 4 - called 4 times
+export_codecov_json() ->
+    Modules = cover:imported_modules(),
+    %% Result is a flat map of `{{Module, Line}, CallTimes}'
+    {result, Result, _} = cover:analyse(Modules, calls, line),
+    Mod2Data = lists:foldl(fun add_cover_line_into_array/2, #{}, Result),
+    JSON = maps:fold(fun format_array_to_list/3, [], Mod2Data),
+    Binary = jiffy:encode(#{<<"coverage">> => {JSON}}),
+    file:write_file(?ROOT_DIR ++ "/codecov.json", Binary).
+
+add_cover_line_into_array({{Module, Line}, CallTimes}, Acc) ->
+    %% Set missing lines to null
+    CallsPerLineArray = maps:get(Module, Acc, array:new({default, null})),
+    Acc#{Module => array:set(Line, CallTimes, CallsPerLineArray)}.
+
+format_array_to_list(Module, CallsPerLineArray, Acc) ->
+    ListOfCallTimes = array:to_list(CallsPerLineArray),
+    BinPath = list_to_binary(get_source_path(Module)),
+    [{BinPath, ListOfCallTimes}|Acc].
+
+%% We assume that all mongooseim modules are loaded on this node
+get_source_path(Module) when is_atom(Module) ->
+    try
+        AbsPath = proplists:get_value(source, Module:module_info(compile)),
+        string_prefix(AbsPath, get_repo_dir())
+    catch Error:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        error_logger:warning_msg("issue=get_source_path_failed module=~p "
+                                  "reason=~p:~p stacktrace=~1000p",
+                                 [Module, Error, Reason, Stacktrace]),
+        atom_to_list(Module) ++ ".erl"
+    end.
+
+get_repo_dir() ->
+    %% We make an assumption, that mongooseim.erl is in src/ directory
+    MongoosePath = proplists:get_value(source, mongooseim:module_info(compile)),
+    string_suffix(MongoosePath, "src/mongooseim.erl").
+
+%% Removes string prefix
+%% string:prefix/2 that works for any version of erlang and does not return nomatch
+string_prefix([H|String], [H|Prefix]) ->
+    string_prefix(String, Prefix);
+string_prefix(String, []) ->
+    String.
+
+%% Removes string suffix
+string_suffix(String, Suffix) ->
+    StringR = lists:reverse(String),
+    SuffixR = lists:reverse(Suffix),
+    lists:reverse(string_prefix(StringR, SuffixR)).
+
+%% ------------------------------------------------------------------

@@ -33,9 +33,26 @@ start_link(Server) ->
     SupName = mod_global_distrib_utils:server_to_sup_name(Server),
     supervisor:start_link({local, SupName}, ?MODULE, [Server]).
 
--spec get_connection(Server :: jid:lserver()) -> pid().
+-spec get_connection(Server :: jid:lserver()) -> {ok, pid()} | {error, not_available}.
 get_connection(Server) ->
-    mod_global_distrib_server_mgr:get_connection(Server).
+    case catch mod_global_distrib_server_mgr:get_connection(Server) of
+        {'EXIT', {noproc, _}} ->
+            %% May be caused by missing server_sup or missing connection manager
+            %% The former occurs when a process tries to send a message to Server
+            %% for the first time.
+            %% The latter occurs when some other process already started server_sup,
+            %% which hasn't started manager yet.
+            %% In both cases the caller should attempt to start server_sup,
+            %% so the main outgoing_conns_sup becomes a synchronisation point
+            %% because it's impossible to learn that the server_sup is `already_started`
+            %% without it finishing the init first (thus finishing the init of mgr as well).
+            %%
+            %% TODO: Write a test for it, once we establish a good way to reproduce
+            %%       race conditions in tests!
+            {error, not_available};
+        Result ->
+            Result
+    end.
 
 -spec start_pool(Supervisor :: pid(),
                  Endpoint :: mod_global_distrib_utils:endpoint(),
