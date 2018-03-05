@@ -49,19 +49,19 @@
 -include("jlib.hrl").
 
 -record(state, {socket,
-                sockmod               :: ejabberd:sockmod(),
-                streamid              :: binary(),
+                sockmod                 :: ejabberd:sockmod(),
+                streamid                :: binary(),
                 shaper,
-                tls = false           :: boolean(),
-                tls_enabled = false   :: boolean(),
-                tls_required = false  :: boolean(),
-                tls_certverify = false :: boolean(),
-                tls_options = []      :: [{_, _}],
-                server                :: jid:server() | undefined,
-                authenticated = false :: boolean(),
-                auth_domain           :: binary() | undefined,
+                tls = false             :: boolean(),
+                tls_enabled = false     :: boolean(),
+                tls_required = false    :: boolean(),
+                tls_cert_verify = false :: boolean(),
+                tls_options = []        :: [{_, _}],
+                server                  :: jid:server() | undefined,
+                authenticated = false   :: boolean(),
+                auth_domain             :: binary() | undefined,
                 connections = dict:new(),
-                timer                 :: reference()
+                timer                   :: reference()
               }).
 -type state() :: #state{}.
 
@@ -133,7 +133,7 @@ init([{SockMod, Socket}, Opts]) ->
                  _ -> none
              end,
     UseTLS = ejabberd_config:get_local_option(s2s_use_starttls),
-    {StartTLS, TLSRequired, TLSCertverify} = get_tls_params(UseTLS),
+    {StartTLS, TLSRequired, TLSCertVerify} = get_tls_params(UseTLS),
     TLSOpts1 = case ejabberd_config:get_local_option(s2s_certfile) of
                   undefined ->
                       [];
@@ -155,7 +155,7 @@ init([{SockMod, Socket}, Opts]) ->
             tls = StartTLS,
             tls_enabled = false,
             tls_required = TLSRequired,
-            tls_certverify = TLSCertverify,
+            tls_cert_verify = TLSCertVerify,
             tls_options = TLSOpts,
             timer = Timer}}.
 
@@ -180,7 +180,7 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
                     true ->
                         verify_cert_and_get_sasl(StateData#state.sockmod,
                                                  StateData#state.socket,
-                                                 StateData#state.tls_certverify);
+                                                 StateData#state.tls_cert_verify);
                     _Else ->
                         []
                 end,
@@ -650,7 +650,7 @@ match_labels([DL | DLabels], [PL | PLabels]) ->
             false
     end.
 
-verify_cert_and_get_sasl(SockMod, Socket, TLSCertverify) ->
+verify_cert_and_get_sasl(SockMod, Socket, TLSCertVerify) ->
     case SockMod:get_peer_certificate(Socket) of
         {ok, _} ->
             [#xmlel{name = <<"mechanisms">>,
@@ -658,7 +658,7 @@ verify_cert_and_get_sasl(SockMod, Socket, TLSCertverify) ->
                     children = [#xmlel{name = <<"mechanism">>,
                                        children = [#xmlcdata{content = <<"EXTERNAL">>}]}]}];
         {bad_cert, CertVerifyRes} ->
-            check_sasl_tls_certveify(TLSCertverify, CertVerifyRes);
+            check_sasl_tls_certveify(TLSCertVerify, CertVerifyRes);
         no_peer_cert -> []
     end.
 

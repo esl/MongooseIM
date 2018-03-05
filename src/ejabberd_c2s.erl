@@ -220,7 +220,7 @@ init([{SockMod, Socket}, Opts]) ->
                                          tls_required   = StartTLSRequired,
                                          tls_enabled    = TLSEnabled,
                                          tls_options    = TLSOpts,
-                                         verify         = Verify,
+                                         tls_verify     = Verify,
                                          streamid       = new_id(),
                                          access         = Access,
                                          shaper         = Shaper,
@@ -522,7 +522,7 @@ verify_opts(verify_none) -> [verify_none];
 verify_opts(verify_peer) -> [].
 
 get_peer_cert(#state{ tls_enabled = true,
-                      verify      = verify_peer,
+                      tls_verify  = verify_peer,
                       socket      = Socket,
                       sockmod     = ejabberd_socket }) ->
     case ejabberd_socket:get_peer_certificate(Socket) of

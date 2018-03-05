@@ -144,20 +144,31 @@ handle_call(get_socket, _From, #state{socket = Socket} = State) ->
     {reply, {ok, Socket}, State, ?HIBERNATE_TIMEOUT};
 handle_call({starttls, TLSOpts}, From, #state{parser = Parser,
                                               socket = TCPSocket} = State) ->
+    %% the next message from client is part of TLS handshake, it must
+    %% be handled by TLS library (another process in case of just_tls)
+    %% so deactivating the socket.
     deactivate_socket(State),
-    gen_server:reply(From,ok), %% let ejabberd_socket finish tcp negotiations
-    case ejabberd_tls:tcp_to_tls(TCPSocket,TLSOpts) of
-        {ok,TLSSocket} ->
+    %% TLS handshake always starts from client's request, let
+    %% ejabberd_socket finish starttls negotiation and notify
+    %% client that it can start TLS handshake.
+    gen_server:reply(From, ok),
+    case ejabberd_tls:tcp_to_tls(TCPSocket, TLSOpts) of
+        {ok, TLSSocket} ->
             StateAfterReset = reset_parser(State),
-            NewState = StateAfterReset#state{socket = TLSSocket,
+            NewState = StateAfterReset#state{socket   = TLSSocket,
                                              sock_mod = ejabberd_tls},
-	    case ejabberd_tls:recv_data(TLSSocket, <<"">>) of
+            %% fast_tls requires dummy recv_data/2 call to accomplish TLS
+            %% handshake. such call is simply ignored by just_tls backend.
+            case ejabberd_tls:recv_data(TLSSocket, <<"">>) of
                 {ok, TLSData} ->
                     {noreply, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
-                {error, _Reason} ->
+                {error, Reason} ->
+                    ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
                     {stop, normal, NewState}
             end;
-        {error,_Reason} -> {stop, normal, State}
+        {error, Reason} ->
+            ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
+            {stop, normal, State}
     end;
 handle_call({compress, ZlibSocket}, _From,
   #state{c2s_pid = C2SPid} = State) ->

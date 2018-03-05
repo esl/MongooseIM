@@ -83,6 +83,9 @@ start(Module, SockMod, Socket, Opts) ->
             SocketData = #socket_state{sockmod = SockMod,
                                        socket = Socket,
                                        receiver = RecRef},
+            %% set receiver as socket's controlling process before
+            %% the M:start/2 call, that is required for c2s legacy
+            %% TLS connection support.
             case SockMod:controlling_process(Socket, Receiver) of
                 ok ->
                     case Module:start({?MODULE, SocketData}, Opts) of

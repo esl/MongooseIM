@@ -27,7 +27,7 @@
                 tls_required = false  :: boolean(),
                 tls_enabled = false   :: boolean(),
                 tls_options = [],
-                verify                :: verify_none | verify_peer,
+                tls_verify            :: verify_none | verify_peer,
                 authenticated = false :: authenticated_state(),
                 jid                   :: jid:jid() | undefined,
                 user = <<>>           :: jid:user(),
