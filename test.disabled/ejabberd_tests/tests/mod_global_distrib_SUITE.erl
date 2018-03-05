@@ -266,7 +266,7 @@ generic_end_per_testcase(CaseName, Config) ->
 test_advertised_endpoints_override_endpoints(Config) ->
     Endps = execute_on_each_node(mod_global_distrib_mapping_redis,
                                  get_endpoints,
-                                 [<<"fed1">>]),
+                                 [<<"reg1">>]),
     true = lists:all(fun({ok, E}) ->
                              lists:sort(iptuples_to_string(E)) =:=
                                  lists:sort(advertised_endpoints()) end, Endps).
