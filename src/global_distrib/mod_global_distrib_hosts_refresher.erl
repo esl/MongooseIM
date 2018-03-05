@@ -97,11 +97,11 @@ start() ->
     start_outgoing_conns_sup(),
     Interval = mod_global_distrib_utils:opt(?MODULE, hosts_refresh_interval, default_refresh_interval()),
     Child = #{
-      id => mod_global_distrib_hosts_refresher,
+      id => ?MODULE,
       start => {?MODULE, start_link, [Interval]},
       restart => transient,
       shutdown => 5000,
-      modules => [mod_global_distrib_hosts_refresher]
+      modules => [?MODULE]
     },
     {ok, _} = supervisor:start_child(mod_global_distrib_outgoing_conns_sup, Child),
     ok.
