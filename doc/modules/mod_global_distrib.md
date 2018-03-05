@@ -121,7 +121,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * **endpoints** (list, default: `[{LocalHost, 5555}]`): A list of `{Host, Port}` tuples on which the server will listen for connections.
   `Host` can be given as a hostname, in which case it will be resolved to an IP address before first on module start.
   The endpoint list will be shared with other datacenters via the replicated backend.
-* **advertised_endpoints** (list | false, default: false): A list of `{Host, Port}` tuples which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered advertised_endpoints. Host may be either IP or domain, just like in case of endpoints. The difference is, domain name won't be resolved but inserted directly to mappings backend instead.
+* **advertised_endpoints** (list | false, default: false): A list of `{Host, Port}` tuples which will be advertised in Redis and therefore used to establish connection with this node by other nodes. If not specified, `endpoints` value (after resolution) is considered `advertised_endpoints`. The host may be either IP or domain, just like in case of endpoints. The difference is, the domain name won't be resolved but inserted directly to the mappings backend instead.
 * **connections_per_endpoint** (integer, default: `1`): Number of outgoing connections that will be established from the current node to each endpoint assigned to a remote domain.
 * **endpoint_refresh_interval** (seconds, default: `60`): An interval between remote endpoint list refresh (and connection rebalancing).
   A separate timer is maintained for every remote domain.
