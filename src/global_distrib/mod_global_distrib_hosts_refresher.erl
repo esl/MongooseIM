@@ -79,8 +79,8 @@ handle_info(refresh, Interval) ->
     schedule_refresh(Interval),
     {noreply, Interval}.
 
-terminate(normal, _State) ->
-    ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: normal", []).
+terminate(Reason, _State) ->
+    ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: ~p", [Reason]).
 
 
 %%--------------------------------------------------------------------
