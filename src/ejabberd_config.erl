@@ -1127,8 +1127,28 @@ compute_config_version(LC, LCH) ->
     crypto:hash(sha, term_to_binary(L1)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    L = sort_config(Opts ++ Hosts),
+    Opts2 = filter_out_gd_endpoints(Opts),
+    L = sort_config(Opts2 ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
+
+filter_out_gd_endpoints([]) ->
+    [];
+filter_out_gd_endpoints([{local_config, {modules, Host}, Mods} | Opts]) ->
+    NewMods = delete_path_in_proplist(Mods, [mod_global_distrib, connections, endpoints]),
+    [{local_config, {modules, Host}, NewMods} | Opts];
+filter_out_gd_endpoints([Opt | Opts]) ->
+    [Opt | filter_out_gd_endpoints(Opts)].
+
+delete_path_in_proplist(Plist, [Step]) ->
+    lists:keydelete(Step, 1, Plist);
+delete_path_in_proplist(Plist, [Step | Path]) ->
+    case lists:keyfind(Step, 1, Plist) of
+        false ->
+            Plist;
+        {Step, Val} ->
+            lists:keyreplace(Step, 1, Plist, {Step, delete_path_in_proplist(Val, Path)})
+    end.
+
 
 -spec check_hosts([jid:server()], [jid:server()]) -> {[jid:server()],
                                                                 [jid:server()]}.
