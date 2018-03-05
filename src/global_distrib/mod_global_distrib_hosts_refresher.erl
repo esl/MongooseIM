@@ -124,7 +124,7 @@ maybe_add_host(Host) ->
         Host ->
             ok;
         _ ->
-            ?DEBUG("reason=maybe_add_host host=~p local_host=~p", [Host, local_host()]),
+            ?INFO_MSG("reason=maybe_add_host host=~p local_host=~p", [Host, local_host()]),
             mod_global_distrib_outgoing_conns_sup:ensure_server_started(Host)
     end.
 
