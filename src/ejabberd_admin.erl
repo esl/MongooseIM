@@ -155,9 +155,12 @@ commands() ->
                         module = ejabberd_config, function = reload_local,
                         args = [], result = {res, restuple}},
      #ejabberd_commands{name = reload_cluster, tags = [server],
-                        desc = "Reload configuration file in the cluster",
+                        desc = "Reload configuration file in the cluster. safety_mode can be one of the following:
+                                hard - does this
+                                soft - does this
+                                none - performs no check",
                         module = ejabberd_config, function = reload_cluster,
-                        args = [], result = {res, restuple}},
+                        args = [{safety_mode, string}], result = {res, restuple}},
      #ejabberd_commands{name = join_cluster, tags = [server],
                         desc = "Join the node to a cluster. Call it from the joining node.
                                 Use `-f` or `--force` flag to avoid question prompt and force join the node",

@@ -47,8 +47,14 @@
 
 %% conf reload
 -export([reload_local/0,
-         reload_cluster/0,
+         reload_cluster_hard/0,
+         reload_cluster_soft/0,
+         reload_cluster_none/0,
+         reload_softly_locally/3,
+         reload_cluster/1,
+         reload_softly_remote/2,
          apply_changes_remote/4,
+         apply_changes_remote_unsafe/2,
          apply_changes/5]).
 
 -export([compute_config_version/2,
@@ -153,10 +159,14 @@ start() ->
     mnesia:add_table_copy(local_config, node(), ram_copies),
     Config = get_ejabberd_config_path(),
     ejabberd_config:load_file(Config),
+    ets:new(config_reload_info, [public, named_table]),
+    ets:insert(config_reload_info, {last_loaded, timestamp()}),
     %% This start time is used by mod_last:
     add_local_option(node_start, p1_time_compat:timestamp()),
     ok.
 
+timestamp() ->
+    calendar:now_to_universal_time(erlang:timestamp()).
 
 %% @doc Get the filename of the ejabberd configuration file.
 %% The filename can be specified with: erl -config "/path/to/ejabberd.cfg".
@@ -854,13 +864,25 @@ reload_local() ->
             error(Msg)
     end.
 
+
 %% Won't be unnecessarily evaluated if used as an argument
 %% to lager parse transform.
 msg(Fmt, Args) ->
     lists:flatten(io_lib:format(Fmt, Args)).
 
--spec reload_cluster() -> {ok, string()} | no_return().
-reload_cluster() ->
+-spec reload_cluster(SafetyMode :: string()) -> {ok, string()} | no_return().
+reload_cluster("hard") ->
+    reload_cluster_hard();
+reload_cluster("soft") ->
+    reload_cluster_soft();
+reload_cluster("none") ->
+    reload_cluster_none();
+reload_cluster(SafetyMode) when is_list(SafetyMode) ->
+    ?WARNING_MSG("Reload failed due to unknown safety mode: ~s", [SafetyMode]),
+    exit(msg("Unknown safety mode ~s. ", [SafetyMode])).
+
+
+reload_cluster_hard() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -876,29 +898,103 @@ reload_cluster() ->
     case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% apply on other nodes
-            {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigDiff,
-                                    ConfigVersion, FileVersion],
-                                   30000),
-            {S1, F1} = group_nodes_results([{ok, node()} | S], F),
-            ResultText = (groups_to_string("# Reloaded:", S1)
-                          ++ groups_to_string("\n# Failed:", F1)),
-            case F1 of
-                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
-                [_ | _] ->
-                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
-                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
-                                 [FailedUpdateOrRPC])
-            end,
-            {ok, ResultText};
+            RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
+                                      [ConfigFile, ConfigDiff,
+                                       ConfigVersion, FileVersion],
+                                      30000),
+            prepare_result(RPCResult);
         Error ->
-            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
-                         [CurrentNode, Error]),
-            ?WARNING_MSG("cluster config reload failed!~n"
-                         "config file: ~s~n"
-                         "reason: ~ts", [ConfigFile, Reason]),
-            exit(Reason)
+            prepare_fail_result(Error, ConfigFile)
     end.
+
+
+reload_cluster_soft() ->
+    CurrentNode = node(),
+    ConfigFile = get_ejabberd_config_path(),
+    State0 = parse_file(ConfigFile),
+    ConfigDiff = get_config_diff(State0),
+    State1 = State0#state{override_global = true,
+                          override_local  = true, override_acls = true},
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
+    case reload_softly_locally(ConfigDiff, State1, ConfigVersion) of
+        {error, _, Msg} ->
+            {ok, msg("Failed to apply config on node ~p: ~p", [node(), Msg])};
+        {ok, _} ->
+            RPCResult = rpc:multicall(nodes(), ?MODULE, reload_softly_remote, [ConfigFile, ConfigDiff]),
+            prepare_result(RPCResult)
+    end.
+
+
+reload_cluster_none() ->
+    CurrentNode = node(),
+    ConfigFile = get_ejabberd_config_path(),
+    State0 = parse_file(ConfigFile),
+    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
+    ConfigVersion = compute_config_version(get_local_config(),
+                                           get_host_local_config()),
+    ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
+    State1 = State0#state{override_global = true,
+                          override_local  = true, override_acls = true},
+    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
+        {ok, CurrentNode} ->
+            %% apply on other nodes
+            RPCResult = rpc:multicall(nodes(), ?MODULE, apply_changes_remote_unsafe,
+                                   [ConfigFile, ConfigDiff],
+                                   30000),
+            prepare_result(RPCResult);
+        Error ->
+            prepare_fail_result(Error, ConfigFile)
+    end.
+
+reload_softly_locally({CC, LC, LHC}, State1, ConfigVersion) ->
+    reload_softly(fun apply_changes/5, [CC, LC, LHC, State1, ConfigVersion]).
+
+reload_softly_remote(ConfigFile, ConfigDiff) ->
+    reload_softly(fun apply_changes_remote_unsafe/2, [ConfigFile, ConfigDiff]).
+
+reload_softly(ApplyChangesFun, Args) ->
+    case is_config_file_fresh() of
+        false ->
+            {error, node(), "Config file was modified before current config was laoded and `soft` safety check was chosen."};
+        true ->
+            case catch erlang:apply(ApplyChangesFun, Args) of
+                {ok, CurrentNode} ->
+                    {ok, CurrentNode};
+                {_, ErrorMsg} ->
+                    ?ERROR_MSG("Error while reloading softly: ~p", [ErrorMsg]),
+                    {error, node(), ErrorMsg}
+            end
+    end.
+
+is_config_file_fresh() ->
+    [{last_loaded, LastLoaded}] = ets:lookup(config_reload_info, last_loaded),
+    LastModified = calendar:local_time_to_universal_time(filelib:last_modified(get_ejabberd_config_path())),
+    ?ERROR_MSG("config path: ~p~nLastLoaded = ~p~nLastModified = ~p~nLastLoaded < LastModified = ~p", [get_ejabberd_config_path(), LastLoaded, LastModified, LastLoaded < LastModified]),
+    LastLoaded < LastModified.
+
+prepare_fail_result(Error, ConfigFile) ->
+    Reason = msg("failed to apply config on node: ~p~nreason: ~p",
+                 [node(), Error]),
+    ?WARNING_MSG("cluster config reload failed!~n"
+                 "config file: ~s~n"
+                 "reason: ~ts", [ConfigFile, Reason]),
+    exit(Reason).
+
+
+prepare_result({S, F}) ->
+    {S1, F1} = group_nodes_results([{ok, node()} | S], F),
+    ResultText = (groups_to_string("# Reloaded:", S1)
+                  ++ groups_to_string("\n# Failed:", F1)),
+    case F1 of
+        [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
+        [_ | _] ->
+            FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
+            ?WARNING_MSG("cluster config reload failed on nodes: ~p",
+                         [FailedUpdateOrRPC])
+    end,
+    {ok, ResultText}.
+
 
 -spec groups_to_string(string(), [string()]) -> string().
 groups_to_string(_Header, []) ->
@@ -970,6 +1066,25 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
             {error, Node, io_lib:format("Mismatching config file", [])}
     end.
 
+apply_changes_remote_unsafe(NewConfigFilePath, ConfigDiff) ->
+    Node = node(),
+    {CC, LC, LHC} = ConfigDiff,
+    State0 = parse_file(NewConfigFilePath),
+    State1 = State0#state{override_global = false,
+                          override_local  = true,
+                          override_acls   = false},
+    case catch apply_changes_unsafe(CC, LC, LHC, State1) of
+        {ok, Node} = R ->
+            ?WARNING_MSG("remote config reload succeeded", []),
+            R;
+        UnknownResult ->
+            ?WARNING_MSG("remote config reload failed! "
+                         "can't apply desired config", []),
+            {error, Node,
+             lists:flatten(io_lib:format("~p", [UnknownResult]))}
+    end.
+
+
 -spec apply_changes(term(), term(), term(), state(), binary()) ->
                            {ok, node()} | {error, node(), string()}.
 apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
@@ -984,11 +1099,16 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
             exit("Outdated configuration on node; cannot apply new one")
     end,
     %% apply config
+    apply_changes_unsafe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State).
+
+
+apply_changes_unsafe(ConfigChanges, LocalConfigChanges, LocalHostsChanges, State) ->
     set_opts(State),
 
     reload_config(ConfigChanges),
     reload_local_config(LocalConfigChanges),
     reload_local_hosts_config(LocalHostsChanges),
+    ets:insert(config_reload_info, {last_loaded, timestamp()}),
 
     {ok, node()}.
 
