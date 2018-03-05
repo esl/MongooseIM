@@ -262,7 +262,7 @@ to_ip_tuples(Addr) ->
     end.
 
 -spec parse_address(binary() | string() | inet:ip_address()) ->
-                                inet:ip_address() | domain_name().
+    {ip, inet:ip_address()} | {domain, domain_name()}.
 parse_address(DomainOrIp) when is_binary(DomainOrIp) ->
     parse_address(binary_to_list(DomainOrIp));
 parse_address(Ip) when is_tuple(Ip) ->
