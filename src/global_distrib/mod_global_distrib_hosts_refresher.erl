@@ -78,7 +78,10 @@ handle_cast(Request, State) ->
 handle_info(refresh, Interval) ->
     refresh(),
     schedule_refresh(Interval),
-    {noreply, Interval, hibernate}.
+    {noreply, Interval, hibernate};
+handle_info(Msg, _State) ->
+    ?WARNING_MSG("Unknown message: ~p", Msg).
+
 
 terminate(Reason, _State) ->
     ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: ~p", [Reason]).
