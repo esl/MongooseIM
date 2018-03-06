@@ -303,7 +303,7 @@ do_lookup_jid({_, _, _} = Jid) ->
             end
     end.
 
--spec get_advertised_endpoints(Opts :: [{Key :: term(), Value :: term()}]) -> [endpoint()].
+-spec get_advertised_endpoints(Opts :: list()) -> [endpoint()].
 get_advertised_endpoints(Opts) ->
     Conns = proplists:get_value(connections, Opts, []),
     AdvEndps = proplists:get_value(advertised_endpoints, Conns),
