@@ -75,7 +75,6 @@ ensure_server_started(Server) ->
 %%--------------------------------------------------------------------
 
 init(_) ->
-    ?DEBUG("CONNS OUT starting ~p", [mod_global_distrib_utils:opt(mod_global_distrib, local_host)]),
     SupFlags = #{ strategy => one_for_one, intensity => 5, period => 5 },
     {ok, {SupFlags, []}}.
 
