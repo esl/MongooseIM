@@ -924,7 +924,8 @@ load_suite_module_on_nodes() ->
 
 mock_inet_on_each_node() ->
     Nodes = lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()),
-    lists:map(fun(Node) -> rpc:block_call(Node, ?MODULE, mock_inet, []) end, Nodes).
+    Results = lists:map(fun(Node) -> rpc:block_call(Node, ?MODULE, mock_inet, []) end, Nodes),
+    true = lists:all(fun(Result) -> Result =:= ok end, Results).
 
 execute_on_each_node(M, F, A) ->
     lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
