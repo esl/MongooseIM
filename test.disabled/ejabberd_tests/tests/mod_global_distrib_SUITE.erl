@@ -911,8 +911,7 @@ maybe_add_advertised_endpoints(NodeName, Opts, Config) ->
             Opts;
         E ->
             Connections = case lists:keyfind(connections, 1, Opts) of
-                              false ->
-                                  [];
+                              false -> [];
                               C -> C
                           end,
             NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
