@@ -52,7 +52,9 @@ groups() ->
        test_global_disco,
        test_component_unregister,
        test_update_senders_host,
-       test_update_senders_host_by_ejd_service
+       test_update_senders_host_by_ejd_service,
+       test_components_on_different_hosts,
+       test_component_referenced_before_connecting
        %% TODO: Add test case fo global_distrib_addr option
       ]},
      {cluster_restart, [],
@@ -350,26 +352,37 @@ test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
+    Comp = component_SUITE:connect_component(ComponentConfig),
+
+    test_connection_to_component(Config, Comp).
+
+test_component_referenced_before_connecting(Config) ->
+    ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
+                       {port, 8888}, {component, <<"test_service">>}],
 
     Story = fun(User) ->
-                    Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
+                    Msg1 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi!">>),
                     escalus:send(User, Msg1),
-                    %% Then component receives it
-                    Reply1 = escalus:wait_for_stanza(Comp),
-                    escalus:assert(is_chat_message, [<<"Hi2!">>], Reply1),
+                    Error = escalus:wait_for_stanza(User, 5000),
+                    escalus:assert(is_error, [<<"cancel">>, <<"service-unavailable">>], Error),
+                    {Comp, _, _} = component_SUITE:connect_component(ComponentConfig),
+                    Msg2 = escalus_stanza:chat_to(<<"test_service.localhost">>, <<"Hi2!">>),
+                    escalus:send(User, Msg2),
+                    Reply = escalus:wait_for_stanza(Comp, 5000),
+                    escalus:assert(is_chat_message, [<<"Hi2!">>], Reply) end,
 
-                    %% When components sends a reply
-                    Msg2 = escalus_stanza:chat_to(User, <<"Oh hi!">>),
-                    escalus:send(Comp, escalus_stanza:from(Msg2, Addr)),
+    escalus:fresh_story(Config, [{eve, 1}], Story).
 
-                    %% Then Alice receives it
-                    Reply2 = escalus:wait_for_stanza(User),
-                    escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
-                    escalus:assert(is_stanza_from, [Addr], Reply2)
-            end,
 
-    [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
+test_components_on_different_hosts(Config) ->
+    BaseConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>}],
+    Config1 = BaseConfig ++ [{port, 8888}, {component, <<"test_service">>}],
+    Config2 = BaseConfig ++ [{port, 8888}, {component, <<"test_service2">>}],
+    Config3 = BaseConfig ++ [{port, 9999}, {component, <<"test_service3">>}],
+
+    Components = [component_SUITE:connect_component(C) || C <- [Config1, Config2, Config3]],
+
+    [test_connection_to_component(Config, Comp) || Comp <- Components].
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
@@ -853,6 +866,27 @@ jids(Client) ->
 redis_query(Node, Query) ->
     RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
+
+test_connection_to_component(Config, {Comp, Addr, Name}) ->
+    Story = fun(User) ->
+                    Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
+                    escalus:send(User, Msg1),
+
+                    %% Then component receives it
+                    Reply1 = escalus:wait_for_stanza(Comp),
+                    escalus:assert(is_chat_message, [<<"Hi2!">>], Reply1),
+
+                    %% When components sends a reply
+                    Msg2 = escalus_stanza:chat_to(User, <<"Oh hi!">>),
+                    escalus:send(Comp, escalus_stanza:from(Msg2, Addr)),
+
+                    %% Then Alice receives it
+                    Reply2 = escalus:wait_for_stanza(User),
+                    escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
+                    escalus:assert(is_stanza_from, [Addr], Reply2)
+            end,
+    [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]],
+    ok.
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 
