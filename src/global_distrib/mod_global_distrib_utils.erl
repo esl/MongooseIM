@@ -157,14 +157,14 @@ create_ets(Name, Type) ->
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
 resolve_endpoints(Endpoints) ->
-    lists:foldl(fun resolve_endpoint/2, [], Endpoints).
+    lists:flatmap(fun resolve_endpoint/1, Endpoints).
 
-resolve_endpoint({Addr, _Port} = E, Endpoints) when is_tuple(Addr) ->
-    [E | Endpoints];
-resolve_endpoint({Addr, Port}, Endpoints) ->
+resolve_endpoint({Addr, _Port} = E) when is_tuple(Addr) ->
+    [E];
+resolve_endpoint({Addr, Port}) ->
     case to_ip_tuples(Addr) of
         {ok, IpAddrs} ->
-            Resolved = Endpoints ++ [{IpAddr, Port} || IpAddr <- IpAddrs],
+            Resolved = [{IpAddr, Port} || IpAddr <- IpAddrs],
             ?INFO_MSG_IF(is_domain(Addr), "Domain ~p resolved to: ~p", [Addr, IpAddrs]),
             Resolved;
         {error, {Reasonv6, Reasonv4}} ->
