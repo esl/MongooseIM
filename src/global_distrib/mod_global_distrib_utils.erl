@@ -170,7 +170,7 @@ resolve_endpoint({Addr, Port}, Endpoints) ->
         {error, {Reasonv6, Reasonv4}} ->
             ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
                        [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
-            error({Reasonv6, Reasonv4})
+            error({domain_not_resolved, {Reasonv6, Reasonv4}})
     end.
 
 
