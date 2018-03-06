@@ -73,16 +73,14 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
                         lists:keystore(Var, 1, Acc,{Var, Val})
                 end, CfgVars, CfgVarsToChange).
 
-node_cfg(N, current, C)  -> flat([node_cwd(N, C), "etc", "ejabberd.cfg"]);
-node_cfg(N, backup, C)   -> flat([node_cwd(N, C), "etc", "ejabberd.cfg.bak"]);
-node_cfg(N, template, C) -> flat([node_cwd(N, C), "..", "..", "..", "..", "rel", "files", "ejabberd.cfg"]);
-node_cfg(N, vars, C)     -> flat([node_cwd(N, C), "..", "..", "..", "..", "rel", "vars.config"]).
+node_cfg(N, current, C) ->
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/ejabberd.cfg");
+node_cfg(N, backup, C)  ->
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/ejabberd.cfg.bak");
+node_cfg(_N, template, C) ->
+    filename:join(path_helper:repo_dir(C), "rel/files/ejabberd.cfg");
+node_cfg(N, vars, C) ->
+    filename:join(path_helper:repo_dir(C), "rel/vars.config").
 
-node_ctl(N, C) -> flat([node_cwd(N, C), "bin", "mongooseimctl"]).
-
-flat(PathComponents) -> filename:join(PathComponents).
-
-node_cwd(Node, Config) ->
-    CWD = escalus_config:get_config({ejabberd_cwd, Node}, Config),
-    CWD == undefined andalso error({{ejabberd_cwd, Node}, undefined}, [Node, Config]),
-    CWD.
+node_ctl(N, C) ->
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "bin/mongooseimctl").

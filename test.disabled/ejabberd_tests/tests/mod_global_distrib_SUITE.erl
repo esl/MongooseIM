@@ -105,10 +105,11 @@ init_per_suite(Config) ->
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
-            CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
-            CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
-            CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
-            escalus:init_per_suite([{add_advertised_endpoints, []}, {certfile, CertPath}, {cafile, CACertPath},
+            CertDir = filename:join(path_helper:test_dir(Config), "priv/ssl"),
+            CertPath = path_helper:canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
+            CACertPath = path_helper:canonicalize_path(filename:join(CertDir, "cacert.pem")),
+            escalus:init_per_suite([{add_advertised_endpoints, []},
+                                    {certfile, CertPath}, {cafile, CACertPath},
                                     {extra_config, []}, {redis_extra_config, []} | Config]);
         _ ->
             {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
@@ -836,13 +837,6 @@ has_exactly_one_service(Service, #xmlel{children = [#xmlel{children = Services}]
         [_] -> true;
         _ -> false
     end.
-
-canonicalize_path(Path) -> canonicalize_path(filename:split(Path), []).
-
-canonicalize_path([], Acc) -> filename:join(lists:reverse(Acc));
-canonicalize_path([".." | Path], [_ | Acc]) -> canonicalize_path(Path, Acc);
-canonicalize_path(["." | Path], Acc) -> canonicalize_path(Path, Acc);
-canonicalize_path([Elem | Path], Acc) -> canonicalize_path(Path, [Elem | Acc]).
 
 send_steps(From, To, Max, ToHost) ->
     next_send_step(From, To, 1, Max, Max div 10, true, ToHost).

@@ -4,7 +4,6 @@
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
--define(ROOT_DIR, "../../").
 
 %% DEBUG: compile time settings
 -define(PRINT_ERRORS, false).
@@ -62,6 +61,14 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
 %%
 %% Helpers
 %%
+
+repo_dir() ->
+    case os:getenv("REPO_DIR") of
+        false ->
+            init:stop("REPO_DIR envvar not set");
+        Value ->
+            Value
+    end.
 
 args_to_opts(Args) ->
     {Args, Opts} = lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()),
@@ -186,8 +193,8 @@ backend(Node) ->
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join(["..", "..", "rel", "files", "ejabberd.cfg"]),
-    Vars = filename:join(["..", "..", "rel", HostVars]),
+    Cfg = filename:join([repo_dir(), "rel", "files", "ejabberd.cfg"]),
+    Vars = filename:join([repo_dir(), "rel", HostVars]),
     CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
     {ok, Template} = file:read_file(Cfg),
     {ok, Default} = file:consult(Vars),
@@ -248,7 +255,7 @@ analyze(Test, CoverOpts) ->
     report_time("Export cover data from MongooseIM nodes", fun() ->
             multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
         end),
-    Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
+    Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
             [cover:import(File) || File <- Files]
@@ -481,7 +488,7 @@ export_codecov_json() ->
     Mod2Data = lists:foldl(fun add_cover_line_into_array/2, #{}, Result),
     JSON = maps:fold(fun format_array_to_list/3, [], Mod2Data),
     Binary = jiffy:encode(#{<<"coverage">> => {JSON}}),
-    file:write_file(?ROOT_DIR ++ "/codecov.json", Binary).
+    file:write_file(repo_dir() ++ "/codecov.json", Binary).
 
 add_cover_line_into_array({{Module, Line}, CallTimes}, Acc) ->
     %% Set missing lines to null

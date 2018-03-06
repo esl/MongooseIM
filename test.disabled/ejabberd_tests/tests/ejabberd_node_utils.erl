@@ -17,6 +17,7 @@
 -module(ejabberd_node_utils).
 
 -export([init/1, init/2,
+    node_cwd/2,
     restart_application/1, restart_application/2,
     call_fun/3, call_fun/4,
     call_ctl/2, call_ctl/3,
@@ -38,11 +39,11 @@ current_config_path(Node, Config) ->
 backup_config_path(Node, Config) ->
     filename:join([cwd(Node, Config), "etc","ejabberd.cfg.bak"]).
 
-config_template_path() ->
-    filename:join(["..", "..", "..", "..", "rel", "files", "ejabberd.cfg"]).
+config_template_path(Config) ->
+    filename:join([path_helper:repo_dir(Config), "rel", "files", "ejabberd.cfg"]).
 
-config_vars_path(File) ->
-    filename:join(["..", "..", "..", "..", "rel", File]).
+config_vars_path(File, Config) ->
+    filename:join([path_helper:repo_dir(Config), "rel", File]).
 
 ctl_path(Node, Config) ->
     filename:join([cwd(Node, Config), "bin", "mongooseimctl"]).
@@ -60,6 +61,11 @@ init(Config) ->
 
 init(Node, Config) ->
     set_ejabberd_node_cwd(Node, Config).
+
+node_cwd(Node, Config) ->
+    CWD = escalus_config:get_config({ejabberd_cwd, Node}, Config),
+    CWD == undefined andalso error({{ejabberd_cwd, Node}, undefined}, [Node, Config]),
+    CWD.
 
 -spec restart_application(atom()) -> ok.
 restart_application(ApplicationName) ->
@@ -149,10 +155,10 @@ modify_config_file(CfgVarsToChange, Config) ->
       Value :: string().
 modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
     CurrentCfgPath = current_config_path(Node, Config),
-    {ok, CfgTemplate} = file:read_file(config_template_path()),
-    CfgVarsPath = config_vars_path("vars.config"),
+    {ok, CfgTemplate} = file:read_file(config_template_path(Config)),
+    CfgVarsPath = config_vars_path("vars.config", Config),
     {ok, DefaultVars} = file:consult(CfgVarsPath),
-    {ok, NodeVars} = file:consult(config_vars_path(VarsFile)),
+    {ok, NodeVars} = file:consult(config_vars_path(VarsFile, Config)),
     PresetVars = case proplists:get_value(preset, Config) of
                      undefined ->
                          [];
