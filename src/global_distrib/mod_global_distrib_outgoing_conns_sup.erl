@@ -42,6 +42,12 @@ add_server(Server) ->
             Error
     end.
 
+%% Call to get_connection blocks until a connection is available.
+%% Currently the timeout is infinity.
+%% This function is safe for concurrent calls if the outgoing pool is not present yet.
+%% The first caller will be the one initiating pool startup and the others are blocked
+%% in the meantime; then, everyone will use the pool initiated by the first caller.
+%% TODO: Revise negative cases for this function.
 -spec get_connection(Server :: jid:lserver()) -> pid().
 get_connection(Server) ->
     get_connection(Server, 5).
