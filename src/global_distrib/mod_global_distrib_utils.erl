@@ -253,9 +253,11 @@ to_ip_tuples(Addr) ->
     case {inet:getaddrs(Addr, inet6), inet:getaddrs(Addr, inet)} of
         {{error, Reason6}, {error, Reason4}} ->
             {error, {Reason6, Reason4}};
-        {Addrs, {error, _}} ->
+        {Addrs, {error, Msg}} ->
+            ?DEBUG("IPv6 address resolution error: ~p", [Msg]),
             Addrs;
-        {{error, _}, Addrs} ->
+        {{error, Msg}, Addrs} ->
+            ?DEBUG("IPv4 address resolution error: ~p", [Msg]),
             Addrs;
         {{ok, Addrs6}, {ok, Addrs4}} ->
             {ok, Addrs6 ++ Addrs4}
