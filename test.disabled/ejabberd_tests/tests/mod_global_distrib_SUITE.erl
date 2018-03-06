@@ -277,6 +277,10 @@ test_advertised_endpoints_override_endpoints(Config) ->
                              lists:sort(iptuples_to_string(E)) =:=
                                  lists:sort(advertised_endpoints()) end, Endps).
 
+%% @doc Verifies that hosts refresher will restart the outgoing connection pool if
+%% it goes down for some reason (crash or domain unavailability).
+%% Also actually verifies that refresher properly reads host list
+%% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
     wait_until(fun() -> trees_for_connections_present() end, 2, ?HOSTS_REFRESH_INTERVAL),
     ConnectionSups = out_connection_sups(asia_node),
