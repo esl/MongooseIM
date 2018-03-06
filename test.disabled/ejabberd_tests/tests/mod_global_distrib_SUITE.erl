@@ -185,7 +185,7 @@ init_per_group(_, Config0) ->
 end_per_group(advertised_endpoints, Config) ->
     Pids = ?config(meck_handlers, Config),
     unmock_inet(Pids),
-        Config;
+    Config;
 end_per_group(start_checks, Config) ->
     Config;
 end_per_group(invalidation, Config) ->
