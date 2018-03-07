@@ -35,6 +35,7 @@
          start/4,
          change_shaper/2,
          starttls/2,
+         get_socket/1,
          compress/2,
          become_controller/2,
          close/1]).
@@ -87,8 +88,11 @@ start(Socket, SockMod, Shaper, MaxStanzaSize) ->
 change_shaper(Pid, Shaper) ->
     gen_server:cast(Pid, {change_shaper, Shaper}).
 
-starttls(Pid, TLSSocket) ->
-    gen_server_call_or_noproc(Pid, {starttls, TLSSocket}).
+starttls(Pid, TLSOpts) ->
+    gen_server_call_or_noproc(Pid, {starttls, TLSOpts}).
+
+get_socket(Pid) ->
+    gen_server_call_or_noproc(Pid, get_socket).
 
 compress(Pid, ZlibSocket) ->
     gen_server_call_or_noproc(Pid, {compress, ZlibSocket}).
@@ -136,15 +140,35 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({starttls, TLSSocket}, _From, State) ->
-    StateAfterReset = reset_parser(State),
-    NewState = StateAfterReset#state{socket = TLSSocket,
-                                 sock_mod = fast_tls},
-    case fast_tls:recv_data(TLSSocket, <<"">>) of
-        {ok, TLSData} ->
-            {reply, ok, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
-        {error, _Reason} ->
-            {stop, normal, ok, NewState}
+handle_call(get_socket, _From, #state{socket = Socket} = State) ->
+    {reply, {ok, Socket}, State, ?HIBERNATE_TIMEOUT};
+handle_call({starttls, TLSOpts}, From, #state{parser = Parser,
+                                              socket = TCPSocket} = State) ->
+    %% the next message from client is part of TLS handshake, it must
+    %% be handled by TLS library (another process in case of just_tls)
+    %% so deactivating the socket.
+    deactivate_socket(State),
+    %% TLS handshake always starts from client's request, let
+    %% ejabberd_socket finish starttls negotiation and notify
+    %% client that it can start TLS handshake.
+    gen_server:reply(From, ok),
+    case ejabberd_tls:tcp_to_tls(TCPSocket, TLSOpts) of
+        {ok, TLSSocket} ->
+            StateAfterReset = reset_parser(State),
+            NewState = StateAfterReset#state{socket   = TLSSocket,
+                                             sock_mod = ejabberd_tls},
+            %% fast_tls requires dummy recv_data/2 call to accomplish TLS
+            %% handshake. such call is simply ignored by just_tls backend.
+            case ejabberd_tls:recv_data(TLSSocket, <<"">>) of
+                {ok, TLSData} ->
+                    {noreply, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
+                {error, Reason} ->
+                    ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
+                    {stop, normal, NewState}
+            end;
+        {error, Reason} ->
+            ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
+            {stop, normal, State}
     end;
 handle_call({compress, ZlibSocket}, _From,
   #state{c2s_pid = C2SPid} = State) ->
@@ -197,10 +221,10 @@ handle_info({Tag, _TCPSocket, Data},
        sock_mod = SockMod} = State)
   when (Tag == tcp) or (Tag == ssl) ->
     case SockMod of
-        fast_tls ->
+        ejabberd_tls ->
             mongoose_metrics:update(global,
                             [data, xmpp, received, encrypted_size], size(Data)),
-            case fast_tls:recv_data(Socket, Data) of
+            case ejabberd_tls:recv_data(Socket, Data) of
                 {ok, TLSData} ->
                     {noreply, process_data(TLSData, State),
                     ?HIBERNATE_TIMEOUT};
@@ -289,6 +313,14 @@ activate_socket(#state{socket = Socket,
             self() ! {tcp_closed, Socket};
         {ok, _} ->
             ok
+    end.
+
+-spec deactivate_socket(state()) -> 'ok' | {'error', _}.
+deactivate_socket(#state{socket = Socket,
+                         sock_mod = SockMod}) ->
+    case SockMod of
+      gen_tcp -> inet:setopts(Socket, [{active, false}]);
+      _ -> SockMod:setopts(Socket, [{active, false}])
     end.
 
 %% @doc Data processing for connectors directly generating xmlel in

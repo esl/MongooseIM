@@ -27,12 +27,13 @@
                 tls_required = false  :: boolean(),
                 tls_enabled = false   :: boolean(),
                 tls_options = [],
+                tls_verify            :: verify_none | verify_peer,
                 authenticated = false :: authenticated_state(),
-                jid                  :: jid:jid() | undefined,
-                user = <<>>          :: jid:user(),
-                server = <<>>     :: jid:server(),
-                resource = <<>>      :: jid:resource(),
-                sid                  :: ejabberd_sm:sid() | undefined,
+                jid                   :: jid:jid() | undefined,
+                user = <<>>           :: jid:user(),
+                server = <<>>         :: jid:server(),
+                resource = <<>>       :: jid:resource(),
+                sid                   :: ejabberd_sm:sid() | undefined,
                 %% We have _subscription to_ these users' presence status;
                 %% i.e. they send us presence updates.
                 %% This comes from the roster.

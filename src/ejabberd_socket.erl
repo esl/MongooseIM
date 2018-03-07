@@ -42,9 +42,9 @@
          monitor/1,
          get_sockmod/1,
          get_peer_certificate/1,
-         get_verify_result/1,
          close/1,
-         sockname/1, peername/1]).
+         sockname/1,
+         peername/1]).
 
 -include("mongoose.hrl").
 
@@ -83,26 +83,30 @@ start(Module, SockMod, Socket, Opts) ->
             SocketData = #socket_state{sockmod = SockMod,
                                        socket = Socket,
                                        receiver = RecRef},
-            case Module:start({?MODULE, SocketData}, Opts) of
-                {ok, Pid} ->
-                    case SockMod:controlling_process(Socket, Receiver) of
-                        ok ->
-                            ok;
+            %% set receiver as socket's controlling process before
+            %% the M:start/2 call, that is required for c2s legacy
+            %% TLS connection support.
+            case SockMod:controlling_process(Socket, Receiver) of
+                ok ->
+                    case Module:start({?MODULE, SocketData}, Opts) of
+                        {ok, Pid} ->
+                            ReceiverMod:become_controller(Receiver, Pid);
                         {error, _Reason} ->
-                            SockMod:close(Socket)
-                    end,
-                    ReceiverMod:become_controller(Receiver, Pid);
+                            SockMod:close(Socket),
+                            case ReceiverMod of
+                                ejabberd_receiver ->
+                                    ReceiverMod:close(Receiver);
+                                _ ->
+                                    ok
+                            end
+                    end;
                 {error, _Reason} ->
-                    SockMod:close(Socket),
-                    case ReceiverMod of
-                        ejabberd_receiver ->
-                            ReceiverMod:close(Receiver);
-                        _ ->
-                            ok
-                    end
+                    SockMod:close(Socket)
             end;
+
         independent ->
             ok;
+
         raw ->
             case Module:start({SockMod, Socket}, Opts) of
                 {ok, Pid} ->
@@ -157,31 +161,36 @@ connect(Addr, Port, Opts, Timeout) ->
     end.
 
 
--spec tcp_to_tls(inet:socket(), list()) -> fast_tls:tls_socket().
-tcp_to_tls(InetSock, TLSOpts) ->
+-spec tcp_to_tls(socket_state(), list()) -> ejabberd_tls:tls_socket().
+tcp_to_tls(#socket_state{receiver = Receiver}, TLSOpts) ->
     SanitizedTLSOpts = case lists:keyfind(protocol_options, 1, TLSOpts) of
         false -> TLSOpts;
         {_, ProtoOpts} ->
             NewProtoOpts = {protocol_options, string:join(ProtoOpts, "|")},
             lists:keyreplace(protocol_options, 1, TLSOpts, NewProtoOpts)
     end,
-    {ok, TLSSocket} = fast_tls:tcp_to_tls(InetSock, SanitizedTLSOpts),
-    TLSSocket.
+    ejabberd_receiver:starttls(Receiver, SanitizedTLSOpts).
+
+get_tls_socket(#socket_state{receiver = Receiver}) ->
+    case ejabberd_receiver:get_socket(Receiver) of
+        {ok, TLSSocket} -> TLSSocket;
+        _ -> invalid_socket
+    end.
 
 
 -spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
-    TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
-    ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
-    SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
+    tcp_to_tls(SocketData, TLSOpts),
+    NewSocket = get_tls_socket(SocketData),
+    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
 starttls(SocketData, TLSOpts, Data) ->
-    TLSSocket = tcp_to_tls(SocketData#socket_state.socket, TLSOpts),
-    ejabberd_receiver:starttls(SocketData#socket_state.receiver, TLSSocket),
-    send(SocketData, Data),
-    SocketData#socket_state{socket = TLSSocket, sockmod = fast_tls}.
+    tcp_to_tls(SocketData, TLSOpts),
+    send(SocketData, Data), %% send last negotiation chunk via tcp
+    NewSocket = get_tls_socket(SocketData),
+    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
 
 -spec compress(socket_state(), integer(), _) -> socket_state().
 compress(SocketData, InflateSizeLimit, Data) ->
@@ -241,12 +250,7 @@ get_sockmod(SocketData) ->
 
 -spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
 get_peer_certificate(SocketData) ->
-    fast_tls:get_peer_certificate(SocketData#socket_state.socket).
-
-
--spec get_verify_result(socket_state()) -> byte().
-get_verify_result(SocketData) ->
-    fast_tls:get_verify_result(SocketData#socket_state.socket).
+    ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
 
 
 -spec close(socket_state()) -> ok.
