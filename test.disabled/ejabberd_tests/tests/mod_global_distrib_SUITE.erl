@@ -24,7 +24,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(HOSTS_REFRESH_INTERVAL, 200).
+-define(HOSTS_REFRESH_INTERVAL, 3600*1000). %% 1h - long enough not to break any test by accident
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -757,6 +757,9 @@ disable_endpoint_on_refresh(Config) ->
 
 wait_for_connection(Config) ->
     set_endpoints(asia_node, []),
+    %% Because of hosts refresher, a pool of connections to asia_node
+    %% may already be present here
+    trigger_rebalance(europe_node1, <<"reg1">>),
 
     spawn_connection_getter(europe_node1),
 
