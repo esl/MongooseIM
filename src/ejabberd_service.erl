@@ -204,7 +204,8 @@ wait_for_stream({xmlstreamstart, _Name, Attrs}, StateData) ->
             send_text(StateData, ?INVALID_HEADER_ERR),
             {stop, normal, StateData}
     end;
-wait_for_stream({xmlstreamerror, _}, StateData) ->
+wait_for_stream({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("XML stream error from host ~p: ~p", [StateData#state.host, StreamError]),
     Header = io_lib:format(?STREAM_HEADER,
                            [<<"none">>, ?MYNAME]),
     send_text(StateData, <<(iolist_to_binary(Header))/binary,
