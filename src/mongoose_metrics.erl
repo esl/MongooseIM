@@ -328,7 +328,12 @@ ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
     case exometer:info(PrefixedMetric, type) of
         ShortType -> {ok, already_present};
-        undefined -> exometer:new(PrefixedMetric, Type)
+        undefined ->
+            case catch exometer:new(PrefixedMetric, Type) of
+                {'EXIT', {exists, _}} -> {ok, already_present};
+                ok -> ok;
+                Error -> Error
+            end
     end.
 
 -spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.

@@ -39,13 +39,14 @@
          }).
 
 -type endpoint_info() :: #endpoint_info{}.
+-type endpoints_changes() :: [{enable | disable, endpoint()}].
 
 -record(state, {
           server :: jid:lserver(),
           supervisor :: pid(),
           enabled :: [endpoint_info()],
           disabled :: [endpoint_info()],
-          pending_endpoints :: [{enable | disable, endpoint()}],
+          pending_endpoints :: endpoints_changes(),
           pending_gets :: queue:queue(tuple()),
           refresh_interval :: pos_integer(),
           gc_interval :: pos_integer()
@@ -274,10 +275,12 @@ pick_connection(Enabled) ->
 
 -spec refresh_connections(State :: state()) -> state().
 refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints } = State) ->
-    ?INFO_MSG("event=refreshing_endpoints,server='~s'", [Server]),
+    ?DEBUG("event=refreshing_endpoints,server='~s'", [Server]),
     {ok, NewEndpoints} = get_endpoints(Server),
+    ?DEBUG("event=fetched_endpoints,server='~s',result='~p'", [Server, NewEndpoints]),
 
     NPendingEndpoints = resolve_pending(NewEndpoints, State#state.enabled),
+    log_endpoints_changes(Server, NPendingEndpoints),
 
     case PendingEndpoints of
         [] -> maybe_schedule_process_endpoint(NPendingEndpoints);
@@ -286,8 +289,8 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
 
     FinalPendingEndpoints = PendingEndpoints ++ NPendingEndpoints,
 
-    ?INFO_MSG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
-              [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)]),
+    ?DEBUG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
+           [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)]),
     State#state{ pending_endpoints = FinalPendingEndpoints }.
 
 -spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
@@ -301,7 +304,7 @@ get_endpoints(Server) ->
 
 -spec resolve_pending(NewEndpointList :: [mod_global_distrib_utils:endpoint()],
                       OldEnabled :: [endpoint_pid_tuple()]) ->
-    [{enable | disable, mod_global_distrib_utils:endpoint()}].
+    endpoints_changes().
 resolve_pending([], []) ->
     [];
 resolve_pending([], [#endpoint_info{ endpoint = ToDisable } | RToDisable]) ->
@@ -311,6 +314,13 @@ resolve_pending([MaybeToEnable | RNewEndpoints], OldEnabled) ->
         false -> [{enable, MaybeToEnable} | resolve_pending(RNewEndpoints, OldEnabled)];
         {value, _, NOldEnabled} -> resolve_pending(RNewEndpoints, NOldEnabled)
     end.
+
+-spec log_endpoints_changes(Server :: jid:lserver(),
+                            EndpointsChanges :: endpoints_changes()) -> any().
+log_endpoints_changes(Server, EndpointsChanges) ->
+    ?INFO_MSG("event=endpoints_changes,server='~s',to_enable='~p',to_disable='~p'",
+              [Server, [ E || {enable, E} <- EndpointsChanges ],
+                       [ E || {disable, E} <- EndpointsChanges ]]).
 
 -spec enable(Endpoint :: endpoint(), State :: state()) -> {ok, state()} | {error, any()}.
 enable(Endpoint, #state{ disabled = Disabled, supervisor = Supervisor,
