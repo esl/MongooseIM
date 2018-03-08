@@ -65,7 +65,7 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
 repo_dir() ->
     case os:getenv("REPO_DIR") of
         false ->
-            init:stop("REPO_DIR envvar not set");
+            init:stop("Environment variable REPO_DIR is undefined");
         Value ->
             Value
     end.
