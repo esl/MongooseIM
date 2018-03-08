@@ -21,8 +21,8 @@ endif
 
 COMMON_OPTS := -sname test -setcookie ejabberd -hidden \
                $(TLS_DIST_OPTS) \
-               -env REPO_DIR "$(shell readlink -f $(REPO_DIR))" \
-               -env TEST_DIR "$(shell readlink -f $(TEST_DIR))" \
+               -env REPO_DIR "$(shell $(REPO_DIR)/tools/abs_dirpath.sh $(REPO_DIR))" \
+               -env TEST_DIR "$(shell $(REPO_DIR)/tools/abs_dirpath.sh $(TEST_DIR))" \
                -pa `pwd`/tests \
                    `pwd`/ebin \
                    `pwd`/deps/*/ebin \
