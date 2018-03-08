@@ -76,9 +76,10 @@ force_refresh(Server) ->
 close_disabled(Server) ->
     do_call(Server, close_disabled).
 
--spec get_connection(Server :: jid:lserver()) -> {ok, pid()} | {error, any()}.
+-spec get_connection(Server :: jid:lserver()) -> {ok, pid()} | no_return().
 get_connection(Server) ->
-    do_call(Server, get_connection).
+    {ok, CPoolRef} = do_call(Server, get_connection_pool),
+    {ok, cpool:get_connection(CPoolRef)}.
 
 %% `ping_proc` instead of just `ping` to emphasize that this call does not ping
 %% some remote server but the manager process instead
@@ -129,11 +130,11 @@ init([Server, Supervisor]) ->
     ?DEBUG("event=mgr_started,pid='~p',server='~p',supervisor='~p'", [self(), Server, Supervisor]),
     {ok, State2}.
 
-handle_call(get_connection, From, #state{ enabled = [], pending_gets = PendingGets } = State) ->
+handle_call(get_connection_pool, From, #state{ enabled = [],
+                                               pending_gets = PendingGets } = State) ->
     {noreply, State#state{ pending_gets = queue:in(From, PendingGets) }};
-handle_call(get_connection, _From, #state{ enabled = Enabled } = State) ->
-    Connection = pick_connection(Enabled),
-    {reply, {ok, Connection}, State};
+handle_call(get_connection_pool, _From, #state{ enabled = Enabled } = State) ->
+    {reply, {ok, pick_connection_pool(Enabled)}, State};
 handle_call(force_refresh, From, #state{ pending_endpoints_listeners = [] } = State) ->
     State2 = refresh_connections(State),
     case State2#state.pending_endpoints of
@@ -183,14 +184,13 @@ handle_info(process_pending_get, #state{ pending_gets = PendingGets,
     NState =
     case queue:out(PendingGets) of
         {{value, From}, NewPendingGets} ->
-            Connection = pick_connection(Enabled),
-            gen_server:reply(From, {ok, Connection}),
-
-            NState0 = State#state{ pending_gets = NewPendingGets },
-            maybe_schedule_process_get(NState0);
+            CPoolRef = pick_connection_pool(Enabled),
+            gen_server:reply(From, {ok, CPoolRef}),
+            State#state{ pending_gets = NewPendingGets };
         {empty, _} ->
             State
     end,
+    maybe_schedule_process_get(NState),
     {noreply, NState};
 handle_info(process_pending_endpoint,
             #state{ pending_endpoints = [{enable, Endpoint} | RPendingEndpoints] } = State) ->
@@ -306,10 +306,10 @@ maybe_notify_endpoints_listeners(#state{ pending_endpoints = [],
 maybe_notify_endpoints_listeners(State) ->
     State.
 
--spec pick_connection(Enabled :: [endpoint_info()]) -> pid().
-pick_connection(Enabled) ->
+-spec pick_connection_pool(Enabled :: [endpoint_info()]) -> pid() | no_connections.
+pick_connection_pool(Enabled) ->
     #endpoint_info{ conn_pool_ref = PoolRef } = lists:nth(rand:uniform(length(Enabled)), Enabled),
-    cpool:get_connection(PoolRef).
+    PoolRef.
 
 -spec refresh_connections(State :: state()) -> state().
 refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoints } = State) ->

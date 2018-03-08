@@ -105,6 +105,8 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
                             jid:to_binary(To), TargetHost, TTL]),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Acc2 = remove_metadata(Acc1, target_host_override),
+                    %% KNOWN ISSUE: will crash loudly if there are no connections available
+                    %% TODO: Discuss behaviour in such scenario
                     Worker = get_bound_connection(TargetHost),
                     mod_global_distrib_sender:send(Worker, {From, To, Acc2, Packet}),
                     drop

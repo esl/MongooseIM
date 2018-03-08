@@ -691,7 +691,7 @@ test_update_senders_host(Config) ->
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
 
-              escalus:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
+              escalus:send(Alice, escalus_stanza:chat_to(Eve, <<"test_update_senders_host">>)),
               escalus:wait_for_stanza(Eve),
 
               {ok, <<"localhost.bis">>}

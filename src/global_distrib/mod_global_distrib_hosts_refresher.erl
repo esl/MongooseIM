@@ -136,22 +136,15 @@ stop() ->
     ok.
 
 refresh() ->
-    ?DEBUG("Refreshing hosts, checking if there exists a connection pool for all of them", []),
     Hosts = mod_global_distrib_mapping:hosts(),
-    lists:foreach(fun maybe_add_host/1, Hosts).
+    LocalHost = local_host(),
+    ?DEBUG("event=fetched_hosts,hosts='~p',local_host='~s'", [Hosts, LocalHost]),
+    lists:foreach(fun mod_global_distrib_outgoing_conns_sup:ensure_server_started/1,
+                  lists:delete(LocalHost, Hosts)).
 
 schedule_refresh(#state{ refresh_interval = Interval } = State) ->
     TRef = erlang:start_timer(Interval, self(), refresh),
     State#state{ tref = TRef }.
-
-maybe_add_host(Host) ->
-    case local_host() of
-        Host ->
-            ok;
-        _ ->
-            ?INFO_MSG("reason=maybe_add_host host=~p local_host=~p", [Host, local_host()]),
-            mod_global_distrib_outgoing_conns_sup:ensure_server_started(Host)
-    end.
 
 default_refresh_interval() ->
     3000.
