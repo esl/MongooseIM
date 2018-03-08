@@ -43,15 +43,21 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
--spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) -> Value :: term().
+-spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) ->
+    Value :: term() | {error, missing_gd_structure}.
 get_metadata(Acc, Key, Default) ->
-    GD = mongoose_acc:get(global_distrib, Acc),
-    maps:get(Key, GD, Default).
+    case mongoose_acc:get(global_distrib, Acc, undefined) of
+        undefined -> {error, missing_gd_structure};
+        GD -> maps:get(Key, GD, Default)
+    end.
 
--spec get_metadata(mongoose_acc:t(), Key :: term()) -> Value :: term().
+-spec get_metadata(mongoose_acc:t(), Key :: term()) ->
+    Value :: term() | {error, missing_gd_structure}.
 get_metadata(Acc, Key) ->
-    GD = mongoose_acc:get(global_distrib, Acc),
-    maps:get(Key, GD).
+    case mongoose_acc:get(global_distrib, Acc, undefined) of
+        undefined -> {error, missing_gd_structure};
+        GD -> maps:get(Key, GD)
+    end.
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
 put_metadata(Acc, Key, Value) ->

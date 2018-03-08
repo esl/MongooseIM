@@ -145,12 +145,12 @@ create_ets(Names, Type) when is_list(Names) ->
 create_ets(Name, Type) ->
     Self = self(),
     Heir = case whereis(ejabberd_sup) of
-               undefined -> none;
-               Self -> none;
-               Pid -> Pid
+               undefined -> {heir, none};
+               Self -> {heir, none};
+               Pid -> {heir, Pid, testing}
            end,
 
-    ets:new(Name, [named_table, public, Type, {read_concurrency, true}, {heir, Heir, testing}]).
+    ets:new(Name, [named_table, public, Type, {read_concurrency, true}, Heir]).
 
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
@@ -200,8 +200,14 @@ maybe_update_mapping(#jid{luser = <<>>, lserver = LServer} = From, Acc) ->
 maybe_update_mapping(From, Acc) ->
     case mod_global_distrib_mapping:for_jid(From) of
         error ->
-            Origin = mod_global_distrib:get_metadata(Acc, origin),
-            mod_global_distrib_mapping:insert_for_jid(From, Origin);
+            case mod_global_distrib:get_metadata(Acc, origin) of
+                %% Lack of 'global_distrib' indicates 100% local routing...
+                {error, missing_gd_structure} ->
+                    %% .. so we can insert From into cache with local host as mapping
+                    mod_global_distrib_mapping:insert_for_jid(From);
+                Origin ->
+                    mod_global_distrib_mapping:insert_for_jid(From, Origin)
+            end;
         _ ->
             ok
     end.
@@ -214,8 +220,13 @@ maybe_update_mapping(From, Acc) ->
 ensure_domain_inserted(Acc, Domain) ->
     case mod_global_distrib_mapping:for_domain(Domain) of
         error ->
-            Origin = mod_global_distrib:get_metadata(Acc, origin),
-            mod_global_distrib_mapping:insert_for_domain(Domain, Origin);
+            %% See the comments in the last match of maybe_update_mapping/2 function
+            case mod_global_distrib:get_metadata(Acc, origin) of
+                {error, missing_gd_structure} ->
+                    mod_global_distrib_mapping:insert_for_domain(Domain);
+                Origin ->
+                    mod_global_distrib_mapping:insert_for_domain(Domain, Origin)
+            end;
         _ ->
             ok
     end.

@@ -46,6 +46,7 @@ groups() ->
        test_muc_conversation_on_one_host,
        test_component_disconnect,
        test_component_on_one_host,
+       test_components_in_different_regions,
        test_pm_with_disconnection_on_other_server,
        test_pm_with_graceful_reconnection_to_different_server,
        test_pm_with_ungraceful_reconnection_to_different_server,
@@ -370,6 +371,26 @@ test_component_on_one_host(Config) ->
             end,
 
     [escalus:fresh_story(Config, [{User, 1}], Story) || User <- [alice, eve]].
+
+%% Ensures that 2 components in distinct data centers can communicate.
+test_components_in_different_regions(_Config) ->
+    ComponentCommonConfig = [{host, <<"localhost">>}, {password, <<"secret">>},
+                             {server, <<"localhost">>}, {component, <<"test_service">>}],
+    Component1Config = [{port, 8888}, {component, <<"service1">>} | ComponentCommonConfig],
+    Component2Config = [{port, 9990}, {component, <<"service2">>} | ComponentCommonConfig],
+
+    {Comp1, Addr1, _Name1} = component_SUITE:connect_component(Component1Config),
+    {Comp2, Addr2, _Name2} = component_SUITE:connect_component(Component2Config),
+
+    Msg1 = escalus_stanza:from(escalus_stanza:chat_to(Addr2, <<"Hi from 1!">>), Addr1),
+    escalus:send(Comp1, Msg1),
+    GotMsg1 = escalus:wait_for_stanza(Comp2),
+    escalus:assert(is_chat_message, [<<"Hi from 1!">>], GotMsg1),
+
+    Msg2 = escalus_stanza:from(escalus_stanza:chat_to(Addr1, <<"Hi from 2!">>), Addr2),
+    escalus:send(Comp2, Msg2),
+    GotMsg2 = escalus:wait_for_stanza(Comp1),
+    escalus:assert(is_chat_message, [<<"Hi from 2!">>], GotMsg2).
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
@@ -834,10 +855,9 @@ get_mapping(Node, Client) ->
     What.
 
 delete_mapping(Node, Client) ->
-    {FullJid, BareJid} = jids(Client),
-    redis_query(Node, [<<"DEL">>, FullJid, BareJid]),
+    {FullJid, _BareJid} = jids(Client),
     Jid = rpc(Node, jid, from_binary, [FullJid]),
-    rpc(Node, mod_global_distrib_mapping, clear_cache, [Jid]).
+    rpc(Node, mod_global_distrib_mapping, delete_for_jid, [Jid]).
 
 set_mapping(Node, Client, Mapping) ->
     {FullJid, BareJid} = jids(Client),

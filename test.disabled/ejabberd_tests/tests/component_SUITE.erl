@@ -468,8 +468,8 @@ connect_component(ComponentOpts, StartStep) ->
     case Res of
     {ok, Component, _} ->
         {component, ComponentName} = lists:keyfind(component, 1, ComponentOpts),
-        {host, ComponentHost} = lists:keyfind(host, 1, ComponentOpts),
-        ComponentAddr = <<ComponentName/binary, ".", ComponentHost/binary>>,
+        {server, ComponentServer} = lists:keyfind(server, 1, ComponentOpts),
+        ComponentAddr = <<ComponentName/binary, ".", ComponentServer/binary>>,
         {Component, ComponentAddr, ComponentName};
     {error, E} ->
         throw(cook_connection_step_error(E))
