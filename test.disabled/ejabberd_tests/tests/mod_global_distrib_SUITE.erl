@@ -854,10 +854,13 @@ get_mapping(Node, Client) ->
     {ok, What} = redis_query(Node, [<<"GET">>, FullJid]),
     What.
 
+%% Warning! May not work properly with alice or any other user whose
+%% stringprepped JID is different than original one
 delete_mapping(Node, Client) ->
-    {FullJid, _BareJid} = jids(Client),
+    {FullJid, BareJid} = jids(Client),
+    redis_query(Node, [<<"DEL">>, FullJid, BareJid]),
     Jid = rpc(Node, jid, from_binary, [FullJid]),
-    rpc(Node, mod_global_distrib_mapping, delete_for_jid, [Jid]).
+    rpc(Node, mod_global_distrib_mapping, clear_cache, [Jid]).
 
 set_mapping(Node, Client, Mapping) ->
     {FullJid, BareJid} = jids(Client),
