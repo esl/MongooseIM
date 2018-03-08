@@ -24,7 +24,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(HOSTS_REFRESH_INTERVAL, 3600*1000). %% 1h - long enough not to break any test by accident
+-define(HOSTS_REFRESH_INTERVAL, 200). %% in ms
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -44,7 +44,8 @@ all() ->
 
 groups() ->
     [{mod_global_distrib, [shuffle],
-      [test_pm_between_users_at_different_locations,
+      [
+       test_pm_between_users_at_different_locations,
        test_pm_between_users_before_available_presence,
        test_muc_conversation_on_one_host,
        test_component_disconnect,
@@ -244,11 +245,17 @@ end_per_testcase(CaseName, Config) ->
 generic_end_per_testcase(CaseName, Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
+              %% TODO: Enable refresher only for specific test cases,
+              %% as some of them are based on assumption that node(s)
+              %% must open new connections during tests.
+              pause_refresher(NodeName, CaseName),
               Node = ct:get_config(NodeName),
               SupRef = {mod_global_distrib_outgoing_conns_sup, Node},
               try
                   OutgoingConns = supervisor:which_children(SupRef),
-                  lists:foreach(fun({Id, _, _, _}) ->
+                  lists:foreach(fun ({mod_global_distrib_hosts_refresher, _, _, _}) ->
+                                        skip;
+                                    ({Id, _, _, _}) ->
                                         supervisor:terminate_child(SupRef, Id)
                                 end, OutgoingConns),
                   [{mod_global_distrib_hosts_refresher, _, worker, _Modules}] =
@@ -256,10 +263,28 @@ generic_end_per_testcase(CaseName, Config) ->
               catch
                   _:{noproc, _} ->
                       ct:pal("Sender supervisor not found in ~p", [NodeName])
-              end
+              end,
+              unpause_refresher(NodeName, CaseName)
       end,
       get_hosts()),
     escalus:end_per_testcase(CaseName, Config).
+
+%% Refresher is not started at all or stopped for some test cases
+-spec pause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.
+pause_refresher(_, test_error_on_wrong_hosts) ->
+    ok;
+pause_refresher(asia_node, test_location_disconnect) ->
+    ok;
+pause_refresher(NodeName, _) ->
+    ok = rpc(NodeName, mod_global_distrib_hosts_refresher, pause, []).
+
+-spec unpause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.
+unpause_refresher(_, test_error_on_wrong_hosts) ->
+    ok;
+unpause_refresher(asia_node, test_location_disconnect) ->
+    ok;
+unpause_refresher(NodeName, _) ->
+    ok = rpc(NodeName, mod_global_distrib_hosts_refresher, unpause, []).
 
 %%--------------------------------------------------------------------
 %% Service discovery test
@@ -700,12 +725,15 @@ test_update_senders_host_by_ejd_service(Config) ->
 
               %% Component is connected to europe_node1
               %% but we force asia_node to connect to europe_node2 by hiding europe_node1
+              %% and forcing rebalance (effectively disabling connections to europe_node1)
               %% to verify routing cache update on both nodes
 
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
 
               hide_node(europe_node1, Config),
+              {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
+              trigger_rebalance(asia_node, EuropeHost),
 
               escalus:send(Eve, escalus_stanza:chat_to(Addr, <<"hi">>)),
               escalus:wait_for_stanza(Comp),

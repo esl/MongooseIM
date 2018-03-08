@@ -31,6 +31,13 @@
 %% gen_mod API
 -export([deps/2, start/2, stop/1]).
 
+%% Test & debug API
+-export([pause/0, unpause/0]).
+
+-record(state, {
+          refresh_interval :: pos_integer(),
+          tref :: reference() | undefined
+         }).
 
 %%--------------------------------------------------------------------
 %% API
@@ -40,6 +47,13 @@
 start_link(RefreshInterval) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [RefreshInterval], []).
 
+-spec pause() -> ok.
+pause() ->
+    gen_server:call(?MODULE, pause).
+
+-spec unpause() -> ok.
+unpause() ->
+    gen_server:call(?MODULE, unpause).
 
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
@@ -64,9 +78,14 @@ deps(Host, Opts) ->
 
 init([RefreshInterval]) ->
     ?DEBUG("refresher starting with interval ~p~n", [RefreshInterval]),
-    schedule_refresh(RefreshInterval),
-    {ok, RefreshInterval}.
+    NState = schedule_refresh(#state{ refresh_interval = RefreshInterval }),
+    {ok, NState}.
 
+handle_call(pause, _From, State) ->
+    erlang:cancel_timer(State#state.tref),
+    {reply, ok, State#state{ tref = undefined }};
+handle_call(unpause, _From, State) ->
+    {reply, ok, schedule_refresh(State)};
 handle_call(Request, From, State) ->
     ?ERROR_MSG("issue=unknown_call request=~p from=~p", [Request, From]),
     {reply, {error, unknown_request}, State}.
@@ -75,17 +94,18 @@ handle_cast(Request, State) ->
     ?ERROR_MSG("issue=unknown_cast request=~p", [Request]),
     {noreply, State}.
 
-handle_info(refresh, Interval) ->
+handle_info({timeout, TRef, refresh}, #state{ tref = TRef } = State) ->
     refresh(),
-    schedule_refresh(Interval),
-    {noreply, Interval, hibernate};
+    NState = schedule_refresh(State),
+    {noreply, NState, hibernate};
+handle_info({timeout, _, refresh}, State) ->
+    %% We got refresh signal from outdated timer
+    {noreply, State, hibernate};
 handle_info(Msg, _State) ->
     ?WARNING_MSG("Unknown message: ~p", Msg).
 
-
 terminate(Reason, _State) ->
     ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: ~p", [Reason]).
-
 
 %%--------------------------------------------------------------------
 %% Helper functions
@@ -120,8 +140,9 @@ refresh() ->
     Hosts = mod_global_distrib_mapping:hosts(),
     lists:foreach(fun maybe_add_host/1, Hosts).
 
-schedule_refresh(Interval) ->
-    erlang:send_after(Interval, self(), refresh).
+schedule_refresh(#state{ refresh_interval = Interval } = State) ->
+    TRef = erlang:start_timer(Interval, self(), refresh),
+    State#state{ tref = TRef }.
 
 maybe_add_host(Host) ->
     case local_host() of

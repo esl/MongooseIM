@@ -49,7 +49,10 @@
           pending_endpoints :: endpoints_changes(),
           pending_gets :: queue:queue(tuple()),
           refresh_interval :: pos_integer(),
-          gc_interval :: pos_integer()
+          gc_interval :: pos_integer(),
+          %% Used by force_refresh to block until refresh is fully done.
+          %% Listeners are notified only once and then this list is cleared.
+          pending_endpoints_listeners = [] :: [pid()]
          }).
 
 -type state() :: #state{}.
@@ -62,6 +65,9 @@ start_link(Server, ServerSup) ->
     Name = mod_global_distrib_utils:server_to_mgr_name(Server),
     gen_server:start_link({local, Name}, ?MODULE, [Server, ServerSup], []).
 
+%% Will return only when endpoints changes (if there are any) are fully applied.
+%% If force refresh is already in progress, new concurrent calls won't trigger another refresh
+%% but will return 'ok' when the current one is finished.
 -spec force_refresh(Server :: jid:lserver()) -> ok.
 force_refresh(Server) ->
     do_call(Server, force_refresh).
@@ -120,6 +126,7 @@ init([Server, Supervisor]) ->
     schedule_refresh(State2),
     schedule_gc(State2),
 
+    ?DEBUG("event=mgr_started,pid='~p',server='~p',supervisor='~p'", [self(), Server, Supervisor]),
     {ok, State2}.
 
 handle_call(get_connection, From, #state{ enabled = [], pending_gets = PendingGets } = State) ->
@@ -127,8 +134,14 @@ handle_call(get_connection, From, #state{ enabled = [], pending_gets = PendingGe
 handle_call(get_connection, _From, #state{ enabled = Enabled } = State) ->
     Connection = pick_connection(Enabled),
     {reply, {ok, Connection}, State};
-handle_call(force_refresh, _From, State) ->
-    {reply, ok, refresh_connections(State)};
+handle_call(force_refresh, From, #state{ pending_endpoints_listeners = [] } = State) ->
+    State2 = refresh_connections(State),
+    case State2#state.pending_endpoints of
+        [] -> {reply, ok, State2};
+        _ -> {noreply, State2#state{ pending_endpoints_listeners = [From] }}
+    end;
+handle_call(force_refresh, From, #state{ pending_endpoints_listeners = Listeners } = State) ->
+    {noreply, State#state{ pending_endpoints_listeners = [From | Listeners] }};
 handle_call(close_disabled, _From, #state{ disabled = Disabled } = State) ->
     lists:foreach(
       fun(#endpoint_info{ endpoint = Endpoint }) ->
@@ -147,7 +160,10 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 handle_info(refresh, State) ->
-    State2 = refresh_connections(State),
+    State2 = case State#state.pending_endpoints of
+                 [] -> refresh_connections(State);
+                 _ -> State % May occur if we are in the middle of force_refresh
+             end,
     schedule_refresh(State2),
     {noreply, State2};
 handle_info(disabled_gc, #state{ disabled = Disabled } = State) ->
@@ -178,7 +194,7 @@ handle_info(process_pending_get, #state{ pending_gets = PendingGets,
     {noreply, NState};
 handle_info(process_pending_endpoint,
             #state{ pending_endpoints = [{enable, Endpoint} | RPendingEndpoints] } = State) ->
-    NState =
+    State2 =
     case catch enable(Endpoint, State) of
         {ok, NState0} ->
             ?INFO_MSG("event=endpoint_enabled,endpoint='~p',server='~s'",
@@ -190,12 +206,14 @@ handle_info(process_pending_endpoint,
             State
     end,
 
-    maybe_schedule_process_get(NState),
+    maybe_schedule_process_get(State2),
     maybe_schedule_process_endpoint(RPendingEndpoints),
-    {noreply, NState#state{ pending_endpoints = RPendingEndpoints }};
+    State3 = State2#state{ pending_endpoints = RPendingEndpoints },
+    State4 = maybe_notify_endpoints_listeners(State3),
+    {noreply, State4};
 handle_info(process_pending_endpoint,
             #state{ pending_endpoints = [{disable, Endpoint} | RPendingEndpoints] } = State) ->
-    NState =
+    State2 =
     case catch disable(Endpoint, State) of
         {ok, NState0} ->
             ?INFO_MSG("event=endpoint_disabled,endpoint='~p',server='~s'",
@@ -208,7 +226,9 @@ handle_info(process_pending_endpoint,
     end,
 
     maybe_schedule_process_endpoint(RPendingEndpoints),
-    {noreply, NState#state{ pending_endpoints = RPendingEndpoints }};
+    State3 = State2#state{ pending_endpoints = RPendingEndpoints },
+    State4 = maybe_notify_endpoints_listeners(State3),
+    {noreply, State4};
 handle_info({'DOWN', MonitorRef, _Type, Pid, Reason}, #state{ enabled = Enabled,
                                                               disabled = Disabled } = State) ->
     {Endpoint, Type, NState} =
@@ -277,6 +297,14 @@ maybe_schedule_process_get(#state{ pending_gets = PendingGets, enabled = Enabled
             Enabled =/= [] orelse error(enabled_is_empty),
             self() ! process_pending_get
     end.
+
+-spec maybe_notify_endpoints_listeners(state()) -> state().
+maybe_notify_endpoints_listeners(#state{ pending_endpoints = [],
+                                         pending_endpoints_listeners = Listeners } = State) ->
+    lists:foreach(fun(Listener) -> gen_server:reply(Listener, ok) end, Listeners),
+    State#state{ pending_endpoints_listeners = [] };
+maybe_notify_endpoints_listeners(State) ->
+    State.
 
 -spec pick_connection(Enabled :: [endpoint_info()]) -> pid().
 pick_connection(Enabled) ->
