@@ -30,7 +30,7 @@
 -export([iq_handler/4,
          handle_publish_response/4,
          remove_user/3,
-         push_event/2]).
+         push_event/3]).
 
 %% Types
 -export_type([pubsub_node/0, form_field/0, form/0]).
@@ -97,12 +97,14 @@ stop(Host) ->
 %% Hooks
 %%--------------------------------------------------------------------
 
-push_event(Host, Event = #chat_event{type = chat, direction = in}) ->
-    do_push_event(Host, Event);
-push_event(Host, Event = #chat_event{type = groupchat, direction = out}) ->
-    do_push_event(Host, Event);
-push_event(_, _) ->
-    ok.
+push_event(Acc, Host, Event = #chat_event{type = chat, direction = in}) ->
+    do_push_event(Host, Event),
+    Acc;
+push_event(Acc, Host, Event = #chat_event{type = groupchat, direction = out}) ->
+    do_push_event(Host, Event),
+    Acc;
+push_event(Acc, _, _) ->
+    Acc.
 
 do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
     %% First condition means that we won't try to push messages without
