@@ -289,8 +289,13 @@ refresh_connections(#state{ server = Server, pending_endpoints = PendingEndpoint
 
     FinalPendingEndpoints = PendingEndpoints ++ NPendingEndpoints,
 
-    ?DEBUG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
-           [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)]),
+    case FinalPendingEndpoints of
+        [] ->
+            no_log;
+        _ ->
+            ?DEBUG("event=endpoints_update_scheduled,server='~s',new_changes=~p,pending_changes=~p",
+                   [Server, length(NPendingEndpoints), length(FinalPendingEndpoints)])
+    end,
     State#state{ pending_endpoints = FinalPendingEndpoints }.
 
 -spec get_endpoints(Server :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
@@ -317,6 +322,8 @@ resolve_pending([MaybeToEnable | RNewEndpoints], OldEnabled) ->
 
 -spec log_endpoints_changes(Server :: jid:lserver(),
                             EndpointsChanges :: endpoints_changes()) -> any().
+log_endpoints_changes(Server, []) ->
+    ?DEBUG("event=endpoints_changes,server='~s',to_enable='[]',to_disable='[]'", [Server]);
 log_endpoints_changes(Server, EndpointsChanges) ->
     ?INFO_MSG("event=endpoints_changes,server='~s',to_enable='~p',to_disable='~p'",
               [Server, [ E || {enable, E} <- EndpointsChanges ],
