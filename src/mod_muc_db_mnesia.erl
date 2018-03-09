@@ -109,7 +109,7 @@ get_rooms(_Lserver, MucHost) ->
 -spec can_use_nick(ejabberd:server(), ejabberd:server(),
                    ejabberd:jid(), mod_muc:nick()) -> boolean().
 can_use_nick(_ServerHost, MucHost, JID, Nick) ->
-    LUS = jid_to_lower_us(JID),
+    LUS = jid:to_lus(JID),
     can_use_nick_internal(MucHost, Nick, LUS).
 
 can_use_nick_internal(MucHost, Nick, LUS) ->
@@ -128,7 +128,7 @@ can_use_nick_internal(MucHost, Nick, LUS) ->
     end.
 
 get_nick(_ServerHost, MucHost, From) ->
-    LUS = jid_to_lower_us(From),
+    LUS = jid:to_lus(From),
     try mnesia:dirty_read(muc_registered, {LUS, MucHost}) of
         [] ->
             {error, not_registered};
@@ -143,7 +143,7 @@ get_nick(_ServerHost, MucHost, From) ->
 set_nick(_ServerHost, _MucHost, _From, <<>>) ->
     {error, should_not_be_empty};
 set_nick(_ServerHost, MucHost, From, Nick) ->
-    LUS = jid_to_lower_us(From),
+    LUS = jid:to_lus(From),
     F = fun () ->
             case can_use_nick_internal(MucHost, Nick, LUS) of
                 true ->
@@ -164,7 +164,7 @@ set_nick(_ServerHost, MucHost, From, Nick) ->
     end.
 
 unset_nick(_ServerHost, MucHost, From) ->
-    LUS = jid_to_lower_us(From),
+    LUS = jid:to_lus(From),
     F = fun () ->
             mnesia:delete({muc_registered, {LUS, MucHost}})
         end,
@@ -176,7 +176,3 @@ unset_nick(_ServerHost, MucHost, From) ->
                        [jid:to_binary(From), ErrorResult]),
             {error, ErrorResult}
     end.
-
-jid_to_lower_us(JID) ->
-    {LUser, LServer, _} = jid:to_lower(JID),
-    {LUser, LServer}.
