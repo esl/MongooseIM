@@ -92,7 +92,7 @@ preset(Preset) -> list_to_atom(Preset).
 read_file(ConfigFile) when is_list(ConfigFile) ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, ConfigFile]),
-    {ok, Props} = file:consult(ConfigFile),
+    {ok, Props} = handle_file_error(ConfigFile, file:consult(ConfigFile)),
     Props.
 
 tests_to_run(TestSpec) ->
@@ -151,7 +151,7 @@ get_ct_config([{spec, Spec}]) ->
         {config, [Config]} -> Config;
         _                  -> "test.config"
     end,
-    {ok, ConfigProps} = file:consult(ConfigFile),
+    {ok, ConfigProps} = handle_file_error(ConfigFile, file:consult(ConfigFile)),
     {ConfigFile, ConfigProps}.
 
 preset_names(Presets) ->
@@ -196,8 +196,8 @@ enable_preset_on_node(Node, PresetVars, HostVars) ->
     Cfg = filename:join([repo_dir(), "rel", "files", "ejabberd.cfg"]),
     Vars = filename:join([repo_dir(), "rel", HostVars]),
     CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
-    {ok, Template} = file:read_file(Cfg),
-    {ok, Default} = file:consult(Vars),
+    {ok, Template} = handle_file_error(Cfg, file:read_file(Cfg)),
+    {ok, Default} = handle_file_error(Vars, file:consult(Vars)),
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
                               lists:keystore(Var, 1, Acc, {Var, Val})
                           end, Default, PresetVars),
@@ -530,5 +530,13 @@ string_suffix(String, Suffix) ->
     StringR = lists:reverse(String),
     SuffixR = lists:reverse(Suffix),
     lists:reverse(string_prefix(StringR, SuffixR)).
+
+%% Gets result of file operation and prints filename, if we have any issues.
+handle_file_error(FileName, {error, Reason}) ->
+    error_logger:error_msg("issue=file_operation_error filename=~p reason=~p",
+                           [FileName, Reason]),
+    {error, Reason};
+handle_file_error(_FileName, Other) ->
+    Other.
 
 %% ------------------------------------------------------------------
