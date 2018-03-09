@@ -4515,11 +4515,12 @@ load_already_registered_permanent_rooms(_Config) ->
     HttpAuthPool = none,
 
     %% Write a permanent room
-    {atomic, ok} = escalus_ejabberd:rpc(mod_muc, store_room,
-                                        [domain(), Host, Room, []]),
+    ok = escalus_ejabberd:rpc(mod_muc, store_room,
+                              [domain(), Host, Room, []]),
 
     % Load permanent rooms
-    escalus_ejabberd:rpc(mod_muc, load_permanent_rooms , [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
+    escalus_ejabberd:rpc(mod_muc, load_permanent_rooms,
+                         [Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool]),
 
     %% Read online room
     RoomJID = escalus_ejabberd:rpc(jid,make,[Room,Host,<<>>]),
@@ -4556,8 +4557,8 @@ check_message_route_to_offline_room(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
         Room = <<"testroom4">>,
         Host = muc_host(),
-        {atomic, ok} = escalus_ejabberd:rpc(mod_muc, store_room,
-                                            [domain(), Host, Room, []]),
+        ok = escalus_ejabberd:rpc(mod_muc, store_room,
+                                  [domain(), Host, Room, []]),
 
         %% Send a message to an offline permanent room
         escalus:send(Alice, stanza_room_subject(Room, <<"Subject line">>)),
