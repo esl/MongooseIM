@@ -23,8 +23,9 @@
 -include("jlib.hrl").
 -include("global_distrib_metrics.hrl").
 
--export([deps/2, start/2, stop/1, get_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3,
-         maybe_reroute/1]).
+-export([deps/2, start/2, stop/1]).
+-export([find_metadata/2, get_metadata/3, remove_metadata/2, put_metadata/3]).
+-export([maybe_reroute/1]).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -43,17 +44,16 @@ start(Host, Opts0) ->
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
--spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) ->
-    {ok, Value :: term()}.
+-spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) -> Value :: term().
 get_metadata(Acc, Key, Default) ->
     case mongoose_acc:find(global_distrib, Acc) of
-        error -> {ok, Default};
-        {ok, GD} -> {ok, maps:get(Key, GD, Default)}
+        error -> Default;
+        {ok, GD} -> maps:get(Key, GD, Default)
     end.
 
--spec get_metadata(mongoose_acc:t(), Key :: term()) ->
+-spec find_metadata(mongoose_acc:t(), Key :: term()) ->
     {ok, Value :: term()} | {error, missing_gd_structure | undefined}.
-get_metadata(Acc, Key) ->
+find_metadata(Acc, Key) ->
     case mongoose_acc:find(global_distrib, Acc) of
         error ->
             {error, missing_gd_structure};
@@ -85,26 +85,26 @@ remove_metadata(Acc, Key) ->
 maybe_reroute(drop) -> drop;
 maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
-    {ok, ID} = get_metadata(Acc, id),
+    {ok, ID} = find_metadata(Acc, id),
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
     %% If target_host_override is set (typically when routed out of bounce storage),
     %% host lookup is skipped and messages are routed to target_host_override value.
-    {ok, TargetHostOverride} = get_metadata(Acc, target_host_override, undefined),
+    TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
     case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost,
                                [From, To, LocalHost]),
             ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
                    [ID, jid:to_binary(From), jid:to_binary(To)]),
-            {ok, TTL} = get_metadata(Acc, ttl),
+            {ok, TTL} = find_metadata(Acc, ttl),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, TTL),
             {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient,
                                GlobalHost, [From, To, TargetHost]),
-            case get_metadata(Acc, ttl) of
+            case find_metadata(Acc, ttl) of
                 {ok, 0} ->
                     ?INFO_MSG("event=ttl_zero,id=~s,from=~s,to=~s,found_at=~s",
                            [ID, jid:to_binary(From), jid:to_binary(To), TargetHost]),

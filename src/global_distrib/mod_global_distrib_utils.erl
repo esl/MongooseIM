@@ -200,7 +200,7 @@ maybe_update_mapping(#jid{luser = <<>>, lserver = LServer} = From, Acc) ->
 maybe_update_mapping(From, Acc) ->
     case mod_global_distrib_mapping:for_jid(From) of
         error ->
-            case mod_global_distrib:get_metadata(Acc, origin) of
+            case mod_global_distrib:find_metadata(Acc, origin) of
                 %% Lack of 'global_distrib' indicates 100% local routing...
                 {error, missing_gd_structure} ->
                     %% .. so we can insert From into cache with local host as mapping
@@ -221,7 +221,7 @@ ensure_domain_inserted(Acc, Domain) ->
     case mod_global_distrib_mapping:for_domain(Domain) of
         error ->
             %% See the comments in the last match of maybe_update_mapping/2 function
-            case mod_global_distrib:get_metadata(Acc, origin) of
+            case mod_global_distrib:find_metadata(Acc, origin) of
                 {error, missing_gd_structure} ->
                     mod_global_distrib_mapping:insert_for_domain(Domain);
                 {ok, Origin} ->
