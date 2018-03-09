@@ -535,10 +535,27 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
                    http_auth_pool = HttpAuthPool,
                    default_room_opts = DefRoomOpts} = State,
             {_, _, Nick} = jid:to_lower(To),
-            {ok, Pid} = start_new_room(Host, ServerHost, Access, Room,
+            Result = start_new_room(Host, ServerHost, Access, Room,
                                        HistorySize, RoomShaper, HttpAuthPool,
                                        From, Nick, DefRoomOpts),
-            register_room_or_stop_if_duplicate(Host, Room, Pid);
+            case Result of
+                {ok, Pid} ->
+                    register_room_or_stop_if_duplicate(Host, Room, Pid);
+                {error, {failed_to_restore, Reason}} ->
+                    %% Notify user about our backend module error
+                    ?WARNING_MSG("event=send_service_unavailable room=~ts reason=~p",
+                                 [Room, Reason]),
+                    Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
+                    ErrText = <<"Service is temporary unavailable">>,
+                    Err = jlib:make_error_reply(
+                            Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
+                    ejabberd_router:route(To, From, Acc, Err),
+                    {route_error, ErrText};
+                _ ->
+                    %% Unknown error, most likely a room process failed to start.
+                    %% Do not notify user (we can send "internal server error").
+                    erlang:error({start_new_room_failed, Room, Result})
+            end;
         false ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
@@ -548,18 +565,27 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
             {route_error, ErrText}
     end.
 
-get_registered_room_or_route_error_from_packet(Room, From, To, _Acc, Packet,
+get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
                                  #state{server_host = ServerHost,
                                         host = Host,
                                         access = Access} = State) ->
 
     case restore_room(ServerHost, Host, Room) of
-        {error, _} ->
+        {error, room_not_found} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
             Err = jlib:make_error_reply(
                     Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
             ejabberd_router:route(To, From, Err),
+            {route_error, ErrText};
+        {error, Reason} ->
+            ?WARNING_MSG("event=send_service_unavailable room=~ts reason=~p",
+                         [Room, Reason]),
+            Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
+            ErrText = <<"Service is temporary unavailable">>,
+            Err = jlib:make_error_reply(
+                    Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
+            ejabberd_router:route(To, From, Acc, Err),
             {route_error, ErrText};
         {ok, Opts} ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
@@ -722,12 +748,14 @@ start_new_room(Host, ServerHost, Access, Room,
                HistorySize, RoomShaper, HttpAuthPool, From,
                Nick, DefRoomOpts) ->
     case mod_muc_db_backend:restore_room(ServerHost, Host, Room) of
-        {error, _} ->
+        {error, room_not_found} ->
             ?DEBUG("MUC: open new room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
                                Room, HistorySize,
                                RoomShaper, HttpAuthPool, From,
                                Nick, DefRoomOpts);
+        {error, Reason} ->
+            {error, {failed_to_restore, Reason}};
         {ok, Opts} ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
             mod_muc_room:start(Host, ServerHost, Access,
