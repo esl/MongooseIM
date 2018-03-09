@@ -230,6 +230,8 @@ can_use_nick(_ServerHost, _Host, _JID, <<>>) ->
 can_use_nick(ServerHost, Host, JID, Nick) ->
     mod_muc_db_backend:can_use_nick(ServerHost, Host, JID, Nick).
 
+set_nick(LServer, Host, From, <<>>) ->
+    {error, should_not_be_empty};
 set_nick(LServer, Host, From, Nick) ->
     mod_muc_db_backend:set_nick(LServer, Host, From, Nick).
 

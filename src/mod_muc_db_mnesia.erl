@@ -140,9 +140,8 @@ get_nick(_ServerHost, MucHost, From) ->
             {error, {Class, Reason}}
     end.
 
-set_nick(_ServerHost, _MucHost, _From, <<>>) ->
-    {error, should_not_be_empty};
-set_nick(_ServerHost, MucHost, From, Nick) ->
+set_nick(_ServerHost, MucHost, From, Nick)
+      when is_binary(Nick), Nick =/= <<>> ->
     LUS = jid:to_lus(From),
     F = fun () ->
             case can_use_nick_internal(MucHost, Nick, LUS) of

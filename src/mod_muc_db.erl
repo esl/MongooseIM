@@ -38,7 +38,7 @@
 
 %% Register nick
 -callback set_nick(server_host(), muc_host(), client_jid(), mod_muc:nick()) ->
-    ok | {error, conflict} | {error, should_not_be_empty} | {error, term()}.
+    ok | {error, conflict} | {error, term()}.
 
 %% Unregister nick
 %% Unregistered nicks can be used by someone else
