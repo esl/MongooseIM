@@ -79,10 +79,10 @@ restore_room(_ServerHost, MucHost, RoomName) ->
             {error, room_not_found};
         Other ->
             {error, Other}
-        catch Class:Reason ->
-            ?ERROR_MSG("event=restore_room_failed room=~ts reason=~p:~p",
-                       [RoomName, Class, Reason]),
-            {error, {Class, Reason}}
+    catch Class:Reason ->
+        ?ERROR_MSG("event=restore_room_failed room=~ts reason=~p:~p",
+                   [RoomName, Class, Reason]),
+        {error, {Class, Reason}}
     end.
 
 -spec forget_room(ejabberd:server(), ejabberd:server(), mod_muc:room()) ->
@@ -122,10 +122,10 @@ can_use_nick_internal(MucHost, Nick, LUS) ->
             true;
         [#muc_registered{us_host = {U, _Host}}] ->
             U == LUS
-        catch Class:Reason ->
-            ?ERROR_MSG("event=can_use_nick_failed jid=~ts nick=~ts reason=~p:~p",
-                       [jid:to_binary(LUS), Nick, Class, Reason]),
-            false
+    catch Class:Reason ->
+        ?ERROR_MSG("event=can_use_nick_failed jid=~ts nick=~ts reason=~p:~p",
+                   [jid:to_binary(LUS), Nick, Class, Reason]),
+        false
     end.
 
 get_nick(_ServerHost, MucHost, From) ->
@@ -135,10 +135,10 @@ get_nick(_ServerHost, MucHost, From) ->
             {error, not_registered};
         [#muc_registered{nick = Nick}] ->
             {ok, Nick}
-        catch Class:Reason ->
-            ?ERROR_MSG("event=get_nick_failed jid=~ts reason=~p:~p",
-                       [jid:to_binary(From), Class, Reason]),
-            {error, {Class, Reason}}
+    catch Class:Reason ->
+        ?ERROR_MSG("event=get_nick_failed jid=~ts reason=~p:~p",
+                   [jid:to_binary(From), Class, Reason]),
+        {error, {Class, Reason}}
     end.
 
 set_nick(_ServerHost, MucHost, From, Nick)
