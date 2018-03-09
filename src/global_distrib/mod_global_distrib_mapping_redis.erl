@@ -270,7 +270,13 @@ refresh_jid(Jid) ->
 
 -spec refresh_endpoints() -> any().
 refresh_endpoints() ->
-    set_endpoints(mod_global_distrib_receiver:endpoints()).
+    AdvertisedEndpoints = opt(advertised_endpoints),
+    LocalEndpoints = mod_global_distrib_receiver:endpoints(),
+    FinalEndpoints = case AdvertisedEndpoints of
+                         false -> LocalEndpoints;
+                         Endpoints -> Endpoints
+                     end,
+    set_endpoints(FinalEndpoints).
 
 -spec set_endpoints(Endpoints :: [mod_global_distrib_utils:endpoint()]) -> any().
 set_endpoints(Endpoints) ->
@@ -279,15 +285,17 @@ set_endpoints(Endpoints) ->
     refresh_set(EndpointsKey, BinEndpoints).
 
 -spec endpoint_to_binary(mod_global_distrib_utils:endpoint()) -> binary().
-endpoint_to_binary({IpAddr, Port}) ->
-    iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]).
+endpoint_to_binary({IpAddr, Port}) when is_tuple(IpAddr) ->
+    iolist_to_binary([inet:ntoa(IpAddr), "#", integer_to_binary(Port)]);
+endpoint_to_binary({Domain, Port}) when is_list(Domain) ->
+    iolist_to_binary([unicode:characters_to_binary(Domain), "#", integer_to_binary(Port)]).
 
 -spec binary_to_endpoint(binary()) -> mod_global_distrib_utils:endpoint().
 binary_to_endpoint(Bin) ->
     [Addr, BinPort] = binary:split(Bin, <<"#">>),
-    {ok, IpAddr} = inet:parse_address(binary_to_list(Addr)),
+    {_, IpAddrOrDomain} = mod_global_distrib_utils:parse_address(Addr),
     Port = binary_to_integer(BinPort),
-    {IpAddr, Port}.
+    {IpAddrOrDomain, Port}.
 
 -spec refresh_domains() -> any().
 refresh_domains() ->

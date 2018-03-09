@@ -35,7 +35,8 @@ all() ->
      {group, start_checks},
      {group, invalidation},
      {group, multi_connection},
-     {group, rebalancing}
+     {group, rebalancing},
+     {group, advertised_endpoints}
     ].
 
 groups() ->
@@ -81,6 +82,11 @@ groups() ->
        disable_endpoint_on_refresh,
        wait_for_connection,
        closed_connection_is_removed_from_disabled
+      ]},
+     {advertised_endpoints, [],
+      [
+       test_advertised_endpoints_override_endpoints,
+       test_pm_between_users_at_different_locations
       ]}
     ].
 
@@ -102,7 +108,7 @@ init_per_suite(Config) ->
             CertDir = filename:join(?config(data_dir, Config), "../../priv/ssl"),
             CertPath = canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
             CACertPath = canonicalize_path(filename:join(CertDir, "cacert.pem")),
-            escalus:init_per_suite([{certfile, CertPath}, {cafile, CACertPath},
+            escalus:init_per_suite([{add_advertised_endpoints, []}, {certfile, CertPath}, {cafile, CACertPath},
                                     {extra_config, []}, {redis_extra_config, []} | Config]);
         _ ->
             {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
@@ -129,11 +135,17 @@ init_per_group(rebalancing, Config) ->
     RedisExtraConfig = [{refresh_after, 3600}],
     init_per_group(rebalancing_generic, [{extra_config, ExtraConfig},
                                          {redis_extra_config, RedisExtraConfig} | Config]);
+init_per_group(advertised_endpoints, Config) ->
+    load_suite_module_on_nodes(),
+    mock_inet_on_each_node(),
+    init_per_group(advertised_endpoints_generic,
+               [{add_advertised_endpoints,
+                 [{asia_node, advertised_endpoints()}]} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts = ?config(extra_config, Config1) ++
+                  Opts0 = ?config(extra_config, Config1) ++
 		         [{local_host, LocalHost},
                           {global_host, "localhost"},
                           {endpoints, [listen_endpoint(ReceiverPort)]},
@@ -143,6 +155,7 @@ init_per_group(_, Config0) ->
                                      ]},
                           {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
                           {resend_after_ms, 500}],
+                  Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
                   rpc(NodeName, gen_mod_deps, start_modules,
@@ -169,6 +182,10 @@ init_per_group(_, Config0) ->
     NodesKey = rpc(SomeNode, mod_global_distrib_mapping_redis, nodes_key, []),
     [{nodes_key, NodesKey}, {escalus_user_db, xmpp} | Config2].
 
+end_per_group(advertised_endpoints, Config) ->
+    Pids = ?config(meck_handlers, Config),
+    unmock_inet(Pids),
+    Config;
 end_per_group(start_checks, Config) ->
     Config;
 end_per_group(invalidation, Config) ->
@@ -242,6 +259,22 @@ generic_end_per_testcase(CaseName, Config) ->
 %% Service discovery test
 %%--------------------------------------------------------------------
 
+%% Requires module mod_global_distrib to be started with argument advertised_endpoints
+%% for each host in get_hosts().
+%% Reads Redis to confirm that endpoints (in Redis) are overwritten
+%% with `advertised_endpoints` option value
+test_advertised_endpoints_override_endpoints(Config) ->
+    Endps = execute_on_each_node(mod_global_distrib_mapping_redis,
+                                 get_endpoints,
+                                 [<<"reg1">>]),
+    true = lists:all(fun({ok, E}) ->
+                             lists:sort(iptuples_to_string(E)) =:=
+                                 lists:sort(advertised_endpoints()) end, Endps).
+
+%% When run in mod_global_distrib group - tests simple case of connection
+%% between two users connected to different clusters.
+%% When run in advertised_endpoints group it tests whether it is possible
+%% to connect to a node that is advertising itself with a domain name.
 test_pm_between_users_at_different_locations(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {eve, 1}], fun test_two_way_pm/2).
 
@@ -853,6 +886,58 @@ jids(Client) ->
 redis_query(Node, Query) ->
     RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
+
+%% A fake address we don't try to connect to.
+%% Used in test_advertised_endpoints_override_endpoints testcase.
+advertised_endpoints() ->
+    [
+     {fake_domain(), 7777}
+    ].
+
+fake_domain() ->
+    "somefakedomain.com".
+
+iptuples_to_string([]) ->
+    [];
+iptuples_to_string([{Addr, Port} | Endps]) when is_tuple(Addr) ->
+    [{inet_parse:ntoa(Addr), Port} | iptuples_to_string(Endps)];
+iptuples_to_string([E | Endps]) ->
+    [E | iptuples_to_string(Endps)].
+
+maybe_add_advertised_endpoints(NodeName, Opts, Config) ->
+    Endpoints = proplists:get_value(NodeName, ?config(add_advertised_endpoints, Config), []),
+    case Endpoints of
+        [] ->
+            Opts;
+        E ->
+            Connections = case lists:keyfind(connections, 1, Opts) of
+                              false -> [];
+                              C -> C
+                          end,
+            NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
+            [NewConnections | Opts]
+    end.
+
+load_suite_module_on_nodes() ->
+    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
+    execute_on_each_node(code, load_binary, [?MODULE, Filename, Binary]).
+
+mock_inet_on_each_node() ->
+    Nodes = lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()),
+    Results = lists:map(fun(Node) -> rpc:block_call(Node, ?MODULE, mock_inet, []) end, Nodes),
+    true = lists:all(fun(Result) -> Result =:= ok end, Results).
+
+execute_on_each_node(M, F, A) ->
+    lists:map(fun({NodeName, _, _}) -> rpc(NodeName, M, F, A) end, get_hosts()).
+
+mock_inet() ->
+    meck:new(inet, [non_strict, passthrough, unstick]),
+    meck:expect(inet, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
+                                   (_, inet6) -> {error, "No ipv6 address"} end).
+
+unmock_inet(Pids) ->
+    execute_on_each_node(meck, unload, [inet]).
+
 
 %% ------------------------------- rebalancing helpers -----------------------------------
 

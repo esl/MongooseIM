@@ -34,6 +34,8 @@
          session_opened/4, session_closed/5]).
 -export([endpoints/1]).
 
+-type endpoint() :: mod_global_distrib_utils:endpoint().
+
 %%--------------------------------------------------------------------
 %% Callbacks
 %%--------------------------------------------------------------------
@@ -47,7 +49,8 @@
 -callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
--callback get_endpoints(Host :: binary()) -> {ok, [{inet:ip_address(), inet:port()}]} | error.
+-callback get_endpoints(Host :: binary()) ->
+    {ok, [endpoint()]}.
 
 %%--------------------------------------------------------------------
 %% API
@@ -115,7 +118,7 @@ delete_for_jid({_, _, _} = Jid) ->
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
 
--spec endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
+-spec endpoints(Host :: jid:lserver()) -> {ok, [endpoint()]}.
 endpoints(Host) ->
     mod_global_distrib_mapping_backend:get_endpoints(Host).
 
@@ -125,7 +128,8 @@ endpoints(Host) ->
 
 -spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
-    Opts = [{backend, redis}, {redis, [no_opts]}, {cache_missed, true},
+    AdvEndpoints = get_advertised_endpoints(Opts0),
+    Opts = [{advertised_endpoints, AdvEndpoints}, {backend, redis}, {redis, [no_opts]}, {cache_missed, true},
             {domain_lifetime_seconds, 600}, {jid_lifetime_seconds, 5}, {max_jids, 10000} | Opts0],
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
@@ -298,3 +302,8 @@ do_lookup_jid({_, _, _} = Jid) ->
                 BareJid -> ets_cache:lookup(?JID_TAB, BinJid, LookupInDB(jid:to_binary(BareJid)))
             end
     end.
+
+-spec get_advertised_endpoints(Opts :: list()) -> [endpoint()].
+get_advertised_endpoints(Opts) ->
+    Conns = proplists:get_value(connections, Opts, []),
+    proplists:get_value(advertised_endpoints, Conns, false).

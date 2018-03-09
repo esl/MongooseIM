@@ -24,10 +24,12 @@
          start/4, deps/4, stop/3, opt/2, cast_or_call/2, cast_or_call/3, cast_or_call/4,
          create_ets/1, create_ets/2, any_binary_to_atom/1, resolve_endpoints/1,
          binary_to_metric_atom/1, ensure_metric/2, recipient_to_worker_key/2,
-         server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2
+         server_to_mgr_name/1, server_to_sup_name/1, maybe_update_mapping/2,
+         parse_address/1
         ]).
 
--type endpoint() :: {inet:ip_address(), inet:port_number()}.
+-type domain_name() :: string().
+-type endpoint() :: {inet:ip_address() | domain_name(), inet:port_number()}.
 
 -export_type([endpoint/0]).
 
@@ -155,18 +157,22 @@ create_ets(Name, Type) ->
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
 resolve_endpoints(Endpoints) ->
-    lists:flatmap(
-      fun({Addr, Port}) ->
-              case to_ip_tuples(Addr) of
-                  {ok, IpAddrs} ->
-                      [{IpAddr, Port} || IpAddr <- IpAddrs];
-                  {error, {Reasonv6, Reasonv4}} ->
-                      ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
-                                 [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
-                      error({Reasonv6, Reasonv4})
-              end
-      end,
-      Endpoints).
+    lists:flatmap(fun resolve_endpoint/1, Endpoints).
+
+resolve_endpoint({Addr, _Port} = E) when is_tuple(Addr) ->
+    [E];
+resolve_endpoint({Addr, Port}) ->
+    case to_ip_tuples(Addr) of
+        {ok, IpAddrs} ->
+            Resolved = [{IpAddr, Port} || IpAddr <- IpAddrs],
+            ?INFO_MSG_IF(is_domain(Addr), "Domain ~p resolved to: ~p", [Addr, IpAddrs]),
+            Resolved;
+        {error, {Reasonv6, Reasonv4}} ->
+            ?ERROR_MSG("Cannot convert ~p to IP address: IPv6: ~s. IPv4: ~s.",
+                       [Addr, inet:format_error(Reasonv6), inet:format_error(Reasonv4)]),
+            error({domain_not_resolved, {Reasonv6, Reasonv4}})
+    end.
+
 
 -spec recipient_to_worker_key(jid:jid() | jid:ljid(), jid:lserver()) -> binary().
 recipient_to_worker_key(#jid{} = Jid, GlobalHost) ->
@@ -244,12 +250,37 @@ translate_opt(Opt) ->
 -spec to_ip_tuples(Addr :: inet:ip_address() | string()) ->
                          {ok, [inet:ip_address()]} | {error, {V6 :: atom(), V4 :: atom()}}.
 to_ip_tuples(Addr) ->
-    case inet:getaddrs(Addr, inet6) of
-        {ok, Av6s} -> {ok, Av6s};
-        {error, Reasonv6} ->
-            case inet:getaddrs(Addr, inet) of
-                {ok, Av4s} -> {ok, Av4s};
-                {error, Reasonv4} -> {error, {Reasonv6, Reasonv4}}
-            end
+    case {inet:getaddrs(Addr, inet6), inet:getaddrs(Addr, inet)} of
+        {{error, Reason6}, {error, Reason4}} ->
+            {error, {Reason6, Reason4}};
+        {Addrs, {error, Msg}} ->
+            ?DEBUG("IPv4 address resolution error: ~p ~p", [Addr, Msg]),
+            Addrs;
+        {{error, Msg}, Addrs} ->
+            ?DEBUG("IPv6 address resolution error: ~p ~p", [Addr, Msg]),
+            Addrs;
+        {{ok, Addrs6}, {ok, Addrs4}} ->
+            {ok, Addrs6 ++ Addrs4}
     end.
 
+-spec parse_address(binary() | string() | inet:ip_address()) ->
+    {ip, inet:ip_address()} | {domain, domain_name()}.
+parse_address(DomainOrIp) when is_binary(DomainOrIp) ->
+    parse_address(binary_to_list(DomainOrIp));
+parse_address(Ip) when is_tuple(Ip) ->
+    {ip, Ip};
+parse_address(DomainOrIp) ->
+    case inet:parse_address(DomainOrIp) of
+        {error, einval} ->
+            {domain, DomainOrIp};
+        {ok, Ip} ->
+            {ip, Ip}
+    end.
+
+is_domain(DomainOrIp) ->
+    case parse_address(DomainOrIp) of
+        {domain, _} ->
+            true;
+        _ ->
+            false
+    end.
