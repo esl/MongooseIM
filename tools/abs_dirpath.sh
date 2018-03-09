@@ -15,8 +15,8 @@
 set -e
 
 if [ "$#" -ne 1 ]; then
+    echo -e "Usage:\n \$ abs_dirpath.sh \$DIRECTORY_NAME"
     exit "Illegal number of parameters"
 fi
 
-DIR=$(echo "${1%/*}")
-(cd "$DIR" && echo "$(pwd -P)")
+(cd "$1" && echo "$(pwd -P)")
