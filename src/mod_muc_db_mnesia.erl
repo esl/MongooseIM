@@ -55,7 +55,7 @@ init(_Host, _Opts) ->
     ok.
 
 -spec store_room(ejabberd:server(), ejabberd:server(), mod_muc:room(), list())
-            -> {'aborted', _} | {'atomic', _}.
+            -> ok | {error, term()}.
 store_room(_ServerHost, MucHost, RoomName, Opts) ->
     F = fun() ->
                 mnesia:write(#muc_room{name_host = {RoomName, MucHost},
@@ -66,10 +66,10 @@ store_room(_ServerHost, MucHost, RoomName, Opts) ->
         {atomic, _} ->
             ok;
         _ ->
-            ?ERROR_MSG("event=store_room_failed room=~ts", [RoomName])
-    end,
-    Result.
-
+            ?ERROR_MSG("event=store_room_failed room=~ts reason=~p",
+                       [RoomName, Result]),
+            {error, Result}
+    end.
 
 restore_room(_ServerHost, MucHost, RoomName) ->
     try mnesia:dirty_read(muc_room, {RoomName, MucHost}) of

@@ -20,7 +20,7 @@
 -callback init(server_host(), ModuleOpts :: list()) -> ok.
 
 -callback store_room(server_host(), muc_host(), mod_muc:room(), room_opts()) ->
-    {aborted, _} | {atomic, _}.
+    ok | {error, term()}.
 
 -callback restore_room(server_host(), muc_host(), mod_muc:room()) ->
     {ok, room_opts()} | {error, room_not_found} | {error, term()}.

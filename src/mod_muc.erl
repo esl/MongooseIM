@@ -195,7 +195,7 @@ create_instant_room(Host, Name, From, Nick, Opts) ->
 
 
 -spec store_room(jid:server(), jid:server(), room(), list()) ->
-    {'aborted', _} | {'atomic', _}.
+    {error, _} | ok.
 store_room(ServerHost, Host, Name, Opts) ->
     mod_muc_db_backend:store_room(ServerHost, Host, Name, Opts).
 
