@@ -31,7 +31,8 @@
 -callback can_use_nick(server_host(), muc_host(),
                        client_jid(), mod_muc:nick()) -> boolean().
 
--callback get_rooms(server_host(), muc_host()) -> [#muc_room{}].
+-callback get_rooms(server_host(), muc_host()) ->
+    {ok, [#muc_room{}]} | {error, term()}.
 
 %% Get nick associated with jid client_jid() across muc_host() domain
 -callback get_nick(server_host(), muc_host(), client_jid()) ->

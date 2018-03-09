@@ -713,12 +713,13 @@ check_user_can_create_room(ServerHost, AccessCreate, From, RoomID) ->
         RoomShaper :: shaper:shaper(), HttpAuthPool :: none | mongoose_http_client:pool()) -> 'ok'.
 load_permanent_rooms(Host, ServerHost, Access, HistorySize, RoomShaper, HttpAuthPool) ->
     RoomsToLoad =
-    case catch mod_muc_db_backend:get_rooms(ServerHost, Host) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]),
-            [];
-        Rs ->
-            Rs
+    case mod_muc_db_backend:get_rooms(ServerHost, Host) of
+        {ok, Rs} ->
+            Rs;
+        {error, Reason} ->
+            ?ERROR_MSG("event=get_rooms_failed event=skip_load_permanent_rooms reason=~p",
+                       [Reason]),
+            []
     end,
     lists:foreach(
       fun(R) ->

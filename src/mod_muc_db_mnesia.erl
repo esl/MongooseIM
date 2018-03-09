@@ -105,7 +105,13 @@ get_rooms(_Lserver, MucHost) ->
     Query = [{#muc_room{name_host = {'_', MucHost}, _ = '_'},
              [],
              ['$_']}],
-    mnesia:dirty_select(muc_room, Query).
+    try
+        {ok, mnesia:dirty_select(muc_room, Query)}
+    catch Class:Reason ->
+        ?ERROR_MSG("event=get_rooms_failed reason=~p:~p",
+                   [Class, Reason]),
+        {error, {Class, Reason}}
+    end.
 
 -spec can_use_nick(ejabberd:server(), ejabberd:server(),
                    ejabberd:jid(), mod_muc:nick()) -> boolean().
