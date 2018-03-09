@@ -87,23 +87,22 @@ terminate(_Reason, _State) ->
 maybe_store_message(drop) -> drop;
 maybe_store_message({From, To, Acc0, Packet} = FPacket) ->
     LocalHost = opt(local_host),
+    {ok, ID} = mod_global_distrib:get_metadata(Acc0, id),
     case mod_global_distrib:get_metadata(Acc0, {bounce_ttl, LocalHost}, opt(max_retries)) of
-        0 ->
-            Id = mod_global_distrib:get_metadata(Acc0, id),
+        {ok, 0} ->
             FromBin = jid:to_binary(From),
             ToBin = jid:to_binary(To),
             ?DEBUG("Not storing global message id=~s from=~s to=~s as bounce_ttl=0",
-                   [Id, FromBin, ToBin]),
+                   [ID, FromBin, ToBin]),
             ?ERROR_MSG_IF(To#jid.luser == <<>>,
                           "event=message_to_component_ttl_zero,id=~s,from=~s,to=~s",
-                          [Id, FromBin, ToBin]),
+                          [ID, FromBin, ToBin]),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
             FPacket;
-        OldTTL ->
+        {ok, OldTTL} ->
             ?DEBUG("Storing global message id=~s from=~s to=~s to "
                    "resend after ~B ms (bounce_ttl=~B)",
-                   [mod_global_distrib:get_metadata(Acc0, id),
-                    jid:to_binary(From), jid:to_binary(To),
+                   [ID, jid:to_binary(From), jid:to_binary(To),
                     p1_time_compat:convert_time_unit(opt(resend_after), native, milli_seconds),
                     OldTTL]),
             Acc = mod_global_distrib:put_metadata(Acc0, {bounce_ttl, LocalHost}, OldTTL - 1),

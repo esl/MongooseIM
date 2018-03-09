@@ -44,19 +44,24 @@ stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
 
 -spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) ->
-    Value :: term() | {error, missing_gd_structure}.
+    {ok, Value :: term()}.
 get_metadata(Acc, Key, Default) ->
-    case mongoose_acc:get(global_distrib, Acc, undefined) of
-        undefined -> {error, missing_gd_structure};
-        GD -> maps:get(Key, GD, Default)
+    case mongoose_acc:find(global_distrib, Acc) of
+        error -> {ok, Default};
+        {ok, GD} -> {ok, maps:get(Key, GD, Default)}
     end.
 
 -spec get_metadata(mongoose_acc:t(), Key :: term()) ->
-    Value :: term() | {error, missing_gd_structure}.
+    {ok, Value :: term()} | {error, missing_gd_structure | undefined}.
 get_metadata(Acc, Key) ->
-    case mongoose_acc:get(global_distrib, Acc, undefined) of
-        undefined -> {error, missing_gd_structure};
-        GD -> maps:get(Key, GD)
+    case mongoose_acc:find(global_distrib, Acc) of
+        error ->
+            {error, missing_gd_structure};
+        {ok, GD} ->
+           case maps:find(Key, GD) of
+               error -> {error, undefined};
+               {ok, Value} -> {ok, Value}
+           end
     end.
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
@@ -80,35 +85,34 @@ remove_metadata(Acc, Key) ->
 maybe_reroute(drop) -> drop;
 maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
+    {ok, ID} = get_metadata(Acc, id),
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
     %% If target_host_override is set (typically when routed out of bounce storage),
     %% host lookup is skipped and messages are routed to target_host_override value.
-    TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
+    {ok, TargetHostOverride} = get_metadata(Acc, target_host_override, undefined),
     case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost,
                                [From, To, LocalHost]),
             ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
-                   [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
-            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL,
-                                    get_metadata(Acc, ttl)),
+                   [ID, jid:to_binary(From), jid:to_binary(To)]),
+            {ok, TTL} = get_metadata(Acc, ttl),
+            mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, TTL),
             {From, To, Acc, Packet};
 
         {ok, TargetHost} ->
             ejabberd_hooks:run(mod_global_distrib_known_recipient,
                                GlobalHost, [From, To, TargetHost]),
             case get_metadata(Acc, ttl) of
-                0 ->
+                {ok, 0} ->
                     ?INFO_MSG("event=ttl_zero,id=~s,from=~s,to=~s,found_at=~s",
-                           [get_metadata(Acc, id), jid:to_binary(From),
-                            jid:to_binary(To), TargetHost]),
+                           [ID, jid:to_binary(From), jid:to_binary(To), TargetHost]),
                     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
                     FPacket;
-                TTL ->
+                {ok, TTL} ->
                     ?DEBUG("Rerouting global message id=~s from=~s to=~s to ~s (TTL: ~B)",
-                           [get_metadata(Acc, id), jid:to_binary(From),
-                            jid:to_binary(To), TargetHost, TTL]),
+                           [ID, jid:to_binary(From), jid:to_binary(To), TargetHost, TTL]),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Acc2 = remove_metadata(Acc1, target_host_override),
                     Worker = get_bound_connection(TargetHost),
@@ -119,7 +123,7 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
         error ->
             ?DEBUG("Unable to route global message id=~s from=~s to=~s: "
                    "user not found in the routing table",
-                   [get_metadata(Acc, id), jid:to_binary(From), jid:to_binary(To)]),
+                   [ID, jid:to_binary(From), jid:to_binary(To)]),
             ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
                                     GlobalHost, {From, To, Acc, Packet}, [])
     end.

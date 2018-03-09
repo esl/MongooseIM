@@ -205,7 +205,7 @@ maybe_update_mapping(From, Acc) ->
                 {error, missing_gd_structure} ->
                     %% .. so we can insert From into cache with local host as mapping
                     mod_global_distrib_mapping:insert_for_jid(From);
-                Origin ->
+                {ok, Origin} ->
                     mod_global_distrib_mapping:insert_for_jid(From, Origin)
             end;
         _ ->
@@ -224,7 +224,7 @@ ensure_domain_inserted(Acc, Domain) ->
             case mod_global_distrib:get_metadata(Acc, origin) of
                 {error, missing_gd_structure} ->
                     mod_global_distrib_mapping:insert_for_domain(Domain);
-                Origin ->
+                {ok, Origin} ->
                     mod_global_distrib_mapping:insert_for_domain(Domain, Origin)
             end;
         _ ->
