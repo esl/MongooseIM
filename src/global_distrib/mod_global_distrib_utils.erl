@@ -254,10 +254,10 @@ to_ip_tuples(Addr) ->
         {{error, Reason6}, {error, Reason4}} ->
             {error, {Reason6, Reason4}};
         {Addrs, {error, Msg}} ->
-            ?DEBUG("IPv6 address resolution error: ~p", [Msg]),
+            ?DEBUG("IPv4 address resolution error: ~p ~p", [Addr, Msg]),
             Addrs;
         {{error, Msg}, Addrs} ->
-            ?DEBUG("IPv4 address resolution error: ~p", [Msg]),
+            ?DEBUG("IPv6 address resolution error: ~p ~p", [Addr, Msg]),
             Addrs;
         {{ok, Addrs6}, {ok, Addrs4}} ->
             {ok, Addrs6 ++ Addrs4}
