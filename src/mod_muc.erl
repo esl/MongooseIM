@@ -205,11 +205,25 @@ store_room(ServerHost, Host, Name, Opts) ->
 restore_room(ServerHost, Host, Name) ->
     mod_muc_db_backend:restore_room(ServerHost, Host, Name).
 
-
--spec forget_room(jid:server(), jid:server(), room()) -> 'ok'.
+-spec forget_room(jid:server(), jid:server(), room()) -> ok | {error, term()}.
 forget_room(ServerHost, Host, Name) ->
-    mod_muc_db_backend:forget_room(ServerHost, Host, Name).
-
+    %% Removes room from DB, even if it's already removed.
+    Result = mod_muc_db_backend:forget_room(ServerHost, Host, Name),
+    case Result of
+        ok ->
+            %% TODO this hook should be refactored to be executed on ServerHost, not Host.
+            %% It also should be renamed to forget_room_hook.
+            %% We also need to think how to remove stopped rooms
+            %% (i.e. in case we want to expose room removal over REST or SQS).
+            %%
+            %% In some _rare_ cases this hook can be called more than once for the same room.
+            ejabberd_hooks:run(forget_room, Host, [Host, Name]);
+        _ ->
+            %% Room is not removed or we don't know.
+            %% XXX Handle this case better.
+            ok
+    end,
+    Result.
 
 -spec process_iq_disco_items(Host :: jid:server(), From :: jid:jid(),
         To :: jid:jid(), jlib:iq()) -> mongoose_acc:t().

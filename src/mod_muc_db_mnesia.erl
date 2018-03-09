@@ -85,7 +85,8 @@ restore_room(_ServerHost, MucHost, RoomName) ->
             {error, {Class, Reason}}
     end.
 
--spec forget_room(ejabberd:server(), ejabberd:server(), mod_muc:room()) -> 'ok'.
+-spec forget_room(ejabberd:server(), ejabberd:server(), mod_muc:room()) ->
+    ok | {error, term()}.
 forget_room(_ServerHost, MucHost, RoomName) ->
     F = fun() ->
                 mnesia:delete({muc_room, {RoomName, MucHost}})
@@ -93,12 +94,12 @@ forget_room(_ServerHost, MucHost, RoomName) ->
     Result = mnesia:transaction(F),
     case Result of
         {atomic, _} ->
-            ejabberd_hooks:run(forget_room, MucHost, [MucHost, RoomName]),
             ok;
         _ ->
-            ?ERROR_MSG("event=forget_room_failed room=~ts", [RoomName])
-    end,
-    ok.
+            ?ERROR_MSG("event=forget_room_failed room=~ts reason=~p",
+                       [RoomName, Result]),
+            {error, Result}
+    end.
 
 get_rooms(_Lserver, MucHost) ->
     Query = [{#muc_room{name_host = {'_', MucHost}, _ = '_'},

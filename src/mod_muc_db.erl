@@ -25,7 +25,8 @@
 -callback restore_room(server_host(), muc_host(), mod_muc:room()) ->
     {ok, room_opts()} | {error, room_not_found} | {error, term()}.
 
--callback forget_room(server_host(), muc_host(), mod_muc:room()) -> ok.
+-callback forget_room(server_host(), muc_host(), mod_muc:room()) ->
+    ok | {error, term()}.
 
 -callback can_use_nick(server_host(), muc_host(),
                        client_jid(), mod_muc:nick()) -> boolean().
