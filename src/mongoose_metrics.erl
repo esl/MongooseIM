@@ -81,7 +81,8 @@ init_subscriptions() ->
                 subscribe_to_all(Name, Interval)
         end, Reporters).
 
--spec create_generic_hook_metric(jid:lserver(), atom()) -> ok | {ok, already_present}.
+-spec create_generic_hook_metric(jid:lserver(), atom()) ->
+    ok | {ok, already_present} | {error, any()}.
 create_generic_hook_metric(Host, Hook) ->
     FilteredHookName = filter_hook(Hook),
     do_create_generic_hook_metric(Host, FilteredHookName).
@@ -99,7 +100,8 @@ update(Host, Name, Change) when is_list(Name) ->
 update(Host, Name, Change) ->
     update(Host, [Name], Change).
 
--spec ensure_metric(jid:lserver() | global, atom() | list(), term()) -> ok | {error, term()}.
+-spec ensure_metric(jid:lserver() | global, atom() | list(), term()) ->
+    ok | {ok, already_present} | {error, any()}.
 ensure_metric(Host, Metric, Type) when is_tuple(Type) ->
     ensure_metric(Host, Metric, Type, element(1, Type));
 ensure_metric(Host, Metric, Type) ->
@@ -177,7 +179,7 @@ get_report_interval() ->
                         ?DEFAULT_REPORT_INTERVAL).
 
 -spec do_create_generic_hook_metric(Host :: jid:lserver() | global, Metric :: list()) ->
-    ok | {ok, already_present}.
+    ok | {ok, already_present} | {error, any()}.
 do_create_generic_hook_metric(_, [_, skip]) ->
     ok;
 do_create_generic_hook_metric(Host, Metric) ->
@@ -328,7 +330,12 @@ ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
     case exometer:info(PrefixedMetric, type) of
         ShortType -> {ok, already_present};
-        undefined -> exometer:new(PrefixedMetric, Type)
+        undefined ->
+            case catch exometer:new(PrefixedMetric, Type) of
+                {'EXIT', {exists, _}} -> {ok, already_present};
+                ok -> ok;
+                {'EXIT', Error} -> {error, Error}
+            end
     end.
 
 -spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.

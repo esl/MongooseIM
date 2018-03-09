@@ -48,7 +48,7 @@ binary_to_metric_atom(Binary) ->
     list_to_atom(List).
 
 ensure_metric(Metric, Type) ->
-    case catch mongoose_metrics:ensure_metric(global, Metric, Type) of
+    case mongoose_metrics:ensure_metric(global, Metric, Type) of
         ok ->
             Reporters = exometer_report:list_reporters(),
             Interval = mongoose_metrics:get_report_interval(),
@@ -59,7 +59,7 @@ ensure_metric(Metric, Type) ->
               end,
               Reporters);
         {ok, already_present} ->
-            ?INFO_MSG("issue=metric_already_exists,metric=\"~p\",type=\"~p\"", [Metric, Type]),
+            ?DEBUG("issue=metric_already_exists,metric=\"~p\",type=\"~p\"", [Metric, Type]),
             ok;
         Other ->
             ?WARNING_MSG("issue=cannot_create_metric,metric=\"~p\",type=\"~p\",reason=\"~p\"",

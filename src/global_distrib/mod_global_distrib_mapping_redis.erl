@@ -125,17 +125,17 @@ init(RefreshAfter) ->
     {ok, RefreshAfter}.
 
 handle_info(refresh, RefreshAfter) ->
-    ?INFO_MSG("event=refreshing_hosts", []),
+    ?DEBUG("event=refreshing_own_hosts", []),
     refresh_hosts(),
-    ?INFO_MSG("event=refreshing_nodes", []),
+    ?DEBUG("event=refreshing_own_nodes", []),
     refresh_nodes(),
-    ?INFO_MSG("event=refreshing_jids", []),
+    ?DEBUG("event=refreshing_own_jids", []),
     refresh_jids(),
-    ?INFO_MSG("event=refreshing_endpoints", []),
+    ?DEBUG("event=refreshing_own_endpoints", []),
     refresh_endpoints(),
-    ?INFO_MSG("event=refreshing_domains", []),
+    ?DEBUG("event=refreshing_own_domains", []),
     refresh_domains(),
-    ?INFO_MSG("event=refreshing_done,next_refresh_in=~p", [RefreshAfter]),
+    ?DEBUG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
     erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
     {noreply, RefreshAfter}.
 
