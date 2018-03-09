@@ -294,10 +294,10 @@ init([Host, Opts]) ->
 
     case gen_mod:get_module_opt(Host, mod_muc, load_permanent_rooms_at_startup, false) of
         false ->
-            ?INFO_MSG("issue=load_permanent_rooms_at_startup, skip=true, "
+            ?INFO_MSG("event=load_permanent_rooms_at_startup, skip=true, "
                       "details=\"each room is loaded when someone access the room\"", []);
         true ->
-            ?INFO_MSG("issue=load_permanent_rooms_at_startup, skip=false, "
+            ?INFO_MSG("event=load_permanent_rooms_at_startup, skip=false, "
                       "details=\"it can take some time\"", []),
             load_permanent_rooms(MyHost, Host,
                                  {Access, AccessCreate, AccessAdmin, AccessPersistent},
@@ -622,12 +622,12 @@ route_by_type(<<"iq">>, {From, To, _Acc, Packet}, #state{host = Host} = State) -
                                         children = [iq_get_unique(From)]}]},
            ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
         #iq{} ->
-            ?INFO_MSG("issue=ignore_unknown_iq from=~ts to=~ts packet=~1000p",
+            ?INFO_MSG("event=ignore_unknown_iq from=~ts to=~ts packet=~1000p",
                       [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(To, From, Err);
         _ ->
-            ?INFO_MSG("issue=failed_to_parse_iq from=~ts to=~ts packet=~1000p",
+            ?INFO_MSG("event=failed_to_parse_iq from=~ts to=~ts packet=~1000p",
                       [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
             ok
     end;
@@ -938,7 +938,7 @@ iq_set_register_info(ServerHost, Host, From, Nick, Lang) ->
             ErrText = <<"You must fill in field \"Nickname\" in the form">>,
             {error, mongoose_xmpp_errors:not_acceptable(Lang, ErrText)};
         {error, ErrorReason} ->
-            ?ERROR_MSG("issue=iq_set_register_info_failed, "
+            ?ERROR_MSG("event=iq_set_register_info_failed, "
                         "jid=~ts, nick=~p, reason=~p",
                        [jid:to_binary(From), Nick, ErrorReason]),
             {error, mongoose_xmpp_errors:internal_server_error()}
@@ -952,7 +952,7 @@ iq_set_unregister_info(ServerHost, Host, From, _Lang) ->
         ok ->
             {result, []};
         {error, ErrorReason} ->
-            ?ERROR_MSG("issue=iq_set_unregister_info_failed, "
+            ?ERROR_MSG("event=iq_set_unregister_info_failed, "
                         "jid=~ts, reason=~p",
                        [jid:to_binary(From), ErrorReason]),
             {error, mongoose_xmpp_errors:internal_server_error()}

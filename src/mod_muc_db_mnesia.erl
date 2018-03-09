@@ -66,7 +66,7 @@ store_room(_ServerHost, MucHost, RoomName, Opts) ->
         {atomic, _} ->
             ok;
         _ ->
-            ?ERROR_MSG("issue=store_room_failed room=~ts", [RoomName])
+            ?ERROR_MSG("event=store_room_failed room=~ts", [RoomName])
     end,
     Result.
 
@@ -80,7 +80,7 @@ restore_room(_ServerHost, MucHost, RoomName) ->
         Other ->
             {error, Other}
         catch Class:Reason ->
-            ?ERROR_MSG("issue=restore_room_failed room=~ts reason=~p:~p",
+            ?ERROR_MSG("event=restore_room_failed room=~ts reason=~p:~p",
                        [RoomName, Class, Reason]),
             {error, {Class, Reason}}
     end.
@@ -96,7 +96,7 @@ forget_room(_ServerHost, MucHost, RoomName) ->
             ejabberd_hooks:run(forget_room, MucHost, [MucHost, RoomName]),
             ok;
         _ ->
-            ?ERROR_MSG("issue=forget_room_failed room=~ts", [RoomName])
+            ?ERROR_MSG("event=forget_room_failed room=~ts", [RoomName])
     end,
     ok.
 
@@ -122,7 +122,7 @@ can_use_nick_internal(MucHost, Nick, LUS) ->
         [#muc_registered{us_host = {U, _Host}}] ->
             U == LUS
         catch Class:Reason ->
-            ?ERROR_MSG("issue=can_use_nick_failed jid=~ts nick=~ts reason=~p:~p",
+            ?ERROR_MSG("event=can_use_nick_failed jid=~ts nick=~ts reason=~p:~p",
                        [jid:to_binary(LUS), Nick, Class, Reason]),
             false
     end.
@@ -135,7 +135,7 @@ get_nick(_ServerHost, MucHost, From) ->
         [#muc_registered{nick = Nick}] ->
             {ok, Nick}
         catch Class:Reason ->
-            ?ERROR_MSG("issue=get_nick_failed jid=~ts reason=~p:~p",
+            ?ERROR_MSG("event=get_nick_failed jid=~ts reason=~p:~p",
                        [jid:to_binary(From), Class, Reason]),
             {error, {Class, Reason}}
     end.
@@ -158,7 +158,7 @@ set_nick(_ServerHost, MucHost, From, Nick) ->
         {atomic, Result} ->
             Result;
         ErrorResult ->
-            ?ERROR_MSG("issue=set_nick_failed jid=~ts nick=~ts reason=~1000p",
+            ?ERROR_MSG("event=set_nick_failed jid=~ts nick=~ts reason=~1000p",
                        [jid:to_binary(From), Nick, ErrorResult]),
             {error, ErrorResult}
     end.
@@ -172,7 +172,7 @@ unset_nick(_ServerHost, MucHost, From) ->
         {atomic, _} ->
             ok;
         ErrorResult ->
-            ?ERROR_MSG("issue=unset_nick_failed jid=~ts reason=~1000p",
+            ?ERROR_MSG("event=unset_nick_failed jid=~ts reason=~1000p",
                        [jid:to_binary(From), ErrorResult]),
             {error, ErrorResult}
     end.
