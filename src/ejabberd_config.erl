@@ -1146,7 +1146,8 @@ filter_out_node_specific_options([Opt | Opts]) ->
 % path exists). The `root path` for them is a list of modules.
 node_specific_module_options() ->
     [
-     [mod_global_distrib, connections, endpoints]
+     [mod_global_distrib, connections, endpoints],
+     [mod_global_sitrib, redis, server]
     ].
 
 delete_path_in_proplist(Plist, [Step]) ->
