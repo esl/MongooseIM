@@ -44,7 +44,7 @@ if [ "$DB" = 'mysql' ]; then
 elif [ "$DB" = 'pgsql' ]; then
     echo "Configuring postgres with SSL"
     sudo service postgresql stop || echo "Failed to stop psql"
-    mkdir ${SQL_TEMP_DIR}
+    mkdir -p ${SQL_TEMP_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     cp ${SSLDIR}/fake_key.pem ${SQL_TEMP_DIR}/.
     cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
@@ -143,6 +143,56 @@ elif [ "$DB" = 'cassandra' ]; then
                --link cassandra:cassandra                       \
                cassandra:${CASSANDRA_VERSION}                   \
                sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
+
+elif [ "$DB" = 'mssql' ]; then
+    # MSSQL wants secure passwords
+    docker run -d -p 1433:1433                                  \
+               --name=mongoose-mssql                            \
+               -e "ACCEPT_EULA=Y"                               \
+               -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
+               -v "$(pwd)/priv/mssql2012.sql:/mongoose.sql:ro"  \
+               --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
+               microsoft/mssql-server-linux
+    tools/wait_for_healthcheck.sh mongoose-mssql
+    tools/wait_for_service.sh mongoose-mssql 1433
+
+    docker exec -it mongoose-mssql \
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "CREATE DATABASE ejabberd"
+    docker exec -it mongoose-mssql \
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -i mongoose.sql
+
+    # Be aware, that underscore in TDS_Version is required.
+    # It can't be just "TDS Version = 7.1".
+    #
+    # To check that connection works use:
+    #
+    # {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123",[]).
+    #
+    # To check that TDS version is correct, use:
+    #
+    # odbc:sql_query(Conn, "select cast(1 as bigint)").
+    #
+    # It should return:
+    # {selected,[[]],[{"1"}]}
+    #
+    # It should not return:
+    # {selected,[[]],[{1.0}]}
+    #
+    # Be aware, that Driver and Setup values are for Ubuntu.
+    # CentOS would use different ones.
+    cat > ~/.odbc.ini << EOL
+[mongoose-mssql]
+Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
+Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+Server      = 127.0.0.1
+Port        = 1433
+Database    = ejabberd
+Username    = sa
+Password    = mongooseim_secret+ESL123
+Charset     = UTF-8
+TDS_Version = 7.1
+EOL
+
 else
     echo "Skip setting up database"
 fi

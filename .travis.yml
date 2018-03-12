@@ -10,6 +10,8 @@ addons:
         - slapd
         - ldap-utils
         - golang # used for google drive test results upload
+        - unixodbc  # for mssql
+        - tdsodbc   # for mssql
 before_install:
         - tools/configure $REL_CONFIG
 install:
@@ -61,6 +63,7 @@ env:
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
         - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
         - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
+        - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.9
 
