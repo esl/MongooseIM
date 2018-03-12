@@ -63,7 +63,7 @@ end_per_suite(Config) ->
     Config.
 
 init_per_group(public_key, Config) ->
-    Root = filename:join(["..", "..", "..", ".."]),
+    Root = small_path_helper:repo_dir(Config),
     PrivkeyPath = filename:join([Root, "tools", "ssl", "fake_privkey.pem"]),
     PubkeyPath = filename:join([Root, "tools", "ssl", "fake_pubkey.pem"]),
     {ok, PrivKey} = file:read_file(PrivkeyPath),
