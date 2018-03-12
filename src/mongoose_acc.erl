@@ -20,7 +20,7 @@
 -include("mongoose.hrl").
 
 %% API
--export([new/0, from_kv/2, put/3, get/2, get/3, append/3, remove/2]).
+-export([new/0, from_kv/2, put/3, get/2, get/3, find/2, append/3, remove/2]).
 -export([add_prop/3, get_prop/2]).
 -export([from_element/1, from_map/1, update_element/4, update/2, is_acc/1, require/2]).
 -export([strip/1, strip/2, record_sending/4, record_sending/6]).
@@ -159,6 +159,15 @@ get(Key, P) ->
 -spec get(any(), t(), any()) -> any().
 get(Key, P, Default) ->
     maps:get(Key, P, Default).
+
+-spec find(any(), t()) -> {ok, any()} | error.
+find(send_result, Acc) ->
+    case maps:find(send_result, Acc) of
+        error -> error;
+        {ok, SRs} -> hd(SRs)
+    end;
+find(Key, P) ->
+    maps:find(Key, P).
 
 -spec append(any(), any(), t()) -> t().
 append(Key, Val, P) ->
