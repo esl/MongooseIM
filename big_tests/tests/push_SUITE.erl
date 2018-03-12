@@ -6,10 +6,6 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
--define(NS_PUSH,                <<"urn:xmpp:push:0">>).
--define(NS_XDATA,               <<"jabber:x:data">>).
--define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
--define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
 -define(MUCHOST,                <<"muclight.@HOST@">>).
 
 -define(PUSH_OPTS,
@@ -23,6 +19,11 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
+
+-import(push_helper, [
+    enable_stanza/2, enable_stanza/3, enable_stanza/4,
+    disable_stanza/1, disable_stanza/2
+]).
 
 -record(route, {from, to, acc, packet}).
 
@@ -150,7 +151,7 @@ push_notifications_listed_disco_when_available(Config) ->
             escalus:send(Alice, escalus_stanza:disco_info(Server)),
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(is_iq_result, Stanza),
-            escalus:assert(has_feature, [?NS_PUSH], Stanza),
+            escalus:assert(has_feature, [push_helper:ns_push()], Stanza),
             ok
         end).
 
@@ -163,7 +164,7 @@ push_notifications_not_listed_disco_when_not_available(Config) ->
             Stanza = escalus:wait_for_stanza(Alice),
             escalus:assert(is_iq_result, Stanza),
             Pred = fun(Feature, Stanza) -> not escalus_pred:has_feature(Feature, Stanza) end,
-            escalus:assert(Pred, [?NS_PUSH], Stanza),
+            escalus:assert(Pred, [push_helper:ns_push()], Stanza),
             ok
         end).
 
@@ -384,7 +385,8 @@ pm_msg_notify_if_user_offline(Config) ->
                                              {element, <<"notification">>},
                                              {element, <<"x">>}]),
             Fields = parse_form(Form),
-            ?assertMatch(?PUSH_FORM_TYPE, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            NS = push_helper:push_form_type(),
+            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
             ?assertMatch(<<"OH, HAI!">>, proplists:get_value(<<"last-message-body">>, Fields)),
             ?assertMatch(AliceJID,
                          proplists:get_value(<<"last-message-sender">>, Fields)),
@@ -414,7 +416,8 @@ pm_msg_notify_if_user_offline_with_publish_options(Config) ->
                                             {element, <<"publish-options">>},
                                             {element, <<"x">>}]),
             Fields = parse_form(Form),
-            ?assertMatch(?NS_PUBSUB_PUB_OPTIONS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            NS = push_helper:ns_pubsub_pub_options(),
+            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
             ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
             ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
             ok
@@ -512,7 +515,8 @@ muclight_msg_notify_if_user_offline(Config) ->
                                             {element, <<"notification">>},
                                             {element, <<"x">>}]),
             Fields = parse_form(Form),
-            ?assertMatch(?PUSH_FORM_TYPE, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            NS = push_helper:push_form_type(),
+            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
             ?assertMatch(Msg, proplists:get_value(<<"last-message-body">>, Fields)),
             SenderId = <<(room_bin_jid(Room))/binary, "/" ,BobJID/binary>>,
             ?assertMatch(SenderId,
@@ -546,7 +550,8 @@ muclight_msg_notify_if_user_offline_with_publish_options(Config) ->
                                             {element, <<"publish-options">>},
                                             {element, <<"x">>}]),
             Fields = parse_form(Form),
-            ?assertMatch(?NS_PUBSUB_PUB_OPTIONS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
+            NS = push_helper:ns_pubsub_pub_options(),
+            ?assertMatch(NS, proplists:get_value(<<"FORM_TYPE">>, Fields)),
             ?assertMatch(<<"value1">>, proplists:get_value(<<"field1">>, Fields)),
             ?assertMatch(<<"value2">>, proplists:get_value(<<"field2">>, Fields)),
             ok
@@ -585,50 +590,6 @@ muclight_msg_notify_stops_after_disabling(Config) ->
 %% ----------------------------------
 %% Stanzas
 %% ----------------------------------
-
-disable_stanza(JID, undefined) ->
-    disable_stanza([
-        {<<"xmlns">>, <<"urn:xmpp:push:0">>},
-        {<<"jid">>, JID}
-    ]);
-disable_stanza(JID, Node) ->
-    disable_stanza([
-        {<<"xmlns">>, <<"urn:xmpp:push:0">>},
-        {<<"jid">>, JID},
-        {<<"node">>, Node}
-    ]).
-disable_stanza(JID) when is_binary(JID) ->
-    disable_stanza(JID, undefined);
-disable_stanza(Attrs) when is_list(Attrs) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"disable">>, attrs = Attrs}]).
-
-enable_stanza(JID, Node) ->
-    enable_stanza(JID, Node, undefined).
-enable_stanza(JID, Node, FormFields) ->
-    enable_stanza(JID, Node, FormFields, ?NS_PUBSUB_PUB_OPTIONS).
-enable_stanza(JID, Node, FormFields, FormType) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{name = <<"enable">>, attrs = [
-        {<<"xmlns">>, <<"urn:xmpp:push:0">>},
-        {<<"jid">>, JID},
-        {<<"node">>, Node}
-    ], children = maybe_form(FormFields, FormType)}]).
-
-maybe_form(undefined, _FormType) ->
-    [];
-maybe_form(FormFields, FormType) ->
-    [make_form([{<<"FORM_TYPE">>, FormType} | FormFields])].
-
-make_form(Fields) ->
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
-           children = [make_form_field(Name, Value) || {Name, Value} <- Fields]}.
-
-make_form_field(Name, Value) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Name}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
-
-
-
 %% ----------------------------------
 %% Other helpers
 %% ----------------------------------
