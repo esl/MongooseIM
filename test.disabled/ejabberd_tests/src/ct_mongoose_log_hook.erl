@@ -164,13 +164,12 @@ make_content(CurrentLineNum, Line) ->
 
 ensure_initialized(Config, State=#state{node=Node, cookie=Cookie, out_file=undefined}) ->
     PrivDir = proplists:get_value(priv_dir, Config),
-    %% Remove: *SUITE.logs/run.*/log_private/
-    RunDir = filename:absname(filename:join([PrivDir, "..", "..", ".."])),
+    RunDir = path_helper:ct_run_dir(Config),
     File = atom_to_list(Node) ++ ".log.html",
     %% On disk
     OutFile = filename:join(RunDir, File),
     %% In browser
-    UrlFile = ct_logs:uri(filename:join(["..", "..", File])),
+    UrlFile = ct_logs:uri(filename:join(path_helper:ct_run_dir_in_browser(Config), File)),
     case spawn_log_reader(Node, Cookie) of
         {ok, Reader} ->
             %% self() process is temporary

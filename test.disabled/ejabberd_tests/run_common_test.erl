@@ -4,7 +4,6 @@
 
 -define(CT_DIR, filename:join([".", "tests"])).
 -define(CT_REPORT, filename:join([".", "ct_report"])).
--define(ROOT_DIR, "../../").
 
 %% DEBUG: compile time settings
 -define(PRINT_ERRORS, false).
@@ -63,6 +62,14 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
 %% Helpers
 %%
 
+repo_dir() ->
+    case os:getenv("REPO_DIR") of
+        false ->
+            init:stop("Environment variable REPO_DIR is undefined");
+        Value ->
+            Value
+    end.
+
 args_to_opts(Args) ->
     {Args, Opts} = lists:foldl(fun set_opt/2, {Args, #opts{}}, opts()),
     Opts.
@@ -85,7 +92,7 @@ preset(Preset) -> list_to_atom(Preset).
 read_file(ConfigFile) when is_list(ConfigFile) ->
     {ok, CWD} = file:get_cwd(),
     filename:join([CWD, ConfigFile]),
-    {ok, Props} = file:consult(ConfigFile),
+    {ok, Props} = handle_file_error(ConfigFile, file:consult(ConfigFile)),
     Props.
 
 tests_to_run(TestSpec) ->
@@ -144,7 +151,7 @@ get_ct_config([{spec, Spec}]) ->
         {config, [Config]} -> Config;
         _                  -> "test.config"
     end,
-    {ok, ConfigProps} = file:consult(ConfigFile),
+    {ok, ConfigProps} = handle_file_error(ConfigFile, file:consult(ConfigFile)),
     {ConfigFile, ConfigProps}.
 
 preset_names(Presets) ->
@@ -186,11 +193,11 @@ backend(Node) ->
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join(["..", "..", "rel", "files", "ejabberd.cfg"]),
-    Vars = filename:join(["..", "..", "rel", HostVars]),
+    Cfg = filename:join([repo_dir(), "rel", "files", "ejabberd.cfg"]),
+    Vars = filename:join([repo_dir(), "rel", HostVars]),
     CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
-    {ok, Template} = file:read_file(Cfg),
-    {ok, Default} = file:consult(Vars),
+    {ok, Template} = handle_file_error(Cfg, file:read_file(Cfg)),
+    {ok, Default} = handle_file_error(Vars, file:consult(Vars)),
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
                               lists:keystore(Var, 1, Acc, {Var, Val})
                           end, Default, PresetVars),
@@ -248,7 +255,7 @@ analyze(Test, CoverOpts) ->
     report_time("Export cover data from MongooseIM nodes", fun() ->
             multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
         end),
-    Files = filelib:wildcard(?ROOT_DIR ++ "/_build/**/cover/*.coverdata"),
+    Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
             [cover:import(File) || File <- Files]
@@ -481,7 +488,7 @@ export_codecov_json() ->
     Mod2Data = lists:foldl(fun add_cover_line_into_array/2, #{}, Result),
     JSON = maps:fold(fun format_array_to_list/3, [], Mod2Data),
     Binary = jiffy:encode(#{<<"coverage">> => {JSON}}),
-    file:write_file(?ROOT_DIR ++ "/codecov.json", Binary).
+    file:write_file(repo_dir() ++ "/codecov.json", Binary).
 
 add_cover_line_into_array({{Module, Line}, CallTimes}, Acc) ->
     %% Set missing lines to null
@@ -523,5 +530,13 @@ string_suffix(String, Suffix) ->
     StringR = lists:reverse(String),
     SuffixR = lists:reverse(Suffix),
     lists:reverse(string_prefix(StringR, SuffixR)).
+
+%% Gets result of file operation and prints filename, if we have any issues.
+handle_file_error(FileName, {error, Reason}) ->
+    error_logger:error_msg("issue=file_operation_error filename=~p reason=~p",
+                           [FileName, Reason]),
+    {error, Reason};
+handle_file_error(_FileName, Other) ->
+    Other.
 
 %% ------------------------------------------------------------------
