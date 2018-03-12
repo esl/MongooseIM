@@ -376,8 +376,6 @@ ALTER TABLE [dbo].[private_storage] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
 ALTER TABLE [dbo].[rosterusers] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
-ALTER TABLE [dbo].[spool] ADD  DEFAULT (getdate()) FOR [created_at]
-GO
 ALTER TABLE [dbo].[users] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
 ALTER TABLE [dbo].[vcard] ADD  DEFAULT (N'') FOR [username]
@@ -400,8 +398,6 @@ EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_m
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_server_user' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_server_user'
 GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_user' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_user'
-GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.offline_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'offline_message'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_default_list' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_default_list'
@@ -417,8 +413,6 @@ GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rostergroups' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rostergroups'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rosterusers' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rosterusers'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.spool' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'spool'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.users' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'users'
 GO
