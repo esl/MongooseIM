@@ -114,7 +114,8 @@
          metric_incremented_when_store_message/1,
          archive_chat_markers/1,
          dont_archive_chat_markers/1,
-         save_unicode_messages/1]).
+         save_unicode_messages/1,
+         unicode_messages_can_be_extracted/1]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -345,7 +346,8 @@ mam_cases() ->
      simple_archive_request,
      range_archive_request,
      range_archive_request_not_empty,
-     limit_archive_request
+     limit_archive_request,
+     unicode_messages_can_be_extracted
     ].
 
 text_search_cases() ->
@@ -1306,7 +1308,8 @@ text_search_is_not_available(Config) ->
 text_search_query_fails_if_disabled(Config) ->
     P = ?config(props, Config),
     F = fun(_Alice, Bob) ->
-        escalus:send(Bob, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
+        escalus:send(Bob, stanza_text_search_archive_request(P, <<"q1">>,
+                <<"this IQ is expected to fail">>)),
         Res = escalus:wait_for_stanza(Bob),
         escalus:assert(is_iq_error, Res)
         end,
@@ -1370,6 +1373,13 @@ long_text_search_request(Config) ->
                 timer:sleep(50)
             end, Msgs),
 
+        %% Just check than Bob receives them.
+        %% It should help, when the server is overloaded.
+        %% The test should work without this block.
+        BobMessages = escalus:wait_for_stanzas(Bob, length(Msgs), 15000),
+        ?assert_equal_extra(length(Msgs), length(BobMessages),
+                            #{bob_messages => BobMessages}),
+
         maybe_wait_for_archive(Config),
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
@@ -1390,6 +1400,38 @@ long_text_search_request(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
+%% Write and read Unicode messages back
+unicode_messages_can_be_extracted(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+        Texts = [<<"Hi! this is an unicode character lol 😂"/utf8>>,
+                 <<"this is another one no 🙅"/utf8>>,
+                 <<"This is the same again lol 😂"/utf8>>],
+
+        [escalus:send(Alice, escalus_stanza:chat_to(Bob, Text))
+         || Text <- Texts],
+        maybe_wait_for_archive(Config),
+
+        %% WHEN Getting all messages
+        escalus:send(Alice, stanza_archive_request(P, <<"uni-q">>)),
+        Res = wait_archive_respond(P, Alice),
+        assert_respond_size(3, Res),
+
+        assert_respond_query_id(P, <<"uni-q">>, parse_result_iq(P, Res)),
+        [Msg1, Msg2, Msg3] = respond_messages(Res),
+        #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
+        #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
+        #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
+        ?assert_equal(<<"Hi! this is an unicode character lol 😂"/utf8>>, Body1),
+        ?assert_equal(<<"this is another one no 🙅"/utf8>>, Body2),
+        ?assert_equal(<<"This is the same again lol 😂"/utf8>>, Body3),
+        ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+%% Depends on search feature
+%% Consult with unicode_messages_can_be_extracted,
+%% which ensures that unicode messages can be processed
 save_unicode_messages(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
@@ -1398,6 +1440,7 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
                 maybe_wait_for_archive(Config),
 
+                %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
                 Res1 = wait_archive_respond(P, Alice),
                 assert_respond_size(2, Res1),

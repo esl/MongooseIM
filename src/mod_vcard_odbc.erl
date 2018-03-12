@@ -49,16 +49,16 @@ init(_VHost, _Options) ->
     ok.
 
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     mongoose_rdbms:sql_transaction(
       LServer,
-      [["delete from vcard where username='", Username, "';"],
-       ["delete from vcard_search where lusername='", Username, "';"]]).
+      [["delete from vcard where username=", mongoose_rdbms:use_escaped_string(Username), ";"],
+       ["delete from vcard_search where lusername=", mongoose_rdbms:use_escaped_string(Username), ";"]]).
 
 get_vcard(LUser, LServer) ->
-    U = mongoose_rdbms:escape(LUser),
-    S = mongoose_rdbms:escape(LServer),
-    case rdbms_queries:get_vcard(S, U) of
+    U = mongoose_rdbms:escape_string(LUser),
+    S = mongoose_rdbms:escape_string(LServer),
+    case rdbms_queries:get_vcard(LServer, U, S) of
         {selected, [{SVCARD}]} ->
             case exml:parse(SVCARD) of
                 {error, Reason} ->
@@ -73,41 +73,42 @@ get_vcard(LUser, LServer) ->
 
 set_vcard(User, VHost, VCard, VCardSearch) ->
     LUser = jid:nodeprep(User),
-    Username = mongoose_rdbms:escape(User),
-    LUsername = mongoose_rdbms:escape(LUser),
-    LServer = mongoose_rdbms:escape(VHost),
-    SVCARD = mongoose_rdbms:escape( exml:to_binary(VCard)),
+    SUsername = mongoose_rdbms:escape_string(User),
+    SLUsername = mongoose_rdbms:escape_string(LUser),
+    SLServer = mongoose_rdbms:escape_string(VHost),
+    SVCARD = mongoose_rdbms:escape_string( exml:to_binary(VCard)),
 
-    SFN = mongoose_rdbms:escape(VCardSearch#vcard_search.fn),
-    SLFN = mongoose_rdbms:escape(VCardSearch#vcard_search.lfn),
-    SFamily = mongoose_rdbms:escape(VCardSearch#vcard_search.family),
-    SLFamily = mongoose_rdbms:escape(VCardSearch#vcard_search.lfamily),
-    SGiven = mongoose_rdbms:escape(VCardSearch#vcard_search.given),
-    SLGiven = mongoose_rdbms:escape(VCardSearch#vcard_search.lgiven),
-    SMiddle = mongoose_rdbms:escape(VCardSearch#vcard_search.middle),
-    SLMiddle = mongoose_rdbms:escape(VCardSearch#vcard_search.lmiddle),
-    SNickname = mongoose_rdbms:escape(VCardSearch#vcard_search.nickname),
-    SLNickname = mongoose_rdbms:escape(VCardSearch#vcard_search.lnickname),
-    SBDay = mongoose_rdbms:escape(VCardSearch#vcard_search.bday),
-    SLBDay = mongoose_rdbms:escape(VCardSearch#vcard_search.lbday),
-    SCTRY = mongoose_rdbms:escape(VCardSearch#vcard_search.ctry),
-    SLCTRY = mongoose_rdbms:escape(VCardSearch#vcard_search.lctry),
-    SLocality = mongoose_rdbms:escape(VCardSearch#vcard_search.locality),
-    SLLocality = mongoose_rdbms:escape(VCardSearch#vcard_search.llocality),
-    SEMail = mongoose_rdbms:escape(VCardSearch#vcard_search.email),
-    SLEMail = mongoose_rdbms:escape(VCardSearch#vcard_search.lemail),
-    SOrgName = mongoose_rdbms:escape(VCardSearch#vcard_search.orgname),
-    SLOrgName = mongoose_rdbms:escape(VCardSearch#vcard_search.lorgname),
-    SOrgUnit = mongoose_rdbms:escape(VCardSearch#vcard_search.orgunit),
-    SLOrgUnit = mongoose_rdbms:escape(VCardSearch#vcard_search.lorgunit),
+    SFN = mongoose_rdbms:escape_string(VCardSearch#vcard_search.fn),
+    SLFN = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lfn),
+    SFamily = mongoose_rdbms:escape_string(VCardSearch#vcard_search.family),
+    SLFamily = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lfamily),
+    SGiven = mongoose_rdbms:escape_string(VCardSearch#vcard_search.given),
+    SLGiven = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lgiven),
+    SMiddle = mongoose_rdbms:escape_string(VCardSearch#vcard_search.middle),
+    SLMiddle = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lmiddle),
+    SNickname = mongoose_rdbms:escape_string(VCardSearch#vcard_search.nickname),
+    SLNickname = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lnickname),
+    SBDay = mongoose_rdbms:escape_string(VCardSearch#vcard_search.bday),
+    SLBDay = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lbday),
+    SCTRY = mongoose_rdbms:escape_string(VCardSearch#vcard_search.ctry),
+    SLCTRY = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lctry),
+    SLocality = mongoose_rdbms:escape_string(VCardSearch#vcard_search.locality),
+    SLLocality = mongoose_rdbms:escape_string(VCardSearch#vcard_search.llocality),
+    SEMail = mongoose_rdbms:escape_string(VCardSearch#vcard_search.email),
+    SLEMail = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lemail),
+    SOrgName = mongoose_rdbms:escape_string(VCardSearch#vcard_search.orgname),
+    SLOrgName = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lorgname),
+    SOrgUnit = mongoose_rdbms:escape_string(VCardSearch#vcard_search.orgunit),
+    SLOrgUnit = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lorgunit),
 
-    rdbms_queries:set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail,
+    rdbms_queries:set_vcard(VHost,
+                           SLServer, SLUsername, SBDay, SCTRY, SEMail,
                            SFN, SFamily, SGiven, SLBDay, SLCTRY,
                            SLEMail, SLFN, SLFamily, SLGiven,
                            SLLocality, SLMiddle, SLNickname,
                            SLOrgName, SLOrgUnit, SLocality,
                            SMiddle, SNickname, SOrgName,
-                           SOrgUnit, SVCARD, Username),
+                           SOrgUnit, SVCARD, SUsername),
 
     ejabberd_hooks:run(vcard_set, VHost, [LUser, VHost, VCard]),
     ok.
@@ -144,7 +145,8 @@ make_restriction_sql(LServer, Data) ->
 filter_fields([], "", _LServer) ->
     "";
 filter_fields([], RestrictionSQLIn, LServer) ->
-    [" where ", [RestrictionSQLIn, " and ", ["server = '", mongoose_rdbms:escape(LServer), "'"]]];
+    [" where ", RestrictionSQLIn, " and ",
+     "server = ", mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(LServer))];
 filter_fields([{SVar, [Val]} | Ds], RestrictionSQL, LServer)
   when is_binary(Val) and (Val /= <<"">>) ->
     LVal = stringprep:tolower(Val),
@@ -178,11 +180,11 @@ make_val(RestrictionSQL, Field, Val) ->
         case binary:last(Val) of
             $* ->
                 Val1 = binary:part(Val, 0, byte_size(Val)-1),
-                SVal = mongoose_rdbms:escape_like(Val1),
-                [Field, " LIKE '", SVal, "%'"];
+                SVal = mongoose_rdbms:escape_like_prefix(Val1),
+                [Field, " LIKE ", mongoose_rdbms:use_escaped_like(SVal)];
             _ ->
-                SVal = mongoose_rdbms:escape(Val),
-                [Field, " = '", SVal, "'"]
+                SVal = mongoose_rdbms:escape_string(Val),
+                [Field, " = ", mongoose_rdbms:use_escaped_string(SVal)]
         end,
     case RestrictionSQL of
         "" ->

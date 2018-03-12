@@ -42,6 +42,12 @@
         [apply_start_border/2,
          apply_end_border/2]).
 
+-import(mongoose_rdbms,
+        [escape_string/1,
+         escape_integer/1,
+         use_escaped_string/1,
+         use_escaped_integer/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -50,10 +56,10 @@
 %% ----------------------------------------------------------------------
 %% Types
 
--type filter()            :: iolist().
--type escaped_message_id() :: string().
--type escaped_jid()       :: binary().
--type escaped_resource()  :: binary().
+-type filter()            :: mongoose_rdbms:sql_query_part().
+-type escaped_message_id() :: mongoose_rdbms:escape_string().
+-type escaped_jid()       :: mongoose_rdbms:escaped_string().
+-type escaped_resource()  :: mongoose_rdbms:escaped_string().
 
 
 %% ----------------------------------------------------------------------
@@ -207,7 +213,7 @@ index_hint_sql(Host) ->
                       LocJID :: jid:jid(), RemJID :: jid:jid(),
                       SrcJID :: jid:jid(), Dir :: atom(), Packet :: any()) -> ok.
 archive_message(Result, Host, MessID, UserID,
-                LocJID, RemJID, SrcJID, Dir, Packet) ->
+                LocJID, RemJID, SrcJID, Dir, Packet) when is_integer(UserID) ->
     try
         do_archive_message(Result, Host, MessID, UserID,
                            LocJID, RemJID, SrcJID, Dir, Packet)
@@ -412,15 +418,18 @@ lookup_messages_regular(Host, UserJID, RSM,
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
+-spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
     SID = escape_message_id(ID),
-    [Filter, " AND id > '", SID, "'"].
+    [Filter, " AND id > ", use_escaped_integer(SID)].
 
+-spec before_id(ID :: escaped_message_id() | undefined,
+               Filter :: filter()) -> filter().
 before_id(undefined, Filter) ->
     Filter;
 before_id(ID, Filter) ->
     SID = escape_message_id(ID),
-    [Filter, " AND id < '", SID, "'"].
+    [Filter, " AND id < ", use_escaped_integer(SID)].
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     Pool = mongoose_rdbms_sup:pool(Host),
@@ -445,8 +454,8 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM ", "mam_message", " "
-       "WHERE user_id = '", escape_user_id(UserID), "'"]),
+      ["DELETE FROM mam_message "
+       "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]),
     Acc.
 
 -spec purge_single_message(Result :: any(), Host :: jid:server(),
@@ -460,8 +469,8 @@ purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
         mod_mam_utils:success_sql_query(
           Host,
           ["DELETE FROM mam_message "
-           "WHERE user_id = '", escape_user_id(UserID), "' "
-           "AND id = '", escape_message_id(MessID), "'"]),
+           "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID)), " "
+           "AND id = ", use_escaped_integer(escape_message_id(MessID))]),
     case Result of
         {updated, 0} -> {error, 'not-found'};
         {updated, 1} -> ok
@@ -513,7 +522,7 @@ do_extract_messages(Host, Filter, 0, IMax, Order) ->
     mod_mam_utils:success_sql_query(
         Host,
         ["SELECT ", LimitMSSQL, " id, from_jid, message "
-        "FROM ", "mam_message", " ",
+        "FROM mam_message ",
             Filter,
             Order,
             " ", LimitSQL]);
@@ -540,7 +549,8 @@ calc_index(Host, Filter, IndexHintSQL, SUID) ->
         mod_mam_utils:success_sql_query(
           Host,
           ["SELECT COUNT(*) FROM mam_message ",
-           IndexHintSQL, Filter, " AND id <= '", SUID, "'"]),
+           IndexHintSQL, Filter,
+           " AND id <= ", use_escaped_integer(SUID)]),
     mongoose_rdbms:result_to_integer(BIndex).
 
 %% @doc Count of elements in RSet before the passed element.
@@ -556,7 +566,8 @@ calc_before(Host, Filter, IndexHintSQL, SUID) ->
         mod_mam_utils:success_sql_query(
           Host,
           ["SELECT COUNT(*) FROM mam_message ",
-           IndexHintSQL, Filter, " AND id < '", SUID, "'"]),
+           IndexHintSQL, Filter,
+           " AND id < ", use_escaped_integer(SUID)]),
     mongoose_rdbms:result_to_integer(BIndex).
 
 
@@ -587,7 +598,7 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
                 {minify_and_escape_bare_jid(Host, UserJID, WithJID), undefined};
             #jid{lresource = WithLResource} ->
                 {minify_and_escape_bare_jid(Host, UserJID, WithJID),
-                 mongoose_rdbms:escape(WithLResource)}
+                 mongoose_rdbms:escape_string(WithLResource)}
         end,
     StartID = maybe_encode_compact_uuid(Start, 0),
     EndID   = maybe_encode_compact_uuid(End, 255),
@@ -603,29 +614,40 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
                          SWithResource :: escaped_resource() | undefined,
                          SearchText :: binary() | undefined) -> filter().
 prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) ->
-    ["WHERE user_id='", escape_user_id(UserID), "'",
+    ["WHERE user_id=", use_escaped_integer(escape_user_id(UserID)),
      case StartID of
          undefined -> "";
-         _         -> [" AND id >= ", integer_to_list(StartID)]
+         _         -> [" AND id >= ", use_escaped_integer(escape_integer(StartID))]
      end,
      case EndID of
          undefined -> "";
-         _         -> [" AND id <= ", integer_to_list(EndID)]
+         _         -> [" AND id <= ", use_escaped_integer(escape_integer(EndID))]
      end,
      case SWithJID of
          undefined -> "";
-         _         -> [" AND remote_bare_jid = '", SWithJID, "'"]
+         _         -> [" AND remote_bare_jid = ", use_escaped_string(SWithJID)]
      end,
      case SWithResource of
          undefined -> "";
-         _         -> [" AND remote_resource = '", SWithResource, "'"]
+         _         -> [" AND remote_resource = ", use_escaped_string(SWithResource)]
      end,
      case SearchText of
          undefined -> "";
-         _         -> [" AND search_body like '%", SearchText, "%'"]
+         _         -> prepare_search_filters(SearchText)
      end
     ].
 
+%% Constructs a separate LIKE filter for each word.
+%% SearchText example is "word1%word2%word3".
+prepare_search_filters(SearchText) ->
+    Words = binary:split(SearchText, <<"%">>, [global]),
+    [prepare_search_filter(Word) || Word <- Words].
+
+-spec prepare_search_filter(binary()) -> filter().
+prepare_search_filter(Word) ->
+    [" AND search_body like ",
+     %% Search for "%Word%"
+     mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like(Word))].
 
 %% @doc #rsm_in{
 %%    max = non_neg_integer() | undefined,
@@ -653,14 +675,14 @@ calc_offset(_LS, _F, _IH, _PS, _TC, _RSM) ->
     0.
 
 escape_message_id(MessID) when is_integer(MessID) ->
-    integer_to_list(MessID).
+    escape_integer(MessID).
 
 escape_user_id(UserID) when is_integer(UserID) ->
-    integer_to_list(UserID).
+    escape_integer(UserID).
 
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(Host, LocJID, JID) ->
-    mongoose_rdbms:escape(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
+    escape_string(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
 
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;

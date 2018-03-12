@@ -87,11 +87,9 @@
          add_privacy_list/2,
          set_privacy_list/2,
          del_privacy_lists/3,
-         set_vcard/26,
-         get_vcard/2,
+         set_vcard/27,
+         get_vcard/3,
          search_vcard/3,
-         escape_string/1,
-         escape_like_string/1,
          count_records_where/3,
          get_roster_version/2,
          set_roster_version/2,
@@ -125,29 +123,6 @@ join([], _Sep) ->
 join([H|T], Sep) ->
     [H, [[Sep, X] || X <- T]].
 
-%% Note: escape functions (`escape_string/1' and `escape_like_string/1')
-%%       are in this module and not in `mongoose_rdbms',
-%%       because they are called a lot.
-%%       To have both `escape_string/1' and `escape_character/1' in one module
-%%       is an optimization.
-
--spec escape_string(binary() | string()) -> binary() | string().
-escape_string(S) when is_binary(S) ->
-    list_to_binary(escape_string(binary_to_list(S)));
-escape_string(S) when is_list(S) ->
-    [escape_character(C) || C <- S].
-
--spec escape_like_string(binary() | string()) -> binary() | string().
-escape_like_string(S) when is_binary(S) ->
-    list_to_binary(escape_like_string(binary_to_list(S)));
-escape_like_string(S) when is_list(S) ->
-    [escape_like_character(C) || C <- S].
-
-escape_like_character($%) -> "\\%";
-escape_like_character($_) -> "\\_";
-escape_like_character(C)  -> escape_character(C).
-
-
 %% -----------------
 %% Generic queries
 
@@ -156,8 +131,13 @@ get_db_type() ->
 
 
 %% Safe atomic update.
+-spec update_t(Table, Fields, Vals, Where) -> term() when
+    Table :: binary(),
+    Fields :: list(binary()),
+    Vals :: list(mongoose_rdbms:escaped_value()),
+    Where :: mongoose_rdbms:sql_query_part().
 update_t(Table, Fields, Vals, Where) ->
-    UPairs = lists:zipwith(fun(A, B) -> [A, "='", B, "'"] end,
+    UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
                            Fields, Vals),
     case mongoose_rdbms:sql_query_t(
            [<<"update ">>, Table, <<" set ">>,
@@ -168,8 +148,11 @@ update_t(Table, Fields, Vals, Where) ->
         _ ->
             mongoose_rdbms:sql_query_t(
               [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values ('">>, join(Vals, "', '"), "');"])
+               <<") values (">>, join_escaped(Vals), ");"])
     end.
+
+join_escaped(Vals) ->
+    join([mongoose_rdbms:use_escaped(X) || X <- Vals], ", ").
 
 %% Safe atomic update.
 %% Fields and their values are passed as a list where
@@ -188,7 +171,7 @@ update_set_t(Table, FieldsVals, Where) ->
         Vals = evens(FieldsVals),
             mongoose_rdbms:sql_query_t(
               [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values ('">>, join(Vals, "', '"), "');"])
+               <<") values (">>, join_escaped(Vals), ");"])
     end.
 
 odds([X, _|T]) -> [X|odds(T)];
@@ -199,17 +182,17 @@ evens([])      -> [].
 
 join_field_and_values([Field, Val|FieldsVals]) ->
     %% Append a field-value pair
-    [Field, $=, $', Val, $' | join_field_and_values_1(FieldsVals)].
+    [Field, $=, mongoose_rdbms:use_escaped(Val) | join_field_and_values_1(FieldsVals)].
 
 join_field_and_values_1([Field, Val|FieldsVals]) ->
     %% Append a separater and a field-value pair
-    [$,, $ , Field, $=, $', Val, $' | join_field_and_values_1(FieldsVals)];
+    [$,, $ , Field, $=, mongoose_rdbms:use_escaped(Val) | join_field_and_values_1(FieldsVals)];
 join_field_and_values_1([]) ->
     [].
 
 
 update(LServer, Table, Fields, Vals, Where) ->
-    UPairs = lists:zipwith(fun(A, B) -> [A, "='", B, "'"] end,
+    UPairs = lists:zipwith(fun(A, B) -> [A, "=", mongoose_rdbms:use_escaped(B)] end,
                            Fields, Vals),
     case mongoose_rdbms:sql_query(
            LServer,
@@ -222,7 +205,7 @@ update(LServer, Table, Fields, Vals, Where) ->
             mongoose_rdbms:sql_query(
               LServer,
               [<<"insert into ">>, Table, "(", join(Fields, ", "),
-               <<") values ('">>, join(Vals, "', '"), "');"])
+               <<") values (">>, join_escaped(Vals), ");"])
     end.
 
 %% F can be either a fun or a list of queries
@@ -244,37 +227,38 @@ get_last(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select seconds, state from last "
-         "where username='">>, Username, "'"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 select_last(LServer, TStamp, Comparator) ->
     mongoose_rdbms:sql_query(
         LServer,
         [<<"select username, seconds, state from last "
-           "where seconds ">>, Comparator, " ", integer_to_list(TStamp), ";"]).
+           "where seconds ">>, Comparator, " ",
+         mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(TStamp)), ";"]).
 
 set_last_t(LServer, Username, Seconds, State) ->
     update(LServer, "last", ["username", "seconds", "state"],
            [Username, Seconds, State],
-           [<<"username='">>, Username, "'"]).
+           [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 del_last(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from last where username='">>, Username, "'"]).
+      [<<"delete from last where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_password(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select password, pass_details from users "
-       "where username='">>, Username, <<"';">>]).
+       "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<";">>]).
 
-set_password_t(LServer, Username, {Pass, PassDetails}) ->
+set_password_t(LServer, Username, #{password := Pass, details := PassDetails}) ->
     mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
               update_t(<<"users">>, [<<"password">>, <<"pass_details">>],
                        [Pass, PassDetails],
-                       [<<"username='">>, Username, <<"'">>])
+                       [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)])
       end);
 set_password_t(LServer, Username, Pass) ->
     mongoose_rdbms:sql_transaction(
@@ -282,32 +266,36 @@ set_password_t(LServer, Username, Pass) ->
       fun() ->
               update_t(<<"users">>, [<<"username">>, <<"password">>],
                        [Username, Pass],
-                       [<<"username='">>, Username, <<"'">>])
+                       [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)])
       end).
 
-add_user(LServer, Username, {Pass, PassDetails}) ->
+add_user(LServer, Username, #{password := Pass, details := PassDetails}) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"insert into users(username, password, pass_details) "
-       "values ('">>, Username, <<"', '">>, Pass, <<"', '">>, PassDetails, <<"');">>]);
+       "values (">>, mongoose_rdbms:use_escaped_string(Username),
+           <<", ">>, mongoose_rdbms:use_escaped_string(Pass),
+           <<", ">>, mongoose_rdbms:use_escaped_string(PassDetails), <<");">>]);
 add_user(LServer, Username, Pass) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"insert into users(username, password) "
-         "values ('">>, Username, <<"', '">>, Pass, <<"');">>]).
+         "values (">>, mongoose_rdbms:use_escaped_string(Username),
+           <<", ">>, mongoose_rdbms:use_escaped_string(Pass), <<");">>]).
 
 del_user(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from users where username='">>, Username, "';"]).
+      [<<"delete from users where username=">>,
+           mongoose_rdbms:use_escaped_string(Username), ";"]).
 
 del_user_return_password(_LServer, Username, Pass) ->
     P = mongoose_rdbms:sql_query_t(
-          [<<"select password from users where username='">>,
-           Username, "';"]),
+          [<<"select password from users where username=">>,
+           mongoose_rdbms:use_escaped_string(Username), ";"]),
     mongoose_rdbms:sql_query_t([<<"delete from users "
-                               "where username='">>, Username,
-                               <<"' and password='">>, Pass, "';"]),
+           "where username=">>, mongoose_rdbms:use_escaped_string(Username),
+           <<" and password=">>, mongoose_rdbms:use_escaped_string(Pass), ";"]),
     P.
 
 list_users(LServer) ->
@@ -339,7 +327,7 @@ list_users(LServer, [{prefix, Prefix},
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select username from users "
-         "where username like '">>, Prefix, <<"%' "
+         "where username like ">>, mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like_prefix(Prefix)), <<" "
          "order by username "
          "limit ">>, integer_to_list(Limit), <<" "
          "offset ">>, integer_to_list(Offset)]).
@@ -373,7 +361,7 @@ users_number(LServer, [{prefix, Prefix}]) when is_list(Prefix) ->
       [<<"select count(*) from users "
          %% Warning: Escape prefix at higher level to prevent SQL
          %%          injection.
-         "where username like '">>, Prefix, "%'"]);
+         "where username like ">>, mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like_prefix(Prefix)), ""]);
 users_number(LServer, []) ->
     users_number(LServer).
 
@@ -415,19 +403,19 @@ get_roster(LServer, Username) ->
       LServer,
       [<<"select username, jid, nick, subscription, ask, "
          "askmessage, server, subscribe, type from rosterusers "
-         "where username='">>, Username, "'"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_roster_jid_groups(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select jid, grp from rostergroups "
-         "where username='">>, Username, "'"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_roster_groups(_LServer, Username, SJID) ->
     mongoose_rdbms:sql_query_t(
       [<<"select grp from rostergroups "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID), ";"]).
 
 del_user_roster_t(LServer, Username) ->
     mongoose_rdbms:sql_transaction(
@@ -435,17 +423,17 @@ del_user_roster_t(LServer, Username) ->
       fun() ->
               mongoose_rdbms:sql_query_t(
                 [<<"delete from rosterusers "
-                   "where username='">>, Username, "';"]),
+                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)]),
               mongoose_rdbms:sql_query_t(
                 [<<"delete from rostergroups "
-                   "where username='">>, Username, "';"])
+                   "where username=">>, mongoose_rdbms:use_escaped_string(Username)])
       end).
 
 q_get_roster(Username, SJID) ->
     [<<"select username, jid, nick, subscription, "
     "ask, askmessage, server, subscribe, type from rosterusers "
-    "where username='">>, Username, <<"' "
-    "and jid='">>, SJID, "';"].
+    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
 
 get_roster_by_jid(LServer, Username, SJID) ->
     mongoose_rdbms:sql_query(LServer, q_get_roster(Username, SJID)).
@@ -455,8 +443,8 @@ get_roster_by_jid_t(_LServer, Username, SJID) ->
 
 q_get_rostergroup(Username, SJID) ->
     [<<"select grp from rostergroups "
-    "where username='">>, Username, <<"' "
-    "and jid='">>, SJID, "'"].
+    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
 
 get_rostergroup_by_jid(LServer, Username, SJID) ->
     mongoose_rdbms:sql_query(LServer, q_get_rostergroup(Username, SJID)).
@@ -467,52 +455,53 @@ get_rostergroup_by_jid_t(_LServer, Username, SJID) ->
 del_roster(_LServer, Username, SJID) ->
     mongoose_rdbms:sql_query_t(
       [<<"delete from rosterusers "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "';"]),
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
     mongoose_rdbms:sql_query_t(
       [<<"delete from rostergroups "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
 
 del_roster_sql(Username, SJID) ->
     [[<<"delete from rosterusers "
-        "where username='">>, Username, <<"' "
-        "and jid='">>, SJID, "';"],
+        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)],
      [<<"delete from rostergroups "
-        "where username='">>, Username, <<"' "
-        "and jid='">>, SJID, "';"]].
+        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]].
 
 update_roster(_LServer, Username, SJID, ItemVals, ItemGroups) ->
     update_t(<<"rosterusers">>,
              [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
               <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
              ItemVals,
-             [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]),
+             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
+              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
     mongoose_rdbms:sql_query_t(
       [<<"delete from rostergroups "
-         "where username='">>, Username, <<"' "
-         "and jid='">>, SJID, "';"]),
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+         "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]),
     lists:foreach(fun(ItemGroup) ->
                           mongoose_rdbms:sql_query_t(
                             [<<"insert into rostergroups(username, jid, grp) "
-                               "values ('">>, join(ItemGroup, "', '"), "');"])
+                               "values (">>, join_escaped(ItemGroup), ");"])
                   end,
                   ItemGroups).
 
 update_roster_sql(Username, SJID, ItemVals, ItemGroups) ->
     [[<<"delete from rosterusers "
-        "where username='">>, Username, <<"' "
-        "and jid='">>, SJID, "';"],
+        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)],
      [<<"insert into rosterusers("
         "username, jid, nick, "
         "subscription, ask, askmessage, "
         "server, subscribe, type) "
-        " values ('">>, join(ItemVals, "', '"), "');"],
+        " values (">>, join_escaped(ItemVals), ");"],
      [<<"delete from rostergroups "
-        "where username='">>, Username, <<"' "
-        "and jid='">>, SJID, "';"]] ++
+        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+        "and jid=">>, mongoose_rdbms:use_escaped_string(SJID), ";"]] ++
         [[<<"insert into rostergroups(username, jid, grp) "
-            "values ('">>, join(ItemGroup, "', '"), "');"] ||
+            "values (">>, join_escaped(ItemGroup), ");"] ||
             ItemGroup <- ItemGroups].
 
 roster_subscribe(_LServer, Username, SJID, ItemVals) ->
@@ -520,12 +509,13 @@ roster_subscribe(_LServer, Username, SJID, ItemVals) ->
              [<<"username">>, <<"jid">>, <<"nick">>, <<"subscription">>, <<"ask">>,
               <<"askmessage">>, <<"server">>, <<"subscribe">>, <<"type">>],
              ItemVals,
-             [<<"username='">>, Username, <<"' and jid='">>, SJID, "'"]).
+             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
+              <<" and jid=">>, mongoose_rdbms:use_escaped_string(SJID)]).
 
 q_get_subscription(Username, SJID) ->
     [<<"select subscription from rosterusers "
-    "where username='">>, Username, <<"' "
-    "and jid='">>, SJID, "'"].
+    "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" "
+    "and jid=">>, mongoose_rdbms:use_escaped_string(SJID)].
 
 get_subscription(LServer, Username, SJID) ->
     mongoose_rdbms:sql_query( LServer, q_get_subscription(Username, SJID)).
@@ -537,28 +527,31 @@ set_private_data(_LServer, Username, LXMLNS, SData) ->
     update_t(<<"private_storage">>,
              [<<"username">>, <<"namespace">>, <<"data">>],
              [Username, LXMLNS, SData],
-             [<<"username='">>, Username, <<"' and namespace='">>, LXMLNS, "'"]).
+             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username),
+              <<" and namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS)]).
 
 set_private_data_sql(Username, LXMLNS, SData) ->
     [[<<"delete from private_storage "
-        "where username='">>, Username, <<"' and "
-        "namespace='">>, LXMLNS, "';"],
+        "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
+        "namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS), ";"],
      [<<"insert into private_storage(username, namespace, data) "
-        "values ('">>, Username, "', '", LXMLNS, "', '", SData, "');"]].
+        "values (">>, mongoose_rdbms:use_escaped_string(Username), ", ",
+                      mongoose_rdbms:use_escaped_string(LXMLNS), ", ",
+                      mongoose_rdbms:use_escaped_string(SData), ");"]].
 
 get_private_data(LServer, Username, LXMLNS) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select data from private_storage "
-         "where username='">>, Username, <<"' and "
-         "namespace='">>, LXMLNS, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
+         "namespace=">>, mongoose_rdbms:use_escaped_string(LXMLNS)]).
 
 multi_get_private_data(LServer, Username, LXMLNSs) when length(LXMLNSs) > 0 ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select namespace, data from private_storage "
-         "where username='">>, Username, <<"' and "
-         "namespace IN ('">>, join(LXMLNSs, "', '"), "');"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username), <<" and "
+         "namespace IN (">>, join_escaped(LXMLNSs), ");"]).
 
 %% set_private_data for multiple queries using MySQL's specific syntax.
 multi_set_private_data(LServer, Username, SNS2XML) when length(SNS2XML) > 0 ->
@@ -566,31 +559,37 @@ multi_set_private_data(LServer, Username, SNS2XML) when length(SNS2XML) > 0 ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"replace into private_storage (username, namespace, data) "
-         "values ">>, join(Rows, "', '")]).
+         "values ">>, join(Rows, ", ")]).
 
 private_data_row(Username, NS, Data) ->
-    [<<"('">>, Username, <<"', '">>, NS, <<"', '">>, Data, <<"')">>].
+    [<<"(">>, mongoose_rdbms:use_escaped_string(Username),
+     <<", ">>, mongoose_rdbms:use_escaped_string(NS),
+     <<", ">>, mongoose_rdbms:use_escaped_string(Data), <<")">>].
 
 del_user_private_storage(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from private_storage where username='">>, Username, "';"]).
+      [<<"delete from private_storage where username=">>,
+           mongoose_rdbms:use_escaped_string(Username)]).
 
-set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
+set_vcard(LServer,
+          SLServer, SLUsername,
+          SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
           SLBDay, SLCTRY, SLEMail, SLFN, SLFamily, SLGiven, SLLocality,
           SLMiddle, SLNickname, SLOrgName, SLOrgUnit, SLocality, SMiddle,
-          SNickname, SOrgName, SOrgUnit, SVCARD, Username) ->
+          SNickname, SOrgName, SOrgUnit, SVCARD, SUsername) ->
     mongoose_rdbms:sql_transaction(
       LServer,
       fun() ->
         update_t(<<"vcard">>,
           [<<"username">>, <<"server">>, <<"vcard">>],
-          [LUsername, LServer, SVCARD],
-          [<<"username='">>, LUsername, <<"' and server='">>, LServer, "'"]),
+          [SLUsername, SLServer, SVCARD],
+          [<<"username=">>, mongoose_rdbms:use_escaped_string(SLUsername),
+           <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)]),
         update_set_t(<<"vcard_search">>,
-          [<<"username">>, Username,
-           <<"lusername">>, LUsername,
-           <<"server">>, LServer,
+          [<<"username">>, SUsername,
+           <<"lusername">>, SLUsername,
+           <<"server">>, SLServer,
            <<"fn">>, SFN,
            <<"lfn">>, SLFN,
            <<"family">>, SFamily,
@@ -613,14 +612,16 @@ set_vcard(LServer, LUsername, SBDay, SCTRY, SEMail, SFN, SFamily, SGiven,
            <<"lorgname">>, SLOrgName,
            <<"orgunit">>, SOrgUnit,
            <<"lorgunit">>, SLOrgUnit],
-          [<<"lusername='">>, LUsername, <<"' and server='">>, LServer, "'"])
+          [<<"lusername=">>, mongoose_rdbms:use_escaped_string(SLUsername),
+           <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)])
       end).
 
-get_vcard(LServer, Username) ->
+get_vcard(LServer, Username, SLServer) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select vcard from vcard "
-         "where username='">>, Username, <<"' and server='">>, LServer, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
+       <<" and server=">>, mongoose_rdbms:use_escaped_string(SLServer)]).
 
 
 search_vcard(LServer, RestrictionSQL, Limit) ->
@@ -651,12 +652,12 @@ get_default_privacy_list(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select name from privacy_default_list "
-         "where username='">>, Username, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_default_privacy_list_t(Username) ->
     mongoose_rdbms:sql_query_t(
       [<<"select name from privacy_default_list "
-         "where username='">>, Username, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 count_privacy_lists(LServer) ->
     mongoose_rdbms:sql_query(LServer, [<<"select count(*) from privacy_list;">>]).
@@ -668,23 +669,25 @@ get_privacy_list_names(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select name from privacy_list "
-         "where username='">>, Username, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_privacy_list_names_t(Username) ->
     mongoose_rdbms:sql_query_t(
       [<<"select name from privacy_list "
-         "where username='">>, Username, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 get_privacy_list_id(LServer, Username, SName) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select id from privacy_list "
-         "where username='">>, Username, <<"' and name='">>, SName, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
+       <<" and name=">>, mongoose_rdbms:use_escaped_string(SName)]).
 
 get_privacy_list_id_t(Username, SName) ->
     mongoose_rdbms:sql_query_t(
       [<<"select id from privacy_list "
-         "where username='">>, Username, <<"' and name='">>, SName, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
+       <<" and name=">>, mongoose_rdbms:use_escaped_string(SName)]).
 
 get_privacy_list_data(LServer, Username, SName) ->
     mongoose_rdbms:sql_query(
@@ -693,7 +696,8 @@ get_privacy_list_data(LServer, Username, SName) ->
          "match_message, match_presence_in, match_presence_out "
          "from privacy_list_data "
          "where id = (select id from privacy_list where "
-         "username='">>, Username, <<"' and name='">>, SName, <<"') "
+         "username=">>, mongoose_rdbms:use_escaped_string(Username),
+       <<" and name=">>, mongoose_rdbms:use_escaped_string(SName), <<") "
          "order by ord;">>]).
 
 get_privacy_list_data_by_id(LServer, ID) ->
@@ -702,32 +706,37 @@ get_privacy_list_data_by_id(LServer, ID) ->
       [<<"select t, value, action, ord, match_all, match_iq, "
          "match_message, match_presence_in, match_presence_out "
          "from privacy_list_data "
-         "where id='">>, ID, <<"' order by ord;">>]).
+         "where id=">>, mongoose_rdbms:use_escaped_integer(ID), <<" order by ord;">>]).
 
 set_default_privacy_list(Username, SName) ->
     update_t(<<"privacy_default_list">>, [<<"username">>, <<"name">>],
-             [Username, SName], [<<"username='">>, Username, "'"]).
+             [Username, SName],
+             [<<"username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 unset_default_privacy_list(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from privacy_default_list "
-         "where username='">>, Username, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 remove_privacy_list(Username, SName) ->
     mongoose_rdbms:sql_query_t(
       [<<"delete from privacy_list "
-         "where username='">>, Username, "' and name='", SName, "';"]).
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username),
+        " and name=", mongoose_rdbms:use_escaped_string(SName)]).
 
 add_privacy_list(Username, SName) ->
     mongoose_rdbms:sql_query_t(
       [<<"insert into privacy_list(username, name) "
-         "values ('">>, Username, "', '", SName, "');"]).
+         "values (">>, mongoose_rdbms:use_escaped_string(Username),
+                 ", ", mongoose_rdbms:use_escaped_string(SName), ");"]).
 
+-spec set_privacy_list(mongoose_rdbms:escaped_integer(),
+                       list(list(mongoose_rdbms:escaped_value()))) -> ok.
 set_privacy_list(ID, RItems) ->
     mongoose_rdbms:sql_query_t(
       [<<"delete from privacy_list_data "
-         "where id='">>, ID, "';"]),
+         "where id=">>, mongoose_rdbms:use_escaped_integer(ID), ";"]),
     lists:foreach(fun(Items) ->
                           mongoose_rdbms:sql_query_t(
                             [<<"insert into privacy_list_data("
@@ -735,31 +744,24 @@ set_privacy_list(ID, RItems) ->
                                "match_message, match_presence_in, "
                                "match_presence_out "
                                ") "
-                               "values ('">>, ID, "', '",
-                             join(Items, "', '"), "');"])
+                               "values (">>, mongoose_rdbms:use_escaped_integer(ID), ", ",
+                                 join_escaped(Items), ");"])
                   end, RItems).
 
 del_privacy_lists(LServer, _Server, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from privacy_list_data where id in ( select id from privacy_list as pl where pl.username='">>, Username, <<"');">>]),
+      [<<"delete from privacy_list_data where id in "
+         "( select id from privacy_list as pl where pl.username=">>,
+           mongoose_rdbms:use_escaped_string(Username), <<";">>]),
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from privacy_list where username='">>, Username, "';"]),
+      [<<"delete from privacy_list "
+          "where username=">>, mongoose_rdbms:use_escaped_string(Username)]),
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from privacy_default_list where username='">>, Username, "';"]).
-
-%% Characters to escape
-escape_character($\0) -> "\\0";
-escape_character($\n) -> "\\n";
-escape_character($\t) -> "\\t";
-escape_character($\b) -> "\\b";
-escape_character($\r) -> "\\r";
-escape_character($')  -> "''";
-escape_character($")  -> "\\\"";
-escape_character($\\) -> "\\\\";
-escape_character(C)   -> C.
+      [<<"delete from privacy_default_list "
+         "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
 
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->
@@ -771,14 +773,15 @@ count_records_where(LServer, Table, WhereClause) ->
 get_roster_version(LServer, LUser) ->
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"select version from roster_version where username = '">>, LUser, "'"]).
+      [<<"select version from roster_version "
+         "where username=">>, mongoose_rdbms:use_escaped_string(LUser)]).
 
 set_roster_version(LUser, Version) ->
     update_t(
       <<"roster_version">>,
       [<<"username">>, <<"version">>],
       [LUser, Version],
-      [<<"username = '">>, LUser, "'"]).
+      [<<"username = ">>, mongoose_rdbms:use_escaped_string(LUser)]).
 
 
 pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
@@ -793,42 +796,52 @@ pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
 
 select_offline_messages_sql(SUser, SServer, STimeStamp) ->
     [<<"select timestamp, from_jid, packet from offline_message "
-            "where server = '">>, SServer, <<"' and "
-                  "username = '">>, SUser, <<"' and "
-                  "(expire is null or expire > ">>, STimeStamp, <<") "
+            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
+                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser), <<" and "
+                  "(expire is null or expire > ">>, mongoose_rdbms:use_escaped_integer(STimeStamp), <<") "
              "ORDER BY timestamp">>].
 
 delete_offline_messages_sql(SUser, SServer) ->
     [<<"delete from offline_message "
-            "where server = '">>, SServer, <<"' and "
-                  "username = '">>, SUser, <<"'">>].
+            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
+                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser)].
 
 remove_old_offline_messages(LServer, STimeStamp) ->
     mongoose_rdbms:sql_query(
       LServer,
-      [<<"delete from offline_message where timestamp < ">>, STimeStamp]).
+      [<<"delete from offline_message where timestamp < ">>,
+       mongoose_rdbms:use_escaped_integer(STimeStamp)]).
 
 remove_expired_offline_messages(LServer, STimeStamp) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from offline_message "
-            "where expire is not null and expire < ">>, STimeStamp]).
+            "where expire is not null and expire < ">>,
+       mongoose_rdbms:use_escaped_integer(STimeStamp)]).
 
 remove_offline_messages(LServer, SUser, SServer) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"delete from offline_message "
-            "where server = '">>, SServer, <<"' and "
-                  "username = '">>, SUser, <<"'">>]).
+            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
+                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser)]).
 
+-spec prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket) ->
+    mongoose_rdbms:sql_query_part() when
+      SUser :: mongoose_rdbms:escaped_string(),
+      SServer :: mongoose_rdbms:escaped_string(),
+      STimeStamp :: mongoose_rdbms:escaped_timestamp(),
+      SExpire :: mongoose_rdbms:escaped_timestamp() | mongoose_rdbms:escaped_null(),
+      SFrom :: mongoose_rdbms:escaped_string(),
+      SPacket :: mongoose_rdbms:escaped_string().
 prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket) ->
-    [<<"('">>,   SUser,
-     <<"', '">>, SServer,
-     <<"', ">>,  STimeStamp,
-     <<", ">>,   SExpire,
-     <<", '">>,  SFrom,
-     <<"', '">>, SPacket,
-     <<"')">>].
+    [<<"(">>,  mongoose_rdbms:use_escaped_string(SUser),
+     <<", ">>, mongoose_rdbms:use_escaped_string(SServer),
+     <<", ">>, mongoose_rdbms:use_escaped_integer(STimeStamp),
+     <<", ">>, mongoose_rdbms:use_escaped(SExpire),
+     <<", ">>, mongoose_rdbms:use_escaped_string(SFrom),
+     <<", ">>, mongoose_rdbms:use_escaped_string(SPacket),
+     <<")">>].
 
 push_offline_messages(LServer, Rows) ->
     mongoose_rdbms:sql_query(
@@ -847,8 +860,8 @@ count_offline_messages(_, LServer, SUser, SServer, Limit) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select count(*) from offline_message "
-            "where server = '">>, SServer, <<"' and "
-                  "username = '">>, SUser, <<"' "
+            "where server = ">>, mongoose_rdbms:use_escaped_string(SServer), <<" and "
+                  "username = ">>, mongoose_rdbms:use_escaped_string(SUser), <<" "
             "limit ">>, integer_to_list(Limit)]).
 
 -spec create_bulk_insert_query(Table :: iodata() | atom(), Fields :: [iodata() | atom()],

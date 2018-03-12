@@ -1098,7 +1098,7 @@ is_jid_in_user_roster(#jid{lserver=LServer, luser=LUser},
     Subscription == from orelse Subscription == both.
 
 
--spec success_sql_query(atom() | jid:server(), _) -> any().
+-spec success_sql_query(atom() | jid:server(), mongoose_rdbms:sql_query()) -> any().
 success_sql_query(HostOrConn, Query) ->
     Result = mongoose_rdbms:sql_query(HostOrConn, Query),
     error_on_sql_error(HostOrConn, Query, Result).

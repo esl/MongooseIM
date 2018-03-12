@@ -1,5 +1,18 @@
 ﻿USE [ejabberd]
 GO
+CREATE TABLE [dbo].[test_types](
+    [unicode] [nvarchar](max),
+    [binary_data] [varbinary](max),
+    [ascii_char] char(1),
+    [ascii_string] varchar(250), -- limited usage, base64-like stuff
+    [int32] [int],
+    [int64] [bigint],
+    [int8] tinyint,
+    [enum_char] [nvarchar](1),
+    [bool_flag] smallint
+)
+GO
+
 /****** Object:  Table [dbo].[last]    Script Date: 9/17/2014 6:20:03 AM ******/
 SET ANSI_NULLS ON
 GO
@@ -8,9 +21,9 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[last](
-	[username] [varchar](250) NOT NULL,
+	[username] [nvarchar](250) NOT NULL,
 	[seconds] [int] NOT NULL,
-	[state] [varchar](max) NOT NULL,
+	[state] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_last_username] PRIMARY KEY CLUSTERED
 (
 	[username] ASC
@@ -29,8 +42,8 @@ SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[mam_config](
 	[user_id] [bigint] NOT NULL,
-	[remote_jid] [varchar](250) NOT NULL,
-	[behaviour] [varchar](1) NOT NULL
+	[remote_jid] [nvarchar](250) NOT NULL,
+	[behaviour] [nvarchar](1) NOT NULL
 ) ON [PRIMARY]
 
 GO
@@ -46,11 +59,12 @@ GO
 CREATE TABLE [dbo].[mam_message](
 	[id] [bigint] NOT NULL,
 	[user_id] [bigint] NOT NULL,
-	[from_jid] [varchar](250) NOT NULL,
-	[remote_bare_jid] [varchar](250) NOT NULL,
-	[remote_resource] [varchar](250) NOT NULL,
-	[direction] [varchar](1) NOT NULL,
-	[message] [varchar](max) NOT NULL,
+	[from_jid] [nvarchar](250) NOT NULL,
+	[remote_bare_jid] [nvarchar](250) NOT NULL,
+	[remote_resource] [nvarchar](250) NOT NULL,
+	[direction] [nvarchar](1) NOT NULL,
+	[message] [varbinary](max) NOT NULL,
+	[search_body] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_mam_message_user_id] PRIMARY KEY CLUSTERED
 (
 	[user_id] ASC,
@@ -68,13 +82,17 @@ SET QUOTED_IDENTIFIER ON
 GO
 SET ANSI_PADDING ON
 GO
+/* id is not unique across the table, because we create copies of the same
+ * archive for different users in our tests */
 CREATE TABLE [dbo].[mam_muc_message](
 	[id] [bigint] NOT NULL,
 	[room_id] [bigint] NOT NULL,
-	[nick_name] [varchar](250) NOT NULL,
-	[message] [varchar](max) NOT NULL,
+	[nick_name] [nvarchar](250) NOT NULL,
+	[message] [varbinary](max) NOT NULL,
+	[search_body] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_mam_muc_message_id] PRIMARY KEY CLUSTERED
 (
+    [room_id] ASC,
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
@@ -89,10 +107,11 @@ SET QUOTED_IDENTIFIER ON
 GO
 SET ANSI_PADDING ON
 GO
+
 CREATE TABLE [dbo].[mam_server_user](
 	[id] [bigint] IDENTITY(1,1) NOT NULL,
-	[server] [varchar](250) NOT NULL,
-	[user_name] [varchar](250) NOT NULL,
+	[server] [nvarchar](250) NOT NULL,
+	[user_name] [nvarchar](250) NOT NULL,
  CONSTRAINT [PK_mam_server_user_id] PRIMARY KEY CLUSTERED
 (
 	[id] ASC
@@ -118,10 +137,10 @@ CREATE TABLE [dbo].[offline_message](
 	[id] [bigint] IDENTITY(1,1) NOT NULL,
 	[timestamp] [bigint] NOT NULL,
 	[expire] [bigint] NULL,
-	[server] [varchar](250) NOT NULL,
-	[username] [varchar](250) NOT NULL,
-	[from_jid] [varchar](250) NOT NULL,
-	[packet] [varchar](max) NOT NULL,
+	[server] [nvarchar](250) NOT NULL,
+	[username] [nvarchar](250) NOT NULL,
+	[from_jid] [nvarchar](250) NOT NULL,
+	[packet] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_offline_message_id] PRIMARY KEY CLUSTERED
 (
 	[id] ASC
@@ -139,8 +158,8 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[privacy_default_list](
-	[username] [varchar](250) NOT NULL,
-	[name] [varchar](250) NOT NULL,
+	[username] [nvarchar](250) NOT NULL,
+	[name] [nvarchar](250) NOT NULL,
  CONSTRAINT [PK_privacy_default_list_username] PRIMARY KEY CLUSTERED
 (
 	[username] ASC
@@ -158,8 +177,8 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[privacy_list](
-	[username] [varchar](250) NOT NULL,
-	[name] [varchar](250) NOT NULL,
+	[username] [nvarchar](250) NOT NULL,
+	[name] [nvarchar](250) NOT NULL,
 	[id] [bigint] IDENTITY(1,1) NOT NULL,
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [privacy_list$id] UNIQUE CLUSTERED
@@ -181,7 +200,7 @@ GO
 CREATE TABLE [dbo].[privacy_list_data](
 	[id] [bigint] NULL,
 	[t] [char](1) NOT NULL,
-	[value] [varchar](max) NOT NULL,
+	[value] [nvarchar](max) NOT NULL,
 	[action] [char](1) NOT NULL,
 	[ord] [bigint] NOT NULL,
 	[match_all] [smallint] NOT NULL,
@@ -202,9 +221,10 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[private_storage](
-	[username] [varchar](250) NOT NULL,
-	[namespace] [varchar](250) NOT NULL,
-	[data] [varchar](max) NOT NULL,
+    /* be aware of 900 bytes index length limit. nvarchar uses two bytes per char */
+	[username] [nvarchar](200) NOT NULL, -- 250 in mysql
+	[namespace] [nvarchar](250) NOT NULL,
+	[data] [nvarchar](max) NOT NULL,
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [private_storage$i_private_storage_username_namespace] UNIQUE CLUSTERED
 (
@@ -224,8 +244,8 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[roster_version](
-	[username] [varchar](250) NOT NULL,
-	[version] [varchar](max) NOT NULL,
+	[username] [nvarchar](250) NOT NULL,
+	[version] [nvarchar](max) NOT NULL,
  CONSTRAINT [PK_roster_version_username] PRIMARY KEY CLUSTERED
 (
 	[username] ASC
@@ -243,9 +263,9 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[rostergroups](
-	[username] [varchar](250) NOT NULL,
-	[jid] [varchar](250) NOT NULL,
-	[grp] [varchar](max) NOT NULL
+	[username] [nvarchar](250) NOT NULL,
+	[jid] [nvarchar](250) NOT NULL,
+	[grp] [nvarchar](max) NOT NULL
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 
 GO
@@ -259,15 +279,15 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[rosterusers](
-	[username] [varchar](250) NOT NULL,
-	[jid] [varchar](250) NOT NULL,
-	[nick] [varchar](max) NOT NULL,
+	[username] [nvarchar](200) NOT NULL, -- 200 in mysql
+	[jid] [nvarchar](250) NOT NULL,
+	[nick] [nvarchar](max) NOT NULL,
 	[subscription] [char](1) NOT NULL,
 	[ask] [char](1) NOT NULL,
-	[askmessage] [varchar](max) NOT NULL,
+	[askmessage] [nvarchar](max) NOT NULL,
 	[server] [char](1) NOT NULL,
-	[subscribe] [varchar](max) NOT NULL,
-	[type] [varchar](max) NULL,
+	[subscribe] [nvarchar](max) NOT NULL,
+	[type] [nvarchar](max) NULL,
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [rosterusers$i_rosteru_user_jid] UNIQUE CLUSTERED
 (
@@ -288,9 +308,9 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[users](
-	[username] [varchar](250) NOT NULL,
-	[password] [varchar](max) NOT NULL,
-	[pass_details] [varchar](max) NULL,
+	[username] [nvarchar](250) NOT NULL,
+	[password] [nvarchar](max) NOT NULL,
+	[pass_details] [nvarchar](max) NULL,
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [PK_users_username] PRIMARY KEY CLUSTERED
 (
@@ -309,9 +329,9 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[vcard](
-	[username] [varchar](150) NOT NULL,
-	[server] [varchar](150) NOT NULL,
-	[vcard] [varchar](max) NOT NULL,
+	[username] [nvarchar](150) NOT NULL,
+	[server] [nvarchar](150) NOT NULL,
+	[vcard] [nvarchar](max) NOT NULL,
 	[created_at] [datetime] NOT NULL,
  CONSTRAINT [PK_vcard_username] PRIMARY KEY CLUSTERED
 (
@@ -331,31 +351,31 @@ GO
 SET ANSI_PADDING ON
 GO
 CREATE TABLE [dbo].[vcard_search](
-	[username] [varchar](150) NOT NULL,
-	[lusername] [varchar](100) NOT NULL,
-	[server] [varchar](150) NOT NULL,
-	[fn] [varchar](max) NOT NULL,
-	[lfn] [varchar](250) NOT NULL,
-	[family] [varchar](max) NOT NULL,
-	[lfamily] [varchar](250) NOT NULL,
-	[given] [varchar](max) NOT NULL,
-	[lgiven] [varchar](250) NOT NULL,
-	[middle] [varchar](max) NOT NULL,
-	[lmiddle] [varchar](250) NOT NULL,
-	[nickname] [varchar](max) NOT NULL,
-	[lnickname] [varchar](250) NOT NULL,
-	[bday] [varchar](max) NOT NULL,
-	[lbday] [varchar](250) NOT NULL,
-	[ctry] [varchar](max) NOT NULL,
-	[lctry] [varchar](250) NOT NULL,
-	[locality] [varchar](max) NOT NULL,
-	[llocality] [varchar](250) NOT NULL,
-	[email] [varchar](max) NOT NULL,
-	[lemail] [varchar](250) NOT NULL,
-	[orgname] [varchar](max) NOT NULL,
-	[lorgname] [varchar](250) NOT NULL,
-	[orgunit] [varchar](max) NOT NULL,
-	[lorgunit] [varchar](250) NOT NULL,
+	[username] [nvarchar](150) NOT NULL,
+	[lusername] [nvarchar](100) NOT NULL,
+	[server] [nvarchar](150) NOT NULL,
+	[fn] [nvarchar](max) NOT NULL,
+	[lfn] [nvarchar](250) NOT NULL,
+	[family] [nvarchar](max) NOT NULL,
+	[lfamily] [nvarchar](250) NOT NULL,
+	[given] [nvarchar](max) NOT NULL,
+	[lgiven] [nvarchar](250) NOT NULL,
+	[middle] [nvarchar](max) NOT NULL,
+	[lmiddle] [nvarchar](250) NOT NULL,
+	[nickname] [nvarchar](max) NOT NULL,
+	[lnickname] [nvarchar](250) NOT NULL,
+	[bday] [nvarchar](max) NOT NULL,
+	[lbday] [nvarchar](250) NOT NULL,
+	[ctry] [nvarchar](max) NOT NULL,
+	[lctry] [nvarchar](250) NOT NULL,
+	[locality] [nvarchar](max) NOT NULL,
+	[llocality] [nvarchar](250) NOT NULL,
+	[email] [nvarchar](max) NOT NULL,
+	[lemail] [nvarchar](250) NOT NULL,
+	[orgname] [nvarchar](max) NOT NULL,
+	[lorgname] [nvarchar](250) NOT NULL,
+	[orgunit] [nvarchar](max) NOT NULL,
+	[lorgunit] [nvarchar](250) NOT NULL,
  CONSTRAINT [PK_vcard_search_lusername] PRIMARY KEY CLUSTERED
 (
 	[lusername] ASC,
@@ -364,6 +384,73 @@ CREATE TABLE [dbo].[vcard_search](
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
 
 GO
+
+CREATE TABLE [dbo].[muc_light_rooms](
+    [id] [bigint] IDENTITY(1,1) NOT NULL UNIQUE,
+
+    [luser] [NVARCHAR](200)  NOT NULL, -- 250 in mysql
+    [lserver] NVARCHAR(250)  NOT NULL,
+    [version] NVARCHAR(20)   NOT NULL,
+    CONSTRAINT [PK_muc_light_rooms] PRIMARY KEY CLUSTERED(
+        [lserver] ASC,
+        [luser] ASC
+    ))
+GO
+
+CREATE TABLE [dbo].[muc_light_occupants](
+    [room_id] [bigint]        NOT NULL,
+    [luser]   [NVARCHAR](200)  NOT NULL, -- 250 in mysql
+    [lserver] [NVARCHAR](200)  NOT NULL, -- 250 in mysql
+    [aff] TINYINT             NOT NULL,
+    CONSTRAINT [PK_muc_light_occupants] PRIMARY KEY (
+        [room_id] ASC,
+        [lserver] ASC,
+        [luser] ASC
+    ))
+GO
+
+ALTER TABLE [dbo].[muc_light_occupants]
+    ADD CONSTRAINT FK_occupants_muc_light_rooms
+        FOREIGN KEY (room_id)
+        REFERENCES [dbo].[muc_light_rooms](id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+GO
+
+CREATE INDEX i_muc_light_occupants_id ON muc_light_occupants(room_id)
+GO
+CREATE INDEX i_muc_light_occupants_us ON muc_light_occupants(lserver, luser)
+GO
+
+CREATE TABLE [dbo].[muc_light_config](
+    room_id bigint          NOT NULL,
+    opt NVARCHAR(100)        NOT NULL,
+    val NVARCHAR(250)        NOT NULL,
+    CONSTRAINT [PK_muc_light_config] PRIMARY KEY CLUSTERED(
+        [room_id] ASC,
+        [opt] ASC
+    ))
+GO
+
+ALTER TABLE [dbo].[muc_light_config]
+    ADD CONSTRAINT FK_config_muc_light_rooms
+        FOREIGN KEY (room_id)
+        REFERENCES [dbo].[muc_light_rooms](id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+GO
+
+CREATE TABLE dbo.muc_light_blocking(
+    luser NVARCHAR(250)      NOT NULL,
+    lserver NVARCHAR(250)    NOT NULL,
+    what TINYINT            NOT NULL,
+    who NVARCHAR(500)        NOT NULL
+)
+GO
+
+CREATE INDEX i_muc_light_blocking ON muc_light_blocking(luser, lserver);
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]
@@ -375,8 +462,6 @@ GO
 ALTER TABLE [dbo].[private_storage] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
 ALTER TABLE [dbo].[rosterusers] ADD  DEFAULT (getdate()) FOR [created_at]
-GO
-ALTER TABLE [dbo].[spool] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
 ALTER TABLE [dbo].[users] ADD  DEFAULT (getdate()) FOR [created_at]
 GO
@@ -400,8 +485,6 @@ EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_m
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_server_user' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_server_user'
 GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_user' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_user'
-GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.offline_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'offline_message'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_default_list' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_default_list'
@@ -417,8 +500,6 @@ GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rostergroups' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rostergroups'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rosterusers' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rosterusers'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.spool' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'spool'
 GO
 EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.users' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'users'
 GO

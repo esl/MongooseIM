@@ -16,7 +16,7 @@ init(_Host, _Opts) ->
     ok.
 
 multi_set_data(LUser, LServer, NS2XML) ->
-    SLUser = mongoose_rdbms:escape(LUser),
+    SLUser = mongoose_rdbms:escape_string(LUser),
     Rows = [sql_row(NS, XML) || {NS, XML} <- NS2XML],
     replace_like_insert_result(
         rdbms_queries:multi_set_private_data(LServer, SLUser, Rows)).
@@ -25,13 +25,13 @@ replace_like_insert_result({updated, _})        -> ok;
 replace_like_insert_result({error, Reason})     -> {error, Reason}.
 
 sql_row(NS, XML) ->
-    SNS = mongoose_rdbms:escape(NS),
-    SData = mongoose_rdbms:escape(exml:to_binary(XML)),
+    SNS = mongoose_rdbms:escape_string(NS),
+    SData = mongoose_rdbms:escape_string(exml:to_binary(XML)),
     {SNS, SData}.
 
 multi_get_data(LUser, LServer, NS2Def) ->
-    SLUser = mongoose_rdbms:escape(LUser),
-    SNSs = [mongoose_rdbms:escape(NS) || {NS, _Def} <- NS2Def],
+    SLUser = mongoose_rdbms:escape_string(LUser),
+    SNSs = [mongoose_rdbms:escape_string(NS) || {NS, _Def} <- NS2Def],
     case rdbms_queries:multi_get_private_data(LServer, SLUser, SNSs) of
         {selected, Rows} ->
             RowsDict = dict:from_list(Rows),
@@ -50,5 +50,5 @@ select_value({NS, Def}, RowsDict) ->
     end.
 
 remove_user(LUser, LServer) ->
-    SLUser = mongoose_rdbms:escape(LUser),
+    SLUser = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:del_user_private_storage(LServer, SLUser).

@@ -6,9 +6,6 @@
 -define(b2l(B), binary_to_list(B)).
 -define(l2b(L), list_to_binary(L)).
 
--define(NO_ODBC_WARN, "WARNING! There is no odbc module in your Erlang/OTP installation! "
-                      "It will not be included in the release!").
-
 -record(opts, {apps             = [],
                prefix           = "/usr/local",
                reltool_vars     = "rel/configure.vars.config",
@@ -40,7 +37,7 @@ app_opts() ->
     [{"none",      [],                  "include no 3rd party drivers"},
      {"all",       [],                  "include all drivers"},
      {"mysql",     ["mysql"],           include_driver("mysql")},
-     {"odbc",      ["odbc"],            "include standard ODBC driver shipped with Erlang/OTP"},
+     {"odbc",      ["eodbc"],           "include alternative version of ODBC driver"},
      {"pgsql",     ["epgsql"],          include_driver("pgsql")},
      {"redis",     ["redo"],            include_driver("redis")},
      {"riak",      ["riakc"],           include_driver("riak")},
@@ -111,20 +108,6 @@ exclude_app(App, Apps) ->
     {App, AppDeps, _} = lists:keyfind(App, 1, app_opts()),
     Apps -- AppDeps.
 
-validate_apps(Apps) -> validate_apps(Apps, []).
-
-validate_apps(["odbc" = App | Apps], Acc) ->
-    case is_odbc_available() of
-        false -> io:format(standard_error, "~s~n", [?NO_ODBC_WARN]),
-                 validate_apps(Apps, Acc);
-        true  -> validate_apps(Apps, [App | Acc])
-    end;
-validate_apps([App | Apps], Acc) -> validate_apps(Apps, [App | Acc]);
-validate_apps([], Acc) -> lists:reverse(Acc).
-
-is_odbc_available() ->
-    {module, odbc} == code:ensure_loaded(odbc).
-
 usage() ->
     print(standard_error,
           "~s: OPTIONS\n"
@@ -164,7 +147,7 @@ rt_var(Name, Value) -> io_lib:format("{~s, ~p}.\n", [Name, Value]).
 
 write(shell, FileName, Opts) ->
     Data = ( [sh_var("MONGOOSEIM_CONFIGURED", ["yes"]),
-              sh_var("APPS", validate_apps(Opts#opts.apps)),
+              sh_var("APPS", Opts#opts.apps),
               sh_var("PREFIX", [Opts#opts.prefix]),
               sh_var("RELTOOL_VARS", [Opts#opts.reltool_vars]),
               sh_var("SYSTEM", [Opts#opts.system])] ++
