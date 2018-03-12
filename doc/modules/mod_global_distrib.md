@@ -115,6 +115,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
 * **bounce** (list | `false`, default: `[]`): Options for message bouncing; if `false`, message bouncing is disabled.
   See *Message bouncing options* section.
 * **redis** (list, default: `[]`): Options for Redis session storage backend.
+* **hosts_refresh_interval** (integer, default: 3000) - The interval (in milliseconds) telling how often Redis should be asked if new hosts appeared.
 
 #### Connections' options
 

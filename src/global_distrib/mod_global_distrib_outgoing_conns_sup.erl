@@ -5,7 +5,7 @@
 -include("mongoose.hrl").
 
 -export([start_link/0, init/1]).
--export([add_server/1, get_connection/1]).
+-export([add_server/1, get_connection/1, ensure_server_started/1]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -37,11 +37,17 @@ add_server(Server) ->
                       "state='started_by_other',pid='~p'", [Server, Pid]),
             ok;
         Error ->
-            ?INFO_MSG("event=outgoing_conn_start_progress,server='~s',"
-                      "state='failed',error='~p'", [Server, Error]),
+            ?ERROR_MSG("event=outgoing_conn_start_progress,server='~s',"
+                       "state='failed',error='~p'", [Server, Error]),
             Error
     end.
 
+%% Call to get_connection blocks until a connection is available.
+%% Currently the timeout is infinity.
+%% This function is safe for concurrent calls if the outgoing pool is not present yet.
+%% The first caller will be the one initiating pool startup and the others are blocked
+%% in the meantime; then, everyone will use the pool initiated by the first caller.
+%% TODO: Revise negative cases for this function.
 -spec get_connection(Server :: jid:lserver()) -> pid().
 get_connection(Server) ->
     get_connection(Server, 5).
@@ -63,6 +69,13 @@ get_connection(Server, RetriesLeft) ->
             Pid
     end.
 
+-spec ensure_server_started(Server :: jid:lserver()) -> ok | {error, any()}.
+ensure_server_started(Server) ->
+    case mod_global_distrib_server_sup:is_available(Server) of
+        false -> add_server(Server);
+        true -> ok
+    end.
+
 %%--------------------------------------------------------------------
 %% supervisor callback
 %%--------------------------------------------------------------------
@@ -70,8 +83,4 @@ get_connection(Server, RetriesLeft) ->
 init(_) ->
     SupFlags = #{ strategy => one_for_one, intensity => 5, period => 5 },
     {ok, {SupFlags, []}}.
-
-%%--------------------------------------------------------------------
-%% Helpers
-%%--------------------------------------------------------------------
 

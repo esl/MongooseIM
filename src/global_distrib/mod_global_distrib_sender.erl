@@ -62,23 +62,11 @@ stop(Host) ->
 
 -spec start() -> any().
 start() ->
-    opt(tls_opts), %% Check for required tls_opts
-    ConnsSup = mod_global_distrib_outgoing_conns_sup,
-    ChildSpec = #{
-      id => ConnsSup,
-      start => {ConnsSup, start_link, []},
-      restart => permanent,
-      shutdown => 5000,
-      type => supervisor,
-      modules => [ConnsSup]
-     },
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    opt(tls_opts). %% Check for required tls_opts
 
 -spec stop() -> any().
 stop() ->
-    ConnsSup = mod_global_distrib_outgoing_conns_sup,
-    supervisor:terminate_child(ejabberd_sup, ConnsSup),
-    supervisor:delete_child(ejabberd_sup, ConnsSup).
+    ok.
 
 -spec get_process_for(jid:lserver()) -> pid().
 get_process_for(Server) ->

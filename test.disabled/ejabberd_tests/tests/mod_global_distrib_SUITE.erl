@@ -24,6 +24,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-define(HOSTS_REFRESH_INTERVAL, 200). %% in ms
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -36,7 +38,8 @@ all() ->
      {group, invalidation},
      {group, multi_connection},
      {group, rebalancing},
-     {group, advertised_endpoints}
+     {group, advertised_endpoints},
+     {group, hosts_refresher}
     ].
 
 groups() ->
@@ -57,6 +60,8 @@ groups() ->
        test_update_senders_host_by_ejd_service
        %% TODO: Add test case fo global_distrib_addr option
       ]},
+     {hosts_refresher, [],
+      [test_host_refreshing]},
      {cluster_restart, [],
       [
        test_location_disconnect
@@ -149,6 +154,7 @@ init_per_group(_, Config0) ->
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
                   Opts0 = ?config(extra_config, Config1) ++
 		         [{local_host, LocalHost},
+                          {hosts_refresh_interval, ?HOSTS_REFRESH_INTERVAL},
                           {global_host, "localhost"},
                           {endpoints, [listen_endpoint(ReceiverPort)]},
                           {tls_opts, [
@@ -241,21 +247,46 @@ end_per_testcase(CaseName, Config) ->
 generic_end_per_testcase(CaseName, Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
+              %% TODO: Enable refresher only for specific test cases,
+              %% as some of them are based on assumption that node(s)
+              %% must open new connections during tests.
+              pause_refresher(NodeName, CaseName),
               Node = ct:get_config(NodeName),
               SupRef = {mod_global_distrib_outgoing_conns_sup, Node},
               try
                   OutgoingConns = supervisor:which_children(SupRef),
-                  lists:foreach(fun({Id, _, _, _}) ->
+                  lists:foreach(fun ({mod_global_distrib_hosts_refresher, _, _, _}) ->
+                                        skip;
+                                    ({Id, _, _, _}) ->
                                         supervisor:terminate_child(SupRef, Id)
                                 end, OutgoingConns),
-                  [] = supervisor:which_children(SupRef)
+                  [{mod_global_distrib_hosts_refresher, _, worker, _Modules}] =
+                    supervisor:which_children(SupRef)
               catch
                   _:{noproc, _} ->
                       ct:pal("Sender supervisor not found in ~p", [NodeName])
-              end
+              end,
+              unpause_refresher(NodeName, CaseName)
       end,
       get_hosts()),
     escalus:end_per_testcase(CaseName, Config).
+
+%% Refresher is not started at all or stopped for some test cases
+-spec pause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.
+pause_refresher(_, test_error_on_wrong_hosts) ->
+    ok;
+pause_refresher(asia_node, test_location_disconnect) ->
+    ok;
+pause_refresher(NodeName, _) ->
+    ok = rpc(NodeName, mod_global_distrib_hosts_refresher, pause, []).
+
+-spec unpause_refresher(NodeName :: atom(), CaseName :: atom()) -> ok.
+unpause_refresher(_, test_error_on_wrong_hosts) ->
+    ok;
+unpause_refresher(asia_node, test_location_disconnect) ->
+    ok;
+unpause_refresher(NodeName, _) ->
+    ok = rpc(NodeName, mod_global_distrib_hosts_refresher, unpause, []).
 
 %%--------------------------------------------------------------------
 %% Service discovery test
@@ -272,6 +303,19 @@ test_advertised_endpoints_override_endpoints(Config) ->
     true = lists:all(fun({ok, E}) ->
                              lists:sort(iptuples_to_string(E)) =:=
                                  lists:sort(advertised_endpoints()) end, Endps).
+
+%% @doc Verifies that hosts refresher will restart the outgoing connection pool if
+%% it goes down for some reason (crash or domain unavailability).
+%% Also actually verifies that refresher properly reads host list
+%% from backend and starts appropriate pool.
+test_host_refreshing(_Config) ->
+    wait_until(fun() -> trees_for_connections_present() end, 2, ?HOSTS_REFRESH_INTERVAL),
+    ConnectionSups = out_connection_sups(asia_node),
+    {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
+    EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
+    {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
+    erlang:exit(EuropePid, kill), % it's ok to kill temporary process
+    wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 2, ?HOSTS_REFRESH_INTERVAL).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -669,7 +713,7 @@ test_update_senders_host(Config) ->
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
 
-              escalus:send(Alice, escalus_stanza:chat_to(Eve, <<"hi">>)),
+              escalus:send(Alice, escalus_stanza:chat_to(Eve, <<"test_update_senders_host">>)),
               escalus:wait_for_stanza(Eve),
 
               {ok, <<"localhost.bis">>}
@@ -703,12 +747,15 @@ test_update_senders_host_by_ejd_service(Config) ->
 
               %% Component is connected to europe_node1
               %% but we force asia_node to connect to europe_node2 by hiding europe_node1
+              %% and forcing rebalance (effectively disabling connections to europe_node1)
               %% to verify routing cache update on both nodes
 
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
 
               hide_node(europe_node1, Config),
+              {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
+              trigger_rebalance(asia_node, EuropeHost),
 
               escalus:send(Eve, escalus_stanza:chat_to(Addr, <<"hi">>)),
               escalus:wait_for_stanza(Comp),
@@ -760,6 +807,9 @@ disable_endpoint_on_refresh(Config) ->
 
 wait_for_connection(Config) ->
     set_endpoints(asia_node, []),
+    %% Because of hosts refresher, a pool of connections to asia_node
+    %% may already be present here
+    trigger_rebalance(europe_node1, <<"reg1">>),
 
     spawn_connection_getter(europe_node1),
 
@@ -813,6 +863,9 @@ rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, timer:seconds(30), Cookie).
+
+wait_until(Predicate, Attempts, Sleeptime) ->
+    wait_until(Predicate, true, Attempts, Sleeptime).
 
 wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
     wait_until(Fun, ExpectedValue, Attempts, SleepTime, []).
@@ -954,6 +1007,20 @@ mock_inet() ->
 
 unmock_inet(Pids) ->
     execute_on_each_node(meck, unload, [inet]).
+
+out_connection_sups(Node) ->
+    Children = rpc(Node, supervisor, which_children, [mod_global_distrib_outgoing_conns_sup]),
+    lists:filter(fun({Sup, _, _, _}) -> Sup =/= mod_global_distrib_hosts_refresher end, Children).
+
+trees_for_connections_present() ->
+    AsiaChildren = out_connection_sups(asia_node),
+    Europe1Children = out_connection_sups(europe_node1),
+    Europe2Children = out_connection_sups(europe_node2),
+    lists:all(fun(Host) -> length(Host) > 0 end, [AsiaChildren, Europe1Children, Europe2Children]).
+
+tree_for_sup_present(Node, ExpectedSup) ->
+    Children = out_connection_sups(Node),
+    lists:keyfind(ExpectedSup, 1, Children) =/= false.
 
 
 %% ------------------------------- rebalancing helpers -----------------------------------
