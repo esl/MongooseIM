@@ -21,6 +21,58 @@ PGSQL_ODBC_CERT_DIR=~/.postgresql
 
 SSLDIR=${BASE}/${TOOLS}/ssl
 
+# There is one odbc.ini for both mssql and pgsql
+# Allows to run both in parallel
+function install_odbc_ini
+{
+# CLIENT OS CONFIGURING STUFF
+#
+# Be aware, that underscore in TDS_Version is required.
+# It can't be just "TDS Version = 7.1".
+#
+# To check that connection works use:
+#
+# {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123",[]).
+#
+# To check that TDS version is correct, use:
+#
+# odbc:sql_query(Conn, "select cast(1 as bigint)").
+#
+# It should return:
+# {selected,[[]],[{"1"}]}
+#
+# It should not return:
+# {selected,[[]],[{1.0}]}
+#
+# Be aware, that Driver and Setup values are for Ubuntu.
+# CentOS would use different ones.
+    cat > ~/.odbc.ini << EOL
+[mongoose-mssql]
+Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
+Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+Server      = 127.0.0.1
+Port        = 1433
+Database    = ejabberd
+Username    = sa
+Password    = mongooseim_secret+ESL123
+Charset     = UTF-8
+TDS_Version = 7.2
+client_charset = UTF-8
+
+[ejabberd-pgsql]
+Driver               = PostgreSQL Unicode
+ServerName           = localhost
+Port                 = 5432
+Database             = ejabberd
+Username             = ejabberd
+Password             = mongooseim_secret
+sslmode              = verify-full
+Protocol             = 9.3.5
+Debug                = 1
+ByteaAsLongVarBinary = 1
+EOL
+}
+
 if [ "$DB" = 'mysql' ]; then
     echo "Configuring mysql"
     # TODO We should not use sudo
@@ -45,9 +97,13 @@ if [ "$DB" = 'mysql' ]; then
         mysql --default-authentication-plugin=mysql_native_password
 
 elif [ "$DB" = 'pgsql' ]; then
+    # If you see "certificate verify failed" error in Mongoose logs, try:
+    # Inside tools/ssl/:
+    # make clean && make
+    # Than rerun the script to create a new docker container.
     echo "Configuring postgres with SSL"
     sudo service postgresql stop || echo "Failed to stop psql"
-    mkdir ${SQL_TEMP_DIR}
+    mkdir -p ${SQL_TEMP_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     cp ${SSLDIR}/fake_key.pem ${SQL_TEMP_DIR}/.
     cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
@@ -58,21 +114,9 @@ elif [ "$DB" = 'pgsql' ]; then
            -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
            -v ${BASE}/${TOOLS}/docker-setup-postgres.sh:/docker-entrypoint-initdb.d/docker-setup-postgres.sh \
            -p 5432:5432 --name=mongooseim-pgsql postgres
-    mkdir ${PGSQL_ODBC_CERT_DIR} || echo "PGSQL odbc cert dir already exists"
+    mkdir -p ${PGSQL_ODBC_CERT_DIR} || echo "PGSQL odbc cert dir already exists"
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
-    cat > ~/.odbc.ini << EOL
-[ejabberd-pgsql]
-Driver               = PostgreSQL Unicode
-ServerName           = localhost
-Port                 = 5432
-Database             = ejabberd
-Username             = ejabberd
-Password             = mongooseim_secret
-sslmode              = verify-full
-Protocol             = 9.3.5
-Debug                = 1
-ByteaAsLongVarBinary = 1
-EOL
+    install_odbc_ini
 
 elif [ "$DB" = 'riak' ]; then
     echo "Configuring Riak with SSL"
@@ -146,6 +190,56 @@ elif [ "$DB" = 'cassandra' ]; then
                --link cassandra:cassandra                       \
                cassandra:${CASSANDRA_VERSION}                   \
                sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
+
+elif [ "$DB" = 'mssql' ]; then
+    # LICENSE STUFF, IMPORTANT
+    #
+    # SQL Server Developer edition
+    # http://download.microsoft.com/download/4/F/7/4F7E81B0-7CEB-401D-BCFA-BF8BF73D868C/EULAs/License_Dev_Linux.rtf
+    #
+    # Information from that license:
+    # > a. General.
+    # > You may install and use copies of the software on any device,
+    # > including third party shared devices, to design, develop, test and
+    # > demonstrate your programs.
+    # > You may not use the software on a device or server in a
+    # > production environment.
+    #
+    # > We collect data about how you interact with this software.
+    #   READ MORE...
+    #
+    # > BENCHMARK TESTING.
+    # > You must obtain Microsoft's prior written approval to disclose to
+    # > a third party the results of any benchmark test of the software.
+
+    # SCRIPTING STUFF
+    #
+    # MSSQL wants secure passwords
+    # i.e. just "mongooseim_secret" would not work.
+    #
+    # We don't overwrite --entrypoint, but it's possible.
+    # It has no '/docker-entrypoint-initdb.d/'-like interface.
+    # So we would put schema into some random place and
+    # apply it inside 'docker-exec' command.
+    docker run -d -p 1433:1433                                  \
+               --name=mongoose-mssql                            \
+               -e "ACCEPT_EULA=Y"                               \
+               -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
+               -v "$(pwd)/priv/mssql2012.sql:/mongoose.sql:ro"  \
+               --health-cmd='/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" -Q "SELECT 1"' \
+               microsoft/mssql-server-linux
+    tools/wait_for_healthcheck.sh mongoose-mssql
+    tools/wait_for_service.sh mongoose-mssql 1433
+
+    docker exec -it mongoose-mssql \
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
+        -Q "CREATE DATABASE ejabberd"
+    docker exec -it mongoose-mssql \
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
+        -i mongoose.sql
+
+    install_odbc_ini
+
 else
     echo "Skip setting up database"
 fi

@@ -26,11 +26,10 @@ all_tests() ->
      groupchat_message_is_not_stored,
      headline_message_is_not_stored,
      expired_messages_are_not_delivered,
-     max_offline_messages_reached
-    ].
+     max_offline_messages_reached].
 
 groups() ->
-    [{mod_offline_tests, [parallel, shuffle], all_tests()}].
+    [{mod_offline_tests, [parallel], all_tests()}].
 
 suite() ->
     escalus:suite().
@@ -109,7 +108,7 @@ max_offline_messages_reached(Config) ->
                                               {count, MessagesPerResource}),
 
                 send_message(B1, Alice, ?MAX_OFFLINE_MSGS+1),
-                Packet = escalus:wait_for_stanza(B1),
+                Packet = escalus:wait_for_stanza(B1, 5000),
                 escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Packet),
 
                 NewAlice = login_send_presence(FreshConfig, alice),
@@ -139,7 +138,7 @@ expired_messages_are_not_delivered(Config) ->
 
                 escalus_new_assert:mix_match
                   ([is_presence, is_chat(<<"long">>)],
-                   escalus:wait_for_stanzas(NewBob, 2)),
+                   escalus:wait_for_stanzas(NewBob, 2, 5000)),
                 ct:sleep(500),
                 false = escalus_client:has_stanzas(NewBob)
         end,

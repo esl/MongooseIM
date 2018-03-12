@@ -35,7 +35,7 @@
 -export([select_blocking/2, select_blocking_cnt/3, insert_blocking/4,
          delete_blocking/4, delete_blocking/2]).
 
--define(ESC(T), mongoose_rdbms:escape(T)).
+-define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
 
 %%====================================================================
 %% General room queries
@@ -43,14 +43,14 @@
 
 -spec select_room_id(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 select_room_id(RoomU, RoomS) ->
-    ["SELECT id FROM muc_light_rooms WHERE luser = '", ?ESC(RoomU), "'"
-                                     " AND lserver = '", ?ESC(RoomS), "'"].
+    ["SELECT id FROM muc_light_rooms WHERE luser = ", ?ESC(RoomU),
+                                     " AND lserver = ", ?ESC(RoomS)].
 
 -spec select_room_id_and_version(
         RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 select_room_id_and_version(RoomU, RoomS) ->
-    ["SELECT id, version FROM muc_light_rooms WHERE luser = '", ?ESC(RoomU), "'"
-                                              " AND lserver = '", ?ESC(RoomS), "'"].
+    ["SELECT id, version FROM muc_light_rooms WHERE luser = ", ?ESC(RoomU),
+                                              " AND lserver = ", ?ESC(RoomS)].
 
 -spec select_user_rooms(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
 select_user_rooms(LUser, LServer) ->
@@ -66,24 +66,24 @@ select_user_rooms_count(LUser, LServer) ->
 select_user_rooms(LUser, LServer, ReturnStatement) ->
     ["SELECT ", ReturnStatement,
      " FROM muc_light_occupants AS o INNER JOIN muc_light_rooms AS r ON o.room_id = r.id"
-     " WHERE o.luser = '", ?ESC(LUser), "' AND o.lserver = '", ?ESC(LServer), "'"].
+     " WHERE o.luser = ", ?ESC(LUser), " AND o.lserver = ", ?ESC(LServer)].
 
 -spec insert_room(
         RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
 insert_room(RoomU, RoomS, Version) ->
     ["INSERT INTO muc_light_rooms (luser, lserver, version)"
-     " VALUES ('", ?ESC(RoomU), "', '", ?ESC(RoomS), "', '", ?ESC(Version), "')"].
+     " VALUES (", ?ESC(RoomU), ", ", ?ESC(RoomS), ", ", ?ESC(Version), ")"].
 
 -spec update_room_version(
         RoomU :: jid:luser(), RoomS :: jid:lserver(), Version :: binary()) -> iolist().
 update_room_version(RoomU, RoomS, Version) ->
-    ["UPDATE muc_light_rooms SET version = '", ?ESC(Version), "'"
-     " WHERE luser = '", ?ESC(RoomU), "' AND lserver = '", ?ESC(RoomS), "'"].
+    ["UPDATE muc_light_rooms SET version = ", ?ESC(Version),
+     " WHERE luser = ", ?ESC(RoomU), " AND lserver = ", ?ESC(RoomS)].
 
 -spec delete_room(RoomU :: jid:luser(), RoomS :: jid:lserver()) -> iolist().
 delete_room(RoomU, RoomS) ->
     ["DELETE FROM muc_light_rooms"
-     " WHERE luser = '", ?ESC(RoomU), "' AND lserver = '", ?ESC(RoomS), "'"].
+     " WHERE luser = ", ?ESC(RoomU), " AND lserver = ", ?ESC(RoomS)].
 
 %%====================================================================
 %% Affiliations
@@ -93,7 +93,7 @@ delete_room(RoomU, RoomS) ->
 select_affs(RoomU, RoomS) ->
     ["SELECT version, o.luser, o.lserver, aff"
      " FROM muc_light_rooms AS r LEFT OUTER JOIN muc_light_occupants AS o ON r.id = o.room_id"
-     " WHERE r.luser = '", ?ESC(RoomU), "' AND r.lserver = '", ?ESC(RoomS), "'"].
+     " WHERE r.luser = ", ?ESC(RoomU), " AND r.lserver = ", ?ESC(RoomS)].
 
 -spec select_affs(RoomID :: integer() | binary()) -> iolist().
 select_affs(RoomID) ->
@@ -103,15 +103,15 @@ select_affs(RoomID) ->
                  UserS :: jid:lserver(), Aff :: aff()) -> iolist().
 insert_aff(RoomID, UserU, UserS, Aff) ->
     ["INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
-     " VALUES(", bin(RoomID), ", '", ?ESC(UserU), "', '", ?ESC(UserS), "', ",
+     " VALUES(", bin(RoomID), ", ", ?ESC(UserU), ", ", ?ESC(UserS), ", ",
               mod_muc_light_db_odbc:aff_atom2db(Aff), ")"].
 
 -spec update_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
                  UserS :: jid:lserver(), Aff :: aff()) -> iolist().
 update_aff(RoomID, UserU, UserS, Aff) ->
     ["UPDATE muc_light_occupants SET aff = ", mod_muc_light_db_odbc:aff_atom2db(Aff),
-     " WHERE room_id = ", bin(RoomID), " AND luser = '", ?ESC(UserU), "'"
-       " AND lserver = '", ?ESC(UserS), "'"].
+     " WHERE room_id = ", bin(RoomID), " AND luser = ", ?ESC(UserU),
+       " AND lserver = ", ?ESC(UserS)].
 
 -spec delete_affs(RoomID :: integer() | binary()) -> iolist().
 delete_affs(RoomID) ->
@@ -122,8 +122,8 @@ delete_affs(RoomID) ->
     iolist().
 delete_aff(RoomID, UserU, UserS) ->
     ["DELETE FROM muc_light_occupants WHERE room_id = ", bin(RoomID),
-                                      " AND luser = '", ?ESC(UserU), "'"
-                                      " AND lserver = '", ?ESC(UserS), "'"].
+                                      " AND luser = ", ?ESC(UserU),
+                                      " AND lserver = ", ?ESC(UserS)].
 
 %%====================================================================
 %% Config
@@ -137,7 +137,7 @@ select_config(RoomID) ->
 select_config(RoomU, RoomS) ->
     ["SELECT version, opt, val",
      " FROM muc_light_rooms AS r LEFT OUTER JOIN muc_light_config AS c ON r.id = c.room_id"
-     " WHERE r.luser = '", ?ESC(RoomU), "' AND r.lserver = '", ?ESC(RoomS), "'"].
+     " WHERE r.luser = ", ?ESC(RoomU), " AND r.lserver = ", ?ESC(RoomS)].
 
 -spec select_config(RoomU :: jid:luser(), RoomS :: jid:lserver(), Key :: binary()) ->
     iolist().
@@ -147,12 +147,12 @@ select_config(RoomU, RoomS, Key) ->
 -spec insert_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
 insert_config(RoomID, Key, Val) ->
     ["INSERT INTO muc_light_config (room_id, opt, val)"
-     " VALUES(", bin(RoomID), ", '", ?ESC(Key), "', '", ?ESC(Val), "')"].
+     " VALUES(", bin(RoomID), ", ", ?ESC(Key), ", ", ?ESC(Val), ")"].
 
 -spec update_config(RoomID :: integer() | binary(), Key :: binary(), Val :: binary()) -> iolist().
 update_config(RoomID, Key, Val) ->
-    ["UPDATE muc_light_config SET val = '", ?ESC(Val), "'"
-     " WHERE room_id = ", bin(RoomID), " AND opt = '", ?ESC(Key), "'"].
+    ["UPDATE muc_light_config SET val = ", ?ESC(Val),
+     " WHERE room_id = ", bin(RoomID), " AND opt = ", ?ESC(Key)].
 
 -spec delete_config(RoomID :: integer() | binary()) -> iolist().
 delete_config(RoomID) ->
@@ -164,8 +164,8 @@ delete_config(RoomID) ->
 
 -spec select_blocking(LUser :: jid:luser(), LServer :: jid:lserver()) -> iolist().
 select_blocking(LUser, LServer) ->
-    ["SELECT what, who FROM muc_light_blocking WHERE luser = '", ?ESC(LUser), "'",
-                                               " AND lserver = '", ?ESC(LServer), "'"].
+    ["SELECT what, who FROM muc_light_blocking WHERE luser = ", ?ESC(LUser),
+                                               " AND lserver = ", ?ESC(LServer)].
 
 -spec select_blocking_cnt(LUser :: jid:luser(), LServer :: jid:lserver(),
                            WhatWhos :: [{blocking_who(), jid:simple_bare_jid()}]) -> iolist().
@@ -173,31 +173,31 @@ select_blocking_cnt(LUser, LServer, WhatWhos) ->
     [ _ | WhatWhosWhere ] = lists:flatmap(
                               fun({What, Who}) ->
                                       [" OR ", "(what = ", mod_muc_light_db_odbc:what_atom2db(What),
-                                           " AND who = '", ?ESC(jid:to_binary(Who)), "')"] end,
+                                           " AND who = ", ?ESC(jid:to_binary(Who)), ")"] end,
                               WhatWhos),
-    ["SELECT COUNT(*) FROM muc_light_blocking WHERE luser = '", ?ESC(LUser), "'"
-                                              " AND lserver = '", ?ESC(LServer), "'",
+    ["SELECT COUNT(*) FROM muc_light_blocking WHERE luser = ", ?ESC(LUser),
+                                              " AND lserver = ", ?ESC(LServer),
                                               " AND (", WhatWhosWhere, ")"].
 
 -spec insert_blocking(LUser :: jid:luser(), LServer :: jid:lserver(),
                        What :: blocking_what(), Who :: blocking_who()) -> iolist().
 insert_blocking(LUser, LServer, What, Who) ->
     ["INSERT INTO muc_light_blocking (luser, lserver, what, who)"
-     " VALUES ('", ?ESC(LUser), "', '", ?ESC(LServer), "', ",
-               mod_muc_light_db_odbc:what_atom2db(What), ", '", ?ESC(jid:to_binary(Who)), "')"].
+     " VALUES (", ?ESC(LUser), ", ", ?ESC(LServer), ", ",
+               mod_muc_light_db_odbc:what_atom2db(What), ", ", ?ESC(jid:to_binary(Who)), ")"].
 
 -spec delete_blocking(LUser :: jid:luser(), LServer :: jid:lserver(),
                          What :: blocking_what(), Who :: blocking_who()) -> iolist().
 delete_blocking(LUser, LServer, What, Who) ->
-    ["DELETE FROM muc_light_blocking WHERE luser = '", ?ESC(LUser), "'"
-                                     " AND lserver = '", ?ESC(LServer), "'"
+    ["DELETE FROM muc_light_blocking WHERE luser = ", ?ESC(LUser),
+                                     " AND lserver = ", ?ESC(LServer),
                                      " AND what = ", mod_muc_light_db_odbc:what_atom2db(What),
-                                     " AND who = '", ?ESC(jid:to_binary(Who)), "'"].
+                                     " AND who = ", ?ESC(jid:to_binary(Who))].
 
 -spec delete_blocking(UserU :: jid:luser(), UserS :: jid:lserver()) -> iolist().
 delete_blocking(UserU, UserS) ->
     ["DELETE FROM muc_light_blocking"
-     " WHERE luser = '", ?ESC(UserU), "' AND lserver = '", ?ESC(UserS), "'"].
+     " WHERE luser = ", ?ESC(UserU), " AND lserver = ", ?ESC(UserS)].
 
 %%====================================================================
 %% Helpers

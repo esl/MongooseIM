@@ -31,7 +31,35 @@
 
 -behaviour(gen_server).
 
--callback escape_binary(Pool :: pool(), binary()) -> iodata().
+%% Part of SQL query string, produced by use_escaped/1 function
+-type sql_query_part() :: iodata().
+-type sql_query() :: iodata().
+
+%% Blob data type to be used inside SQL queries
+-opaque escaped_binary() :: {escaped_binary, sql_query_part()}.
+%% Unicode string to be used inside SQL queries
+-opaque escaped_string() :: {escaped_string, sql_query_part()}.
+%% Unicode string to be used inside LIKE conditions
+-opaque escaped_like() :: {escaped_like, sql_query_part()}.
+-opaque escaped_integer() :: {escaped_integer, sql_query_part()}.
+-opaque escaped_boolean() :: {escaped_boolean, sql_query_part()}.
+-opaque escaped_null() :: {escaped_null, sql_query_part()}.
+-type escaped_value() :: escaped_string() | escaped_binary() | escaped_integer() |
+                         escaped_integer() | escaped_boolean().
+
+-export_types([escaped_binary/0,
+               escaped_string/0,
+               escaped_like/0,
+               escaped_integer/0,
+               escaped_boolean/0,
+               escaped_null/0,
+               escaped_value/0,
+               sql_query/0,
+               sql_query_part/0]).
+
+-callback escape_binary(Pool :: pool(), binary()) -> sql_query_part().
+-callback escape_string(Pool :: pool(), binary()|list()) -> sql_query_part().
+
 -callback unescape_binary(Pool :: pool(), binary()) -> binary().
 -callback connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
     {ok, Connection :: term()} | {error, Reason :: any()}.
@@ -44,21 +72,46 @@
 -callback execute(Connection :: term(), Ref :: term(), Parameters :: [term()],
                   Timeout :: infinity | non_neg_integer()) -> query_result().
 
+%% If not defined, generic escaping is used
+-optional_callbacks([escape_string/2]).
+
 %% External exports
 -export([prepare/4,
          execute/3,
          sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
-         escape/1,
-         escape_like/1,
          to_bool/1,
          db_engine/1,
-         print_state/1]).
+         print_state/1,
+         use_escaped/1]).
+
+%% Unicode escaping
+-export([escape_string/1,
+         use_escaped_string/1]).
+
+%% Integer escaping
+-export([escape_integer/1,
+         use_escaped_integer/1]).
+
+%% Boolean escaping
+-export([escape_boolean/1,
+         use_escaped_boolean/1]).
+
+%% LIKE escaping
+-export([escape_like/1,
+         escape_like_prefix/1,
+         use_escaped_like/1]).
 
 %% BLOB escaping
 -export([escape_binary/2,
-         unescape_binary/2]).
+         unescape_binary/2,
+         use_escaped_binary/1]).
+
+%% Null escaping
+%% (to keep uniform pattern of passing values)
+-export([escape_null/0,
+         use_escaped_null/1]).
 
 %% count / integra types decoding
 -export([result_to_integer/1]).
@@ -100,6 +153,7 @@
 -type odbc_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
+                               {aborted, Reason :: term()} |
                                {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
 -type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
@@ -184,11 +238,11 @@ sql_query_t(Query, State) ->
     QRes = sql_query_internal(Query, State),
     case QRes of
         {error, Reason} ->
-            throw({aborted, Reason});
+            throw({aborted, #{reason => Reason, sql_query => Query}});
         _ when is_list(QRes) ->
             case lists:keysearch(error, 1, QRes) of
                 {value, {error, Reason}} ->
-                    throw({aborted, Reason});
+                    throw({aborted, #{reason => Reason, sql_query => Query}});
                 _ ->
                     QRes
             end;
@@ -198,24 +252,151 @@ sql_query_t(Query, State) ->
 
 
 %% @doc Escape character that will confuse an SQL engine
--spec escape(binary() | string()) -> binary() | string().
-escape(S) ->
-    rdbms_queries:escape_string(S).
-
-
-%% @doc Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
 %% pattern matching like statement
 %% INFO: Used in mod_vcard_odbc.
--spec escape_like(binary() | string()) -> binary() | string().
+%% Searches in the middle of text, non-efficient
+-spec escape_like(binary() | string()) -> escaped_like().
 escape_like(S) ->
-    rdbms_queries:escape_like_string(S).
+    {escaped_like, [$', $%, escape_like_internal(S), $%, $']}.
 
+-spec escape_like_prefix(binary() | string()) -> escaped_like().
+escape_like_prefix(S) ->
+    {escaped_like, [$', escape_like_internal(S), $%, $']}.
 
--spec escape_binary(server(), binary()) -> iodata().
+-spec escape_binary(server(), binary()) -> escaped_binary().
 escape_binary(HostOrPool, Bin) when is_binary(Bin) ->
     Pool = mongoose_rdbms_sup:pool(HostOrPool),
-    mongoose_rdbms_backend:escape_binary(Pool, Bin).
+    {escaped_binary, mongoose_rdbms_backend:escape_binary(Pool, Bin)}.
+
+%% @doc The same as escape, but returns value including ''
+-spec escape_string(binary() | string()) -> escaped_string().
+escape_string(S) ->
+    {escaped_string, escape_string_internal(S)}.
+
+-spec escape_integer(integer()) -> escaped_integer().
+escape_integer(I) when is_integer(I) ->
+    {escaped_integer, integer_to_binary(I)}.
+
+%% Be aware, that we can't just use escaped_integer here.
+%% Because of the error in pgsql:
+%% column \"match_all\" is of type boolean but expression is of type integer
+-spec escape_boolean(boolean()) -> escaped_boolean().
+escape_boolean(true) ->
+    {escaped_boolean, "'1'"};
+escape_boolean(false) ->
+    {escaped_boolean, "'0'"}.
+
+-spec escape_null() -> escaped_null().
+escape_null() ->
+    {escaped_null, "null"}.
+
+
+%% @doc SQL-injection check.
+%% Call this function just before using value from escape_string/1 inside a query.
+-spec use_escaped_string(escaped_string()) -> sql_query_part().
+use_escaped_string({escaped_string, S}) ->
+    S;
+use_escaped_string(X) ->
+    %% We need to print an error, because in some places
+    %% the error can be just ignored, because of too wide catches.
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped_string, X}).
+
+-spec use_escaped_binary(escaped_binary()) -> sql_query_part().
+use_escaped_binary({escaped_binary, S}) ->
+    S;
+use_escaped_binary(X) ->
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped_binary, X}).
+
+-spec use_escaped_like(escaped_like()) -> sql_query_part().
+use_escaped_like({escaped_like, S}) ->
+    S;
+use_escaped_like(X) ->
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped_like, X}).
+
+-spec use_escaped_integer(escaped_integer()) -> sql_query_part().
+use_escaped_integer({escaped_integer, S}) ->
+    S;
+use_escaped_integer(X) ->
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped_integer, X}).
+
+-spec use_escaped_boolean(escaped_boolean()) -> sql_query_part().
+use_escaped_boolean({escaped_boolean, S}) ->
+    S;
+use_escaped_boolean(X) ->
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped_boolean, X}).
+
+-spec use_escaped_null(escaped_null()) -> sql_query_part().
+use_escaped_null({escaped_null, S}) ->
+    S;
+use_escaped_null(X) ->
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped_null, X}).
+
+%% Use this function, if type is unknown.
+%% Be aware, you can't pass escaped_like() there.
+-spec use_escaped(Value) -> sql_query_part() when
+      Value :: escaped_value().
+use_escaped({escaped_string, _}=X) ->
+    use_escaped_string(X);
+use_escaped({escaped_binary, _}=X) ->
+    use_escaped_binary(X);
+use_escaped({escaped_integer, _}=X) ->
+    use_escaped_integer(X);
+use_escaped({escaped_boolean, _}=X) ->
+    use_escaped_boolean(X);
+use_escaped({escaped_null, _}=X) ->
+    use_escaped_null(X);
+use_escaped(X) ->
+    ?ERROR_MSG("event=use_escaped_failure value=~p stacktrace=~p",
+               [X, erlang:process_info(self(), current_stacktrace)]),
+    erlang:error({use_escaped, X}).
+
+-spec escape_like_internal(binary() | string()) -> binary() | string().
+escape_like_internal(S) when is_binary(S) ->
+    list_to_binary(escape_like_internal(binary_to_list(S)));
+escape_like_internal(S) when is_list(S) ->
+    [escape_like_character(C) || C <- S].
+
+escape_string_internal(S) ->
+    case erlang:function_exported(mongoose_rdbms_backend:backend(), escape_string, 2) of
+        true ->
+            mongoose_rdbms_backend:escape_string(default, S);
+        false ->
+            %% generic escaping
+            [$', escape_characters(S), $']
+    end.
+
+escape_characters(S) when is_binary(S) ->
+    list_to_binary(escape_characters(binary_to_list(S)));
+escape_characters(S) when is_list(S) ->
+    [escape_character(C) || C <- S].
+
+escape_like_character($%) -> "\\%";
+escape_like_character($_) -> "\\_";
+escape_like_character(C)  -> escape_character(C).
+
+%% Characters to escape
+escape_character($\0) -> "\\0";
+escape_character($\n) -> "\\n";
+escape_character($\t) -> "\\t";
+escape_character($\b) -> "\\b";
+escape_character($\r) -> "\\r";
+escape_character($')  -> "''";
+escape_character($")  -> "\\\"";
+escape_character($\\) -> "\\\\";
+escape_character(C)   -> C.
 
 
 -spec unescape_binary(server(), binary()) -> binary().
@@ -230,6 +411,7 @@ result_to_integer(Int) when is_integer(Int) ->
 result_to_integer(Bin) when is_binary(Bin) ->
     binary_to_integer(Bin).
 
+%% pgsql returns booleans as "t" or "f"
 -spec to_bool(binary() | string() | atom() | integer() | any()) -> boolean().
 to_bool(B) when is_binary(B) ->
     to_bool(binary_to_list(B));
@@ -359,14 +541,39 @@ inner_transaction(F, _State) ->
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(rdbms_queries:begin_trans(), State),
     put(?STATE_KEY, State),
-    Result = (catch F()),
+    Result = try
+                 F()
+             catch
+                 throw:ThrowResult ->
+                     ThrowResult;
+                 Class:Other ->
+                     Stacktrace = erlang:get_stacktrace(),
+                     ?ERROR_MSG("issue=outer_transaction_failed "
+                                "stacktrace=~1000p",
+                                [Stacktrace]),
+                     {'EXIT', Other}
+          end,
     erase(?STATE_KEY), % Explicitly ignore state changed inside transaction
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
             sql_query_internal([<<"rollback;">>], State),
             outer_transaction(F, NRestarts - 1, Reason, State);
-        {aborted, Reason} when NRestarts =:= 0 ->
+        {aborted, #{reason := Reason, sql_query := SqlQuery}}
+            when NRestarts =:= 0 ->
+            %% Too many retries of outer transaction.
+            ?ERROR_MSG("SQL transaction restarts exceeded~n"
+                       "** Restarts: ~p~n"
+                       "** Last abort reason: ~p~n"
+                       "** Last sql_query: ~p~n"
+                       "** Stacktrace: ~p~n"
+                       "** When State == ~p",
+                       [?MAX_TRANSACTION_RESTARTS, Reason,
+                        iolist_to_binary(SqlQuery),
+                        erlang:get_stacktrace(), State]),
+            sql_query_internal([<<"rollback;">>], State),
+            {{aborted, Reason}, State};
+        {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
             %% Too many retries of outer transaction.
             ?ERROR_MSG("SQL transaction restarts exceeded~n"
                        "** Restarts: ~p~n"
@@ -398,7 +605,15 @@ sql_query_internal(Query, #state{db_ref = DBRef}) ->
 -spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
 sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
     {StatementRef, NewState} = prepare_statement(Name, State),
-    Res = mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT),
+    Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT)
+          catch Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=sql_execute_failed "
+                        "statement_name=~p reason=~p:~p "
+                        "params=~1000p stacktrace=~1000p",
+                       [Name, Class, Reason, Params, Stacktrace]),
+            erlang:raise(Class, Reason, Stacktrace)
+          end,
     {Res, NewState}.
 
 -spec prepare_statement(Name :: atom(), state()) -> {Ref :: term(), state()}.

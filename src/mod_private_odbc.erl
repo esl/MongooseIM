@@ -51,13 +51,13 @@ multi_set_data(LUser, LServer, NS2XML) ->
     end.
 
 multi_set_data_t(LUser, LServer, NS2XML) ->
-    SLUser = mongoose_rdbms:escape(LUser),
+    SLUser = mongoose_rdbms:escape_string(LUser),
     [set_data_t(SLUser, LServer, NS, XML) || {NS, XML} <- NS2XML],
     ok.
 
 set_data_t(SLUser, LServer, NS, XML) ->
-    SNS = mongoose_rdbms:escape(NS),
-    SData = mongoose_rdbms:escape(exml:to_binary(XML)),
+    SNS = mongoose_rdbms:escape_string(NS),
+    SData = mongoose_rdbms:escape_string(exml:to_binary(XML)),
     rdbms_queries:set_private_data(LServer, SLUser, SNS, SData).
 
 multi_get_data(LUser, LServer, NS2Def) ->
@@ -65,8 +65,8 @@ multi_get_data(LUser, LServer, NS2Def) ->
 
 %% @doc Return stored value or default.
 get_data(LUser, LServer, NS, Default) ->
-    SLUser = mongoose_rdbms:escape(LUser),
-    SNS = mongoose_rdbms:escape(NS),
+    SLUser = mongoose_rdbms:escape_string(LUser),
+    SNS = mongoose_rdbms:escape_string(NS),
     case catch rdbms_queries:get_private_data(LServer, SLUser, SNS) of
         {selected, [{SData}]} ->
             {ok, Elem} = exml:parse(SData),
@@ -76,5 +76,5 @@ get_data(LUser, LServer, NS, Default) ->
     end.
 
 remove_user(LUser, LServer) ->
-    SLUser = mongoose_rdbms:escape(LUser),
+    SLUser = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:del_user_private_storage(LServer, SLUser).

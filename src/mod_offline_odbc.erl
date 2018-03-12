@@ -46,8 +46,8 @@ init(_Host, _Opts) ->
 pop_messages(LUser, LServer) ->
     US = {LUser, LServer},
     To = jid:make(LUser, LServer, <<>>),
-    SUser = mongoose_rdbms:escape(LUser),
-    SServer = mongoose_rdbms:escape(LServer),
+    SUser = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
     TimeStamp = p1_time_compat:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
     case rdbms_queries:pop_offline_messages(LServer, SUser, SServer, STimeStamp) of
@@ -75,18 +75,18 @@ row_to_record(US, To, {STimeStamp, SFrom, SPacket}) ->
 
 
 write_messages(LUser, LServer, Msgs) ->
-    SUser = mongoose_rdbms:escape(LUser),
-    SServer = mongoose_rdbms:escape(LServer),
+    SUser = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
     write_all_messages_t(LServer, SUser, SServer, Msgs).
 
 count_offline_messages(LUser, LServer, MaxArchivedMsgs) ->
-    SUser = mongoose_rdbms:escape(LUser),
-    SServer = mongoose_rdbms:escape(LServer),
+    SUser = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
     count_offline_messages(LServer, SUser, SServer, MaxArchivedMsgs + 1).
 
 write_all_messages_t(LServer, SUser, SServer, Msgs) ->
     Rows = [record_to_row(SUser, SServer, Msg) || Msg <- Msgs],
-    case catch rdbms_queries:push_offline_messages(LServer, Rows) of
+    case rdbms_queries:push_offline_messages(LServer, Rows) of
         {updated, _} ->
             ok;
         {aborted, Reason} ->
@@ -97,15 +97,15 @@ write_all_messages_t(LServer, SUser, SServer, Msgs) ->
 
 record_to_row(SUser, SServer, #offline_msg{
         from = From, packet = Packet, timestamp = TimeStamp, expire = Expire}) ->
-    SFrom = mongoose_rdbms:escape(jid:to_binary(From)),
-    SPacket = mongoose_rdbms:escape(exml:to_binary(Packet)),
+    SFrom = mongoose_rdbms:escape_string(jid:to_binary(From)),
+    SPacket = mongoose_rdbms:escape_string(exml:to_binary(Packet)),
     STimeStamp = encode_timestamp(TimeStamp),
     SExpire = maybe_encode_timestamp(Expire),
     rdbms_queries:prepare_offline_message(SUser, SServer, STimeStamp, SExpire, SFrom, SPacket).
 
 remove_user(LUser, LServer) ->
-    SUser   = mongoose_rdbms:escape(LUser),
-    SServer = mongoose_rdbms:escape(LServer),
+    SUser   = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
     rdbms_queries:remove_offline_messages(LServer, SUser, SServer).
 
 -spec remove_expired_messages(jid:lserver()) -> {error, term()} | {ok, HowManyRemoved} when
@@ -145,9 +145,9 @@ count_offline_messages(LServer, SUser, SServer, Limit) ->
     end.
 
 encode_timestamp(TimeStamp) ->
-    integer_to_list(usec:from_now(TimeStamp)).
+    mongoose_rdbms:escape_integer(usec:from_now(TimeStamp)).
 
 maybe_encode_timestamp(never) ->
-    "null";
+    mongoose_rdbms:escape_null();
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).

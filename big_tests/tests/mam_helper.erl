@@ -1263,9 +1263,27 @@ run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate,
     %% Delay check
     fun(Bodies) ->
         ActualMessageStates = [lists:member(M, Bodies) || M <- Messages],
+        Debug = make_debug_prefs(ExpectedMessageStates, ActualMessageStates),
         ?_assert_equal_extra(ExpectedMessageStates, ActualMessageStates,
-                             [{prefs_state, PrefsState}])
+                             #{prefs_state => PrefsState,
+                               debug => Debug})
     end.
+
+make_debug_prefs(ExpectedMessageStates, ActualMessageStates) ->
+    Zipped = lists:zip(prefs_checks_descriptions(),
+                       lists:zip(ExpectedMessageStates, ActualMessageStates)),
+    [#{case_description => Description,
+       problem_found => describe_problem(Expected, Actual)}
+     || {Description, {Expected, Actual}} <- Zipped, Expected =/= Actual].
+
+describe_problem(_Expected=true, _Actual=false) -> "Ignored, but should be archived";
+describe_problem(_Expected=false, _Actual=true) -> "Archived, but should be ignored".
+
+prefs_checks_descriptions() ->
+    ["1. Bob sends a message to Alice",
+     "2. Alice sends a message to Bob",
+     "3. Kate sends a message to Alice",
+     "4. Alice sends a message to Kate"].
 
 get_last_four_messages(P, Alice) ->
     RSM = #rsm_in{max=4, direction='before'},

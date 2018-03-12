@@ -80,6 +80,8 @@
 
 -type subscription_state() :: none  | from | to | both | remove.
 
+-type get_user_roster_strategy() :: db_versioning | hash_versioning | no_versioning.
+
 -callback init(Host, Opts) -> ok when
     Host :: jid:server(),
     Opts :: list().
@@ -282,25 +284,39 @@ write_roster_version(LUser, LServer, InTransaction) ->
 %%     - roster versioning is used by server and client,
 %%       BUT the server isn't storing versions on db OR
 %%     - the roster version from client don't match current version.
-process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
-    LServer = From#jid.lserver,
-    try
-        AttrVer = xml:get_tag_attr(<<"ver">>, SubEl),
-        VersioningEnabled = roster_versioning_enabled(LServer),
-        VersionOnDb = roster_version_on_db(LServer),
-        {ItemsToSend, VersionToSend} =
-        get_user_roster_based_on_version(AttrVer, VersioningEnabled,
-                                         VersionOnDb, From, To),
-        IQ#iq{type = result,
-              sub_el = create_sub_el(ItemsToSend, VersionToSend)}
-    catch
-        _:_ ->
-            IQ#iq{type = error,
-                  sub_el = [SubEl, mongoose_xmpp_errors:internal_server_error()]}
-    end.
+process_iq_get(From, To, IQ) ->
+    mongoose_iq:try_to_handle_iq(From, To, IQ, fun do_process_iq_get/3).
 
-get_user_roster_based_on_version({value, RequestedVersion}, true, true,
-                                 From, To) ->
+do_process_iq_get(From, To, #iq{sub_el = SubEl} = IQ) ->
+    LServer = From#jid.lserver,
+    AttrVer = exml_query:attr(SubEl, <<"ver">>), %% type binary() | undefined
+    VersioningRequested = is_binary(AttrVer),
+    VersioningEnabled = roster_versioning_enabled(LServer),
+    VersionOnDb = roster_version_on_db(LServer),
+    Strategy = choose_get_user_roster_strategy(
+                 VersioningRequested, VersioningEnabled, VersionOnDb),
+    {ItemsToSend, VersionToSend} =
+        get_user_roster_based_on_version(Strategy, AttrVer, From, To),
+    IQ#iq{type = result,
+          sub_el = create_sub_el(ItemsToSend, VersionToSend)}.
+
+-spec choose_get_user_roster_strategy(VersioningRequested :: boolean(),
+                                      VersioningEnabled :: boolean(),
+                                      VersionOnDb :: boolean()) ->
+    get_user_roster_strategy().
+choose_get_user_roster_strategy(true, true, true) -> db_versioning;
+choose_get_user_roster_strategy(true, true, false) -> hash_versioning;
+choose_get_user_roster_strategy(_, _, _) -> no_versioning.
+
+get_user_roster_based_on_version(db_versioning, RequestedVersion, From, To) ->
+    get_user_roster_db_versioning(RequestedVersion, From, To);
+get_user_roster_based_on_version(hash_versioning, RequestedVersion, From, To) ->
+    get_user_roster_hash_versioning(RequestedVersion, From, To);
+get_user_roster_based_on_version(no_versioning, _RequestedVersion, From, To) ->
+    get_user_roster_no_versioning(From, To).
+
+get_user_roster_db_versioning(RequestedVersion, From, To)
+    when is_binary(RequestedVersion) ->
     LUser = From#jid.luser,
     LServer = From#jid.lserver,
     case read_roster_version(LUser, LServer) of
@@ -315,20 +331,20 @@ get_user_roster_based_on_version({value, RequestedVersion}, true, true,
             {lists:map(fun item_to_xml/1,
                        get_roster_old(To#jid.server, LUser, LServer)),
              NewVersion}
-    end;
-get_user_roster_based_on_version({value, RequestedVersion}, true, false,
-                                 From, To) ->
+    end.
+
+get_user_roster_hash_versioning(RequestedVersion, From, To)
+    when is_binary(RequestedVersion) ->
     RosterItems = get_roster_old(To#jid.lserver, From#jid.luser,
                                  From#jid.lserver),
     case roster_hash(RosterItems) of
         RequestedVersion ->
             {false, false};
         New ->
-            {lists:map(fun item_to_xml/1,
-                       RosterItems),
-             New}
-    end;
-get_user_roster_based_on_version(_, _, _, From, To) ->
+            {lists:map(fun item_to_xml/1, RosterItems), New}
+    end.
+
+get_user_roster_no_versioning(From, To) ->
     {lists:map(fun item_to_xml/1,
                get_roster_old(To#jid.lserver,
                               From#jid.luser, From#jid.lserver)),
@@ -456,7 +472,7 @@ set_roster_item(User, LUser, LServer, LJID, From, To, MakeItem2) ->
                 _ -> ok
             end;
         E ->
-            ?DEBUG("ROSTER: roster item set error: ~p~n", [E]), ok
+            ?ERROR_MSG("event=set_roster_item_failed reason=~1000p", [E]), ok
     end.
 
 process_item_attrs(Item, [{<<"jid">>, Val} | Attrs]) ->

@@ -19,6 +19,12 @@
          set_prefs/7,
          remove_archive/4]).
 
+-import(mongoose_rdbms,
+        [escape_string/1,
+         escape_integer/1,
+         use_escaped_string/1,
+         use_escaped_integer/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -108,18 +114,39 @@ stop_muc(Host) ->
 -spec get_behaviour(Default :: mod_mam:archive_behaviour(),
         Host :: jid:server(), ArchiveID :: mod_mam:archive_id(),
         LocJID :: jid:jid(), RemJID :: jid:jid()) -> any().
-get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID) ->
+get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID)
+        when is_integer(UserID) ->
     RemLJID      = jid:to_lower(RemJID),
-    SRemLBareJID = esc_jid(jid:to_bare(RemLJID)),
-    SRemLJID     = esc_jid(RemLJID),
-    SUserID      = integer_to_list(UserID),
-    case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) of
-        {selected, [{Behavour}]} ->
-            decode_behaviour(Behavour);
+    BRemLBareJID = jid:to_binary(jid:to_bare(RemLJID)),
+    BRemLJID     = jid:to_binary(RemLJID),
+    SRemLBareJID = escape_string(BRemLBareJID),
+    SRemLJID     = escape_string(BRemLJID),
+    SUserID      = escape_integer(UserID),
+    %% CheckBare if resource is not empty
+    CheckBare    = RemJID#jid.lresource =/= <<>>,
+    case query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID, CheckBare) of
         {selected, []} ->
-            DefaultBehaviour
+            DefaultBehaviour;
+        {selected, RemoteJid2Behaviour} ->
+            DbBehaviour = choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour),
+            decode_behaviour(DbBehaviour)
     end.
 
+-spec choose_behaviour(binary(), binary(), [{binary(), binary()}]) -> binary().
+choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour) ->
+    case lists:keyfind(BRemLJID, 1, RemoteJid2Behaviour) of
+        {_, Behavour} ->
+            Behavour;
+        false ->
+            case lists:keyfind(BRemLBareJID, 1, RemoteJid2Behaviour) of
+                {_, Behavour} ->
+                    Behavour;
+                false ->
+                    %% Only one key remains
+                    {_, Behavour} = lists:keyfind(<<>>, 1, RemoteJid2Behaviour),
+                    Behavour
+            end
+    end.
 
 -spec set_prefs(Result :: any(), Host :: jid:server(),
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid(),
@@ -144,15 +171,20 @@ order_by_in_delete(Host) ->
 
 set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     %% Lock keys in the same order to avoid deadlock
-    SUserID = integer_to_list(UserID),
-    JidBehaviourA = [{JID, "A"} || JID <- AlwaysJIDs],
-    JidBehaviourN = [{JID, "N"} || JID <- NeverJIDs],
+    SUserID = escape_integer(UserID),
+    EscapedA = escape_string("A"),
+    EscapedN = escape_string("N"),
+    JidBehaviourA = [{JID, EscapedA} || JID <- AlwaysJIDs],
+    JidBehaviourN = [{JID, EscapedN} || JID <- NeverJIDs],
     JidBehaviour = lists:keysort(1, JidBehaviourA ++ JidBehaviourN),
-    ValuesAN = [encode_config_row(SUserID, Behavour, mongoose_rdbms:escape(JID))
-                || {JID, Behavour} <- JidBehaviour],
-    DefaultValue = encode_first_config_row(SUserID, encode_behaviour(DefaultMode), ""),
+    ValuesAN = [encode_config_row(SUserID, SBehavour, escape_string(JID))
+                || {JID, SBehavour} <- JidBehaviour],
+    SDefaultMode = escape_string(encode_behaviour(DefaultMode)),
+    DefaultValue = encode_first_config_row(SUserID, SDefaultMode, escape_string("")),
     Values = [DefaultValue|ValuesAN],
-    DelQuery = ["DELETE FROM mam_config WHERE user_id = '", SUserID, "'", order_by_in_delete(Host)],
+    DelQuery = ["DELETE FROM mam_config WHERE user_id = ",
+                mongoose_rdbms:use_escaped_integer(SUserID),
+                order_by_in_delete(Host)],
     InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
                 "VALUES ", Values],
 
@@ -178,13 +210,13 @@ run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
         ArchiveID :: mod_mam:archive_id(), ArchiveJID :: jid:jid())
             -> mod_mam:preference().
 get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
-    SUserID = integer_to_list(UserID),
+    SUserID = escape_integer(UserID),
     {selected, Rows} =
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT remote_jid, behaviour "
        "FROM mam_config "
-       "WHERE user_id='", SUserID, "'"]),
+       "WHERE user_id=", use_escaped_integer(SUserID)]),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
 
@@ -192,72 +224,75 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
 -spec remove_archive(map(), jid:server(), mod_mam:archive_id(),
                      jid:jid()) -> map().
 remove_archive(Acc, Host, UserID, _ArcJID) ->
-    SUserID = integer_to_list(UserID),
+    SUserID = escape_integer(UserID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE "
        "FROM mam_config "
-       "WHERE user_id='", SUserID, "'"]),
+       "WHERE user_id=", use_escaped_integer(SUserID)]),
     Acc.
 
 
--spec query_behaviour(jid:server(), SUserID :: string(),
-        SRemLJID :: binary() | string(), SRemLBareJID :: binary() | string()
+-spec query_behaviour(jid:server(),
+                      SUserID :: mongoose_rdbms:escaped_integer(),
+                      SRemLJID :: mongoose_rdbms:escaped_string(),
+                      SRemLBareJID :: mongoose_rdbms:escaped_string(),
+                      CheckBare :: boolean()
         ) -> any().
-query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID) ->
-    {LimitSQL, LimitMSSQL} = rdbms_queries:get_db_specific_limits(1),
-
+query_behaviour(Host, SUserID, SRemLJID, SRemLBareJID, CheckBare) ->
     Result =
     mod_mam_utils:success_sql_query(
       Host,
-      ["SELECT ", LimitMSSQL, " behaviour "
+      ["SELECT remote_jid, behaviour "
        "FROM mam_config "
-       "WHERE user_id='", SUserID, "' "
-         "AND (remote_jid='' OR remote_jid='", SRemLJID, "'",
-               case SRemLBareJID of
-                    SRemLJID -> "";
-                    _        -> [" OR remote_jid='", SRemLBareJID, "'"]
+       "WHERE user_id=", use_escaped_integer(SUserID), " "
+         "AND (remote_jid='' OR remote_jid=", use_escaped_string(SRemLJID),
+               case CheckBare of
+                    false ->
+                        "";
+                    true ->
+                       [" OR remote_jid=", use_escaped_string(SRemLBareJID)]
                end,
-         ") "
-       "ORDER BY remote_jid DESC ",
-       LimitSQL]),
+         ")"]),
     ?DEBUG("query_behaviour query returns ~p", [Result]),
     Result.
 
 %% ----------------------------------------------------------------------
 %% Helpers
 
--spec encode_behaviour('always' | 'never' | 'roster') -> [65|78|82, ...].
+-spec encode_behaviour(always | never | roster) -> string().
 encode_behaviour(roster) -> "R";
 encode_behaviour(always) -> "A";
 encode_behaviour(never)  -> "N".
 
 
--spec decode_behaviour(<<_:8>>) -> 'always' | 'never' | 'roster'.
+-spec decode_behaviour(binary()) -> always | never | roster.
 decode_behaviour(<<"R">>) -> roster;
 decode_behaviour(<<"A">>) -> always;
 decode_behaviour(<<"N">>) -> never.
 
-
--spec esc_jid(jid:simple_jid() | jid:jid()) -> binary().
-esc_jid(JID) ->
-    mongoose_rdbms:escape(jid:to_binary(JID)).
-
-
--spec encode_first_config_row(SUserID :: string(), SBehaviour :: [65|78|82, ...],
-    SJID :: string()) -> [string(), ...].
+-spec encode_first_config_row(SUserID :: mongoose_rdbms:escaped_integer(),
+                              SBehaviour :: mongoose_rdbms:escaped_string(),
+                              SJID :: mongoose_rdbms:escaped_string()) ->
+    mongoose_rdbms:sql_query_part().
 encode_first_config_row(SUserID, SBehavour, SJID) ->
-    ["('", SUserID, "', '", SBehavour, "', '", SJID, "')"].
+    ["(", use_escaped_integer(SUserID),
+     ", ", use_escaped_string(SBehavour),
+     ", ", use_escaped_string(SJID), ")"].
 
 
--spec encode_config_row(SUserID :: string(), SBehaviour :: [65 | 78, ...],
-        SJID :: binary() | string()) -> [binary() | string(), ...].
+-spec encode_config_row(SUserID :: mongoose_rdbms:escaped_integer(),
+                        SBehaviour :: mongoose_rdbms:escaped_string(),
+                        SJID :: mongoose_rdbms:escaped_string()) ->
+    mongoose_rdbms:sql_query_part().
 encode_config_row(SUserID, SBehavour, SJID) ->
-    [", ('", SUserID, "', '", SBehavour, "', '", SJID, "')"].
+    [", (", use_escaped_integer(SUserID),
+     ", ", use_escaped_string(SBehavour),
+     ", ", use_escaped_string(SJID), ")"].
 
 
--spec sql_transaction_map(jid:server(), [iolist(), ...]) -> any().
+-spec sql_transaction_map(jid:server(), [mongoose_rdbms:sql_query()]) -> any().
 sql_transaction_map(LServer, Queries) ->
     AtomicF = fun() ->
         [mod_mam_utils:success_sql_query(LServer, Query) || Query <- Queries]

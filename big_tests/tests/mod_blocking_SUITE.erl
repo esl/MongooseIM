@@ -313,6 +313,11 @@ messages_after_relogin(Config) ->
         fun(User1, User2) ->
             user_blocks(User1, [User2])
         end),
+    %% XXX Because alice can receive presence unavalable from alice
+    %% XXX It's a potential bug, please test it.
+    %% XXX has_stanzas_but_shouldnt
+    %% XXX reported as https://github.com/esl/MongooseIM/issues/1799
+    mongoose_helper:kick_everyone(),
     escalus:story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
@@ -366,6 +371,8 @@ simple_story(Config, Fun) ->
     ).
 
 clear_list_relogin(Config) ->
+    %% unexprected presence unavalable
+    mongoose_helper:kick_everyone(),
     escalus:story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->

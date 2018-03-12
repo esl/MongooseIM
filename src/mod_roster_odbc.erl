@@ -47,7 +47,7 @@ transaction(LServer, F) ->
 -spec read_roster_version(jid:luser(), jid:lserver())
 -> binary() | error.
 read_roster_version(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     case rdbms_queries:get_roster_version(LServer, Username)
     of
         {selected, [{Version}]} -> Version;
@@ -55,8 +55,8 @@ read_roster_version(LUser, LServer) ->
     end.
 
 write_roster_version(LUser, LServer, InTransaction, Ver) ->
-    Username = mongoose_rdbms:escape(LUser),
-    EVer = mongoose_rdbms:escape(Ver),
+    Username = mongoose_rdbms:escape_string(LUser),
+    EVer = mongoose_rdbms:escape_string(Ver),
     case InTransaction of
         true ->
             rdbms_queries:set_roster_version(Username, EVer);
@@ -69,20 +69,10 @@ write_roster_version(LUser, LServer, InTransaction, Ver) ->
     end.
 
 get_roster(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
-    case catch rdbms_queries:get_roster(LServer, Username) of
-        {selected,
-         Items}
-          when is_list(Items) ->
-            JIDGroups = case catch
-                             rdbms_queries:get_roster_jid_groups(LServer,
-                                                                Username)
-                        of
-                            {selected, JGrps}
-                              when is_list(JGrps) ->
-                                JGrps;
-                            _ -> []
-                        end,
+    Username = mongoose_rdbms:escape_string(LUser),
+    try rdbms_queries:get_roster(LServer, Username) of
+        {selected, Items} when is_list(Items) ->
+            {selected, JIDGroups} = rdbms_queries:get_roster_jid_groups(LServer, Username),
             GroupsDict = lists:foldl(fun ({J, G}, Acc) ->
                                              dict:append(J, G, Acc)
                                      end,
@@ -93,6 +83,12 @@ get_roster(LUser, LServer) ->
                                    Items),
             RItems;
         _ -> []
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ?ERROR_MSG("event=get_roster_failed "
+                   "reason=~p:~p user=~ts stacktrace=~1000p",
+                   [Class, Reason, LUser, Stacktrace]),
+        []
     end.
 
 raw_to_record_with_group(LServer, I, GroupsDict) ->
@@ -108,9 +104,6 @@ raw_to_record_with_group(LServer, I, GroupsDict) ->
             [R#roster{groups = Groups}]
     end.
 
-rdbms_q(Funcname, Args) ->
-    apply(rdbms_queries, Funcname, Args).
-
 get_roster_entry(LUser, LServer, LJID) ->
     do_get_roster_entry(LUser, LServer, LJID, get_roster_by_jid).
 
@@ -118,10 +111,14 @@ get_roster_entry_t(LUser, LServer, LJID) ->
     do_get_roster_entry(LUser, LServer, LJID, get_roster_by_jid_t).
 
 do_get_roster_entry(LUser, LServer, LJID, FuncName) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
-    {selected,
-        Res} = rdbms_q(FuncName, [LServer, Username, SJID]),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
+    {selected, Res} = case FuncName of
+                          get_roster_by_jid ->
+                              rdbms_queries:get_roster_by_jid(LServer, Username, SJID);
+                          get_roster_by_jid_t ->
+                              rdbms_queries:get_roster_by_jid_t(LServer, Username, SJID)
+                      end,
     case Res of
         [] ->
             does_not_exist;
@@ -162,37 +159,44 @@ get_roster_entry_t(LUser, LServer, LJID, full) ->
 
 
 get_subscription_lists(_, LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
-    case catch rdbms_queries:get_roster(LServer, Username) of
-        {selected,
-         Items}
-          when is_list(Items) ->
+    Username = mongoose_rdbms:escape_string(LUser),
+    try rdbms_queries:get_roster(LServer, Username) of
+        {selected, Items} when is_list(Items) ->
             Items;
-        _ -> []
+        Other ->
+            ?ERROR_MSG("event=get_subscription_lists_failed "
+                       "reason=~p user=~ts", [Other, LUser]),
+            []
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ?ERROR_MSG("event=get_subscription_lists_failed "
+                   "reason=~p:~p user=~ts stacktrace=~1000p",
+                   [Class, Reason, LUser, Stacktrace]),
+        []
     end.
 
 roster_subscribe_t(LUser, LServer, LJID, Item) ->
     ItemVals = record_to_string(Item),
-    Username = mongoose_rdbms:escape(LUser),
-    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
     rdbms_queries:roster_subscribe(LServer, Username, SJID,
                                   ItemVals).
 
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:del_user_roster_t(LServer, Username),
     ok.
 
 update_roster_t(LUser, LServer, LJID, Item) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
     ItemVals = record_to_string(Item),
     ItemGroups = groups_to_string(Item),
     rdbms_queries:update_roster(LServer, Username, SJID, ItemVals, ItemGroups).
 
 del_roster_t(LUser, LServer, LJID) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
     rdbms_queries:del_roster(LServer, Username, SJID).
 
 raw_to_record(LServer,
@@ -232,10 +236,15 @@ read_subscription_and_groups_t(LUser, LServer, LJID) ->
                                  get_rostergroup_by_jid_t).
 
 read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SJID = mongoose_rdbms:escape(jid:to_binary(LJID)),
-    case catch rdbms_q(GSFunc, [LServer, Username, SJID])
-    of
+    Username = mongoose_rdbms:escape_string(LUser),
+    SJID = mongoose_rdbms:escape_string(jid:to_binary(LJID)),
+    SubResult = case GSFunc of
+              get_subscription ->
+                  catch rdbms_queries:get_subscription(LServer, Username, SJID);
+              get_subscription_t ->
+                  catch rdbms_queries:get_subscription_t(LServer, Username, SJID)
+                end,
+    case SubResult of
         {selected, [{SSubscription}]} ->
             Subscription = case SSubscription of
                                <<"B">> -> both;
@@ -243,11 +252,18 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
                                <<"F">> -> from;
                                _ -> none
                            end,
-            Groups = case catch rdbms_q(GRFunc, [LServer, Username, SJID])
-                     of
+            GRResult = case GRFunc of
+                           get_rostergroup_by_jid ->
+                               catch rdbms_queries:get_rostergroup_by_jid(LServer, Username, SJID);
+                           get_rostergroup_by_jid_t ->
+                               catch rdbms_queries:get_rostergroup_by_jid_t(LServer, Username, SJID)
+                       end,
+            Groups = case GRResult of
                          {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
-                         _ -> []
+                         _ ->
+                             ?ERROR_MSG("Error calling rdbms backend: ~p", [GRResult]),
+                             []
                      end,
             {Subscription, Groups};
         E ->
@@ -262,36 +278,37 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
 record_to_string(#roster{us = {User, _Server},
                          jid = JID, name = Name, subscription = Subscription,
                          ask = Ask, askmessage = AskMessage}) ->
-    Username = mongoose_rdbms:escape(User),
+    Username = mongoose_rdbms:escape_string(User),
     SJID =
-    mongoose_rdbms:escape(jid:to_binary(jid:to_lower(JID))),
-    Nick = mongoose_rdbms:escape(Name),
-    SSubscription = case Subscription of
+    mongoose_rdbms:escape_string(jid:to_binary(jid:to_lower(JID))),
+    Nick = mongoose_rdbms:escape_string(Name),
+    SSubscription = mongoose_rdbms:escape_string(case Subscription of
                         both -> <<"B">>;
                         to -> <<"T">>;
                         from -> <<"F">>;
                         none -> <<"N">>
-                    end,
-    SAsk = case Ask of
+                    end),
+    SAsk = mongoose_rdbms:escape_string(case Ask of
                subscribe -> <<"S">>;
                unsubscribe -> <<"U">>;
                both -> <<"B">>;
                out -> <<"O">>;
                in -> <<"I">>;
                none -> <<"N">>
-           end,
-    SAskMessage = mongoose_rdbms:escape(AskMessage),
+           end),
+    SAskMessage = mongoose_rdbms:escape_string(AskMessage),
     [Username, SJID, Nick, SSubscription, SAsk, SAskMessage,
-     <<"N">>, <<"">>, <<"item">>].
+     mongoose_rdbms:escape_string(<<"N">>),
+     mongoose_rdbms:escape_string(<<"">>),
+     mongoose_rdbms:escape_string(<<"item">>)].
 
 groups_to_string(#roster{us = {User, _Server},
                          jid = JID, groups = Groups}) ->
-    Username = mongoose_rdbms:escape(User),
-    SJID =
-    mongoose_rdbms:escape(jid:to_binary(jid:to_lower(JID))),
+    Username = mongoose_rdbms:escape_string(User),
+    SJID = mongoose_rdbms:escape_string(jid:to_binary(jid:to_lower(JID))),
     lists:foldl(fun (<<"">>, Acc) -> Acc;
                     (Group, Acc) ->
-                        G = mongoose_rdbms:escape(Group),
+                        G = mongoose_rdbms:escape_string(Group),
                         [[Username, SJID, G] | Acc]
                 end,
                 [], Groups).
