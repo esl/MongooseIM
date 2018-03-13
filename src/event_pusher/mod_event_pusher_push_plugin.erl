@@ -17,12 +17,15 @@
 -include("mongoose.hrl").
 
 %% API
--export([should_publish/4, sender_id/3]).
+-export([should_publish/4]).
+-export([publish_notification/5]).
 
 
 -callback should_publish(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) ->
     boolean().
--callback sender_id(From :: jid:jid(), Packet :: exml:element()) -> SenderId :: binary().
+-callback publish_notification(Acc :: mongooseim_acc:t(), From :: jid:jid(),
+                               To :: jid:jid(), Packet :: exml:element(),
+                               Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
 
 %%--------------------------------------------------------------------
 %% API
@@ -34,11 +37,12 @@ should_publish(Host, From, To, Packet) ->
     PluginModule = plugin_module(Host),
     PluginModule:should_publish(From, To, Packet).
 
--spec sender_id(Host :: jid:server(), From :: jid:jid(), Packet :: exml:element()) ->
-    SenderId :: binary().
-sender_id(Host, From, Packet) ->
+-spec publish_notification(Acc :: mongooseim_acc:t(), From :: jid:jid(),
+                           To :: jid:jid(), Packet :: exml:element(),
+                           Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
+publish_notification(Acc, From, #jid{lserver = Host} = To, Packet, Services) ->
     PluginModule = plugin_module(Host),
-    PluginModule:sender_id(From, Packet).
+    PluginModule:publish_notification(Acc, From, To, Packet, Services).
 
 %%--------------------------------------------------------------------
 %% Helper functions

@@ -32,14 +32,15 @@
          remove_user/3,
          push_event/3]).
 
+-export([cast/3, cast/4]).
+
 %% Types
 -export_type([pubsub_node/0, form_field/0, form/0]).
+-export_type([publish_service/0]).
 
 %%--------------------------------------------------------------------
 %% Definitions
 %%--------------------------------------------------------------------
-
--define(PUSH_FORM_TYPE, <<"urn:xmpp:push:summary">>).
 
 -callback init(Host :: jid:server(), Opts :: list()) -> ok.
 -callback enable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
@@ -48,10 +49,11 @@
 -callback disable(UserJID :: jid:jid(), PubsubJID :: jid:jid(),
                   Node :: pubsub_node()) -> ok | {error, Reason :: term()}.
 -callback get_publish_services(User :: jid:jid()) ->
-    {ok, [{PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}]} |
+    {ok, [publish_service()]} |
     {error, Reason :: term()}.
 
 %% Types
+-type publish_service() :: {PubSub :: jid:jid(), Node :: pubsub_node(), Form :: form()}.
 -type pubsub_node()        :: binary().
 -type form_field()  :: {Name :: binary(), Value :: binary()}.
 -type form()        :: [form_field()].
@@ -98,15 +100,13 @@ stop(Host) ->
 %%--------------------------------------------------------------------
 
 push_event(Acc, Host, Event = #chat_event{type = chat, direction = in}) ->
-    do_push_event(Host, Event),
-    Acc;
+    do_push_event(Acc, Host, Event);
 push_event(Acc, Host, Event = #chat_event{type = groupchat, direction = out}) ->
-    do_push_event(Host, Event),
-    Acc;
+    do_push_event(Acc, Host, Event);
 push_event(Acc, _, _) ->
     Acc.
 
-do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
+do_push_event(Acc, Host, #chat_event{from = From, to = To, packet = Packet}) ->
     %% First condition means that we won't try to push messages without
     %% <body/> element because it is required later in payload generation.
     %% In such case we don't care about plugin's decision, so it is checked
@@ -114,7 +114,7 @@ do_push_event(Host, #chat_event{from = From, to = To, packet = Packet}) ->
     %% Messages with empty body will still be pushed.
     exml_query:subelement(Packet, <<"body">>) /= undefined
     andalso mod_event_pusher_push_plugin:should_publish(Host, From, To, Packet)
-    andalso publish_message(From, To, Packet).
+    andalso publish_message(Acc, From, To, Packet).
 
 %% Hook 'remove_user'
 -spec remove_user(Acc :: mongoose_acc:t(), LUser :: binary(), LServer :: binary()) ->
@@ -166,25 +166,13 @@ handle_publish_response(BareRecipient, PubsubJID, Node, #iq{type = error}) ->
 %% Module API
 %%--------------------------------------------------------------------
 
--spec publish_message(From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> ok.
-publish_message(From, To = #jid{lserver = Host}, Packet) ->
+-spec publish_message(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(), Packet :: exml:element()) -> ok.
+publish_message(Acc, From, To, Packet) ->
     ?DEBUG("Handle push notification ~p", [{From, To, Packet}]),
 
     BareRecipient = jid:to_bare(To),
     {ok, Services} = mod_event_pusher_push_backend:get_publish_services(BareRecipient),
-    lists:foreach(
-      fun({PubsubJID, Node, Form}) ->
-              Stanza = push_notification_iq(Host, From, Packet, Node, Form),
-              Acc = mongoose_acc:from_element(Stanza, To, PubsubJID),
-              ResponseHandler =
-                  fun(Response) ->
-                          cast(Host, handle_publish_response,
-                               [BareRecipient, PubsubJID, Node, Response])
-                  end,
-              cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Acc, Stanza, ResponseHandler])
-      end, Services),
-
-    ok.
+    mod_event_pusher_push_plugin:publish_notification(Acc, From, To, Packet, Services).
 
 %%--------------------------------------------------------------------
 %% Helper functions
@@ -243,48 +231,6 @@ parse_form(Form) ->
         false ->
             invalid_form
     end.
-
--spec push_notification_iq(Host :: jid:server(), From :: jid:jid(),
-                           Packet :: exml:element(), Node :: pubsub_node(), Form :: form()) -> jlib:iq().
-push_notification_iq(Host, From, Packet, Node, Form) ->
-    ContentFields =
-        [
-         {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
-         {<<"message-count">>, <<"1">>},
-         {<<"last-message-sender">>, mod_event_pusher_push_plugin:sender_id(Host, From, Packet)},
-         {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
-        ],
-
-    #iq{type = set, sub_el = [
-        #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
-            #xmlel{name = <<"publish">>, attrs = [{<<"node">>, Node}], children = [
-                #xmlel{name = <<"item">>, children = [
-                    #xmlel{name = <<"notification">>,
-                           attrs = [{<<"xmlns">>, ?NS_PUSH}], children = [make_form(ContentFields)]}
-                ]}
-            ]}
-        ] ++ maybe_publish_options(Form)}
-    ]}.
-
-    -spec maybe_publish_options(form()) -> [exml:element()].
-maybe_publish_options([]) ->
-    [];
-maybe_publish_options(FormFields) ->
-    [#xmlel{name = <<"publish-options">>,
-            children = [
-                        make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
-                       ]}].
-
--spec make_form(form()) -> exml:element().
-make_form(Fields) ->
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
-           children = [make_form_field(Field) || Field <- Fields]}.
-
--spec make_form_field(form_field()) -> exml:element().
-make_form_field({Name, Value}) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Name}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
 -spec cast(Host :: jid:server(), F :: atom(), A :: [any()]) -> any().
 cast(Host, F, A) ->
