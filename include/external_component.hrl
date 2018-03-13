@@ -1,1 +1,6 @@
--record(external_component, {domain, handler, node}).
+-record(external_component, {
+          domain,
+          handler,
+          node,
+          is_hidden = false
+         }).

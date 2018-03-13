@@ -37,15 +37,19 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, xep0114_tcp},
+    [
+     {group, xep0114_tcp},
      {group, xep0114_ws},
      {group, subdomain},
-     {group, distributed}].
+     {group, hidden_components},
+     {group, distributed}
+    ].
 
 groups() ->
     [{xep0114_tcp, [], xep0114_tests()},
      {xep0114_ws, [], xep0114_tests()},
      {subdomain, [], [register_subdomain]},
+     {hidden_components, [], [disco_with_hidden_component]},
      {distributed, [], [register_in_cluster,
                         register_same_on_both
                         %clear_on_node_down TODO: Breaks cover
@@ -88,6 +92,9 @@ init_per_group(subdomain, Config) ->
     Config1 = get_components(common(Config), Config),
     add_domain(Config1),
     escalus:create_users(Config1, escalus:get_users([alice, astrid]));
+init_per_group(hidden_components, Config) ->
+    Config1 = get_components(common(Config), Config),
+    escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(distributed, Config) ->
     Config1 = get_components(common(Config), Config),
     Config2 = add_node_to_cluster(Config1),
@@ -256,6 +263,33 @@ disco_components(Config) ->
 
     disconnect_component(Comp1, Addr1),
     disconnect_component(Comp2, Addr2).
+
+%% Verifies that component connected to "hidden components" endpoint
+%% is not discoverable.
+%% Assumes mod_disco with `{users_can_see_hidden_services, false}` option
+disco_with_hidden_component(Config) ->
+    %% Given two connected components
+    CompOpts1 = ?config(component1, Config),
+    HCompOpts = spec(hidden_component, Config),
+    {Comp1, Addr1, _} = connect_component(CompOpts1),
+    {HComp, HAddr, _} = connect_component(HCompOpts),
+
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+                %% When server asked for the disco features
+                Server = escalus_client:server(Alice),
+                Disco = escalus_stanza:service_discovery(Server),
+                escalus:send(Alice, Disco),
+
+                %% Then it contains hosts of component1 and hidden_component is missing
+                DiscoReply = escalus:wait_for_stanza(Alice),
+                escalus:assert(has_service, [Addr1], DiscoReply),
+                escalus:assert(fun(Stanza) ->
+                                       not escalus_pred:has_service(HAddr, Stanza)
+                               end, DiscoReply)
+        end),
+
+    disconnect_component(Comp1, Addr1),
+    disconnect_component(HComp, HAddr).
 
 register_subdomain(Config) ->
     %% Given one connected component
@@ -597,6 +631,8 @@ spec(component_on_2, Config) ->
     [{component, <<"yet_another_service">>}] ++ common(Config, 8899);
 spec(component_duplicate, Config) ->
     [{component, <<"another_service">>}] ++ common(Config, 8899);
+spec(hidden_component, Config) ->
+    [{component, <<"hidden_component">>}] ++ common(Config, 8189);
 spec(Other, Config) ->
     [name(Other) | proplists:get_value(Other, Config, [])].
 

@@ -39,10 +39,14 @@
          unregister_routes/1,
          dirty_get_all_routes/0,
          dirty_get_all_domains/0,
+         dirty_get_all_routes/1,
+         dirty_get_all_domains/1,
          register_components/2,
          register_components/3,
+         register_components/4,
          register_component/2,
          register_component/3,
+         register_component/4,
          lookup_component/1,
          lookup_component/2,
          unregister_component/1,
@@ -68,8 +72,12 @@
 -type domain() :: binary().
 
 -type external_component() :: #external_component{domain :: domain(),
-                                                  handler :: mongoose_packet_handler:t()}.
+                                                  handler :: mongoose_packet_handler:t(),
+                                                  is_hidden :: boolean()}.
 
+% Not simple boolean() because is probably going to support third value in the future: only_hidden.
+% Besides, it increases readability.
+-type return_hidden() :: only_public | all.
 
 %%====================================================================
 %% API
@@ -146,9 +154,16 @@ register_components(Domains, Handler) ->
                           Node :: node(),
                           Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
 register_components(Domains, Node, Handler) ->
+    register_components(Domains, Node, Handler, false).
+
+-spec register_components([Domain :: domain()],
+                          Node :: node(),
+                          Handler :: mongoose_packet_handler:t(),
+                          AreHidden :: boolean()) -> ok | {error, any()}.
+register_components(Domains, Node, Handler, AreHidden) ->
     LDomains = [{jid:nameprep(Domain), Domain} || Domain <- Domains],
     F = fun() ->
-            [do_register_component(LDomain, Handler, Node) || LDomain <- LDomains],
+            [do_register_component(LDomain, Handler, Node, AreHidden) || LDomain <- LDomains],
             ok
     end,
     case mnesia:transaction(F) of
@@ -164,23 +179,32 @@ register_components(Domains, Node, Handler) ->
 -spec register_component(Domain :: domain(),
                          Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
 register_component(Domain, Handler) ->
-    register_components([Domain], node(), Handler).
+    register_component(Domain, node(), Handler).
 
 -spec register_component(Domain :: domain(),
                          Node :: node(),
                          Handler :: mongoose_packet_handler:t()) -> ok | {error, any()}.
 register_component(Domain, Node, Handler) ->
-    register_components([Domain], Node, Handler).
+    register_component(Domain, Node, Handler, false).
 
-do_register_component({error, Domain}, _Handler, _Node) ->
+-spec register_component(Domain :: domain(),
+                         Node :: node(),
+                         Handler :: mongoose_packet_handler:t(),
+                         IsHidden :: boolean()) -> ok | {error, any()}.
+register_component(Domain, Node, Handler, IsHidden) ->
+    register_components([Domain], Node, Handler, IsHidden).
+
+do_register_component({error, Domain}, _Handler, _Node, _IsHidden) ->
     error({invalid_domain, Domain});
-do_register_component({LDomain, _}, Handler, Node) ->
+do_register_component({LDomain, _}, Handler, Node, IsHidden) ->
     case check_component(LDomain, Node) of
         ok ->
-            ComponentGlobal = #external_component{domain = LDomain, handler = Handler, node = Node},
+            ComponentGlobal = #external_component{domain = LDomain, handler = Handler,
+                                                  node = Node, is_hidden = IsHidden},
             mnesia:write(external_component_global, ComponentGlobal, write),
             NDomain = {LDomain, Node},
-            Component = #external_component{domain = NDomain, handler = Handler, node = Node},
+            Component = #external_component{domain = NDomain, handler = Handler,
+                                            node = Node, is_hidden = IsHidden},
             mnesia:write(Component),
             ejabberd_hooks:run(register_subhost, [LDomain]);
         _ -> mnesia:abort(route_already_exists)
@@ -318,14 +342,30 @@ unregister_routes(Domains) ->
                   Domains).
 
 
+-spec dirty_get_all_routes() -> [jid:lserver()].
 dirty_get_all_routes() ->
-    lists:usort(all_routes()) -- ?MYHOSTS.
+    dirty_get_all_routes(all).
 
+-spec dirty_get_all_domains() -> [jid:lserver()].
 dirty_get_all_domains() ->
-    lists:usort(all_routes()).
+    dirty_get_all_domains(all).
 
-all_routes() ->
-    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component_global).
+-spec dirty_get_all_routes(return_hidden()) -> [jid:lserver()].
+dirty_get_all_routes(ReturnHidden) ->
+    lists:usort(all_routes(ReturnHidden)) -- ?MYHOSTS.
+
+-spec dirty_get_all_domains(return_hidden()) -> [jid:lserver()].
+dirty_get_all_domains(ReturnHidden) ->
+    lists:usort(all_routes(ReturnHidden)).
+
+-spec all_routes(return_hidden()) -> [jid:lserver()].
+all_routes(all) ->
+    mnesia:dirty_all_keys(route) ++ mnesia:dirty_all_keys(external_component_global);
+all_routes(only_public) ->
+    MatchNonHidden = {#external_component{ domain = '$1', is_hidden = false, _ = '_' }, [], ['$1']},
+    mnesia:dirty_all_keys(route)
+    ++
+    mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
 
 %%====================================================================

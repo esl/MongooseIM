@@ -55,6 +55,8 @@
 
 -type feature() :: any().
 
+-type return_hidden() :: ejabberd_router:return_hidden().
+
 -spec start(jid:server(), list()) -> 'ok'.
 start(Host, Opts) ->
     [catch ets:new(Name, [named_table, ordered_set, public]) || Name <-
@@ -269,16 +271,17 @@ domain_to_xml(Domain) ->
                          Lang :: ejabberd:lang()) -> {'error', _} | {'result', _}.
 get_local_services({error, _Error} = Acc, _From, _To, _Node, _Lang) ->
     Acc;
-get_local_services(Acc, _From, To, <<>>, _Lang) ->
+get_local_services(Acc, From, To, <<>>, _Lang) ->
     Items = case Acc of
                 {result, Its} -> Its;
                 empty -> []
             end,
     Host = To#jid.lserver,
+    ReturnHidden = should_return_hidden(Host, From),
     {result,
      lists:usort(
        lists:map(fun domain_to_xml/1,
-                 get_vh_services(Host) ++
+                 get_vh_services(Host, ReturnHidden) ++
                  ets:select(disco_extra_domains,
                             [{{{'$1', Host}}, [], ['$1']}]))
        ) ++ Items};
@@ -287,14 +290,23 @@ get_local_services({result, _} = Acc, _From, _To, _Node, _Lang) ->
 get_local_services(empty, _From, _To, _Node, _Lang) ->
     {error, mongoose_xmpp_errors:item_not_found()}.
 
+-spec should_return_hidden(Host :: jid:lserver(), From :: jid:jid()) -> return_hidden().
+should_return_hidden(_Host, #jid{ luser = <<>> } = _From) ->
+    %% We respect "is hidden" flag only when a client performs the query
+    all;
+should_return_hidden(Host, _From) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, users_can_see_hidden_services, true) of
+        true -> all;
+        false -> only_public
+    end.
 
 -type route() :: binary().
--spec get_vh_services(jid:server()) -> [route()].
-get_vh_services(Host) ->
+-spec get_vh_services(jid:server(), return_hidden()) -> [route()].
+get_vh_services(Host, ReturnHidden) ->
     VHosts = lists:sort(fun(H1, H2) -> size(H1) >= size(H2) end, ?MYHOSTS),
     lists:filter(fun(Route) ->
                          check_if_host_is_the_shortest_suffix_for_route(Route, Host, VHosts)
-                 end, ejabberd_router:dirty_get_all_routes()).
+                 end, ejabberd_router:dirty_get_all_routes(ReturnHidden)).
 
 -spec check_if_host_is_the_shortest_suffix_for_route(
         Route :: route(), Host :: binary(), VHosts :: [binary()]) -> boolean().
