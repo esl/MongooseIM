@@ -23,11 +23,12 @@
 
 -define(JIDS_ETS, mod_global_distrib_mapping_redis_jids).
 -define(DOMAINS_ETS, mod_global_distrib_mapping_redis_domains).
+-define(PUBLIC_DOMAINS_ETS, mod_global_distrib_mapping_redis_public_domains).
 
 -export([start/1, stop/0,
          put_session/1, get_session/1, delete_session/1,
-         put_domain/1, get_domain/1, delete_domain/1,
-         get_endpoints/1, get_domains/0, get_hosts/0]).
+         put_domain/2, get_domain/1, delete_domain/1,
+         get_endpoints/1, get_domains/0, get_public_domains/0, get_hosts/0]).
 
 -export([init/1, handle_info/2]).
 
@@ -46,7 +47,7 @@ start(Opts) ->
     PoolSize = proplists:get_value(pool_size, Opts, 1),
     RefreshAfter = proplists:get_value(refresh_after, Opts, 60),
 
-    mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS]),
+    mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]),
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
@@ -70,7 +71,7 @@ stop() ->
              supervisor:delete_child(ejabberd_sup, Id)
      end,
       [?MODULE, mod_global_distrib_redis_refresher]),
-    [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS]].
+    [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]].
 
 -spec put_session(Jid :: binary()) -> ok.
 put_session(Jid) ->
@@ -86,10 +87,19 @@ delete_session(Jid) ->
     ets:delete(?JIDS_ETS, Jid),
     do_delete(Jid).
 
-put_domain(Domain) ->
+-spec put_domain(Domain :: binary(), IsHidden :: boolean()) -> ok.
+put_domain(Domain, IsHidden) ->
     ets:insert(?DOMAINS_ETS, {Domain}),
     {ok, _} = q([<<"SADD">>, domains_key(), Domain]),
-    do_put(Domain, opt(local_host)).
+    do_put(Domain, opt(local_host)),
+    case IsHidden of
+        false ->
+            ets:insert(?PUBLIC_DOMAINS_ETS, {Domain}),
+            {ok, _} = q([<<"SADD">>, public_domains_key(), Domain]),
+            ok;
+        true ->
+            ok
+    end.
 
 -spec get_domain(Domain :: binary()) -> {ok, Host :: jid:lserver()} | error.
 get_domain(Domain) ->
@@ -98,16 +108,18 @@ get_domain(Domain) ->
 -spec delete_domain(Domain :: binary()) -> ok.
 delete_domain(Domain) ->
     ets:delete(?DOMAINS_ETS, Domain),
+    ets:delete(?PUBLIC_DOMAINS_ETS, Domain),
     do_delete(Domain),
     {ok, _} = q([<<"SREM">>, domains_key(), Domain]),
     ok.
 
 -spec get_domains() -> {ok, [Domain :: binary()]}.
 get_domains() ->
-    Hosts = get_hosts(),
-    Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, Hosts),
-    Keys = [domains_key(Host, Node) || {Host, Node} <- Nodes],
-    {ok, _Domains} = q([<<"SUNION">> | Keys]).
+    get_domains(fun domains_key/2).
+
+-spec get_public_domains() -> {ok, [Domain :: binary()]}.
+get_public_domains() ->
+    get_domains(fun public_domains_key/2).
 
 -spec get_endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Host) ->
@@ -135,6 +147,8 @@ handle_info(refresh, RefreshAfter) ->
     refresh_endpoints(),
     ?DEBUG("event=refreshing_own_domains", []),
     refresh_domains(),
+    ?DEBUG("event=refreshing_own_public_domains", []),
+    refresh_public_domains(),
     ?DEBUG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
     erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
     {noreply, RefreshAfter}.
@@ -179,6 +193,14 @@ domains_key() ->
 domains_key(Host, Node) ->
     key(Host, Node, <<"domains">>).
 
+-spec public_domains_key() -> binary().
+public_domains_key() ->
+    key(<<"public_domains">>).
+
+-spec public_domains_key(Host :: jid:lserver(), Node :: binary()) -> binary().
+public_domains_key(Host, Node) ->
+    key(Host, Node, <<"public_domains">>).
+
 -spec key(Type :: binary()) -> binary().
 key(Type) ->
     LocalHost = opt(local_host),
@@ -217,6 +239,14 @@ do_delete(Key) ->
         _ -> ok
     end,
     ok.
+
+-spec get_domains(KeyFun :: fun((Host :: binary(), Node :: binary()) -> Key :: binary())) ->
+    {ok, Domains :: [binary()]}.
+get_domains(KeyFun) ->
+    Hosts = get_hosts(),
+    Nodes = lists:flatmap(fun(Host) -> [{Host, Node} || Node <- get_nodes(Host)] end, Hosts),
+    Keys = [KeyFun(Host, Node) || {Host, Node} <- Nodes],
+    {ok, _Domains} = q([<<"SUNION">> | Keys]).
 
 -spec refresh_hosts() -> any().
 refresh_hosts() ->
@@ -307,6 +337,12 @@ refresh_domains() ->
                           q([<<"SET">>, Domain, LocalHost, <<"EX">>, expire_after()])
                   end,
                   Domains).
+
+-spec refresh_public_domains() -> any().
+refresh_public_domains() ->
+    DomainsKey = public_domains_key(),
+    Domains = [Domain || {Domain} <- ets:tab2list(?PUBLIC_DOMAINS_ETS)],
+    refresh_set(DomainsKey, Domains).
 
 -spec refresh_set(Key :: binary(), Members :: [binary()]) -> any().
 refresh_set(Key, Members) ->

@@ -206,7 +206,7 @@ do_register_component({LDomain, _}, Handler, Node, IsHidden) ->
             Component = #external_component{domain = NDomain, handler = Handler,
                                             node = Node, is_hidden = IsHidden},
             mnesia:write(Component),
-            ejabberd_hooks:run(register_subhost, [LDomain]);
+            ejabberd_hooks:run(register_subhost, [LDomain, IsHidden]);
         _ -> mnesia:abort(route_already_exists)
     end.
 
@@ -324,7 +324,8 @@ register_route_to_ldomain(error, Domain, _) ->
     erlang:error({invalid_domain, Domain});
 register_route_to_ldomain(LDomain, _, Handler) ->
     mnesia:dirty_write(#route{domain = LDomain, handler = Handler}),
-    ejabberd_hooks:run(register_subhost, [LDomain]).
+    % No support for hidden routes yet
+    ejabberd_hooks:run(register_subhost, [LDomain, false]).
 
 unregister_route(Domain) ->
     case jid:nameprep(Domain) of

@@ -42,8 +42,8 @@ stop(Host) ->
 
 -spec get_disco_items(Acc :: term(), From :: jid:jid(), To :: jid:jid(),
                       Node :: binary(), ejabberd:lang()) -> {result, [exml:element()]} | term().
-get_disco_items({result, Nodes}, _From, _To, <<"">>, _Lang) ->
-    {ok, Domains} = mod_global_distrib_mapping:all_domains(),
+get_disco_items({result, Nodes}, From, To, <<"">>, _Lang) ->
+    Domains = domains_for_disco(To#jid.lserver, From),
     ?DEBUG("event=domains_fetched_for_disco,domains=\"~p\",input_nodes=\"~p\"",
            [Domains, Nodes]),
     NameSet = gb_sets:from_list([exml_query:attr(Node, <<"jid">>) || Node <- Nodes]),
@@ -79,3 +79,19 @@ stop() ->
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
+
+-spec domains_for_disco(Host :: jid:lserver(), From :: jid:jid()) -> Domains :: [binary()].
+domains_for_disco(_Host, #jid{ luser = <<>> } = _From) ->
+    %% Currently all non-user entities may discover all services
+    {ok, Domains} = mod_global_distrib_mapping:all_domains(),
+    Domains;
+domains_for_disco(Host, _From) ->
+    case gen_mod:get_module_opt(Host, mod_disco, users_can_see_hidden_services, true) of
+        true ->
+            {ok, Domains} = mod_global_distrib_mapping:all_domains(),
+            Domains;
+        false ->
+            {ok, Domains} = mod_global_distrib_mapping:public_domains(),
+            Domains
+    end.
+

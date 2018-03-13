@@ -51,6 +51,7 @@ groups() ->
        test_component_disconnect,
        test_component_on_one_host,
        test_components_in_different_regions,
+       test_hidden_component_disco_in_different_region,
        test_pm_with_disconnection_on_other_server,
        test_pm_with_graceful_reconnection_to_different_server,
        test_pm_with_ungraceful_reconnection_to_different_server,
@@ -72,7 +73,7 @@ groups() ->
       ]},
      {invalidation, [],
       [
-       % TODO: Add checks for other cache updates
+       % TODO: Add checks for other mapping refreshes
        refresh_nodes
       ]},
      {multi_connection, [shuffle],
@@ -469,6 +470,24 @@ test_components_in_different_regions(_Config) ->
     escalus:send(Comp2, Msg2),
     GotMsg2 = escalus:wait_for_stanza(Comp1),
     escalus:assert(is_chat_message, [<<"Hi from 2!">>], GotMsg2).
+
+%% Ordinary user is not able to discover hidden component from GD
+test_hidden_component_disco_in_different_region(Config) ->
+    %% Hidden component from component_SUITE connects to mim1/europe_node1
+    HiddenComponentConfig = component_SUITE:spec(hidden_component, Config),
+    {_HiddenComp, HiddenAddr, _} = component_SUITE:connect_component(HiddenComponentConfig),
+
+    escalus:fresh_story(
+      Config, [{eve, 1}],
+      fun(Eve) ->
+              EveServer = escalus_client:server(Eve),
+              escalus:send(Eve, escalus_stanza:service_discovery(EveServer)),
+              DiscoReply = escalus:wait_for_stanza(Eve),
+              escalus:assert(is_iq_result, DiscoReply),
+              escalus:assert(fun(Stanza) ->
+                                     not escalus_pred:has_service(HiddenAddr, Stanza)
+                             end, DiscoReply)
+      end).
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
