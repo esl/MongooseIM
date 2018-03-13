@@ -96,7 +96,7 @@ field_name_to_mapper(Pool, ServerType, TableDesc, FieldName) ->
         T when T =:= 'SQL_BINARY'; T =:= 'SQL_VARBINARY'; T =:= 'SQL_LONGVARBINARY' ->
             fun(P) -> {[escape_binary(Pool, ServerType, P)], []} end;
         'SQL_LONGVARCHAR' ->
-            fun(P) -> {[<<"'">>, mongoose_rdbms:escape(P), <<"'">>], []} end;
+            fun(P) -> {[escape_text(Pool, ServerType, P)], []} end;
         'SQL_BIGINT' ->
             fun(P) -> {[<<"'">>, integer_to_binary(P), <<"'">>], []} end;
         _ ->
@@ -134,3 +134,12 @@ escape_binary(Pool, mysql, Bin) ->
     mongoose_rdbms_mysql:escape_binary(Pool, Bin);
 escape_binary(_Pool, _ServerType, Bin) ->
     [$', bin_to_hex:bin_to_hex(Bin), $'].
+
+-spec escape_text(mongoose_rdbms:pool(), ServerType :: atom(), binary()) -> iodata().
+escape_text(_Pool, pgsql, Bin) ->
+    [<<"convert_from(decode('">>, base64:encode(Bin), <<"','base64'),'utf8')">>];
+escape_text(_Pool, mssql, Bin) ->
+    UTF16 = unicode:characters_to_binary(Bin, utf8, {utf16, little}),
+    [<<"CAST(0x">>, bin_to_hex:bin_to_hex(UTF16), <<" AS NVARCHAR)">>];
+escape_text(Pool, ServerType, Bin) ->
+    escape_binary(Pool, ServerType, Bin).

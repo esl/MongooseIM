@@ -113,7 +113,8 @@
          metric_incremented_on_archive_request/1,
          metric_incremented_when_store_message/1,
          archive_chat_markers/1,
-         dont_archive_chat_markers/1]).
+         dont_archive_chat_markers/1,
+         save_unicode_messages/1]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -344,13 +345,15 @@ mam_cases() ->
      simple_archive_request,
      range_archive_request,
      range_archive_request_not_empty,
-     limit_archive_request].
+     limit_archive_request
+    ].
 
 text_search_cases() ->
     [
      simple_text_search_request,
      long_text_search_request,
-     text_search_is_available
+     text_search_is_available,
+     save_unicode_messages
     ].
 
 disabled_text_search_cases() ->
@@ -980,6 +983,8 @@ init_per_testcase(C=simple_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=long_text_search_request, Config) ->
     skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
+init_per_testcase(C=save_unicode_messages, Config) ->
+    skip_if_cassandra(Config, fun() -> escalus:init_per_testcase(C, Config) end);
 init_per_testcase(C=muc_text_search_request, Config) ->
     Init =
         fun() ->
@@ -1383,6 +1388,36 @@ long_text_search_request(Config) ->
         ?assert_equal(lists:nth(11, Msgs), Body3),
 
         ok
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+save_unicode_messages(Config) ->
+    P = ?config(props, Config),
+    F = fun(Alice, Bob) ->
+                escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi! this is an unicode character lol 😂"/utf8>>)),
+                escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"this is another one no 🙅"/utf8>>)),
+                escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
+                maybe_wait_for_archive(Config),
+
+                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
+                Res1 = wait_archive_respond(P, Alice),
+                assert_respond_size(2, Res1),
+                assert_respond_query_id(P, <<"q1">>, parse_result_iq(P, Res1)),
+                [Msg1, Msg2] = respond_messages(Res1),
+                #forwarded_message{message_body = Body1} = parse_forwarded_message(Msg1),
+                #forwarded_message{message_body = Body2} = parse_forwarded_message(Msg2),
+                ?assert_equal(<<"Hi! this is an unicode character lol 😂"/utf8>>, Body1),
+                ?assert_equal(<<"This is the same again lol 😂"/utf8>>, Body2),
+
+                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"no"/utf8>>)),
+                Res2 = wait_archive_respond(P, Alice),
+                assert_respond_size(1, Res2),
+                assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
+                [Msg3] = respond_messages(Res2),
+                #forwarded_message{message_body = Body3} = parse_forwarded_message(Msg3),
+                ?assert_equal(<<"this is another one no 🙅"/utf8>>, Body3),
+
+                ok
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 

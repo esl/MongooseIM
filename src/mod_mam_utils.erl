@@ -757,11 +757,11 @@ form_to_text(El) ->
 %% "my%cat%was%eaten%by%my%dog%why"
 %% @end
 %% -----------------------------------------------------------------------
--spec normalize_search_text(binary() | string() | undefined) -> string() | undefined.
+-spec normalize_search_text(binary() | undefined) -> binary() | undefined.
 normalize_search_text(Text) ->
-    normalize_search_text(Text, "%").
+    normalize_search_text(Text, <<"%">>).
 
--spec normalize_search_text(binary() | string() | undefined, string()) -> string() | undefined.
+-spec normalize_search_text(binary() | undefined, binary()) -> binary() | undefined.
 normalize_search_text(undefined, _WordSeparator) ->
     undefined;
 normalize_search_text(Text, WordSeparator) ->
@@ -770,17 +770,18 @@ normalize_search_text(Text, WordSeparator) ->
     ReOpts = [{return, list}, global, unicode, ucp],
     Re0 = re:replace(LowerBody, "[, .:;-?!]+", " ", ReOpts),
     Re1 = re:replace(Re0, "([^\\w ]+)|(^\\s+)|(\\s+$)", "", ReOpts),
-    re:replace(Re1, "\s+", WordSeparator, ReOpts).
+    Re2 = re:replace(Re1, "\s+", unicode:characters_to_list(WordSeparator), ReOpts),
+    unicode:characters_to_binary(Re2).
 
 -spec packet_to_search_body(Module :: mod_mam | mod_mam_muc, Host :: jid:server(),
-                            Packet :: exml:element()) -> string().
+                            Packet :: exml:element()) -> binary().
 packet_to_search_body(Module, Host, Packet) ->
     case has_full_text_search(Module, Host) of
         true ->
-            BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata],
-                                        <<"">>),
-            mod_mam_utils:normalize_search_text(BodyValue, " ");
-        false -> ""
+            BodyValue = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
+            mod_mam_utils:normalize_search_text(BodyValue, <<" ">>);
+        false ->
+            <<>>
     end.
 
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: jid:server()) -> boolean().

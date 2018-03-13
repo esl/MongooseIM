@@ -453,10 +453,10 @@ key_filters(LocalJid, RemoteJid, Start, End, SearchText) ->
 search_text_filter(undefined) ->
     undefined;
 search_text_filter(SearchText) ->
-    Separator = "~1 AND search_text_register:",
-    NormText = mod_mam_utils:normalize_search_text(SearchText, Separator) ++ "~1",
+    Separator = <<"~1 AND search_text_register:">>,
+    NormText = mod_mam_utils:normalize_search_text(SearchText, Separator),
     %% Fuzzy search on tokens from search phrase
-    <<"search_text_register:", (list_to_binary(NormText))/binary>>.
+    <<"search_text_register:", NormText/binary, "~1">>.
 
 jid_filters(LocalJid, undefined) ->
     <<"_yz_rk:", LocalJid/binary, "*">>;
@@ -492,4 +492,3 @@ stored_binary_to_packet(Host, Bin) ->
 -spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_xml).
-

@@ -71,6 +71,8 @@ start(Host, Opts) ->
             error(hand_made_partitions_not_supported)
     end,
 
+    prepare_insert(insert_mam_muc_message, 1),
+
     start_muc(Host, Opts).
 
 -spec stop(jid:server()) -> 'ok'.
@@ -138,35 +140,18 @@ archive_message(_Result, Host, MessID, RoomID,
     try
         archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet)
     catch _Type:Reason ->
+            ?ERROR_MSG("event=archive_message_failed mess_id=~p room_id=~p "
+                       "from_nick=~p reason='~p' stacktrace=~p",
+                       [MessID, RoomID, FromNick, Reason, erlang:get_stacktrace()]),
             {error, Reason}
     end.
 
 -spec archive_message_unsafe(jid:server(), mod_mam:message_id(), mod_mam:archive_id(),
                              FromNick :: jid:user(), packet()) -> ok.
 archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet) ->
-    SRoomID = integer_to_list(RoomID),
-    SFromNick = mongoose_rdbms:escape(FromNick),
-    Data = packet_to_stored_binary(Host, Packet),
-    SData = mongoose_rdbms:escape_binary(Host, Data),
-    SMessID = integer_to_list(MessID),
-    TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
-    STextBody = mongoose_rdbms:escape(TextBody),
-    write_message(Host, SMessID, SRoomID, SFromNick, SData, STextBody).
-
-
--spec write_message(jid:server(), string(),
-                    SRoomId :: string(), SFromNick :: jid:user(), SData :: binary(),
-                    STextBody :: binary() | undefined) -> 'ok'.
-write_message(Host, SMessID, SRoomID, SFromNick, SData, STextBody) ->
-    {updated, 1} =
-    mod_mam_utils:success_sql_query(
-      Host,
-      ["INSERT INTO ", "mam_muc_message", " ",
-              "(id, room_id, nick_name, message, search_body) "
-       "VALUES ('", SMessID, "', '", SRoomID, "', "
-               "'", SFromNick, "', ", SData, ", '", STextBody, "')"]),
+    Row = prepare_message(Host, MessID, RoomID, FromNick, Packet),
+    {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row),
     ok.
-
 
 -spec prepare_message(jid:server(), mod_mam:message_id(), mod_mam:archive_id(),
                       _LocJID :: jid:jid(), _RemJID :: jid:jid(),
@@ -175,10 +160,12 @@ prepare_message(Host, MessID, RoomID,
                 _LocJID=#jid{},
                 _RemJID=#jid{},
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
+    prepare_message(Host, MessID, RoomID, FromNick, Packet).
+
+prepare_message(Host, MessID, RoomID, FromNick, Packet) ->
     Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
     [MessID, RoomID, FromNick, Data, TextBody].
-
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
@@ -538,7 +525,7 @@ calc_count(Host, Filter) ->
 %% @doc prepare_filter/5
 -spec prepare_filter(RoomID :: mod_mam:archive_id(), Borders :: mod_mam:borders() | undefined,
                      Start :: unix_timestamp() | undefined, End :: unix_timestamp() | undefined,
-                     WithJID :: jid:jid() | undefined, SearchText :: string() | undefined) -> filter().
+                     WithJID :: jid:jid() | undefined, SearchText :: binary() | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
     StartID = maybe_encode_compact_uuid(Start, 0),
