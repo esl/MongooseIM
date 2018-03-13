@@ -1093,7 +1093,7 @@ init_module(Host, Mod, Args) ->
     orelse
     ct:fail("Unknown module ~p", [Mod]),
     stop_module(Host, Mod),
-    ok = start_module(Host, Mod, Args).
+    {ok, _} = start_module(Host, Mod, Args).
 
 is_loaded_module(Host, Mod) ->
     rpc_apply(gen_mod, is_loaded, [Host, Mod]).
@@ -1109,8 +1109,7 @@ stop_module(Host, Mod) ->
     end.
 
 just_stop_module(Host, Mod) ->
-    {atomic, ok} = rpc_apply(gen_mod, stop_module, [Host, Mod]),
-    ok.
+    ok = rpc_apply(gen_mod, stop_module, [Host, Mod]).
 
 %%--------------------------------------------------------------------
 %% Group name helpers

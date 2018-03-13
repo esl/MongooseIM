@@ -103,8 +103,14 @@ start() ->
 
 -spec start_module(Host :: jid:server(),
                    Module :: module(),
-                   Opts :: [any()]) -> any().
-start_module(Host, Module, Opts0) ->
+                   Opts :: [any()]) -> {ok, term()} | {error, already_started}.
+start_module(Host, Module, Opts) ->
+    case is_loaded(Host, Module) of
+        true -> {error, already_started};
+        false -> start_module_for_host(Host, Module, Opts)
+    end.
+
+start_module_for_host(Host, Module, Opts0) ->
     {links, LinksBefore} = erlang:process_info(self(), links),
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
@@ -124,7 +130,11 @@ start_module(Host, Module, Opts0) ->
                            [TravisInfo, LinksBefore, LinksAfter])
         end,
         ?DEBUG("Module ~p started for ~p.", [Module, Host]),
-        Res
+        % normalise result
+        case Res of
+            {ok, R} -> {ok, R};
+            _ -> {ok, Res}
+        end
     catch
         Class:Reason ->
             del_module_mnesia(Host, Module),
@@ -163,26 +173,35 @@ is_app_running(AppName) ->
 
 
 %% @doc Stop the module in a host, and forget its configuration.
--spec stop_module(jid:server(), module()) -> 'error' | {'aborted', _} | {'atomic', _}.
+-spec stop_module(jid:server(), module()) ->
+    ok | {error, not_loaded} | {error, term()}.
 stop_module(Host, Module) ->
-    case stop_module_keep_config(Host, Module) of
-        error ->
-            error;
-        ok ->
-            del_module_mnesia(Host, Module)
+    case is_loaded(Host, Module) of
+        false -> {error, not_loaded};
+        true -> stop_module_for_host(Host, Module)
     end.
 
+stop_module_for_host(Host, Module) ->
+    case stop_module_keep_config(Host, Module) of
+        ok ->
+            case del_module_mnesia(Host, Module) of
+                {atomic, _} -> ok;
+                E -> {error, E}
+            end;
+        E ->
+            E
+    end.
 
 %% @doc Stop the module in a host, but keep its configuration. As the module
 %% configuration is kept in the Mnesia local_config table, when ejabberd is
 %% restarted the module will be started again. This function is useful when
 %% ejabberd is being stopped and it stops all modules.
--spec stop_module_keep_config(jid:server(), module()) -> 'error' | 'ok'.
+-spec stop_module_keep_config(jid:server(), module()) -> {error, term()} | 'ok'.
 stop_module_keep_config(Host, Module) ->
     case catch Module:stop(Host) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]),
-            error;
+            {error, Reason};
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList),
             ets:delete(ejabberd_modules, {Module, Host}),
