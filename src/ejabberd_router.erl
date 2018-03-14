@@ -62,6 +62,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+%% debug exports for tests
+-export([update_tables/0]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("route.hrl").
@@ -550,6 +553,26 @@ update_tables() ->
         true ->
             mnesia:delete_table(local_route);
         false ->
+            ok
+    end,
+    case catch mnesia:table_info(external_component, attributes) of
+        [domain, handler, node] ->
+            mnesia:delete_table(external_component);
+        [domain, handler, node, is_hidden] ->
+            ok;
+        {'EXIT', _} ->
+            ok
+    end,
+    case catch mnesia:table_info(external_component_global, attributes) of
+        [domain, handler, node] ->
+            UpdateFun = fun({external_component, Domain, Handler, Node}) ->
+                                {external_component, Domain, Handler, Node, false}
+                        end,
+            mnesia:transform_table(external_component_global, UpdateFun,
+                                   [domain, handler, node, is_hidden]);
+        [domain, handler, node, is_hidden] ->
+            ok;
+        {'EXIT', _} ->
             ok
     end.
 
