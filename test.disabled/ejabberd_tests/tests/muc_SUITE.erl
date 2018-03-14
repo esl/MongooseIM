@@ -90,8 +90,7 @@ all() -> [
           {group, hibernation},
 %         {group, room_registration_race_condition},
           {group, register},
-          {group, register_over_s2s},
-          {group, room_registration_race_condition}
+          {group, register_over_s2s}
         ].
 
 groups() -> [
