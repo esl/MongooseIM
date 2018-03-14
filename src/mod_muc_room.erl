@@ -171,19 +171,22 @@ start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
             Opts :: list()) -> {'error', _}
                                    | {'ok', 'undefined' | pid()}
                                    | {'ok', 'undefined' | pid(), _}.
-start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
+start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
+    when is_list(Opts) ->
     Supervisor = gen_mod:get_module_proc(ServerHost, ejabberd_mod_muc_sup),
     supervisor:start_child(Supervisor, [Host, ServerHost, Access, Room,
                                         HistorySize, RoomShaper, HttpAuthPool, Opts]).
 
 start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-       Creator, Nick, DefRoomOpts) ->
+       Creator, Nick, DefRoomOpts)
+    when is_list(DefRoomOpts) ->
     gen_fsm:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
                        ?FSMOPTS).
 
-start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts) ->
+start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
+    when is_list(Opts) ->
     gen_fsm:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Opts],
@@ -252,7 +255,7 @@ can_access_identity(RoomJID, UserJID) ->
 -spec init([any(), ...]) ->
     {ok, statename(), state()} | {ok, statename(), state(), timeout()}.
 init([Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
-      Creator, _Nick, DefRoomOpts]) ->
+      Creator, _Nick, DefRoomOpts]) when is_list(DefRoomOpts) ->
     process_flag(trap_exit, true),
     Shaper = shaper:new(RoomShaper),
     State = set_affiliation(Creator, owner,
@@ -922,7 +925,8 @@ change_subject_if_allowed(FromNick, Role, Packet, StateData) ->
 save_persistent_room_state(StateData) ->
     case (StateData#state.config)#config.persistent of
         true ->
-            mod_muc:store_room(StateData#state.host,
+            mod_muc:store_room(StateData#state.server_host,
+                               StateData#state.host,
                                StateData#state.room,
                                make_opts(StateData));
         _ ->
@@ -1072,7 +1076,7 @@ process_presence_unavailable(From, Packet, StateData) ->
     -> 'allowed' | 'conflict_registered' | 'conflict_use' | 'not_allowed_visitor'.
 choose_nick_change_strategy(From, Nick, StateData) ->
     case {is_nick_exists(Nick, StateData),
-          mod_muc:can_use_nick(StateData#state.host, From, Nick),
+          mod_muc:can_use_nick(StateData#state.server_host, StateData#state.host, From, Nick),
           (StateData#state.config)#config.allow_visitor_nickchange,
           is_visitor(From, StateData)} of
         {_, _, false, true} ->
@@ -1798,7 +1802,7 @@ choose_new_user_strategy(From, Nick, Affiliation, Role, Els, StateData) ->
     case {is_user_limit_reached(From, Affiliation, StateData),
           is_nick_exists(Nick, StateData),
           is_next_session_of_occupant(From, Nick, StateData),
-          mod_muc:can_use_nick(StateData#state.host, From, Nick),
+          mod_muc:can_use_nick(StateData#state.server_host, StateData#state.host, From, Nick),
           Role,
           Affiliation} of
         {false, _, _, _, _, _} ->
@@ -2782,7 +2786,9 @@ process_admin_items_set(UJID, Items, Lang, StateData) ->
                             process_admin_item_set(ChangedItem, UJID, SD)
                     end, StateData, Res),
             case (NSD#state.config)#config.persistent of
-                true -> mod_muc:store_room(NSD#state.host, NSD#state.room, make_opts(NSD));
+                true ->
+                    mod_muc:store_room(NSD#state.server_host,
+                                       NSD#state.host, NSD#state.room, make_opts(NSD));
                 _ -> ok
             end,
             {result, [], NSD};
@@ -3705,9 +3711,9 @@ change_config(Config, StateData) ->
     case {(StateData#state.config)#config.persistent,
       Config#config.persistent} of
     {_, true} ->
-        mod_muc:store_room(NSD#state.host, NSD#state.room, make_opts(NSD));
+        mod_muc:store_room(NSD#state.server_host, NSD#state.host, NSD#state.room, make_opts(NSD));
     {true, false} ->
-        mod_muc:forget_room(NSD#state.host, NSD#state.room);
+        mod_muc:forget_room(NSD#state.server_host, NSD#state.host, NSD#state.room);
     {false, false} ->
         ok
     end,
@@ -3835,7 +3841,9 @@ destroy_room(DestroyEl, StateData) ->
     remove_each_occupant_from_room(DestroyEl, StateData),
     case (StateData#state.config)#config.persistent of
         true ->
-            mod_muc:forget_room(StateData#state.host, StateData#state.room);
+            mod_muc:forget_room(StateData#state.server_host,
+                                StateData#state.host,
+                                StateData#state.room);
         false ->
             ok
     end,
@@ -4532,9 +4540,9 @@ route_invitation({ok, _IJIDs}, _From, _Packet, _Lang, StateData0) ->
     StateData0.
 
 -spec store_room_if_persistent(state()) -> any().
-store_room_if_persistent(#state{ host = Host, room = Room,
+store_room_if_persistent(#state{ host = Host, room = Room, server_host = ServerHost,
                                  config = #config{ persistent = true } } = StateData) ->
-    mod_muc:store_room(Host, Room, make_opts(StateData));
+    mod_muc:store_room(ServerHost, Host, Room, make_opts(StateData));
 store_room_if_persistent(_SD) ->
     ok.
 

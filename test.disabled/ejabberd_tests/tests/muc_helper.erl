@@ -41,8 +41,15 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc(Host) ->
+    Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+                  true -> odbc;
+                  false -> mnesia
+              end,
+    %% TODO refactoring. "localhost" should be passed as a parameter
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
+                          %% XXX TODO Uncomment, when mod_muc_db_odbc is written
+                          %{backend, Backend},
                            {hibernate_timeout, 2000},
                            {hibernated_room_check_interval, 1000},
                            {hibernated_room_timeout, 2000},
