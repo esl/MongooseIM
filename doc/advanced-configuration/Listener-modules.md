@@ -166,9 +166,19 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 * `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
+* `hidden_components` (boolean, default: `false`) - All components connected to an endpoint with this option enabled will be considered "hidden" (see explanation below).
 
 ### Custom extension to the protocol
 
 In order to register a component for all virtual hosts served by the server, the component must add the attribute `is_subdomain="true"`to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in the XEP.
+
+### Hidden components
+
+Hidden components have special flag enabled in internal component table.
+Alone, it doesn't change server behaviour in any way, but may be used by other modules and extensions to execute special logic.
+An example would be [`mod_disco`](../modules/mod_disco.md), which may be configured to filter out hidden component from disco results, so they won't be discoverable by clients.
+A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
+Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather they are not meant to interact with clients directly (e.g. helper components for other components).
+
