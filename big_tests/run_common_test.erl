@@ -1,3 +1,5 @@
+%% During dev you would use something similar to:
+%% DEV_NODES="mim1" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
 -module(run_common_test).
 
 -export([main/1, analyze/2]).
@@ -182,7 +184,7 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
 enable_preset(Name, PresetVars, Test, N, Tests) ->
     %% TODO: Do this with a multicall, otherwise it's not as fast as possible (not parallelized).
     %%       A multicall requires the function to be defined on the other side, though.
-    Rs = [ enable_preset_on_node(host_node(H), PresetVars, host_vars(H))
+    Rs = [ maybe_enable_preset_on_node(host_node(H), PresetVars, host_vars(H), rel_name(H))
            || H <- get_hosts(Test) ],
     [ok] = lists:usort(Rs),
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
@@ -190,6 +192,27 @@ enable_preset(Name, PresetVars, Test, N, Tests) ->
 
 backend(Node) ->
     rpc:call(Node, ejabberd_config, get_global_option, [sm_backend]).
+
+%% Specify just some nodes to run the tests on:
+%% DEV_NODES="mim1" ./tools/travis-test.sh -p odbc_mssql_mnesia
+maybe_enable_preset_on_node(Node, PresetVars, HostVars, RelName) ->
+    case is_node_enabled(RelName) of
+        true ->
+            enable_preset_on_node(Node, PresetVars, HostVars);
+        false ->
+            error_logger:info_msg("Skip enable_preset_on_node ~p", [Node]),
+            ok
+    end.
+
+%% Check, that node is listed in DEV_NODES list (if DEV_NODES envvar is set).
+is_node_enabled(RelName) ->
+    case os:getenv("DEV_NODES") of
+        false ->
+            true;
+        EnvValue ->
+            DevNodes = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
+            lists:member(atom_to_binary(RelName, utf8), DevNodes)
+    end.
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
@@ -420,6 +443,8 @@ group_by(F, L) ->
 host_cluster(Host) -> host_param(cluster, Host).
 host_node(Host)    -> host_param(node, Host).
 host_vars(Host)    -> host_param(vars, Host).
+%% Directory name in _build
+rel_name(Host)     -> host_param(relname, Host).
 
 host_param(Name, {_, Params}) ->
     {Name, Param} = lists:keyfind(Name, 1, Params),
