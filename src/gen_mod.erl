@@ -148,7 +148,7 @@ start_module_for_host(Host, Module, Opts0) ->
                 true ->
                     erlang:raise(Class, Reason, erlang:get_stacktrace());
                 false ->
-                    ?CRITICAL_MSG("ejabberd initialization was aborted "
+                    ?CRITICAL_MSG("mongooseim initialization was aborted "
                                   "because a module start failed.~n"
                                   "The trace is ~p.", [erlang:get_stacktrace()]),
                     timer:sleep(3000),
