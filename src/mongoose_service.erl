@@ -82,7 +82,9 @@ run_start_service(Service, Opts0) ->
     Opts = proplists:unfold(Opts0),
     ets:insert(?ETAB, {Service, Opts}),
     try
+        ?INFO_MSG("Starting service: ~p with ~p...", [Service, Opts]),
         Res = Service:start(Opts),
+        ?INFO_MSG("...done~n", []),
         case Res of
             {ok, _} -> Res;
             _ -> {ok, Res}
@@ -107,6 +109,7 @@ run_start_service(Service, Opts0) ->
     end.
 
 run_stop_service(Service) ->
+    ?INFO_MSG("stopping service: ~p~n", [Service]),
     case catch Service:stop() of
         {'EXIT', Reason} ->
             ?ERROR_MSG("Failed to stop service ~p, reason: ~p~n", [Service, Reason]);
