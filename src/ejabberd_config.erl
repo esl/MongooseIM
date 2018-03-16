@@ -591,6 +591,8 @@ process_term(Term, State) ->
             add_option(http_connections, HttpConnections, State);
         {all_metrics_are_global, Value} ->
             add_option(all_metrics_are_global, Value, State);
+        {services, Value} ->
+            add_option(services, Value, State);
         {_Opt, _Val} ->
             process_term_for_hosts_and_pools(Term, State)
     end.

@@ -27,9 +27,9 @@
 -module(mod_admin_extra).
 -author('badlop@process-one.net').
 
--behaviour(gen_mod).
+-behaviour(mongoose_service).
 
--export([start/2, stop/1]).
+-export([start/1, stop/0]).
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats
@@ -40,13 +40,13 @@
 %%% gen_mod
 %%%
 
-start(_Host, Opts) ->
+start(Opts) ->
     Submods = gen_mod:get_opt(submods, Opts, ?SUBMODS),
     lists:foreach(fun(Submod) ->
                 ejabberd_commands:register_commands((mod_name(Submod)):commands())
         end, Submods).
 
-stop(_Host) ->
+stop() ->
     lists:foreach(fun(Submod) ->
                 ejabberd_commands:unregister_commands((mod_name(Submod)):commands())
         end, ?SUBMODS).

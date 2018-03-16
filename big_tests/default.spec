@@ -38,6 +38,7 @@
 {suites, "tests", mod_ping_SUITE}.
 {suites, "tests", mod_time_SUITE}.
 {suites, "tests", mod_version_SUITE}.
+{suites, "tests", mongoose_service_big_SUITE}.
 {suites, "tests", muc_SUITE}.
 {suites, "tests", muc_light_SUITE}.
 {suites, "tests", muc_light_legacy_SUITE}.

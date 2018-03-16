@@ -52,6 +52,7 @@ start(normal, _Args) ->
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_subhosts:init(),
+    mongoose_service:start(),
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
@@ -67,6 +68,7 @@ start(normal, _Args) ->
     %% Profiling
     %%ejabberd_debug:eprof_start(),
     %%ejabberd_debug:fprof_start(),
+    start_services(),
     start_modules(),
     mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
@@ -83,6 +85,7 @@ prep_stop(State) ->
     mongoose_deprecations:stop(),
     ejabberd_listener:stop_listeners(),
     stop_modules(),
+    stop_services(),
     mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
     timer:sleep(5000),
@@ -140,6 +143,20 @@ stop_modules() ->
                   lists:foreach(StopModuleFun, Modules)
           end
       end, ?MYHOSTS).
+
+-spec start_services() -> ok.
+start_services() ->
+    lists:foreach(
+        fun({Service, Options}) -> mongoose_service:start_service(Service, Options) end,
+        ejabberd_config:get_local_option_or_default(services, [])
+    ).
+
+-spec stop_services() -> ok.
+stop_services() ->
+    lists:foreach(
+        fun({Service, Options}) -> mongoose_service:stop_service(Service) end,
+        mongoose_service:loaded_services_with_opts()
+    ).
 
 -spec connect_nodes() -> 'ok'.
 connect_nodes() ->
