@@ -1127,12 +1127,12 @@ compute_config_version(LC, LCH) ->
     crypto:hash(sha, term_to_binary(L1)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    ?ERROR_MSG("[reload_cluster] Opts in:~n~p", [Opts]),
-    Opts2 = filter_out_node_specific_options(Opts),
-    ?ERROR_MSG("[reload_cluster] Opts out:~n~p", [Opts2]),
-    ?ERROR_MSG("hosts:~n~p", []),
+    Opts2 = filter_out_node_specific_options_tmp_wrapper(Opts),
     L = sort_config(Opts2 ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
+
+filter_out_node_specific_options_tmp_wrapper(Opts) ->
+    filter_out_node_specific_options(Opts).
 
 filter_out_node_specific_options([]) ->
     [];
@@ -1149,7 +1149,8 @@ filter_out_node_specific_options([Opt | Opts]) ->
 % path exists). The `root path` for them is a list of modules.
 node_specific_module_options() ->
     [
-     [mod_global_distrib, connections, endpoints]
+     [mod_global_distrib, connections, endpoints],
+     [mod_global_sitrib, redis, server]
     ].
 
 delete_path_in_proplist(Plist, [Step]) ->
