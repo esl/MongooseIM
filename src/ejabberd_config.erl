@@ -1127,19 +1127,17 @@ compute_config_version(LC, LCH) ->
     crypto:hash(sha, term_to_binary(L1)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    Opts2 = filter_out_node_specific_options_tmp_wrapper(Opts),
+    Opts2 = filter_out_node_specific_options(Opts),
     L = sort_config(Opts2 ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
 
-filter_out_node_specific_options_tmp_wrapper(Opts) ->
-    filter_out_node_specific_options(Opts).
 
 filter_out_node_specific_options([]) ->
     [];
-filter_out_node_specific_options([{local_config, {modules, Host}, Mods} | Opts]) ->
+filter_out_node_specific_options([{local_config, {modules, Host}, Mods} | Opts]) -> % use record
     NewMods = lists:foldl(fun(Path, Mods) -> delete_path_in_proplist(Mods, Path) end,
                           Mods, node_specific_module_options()),
-    [{local_config, {modules, Host}, NewMods} | Opts];
+    [{local_config, {modules, Host}, NewMods} | filter_out_node_specific_options(Opts)];
 filter_out_node_specific_options([Opt | Opts]) ->
     [Opt | filter_out_node_specific_options(Opts)].
 
