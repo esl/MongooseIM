@@ -55,6 +55,9 @@ muc_test_cases() ->
       user_can_leave_a_room,
       invitation_to_room_is_forbidden_for_non_memeber,
       msg_is_sent_and_delivered_in_room,
+      sending_message_with_wrong_body_results_in_bad_request,
+      sending_message_with_no_body_results_in_bad_request,
+      sending_message_not_in_JSON_results_in_bad_request,
       messages_are_archived_in_room,
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
@@ -296,6 +299,29 @@ msg_is_sent_and_delivered_in_room(Config) ->
         given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}])
     end).
 
+sending_message_with_wrong_body_results_in_bad_request(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Sender = {alice, Alice},
+        RoomID = given_new_room_with_users(Sender, []),
+        Result = given_message_sent_to_room(RoomID, Sender, #{body => #{nested => <<"structure">>}}),
+        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"Invalid body, it must be a string">>}, Result)
+    end).
+
+sending_message_with_no_body_results_in_bad_request(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Sender = {alice, Alice},
+        RoomID = given_new_room_with_users(Sender, []),
+        Result = given_message_sent_to_room(RoomID, Sender, #{no_body => <<"This should be in body element">>}),
+        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"There is no body in the JSON">>}, Result)
+    end).
+sending_message_not_in_JSON_results_in_bad_request(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Sender = {alice, Alice},
+        RoomID = given_new_room_with_users(Sender, []),
+        Result = given_message_sent_to_room(RoomID, Sender, <<"This is not JSON object">>),
+        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"Request body is not a valid JSON">>}, Result)
+    end).
+
 messages_are_archived_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {RoomID, Msgs} = given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}]),
@@ -414,14 +440,19 @@ wait_for_room_msg(Msg, User) ->
     escalus:assert(is_groupchat_message, [maps:get(body, Msg)], Stanza).
 
 given_message_sent_to_room(RoomID, Sender) ->
-    {UserJID, _} = Creds = credentials(Sender),
-    Path = <<"/rooms/", RoomID/binary, "/messages">>,
     Body = #{body => <<"Hi all!">>},
-    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(client, Path, Body, Creds),
+    HTTPResult = given_message_sent_to_room(RoomID, Sender, Body),
+    {{<<"200">>, <<"OK">>}, {Result}} = HTTPResult,
     MsgId = proplists:get_value(<<"id">>, Result),
     true = is_binary(MsgId),
+    {UserJID, _} = credentials(Sender),
 
     Body#{id => MsgId, from => UserJID}.
+
+given_message_sent_to_room(RoomID, Sender, Body) ->
+    Creds = credentials(Sender),
+    Path = <<"/rooms/", RoomID/binary, "/messages">>,
+    rest_helper:post(client, Path, Body, Creds).
 
 given_new_room_with_users(Owner, Users) ->
     RoomID = given_new_room(Owner),
@@ -801,7 +832,7 @@ add_and_remove_some_contacts_properly(Config) ->
         fun(Alice, Bob, Kate, Carol) ->
             BCred = credentials({bob, Bob}),
             % adds all the other users
-            lists:foreach(fun(AddContact) -> 
+            lists:foreach(fun(AddContact) ->
                                   add_contact_check_roster_push(AddContact, {bob, Bob}) end,
                          [Alice, Kate, Carol]),
             AliceJID = escalus_utils:jid_to_lower(
@@ -832,7 +863,7 @@ add_and_remove_some_contacts_with_nonexisting(Config) ->
         fun(Alice, Bob, Kate, Carol) ->
             BCred = credentials({bob, Bob}),
             % adds all the other users
-            lists:foreach(fun(AddContact) -> 
+            lists:foreach(fun(AddContact) ->
                                   add_contact_check_roster_push(AddContact, {bob, Bob}) end,
                          [Alice, Kate]),
             AliceJID = escalus_utils:jid_to_lower(
