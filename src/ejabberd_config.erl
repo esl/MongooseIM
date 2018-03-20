@@ -1142,7 +1142,7 @@ filter_out_node_specific_options([#local_config{key = {modules, Host}, value = M
 filter_out_node_specific_options([Opt | Opts]) ->
     [Opt | filter_out_node_specific_options(Opts)].
 
-% @doc The list of options that should not be checked if equal
+% @doc The list of options that should not be compared
 % between nodes in cluster. Each option is expressed as
 % a list of keys in proplist that should be deleted (if such
 % path exists). The `root path` for them is a list of modules.
