@@ -127,7 +127,7 @@ create_identifiable_room(Config) ->
     end).
 
 invite_to_room(Config) ->
-    Domain = <<"localhost">>,
+    Domain = muc_light_domain(),
     Name = <<"wonderland">>,
     Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/,
              "participants">>,
@@ -156,7 +156,7 @@ invite_to_room(Config) ->
       end).
 
 send_message_to_room(Config) ->
-    Domain = <<"localhost">>,
+    Domain = muc_light_domain(),
     Name = <<"wonderland">>,
     Path = <<"/muc-lights",$/,Domain/binary,$/,
              Name/binary,$/,"messages">>,
@@ -261,7 +261,7 @@ member_is_affiliated(Stanza, User) ->
 
 check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
                   RoomMembers, UserToExecuteDelete) ->
-    Domain = <<"localhost">>,
+    Domain = muc_light_domain(),
     escalus:send(RoomOwner, stanza_create_room(undefined,
                                            [{<<"roomname">>, RoomNameToCreate}],
                                            [{Member, member} || Member <- RoomMembers])),
