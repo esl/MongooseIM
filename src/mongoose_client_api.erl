@@ -7,6 +7,8 @@
 -export([allowed_methods/2]).
 -export([to_json/2]).
 -export([rest_init/2]).
+-export([bad_request/2]).
+-export([forbidden_request/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -51,6 +53,17 @@ options(Req, State) ->
 to_json(Req, User) ->
     {<<"{}">>, Req, User}.
 
+
+bad_request(Req, State) ->
+    reply(400, Req, State).
+
+forbidden_request(Req, State) ->
+    cowboy_req:reply(403, Req),
+    {halt, Req, State}.
+
+reply(StatusCode, Req, State) ->
+    cowboy_req:reply(StatusCode, Req),
+    {halt, Req, State}.
 %%--------------------------------------------------------------------
 %% Authorization
 %%--------------------------------------------------------------------

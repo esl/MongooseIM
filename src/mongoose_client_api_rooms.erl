@@ -8,8 +8,6 @@
 -export([allowed_methods/2]).
 -export([resource_exists/2]).
 
--export([forbidden_request/2]).
-
 -export([to_json/2]).
 -export([from_json/2]).
 
@@ -56,7 +54,7 @@ resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
                 {ok, RoomID} ->
                     does_room_exist(RoomID, MUCLightDomain, Req2, State);
                 _ ->
-                    bad_request(Req2, State)
+                    mongoose_client_api:bad_request(Req2, State)
             end
     end.
 
@@ -73,14 +71,6 @@ does_room_exist(RoomU, RoomS, Req, #{jid := JID} = State) ->
         _ ->
             {false, Req, NewState}
     end.
-
-forbidden_request(Req, State) ->
-    cowboy_req:reply(403, Req),
-    {halt, Req, State}.
-
-bad_request(Req, State) ->
-    cowboy_req:reply(400, Req),
-    {halt, Req, State}.
 
 to_json(Req, #{room := Room} = State) ->
     Config = maps:get(config, Room),
