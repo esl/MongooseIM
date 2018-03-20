@@ -1123,23 +1123,20 @@ methods_to_auth_modules(A) when is_atom(A) ->
 
 compute_config_version(LC, LCH) ->
     L0 = lists:filter(mk_node_start_filter(), LC ++ LCH),
-    L1 = filter_out_node_specific_options(L0, compute_config_version),
+    L1 = filter_out_node_specific_options(L0),
     L2 = sort_config(L1),
     crypto:hash(sha, term_to_binary(L2)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    Opts2 = filter_out_node_specific_options(Opts, compute_config_file_version),
+    Opts2 = filter_out_node_specific_options(Opts),
     L = sort_config(Opts2 ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
 
-filter_out_node_specific_options(Opts, _Label) ->
-    filter_out_node_specific_options(Opts).
 
 filter_out_node_specific_options([]) ->
     [];
 filter_out_node_specific_options([{local_config, {modules, Host}, Mods} | Opts]) -> % use record
-    ?ERROR_MSG("[reload_cluster2] modules for host: ~p", [Host]),
-    NewMods = lists:foldl(fun(Path, ModList) -> ?ERROR_MSG("deleting ~p", [Path]), delete_path_in_proplist(ModList, Path) end,
+    NewMods = lists:foldl(fun(Path, ModList) -> delete_path_in_proplist(ModList, Path) end,
                           Mods, node_specific_module_options()),
     [{local_config, {modules, Host}, NewMods} | filter_out_node_specific_options(Opts)];
 filter_out_node_specific_options([Opt | Opts]) ->
