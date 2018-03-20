@@ -13,7 +13,7 @@ if [ -d _build/test/logs ]; then
 	cp -Rp _build/test/logs/* ${CT_REPORTS}/small
 fi
 
-CT_REPORT=test.disabled/ejabberd_tests/ct_report
+CT_REPORT=big_tests/ct_report
 
 if [ -d ${CT_REPORT} ] && [ "$(ls -A ${CT_REPORT})" ];  then
 	cp -Rp ${CT_REPORT}/* ${CT_REPORTS}/big
@@ -24,7 +24,7 @@ cat > ${CT_REPORTS}/index.html << EOL
   <head></head>
   <body>
     <p><a href="small/index.html">Small tests (test/)</a></p>
-    <p><a href="big/index.html">Big tests (test.disabled/ejabberd_tests)</a></p>
+    <p><a href="big/index.html">Big tests (big_tests/)</a></p>
   </body>
 </html>
 EOL
@@ -39,4 +39,4 @@ for dev_node_logs_path in `find _build -name log -type d`; do
 done
 
 cp *.log ${LOG_DIR_ROOT}
-cp test.disabled/ejabberd_tests/*.log ${LOG_DIR_ROOT}
+cp big_tests/*.log ${LOG_DIR_ROOT}

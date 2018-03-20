@@ -80,7 +80,7 @@ maybe_run_small_tests() {
 }
 
 start_services() {
-    for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
+    for env in ${BASE}/big_tests/services/*-compose.yml; do
         echo "Stating service" $(basename "${env}") "..."
         time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
         echo "docker-compose execution time reported above"
@@ -90,7 +90,7 @@ start_services() {
 
 run_test_preset() {
   tools/print-dots.sh start
-  cd ${BASE}/test.disabled/ejabberd_tests
+  cd ${BASE}/big_tests
   local MAKE_RESULT=0
   if [ "$COVER_ENABLED" = "true" ]; then
     make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
@@ -129,7 +129,7 @@ run_tests() {
   run_test_preset
   BIG_STATUS=$?
 
-  SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
+  SUMMARIES_DIRS=${BASE}'/big_tests/ct_report/ct_run*'
   SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
   ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
   BIG_STATUS_BY_SUMMARY=$?
