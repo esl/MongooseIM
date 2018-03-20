@@ -1152,7 +1152,25 @@ filter_out_node_specific_options([Opt | Opts]) ->
 node_specific_module_options() ->
     [
      [mod_global_distrib, connections, endpoints],
-     [mod_global_distrib, redis, server]
+     [mod_global_distrib, redis, server],
+     % Endpoints
+     [mod_global_distrib_sender, endpoints],
+     [mod_global_distrib_sender, connections, endpoints],
+
+     [mod_global_distrib_mapping, connections, endpoints],
+
+     [mod_global_distrib_receiver, connections, endpoints],
+     [mod_global_distrib_receiver, endpoints],
+
+     [mod_global_distrib_bounce, connections, endpoints],
+
+     [mod_global_distrib_disco, connections, endpoints],
+     % Redis
+     [mod_global_distrib_sender, redis, server],
+     [mod_global_distrib_mapping, redis, server],
+     [mod_global_distrib_receiver, redis, server],
+     [mod_global_distrib_bounce, redis, server],
+     [mod_global_distrib_disco, redis, server]
     ].
 
 delete_path_in_proplist(Plist, [Step]) ->
