@@ -1138,7 +1138,7 @@ filter_out_node_specific_options([]) ->
 filter_out_node_specific_options([#local_config{key = {modules, Host}, value = Mods} | Opts]) ->
     NewMods = lists:foldl(fun(Path, ModList) -> delete_path_in_proplist(ModList, Path) end,
                           Mods, node_specific_module_options()),
-    [{local_config, {modules, Host}, NewMods} | filter_out_node_specific_options(Opts)];
+    [#local_config{key = {modules, Host}, value = NewMods} | filter_out_node_specific_options(Opts)];
 filter_out_node_specific_options([Opt | Opts]) ->
     [Opt | filter_out_node_specific_options(Opts)].
 
