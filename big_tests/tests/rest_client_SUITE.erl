@@ -58,6 +58,7 @@ muc_test_cases() ->
       sending_message_with_wrong_body_results_in_bad_request,
       sending_message_with_no_body_results_in_bad_request,
       sending_message_not_in_JSON_results_in_bad_request,
+      sending_message_by_not_room_member_results_in_forbidden,
       messages_are_archived_in_room,
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
@@ -297,6 +298,16 @@ invitation_to_room_is_forbidden_for_non_memeber(Config) ->
 msg_is_sent_and_delivered_in_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         given_new_room_with_users_and_msgs({alice, Alice}, [{bob, Bob}])
+    end).
+
+
+sending_message_by_not_room_member_results_in_forbidden(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Sender = {alice, Alice},
+        RoomID = given_new_room_with_users(Sender, []),
+        Result = given_message_sent_to_room(RoomID, {bob, Bob}, #{body => <<"Hello, I'm not member">>}),
+        ?assertMatch({{<<"403">>, <<"Forbidden">>}, _}, Result)
+
     end).
 
 sending_message_with_wrong_body_results_in_bad_request(Config) ->

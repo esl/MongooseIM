@@ -73,6 +73,8 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
     JSONData = [make_json_item(Msg) || Msg <- Msgs],
     {jiffy:encode(JSONData), Req3, State}.
 
+from_json(Req, #{role_in_room := none} = State) ->
+    mongoose_client_api:forbidden_request(Req, State);
 from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     try
