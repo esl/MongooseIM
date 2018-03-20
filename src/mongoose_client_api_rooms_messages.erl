@@ -43,7 +43,7 @@ allow_missing_post(Req, State) ->
     {false, Req, State}.
 
 to_json(Req, #{role_in_room := none} = State) ->
-    mongoose_client_api_rooms:forbidden_request(Req, State);
+    mongoose_client_api:forbidden_request(Req, State);
 to_json(Req, #{jid := UserJID, room := Room} = State) ->
     RoomJID = maps:get(jid, Room),
     Server = UserJID#jid.server,
@@ -75,14 +75,46 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
 
 from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
-    JSONData = jiffy:decode(Body, [return_maps]),
-    RoomJID = maps:get(jid, Room),
+    try
+        JSONData = jiffy:decode(Body, [return_maps]),
+        prepare_message_and_route_to_room(User, JID, Room, State, Req2, JSONData)
+    catch
+        throw:_R ->
+            Req3 = cowboy_req:set_resp_body(<<"Request body is not a valid JSON">>, Req2),
+            mongoose_client_api:bad_request(Req3, State)
+    end.
+
+
+prepare_message_and_route_to_room(User, JID, Room, State, Req, JSONData) ->
+    RoomJID = #jid{lserver = MucHost} = maps:get(jid, Room),
+    {ok, Host} = mongoose_subhosts:get_host(MucHost),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    Message = build_message(User, RoomJID, UUID, maps:get(<<"body">>, JSONData)),
-    ejabberd_router:route(JID, RoomJID, Message),
-    Resp = #{id => UUID},
-    Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),
-    {true, Req3, State}.
+    case validate_body(JSONData) of
+        {ok, Body} ->
+            Message = build_message(User, RoomJID, UUID, Body),
+            Acc0 = mongoose_acc:from_element(Message, JID, RoomJID),
+            Acc1 = mongoose_acc:update(Acc0, #{server => Host}),
+            ejabberd_router:route(JID, RoomJID, Acc1, Message),
+            Resp = #{id => UUID},
+            Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
+            {true, Req3, State};
+        {error, no_body} ->
+            Req2 = cowboy_req:set_resp_body(<<"There is no body in the JSON">>, Req),
+            mongoose_client_api:bad_request(Req2, State);
+        _ ->
+            Req2 = cowboy_req:set_resp_body(<<"Invalid body, it must be a string">>, Req),
+            mongoose_client_api:bad_request(Req2, State)
+    end.
+
+validate_body(JSONData) ->
+    case maps:get(<<"body">>, JSONData, undefined) of
+        undefined ->
+            {error, no_body};
+        Body when is_binary(Body) ->
+            {ok, Body};
+        _ ->
+            {error, not_acceptable_body}
+    end.
 
 -spec build_message(From :: binary(), To :: jid:jid(), ID :: binary(), Body :: binary()) ->
     exml:element().
