@@ -111,7 +111,8 @@ route(From, To, Acc) ->
     El = mongoose_acc:get(element, Acc),
     route(From, To, Acc, El, routing_modules_list()).
 
-route(From, To, Acc, El) ->
+route(From, To, Acc0, El) ->
+    Acc = mongoose_acc:update_element(Acc0, El, From, To),
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
         [From, To, Acc]),
     route(From, To, Acc, El, routing_modules_list()).
