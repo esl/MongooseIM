@@ -1138,7 +1138,7 @@ filter_out_node_specific_options([]) ->
     [];
 filter_out_node_specific_options([{local_config, {modules, Host}, Mods} | Opts]) -> % use record
     ?ERROR_MSG("[reload_cluster2] modules for host: ~p", [Host]),
-    NewMods = lists:foldl(fun(Path, Mods) -> ?ERROR_MSG("deleting ~p", [Path]), delete_path_in_proplist(Mods, Path) end,
+    NewMods = lists:foldl(fun(Path, ModList) -> ?ERROR_MSG("deleting ~p", [Path]), delete_path_in_proplist(ModList, Path) end,
                           Mods, node_specific_module_options()),
     [{local_config, {modules, Host}, NewMods} | filter_out_node_specific_options(Opts)];
 filter_out_node_specific_options([Opt | Opts]) ->
