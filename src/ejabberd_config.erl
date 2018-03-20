@@ -1151,7 +1151,7 @@ filter_out_node_specific_options([Opt | Opts]) ->
 node_specific_module_options() ->
     [
      [mod_global_distrib, connections, endpoints],
-     [mod_global_ditrib, redis, server]
+     [mod_global_distrib, redis, server]
     ].
 
 delete_path_in_proplist(Plist, [Step]) ->
