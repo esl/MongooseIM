@@ -65,7 +65,7 @@ $ ./bin/mongooseimctl live
 Back to shell #1:
 
 ```sh
-$ cd test.disabled/ejabberd_tests
+$ cd big_tests/
 $ make quicktest
 ```
 
@@ -86,7 +86,7 @@ _build/mim2/rel/mongooseim/bin/mongooseimctl started
 _build/mim3/rel/mongooseim/bin/mongooseimctl started
 _build/fed1/rel/mongooseim/bin/mongooseimctl started
 _build/reg1/rel/mongooseim/bin/mongooseimctl started
-make -C test.disabled/ejabberd_tests quicktest
+make -C big_tests quicktest
 ```
 
 Start a new tmux and paste the commands.
@@ -114,7 +114,7 @@ E.g. a message archive might store messages in MySQL/PostgreSQL or Riak KV - the
 The whole suite takes a significant amount of time to complete.
 When you develop a new feature, the speed of iterating is crucial to maintain the flow (who doesn't like the feeling?!) and not lose focus.
 
-In  `$MONGOOSEIM/test.disabled/ejabberd_tests/` we have:
+In  `$MONGOOSEIM/big_tests/` we have:
 
 ```
 $ tree test.diabled/ejabberd_tests/ -L 1 -F
@@ -136,7 +136,7 @@ test/ejabberd_tests/
 `default.spec` is the default when running `make quicktest`, but it can be overridden with a `TESTSPEC` variable:
 
 ```sh
-# make sure we're in $MONGOOSEIM/test.disabled/ejabberd_tests/
+# make sure we're in $MONGOOSEIM/big_tests/
 cd $MONGOOSEIM/test/ejabberd_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```
@@ -153,7 +153,7 @@ If you're sure that none of the test dependencies have changed and you only edit
 make quicktest PREPARE=
 ```
 
-Consult the `test.disabled/ejabberd_tests/Makefile` to see how it works.
+Consult the `big_tests/Makefile` to see how it works.
 
 ### Applying code changes
 
@@ -173,7 +173,7 @@ When the above command finishes, the code can be reloaded on the server by eithe
 When finished, the test engine writes detailed html reports into a directory:
 
 ```
-test.disabled/ejabberd_tests/ct_report/ct_run.[gobbledygook][datetime]/
+big_tests/ct_report/ct_run.[gobbledygook][datetime]/
 ```
 
 Each run is saved into a new directory. This snippet:
@@ -199,7 +199,7 @@ make cover_quicktest
 Note: You need all the mim nodes (mim1, mim2 and mim3) up and running, even if you only run some of the tests. If any of the nodes is down, the test will crash.
 
 This command will recompile and reload the code on dev nodes with coverage enabled and run test suites as defined in the spec.
-Coverage statistics will be available in `test.disabled/ejabberd_tests/ct_report/cover.html` and `coverage` subdirectory.
+Coverage statistics will be available in `big_tests/ct_report/cover.html` and `coverage` subdirectory.
 
 ## Advanced topics
 
