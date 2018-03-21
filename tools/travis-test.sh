@@ -118,7 +118,7 @@ run_tests() {
   echo "SMALL_STATUS=$SMALL_STATUS"
   echo ""
   echo "############################"
-  echo "Running big tests (tests/ejabberd_tests)"
+  echo "Running big tests (big_tests)"
   echo "############################"
 
   time ${TOOLS}/start-nodes.sh
