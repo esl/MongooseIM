@@ -99,11 +99,11 @@ Files which require changes:
 - `test/ejabberd_helper.erl`
 - `test/ejabberd_listener_SUITE.erl`
 - `test/zlib_driver_SUITE.erl`
-- `test.disabled/ejabberd_tests/README.md`
-- `test.disabled/ejabberd_tests/run_common_test.erl`
-- `test.disabled/ejabberd_tests/tests/conf_reload_SUITE.erl`
-- `test.disabled/ejabberd_tests/tests/connect_SUITE.erl`
-- `test.disabled/ejabberd_tests/tests/reload_helper.erl`
+- `big_tests/README.md`
+- `big_tests/run_common_test.erl`
+- `big_tests/tests/conf_reload_SUITE.erl`
+- `big_tests/tests/connect_SUITE.erl`
+- `big_tests/tests/reload_helper.erl`
 - `tools/extract_translations/extract_translations.erl`
 - `tools/xep_tool/xep_tool.escript`
 - `src/mongoose_cluster.erl` (2 calls to `when_app_stopped/1` function)
@@ -117,9 +117,9 @@ Affected files:
 - `elvis.config`
 - `src/amp_strategy.erl`
 - `src/mod_mam_odbc_arch.erl`
-- `test.disabled/ejabberd_tests/Makefile`
-- `test.disabled/ejabberd_tests/run_common_test.erl`
-- `test.disabled/ejabberd_tests/tests/vcard_SUITE.erl`
+- `big_tests/Makefile`
+- `big_tests/run_common_test.erl`
+- `big_tests/tests/vcard_SUITE.erl`
 - `tools/cd_tools/provision_mysql.sh`
 - `tools/cd_tools/provision_pgsql.sh`
 - `tools/fill_roster.erl`
