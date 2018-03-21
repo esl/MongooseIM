@@ -117,8 +117,8 @@ When you develop a new feature, the speed of iterating is crucial to maintain th
 In  `$MONGOOSEIM/big_tests/` we have:
 
 ```
-$ tree test.diabled/ejabberd_tests/ -L 1 -F
-test/ejabberd_tests/
+$ tree big_tests/ -L 1 -F
+big_tests/
 ├── Makefile
 ├── README.md
 ├── default.spec
