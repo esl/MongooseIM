@@ -137,7 +137,7 @@ test/ejabberd_tests/
 
 ```sh
 # make sure we're in $MONGOOSEIM/big_tests/
-cd $MONGOOSEIM/test/ejabberd_tests/
+cd $MONGOOSEIM/big_tests/
 make quicktest TESTSPEC=my-feature.spec
 ```
 
