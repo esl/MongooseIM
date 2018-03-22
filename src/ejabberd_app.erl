@@ -147,14 +147,14 @@ stop_modules() ->
 -spec start_services() -> ok.
 start_services() ->
     lists:foreach(
-        fun({Service, Options}) -> mongoose_service:start_service(Service, Options) end,
+        fun({Service, _}) -> mongoose_service:ensure_loaded(Service) end,
         ejabberd_config:get_local_option_or_default(services, [])
     ).
 
 -spec stop_services() -> ok.
 stop_services() ->
     lists:foreach(
-        fun({Service, Options}) -> mongoose_service:stop_service(Service) end,
+        fun({Service, _Options}) -> mongoose_service:stop_service(Service) end,
         mongoose_service:loaded_services_with_opts()
     ).
 

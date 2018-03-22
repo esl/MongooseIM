@@ -22,9 +22,13 @@
          start_service/2,
          stop_service/1,
          is_loaded/1,
+         ensure_loaded/1,
+         purge_service/1,
          get_service_opts/1,
          loaded_services_with_opts/0
          ]).
+
+-export([check_deps/1]). % for testing
 
 %%Question marks:
 %%do we need the 'keep config' facility?
@@ -60,6 +64,17 @@ stop_service(Service) ->
         true -> run_stop_service(Service)
     end.
 
+-spec ensure_loaded(service()) -> ok.
+ensure_loaded(Service) ->
+    case is_loaded(Service) of
+        true ->
+            ok;
+        false ->
+            Options = ejabberd_config:get_local_option_or_default(services, []),
+            start_service(Service, proplists:get_value(Service, Options, [])),
+            ok
+    end.
+
 -spec is_loaded(service()) -> boolean().
 is_loaded(Service) ->
     ets:member(?ETAB, Service).
@@ -75,10 +90,17 @@ get_service_opts(Service) ->
 loaded_services_with_opts() ->
     [Z || [Z] <- ets:match(?ETAB, '$1')].
 
+%% @doc to be used as an emergency feature if serviced crashed while stopping and is not
+%% running but still lingers in the services tab
+-spec purge_service(service()) -> ok.
+purge_service(Service) ->
+    ets:delete(?ETAB, Service),
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 run_start_service(Service, Opts0) ->
+    start_deps(Service),
     Opts = proplists:unfold(Opts0),
     ets:insert(?ETAB, {Service, Opts}),
     try
@@ -124,4 +146,32 @@ is_app_running(AppName) ->
     Timeout = 15000,
     lists:keymember(AppName, 1, application:which_applications(Timeout)).
 
+-spec start_deps(service()) -> ok.
+start_deps(Service) ->
+    check_deps(Service), % make sure there are no circular deps
+    lists:map(fun ensure_loaded/1, get_deps(Service)),
+    ok.
 
+check_deps(Service) ->
+    check_deps(Service, []).
+
+check_deps(Service, Stack) ->
+    case lists:member(Service, Stack) of
+        true ->
+            error(circular_deps_detected);
+        false ->
+            lists:foreach(fun(Serv) -> check_deps(Serv, [Service | Stack]) end,
+                          get_deps(Service))
+    end.
+
+-spec get_deps(service()) -> [service()].
+get_deps(Service) ->
+    %% the module has to be loaded,
+    %% otherwise the erlang:function_exported/3 returns false
+    code:ensure_loaded(Service),
+    case erlang:function_exported(Service, deps, 0) of
+        true ->
+            Service:deps();
+        _ ->
+            []
+    end.
