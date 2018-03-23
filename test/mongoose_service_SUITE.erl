@@ -14,7 +14,8 @@ all() ->
         starts_service,
         ensure,
         verify_requirements,
-        start_requirements
+        start_requirements,
+        module_requirements
     ].
 
 services() -> [service_a, service_b, service_c, service_d, service_e, service_f, service_g,
@@ -50,8 +51,15 @@ service_requirements() ->
     ].
 
 init_per_testcase(module_requirements, C) ->
+    init_per_testcase(generic, C),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_config, add_local_option, fun(_, _) -> ok end),
+    gen_mod:start(),
     meck:new(module_a, [non_strict]),
-    init_per_testcase(generic, C);
+    meck:expect(module_a, requires, fun(_, _) -> [service_d, service_h] end),
+    meck:expect(module_a, start, fun(_, _) -> ok end),
+    meck:expect(module_a, stop, fun(_) -> ok end),
+    C;
 init_per_testcase(_, C) ->
     mongoose_service:start(),
     ets:new(testservice, [named_table]),
@@ -142,6 +150,17 @@ start_requirements(_) ->
     assert_loaded(dep_services()),
     ok.
 
+module_requirements(_) ->
+    assert_loaded([]),
+    gen_mod:start_module(<<"localhost">>, module_a, []),
+    ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
+    assert_loaded([service_d, service_f, service_g, service_h]),
+    gen_mod:stop_module(<<"localhost">>, module_a),
+    ?assert(not gen_mod:is_loaded(<<"localhost">>, module_a)),
+    assert_loaded([service_d, service_f, service_g, service_h]),
+    ok.
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 %% helpers
@@ -169,6 +188,7 @@ read(S) ->
     end.
 
 assert_loaded(Loaded) ->
+    R = [{S, mongoose_service:is_loaded(S)} || S <- services()],
     NotLoaded = sets:to_list(
                     sets:subtract(
                         sets:from_list(dep_services()),

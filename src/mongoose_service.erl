@@ -42,7 +42,7 @@
 -callback start(Opts :: list()) -> any().
 -callback stop() -> any().
 %%optional:
-%%-callback required() -> [service()].
+%%-callback requires() -> [service()].
 
 -spec start() -> ok.
 start() ->
