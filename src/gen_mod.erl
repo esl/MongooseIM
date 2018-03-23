@@ -215,7 +215,7 @@ stop_module_keep_config(Host, Module) ->
             ok
     end.
 
--spec reload_module(jid:server(), module(), [any()]) -> 'error' | 'ok'.
+-spec reload_module(jid:server(), module(), [any()]) -> {ok, term()} | {error, already_started}.
 reload_module(Host, Module, Opts) ->
     stop_module_keep_config(Host, Module),
     start_module(Host, Module, Opts).
