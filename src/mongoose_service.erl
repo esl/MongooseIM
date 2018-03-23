@@ -28,7 +28,7 @@
          loaded_services_with_opts/0
          ]).
 
--export([check_deps/1]). % for testing
+-export([check_required/1]). % for testing
 
 %%Question marks:
 %%do we need the 'keep config' facility?
@@ -36,11 +36,13 @@
 
 -define(ETAB, mongoose_services).
 
--callback start(Opts :: list()) -> any().
--callback stop() -> any().
-
 -type service() :: atom().
 -type options() :: [term()].
+
+-callback start(Opts :: list()) -> any().
+-callback stop() -> any().
+%%optional:
+%%-callback required() -> [service()].
 
 -spec start() -> ok.
 start() ->
@@ -100,7 +102,7 @@ purge_service(Service) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 run_start_service(Service, Opts0) ->
-    start_deps(Service),
+    start_required(Service),
     Opts = proplists:unfold(Opts0),
     ets:insert(?ETAB, {Service, Opts}),
     try
@@ -146,32 +148,32 @@ is_app_running(AppName) ->
     Timeout = 15000,
     lists:keymember(AppName, 1, application:which_applications(Timeout)).
 
--spec start_deps(service()) -> ok.
-start_deps(Service) ->
-    check_deps(Service), % make sure there are no circular deps
-    lists:map(fun ensure_loaded/1, get_deps(Service)),
+-spec start_required(service()) -> ok.
+start_required(Service) ->
+    check_required(Service), % make sure there are no circular requirements
+    lists:map(fun ensure_loaded/1, get_required(Service)),
     ok.
 
-check_deps(Service) ->
-    check_deps(Service, []).
+check_required(Service) ->
+    check_required(Service, []).
 
-check_deps(Service, Stack) ->
+check_required(Service, Stack) ->
     case lists:member(Service, Stack) of
         true ->
-            error(circular_deps_detected);
+            error(circular_requirements_detected);
         false ->
-            lists:foreach(fun(Serv) -> check_deps(Serv, [Service | Stack]) end,
-                          get_deps(Service))
+            lists:foreach(fun(Serv) -> check_required(Serv, [Service | Stack]) end,
+                          get_required(Service))
     end.
 
--spec get_deps(service()) -> [service()].
-get_deps(Service) ->
+-spec get_required(service()) -> [service()].
+get_required(Service) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Service),
-    case erlang:function_exported(Service, deps, 0) of
+    case erlang:function_exported(Service, requires, 0) of
         true ->
-            Service:deps();
+            Service:requires();
         _ ->
             []
     end.

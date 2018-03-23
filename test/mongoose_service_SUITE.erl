@@ -13,8 +13,8 @@ all() ->
     [
         starts_service,
         ensure,
-        verify_deps,
-        start_deps
+        verify_requirements,
+        start_requirements
     ].
 
 services() -> [service_a, service_b, service_c, service_d, service_e, service_f, service_g,
@@ -37,7 +37,7 @@ dep_services() -> [service_c, service_d, service_e, service_f, service_g, servic
 %%       \   |
 %%        l--
 
-service_deps() ->
+service_requirements() ->
     [
         {service_c, [service_d, service_e]},
         {service_d, [service_f, service_g]},
@@ -49,6 +49,9 @@ service_deps() ->
         {service_l, [service_k]}
     ].
 
+init_per_testcase(module_requirements, C) ->
+    meck:new(module_a, [non_strict]),
+    init_per_testcase(generic, C);
 init_per_testcase(_, C) ->
     mongoose_service:start(),
     ets:new(testservice, [named_table]),
@@ -63,11 +66,14 @@ init_per_testcase(_, C) ->
     meck:expect(ejabberd_config, get_local_option_or_default,
                 fun(services, _) -> [{Serv, []} || Serv <- services()] end),
     lists:map(fun(Serv) ->
-                  meck:expect(Serv, deps, fun() -> proplists:get_value(Serv, service_deps()) end)
+                  meck:expect(Serv, requires, fun() -> proplists:get_value(Serv, service_requirements()) end)
               end,
-              proplists:get_keys(service_deps())),
+              proplists:get_keys(service_requirements())),
     C.
 
+end_per_testcase(module_requirements, C) ->
+    meck:unload(module_a),
+    end_per_testcase(generic, C);
 end_per_testcase(_, C) ->
     meck:unload(services()),
     meck:unload(ejabberd_config),
@@ -107,20 +113,20 @@ ensure(_C) ->
     ?assertEqual(0, read(service_a)),
     ok.
 
-verify_deps(_) ->
-    mongoose_service:check_deps(service_c),
-    mongoose_service:check_deps(service_d),
-    mongoose_service:check_deps(service_e),
-    mongoose_service:check_deps(service_f),
-    mongoose_service:check_deps(service_g),
-    mongoose_service:check_deps(service_g),
-    ?assertException(error, circular_deps_detected, mongoose_service:check_deps(service_i)),
-    mongoose_service:check_deps(service_j),
-    ?assertException(error, circular_deps_detected, mongoose_service:check_deps(service_k)),
-    ?assertException(error, circular_deps_detected, mongoose_service:check_deps(service_l)),
+verify_requirements(_) ->
+    mongoose_service:check_required(service_c),
+    mongoose_service:check_required(service_d),
+    mongoose_service:check_required(service_e),
+    mongoose_service:check_required(service_f),
+    mongoose_service:check_required(service_g),
+    mongoose_service:check_required(service_g),
+    ?assertException(error, circular_requirements_detected, mongoose_service:check_required(service_i)),
+    mongoose_service:check_required(service_j),
+    ?assertException(error, circular_requirements_detected, mongoose_service:check_required(service_k)),
+    ?assertException(error, circular_requirements_detected, mongoose_service:check_required(service_l)),
     ok.
 
-start_deps(_) ->
+start_requirements(_) ->
     assert_loaded([]),
     mongoose_service:ensure_loaded(service_f),
     assert_loaded([service_f]),
@@ -160,17 +166,6 @@ read(S) ->
     case ets:lookup(testservice, S) of
         [{S, I}] -> I;
         [] -> 0
-    end.
-
-get_deps(Service) ->
-    %% the module has to be loaded,
-    %% otherwise the erlang:function_exported/3 returns false
-    code:ensure_loaded(Service),
-    case erlang:function_exported(Service, deps, 0) of
-        true ->
-            Service:deps();
-        _ ->
-            []
     end.
 
 assert_loaded(Loaded) ->
