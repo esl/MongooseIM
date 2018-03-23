@@ -100,7 +100,14 @@
          remove_old_offline_messages/2,
          remove_expired_offline_messages/2,
          remove_offline_messages/3,
-         create_bulk_insert_query/3]).
+         create_bulk_insert_query/3,
+         get_inbox/2,
+         get_inbox_unread/3,
+         set_inbox/7,
+         remove_inbox/3,
+         set_inbox_incr_unread/6,
+         reset_inbox_unread/4,
+         clear_inbox/2]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -762,6 +769,46 @@ del_privacy_lists(LServer, _Server, Username) ->
       LServer,
       [<<"delete from privacy_default_list "
          "where username=">>, mongoose_rdbms:use_escaped_string(Username)]).
+
+get_inbox(LUser, LServer) ->
+  mongoose_rdbms:sql_query(
+    LServer,
+    [<<"select remote_bare_jid, sender, content, unread_count from inbox "
+    "where username='">>, LUser, "';"]).
+
+get_inbox_unread(LUser, LServer, ToBareJid) ->
+  mongoose_rdbms:sql_query(
+    LServer,
+    [<<"select unread_count from inbox "
+    "where username='">>, LUser,<<"' and remote_bare_jid='">>,ToBareJid, "';"]).
+
+%% TODO make compatibile with other backend than postgres
+set_inbox(Username, LServer, ToBareJid, Sender, Content, C, MsgId) ->
+  mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, sender, content,
+  unread_count, msg_id) values ('">>, Username, <<"', '">>, ToBareJid, <<"', '">>, Sender, <<"', '">>,
+    Content, <<"', '">>, C, <<"', '">>,MsgId, <<"') on conflict(username, remote_bare_jid)
+     do update set sender='">>,Sender,<<"', content='">>,Content,
+    <<"', unread_count='">>,C,<<"',msg_id='">>,MsgId, "';"]).
+
+remove_inbox(Username, LServer, ToBareJid) ->
+  mongoose_rdbms:sql_query(LServer, [<<"delete from inbox where username='">>,Username,
+    <<"' and remote_bare_jid='">>, ToBareJid,"';"]).
+
+set_inbox_incr_unread(Username, LServer, ToBareJid, Sender, Content, MsgId) ->
+  mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, sender,
+  content, unread_count, msg_id) values ('">>, Username, <<"', '">>, ToBareJid, <<"', '">>, Sender, <<"', '">>,
+    Content, <<"', '">>, <<"1">>, <<"', '">>, MsgId, <<"') on conflict(username, remote_bare_jid)
+     do update set sender='">>,Sender,<<"', content='">>,Content,
+    <<"', unread_count=inbox.unread_count + 1, msg_id='">>,MsgId,"';"]).
+
+
+reset_inbox_unread(Username, LServer, ToBareJid, MsgId) ->
+  mongoose_rdbms:sql_query(LServer, [<<"update inbox set unread_count=0 where username='">>,Username,
+    <<"' and remote_bare_jid='">>, ToBareJid,<<"' and msg_id='">>,MsgId, "';"]).
+
+clear_inbox(Username, LServer) ->
+  mongoose_rdbms:sql_query(LServer, [<<"delete from inbox where username='">>,Username, <<"';">>]).
+
 
 %% Count number of records in a table given a where clause
 count_records_where(LServer, Table, WhereClause) ->
