@@ -101,4 +101,7 @@
 %% Erlang Solutions custom extension - token based authentication
 -define(NS_ESL_TOKEN_AUTH,      <<"erlang-solutions.com:xmpp:token-auth:0">>).
 
+%% Erlang Solutions custom extension - inbox feature
+-define(NS_ESL_INBOX,      <<"erlang-solutions.com:xmpp:inbox:0">>).
+
 -endif.
