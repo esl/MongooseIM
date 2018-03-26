@@ -30,7 +30,9 @@
                         restart_ejabberd_node/1]).
 
 -import(distributed_helper, [add_node_to_cluster/1,
-                             remove_node_from_cluster/1]).
+                             remove_node_from_cluster/1,
+                             start_node/2,
+                             stop_node/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -351,8 +353,8 @@ clear_on_node_down(Config) ->
     ?assertMatch({_, _, _}, mongoose_helper:connect_component(CompOpts)),
     ?assertThrow({stream_error, _}, mongoose_helper:connect_component(CompOpts)),
 
-    distributed_helper:stop_node(ejabberd_node_utils:mim(), Config),
-    distributed_helper:start_node(ejabberd_node_utils:mim(), Config),
+    stop_node(ejabberd_node_utils:mim(), Config),
+    start_node(ejabberd_node_utils:mim(), Config),
 
     {Comp, Addr, _} = mongoose_helper:connect_component(CompOpts),
     mongoose_helper:disconnect_component(Comp, Addr).
@@ -489,7 +491,6 @@ get_components(Opts, Config) ->
     Components = [component1, component2, vjud_component],
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
-
 connect_component_subdomain(Component) ->
     mongoose_helper:connect_component(Component, component_start_stream_subdomain).
 
@@ -507,27 +508,9 @@ restore_domain(Config) ->
     restart_ejabberd_node(Node),
     Config.
 
-rpc(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
-
 %%--------------------------------------------------------------------
 %% Escalus connection steps
 %%--------------------------------------------------------------------
-component_start_stream(Conn = #client{props = Props}, []) ->
-    {server, Server} = lists:keyfind(server, 1, Props),
-    {component, Component} = lists:keyfind(component, 1, Props),
-
-    ComponentHost = <<Component/binary, ".", Server/binary>>,
-    StreamStart = component_stream_start(ComponentHost, false),
-    ok = escalus_connection:send(Conn, StreamStart),
-    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
-
-    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
-
-    {Conn#client{props = [{sid, Id}|Props]}, []}.
 
 component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
     {component, Component} = lists:keyfind(component, 1, Props),
@@ -541,42 +524,12 @@ component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
 
     {Conn#client{props = [{sid, Id}|Props]}, []}.
 
-component_handshake(Conn = #client{props = Props}, []) ->
-    {password, Password} = lists:keyfind(password, 1, Props),
-    {sid, SID} = lists:keyfind(sid, 1, Props),
-
-    Handshake = component_handshake_el(SID, Password),
-    ok = escalus_connection:send(Conn, Handshake),
-
-    HandshakeRep = escalus_connection:get_stanza(Conn, handshake),
-    case HandshakeRep of
-        #xmlel{name = <<"handshake">>, children = []} ->
-            {Conn, []};
-        #xmlel{name = <<"stream:error">>} ->
-            throw({stream_error, HandshakeRep})
-    end.
 
 
 %%--------------------------------------------------------------------
 %% Stanzas
 %%--------------------------------------------------------------------
-component_stream_start(Component, IsSubdomain) ->
-    Attrs1 = [{<<"to">>, Component},
-              {<<"xmlns">>, <<"jabber:component:accept">>},
-              {<<"xmlns:stream">>,
-               <<"http://etherx.jabber.org/streams">>}],
-    Attrs2 = case IsSubdomain of
-        false ->
-            Attrs1;
-        true ->
-            [{<<"is_subdomain">>, <<"true">>}|Attrs1]
-    end,
-    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs2}.
 
-component_handshake_el(SID, Password) ->
-    Handshake = crypto:hash(sha, <<SID/binary, Password/binary>>),
-    #xmlel{name = <<"handshake">>,
-           children = [#xmlcdata{content = base16:encode(Handshake)}]}.
 
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),

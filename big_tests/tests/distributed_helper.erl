@@ -94,5 +94,5 @@ start_node(Node, Config) ->
     timer:sleep(3000).
 
 stop_node(Node, Config) ->
-    {_, 0} = mongooseim_script(Node, "stop", [], Config).
+    {_, 0} = ejabberdctl_helper:mongooseim_script(Node, "stop", [], Config).
 

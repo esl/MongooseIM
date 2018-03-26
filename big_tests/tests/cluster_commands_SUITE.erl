@@ -382,13 +382,6 @@ ejabberdctl_force(Command, Args, ForceFlag, Config) ->
 ejabberdctl_force(Node, Cmd, Args, ForceFlag, Config) ->
     ejabberdctl_helper:ejabberdctl(Node, Cmd, [ForceFlag | Args], Config).
 
-mongooseim_script_path(Node, Config) ->
-    distributed_helper:script_path(Node, Config, "mongooseim").
-
-mongooseim_script(Node, Cmd, Args, Config) ->
-    CtlCmd = mongooseim_script_path(Node, Config),
-    ejabberdctl_helper:run(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " ")).
-
 ctl_path_atom(NodeName) ->
     CtlString = atom_to_list(NodeName) ++ "_ctl",
     list_to_atom(CtlString).
