@@ -335,7 +335,7 @@ remove_dead_from_cluster(Config) ->
     ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
     ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
     %% when
-    stop_node(Node3, Config),
+    distributed_helper:stop_node(Node3, Config),
     {_, OpCode1} = ejabberdctl_interactive(Node1, "remove_from_cluster", [atom_to_list(Node3)], "yes\n", Config),
     %% then
     ?eq(0, OpCode1),
@@ -344,7 +344,7 @@ remove_dead_from_cluster(Config) ->
     have_node_in_mnesia(Node1, Node3, false),
     have_node_in_mnesia(Node2, Node3, false),
     % after node awakening nodes are clustered again
-    start_node(Node3, Config),
+    distributed_helper:start_node(Node3, Config),
     have_node_in_mnesia(Node1, Node3, true),
     have_node_in_mnesia(Node2, Node3, true).
 
@@ -417,11 +417,3 @@ have_node_in_mnesia(Node1, Node2, ShouldBe) ->
     DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
     ?assertEqual(ShouldBe, lists:member(Node2, DbNodes1)).
 
-start_node(Node, Config) ->
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
-    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
-    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
-    timer:sleep(3000).
-
-stop_node(Node, Config) ->
-    {_, 0} = mongooseim_script(Node, "stop", [], Config).

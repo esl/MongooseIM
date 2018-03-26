@@ -351,8 +351,8 @@ clear_on_node_down(Config) ->
     ?assertMatch({_, _, _}, connect_component(CompOpts)),
     ?assertThrow({stream_error, _}, connect_component(CompOpts)),
 
-    cluster_commands_SUITE:stop_node(ejabberd_node_utils:mim(), Config),
-    cluster_commands_SUITE:start_node(ejabberd_node_utils:mim(), Config),
+    distributed_helper:stop_node(ejabberd_node_utils:mim(), Config),
+    distributed_helper:start_node(ejabberd_node_utils:mim(), Config),
 
     {Comp, Addr, _} = connect_component(CompOpts),
     disconnect_component(Comp, Addr).
