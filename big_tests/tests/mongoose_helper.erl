@@ -21,6 +21,9 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
+-export([connect_component/2,
+         disconnect_component/2,
+         disconnect_components/2]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -261,3 +264,45 @@ logout_user(Config, User) ->
                     ct:fail({logout_user_failed, {Username, Resource, Pid}})
             end
     end.
+
+
+connect_component(Component) ->
+    connect_component(Component, component_start_stream).
+
+connect_component(ComponentOpts, StartStep) ->
+    Res = escalus_connection:start(ComponentOpts,
+                                   [{?MODULE, StartStep},
+                                    {?MODULE, component_handshake}]),
+    case Res of
+        {ok, Component, _} ->
+            {component, ComponentName} = lists:keyfind(component, 1, ComponentOpts),
+            {server, ComponentServer} = lists:keyfind(server, 1, ComponentOpts),
+            ComponentAddr = <<ComponentName/binary, ".", ComponentServer/binary>>,
+            {Component, ComponentAddr, ComponentName};
+        {error, E} ->
+            throw(cook_connection_step_error(E))
+    end.
+
+disconnect_component(Component, Addr) ->
+    disconnect_components([Component], Addr).
+
+disconnect_components(Components, Addr) ->
+    %% TODO replace 'kill' with 'stop' when server supports stream closing
+    [escalus_connection:kill(Component) || Component <- Components],
+    wait_until_disconnected(Addr, 1000).
+
+wait_until_disconnected(Addr, Timeout) when Timeout =< 0 ->
+    error({disconnect_timeout, Addr});
+wait_until_disconnected(Addr, Timeout) ->
+    case rpc(ejabberd_router, lookup_component, [Addr]) of
+        [] -> ok;
+        [_|_] ->
+            ct:sleep(200),
+            wait_until_disconnected(Addr, Timeout - 200)
+    end.
+
+cook_connection_step_error(E) ->
+    {connection_step_failed, Step, Reason} = E,
+    {StepDef, _, _} = Step,
+    {EDef, _} = Reason,
+    {EDef, StepDef}.
