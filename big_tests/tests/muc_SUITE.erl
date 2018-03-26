@@ -36,7 +36,18 @@
          stanza_to_room/2,
          stanza_to_room/3,
          room_address/1,
-         room_address/2]).
+         room_address/2,
+         fresh_room_name/0,
+         fresh_room_name/1,
+         disco_features_story/1,
+         given_fresh_room/3,
+         given_fresh_spec/2,
+         room_address/2,
+         room_address/1,
+         stanza_get_features/0,
+         has_features/1,
+         disco_service_story/1
+         ]).
 
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(MUC_CLIENT_HOST, <<"localhost/res1">>).
@@ -536,8 +547,8 @@ meck_room_route() ->
 maybe_create_unique_room(Config) ->
     case should_create_fresh_room(Config) of
         true ->
-            AliceSpec = muc_helper:given_fresh_spec(Config, alice),
-            Config1 = muc_helper:given_fresh_room(Config, AliceSpec, ?config(room_opts, Config)),
+            AliceSpec = given_fresh_spec(Config, alice),
+            Config1 = given_fresh_room(Config, AliceSpec, ?config(room_opts, Config)),
             [{alice_spec, AliceSpec} | Config1];
         _ ->
             Config
@@ -1967,8 +1978,8 @@ admin_mo_invite_mere(Config) ->
 %%--------------------------------------------------------------------
 %Example 18
 groupchat_user_enter(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config1, [{bob, 1}], fun(Bob) ->
         EnterRoomStanza = stanza_groupchat_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
         escalus:send(Bob, EnterRoomStanza),
@@ -1981,8 +1992,8 @@ groupchat_user_enter(Config1) ->
 %Example 19
 %Fails - no error message sent from the server
 groupchat_user_enter_no_nickname(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_groupchat_enter_room_no_nick(?config(room, Config))),
@@ -1996,8 +2007,8 @@ groupchat_user_enter_no_nickname(Config1) ->
 % Examples 20, 21, 22
 % Fails - no 110 status code in the self-presence messages
 muc_user_enter(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         %Bob enters the room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
@@ -2030,8 +2041,8 @@ muc_user_enter(Config1) ->
 % Example 25, 26
 % fails - sends an additional message instead of including code 100 in the presence
 enter_non_anonymous_room(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{anonymous, false}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{anonymous, false}]),
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
 		%should include code 100 in the presence messages to inform users alobut the room being non-annymous.
@@ -2050,8 +2061,8 @@ enter_non_anonymous_room(Config1) ->
 
 %Example 27
 deny_access_to_password_protected_room(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"auth">>, <<"not-authorized">>)
@@ -2061,8 +2072,8 @@ deny_access_to_password_protected_room(Config1) ->
 %Example 28
 % Fails - no 110 status code in the self-presence messages
 enter_password_protected_room(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{password_protected, true}, {password, ?PASSWORD}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}, {password, ?PASSWORD}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_password_protected_room(?config(room, Config), escalus_utils:get_username(Bob), ?PASSWORD)),
         Presence = escalus:wait_for_stanza(Bob),
@@ -2072,8 +2083,8 @@ enter_password_protected_room(Config1) ->
 
 %Example 29
 deny_accesss_to_memebers_only_room(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{members_only, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{members_only, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"auth">>, <<"registration-required">>)
@@ -2082,8 +2093,8 @@ deny_accesss_to_memebers_only_room(Config1) ->
 
 %Example 30
 deny_entry_to_a_banned_user(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Alice bans Bob
@@ -2097,8 +2108,8 @@ deny_entry_to_a_banned_user(Config1) ->
 
 %Examlpe 31
 deny_entry_nick_conflict(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
         escalus:send(Bob, EnterRoomStanza),
@@ -2110,8 +2121,8 @@ deny_entry_nick_conflict(Config1) ->
 
 % Entering the room by one user from different devices
 multi_sessions_messages(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 2}], fun(Bob, Bob2) ->
         populate_room_with_users([Alice, Bob, Bob2], Config),
@@ -2143,8 +2154,8 @@ multi_sessions_messages(Config1) ->
 
 % Entering the room by one user from different devices
 multi_sessions_enter(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 2}], fun(Bob, Bob2) ->
         populate_room_with_users([Alice, Bob, Bob2], Config)
@@ -2153,8 +2164,8 @@ multi_sessions_enter(Config1) ->
 
 % Exiting from the room with multiple sessions
 multi_sessions_exit(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 2}], fun(Bob, Bob2) ->
         populate_room_with_users([Alice, Bob, Bob2], Config),
@@ -2170,8 +2181,8 @@ multi_sessions_exit(Config1) ->
 
 % Exiting from the room with multiple sessions
 multi_sessions_exit_session(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 2}], fun(Bob, Bob2) ->
         populate_room_with_users([Alice, Bob, Bob2], Config),
@@ -2192,8 +2203,8 @@ multi_sessions_exit_session(Config1) ->
 
 % Entering the room by one user from different devices with multiple sessions disabled
 deny_entry_with_multiple_sessions_disallowed(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, false}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{allow_multiple_sessions, false}]),
     escalus:fresh_story(Config, [{bob, 2}], fun(Bob, Bob2) ->
         EnterRoomStanza = stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob)),
         escalus:send(Bob, EnterRoomStanza),
@@ -2212,8 +2223,8 @@ deny_entry_with_multiple_sessions_disallowed(Config1) ->
 %Example 32
 %fails: wrong error type. should be: 'wait', received: 'cancel'
 deny_entry_user_limit_reached(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{max_users, 1}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{max_users, 1}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
@@ -2240,8 +2251,8 @@ deny_entry_user_limit_reached(Config1) ->
 
 %Example 34
 enter_room_with_logging(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{logging, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{logging, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %Bob enters the room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
@@ -2253,8 +2264,8 @@ enter_room_with_logging(Config1) ->
 
 %Example 35
 send_history(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
@@ -2413,8 +2424,8 @@ recent_history(Config) ->
 %Example 40
 %should fail - unfinished, needs to be improved
 history_since(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Alice , stanza_muc_enter_room(?config(room, Config), nick(Alice))),
@@ -2477,8 +2488,8 @@ no_history(Config) ->
 
 %Example 42
 subject(Config1)->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{subject, ?SUBJECT}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{subject, ?SUBJECT}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
 		escalus:wait_for_stanza(Bob),
@@ -2490,8 +2501,8 @@ subject(Config1)->
 %Example 43
 %Fails - the message should contain an empty subject element
 no_subject(Config1)->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
 		escalus:wait_for_stanza(Bob),
@@ -2501,8 +2512,8 @@ no_subject(Config1)->
 
 %Example 44, 45
 send_to_all(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus:wait_for_stanzas(Bob, 2),
@@ -2522,8 +2533,8 @@ send_to_all(Config1) ->
 
 %Examples 46, 47
 send_and_receive_private_message(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus:wait_for_stanzas(Bob, 2),
@@ -2542,8 +2553,8 @@ send_and_receive_private_message(Config1) ->
 
 %Example 48
 send_private_groupchat(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
@@ -2571,8 +2582,8 @@ send_private_groupchat(Config1) ->
 %Examples  49, 50
 % Fails - no 110 status code
 change_nickname(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         BobNick = escalus_utils:get_username(Bob),
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), BobNick)),
@@ -2598,8 +2609,8 @@ change_nickname(Config1) ->
 
 %Example 52
 deny_nickname_change_conflict(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
         escalus:wait_for_stanzas(Bob, 2),
@@ -2617,8 +2628,8 @@ deny_nickname_change_conflict(Config1) ->
 %Example 54, 55
 %Full JID is not sent to participants, just to the owner. Assumess this to be the default configuration
 change_availability_status(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
 		escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), nick(Bob))),
@@ -2641,8 +2652,8 @@ change_availability_status(Config1) ->
 
 %Example 56-59
 mediated_invite(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), nick(Alice))),
@@ -2834,8 +2845,8 @@ user_unregisters_nick_twice(Config) ->
 %No 110 status code in self-presence messages
 %No Jid, not event when the owner leaves tehe room (normally the owner receives senders jid along with a message
 exit_room(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
@@ -2861,8 +2872,8 @@ exit_room(Config1) ->
 %Example 80-83
 %No 110 status code in self-presence messages
 exit_room_with_status(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Eve) ->
         escalus:send(Alice, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Alice))),
@@ -2893,8 +2904,8 @@ exit_room_with_status(Config1) ->
 %% WHEN Bob sends malformed presence
 %% THAN Bob gets kicked. Join Alice to check that Bob is not in the room. Kate and Bob receive presence unavailable.
 kicked_after_sending_malformed_presence(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, []),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, []),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1},{alice, 1}], fun(Bob, Kate, Alice) ->
         %% GIVEN Kate in the room, to ensure that the room does not get stopped
         Room = ?config(room, Config),
@@ -2936,10 +2947,10 @@ kicked_after_sending_malformed_presence(Config1) ->
 %%--------------------------------------------------------------------
 
 disco_service(Config) ->
-    muc_helper:disco_service_story(Config).
+    disco_service_story(Config).
 
 disco_features(Config) ->
-    muc_helper:disco_features_story(Config).
+    disco_features_story(Config).
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -2970,8 +2981,8 @@ disco_items(Config) ->
                                  end).
 
 disco_items_nonpublic(Config0) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config0, alice),
-    Config = muc_helper:given_fresh_room(Config0, AliceSpec,
+    AliceSpec = given_fresh_spec(Config0, alice),
+    Config = given_fresh_room(Config0, AliceSpec,
                               [{persistent, true}, {public_list, false}]),
     Alice = connect_fresh_user(AliceSpec),
     RoomName = ?config(room, Config),
@@ -3221,8 +3232,8 @@ reserved_room_configuration(Config) ->
 %%  This test doesn't fail anymore
 %%  ejabberd used to return error with no type
 config_denial(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob requests configuration form
         escalus:send(Bob, stanza_to_room(
@@ -3237,8 +3248,8 @@ config_denial(Config1) ->
 
 %%  Example 166
 config_cancel(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
         %% Alice requests configuration form
         escalus:send(Alice, stanza_to_room(
@@ -3259,8 +3270,8 @@ config_cancel(Config1) ->
 %%  Ejabberd doesn't let set admins nor owners in configuration form so testcases for ex. 167-170 would be useless
 
 configure(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
         %% Alice requests configuration form
         escalus:send(Alice, stanza_to_room(
@@ -3297,8 +3308,8 @@ configure(Config1) ->
 %%  This test needs enabled mod_muc_log module and {access_log, muc_create} in options
 %%  This test fails, ejabberd doesn't seem to send status code when room privacy changes
 configure_logging(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}, {anonymous, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}, {anonymous, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Bob joins room
@@ -3371,8 +3382,8 @@ configure_logging(Config1) ->
 %%  Example 171
 %%  This test fails, ejabberd apparently doesn't send room status update after privacy-related update
 configure_anonymous(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}, {anonymous, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}, {anonymous, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob joins room
@@ -3432,8 +3443,8 @@ configure_anonymous(Config1) ->
 
 %%  Examples 172-180
 owner_grant_revoke(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
@@ -3496,8 +3507,8 @@ owner_grant_revoke(Config1) ->
     destroy_room(Config).
 
 owner_grant_revoke_with_reason(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
@@ -3567,8 +3578,8 @@ owner_grant_revoke_with_reason(Config1) ->
 %%  Behaves strange when we try to revoke the only owner together with
 %%  granting someone else
 owner_list(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
@@ -3625,8 +3636,8 @@ owner_list(Config1) ->
 %%  Test doesn't fail anymore, ejabberd used to return cancel/not-allowed error while it should
 %%  return auth/forbidden according to XEP
 owner_unauthorized(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
@@ -3645,8 +3656,8 @@ owner_unauthorized(Config1) ->
 
 %%  Examples 186-195
 admin_grant_revoke(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
@@ -3709,8 +3720,8 @@ admin_grant_revoke(Config1) ->
     destroy_room(Config).
 
 admin_grant_revoke_with_reason(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
@@ -3778,8 +3789,8 @@ admin_grant_revoke_with_reason(Config1) ->
     destroy_room(Config).
 %%  Examples 196-200
 admin_list(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}, {kate, 1}], fun(Bob, Kate) ->
         %% Alice joins room
@@ -3833,8 +3844,8 @@ admin_list(Config1) ->
 %%  Test does not fail anymoure, ejabberd used to return cancel/not-allowed error while it should
 %%  return auth/forbidden according to XEP
 admin_unauthorized(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob joins room
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), <<"bob">>)),
@@ -3854,8 +3865,8 @@ admin_unauthorized(Config1) ->
 
 %%  Examples 201-203
 destroy(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob joins room
@@ -3881,8 +3892,8 @@ destroy(Config1) ->
 %%  Test doesn't fail anymore
 %%  Ejabberd used to return forbidden error without a type attribute
 destroy_unauthorized(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{persistent, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Bob tries to destroy Alice's room
         escalus:send(Bob, stanza_destroy_room(?config(room, Config))),
@@ -3956,8 +3967,8 @@ pagination_after10(Config) ->
 %%--------------------------------------------------------------------
 
 deny_access_to_http_password_protected_room_wrong_password(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_password_protected_room(?config(room, Config), escalus_utils:get_username(Bob), <<"badpass">>)),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"auth">>, <<"not-authorized">>)
@@ -3965,8 +3976,8 @@ deny_access_to_http_password_protected_room_wrong_password(Config1) ->
     destroy_room(Config).
 
 deny_access_to_http_password_protected_room_service_unavailable(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_password_protected_room(?config(room, Config), escalus_utils:get_username(Bob), ?PASSWORD)),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob, 6000), <<"cancel">>, <<"service-unavailable">>)
@@ -3974,8 +3985,8 @@ deny_access_to_http_password_protected_room_service_unavailable(Config1) ->
     destroy_room(Config).
 
 enter_http_password_protected_room(Config1) ->
-    AliceSpec = muc_helper:given_fresh_spec(Config1, alice),
-    Config = muc_helper:given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
+    AliceSpec = given_fresh_spec(Config1, alice),
+    Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         Room = ?config(room, Config),
         Username = escalus_utils:get_username(Bob),
@@ -4367,7 +4378,7 @@ wait_for_mam_result(RoomName, Client, Msg) ->
     Props = [{mam_ns, mam_helper:mam_ns_binary_v04()},
              {data_form, true}],
     QueryStanza = mam_helper:stanza_archive_request(Props, <<"q1">>),
-    escalus:send(Client, muc_helper:stanza_to_room(QueryStanza, RoomName)),
+    escalus:send(Client, stanza_to_room(QueryStanza, RoomName)),
     S = escalus:wait_for_stanza(Client, ?WAIT_TIMEOUT),
     M = exml_query:path(S, [{element, <<"result">>},
                             {element, <<"forwarded">>},
@@ -4932,15 +4943,6 @@ stanza_get_rooms() ->
     escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_ITEMS, []), <<"to">>,
         muc_host()).
 
-stanza_get_features() ->
-    %% <iq from='hag66@shakespeare.lit/pda'
-    %%     id='lx09df27'
-    %%     to='chat.shakespeare.lit'
-    %%     type='get'>
-    %%  <query xmlns='http://jabber.org/protocol/disco#info'/>
-    %% </iq>
-    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
-        muc_host()).
 
 stanza_get_services(Config) ->
     %% <iq from='hag66@shakespeare.lit/pda'
@@ -5181,25 +5183,6 @@ has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
 count_rooms(#xmlel{children = [ #xmlel{children = Rooms} ]}, N) ->
     ?assert_equal(N, length(Rooms)).
 
-has_features(#xmlel{children = [ Query ]}) ->
-    %%<iq from='chat.shakespeare.lit'
-    %%  id='lx09df27'
-    %%  to='hag66@shakespeare.lit/pda'
-    %%  type='result'>
-    %%  <query xmlns='http://jabber.org/protocol/disco#info'>
-    %%    <identity
-    %%      category='conference'
-    %%      name='Shakespearean Chat Service'
-    %%      type='text'/>
-    %%      <feature var='http://jabber.org/protocol/muc'/>
-    %%  </query>
-    %%</iq>
-
-    Identity = exml_query:subelement(Query, <<"identity">>),
-    <<"conference">> = exml_query:attr(Identity, <<"category">>),
-    true = lists:member(?NS_MUC, exml_query:paths(Query, [{element, <<"feature">>},
-                                                          {attr, <<"var">>}])).
-
 has_muc(#xmlel{children = [ #xmlel{children = Services} ]}) ->
     %% should be along the lines of (taken straight from the XEP):
     %% <iq from='shakespeare.lit'
@@ -5258,12 +5241,6 @@ connect_fresh_user(Spec) ->
     Server = proplists:get_value(server, Spec),
     JID = <<Username/binary,"@",Server/binary,"/escalus-default-resource">>,
     User#client{jid = JID}.
-
-fresh_room_name(Username) ->
-    escalus_utils:jid_to_lower(<<"room-", Username/binary>>).
-
-fresh_room_name() ->
-    fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).
 
 fresh_nick_name(Prefix) ->
     <<Prefix/binary, (fresh_nick_name())/binary>>.

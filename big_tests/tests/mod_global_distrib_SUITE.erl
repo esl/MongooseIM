@@ -430,7 +430,7 @@ test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = mongoose_helper:connect_component(ComponentConfig),
 
     Story = fun(User) ->
                     Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
@@ -458,8 +458,8 @@ test_components_in_different_regions(_Config) ->
     Component1Config = [{port, 8888}, {component, <<"service1">>} | ComponentCommonConfig],
     Component2Config = [{port, 9990}, {component, <<"service2">>} | ComponentCommonConfig],
 
-    {Comp1, Addr1, _Name1} = connect_component(Component1Config),
-    {Comp2, Addr2, _Name2} = connect_component(Component2Config),
+    {Comp1, Addr1, _Name1} = mongoose_helper:connect_component(Component1Config),
+    {Comp2, Addr2, _Name2} = mongoose_helper:connect_component(Component2Config),
 
     Msg1 = escalus_stanza:from(escalus_stanza:chat_to(Addr2, <<"Hi from 1!">>), Addr1),
     escalus:send(Comp1, Msg1),
@@ -493,8 +493,8 @@ test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = connect_component(ComponentConfig),
-    disconnect_component(Comp, Addr),
+    {Comp, Addr, _Name} = mongoose_helper:connect_component(ComponentConfig),
+    mongoose_helper:disconnect_component(Comp, Addr),
 
     Story = fun(User) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
@@ -628,11 +628,11 @@ test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = mongoose_helper:connect_component(ComponentConfig),
     ?assertMatch({ok, _}, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
                               [<<"test_service.localhost">>])),
 
-    disconnect_component(Comp, Addr),
+    mongoose_helper:disconnect_component(Comp, Addr),
 
     ?assertEqual(error, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
                             [<<"test_service.localhost">>])).
@@ -744,7 +744,7 @@ test_update_senders_host_by_ejd_service(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = mongoose_helper:connect_component(ComponentConfig),
 
     escalus:fresh_story(
       Config, [{eve, 1}],
