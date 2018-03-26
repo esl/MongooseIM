@@ -196,10 +196,10 @@ clear_db() ->
 %% ---------------------- Disco ----------------------
 
 disco_service(Config) ->
-    muc_SUITE:disco_service(Config).
+    muc_helper:disco_service_story(Config).
 
 disco_features(Config) ->
-    muc_SUITE:disco_features(Config).
+    muc_helper:disco_features_story(Config).
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
