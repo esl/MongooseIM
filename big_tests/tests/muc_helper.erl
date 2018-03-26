@@ -117,3 +117,30 @@ room_address(Room) ->
 
 room_address(Room, Nick) ->
     <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+
+given_fresh_spec(Config, User) ->
+    NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
+    escalus_users:get_userspec(NewConfig, User).
+
+given_fresh_room(Config, UserSpec, RoomOpts) ->
+    Username = proplists:get_value(username, UserSpec),
+    RoomName = fresh_room_name(Username),
+    start_room(Config, {user, UserSpec}, RoomName, Username, RoomOpts).
+
+disco_service_story(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_service, [muc_host()], Stanza),
+        escalus:assert(is_stanza_from,
+                            [ct:get_config({hosts, mim, domain})], Stanza)
+    end).
+
+disco_features_story(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        escalus:send(Alice, stanza_get_features()),
+        Stanza = escalus:wait_for_stanza(Alice),
+        has_features(Stanza),
+        escalus:assert(is_stanza_from, [muc_host()], Stanza)
+    end).
