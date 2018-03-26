@@ -86,3 +86,13 @@ rpc(Node, M, F, A) ->
 rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
+
+start_node(Node, Config) ->
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
+    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
+    timer:sleep(3000).
+
+stop_node(Node, Config) ->
+    {_, 0} = mongooseim_script(Node, "stop", [], Config).
+
