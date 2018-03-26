@@ -24,6 +24,7 @@
 -export([connect_component/2,
          disconnect_component/2,
          disconnect_components/2]).
+-export([get_bjid/1]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
@@ -306,3 +307,8 @@ cook_connection_step_error(E) ->
     {StepDef, _, _} = Step,
     {EDef, _} = Reason,
     {EDef, StepDef}.
+
+get_bjid(UserSpec) ->
+    User = proplists:get_value(username, UserSpec),
+    Server = proplists:get_value(server, UserSpec),
+    <<User/binary,"@",Server/binary>>.

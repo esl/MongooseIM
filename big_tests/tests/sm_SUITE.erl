@@ -313,7 +313,7 @@ resend_more_offline_messages_than_buffer_size(Config) ->
 
     % sent some messages - more than unacked buffer size
     MessagesToSend = ?SMALL_SM_BUFFER + 1,
-    JID = get_bjid(AliceSpec),
+    JID = mongoose_helper:get_bjid(AliceSpec),
     [escalus_connection:send(Bob, escalus_stanza:chat_to(JID, integer_to_binary(I)))
      || I <- lists:seq(1, MessagesToSend)],
 
@@ -382,23 +382,23 @@ preserve_order(Config) ->
     escalus_connection:get_stanza(Alice, presence),
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"1">>)),
 
     %% kill alice connection
     escalus_connection:kill(Alice),
     wait_until_disconnected(AliceSpec, 1000),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"2">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"3">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"2">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"3">>)),
 
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
     escalus_connection:send(NewAlice, escalus_stanza:enable_sm([resume])),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"4">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"5">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"4">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"5">>)),
 
     escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"6">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"6">>)),
 
     receive_all_ordered(NewAlice,1),
 
@@ -447,7 +447,7 @@ resend_unacked_after_resume_timeout(Config) ->
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
     escalus_connection:kill(Alice),
 
@@ -490,7 +490,7 @@ resume_session_state_send_message(Config) ->
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
 
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
     escalus_connection:kill(Alice),
     ct:sleep(1000), %% alice should be in resume_session_state
@@ -500,8 +500,8 @@ resume_session_state_send_message(Config) ->
     1 = length(escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S])),
 
     %% send some messages and check if c2s can handle it
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-2">>)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-3">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"msg-2">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"msg-3">>)),
 
     %% alice comes back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
@@ -534,7 +534,7 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:get_stanza(Alice, presence),
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
-    escalus_connection:send(Bob, escalus_stanza:chat_to(get_bjid(AliceSpec), <<"msg-1">>)),
+    escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"msg-1">>)),
 
     % kill alice connection
     escalus_connection:kill(Alice),
@@ -695,7 +695,7 @@ try_to_resume_stream(Conn, SMID, PrevH) ->
 buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages) ->
     Steps = connection_steps_to_enable_stream_resumption(),
     {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
-    JID = get_bjid(Props),
+    JID = mongoose_helper:get_bjid(Props),
     InitialPresence = setattr(escalus_stanza:presence(<<"available">>),
                               <<"id">>, <<"presence1">>),
     escalus_connection:send(Alice, InitialPresence),
@@ -869,11 +869,6 @@ clear_sm_session_table() ->
 is_chat(Content) ->
     fun(Stanza) -> escalus_pred:is_chat_message(Content, Stanza) end.
 
-get_bjid(UserSpec) ->
-    User = proplists:get_value(username, UserSpec),
-    Server = proplists:get_value(server, UserSpec),
-    <<User/binary,"@",Server/binary>>.
-
 given_fresh_spec(Config, User) ->
     NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
     escalus_users:get_userspec(NewConfig, User).
@@ -886,5 +881,5 @@ given_fresh_user_with_spec(Spec) ->
     {ok, User = #client{props = Props}, _} = escalus_connection:start(Spec),
     escalus:send(User, escalus_stanza:presence(<<"available">>)),
     escalus:wait_for_stanza(User),
-    JID = get_bjid(Props),
+    JID = mongoose_helper:get_bjid(Props),
     {User#client{jid  = JID}, Spec}.
