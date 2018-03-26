@@ -166,10 +166,10 @@ case "$1" in
         # Start the VM
         exec_echo "$BINDIR/erlexec" $FOREGROUNDOPTIONS \
             -boot "$RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE" \
+            -embedded \
             -config "$RUNNER_ETC_DIR/app.config" \
             -args_file "$RUNNER_ETC_DIR/vm.args"  \
             -args_file "$RUNNER_ETC_DIR/vm.dist.args" \
-            -mode embedded \
             -- ${1+"$@"}
         ;;
 
