@@ -132,12 +132,19 @@ case "$1" in
         "$ERTS_PATH"/to_erl "$PIPE_DIR"
         ;;
 
-    console|live|console_clean)
+    console|live|console_clean|foreground)
         # .boot file typically just $SCRIPT (ie, the app name)
         # however, for debugging, sometimes start_clean.boot is useful:
+        FOREGROUNDOPTIONS=""
         case "$1" in
             console|live)   BOOTFILE="$SCRIPT" ;;
             console_clean)  BOOTFILE=start_clean ;;
+            foreground)
+                # start up the release in the foreground for use
+                # by supervision services (e.g. systemd, upstart)
+                BOOTFILE="$SCRIPT"
+                FOREGROUNDOPTIONS="-noshell -noinput +Bd"
+                ;;
         esac
         # Setup beam-required vars
         ROOTDIR="$RUNNER_BASE_DIR"
@@ -157,7 +164,13 @@ case "$1" in
         logger -t "$SCRIPT[$$]" "Starting up"
 
         # Start the VM
-        exec_echo "$BINDIR/erlexec" -boot "$RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE" -embedded -config "$RUNNER_ETC_DIR/app.config" -args_file "$RUNNER_ETC_DIR/vm.args" -args_file "$RUNNER_ETC_DIR/vm.dist.args" -- ${1+"$@"}
+        exec_echo "$BINDIR/erlexec" $FOREGROUNDOPTIONS \
+            -boot "$RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE" \
+            -embedded \
+            -config "$RUNNER_ETC_DIR/app.config" \
+            -args_file "$RUNNER_ETC_DIR/vm.args"  \
+            -args_file "$RUNNER_ETC_DIR/vm.dist.args" \
+            -- ${1+"$@"}
         ;;
 
     debug)
@@ -203,7 +216,7 @@ case "$1" in
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|foreground|attach|debug|version}"
         exit 1
         ;;
 esac

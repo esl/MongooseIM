@@ -55,6 +55,11 @@ Alternatively, you can also run the server in the interactive mode:
 $ mongooseimctl live
 ```
 
+For running MongooseIM in a non-interactive way within a supervision system (e.g. systemd) it is
+recommended to use the foreground mode:
+```bash
+$ mongooseimctl foreground
+```
 
 ## Registering a user
 
