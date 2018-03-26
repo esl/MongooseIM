@@ -30,10 +30,12 @@ maybe_handle_chat_marker(Host, User, Remote, Packet) ->
 maybe_reset_unread_count(User, Remote, Packet) ->
   RoomSender = jid:nameprep(Remote#jid.resource),
   Receiver = jid:nameprep(jid:to_binary(jid:to_bare(User))),
-  case RoomSender of
-    Receiver ->
-      Id = mod_inbox_utils:get_markered_msg_id(Packet),
-      mod_inbox_operations:reset_unread_count(User, Remote, Id);
+  Id = mod_inbox_utils:get_markered_msg_id(Packet),
+  case {RoomSender, Id} of
+    {_, no_id} ->
+      ok;
+    {Receiver, _} ->
+      mod_inbox_utils:reset_unread_count(User, Remote, Id);
     _ ->
       %% do not reset because another user sent chat marker
       ok
@@ -48,7 +50,7 @@ write_to_inbox(User, UserFromRoom, Packet) ->
       case check_invitation_message(User, Packet) of
         true ->
           BareRemJID = jid:to_bare(UserFromRoom),
-          mod_inbox_operations:write_to_receiver_inbox(Server, UserFromRoom, User, BareRemJID, MsgId, Packet);
+          mod_inbox_utils:write_to_receiver_inbox(Server, UserFromRoom, User, BareRemJID, MsgId, Packet);
         _ ->
           case check_banned_message(User, Packet) of
             true ->
@@ -95,7 +97,7 @@ check_banned_message(User, Packet) ->
 
 muclight_write_to_inbox(Server, RemJID, LocJID, RemJID, MsgId, Packet) ->
   BareRemJID = jid:to_bare(RemJID),
-  mod_inbox_operations:write_to_sender_inbox(Server, RemJID, LocJID, BareRemJID, MsgId, Packet);
+  mod_inbox_utils:write_to_sender_inbox(Server, RemJID, LocJID, BareRemJID, MsgId, Packet);
 muclight_write_to_inbox(Server, RemJID, LocJID, Sender, MsgId, Packet) ->
-  mod_inbox_operations:write_to_receiver_inbox(Server, LocJID, RemJID, Sender, MsgId, Packet).
+  mod_inbox_utils:write_to_receiver_inbox(Server, LocJID, RemJID, Sender, MsgId, Packet).
 

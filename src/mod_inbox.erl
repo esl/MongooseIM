@@ -92,18 +92,23 @@ maybe_handle_chat_marker(Host, User, Remote, Packet) ->
 
 maybe_reset_unread_count(User, Remote, Packet) ->
   Id = mod_inbox_utils:get_markered_msg_id(Packet),
-  mod_inbox_operations:reset_unread_count(User, Remote, Id).
+  case Id of
+    no_id ->
+      ok;
+    _ ->
+      mod_inbox_utils:reset_unread_count(User, Remote, Id)
+  end.
 
 
 write_to_inbox(LocJID, RemJID, Packet) ->
   Server = LocJID#jid.lserver,
   MsgId = mod_inbox_utils:get_msg_id(Packet),
   BareLocJID = jid:to_bare(LocJID),
-  mod_inbox_operations:write_to_sender_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet),
-  mod_inbox_operations:write_to_receiver_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet).
+  mod_inbox_utils:write_to_sender_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet),
+  mod_inbox_utils:write_to_receiver_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet).
 
 clear_inbox(Username, Server) ->
-  mod_inbox_operations:clear_inbox(Username, Server).
+  mod_inbox_utils:clear_inbox(Username, Server).
 
 %%%%%%%%%%%%%%%%%%%
 %% Builders
