@@ -13,13 +13,14 @@
 -include("mongoose_ns.hrl").
 
 -export([start/2, stop/1]).
--export([process_iq/4, process_message_muclight/9, process_message_one_to_one/9]).
+-export([process_iq/4, process_message_with_muclight/9, process_message_one_to_one/9]).
 -export([write_to_inbox/3, clear_inbox/2]).
 
 
 start(Host, Opts) ->
   {ok, _} = gen_mod:start_backend_module(?MODULE, Opts,
-    [get_inbox, set_inbox, set_inbox_incr_unread, reset_unread, remove_inbox, clear_inbox]),
+    [get_inbox, set_inbox, set_inbox_incr_unread,
+     reset_unread, remove_inbox, clear_inbox]),
   mod_disco:register_feature(Host, ?NS_ESL_INBOX),
   IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
   Mode = gen_mod:get_opt(groupchat, Opts, [muclight]),
@@ -59,26 +60,28 @@ send_message(To, Mess) ->
 %% Handlers
 
 process_message_one_to_one(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
-  maybe_handle_chat_marker(Host, LocJID, RemJID, Packet),
+  handle_message(Host, LocJID, RemJID, Packet),
   Result;
 process_message_one_to_one(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, incomming, _Packet) ->
   Result.
 
-process_message_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
-  maybe_handle_chat_marker(Host, LocJID, RemJID, Packet),
+process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
+  %% one_to_one case
+  handle_message(Host, LocJID, RemJID, Packet),
   Result;
-process_message_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, incoming, Packet) ->
+process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, incoming, Packet) ->
   case exml_query:attr(Packet, <<"type">>, undefined) of
     <<"groupchat">> ->
-      mod_inbox_muclight:maybe_handle_chat_marker(Host, LocJID, RemJID, Packet);
+      %% groupchat case
+      mod_inbox_muclight:handle_message(Host, LocJID, RemJID, Packet);
     _ ->
       ok
   end,
   Result;
-process_message_muclight(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, _, _Packet) ->
+process_message_with_muclight(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, _, _Packet) ->
   Result.
 
-maybe_handle_chat_marker(Host, User, Remote, Packet) ->
+handle_message(Host, User, Remote, Packet) ->
   Markers = mod_inbox_utils:get_reset_markers(Host),
   case mod_inbox_utils:has_chat_marker(Packet, Markers) of
     true ->
@@ -100,18 +103,18 @@ maybe_reset_unread_count(User, Remote, Packet) ->
   end.
 
 
-write_to_inbox(LocJID, RemJID, Packet) ->
-  Server = LocJID#jid.lserver,
+write_to_inbox(User, Remote, Packet) ->
+  Server = User#jid.lserver,
   MsgId = mod_inbox_utils:get_msg_id(Packet),
-  BareLocJID = jid:to_bare(LocJID),
-  mod_inbox_utils:write_to_sender_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet),
-  mod_inbox_utils:write_to_receiver_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet).
+  BareLocJID = jid:to_bare(User),
+  mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, BareLocJID, MsgId, Packet),
+  mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, BareLocJID, MsgId, Packet).
 
 clear_inbox(Username, Server) ->
   mod_inbox_utils:clear_inbox(Username, Server).
 
 %%%%%%%%%%%%%%%%%%%
-%% Builders
+%% Stanza builders
 
 build_inbox_message({_Username, _Sender, Content, Count}, QueryId) ->
   #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
@@ -156,7 +159,7 @@ handler(Mode) ->
   %% TODO implement inbox for MUC
   case {Muclight, Muc} of
     {true, false} ->
-      {?MODULE, process_message_muclight};
+      {?MODULE, process_message_with_muclight};
     {false, false} ->
       {?MODULE, process_message_one_to_one};
     _ ->

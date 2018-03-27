@@ -12,8 +12,9 @@
 -author("ludwikbukowski").
 -compile(export_all).
 
+
 %%%%%%%%%%%%%%%%%%%
-%% DB Operations
+%% DB Operations shared by mod_inbox and mod_inbox_muclight
 reset_unread_count(From, To, MsgId) ->
   FromJid = jid:to_binary(jid:to_bare(From)),
   Server = From#jid.lserver,
@@ -46,8 +47,10 @@ write_to_receiver_inbox(Server, From, To, Sender, MsgId, Packet) ->
 clear_inbox(Username, Server) ->
   mod_inbox_backend:clear_inbox(Username, Server).
 
+
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
+
 get_reset_markers(Host) ->
   Markers = gen_mod:get_module_opt(Host, mod_inbox, markers, [displayed]),
   MarkersBin = [atom_to_binary(M, unicode) || M <- Markers],
@@ -88,3 +91,9 @@ add_from(Msg = #xmlel{attrs = Attrs}, FromBin) ->
 
 wrapper_id() ->
   uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+
+check_write_aff_changes(Host) ->
+  gen_mod:get_module_opt(Host, mod_inbox, aff_changes, true).
+
+check_remove_on_kicked(Host) ->
+  gen_mod:get_module_opt(Host, mod_inbox, remove_on_kicked, true).
