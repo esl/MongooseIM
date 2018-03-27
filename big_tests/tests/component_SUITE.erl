@@ -34,6 +34,11 @@
                              start_node/2,
                              stop_node/2]).
 
+-import(component_helper, [connect_component/1,
+                           connect_component/2,
+                           disconnect_component/2,
+                           disconnect_components/2]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -126,15 +131,15 @@ end_per_testcase(CaseName, Config) ->
 dirty_disconnect(Config) ->
     %% Given one connected component, kill the connection and reconnect
     CompOpts = ?config(component1, Config),
-    {Component, Addr, _} = mongoose_helper:connect_component(CompOpts),
-    mongoose_helper:disconnect_component(Component, Addr),
-    {Component1, Addr, _} = mongoose_helper:connect_component(CompOpts),
-    mongoose_helper:disconnect_component(Component1, Addr).
+    {Component, Addr, _} = connect_component(CompOpts),
+    disconnect_component(Component, Addr),
+    {Component1, Addr, _} = connect_component(CompOpts),
+    disconnect_component(Component1, Addr).
 
 register_one_component(Config) ->
     %% Given one connected component
     CompOpts = ?config(component1, Config),
-    {Component, ComponentAddr, _} = mongoose_helper:connect_component(CompOpts),
+    {Component, ComponentAddr, _} = connect_component(CompOpts),
 
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 %% When Alice sends a message to the component
@@ -154,14 +159,14 @@ register_one_component(Config) ->
                 escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
         end),
 
-    mongoose_helper:disconnect_component(Component, ComponentAddr).
+    disconnect_component(Component, ComponentAddr).
 
 register_two_components(Config) ->
     %% Given two connected components
     CompOpts1 = ?config(component1, Config),
     CompOpts2 = ?config(component2, Config),
-    {Comp1, CompAddr1, _} = mongoose_helper:connect_component(CompOpts1),
-    {Comp2, CompAddr2, _} = mongoose_helper:connect_component(CompOpts2),
+    {Comp1, CompAddr1, _} = connect_component(CompOpts1),
+    {Comp2, CompAddr2, _} = connect_component(CompOpts2),
 
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
                 %% When Alice sends a message to the first component
@@ -195,8 +200,8 @@ register_two_components(Config) ->
                 escalus:assert(is_chat_message, [<<"jkl">>], Reply4)
         end),
 
-    mongoose_helper:disconnect_component(Comp1, CompAddr1),
-    mongoose_helper:disconnect_component(Comp2, CompAddr2).
+    disconnect_component(Comp1, CompAddr1),
+    disconnect_component(Comp2, CompAddr2).
 
 try_registering_with_wrong_password(Config) ->
     %% Given a component with a wrong password
@@ -205,8 +210,8 @@ try_registering_with_wrong_password(Config) ->
                                  {password, <<"wrong_one">>}),
     try
         %% When trying to connect it
-        {Comp, Addr, _} = mongoose_helper:connect_component(CompOpts2),
-        mongoose_helper:disconnect_component(Comp, Addr),
+        {Comp, Addr, _} = connect_component(CompOpts2),
+        disconnect_component(Comp, Addr),
         ct:fail("component connected successfully with wrong password")
     catch {stream_error, _E} ->
         %% Then it should fail to do so
@@ -216,19 +221,19 @@ try_registering_with_wrong_password(Config) ->
 try_registering_component_twice(Config) ->
     %% Given two components with the same name
     CompOpts1 = ?config(component1, Config),
-    {Comp1, Addr, _} = mongoose_helper:connect_component(CompOpts1),
+    {Comp1, Addr, _} = connect_component(CompOpts1),
 
     try
         %% When trying to connect the second one
-        {Comp2, Addr, _} = mongoose_helper:connect_component(CompOpts1),
-        mongoose_helper:disconnect_component(Comp2, Addr),
+        {Comp2, Addr, _} = connect_component(CompOpts1),
+        disconnect_component(Comp2, Addr),
         ct:fail("second component connected successfully")
     catch {stream_error, _} ->
         %% Then it should fail to do so
         ok
     end,
 
-    mongoose_helper:disconnect_component(Comp1, Addr).
+    disconnect_component(Comp1, Addr).
 
 try_registering_existing_host(Config) ->
     %% Given a external vjud component
@@ -236,8 +241,8 @@ try_registering_existing_host(Config) ->
 
     try
         %% When trying to connect it to the server
-        {Comp, Addr, _} = mongoose_helper:connect_component(Component),
-        mongoose_helper:disconnect_component(Comp, Addr),
+        {Comp, Addr, _} = connect_component(Component),
+        disconnect_component(Comp, Addr),
         ct:fail("vjud component connected successfully")
     catch {stream_error, _} ->
         %% Then it should fail since vjud service already exists on the server
@@ -248,8 +253,8 @@ disco_components(Config) ->
     %% Given two connected components
     CompOpts1 = ?config(component1, Config),
     CompOpts2 = ?config(component2, Config),
-    {Comp1, Addr1, _} = mongoose_helper:connect_component(CompOpts1),
-    {Comp2, Addr2, _} = mongoose_helper:connect_component(CompOpts2),
+    {Comp1, Addr1, _} = connect_component(CompOpts1),
+    {Comp2, Addr2, _} = connect_component(CompOpts2),
 
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 %% When server asked for the disco features
@@ -263,8 +268,8 @@ disco_components(Config) ->
                 escalus:assert(has_service, [Addr2], DiscoReply)
         end),
 
-    mongoose_helper:disconnect_component(Comp1, Addr1),
-    mongoose_helper:disconnect_component(Comp2, Addr2).
+    disconnect_component(Comp1, Addr1),
+    disconnect_component(Comp2, Addr2).
 
 %% Verifies that a component connected to the "hidden components" endpoint
 %% is not discoverable.
@@ -322,19 +327,19 @@ register_subdomain(Config) ->
 
         end),
 
-    mongoose_helper:disconnect_component(Comp, Addr).
+    disconnect_component(Comp, Addr).
 
 
 register_in_cluster(Config) ->
     %% Given one component connected to the cluster
     CompOpts1 = ?config(component1, Config),
-    Component1 = mongoose_helper:connect_component(CompOpts1),
+    Component1 = connect_component(CompOpts1),
     {Comp1, Addr1, _} = Component1,
     CompOpts2 = ?config(component2, Config),
-    Component2 = mongoose_helper:connect_component(CompOpts2),
+    Component2 = connect_component(CompOpts2),
     {Comp2, Addr2, _} = Component2,
     CompOpts_on_2 = spec(component_on_2, Config),
-    Component_on_2 = mongoose_helper:connect_component(CompOpts_on_2),
+    Component_on_2 = connect_component(CompOpts_on_2),
     {Comp_on_2, Addr_on_2, _} = Component_on_2,
 
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
@@ -343,21 +348,21 @@ register_in_cluster(Config) ->
                 do_chat_with_component(Alice, ClusterGuy, Component_on_2)
         end),
 
-    mongoose_helper:disconnect_component(Comp1, Addr1),
-    mongoose_helper:disconnect_component(Comp2, Addr2),
-    mongoose_helper:disconnect_component(Comp_on_2, Addr_on_2),
+    disconnect_component(Comp1, Addr1),
+    component(Comp2, Addr2),
+    disconnect_component(Comp_on_2, Addr_on_2),
     ok.
 
 clear_on_node_down(Config) ->
     CompOpts = ?config(component1, Config),
-    ?assertMatch({_, _, _}, mongoose_helper:connect_component(CompOpts)),
-    ?assertThrow({stream_error, _}, mongoose_helper:connect_component(CompOpts)),
+    ?assertMatch({_, _, _}, connect_component(CompOpts)),
+    ?assertThrow({stream_error, _}, connect_component(CompOpts)),
 
     stop_node(ejabberd_node_utils:mim(), Config),
     start_node(ejabberd_node_utils:mim(), Config),
 
-    {Comp, Addr, _} = mongoose_helper:connect_component(CompOpts),
-    mongoose_helper:disconnect_component(Comp, Addr).
+    {Comp, Addr, _} = connect_component(CompOpts),
+    disconnect_component(Comp, Addr).
 
 do_chat_with_component(Alice, ClusterGuy, Component1) ->
     {Comp, Addr, Name} = Component1,
@@ -421,10 +426,10 @@ register_same_on_both(Config) ->
     %% we should be able to register
     %% and we get two components having the same name and address
     CompOpts2 = ?config(component2, Config),
-    Component2 = mongoose_helper:connect_component(CompOpts2),
+    Component2 = connect_component(CompOpts2),
     {Comp2, Addr, Name} = Component2,
     CompOpts_d = spec(component_duplicate, Config),
-    Component_d = mongoose_helper:connect_component(CompOpts_d),
+    Component_d = connect_component(CompOpts_d),
     {Comp_d, Addr, Name} = Component_d,
 
     escalus:story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, ClusterGuy) ->
@@ -480,7 +485,7 @@ register_same_on_both(Config) ->
         escalus:assert(has_service, [Addr], DiscoReply2)
 
     end),
-    mongoose_helper:disconnect_components([Comp2, Comp_d], Addr),
+    disconnect_components([Comp2, Comp_d], Addr),
     ok.
 
 %%--------------------------------------------------------------------
@@ -492,7 +497,7 @@ get_components(Opts, Config) ->
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
 connect_component_subdomain(Component) ->
-    mongoose_helper:connect_component(Component, component_start_stream_subdomain).
+    connect_component(Component, component_start_stream_subdomain).
 
 add_domain(Config) ->
     Node = default_node(Config),
@@ -507,23 +512,6 @@ restore_domain(Config) ->
     restore_ejabberd_config_file(Node, Config),
     restart_ejabberd_node(Node),
     Config.
-
-%%--------------------------------------------------------------------
-%% Escalus connection steps
-%%--------------------------------------------------------------------
-
-component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
-    {component, Component} = lists:keyfind(component, 1, Props),
-
-    StreamStart = mongoose_helper:component_stream_start(Component, true),
-    ok = escalus_connection:send(Conn, StreamStart),
-    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
-
-    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
-
-    {Conn#client{props = [{sid, Id}|Props]}, []}.
-
 
 
 %%--------------------------------------------------------------------
