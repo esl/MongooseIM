@@ -86,8 +86,9 @@
                            stanza_create_room/3,
                            create_room/6,
                            stanza_aff_set/2,
-                           default_config/0
-                          ]).
+                           default_config/0,
+                           user_leave/3
+]).
 
 -include("muc_light.hrl").
 
@@ -530,7 +531,7 @@ leave_room(Config) ->
             lists:foldr(
               fun(User, {Occupants, Outsiders}) ->
                       NewOccupants = lists:keydelete(User, 1, Occupants),
-                      user_leave(User, NewOccupants),
+                      user_leave(?ROOM, User, NewOccupants),
                       verify_no_stanzas(Outsiders),
                       {NewOccupants, [User | Outsiders]}
               end, {?DEFAULT_AFF_USERS, []}, [Alice, Bob, Kate]),
@@ -802,7 +803,7 @@ block_room(Config) ->
             BlocklistChange = [{room, deny, room_bin_jid(?ROOM)}],
             escalus:send(Bob, stanza_blocking_set(BlocklistChange)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
-            user_leave(Bob, [{Alice, owner}, {Kate, member}]),
+            user_leave(?ROOM, Bob, [{Alice, owner}, {Kate, member}]),
 
             % Alice tries to readd Bob to the room but fails
             BobReadd = [{Bob, member}],
@@ -825,7 +826,7 @@ block_user(Config) ->
             BlocklistChange = [{user, deny, AliceJIDBin}],
             escalus:send(Bob, stanza_blocking_set(BlocklistChange)),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
-            user_leave(Bob, [{Alice, owner}, {Kate, member}]),
+            user_leave(?ROOM, Bob, [{Alice, owner}, {Kate, member}]),
 
             % Alice tries to create new room with Bob but Bob is not added
             escalus:send(Alice, stanza_create_room(<<"new">>, [], [{Bob, member}])),
@@ -862,15 +863,6 @@ blocking_disabled(Config) ->
 %%--------------------------------------------------------------------
 %% Subroutines
 %%--------------------------------------------------------------------
-
--spec user_leave(User :: escalus:client(), RemainingOccupants :: ct_aff_users()) -> ok.
-user_leave(User, RemainingOccupants) ->
-    AffUsersChanges = [{User, none}],
-    Stanza = stanza_aff_set(?ROOM, AffUsersChanges),
-    escalus:send(User, Stanza),
-    % bcast
-    verify_aff_bcast(RemainingOccupants, AffUsersChanges),
-    escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
 
 -spec get_disco_rooms(User :: escalus:client()) -> list(xmlel()).
 get_disco_rooms(User) ->
