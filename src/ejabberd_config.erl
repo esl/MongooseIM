@@ -1147,28 +1147,29 @@ filter_out_node_specific_options([Opt | Opts]) ->
 % a list of keys in proplist that should be deleted (if such
 % path exists). The `root path` for them is a list of modules.
 node_specific_module_options() ->
-    [
-     [mod_global_distrib, connections, endpoints],
-     [mod_global_distrib, redis, server],
-     % Endpoints
-     [mod_global_distrib_sender, endpoints],
-     [mod_global_distrib_sender, connections, endpoints],
+    endpoints_options() ++ redis_options() ++ advertised_endpoints_options().
 
-     [mod_global_distrib_mapping, connections, endpoints],
+endpoints_options() ->
+    with_modules([endpoints]) ++ with_modules([connections, endpoints]).
 
-     [mod_global_distrib_receiver, connections, endpoints],
-     [mod_global_distrib_receiver, endpoints],
+redis_options() ->
+    with_modules([redis, server]).
 
-     [mod_global_distrib_bounce, connections, endpoints],
+advertised_endpoints_options() ->
+    with_modules([connections, advertised_endpoints]).
 
-     [mod_global_distrib_disco, connections, endpoints],
-     % Redis
-     [mod_global_distrib_sender, redis, server],
-     [mod_global_distrib_mapping, redis, server],
-     [mod_global_distrib_receiver, redis, server],
-     [mod_global_distrib_bounce, redis, server],
-     [mod_global_distrib_disco, redis, server]
-    ].
+with_modules(Path) ->
+    lists:map(fun(Module) -> [Module | Path] end, gd_modules()).
+
+gd_modules() ->
+    [mod_global_distrib,
+     mod_global_distrib_sender,
+     mod_global_distrib_mapping,
+     mod_global_distrib_receiver,
+     mod_global_distrib_bounce,
+     mod_global_distrib_disco].
+
+
 
 delete_path_in_proplist(Plist, [Step]) ->
     lists:keydelete(Step, 1, Plist);
