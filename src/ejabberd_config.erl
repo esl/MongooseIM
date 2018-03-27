@@ -1123,15 +1123,17 @@ methods_to_auth_modules(A) when is_atom(A) ->
 
 compute_config_version(LC, LCH) ->
     L0 = lists:filter(mk_node_start_filter(), LC ++ LCH),
-    L1 = filter_out_node_specific_options(L0),
+    L1 = filter_out_node_specific_options(L0, config),
     L2 = sort_config(L1),
     crypto:hash(sha, term_to_binary(L2)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    Opts2 = filter_out_node_specific_options(Opts),
+    Opts2 = filter_out_node_specific_options(Opts, config_file),
     L = sort_config(Opts2 ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
 
+filter_out_node_specific_options(Opts, Label) ->
+    filter_out_node_specific_options(Opts).
 
 filter_out_node_specific_options([]) ->
     [];
