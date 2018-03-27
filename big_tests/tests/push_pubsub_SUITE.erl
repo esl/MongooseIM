@@ -5,7 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
--include("muc_helper.hrl").
+-include("push_helper.hrl").
 
 -define(NS_PUSH,                <<"urn:xmpp:push:0">>).
 -define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).

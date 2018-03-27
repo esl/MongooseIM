@@ -21,13 +21,15 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
+% component management - TODO move to seperate helper
 -export([connect_component/1,
          connect_component/2,
          disconnect_component/2,
          disconnect_components/2,
          component_start_stream/2,
          component_stream_start/2,
-         component_handshake/2]).
+         component_handshake/2,
+         component_start_stream_subdomain/2]).
 -export([get_bjid/1]).
 
 -include_lib("escalus/include/escalus.hrl").
@@ -371,3 +373,15 @@ component_handshake_el(SID, Password) ->
     Handshake = crypto:hash(sha, <<SID/binary, Password/binary>>),
     #xmlel{name = <<"handshake">>,
            children = [#xmlcdata{content = base16:encode(Handshake)}]}.
+
+component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
+    {component, Component} = lists:keyfind(component, 1, Props),
+
+    StreamStart = mongoose_helper:component_stream_start(Component, true),
+    ok = escalus_connection:send(Conn, StreamStart),
+    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
+
+    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
+    Id = proplists:get_value(<<"id">>, Attrs),
+
+    {Conn#client{props = [{sid, Id}|Props]}, []}.
