@@ -480,7 +480,7 @@ register_same_on_both(Config) ->
         escalus:assert(has_service, [Addr], DiscoReply2)
 
     end),
-    disconnect_components([Comp2, Comp_d], Addr),
+    mongoose_helper:disconnect_components([Comp2, Comp_d], Addr),
     ok.
 
 %%--------------------------------------------------------------------
@@ -515,7 +515,7 @@ restore_domain(Config) ->
 component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
     {component, Component} = lists:keyfind(component, 1, Props),
 
-    StreamStart = component_stream_start(Component, true),
+    StreamStart = mongoose_helper:component_stream_start(Component, true),
     ok = escalus_connection:send(Conn, StreamStart),
     StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
 
