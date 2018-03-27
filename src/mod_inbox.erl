@@ -14,7 +14,7 @@
 
 -export([start/2, stop/1]).
 -export([process_iq/4, process_message_with_muclight/9, process_message_one_to_one/9]).
--export([write_to_inbox/3, clear_inbox/2]).
+-export([clear_inbox/2]).
 
 
 start(Host, Opts) ->
@@ -60,14 +60,14 @@ send_message(To, Mess) ->
 %% Handlers
 
 process_message_one_to_one(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
-  handle_message(Host, LocJID, RemJID, Packet),
+  mod_inbox_one2one:handle_message(Host, LocJID, RemJID, Packet),
   Result;
 process_message_one_to_one(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, incomming, _Packet) ->
   Result.
 
 process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
   %% one_to_one case
-  handle_message(Host, LocJID, RemJID, Packet),
+  mod_inbox_one2one:handle_message(Host, LocJID, RemJID, Packet),
   Result;
 process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, incoming, Packet) ->
   case exml_query:attr(Packet, <<"type">>, undefined) of
@@ -80,38 +80,6 @@ process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _Sr
   Result;
 process_message_with_muclight(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, _, _Packet) ->
   Result.
-
-handle_message(Host, User, Remote, Packet) ->
-  Markers = mod_inbox_utils:get_reset_markers(Host),
-  case mod_inbox_utils:has_chat_marker(Packet, Markers) of
-    true ->
-      maybe_reset_unread_count(User, Remote, Packet);
-    false ->
-      FromBin = jid:to_binary(User),
-      Packet2 = mod_inbox_utils:add_from(Packet, FromBin),
-      write_to_inbox(User, Remote, Packet2)
-  end.
-
-
-maybe_reset_unread_count(User, Remote, Packet) ->
-  Id = mod_inbox_utils:get_markered_msg_id(Packet),
-  case Id of
-    no_id ->
-      ok;
-    _ ->
-      mod_inbox_utils:reset_unread_count(User, Remote, Id)
-  end.
-
-
-write_to_inbox(User, Remote, Packet) ->
-  Server = User#jid.lserver,
-  MsgId = mod_inbox_utils:get_msg_id(Packet),
-  BareLocJID = jid:to_bare(User),
-  mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, BareLocJID, MsgId, Packet),
-  mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, BareLocJID, MsgId, Packet).
-
-clear_inbox(Username, Server) ->
-  mod_inbox_utils:clear_inbox(Username, Server).
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
@@ -165,3 +133,6 @@ handler(Mode) ->
     _ ->
       erlang:throw({not_implemented})
   end.
+
+clear_inbox(Username, Server) ->
+  mod_inbox_utils:clear_inbox(Username, Server).
