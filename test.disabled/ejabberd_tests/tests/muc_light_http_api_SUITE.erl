@@ -58,9 +58,14 @@ negative_response() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Backend = case mongoose_helper:is_odbc_enabled(Host) of
+              true -> odbc;
+              false -> mnesia
+            end,
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
         [{host, binary_to_list(muc_light_domain())},
-         {rooms_in_rosters, true}]),
+         {rooms_in_rosters, true}, {backend, Backend}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
@@ -122,7 +127,7 @@ create_identifiable_room(Config) ->
     end).
 
 invite_to_room(Config) ->
-    Domain = <<"localhost">>,
+    Domain = muc_light_domain(),
     Name = <<"wonderland">>,
     Path = <<"/muc-lights", $/, Domain/binary, $/, Name/binary, $/,
              "participants">>,
@@ -151,7 +156,7 @@ invite_to_room(Config) ->
       end).
 
 send_message_to_room(Config) ->
-    Domain = <<"localhost">>,
+    Domain = muc_light_domain(),
     Name = <<"wonderland">>,
     Path = <<"/muc-lights",$/,Domain/binary,$/,
              Name/binary,$/,"messages">>,
@@ -256,7 +261,7 @@ member_is_affiliated(Stanza, User) ->
 
 check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
                   RoomMembers, UserToExecuteDelete) ->
-    Domain = <<"localhost">>,
+    Domain = muc_light_domain(),
     escalus:send(RoomOwner, stanza_create_room(undefined,
                                            [{<<"roomname">>, RoomNameToCreate}],
                                            [{Member, member} || Member <- RoomMembers])),
