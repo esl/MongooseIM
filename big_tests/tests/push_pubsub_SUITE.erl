@@ -7,10 +7,6 @@
 -include_lib("exml/include/exml.hrl").
 -include("push_helper.hrl").
 
--define(NS_PUSH,                <<"urn:xmpp:push:0">>).
--define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
-
--define(PUBSUB_SUB_DOMAIN, "push").
 
 %%--------------------------------------------------------------------
 %% Suite configuration

@@ -5,13 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
-
--define(MUCHOST,                <<"muclight.@HOST@">>).
-
--define(PUSH_OPTS,
-    [
-        {backend, mnesia}
-    ]).
+-include("push_helper.hrl").
 
 -import(muc_light_helper,
     [
