@@ -37,7 +37,8 @@
 -import(component_helper, [connect_component/1,
                            connect_component/2,
                            disconnect_component/2,
-                           disconnect_components/2]).
+                           disconnect_components/2,
+                           connect_component_subdomain/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -495,9 +496,6 @@ register_same_on_both(Config) ->
 get_components(Opts, Config) ->
     Components = [component1, component2, vjud_component],
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
-
-connect_component_subdomain(Component) ->
-    connect_component(Component, component_start_stream_subdomain).
 
 add_domain(Config) ->
     Node = default_node(Config),

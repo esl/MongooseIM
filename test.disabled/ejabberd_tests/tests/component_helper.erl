@@ -1,13 +1,18 @@
 -module(component_helper).
 
+% API
 -export([connect_component/1,
          connect_component/2,
          disconnect_component/2,
          disconnect_components/2,
-         component_start_stream/2,
+         connect_component_subdomain/1
+        ]).
+
+-export([component_start_stream/2,
          component_stream_start/2,
          component_handshake/2,
-         component_start_stream_subdomain/2]).
+         component_start_stream_subdomain/2
+        ]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("exml/include/exml_stream.hrl").
@@ -121,3 +126,6 @@ component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
     Id = proplists:get_value(<<"id">>, Attrs),
 
     {Conn#client{props = [{sid, Id}|Props]}, []}.
+
+connect_component_subdomain(Component) ->
+    connect_component(Component, component_start_stream_subdomain).
