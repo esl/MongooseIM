@@ -23,9 +23,6 @@
 -export([logout_user/2]).
 -export([get_bjid/1]).
 
--include_lib("escalus/include/escalus.hrl").
--include_lib("exml/include/exml_stream.hrl").
-
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 
 -spec is_odbc_enabled(Host :: binary()) -> boolean().
