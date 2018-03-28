@@ -94,5 +94,9 @@ start_node(Node, Config) ->
     timer:sleep(3000).
 
 stop_node(Node, Config) ->
-    {_, 0} = ejabberdctl_helper:mongooseim_script(Node, "stop", [], Config).
+    {_, 0} = mongooseim_script(Node, "stop", [], Config).
+
+mongooseim_script(Node, Cmd, Args, Config) ->
+    CtlCmd = distributed_helper:script_path(Node, Config, "mongooseim"),
+    run(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " ")).
 
