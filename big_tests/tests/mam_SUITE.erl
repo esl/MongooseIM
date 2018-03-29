@@ -674,10 +674,6 @@ init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
     init_modules(BT, generic, [{muc_domain, "muclight.@HOST@"} | Config]);
 init_modules(BT = cassandra, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
-init_modules(BackendType, muc_light, Config) ->
-    Config1 = init_modules_for_muc_light(BackendType, Config),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    Config1;
 init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
@@ -729,6 +725,8 @@ init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
+init_modules(odbc_mnesia_muc_cache, _, _Config) ->
+    skip;
 init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_odbc_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
@@ -736,6 +734,10 @@ init_modules(odbc_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}, add_archived_element]),
     Config;
+init_modules(BackendType, muc_light, Config) ->
+    Config1 = init_modules_for_muc_light(BackendType, Config),
+    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    Config1;
 init_modules(odbc, C, Config) ->
     init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
@@ -796,8 +798,6 @@ init_modules(odbc_async_cache, C, Config) ->
     init_module(host(), mod_mam_odbc_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_mnesia_muc_cache, _, _Config) ->
-    skip;
 init_modules(odbc_mnesia_cache, C, Config) ->
     init_module(host(), mod_mam, [add_archived_element] ++ addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm]),
