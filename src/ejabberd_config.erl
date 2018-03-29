@@ -48,7 +48,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
-         apply_changes_remote/4,
+         apply_changes_remote/3,
          apply_changes/5]).
 
 -export([compute_config_version/2,
@@ -877,8 +877,7 @@ reload_cluster() ->
         {ok, CurrentNode} ->
             %% apply on other nodes
             {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigDiff,
-                                    ConfigVersion, FileVersion],
+                                   [ConfigFile, ConfigVersion, FileVersion],
                                    30000),
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
             ResultText = (groups_to_string("# Reloaded:", S1)
@@ -937,17 +936,17 @@ get_config_diff(State) ->
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     {CC, LC, LHC}.
 
--spec apply_changes_remote(file:name(), term(), binary(), binary()) ->
+-spec apply_changes_remote(file:name(), binary(), binary()) ->
                                   {ok, node()}| {error, node(), string()}.
-apply_changes_remote(NewConfigFilePath, ConfigDiff,
+apply_changes_remote(NewConfigFilePath,
                      DesiredConfigVersion, DesiredFileVersion) ->
     ?WARNING_MSG("remote config reload scheduled", []),
     ?DEBUG("~ndesired config version: ~p"
            "~ndesired file version: ~p",
            [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
-    {CC, LC, LHC} = ConfigDiff,
     State0 = parse_file(NewConfigFilePath),
+    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
     case compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = State0#state{override_global = false,
