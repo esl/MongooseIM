@@ -32,7 +32,7 @@
 -type deps_list() :: [
                       {module(), dep_arguments(), dep_hardness()} |
                       {module(), dep_hardness()} |
-                      {requires, mongoose_service:service()}
+                      {service, mongoose_service:service()}
                      ].
 
 -export_type([deps_list/0]).
@@ -116,7 +116,7 @@ start_module_for_host(Host, Module, Opts0) ->
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
-    lists:map(fun mongoose_service:ensure_loaded/1, get_required(Host, Module, Opts)),
+    lists:map(fun mongoose_service:ensure_loaded/1, get_required_services(Host, Module, Opts)),
     try
         Res = Module:start(Host, Opts),
         {links, LinksAfter} = erlang:process_info(self(), links),
@@ -442,14 +442,14 @@ get_deps(Host, Module, Opts) ->
             []
     end.
 
--spec get_required(jid:server(), module(), proplists:proplist()) -> [atom()].
-get_required(Host, Module, Options) ->
+-spec get_required_services(jid:server(), module(), proplists:proplist()) -> [atom()].
+get_required_services(Host, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Module),
     case erlang:function_exported(Module, deps, 2) of
         true ->
-            [Service || {requires, Service} <- Module:deps(Host, Options)];
+            [Service || {service, Service} <- Module:deps(Host, Options)];
         _ ->
             []
     end.
