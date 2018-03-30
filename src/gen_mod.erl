@@ -116,7 +116,7 @@ start_module_for_host(Host, Module, Opts0) ->
     Opts = clear_opts(Module, Opts0),
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
-    lists:map(fun mongoose_service:ensure_loaded/1, get_required_services(Host, Module, Opts)),
+    lists:map(fun mongoose_service:assert_loaded/1, get_required_services(Host, Module, Opts)),
     try
         Res = Module:start(Host, Opts),
         {links, LinksAfter} = erlang:process_info(self(), links),

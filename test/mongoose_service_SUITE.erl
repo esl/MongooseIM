@@ -152,12 +152,10 @@ start_deps(_) ->
 
 module_deps(_) ->
     assert_loaded([]),
+    ?assertError({service_not_loaded, _}, gen_mod:start_module(<<"localhost">>, module_a, [])),
+    mongoose_service:ensure_loaded(service_c),
     gen_mod:start_module(<<"localhost">>, module_a, []),
     ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
-    assert_loaded([service_d, service_f, service_g, service_h]),
-    gen_mod:stop_module(<<"localhost">>, module_a),
-    ?assert(not gen_mod:is_loaded(<<"localhost">>, module_a)),
-    assert_loaded([service_d, service_f, service_g, service_h]),
     ok.
 
 
