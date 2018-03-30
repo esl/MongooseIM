@@ -31,7 +31,8 @@
 -type dep_hardness() :: soft | hard.
 -type deps_list() :: [
                       {module(), dep_arguments(), dep_hardness()} |
-                      {module(), dep_hardness()}
+                      {module(), dep_hardness()} |
+                      {requires, mongoose_service:service()}
                      ].
 
 -export_type([deps_list/0]).
@@ -446,9 +447,9 @@ get_required(Host, Module, Options) ->
     %% the module has to be loaded,
     %% otherwise the erlang:function_exported/3 returns false
     code:ensure_loaded(Module),
-    case erlang:function_exported(Module, requires, 2) of
+    case erlang:function_exported(Module, deps, 2) of
         true ->
-            Module:requires(Host, Options);
+            [Service || {requires, Service} <- Module:deps(Host, Options)];
         _ ->
             []
     end.

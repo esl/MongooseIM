@@ -56,7 +56,7 @@ init_per_testcase(module_requirements, C) ->
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> ok end),
     gen_mod:start(),
     meck:new(module_a, [non_strict]),
-    meck:expect(module_a, requires, fun(_, _) -> [service_d, service_h] end),
+    meck:expect(module_a, deps, fun(_, _) -> [{requires, service_d}, {requires, service_h}] end),
     meck:expect(module_a, start, fun(_, _) -> ok end),
     meck:expect(module_a, stop, fun(_) -> ok end),
     C;
