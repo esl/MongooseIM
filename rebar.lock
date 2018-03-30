@@ -121,7 +121,7 @@
   0},
  {<<"mysql">>,
   {git,"git://github.com/mysql-otp/mysql-otp.git",
-       {ref,"8d322d48e4b76ce60633ab7e65e2c1daa0fb89a0"}},
+       {ref,"9724d67a262b26ed9f325f8e9e17a5d1fc42e63b"}},
   0},
  {<<"observer_cli">>,{pkg,<<"observer_cli">>,<<"1.1.0">>},0},
  {<<"p1_utils">>,
