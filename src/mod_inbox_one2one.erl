@@ -14,6 +14,12 @@
 
 -export([handle_message/4]).
 
+-type packet() :: exml:element().
+
+-spec handle_message(Host :: jid:server(),
+                     User :: jid:jid(),
+                     Remote :: jid:jid(),
+                     Packet :: packet()) -> any().
 handle_message(Host, User, Remote, Packet) ->
   Markers = mod_inbox_utils:get_reset_markers(Host),
   case mod_inbox_utils:has_chat_marker(Packet, Markers) of
@@ -25,7 +31,9 @@ handle_message(Host, User, Remote, Packet) ->
       write_to_inbox(User, Remote, Packet2)
   end.
 
-
+-spec maybe_reset_unread_count(User :: jid:jid(),
+                               Remote :: jid:jid(),
+                               Packet :: exml:element()) -> ok.
 maybe_reset_unread_count(User, Remote, Packet) ->
   Id = mod_inbox_utils:get_markered_msg_id(Packet),
   case Id of
@@ -35,7 +43,9 @@ maybe_reset_unread_count(User, Remote, Packet) ->
       mod_inbox_utils:reset_unread_count(User, Remote, Id)
   end.
 
-
+-spec write_to_inbox(User :: jid:jid(),
+                     Remote :: jid:jid(),
+                     Packet :: exml:element()) -> ok.
 write_to_inbox(User, Remote, Packet) ->
   Server = User#jid.lserver,
   MsgId = mod_inbox_utils:get_msg_id(Packet),

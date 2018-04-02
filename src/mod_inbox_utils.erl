@@ -8,6 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(mod_inbox_utils).
 -include("mongoose_ns.hrl").
+-include("mod_inbox.hrl").
 -include("jlib.hrl").
 -author("ludwikbukowski").
 -compile(export_all).
@@ -15,12 +16,18 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox and mod_inbox_muclight
+-spec reset_unread_count(From  :: jid:jid(),
+                         To    :: jid:jid(),
+                         MsgId :: id())   -> ok.
 reset_unread_count(From, To, MsgId) ->
   FromJid = jid:to_binary(jid:to_bare(From)),
   Server = From#jid.lserver,
   ToBareJid = jid:to_binary(jid:to_bare(To)),
   mod_inbox_backend:reset_unread(FromJid, Server, ToBareJid, MsgId).
 
+-spec write_to_inbox(LocJID :: jid:jid(),
+                     RemJID :: jid:jid(),
+                     Packet :: exml:packet()) -> ok.
 write_to_inbox(LocJID, RemJID, Packet) ->
   Server = LocJID#jid.lserver,
   MsgId = mod_inbox_utils:get_msg_id(Packet),
@@ -28,6 +35,12 @@ write_to_inbox(LocJID, RemJID, Packet) ->
   write_to_sender_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet),
   write_to_receiver_inbox(Server, LocJID, RemJID, BareLocJID, MsgId, Packet).
 
+-spec write_to_sender_inbox(Server :: host(),
+                            From   :: jid:jid(),
+                            To   :: jid:jid(),
+                            Sender   :: jid:jid(),
+                            MsgId   :: id(),
+                            Packet   :: exml:packet()) -> ok.
 write_to_sender_inbox(Server, From, To, Sender, MsgId, Packet) ->
   Content = exml:to_binary(Packet),
   FromJid = jid:to_binary(jid:to_bare(From)),
@@ -37,6 +50,13 @@ write_to_sender_inbox(Server, From, To, Sender, MsgId, Packet) ->
   Count = integer_to_binary(0),
   mod_inbox_backend:set_inbox(FromJid, Server, ToBareJid, SenderBin, Content, Count, MsgId).
 
+
+-spec write_to_receiver_inbox(Server :: host(),
+                              From   :: jid:jid(),
+                              To   :: jid:jid(),
+                              Sender   :: jid:jid(),
+                              MsgId   :: id(),
+                              Packet   :: exml:packet()) -> ok.
 write_to_receiver_inbox(Server, From, To, Sender, MsgId, Packet) ->
   Content = exml:to_binary(Packet),
   FromJid = jid:to_binary(jid:to_bare(To)),
@@ -44,6 +64,7 @@ write_to_receiver_inbox(Server, From, To, Sender, MsgId, Packet) ->
   SenderBin = jid:to_binary(Sender),
   mod_inbox_backend:set_inbox_incr_unread(FromJid, Server, ToBareJid, SenderBin, Content, MsgId).
 
+-spec clear_inbox(binary(), host()) -> ok.
 clear_inbox(Username, Server) ->
   mod_inbox_backend:clear_inbox(Username, Server).
 

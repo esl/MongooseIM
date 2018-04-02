@@ -17,16 +17,16 @@
 -export([clear_inbox/2]).
 
 
+-spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
-  {ok, _} = gen_mod:start_backend_module(?MODULE, Opts,
-    [get_inbox, set_inbox, set_inbox_incr_unread,
-     reset_unread, remove_inbox, clear_inbox]),
+  {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
   mod_disco:register_feature(Host, ?NS_ESL_INBOX),
   IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
   Mode = gen_mod:get_opt(groupchat, Opts, [muclight]),
   register_handler(Host, Mode),
   gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
+-spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
   mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
   Mode = gen_mod:get_module_opt(Host, mod_inbox, mode, [muclight]),
@@ -35,7 +35,10 @@ stop(Host) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ
-
+-spec process_iq(From :: jid:jid(),
+                 To :: jid:jid(),
+                 Acc :: mongoose_acc:t(),
+                 IQ :: jlib:iq()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
   {Acc, IQ#iq{type = error, sub_el = [SubEl,mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
@@ -48,28 +51,47 @@ process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
   Res = IQ#iq{type = result, sub_el = [build_result_iq(BinCount)]},
   {Acc, Res}.
 
+-spec forward_messages(list(inbox_res()), id(), jid:jid()) -> list(mongoose_acc:t()).
 forward_messages(List, QueryId, To) when is_list(List) ->
   Msgs = [build_inbox_message(El, QueryId) || El <- List],
   [send_message(To, Msg) || Msg <- Msgs].
 
+-spec send_message(jid:jid(), exml:element()) -> mongoose_acc:t().
 send_message(To, Mess) ->
   BareTo = jid:to_bare(To),
   ejabberd_sm:route(BareTo, To, Mess).
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
-
-process_message_one_to_one(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
+-spec process_message_one_to_one(Result :: any(),
+                                 Host    :: jid:server(),
+                                 _MamId  :: mod_mam:message_id(),
+                                 _ArcID  :: mod_mam:archive_id(),
+                                 _LocJID :: jid:jid(),
+                                 _RemJID :: jid:jid(),
+                                 _SrcJID :: jid:jid(),
+                                 Dir     :: outgoing | incomming,
+                                 _Packet :: exml:element()) -> any().
+process_message_one_to_one(Result, Host, _MamID, _ArcID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
   mod_inbox_one2one:handle_message(Host, LocJID, RemJID, Packet),
   Result;
-process_message_one_to_one(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, incomming, _Packet) ->
+process_message_one_to_one(Result, _, _, _, _, _, _, incomming, _) ->
   Result.
 
-process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
+-spec process_message_with_muclight(Result :: any(),
+                                    Host    :: jid:server(),
+                                    _MamId  :: mod_mam:message_id(),
+                                    _ArcID  :: mod_mam:archive_id(),
+                                    _LocJID :: jid:jid(),
+                                    _RemJID :: jid:jid(),
+                                    _SrcJID :: jid:jid(),
+                                    Dir     :: outgoing | incomming,
+                                    _Packet :: exml:element()) -> any().
+process_message_with_muclight(Result, Host, _, _, LocJID, RemJID, _, outgoing, Packet) ->
   %% one_to_one case
   mod_inbox_one2one:handle_message(Host, LocJID, RemJID, Packet),
   Result;
-process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _SrcJID, incoming, Packet) ->
+process_message_with_muclight(Result, Host, _, _, LocJID, RemJID, _, incoming, Packet) ->
   case exml_query:attr(Packet, <<"type">>, undefined) of
     <<"groupchat">> ->
       %% groupchat case
@@ -78,27 +100,30 @@ process_message_with_muclight(Result, Host, _MamID, _UserID, LocJID, RemJID, _Sr
       ok
   end,
   Result;
-process_message_with_muclight(Result, _Host, _MamID, _UserID, _LocJID, _RemJID, _SrcJID, _, _Packet) ->
+process_message_with_muclight(Result, _, _, _, _, _, _, _, _) ->
   Result.
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
 
+-spec build_inbox_message(inbox_res(), id()) -> exml:element().
 build_inbox_message({_Username, _Sender, Content, Count}, QueryId) ->
   #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
     children=[build_result_el(Content, QueryId, Count)]}.
 
+-spec build_result_el(content(), id(), count()) -> exml:element().
 build_result_el(Msg, QueryId, BinUnread) ->
   Forwarded = build_forward_el(Msg),
   QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
   #xmlel{name = <<"result">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++
   QueryAttr, children = [Forwarded]}.
 
+-spec build_result_iq(count()) -> exml:element().
 build_result_iq(CountBin) ->
   #xmlel{name = <<"count">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
     children = [#xmlcdata{content = CountBin}]}.
 
-
+-spec build_forward_el(content()) -> exml:element().
 build_forward_el(Content) ->
   {ok, Parsed} = exml:parse(Content),
   #xmlel{name = <<"forwarded">>,
@@ -107,6 +132,7 @@ build_forward_el(Content) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
+
 register_for_muclight(Mode) ->
   lists:member(muclight, Mode).
 
@@ -133,6 +159,10 @@ handler(Mode) ->
     _ ->
       erlang:throw({not_implemented})
   end.
+
+callback_funs() ->
+  [get_inbox, set_inbox, set_inbox_incr_unread,
+    reset_unread, remove_inbox, clear_inbox].
 
 clear_inbox(Username, Server) ->
   mod_inbox_utils:clear_inbox(Username, Server).
