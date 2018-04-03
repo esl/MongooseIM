@@ -176,9 +176,9 @@ The `is_subdomain` attribute is optional and the default behaviour is as describ
 
 ### Hidden components
 
-Hidden components have special flag enabled in internal component table.
-Alone, it doesn't change server behaviour in any way, but may be used by other modules and extensions to execute special logic.
-An example would be [`mod_disco`](../modules/mod_disco.md), which may be configured to filter out hidden component from disco results, so they won't be discoverable by clients.
+Hidden components have a special flag enabled in the internal component table.
+Alone, it doesn't change the server behaviour in any way, but it may be used by other modules and extensions to execute special logic.
+An example would be [`mod_disco`](../modules/mod_disco.md), which may be configured to filter out hidden components from disco results, so they won't be discoverable by clients.
 A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
-Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather they are not meant to interact with clients directly (e.g. helper components for other components).
+Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather because they are not meant to interact with clients directly (e.g. helper components for other components).
 

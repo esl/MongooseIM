@@ -96,7 +96,7 @@ update_tables_hidden_components(_C) ->
 
     ejabberd_router:update_tables(),
 
-    %% Local table is removed and distributed one has new list of attributes
+    %% Local table is removed and the distributed one has a new list of attributes
     false = lists:member(external_component, mnesia:system_info(tables)),
     [domain, handler, node, is_hidden] = mnesia:table_info(external_component_global, attributes).
 
@@ -106,7 +106,7 @@ update_tables_hidden_components_idempotent(_C) ->
 
     ejabberd_router:update_tables(),
 
-    %% Local table is not removed and attribute list of distributed one is not changed
+    %% Local table is not removed and the attribute list of the distributed one is not changed
     true = lists:member(external_component, mnesia:system_info(tables)),
     AttrsWithHidden = mnesia:table_info(external_component_global, attributes).
 

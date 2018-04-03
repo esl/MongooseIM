@@ -471,7 +471,7 @@ test_components_in_different_regions(_Config) ->
     GotMsg2 = escalus:wait_for_stanza(Comp1),
     escalus:assert(is_chat_message, [<<"Hi from 2!">>], GotMsg2).
 
-%% Ordinary user is not able to discover hidden component from GD
+%% Ordinary user is not able to discover the hidden component from GD
 test_hidden_component_disco_in_different_region(Config) ->
     %% Hidden component from component_SUITE connects to mim1/europe_node1
     HiddenComponentConfig = component_SUITE:spec(hidden_component, Config),

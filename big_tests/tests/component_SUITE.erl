@@ -264,7 +264,7 @@ disco_components(Config) ->
     disconnect_component(Comp1, Addr1),
     disconnect_component(Comp2, Addr2).
 
-%% Verifies that component connected to "hidden components" endpoint
+%% Verifies that a component connected to the "hidden components" endpoint
 %% is not discoverable.
 %% Assumes mod_disco with `{users_can_see_hidden_services, false}` option
 disco_with_hidden_component(Config) ->
