@@ -102,10 +102,15 @@ http_notification(Host, Method, URL, ReqHeaders, Payload) ->
     Pool = mongoose_http_client:get_pool(PoolName),
     case mongoose_http_client:Method(Pool, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
-            StatusCode = binary_to_integer(BinStatusCode),
-            case StatusCode >= 200 andalso StatusCode < 300 of
-                true -> ok;
-                false ->
+            case binary_to_integer(BinStatusCode) of
+                StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
+                    ok;
+                StatusCode when StatusCode >= 400 andalso StatusCode < 500  ->
+                    ?ERROR_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p."
+                               "Possible API mismatch - tried URL: ~p.",
+                               [StatusCode, Payload, URL]),
+                    {error, {invalid_status_code, StatusCode}};
+                StatusCode ->
                     ?WARNING_MSG("Unable to submit push notification. ErrorCode ~p, Payload ~p",
                                  [StatusCode, Body]),
                     {error, {invalid_status_code, StatusCode}}
