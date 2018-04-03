@@ -118,10 +118,6 @@ room_address(Room) ->
 room_address(Room, Nick) ->
     <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
 
-given_fresh_spec(Config, User) ->
-    NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
-    escalus_users:get_userspec(NewConfig, User).
-
 given_fresh_room(Config, UserSpec, RoomOpts) ->
     Username = proplists:get_value(username, UserSpec),
     RoomName = fresh_room_name(Username),

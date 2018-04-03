@@ -115,16 +115,12 @@ read_config(Pid) ->
     end.
 
 connect_carol(Pid) ->
-    Spec = given_fresh_spec(read_config(Pid), carol),
+    Spec = escalus_fresh:get_fresh_spec(read_config(Pid), carol),
     connect_user([{keepalive, true} | Spec]).
 
 connect_alice(Pid) ->
-    Spec = given_fresh_spec(read_config(Pid), alice),
+    Spec = escalus_fresh:get_fresh_spec(read_config(Pid), alice),
     connect_user(Spec).
-
-given_fresh_spec(Config, User) ->
-    NewConfig = escalus_fresh:create_users(Config, [{User, 1}]),
-    escalus_users:get_userspec(NewConfig, User).
 
 connect_user(Spec) ->
     Res = base64:encode(crypto:strong_rand_bytes(4)),
