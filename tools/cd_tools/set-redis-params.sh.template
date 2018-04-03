@@ -2,7 +2,7 @@
 
 # Purpose:
 # Changes connection string data for REDIS servers that share the same connection
-# string format in test.config in ejabberd_tests.
+# string format in test.config in big_tests.
 # This is template file - actual values are injected here using sed called from
 # external script. This is way to bypass sed's inability to expand variables
 # properly in this case. Alternative way would be to use awk or perl instead.

@@ -62,7 +62,7 @@ The header file can be found in `include/`.
 * `mod_muc_light.hrl`
   It contains definitions of MUC Light namespaces, default configuration options and several common data types and records.
 
-There are 2 test suites and one helper module in `test/ejabberd_tests/tests`.
+There are 2 test suites and one helper module in `big_tests/tests`.
 
 * `muc_light_SUITE.erl`
   Main test suite, checks all the most important functionalities of the MUC Light extension.
