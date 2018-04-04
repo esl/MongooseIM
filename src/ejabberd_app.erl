@@ -44,7 +44,7 @@ start(normal, _Args) ->
     write_pid_file(),
     db_init(),
     application:start(cache_tab),
-
+% trololololo
     translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
