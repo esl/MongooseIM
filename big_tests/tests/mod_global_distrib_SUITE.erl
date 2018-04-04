@@ -351,7 +351,7 @@ test_two_way_pm(Alice, Eve) ->
                    FromEve).
 
 test_muc_conversation_on_one_host(Config0) ->
-    AliceSpec = given_fresh_spec(Config0, alice),
+    AliceSpec = escalus_fresh:freshen_spec(Config0, alice),
     Config = muc_helper:given_fresh_room(Config0, AliceSpec, []),
     escalus:fresh_story(
       Config, [{eve, 1}],
