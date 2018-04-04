@@ -115,11 +115,11 @@ read_config(Pid) ->
     end.
 
 connect_carol(Pid) ->
-    Spec = escalus_fresh:get_fresh_spec(read_config(Pid), carol),
+    Spec = escalus_fresh:freshen_spec(read_config(Pid), carol),
     connect_user([{keepalive, true} | Spec]).
 
 connect_alice(Pid) ->
-    Spec = escalus_fresh:get_fresh_spec(read_config(Pid), alice),
+    Spec = escalus_fresh:freshen_spec(read_config(Pid), alice),
     connect_user(Spec).
 
 connect_user(Spec) ->
