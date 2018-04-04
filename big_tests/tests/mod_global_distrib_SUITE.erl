@@ -351,7 +351,7 @@ test_two_way_pm(Alice, Eve) ->
                    FromEve).
 
 test_muc_conversation_on_one_host(Config0) ->
-    AliceSpec = escalus_fresh:get_fresh_spec(Config0, alice),
+    AliceSpec = given_fresh_spec(Config0, alice),
     Config = muc_helper:given_fresh_room(Config0, AliceSpec, []),
     escalus:fresh_story(
       Config, [{eve, 1}],
@@ -382,7 +382,7 @@ test_muc_conversation_on_one_host(Config0) ->
     muc_helper:destroy_room(Config).
 
 test_muc_conversation_history(Config0) ->
-    AliceSpec = escalus_fresh:get_fresh_spec(Config0, alice),
+    AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
     Config = muc_helper:given_fresh_room(Config0, AliceSpec, []),
     escalus:fresh_story(
       Config, [{eve, 1}],
@@ -537,7 +537,7 @@ test_pm_with_disconnection_on_other_server(Config) ->
       end).
 
 test_pm_with_graceful_reconnection_to_different_server(Config) ->
-    EveSpec = escalus_fresh:get_fresh_spec(Config, eve),
+    EveSpec = escalus_fresh:freshen_spec(Config, eve),
     escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
     escalus:fresh_story(
       Config, [{alice, 1}],
@@ -570,7 +570,7 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
 
 test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
-    EveSpec = escalus_fresh:get_fresh_spec(Config, eve),
+    EveSpec = escalus_fresh:freshen_spec(Config, eve),
     escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
     escalus:fresh_story(
       Config, [{alice, 1}],
@@ -607,6 +607,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
       end),
     escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
+
 
 test_global_disco(Config) ->
     escalus:fresh_story(
