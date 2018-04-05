@@ -109,7 +109,6 @@ init_per_suite(Config) ->
     CwdTokens = string:tokens(Cwd0, "/"),
     Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
     TemplatePath = Cwd ++ "/roster.template",
-    start_mod_admin_extra(),
     AuthMods = auth_modules(),
     Node = mim(),
     Config1 = ejabberd_node_utils:init(Node, Config),
@@ -1064,10 +1063,6 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
     Secs1 = S rem 1000000,
     {MegaSecs1, Secs1, 0}.
 
-
-start_mod_admin_extra() ->
-    Domain = ct:get_config({hosts, mim, domain}),
-    {ok, _} = dynamic_modules:restart(Domain, mod_admin_extra, []).
 
 get_user_data(User, Config) when is_atom(User) ->
     get_user_data(escalus_users:get_options(Config, User, <<"newres">>), Config);
