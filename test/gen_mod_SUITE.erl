@@ -28,23 +28,33 @@
 all() ->
     [start_and_stop].
 
-init_per_suite(Config) ->
-    dynamic_modules:stop(host(a), mod_vcard),
-    dynamic_modules:stop(host(b), mod_vcard),
-    escalus:init_per_suite(Config).
+init_per_testcase(_, Config) ->
+    meck:new(ejabberd_config, [passthrough]),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_config, add_local_option, fun(_, _) -> {atomic, ok} end),
+    meck:expect(ejabberd_config, del_local_option, fun(_) -> {atomic, ok} end),
+    meck:new(a_module, [non_strict]),
+    meck:expect(a_module, start, fun(_, _) -> ok end),
+    meck:expect(a_module, stop, fun(_) -> ok end),
+    Config.
 
-end_per_suite(Config) ->
-    escalus:end_per_suite(Config).
+end_per_testcase(_, Config) ->
+    meck:unload(ejabberd_config),
+    meck:unload(a_module),
+    Config.
 
 start_and_stop(_Config) ->
-    {ok, _} = escalus_ejabberd:rpc(gen_mod, start_module, [host(a), mod_vcard, []]),
-    {ok, _} = escalus_ejabberd:rpc(gen_mod, start_module, [host(b), mod_vcard, []]),
-    {error, already_started} = escalus_ejabberd:rpc(gen_mod, start_module, [host(a), mod_vcard, []]),
-    {error, already_started} = escalus_ejabberd:rpc(gen_mod, start_module, [host(b), mod_vcard, []]),
-    ok = escalus_ejabberd:rpc(gen_mod, stop_module, [host(a), mod_vcard]),
-    ok = escalus_ejabberd:rpc(gen_mod, stop_module, [host(b), mod_vcard]),
-    {error, not_loaded} = escalus_ejabberd:rpc(gen_mod, stop_module, [host(a), mod_vcard]),
-    {error, not_loaded} = escalus_ejabberd:rpc(gen_mod, stop_module, [host(b), mod_vcard]),
+    gen_mod:start(),
+    gen_mod:stop_module(host(a), a_module),
+    gen_mod:stop_module(host(b), a_module),
+    {ok, _} = gen_mod:start_module(host(a), a_module, []),
+    {ok, _} = gen_mod:start_module(host(b), a_module, []),
+    {error, already_started} = gen_mod:start_module(host(a), a_module, []),
+    {error, already_started} = gen_mod:start_module(host(b), a_module, []),
+    ok = gen_mod:stop_module(host(a), a_module),
+    ok = gen_mod:stop_module(host(b), a_module),
+    {error, not_loaded} = gen_mod:stop_module(host(a), a_module),
+    {error, not_loaded} = gen_mod:stop_module(host(b), a_module),
     ok.
 
 host(a) ->
