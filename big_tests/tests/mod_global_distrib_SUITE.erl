@@ -571,7 +571,8 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
 test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
     EveSpec = escalus_fresh:create_fresh_user(Config, eve),
-    escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    EveSpec2 = lists:keystore(port, 1, EveSpec, {port, 5222}),
+    escalus:create_users(Config, [{eve, EveSpec2}]),
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
@@ -587,7 +588,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
-              NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
+              NewEve = connect_from_spec(EveSpec2, Config),
               ct:sleep(timer:seconds(1)), % without it, on very slow systems (e.g. travis),
                                           % global_distrib correctly routes "hi again from eu"
                                           % message to local host, but it's rejected by some
