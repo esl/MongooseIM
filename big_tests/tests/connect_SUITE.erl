@@ -227,7 +227,7 @@ should_pass_with_tlsv1(Config) ->
     should_pass_with_tls('tlsv1.2', Config).
 
 should_pass_with_tls(Version, Config)->
-    UserSpec0 = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     UserSpec1 = set_secure_connection_protocol(UserSpec0, Version),
 
     %% WHEN
@@ -419,7 +419,7 @@ tls_compression_authenticate_fail(Config) ->
 
 tls_authenticate_compression(Config) ->
     %% Given
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, maybe_use_compression],
     %% when
     {ok, Conn, _} = escalus_connection:start(UserSpec, ConnectionSteps),
@@ -429,7 +429,7 @@ tls_authenticate_compression(Config) ->
 
 tls_authenticate(Config) ->
     %% Given
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate],
     %% when
     {ok, Conn, _} = escalus_connection:start(UserSpec, ConnetctionSteps),
@@ -457,7 +457,7 @@ tls_compression_fail(Config) ->
 
 auth_compression_bind_session(Config) ->
     %% Given
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, maybe_use_compression, bind, session],
     %% when
@@ -467,7 +467,7 @@ auth_compression_bind_session(Config) ->
 
 auth_bind_compression_session(Config) ->
     %% Given
-    UserSpec = escalus_fresh:freshen_spec(Config, ?SECURE_USER),
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
     ConnetctionSteps = [start_stream, stream_features, maybe_use_ssl,
         authenticate, bind, maybe_use_compression, session],
     %% when
@@ -477,7 +477,7 @@ auth_bind_compression_session(Config) ->
 
 auth_bind_pipelined_session(Config) ->
     UserSpec = [{ssl, true}, {parser_opts, [{start_tag, <<"stream:stream">>}]}
-                | escalus_fresh:freshen_spec(Config, alice)],
+                | escalus_fresh:create_fresh_user(Config, alice)],
 
     Username = proplists:get_value(username, UserSpec),
     Conn = pipeline_connect(UserSpec),
@@ -534,7 +534,7 @@ auth_bind_pipelined_starttls_skipped_error(Config) ->
                    AuthResponse).
 
 bind_server_generated_resource(Config) ->
-    UserSpec = [{resource, <<>>} | escalus_fresh:freshen_spec(Config, ?SECURE_USER)],
+    UserSpec = [{resource, <<>>} | escalus_fresh:create_fresh_user(Config, ?SECURE_USER)],
     ConnectionSteps = [start_stream, stream_features, maybe_use_ssl, authenticate, bind],
     {ok, #client{props = NewSpec}, _} = escalus_connection:start(UserSpec, ConnectionSteps),
     {resource, Resource} = lists:keyfind(resource, 1, NewSpec),
