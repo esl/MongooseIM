@@ -128,10 +128,10 @@ verify_deps(_) ->
     mongoose_service:check_deps(service_f),
     mongoose_service:check_deps(service_g),
     mongoose_service:check_deps(service_g),
-    ?assertException(error, circular_deps_detected, mongoose_service:check_deps(service_i)),
+    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_i)),
     mongoose_service:check_deps(service_j),
-    ?assertException(error, circular_deps_detected, mongoose_service:check_deps(service_k)),
-    ?assertException(error, circular_deps_detected, mongoose_service:check_deps(service_l)),
+    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_k)),
+    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_l)),
     ok.
 
 start_deps(_) ->

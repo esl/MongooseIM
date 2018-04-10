@@ -170,7 +170,7 @@ check_deps(Service) ->
 check_deps(Service, Stack) ->
     case lists:member(Service, Stack) of
         true ->
-            error(circular_deps_detected);
+            error({circular_deps_detected, Service});
         false ->
             lists:foreach(fun(Serv) -> check_deps(Serv, [Service | Stack]) end,
                           get_deps(Service))
