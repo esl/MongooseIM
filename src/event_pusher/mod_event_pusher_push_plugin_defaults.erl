@@ -19,6 +19,9 @@
 
 %% Callback API
 -export([should_publish/3, sender_id/2]).
+-export([publish_notification/5]).
+
+-define(PUSH_FORM_TYPE, <<"urn:xmpp:push:summary">>).
 
 %%--------------------------------------------------------------------
 %% Callbacks
@@ -55,3 +58,66 @@ sender_id(From, Packet) ->
         <<"groupchat">> ->
             jid:to_binary(jid:to_lower(From))
     end.
+
+-spec publish_notification(Acc :: mongooseim_acc:t(), From :: jid:jid(),
+                           To :: jid:jid(), Packet :: exml:element(),
+                           Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
+publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
+    BareRecipient = jid:to_bare(To),
+    lists:foreach(
+      fun({PubsubJID, Node, Form}) ->
+              Stanza = push_notification_iq(From, Packet, Node, Form),
+              Acc = mongoose_acc:from_element(Stanza, To, PubsubJID),
+              ResponseHandler =
+                  fun(Response) ->
+                          mod_event_pusher_push:cast(Host, handle_publish_response,
+                                                     [BareRecipient, PubsubJID, Node, Response])
+                  end,
+              mod_event_pusher_push:cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Acc, Stanza, ResponseHandler])
+      end, Services),
+    Acc0.
+
+
+-spec push_notification_iq(From :: jid:jid(),
+                           Packet :: exml:element(), Node :: mod_event_pusher_push:pubsub_node(),
+                           Form :: mod_event_pusher_push:form()) -> jlib:iq().
+push_notification_iq(From, Packet, Node, Form) ->
+    ContentFields =
+        [
+         {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
+         {<<"message-count">>, <<"1">>},
+         {<<"last-message-sender">>, sender_id(From, Packet)},
+         {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
+        ],
+
+    #iq{type = set, sub_el = [
+        #xmlel{name = <<"pubsub">>, attrs = [{<<"xmlns">>, ?NS_PUBSUB}], children = [
+            #xmlel{name = <<"publish">>, attrs = [{<<"node">>, Node}], children = [
+                #xmlel{name = <<"item">>, children = [
+                    #xmlel{name = <<"notification">>,
+                           attrs = [{<<"xmlns">>, ?NS_PUSH}], children = [make_form(ContentFields)]}
+                ]}
+            ]}
+        ] ++ maybe_publish_options(Form)}
+    ]}.
+
+-spec maybe_publish_options(mod_event_pusher_push:form()) -> [exml:element()].
+maybe_publish_options([]) ->
+    [];
+maybe_publish_options(FormFields) ->
+    [#xmlel{name = <<"publish-options">>,
+            children = [
+                        make_form([{<<"FORM_TYPE">>, ?NS_PUBSUB_PUB_OPTIONS}] ++ FormFields)
+                       ]}].
+
+-spec make_form(mod_event_pusher_push:form()) -> exml:element().
+make_form(Fields) ->
+    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
+           children = [make_form_field(Field) || Field <- Fields]}.
+
+-spec make_form_field(mod_event_pusher_push:form_field()) -> exml:element().
+make_form_field({Name, Value}) ->
+    #xmlel{name = <<"field">>,
+           attrs = [{<<"var">>, Name}],
+           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
+

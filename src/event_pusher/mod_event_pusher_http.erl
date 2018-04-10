@@ -17,7 +17,7 @@
 -include("jlib.hrl").
 
 %% API
--export([start/2, stop/1, push_event/2]).
+-export([start/2, stop/1, push_event/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -36,7 +36,7 @@ start(Host, _Opts) ->
 stop(_Host) ->
     ok.
 
-push_event(_, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
+push_event(Acc, _, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
     Mod = get_callback_module(From#jid.lserver),
     case Mod:should_make_req(Packet, From, To) of
@@ -44,9 +44,10 @@ push_event(_, #chat_event{direction = in, from = From, to = To, packet = Packet}
             make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
         _ ->
             ok
-    end;
-push_event(_, _Event) ->
-    ok.
+    end,
+    Acc;
+push_event(Acc, _, _Event) ->
+    Acc.
 
 %%%===================================================================
 %%% Internal functions

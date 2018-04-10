@@ -28,7 +28,7 @@
 %% Callbacks
 %%--------------------------------------------------------------------
 
--callback push_event(Host :: jid:lserver(), Event :: event()) -> any().
+-callback push_event(Acc :: mongoose_acc:t(), Host :: jid:lserver(), Event :: event()) -> any().
 
 %%--------------------------------------------------------------------
 %% API
@@ -37,7 +37,7 @@
 %% @doc Pushes the event to each backend registered with the event_pusher.
 -spec push_event(mongoose_acc:t(), Host :: jid:server(), Event :: event()) -> mongoose_acc:t().
 push_event(Acc, Host, Event) ->
-    [B:push_event(Host, Event) || B <- ets:lookup_element(ets_name(Host), backends, 2)],
+    [B:push_event(Acc, Host, Event) || B <- ets:lookup_element(ets_name(Host), backends, 2)],
     Acc.
 
 %%--------------------------------------------------------------------

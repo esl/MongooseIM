@@ -146,17 +146,20 @@ send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
     Sender = #jid{lserver = Host} = ?config(sender, Config),
     Recipient = ?config(recipient, Config),
-    mod_event_pusher_sns:push_event(Host, #chat_event{type = chat, direction = in,
-                                                      from = Sender, to = Recipient,
-                                                      packet = Packet}).
+    mod_event_pusher_sns:push_event(mongoose_acc:new(), Host,
+                                    #chat_event{type = chat, direction = in,
+                                                from = Sender, to = Recipient,
+                                                packet = Packet}).
 
 user_present_callback(Config) ->
     Jid = #jid{lserver = Host} = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(Host, #user_status_event{jid = Jid, status = online}).
+    mod_event_pusher_sns:push_event(mongoose_acc:new(), Host,
+                                    #user_status_event{jid = Jid, status = online}).
 
 user_not_present_callback(Config) ->
     Jid = #jid{lserver = Host} = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(Host, #user_status_event{jid = Jid, status = offline}).
+    mod_event_pusher_sns:push_event(mongoose_acc:new(), Host,
+                                    #user_status_event{jid = Jid, status = offline}).
 
 %% Helpers
 

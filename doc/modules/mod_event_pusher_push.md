@@ -29,11 +29,16 @@ callback returns `true`.
 -spec should_publish(From :: ejabberd:jid(), To :: ejabberd:jid(), Packet :: jlib:xmlel()) -> boolean().
 ```
 
-* `sender_id/2` - allows modifying `last-message-sender` field, which ultimately becomes a `title` of the delivered push notification.
+* `publish_notification/5` - does the actual push.
+  By default it pushes to the registered pubsub nodes.
 
 ```
--spec sender_id(From :: ejabberd:jid(), Packet :: jlib:xmlel()) -> SenderId :: binary().
+-spec publish_notification(Acc :: mongooseim_acc:t(), From :: jid:jid(),
+                           To :: jid:jid(), Packet :: exml:element(),
+                           Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
 ```
+
+
 
 ### Example configuration
 

@@ -35,7 +35,7 @@
 -export([start/2, stop/1]).
 
 %% API
--export([try_publish/5, push_event/2]).
+-export([try_publish/5, push_event/3]).
 
 %% Types
 -export_type([user_guid/0, topic_arn/0, topic/0, attributes/0]).
@@ -66,12 +66,14 @@ stop(Host) ->
     wpool:stop(pool_name(Host)),
     ok.
 
-push_event(_, #user_status_event{jid = UserJID, status = Status}) ->
-    user_presence_changed(UserJID, Status == online);
-push_event(_, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
-    handle_packet(From, To, Packet);
-push_event(_, _) ->
-    ok.
+push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
+    user_presence_changed(UserJID, Status == online),
+    Acc;
+push_event(Acc, _, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
+    handle_packet(From, To, Packet),
+    Acc;
+push_event(Acc, _, _) ->
+    Acc.
 
 %%%===================================================================
 %%% Internal functions

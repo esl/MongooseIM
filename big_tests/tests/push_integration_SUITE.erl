@@ -18,10 +18,11 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_SUITE, [
+-import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
     disable_stanza/1, disable_stanza/2,
-    make_form/1, maybe_form/2
+    make_form/1, maybe_form/2,
+    wait_for/2, become_unavailable/1
 ]).
 
 %%--------------------------------------------------------------------
@@ -419,39 +420,8 @@ room_name(Config) ->
     CaseName = proplists:get_value(case_name, Config),
     <<"room_", (atom_to_binary(CaseName, utf8))/binary>>.
 
-is_offline(LUser, LServer) ->
-    case catch lists:max(rpc(ejabberd_sm, get_user_present_pids, [LUser, LServer])) of
-        {Priority, _} when is_integer(Priority), Priority >= 0 ->
-            false;
-        _ ->
-            true
-    end.
-
 gen_token() ->
     integer_to_binary(binary:decode_unsigned(crypto:strong_rand_bytes(16)), 24).
-
-become_unavailable(Client) ->
-    escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    true = wait_for(timer:seconds(20), fun() ->
-        is_offline(escalus_utils:jid_to_lower(escalus_client:username(Client)),
-                   escalus_utils:jid_to_lower(escalus_client:server(Client)))
-    end). %% There is no ACK for unavailable status
-
-wait_for(TimeLeft, Fun) when TimeLeft < 0 ->
-    Fun();
-wait_for(TimeLeft, Fun) ->
-    Step = 500,
-    try
-        case Fun() of
-            ok -> ok;
-            true -> true;
-            {ok, _} = R -> R
-        end
-    catch
-        _:_ ->
-            timer:sleep(Step),
-            wait_for(TimeLeft - Step, Fun)
-    end.
 
 lower(Bin) when is_binary(Bin) ->
     list_to_binary(string:to_lower(binary_to_list(Bin))).
