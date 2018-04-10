@@ -394,6 +394,7 @@ init([]) ->
     mnesia:create_table(external_component,
                         [{attributes, record_info(fields, external_component)},
                          {local_content, true}]),
+    mnesia:add_table_copy(external_component, node(), ram_copies),
     mnesia:create_table(external_component_global,
                         [{attributes, record_info(fields, external_component)},
                          {type, bag},
