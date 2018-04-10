@@ -13,9 +13,9 @@ all() ->
     [
         starts_service,
         ensure,
-        verify_requirements,
-        start_requirements,
-        module_requirements
+        verify_deps,
+        start_deps,
+        module_deps
     ].
 
 services() -> [service_a, service_b, service_c, service_d, service_e, service_f, service_g,
@@ -38,7 +38,7 @@ dep_services() -> [service_c, service_d, service_e, service_f, service_g, servic
 %%       \   |
 %%        l--
 
-service_requirements() ->
+service_deps() ->
     [
         {service_c, [service_d, service_e]},
         {service_d, [service_f, service_g]},
@@ -50,13 +50,13 @@ service_requirements() ->
         {service_l, [service_k]}
     ].
 
-init_per_testcase(module_requirements, C) ->
+init_per_testcase(module_deps, C) ->
     init_per_testcase(generic, C),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> ok end),
     gen_mod:start(),
     meck:new(module_a, [non_strict]),
-    meck:expect(module_a, requires, fun(_, _) -> [service_d, service_h] end),
+    meck:expect(module_a, deps, fun(_, _) -> [{service, service_d}, {service, service_h}] end),
     meck:expect(module_a, start, fun(_, _) -> ok end),
     meck:expect(module_a, stop, fun(_) -> ok end),
     C;
@@ -74,12 +74,12 @@ init_per_testcase(_, C) ->
     meck:expect(ejabberd_config, get_local_option_or_default,
                 fun(services, _) -> [{Serv, []} || Serv <- services()] end),
     lists:map(fun(Serv) ->
-                  meck:expect(Serv, requires, fun() -> proplists:get_value(Serv, service_requirements()) end)
+                  meck:expect(Serv, deps, fun() -> proplists:get_value(Serv, service_deps()) end)
               end,
-              proplists:get_keys(service_requirements())),
+              proplists:get_keys(service_deps())),
     C.
 
-end_per_testcase(module_requirements, C) ->
+end_per_testcase(module_deps, C) ->
     meck:unload(module_a),
     end_per_testcase(generic, C);
 end_per_testcase(_, C) ->
@@ -121,20 +121,20 @@ ensure(_C) ->
     ?assertEqual(0, read(service_a)),
     ok.
 
-verify_requirements(_) ->
-    mongoose_service:check_required(service_c),
-    mongoose_service:check_required(service_d),
-    mongoose_service:check_required(service_e),
-    mongoose_service:check_required(service_f),
-    mongoose_service:check_required(service_g),
-    mongoose_service:check_required(service_g),
-    ?assertException(error, circular_requirements_detected, mongoose_service:check_required(service_i)),
-    mongoose_service:check_required(service_j),
-    ?assertException(error, circular_requirements_detected, mongoose_service:check_required(service_k)),
-    ?assertException(error, circular_requirements_detected, mongoose_service:check_required(service_l)),
+verify_deps(_) ->
+    mongoose_service:check_deps(service_c),
+    mongoose_service:check_deps(service_d),
+    mongoose_service:check_deps(service_e),
+    mongoose_service:check_deps(service_f),
+    mongoose_service:check_deps(service_g),
+    mongoose_service:check_deps(service_g),
+    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_i)),
+    mongoose_service:check_deps(service_j),
+    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_k)),
+    ?assertException(error, {circular_deps_detected, _}, mongoose_service:check_deps(service_l)),
     ok.
 
-start_requirements(_) ->
+start_deps(_) ->
     assert_loaded([]),
     mongoose_service:ensure_loaded(service_f),
     assert_loaded([service_f]),
@@ -150,14 +150,12 @@ start_requirements(_) ->
     assert_loaded(dep_services()),
     ok.
 
-module_requirements(_) ->
+module_deps(_) ->
     assert_loaded([]),
+    ?assertError({service_not_loaded, _}, gen_mod:start_module(<<"localhost">>, module_a, [])),
+    mongoose_service:ensure_loaded(service_c),
     gen_mod:start_module(<<"localhost">>, module_a, []),
     ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
-    assert_loaded([service_d, service_f, service_g, service_h]),
-    gen_mod:stop_module(<<"localhost">>, module_a),
-    ?assert(not gen_mod:is_loaded(<<"localhost">>, module_a)),
-    assert_loaded([service_d, service_f, service_g, service_h]),
     ok.
 
 
@@ -188,7 +186,7 @@ read(S) ->
     end.
 
 assert_loaded(Loaded) ->
-    R = [{S, mongoose_service:is_loaded(S)} || S <- services()],
+    _ = [{S, mongoose_service:is_loaded(S)} || S <- services()],
     NotLoaded = sets:to_list(
                     sets:subtract(
                         sets:from_list(dep_services()),
