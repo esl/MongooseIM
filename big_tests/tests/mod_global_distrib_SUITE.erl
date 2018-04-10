@@ -606,8 +606,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
-      end),
-    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
+      end).
 
 
 test_global_disco(Config) ->
