@@ -1069,7 +1069,7 @@ restart_receiver(NodeName, NewEndpoints) ->
     OldOpts = rpc(NodeName, gen_mod, get_module_opts,
                   [<<"localhost">>, mod_global_distrib_receiver]),
     NewOpts = lists:keyreplace(endpoints, 1, OldOpts, {endpoints, NewEndpoints}),
-    ok = rpc(NodeName, gen_mod, reload_module,
+    {ok, _} = rpc(NodeName, gen_mod, reload_module,
              [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
 
 refresh_mappings(NodeName, Config) ->

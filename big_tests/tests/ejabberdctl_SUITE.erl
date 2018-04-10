@@ -1067,7 +1067,7 @@ fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
 
 start_mod_admin_extra() ->
     Domain = ct:get_config({hosts, mim, domain}),
-    ok = dynamic_modules:restart(Domain, mod_admin_extra, []).
+    {ok, _} = dynamic_modules:restart(Domain, mod_admin_extra, []).
 
 get_user_data(User, Config) when is_atom(User) ->
     get_user_data(escalus_users:get_options(Config, User, <<"newres">>), Config);
