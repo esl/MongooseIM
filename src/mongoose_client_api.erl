@@ -58,8 +58,7 @@ bad_request(Req, State) ->
     reply(400, Req, State).
 
 forbidden_request(Req, State) ->
-    cowboy_req:reply(403, Req),
-    {halt, Req, State}.
+    reply(403, Req, State).
 
 reply(StatusCode, Req, State) ->
     cowboy_req:reply(StatusCode, Req),
