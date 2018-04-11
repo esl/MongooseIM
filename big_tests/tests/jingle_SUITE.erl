@@ -34,18 +34,23 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:ensure_all_started(esip),
-    spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
-                   ets:new(jingle_sip_translator_bindings, [public, named_table]),
-                   receive stop -> ok end end),
-    Port = 12345,
-    esip:add_listener(12345, tcp, []),
-    Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:start(Host, mod_jingle_sip, [{proxy_host, "localhost"},
-                                                 {proxy_port, Port},
-                                                 {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
-    esip:set_config_value(module, jingle_sip_translator),
-    escalus:init_per_suite(Config).
+    try
+        Port = 12345,
+        Host = ct:get_config({hosts, mim, domain}),
+        dynamic_modules:start(Host, mod_jingle_sip, [{proxy_host, "localhost"},
+                                                     {proxy_port, Port},
+                                                     {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
+        application:ensure_all_started(esip),
+        spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
+                       ets:new(jingle_sip_translator_bindings, [public, named_table]),
+                       receive stop -> ok end end),
+        esip:add_listener(12345, tcp, []),
+        esip:set_config_value(module, jingle_sip_translator),
+        escalus:init_per_suite(Config)
+    catch Error:Reason ->
+              ct:pal("error: ~p, reason: ~p", [Error, Reason]),
+              {skip, not_able_to_start_mod_jingle_sip}
+    end.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
