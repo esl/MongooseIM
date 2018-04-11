@@ -47,7 +47,8 @@ stop() ->
 -spec 'register'(Host :: jid:server(), SubHost :: jid:server()) ->
     ok | {error, exists}.
 register(Host, SubHost) ->
-    ejabberd_hooks:run(register_subhost, [SubHost]),
+    % Hidden subhosts are not supported yet
+    ejabberd_hooks:run(register_subhost, [SubHost, false]),
     case ets:insert_new(?TAB, #subhost_mapping{ subhost = SubHost, host = Host }) of
         true -> ok;
         false -> {error, exists}

@@ -27,10 +27,10 @@
 -define(JID_TAB, mod_global_distrib_jid_cache_tab).
 
 -export([start/2, stop/1, deps/2]).
--export([for_domain/1, insert_for_domain/1, insert_for_domain/2,
-         delete_for_domain/1, all_domains/0]).
--export([for_jid/1, insert_for_jid/1, insert_for_jid/2, delete_for_jid/1, clear_cache/1]).
--export([register_subhost/2, unregister_subhost/2, packet_to_component/3,
+-export([for_domain/1, insert_for_domain/1, insert_for_domain/2, insert_for_domain/3,
+         cache_domain/2, delete_for_domain/1, all_domains/0, public_domains/0]).
+-export([for_jid/1, insert_for_jid/1, cache_jid/2, delete_for_jid/1, clear_cache/1]).
+-export([register_subhost/3, unregister_subhost/2, packet_to_component/3,
          session_opened/4, session_closed/5]).
 -export([endpoints/1, hosts/0]).
 
@@ -45,10 +45,11 @@
 -callback put_session(JID :: binary()) -> ok | error.
 -callback get_session(JID :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_session(JID :: binary()) -> ok | error.
--callback put_domain(Domain :: binary()) -> ok | error.
+-callback put_domain(Domain :: binary(), IsHidden :: boolean()) -> ok | error.
 -callback get_domain(Domain :: binary()) -> {ok, Host :: binary()} | error.
 -callback delete_domain(Domain :: binary()) -> ok | error.
 -callback get_domains() -> {ok, [Domain :: binary()]} | error.
+-callback get_public_domains() -> {ok, [Domain :: binary()]} | error.
 -callback get_endpoints(Host :: binary()) -> {ok, [endpoint()]}.
 -callback get_hosts() -> [Host :: jid:lserver()].
 
@@ -65,11 +66,19 @@ for_domain(Domain) when is_binary(Domain) ->
 
 -spec insert_for_domain(Domain :: binary()) -> ok.
 insert_for_domain(Domain) when is_binary(Domain) ->
-    LocalHost = opt(local_host),
-    do_insert_for_domain(Domain, LocalHost, fun put_domain/1).
+    insert_for_domain(Domain, false).
 
--spec insert_for_domain(Domain :: binary(), Host :: binary()) -> ok.
-insert_for_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
+-spec insert_for_domain(Domain :: binary(), IsHidden :: boolean()) -> ok.
+insert_for_domain(Domain, IsHidden) when is_binary(Domain) ->
+    LocalHost = opt(local_host),
+    insert_for_domain(Domain, LocalHost, IsHidden).
+
+-spec insert_for_domain(Domain :: binary(), Host :: binary(), IsHidden :: boolean()) -> ok.
+insert_for_domain(Domain, Host, IsHidden) when is_binary(Domain), is_binary(Host) ->
+    do_insert_for_domain(Domain, Host, fun(ToStore) -> put_domain(ToStore, IsHidden) end).
+
+-spec cache_domain(Domain :: binary(), Host :: binary()) -> ok.
+cache_domain(Domain, Host) when is_binary(Domain), is_binary(Host) ->
     do_insert_for_domain(Domain, Host, fun(_) -> ok end).
 
 -spec delete_for_domain(Domain :: binary()) -> ok.
@@ -90,8 +99,8 @@ insert_for_jid(Jid) ->
     LocalHost = opt(local_host),
     do_insert_for_jid(Jid, LocalHost, fun put_session/1).
 
--spec insert_for_jid(jid:jid() | jid:ljid(), Host :: jid:lserver()) -> ok.
-insert_for_jid(Jid, Host) when is_binary(Host) ->
+-spec cache_jid(jid:jid() | jid:ljid(), Host :: jid:lserver()) -> ok.
+cache_jid(Jid, Host) when is_binary(Host) ->
     do_insert_for_jid(Jid, Host, fun(_) -> ok end).
 
 -spec clear_cache(jid:jid()) -> ok.
@@ -117,6 +126,10 @@ delete_for_jid({_, _, _} = Jid) ->
 -spec all_domains() -> {ok, [jid:lserver()]}.
 all_domains() ->
     mod_global_distrib_mapping_backend:get_domains().
+
+-spec public_domains() -> {ok, [jid:lserver()]}.
+public_domains() ->
+    mod_global_distrib_mapping_backend:get_public_domains().
 
 -spec endpoints(Host :: jid:lserver()) -> {ok, [endpoint()]}.
 endpoints(Host) ->
@@ -172,8 +185,8 @@ packet_to_component(Acc, From, _To) ->
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
     Acc.
 
--spec register_subhost(any(), SubHost :: binary()) -> ok.
-register_subhost(_, SubHost) ->
+-spec register_subhost(any(), SubHost :: binary(), IsHidden :: boolean()) -> ok.
+register_subhost(_, SubHost, IsHidden) ->
     IsSubhostOf =
         fun(Host) ->
                 case binary:match(SubHost, Host) of
@@ -184,7 +197,7 @@ register_subhost(_, SubHost) ->
 
     GlobalHost = opt(global_host),
     case lists:filter(IsSubhostOf, ?MYHOSTS) of
-        [GlobalHost] -> insert_for_domain(SubHost);
+        [GlobalHost] -> insert_for_domain(SubHost, IsHidden);
         _ -> ok
     end.
 
@@ -270,9 +283,9 @@ get_domain(Key) ->
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_MAPPING_CACHE_MISSES, 1),
     mod_global_distrib_mapping_backend:get_domain(Key).
 
--spec put_domain(Key :: binary()) -> ok.
-put_domain(Key) ->
-    mod_global_distrib_mapping_backend:put_domain(Key).
+-spec put_domain(Key :: binary(), IsHidden :: boolean()) -> ok.
+put_domain(Key, IsHidden) ->
+    mod_global_distrib_mapping_backend:put_domain(Key, IsHidden).
 
 -spec delete_domain(Key :: binary()) -> ok.
 delete_domain(Key) ->

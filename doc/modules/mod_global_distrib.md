@@ -28,8 +28,9 @@ Following structures are stored in Redis:
 
 * JID mappings are stored as normal key-value entries, where user's JID (full and bare) is the key, and the value is the local hostname where the user is logged in.
 Example: `"user1@example.com/res" -> "dc2.example.com"`.
-* Domains of components registered on the globally distributed host are stored in per-node set structures where the key is `<local_host>#<node_name>#{domains}`, and the values are the domain names.
+* Domains of components and services registered on the globally distributed host are stored in per-node set structures where the key is `<local_host>#<node_name>#{domains}`, and the values are the domain names.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{domains}" -> {"muc1.example.com", "muc2.example.com"}`.
+* Domains of non-hidden components and services (see [`ejabberd_service`](../advanced-configuration/Listener-modules.md#xmpp-components-ejabberd_service) documentation) are stored in per-node set structures where the key is `<local_host>#<node_name>#{public_domains}`, and the values are the domain names.
 * Declared endpoints available on a node are similarly stored in a per-node set structure where the key is `<local_host>#<node_name>#{endpoints}` and the values represent the TCP endpoints of the node.
 Example: `"dc1.example.com#mongoose1@dc1.example.com#{endpoints}" -> {"172.16.2.14#8231", "2001:0db8:85a3:0000:0000:8a2e:0370:7334#8882"}`.
 * Nodes that comprise a host are stored in a set structure with key `<local_host>#{nodes}` and values being the names of the nodes.
@@ -154,6 +155,10 @@ Global distribution modules expose several per-datacenter metrics that can be us
 
 * **resend_after_ms** (integer, default: `200`): Time after which message will be resent in case of delivery error.
 * **max_retries** (integer, default: `4`): Number of times message delivery will be retried in case of errors.
+
+#### Global Distribution and Service Discovery
+
+`mod_global_distrib` extension relies on [`mod_disco`](mod_disco.md)'s option `users_can_see_hidden_services`, when provided. If it is not configured, the default value is `true`. `mod_disco` does not have to be enabled for `mod_global_distrib` to work, as this parameter is used only for processing Disco requests by Global Distribution.
 
 ### Overriding remote datacenter endpoints
 

@@ -63,6 +63,7 @@
                 password     :: binary(),
                 host         :: binary() | undefined,
                 is_subdomain :: boolean(),
+                hidden_components = false :: boolean(),
                 access,
                 check_from
               }).
@@ -162,6 +163,7 @@ init([{SockMod, Socket}, Opts]) ->
              end,
     SockMod:change_shaper(Socket, Shaper),
     SocketMonitor = SockMod:monitor(Socket),
+    HiddenComponents = proplists:get_value(hidden_components, Opts, false),
     {ok, wait_for_stream, #state{socket = Socket,
                                  sockmod = SockMod,
                                  socket_monitor = SocketMonitor,
@@ -169,7 +171,8 @@ init([{SockMod, Socket}, Opts]) ->
                                  password = Password,
                                  access = Access,
                                  check_from = CheckFrom,
-                                 is_subdomain = false
+                                 is_subdomain = false,
+                                 hidden_components = HiddenComponents
                                  }}.
 
 %%----------------------------------------------------------------------
@@ -435,12 +438,14 @@ fsm_limit_opts(Opts) ->
     end.
 
 -spec register_routes(state()) -> any().
-register_routes(#state{host=Subdomain, is_subdomain=true}) ->
+register_routes(#state{host = Subdomain, is_subdomain = true, hidden_components = AreHidden}) ->
     Hosts = ejabberd_config:get_global_option(hosts),
     Routes = component_routes(Subdomain, Hosts),
-    ejabberd_router:register_components(Routes, mongoose_packet_handler:new(?MODULE, self()));
-register_routes(#state{host=Host}) ->
-    ejabberd_router:register_component(Host, mongoose_packet_handler:new(?MODULE, self())).
+    ejabberd_router:register_components(Routes, node(),
+                                        mongoose_packet_handler:new(?MODULE, self()), AreHidden);
+register_routes(#state{host = Host, hidden_components = IsHidden}) ->
+    ejabberd_router:register_component(Host, node(),
+                                       mongoose_packet_handler:new(?MODULE, self()), IsHidden).
 
 -spec unregister_routes(state()) -> any().
 unregister_routes(#state{host=Subdomain, is_subdomain=true}) ->
