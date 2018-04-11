@@ -239,9 +239,7 @@ groups() -> [
                 %% fails, see testcase
                 configure_anonymous,
                 cancel_iq_sent_to_locked_room_destroys_it,
-                cancel_iq_sent_to_unlocked_room_is_unexpected,
-                reserved_room_cant_be_created_before_form_is_fetched,
-                room_cant_be_reconfigured_before_form_is_fetched
+                cancel_iq_sent_to_unlocked_room_has_no_effect
                 ]},
         {owner_no_parallel, [], [
                                  room_creation_not_allowed
@@ -3456,7 +3454,7 @@ cancel_iq_sent_to_locked_room_destroys_it(Config) ->
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
     end).
 
-cancel_iq_sent_to_unlocked_room_is_unexpected(Config) ->
+cancel_iq_sent_to_unlocked_room_has_no_effect(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Room = fresh_room_name(),
         Nick = <<"the-owner">>,
@@ -3473,48 +3471,7 @@ cancel_iq_sent_to_unlocked_room_is_unexpected(Config) ->
         has_room(room_address(Room), RoomsIqResp),
 
         CancelIqResp = escalus:send_and_wait(Alice, stanza_cancel(Room)),
-        escalus:assert(is_iq_error, CancelIqResp),
-        escalus:assert(is_error, [<<"modify">>, <<"unexpected-request">>], CancelIqResp)
-    end).
-
-reserved_room_cant_be_created_before_form_is_fetched(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Room = fresh_room_name(),
-        Nick = <<"the-owner">>,
-
-        PresenceResp = escalus:send_and_wait(Alice, stanza_muc_enter_room(Room, Nick)),
-        escalus:wait_for_stanza(Alice),
-        ?assert(is_presence_with_affiliation(PresenceResp, <<"owner">>)),
-        ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
-
-        FormIq = stanza_configuration_form(
-                     Room, [{<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
-        FormIqResp = escalus:send_and_wait(Alice, FormIq),
-        escalus:assert(is_iq_error, FormIqResp),
-        escalus:assert(is_error, [<<"modify">>, <<"unexpected-request">>], FormIqResp)
-    end).
-
-room_cant_be_reconfigured_before_form_is_fetched(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Room = fresh_room_name(),
-        Nick = <<"the-owner">>,
-
-        PresenceResp = escalus:send_and_wait(Alice, stanza_muc_enter_room(Room, Nick)),
-        escalus:wait_for_stanza(Alice),
-        ?assert(is_presence_with_affiliation(PresenceResp, <<"owner">>)),
-        ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
-
-        InstantRoomIq = stanza_instant_room(Room),
-        InstantRoomIqResp = escalus:send_and_wait(Alice, InstantRoomIq),
-        escalus:assert(is_iq_result, [InstantRoomIq], InstantRoomIqResp),
-        RoomsIqResp = escalus:send_and_wait(Alice, stanza_room_list_request(<<"id">>, undefined)),
-        has_room(RoomsIqResp, room_address(Room)),
-
-        FormIq = stanza_configuration_form(
-                     Room, [{<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
-        FormIqResp = escalus:send_and_wait(Alice, FormIq),
-        escalus:assert(is_iq_error, FormIqResp),
-        escalus:assert(is_error, [<<"modify">>, <<"unexpected-request">>], FormIqResp)
+        escalus:assert(is_iq_result, [CancelIqResp], CancelIqResp)
     end).
 
 %%  Examples 172-180
