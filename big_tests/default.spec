@@ -23,6 +23,7 @@
 {suites, "tests", component_SUITE}.
 {suites, "tests", disco_and_caps_SUITE}.
 {suites, "tests", ejabberdctl_SUITE}.
+{suites, "tests", jingle_SUITE}.
 {suites, "tests", last_SUITE}.
 {suites, "tests", login_SUITE}.
 {suites, "tests", mam_SUITE}.
@@ -66,6 +67,9 @@
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", mod_global_distrib_SUITE}.
+
+%{groups, "tests", jingle_SUITE, [all],
+% {cases, [jingle_session_is_established_for_full_jids]}}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
