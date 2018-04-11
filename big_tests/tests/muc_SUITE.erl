@@ -3446,6 +3446,7 @@ cancel_iq_sent_to_locked_room_destroys_it(Config) ->
         Nick = <<"the-owner">>,
 
         PresenceResp = escalus:send_and_wait(Alice, stanza_muc_enter_room(Room, Nick)),
+        escalus:wait_for_stanza(Alice),
         ?assert(is_presence_with_affiliation(PresenceResp, <<"owner">>)),
         ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
 
@@ -3461,6 +3462,7 @@ cancel_iq_sent_to_unlocked_room_is_unexpected(Config) ->
         Nick = <<"the-owner">>,
 
         PresenceResp = escalus:send_and_wait(Alice, stanza_muc_enter_room(Room, Nick)),
+        escalus:wait_for_stanza(Alice),
         ?assert(is_presence_with_affiliation(PresenceResp, <<"owner">>)),
         ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
 
@@ -3481,6 +3483,7 @@ reserved_room_cant_be_created_before_form_is_fetched(Config) ->
         Nick = <<"the-owner">>,
 
         PresenceResp = escalus:send_and_wait(Alice, stanza_muc_enter_room(Room, Nick)),
+        escalus:wait_for_stanza(Alice),
         ?assert(is_presence_with_affiliation(PresenceResp, <<"owner">>)),
         ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
 
@@ -3497,6 +3500,7 @@ room_cant_be_reconfigured_before_form_is_fetched(Config) ->
         Nick = <<"the-owner">>,
 
         PresenceResp = escalus:send_and_wait(Alice, stanza_muc_enter_room(Room, Nick)),
+        escalus:wait_for_stanza(Alice),
         ?assert(is_presence_with_affiliation(PresenceResp, <<"owner">>)),
         ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
 
