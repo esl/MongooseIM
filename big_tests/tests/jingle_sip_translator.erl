@@ -9,8 +9,9 @@
 -export([response/2]).
 -export([locate/1]).
 
--export([send_invite/2]).
+-export([send_invite/3]).
 -export([send_ack_for_200_ok/4]).
+-export([send_message_to_test_on_resp/4]).
 -export([back_invite_callbacks/7]).
 -export([send_invite_back/5]).
 -export([make_200_ok_for_phone_call/3]).
@@ -297,16 +298,16 @@ in_invite_transaction_callback(Req, Socket, Tr, CorrespondingCall) ->
     ct:pal("in invite transaction callback:~n~p~n=========~n~p~n=========~n~p~n=========~n~p",
            [Req, Socket, Tr, CorrespondingCall]).
 
-send_invite(From, To) ->
+send_invite(From, To, Pid) ->
     FromUser = escalus_client:username(From),
-    FromJID = escalus_client:full_jid(From),
+    FromJID = escalus_client:short_jid(From),
 
     FromURI = esip_codec:decode_uri(<<"sip:", FromJID/binary>>),
     FromSIP = {FromUser, FromURI,
                [{<<"tag">>, base16:encode(crypto:strong_rand_bytes(2))}]},
 
     ToUser = escalus_client:username(To),
-    ToJID = escalus_client:full_jid(To),
+    ToJID = escalus_client:short_jid(To),
     ToURI = esip_codec:decode_uri(<<"sip:", ToJID/binary>>),
     ToSIP = {ToUser, ToURI, []},
     CallID = base16:encode(crypto:strong_rand_bytes(6)),
@@ -331,9 +332,14 @@ send_invite(From, To) ->
                        {'max-forwards', 70}]},
 
     {ok, Socket} = esip:connect(Req),
-    {ok, TrID} = esip:request(Socket, Req, {?MODULE, send_ack_for_200_ok, [Req]}),
+    {ok, TrID} = esip:request(Socket, Req, {?MODULE, send_message_to_test_on_resp, [Pid]}),
 
     ok.
+
+send_message_to_test_on_resp(#sip{type = response, status = 100}, _Socket, _Tr, Pid) ->
+   ok; %% test is not interested in this resp
+send_message_to_test_on_resp(#sip{type = response, status = Status}, _Socket, _Tr, Pid) ->
+   Pid ! {sip_resp, Status}.
 
 send_ack_for_200_ok(#sip{type = response, method = <<"INVITE">>,
                          hdrs = Hdrs, status = 200} = Resp,

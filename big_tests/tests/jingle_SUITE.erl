@@ -24,7 +24,8 @@ test_cases() ->
      jingle_session_is_intiated_and_canceled_by_initiator,
      jingle_session_is_intiated_and_canceled_by_receiver,
      jingle_session_is_established_with_a_conference_room,
-     jingle_session_initiate_is_resent_on_demand
+     jingle_session_initiate_is_resent_on_demand,
+     mongoose_replies_with_480_when_invitee_is_offline
     ].
 
 suite() ->
@@ -160,9 +161,25 @@ jingle_session_initiate_is_resent_on_demand(Config) ->
         ct:pal("~p", [ResendResult]),
         escalus:assert(is_iq_result, [ResendSessionInitiateIQ], ResendResult)
 
+    end).
 
+mongoose_replies_with_480_when_invitee_is_offline(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Bob becomes unavailalbe
+        push_helper:become_unavailable(Bob),
+        jingle_sip_translator:send_invite(Alice, Bob, self()),
+
+        receive
+            {sip_resp, 480} ->
+                ok;
+            {sip_resp, Other} ->
+                ct:fail("Received SIP resp: ~p", [Other])
+        after timer:seconds(5) ->
+                  ct:fail(timeout_waiting_for_sip_resp)
+        end
 
     end).
+
 
 
 jingle_session_is_established_and_terminated_by_initiator(Config) ->

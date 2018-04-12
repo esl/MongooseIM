@@ -50,6 +50,14 @@ sip_invite_unsafe(Req, _Call) ->
     {FromJID, FromBinary} = get_user_from_sip_msg(from, Req),
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
 
+    case ejabberd_sm:is_offline(ToJID) of
+        false ->
+            translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary);
+        _ ->
+            {reply, temporarily_unavailable}
+    end.
+
+translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
     Body = nksip_sipmsg:meta(body, Req),
 
