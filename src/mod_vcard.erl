@@ -402,8 +402,8 @@ config_change(Acc, _, _, _) ->
 do_route(_VHost, From, #jid{user = User,
                             resource =Resource} = To, Acc, _IQ)
   when (User /= <<"">>) or (Resource /= <<"">>) ->
-    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
-    ejabberd_router:route(To, From, Err);
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
+    ejabberd_router:route(To, From, Acc1, Err);
 do_route(VHost, From, To, Acc, #iq{type = set,
                                       xmlns = ?NS_SEARCH,
                                       lang = Lang,
@@ -413,14 +413,14 @@ do_route(VHost, From, To, Acc, #iq{type = set,
     RSMIn = jlib:rsm_decode(IQ),
     case XDataEl of
         false ->
-            Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
-            ejabberd_router:route(To, From, Err);
+            {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
+            ejabberd_router:route(To, From, Acc1, Err);
         _ ->
             XData = jlib:parse_xdata_submit(XDataEl),
             case XData of
                 invalid ->
-                    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
-                    ejabberd_router:route(To, From, Err);
+                    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:bad_request()),
+                    ejabberd_router:route(To, From, Acc1, Err);
                 _ ->
                     {SearchResult, RSMOutEls} = search_result(Lang, To, VHost, XData, RSMIn),
                     ResIQ = IQ#iq{
@@ -448,8 +448,8 @@ do_route(VHost, From, To, _Acc, #iq{type = get,
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, #iq{type = set,
                                        xmlns = ?NS_DISCO_INFO}) ->
-    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-    ejabberd_router:route(To, From, Err);
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
+    ejabberd_router:route(To, From, Acc1, Err);
 do_route(VHost, From, To, _Acc, #iq{type = get,
                                        xmlns = ?NS_DISCO_INFO,
                                        lang = Lang} = IQ) ->
@@ -473,8 +473,8 @@ do_route(VHost, From, To, _Acc, #iq{type = get,
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, #iq{type=set,
                                        xmlns = ?NS_DISCO_ITEMS}) ->
-    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
-    ejabberd_router:route(To, From, Err);
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:not_allowed()),
+    ejabberd_router:route(To, From, Acc1, Err);
 do_route(_VHost, From, To, _Acc, #iq{ type = get,
                                          xmlns = ?NS_DISCO_ITEMS} = IQ) ->
     ResIQ =
@@ -492,8 +492,8 @@ do_route(_VHost, From, To, _Acc, #iq{ type = get,
                                children = iq_get_vcard(Lang)}]},
     ejabberd_router:route(To, From, jlib:iq_to_xml(ResIQ));
 do_route(_VHost, From, To, Acc, _IQ) ->
-    Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
-    ejabberd_router:route(To, From, Err).
+    {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:service_unavailable()),
+    ejabberd_router:route(To, From, Acc1, Err).
 
 iq_get_vcard(_Lang) ->
     [#xmlel{name = <<"FN">>,

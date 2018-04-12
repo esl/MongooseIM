@@ -56,7 +56,7 @@ register(Host, SubHost) ->
 -spec 'unregister'(SubHost :: jid:server()) -> true.
 unregister(SubHost) ->
     case get_host(SubHost) of
-        {ok, Host} -> ejabberd_hooks:run(unregister_subhost, [SubHost]);
+        {ok, _Host} -> ejabberd_hooks:run(unregister_subhost, [SubHost]);
         _ -> ok
     end,
     ets:delete(?TAB, SubHost).

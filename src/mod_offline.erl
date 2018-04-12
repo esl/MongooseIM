@@ -557,9 +557,9 @@ discard_warn_sender(Acc, Msgs) ->
                           " The message has been discarded.">>,
               Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
               amp_failed_event(Packet, From),
-              Err = jlib:make_error_reply(
-                      Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
-              ejabberd_router:route(To, From, Acc, Err)
+              {Acc1, Err} = jlib:make_error_reply(
+                      Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
+              ejabberd_router:route(To, From, Acc1, Err)
       end, Msgs).
 
 fallback_timestamp(Days, {MegaSecs, Secs, _MicroSecs}) ->
