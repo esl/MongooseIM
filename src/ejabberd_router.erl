@@ -144,8 +144,8 @@ route_error(From, To, Acc, ErrPacket) ->
 -spec route_error_reply(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
     mongoose_acc:t().
 route_error_reply(From, To, Acc, Error) ->
-    ErrorReply = jlib:make_error_reply(Acc, Error),
-    route_error(From, To, Acc, ErrorReply).
+    {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Error),
+    route_error(From, To, Acc1, ErrorReply).
 
 
 -spec register_components([Domain :: domain()],

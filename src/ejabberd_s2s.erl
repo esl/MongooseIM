@@ -288,9 +288,9 @@ do_route(From, To, Acc, Packet) ->
                 <<"error">> -> done;
                 <<"result">> -> done;
                 _ ->
-                    Err = jlib:make_error_reply(
-                            Packet, mongoose_xmpp_errors:service_unavailable()),
-                    ejabberd_router:route(To, From, Acc, Err)
+                    {Acc1, Err} = jlib:make_error_reply(
+                            Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+                    ejabberd_router:route(To, From, Acc1, Err)
             end,
             done
     end.

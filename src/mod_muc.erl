@@ -547,9 +547,9 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
                                  [Room, Reason]),
                     Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
                     ErrText = <<"Service is temporary unavailable">>,
-                    Err = jlib:make_error_reply(
-                            Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
-                    ejabberd_router:route(To, From, Acc, Err),
+                    {Acc1, Err} = jlib:make_error_reply(
+                            Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
+                    ejabberd_router:route(To, From, Acc1, Err),
                     {route_error, ErrText};
                 _ ->
                     %% Unknown error, most likely a room process failed to start.
@@ -559,9 +559,9 @@ get_registered_room_or_route_error_from_presence(Room, From, To, Acc, Packet,
         false ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Room creation is denied by service policy">>,
-            Err = jlib:make_error_reply(
-                    Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
-            ejabberd_router:route(To, From, Acc, Err),
+            {Acc1, Err} = jlib:make_error_reply(
+                    Acc, Packet, mongoose_xmpp_errors:not_allowed(Lang, ErrText)),
+            ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText}
     end.
 
@@ -574,18 +574,18 @@ get_registered_room_or_route_error_from_packet(Room, From, To, Acc, Packet,
         {error, room_not_found} ->
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Conference room does not exist">>,
-            Err = jlib:make_error_reply(
-                    Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
-            ejabberd_router:route(To, From, Err),
+            {Acc1, Err} = jlib:make_error_reply(
+                    Acc, Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
+            ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText};
         {error, Reason} ->
             ?WARNING_MSG("event=send_service_unavailable room=~ts reason=~p",
                          [Room, Reason]),
             Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
             ErrText = <<"Service is temporary unavailable">>,
-            Err = jlib:make_error_reply(
-                    Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
-            ejabberd_router:route(To, From, Acc, Err),
+            {Acc1, Err} = jlib:make_error_reply(
+                    Acc, Packet, mongoose_xmpp_errors:service_unavailable(Lang, ErrText)),
+            ejabberd_router:route(To, From, Acc1, Err),
             {route_error, ErrText};
         {ok, Opts} ->
             ?DEBUG("MUC: restore room '~s'~n", [Room]),
@@ -610,13 +610,13 @@ route_by_nick(_Nick, {From, To, Acc, Packet}, _State) ->
         <<"result">> ->
             ok;
         _ ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
-            ejabberd_router:route(To, From, Acc, Err)
+            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:item_not_found()),
+            ejabberd_router:route(To, From, Acc1, Err)
     end.
 
 
 -spec route_by_type(binary(), from_to_packet(), state()) -> 'ok' | pid().
-route_by_type(<<"iq">>, {From, To, _Acc, Packet}, #state{host = Host} = State) ->
+route_by_type(<<"iq">>, {From, To, Acc, Packet}, #state{host = Host} = State) ->
     ServerHost = State#state.server_host,
     case jlib:iq_query_info(Packet) of
         #iq{type = get, xmlns = ?NS_DISCO_INFO = XMLNS, lang = Lang} = IQ ->
@@ -648,8 +648,8 @@ route_by_type(<<"iq">>, {From, To, _Acc, Packet}, #state{host = Host} = State) -
                                                  children = IQRes}]},
                     ejabberd_router:route(To, From, jlib:iq_to_xml(Res));
                 {error, Error} ->
-                    Err = jlib:make_error_reply(Packet, Error),
-                    ejabberd_router:route(To, From, Err)
+                    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, Error),
+                    ejabberd_router:route(To, From, Acc1, Err)
             end;
         #iq{type = get, xmlns = ?NS_VCARD = XMLNS, lang = Lang} = IQ ->
             Res = IQ#iq{type = result,
@@ -666,14 +666,14 @@ route_by_type(<<"iq">>, {From, To, _Acc, Packet}, #state{host = Host} = State) -
         #iq{} ->
             ?INFO_MSG("event=ignore_unknown_iq from=~ts to=~ts packet=~1000p",
                       [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
-            ejabberd_router:route(To, From, Err);
+            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            ejabberd_router:route(To, From, Acc1, Err);
         _ ->
             ?INFO_MSG("event=failed_to_parse_iq from=~ts to=~ts packet=~1000p",
                       [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
             ok
     end;
-route_by_type(<<"message">>, {From, To, _Acc, Packet},
+route_by_type(<<"message">>, {From, To, Acc, Packet},
               #state{host = Host, server_host = ServerHost,
                      access = {_, _, AccessAdmin, _}}) ->
     #xmlel{attrs = Attrs} = Packet,
@@ -689,8 +689,8 @@ route_by_type(<<"message">>, {From, To, _Acc, Packet},
                     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
                     ErrTxt = <<"Only service administrators are allowed to send service messages">>,
                     Err = mongoose_xmpp_errors:forbidden(Lang, ErrTxt),
-                    ErrorReply = jlib:make_error_reply(Packet, Err),
-                    ejabberd_router:route(To, From, ErrorReply)
+                    {Acc1, ErrorReply} = jlib:make_error_reply(Acc, Packet, Err),
+                    ejabberd_router:route(To, From, Acc1, ErrorReply)
             end
     end;
 route_by_type(<<"presence">>, _Routed, _State) ->
