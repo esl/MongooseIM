@@ -283,9 +283,6 @@ maybe_route_to_all_sessions(From, To, Acc, Packet) ->
     PResources = ejabberd_sm:get_user_present_resources(To#jid.luser, To#jid.lserver),
     lists:foreach(
       fun({_, R}) ->
-              do_route(From, jid:replace_resource(To, R), Acc, Packet)
+              ejabberd_router:route(From, jid:replace_resource(To, R), Acc, Packet)
       end, PResources).
-
-do_route(From, To, Acc, Packet) ->
-    ejabberd_router:route(From, To, Acc, Packet).
 
