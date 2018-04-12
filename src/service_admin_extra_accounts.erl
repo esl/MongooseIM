@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% File    : mod_admin_extra_accounts.erl
+%%% File    : service_admin_extra_accounts.erl
 %%% Author  : Badlop <badlop@process-one.net>, Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%% Purpose : Contributed administrative functions and commands
 %%% Created : 10 Aug 2008 by Badlop <badlop@process-one.net>
@@ -24,7 +24,7 @@
 %%%
 %%%-------------------------------------------------------------------
 
--module(mod_admin_extra_accounts).
+-module(service_admin_extra_accounts).
 -author('badlop@process-one.net').
 
 -export([
@@ -253,7 +253,7 @@ delete_old_user_if_nonactive_long_enough(LUser, LServer, TimeStampNow, SecOlder)
 -spec ban_account(jid:user(), jid:server(), binary() | string()) ->
     {ok, string()} | {error, string()}.
 ban_account(User, Host, ReasonText) ->
-    Reason = mod_admin_extra_sessions:prepare_reason(ReasonText),
+    Reason = service_admin_extra_sessions:prepare_reason(ReasonText),
     kick_sessions(User, Host, Reason),
     case set_random_password(User, Host, Reason) of
         ok ->
@@ -267,7 +267,7 @@ ban_account(User, Host, ReasonText) ->
 kick_sessions(User, Server, Reason) ->
     lists:map(
         fun(Resource) ->
-                mod_admin_extra_sessions:kick_this_session(User, Server, Resource, Reason)
+                service_admin_extra_sessions:kick_this_session(User, Server, Resource, Reason)
         end,
         ejabberd_sm:get_user_resources(User, Server)).
 

@@ -100,7 +100,7 @@ get_service_opts(Service) ->
 
 -spec loaded_services_with_opts() -> [{service(), options()}].
 loaded_services_with_opts() ->
-    [Z || [Z] <- ets:match(?ETAB, '$1')].
+    [Z || [Z] <- ets:tab2list(?ETAB)].
 
 %% @doc to be used as an emergency feature if serviced crashed while stopping and is not
 %% running but still lingers in the services tab
@@ -116,9 +116,9 @@ run_start_service(Service, Opts0) ->
     Opts = proplists:unfold(Opts0),
     ets:insert(?ETAB, {Service, Opts}),
     try
-        ?INFO_MSG("Starting service: ~p with ~p...", [Service, Opts]),
+        ?INFO_MSG("event=service_startup,status=starting,service=~p,options=~p", [Service, Opts]),
         Res = Service:start(Opts),
-        ?INFO_MSG("...done~n", []),
+        ?INFO_MSG("event=service_startup,status=started,service=~p", [Service]),
         case Res of
             {ok, _} -> Res;
             _ -> {ok, Res}
@@ -126,7 +126,8 @@ run_start_service(Service, Opts0) ->
     catch
         Class:Reason ->
             ets:delete(?ETAB, Service),
-            ErrorText = io_lib:format("Problem starting service ~p~n options: ~p~n ~p: ~p~n~p",
+            Template = "event=service_startup,status=error,service=~p,options=~p,class=~p,reason=~p~n~p",
+            ErrorText = io_lib:format(Template,
                                       [Service, Opts, Class, Reason, erlang:get_stacktrace()]),
             ?CRITICAL_MSG(ErrorText, []),
             case is_app_running(mongooseim) of
@@ -144,10 +145,12 @@ run_start_service(Service, Opts0) ->
 
 run_stop_service(Service) ->
     ?INFO_MSG("stopping service: ~p~n", [Service]),
+    ?INFO_MSG("event=service_stop,status=stopping,service=~p", [Service]),
     case catch Service:stop() of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("Failed to stop service ~p, reason: ~p~n", [Service, Reason]);
+            ?ERROR_MSG("event=service_stop,status=failed,service=~p,reason=~p", [Service, Reason]);
         _ ->
+            ?INFO_MSG("event=service_stop,status=stopped,service=~p", [Service]),
             ets:delete(?ETAB, Service),
             ok
     end.

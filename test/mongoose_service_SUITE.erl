@@ -152,7 +152,10 @@ start_deps(_) ->
 
 module_deps(_) ->
     assert_loaded([]),
+    meck:new(gen_mod, [passthrough]),
+    meck:expect(gen_mod, is_app_running, fun(_Mooo) -> true end),
     ?assertError({service_not_loaded, _}, gen_mod:start_module(<<"localhost">>, module_a, [])),
+    meck:unload(gen_mod),
     mongoose_service:ensure_loaded(service_c),
     gen_mod:start_module(<<"localhost">>, module_a, []),
     ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
