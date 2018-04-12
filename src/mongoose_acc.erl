@@ -21,6 +21,7 @@
 
 %% API
 -export([new/0, from_kv/2, put/3, get/2, get/3, find/2, append/3, remove/2]).
+-export([increment/2, get_counter/2]).
 -export([add_prop/3, get_prop/2]).
 -export([from_element/1, from_map/1, update_element/4, update/2, is_acc/1, require/2]).
 -export([strip/1, strip/2, record_sending/4, record_sending/6]).
@@ -159,6 +160,19 @@ get(Key, P) ->
 -spec get(any(), t(), any()) -> any().
 get(Key, P, Default) ->
     maps:get(Key, P, Default).
+
+%% @doc increments a counter, returns new value
+%% counters are tagged so as not to interfere with other values
+-spec increment(atom(), t()) -> {integer(), t()}.
+increment(Key, Acc) ->
+    CKey = {counter, Key},
+    NVal = get(CKey, Acc, 0) + 1,
+    {NVal, put(CKey, NVal, Acc)}.
+
+%% @doc returns current value of a counter
+-spec get_counter(atom(), t()) -> integer().
+get_counter(Key, Acc) ->
+    get({counter, Key}, Acc, 0).
 
 -spec find(any(), t()) -> {ok, any()} | error.
 find(send_result, Acc) ->
