@@ -122,6 +122,9 @@ route(From, To, Acc) ->
     El = mongoose_acc:get(element, Acc),
     route(From, To, Acc, El, routing_modules_list()).
 
+route(From, To, Acc, stop) ->
+    ?CRITICAL_MSG("event=emergency_stop,from=~p,to=~p,acc=~p", [From, To, Acc]),
+    ok;
 route(From, To, Acc, El) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
         [From, To, Acc]),

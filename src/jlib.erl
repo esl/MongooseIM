@@ -145,10 +145,17 @@ make_error_reply(#xmlel{name = Name, attrs = Attrs,
     NewAttrs = make_error_reply_attrs(Attrs),
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
 make_error_reply(Acc, Error) ->
-    {Acc, make_error_reply(mongoose_acc:get(element, Acc), Error)}.
+    make_error_reply(Acc, mongoose_acc:get(element, Acc), Error).
 
 make_error_reply(Acc, Packet, Error) ->
-    {Acc, make_error_reply(Packet, Error)}.
+    case mongoose_acc:get(return_type, Acc, undefined) of
+        error_reply ->
+            ?CRITICAL_MSG("event=error_routing_loop,stanza=~p", [Packet]),
+            {Acc, stop};
+        _ ->
+            {mongoose_acc:put(return_type, error_reply, Acc),
+             make_error_reply(Packet, Error)}
+    end.
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
 make_error_reply_attrs(Attrs) ->
