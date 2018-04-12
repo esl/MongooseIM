@@ -1,8 +1,25 @@
-### Module Description
-This module significantly extends `mongooseimctl` script capabilities. New functionalities appear as additional commands. For detailed description, just run `mongooseimctl` script with no parameters.
+Some functionalities in MongooseIM are provided by "services".
+A service is similar to a module, only it is started only globally, while a module can be global or host-specific.
+Service configuration is similar to a module configuration, e.g.:
+```
+{services, [
+            {service_admin_extra, [{submods, [node, accounts, sessions]}]}
+           ]
+}.
+```
 
-### Options
-* `submods` (default: all submodules): List of function groups added by `mod_admin_extra`. Allowed elements:
+
+## Service list
+
+As of version 2.2, only one module is a "service provider".
+Over time, part of modules which are not host-specific will be refactored to be services.
+
+### service_admin_extra
+
+Provides additional commands to mongooseimctl script.
+
+#### Options
+* `submods` (default: all submodules): List of function groups added by `service_admin_extra`. Allowed elements:
     * `accounts`: Adds `change_password`, `check_password_hash`, `delete_old_users`, `delete_old_users_vhost`, `ban_account`, `num_active_users`, `check_account`, `check_password`
     * `last`: Adds `set_last`
     * `node`: Adds `load_config`, `get_cookie`, `remove_node`
@@ -14,4 +31,4 @@ This module significantly extends `mongooseimctl` script capabilities. New funct
     * `vcard`: Adds `get_vcard`, `get_vcard2`, `get_vcard2_multi`, `set_vcard`, `set_vcard2`, `set_vcard2_multi`
 
 ### Example configuration
-` {mod_admin_extra, [{submods, [node, accounts, sessions]}]} `
+` {service_admin_extra, [{submods, [node, accounts, sessions]}]} `

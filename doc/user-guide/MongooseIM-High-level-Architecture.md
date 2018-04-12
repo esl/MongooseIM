@@ -4,7 +4,22 @@
 
 ### Modules
 
-At its core MongooseIM is a huge message router you can customise to fit your system's needs. You can choose and enable behaviours and functionalities by configuring any of the available modules. A wide range of options includes authentication, privacy, storage, backend integration and mobile optimisations. See '[Extension Modules](../advanced-configuration/Modules.md)' for a full list.
+At its core MongooseIM is a huge message router you can customise to fit your system's needs.
+You can choose and enable behaviours and functionalities by configuring any of the available modules.
+A wide range of options includes authentication, privacy, storage, backend integration and mobile optimisations.
+See '[Extension Modules](../advanced-configuration/Modules.md)' for a full list.
+
+Modules can be configured and started either globally (for all virutal hosts served by the instance) or individually for each host.
+Modules may include dependencies on services and on other modules.
+If a module depends on other modules, required modules are started automatically.
+If a module requires certain services which are not started, the module refuses to start.
+
+### Services
+
+Some functionalities which are not related to virtual hosts but rather are provided for the whole instance or for modules started for various hosts are provided by "services".
+Services are configured globally launched on startup, before modules, so that dependencies are satisfied.
+A service can require other services to be operational; required services are started automatically.
+They were introduced in MongooseIM 2.2; modules which are not host-specific are gradually being refactored as services.
 
 ### Databases
 

@@ -591,6 +591,13 @@ For a specific configuration, please refer to [Modules](advanced-configuration/M
 * **modules** (local)
     * **Description:** List of enabled modules with their options.
 
+### Services
+
+For a specific configuration, please refer to [Services](advanced-configuration/Services.md) page.
+
+* **services** (local)
+    * **Description:** List of enabled services with their options.
+
 ### Per-domain configuration
 
 The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `ejabberd.cfg`.
