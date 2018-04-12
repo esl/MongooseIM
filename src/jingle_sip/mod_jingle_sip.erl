@@ -109,6 +109,14 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
                        [Class, Error, erlang:get_stacktrace()])
     end,
     mongoose_acc:put(result, drop, Acc);
+maybe_translate_to_sip(<<"session-resend">>, From, To, #iq{sub_el = Jingle} = IQ, Acc) ->
+    SID = exml_query:attr(Jingle, <<"sid">>),
+    case mod_jingle_sip_backend:get_session_info(SID) of
+        {ok, #{meta := Meta}} ->
+            maybe_resend_session_initiate(From, To, IQ, Acc, Meta);
+        _ ->
+            ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:item_not_found())
+    end;
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
     ?WARNING_MSG("Forwarding unknown action: ~p", [JingleAction]),
     Acc.
@@ -385,4 +393,16 @@ make_group_attr(#xmlel{children = Children} = Group) ->
     Contents = [exml_query:attr(Content, <<"name">>) || Content <- Children],
 
     {<<"group">>, [Semantic | Contents]}.
+
+maybe_resend_session_initiate(From, To, IQ, Acc, Meta) ->
+    case maps:get(init_stanza, Meta, undefined) of
+        undefined ->
+            Error = mongoose_xmpp_errors:item_not_found(<<"en">>,
+                                                        <<"no session-initiate for this SID">>),
+            ejabberd_router:route_error_reply(To, From, Acc, Error);
+        Stanza ->
+            IQResult = IQ#iq{type = result, sub_el = [Stanza]},
+            Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
+            ejabberd_router:route(To, From, Acc, Packet)
+    end.
 

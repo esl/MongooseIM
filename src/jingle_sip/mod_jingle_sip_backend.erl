@@ -7,7 +7,7 @@
 -type outgoing_handle() :: binary().
 
 -export([init/2]).
--export([set_incoming_request/4]).
+-export([set_incoming_request/5]).
 -export([set_incoming_handle/2]).
 -export([set_outgoing_request/4]).
 -export([set_outgoing_handle/4]).
@@ -23,32 +23,38 @@
                              state,
                              direction,
                              request,
-                             node}).
+                             node,
+                             meta}).
 
 init(_Host, _Opts) ->
     mnesia:create_table(jingle_sip_session,
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, jingle_sip_session)}]).
 
-set_incoming_request(CallID, ReqID, From, To) ->
-    TFun = pa:bind(fun set_incoming_request_tr/4, CallID, ReqID, From, To),
+set_incoming_request(CallID, ReqID, From, To, JingleEl) ->
+    TFun = pa:bind(fun set_incoming_request_tr/5, CallID, ReqID, From, To, JingleEl),
     run_transaction(TFun).
 
-set_incoming_request_tr(CallID, ReqID, _From, _To) ->
+set_incoming_request_tr(CallID, ReqID, _From, _To, JingleEl) ->
     case mnesia:wread({jingle_sip_session, CallID}) of
-        [#jingle_sip_session{request = undefined, direction = in} = Session] ->
+        [#jingle_sip_session{request = undefined, direction = in, meta = Meta} = Session] ->
+            NewMeta = Meta#{init_stanza => JingleEl},
             Session2 = Session#jingle_sip_session{request = ReqID,
-                                                  node = node()},
+                                                  node = node(),
+                                                  meta = NewMeta
+                                                  },
             mnesia:write(Session2);
         [_] ->
             {error, sid_already_exists};
         _ ->
+            Meta = #{init_stanza => JingleEl},
             Session = #jingle_sip_session{sid = CallID,
                                           request = ReqID,
                                           dialog = undefined,
                                           state = undefined,
                                           direction = in,
-                                          node = node()},
+                                          node = node(),
+                                          meta = Meta},
             mnesia:write(Session)
     end.
 
@@ -70,7 +76,8 @@ set_outgoing_request_tr(CallID, ReqID, _From, _To) ->
                                           dialog = undefined,
                                           state = undefined,
                                           direction = out,
-                                          node = node()},
+                                          node = node(),
+                                          meta = #{}},
             mnesia:write(Session)
     end.
 
@@ -126,8 +133,10 @@ set_incoming_accepted(CallID) ->
 
 set_incoming_accepted_tr(CallID) ->
     case mnesia:wread({jingle_sip_session, CallID}) of
-        [#jingle_sip_session{direction = in} = Session] ->
-            Session2 = Session#jingle_sip_session{state = accepted},
+        [#jingle_sip_session{direction = in, meta = Meta} = Session] ->
+            MetaWithoutInitStanza = maps:without([init_stanza], Meta),
+            Session2 = Session#jingle_sip_session{state = accepted,
+                                                  meta = MetaWithoutInitStanza},
             mnesia:write(Session2);
         _ ->
             {error, not_found}
@@ -173,13 +182,15 @@ get_session_info(SID) ->
                               request = Request,
                               state = State,
                               direction = Dir,
-                              node = ONode}] ->
+                              node = ONode,
+                              meta = Meta}] ->
             {ok, #{sid => SID,
                    dialog => Handle,
                    request => Request,
                    state => State,
                    direction => Dir,
-                   node => ONode}};
+                   node => ONode,
+                   meta => Meta}};
          _ ->
             {error, not_found}
     end.

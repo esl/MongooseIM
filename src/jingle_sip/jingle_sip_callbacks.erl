@@ -60,9 +60,10 @@ sip_invite_unsafe(Req, _Call) ->
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
 
-    ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID),
-
     JingleEl = jingle_element(CallID, <<"session-initiate">>, ContentEls ++ OtherEls),
+
+    ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
+
     IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),

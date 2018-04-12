@@ -23,7 +23,8 @@ test_cases() ->
      jingle_session_is_established_and_terminated_by_receiver,
      jingle_session_is_intiated_and_canceled_by_initiator,
      jingle_session_is_intiated_and_canceled_by_receiver,
-     jingle_session_is_established_with_a_conference_room
+     jingle_session_is_established_with_a_conference_room,
+     jingle_session_initiate_is_resent_on_demand
     ].
 
 suite() ->
@@ -135,6 +136,34 @@ jingle_session_is_established_with_a_conference_room(Config) ->
 
         ok
     end).
+
+jingle_session_initiate_is_resent_on_demand(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 2}], fun(Alice, Bob, Bob2) ->
+        %% Bob2 becomes unavailalbe
+        push_helper:become_unavailable(Bob2),
+        escalus:wait_for_stanza(Bob), %%Bob first device gets unavailable form the other
+        {_InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+
+        escalus_assert:has_no_stanzas(Bob2),
+
+        SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
+
+        ResendSessionInitiateIQ = iq(jingle_element(SID, <<"session-resend">>, [])),
+
+        %% Bob2 becomes available
+        escalus:send(Bob2, escalus_stanza:presence(<<"available">>)),
+        escalus:wait_for_stanzas(Bob2, 2), %% 2 presence stansa from Bob2 and Bob
+        %% and asks for the session-initiate received by the other device
+        %% this is to get the invite in new session (new browser window)
+        escalus:send(Bob2, ResendSessionInitiateIQ),
+        ResendResult = escalus:wait_for_stanza(Bob2),
+        ct:pal("~p", [ResendResult]),
+        escalus:assert(is_iq_result, [ResendSessionInitiateIQ], ResendResult)
+
+
+
+    end).
+
 
 jingle_session_is_established_and_terminated_by_initiator(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
