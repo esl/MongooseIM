@@ -968,6 +968,7 @@ session_established({xmlstreamelement, El}, StateData) ->
             Acc0 = mongoose_acc:from_element(El1),
             User = NewState#state.user,
             Server = NewState#state.server,
+            UserJID = NewState#state.jid,
             To = exml_query:attr(El, <<"to">>),
             ToJID = case To of
                         undefined ->
@@ -977,6 +978,7 @@ session_established({xmlstreamelement, El}, StateData) ->
                     end,
             Acc = mongoose_acc:update(Acc0, #{user => User,
                                               server => Server,
+                                              user_jid => UserJID,
                                               from_jid => FromJID,
                                               from => jid:to_binary(FromJID),
                                               to_jid => ToJID,
