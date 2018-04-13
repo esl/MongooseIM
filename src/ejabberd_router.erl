@@ -114,7 +114,7 @@ route(From, To, Acc) ->
 route(From, To, Acc, El) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
         [From, To, Acc]),
-    route(From, To, Acc, El, routing_modules_list())
+    route(From, To, Acc, El, routing_modules_list()).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
