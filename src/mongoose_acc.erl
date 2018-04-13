@@ -99,10 +99,6 @@ from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
     #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
         timestamp => os:timestamp(), ref => make_ref()
         };
-from_element(#iq{type = Type} = El) ->
-    #{element => El, mongoose_acc => true, name => <<"iq">>, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
-    };
 from_element(El) when is_tuple(El) ->
     Name = <<"broadcast">>,
     Type = element(1, El),

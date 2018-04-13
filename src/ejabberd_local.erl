@@ -115,8 +115,8 @@ process_iq(reply, Acc, From, To, El) ->
     IQReply = jlib:iq_query_or_response_info(El),
     process_iq_reply(From, To, Acc, IQReply);
 process_iq(_, Acc, From, To, El) ->
-    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
-    ejabberd_router:route(To, From, Acc, Err),
+    {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),
+    ejabberd_router:route(To, From, Acc1, Err),
     ok.
 
 -spec process_iq_reply(From :: jid:jid(),
@@ -162,7 +162,7 @@ route_iq(From, To, Acc, IQ, F) ->
 
 -spec route_iq(From :: jid:jid(),
                To :: jid:jid(),
-               Acc :: mongoose_acc:t(),
+               Acc :: mongoose_acc:t() | undefined,
                IQ :: jlib:iq(),
                F :: fun(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
@@ -176,7 +176,11 @@ route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) -
                 false ->
                      jlib:iq_to_xml(IQ)
              end,
-    ejabberd_router:route(From, To, Acc, Packet).
+    Acc1 = case Acc of
+               undefined -> mongoose_acc:from_element(Packet, From, To);
+               A -> A
+           end,
+    ejabberd_router:route(From, To, Acc1, Packet).
 
 register_iq_response_handler(Host, ID, Module, Function) ->
     register_iq_response_handler(Host, ID, Module, Function, undefined).
@@ -233,8 +237,8 @@ refresh_iq_handlers() ->
                              To :: jid:jid(),
                              El :: exml:element()) -> {'stop', mongoose_acc:t()}.
 bounce_resource_packet(Acc, From, To, El) ->
-    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:item_not_found()),
-    ejabberd_router:route(To, From, Err),
+    {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:item_not_found()),
+    ejabberd_router:route(To, From, Acc1, Err),
     {stop, Acc}.
 
 -spec register_host(Host :: jid:server()) -> ok.

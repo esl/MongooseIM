@@ -38,6 +38,7 @@ all() ->
 groups() ->
     [
         {pm_msg_notifications, [parallel], [
+            invinite_loop_test,
             pm_msg_notify_on_apns_no_click_action,
             pm_msg_notify_on_fcm_no_click_action,
             pm_msg_notify_on_apns_w_click_action,
@@ -237,6 +238,24 @@ pm_msg_notify_on_apns_silent(Config) ->
 
 pm_msg_notify_on_apns_w_topic(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
+
+invinite_loop_test(Config) ->
+    escalus:story(
+    Config, [{alice, 1}, {bob, 1}, {kate, 1}],
+    fun(Alice, Bob, _Kate) ->
+    PubsubJID = <<"pubsub.malicious">>,
+    Node = {_, NodeName} = pubsub_node(),
+    DeviceToken = gen_token(),
+    pubsub_tools:create_node(Bob, Node, [{type, <<"push">>}]),
+    escalus:send(Bob, enable_stanza(PubsubJID, NodeName,
+        [{<<"service">>, <<"apns">>},
+            {<<"device_id">>, DeviceToken}] ++ [])),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+    become_unavailable(Bob),
+    Chat = escalus_stanza:chat_to_short_jid(Bob, <<"test msg">>),
+    [escalus:send(Alice, Chat) || _ <- lists:seq(1,40)],
+    timer:sleep(1000 * 10)
+end).
 
 %%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications

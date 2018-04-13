@@ -322,10 +322,10 @@ locked_error({route, From, ToNick, Acc, #xmlel{attrs = Attrs} = Packet},
     ?INFO_MSG("Wrong stanza: ~p", [Packet]),
     ErrText = <<"This room is locked">>,
     Lang = xml:get_attr_s(<<"xml:lang">>, Attrs),
-    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
+    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),
     ejabberd_router:route(jid:replace_resource(StateData#state.jid,
                                                ToNick),
-                          From, Acc, Err),
+                          From, Acc1, Err),
     {next_state, NextState, StateData}.
 
 %% @doc  Receive the room-creating Stanza. Will crash if any other stanza is
@@ -4569,16 +4569,16 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
     case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
         ignore -> ok;
         error ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
-            ejabberd_router:route(RoomJID, From, Acc, Err)
+            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            ejabberd_router:route(RoomJID, From, Acc1, Err)
     end,
     {ok, StateData};
 route_iq(_Acc, #routed_iq{iq = reply}, StateData) ->
     {ok, StateData};
 route_iq(Acc, #routed_iq{packet = Packet, from = From}, StateData) ->
-    Err = jlib:make_error_reply(
-        Packet, mongoose_xmpp_errors:feature_not_implemented()),
-    ejabberd_router:route(StateData#state.jid, From, Acc, Err),
+    {Acc1, Err} = jlib:make_error_reply(
+        Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+    ejabberd_router:route(StateData#state.jid, From, Acc1, Err),
     {ok, StateData}.
 
 
