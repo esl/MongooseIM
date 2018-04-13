@@ -162,7 +162,7 @@ route_iq(From, To, Acc, IQ, F) ->
 
 -spec route_iq(From :: jid:jid(),
                To :: jid:jid(),
-               Acc :: mongoose_acc:t(),
+               Acc :: mongoose_acc:t() | undefined,
                IQ :: jlib:iq(),
                F :: fun(),
                Timeout :: undefined | integer()) -> mongoose_acc:t().
@@ -176,7 +176,11 @@ route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) -
                 false ->
                      jlib:iq_to_xml(IQ)
              end,
-    ejabberd_router:route(From, To, Acc, Packet).
+    Acc1 = case Acc of
+               undefined -> mongoose_acc:from_element(Packet, From, To);
+               A -> A
+           end,
+    ejabberd_router:route(From, To, Acc1, Packet).
 
 register_iq_response_handler(Host, ID, Module, Function) ->
     register_iq_response_handler(Host, ID, Module, Function, undefined).
