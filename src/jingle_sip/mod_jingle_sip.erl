@@ -75,10 +75,12 @@ maybe_iq_stanza(Acc) ->
     end.
 
 maybe_iq_to_other_user(Acc) ->
-    #jid{luser = To} = mongoose_acc:get(to_jid, Acc),
-    case mongoose_acc:get(user, Acc) of
-        To ->
-            Acc;
+    #jid{luser = StanzaTo} = mongoose_acc:get(to_jid, Acc),
+    #jid{luser = LUser} = mongoose_acc:get(user_jid, Acc),
+    case LUser of
+        StanzaTo ->
+            QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
+            maybe_jingle_get_stanza_to_self(QueryInfo, Acc);
         _ ->
             QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
             maybe_jingle_stanza(QueryInfo, Acc)
@@ -91,6 +93,16 @@ maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, A
     maybe_translate_to_sip(JingleAction, From, To, IQ, Acc);
 maybe_jingle_stanza(_, Acc) ->
     Acc.
+
+maybe_jingle_get_stanza_to_self(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = get} = IQ, Acc) ->
+    JingleAction = exml_query:attr(Jingle, <<"action">>),
+    case JingleAction of
+        <<"existing-session-initiate">> ->
+            resend_session_initiate(IQ, Acc),
+            mongoose_acc:put(result, drop, Acc);
+        _ ->
+            Acc
+    end.
 
 maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
   when JingleAction =:= <<"session-initiate">>;
@@ -109,17 +121,20 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
                        [Class, Error, erlang:get_stacktrace()])
     end,
     mongoose_acc:put(result, drop, Acc);
-maybe_translate_to_sip(<<"session-resend">>, From, To, #iq{sub_el = Jingle} = IQ, Acc) ->
+maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
+    ?WARNING_MSG("Forwarding unknown action: ~p", [JingleAction]),
+    Acc.
+
+resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
+    From = mongoose_acc:get(from_jid, Acc),
+    To = mongoose_acc:get(to_jid, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
     case mod_jingle_sip_backend:get_session_info(SID) of
         {ok, #{meta := Meta}} ->
             maybe_resend_session_initiate(From, To, IQ, Acc, Meta);
         _ ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:item_not_found())
-    end;
-maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
-    ?WARNING_MSG("Forwarding unknown action: ~p", [JingleAction]),
-    Acc.
+    end.
 
 translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),

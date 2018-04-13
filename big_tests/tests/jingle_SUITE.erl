@@ -149,7 +149,7 @@ jingle_session_initiate_is_resent_on_demand(Config) ->
 
         SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
 
-        ResendSessionInitiateIQ = iq(jingle_element(SID, <<"session-resend">>, [])),
+        ResendSessionInitiateIQ = iq_get(jingle_element(SID, <<"existing-session-initiate">>, [])),
 
         %% Bob2 becomes available
         escalus:send(Bob2, escalus_stanza:presence(<<"available">>)),
@@ -340,12 +340,22 @@ other_iq_stanza_addressed_to_bare_jid_are_not_routed(Config) ->
 
 jingle_initiate() ->
     I = jingle_element(<<"session-initiate">>, [content(audio), content(video), content_group([audio_1, video_1])]),
-    iq(I).
+    iq_set(I).
 
-iq(I) ->
-    Stanza = #xmlel{attrs = Attrs} = escalus_stanza:iq_set_nonquery(<<"jabber:client">>, [I]),
+iq_set(I) ->
+    Stanza = escalus_stanza:iq_set_nonquery(<<"jabber:client">>, [I]),
+    iq_with_id(Stanza).
+
+iq_with_id(#xmlel{attrs = Attrs} = Stanza) ->
     NewAttrs = lists:keystore(<<"id">>, 1, Attrs, {<<"id">>, uuid:uuid_to_string(uuid:get_v4(), binary_standard)}),
     Stanza#xmlel{attrs = NewAttrs}.
+
+iq_get(I) ->
+    Stanza = #xmlel{name = <<"iq">>,
+                    attrs = [{<<"xmlns">>, <<"jabber:client">>},
+                             {<<"type">>, <<"get">>}],
+                    children = [I]},
+    iq_with_id(Stanza).
 
 jingle_element(Action, Children) ->
     SID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
@@ -361,17 +371,17 @@ jingle_element(SID, Action, Children) ->
 jingle_accept(InviteRequest) ->
     SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
     I = jingle_element(SID, <<"session-accept">>, [content(audio), content(video_disabled), content_group([audio])]),
-    iq(I).
+    iq_set(I).
 
 jingle_transport_info(InviteRequest, Creator, Media, TransportAttrs) ->
     SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
-    iq(jingle_element(SID, <<"transport-info">>, [trickle_ice_candidate(Creator, Media, TransportAttrs)])).
+    iq_set(jingle_element(SID, <<"transport-info">>, [trickle_ice_candidate(Creator, Media, TransportAttrs)])).
 
 jingle_terminate(InviteRequest, Reason) ->
     SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = Reason}]},
-    iq(jingle_element(SID, <<"session-terminate">>, [ReasonEl])).
+    iq_set(jingle_element(SID, <<"session-terminate">>, [ReasonEl])).
 
 content(audio) ->
     escalus_stanza:from_xml(<<"
