@@ -32,7 +32,8 @@
 
 -spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
-    NkSipBasicOpts = #{sip_listen => "sip:all:5600",
+    ListenPort = gen_mod:get_opt(listen_port, Opts, 5600),
+    NkSipBasicOpts = #{sip_listen => "sip:all:" ++ integer_to_list(ListenPort),
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
@@ -168,7 +169,8 @@ translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     {ok, ReqID} = mod_jingle_sip_backend:get_incoming_request(SID),
     SDP = prepare_initial_sdp(Server, Jingle),
-    case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
+    %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
+    case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
         ok ->
            ok = mod_jingle_sip_backend:set_incoming_accepted(SID);
         Other ->
@@ -195,7 +197,8 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     case maps:get(state, Session) of
         accepted ->
             DialogHandle = maps:get(dialog, Session),
-            nksip_uac:bye(DialogHandle, [{to, make_user_header(ToLUS)},
+            Node = maps:get(node, Session),
+            nksip_uac_bye(Node, DialogHandle, [{to, make_user_header(ToLUS)},
                                          {from, make_user_header(FromLUS)}]);
         _ ->
             RequestHandle = maps:get(request, Session),
@@ -204,8 +207,9 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
                     nksip_uac:cancel(RequestHandle, [{to, make_user_header(ToLUS)},
                                                      {from, make_user_header(FromLUS)}]);
                 in ->
-                    %% Yes apparently that's the valid way to reject incoming invite
-                    nksip_request:reply(busy, RequestHandle)
+                    %% When reject incoming invite we need to reply with an error code
+                    Node = maps:get(node, Session),
+                    nksip_request_reply(busy, {Node, RequestHandle})
             end
     end.
 
@@ -419,5 +423,21 @@ maybe_resend_session_initiate(From, To, IQ, Acc, Meta) ->
             IQResult = IQ#iq{type = result, sub_el = [Stanza]},
             Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
             ejabberd_router:route(To, From, Acc, Packet)
+    end.
+
+nksip_request_reply(Reply, {Node, ReqID}) ->
+    case node() of
+        Node ->
+            nksip_request:reply(Reply, ReqID);
+        _ ->
+            rpc:call(Node, nksip_request, reply, [Reply, ReqID], timer:seconds(5))
+    end.
+
+nksip_uac_bye(Node, DialogHandle, Args) ->
+    case node() of
+        Node ->
+            nksip_uac:bye(DialogHandle, Args);
+        _ ->
+            rpc:call(Node, nksip_uac, bye, [DialogHandle, Args], timer:seconds(5))
     end.
 

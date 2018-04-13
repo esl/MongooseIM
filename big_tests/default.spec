@@ -68,9 +68,6 @@
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", mod_global_distrib_SUITE}.
 
-%{groups, "tests", jingle_SUITE, [all],
-% {cases, [jingle_session_is_established_for_full_jids]}}.
-
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
 

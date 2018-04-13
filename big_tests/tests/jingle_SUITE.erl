@@ -5,6 +5,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(ejabberd_node_utils, [mim/0, mim2/0]).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -17,12 +18,15 @@ groups() ->
 
 test_cases() ->
     [jingle_session_is_established_for_full_jids,
+     jingle_session_is_established_for_full_jids_on_different_nodes,
      resp_4xx_from_sip_proxy_results_in_session_terminate,
      jingle_session_is_established_when_calling_a_number,
      jingle_session_is_established_and_terminated_by_initiator,
      jingle_session_is_established_and_terminated_by_receiver,
+     jingle_session_is_established_and_terminated_by_receiver_on_different_node,
      jingle_session_is_intiated_and_canceled_by_initiator,
      jingle_session_is_intiated_and_canceled_by_receiver,
+     jingle_session_is_intiated_and_canceled_by_receiver_on_different_node,
      jingle_session_is_established_with_a_conference_room,
      jingle_session_initiate_is_resent_on_demand,
      mongoose_replies_with_480_when_invitee_is_offline
@@ -36,28 +40,36 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    try
-        Port = 12345,
-        Host = ct:get_config({hosts, mim, domain}),
-        dynamic_modules:start(Host, mod_jingle_sip, [{proxy_host, "localhost"},
-                                                     {proxy_port, Port},
-                                                     {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
-        application:ensure_all_started(esip),
-        spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
-                       ets:new(jingle_sip_translator_bindings, [public, named_table]),
-                       receive stop -> ok end end),
-        esip:add_listener(12345, tcp, []),
-        esip:set_config_value(module, jingle_sip_translator),
-        escalus:init_per_suite(Config)
-    catch Error:Reason ->
-              ct:pal("error: ~p, reason: ~p", [Error, Reason]),
-              {skip, not_able_to_start_mod_jingle_sip}
+    case escalus_ejabberd:rpc(application, get_application, [nksip]) of
+        {ok, nksip} ->
+            Port = 12345,
+            Host = ct:get_config({hosts, mim, domain}),
+            distributed_helper:add_node_to_cluster(mim2(), Config),
+            dynamic_modules:start(mim(), Host, mod_jingle_sip, [{proxy_host, "localhost"},
+                                                                {proxy_port, Port},
+                                                                {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
+            dynamic_modules:start(mim2(), Host, mod_jingle_sip, [{proxy_host, "localhost"},
+                                                                 {proxy_port, Port},
+                                                                 {listen_port, 12346},
+                                                                 {username_to_phone,[{<<"2000006168">>, <<"+919177074440">>}]}]),
+
+            application:ensure_all_started(esip),
+            spawn(fun() -> ets:new(jingle_sip_translator, [public, named_table]),
+                           ets:new(jingle_sip_translator_bindings, [public, named_table]),
+                           receive stop -> ok end end),
+            esip:add_listener(12345, tcp, []),
+            esip:set_config_value(module, jingle_sip_translator),
+            escalus:init_per_suite(Config);
+        undefined ->
+            {skip, build_was_not_configured_with_jingle_sip}
     end.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop(Host, mod_jingle_sip),
+    dynamic_modules:stop(mim(), Host, mod_jingle_sip),
+    dynamic_modules:stop(mim2(), Host, mod_jingle_sip),
+    distributed_helper:remove_node_from_cluster(mim2(), Config),
     escalus:end_per_suite(Config).
 
 init_per_group(GroupName, Config) ->
@@ -74,6 +86,13 @@ end_per_testcase(CaseName, Config) ->
 
 jingle_session_is_established_for_full_jids(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+
+        accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest)
+    end).
+
+jingle_session_is_established_for_full_jids_on_different_nodes(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, Bob) ->
         {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
 
         accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest)
@@ -207,6 +226,20 @@ jingle_session_is_established_and_terminated_by_receiver(Config) ->
 
     end).
 
+jingle_session_is_established_and_terminated_by_receiver_on_different_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, Bob) ->
+        {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+
+        accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest),
+
+        timer:sleep(timer:seconds(5)),
+        %% then Bob (who was invited to the call) terminates the call
+        %% it's important that bob terminates the call from the invite he got
+        terminate_jingle_session(Bob, Alice, InviteRequest)
+
+    end).
+
+
 jingle_session_is_intiated_and_canceled_by_initiator(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {InviteStanza, _InviteRequest} = initiate_jingle_session(Alice, Bob),
@@ -225,6 +258,14 @@ jingle_session_is_intiated_and_canceled_by_receiver(Config) ->
         terminate_jingle_session(Bob, Alice, InviteRequest, <<"decline">>)
     end).
 
+jingle_session_is_intiated_and_canceled_by_receiver_on_different_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {clusterguy, 1}], fun(Alice, Bob) ->
+        {_InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+
+        timer:sleep(1000),
+        %% then Bob (who was invited to the call) terminates the call
+        terminate_jingle_session(Bob, Alice, InviteRequest, <<"decline">>)
+    end).
 
 terminate_jingle_session(Terminator, Other, InviteStanza) ->
     terminate_jingle_session(Terminator, Other, InviteStanza, <<"success">>).

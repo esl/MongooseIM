@@ -3,7 +3,7 @@
 -include("mongoose.hrl").
 
 -type call_id() :: binary().
--type incoming_request() :: binary().
+-type incoming_request() :: {node(), binary()}.
 -type outgoing_handle() :: binary().
 
 -export([init/2]).
@@ -159,8 +159,8 @@ set_outgoing_accepted_tr(CallID) ->
                                         {error, not_found}.
 get_incoming_request(CallID) ->
     case mnesia:dirty_read(jingle_sip_session, CallID) of
-         [#jingle_sip_session{request = ReqID}] ->
-            {ok, ReqID};
+         [#jingle_sip_session{request = ReqID, node = Node}] ->
+            {ok, {Node, ReqID}};
          _ ->
             {error, not_found}
     end.
