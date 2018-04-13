@@ -54,8 +54,8 @@ opts() ->
                                          "a completely self contained release"},
      {"user",    (#opts{})#opts.user,    "System user to run the server as"}].
 
-include_driver(DB) ->
-    ["include ", DB, " driver"].
+include_driver(Driver) ->
+    ["include ", Driver, " driver"].
 
 all_apps() ->
     lists:flatmap(fun ({_, Apps, _}) -> Apps end, app_opts()).

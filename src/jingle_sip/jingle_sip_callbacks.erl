@@ -1,3 +1,7 @@
+%% @doc
+%% This module defines callbacks for nksip application
+%% Exported functions whill be called when there is new message to MongooseIM
+%% or when there is an response to a SIP INVITE sent from MongooseIM to a SIP Proxy
 -module(jingle_sip_callbacks).
 
 -include("mongoose.hrl").

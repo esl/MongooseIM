@@ -5,6 +5,7 @@
 
 -include("jlib.hrl").
 
+-spec maybe_rewrite_to_phone(mongoose_acc:t()) -> jid:jid().
 maybe_rewrite_to_phone(Acc) ->
     Server = mongoose_acc:get(server, Acc),
     #jid{luser = ToUser} = JID = mongoose_acc:get(to_jid, Acc),
@@ -16,6 +17,7 @@ maybe_rewrite_to_phone(Acc) ->
             JID
     end.
 
+-spec maybe_rewrite_from_phone(jid:lserver(), binary()) -> jid:luser().
 maybe_rewrite_from_phone(Server, <<"+", _/binary>> = PhoneNumber) ->
     try_to_rewrite_from_phone(Server, PhoneNumber);
 maybe_rewrite_from_phone(Server, <<"*", _/binary>> = PhoneNumber) ->

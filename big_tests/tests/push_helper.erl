@@ -70,8 +70,8 @@ become_unavailable(Client) ->
     end). %% There is no ACK for unavailable status
 
 is_offline(LUser, LServer, LRes) ->
-    Resources =  escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [LUser, LServer]),
-    case lists:keyfind(LRes, 2, Resources) of
+    PResources =  escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [LUser, LServer]),
+    case lists:keyfind(LRes, 2, PResources) of
         false ->
             true;
         _ ->

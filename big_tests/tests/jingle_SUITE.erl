@@ -84,6 +84,10 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
+%%--------------------------------------------------------------------
+%% Cases
+%%--------------------------------------------------------------------
+
 jingle_session_is_established_for_full_jids(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
@@ -97,34 +101,6 @@ jingle_session_is_established_for_full_jids_on_different_nodes(Config) ->
 
         accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest)
     end).
-
-accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest) ->
-    AcceptStanza = escalus_stanza:to(jingle_accept(InviteRequest), Alice),
-    escalus:send(Bob, AcceptStanza),
-    AcceptResult = escalus:wait_for_stanza(Bob, timer:seconds(5)),
-    escalus:assert(is_iq_result, AcceptResult),
-
-    AcceptInfo = escalus:wait_for_stanza(Alice, timer:seconds(5)),
-    assert_accept_response(InviteStanza, AcceptInfo).
-
-initiate_jingle_session(Alice, Bob) ->
-    {InviteStanza, _FirstIQSet} = send_initiate_and_wait_for_first_iq_set(Alice, Bob),
-
-    %jingle_sip_translator:send_invite(Alice, Bob),
-
-    InviteRequest = escalus:wait_for_stanza(Bob, timer:seconds(5)),
-    escalus:assert(is_iq_set, InviteRequest),
-    assert_invite_request(InviteStanza, InviteRequest),
-    {InviteStanza, InviteRequest}.
-
-send_initiate_and_wait_for_first_iq_set(Alice, Bob) ->
-    InviteStanza = escalus_stanza:to(jingle_initiate(), Bob),
-    escalus:send(Alice, InviteStanza),
-    SessionInitiateResult = escalus:wait_for_stanza(Alice, timer:seconds(5)),
-    escalus:assert(is_iq_result, SessionInitiateResult),
-    RingingStanza = escalus:wait_for_stanza(Alice, timer:seconds(5)),
-    escalus:assert(is_iq_set, RingingStanza),
-    {InviteStanza, RingingStanza}.
 
 resp_4xx_from_sip_proxy_results_in_session_terminate(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -266,6 +242,38 @@ jingle_session_is_intiated_and_canceled_by_receiver_on_different_node(Config) ->
         %% then Bob (who was invited to the call) terminates the call
         terminate_jingle_session(Bob, Alice, InviteRequest, <<"decline">>)
     end).
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest) ->
+    AcceptStanza = escalus_stanza:to(jingle_accept(InviteRequest), Alice),
+    escalus:send(Bob, AcceptStanza),
+    AcceptResult = escalus:wait_for_stanza(Bob, timer:seconds(5)),
+    escalus:assert(is_iq_result, AcceptResult),
+
+    AcceptInfo = escalus:wait_for_stanza(Alice, timer:seconds(5)),
+    assert_accept_response(InviteStanza, AcceptInfo).
+
+initiate_jingle_session(Alice, Bob) ->
+    {InviteStanza, _FirstIQSet} = send_initiate_and_wait_for_first_iq_set(Alice, Bob),
+
+    %jingle_sip_translator:send_invite(Alice, Bob),
+
+    InviteRequest = escalus:wait_for_stanza(Bob, timer:seconds(5)),
+    escalus:assert(is_iq_set, InviteRequest),
+    assert_invite_request(InviteStanza, InviteRequest),
+    {InviteStanza, InviteRequest}.
+
+send_initiate_and_wait_for_first_iq_set(Alice, Bob) ->
+    InviteStanza = escalus_stanza:to(jingle_initiate(), Bob),
+    escalus:send(Alice, InviteStanza),
+    SessionInitiateResult = escalus:wait_for_stanza(Alice, timer:seconds(5)),
+    escalus:assert(is_iq_result, SessionInitiateResult),
+    RingingStanza = escalus:wait_for_stanza(Alice, timer:seconds(5)),
+    escalus:assert(is_iq_set, RingingStanza),
+    {InviteStanza, RingingStanza}.
 
 terminate_jingle_session(Terminator, Other, InviteStanza) ->
     terminate_jingle_session(Terminator, Other, InviteStanza, <<"success">>).

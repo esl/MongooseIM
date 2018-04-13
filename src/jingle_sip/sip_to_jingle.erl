@@ -102,19 +102,19 @@ parse_nksip_media_attrs(Attrs) ->
 
 parse_nksip_media_attrs([], Acc) ->
     Acc;
-parse_nksip_media_attrs([Attr | Rest], Acc) ->
-    NewAcc = parse_nksip_media_attr(Attr, Acc),
+parse_nksip_media_attrs([{AttrName, AttrValue} | Rest], Acc) ->
+    NewAcc = parse_nksip_media_attr(AttrName, AttrValue, Acc),
     parse_nksip_media_attrs(Rest, NewAcc).
 
-parse_nksip_media_attr({<<"sendrecv">>, _}, Acc) ->
+parse_nksip_media_attr(<<"sendrecv">>, _, Acc) ->
     Acc#{sender => <<"both">>};
-parse_nksip_media_attr({<<"recvonly">>, _}, Acc) ->
+parse_nksip_media_attr(<<"recvonly">>, _, Acc) ->
     Acc#{sender => <<"responder">>};
-parse_nksip_media_attr({<<"sendonly">>, _}, Acc) ->
+parse_nksip_media_attr(<<"sendonly">>, _, Acc) ->
     Acc#{sender => <<"initiator">>};
-parse_nksip_media_attr({<<"inactive">>, _}, Acc) ->
+parse_nksip_media_attr(<<"inactive">>, _, Acc) ->
     Acc#{sender => <<"none">>};
-parse_nksip_media_attr({<<"candidate">>, Params}, Acc) ->
+parse_nksip_media_attr(<<"candidate">>, Params, Acc) ->
     [Foundation, Component, Protocol, Priority, IP, Port | ExtraArgs] = Params,
     Candidate = #{foundation => Foundation,
                   component => Component,
@@ -129,34 +129,34 @@ parse_nksip_media_attr({<<"candidate">>, Params}, Acc) ->
     Candidates = maps:get(candidates, Transport, []),
     NewTransport = Transport#{candidates => [CompleteCandidate | Candidates]},
     Acc#{transport => NewTransport};
-parse_nksip_media_attr({<<"ice-ufrag">>, [Value]}, Acc) ->
+parse_nksip_media_attr(<<"ice-ufrag">>, [Value], Acc) ->
     Transport = maps:get(transport, Acc, #{}),
     Acc#{transport => Transport#{ufrag => Value}};
-parse_nksip_media_attr({<<"ice-pwd">>, [Value]}, Acc) ->
+parse_nksip_media_attr(<<"ice-pwd">>, [Value], Acc) ->
     Transport = maps:get(transport, Acc, #{}),
     Acc#{transport => Transport#{pwd => Value}};
-parse_nksip_media_attr({<<"fingerprint">>, [Hash, Fingerprint]}, Acc) ->
+parse_nksip_media_attr(<<"fingerprint">>, [Hash, Fingerprint], Acc) ->
     Transport = maps:get(transport, Acc, #{}),
     Acc#{transport => Transport#{fingerprint => {Hash, Fingerprint}}};
-parse_nksip_media_attr({<<"setup">>, [Value]}, Acc) ->
+parse_nksip_media_attr(<<"setup">>, [Value], Acc) ->
     Transport = maps:get(transport, Acc, #{}),
     Acc#{transport => Transport#{setup => Value}};
-parse_nksip_media_attr({<<"rtcp-mux">>, _}, Acc) ->
+parse_nksip_media_attr(<<"rtcp-mux">>, _, Acc) ->
     Acc#{rtcp_mux => true};
-parse_nksip_media_attr({<<"extmap">>, [IDWithSender, URI]}, Acc) ->
+parse_nksip_media_attr(<<"extmap">>, [IDWithSender, URI], Acc) ->
     {ID, Sender} = decode_extmap_id(IDWithSender),
     RTPHdrExts = maps:get(rtphdr_ext, Acc, []),
     Acc#{rtphdr_ext => [{ID, Sender, URI} | RTPHdrExts]};
-parse_nksip_media_attr({<<"ssrc">>, [ID | Parameter]}, Acc) ->
+parse_nksip_media_attr(<<"ssrc">>, [ID | Parameter], Acc) ->
     SourceMap = maps:get(source_map, Acc, #{}),
     SourceParams = maps:get(ID, SourceMap, []),
     Param = decode_ssrc_sdp_param(Parameter),
     NewSourceParams = [Param | SourceParams],
     NewSourceMap = SourceMap#{ID => NewSourceParams},
     Acc#{source_map => NewSourceMap};
-parse_nksip_media_attr({<<"mid">>, [Name]}, Acc) ->
+parse_nksip_media_attr(<<"mid">>, [Name], Acc) ->
     Acc#{name => Name};
-parse_nksip_media_attr(_, Acc) ->
+parse_nksip_media_attr(_, _, Acc) ->
     Acc.
 
 decode_extmap_id(IDWithSender) ->
