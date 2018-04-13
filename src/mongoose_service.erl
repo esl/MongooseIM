@@ -100,7 +100,7 @@ get_service_opts(Service) ->
 
 -spec loaded_services_with_opts() -> [{service(), options()}].
 loaded_services_with_opts() ->
-    [Z || [Z] <- ets:tab2list(?ETAB)].
+    ets:tab2list(?ETAB).
 
 %% @doc to be used as an emergency feature if serviced crashed while stopping and is not
 %% running but still lingers in the services tab
