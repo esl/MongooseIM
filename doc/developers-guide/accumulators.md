@@ -13,6 +13,9 @@ At the beginning of the main processing chain an accumulator is created containi
 * attrs - attributs of the root xml element of the stanza
 * from, to - full jids of the sender and recipient in binary form
 * from_jid, to_jid - same as #jid{} records.
+* sender_sid - session id (SID) of `ejabberd_c2s`. Set when we receive a stanza
+  from the user device. *property*, *optional*.
+* sender_jid - full sender JID. Set the same time as `sender_sid`. *property*, *optional*.
 
 It is then passed through all the stages until it reaches the end of its life.
 Throughout the process it is the very same accumulator; it is therefore possible to store a value in it on one stage of the processing and retrieve the same value later on.

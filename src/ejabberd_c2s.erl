@@ -455,7 +455,7 @@ wait_for_auth({xmlstreamelement,
                #xmlel{name = <<"enable">>} = El}, StateData) ->
     maybe_unexpected_sm_request(wait_for_auth, El, StateData);
 wait_for_auth({xmlstreamelement, El}, StateData) ->
-    Acc0 = mongoose_acc:from_element(El),
+    Acc0 = from_sender_element(El, StateData),
     User = StateData#state.user,
     Server = StateData#state.server,
     Acc = mongoose_acc:update(Acc0, #{user => User, server => Server}),
@@ -777,7 +777,7 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
                                             StateData0),
     case jlib:iq_query_info(El) of
         #iq{type = set, xmlns = ?NS_SESSION} ->
-            Acc0 = mongoose_acc:from_element(El),
+            Acc0 = from_sender_element(El, StateData0),
             User = StateData#state.user,
             Server = StateData#state.server,
             Acc = mongoose_acc:update(Acc0, #{user => User, server => Server}),
@@ -965,7 +965,7 @@ session_established({xmlstreamelement, El}, StateData) ->
                                                    StateData),
             % initialise accumulator, fill with data
             El1 = fix_message_from_user(El, StateData#state.lang),
-            Acc0 = mongoose_acc:from_element(El1),
+            Acc0 = from_sender_element(El1, StateData),
             User = NewState#state.user,
             Server = NewState#state.server,
             UserJID = NewState#state.jid,
@@ -1220,7 +1220,7 @@ handle_info({force_update_presence, LUser}, StateName,
                            StateData#state.pres_last,
                            [LUser, LServer]),
             StateData2 = StateData#state{pres_last = PresenceEl},
-            Acc = mongoose_acc:from_element(PresenceEl),
+            Acc = from_sender_element(PresenceEl, StateData),
             presence_update(Acc, StateData2#state.jid, StateData2),
             StateData2;
         _ ->
@@ -1248,7 +1248,7 @@ handle_info({store_session_info, User, Server, Resource, KV, _FromPid}, StateNam
 handle_info(Info, StateName, StateData) ->
     handle_incoming_message(Info, StateName, StateData).
 
-%%% incoming messages
+%%% incoming messages from other users or services to this device
 handle_incoming_message({send_text, Text}, StateName, StateData) ->
     % it seems to be sometimes, by event sent from s2s
     send_text(StateData, Text),
@@ -1273,7 +1273,7 @@ handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
     Acc = setup_accum(Acc0, StateData),
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
     Name = mongoose_acc:get(name, Acc1),
-    process_incoming_stanza(Name, From, To, Acc1, StateName, StateData);
+    process_incoming_stanza_with_conflict_check(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
     Acc0 = mongoose_acc:new(),
@@ -1313,6 +1313,35 @@ handle_incoming_message(Info, StateName, StateData) ->
     ?ERROR_MSG("Unexpected info: ~p", [Info]),
     fsm_next_state(StateName, StateData).
 
+process_incoming_stanza_with_conflict_check(Name, From, To, Acc, StateName, StateData) ->
+    case is_old_session_conflict(Acc, StateData) of
+        false ->
+            process_incoming_stanza(Name, From, To, Acc, StateName, StateData);
+        true -> %% A race condition detected
+            %% Same jid, but different sids
+            SenderSID = mongoose_acc:get_prop(sender_sid, Acc),
+            ?ERROR_MSG("event=conflict_check_failed "
+                        "jid=~ts c2s_sid=~p sender_sid=~p acc=~1000p",
+                       [jid:to_binary(StateData#state.jid), StateData#state.sid,
+                        SenderSID, Acc]),
+            finish_state(ok, StateName, StateData)
+    end.
+
+%% If jid is the same, but sid is not.
+%% jid example is alice@localhost/res1.
+%% sid example is `{now(), pid()}'.
+%% The conflict can happen, when actions with an accumulator were initiated by
+%% one process but the resulting stanzas were routed to another process with
+%% the same JID but different SID.
+%% The conflict is usually happens when an user is reconnecting.
+-spec is_old_session_conflict(mongoose_acc:t(), state()) -> boolean().
+is_old_session_conflict(Acc, #state{sid = SID, jid = JID}) ->
+    SenderSID = mongoose_acc:get_prop(sender_sid, Acc),
+    SenderJID = mongoose_acc:get_prop(sender_jid, Acc),
+    (SenderJID =:= JID)
+    andalso (SenderSID =/= undefined)
+    andalso (SenderSID =/= SID).
+
 process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
     Packet = mongoose_acc:get(element, Acc),
     {Act, _NextAcc, NextState} = case handle_routed(Name, From, To, Acc, StateData) of
@@ -1325,6 +1354,7 @@ process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
                                          {ok, NewAcc, NewState}
                                  end,
     finish_state(Act, StateName, NextState).
+
 
 -spec preprocess_and_ship(Acc :: mongoose_acc:t(),
                           From :: jid:jid(),
@@ -1599,7 +1629,7 @@ terminate(_Reason, StateName, StateData) ->
             Packet = #xmlel{name = <<"presence">>,
                             attrs = [{<<"type">>, <<"unavailable">>}],
                             children = [StatusEl]},
-            Acc0 = mongoose_acc:from_element(Packet),
+            Acc0 = from_sender_element(Packet, StateData),
             Acc = mongoose_acc:put(from_jid, From, Acc0),
             ejabberd_sm:close_session_unset_presence(
               StateData#state.sid,
@@ -1636,7 +1666,7 @@ terminate(_Reason, StateName, StateData) ->
                     From = StateData#state.jid,
                     Packet = #xmlel{name = <<"presence">>,
                                     attrs = [{<<"type">>, <<"unavailable">>}]},
-                    Acc0 = mongoose_acc:from_element(Packet),
+                    Acc0 = from_sender_element(Packet, StateData),
                     Acc = mongoose_acc:put(from_jid, From, Acc0),
                     ejabberd_sm:close_session_unset_presence(
                       StateData#state.sid,
@@ -3353,3 +3383,9 @@ setup_accum(Acc, StateData) ->
     Server = StateData#state.server,
     mongoose_acc:update(Acc, #{server => Server, user => User}).
 
+%% @doc This function is executed when c2s receives a stanza from TCP connection.
+-spec from_sender_element(jlib:xmlel(), StateData :: state()) -> mongoose_acc:t().
+from_sender_element(El, #state{sid = SID, jid = JID}) ->
+    Acc = mongoose_acc:from_element(El),
+    Acc1 = mongoose_acc:add_prop(sender_sid, SID, Acc),
+    mongoose_acc:add_prop(sender_jid, JID, Acc1).

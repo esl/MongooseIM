@@ -106,6 +106,18 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
+    %% Two reasons for it to be here.
+    %%
+    %% Reason 1.
+    %% After case set_list, alice@localhost/res1 presence unavailable
+    %% is sometimes received in activate, but not expected.
+    %% The proper handling on the server side is done after introducing
+    %% ejabberd_c2s:process_incoming_stanza_with_conflict_check.
+    %%
+    %% Reason 2.
+    %% More than 2 users. One user receives a precence of another one.
+    %% It can be presence available or unavailable.
+    mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
