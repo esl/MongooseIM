@@ -23,7 +23,6 @@
 -export([logout_user/2]).
 -export([wait_until/3, wait_until/4]).
 
--define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 -import(escalus_ejabberd, [rpc/3]).
 
 -spec is_odbc_enabled(Host :: binary()) -> boolean().
