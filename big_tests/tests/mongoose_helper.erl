@@ -24,6 +24,7 @@
 -export([get_bjid/1]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
+-import(escalus_ejabberd, [rpc/3]).
 
 -spec is_odbc_enabled(Host :: binary()) -> boolean().
 is_odbc_enabled(Host) ->
@@ -67,8 +68,8 @@ total_vcard_items() ->
 -spec total_roster_items() -> integer() | false.
 total_roster_items() ->
     Domain = ct:get_config({hosts, mim, domain}),
-    RosterMnesia = ?RPC(gen_mod, is_loaded, [Domain, mod_roster]),
-    RosterODBC = ?RPC(gen_mod, is_loaded, [Domain, mod_roster_odbc]),
+    RosterMnesia = rpc(gen_mod, is_loaded, [Domain, mod_roster]),
+    RosterODBC = rpc(gen_mod, is_loaded, [Domain, mod_roster_odbc]),
     case {RosterMnesia, RosterODBC} of
         {true, _} ->
             generic_count_backend(mod_roster_mnesia);
@@ -110,16 +111,16 @@ new_mongoose_acc() ->
     successful_rpc(mongoose_acc, new, []).
 
 clear_caps_cache(CapsNode) ->
-    ok = ?RPC(mod_caps, delete_caps, [CapsNode]).
+    ok = rpc(mod_caps, delete_caps, [CapsNode]).
 
 get_backend(Module) ->
-  case ?RPC(Module, backend, []) of
+  case rpc(Module, backend, []) of
     {badrpc, _Reason} -> false;
     Backend -> Backend
   end.
 
 generic_count(mod_offline_backend, {User, Server}) ->
-    ?RPC(mod_offline_backend, count_offline_messages, [User, Server, 100]).
+    rpc(mod_offline_backend, count_offline_messages, [User, Server, 100]).
 
 
 generic_count(Module) ->
@@ -149,7 +150,7 @@ generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
     D = ct:get_config({hosts, mim, domain}),
     %% number of vcards in ldap is the same as number of users
-    ?RPC(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
+    rpc(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
 generic_count_backend(mod_roster_riak) ->
     count_riak(<<"rosters">>),
@@ -157,13 +158,13 @@ generic_count_backend(mod_roster_riak) ->
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
-    Pattern = ?RPC(mnesia, table_info, [Table, wild_pattern]),
-    length(?RPC(mnesia, dirty_match_object, [Pattern])).
+    Pattern = rpc(mnesia, table_info, [Table, wild_pattern]),
+    length(rpc(mnesia, dirty_match_object, [Pattern])).
 
 
 count_odbc(Table) ->
     {selected, [{N}]} =
-        ?RPC(mongoose_rdbms,sql_query, [<<"localhost">>,[<<"select count(*) from ", Table/binary, " ;">>]]),
+        rpc(mongoose_rdbms,sql_query, [<<"localhost">>,[<<"select count(*) from ", Table/binary, " ;">>]]),
     count_to_integer(N).
 
 count_to_integer(N) when is_binary(N) ->
@@ -172,12 +173,12 @@ count_to_integer(N) when is_integer(N)->
     N.
 
 count_riak(BucketType) ->
-    {ok, Buckets} = ?RPC(mongoose_riak, list_buckets, [BucketType]),
-    BucketKeys = [?RPC(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
+    {ok, Buckets} = rpc(mongoose_riak, list_buckets, [BucketType]),
+    BucketKeys = [rpc(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
     length(lists:flatten(BucketKeys)).
 
 kick_everyone() ->
-    [?RPC(ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
+    [rpc(ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
     asset_session_count(0, 50).
 
 asset_session_count(Expected, Retries) ->
@@ -200,7 +201,7 @@ wait_for_session_count(Expected, Retries) ->
     end.
 
 get_session_specs() ->
-    ?RPC(supervisor, which_children, [ejabberd_c2s_sup]).
+    rpc(supervisor, which_children, [ejabberd_c2s_sup]).
 
 get_session_pids() ->
     [element(2, X) || X <- get_session_specs()].
