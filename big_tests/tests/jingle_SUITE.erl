@@ -28,6 +28,7 @@ test_cases() ->
      jingle_session_is_intiated_and_canceled_by_receiver,
      jingle_session_is_intiated_and_canceled_by_receiver_on_different_node,
      jingle_session_is_established_with_a_conference_room,
+     jingle_session_is_terminated_on_other_receivers_devices,
      jingle_session_initiate_is_resent_on_demand,
      mongoose_replies_with_480_when_invitee_is_offline,
      mongoose_returns_404_when_not_authorized_user_tires_to_accept_a_session,
@@ -159,6 +160,23 @@ jingle_session_initiate_is_resent_on_demand(Config) ->
         escalus:assert(is_iq_result, [ResendSessionInitiateIQ], ResendResult)
 
     end).
+
+jingle_session_is_terminated_on_other_receivers_devices(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 2}], fun(Alice, Bob, Bob2) ->
+        {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+        %% The other Bob's device also gets the invite
+        InviteRequest2 = escalus:wait_for_stanza(Bob2),
+
+        %% then bob accepts the call on one of the devices
+        assert_same_sid(InviteRequest, InviteRequest2),
+        accept_jingle_session(Alice, Bob2, InviteStanza, InviteRequest2),
+
+        %% then Bob's first device gets cancel request
+        Terminate = escalus:wait_for_stanza(Bob),
+        assert_is_session_terminate(Terminate, <<"cancel">>)
+
+    end).
+
 
 mongoose_replies_with_480_when_invitee_is_offline(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->

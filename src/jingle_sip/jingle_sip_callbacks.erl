@@ -15,9 +15,8 @@
                              sip_bye/2,
                              sip_cancel/3,
                              send_ringing_session_info/1,
-                             invite_resp_callback/1,
-                             jingle_element/3,
-                             jingle_iq/3]}).
+                             invite_resp_callback/1
+                             ]}).
 
 %% SIP callbacks
 -export([sip_invite/2]).
@@ -72,11 +71,11 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
 
-    JingleEl = jingle_element(CallID, <<"session-initiate">>, ContentEls ++ OtherEls),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-initiate">>, ContentEls ++ OtherEls),
 
     ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
 
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
@@ -94,8 +93,8 @@ sip_reinvite_unsafe(Req, _Call) ->
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
     ?WARNING_MSG("ContentEls: ~p", [ContentEls]),
-    JingleEl = jingle_element(CallID, <<"transport-info">>, ContentEls ++ OtherEls),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"transport-info">>, ContentEls ++ OtherEls),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     {reply, ok}.
@@ -119,8 +118,8 @@ sip_bye(Req, _Call) ->
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = <<"success">>}]},
-    JingleEl = jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
@@ -133,8 +132,8 @@ sip_cancel(_InviteReq, Req, _Call) ->
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = <<"decline">>}]},
-    JingleEl = jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
@@ -186,8 +185,8 @@ invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
 
-    JingleEl = jingle_element(CallID, <<"session-accept">>, ContentEls ++ OtherEls),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-accept">>, ContentEls ++ OtherEls),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     ok = mod_jingle_sip_backend:set_outgoing_accepted(CallID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
@@ -203,8 +202,8 @@ invite_resp_callback({resp, 486, SIPMsg, _Call}) ->
 
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = <<"decline">>}]},
-    JingleEl = jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
@@ -215,8 +214,8 @@ invite_resp_callback({resp, ErrorCode, SIPMsg, _Call}) when ErrorCode >= 400, Er
 
     ReasonEl = make_session_terminate_reason_el(ErrorCode, SIPMsg),
 
-    JingleEl = jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
@@ -238,26 +237,11 @@ send_ringing_session_info(SIPMsg) ->
 
     RingingEl = #xmlel{name = <<"ringing">>,
                        attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:1:info">>}]},
-    JingleEl = jingle_element(CallID, <<"session-info">>, [RingingEl]),
-    IQEl = jingle_iq(ToBinary, FromBinary, JingleEl),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-info">>, [RingingEl]),
+    IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok.
-
-jingle_element(CallID, Action, Children) ->
-    #xmlel{name = <<"jingle">>,
-           attrs = [{<<"xmlns">>, ?JINGLE_NS},
-                    {<<"action">>, Action},
-                    {<<"sid">>, CallID}],
-           children = Children}.
-
-jingle_iq(ToBinary, FromBinary, JingleEl) ->
-    #xmlel{name = <<"iq">>,
-           attrs = [{<<"from">>, FromBinary},
-                    {<<"to">>, ToBinary},
-                    {<<"id">>, uuid:uuid_to_string(uuid:get_v4(), binary_standard)},
-                    {<<"type">>, <<"set">>}],
-           children = [JingleEl]}.
 
 get_user_from_sip_msg(Field, SIPMsg) ->
     URI = nksip_sipmsg:meta(Field, SIPMsg),

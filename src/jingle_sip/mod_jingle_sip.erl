@@ -247,10 +247,28 @@ try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
     case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
         ok ->
-           ok = mod_jingle_sip_backend:set_incoming_accepted(SID);
+           ok = mod_jingle_sip_backend:set_incoming_accepted(SID),
+           terminate_session_on_other_devices(SID, Acc),
+           ok;
         Other ->
            Other
     end.
+
+terminate_session_on_other_devices(SID, Acc) ->
+    #jid{lresource = Res} = From = mongoose_acc:get(from_jid, Acc),
+    FromBin = jid:to_binary(From),
+    ReasonEl = #xmlel{name = <<"reason">>,
+                      children = [#xmlel{name = <<"cancel">>}]},
+    JingleEl = jingle_sip_helper:jingle_element(SID, <<"session-terminate">>, [ReasonEl]),
+    PResources = ejabberd_sm:get_user_present_resources(From#jid.luser, From#jid.lserver),
+    lists:foreach(
+      fun({_, R}) when R /= Res ->
+              ToJID = jid:replace_resource(From, R),
+              IQEl = jingle_sip_helper:jingle_iq(jid:to_binary(ToJID), FromBin, JingleEl),
+              ejabberd_router:route(From, ToJID, Acc, IQEl);
+         (_) ->
+              skip
+      end, PResources).
 
 make_user_header({User, _} = US) ->
     JIDBin = jid:to_binary(US),
