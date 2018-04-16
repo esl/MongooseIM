@@ -45,7 +45,7 @@ start(normal, _Args) ->
     db_init(),
     application:start(cache_tab),
 
-    translate:start(),
+translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
