@@ -53,11 +53,6 @@ cook_connection_step_error(E) ->
     {EDef, _} = Reason,
     {EDef, StepDef}.
 
-get_bjid(UserSpec) ->
-    User = proplists:get_value(username, UserSpec),
-    Server = proplists:get_value(server, UserSpec),
-    <<User/binary,"@",Server/binary>>.
-
 component_start_stream(Conn = #client{props = Props}, []) ->
     {server, Server} = lists:keyfind(server, 1, Props),
     {component, Component} = lists:keyfind(component, 1, Props),
