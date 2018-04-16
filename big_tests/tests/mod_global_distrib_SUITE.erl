@@ -580,7 +580,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
                              authenticate, bind, session, stream_resumption],
 
               {ok, Eve0, _} = escalus_connection:start(EveSpec, StepsWithSM),
-              Eve = Eve0#client{jid = mongoose_helper:get_bjid(EveSpec)},
+              Eve = Eve0#client{jid = common_helper:get_bjid(EveSpec)},
               escalus_story:send_initial_presence(Eve),
               escalus_client:wait_for_stanza(Eve),
 
