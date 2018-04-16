@@ -153,8 +153,8 @@ resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     To = mongoose_acc:get(to_jid, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
-        {ok, #{meta := Meta}} ->
-            maybe_resend_session_initiate(From, To, IQ, Acc, Meta);
+        {ok, Session} ->
+            maybe_resend_session_initiate(From, To, IQ, Acc, Session);
         _ ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:item_not_found())
     end.
@@ -470,16 +470,23 @@ make_group_attr(#xmlel{children = Children} = Group) ->
 
     {<<"group">>, [Semantic | Contents]}.
 
-maybe_resend_session_initiate(From, To, IQ, Acc, Meta) ->
+maybe_resend_session_initiate(From, To, IQ, Acc,
+                              #{meta := Meta, from := OriginFrom}) ->
     case maps:get(init_stanza, Meta, undefined) of
         undefined ->
             Error = mongoose_xmpp_errors:item_not_found(<<"en">>,
                                                         <<"no session-initiate for this SID">>),
             ejabberd_router:route_error_reply(To, From, Acc, Error);
         Stanza ->
-            IQResult = IQ#iq{type = result, sub_el = [Stanza]},
+            IQResult = IQ#iq{type = result, sub_el = []},
             Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-            ejabberd_router:route(To, From, Acc, Packet)
+            ejabberd_router:route(To, From, Acc, Packet),
+            OriginFromBin = jid:to_binary(OriginFrom),
+            IQSet = jingle_sip_helper:jingle_iq(jid:to_binary(From), OriginFromBin,
+                                                Stanza),
+            {U, S} = OriginFrom,
+            OriginJID = jid:make_noprep(U, S, <<>>),
+            ejabberd_router:route(OriginJID, From, Acc, IQSet)
     end.
 
 nksip_request_reply(Reply, {Node, ReqID}) ->

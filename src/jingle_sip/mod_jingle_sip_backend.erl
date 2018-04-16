@@ -198,6 +198,8 @@ get_session_info(SID, User) ->
                               direction = Dir,
                               node = ONode,
                               owner = UserUS,
+                              to = To,
+                              from = From,
                               meta = Meta}] ->
             {ok, #{sid => SID,
                    dialog => Handle,
@@ -205,6 +207,8 @@ get_session_info(SID, User) ->
                    state => State,
                    direction => Dir,
                    node => ONode,
+                   from => From,
+                   to => To,
                    meta => Meta}};
          _ ->
             {error, not_found}

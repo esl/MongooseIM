@@ -141,7 +141,7 @@ jingle_session_initiate_is_resent_on_demand(Config) ->
         %% Bob2 becomes unavailalbe
         push_helper:become_unavailable(Bob2),
         escalus:wait_for_stanza(Bob), %%Bob first device gets unavailable form the other
-        {_InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+        {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
 
         escalus_assert:has_no_stanzas(Bob2),
 
@@ -156,8 +156,13 @@ jingle_session_initiate_is_resent_on_demand(Config) ->
         %% this is to get the invite in new session (new browser window)
         escalus:send(Bob2, ResendSessionInitiateIQ),
         ResendResult = escalus:wait_for_stanza(Bob2),
-        ct:pal("~p", [ResendResult]),
-        escalus:assert(is_iq_result, [ResendSessionInitiateIQ], ResendResult)
+        escalus:assert(is_iq_result, [ResendSessionInitiateIQ], ResendResult),
+        InviteRequest2 = escalus:wait_for_stanza(Bob2),
+        assert_same_sid(InviteRequest, InviteRequest2),
+        assert_invite_request(InviteStanza, InviteRequest2),
+        AliceShortJID = escalus_client:short_jid(Alice),
+        escalus:assert(is_stanza_from, [AliceShortJID], InviteRequest2)
+
 
     end).
 
