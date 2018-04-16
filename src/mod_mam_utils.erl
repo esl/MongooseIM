@@ -22,6 +22,8 @@
 
 %% XML
 -export([maybe_add_arcid_elems/5,
+         maybe_log_deprecation/1,
+         mam02_deprecation_message/0,
          is_arcid_elem_for/3,
          replace_arcid_elem/4,
          replace_x_user_element/4,
@@ -242,9 +244,7 @@ maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
     BareTo = jid:to_binary(jid:to_bare(To)),
     WithArchived = case AddArchived of
                        true ->
-                           mongoose_deprecations:log(mam02, "<archived/> element is going to be removed in release 3.0.0"
-                                                            " It is not recommended to use it."
-                                                            " Consider using a <stanza-id/> element instead"),
+                           mongoose_deprecations:log(mam02, mam02_deprecation_message()),
                            replace_arcid_elem(<<"archived">>, BareTo, MessID, Packet);
                        _ -> Packet
                    end,
@@ -254,6 +254,20 @@ maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
         _ -> WithArchived
     end.
 
+-spec maybe_log_deprecation(jlib:iq()) -> ok.
+maybe_log_deprecation(IQ) ->
+    case mam_iq:is_mam02(IQ) of
+        true ->
+            mongoose_deprecations:log(mam02, mam02_deprecation_message());
+        _ ->
+            ok
+    end.
+
+-spec mam02_deprecation_message() -> string().
+mam02_deprecation_message() ->
+    "MAM 0.2 along with its <archived/> element is going to be removed in release 3.0.0"
+    " It is not recommended to use it."
+    " Consider using a <stanza-id/> element and MAM 0.3 or newer".
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
