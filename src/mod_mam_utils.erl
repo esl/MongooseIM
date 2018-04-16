@@ -266,8 +266,8 @@ maybe_log_deprecation(IQ) ->
 -spec mam02_deprecation_message() -> string().
 mam02_deprecation_message() ->
     "MAM 0.2 along with its <archived/> element is going to be removed in release 3.0.0"
-    "It is not recommended to use it."
-    "Consider using a <stanza-id/> element and MAM 0.3 or newer".
+    " It is not recommended to use it."
+    " Consider using a <stanza-id/> element and MAM 0.3 or newer".
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
