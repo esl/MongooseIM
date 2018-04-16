@@ -40,7 +40,7 @@
 
 start(normal, _Args) ->
     init_log(),
-    mongoose_fips:notify(),
+    SoLoooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong = mongoose_fips:notify(),
     write_pid_file(),
     db_init(),
     application:start(cache_tab),
