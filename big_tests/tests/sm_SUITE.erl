@@ -352,7 +352,7 @@ resend_unacked_on_reconnection(Config) ->
         %% Alice disconnects without acking the messages.
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob),
-    wait_until_disconnected(AliceSpec0, 1000),
+    wait_until_disconnected(AliceSpec0),
 
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
@@ -386,7 +386,7 @@ preserve_order(Config) ->
 
     %% kill alice connection
     escalus_connection:kill(Alice),
-    wait_until_disconnected(AliceSpec, 1000),
+    wait_until_disconnected(AliceSpec),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"2">>)),
     escalus_connection:send(Bob, escalus_stanza:chat_to(mongoose_helper:get_bjid(AliceSpec), <<"3">>)),
@@ -826,15 +826,10 @@ extract_state_name(SysStatus) ->
      [_, _, _, _, [_, {data, FSMData} | _]]} = SysStatus,
     proplists:get_value("StateName", FSMData).
 
-wait_until_disconnected(UserSpec, Timeout) when Timeout =< 0 ->
-    error({disconnect_timeout, UserSpec});
-wait_until_disconnected(UserSpec, Timeout) ->
-    case get_user_resources(UserSpec) of
-        [] -> ok;
-        [_|_] ->
-            ct:sleep(200),
-            wait_until_disconnected(UserSpec, Timeout - 200)
-    end.
+wait_until_disconnected(UserSpec) ->
+    mongoose_helper:wait_until(fun() ->
+                                       get_user_resources(UserSpec) =:= [] end,
+                               5, 200).
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),
