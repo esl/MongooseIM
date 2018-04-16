@@ -16,6 +16,7 @@
 -export([form_to_lookup_params/4]).
 
 -export([lookup_params_with_archive_details/3]).
+-export([is_mam02/1]).
 
 -import(mod_mam_utils,
         [maybe_microseconds/1,
@@ -80,6 +81,9 @@ action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
     action_v03(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
     action_v03(IQ).
+
+is_mam02(#iq{xmlns = ?NS_MAM}) -> true;
+is_mam02(_) -> false.
 
 action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
     case {Action, Category} of

@@ -157,9 +157,7 @@ start(Host, Opts) ->
     case gen_mod:get_opt(add_archived_element, Opts, undefined) of
         undefined -> ok;
         _ ->
-            mongoose_deprecations:log(mam02, "<archived/> element is going to be removed in release 3.0.0"
-                        " It is not recommended to use it."
-                                             " Consider using a <stanza-id/> element instead")
+            mongoose_deprecations:log(mam02, mod_mam_utils:mam02_deprecation_message())
     end,
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
@@ -262,6 +260,7 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 -spec room_process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
                           IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | 'ignore'}.
 room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
+    mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
     Res = case is_action_allowed(Action, From, To) of
         true ->
