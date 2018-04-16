@@ -21,7 +21,6 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([get_bjid/1]).
 -export([wait_until/3, wait_until/4]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
@@ -264,11 +263,6 @@ logout_user(Config, User) ->
                     ct:fail({logout_user_failed, {Username, Resource, Pid}})
             end
     end.
-
-get_bjid(UserSpec) ->
-    User = proplists:get_value(username, UserSpec),
-    Server = proplists:get_value(server, UserSpec),
-    <<User/binary,"@",Server/binary>>.
 
 wait_until(Predicate, Attempts, Sleeptime) ->
      wait_until(Predicate, true, Attempts, Sleeptime).
