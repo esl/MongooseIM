@@ -130,7 +130,7 @@ resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     From = mongoose_acc:get(from_jid, Acc),
     To = mongoose_acc:get(to_jid, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    case mod_jingle_sip_backend:get_session_info(SID) of
+    case mod_jingle_sip_backend:get_session_info(SID, From) of
         {ok, #{meta := Meta}} ->
             maybe_resend_session_initiate(From, To, IQ, Acc, Meta);
         _ ->
@@ -167,7 +167,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     Server = mongoose_acc:get(server, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    {ok, ReqID} = mod_jingle_sip_backend:get_incoming_request(SID),
+    {ok, ReqID} = mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(user_jid, Acc)),
     SDP = prepare_initial_sdp(Server, Jingle),
     %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
     case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
@@ -176,10 +176,10 @@ translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
         Other ->
            Other
     end;
-translate_to_sip(<<"transport-info">>, Jingle, _Acc) ->
+translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
-    case mod_jingle_sip_backend:get_outgoing_handle(SID) of
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(user_jid, Acc)) of
         {ok, undefined} ->
             ?ERROR_MSG("There was no dialog for session ~p yet", [SID]);
         {ok, Handle} ->
@@ -191,9 +191,10 @@ translate_to_sip(<<"transport-info">>, Jingle, _Acc) ->
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
-    FromLUS = jid:to_lus(mongoose_acc:get(from_jid, Acc)),
+    From = mongoose_acc:get(user_jid, Acc),
+    FromLUS = jid:to_lus(From),
     ToLUS = jid:to_lus(ToJID),
-    {ok, Session} = mod_jingle_sip_backend:get_session_info(SID),
+    {ok, Session} = mod_jingle_sip_backend:get_session_info(SID, From),
     case maps:get(state, Session) of
         accepted ->
             DialogHandle = maps:get(dialog, Session),

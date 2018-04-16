@@ -13,9 +13,9 @@
 -export([set_outgoing_handle/4]).
 -export([set_outgoing_accepted/1]).
 -export([set_incoming_accepted/1]).
--export([get_incoming_request/1]).
--export([get_outgoing_handle/1]).
--export([get_session_info/1]).
+-export([get_incoming_request/2]).
+-export([get_outgoing_handle/2]).
+-export([get_session_info/2]).
 -export([remove_session/1]).
 
 -record(jingle_sip_session, {sid,
@@ -24,6 +24,10 @@
                              direction,
                              request,
                              node,
+                             owner,
+                             from,
+                             to,
+                             now,
                              meta}).
 
 init(_Host, _Opts) ->
@@ -31,19 +35,16 @@ init(_Host, _Opts) ->
                         [{ram_copies, [node()]},
                          {attributes, record_info(fields, jingle_sip_session)}]).
 
+-spec set_incoming_request(CallID :: call_id(), ReqID :: binary(),
+                           From :: jid:jid(), To :: jid:jid(), exml:element()) ->
+    ok | {error, any()}.
 set_incoming_request(CallID, ReqID, From, To, JingleEl) ->
     TFun = pa:bind(fun set_incoming_request_tr/5, CallID, ReqID, From, To, JingleEl),
     run_transaction(TFun).
 
-set_incoming_request_tr(CallID, ReqID, _From, _To, JingleEl) ->
+set_incoming_request_tr(CallID, ReqID, From, To, JingleEl) ->
+    Owner = jid:to_lus(To),
     case mnesia:wread({jingle_sip_session, CallID}) of
-        [#jingle_sip_session{request = undefined, direction = in, meta = Meta} = Session] ->
-            NewMeta = Meta#{init_stanza => JingleEl},
-            Session2 = Session#jingle_sip_session{request = ReqID,
-                                                  node = node(),
-                                                  meta = NewMeta
-                                                  },
-            mnesia:write(Session2);
         [_] ->
             {error, sid_already_exists};
         _ ->
@@ -54,20 +55,24 @@ set_incoming_request_tr(CallID, ReqID, _From, _To, JingleEl) ->
                                           state = undefined,
                                           direction = in,
                                           node = node(),
+                                          from = jid:to_lus(From),
+                                          to = Owner,
+                                          owner = Owner,
+                                          now = os:system_time(micro_seconds),
                                           meta = Meta},
             mnesia:write(Session)
     end.
 
+-spec set_outgoing_request(CallID :: call_id(), ReqID :: binary(),
+                           From :: jid:jid(), To :: jid:jid()) ->
+    ok | {error, any()}.
 set_outgoing_request(CallID, ReqID, From, To) ->
     TFun = pa:bind(fun set_outgoing_request_tr/4, CallID, ReqID, From, To),
     run_transaction(TFun).
 
-set_outgoing_request_tr(CallID, ReqID, _From, _To) ->
+set_outgoing_request_tr(CallID, ReqID, From, To) ->
+    Owner = jid:to_lus(From),
     case mnesia:wread({jingle_sip_session, CallID}) of
-        [#jingle_sip_session{request = undefined, direction = out} = Session] ->
-            Session2 = Session#jingle_sip_session{request = ReqID,
-                                                  node = node()},
-            mnesia:write(Session2);
         [_] ->
             {error, sid_already_exists};
         _ ->
@@ -77,6 +82,10 @@ set_outgoing_request_tr(CallID, ReqID, _From, _To) ->
                                           state = undefined,
                                           direction = out,
                                           node = node(),
+                                          from = Owner,
+                                          to = jid:to_lus(To),
+                                          owner = Owner,
+                                          now = os:system_time(micro_seconds),
                                           meta = #{}},
             mnesia:write(Session)
     end.
@@ -155,27 +164,32 @@ set_outgoing_accepted_tr(CallID) ->
             {error, not_found}
     end.
 
--spec get_incoming_request(call_id()) -> {ok, undefined | incoming_request()} |
-                                        {error, not_found}.
-get_incoming_request(CallID) ->
+-spec get_incoming_request(call_id(), jid:jid()) -> {ok, undefined | incoming_request()} |
+                                                    {error, not_found}.
+get_incoming_request(CallID, User) ->
+    UserUS = jid:to_lus(User),
     case mnesia:dirty_read(jingle_sip_session, CallID) of
-         [#jingle_sip_session{request = ReqID, node = Node}] ->
+         [#jingle_sip_session{request = ReqID, node = Node, owner = UserUS}] ->
             {ok, {Node, ReqID}};
          _ ->
             {error, not_found}
     end.
 
--spec get_outgoing_handle(call_id()) -> {ok, undefined | outgoing_handle()} |
-                                        {error, not_found}.
-get_outgoing_handle(SID) ->
+-spec get_outgoing_handle(call_id(), jid:jid()) -> {ok, undefined | outgoing_handle()} |
+                                                   {error, not_found}.
+get_outgoing_handle(SID, User) ->
+    UserUS = jid:to_lus(User),
     case mnesia:dirty_read(jingle_sip_session, SID) of
-         [#jingle_sip_session{dialog = Handle}] ->
+         [#jingle_sip_session{dialog = Handle, owner = UserUS}] ->
             {ok, Handle};
          _ ->
             {error, not_found}
     end.
 
-get_session_info(SID) ->
+-spec get_session_info(binary(), jid:jid()) ->
+    {ok, map()} | {error, any()}.
+get_session_info(SID, User) ->
+    UserUS = jid:to_lus(User),
     case mnesia:dirty_read(jingle_sip_session, SID) of
          [#jingle_sip_session{sid = SID,
                               dialog = Handle,
@@ -183,6 +197,7 @@ get_session_info(SID) ->
                               state = State,
                               direction = Dir,
                               node = ONode,
+                              owner = UserUS,
                               meta = Meta}] ->
             {ok, #{sid => SID,
                    dialog => Handle,
