@@ -13,6 +13,11 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
+-import(push_helper, [
+    enable_stanza/2, enable_stanza/3, enable_stanza/4,
+    disable_stanza/1, disable_stanza/2,
+    make_form/1, maybe_form/2
+]).
 
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
@@ -580,13 +585,6 @@ muclight_msg_notify_stops_after_disabling(Config) ->
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
-
-%% ----------------------------------
-%% Stanzas
-%% ----------------------------------
-%% ----------------------------------
-%% Other helpers
-%% ----------------------------------
 
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));
