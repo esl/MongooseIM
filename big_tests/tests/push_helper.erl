@@ -6,8 +6,7 @@
 -include("push_helper.hrl").
 
 -export([enable_stanza/2, enable_stanza/3, enable_stanza/4,
-         disable_stanza/1, disable_stanza/2,
-         make_form/1, maybe_form/2]).
+         disable_stanza/1, disable_stanza/2]).
 
 -export([become_unavailable/1]).
 -export([wait_for/2]).
