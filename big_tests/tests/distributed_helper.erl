@@ -39,29 +39,6 @@ ctl_path(Node, Config) ->
 script_path(Node, Config, Script) ->
     filename:join([get_cwd(Node, Config), "bin", Script]).
 
-wait_until_started(_, 0) ->
-    erlang:error({timeout, starting_node});
-wait_until_started(Cmd, Retries) ->
-    Result = os:cmd(Cmd),
-    case Result of
-        "pong" ++ _ ->
-            ok;
-        _ ->
-            timer:sleep(1000),
-            wait_until_started(Cmd, Retries - 1)
-    end.
-
-wait_until_stopped(_, 0) ->
-    erlang:error({timeout, stopping_node});
-wait_until_stopped(Cmd, Retries) ->
-    case os:cmd(Cmd) of
-        "pong" ++ _ ->
-            timer:sleep(1000),
-            wait_until_stopped(Cmd, Retries - 1);
-        _ ->
-            ok
-    end.
-
 verify_result(Node, Op) ->
     VerifyNode = mim(),
     DbNodes1 = rpc(Node, mnesia, system_info, [running_db_nodes]),

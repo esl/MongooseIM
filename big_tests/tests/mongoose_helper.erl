@@ -22,6 +22,7 @@
 -export([successful_rpc/3]).
 -export([logout_user/2]).
 -export([get_bjid/1]).
+-export([wait_until/3, wait_until/4]).
 
 -define(RPC(M, F, A), escalus_ejabberd:rpc(M, F, A)).
 -import(escalus_ejabberd, [rpc/3]).
@@ -268,3 +269,23 @@ get_bjid(UserSpec) ->
     User = proplists:get_value(username, UserSpec),
     Server = proplists:get_value(server, UserSpec),
     <<User/binary,"@",Server/binary>>.
+
+wait_until(Predicate, Attempts, Sleeptime) ->
+     wait_until(Predicate, true, Attempts, Sleeptime).
+
+ wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
+     wait_until(Fun, ExpectedValue, Attempts, SleepTime, []).
+
+ wait_until(_Fun, _ExpectedValue, 0, _SleepTime, History) ->
+     error({badmatch, History});
+ wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History) ->
+     case Fun() of
+         ExpectedValue ->
+             ok;
+         OtherValue ->
+             timer:sleep(SleepTime),
+             wait_until(Fun, ExpectedValue, dec_attempts(AttemptsLeft), SleepTime, [OtherValue | History])
+     end.
+
+dec_attempts(infinity) -> infinity;
+dec_attempts(Attempts) -> Attempts - 1.

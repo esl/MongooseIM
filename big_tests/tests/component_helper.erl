@@ -40,17 +40,7 @@ disconnect_component(Component, Addr) ->
 disconnect_components(Components, Addr) ->
     %% TODO replace 'kill' with 'stop' when server supports stream closing
     [escalus_connection:kill(Component) || Component <- Components],
-    wait_until_disconnected(Addr, 1000).
-
-wait_until_disconnected(Addr, Timeout) when Timeout =< 0 ->
-    error({disconnect_timeout, Addr});
-wait_until_disconnected(Addr, Timeout) ->
-    case rpc(ejabberd_router, lookup_component, [Addr]) of
-        [] -> ok;
-        [_|_] ->
-            ct:sleep(200),
-            wait_until_disconnected(Addr, Timeout - 200)
-    end.
+    mongoose_helper:wait_until(fun() -> rpc(ejabberd_router, lookup_component, [Addr]) =:= [] end, 5, 200).
 
 rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
