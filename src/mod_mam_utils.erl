@@ -22,7 +22,7 @@
 
 %% XML
 -export([maybe_add_arcid_elems/5,
-	 maybe_log_deprecation/1,
+         maybe_log_deprecation/1,
          mam02_deprecation_message/0,
          is_arcid_elem_for/3,
          replace_arcid_elem/4,
@@ -265,9 +265,9 @@ maybe_log_deprecation(IQ) ->
 
 -spec mam02_deprecation_message() -> string().
 mam02_deprecation_message() ->
-    " MAM 0.2 along with its <archived/> element is going to be removed in release 3.0.0"
-    " It is not recommended to use it."
-    " Consider using a <stanza-id/> element and MAM 0.3 or newer".
+    "MAM 0.2 along with its <archived/> element is going to be removed in release 3.0.0"
+    "It is not recommended to use it."
+    "Consider using a <stanza-id/> element and MAM 0.3 or newer".
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
