@@ -150,8 +150,8 @@ make_error_reply(Acc, Error) ->
 make_error_reply(Acc, Packet, Error) ->
     case mongoose_acc:get(return_type, Acc, undefined) of
         error_reply ->
-            ?CRITICAL_MSG("event=error_routing_loop,stanza=~p", [Packet]),
-            {Acc, stop};
+            ?ERROR_MSG("event=error_reply_to_error,stanza=~p,error=~p", [Packet, Error]),
+            {Acc, {error, {already_an_error, Packet, Error}}};
         _ ->
             {mongoose_acc:put(return_type, error_reply, Acc),
              make_error_reply(Packet, Error)}
