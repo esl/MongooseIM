@@ -29,6 +29,8 @@
 -define(EL(Element, Name), exml_query:path(Element, [{element, Name}])).
 -define(EL_CD(Element, Name), exml_query:path(Element, [{element, Name}, cdata])).
 
+-import(vcard_update, [is_vcard_ldap/0]).
+
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -420,11 +422,6 @@ search_result_item_tuples(Stanza) ->
     Reported = ?EL(XData, <<"reported">>),
     ReportedFieldTups = field_tuples(Reported#xmlel.children),
     _ItemTups = item_tuples(ReportedFieldTups, XChildren).
-
-is_vcard_ldap()->
-    ldap==escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                               [ct:get_config({hosts, mim, domain}),
-                                mod_vcard, backend, mnesia]).
 
 get_field_name(fn)->
     case is_vcard_ldap() of
