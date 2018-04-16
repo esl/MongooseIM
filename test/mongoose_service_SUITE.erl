@@ -15,7 +15,8 @@ all() ->
         ensure,
         verify_deps,
         start_deps,
-        module_deps
+        module_deps,
+        misconfigured
     ].
 
 services() -> [service_a, service_b, service_c, service_d, service_e, service_f, service_g,
@@ -50,6 +51,15 @@ service_deps() ->
         {service_l, [service_k]}
     ].
 
+init_per_testcase(misconfigured, C) ->
+    mongoose_service:start(),
+    meck:new(ejabberd_config, [passthrough]),
+    meck:expect(ejabberd_config, get_local_option_or_default,
+        fun(services, _) -> [{service_a, []}] end),
+    meck:new(service_a, [non_strict]),
+    meck:expect(service_a, deps, fun() -> [service_b] end),
+    C;
+
 init_per_testcase(module_deps, C) ->
     init_per_testcase(generic, C),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
@@ -78,6 +88,11 @@ init_per_testcase(_, C) ->
               end,
               proplists:get_keys(service_deps())),
     C.
+
+end_per_testcase(misconfigured, C) ->
+    meck:unload(service_a),
+    meck:unload(ejabberd_config),
+    C;
 
 end_per_testcase(module_deps, C) ->
     meck:unload(module_a),
@@ -159,6 +174,10 @@ module_deps(_) ->
     mongoose_service:ensure_loaded(service_c),
     gen_mod:start_module(<<"localhost">>, module_a, []),
     ?assert(gen_mod:is_loaded(<<"localhost">>, module_a)),
+    ok.
+
+misconfigured(_) ->
+    ?assertError({service_not_configured, service_b}, mongoose_service:ensure_loaded(service_a)),
     ok.
 
 

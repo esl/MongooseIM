@@ -53,8 +53,10 @@ start() ->
 -spec stop() -> ok.
 stop() -> catch ets:delete(?ETAB), ok.
 
--spec start_service(service(), options()) -> ok | {error, already_started}.
-start_service(Service, Opts) ->
+-spec start_service(service(), options() | undefined) -> ok | {error, already_started}.
+start_service(Service, undefined) ->
+    error({service_not_configured, Service});
+start_service(Service, Opts) when is_list(Opts) ->
     case is_loaded(Service) of
         true -> {error, already_started};
         false -> run_start_service(Service, Opts)
@@ -74,7 +76,7 @@ ensure_loaded(Service) ->
             ok;
         false ->
             Options = ejabberd_config:get_local_option_or_default(services, []),
-            start_service(Service, proplists:get_value(Service, Options, [])),
+            start_service(Service, proplists:get_value(Service, Options)),
             ok
     end.
 
