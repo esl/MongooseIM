@@ -112,10 +112,8 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
        JingleAction =:= <<"transport-info">> ->
     #iq{sub_el = Jingle} = IQ,
     try
-      translate_to_sip(JingleAction, Jingle, Acc),
-      IQResult = IQ#iq{type = result, sub_el = []},
-      Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
-      ejabberd_router:route(To, From, Packet)
+      Result = translate_to_sip(JingleAction, Jingle, Acc),
+      route_result(Result, From, To, IQ)
     catch Class:Error ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:internal_server_error()),
             ?ERROR_MSG("error=~p, while translating to sip, class=~p, stack_trace=~p",
@@ -125,6 +123,30 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
     ?WARNING_MSG("Forwarding unknown action: ~p", [JingleAction]),
     Acc.
+
+route_result(ok, From, To, IQ)  ->
+    route_ok_result(From, To, IQ);
+route_result({ok, _}, From, To, IQ) ->
+    route_ok_result(From, To, IQ);
+route_result({ok, _, _}, From, To, IQ) ->
+    route_ok_result(From, To, IQ);
+route_result({error, item_not_found}, From, To, IQ) ->
+    Error = mongoose_xmpp_errors:item_not_found(),
+    route_error_reply(From, To, IQ, Error);
+route_result(Other, From, To, IQ) ->
+    ?WARNING_MSG("Unknown result: ~p for IQ ~p", [Other, IQ]),
+    Error = mongoose_xmpp_errors:internal_server_error(),
+    route_error_reply(From, To, IQ, Error).
+
+route_error_reply(From, To, IQ, Error) ->
+    IQResult = IQ#iq{type = error, sub_el = [Error]},
+    Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
+    ejabberd_router:route(To, From, Packet).
+
+route_ok_result(From, To, IQ) ->
+    IQResult = IQ#iq{type = result, sub_el = []},
+    Packet = jlib:replace_from_to(From, To, jlib:iq_to_xml(IQResult)),
+    ejabberd_router:route(To, From, Packet).
 
 resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     From = mongoose_acc:get(from_jid, Acc),
@@ -163,30 +185,29 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
                                         async,
                                         {callback, fun jingle_sip_callbacks:invite_resp_callback/1}]),
     mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
-    Handle;
+    {ok, Handle};
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     Server = mongoose_acc:get(server, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    {ok, ReqID} = mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(user_jid, Acc)),
-    SDP = prepare_initial_sdp(Server, Jingle),
-    %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
-    case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
-        ok ->
-           ok = mod_jingle_sip_backend:set_incoming_accepted(SID);
-        Other ->
-           Other
+    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(user_jid, Acc)) of
+        {ok, ReqID} ->
+            try_to_accept_session(ReqID, Jingle, Acc, Server, SID);
+        _ ->
+            {error, item_not_found}
     end;
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
     case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(user_jid, Acc)) of
         {ok, undefined} ->
-            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]);
+            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
+            {error, item_not_found};
         {ok, Handle} ->
-          nksip_uac:info(Handle, [{content_type, <<"application/sdp">>},
-                                  {body, SDP}]);
+            nksip_uac:info(Handle, [{content_type, <<"application/sdp">>},
+                                    {body, SDP}]);
         _ ->
-            ?ERROR_MSG("There was no such session ~p", [SID])
+            ?ERROR_MSG("There was no such session ~p", [SID]),
+            {error, item_not_found}
     end;
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
@@ -194,7 +215,14 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     From = mongoose_acc:get(user_jid, Acc),
     FromLUS = jid:to_lus(From),
     ToLUS = jid:to_lus(ToJID),
-    {ok, Session} = mod_jingle_sip_backend:get_session_info(SID, From),
+    case mod_jingle_sip_backend:get_session_info(SID, From) of
+        {ok, Session} ->
+            try_to_terminate_the_session(FromLUS, ToLUS, Session);
+        _ ->
+            {error, item_not_found}
+    end.
+
+try_to_terminate_the_session(FromLUS, ToLUS, Session) ->
     case maps:get(state, Session) of
         accepted ->
             DialogHandle = maps:get(dialog, Session),
@@ -212,6 +240,16 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
                     Node = maps:get(node, Session),
                     nksip_request_reply(busy, {Node, RequestHandle})
             end
+    end.
+
+try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
+    SDP = prepare_initial_sdp(Server, Jingle),
+    %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
+    case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
+        ok ->
+           ok = mod_jingle_sip_backend:set_incoming_accepted(SID);
+        Other ->
+           Other
     end.
 
 make_user_header({User, _} = US) ->

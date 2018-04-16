@@ -29,7 +29,9 @@ test_cases() ->
      jingle_session_is_intiated_and_canceled_by_receiver_on_different_node,
      jingle_session_is_established_with_a_conference_room,
      jingle_session_initiate_is_resent_on_demand,
-     mongoose_replies_with_480_when_invitee_is_offline
+     mongoose_replies_with_480_when_invitee_is_offline,
+     mongoose_returns_404_when_not_authorized_user_tires_to_accept_a_session,
+     mongoose_returns_404_when_nto_authorized_user_tries_to_cancel_a_session
     ].
 
 suite() ->
@@ -175,7 +177,30 @@ mongoose_replies_with_480_when_invitee_is_offline(Config) ->
 
     end).
 
+mongoose_returns_404_when_not_authorized_user_tires_to_accept_a_session(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        {InviteStanza, _InviteRequest} = initiate_jingle_session(Alice, Bob),
+        %% Then Kate tries to accept Alice's session
+        AcceptStanza = escalus_stanza:to(jingle_accept(InviteStanza), Bob),
+        escalus:send(Kate, AcceptStanza),
+        AcceptResult = escalus:wait_for_stanza(Kate, timer:seconds(5)),
+        escalus:assert(is_iq_error, AcceptResult),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], AcceptResult)
 
+
+    end).
+
+mongoose_returns_404_when_nto_authorized_user_tries_to_cancel_a_session(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+        {_InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+        %% Then Kate tries to cancel Bob's session
+
+        Result = send_session_terminate_request(Kate, Alice, InviteRequest, <<"decline">>),
+
+        escalus:assert(is_iq_error, Result),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Result)
+
+    end).
 
 jingle_session_is_established_and_terminated_by_initiator(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -279,13 +304,17 @@ terminate_jingle_session(Terminator, Other, InviteStanza) ->
     terminate_jingle_session(Terminator, Other, InviteStanza, <<"success">>).
 
 terminate_jingle_session(Terminator, Other, InviteStanza, Reason) ->
-    TerminateStanza = escalus_stanza:to(jingle_terminate(InviteStanza, Reason), Other),
-    escalus:send(Terminator, TerminateStanza),
-    TerminateResult = escalus:wait_for_stanza(Terminator, timer:seconds(5)),
+    TerminateResult = send_session_terminate_request(Terminator, Other,
+                                                     InviteStanza, Reason),
     escalus:assert(is_iq_result, TerminateResult),
 
     TerminateInfo = escalus:wait_for_stanza(Other, timer:seconds(5)),
     assert_is_session_terminate(TerminateInfo, Reason).
+
+send_session_terminate_request(Terminator, Other, InviteStanza, Reason) ->
+    TerminateStanza = escalus_stanza:to(jingle_terminate(InviteStanza, Reason), Other),
+    escalus:send(Terminator, TerminateStanza),
+    escalus:wait_for_stanza(Terminator, timer:seconds(5)).
 
 assert_invite_request(InviteStanza, InviteRequest) ->
     JingleEl = exml_query:subelement(InviteRequest, <<"jingle">>),
