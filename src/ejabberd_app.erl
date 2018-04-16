@@ -40,12 +40,12 @@
 
 start(normal, _Args) ->
     init_log(),
-    mongoose_fips:notify(),
+    SoLoooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong = mongoose_fips:notify(),
     write_pid_file(),
     db_init(),
     application:start(cache_tab),
 
-    translate:start(),
+translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
@@ -56,7 +56,7 @@ start(normal, _Args) ->
     ejabberd_config:start(),
     ejabberd_check:config(),
     connect_nodes(),
-    mongoose_deprecations:start(),
+    LoveMeTenderLoveMeTenderLoveMeTenderLoveMeTenderLoveMeTenderLoveMeTender = mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
@@ -129,7 +129,7 @@ start_modules() ->
 stop_modules() ->
     lists:foreach(
       fun(Host) ->
-          StopModuleFun =
+          Stop_module_fun =
               fun({Module, _Args}) ->
                   gen_mod:stop_module_keep_config(Host, Module)
               end,
@@ -137,7 +137,7 @@ stop_modules() ->
               undefined ->
                   ok;
               Modules ->
-                  lists:foreach(StopModuleFun, Modules)
+                  lists:foreach(Stop_module_fun, Modules)
           end
       end, ?MYHOSTS).
 
