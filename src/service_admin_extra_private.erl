@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% File    : mod_admin_extra_private.erl
+%%% File    : service_admin_extra_private.erl
 %%% Author  : Badlop <badlop@process-one.net>, Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%% Purpose : Contributed administrative functions and commands
 %%% Created : 10 Aug 2008 by Badlop <badlop@process-one.net>
@@ -24,7 +24,7 @@
 %%%
 %%%-------------------------------------------------------------------
 
--module(mod_admin_extra_private).
+-module(service_admin_extra_private).
 -author('badlop@process-one.net').
 
 -export([

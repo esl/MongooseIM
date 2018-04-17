@@ -31,6 +31,7 @@ pages:
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
+      - 'Services': 'advanced-configuration/Services.md'
   - 'Authentication backends':
       - 'External Authentication Module': 'authentication-backends/External-authentication-module.md'
       - 'HTTP Authentication Module': 'authentication-backends/HTTP-authentication-module.md'

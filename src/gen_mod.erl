@@ -31,7 +31,8 @@
 -type dep_hardness() :: soft | hard.
 -type deps_list() :: [
                       {module(), dep_arguments(), dep_hardness()} |
-                      {module(), dep_hardness()}
+                      {module(), dep_hardness()} |
+                      {service, mongoose_service:service()}
                      ].
 
 -export_type([deps_list/0]).
@@ -66,6 +67,8 @@
          get_module_proc/2,
          is_loaded/2,
          get_deps/3]).
+
+-export([is_app_running/1]). % we have to mock it in some tests
 
 -include("mongoose.hrl").
 
@@ -116,6 +119,7 @@ start_module_for_host(Host, Module, Opts0) ->
     set_module_opts_mnesia(Host, Module, Opts),
     ets:insert(ejabberd_modules, #ejabberd_module{module_host = {Module, Host}, opts = Opts}),
     try
+        lists:map(fun mongoose_service:assert_loaded/1, get_required_services(Host, Module, Opts)),
         Res = Module:start(Host, Opts),
         {links, LinksAfter} = erlang:process_info(self(), links),
         case lists:sort(LinksBefore) =:= lists:sort(LinksAfter) of
@@ -144,11 +148,11 @@ start_module_for_host(Host, Module, Opts0) ->
                                       [Module, Host, Opts, Class, Reason,
                                        erlang:get_stacktrace()]),
             ?CRITICAL_MSG(ErrorText, []),
-            case is_app_running(mongooseim) of
+            case ?MODULE:is_app_running(mongooseim) of
                 true ->
                     erlang:raise(Class, Reason, erlang:get_stacktrace());
                 false ->
-                    ?CRITICAL_MSG("ejabberd initialization was aborted "
+                    ?CRITICAL_MSG("mongooseim initialization was aborted "
                                   "because a module start failed.~n"
                                   "The trace is ~p.", [erlang:get_stacktrace()]),
                     timer:sleep(3000),
@@ -436,6 +440,18 @@ get_deps(Host, Module, Opts) ->
     case erlang:function_exported(Module, deps, 2) of
         true ->
             Module:deps(Host, Opts);
+        _ ->
+            []
+    end.
+
+-spec get_required_services(jid:server(), module(), proplists:proplist()) -> [atom()].
+get_required_services(Host, Module, Options) ->
+    %% the module has to be loaded,
+    %% otherwise the erlang:function_exported/3 returns false
+    code:ensure_loaded(Module),
+    case erlang:function_exported(Module, deps, 2) of
+        true ->
+            [Service || {service, Service} <- Module:deps(Host, Options)];
         _ ->
             []
     end.

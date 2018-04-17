@@ -26,7 +26,7 @@
 -export([start_link/1]).
 
 %% gen_server API
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% gen_mod API
 -export([deps/2, start/2, stop/1]).
@@ -106,6 +106,8 @@ handle_info(Msg, _State) ->
 
 terminate(Reason, _State) ->
     ?INFO_MSG("mod_global_distrib_refresher has terminated with reason: ~p", [Reason]).
+
+code_change(_, State, _) -> {ok, State}.
 
 %%--------------------------------------------------------------------
 %% Helper functions

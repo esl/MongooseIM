@@ -21,9 +21,6 @@ Valid values: `no_queue`, `one_queue`, `{queues, N}`, `parallel`. Default: `one_
 Implements [XEP-0050: Ad-Hoc Commands](http://xmpp.org/extensions/xep-0050.html) for advertising and executing application-specific commands, such as those related to a configuration workflow, using [XEP-0004: Data Forms](http://xmpp.org/extensions/xep-0004.html) in order to structure the information exchange.
 This is extremely useful for use cases such as remote administration, user engagement via polls, and ChatBots.
 
-### [mod_admin_extra](../modules/mod_admin_extra.md)
-Significantly extends the `mongooseimctl` script capabilities.
-
 ### [mod_amp](../modules/mod_amp.md)
 Implements a subset of [XEP-0079: Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html) functionality, that enables entities to request, and servers to perform advanced processing of XMPP message stanzas, including reliable data transport, time-sensitive delivery, and expiration of transient messages.
 
