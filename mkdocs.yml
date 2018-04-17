@@ -65,7 +65,6 @@ pages:
       - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
   - 'Module index':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
-      - 'mod_admin_extra': 'modules/mod_admin_extra.md'
       - 'mod_amp': 'modules/mod_amp.md'
       - 'mod_auth_token': 'modules/mod_auth_token.md'
       - 'mod_blocking': 'modules/mod_blocking.md'
