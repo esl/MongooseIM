@@ -859,9 +859,9 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
             ?INFO_MSG("(~w) Forbidden session for ~s",
                       [StateData#state.socket,
                        jid:to_binary(JID)]),
-            Err = jlib:make_error_reply(Acc1, mongoose_xmpp_errors:not_allowed()),
-            Acc2 = send_element(Acc1, Err, StateData),
-            {wait, Acc2, StateData}
+            {Acc2, Err} = jlib:make_error_reply(Acc1, mongoose_xmpp_errors:not_allowed()),
+            Acc3 = send_element(Acc2, Err, StateData),
+            {wait, Acc3, StateData}
     end.
 
 -spec do_open_session(mongoose_acc:t(), jid:jid(), state()) ->
@@ -1031,8 +1031,8 @@ process_outgoing_stanza(Acc, error, _Name, StateData) ->
         <<"error">> -> StateData;
         <<"result">> -> StateData;
         _ ->
-            Err = jlib:make_error_reply(Acc, mongoose_xmpp_errors:jid_malformed()),
-            send_element(Acc, Err, StateData),
+            {Acc1, Err} = jlib:make_error_reply(Acc, mongoose_xmpp_errors:jid_malformed()),
+            send_element(Acc1, Err, StateData),
             StateData
     end;
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
@@ -1362,8 +1362,8 @@ response_iq_deny(_, _, _, Acc) ->
     Acc.
 
 send_back_error(Etype, From, To, Acc) ->
-    Err = jlib:make_error_reply(Acc, Etype),
-    ejabberd_router:route(To, From, Acc, Err).
+    {Acc1, Err} = jlib:make_error_reply(Acc, Etype),
+    ejabberd_router:route(To, From, Acc1, Err).
 
 handle_routed(<<"presence">>, From, To, Acc, StateData) ->
     handle_routed_presence(From, To, Acc, StateData);
@@ -2175,11 +2175,12 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
     Packet = mongoose_acc:get(element, Acc1),
     case Res of
        deny ->
-           Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable_cancel()),
-           ejabberd_router:route(To, From, Acc1, Err);
+           {Acc2, Err} = jlib:make_error_reply(Acc1, Packet,
+                                               mongoose_xmpp_errors:not_acceptable_cancel()),
+           ejabberd_router:route(To, From, Acc2, Err);
        block ->
-           Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable_blocked()),
-           ejabberd_router:route(To, From, Acc1, Err);
+           {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:not_acceptable_blocked()),
+           ejabberd_router:route(To, From, Acc2, Err);
        allow ->
            ejabberd_router:route(FromRoute, To, Acc1, Packet)
    end.

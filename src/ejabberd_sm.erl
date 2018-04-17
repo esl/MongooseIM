@@ -250,9 +250,9 @@ bounce_offline_message(Acc, #jid{server = Server} = From, To, Packet) ->
                             Server,
                             Acc,
                             []),
-    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable()),
-    Acc2 = ejabberd_router:route(To, From, Acc1, Err),
-    {stop, Acc2}.
+    {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:service_unavailable()),
+    Acc3 = ejabberd_router:route(To, From, Acc2, Err),
+    {stop, Acc3}.
 
 -spec disconnect_removed_user(mongoose_acc:t(), User :: jid:user(),
                               Server :: jid:server()) -> mongoose_acc:t().
@@ -718,8 +718,8 @@ do_route_offline(<<"iq">>, <<"error">>, _From, _To, _Acc, _Packet) ->
 do_route_offline(<<"iq">>, <<"result">>, _From, _To, _Acc, _Packet) ->
     ok;
 do_route_offline(<<"iq">>, _, From, To, Acc, Packet) ->
-    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:service_unavailable()),
-    ejabberd_router:route(To, From, Acc, Err);
+    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+    ejabberd_router:route(To, From, Acc1, Err);
 do_route_offline(_, _, _, _, _, _) ->
     ?DEBUG("packet droped~n", []),
     ok.
@@ -827,9 +827,9 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                     ok
             end;
         _ ->
-            Err = jlib:make_error_reply(
-                Packet, mongoose_xmpp_errors:service_unavailable()),
-            ejabberd_router:route(To, From, Acc, Err)
+            {Acc1, Err} = jlib:make_error_reply(
+                Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+            ejabberd_router:route(To, From, Acc1, Err)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -985,15 +985,15 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
             gen_iq_handler:handle(Host, Module, Function, Opts,
                                   From, To, Acc, IQ);
         [] ->
-            Err = jlib:make_error_reply(
-                    Packet, mongoose_xmpp_errors:service_unavailable()),
-            ejabberd_router:route(To, From, Acc, Err)
+            {Acc1, Err} = jlib:make_error_reply(
+                    Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
+            ejabberd_router:route(To, From, Acc1, Err)
     end;
 process_iq(reply, _From, _To, _Acc, _Packet) ->
     ok;
 process_iq(_, From, To, Acc, Packet) ->
-    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
-    ejabberd_router:route(To, From, Acc, Err),
+    {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
+    ejabberd_router:route(To, From, Acc1, Err),
     ok.
 
 

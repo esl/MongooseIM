@@ -31,6 +31,7 @@
 -xep([{xep, 86}, {version, "1.0"}]).
 -export([make_result_iq_reply/1,
          make_error_reply/2,
+         make_error_reply/3,
          make_invitation/3,
          make_config_change_message/1,
          make_voice_approval_form/3,
@@ -144,8 +145,17 @@ make_error_reply(#xmlel{name = Name, attrs = Attrs,
     NewAttrs = make_error_reply_attrs(Attrs),
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
 make_error_reply(Acc, Error) ->
-    make_error_reply(mongoose_acc:get(element, Acc), Error).
+    make_error_reply(Acc, mongoose_acc:get(element, Acc), Error).
 
+make_error_reply(Acc, Packet, Error) ->
+    case mongoose_acc:get(return_type, Acc, undefined) of
+        error_reply ->
+            ?ERROR_MSG("event=error_reply_to_error,stanza=~p,error=~p", [Packet, Error]),
+            {Acc, {error, {already_an_error, Packet, Error}}};
+        _ ->
+            {mongoose_acc:put(return_type, error_reply, Acc),
+             make_error_reply(Packet, Error)}
+    end.
 
 -spec make_error_reply_attrs([binary_pair()]) -> [binary_pair(), ...].
 make_error_reply_attrs(Attrs) ->

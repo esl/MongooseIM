@@ -17,7 +17,8 @@ all() ->
 groups() ->
     [
      {routing, [], [
-                    basic_routing
+                    basic_routing,
+                    do_not_reroute_errors
                    ]},
      {schema, [], [
                    update_tables_hidden_components,
@@ -88,6 +89,23 @@ basic_routing(_C) ->
     meck:unload(xmpp_router_c),
     %% we know that 1 and 3 should be dropped, and 2, 4 and 5 handled by a, b and c respectively
     verify([{a, 2}, {b, 4}, {c, 5}]),
+    ok.
+
+%% This test makes sure that if we try to respond to an error message by routing error message
+%% we do not enter an infinite loop; it has been fixed in d3941e33453c95ca78561144182712cc4f1d6c72
+%% without the fix this tests gets stuck in a loop.
+do_not_reroute_errors(_) ->
+    From = <<"ja@localhost">>,
+    To = <<"ty@localhost">>,
+    Stanza = #xmlel{name = <<"iq">>, 
+        attrs = [{<<"from">>, From}, {<<"to">>, To}, {<<"type">>, <<"get">>} ]
+    },
+    Acc = mongoose_acc:from_element(Stanza),
+    meck:new(xmpp_router_a, [non_strict]),
+    meck:expect(xmpp_router_a, filter,
+                fun(From0, To0, Acc0, Packet0) -> {From0, To0, Acc0, Packet0} end),
+    meck:expect(xmpp_router_a, route, fun resend_as_error/4),
+    ejabberd_router:route(From, To, Acc, Stanza),
     ok.
      
 update_tables_hidden_components(_C) ->
@@ -178,3 +196,7 @@ remove_component_tables() ->
     mnesia:delete_table(external_component),
     mnesia:delete_table(external_component_global).
 
+resend_as_error(From0, To0, Acc0, Packet0) ->
+    {Acc1, Packet1} = jlib:make_error_reply(Acc0, Packet0, #xmlel{}),
+    ejabberd_router:route(To0, From0, Acc1, Packet1),
+    done.

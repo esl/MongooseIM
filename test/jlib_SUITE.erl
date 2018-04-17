@@ -12,7 +12,8 @@ all() -> [
           make_iq_reply_changes_type_to_result,
           make_iq_reply_changes_to_to_from,
           make_iq_reply_switches_from_to_to,
-          make_iq_reply_switches_to_and_from_attrs
+          make_iq_reply_switches_to_and_from_attrs,
+          error_reply_check
          ].
 
 init_per_suite(C) ->
@@ -60,6 +61,18 @@ make_iq_reply_changes_to_to_from(_C) ->
 make_iq_reply_changes_type_to_result(_) ->
     BaseIQReply = jlib:make_result_iq_reply(base_iq()),
     <<"result">> = exml_query:attr(BaseIQReply, <<"type">>).
+
+error_reply_check(_) ->
+    BaseIQReply = jlib:make_result_iq_reply(base_iq()),
+    Acc = mongoose_acc:from_element(BaseIQReply),
+    {Acc1, ErrorReply1} = jlib:make_error_reply(Acc, BaseIQReply, #xmlel{name = <<"testerror">>}),
+    ?assertMatch(#xmlel{}, ErrorReply1),
+    {_Acc2, ErrorReply2} = jlib:make_error_reply(Acc1, ErrorReply1, #xmlel{name = <<"testerror">>}),
+    ?assertMatch({error, {already_an_error, #xmlel{}, #xmlel{}}}, ErrorReply2),
+    ok.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 base_iq() ->
     #xmlel{name = <<"iq">>,
