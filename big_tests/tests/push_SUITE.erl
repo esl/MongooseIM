@@ -18,11 +18,6 @@
     disable_stanza/1, disable_stanza/2
 ]).
 
--import(push_helper, [
-    enable_stanza/2, enable_stanza/3, enable_stanza/4,
-    disable_stanza/1, disable_stanza/2
-]).
-
 -record(route, {from, to, acc, packet}).
 
 %%--------------------------------------------------------------------

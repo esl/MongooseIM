@@ -11,7 +11,7 @@
 -export([become_unavailable/1]).
 -export([wait_for/2]).
 
--export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0]).
+-export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
 ns_push() -> <<"urn:xmpp:push:0">>.
 ns_pubsub_pub_options() -> <<"http://jabber.org/protocol/pubsub#publish-options">>.
