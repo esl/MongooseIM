@@ -58,6 +58,7 @@
          get_session_ip/3,
          get_user_present_resources/2,
          get_raw_sessions/2,
+         is_offline/1,
          get_user_present_pids/2
         ]).
 
@@ -873,6 +874,15 @@ get_user_present_resources(LUser, LServer) ->
     Ss = ejabberd_gen_sm:get_sessions(sm_backend(), LUser, LServer),
     [{S#session.priority, element(3, S#session.usr)} ||
         S <- clean_session_list(Ss), is_integer(S#session.priority)].
+
+-spec is_offline(jid:jid()) -> boolean().
+is_offline(#jid{luser = LUser, lserver = LServer}) ->
+    case catch lists:max(get_user_present_pids(LUser, LServer)) of
+        {Priority, _} when is_integer(Priority), Priority >= 0 ->
+            false;
+        _ ->
+            true
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -35,18 +35,10 @@ should_publish(_From, To = #jid{luser = LUser, lserver = LServer}, _Packet) ->
         false ->
             false;
         true ->
-            is_offline(To)
+            ejabberd_sm:is_offline(To)
     catch
         _:_ ->
-            is_offline(To)
-    end.
-
-is_offline(#jid{luser = LUser, lserver = LServer}) ->
-    case catch lists:max(ejabberd_sm:get_user_present_pids(LUser, LServer)) of
-        {Priority, _} when is_integer(Priority), Priority >= 0 ->
-            false;
-        _ ->
-            true
+            ejabberd_sm:is_offline(To)
     end.
 
 %% Callback 'sender_id'

@@ -3,7 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -export([save_modules/2, ensure_modules/2, restore_modules/2]).
--export([stop/2, start/3, restart/3, stop_running/2, start_running/1]).
+-export([stop/2, stop/3, start/3, start/4, restart/3, stop_running/2, start_running/1]).
 
 save_modules(Domain, Config) ->
     [{saved_modules, get_current_modules(Domain)} | Config].
@@ -38,21 +38,31 @@ get_current_modules(Domain) ->
     escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]).
 
 stop(Domain, Mod) ->
-    IsLoaded = escalus_ejabberd:rpc(gen_mod, is_loaded, [Domain, Mod]),
+    Node = escalus_ct:get_config(ejabberd_node),
+    stop(Node, Domain, Mod).
+
+stop(Node, Domain, Mod) ->
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    IsLoaded = escalus_ct:rpc_call(Node, gen_mod, is_loaded, [Domain, Mod], 5000, Cookie),
     case IsLoaded of
-        true -> unsafe_stop(Domain, Mod);
+        true -> unsafe_stop(Node, Cookie, Domain, Mod);
         false -> {error, stopped}
     end.
 
-unsafe_stop(Domain, Mod) ->
-    case escalus_ejabberd:rpc(gen_mod, stop_module, [Domain, Mod]) of
+unsafe_stop(Node, Cookie, Domain, Mod) ->
+    case escalus_ct:rpc_call(Node, gen_mod, stop_module, [Domain, Mod], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [Mod, Reason]);
         R -> R
     end.
 
 start(Domain, Mod, Args) ->
-    case escalus_ejabberd:rpc(gen_mod, start_module, [Domain, Mod, Args]) of
+    Node = escalus_ct:get_config(ejabberd_node),
+    start(Node, Domain, Mod, Args).
+
+start(Node, Domain, Mod, Args) ->
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    case escalus_ct:rpc_call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
         R -> R

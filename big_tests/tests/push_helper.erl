@@ -65,15 +65,17 @@ become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
     true = wait_for(timer:seconds(20), fun() ->
         is_offline(escalus_utils:jid_to_lower(escalus_client:username(Client)),
-                   escalus_utils:jid_to_lower(escalus_client:server(Client)))
+                   escalus_utils:jid_to_lower(escalus_client:server(Client)),
+                   escalus_utils:jid_to_lower(escalus_client:resource(Client)))
     end). %% There is no ACK for unavailable status
 
-is_offline(LUser, LServer) ->
-    case catch lists:max(escalus_ejabberd:rpc(ejabberd_sm, get_user_present_pids, [LUser, LServer])) of
-        {Priority, _} when is_integer(Priority), Priority >= 0 ->
-            false;
+is_offline(LUser, LServer, LRes) ->
+    PResources =  escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [LUser, LServer]),
+    case lists:keyfind(LRes, 2, PResources) of
+        false ->
+            true;
         _ ->
-            true
+            false
     end.
 
 wait_for(TimeLeft, Fun) when TimeLeft < 0 ->

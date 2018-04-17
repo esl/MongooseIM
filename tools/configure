@@ -44,6 +44,7 @@ app_opts() ->
      {"pgsql",     ["epgsql"],          include_driver("pgsql")},
      {"redis",     ["redo"],            include_driver("redis")},
      {"riak",      ["riakc"],           include_driver("riak")},
+     {"jingle-sip",["nksip"],           include_driver("nksip")},
      {"cassandra", ["cqerl"],           include_driver("cassandra")},
      {"aws",       ["erlcloud"],        "include support for AWS services"}].
 
@@ -53,8 +54,8 @@ opts() ->
                                          "a completely self contained release"},
      {"user",    (#opts{})#opts.user,    "System user to run the server as"}].
 
-include_driver(DB) ->
-    ["include ", DB, " driver"].
+include_driver(Driver) ->
+    ["include ", Driver, " driver"].
 
 all_apps() ->
     lists:flatmap(fun ({_, Apps, _}) -> Apps end, app_opts()).
