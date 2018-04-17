@@ -41,7 +41,7 @@ rel/vars.config: rel/vars.config.in rel/configure.vars.config
 
 ## Don't allow these files to go out of sync!
 configure.out rel/configure.vars.config:
-	./tools/configure with-all
+	./tools/configure with-all without-jingle-sip
 
 etc/ejabberd.cfg:
 	@mkdir -p $(@D)

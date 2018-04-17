@@ -62,6 +62,8 @@ all_apps() ->
 
 process_args(["with-" ++ App | Args], #opts{apps = Apps} = Opts) ->
     process_args(Args, Opts#opts{apps = process_app(App, Apps)});
+process_args(["without-" ++ App | Args], #opts{apps = Apps} = Opts) ->
+    process_args(Args, Opts#opts{apps = exclude_app(App, Apps)});
 
 process_args(["prefix=" ++ Prefix | Args], #opts{} = Opts) ->
     process_args(Args, Opts#opts{prefix = Prefix});
@@ -105,6 +107,10 @@ process_app(App, Apps) ->
     {App, AppDeps, _} = lists:keyfind(App, 1, app_opts()),
     AppDeps ++ Apps.
 
+exclude_app(App, Apps) ->
+    {App, AppDeps, _} = lists:keyfind(App, 1, app_opts()),
+    Apps -- AppDeps.
+
 validate_apps(Apps) -> validate_apps(Apps, []).
 
 validate_apps(["odbc" = App | Apps], Acc) ->
@@ -130,11 +136,13 @@ usage() ->
           "\n"
           "Writes rel/configure.vars.config which can be used as Reltool input.\n"
           "\n"
-          "3rd party apps:\n\n~s\n"
+          "3rd party apps:\n\n~s~s\n"
           "Options:\n\n~s\n",
           [progname(),
            [ io_lib:format("    with-~.15s~s\n", [Opt, Desc])
              || {Opt, _, Desc} <- app_opts() ],
+           [ io_lib:format("    without-~.12sdo not ~s\n", [Opt, Desc])
+             || {Opt, _, Desc} <- app_opts(), Opt /= "all", Opt /= "none" ],
            [ io_lib:format("    ~.10s~s. Default: ~s\n", [Opt, Desc, Default])
              || {Opt, Default, Desc} <- opts() ]]).
 
