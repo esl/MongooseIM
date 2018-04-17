@@ -21,6 +21,20 @@ The translation back from SIP to Jingle is done for following SIP messages:
 * `BYE`
 * `INFO`
 
+### Prerequisites
+
+By default, MongooseIM is built without SIP support, as it is **not compatible with OTP 20.0 and newer**.
+In order to build the server with SIP support, please use `tools/configure` script before the release generation.
+You may either pick only certain drivers (with SIP included) or simply use `with-all` option. Examples:
+
+```
+tools/configure with-mysql with-jingle-sip
+tools/configure with-all without-odbc
+tools/configure with-all
+```
+
+MongooseIM 2.2.x packages are built with OTP 19.3, so they include Jingle/SIP support.
+
 ### Options
 
 * `proxy_host` (default: "localhost") name or IP address of the SIP Proxy to which MongooseIM will send SIP messages
