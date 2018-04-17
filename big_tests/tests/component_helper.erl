@@ -5,7 +5,11 @@
          connect_component/2,
          disconnect_component/2,
          disconnect_components/2,
-         connect_component_subdomain/1
+         connect_component_subdomain/1,
+         spec/2,
+         common/1,
+         common/2,
+         name/1
         ]).
 
 -export([component_start_stream/2,
@@ -114,3 +118,28 @@ component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
 
 connect_component_subdomain(Component) ->
     connect_component(Component, component_start_stream_subdomain).
+
+spec(component_on_2, Config) ->
+    [{component, <<"yet_another_service">>}] ++ common(Config, 8899);
+spec(component_duplicate, Config) ->
+    [{component, <<"another_service">>}] ++ common(Config, 8899);
+spec(hidden_component, Config) ->
+    [{component, <<"hidden_component">>}] ++ common(Config, 8189);
+spec(Other, Config) ->
+    [name(Other) | proplists:get_value(Other, Config, [])].
+
+common(Config) ->
+    common(Config, 8888).
+
+common(_Config, Port) ->
+    [{server, ct:get_config({hosts, mim, domain})},
+     {host, ct:get_config({hosts, mim, domain})},
+     {password, <<"secret">>},
+     {port, Port}].
+
+name(component1) ->
+    {component, <<"test_service">>};
+name(component2) ->
+    {component, <<"another_service">>};
+name(vjud_component) ->
+    {component, <<"vjud">>}.
