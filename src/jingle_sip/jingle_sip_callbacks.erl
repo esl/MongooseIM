@@ -107,7 +107,7 @@ sip_info(Req, _Call) ->
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
     Body = nksip_sipmsg:meta(body, Req),
 
-    ?INFO_MSG("Info to: ~p in: ~p,~nbody: ~s", [ToBinary, CallID, Body]),
+    ?INFO_MSG("event=sip_info to=~p call_id=~p body:~n~s", [ToBinary, CallID, Body]),
 
     noreply.
 
@@ -207,7 +207,8 @@ invite_resp_callback({resp, 486, SIPMsg, _Call}) ->
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
-invite_resp_callback({resp, ErrorCode, SIPMsg, _Call}) when ErrorCode >= 400, ErrorCode =< 600 ->
+invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
+  when ErrorCode >= 400, ErrorCode =< 700 ->
     {ToJID, ToBinary} = get_user_from_sip_msg(from, SIPMsg),
     {FromJID, FromBinary} = get_user_from_sip_msg(to, SIPMsg),
     CallID = nksip_sipmsg:header(<<"call-id">>, SIPMsg),
