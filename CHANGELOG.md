@@ -1,3 +1,9 @@
+# [MongooseIM 2.2.1](https://github.com/esl/MongooseIM/releases/tag/2.2.1) - 2018-04-17
+
+## Fixed
+
+- Default build failed on OTP 20.x due to SIP libraries being incompatible with this Erlang version (#1814)
+
 # [MongooseIM 2.2.0](https://github.com/esl/MongooseIM/releases/tag/2.2.0) - 2018-04-17
 
 ## Added
