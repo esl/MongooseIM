@@ -331,21 +331,6 @@ publish_iq(Client, Node, Content, Options) ->
     NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
     Publish#xmlel{children = [NewPubsubEl]}.
 
-maybe_form(undefined, _FormType) ->
-    [];
-maybe_form(FormFields, FormType) ->
-    [make_form([{<<"FORM_TYPE">>, FormType} | FormFields])].
-
-make_form(Fields) ->
-    #xmlel{name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"submit">>}],
-           children = [make_form_field(Name, Value) || {Name, Value} <- Fields]}.
-
-make_form_field(Name, Value) ->
-    #xmlel{name = <<"field">>,
-           attrs = [{<<"var">>, Name}],
-           children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
-
-
 
 %% ----------------------------------
 %% Other helpers
