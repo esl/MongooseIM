@@ -16,7 +16,6 @@
 -export([send_invite_back/5]).
 -export([make_200_ok_for_phone_call/3]).
 -export([make_200_ok_for_conference_call/4]).
--export([in_dialog_callback/4]).
 -export([in_invite_transaction_callback/4]).
 
 -include_lib("esip/include/esip.hrl").
@@ -137,7 +136,7 @@ request(Sip, Socket, Tr) ->
     error.
 
 noop(Arg) ->
-    ct:pal("noop: ~p", [Arg]).
+   ok.
 
 make_provisional_response(Request, Status, Contact) ->
     make_provisional_response(Request, Status, Contact, undefined).
@@ -153,7 +152,6 @@ make_provisional_response(#sip{hdrs = Hdrs} = Sip, Status, Contact, Correspondin
     To = esip:get_hdr(to, RespHdrs),
     From = esip:get_hdr(from, RespHdrs),
     CallID = esip:get_hdr('call-id', Hdrs),
-    %%{ok, DialogId}  = esip_dialog:open(Sip, Resp, uas, {?MODULE, in_dialog_callback, [CorrespondingCallID]}),
     Data = #{initiator => From,
              receiver => To,
              receiver_tag => Tag,
@@ -264,11 +262,6 @@ back_invite_callbacks(#sip{type = response, status = 486}, _, _TrId, InitialReq,
     ok;
 back_invite_callbacks(_Sip, _, _TrId, _InitialReq, _InitialTr, _, Tag) ->
     ok.
-
-
-in_dialog_callback(Req, Socket, Tr, CorrespondingCall) ->
-    ct:pal("in dialog callback:~n~p~n=========~n~p~n=========~n~p~n=========~n~p",
-           [Req, Socket, Tr, CorrespondingCall]).
 
 in_invite_transaction_callback(#sip{type = request, method = <<"CANCEL">>, hdrs = Hdrs} = Sip,
                                Socket, Tr, #sip{hdrs = ReqBackHdrs}) ->
