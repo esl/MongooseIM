@@ -1,3 +1,69 @@
+# [MongooseIM 2.2.0](https://github.com/esl/MongooseIM/releases/tag/2.2.0) - 2018-04-17
+
+## Added
+
+- SASL `EXTERNAL` authentication method, i.e. auth with certificates (#1735)
+- Jingle/SIP proxy (#1797)
+- "Hidden" components capability (#1769)
+- Mongoose Services (#1792)
+- Hosts Refresher process for Global Distribution (#1660)
+- `advertised_endpoints` option for Global Distribution (#1724)
+- Pluggable backends support in `mod_muc` (#1758)
+- Foreground mode (#1775)
+- Now it is possible to upload test results to Google Drive (#1702)
+- Conditional logging macros (#1707)
+- Extended logging in `mod_push_service_mongoosepush` (#1777)
+- Extra debug logs in `ejabberd_service` and `mod_websockets` (#1697)
+- Extended logging in `mod_vcard` (#1715)
+
+## Changed
+
+- Refactored MongooseIM header files (#1570)
+- `mod_event_pusher` and `mod_event_pusher_push` API has been improved; not backwards compatible (#1796)
+- `gen_mod:start,stop` no longer allow to start already running and stop already stopped module (#1771)
+- "Big tests" are moved from `test.disabled/ejabberd_tests/` to `big_tests` (#1778)
+- Binary values are now hex-escaped in queries to MySQL (#1678)
+- Updated dependencies: `fast_tls` @ `a166f0e9fe78304e5ca628fd5eff57c850241813` and `cache_tab` @ 1.0.12 (#1753, #1806)
+- Updated MySQL library to 1.3.2 (#1787)
+- Updated `rebar3` to 3.5.0 (#1786)
+- `mod_ping` no longer pings bare JIDs (#1710)
+- `mod_mam` no longer uses dynamically compiled module for accessing parameters (#1627)
+- 1-1 messages REST API now uses `mongoose_acc` structure (#1744)
+- Improved logging in Global Distribution (#1761)
+
+## Fixed
+
+- Under some conditions MongooseIM could enter infinite error routing loop (#1800)
+- `mod_mam` was handling Unicode data improperly (#1748)
+- `mod_event_pusher_push` could attempt pushing body-less message (#1726)
+- `mod_event_pusher`'s HTTP backend was escaping data improperly (#1632)
+- A corner case in Global Distribution was present that could lead to broken message order (#1689)
+- Global Distribution was not caching origin info for packets from components (#1695)
+- Race condition was present in outgoing connection pools' initialisation in Global Distribution (#1750)
+- Global Distribution mappings manager sometimes crashed when `mongoose_router_external*` routers were first in routing chain. (#1763)
+- Admin REST API wasn't working properly with MUC Light + ODBC backend (#1742)
+- `mod_mam` was calculating `complete` attribute improperly when paginating backward (#1740)
+- `X-OAUTH2` tokens were not deleted properly on user removal (#1746)
+- MAM 0.2 is now properly deprecated (#1807)
+- Received stanza size metric could be highly inaccurate (#1615)
+- Tide address used `http` instead of `https` (#1701)
+- MongooseIM could not be deployed in paths with spaces (#1621)
+
+## Other
+
+- Documentation fixes and improvements (#1676, #1696, #1709, #1727)
+- Tests improvements and refactoring (#1628, #1637, #1644, #1653, #1663, #1665, #1680, #1681, #1687, #1692, #1706, #1708, #1720, #1736, #1737, #1743, #1745, #1747, #1749, #1756, #1757, #1760, #1768, #1770)
+- Removed unused Riak script (#1671)
+- Commit messages with Unicode characters are now properly handled (#1675)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222018-01-17..2018-04-17%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-01-17..2018-04-17%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-01-17&to=2018-04-17&type=c)
+
+Special thanks to our contributors: @igors @jacksgt @sstrigler @GalaxyGorilla @varnerac!
+
 # [MongooseIM 2.1.1](https://github.com/esl/MongooseIM/releases/tag/2.1.1) - 2018-01-16
 
 ## Added
