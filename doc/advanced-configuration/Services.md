@@ -1,5 +1,5 @@
 Some functionalities in MongooseIM are provided by "services".
-A service is similar to a module, only it is started only once with a global configuration, while a module is started for every virtual host and may have global or host-specific configuration.
+A service is similar to a module, but while a module is started for every virtual host and may have global or host-specific configuration, a service is started only once with global configuration.
 Service configuration is similar to a module configuration, e.g.:
 ```
 {services, [
@@ -12,7 +12,7 @@ Service configuration is similar to a module configuration, e.g.:
 ## Service list
 
 As of version 2.2, only one module is a "service provider".
-Over time, part of modules which are not host-specific will be refactored to be services.
+Eventually the modules which are not host-specific will be refactored to be services.
 
 ### service_admin_extra
 
