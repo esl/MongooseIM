@@ -666,7 +666,7 @@ add_contact_and_invite(Config) ->
             % another roster push
             Push2 = escalus:wait_for_stanza(Bob),
             escalus:assert(is_roster_set, Push2),
-            ct:pal("Push2: ~p", [Push2]),
+            ct:log("Push2: ~p", [Push2]),
             % she receives  a subscription request
             Sub = escalus:wait_for_stanza(Alice),
             escalus:assert(is_presence_with_type, [<<"subscribe">>], Sub),
@@ -688,8 +688,14 @@ add_contact_and_invite(Config) ->
                          escalus_stanza:presence_direct(
                              escalus_client:short_jid(Bob),
                              <<"subscribed">>)),
+            %% Wait for push before trying to query endpoint
+            %% If we just call endpoint,
+            %% the "subscribed" stanza can not yet be processed.
+            Push3 = escalus:wait_for_stanza(Bob),
+            ct:log("Push3 ~p", [Push3]),
+            escalus:assert(is_roster_set, Push3),
+
             % now check Bob's roster
-            timer:sleep(100),
             {?OK, R4} = gett(client, "/contacts", BCred),
             Result4 = decode_maplist(R4),
             [Res4] = Result4,
