@@ -19,7 +19,7 @@ fun(Path) ->
                 MaybeReadFromConfig(file:read_file(Path));
             _ ->
                 Script = filename:join(["tools", "configure"]),
-                os:cmd(Script ++ " with-all"),
+                os:cmd(Script ++ " with-all without-jingle-sip"),
                 MaybeReadFromConfig(file:read_file("configure.out"))
         end
 end,
