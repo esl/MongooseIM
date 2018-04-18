@@ -194,8 +194,11 @@ end_per_testcase(delete_old_users, Config) ->
         end, Users),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(CaseName, Config) ->
-    %% Because kick_session fails with unexprected stanza received:
-    %% <presence from="alicE@localhost/res3" to="alice@localhost/res1" type="unavailable" />
+    %% Because kick_session fails with unexpected stanza received:
+    %% <presence from="alicE@localhost/res3"
+    %%     to="alice@localhost/res1" type="unavailable" />
+    %% TODO: Remove when escalus learns how to automatically deal
+    %% with 'unavailable' stanzas on client stop.
     mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
 
