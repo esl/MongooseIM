@@ -1,3 +1,9 @@
+# [MongooseIM 2.2.2](https://github.com/esl/MongooseIM/releases/tag/2.2.2) - 2018-04-18
+
+## Fixed
+
+- SIP libraries are now excluded by `rebar.config.script` if `configure.out` file is missing.
+
 # [MongooseIM 2.2.1](https://github.com/esl/MongooseIM/releases/tag/2.2.1) - 2018-04-17
 
 ## Fixed
