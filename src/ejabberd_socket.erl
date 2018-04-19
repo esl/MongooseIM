@@ -66,18 +66,12 @@
 start(Module, SockMod, Socket, Opts) ->
     case Module:socket_type() of
         xml_stream ->
-            MaxStanzaSize =
-                case lists:keysearch(max_stanza_size, 1, Opts) of
-                    {value, {_, Size}} -> Size;
-                    _ -> infinity
-                end,
             {ReceiverMod, Receiver, RecRef} =
                 case catch SockMod:custom_receiver(Socket) of
                     {receiver, RecMod, RecPid} ->
                         {RecMod, RecPid, RecMod};
                     _ ->
-                        RecPid = ejabberd_receiver:start(
-                                   Socket, SockMod, none, MaxStanzaSize),
+                        RecPid = ejabberd_receiver:start(Socket, SockMod, none, Opts),
                         {ejabberd_receiver, RecPid, RecPid}
                 end,
             SocketData = #socket_state{sockmod = SockMod,
@@ -143,7 +137,7 @@ connect(Addr, Port, Opts) ->
 connect(Addr, Port, Opts, Timeout) ->
     case gen_tcp:connect(Addr, Port, Opts, Timeout) of
         {ok, Socket} ->
-            Receiver = ejabberd_receiver:start(Socket, gen_tcp, none),
+            Receiver = ejabberd_receiver:start(Socket, gen_tcp, none, Opts),
             SocketData = #socket_state{sockmod = gen_tcp,
                                        socket = Socket,
                                        receiver = Receiver},
