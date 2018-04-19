@@ -43,12 +43,12 @@ run(Cmd) ->
 
 run(Cmd, Timeout) ->
     Port = erlang:open_port({spawn, Cmd},[exit_status]),
-    loop(Port,[], Timeout).
+    loop(Cmd, Port, [], Timeout).
 
-loop(Port, Data, Timeout) ->
+loop(Cmd, Port, Data, Timeout) ->
     receive
-        {Port, {data, NewData}} -> loop(Port, Data++NewData, Timeout);
+        {Port, {data, NewData}} -> loop(Cmd, Port, Data++NewData, Timeout);
         {Port, {exit_status, ExitStatus}} -> {Data, ExitStatus}
     after Timeout ->
-        throw(timeout)
+        erlang:error(#{reason => timeout, command => Cmd})
     end.

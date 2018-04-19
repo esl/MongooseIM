@@ -193,6 +193,12 @@ end_per_testcase(delete_old_users, Config) ->
         end, Users),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(CaseName, Config) ->
+    %% Because kick_session fails with unexpected stanza received:
+    %% <presence from="alicE@localhost/res3"
+    %%     to="alice@localhost/res1" type="unavailable" />
+    %% TODO: Remove when escalus learns how to automatically deal
+    %% with 'unavailable' stanzas on client stop.
+    mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
@@ -454,7 +460,8 @@ rosteritem_rw(Config) ->
                 {Items2, 0} = ejabberdctl("get_roster", [AliceName, Domain], Config),
                 match_roster([{MikeName, Domain, "MyMike", "MyGroup", "both"}], Items2),
 
-                escalus:send(Alice, escalus_stanza:roster_remove_contact(MikeJid))  % cleanup
+                escalus:send(Alice, escalus_stanza:roster_remove_contact(MikeJid)),  % cleanup
+                escalus:wait_for_stanzas(Alice, 2, 5000)
         end).
 
 presence_after_add_rosteritem(Config) ->
@@ -468,7 +475,9 @@ presence_after_add_rosteritem(Config) ->
                  escalus:send(Alice, escalus_stanza:presence(<<"available">>)),
                  escalus:assert(is_presence, escalus:wait_for_stanza(Bob)),
 
-                 escalus:send(Alice, escalus_stanza:roster_remove_contact(BobJid))  % cleanup
+                 escalus:send(Alice, escalus_stanza:roster_remove_contact(BobJid)),  % cleanup
+                 %% Wait for stanzas, so they would not end up in the next story
+                 escalus:wait_for_stanzas(Alice, 3, 5000)
          end).
 
 push_roster(Config) ->
@@ -483,7 +492,8 @@ push_roster(Config) ->
                 escalus:assert(is_roster_result, Roster1),
                 escalus:assert(roster_contains, [BobJid], Roster1),
 
-                escalus:send(Alice, escalus_stanza:roster_remove_contact(BobJid)) % cleanup
+                escalus:send(Alice, escalus_stanza:roster_remove_contact(BobJid)), % cleanup
+                escalus:wait_for_stanzas(Alice, 2, 5000)
         end).
 
 process_rosteritems_list_simple(Config) ->
