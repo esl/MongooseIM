@@ -90,6 +90,9 @@
          maybe_set_client_xmlns/2,
          is_jid_in_user_roster/2]).
 
+%% Shared logic
+-export([check_result_for_policy_violation/2]).
+
 %-define(MAM_INLINE_UTILS, true).
 
 -ifdef(MAM_INLINE_UTILS).
@@ -1115,3 +1118,26 @@ error_on_sql_error(_HostOrConn, _Query, Result) ->
 -spec wrapper_id() -> binary().
 wrapper_id() ->
     uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+
+
+-spec check_result_for_policy_violation(Params, Result) -> Result when
+        Params :: mam_iq:lookup_params(),
+        Result :: {ok, mod_mam:lookup_result()}
+                | {error, 'policy-violation'}
+                | {error, Reason :: term()}.
+check_result_for_policy_violation(
+         _Params = #{limit_passed := LimitPassed,
+                     max_result_limit := MaxResultLimit},
+         Result = {ok, {TotalCount, Offset, MessageRows}})
+        when is_integer(TotalCount), is_integer(Offset) ->
+    case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
+        true ->
+            {error, 'policy-violation'};
+        false ->
+            Result
+    end;
+check_result_for_policy_violation(Params, Result) ->
+    Result.
+
+is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
+    TotalCount - Offset > MaxResultLimit andalso not LimitPassed.

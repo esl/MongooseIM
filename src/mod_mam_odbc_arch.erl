@@ -243,7 +243,7 @@ prepare_insert(Name, NumRows) ->
     ok.
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
-                             {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
+                             {ok, mod_mam:lookup_result()}.
 lookup_messages({error, _Reason}=Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, Host, Params) ->
@@ -258,15 +258,13 @@ lookup_messages(_Result, Host, Params) ->
         WithJID = maps:get(with_jid, Params),
         SearchText = maps:get(search_text, Params),
         PageSize = maps:get(page_size, Params),
-        LimitPassed = maps:get(limit_passed, Params),
-        MaxResultLimit = maps:get(max_result_limit, Params),
         IsSimple = maps:get(is_simple, Params),
 
         do_lookup_messages(Host,
                            UserID, UserJID, RSM, Borders,
                            Start, End, Now, WithJID,
                            mod_mam_utils:normalize_search_text(SearchText),
-                           PageSize, LimitPassed, MaxResultLimit,
+                           PageSize,
                            IsSimple, is_opt_count_supported_for(RSM))
     catch _Type:Reason ->
         S = erlang:get_stacktrace(),
@@ -293,14 +291,14 @@ is_opt_count_supported_for(_) ->
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
                    Start, End, _Now, WithJID, SearchText,
-                   PageSize, _LimitPassed, _MaxResultLimit, true, _) ->
+                   PageSize, true, _) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
     lookup_messages_simple(Host, UserJID, RSM, PageSize, Filter);
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
                    Start, End, _Now, WithJID, SearchText,
-                   PageSize, _LimitPassed, _MaxResultLimit, opt_count, true) ->
+                   PageSize, opt_count, true) ->
     %% Extract messages first than calculate offset and total count
     %% Useful for small result sets (less than one page, than one query is enough)
     Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
@@ -308,11 +306,11 @@ do_lookup_messages(Host, UserID, UserJID,
 do_lookup_messages(Host, UserID, UserJID,
                    RSM, Borders,
                    Start, End, _Now, WithJID, SearchText,
-                   PageSize, LimitPassed, MaxResultLimit, _, _) ->
+                   PageSize, _, _) ->
     %% Unsupported opt_count or just a regular query
     %% Calculate offset and total count first than extract messages
     Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText),
-    lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter, LimitPassed, MaxResultLimit).
+    lookup_messages_regular(Host, UserJID, RSM, PageSize, Filter).
 
 lookup_messages_simple(Host, UserJID,
                        #rsm_in{direction = aft, id = ID},
@@ -392,57 +390,27 @@ lookup_messages_opt_count(Host, UserJID,
 
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
-                        PageSize, Filter, LimitPassed, MaxResultLimit) ->
+                        PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end;
+    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
+    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
-                        PageSize, Filter, LimitPassed, MaxResultLimit) ->
+                        PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end;
+    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
+    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
 lookup_messages_regular(Host, UserJID, RSM,
-                        PageSize, Filter, LimitPassed, MaxResultLimit) ->
+                        PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}
-    end.
-
-is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
-    TotalCount - Offset > MaxResultLimit andalso not LimitPassed.
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}}.
 
 after_id(ID, Filter) ->
     SID = escape_message_id(ID),

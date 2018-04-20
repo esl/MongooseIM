@@ -592,7 +592,14 @@ remove_archive(Host, ArcID, ArcJID = #jid{}) ->
     {ok, mod_mam:lookup_result()}
     | {error, 'policy-violation'}
     | {error, Reason :: term()}.%Result :: any(),
-lookup_messages(Host, #{search_text := SearchText} = Params) ->
+lookup_messages(Host, Params) ->
+    Result = lookup_messages_without_policy_violation_check(Host, Params),
+    %% If a query returns a number of stanzas greater than this limit and the
+    %% client did not specify a limit using RSM then the server should return
+    %% a policy-violation error to the client.
+    mod_mam_utils:check_result_for_policy_violation(Params, Result).
+
+lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText} = Params) ->
     case SearchText /= undefined andalso not mod_mam_params:has_full_text_search(?MODULE, Host) of
         true -> %% Use of disabled full text search
             {error, 'not-supported'};
