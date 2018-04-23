@@ -4,6 +4,7 @@
 # - RIAK_HOST
 # - RIAK_PORT
 # - RIAK_PASSWORD
+# - RIAK_SECURITY - if enabled Riak requires SSL connections
 
 set -e
 
@@ -11,6 +12,7 @@ RIAK_HOST=${RIAK_HOST:-"localhost"}
 RIAK_PORT=${RIAK_PORT:-"8098"}
 RIAK_HOST="http://${RIAK_HOST}:${RIAK_PORT}"
 RIAK_PASSWORD="${RIAK_PASSWORD:-mongooseim_secret}"
+RIAK_SECURITY=${RIAK_SECURITY:-"enabled"}
 
 RIAK_VCARD_SCHEMA_PATH=${RIAK_VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
 RIAK_MAM_SCHEMA_PATH=${RIAK_MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
@@ -42,18 +44,20 @@ curl -v -XPUT $RIAK_HOST/search/index/mam \
 # Use riak-admin as a default command.
 RIAK_ADMIN="${RIAK_ADMIN:-riak-admin}"
 
-RIAK_USER_PERMISSIONS=riak_kv.get,riak_kv.put,riak_kv.delete,riak_kv.index,
-RIAK_USER_PERMISSIONS+=riak_kv.list_keys,riak_kv.list_buckets,riak_kv.mapreduce,
-RIAK_USER_PERMISSIONS+=riak_core.get_bucket,riak_core.set_bucket,riak_core.set_bucket_type,
-RIAK_USER_PERMISSIONS+=riak_core.get_bucket_type,search.admin,search.query
+if [ "$RIAK_SECURITY" == "enabled" ]; then
+    RIAK_USER_PERMISSIONS=riak_kv.get,riak_kv.put,riak_kv.delete,riak_kv.index,
+    RIAK_USER_PERMISSIONS+=riak_kv.list_keys,riak_kv.list_buckets,riak_kv.mapreduce,
+    RIAK_USER_PERMISSIONS+=riak_core.get_bucket,riak_core.set_bucket,riak_core.set_bucket_type,
+    RIAK_USER_PERMISSIONS+=riak_core.get_bucket_type,search.admin,search.query
 
-$RIAK_ADMIN security enable
+    $RIAK_ADMIN security enable
 
-$RIAK_ADMIN security add-user ejabberd password="$RIAK_PASSWORD"
+    $RIAK_ADMIN security add-user ejabberd password="$RIAK_PASSWORD"
 
-$RIAK_ADMIN security add-source all 127.0.0.1/32 password
+    $RIAK_ADMIN security add-source all 127.0.0.1/32 password
 
-$RIAK_ADMIN security grant $RIAK_USER_PERMISSIONS on any to ejabberd
+    $RIAK_ADMIN security grant $RIAK_USER_PERMISSIONS on any to ejabberd
+fi
 
 $RIAK_ADMIN bucket-type create users '{"props":{"datatype":"map"}}'
 $RIAK_ADMIN bucket-type activate users
@@ -88,13 +92,15 @@ $RIAK_ADMIN bucket-type activate privacy_lists_names
 $RIAK_ADMIN bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
 $RIAK_ADMIN bucket-type activate privacy_lists
 
+
+if [ "$RIAK_SECURITY" == "enabled" ]; then
 # Specify a list of ciphers to avoid
 # "no function clause matching tls_v1:enum_to_oid(28)" error
 # on Riak's side running with Erlang R16.
 # https://github.com/basho/riak-erlang-client/issues/232#issuecomment-178612129
 # We also set ciphers in ejabberd.cfg
 # (see test.config presets in the big test directory).
-$RIAK_ADMIN security ciphers "AES256-SHA:DHE-RSA-AES128-SHA256"
+    $RIAK_ADMIN security ciphers "AES256-SHA:DHE-RSA-AES128-SHA256"
 
 # Allow connections from ejabberd, otherwise you will get
 # a hidden "Authentication failed" error.
@@ -103,4 +109,5 @@ $RIAK_ADMIN security ciphers "AES256-SHA:DHE-RSA-AES128-SHA256"
 # recon_trace:calls({riakc_pb_socket, start_auth, '_'}, 50, [{scope, local}]).
 #
 # In the process state of riakc process there is an orddict with a list of errors.
-$RIAK_ADMIN security add-source ejabberd "0.0.0.0/0" password
+    $RIAK_ADMIN security add-source ejabberd "0.0.0.0/0" password
+fi
