@@ -1522,9 +1522,7 @@ admin_member_list_allowed(Config) ->
         %% setup room - allow getmemberlist for moderator
         Form = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_getmemberlist">>, [<<"moderator">>], <<"list-multi">>}]),
-        escalus:send(Alice, Form),
-        Result = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result),
+        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         %% memberlist
         %% Alice - yes
         check_memberlist(Alice, yes, Config),
@@ -1541,10 +1539,8 @@ admin_member_list_allowed(Config) ->
         check_rolelist(Bob, yes, Config),
         %% setup room - allow getmemberlist for participant
         Form1 = stanza_configuration_form(?config(room, Config), [
-            {<<"muc#roomconfig_getmemberlist">>, [<<"participant">>], <<"list-multi">>}]),
-        escalus:send(Alice, Form1),
-        Result1 = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result1),
+             {<<"muc#roomconfig_getmemberlist">>, [<<"participant">>], <<"list-multi">>}]),
+        Result1 = escalus:send_iq_and_wait_for_result(Alice, Form1),
         %% memberlist
         %% Alice - yes
         check_memberlist(Alice, yes, Config),
@@ -1574,9 +1570,7 @@ admin_member_list_allowed(Config) ->
         %% setup room - allow getmemberlist for visitor
         Form2 = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_getmemberlist">>, [<<"visitor">>], <<"list-multi">>}]),
-        escalus:send(Alice, Form2),
-        Result2 = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result2),
+        Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
         %% member list
         %% Alice - yes
         check_memberlist(Alice, yes, Config),
@@ -1752,10 +1746,8 @@ admin_moderator_list(Config) ->
         escalus:wait_for_stanzas(Alice, 3),
 
         %% Request moderator list
-        escalus:send(Alice, stanza_role_list_request(
-            ?config(room, Config), <<"moderator">>)),
-        List = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, List),
+        List = escalus:send_iq_and_wait_for_result(
+                   Alice, stanza_role_list_request(?config(room, Config), <<"moderator">>)),
         %% Alice should be on it
         true = is_iq_with_jid(List, Alice),
         true = is_iq_with_role(List, <<"moderator">>),
@@ -1784,10 +1776,8 @@ admin_moderator_list(Config) ->
         escalus:assert_many(Preds, escalus:wait_for_stanzas(Kate,2)),
 
         %% Request again
-        escalus:send(Alice, stanza_role_list_request(
-            ?config(room, Config), <<"moderator">>)),
-        List2 = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, List2),
+        List2 = escalus:send_iq_and_wait_for_result(
+                    Alice, stanza_role_list_request(?config(room, Config), <<"moderator">>)),
 
         %% Alice, Bob and Kate should be on it
         true = is_iq_with_jid(List2, Alice),
@@ -1866,8 +1856,8 @@ admin_mo_revoke(Config) ->
         %% Make Bob and Kate members
         Items = [{escalus_utils:get_short_jid(Bob), <<"member">>},
             {escalus_utils:get_short_jid(Kate), <<"member">>}],
-        escalus:send(Alice, stanza_set_affiliations(?config(room,Config), Items)),
-        escalus:wait_for_stanza(Alice),
+        escalus:send_iq_and_wait_for_result(
+            Alice, stanza_set_affiliations(?config(room,Config), Items)),
 
         %% Bob gets invitation
         is_invitation(escalus:wait_for_stanza(Bob)),
@@ -1885,8 +1875,8 @@ admin_mo_revoke(Config) ->
 
         %% Alice revokes Bob's membership
         Items2 = [{escalus_utils:get_short_jid(Bob), <<"none">>}],
-        escalus:send(Alice, stanza_set_affiliations(?config(room, Config), Items2)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:send_iq_and_wait_for_result(
+            Alice, stanza_set_affiliations(?config(room, Config), Items2)),
 
         %% Skip Bob's lost of membership presence (tested in the other case)
         escalus:wait_for_stanza(Bob),
@@ -1915,8 +1905,8 @@ admin_mo_invite(Config) ->
 
         %% Alice revokes Bob's membership
         Items2 = [{escalus_utils:get_short_jid(Bob), <<"none">>}],
-        escalus:send(Alice, stanza_set_affiliations(?config(room, Config), Items2)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        escalus:send_iq_and_wait_for_result(
+            Alice, stanza_set_affiliations(?config(room, Config), Items2))
     end).
 
 admin_mo_invite_with_reason(Config) ->
@@ -1934,8 +1924,8 @@ admin_mo_invite_with_reason(Config) ->
 
         %% Alice revokes Bob's membership
         Items2 = [{escalus_utils:get_short_jid(Bob), <<"none">>}],
-        escalus:send(Alice, stanza_set_affiliations(?config(room, Config), Items2)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice))
+        escalus:send_iq_and_wait_for_result(
+            Alice, stanza_set_affiliations(?config(room, Config), Items2))
     end).
 
 %%  Example 135
@@ -2100,9 +2090,8 @@ deny_entry_to_a_banned_user(Config1) ->
     Alice = connect_fresh_user(AliceSpec),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         %% Alice bans Bob
-        escalus:send(Alice, stanza_ban_user(Bob, ?config(room, Config))),
-        %% Alice receives confirmation
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:send_iq_and_wait_for_result(Alice, stanza_ban_user(Bob, ?config(room, Config))),
+
         escalus:send(Bob, stanza_muc_enter_room(?config(room, Config), escalus_utils:get_username(Bob))),
         escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"auth">>, <<"forbidden">>)
     end),
@@ -2963,9 +2952,8 @@ disco_rooms(Config) ->
 
 disco_info(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Stanza),
+        Stanza = escalus:send_iq_and_wait_for_result(
+                     Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
         has_feature(Stanza, <<"muc_persistent">>)
     end).
 
@@ -2975,10 +2963,9 @@ disco_items(Config) ->
         _Stanza = escalus:wait_for_stanza(Alice),
 
         %% works because the list is public
-        escalus:send(Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>)),
-        Stanza2 = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_iq_result, Stanza2)
-                                 end).
+        Stanza2 = escalus:send_iq_and_wait_for_result(
+                      Bob, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_ITEMS,[]), <<"alicesroom">>))
+    end).
 
 disco_items_nonpublic(Config0) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
@@ -3075,9 +3062,7 @@ create_instant_room(Config) ->
 
         escalus:wait_for_stanza(Alice), % topic
 
-        escalus:send(Alice, stanza_instant_room(RoomName)),
-        IQ = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, IQ),
+        IQ = escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
 
         %% Bob should be able to join the room
         escalus:send(Bob, stanza_muc_enter_room(RoomName, <<"bob">>)),
@@ -3122,9 +3107,7 @@ create_reserved_room(Config) ->
 
         escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_configuration_form_request(RoomName)),
-        S = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, S),
+        S = escalus:send_iq_and_wait_for_result(Alice, stanza_configuration_form_request(RoomName)),
         true = is_form(S)
 
     end).
@@ -3141,9 +3124,7 @@ reserved_room_cancel(Config) ->
 
         escalus:wait_for_stanza(Alice),
 
-        escalus:send(Alice, stanza_configuration_form_request(RoomName)),
-        S = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, S),
+        S = escalus:send_iq_and_wait_for_result(Alice, stanza_configuration_form_request(RoomName)),
         true = is_form(S),
 
         %% Send cancel request
@@ -3165,9 +3146,7 @@ reserved_room_unacceptable(Config) ->
         was_room_created(escalus:wait_for_stanza(Alice)),
 
         escalus:wait_for_stanza(Alice),
-        escalus:send(Alice, stanza_configuration_form_request(RoomName)),
-        S = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, S),
+        S = escalus:send_iq_and_wait_for_result(Alice, stanza_configuration_form_request(RoomName)),
         true = is_form(S),
 
         %% Configure room to be password protected, with empty secret
@@ -3193,9 +3172,7 @@ reserved_room_configuration(Config) ->
         was_room_created(escalus:wait_for_stanza(Alice)),
 
         escalus:wait_for_stanza(Alice),
-        escalus:send(Alice, stanza_configuration_form_request(RoomName)),
-        S = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, S),
+        S = escalus:send_iq_and_wait_for_result(Alice, stanza_configuration_form_request(RoomName)),
         true = is_form(S),
 
         %% Configure room to be moderated, public and persistent
@@ -3203,16 +3180,12 @@ reserved_room_configuration(Config) ->
             {<<"muc#roomconfig_publicroom">>, <<"1">>, <<"boolean">>},
             {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
             {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
-        escalus:send(Alice, Form),
-
-        Result = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result),
+        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from, [<<RoomName/binary,"@muc.localhost">>], Result),
 
         %% Check if it worked
-        escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), RoomName)),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Stanza),
+        Stanza = escalus:send_iq_and_wait_for_result(
+                     Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), RoomName)),
         has_feature(Stanza, <<"muc_persistent">>),
         has_feature(Stanza, <<"muc_moderated">>),
         has_feature(Stanza, <<"muc_public">>),
@@ -3255,10 +3228,10 @@ config_cancel(Config1) ->
         escalus:assert(is_stanza_from, [room_address(?config(room, Config))], Res),
 
         %% Alice cancels form
-        escalus:send(Alice, stanza_cancel(?config(room, Config))),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:send_iq_and_wait_for_result(Alice, stanza_cancel(?config(room, Config))),
 
-        RoomsIqResp = escalus:send_and_wait(Alice, stanza_room_list_request(<<"id">>, undefined)),
+        RoomsIqResp = escalus:send_iq_and_wait_for_result(
+                          Alice, stanza_room_list_request(<<"id">>, undefined)),
         has_room(room_address(?config(room, Config)), RoomsIqResp),
 
     destroy_room(Config).
@@ -3284,18 +3257,13 @@ configure(Config1) ->
             {<<"muc#roomconfig_publicroom">>, <<"1">>, <<"boolean">>},
             {<<"muc#roomconfig_moderatedroom">>, <<"1">>, <<"boolean">>},
             {<<"muc#roomconfig_persistentroom">>, <<"1">>, <<"boolean">>}]),
-        escalus:send(Alice, Form),
-
-        Result = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result),
+        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
 
         %% Check if it worked
-        escalus:send(Alice, stanza_to_room(escalus_stanza:iq_get(
-            ?NS_DISCO_INFO,[]), ?config(room, Config))),
-        Stanza = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Stanza),
+        Stanza = escalus:send_iq_and_wait_for_result(
+                     Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), ?config(room, Config))),
         has_feature(Stanza, <<"muc_persistent">>),
         has_feature(Stanza, <<"muc_moderated">>),
         has_feature(Stanza, <<"muc_public">>),
@@ -3327,10 +3295,7 @@ configure_logging(Config1) ->
          %% Configure room with logging enabled
         Form = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_enablelogging">>, <<"1">>, <<"boolean">>}]),
-        escalus:send(Alice, Form),
-
-        Result = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result),
+        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
 
@@ -3359,10 +3324,7 @@ configure_logging(Config1) ->
         %% Disable logging
         Form2 = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_enablelogging">>, <<"0">>, <<"boolean">>}]),
-        escalus:send(Alice, Form2),
-
-        Result2 = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result2),
+        Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result2),
 
@@ -3400,10 +3362,7 @@ configure_anonymous(Config1) ->
         %% Configure room as non-anonymous
         Form = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_whois">>, <<"anyone">>, <<"list-single">>}]),
-        escalus:send(Alice, Form),
-
-        Result = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result),
+        Result = escalus:send_iq_and_wait_for_result(Alice, Form),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result),
 
@@ -3424,10 +3383,7 @@ configure_anonymous(Config1) ->
         %% Configure room as semi-anonymous
         Form2 = stanza_configuration_form(?config(room, Config), [
             {<<"muc#roomconfig_whois">>, <<"moderators">>, <<"list-single">>}]),
-        escalus:send(Alice, Form2),
-
-        Result2 = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, Result2),
+        Result2 = escalus:send_iq_and_wait_for_result(Alice, Form2),
         escalus:assert(is_stanza_from,
             [room_address(?config(room, Config))], Result2),
 
@@ -3465,13 +3421,12 @@ cancel_iq_sent_to_unlocked_room_has_no_effect(Config) ->
         ?assert(is_presence_with_role(PresenceResp, <<"moderator">>)),
 
         InstantRoomIq = stanza_instant_room(Room),
-        InstantRoomIqResp = escalus:send_and_wait(Alice, InstantRoomIq),
-        escalus:assert(is_iq_result, [InstantRoomIq], InstantRoomIqResp),
-        RoomsIqResp = escalus:send_and_wait(Alice, stanza_room_list_request(<<"id">>, undefined)),
+        escalus:send_iq_and_wait_for_result(Alice, InstantRoomIq),
+        RoomsIqResp = escalus:send_iq_and_wait_for_result(
+                          Alice, stanza_room_list_request(<<"id">>, undefined)),
         has_room(room_address(Room), RoomsIqResp),
 
-        CancelIqResp = escalus:send_and_wait(Alice, stanza_cancel(Room)),
-        escalus:assert(is_iq_result, [CancelIqResp], CancelIqResp)
+        escalus:send_iq_and_wait_for_result(Alice, stanza_cancel(Room))
     end).
 
 %%  Examples 172-180
@@ -3630,12 +3585,10 @@ owner_list(Config1) ->
         escalus:wait_for_stanzas(Alice, 3),
 
         %% Alice requests owner list
-        escalus:send(Alice, stanza_affiliation_list_request(
-            ?config(room, Config), <<"owner">>)),
-        List = escalus:wait_for_stanza(Alice),
+        List = escalus:send_iq_and_wait_for_result(
+                   Alice, stanza_affiliation_list_request(?config(room, Config), <<"owner">>)),
 
         %% Alice should be on it
-        escalus:assert(is_iq_result, List),
         true = is_iq_with_affiliation(List, <<"owner">>),
         true = is_iq_with_short_jid(List, Alice),
 
@@ -3907,10 +3860,7 @@ destroy(Config1) ->
         escalus:wait_for_stanzas(Bob, 2),
 
         %% Alice requests room destruction
-        escalus:send(Alice, stanza_destroy_room(?config(room, Config))),
-
-        %% Alice gets confirmation
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:send_iq_and_wait_for_result(Alice, stanza_destroy_room(?config(room, Config))),
 
         %% Bob gets unavailable presence
         Presence = escalus:wait_for_stanza(Bob),
@@ -4042,9 +3992,7 @@ create_instant_http_password_protected_room(Config) ->
 
         escalus:wait_for_stanza(Alice), % topic
 
-        escalus:send(Alice, stanza_instant_room(RoomName)),
-        IQ = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_iq_result, IQ),
+        IQ = escalus:send_iq_and_wait_for_result(Alice, stanza_instant_room(RoomName)),
 
         %% Bob should be able to join the room
         escalus:send(Bob, stanza_muc_enter_password_protected_room(RoomName, <<"bob">>, ?PASSWORD)),
@@ -4217,8 +4165,7 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
         {ok, _, Pid} = Result,
 
         Stanza = stanza_set_affiliations(RoomName, [{escalus_client:short_jid(Bob), <<"member">>}]),
-        escalus:send(Alice, Stanza),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+        escalus:send_iq_and_wait_for_result(Alice, Stanza),
         is_invitation(escalus:wait_for_stanza(Bob)),
 
         leave_room(RoomName, Alice),
@@ -4227,8 +4174,7 @@ stopped_members_only_room_process_invitations_correctly(Config) ->
 
         Stanza2 = stanza_set_affiliations(RoomName,
                                           [{escalus_client:short_jid(Kate), <<"member">>}]),
-        escalus:send(Alice, Stanza2),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice, ?WAIT_TIMEOUT)),
+        escalus:send_iq_and_wait_for_result(Alice, Stanza2, ?WAIT_TIMEOUT),
         is_invitation(escalus:wait_for_stanza(Kate)),
 
         ok
@@ -4325,10 +4271,8 @@ maybe_configure(_, _, []) ->
 maybe_configure(Owner, RoomName, Opts) ->
     Cfg = [opt_to_room_config(Opt) || Opt <- Opts],
     Form = stanza_configuration_form(RoomName, lists:flatten(Cfg)),
-    escalus:send(Owner, Form),
 
-    Result = escalus:wait_for_stanza(Owner),
-    escalus:assert(is_iq_result, Result),
+    Result = escalus:send_iq_and_wait_for_result(Owner, Form),
     escalus:assert(is_stanza_from, [<<RoomName/binary, "@muc.localhost">>], Result),
     maybe_set_subject(proplists:get_value(subject, Opts), Owner, RoomName).
 
@@ -5004,19 +4948,13 @@ remove_nick_form_iq() ->
     escalus_stanza:to(SetIQ, ?MUC_HOST).
 
 set_nick(User, Nick) ->
-    escalus:send(User, change_nick_form_iq(Nick)),
-    ResultIQ = escalus:wait_for_stanza(User),
-    escalus:assert(is_iq_result, ResultIQ).
+    escalus:send_iq_and_wait_for_result(User, change_nick_form_iq(Nick)).
 
 unset_nick(User) ->
-    escalus:send(User, remove_nick_form_iq()),
-    ResultIQ = escalus:wait_for_stanza(User),
-    escalus:assert(is_iq_result, ResultIQ).
+    escalus:send_iq_and_wait_for_result(User, remove_nick_form_iq()).
 
 get_nick(User) ->
-    escalus:send(User, get_nick_form_iq()),
-    ResultIQ = escalus:wait_for_stanza(User),
-    escalus:assert(is_iq_result, ResultIQ),
+    ResultIQ = escalus:send_iq_and_wait_for_result(User, get_nick_form_iq()),
     true = form_has_field(<<"nick">>, ResultIQ),
     form_field_value(<<"nick">>, ResultIQ).
 
