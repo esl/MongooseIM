@@ -7,7 +7,6 @@
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 
--define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% suite configuration
@@ -22,7 +21,7 @@ groups() ->
     [
      {basic, [sequence],
       [store_and_retrieve, init_from_element, get_and_require, strip,
-          parse_with_cdata]
+          parse_with_cdata, reference]
      }
     ].
 
@@ -42,7 +41,6 @@ store_and_retrieve(_C) ->
 init_from_element(_C) ->
     Acc = mongoose_acc:from_element(sample_stanza()),
     mongoose_acc:dump(Acc),
-    ?PRT("Acc", Acc),
     ?assertEqual(mongoose_acc:get(name, Acc), <<"iq">>),
     ?assertEqual(mongoose_acc:get(type, Acc), <<"set">>),
     ok.
@@ -87,11 +85,24 @@ strip(_C) ->
     ?assertEqual(mongoose_acc:get(ref, NAcc, ref), Ref),
     ?assertEqual(997, mongoose_acc:get_prop(ppp, NAcc)).
 
+reference(_C) ->
+    Acc = mongoose_acc:from_element(sample_stanza()),
+    Ref = mongoose_acc:get(ref, Acc),
+    El = mongoose_acc:get(element, Acc),
+    ?assertEqual(Ref, El#xmlel.ref),
+    NAcc = mongoose_acc:strip(Acc),
+    ?assertEqual(Ref, mongoose_acc:get(ref, NAcc)),
+    NEl = mongoose_acc:get(element, NAcc),
+    ?assertEqual(Ref, NEl#xmlel.ref),
+    ok.
+
+
 
 sample_stanza() ->
     {xmlel, <<"iq">>,
+        undefined,
         [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
-        [{xmlel, <<"block">>,
+        [{xmlel, <<"block">>, undefined,
             [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
             [{xmlel, <<"item">>,
                 [{<<"jid">>, <<"bob37.814302@localhost">>}],
@@ -106,16 +117,19 @@ stanza_with_cdata() ->
 
 iq_stanza() ->
     {xmlel,<<"iq">>,
+        undefined,
         [{<<"type">>,<<"set">>},
             {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
-        [{xmlel,<<"session">>,
+        [{xmlel,<<"session">>, undefined,
             [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.
 
 another_iq_stanza() ->
     {xmlel,<<"iq">>,
+        undefined,
         [{<<"type">>,<<"pet">>},
             {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
         [{xmlel,<<"session">>,
             [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.
+

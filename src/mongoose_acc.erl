@@ -23,7 +23,7 @@
 -export([new/0, from_kv/2, put/3, get/2, get/3, find/2, append/3, remove/2]).
 -export([increment/2, get_counter/2]).
 -export([add_prop/3, get_prop/2]).
--export([from_element/1, from_map/1, update_element/4, update/2, is_acc/1, require/2]).
+-export([from_element/1, from_map/1, update/2, is_acc/1, require/2]).
 -export([strip/1, strip/2, record_sending/4, record_sending/6]).
 -export([dump/1, to_binary/1]).
 -export([to_element/1]).
@@ -95,34 +95,36 @@ from_kv(K, V) ->
 %% received from client, but sometimes messages are generated internally (broadcast) by sm
 %% and sent to c2s
 -spec from_element(exml:element() | jlib:iq() | tuple()) -> t().
-from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
-    Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
-        };
-from_element(#iq{type = Type} = El) ->
-    #{element => El, mongoose_acc => true, name => <<"iq">>, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
-    };
-from_element(El) when is_tuple(El) ->
-    Name = <<"broadcast">>,
-    Type = element(1, El),
-    % ref and timestamp will be filled in by strip/2
-    #{element => El, name => Name, type => Type, mongoose_acc => true}.
+from_element(El) ->
+    from_element(El, {make_ref(), os:timestamp()}).
 
+%% use when we know from and to which might be different then those in element
 -spec from_element(exml:element() | jlib:iq(), jid:jid(), jid:jid()) -> t().
 from_element(El, From, To) ->
     Acc = from_element(El),
     M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
     update(Acc, M).
 
+from_element(#xmlel{name = Name, attrs = Attrs} = El, {Ref, Timestamp}) ->
+    Type = exml_query:attr(El, <<"type">>, undefined),
+    El1 = El#xmlel{ref = Ref},
+    #{element => El1, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
+        timestamp => Timestamp, ref => Ref
+    };
+from_element(#iq{type = Type} = El, {Ref, Timestamp}) ->
+    El1 = El#iq{ref = Ref},
+    #{element => El1, mongoose_acc => true, name => <<"iq">>, type => Type,
+        timestamp => Timestamp, ref => Ref
+    };
+from_element(El, {Ref, Timestamp}) when is_tuple(El) ->
+    Name = <<"broadcast">>,
+    Type = element(1, El),
+    #{element => El, name => Name, type => Type, mongoose_acc => true, ref => Ref,
+      timestamp => Timestamp}.
+
 -spec from_map(map()) -> t().
 from_map(M) ->
     maps:put(mongoose_acc, true, M).
-
--spec update_element(t(), exml:element(), jid:jid(), jid:jid()) -> t().
-update_element(Acc, Element, From, To) ->
-    update(Acc, from_element(Element, From, To)).
 
 -spec update(t(), map() | t()) -> t().
 update(Acc, M) ->
@@ -228,13 +230,9 @@ strip(Acc) ->
 %% @doc alt version in case we want to replace the xmlel we are sending
 -spec strip(t(), exml:element()) -> t().
 strip(Acc, El) ->
-    Acc1 = from_element(El),
-    Attributes = [ref, timestamp],
-    NewAcc = lists:foldl(fun(Attrib, AccIn) ->
-                           Val = maps:get(Attrib, Acc),
-                           maps:put(Attrib, Val, AccIn)
-                       end,
-                       Acc1, Attributes),
+    Acc1 = from_element(El,
+                        {mongoose_acc:get(ref, Acc),
+                         mongoose_acc:get(timestamp, Acc)}),
     OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties, global_distrib],
     lists:foldl(fun(Attrib, AccIn) ->
                     case maps:get(Attrib, Acc, undefined) of
@@ -242,7 +240,7 @@ strip(Acc, El) ->
                         Val -> maps:put(Attrib, Val, AccIn)
                     end
                 end,
-        NewAcc, OptionalAttributes).
+        Acc1, OptionalAttributes).
 
 %% @doc Recording info about sending out a stanza/accumulator
 %% There are two versions because when we send xml element from c2s then
@@ -284,7 +282,7 @@ produce(command, Acc) ->
 read_children(Acc) ->
     Acc1 = put(command, undefined, put(xmlns, undefined, Acc)),
     #xmlel{children = Children} = get(element, Acc1),
-    read_children(Acc, Children).
+    read_children(Acc1, Children).
 
 read_children(Acc, []) ->
     Acc;
