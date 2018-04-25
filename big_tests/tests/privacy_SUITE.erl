@@ -679,6 +679,8 @@ block_jid_iq(Config) ->
         end).
 
 block_jid_all(Config) ->
+    %% unexprected presence unavalable
+    mongoose_helper:kick_everyone(),
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         privacy_helper:set_list(Alice, {<<"deny_jid_all">>, Bob}),

@@ -28,6 +28,8 @@ if [ "$DB" = 'mysql' ]; then
     mkdir -p ${SQL_TEMP_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     openssl rsa -in ${SSLDIR}/fake_key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
+    # mysql_native_password is needed until mysql-otp implements caching-sha2-password
+    # https://github.com/mysql-otp/mysql-otp/issues/83
     docker run -d \
         -e SQL_TEMP_DIR=${SQL_TEMP_DIR} \
         -e MYSQL_ROOT_PASSWORD=secret \
@@ -39,7 +41,8 @@ if [ "$DB" = 'mysql' ]; then
         -v ${BASE}/${TOOLS}/docker-setup-mysql.sh:/docker-entrypoint-initdb.d/docker-setup-mysql.sh \
         -v ${SQL_TEMP_DIR}:${SQL_TEMP_DIR} \
         --health-cmd='mysqladmin ping --silent' \
-        -p 3306:3306 --name=mongooseim-mysql mysql
+        -p 3306:3306 --name=mongooseim-mysql \
+        mysql --default-authentication-plugin=mysql_native_password
 
 elif [ "$DB" = 'pgsql' ]; then
     echo "Configuring postgres with SSL"
