@@ -45,6 +45,9 @@
 
 -define(DEFAULT_REPORT_INTERVAL, 60000). %%60s
 
+-type use_or_skip() :: use | skip.
+-type hook_name() :: atom().
+
 %% ---------------------------------------------------------------------
 %% API
 %% ---------------------------------------------------------------------
@@ -84,8 +87,8 @@ init_subscriptions() ->
 -spec create_generic_hook_metric(jid:lserver(), atom()) ->
     ok | {ok, already_present} | {error, any()}.
 create_generic_hook_metric(Host, Hook) ->
-    FilteredHookName = filter_hook(Hook),
-    do_create_generic_hook_metric(Host, FilteredHookName).
+    UseOrSkip = filter_hook(Hook),
+    do_create_generic_hook_metric(Host, Hook, UseOrSkip).
 
 ensure_db_pool_metric(Pool) ->
     ensure_metric(global,
@@ -131,8 +134,8 @@ get_aggregated_values(Metric) ->
 
 -spec increment_generic_hook_metric(jid:lserver(), atom()) -> ok | {error, any()}.
 increment_generic_hook_metric(Host, Hook) ->
-    FilteredHook = filter_hook(Hook),
-    do_increment_generic_hook_metric(Host, FilteredHook).
+    UseOrSkip = filter_hook(Hook),
+    do_increment_generic_hook_metric(Host, Hook, UseOrSkip).
 
 get_odbc_data_stats() ->
     get_odbc_data_stats(ejabberd_rdbms:pools()).
@@ -178,19 +181,23 @@ get_report_interval() ->
     application:get_env(exometer_core, mongooseim_report_interval,
                         ?DEFAULT_REPORT_INTERVAL).
 
--spec do_create_generic_hook_metric(Host :: jid:lserver() | global, Metric :: list()) ->
+-spec do_create_generic_hook_metric(Host :: jid:lserver() | global,
+                                    Hook :: hook_name(),
+                                    UseOrSkip :: use_or_skip()) ->
     ok | {ok, already_present} | {error, any()}.
-do_create_generic_hook_metric(_, [_, skip]) ->
+do_create_generic_hook_metric(_, _, skip) ->
     ok;
-do_create_generic_hook_metric(Host, Metric) ->
-    ensure_metric(Host, Metric, spiral).
+do_create_generic_hook_metric(Host, Hook, use) ->
+    ensure_metric(Host, Hook, spiral).
 
--spec do_increment_generic_hook_metric(Host :: jid:lserver() | global, Name :: list()) ->
+-spec do_increment_generic_hook_metric(Host :: jid:lserver() | global,
+                                       Hook :: hook_name(),
+                                       UseOrSkip :: use_or_skip()) ->
     ok | {error, any()}.
-do_increment_generic_hook_metric(_, [_, skip]) ->
+do_increment_generic_hook_metric(_, _, skip) ->
     ok;
-do_increment_generic_hook_metric(Host, Name) ->
-    update(Host, Name, 1).
+do_increment_generic_hook_metric(Host, Hook, use) ->
+    update(Host, Hook, 1).
 
 get_odbc_stats(ODBCWorkers) ->
     ODBCConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
@@ -277,6 +284,7 @@ remove_metric({Name, _, _}) ->
     exometer_admin:delete_entry(Name).
 
 %% decided whether to use a metric for given hook or not
+-spec filter_hook(hook_name()) -> use_or_skip().
 filter_hook(sm_register_connection_hook) -> skip;
 filter_hook(sm_remove_connection_hook) -> skip;
 filter_hook(auth_failed) -> skip;
@@ -315,7 +323,7 @@ filter_hook(mam_muc_drop_messages) -> skip;
 filter_hook(mam_muc_purge_single_message) -> skip;
 filter_hook(mam_muc_purge_multiple_messages) -> skip;
 
-filter_hook(Hook) -> Hook.
+filter_hook(_) -> use.
 
 -spec create_metrics(jid:server()) -> 'ok'.
 create_metrics(Host) ->
