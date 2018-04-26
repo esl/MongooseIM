@@ -156,12 +156,21 @@ put(Key, Val, Acc) ->
 -spec get(any()|[any()], t()) -> any().
 get(send_result, Acc) ->
     hd(maps:get(send_result, Acc));
-get(Key, P) ->
-    maps:get(Key, P).
+get(Key, Acc) ->
+    maps:get(Key, Acc).
 
 -spec get(any(), t(), any()) -> any().
-get(Key, P, Default) ->
-    maps:get(Key, P, Default).
+get(Key, Acc, #xmlel{ref = ElRef} = Element) ->
+    % if element is the same from which Acc was created then we return from cache
+    % otherwise we produce
+    get_or_produce(Key, Acc, ElRef, Element);
+get(Key, Acc, #iq{ref = ElRef} = Element) ->
+    % if element is the same from which Acc was created then we return from cache
+    % otherwise we produce
+    get_or_produce(Key, Acc, ElRef, Element);
+
+get(Key, Acc, Default) ->
+    maps:get(Key, Acc, Default).
 
 %% @doc increments a counter, returns new value
 %% counters are tagged so as not to interfere with other values
@@ -212,7 +221,7 @@ require([], Acc) ->
 require([Key|Tail], Acc) ->
     Acc1 = case maps:is_key(Key, Acc) of
                true -> Acc;
-               false -> produce(Key, Acc)
+               false -> add_to_acc(Key, Acc)
            end,
     require(Tail, Acc1);
 require(Key, Acc) ->
@@ -268,31 +277,62 @@ dump(Acc, [K|Tail]) ->
 
 
 %% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
-produce(iq_query_info, Acc) ->
-    Iq = jlib:iq_query_info(get(element, Acc)), % it doesn't change
+add_to_acc(iq_query_info, Acc) ->
+    Iq = produce(iq_query_info, get(element, Acc)),
     put(iq_query_info, Iq, Acc);
-produce(xmlns, Acc) ->
-    read_children(Acc);
-produce(command, Acc) ->
-    read_children(Acc).
+add_to_acc(xmlns, Acc) ->
+    add_to_acc(command, Acc);
+add_to_acc(command, Acc) ->
+    El = get(element, Acc),
+    {Ns, Cmd} = {produce(xmlns, El), produce(command, El)},
+    put(command, Cmd, put(xmlns, Ns, Acc)).
+
+
+get_or_produce(Key, Acc, ElRef, Element) ->
+    case get(ref, Acc) of
+        ElRef ->
+            get(Key, Acc);
+        _ ->
+            produce(Key, Element)
+    end.
+
+%% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
+produce(Key, #xmlel{} = Element) ->
+    produce_from_xmlel(Key, Element);
+produce(Key, #iq{} = Iq) ->
+    produce_from_iq(Key, Iq).
+
+produce_from_xmlel(iq_query_info, Element) ->
+    jlib:iq_query_info(Element);
+produce_from_xmlel(xmlns, Element) ->
+    {Ns, _} = read_children(Element),
+    Ns;
+produce_from_xmlel(command, Element) ->
+    {_, Cmd} = read_children(Element),
+    Cmd.
+
+produce_from_iq(iq_query_info, Iq) ->
+    Iq;
+produce_from_iq(xmlns, Iq) ->
+    Iq#iq.xmlns;
+produce_from_iq(command, _Iq) ->
+    undefined.
 
 
 %% @doc scan xml children to look for namespace; the name of xml element containing namespace
 %% defines the purpose of a stanza, we store it as 'command'; if absent, we store 'undefined'.
-read_children(Acc) ->
-    Acc1 = put(command, undefined, put(xmlns, undefined, Acc)),
-    #xmlel{children = Children} = get(element, Acc1),
-    read_children(Acc1, Children).
-
-read_children(Acc, []) ->
-    Acc;
-read_children(Acc, [#xmlel{} = Chld|Tail]) ->
+read_children(#xmlel{children = Children}) ->
+    read_children(Children);
+read_children([]) ->
+    {undefined, undefined};
+read_children([#xmlel{} = Chld|Tail]) ->
     case exml_query:attr(Chld, <<"xmlns">>, undefined) of
         undefined ->
-            read_children(Acc, Tail);
+            read_children(Tail);
         Ns ->
             #xmlel{name = Name} = Chld,
-            put(command, Name, put(xmlns, Ns, Acc))
+            {Ns, Name}
     end;
-read_children(Acc, [_|Tail]) ->
-    read_children(Acc, Tail).
+read_children([_|Tail]) ->
+    read_children(Tail).
+
