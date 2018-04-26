@@ -968,7 +968,7 @@ get_max_user_sessions(LUser, Host) ->
       Result :: ok | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
 process_iq(From, To, Acc0, Packet) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
+    IQ = mongoose_acc:get(iq_query_info, Acc, Packet),
     process_iq(IQ, From, To, Acc0, Packet).
 
 process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
