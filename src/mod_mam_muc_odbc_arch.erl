@@ -182,15 +182,13 @@ lookup_messages(_Result, Host,
                 #{archive_id := UserID, owner_jid := UserJID, rsm := RSM,
                   borders := Borders, start_ts := Start, end_ts := End, now := Now,
                   with_jid := WithJID, search_text := SearchText, page_size := PageSize,
-                  limit_passed := LimitPassed, max_result_limit := MaxResultLimit,
                   is_simple := IsSimple}) ->
     try
         lookup_messages(Host,
                         UserID, UserJID, RSM, Borders,
                         Start, End, Now, WithJID,
                         mod_mam_utils:normalize_search_text(SearchText),
-                        PageSize, LimitPassed, MaxResultLimit,
-                        IsSimple)
+                        PageSize, IsSimple)
     catch _Type:Reason ->
         S = erlang:get_stacktrace(),
         {error, {Reason, {stacktrace, S}}}
@@ -206,15 +204,13 @@ lookup_messages(_Result, Host,
                       Now :: mod_mam:unix_timestamp(),
                       WithJID :: jid:jid()  | undefined,
                       SearchText :: binary() | undefined,
-                      PageSize :: integer(), LimitPassed :: boolean(),
-                      MaxResultLimit :: integer(),
+                      PageSize :: integer(),
                       IsSimple :: boolean()  | opt_count) ->
-                             {ok, mod_mam:lookup_result()}
-                                 | {error, 'policy-violation'}.
+                             {ok, mod_mam:lookup_result()}.
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+                PageSize, true) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
     {ok, {undefined, undefined,
@@ -222,7 +218,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+                PageSize, true) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
     {ok, {undefined, undefined,
@@ -230,7 +226,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+                PageSize, true) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     {ok, {undefined, undefined,
@@ -238,7 +234,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, true) ->
+                PageSize, true) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, Filter, 0, PageSize, false),
     {ok, {undefined, undefined,
@@ -249,7 +245,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = before, id = undefined}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+                PageSize, opt_count) ->
     %% Last page
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, Filter, 0, PageSize, true),
@@ -267,7 +263,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 #rsm_in{direction = undefined, index = Offset}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+                PageSize, opt_count) ->
     %% By offset
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
@@ -285,7 +281,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 undefined, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _LimitPassed, _MaxResultLimit, opt_count) ->
+                PageSize, opt_count) ->
     %% First page
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     MessageRows = extract_messages(Host, Filter, 0, PageSize, false),
@@ -303,60 +299,33 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit, _) ->
+                PageSize, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
-            {ok, {TotalCount, Offset,
-                  rows_to_uniform_format(MessageRows, Host, RoomJID)}}
-    end;
+    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
+    {ok, {TotalCount, Offset,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit, _) ->
+                PageSize, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
-            {ok, {TotalCount, Offset,
-                  rows_to_uniform_format(MessageRows, Host, RoomJID)}}
-    end;
+    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
+    {ok, {TotalCount, Offset,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, LimitPassed, MaxResultLimit, _) ->
+                PageSize, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
-        true ->
-            {error, 'policy-violation'};
-
-        false ->
-            MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
-            {ok, {TotalCount, Offset,
-                  rows_to_uniform_format(MessageRows, Host, RoomJID)}}
-    end.
+    MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
+    {ok, {TotalCount, Offset,
+          rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
 
 
 -spec after_id(integer(), [[binary()], ...]) -> [[binary()], ...].

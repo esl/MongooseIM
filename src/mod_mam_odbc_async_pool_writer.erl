@@ -242,7 +242,7 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
 
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
-    {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
+    {ok, mod_mam:lookup_result()}.
 lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now}) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.

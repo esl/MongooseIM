@@ -270,14 +270,7 @@ lookup_messages(Host, Params) ->
                                            [{rows, 1}], F),
             Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
                                       {OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
-            LimitPassed = maps:get(limit_passed, Params),
-            MaxResultLimit = maps:get(max_result_limit, Params),
-            case TotalCount - Offset > MaxResultLimit andalso not LimitPassed of
-                true ->
-                    {error, 'policy-violation'};
-                _ ->
-                    {ok, {TotalCount, Offset, get_messages(Host, SortedKeys)}}
-            end
+            {ok, {TotalCount, Offset, get_messages(Host, SortedKeys)}}
     end.
 
 

@@ -268,7 +268,7 @@ message_id_to_nick_name(PoolName, RoomJID, BRoomJID, MessID) ->
 %% SELECT MESSAGES
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
-  {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
+  {ok, mod_mam:lookup_result()}.
 lookup_messages({error, _Reason} = Result, _Host, _Params) ->
     Result;
 lookup_messages(_Result, _Host, #{search_text := <<_/binary>>}) ->
@@ -277,7 +277,6 @@ lookup_messages(_Result, Host,
                 #{owner_jid := RoomJID, rsm := RSM, borders := Borders,
                   start_ts := Start, end_ts := End, with_jid := WithJID,
                   search_text := undefined, page_size := PageSize,
-                  limit_passed := LimitPassed, max_result_limit := MaxResultLimit,
                   is_simple := IsSimple}) ->
     try
         WithNick = maybe_jid_to_nick(WithJID),
@@ -285,8 +284,7 @@ lookup_messages(_Result, Host,
         lookup_messages2(PoolName, Host,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
-                         PageSize, LimitPassed, MaxResultLimit,
-                         IsSimple)
+                         PageSize, IsSimple)
     catch _Type:Reason ->
             S = erlang:get_stacktrace(),
             {error, {Reason, {stacktrace, S}}}
@@ -299,36 +297,32 @@ maybe_jid_to_nick(undefined) -> undefined.
 lookup_messages2(PoolName, Host,
                  RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
-                 PageSize, _LimitPassed, _MaxResultLimit,
-                 _IsSimple = true) ->
+                 PageSize, _IsSimple = true) ->
     %% Simple query without calculating offset and total count
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
     lookup_messages_simple(PoolName, Host, RoomJID, RSM, PageSize, Filter);
 lookup_messages2(PoolName, Host,
                  RoomJID = #jid{}, RSM, Borders,
                  Start, End, WithNick,
-                 PageSize, LimitPassed, MaxResultLimit,
-                 _IsSimple) ->
+                 PageSize, _IsSimple) ->
     %% Query with offset calculation
     %% We cannot just use ODBC code because "LIMIT X, Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),
     Filter = prepare_filter(RoomJID, Borders, Start, End, WithNick),
-    Result =
-        case Strategy of
-            last_page ->
-                lookup_messages_last_page(PoolName, Host, RoomJID, RSM, PageSize, Filter);
-            by_offset ->
-                lookup_messages_by_offset(PoolName, Host, RoomJID, RSM, PageSize, Filter);
-            first_page ->
-                lookup_messages_first_page(PoolName, Host, RoomJID, RSM, PageSize, Filter);
-            before_id ->
-                lookup_messages_before_id(PoolName, Host, RoomJID, RSM, PageSize, Filter);
-            after_id ->
-                lookup_messages_after_id(PoolName, Host, RoomJID, RSM, PageSize, Filter)
-        end,
-    check_result_for_policy_violation(Result, MaxResultLimit, LimitPassed).
+    case Strategy of
+        last_page ->
+            lookup_messages_last_page(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+        by_offset ->
+            lookup_messages_by_offset(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+        first_page ->
+            lookup_messages_first_page(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+        before_id ->
+            lookup_messages_before_id(PoolName, Host, RoomJID, RSM, PageSize, Filter);
+        after_id ->
+            lookup_messages_after_id(PoolName, Host, RoomJID, RSM, PageSize, Filter)
+    end.
 
 rsm_to_strategy(#rsm_in{direction = before, id = undefined}) ->
     last_page;
@@ -458,24 +452,6 @@ lookup_messages_after_id(PoolName, Host, RoomJID,
     Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(PoolName, RoomJID, Host, after_id(ID, Filter), PageSize, false),
     {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
-
-check_result_for_policy_violation(Result = {ok, {TotalCount, Offset, _}},
-                                  MaxResultLimit, LimitPassed)
-  when is_integer(TotalCount), is_integer(Offset) ->
-    %% If a query returns a number of stanzas greater than this limit and the
-    %% client did not specify a limit using RSM then the server should return
-    %% a policy-violation error to the client.
-    case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
-        true ->
-            {error, 'policy-violation'};
-        false ->
-            Result
-    end;
-check_result_for_policy_violation(Result, _MaxResultLimit, _LimitPassed) ->
-    Result.
-
-is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
-    TotalCount - Offset > MaxResultLimit andalso not LimitPassed.
 
 
 after_id(ID, Filter = #mam_muc_ca_filter{start_id = AfterID}) ->
