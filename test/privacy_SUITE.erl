@@ -132,9 +132,9 @@ userlist(_) ->
 
 
 presence() ->
-    {xmlel, <<"presence">>, [{<<"xml:lang">>, <<"en">>}], []}.
+    {xmlel, <<"presence">>, undefined, [{<<"xml:lang">>, <<"en">>}], []}.
 
 message() ->
-    {xmlel, <<"message">>,
+    {xmlel, <<"message">>, undefined,
         [{<<"type">>, <<"chat">>}, {<<"to">>, <<"bob@localhost">>}],
-        [{xmlel, <<"body">>, [], [{xmlcdata, <<"roar!">>}]}]}.
+        [{xmlel, <<"body">>, undefined,  [], [{xmlcdata, <<"roar!">>}]}]}.

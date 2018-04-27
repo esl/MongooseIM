@@ -4284,7 +4284,7 @@ send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
 %% replace the instance of the subelement in element with the new subelement.
 -spec replace_subelement(exml:element(), exml:element()) -> exml:element().
 replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
-    {_, NameNewSubEl, _, _} = NewSubEl,
+    #xmlel{name = NameNewSubEl} = NewSubEl,
     SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
     XE#xmlel{children = SubEls2}.
 

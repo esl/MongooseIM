@@ -163,22 +163,22 @@ stream_header(Domain) ->
                               <<"http://etherx.jabber.org/streams">>}]}.
 
 auth_stanza() ->
-    {xmlel, <<"auth">>,
+    {xmlel, <<"auth">>, undefined,
         [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-sasl">>},
          {<<"mechanism">>, <<"PLAIN">>}],
         [{xmlcdata, <<"AGFsaWNFOTkuODk3NzMzAG1hdHlncnlzYQ==">>}]}.
 
 bind_stanza() ->
-    {xmlel, <<"iq">>,
+    {xmlel, <<"iq">>, undefined,
             [{<<"type">>, <<"set">>}, {<<"id">>, <<"4436">>}],
-            [{xmlel, <<"bind">>,
+            [{xmlel, <<"bind">>, undefined,
                     [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-bind">>}],
-                    [{xmlel, <<"resource">>, [], [{xmlcdata, <<"res1">>}]}]}]}.
+                    [{xmlel, <<"resource">>, undefined, [], [{xmlcdata, <<"res1">>}]}]}]}.
 
 setsession_stanza() ->
-    {xmlel, <<"iq">>,
+    {xmlel, <<"iq">>, undefined,
         [{<<"type">>, <<"set">>}, {<<"id">>, <<"4436">>}],
-        [{xmlel, <<"session">>, [{<<"xmlns">>,
+        [{xmlel, <<"session">>, undefined, [{<<"xmlns">>,
                                   <<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.
 

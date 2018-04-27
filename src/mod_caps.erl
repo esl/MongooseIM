@@ -235,7 +235,7 @@ disco_info(Acc, Host, Module, Node, Lang) ->
     end.
 
 c2s_presence_in(C2SState,
-                {From, To, {_, _, Attrs, Els}}) ->
+                {From, To, #xmlel{attrs = Attrs, children = Els}}) ->
     ?DEBUG("Presence to ~p from ~p with Els ~p", [To, From, Els]),
     Type = xml:get_attr_s(<<"type">>, Attrs),
     Subscription = ejabberd_c2s:get_subscription(From,
