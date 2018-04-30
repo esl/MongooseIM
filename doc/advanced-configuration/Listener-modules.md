@@ -19,7 +19,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
 * `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
 * `starttls_required` (default: disabled) - enforces StartTLS usage.
-* `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/)); the limit can be disabled with an atom 'unlimited'.
+* `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)); the limit can be disabled with an atom 'unlimited'.
 * `ciphers` (string, default: as of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` [(source)](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
  Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.

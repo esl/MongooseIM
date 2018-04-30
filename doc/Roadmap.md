@@ -79,7 +79,7 @@ Please contact us and tell us about what features and improvements do you see as
     * OCF certification
     * Embedded client
     * Cloud/fog focus
-* Contributions? [XEP-xxxx: Explicit Message Encryption](https://xmpp.org/extensions/inbox/eme.html)?
+* Contributions? [XEP-0380: Explicit Message Encryption](https://xmpp.org/extensions/xep-0380.html)?
 
 #### MongooseIM 4.1.x: social (2018S2)
 

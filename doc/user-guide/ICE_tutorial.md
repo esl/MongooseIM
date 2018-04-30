@@ -123,12 +123,12 @@ If you don't want to compile this application from source, you can just install 
 Right after you start [Mangosta-Android] for the first time, you will need to login to your XMPP server.
 In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), the password (*xmpp_password*) and the server address (*2.2.2.2* or *myxmpp.com* if you've set up the domain to actually point to this IP address), and then confirm by clicking "Enter".
 
-<img src="ICE_tutorial/mangosta_login.png" width="25%">
+<img src="mangosta_login.png" width="25%" alt="Mangosta login">
 
 After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/MongooseICE) server we set up before.
 The process is shown on the screenshots below.
 
-<img src="mangosta_ice_settings_1.png" width="30%">
+<img alt="Mangosta ICE settings" src="mangosta_ice_settings_1.png" width="30%">
 <img alt="Mangosta test ICE connection" src="mangosta_ice_settings_2.png" width="30%">
 <img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
 
