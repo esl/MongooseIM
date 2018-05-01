@@ -3981,7 +3981,7 @@ deny_access_to_http_password_protected_room_service_unavailable(Config1) ->
     Config = given_fresh_room(Config1, AliceSpec, [{password_protected, true}]),
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         escalus:send(Bob, stanza_muc_enter_password_protected_room(?config(room, Config), escalus_utils:get_username(Bob), ?PASSWORD)),
-        escalus_assert:is_error(escalus:wait_for_stanza(Bob), <<"cancel">>, <<"service-unavailable">>)
+        escalus_assert:is_error(escalus:wait_for_stanza(Bob, 6000), <<"cancel">>, <<"service-unavailable">>)
     end),
     destroy_room(Config).
 
@@ -4060,7 +4060,7 @@ deny_creation_of_http_password_protected_room_service_unavailable(Config) ->
         RoomName = fresh_room_name(),
         Presence = stanza_muc_enter_password_protected_room(RoomName, <<"alice-the-owner">>, ?PASSWORD),
         escalus:send(Alice, Presence),
-        escalus_assert:is_error(escalus:wait_for_stanza(Alice), <<"cancel">>, <<"service-unavailable">>),
+        escalus_assert:is_error(escalus:wait_for_stanza(Alice, 6000), <<"cancel">>, <<"service-unavailable">>),
         escalus_assert:has_no_stanzas(Alice)
     end).
 
