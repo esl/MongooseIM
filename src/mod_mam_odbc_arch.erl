@@ -639,6 +639,7 @@ prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText) 
 
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".
+%% Order of words does not matter (they can go in any order).
 prepare_search_filters(SearchText) ->
     Words = binary:split(SearchText, <<"%">>, [global]),
     [prepare_search_filter(Word) || Word <- Words].
