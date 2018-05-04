@@ -42,10 +42,15 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config0) ->
-    Config1 = escalus:create_users(Config0, escalus:get_users([alice, bob])),
+    Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
     Config2 = escalus:make_everyone_friends(Config1),
+    %% This check ensures that there are no registered sessions.
+    %% But in ejabberd_c2s we first unset session,
+    %% then broadcast presence unavailable.
+    %% This check uses ejabberd_sm to get information about sessions.
     escalus_ejabberd:wait_for_session_count(Config2, 0),
     %% Kick "friendly" users
+    %% kick_everyone uses ejabberd_c2s_sup to information about client processes.
     mongoose_helper:kick_everyone(),
     Config2.
 
@@ -102,7 +107,8 @@ last_offline_user(Config) ->
                   end).
 
 last_server(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}],
+    %% This story can be fresh_story
+    escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Alice asks for server's uptime
                           Server = escalus_users:get_server(Config, alice),

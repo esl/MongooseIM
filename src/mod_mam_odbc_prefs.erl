@@ -135,16 +135,16 @@ get_behaviour(DefaultBehaviour, Host, UserID, _LocJID, RemJID)
 -spec choose_behaviour(binary(), binary(), [{binary(), binary()}]) -> binary().
 choose_behaviour(BRemLJID, BRemLBareJID, RemoteJid2Behaviour) ->
     case lists:keyfind(BRemLJID, 1, RemoteJid2Behaviour) of
-        {_, Behavour} ->
-            Behavour;
+        {_, Behaviour} ->
+            Behaviour;
         false ->
             case lists:keyfind(BRemLBareJID, 1, RemoteJid2Behaviour) of
-                {_, Behavour} ->
-                    Behavour;
+                {_, Behaviour} ->
+                    Behaviour;
                 false ->
                     %% Only one key remains
-                    {_, Behavour} = lists:keyfind(<<>>, 1, RemoteJid2Behaviour),
-                    Behavour
+                    {_, Behaviour} = lists:keyfind(<<>>, 1, RemoteJid2Behaviour),
+                    Behaviour
             end
     end.
 
@@ -177,8 +177,8 @@ set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     JidBehaviourA = [{JID, EscapedA} || JID <- AlwaysJIDs],
     JidBehaviourN = [{JID, EscapedN} || JID <- NeverJIDs],
     JidBehaviour = lists:keysort(1, JidBehaviourA ++ JidBehaviourN),
-    ValuesAN = [encode_config_row(SUserID, SBehavour, escape_string(JID))
-                || {JID, SBehavour} <- JidBehaviour],
+    ValuesAN = [encode_config_row(SUserID, SBehaviour, escape_string(JID))
+                || {JID, SBehaviour} <- JidBehaviour],
     SDefaultMode = escape_string(encode_behaviour(DefaultMode)),
     DefaultValue = encode_first_config_row(SUserID, SDefaultMode, escape_string("")),
     Values = [DefaultValue|ValuesAN],
@@ -276,9 +276,9 @@ decode_behaviour(<<"N">>) -> never.
                               SBehaviour :: mongoose_rdbms:escaped_string(),
                               SJID :: mongoose_rdbms:escaped_string()) ->
     mongoose_rdbms:sql_query_part().
-encode_first_config_row(SUserID, SBehavour, SJID) ->
+encode_first_config_row(SUserID, SBehaviour, SJID) ->
     ["(", use_escaped_integer(SUserID),
-     ", ", use_escaped_string(SBehavour),
+     ", ", use_escaped_string(SBehaviour),
      ", ", use_escaped_string(SJID), ")"].
 
 
@@ -286,9 +286,9 @@ encode_first_config_row(SUserID, SBehavour, SJID) ->
                         SBehaviour :: mongoose_rdbms:escaped_string(),
                         SJID :: mongoose_rdbms:escaped_string()) ->
     mongoose_rdbms:sql_query_part().
-encode_config_row(SUserID, SBehavour, SJID) ->
+encode_config_row(SUserID, SBehaviour, SJID) ->
     [", (", use_escaped_integer(SUserID),
-     ", ", use_escaped_string(SBehavour),
+     ", ", use_escaped_string(SBehaviour),
      ", ", use_escaped_string(SJID), ")"].
 
 
@@ -305,8 +305,8 @@ sql_transaction_map(LServer, Queries) ->
         AlwaysJIDs :: [jid:literal_jid()],
         NeverJIDs :: [jid:literal_jid()]) ->
     {mod_mam:archive_behaviour(), [jid:literal_jid()], [jid:literal_jid()]}.
-decode_prefs_rows([{<<>>, Behavour}|Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
-    decode_prefs_rows(Rows, decode_behaviour(Behavour), AlwaysJIDs, NeverJIDs);
+decode_prefs_rows([{<<>>, Behaviour}|Rows], _DefaultMode, AlwaysJIDs, NeverJIDs) ->
+    decode_prefs_rows(Rows, decode_behaviour(Behaviour), AlwaysJIDs, NeverJIDs);
 decode_prefs_rows([{JID, <<"A">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->
     decode_prefs_rows(Rows, DefaultMode, [JID|AlwaysJIDs], NeverJIDs);
 decode_prefs_rows([{JID, <<"N">>}|Rows], DefaultMode, AlwaysJIDs, NeverJIDs) ->

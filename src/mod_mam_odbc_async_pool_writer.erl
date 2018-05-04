@@ -6,9 +6,10 @@
 %%% Some backends allow ArcID can be not set (riak?).
 %%% This means, that there are no "jid => integer" mapping.
 %%%
-%%% But this module requires ArcID not be an integer.
+%%% But this module requires ArcID to be an integer.
 %%% ArcID is set by mod_mam_odbc_user.
-%%% If ArcID is undefined, we have issues in mod_mam_odbc_user.
+%%% If ArcID is undefined, it means that there can be issues
+%%% in mod_mam_odbc_user.
 %%%
 %%% We have `is_integer(ArcID)' check on each hook handler, so cases when
 %%% `ArcID' is undefined would fail at the module entrance.

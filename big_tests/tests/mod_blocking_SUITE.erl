@@ -371,7 +371,7 @@ simple_story(Config, Fun) ->
     ).
 
 clear_list_relogin(Config) ->
-    %% unexprected presence unavalable
+    %% unexpected presence unavailable
     mongoose_helper:kick_everyone(),
     escalus:story(
         Config, [{alice, 1}, {bob, 1}],
