@@ -45,7 +45,7 @@
 -opaque escaped_boolean() :: {escaped_boolean, sql_query_part()}.
 -opaque escaped_null() :: {escaped_null, sql_query_part()}.
 -type escaped_value() :: escaped_string() | escaped_binary() | escaped_integer() |
-                         escaped_integer() | escaped_boolean().
+                         escaped_boolean() | escaped_null().
 
 -export_types([escaped_binary/0,
                escaped_string/0,
@@ -562,12 +562,12 @@ outer_transaction(F, NRestarts, _Reason, State) ->
         {aborted, #{reason := Reason, sql_query := SqlQuery}}
             when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
-            ?ERROR_MSG("SQL transaction restarts exceeded~n"
-                       "** Restarts: ~p~n"
-                       "** Last abort reason: ~p~n"
-                       "** Last sql_query: ~p~n"
-                       "** Stacktrace: ~p~n"
-                       "** When State == ~p",
+            ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
+                       "restarts=~p "
+                       "last_abort_reason=~1000p "
+                       "last_sql_query=~1000p "
+                       "stacktrace=~1000p "
+                       "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         iolist_to_binary(SqlQuery),
                         erlang:get_stacktrace(), State]),
@@ -575,11 +575,11 @@ outer_transaction(F, NRestarts, _Reason, State) ->
             {{aborted, Reason}, State};
         {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
             %% Too many retries of outer transaction.
-            ?ERROR_MSG("SQL transaction restarts exceeded~n"
-                       "** Restarts: ~p~n"
-                       "** Last abort reason: ~p~n"
-                       "** Stacktrace: ~p~n"
-                       "** When State == ~p",
+            ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
+                       "restarts=~p "
+                       "last_abort_reason=~1000p "
+                       "stacktrace=~1000p "
+                       "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         erlang:get_stacktrace(), State]),
             sql_query_internal([<<"rollback;">>], State),

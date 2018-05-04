@@ -94,7 +94,7 @@ ascii_string_values() ->
      <<"'">>, <<"''">>, <<"'''">>,
      <<"\"">>, <<"\"\"">>,
      <<"\r\n">>, <<"\r">>, <<"\n">>,
-    list_to_binary(lists:duplicate(250, $a))].
+     binary:copy(<<"a">>, 250)].
 
 unicode_values() ->
     ascii_string_values() ++
@@ -102,7 +102,7 @@ unicode_values() ->
     ++
     %% There is a bug with 8001 chars limit
     %% https://bugs.erlang.org/browse/ERL-421
-    [iolist_to_binary(lists:duplicate(10000, 10))].
+    [binary:copy(<<10>>, 10000)].
 
 binary_values() ->
     [<<0>>, <<"255">>,
@@ -110,14 +110,14 @@ binary_values() ->
      <<240,159,0>>, %% Invalid unicode
     iolist_to_binary(lists:seq(0, 255)),
     %% one kilobyte
-    iolist_to_binary(lists:duplicate(1024, 1)),
+    binary:copy(<<1>>, 1024),
     %% two kilobytes
-    iolist_to_binary(lists:duplicate(2048, 2)),
+    binary:copy(<<2>>, 2048),
     %% There is a bug with 8001 chars limit
     %% https://bugs.erlang.org/browse/ERL-421
     %% I like otp
-    iolist_to_binary(lists:duplicate(1024*5, 5)),
-    iolist_to_binary(lists:duplicate(8002, 8))
+    binary:copy(<<5>>, 1024*5),
+    binary:copy(<<8>>, 8002)
     ].
 
 ascii_char_values() ->

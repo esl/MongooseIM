@@ -76,7 +76,7 @@ set_vcard(User, VHost, VCard, VCardSearch) ->
     SUsername = mongoose_rdbms:escape_string(User),
     SLUsername = mongoose_rdbms:escape_string(LUser),
     SLServer = mongoose_rdbms:escape_string(VHost),
-    SVCARD = mongoose_rdbms:escape_string( exml:to_binary(VCard)),
+    SVCARD = mongoose_rdbms:escape_string(exml:to_binary(VCard)),
 
     SFN = mongoose_rdbms:escape_string(VCardSearch#vcard_search.fn),
     SLFN = mongoose_rdbms:escape_string(VCardSearch#vcard_search.lfn),

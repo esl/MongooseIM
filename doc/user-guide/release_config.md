@@ -33,7 +33,7 @@ Writes rel/configure.vars.config which can be used as Reltool input.
     with-none           include no 3rd party drivers
     with-all            include all drivers
     with-mysql          include mysql driver
-    with-odbc           include standard ODBC driver shipped with Erlang/OTP
+    with-odbc           include an ODBC driver (requires unixodbc to compile)
     with-pgsql          include pgsql driver
     with-redis          include redis driver
     with-riak           include riak driver

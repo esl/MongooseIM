@@ -1373,9 +1373,11 @@ long_text_search_request(Config) ->
                 timer:sleep(50)
             end, Msgs),
 
-        %% Just check than Bob receives them.
-        %% It should help, when the server is overloaded.
+        %% Just check that Bob receives the messages.
+        %% It should help, when the CI server is overloaded.
         %% The test should work without this block.
+        %% But sometimes on the CI server we ending up with not all messages
+        %% yet archived, which leads to the test failure.
         BobMessages = escalus:wait_for_stanzas(Bob, length(Msgs), 15000),
         ?assert_equal_extra(length(Msgs), length(BobMessages),
                             #{bob_messages => BobMessages}),

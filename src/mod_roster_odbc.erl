@@ -262,12 +262,14 @@ read_subscription_and_groups(LUser, LServer, LJID, GSFunc, GRFunc) ->
                          {selected, JGrps} when is_list(JGrps) ->
                              [JGrp || {JGrp} <- JGrps];
                          _ ->
-                             ?ERROR_MSG("Error calling rdbms backend: ~p", [GRResult]),
+                             ?ERROR_MSG("event=read_subscription_and_groups_failed "
+                                        "user=~ts result=~p", [LUser, GRResult]),
                              []
                      end,
             {Subscription, Groups};
         E ->
-            ?ERROR_MSG("Error calling rdbms backend: ~p", [E]),
+           ?ERROR_MSG("event=read_subscription_and_groups_failed "
+                      "user=~ts reason=~p", [LUser, E]),
             error
     end.
 
