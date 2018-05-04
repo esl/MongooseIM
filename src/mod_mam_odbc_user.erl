@@ -147,6 +147,13 @@ remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserNam
 
 -spec query_archive_id(jid:server(), jid:lserver(), jid:user()) -> integer().
 query_archive_id(Host, Server, UserName) ->
+    Tries = 5,
+    query_archive_id(Host, Server, UserName, Tries).
+
+query_archive_id(Host, Server, UserName, 0) ->
+    ?ERROR_MSG("event=query_archive_id_failed username=~ts", [UserName]),
+    error(query_archive_id_failed);
+query_archive_id(Host, Server, UserName, Tries) when Tries > 0 ->
     SServer   = mongoose_rdbms:escape_string(Server),
     SUserName = mongoose_rdbms:escape_string(UserName),
     DbType = mongoose_rdbms_type:get(),
@@ -158,10 +165,10 @@ query_archive_id(Host, Server, UserName) ->
         {selected, []} ->
             %% The user is not found
             create_user_archive(Host, Server, UserName),
-            query_archive_id(Host, Server, UserName)
+            query_archive_id(Host, Server, UserName, Tries - 1)
     end.
 
--spec create_user_archive(jid:server(), jid:lserver(), jid:user()) -> 'ok'.
+-spec create_user_archive(jid:server(), jid:lserver(), jid:user()) -> ok.
 create_user_archive(Host, Server, UserName) ->
     SServer   = mongoose_rdbms:escape_string(Server),
     SUserName = mongoose_rdbms:escape_string(UserName),
@@ -175,10 +182,15 @@ create_user_archive(Host, Server, UserName) ->
     case Res of
         {updated, 1} ->
             ok;
-        %% Ignore the race condition Duplicate entry ... for key 'uc_mam_server_user_name'
-        {error, duplicate_key} ->
-            ok;
-        {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _} ->
+        _ ->
+            %% There is a common race condition case
+            %% Duplicate entry ... for key 'uc_mam_server_user_name'.
+            %% In this case Res can de:
+            %% - {error, duplicate_key}
+            %% - {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _}
+            %% Let's ignore the errors and just retry in query_archive_id
+            ?WARNING_MSG("event=create_user_archive_failed "
+                          "username=~ts reason=~p", [UserName, Res]),
             ok
     end.
 
