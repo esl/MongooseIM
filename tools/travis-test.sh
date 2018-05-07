@@ -4,9 +4,10 @@ IFS=$'\n\t'
 
 PRESET="internal_mnesia"
 SMALL_TESTS="true"
+START_SERVICES="true"
 COVER_ENABLED="true"
 
-while getopts ":p::s::c:" opt; do
+while getopts ":p::s::e::c:" opt; do
   case $opt in
     p)
       PRESET=$OPTARG
@@ -16,6 +17,9 @@ while getopts ":p::s::c:" opt; do
       ;;
     c)
       COVER_ENABLED=$OPTARG
+      ;;
+    e)
+      START_SERVICES=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -79,6 +83,14 @@ maybe_run_small_tests() {
   fi
 }
 
+maybe_start_services() {
+  if [ "$START_SERVICES" = "true" ]; then
+    start_services
+  else
+    echo "Skip start_services"
+  fi
+}
+
 start_services() {
     for env in ${BASE}/big_tests/services/*-compose.yml; do
         echo "Stating service" $(basename "${env}") "..."
@@ -124,7 +136,7 @@ run_tests() {
   time ${TOOLS}/start-nodes.sh
 
   # Start all additional services
-  start_services
+  maybe_start_services
 
   run_test_preset
   BIG_STATUS=$?

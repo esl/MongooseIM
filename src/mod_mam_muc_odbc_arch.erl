@@ -41,6 +41,12 @@
         [apply_start_border/2,
          apply_end_border/2]).
 
+-import(mongoose_rdbms,
+        [escape_string/1,
+         escape_integer/1,
+         use_escaped_string/1,
+         use_escaped_integer/1]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -51,8 +57,9 @@
 %% Types
 
 -type filter() :: iolist().
--type escaped_message_id() :: string().
--type escaped_jid() :: binary().
+-type escaped_message_id() :: mongoose_rdbms:escaped_integer().
+-type escaped_room_id() :: mongoose_rdbms:escaped_integer().
+-type escaped_jid() :: mongoose_rdbms:escaped_string().
 -type unix_timestamp() :: mod_mam:unix_timestamp().
 -type packet() :: any().
 -type raw_row() :: {binary(), binary(), binary()}.
@@ -125,8 +132,8 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
-       "FROM ", "mam_muc_message", " ",
-       "WHERE room_id = '", escape_room_id(RoomID), "'"]),
+       "FROM mam_muc_message ",
+       "WHERE room_id = ", use_escaped_integer(escape_room_id(RoomID))]),
     mongoose_rdbms:result_to_integer(BSize).
 
 -spec archive_message(_Result, jid:server(), MessID :: mod_mam:message_id(),
@@ -327,19 +334,18 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     {ok, {TotalCount, Offset,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
 
-
--spec after_id(integer(), [[binary()], ...]) -> [[binary()], ...].
+-spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
     SID = escape_message_id(ID),
-    [Filter, " AND id > '", SID, "'"].
+    [Filter, " AND id > ", use_escaped_integer(SID)].
 
-
--spec before_id('undefined' | integer(), [[binary()], ...]) -> [[binary()], ...].
+-spec before_id(ID :: escaped_message_id() | undefined,
+               Filter :: filter()) -> filter().
 before_id(undefined, Filter) ->
     Filter;
 before_id(ID, Filter) ->
     SID = escape_message_id(ID),
-    [Filter, " AND id < '", SID, "'"].
+    [Filter, " AND id < ", use_escaped_integer(SID)].
 
 
 -spec rows_to_uniform_format([raw_row()], jid:server(), jid:jid()) ->
@@ -369,8 +375,8 @@ remove_archive(Acc, Host, RoomID, _RoomJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
-      ["DELETE FROM ", "mam_muc_message", " "
-       "WHERE room_id = '", escape_room_id(RoomID), "'"]),
+      ["DELETE FROM mam_muc_message "
+       "WHERE room_id = ", use_escaped_integer(escape_room_id(RoomID))]),
     Acc.
 
 -spec purge_single_message(_Result, Host :: jid:server(),
@@ -384,8 +390,8 @@ purge_single_message(_Result, Host, MessID, RoomID, _RoomJID, _Now) ->
         mod_mam_utils:success_sql_query(
           Host,
           ["DELETE FROM mam_muc_message "
-           "WHERE room_id = '", escape_room_id(RoomID), "' "
-           "AND id = '", escape_message_id(MessID), "'"]),
+           "WHERE room_id = ", use_escaped_integer(escape_room_id(RoomID)), " "
+           "AND id = ", use_escaped_integer(escape_message_id(MessID))]),
     case Result of
         {updated, 0} -> {error, 'not-found'};
         {updated, 1} -> ok
@@ -457,8 +463,8 @@ calc_index(Host, Filter, SUMessID) ->
     mod_mam_utils:success_sql_query(
       Host,
       ["SELECT COUNT(*) "
-       "FROM ", "mam_muc_message", " ",
-       Filter, " AND id <= '", SUMessID, "'"]),
+       "FROM mam_muc_message ",
+       Filter, " AND id <= ", use_escaped_integer(SUMessID)]),
     mongoose_rdbms:result_to_integer(BIndex).
 
 
@@ -474,7 +480,7 @@ calc_before(Host, Filter, SUMessID) ->
       Host,
       ["SELECT COUNT(*) "
        "FROM mam_muc_message ",
-       Filter, " AND id < '", SUMessID, "'"]),
+       Filter, " AND id < ", use_escaped_integer(SUMessID)]),
     mongoose_rdbms:result_to_integer(BIndex).
 
 
@@ -510,25 +516,36 @@ prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
                   SWithNick :: escaped_jid() | undefined,
                   SearchText :: binary() | undefined) -> filter().
 make_filter(RoomID, StartID, EndID, SWithNick, SearchText) ->
-   ["WHERE room_id='", escape_room_id(RoomID), "'",
+   ["WHERE room_id=", use_escaped_integer(escape_room_id(RoomID)),
      case StartID of
          undefined -> "";
-         _         -> [" AND id >= ", integer_to_list(StartID)]
+         _         -> [" AND id >= ", use_escaped_integer(escape_integer(StartID))]
      end,
      case EndID of
          undefined -> "";
-         _         -> [" AND id <= ", integer_to_list(EndID)]
+         _         -> [" AND id <= ", use_escaped_integer(escape_integer(EndID))]
      end,
      case SWithNick of
          undefined -> "";
-         _         -> [" AND nick_name = '", SWithNick, "'"]
+         _         -> [" AND nick_name = ", use_escaped_string(SWithNick)]
      end,
      case SearchText of
          undefined -> "";
-         _         -> [" AND search_body like '%", SearchText, "%'"]
+         _         -> prepare_search_filters(SearchText)
      end
     ].
 
+%% Constructs a separate LIKE filter for each word.
+%% SearchText example is "word1%word2%word3".
+prepare_search_filters(SearchText) ->
+    Words = binary:split(SearchText, <<"%">>, [global]),
+    [prepare_search_filter(Word) || Word <- Words].
+
+-spec prepare_search_filter(binary()) -> filter().
+prepare_search_filter(Word) ->
+    [" AND search_body like ",
+     %% Search for "%Word%"
+     mongoose_rdbms:use_escaped_like(mongoose_rdbms:escape_like(Word))].
 
 %% @doc #rsm_in{
 %%    max = non_neg_integer() | undefined,
@@ -557,24 +574,24 @@ calc_offset(_LS, _F, _PS, _TC, _RSM) ->
     0.
 
 
--spec escape_message_id(mod_mam:message_id()) -> string().
+-spec escape_message_id(mod_mam:message_id()) -> escaped_message_id().
 escape_message_id(MessID) when is_integer(MessID) ->
-    integer_to_list(MessID).
+    escape_integer(MessID).
 
 
--spec escape_room_id(mod_mam:archive_id()) -> string().
+-spec escape_room_id(mod_mam:archive_id()) -> escaped_room_id().
 escape_room_id(RoomID) when is_integer(RoomID) ->
-    integer_to_list(RoomID).
+    escape_integer(RoomID).
 
 
 -spec maybe_jid_to_escaped_resource('undefined' | jid:jid())
-                                   -> 'undefined' | binary() | string().
+                                   -> 'undefined' | mongoose_rdbms:escaped_string().
 maybe_jid_to_escaped_resource(undefined) ->
     undefined;
 maybe_jid_to_escaped_resource(#jid{lresource = <<>>}) ->
     undefined;
 maybe_jid_to_escaped_resource(#jid{lresource = WithLResource}) ->
-    mongoose_rdbms:escape(WithLResource).
+    mongoose_rdbms:escape_string(WithLResource).
 
 
 -spec maybe_encode_compact_uuid('undefined' | integer(), 0 | 255)

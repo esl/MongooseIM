@@ -65,7 +65,8 @@ stop_pool(Pool) ->
     mongoose_rdbms_sup:remove_pool(Pool).
 
 compile_odbc_type_helper() ->
-    Key = {odbc_server_type, ?MYNAME},
+    %% TODO This parameter should not be global, but pool-name parameterized
+    Key = {odbc_server_type, odbc_pool, default},
     Type = ejabberd_config:get_local_option(Key),
     CodeStr = odbc_type_helper(Type),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),

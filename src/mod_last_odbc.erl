@@ -31,7 +31,7 @@ init(_Host, _Opts) ->
 -spec get_last(jid:luser(), jid:lserver()) ->
     {ok, non_neg_integer(), binary()} | {error, term()} | not_found.
 get_last(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     case catch rdbms_queries:get_last(LServer, Username) of
         {selected, []} ->
             not_found;
@@ -60,14 +60,14 @@ count_active_users(LServer, TimeStamp) ->
                     non_neg_integer(), binary()) ->
     ok | {error, term()}.
 set_last_info(LUser, LServer, TimeStamp, Status) ->
-    Username = mongoose_rdbms:escape(LUser),
-    Seconds = mongoose_rdbms:escape(integer_to_binary(TimeStamp)),
-    State = mongoose_rdbms:escape(Status),
+    Username = mongoose_rdbms:escape_string(LUser),
+    Seconds = mongoose_rdbms:escape_integer(TimeStamp),
+    State = mongoose_rdbms:escape_string(Status),
     wrap_odbc_result(rdbms_queries:set_last_t(LServer, Username, Seconds, State)).
 
 -spec remove_user(jid:luser(), jid:lserver()) -> ok | {error, term()}.
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     wrap_odbc_result(rdbms_queries:del_last(LServer, Username)).
 
 -spec wrap_odbc_result({error, term()} | any()) -> ok | {error, term()}.

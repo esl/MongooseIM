@@ -2,6 +2,17 @@
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
 %%% @doc Collect messages and flush them into the database.
+%%%
+%%% Some backends allow ArcID can be not set (riak?).
+%%% This means, that there are no "jid => integer" mapping.
+%%%
+%%% But this module requires ArcID to be an integer.
+%%% ArcID is set by mod_mam_odbc_user.
+%%% If ArcID is undefined, it means that there can be issues
+%%% in mod_mam_odbc_user.
+%%%
+%%% We have `is_integer(ArcID)' check on each hook handler, so cases when
+%%% `ArcID' is undefined would fail at the module entrance.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_async_pool_writer).
@@ -69,9 +80,8 @@ select_worker(Host, ArcID) ->
     N = worker_number(Host, ArcID),
     worker_name(Host, N).
 
-worker_number(Host, ArcID) ->
+worker_number(Host, ArcID) when is_integer(ArcID) ->
     ArcID rem worker_count(Host).
-
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
@@ -189,7 +199,8 @@ stop_worker(Proc) ->
                       RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: atom(),
                       Packet :: any()) -> ok.
 archive_message(_Result, Host,
-                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet)
+        when is_integer(ArcID) ->
     Row = mod_mam_odbc_arch:prepare_message(Host, MessID, ArcID, LocJID,
                                             RemJID, SrcJID, Dir, Packet),
 
@@ -236,14 +247,15 @@ worker_queue_length(SrvName) ->
 
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArchiveID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
-archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
+archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID) ->
     wait_flushing(Host, ArcID),
     Size.
 
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}.
-lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now}) ->
+lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
+    when is_integer(ArcID) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
@@ -251,7 +263,8 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
 -spec remove_archive(Acc :: map(), Host :: jid:server(),
                      RoomId :: mod_mam:archive_id(),
                      RoomJID :: jid:jid()) -> map().
-remove_archive(Acc, Host, ArcID, _ArcJID) ->
+remove_archive(Acc, Host, ArcID, _ArcJID)
+    when is_integer(ArcID) ->
     wait_flushing(Host, ArcID),
     Acc.
 
@@ -259,7 +272,8 @@ remove_archive(Acc, Host, ArcID, _ArcJID) ->
                            MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
                            RoomJID :: jid:jid(), Now :: mod_mam:unix_timestamp())
                           -> ok | {error, 'not-allowed' | 'not-found'}.
-purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
+purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now)
+    when is_integer(ArcID) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
     wait_flushing_before(Host, ArcID, Microseconds, Now),
     Result.
@@ -273,7 +287,8 @@ purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
                               Now :: mod_mam:unix_timestamp(),
                               WithJID :: jid:jid() | undefined) -> ok | {error, 'not-allowed'}.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
-                        _Start, End, Now, _WithJID) ->
+                        _Start, End, Now, _WithJID)
+    when is_integer(ArcID) ->
     wait_flushing_before(Host, ArcID, End, Now),
     Result.
 

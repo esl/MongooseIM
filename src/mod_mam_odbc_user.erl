@@ -17,6 +17,9 @@
 -export([archive_id/3,
          remove_archive/4]).
 
+%% For debugging ONLY
+-export([create_user_archive/3]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -128,13 +131,14 @@ archive_id(ArcID, _Host, _ArcJID) ->
                      ArchiveID :: mod_mam:archive_id(),
                      ArchiveJID :: jid:jid()) -> map().
 remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
-    SUserName = mongoose_rdbms:escape(UserName),
-    SServer   = mongoose_rdbms:escape(Server),
+    SUserName = mongoose_rdbms:escape_string(UserName),
+    SServer   = mongoose_rdbms:escape_string(Server),
     {updated, _} =
     mongoose_rdbms:sql_query(
       Host,
       ["DELETE FROM mam_server_user "
-       "WHERE server = '", SServer, "' AND user_name = '", SUserName, "'"]),
+       "WHERE server = ", mongoose_rdbms:use_escaped_string(SServer),
+            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName)]),
     Acc.
 
 %%====================================================================
@@ -143,8 +147,15 @@ remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserNam
 
 -spec query_archive_id(jid:server(), jid:lserver(), jid:user()) -> integer().
 query_archive_id(Host, Server, UserName) ->
-    SServer   = mongoose_rdbms:escape(Server),
-    SUserName = mongoose_rdbms:escape(UserName),
+    Tries = 5,
+    query_archive_id(Host, Server, UserName, Tries).
+
+query_archive_id(Host, Server, UserName, 0) ->
+    ?ERROR_MSG("event=query_archive_id_failed username=~ts", [UserName]),
+    error(query_archive_id_failed);
+query_archive_id(Host, Server, UserName, Tries) when Tries > 0 ->
+    SServer   = mongoose_rdbms:escape_string(Server),
+    SUserName = mongoose_rdbms:escape_string(UserName),
     DbType = mongoose_rdbms_type:get(),
     Result = do_query_archive_id(DbType, Host, SServer, SUserName),
 
@@ -154,23 +165,32 @@ query_archive_id(Host, Server, UserName) ->
         {selected, []} ->
             %% The user is not found
             create_user_archive(Host, Server, UserName),
-            query_archive_id(Host, Server, UserName)
+            query_archive_id(Host, Server, UserName, Tries - 1)
     end.
 
--spec create_user_archive(jid:server(), jid:lserver(), jid:user()) -> 'ok'.
+-spec create_user_archive(jid:server(), jid:lserver(), jid:user()) -> ok.
 create_user_archive(Host, Server, UserName) ->
-    SServer   = mongoose_rdbms:escape(Server),
-    SUserName = mongoose_rdbms:escape(UserName),
+    SServer   = mongoose_rdbms:escape_string(Server),
+    SUserName = mongoose_rdbms:escape_string(UserName),
     Res =
     mongoose_rdbms:sql_query(
       Host,
       ["INSERT INTO mam_server_user "
-       "(server, user_name) VALUES ('", SServer, "', '", SUserName, "')"]),
+       "(server, user_name) VALUES (",
+            mongoose_rdbms:use_escaped_string(SServer), ", ",
+            mongoose_rdbms:use_escaped_string(SUserName), ")"]),
     case Res of
         {updated, 1} ->
             ok;
-        %% Ignore the race condition Duplicate entry ... for key 'uc_mam_server_user_name'
-        {error, duplicate_key} ->
+        _ ->
+            %% There is a common race condition case
+            %% Duplicate entry ... for key 'uc_mam_server_user_name'.
+            %% In this case Res can de:
+            %% - {error, duplicate_key}
+            %% - {error, "[FreeTDS][SQL Server]Violation of UNIQUE KEY constraint" ++ _}
+            %% Let's ignore the errors and just retry in query_archive_id
+            ?WARNING_MSG("event=create_user_archive_failed "
+                          "username=~ts reason=~p", [UserName, Res]),
             ok
     end.
 
@@ -181,5 +201,6 @@ do_query_archive_id(_, Host, SServer, SUserName) ->
       Host,
       ["SELECT id "
        "FROM mam_server_user "
-       "WHERE server = '", SServer, "' AND user_name = '", SUserName, "' "
+       "WHERE server = ", mongoose_rdbms:use_escaped_string(SServer),
+            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName), " "
        "LIMIT 1"]).
