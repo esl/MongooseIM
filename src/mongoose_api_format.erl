@@ -15,5 +15,5 @@
 %%==============================================================================
 -module(mongoose_api_format).
 
--callback serialize(term()) -> iolist().
--callback deserialize(iolist()) -> term().
+-callback serialize(term()) -> iodata().
+-callback deserialize(iodata()) -> term().

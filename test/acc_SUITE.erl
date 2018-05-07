@@ -99,7 +99,7 @@ sample_stanza() ->
 
 
 stanza_with_cdata() ->
-    Txt = <<"<iq type=\"get\" id=\"aab9a\"><query xmlns=\"jabber:iq:roster\"/>\" </iq>\">">>,
+    Txt = <<"<iq type=\"get\" id=\"aab9a\"><query xmlns=\"jabber:iq:roster\"/>\" \"</iq>">>,
     {ok, X} = exml:parse(Txt),
     X.
 
