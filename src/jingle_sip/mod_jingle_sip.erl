@@ -37,7 +37,7 @@ start(Host, Opts) ->
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
-    nksip:start(?SERVICE, NkSipOpts),
+    {ok, _SrvID} = nksip:start(?SERVICE, NkSipOpts),
     mod_jingle_sip_backend:init(Host, Opts),
     ejabberd_hooks:add(hooks(Host)),
     ok.
