@@ -2,6 +2,23 @@
 %% This module defines callbacks for nksip application
 %% Exported functions whill be called when there is new message to MongooseIM
 %% or when there is an response to a SIP INVITE sent from MongooseIM to a SIP Proxy
+%% @author Michal Piotrowski <michal.piotrowski@erlang-solutions.com>
+%%
+%%==============================================================================
+%% Copyright 2018 Erlang Solutions Ltd.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
 -module(jingle_sip_callbacks).
 
 -include("mongoose.hrl").

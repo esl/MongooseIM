@@ -23,7 +23,7 @@ The translation back from SIP to Jingle is done for following SIP messages:
 
 ### Prerequisites
 
-By default, MongooseIM is built without SIP support, as it is **not compatible with OTP 20.0 and newer**.
+By default, MongooseIM is built without SIP support.
 In order to build the server with SIP support, please use `tools/configure` script before the release generation.
 You may either pick only certain drivers (with SIP included) or simply use `with-all` option. Examples:
 
