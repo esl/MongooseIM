@@ -223,8 +223,8 @@ maybe_enable_preset_on_node(Node, PresetVars, HostVars, HostName) ->
 is_test_host_enabled(HostName) ->
     case os:getenv("TEST_HOSTS") of
         false ->
-            true;
-        EnvValue ->
+            true; %% By default all hosts are enabled
+        EnvValue -> %% EnvValue examples are "mim" or "mim mim2"
             BinHosts = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
             lists:member(atom_to_binary(HostName, utf8), BinHosts)
     end.
