@@ -17,10 +17,11 @@ addons:
 before_install:
         - tools/configure $REL_CONFIG
 install:
+        - travis_retry ./rebar3 get-deps
         - ./rebar3 compile
         - make dev
         - tools/travis-build-tests.sh
-        - pip install --user codecov
+        - travis_retry pip install --user codecov
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
