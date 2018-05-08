@@ -585,7 +585,9 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
 
               escalus_connection:kill(Eve),
 
-              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
+              Stanza1 = chat_with_seqnum(Eve, <<"Hi from Europe1!">>),
+              ct:pal("~p", [Stanza1]),
+              escalus_client:send(Alice, Stanza1),
 
               NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
               ct:sleep(timer:seconds(1)), % without it, on very slow systems (e.g. travis),
@@ -593,14 +595,17 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
                                           % message to local host, but it's rejected by some
                                           % underlying mechanism (presence unavailable?)
 
-              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
+              Stanza2 = chat_with_seqnum(Eve, <<"Hi again from Europe1!">>),
+              ct:pal("~p", [Stanza2]),
+              escalus_client:send(Alice, Stanza2),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
               FirstFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
               SecondFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
 
-              [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
+              [FromAlice, AgainFromAlice] = Ordered = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
+              ct:pal("ordered: ~p", [Ordered]),
 
               escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
