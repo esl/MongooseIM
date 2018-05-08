@@ -80,10 +80,11 @@ private_get(Username, Host, Element, Ns) ->
 do_private_get(Acc, Username, Host, Element, Ns) ->
     From = jid:make(Username, Host, <<"">>),
     To = jid:make(Username, Host, <<"">>),
-    IQ = {iq, <<"">>, get, ?NS_PRIVATE, <<"">>,
-          #xmlel{ name = <<"query">>,
-                  attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
-                  children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
+    IQ = #iq{type = get,
+             xmlns = ?NS_PRIVATE,
+             sub_el = #xmlel{name = <<"query">>,
+                             attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
+                             children = [#xmlel{ name = Element, attrs = [{<<"xmlns">>, Ns}]}] } },
     {_, ResIq} = mod_private:process_sm_iq(From, To, Acc, IQ),
     [#xmlel{ name = <<"query">>,
              attrs = [{<<"xmlns">>, <<"jabber:iq:private">>}],
@@ -118,10 +119,11 @@ do_private_set2(Acc, Username, Host, Xml) ->
         true ->
             From = jid:make(Username, Host, <<"">>),
             To = jid:make(Username, Host, <<"">>),
-            IQ = {iq, <<"">>, set, ?NS_PRIVATE, <<"">>,
-                  #xmlel{ name = <<"query">>,
-                          attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
-                          children = [Xml]}},
+            IQ = #iq{type = set,
+                     xmlns = ?NS_PRIVATE,
+                     sub_el = #xmlel{name = <<"query">>,
+                                     attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
+                                     children = [Xml]}},
             mod_private:process_sm_iq(From, To, Acc, IQ),
             {ok, ""};
         false ->

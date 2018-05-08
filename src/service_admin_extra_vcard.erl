@@ -215,7 +215,7 @@ set_vcard_content(Acc, User, Server, Data, ContentList) ->
     %% Get old vcard
     A4 = case IQr#iq.sub_el of
              [A1] ->
-                 {_, _, _, A2} = A1,
+                 #xmlel{children = A2} = A1,
                  update_vcard_els(Data, ContentList, A2);
              _ ->
                  update_vcard_els(Data, ContentList, [])
@@ -246,7 +246,7 @@ update_vcard_els(Data, ContentList, Els1) ->
                      ContentOld1 = OldEl#xmlel.children,
                      Content2 = [#xmlel{ name = D2, children = [#xmlcdata{content=Content}]}
                                  || Content <- ContentList],
-                     ContentOld2 = [A || {_, X, _, _} = A <- ContentOld1, X/=D2],
+                     ContentOld2 = [A || #xmlel{name = X} = A <- ContentOld1, X/=D2],
                      ContentOld3 = lists:keysort(2, ContentOld2),
                      ContentNew = lists:keymerge(2, Content2, ContentOld3),
                      [#xmlel{ name = Data1, children = ContentNew}]

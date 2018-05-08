@@ -7,7 +7,6 @@
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 
--define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% suite configuration
@@ -22,7 +21,7 @@ groups() ->
     [
      {basic, [sequence],
       [store_and_retrieve, init_from_element, get_and_require, strip,
-          parse_with_cdata]
+          parse_with_cdata, reference, counters, cache]
      }
     ].
 
@@ -42,7 +41,6 @@ store_and_retrieve(_C) ->
 init_from_element(_C) ->
     Acc = mongoose_acc:from_element(sample_stanza()),
     mongoose_acc:dump(Acc),
-    ?PRT("Acc", Acc),
     ?assertEqual(mongoose_acc:get(name, Acc), <<"iq">>),
     ?assertEqual(mongoose_acc:get(type, Acc), <<"set">>),
     ok.
@@ -87,12 +85,69 @@ strip(_C) ->
     ?assertEqual(mongoose_acc:get(ref, NAcc, ref), Ref),
     ?assertEqual(997, mongoose_acc:get_prop(ppp, NAcc)).
 
+reference(_C) ->
+    Acc = mongoose_acc:from_element(sample_stanza()),
+    Ref = mongoose_acc:get(ref, Acc),
+    El = mongoose_acc:get(element, Acc),
+    ?assertEqual(Ref, El#xmlel.ref),
+    NAcc = mongoose_acc:strip(Acc),
+    ?assertEqual(Ref, mongoose_acc:get(ref, NAcc)),
+    NEl = mongoose_acc:get(element, NAcc),
+    ?assertEqual(Ref, NEl#xmlel.ref),
+    ok.
+
+counters(_) ->
+    Acc = mongoose_acc:from_element(sample_stanza()),
+    ?assertEqual(0, mongoose_acc:get_counter(first_counter, Acc)),
+    ?assertEqual(0, mongoose_acc:get_counter(second_counter, Acc)),
+    {1, Acc1} = mongoose_acc:increment(first_counter, Acc),
+    {1, Acc2} = mongoose_acc:increment(second_counter, Acc1),
+    {2, Acc3} = mongoose_acc:increment(second_counter, Acc2),
+    ?assertEqual(1, mongoose_acc:get_counter(first_counter, Acc3)),
+    ?assertEqual(2, mongoose_acc:get_counter(second_counter, Acc3)),
+    ok.
+
+cache(_) ->
+    check_caching(iq_stanza(), iq_query_info, another_iq_stanza()),
+    check_caching(sample_stanza(), command, another_sample_stanza()),
+    check_caching(sample_stanza(), xmlns, another_sample_stanza()),
+    Iq1 = jlib:iq_query_info(sample_stanza()),
+    Iq2 = jlib:iq_query_info(iq_stanza()),
+    check_caching(Iq1, iq_query_info, Iq2),
+    check_caching(Iq1, xmlns, Iq2),
+    ok.
+
+check_caching(InitialElement, Key, AnotherElement) ->
+    Acc = mongoose_acc:from_element(InitialElement),
+    Acc1 = mongoose_acc:require(Key, Acc),
+    % this line returns query info cached in accumulator
+    FromCache = mongoose_acc:get(Key, Acc1),
+    Element1 = mongoose_acc:get(element, Acc1),
+    % since the element is the same it returns cached info again
+    ?assertEqual(FromCache, mongoose_acc:get(Key, Acc1, Element1)),
+    % different element - info is produced again
+    ?assertNotEqual(FromCache, mongoose_acc:get(Key, Acc1, AnotherElement)),
+    ok.
+
+
 
 sample_stanza() ->
     {xmlel, <<"iq">>,
+        undefined,
         [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
-        [{xmlel, <<"block">>,
+        [{xmlel, <<"block">>, undefined,
             [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
+            [{xmlel, <<"item">>,
+                [{<<"jid">>, <<"bob37.814302@localhost">>}],
+                []}]}]}.
+
+
+another_sample_stanza() ->
+    {xmlel, <<"iq">>,
+        undefined,
+        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
+        [{xmlel, <<"unblock">>, undefined,
+            [{<<"xmlns">>, <<"urn:xmpp:unblocking">>}],
             [{xmlel, <<"item">>,
                 [{<<"jid">>, <<"bob37.814302@localhost">>}],
                 []}]}]}.
@@ -106,16 +161,19 @@ stanza_with_cdata() ->
 
 iq_stanza() ->
     {xmlel,<<"iq">>,
+        undefined,
         [{<<"type">>,<<"set">>},
             {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
-        [{xmlel,<<"session">>,
+        [{xmlel,<<"session">>, undefined,
             [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.
 
 another_iq_stanza() ->
     {xmlel,<<"iq">>,
+        undefined,
         [{<<"type">>,<<"pet">>},
             {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
         [{xmlel,<<"session">>,
             [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.
+

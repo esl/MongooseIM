@@ -27,6 +27,7 @@
 -include("jid.hrl").
 
 -record(iq, {id = <<>>    :: binary(),
+             ref          :: reference() | undefined,
              type         :: atom(),
              xmlns = <<>> :: binary(),
              lang = <<>>  :: ejabberd:lang(),

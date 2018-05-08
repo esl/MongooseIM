@@ -453,7 +453,7 @@ normal_state({route, From, <<>>, Acc0,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
+    IQ = mongoose_acc:get(iq_query_info, Acc, Packet),
     {RoutingEffect, NewStateData} = route_iq(Acc, #routed_iq{
         iq = IQ,
         from = From,
@@ -4284,7 +4284,7 @@ send_decline_invitation({Packet, XEl, DEl, ToJID}, RoomJID, FromJID) ->
 %% replace the instance of the subelement in element with the new subelement.
 -spec replace_subelement(exml:element(), exml:element()) -> exml:element().
 replace_subelement(XE = #xmlel{children = SubEls}, NewSubEl) ->
-    {_, NameNewSubEl, _, _} = NewSubEl,
+    #xmlel{name = NameNewSubEl} = NewSubEl,
     SubEls2 = lists:keyreplace(NameNewSubEl, 2, SubEls, NewSubEl),
     XE#xmlel{children = SubEls2}.
 
