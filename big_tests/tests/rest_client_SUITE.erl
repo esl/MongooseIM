@@ -69,7 +69,8 @@ muc_test_cases() ->
       user_cant_be_invited_given_room_jid_in_a_non_muc_light_domain,
       user_cant_be_removed_given_room_jid_in_a_non_muc_light_domain,
       message_cant_be_sent_given_room_jid_in_a_non_muc_light_domain,
-      messages_cant_be_read_given_room_jid_in_a_non_muc_light_domain
+      messages_cant_be_read_given_room_jid_in_a_non_muc_light_domain,
+      room_can_be_created_in_a_secondary_muc_light_domain
      ].
 
 roster_test_cases() ->
@@ -88,8 +89,11 @@ init_per_suite(C) ->
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(MUCLightHost)},
                            {rooms_in_rosters, true}]),
-    NonMUCLightHost = <<"nonmuclight.", Host/binary>>, % register!
+    SecondaryMUCLightHost = <<"othermuclight.", Host/binary>>,
+    register_secondary_muc_light_service(SecondaryMUCLightHost),
+    NonMUCLightHost = <<"notamuclight.", Host/binary>>, % register!
     [{muc_light_host, MUCLightHost},
+     {secondary_muc_light_host, SecondaryMUCLightHost},
      {non_muc_light_host, NonMUCLightHost} | escalus:init_per_suite(C1)].
 
 end_per_suite(Config) ->
@@ -97,8 +101,16 @@ end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     rest_helper:maybe_disable_mam(mam_helper:backend(), Host),
     dynamic_modules:stop(Host, mod_muc_light),
+    unregister_secondary_muc_light_service(?config(secondary_muc_light_host, Config)),
     application:stop(shotgun),
     escalus:end_per_suite(Config).
+
+register_secondary_muc_light_service(MUCLightHost) ->
+    PacketHandler = escalus_ejabberd:rpc(mongoose_packet_handler, new, [mod_muc_light]),
+    escalus_ejabberd:rpc(ejabberd_router, register_route, [MUCLightHost, PacketHandler]).
+
+unregister_secondary_muc_light_service(MUCLightHost) ->
+    escalus_ejabberd:rpc(ejabberd_router, unregister_route, [MUCLightHost]).
 
 init_per_group(_GN, C) ->
     C.
@@ -449,6 +461,19 @@ messages_cant_be_read_given_room_jid_in_a_non_muc_light_domain(Config) ->
         {{Status, _}, _} =  get_room_messages({alice, Alice}, RoomJID),
 
         ?assertEqual(<<"400">>, Status)
+    end).
+
+room_can_be_created_in_a_secondary_muc_light_domain(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"some_id_but_different_domain">>,
+        RoomJID = <<RoomID/binary, "@", (?config(secondary_muc_light_host, Config))/binary>>,
+        Creds = credentials({alice, Alice}),
+
+        {{Status, _}, _} = create_room_with_id_request(Creds,
+                                                       <<"some_name">>,
+                                                       <<"some subject">>,
+                                                       RoomJID),
+        ?assertEqual(<<"201">>, Status)
     end).
 
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
