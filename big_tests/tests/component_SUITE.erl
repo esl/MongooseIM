@@ -30,7 +30,19 @@
                         restart_ejabberd_node/1]).
 
 -import(distributed_helper, [add_node_to_cluster/1,
-                             remove_node_from_cluster/1]).
+                             remove_node_from_cluster/1,
+                             start_node/2,
+                             stop_node/2]).
+
+-import(component_helper, [connect_component/1,
+                           connect_component/2,
+                           disconnect_component/2,
+                           disconnect_components/2,
+                           connect_component_subdomain/1,
+                           spec/2,
+                           common/1,
+                           common/2,
+                           name/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -351,8 +363,8 @@ clear_on_node_down(Config) ->
     ?assertMatch({_, _, _}, connect_component(CompOpts)),
     ?assertThrow({stream_error, _}, connect_component(CompOpts)),
 
-    cluster_commands_SUITE:stop_node(ejabberd_node_utils:mim(), Config),
-    cluster_commands_SUITE:start_node(ejabberd_node_utils:mim(), Config),
+    stop_node(ejabberd_node_utils:mim(), Config),
+    start_node(ejabberd_node_utils:mim(), Config),
 
     {Comp, Addr, _} = connect_component(CompOpts),
     disconnect_component(Comp, Addr).
@@ -489,50 +501,6 @@ get_components(Opts, Config) ->
     Components = [component1, component2, vjud_component],
     [ {C, Opts ++ spec(C, Config)} || C <- Components ] ++ Config.
 
-connect_component(Component) ->
-    connect_component(Component, component_start_stream).
-
-connect_component_subdomain(Component) ->
-    connect_component(Component, component_start_stream_subdomain).
-
-connect_component(ComponentOpts, StartStep) ->
-    Res = escalus_connection:start(ComponentOpts,
-                                   [{?MODULE, StartStep},
-                                    {?MODULE, component_handshake}]),
-    case Res of
-    {ok, Component, _} ->
-        {component, ComponentName} = lists:keyfind(component, 1, ComponentOpts),
-        {server, ComponentServer} = lists:keyfind(server, 1, ComponentOpts),
-        ComponentAddr = <<ComponentName/binary, ".", ComponentServer/binary>>,
-        {Component, ComponentAddr, ComponentName};
-    {error, E} ->
-        throw(cook_connection_step_error(E))
-    end.
-
-disconnect_component(Component, Addr) ->
-    disconnect_components([Component], Addr).
-
-disconnect_components(Components, Addr) ->
-    %% TODO replace 'kill' with 'stop' when server supports stream closing
-    [escalus_connection:kill(Component) || Component <- Components],
-    wait_until_disconnected(Addr, 1000).
-
-wait_until_disconnected(Addr, Timeout) when Timeout =< 0 ->
-    error({disconnect_timeout, Addr});
-wait_until_disconnected(Addr, Timeout) ->
-    case rpc(ejabberd_router, lookup_component, [Addr]) of
-        [] -> ok;
-        [_|_] ->
-            ct:sleep(200),
-            wait_until_disconnected(Addr, Timeout - 200)
-    end.
-
-cook_connection_step_error(E) ->
-    {connection_step_failed, Step, Reason} = E,
-    {StepDef, _, _} = Step,
-    {EDef, _} = Reason,
-    {EDef, StepDef}.
-
 add_domain(Config) ->
     Node = default_node(Config),
     Hosts = {hosts, "[\"localhost\", \"sogndal\"]"},
@@ -547,76 +515,11 @@ restore_domain(Config) ->
     restart_ejabberd_node(Node),
     Config.
 
-rpc(M, F, A) ->
-    Node = ct:get_config({hosts, mim, node}),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
-
-%%--------------------------------------------------------------------
-%% Escalus connection steps
-%%--------------------------------------------------------------------
-component_start_stream(Conn = #client{props = Props}, []) ->
-    {server, Server} = lists:keyfind(server, 1, Props),
-    {component, Component} = lists:keyfind(component, 1, Props),
-
-    ComponentHost = <<Component/binary, ".", Server/binary>>,
-    StreamStart = component_stream_start(ComponentHost, false),
-    ok = escalus_connection:send(Conn, StreamStart),
-    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
-
-    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
-
-    {Conn#client{props = [{sid, Id}|Props]}, []}.
-
-component_start_stream_subdomain(Conn = #client{props = Props}, []) ->
-    {component, Component} = lists:keyfind(component, 1, Props),
-
-    StreamStart = component_stream_start(Component, true),
-    ok = escalus_connection:send(Conn, StreamStart),
-    StreamStartRep = escalus_connection:get_stanza(Conn, wait_for_stream),
-
-    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
-    Id = proplists:get_value(<<"id">>, Attrs),
-
-    {Conn#client{props = [{sid, Id}|Props]}, []}.
-
-component_handshake(Conn = #client{props = Props}, []) ->
-    {password, Password} = lists:keyfind(password, 1, Props),
-    {sid, SID} = lists:keyfind(sid, 1, Props),
-
-    Handshake = component_handshake_el(SID, Password),
-    ok = escalus_connection:send(Conn, Handshake),
-
-    HandshakeRep = escalus_connection:get_stanza(Conn, handshake),
-    case HandshakeRep of
-        #xmlel{name = <<"handshake">>, children = []} ->
-            {Conn, []};
-        #xmlel{name = <<"stream:error">>} ->
-            throw({stream_error, HandshakeRep})
-    end.
-
 
 %%--------------------------------------------------------------------
 %% Stanzas
 %%--------------------------------------------------------------------
-component_stream_start(Component, IsSubdomain) ->
-    Attrs1 = [{<<"to">>, Component},
-              {<<"xmlns">>, <<"jabber:component:accept">>},
-              {<<"xmlns:stream">>,
-               <<"http://etherx.jabber.org/streams">>}],
-    Attrs2 = case IsSubdomain of
-        false ->
-            Attrs1;
-        true ->
-            [{<<"is_subdomain">>, <<"true">>}|Attrs1]
-    end,
-    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs2}.
 
-component_handshake_el(SID, Password) ->
-    Handshake = crypto:hash(sha, <<SID/binary, Password/binary>>),
-    #xmlel{name = <<"handshake">>,
-           children = [#xmlcdata{content = base16:encode(Handshake)}]}.
 
 cluster_users() ->
     AllUsers = ct:get_config(escalus_users),
@@ -626,28 +529,3 @@ default_node(Config) ->
     Node = ct:get_config({hosts, mim, node}),
     Node == undefined andalso error(node_undefined, [Config]),
     Node.
-
-spec(component_on_2, Config) ->
-    [{component, <<"yet_another_service">>}] ++ common(Config, 8899);
-spec(component_duplicate, Config) ->
-    [{component, <<"another_service">>}] ++ common(Config, 8899);
-spec(hidden_component, Config) ->
-    [{component, <<"hidden_component">>}] ++ common(Config, 8189);
-spec(Other, Config) ->
-    [name(Other) | proplists:get_value(Other, Config, [])].
-
-name(component1) ->
-    {component, <<"test_service">>};
-name(component2) ->
-    {component, <<"another_service">>};
-name(vjud_component) ->
-    {component, <<"vjud">>}.
-
-common(Config) ->
-    common(Config, 8888).
-
-common(_Config, Port) ->
-    [{server, ct:get_config({hosts, mim, domain})},
-     {host, ct:get_config({hosts, mim, domain})},
-     {password, <<"secret">>},
-     {port, Port}].

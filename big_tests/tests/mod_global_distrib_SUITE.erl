@@ -310,13 +310,13 @@ test_advertised_endpoints_override_endpoints(Config) ->
 %% Also actually verifies that refresher properly reads host list
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
-    wait_until(fun() -> trees_for_connections_present() end, 2, ?HOSTS_REFRESH_INTERVAL),
+    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, 2, ?HOSTS_REFRESH_INTERVAL),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
     {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
     erlang:exit(EuropePid, kill), % it's ok to kill temporary process
-    wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 2, ?HOSTS_REFRESH_INTERVAL).
+    mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 2, ?HOSTS_REFRESH_INTERVAL).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -351,8 +351,8 @@ test_two_way_pm(Alice, Eve) ->
                    FromEve).
 
 test_muc_conversation_on_one_host(Config0) ->
-    AliceSpec = muc_SUITE:given_fresh_spec(Config0, alice),
-    Config = muc_SUITE:given_fresh_room(Config0, AliceSpec, []),
+    AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
+    Config = muc_helper:given_fresh_room(Config0, AliceSpec, []),
     escalus:fresh_story(
       Config, [{eve, 1}],
       fun(Eve) ->
@@ -382,8 +382,8 @@ test_muc_conversation_on_one_host(Config0) ->
     muc_helper:destroy_room(Config).
 
 test_muc_conversation_history(Config0) ->
-    AliceSpec = muc_SUITE:given_fresh_spec(Config0, alice),
-    Config = muc_SUITE:given_fresh_room(Config0, AliceSpec, []),
+    AliceSpec = escalus_fresh:create_fresh_user(Config0, alice),
+    Config = muc_helper:given_fresh_room(Config0, AliceSpec, []),
     escalus:fresh_story(
       Config, [{eve, 1}],
       fun(Eve) ->
@@ -430,7 +430,7 @@ test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
     Story = fun(User) ->
                     Msg1 = escalus_stanza:chat_to(Addr, <<"Hi2!">>),
@@ -458,8 +458,8 @@ test_components_in_different_regions(_Config) ->
     Component1Config = [{port, 8888}, {component, <<"service1">>} | ComponentCommonConfig],
     Component2Config = [{port, 9990}, {component, <<"service2">>} | ComponentCommonConfig],
 
-    {Comp1, Addr1, _Name1} = component_SUITE:connect_component(Component1Config),
-    {Comp2, Addr2, _Name2} = component_SUITE:connect_component(Component2Config),
+    {Comp1, Addr1, _Name1} = component_helper:connect_component(Component1Config),
+    {Comp2, Addr2, _Name2} = component_helper:connect_component(Component2Config),
 
     Msg1 = escalus_stanza:from(escalus_stanza:chat_to(Addr2, <<"Hi from 1!">>), Addr1),
     escalus:send(Comp1, Msg1),
@@ -474,8 +474,8 @@ test_components_in_different_regions(_Config) ->
 %% Ordinary user is not able to discover the hidden component from GD
 test_hidden_component_disco_in_different_region(Config) ->
     %% Hidden component from component_SUITE connects to mim1/europe_node1
-    HiddenComponentConfig = component_SUITE:spec(hidden_component, Config),
-    {_HiddenComp, HiddenAddr, _} = component_SUITE:connect_component(HiddenComponentConfig),
+    HiddenComponentConfig = component_helper:spec(hidden_component, Config),
+    {_HiddenComp, HiddenAddr, _} = component_helper:connect_component(HiddenComponentConfig),
 
     escalus:fresh_story(
       Config, [{eve, 1}],
@@ -493,8 +493,8 @@ test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
-    component_SUITE:disconnect_component(Comp, Addr),
+    {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
+    component_helper:disconnect_component(Comp, Addr),
 
     Story = fun(User) ->
                     escalus:send(User, escalus_stanza:chat_to(Addr, <<"Hi!">>)),
@@ -537,7 +537,7 @@ test_pm_with_disconnection_on_other_server(Config) ->
       end).
 
 test_pm_with_graceful_reconnection_to_different_server(Config) ->
-    EveSpec = muc_SUITE:given_fresh_spec(Config, eve),
+    EveSpec = escalus_fresh:freshen_spec(Config, eve),
     escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
     escalus:fresh_story(
       Config, [{alice, 1}],
@@ -570,8 +570,9 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
 
 test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
-    EveSpec = muc_SUITE:given_fresh_spec(Config, eve),
-    escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    EveSpec = escalus_fresh:create_fresh_user(Config, eve),
+    EveSpec2 = lists:keystore(port, 1, EveSpec, {port, 5222}),
+    escalus:create_users(Config, [{eve, EveSpec2}]),
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
@@ -579,7 +580,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
                              authenticate, bind, session, stream_resumption],
 
               {ok, Eve0, _} = escalus_connection:start(EveSpec, StepsWithSM),
-              Eve = Eve0#client{jid = sm_SUITE:get_bjid(EveSpec)},
+              Eve = Eve0#client{jid = common_helper:get_bjid(EveSpec)},
               escalus_story:send_initial_presence(Eve),
               escalus_client:wait_for_stanza(Eve),
 
@@ -587,7 +588,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
-              NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
+              NewEve = connect_from_spec(EveSpec2, Config),
               ct:sleep(timer:seconds(1)), % without it, on very slow systems (e.g. travis),
                                           % global_distrib correctly routes "hi again from eu"
                                           % message to local host, but it's rejected by some
@@ -605,8 +606,8 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
-      end),
-    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
+      end).
+
 
 test_global_disco(Config) ->
     escalus:fresh_story(
@@ -628,11 +629,11 @@ test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     ?assertMatch({ok, _}, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
                               [<<"test_service.localhost">>])),
 
-    component_SUITE:disconnect_component(Comp, Addr),
+    component_helper:disconnect_component(Comp, Addr),
 
     ?assertEqual(error, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
                             [<<"test_service.localhost">>])).
@@ -727,7 +728,7 @@ test_update_senders_host(Config) ->
               = fun() ->
                         rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])
                 end,
-              wait_until(GetCachesFun, error, 10, 1000),
+              mongoose_helper:wait_until(GetCachesFun, error, 10, 1000),
 
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
@@ -744,7 +745,7 @@ test_update_senders_host_by_ejd_service(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, 8888}, {component, <<"test_service">>}],
 
-    {Comp, Addr, _Name} = component_SUITE:connect_component(ComponentConfig),
+    {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
     escalus:fresh_story(
       Config, [{eve, 1}],
@@ -762,7 +763,7 @@ test_update_senders_host_by_ejd_service(Config) ->
                          rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
                         }
                 end,
-              wait_until(GetCachesFun, {error, error}, 10, 1000),
+              mongoose_helper:wait_until(GetCachesFun, {error, error}, 10, 1000),
 
               %% Component is connected to europe_node1
               %% but we force asia_node to connect to europe_node2 by hiding europe_node1
@@ -858,7 +859,7 @@ closed_connection_is_removed_from_disabled(_Config) ->
     % Will drop connections and prevent them from reconnecting
     restart_receiver(asia_node, [listen_endpoint(10001)]),
 
-    wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
+    mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
                {[], [], []}, 5, 1000).
 
 %%--------------------------------------------------------------------
@@ -882,23 +883,6 @@ rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, timer:seconds(30), Cookie).
-
-wait_until(Predicate, Attempts, Sleeptime) ->
-    wait_until(Predicate, true, Attempts, Sleeptime).
-
-wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
-    wait_until(Fun, ExpectedValue, Attempts, SleepTime, []).
-
-wait_until(_Fun, _ExpectedValue, 0, _SleepTime, History) ->
-    error({badmatch, History});
-wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History) when AttemptsLeft > 0 ->
-    case Fun() of
-        ExpectedValue ->
-            ok;
-        OtherValue ->
-            timer:sleep(SleepTime),
-            wait_until(Fun, ExpectedValue, AttemptsLeft - 1, SleepTime, [OtherValue | History])
-    end.
 
 hide_node(NodeName, Config) ->
     NodesKey = ?config(nodes_key, Config),

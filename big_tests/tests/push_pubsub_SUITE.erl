@@ -5,13 +5,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("push_helper.hrl").
 
--define(NS_PUSH,                <<"urn:xmpp:push:0">>).
--define(NS_XDATA,               <<"jabber:x:data">>).
--define(NS_PUBSUB_PUB_OPTIONS,  <<"http://jabber.org/protocol/pubsub#publish-options">>).
--define(PUSH_FORM_TYPE,         <<"urn:xmpp:push:summary">>).
-
--define(PUBSUB_SUB_DOMAIN, "push").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -335,6 +330,7 @@ publish_iq(Client, Node, Content, Options) ->
     #xmlel{children = [#xmlel{} = PubsubEl]} = Publish,
     NewPubsubEl = PubsubEl#xmlel{children = PubsubEl#xmlel.children ++ [OptionsEl]},
     Publish#xmlel{children = [NewPubsubEl]}.
+
 
 %% ----------------------------------
 %% Other helpers

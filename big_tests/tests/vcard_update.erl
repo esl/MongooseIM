@@ -92,3 +92,8 @@ try_ejabberd2() ->
         String when is_list(String) ->
             throw(list)
     end.
+
+is_vcard_ldap()->
+    ldap==escalus_ejabberd:rpc(gen_mod, get_module_opt,
+                               [ct:get_config({hosts, mim, domain}),
+                                mod_vcard, backend, mnesia]).

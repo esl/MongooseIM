@@ -52,3 +52,4 @@ loop(Cmd, Port, Data, Timeout) ->
     after Timeout ->
         erlang:error(#{reason => timeout, command => Cmd})
     end.
+

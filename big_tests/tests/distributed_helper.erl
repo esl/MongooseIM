@@ -39,29 +39,6 @@ ctl_path(Node, Config) ->
 script_path(Node, Config, Script) ->
     filename:join([get_cwd(Node, Config), "bin", Script]).
 
-wait_until_started(_, 0) ->
-    erlang:error({timeout, starting_node});
-wait_until_started(Cmd, Retries) ->
-    Result = os:cmd(Cmd),
-    case Result of
-        "pong" ++ _ ->
-            ok;
-        _ ->
-            timer:sleep(1000),
-            wait_until_started(Cmd, Retries - 1)
-    end.
-
-wait_until_stopped(_, 0) ->
-    erlang:error({timeout, stopping_node});
-wait_until_stopped(Cmd, Retries) ->
-    case os:cmd(Cmd) of
-        "pong" ++ _ ->
-            timer:sleep(1000),
-            wait_until_stopped(Cmd, Retries - 1);
-        _ ->
-            ok
-    end.
-
 verify_result(Node, Op) ->
     VerifyNode = mim(),
     DbNodes1 = rpc(Node, mnesia, system_info, [running_db_nodes]),
@@ -86,3 +63,17 @@ rpc(Node, M, F, A) ->
 rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
+
+start_node(Node, Config) ->
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
+    {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
+    %% TODO Looks like "started" run by ejabberdctl fun is not really synchronous
+    timer:sleep(3000).
+
+stop_node(Node, Config) ->
+    {_, 0} = mongooseim_script(Node, "stop", [], Config).
+
+mongooseim_script(Node, Cmd, Args, Config) ->
+    CtlCmd = script_path(Node, Config, "mongooseim"),
+    ejabberdctl_helper:run(string:join([CtlCmd, Cmd | ejabberdctl_helper:normalize_args(Args)], " ")).
+

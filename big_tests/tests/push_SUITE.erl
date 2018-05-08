@@ -5,13 +5,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
-
--define(MUCHOST,                <<"muclight.@HOST@">>).
-
--define(PUSH_OPTS,
-    [
-        {backend, mnesia}
-    ]).
+-include("push_helper.hrl").
 
 -import(muc_light_helper,
     [
@@ -19,7 +13,6 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
-
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
     disable_stanza/1, disable_stanza/2
@@ -586,13 +579,6 @@ muclight_msg_notify_stops_after_disabling(Config) ->
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
-
-%% ----------------------------------
-%% Stanzas
-%% ----------------------------------
-%% ----------------------------------
-%% Other helpers
-%% ----------------------------------
 
 parse_form(#xmlel{name = <<"x">>} = Form) ->
     parse_form(exml_query:subelements(Form, <<"field">>));

@@ -117,3 +117,61 @@ room_address(Room) ->
 
 room_address(Room, Nick) ->
     <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+
+given_fresh_room(Config, UserSpec, RoomOpts) ->
+    Username = proplists:get_value(username, UserSpec),
+    RoomName = fresh_room_name(Username),
+    start_room(Config, {user, UserSpec}, RoomName, Username, RoomOpts).
+
+disco_service_story(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Server = escalus_client:server(Alice),
+        escalus:send(Alice, escalus_stanza:service_discovery(Server)),
+        Stanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(has_service, [muc_host()], Stanza),
+        escalus:assert(is_stanza_from,
+                            [ct:get_config({hosts, mim, domain})], Stanza)
+    end).
+
+disco_features_story(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        escalus:send(Alice, stanza_get_features()),
+        Stanza = escalus:wait_for_stanza(Alice),
+        has_features(Stanza),
+        escalus:assert(is_stanza_from, [muc_host()], Stanza)
+    end).
+
+fresh_room_name(Username) ->
+    escalus_utils:jid_to_lower(<<"room-", Username/binary>>).
+
+fresh_room_name() ->
+    fresh_room_name(base16:encode(crypto:strong_rand_bytes(5))).
+
+stanza_get_features() ->
+    %% <iq from='hag66@shakespeare.lit/pda'
+    %%     id='lx09df27'
+    %%     to='chat.shakespeare.lit'
+    %%     type='get'>
+    %%  <query xmlns='http://jabber.org/protocol/disco#info'/>
+    %% </iq>
+    escalus_stanza:setattr(escalus_stanza:iq_get(?NS_DISCO_INFO, []), <<"to">>,
+                           muc_host()).
+
+has_features(#xmlel{children = [ Query ]}) ->
+    %%<iq from='chat.shakespeare.lit'
+    %%  id='lx09df27'
+    %%  to='hag66@shakespeare.lit/pda'
+    %%  type='result'>
+    %%  <query xmlns='http://jabber.org/protocol/disco#info'>
+    %%    <identity
+    %%      category='conference'
+    %%      name='Shakespearean Chat Service'
+    %%      type='text'/>
+    %%      <feature var='http://jabber.org/protocol/muc'/>
+    %%  </query>
+    %%</iq>
+
+    Identity = exml_query:subelement(Query, <<"identity">>),
+    <<"conference">> = exml_query:attr(Identity, <<"category">>),
+    true = lists:member(?NS_MUC, exml_query:paths(Query, [{element, <<"feature">>},
+                                                          {attr, <<"var">>}])).
