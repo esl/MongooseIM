@@ -101,6 +101,8 @@ if [ "$DB" = 'mysql' ]; then
         --health-cmd='mysqladmin ping --silent' \
         -p 3306:3306 --name=mongooseim-mysql \
         mysql --default-authentication-plugin=mysql_native_password
+    sleep 10
+    docker logs mongooseim-mysql
 
 elif [ "$DB" = 'pgsql' ]; then
     # If you see "certificate verify failed" error in Mongoose logs, try:
