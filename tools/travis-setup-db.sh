@@ -71,19 +71,23 @@ ByteaAsLongVarBinary = 1
 EOL
 }
 
-SQL_TEMP_DIR="$(mktemp -d --suffix=mongoose_sql_conf)"
-SQL_DATA_DIR="$(mktemp -d --suffix=mongoose_sql_data)"
-chmod 777 ${SQL_TEMP_DIR} ${SQL_DATA_DIR}
+# Stores all the data needed by the container
+SQL_ROOT_DIR="$(mktemp -d --suffix=mongoose_sql_root)"
+echo "SQL_ROOT_DIR is $SQL_ROOT_DIR"
 
-echo "SQL_TEMP_DIR is $SQL_TEMP_DIR"
-echo "SQL_DATA_DIR is $SQL_DATA_DIR"
+# A directory, that contains resources that needed to bootstrap a container
+# i.e. certificates and config files
+SQL_TEMP_DIR="$SQL_ROOT_DIR/temp"
+# A directory, that contains database server data files
+# It's good to keep it outside of a container, on a volume
+SQL_DATA_DIR="$SQL_ROOT_DIR/data"
+mkdir -p "$SQL_TEMP_DIR" "$SQL_DATA_DIR"
 
 if [ "$DB" = 'mysql' ]; then
     echo "Configuring mysql"
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
     docker rm -f mongooseim-mysql || echo "Skip removing previous container"
-    mkdir -p ${SQL_TEMP_DIR} ${SQL_DATA_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     openssl rsa -in ${SSLDIR}/fake_key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
     # mysql_native_password is needed until mysql-otp implements caching-sha2-password
@@ -113,7 +117,6 @@ elif [ "$DB" = 'pgsql' ]; then
     echo "Configuring postgres with SSL"
     sudo -n service postgresql stop || echo "Failed to stop psql"
     docker rm -f mongooseim-pgsql || echo "Skip removing previous container"
-    mkdir -p ${SQL_TEMP_DIR} ${SQL_DATA_DIR}
     cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
     cp ${SSLDIR}/fake_key.pem ${SQL_TEMP_DIR}/.
     cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
