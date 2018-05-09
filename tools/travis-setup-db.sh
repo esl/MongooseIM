@@ -73,6 +73,7 @@ EOL
 
 SQL_TEMP_DIR="$(mktemp -d --suffix=mongoose_sql_conf)"
 SQL_DATA_DIR="$(mktemp -d --suffix=mongoose_sql_data)"
+chmod 777 ${SQL_TEMP_DIR} ${SQL_DATA_DIR}
 
 echo "SQL_TEMP_DIR is $SQL_TEMP_DIR"
 echo "SQL_DATA_DIR is $SQL_DATA_DIR"
