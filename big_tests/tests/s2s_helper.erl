@@ -4,10 +4,14 @@
 -export([end_s2s/1]).
 -export([configure_s2s/2]).
 
--import(distributed_helper, [rpc/4, rpc/5]).
+-import(distributed_helper, [fed/0,
+                             mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4, rpc/5]).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
+
 -record(s2s_opts, {
           node1_s2s_certfile = undefined,
           node1_s2s_use_starttls = undefined,
@@ -15,13 +19,8 @@
           node2_s2s_use_starttls = undefined
          }).
 
-
 suite(Config) ->
-    require_s2s_nodes() ++ Config.
-
-require_s2s_nodes() ->
-    [{require, mim_node, {hosts, mim, node}},
-     {require, fed_node, {hosts, fed, node}}].
+    require_rpc_nodes([mim, fed]) ++ Config.
 
 init_s2s(Config, CoverEnabled) when is_boolean(CoverEnabled) ->
     Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
@@ -121,14 +120,3 @@ restart_s2s(Node) ->
     ChildrenIn = rpc(Node, supervisor, which_children, [ejabberd_s2s_in_sup]),
     [rpc(Node, erlang, exit, [Pid, kill]) ||
      {_, Pid, _, _} <- ChildrenIn].
-
-mim() ->
-    get_or_fail(mim_node).
-
-fed() ->
-    get_or_fail(fed_node).
-
-get_or_fail(Key) ->
-    Val = ct:get_config(Key),
-    Val == undefined andalso error({undefined, Key}),
-    Val.
