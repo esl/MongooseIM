@@ -123,7 +123,7 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
-    rpc(europe_node2, mongoose_cluster, leave, [ct:get_config(europe_node1)]),
+    rpc(europe_node2, mongoose_cluster, leave, []),
     escalus:end_per_suite(Config).
 
 init_per_group(start_checks, Config) ->
