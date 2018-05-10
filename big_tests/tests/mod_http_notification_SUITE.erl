@@ -14,6 +14,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 %%%===================================================================
 %%% Suite configuration
@@ -32,9 +35,8 @@ groups() ->
     [{mod_http_notification_tests, [sequence], all_tests()},
         {mod_http_notification_tests_with_prefix, [sequence], all_tests()}].
 
-
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 set_worker(Config) ->
     set_modules(Config, [{worker_timeout, 500}, {host, "http://localhost:8000"}]).
@@ -119,7 +121,7 @@ proper_http_message_encode_decode(Config) ->
            after 5000 ->
                 ct:fail(http_request_timeout)
            end,
-    ExtractedAndDecoded = escalus_ejabberd:rpc(cow_qs, parse_qs,[Body]),
+    ExtractedAndDecoded = rpc(mim(), cow_qs, parse_qs, [Body]),
     ExpectedList = [{<<"author">>,<<Sender/binary>>},
         {<<"server">>,<<Server/binary>>},
         {<<"receiver">>,<<Receiver/binary>>},
