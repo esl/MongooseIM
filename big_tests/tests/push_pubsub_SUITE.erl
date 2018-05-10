@@ -384,7 +384,7 @@ setup_mock_rest() ->
 handle(Req, Master) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     Master ! {rest_req, Req2, Body},
-	cowboy_req:reply(204, #{}, <<>>, Req).
+    cowboy_req:reply(204, #{}, <<>>, Req).
 
 teardown_mock_rest() ->
     http_helper:stop().

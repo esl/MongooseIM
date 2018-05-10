@@ -153,17 +153,17 @@ init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
-                  Opts0 = ?config(extra_config, Config1) ++
-		         [{local_host, LocalHost},
-                          {hosts_refresh_interval, ?HOSTS_REFRESH_INTERVAL},
-                          {global_host, "localhost"},
-                          {endpoints, [listen_endpoint(ReceiverPort)]},
-                          {tls_opts, [
-                                      {certfile, ?config(certfile, Config1)},
-                                      {cafile, ?config(cafile, Config1)}
-                                     ]},
-                          {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
-                          {resend_after_ms, 500}],
+                  Opts0 = (?config(extra_config, Config1) ++
+                           [{local_host, LocalHost},
+                            {hosts_refresh_interval, ?HOSTS_REFRESH_INTERVAL},
+                            {global_host, "localhost"},
+                            {endpoints, [listen_endpoint(ReceiverPort)]},
+                            {tls_opts, [
+                                        {certfile, ?config(certfile, Config1)},
+                                        {cafile, ?config(cafile, Config1)}
+                                       ]},
+                            {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
+                            {resend_after_ms, 500}]),
                   Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
                   OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
