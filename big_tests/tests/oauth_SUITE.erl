@@ -22,6 +22,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -65,7 +68,7 @@ token_revocation_tests() ->
     ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -160,15 +163,14 @@ token_login_failure(Config, User, Token) ->
 
 get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
-    JID = escalus_ejabberd:rpc(jid, from_binary, [BJID]),
-    Token = escalus_ejabberd:rpc(mod_auth_token, token, [refresh, JID]),
-    ValidSeqNo = escalus_ejabberd:rpc(mod_auth_token_odbc, get_valid_sequence_number,
-                                      [JID]),
+    JID = rpc(mim(), jid, from_binary, [BJID]),
+    Token = rpc(mim(), mod_auth_token, token, [refresh, JID]),
+    ValidSeqNo = rpc(mim(), mod_auth_token_odbc, get_valid_sequence_number, [JID]),
     RevokedToken0 = record_set(Token, [{5, invalid_sequence_no(ValidSeqNo)},
                                        {7, undefined},
                                        {8, undefined}]),
-    RevokedToken = escalus_ejabberd:rpc(mod_auth_token, token_with_mac, [RevokedToken0]),
-    escalus_ejabberd:rpc(mod_auth_token, serialize, [RevokedToken]).
+    RevokedToken = rpc(mim(), mod_auth_token, token_with_mac, [RevokedToken0]),
+    rpc(mim(), mod_auth_token, serialize, [RevokedToken]).
 
 invalid_sequence_no(SeqNo) ->
     SeqNo - 1.
@@ -279,11 +281,11 @@ token_revocation_test(Config) ->
 get_owner_seqno_to_revoke(Config, User) ->
     {_, RefreshToken} = request_tokens_once_logged_in_impl(Config, User),
     [_, BOwner, _, SeqNo, _] = binary:split(RefreshToken, <<0>>, [global]),
-    Owner = escalus_ejabberd:rpc(jid, from_binary, [BOwner]),
+    Owner = rpc(mim(), jid, from_binary, [BOwner]),
     {Owner, binary_to_integer(SeqNo), RefreshToken}.
 
 revoke_token(Owner) ->
-    escalus_ejabberd:rpc(mod_auth_token, revoke, [Owner]).
+    rpc(mim(), mod_auth_token, revoke, [Owner]).
 
 revoke_token_cmd_when_no_token(Config) ->
     %% given existing user with no token
@@ -358,20 +360,15 @@ extract_tokens(#xmlel{name = <<"iq">>, children = [#xmlel{name = <<"items">>} = 
     RTD = exml_query:path(Items, [{element, <<"refresh_token">>}, cdata]),
     {base64:decode(ATD), base64:decode(RTD)}.
 
-get_auth_method()        ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config({hosts, mim, domain})),
-    escalus_ejabberd:rpc(ejabberd_auth, store_type,
-                         [XMPPDomain]).
+get_auth_method() ->
+    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    rpc(mim(), ejabberd_auth, store_type, [XMPPDomain]).
 
 set_store_password(Type) ->
-    XMPPDomain = escalus_ejabberd:unify_str_arg(
-                   ct:get_config({hosts, mim, domain})),
-    AuthOpts = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                                    [{auth_opts, XMPPDomain}]),
+    XMPPDomain = escalus_ejabberd:unify_str_arg(ct:get_config({hosts, mim, domain})),
+    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
     NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
-    escalus_ejabberd:rpc(ejabberd_config, add_local_option,
-                         [{auth_opts, XMPPDomain}, NewAuthOpts]).
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
 
 config_password_format(login_scram) ->
     set_store_password(scram);
@@ -387,7 +384,7 @@ verify_format(GroupName, {_User, Props}) ->
     Username = escalus_utils:jid_to_lower(proplists:get_value(username, Props)),
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
-    SPassword = escalus_ejabberd:rpc(ejabberd_auth, get_password, [Username, Server]),
+    SPassword = rpc(mim(), ejabberd_auth, get_password, [Username, Server]),
     do_verify_format(GroupName, Password, SPassword).
 
 do_verify_format(login_scram, _Password, SPassword) ->
@@ -417,16 +414,15 @@ convert_arg(S) when is_list(S) -> S.
 clean_token_db() ->
     Q = [<<"DELETE FROM auth_token">>],
     ODBCHost = domain(), %% mam is also tested against local odbc
-    {updated, _} = escalus_ejabberd:rpc(mongoose_rdbms, sql_query, [ODBCHost, Q]).
+    {updated, _} = rpc(mim(), mongoose_rdbms, sql_query, [ODBCHost, Q]).
 
 get_users_token(C, User) ->
     Q = ["SELECT * FROM auth_token at "
          "WHERE at.owner = '", to_lower(escalus_users:get_jid(C, User)), "';"],
-    escalus_ejabberd:rpc(mongoose_rdbms, sql_query,
-                         [escalus_users:get_server(C, User), Q]).
+    rpc(mim(), mongoose_rdbms, sql_query, [escalus_users:get_server(C, User), Q]).
 
 is_xmpp_registration_available(Domain) ->
-    escalus_ejabberd:rpc(gen_mod, is_loaded, [Domain, mod_register]).
+    rpc(mim(), gen_mod, is_loaded, [Domain, mod_register]).
 
 user_authenticating_with_token(Config, UserName, Token) ->
     Spec1 = lists:keystore(oauth_token, 1, escalus_users:get_userspec(Config, UserName),
@@ -439,7 +435,7 @@ extract_bound_jid(BindReply) ->
 
 get_provision_key(Domain) ->
     RPCArgs = [get_key, Domain, [], [{provision_pre_shared, Domain}]],
-    [{_, RawKey}] = escalus_ejabberd:rpc(ejabberd_hooks, run_fold, RPCArgs),
+    [{_, RawKey}] = rpc(mim(), ejabberd_hooks, run_fold, RPCArgs),
     RawKey.
 
 make_vcard(Config, User) ->
@@ -465,13 +461,13 @@ make_provision_token(Config, User, VCard) ->
           undefined,
           %% body
           undefined},
-    T = escalus_ejabberd:rpc(mod_auth_token, token_with_mac, [T0]),
+    T = rpc(mim(), mod_auth_token, token_with_mac, [T0]),
     %% assert no RPC error occured
     {token, provision} = {element(1, T), element(2, T)},
     serialize(T).
 
 serialize(ServerSideToken) ->
-    Serialized = escalus_ejabberd:rpc(mod_auth_token, serialize, [ServerSideToken]),
+    Serialized = rpc(mim(), mod_auth_token, serialize, [ServerSideToken]),
     case is_binary(Serialized) of
         true -> Serialized;
         false -> error(Serialized)
@@ -484,7 +480,7 @@ is_pgsql_available(_) ->
     Q = [<<"SELECT version();">>],
     %% TODO: hardcoded ODBCHost
     ODBCHost = domain(),
-    case escalus_ejabberd:rpc(mongoose_rdbms, sql_query, [ODBCHost, Q]) of
+    case rpc(mim(), mongoose_rdbms, sql_query, [ODBCHost, Q]) of
         {selected, [{<<"PostgreSQL", _/binary>>}]} ->
             true;
         _ ->
