@@ -228,3 +228,7 @@ stanza_aff_set(Room, AffUsers) ->
 clear_db() ->
     escalus_ejabberd:rpc(mod_muc_light_db_backend, force_clear, []).
 
+-spec ver(Int :: integer()) -> binary().
+ver(Int) ->
+  <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
+

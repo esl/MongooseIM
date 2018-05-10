@@ -4,7 +4,6 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
--define(NS_DISPLAY, <<"forward:display-names">>).
 
 -import(escalus_ejabberd, [rpc/3]).
 
@@ -34,12 +33,11 @@
          leave_and_remain_conversation/1]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
--import(muc_light_helper, [bin_aff_users/1, aff_msg_verify_fun/1, gc_message_verify_fun/3,
+-import(muc_light_helper, [bin_aff_users/1, aff_msg_verify_fun/1, gc_message_verify_fun/3, ver/1,
         lbin/1, room_bin_jid/1, verify_aff_bcast/2, verify_aff_bcast/3, verify_aff_users/2,
         kv_el/2, to_lus/2, stanza_create_room/3, create_room/6, stanza_aff_set/2, default_config/0]).
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
--define(MUCLIGHT_HOST, <<"muclight.localhost">>).
 -define(ROOM, <<"testroom1">>).
 -define(ROOM2, <<"testroom2">>).
 
@@ -81,22 +79,32 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-%%
-%% We assume that MAM is enabled
-%%
 init_per_suite(Config) ->
-  InboxOptions= [{backend, odbc},
-                 {markers, [displayed]},
-                 {aff_changes, true},
-                 {remove_on_kicked, true},
-                 {groupchat, [muclight]}],
-  Host = ct:get_config({hosts, mim, domain}),
-  dynamic_modules:start(Host, mod_inbox, InboxOptions),
-  dynamic_modules:start(Host, mod_muc_light,
-    [{host, binary_to_list(?MUCLIGHT_HOST)},{backend, odbc}]),
+  InboxOptions=
+  dynamic_modules:ensure_modules(domain(), required_modules()),
   Config1 = escalus:init_per_suite(Config),
   Config2 = [{inbox_opts, InboxOptions} | Config1],
   escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike, carol])).
+
+required_modules() ->
+  [
+    {mod_mam, [{archive_chat_markers, true}]},
+    {mod_mam_muc, [{archive_chat_markers, true}]},
+    {mod_muc_light, [{host, binary_to_list(muclight_domain())},
+                     {backend, odbc}]},
+    {mod_inbox, [{backend, odbc},
+                 {markers, [displayed]},
+                 {aff_changes, true},
+                 {remove_on_kicked, true},
+                 {groupchat, [muclight]}]}
+  ].
+
+domain() ->
+  ct:get_config({hosts, mim, domain}).
+
+muclight_domain() ->
+  Domain = domain(),
+  <<"muclight.", Domain/binary>>.
 
 end_per_suite(Config) ->
   Host = ct:get_config({hosts, mim, domain}),
@@ -106,7 +114,7 @@ end_per_suite(Config) ->
   escalus:end_per_suite(Config1).
 
 init_per_group(muclight, Config) ->
-  create_room(?ROOM, ?MUCLIGHT_HOST, alice, [bob, kate], Config, ver(1));
+  create_room(?ROOM, muclight_domain(), alice, [bob, kate], Config, ver(1));
 init_per_group(_GroupName, Config) ->
   Config.
 
@@ -118,22 +126,16 @@ end_per_group(_GroupName, Config) ->
 
 
 init_per_testcase(create_groupchat_no_aff, Config) ->
-  Host = ct:get_config({hosts, mim, domain}),
   clear_inbox_all(),
-  Args = proplists:get_value(inbox_opts, Config),
-  Args1 = lists:keyreplace(aff_changes, 1, Args, {aff_changes, false}),
-  dynamic_modules:restart(Host, mod_inbox, Args1),
+  reload_inbox_option(Config, aff_changes, false),
   escalus:init_per_testcase(create_groupchat_no_aff, Config);
 init_per_testcase(leave_and_remove_conversation, Config) ->
   clear_inbox_all(),
-  create_room(?ROOM2, ?MUCLIGHT_HOST, alice, [bob, kate], Config, ver(1)),
+  create_room(?ROOM2, muclight_domain(), alice, [bob, kate], Config, ver(1)),
   escalus:init_per_testcase(kick_and_remove_conversation, Config);
 init_per_testcase(leave_and_remain_conversation, Config) ->
   clear_inbox_all(),
-  Host = ct:get_config({hosts, mim, domain}),
-  Args = proplists:get_value(inbox_opts, Config),
-  Args1 = lists:keyreplace(remove_on_kicked, 1, Args, {remove_on_kicked, false}),
-  dynamic_modules:restart(Host, mod_inbox, Args1),
+  reload_inbox_option(Config, remove_on_kicked, false),
   escalus:init_per_testcase(leave_and_remain_conversation, Config);
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
@@ -142,18 +144,15 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(leave_and_remove_conversation, Config) ->
   clear_inbox_all(),
   muc_light_helper:clear_db(),
+  restore_inbox_option(Config),
   escalus:end_per_testcase(leave_and_remove_conversation, Config);
 end_per_testcase(create_groupchat_no_aff, Config) ->
-  Host = ct:get_config({hosts, mim, domain}),
   clear_inbox_all(),
-  Args = proplists:get_value(inbox_opts, Config),
-  dynamic_modules:restart(Host, mod_inbox, Args),
+  restore_inbox_option(Config),
   escalus:end_per_testcase(create_groupchat_no_aff, Config);
 end_per_testcase(leave_and_remain_conversation, Config) ->
-  Host = ct:get_config({hosts, mim, domain}),
   clear_inbox_all(),
-  Args = proplists:get_value(inbox_opts, Config),
-  dynamic_modules:restart(Host, mod_inbox, Args),
+  restore_inbox_option(Config),
   escalus:end_per_testcase(leave_and_remain_conversation, Config);
 end_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
@@ -166,8 +165,8 @@ end_per_testcase(CaseName, Config) ->
 simple_msg(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
     Msg1 = escalus_stanza:chat_to(Bob, <<"Hello">>),
-    BobJid = bin(escalus_client:full_jid(Bob)),
-    AliceJid = bin(escalus_client:full_jid(Alice)),
+    BobJid = lbin(escalus_client:full_jid(Bob)),
+    AliceJid = lbin(escalus_client:full_jid(Alice)),
     escalus:send(Alice, Msg1),
     M = escalus:wait_for_stanza(Bob),
     escalus:assert(is_chat_message, M),
@@ -178,9 +177,9 @@ two_conversations(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     Msg1 = escalus_stanza:chat_to(Bob, <<"Hello Bob">>),
     Msg2 = escalus_stanza:chat_to(Kate, <<"Hello Kate">>),
-    BobJid = bin(escalus_client:full_jid(Bob)),
-    AliceJid = bin(escalus_client:full_jid(Alice)),
-    KateJid = bin(escalus_client:full_jid(Kate)),
+    BobJid = lbin(escalus_client:full_jid(Bob)),
+    AliceJid = lbin(escalus_client:full_jid(Alice)),
+    KateJid = lbin(escalus_client:full_jid(Kate)),
     escalus:send(Alice, Msg1),
     escalus:send(Alice, Msg2),
     M1 = escalus:wait_for_stanza(Bob),
@@ -208,10 +207,10 @@ two_unread(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
     Msg1 = escalus_stanza:chat_to(Mike, <<"Hello">>),
     Msg2 = escalus_stanza:chat_to(Mike, <<"How are you">>),
-    %% sender is bare JID
-    KateJid = bin(escalus_client:full_jid(Kate)),
+    %% sender is full JID
+    KateJid = lbin(escalus_client:full_jid(Kate)),
     %% receiver is full JID
-    MikeJid = bin(escalus_client:full_jid(Mike)),
+    MikeJid = lbin(escalus_client:full_jid(Mike)),
     escalus:send(Kate, Msg1),
     escalus:send(Kate, Msg2),
     [M1, M2] = escalus:wait_for_stanzas(Mike, 2),
@@ -223,15 +222,15 @@ two_unread(Config) ->
 
 mark_read(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
-    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), <<"123123">>),
-    %% sender is bare JID
-    KateJid = bin(escalus_client:full_jid(Kate)),
-    MikeJid = bin(escalus_client:full_jid(Mike)),
+    MsgId =  <<"123123">>,
+    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
+    %% sender is full JID
+    KateJid = lbin(escalus_client:full_jid(Kate)),
+    MikeJid = lbin(escalus_client:full_jid(Mike)),
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
     check_inbox(Mike, <<"1">>, [{<<"1">>, KateJid, MikeJid, <<"Hi mike">>}]),
-    MsgId = get_msg_id(M1),
     ChatMarker = escalus_stanza:chat_marker(KateJid, <<"displayed">>, MsgId),
     escalus:send(Mike, ChatMarker),
     %% Now Mike asks for inbox second time
@@ -242,8 +241,8 @@ mark_unread_bad_id(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
     Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"okey dockey">>), <<"111">>),
     %% sender is bare JID
-    KateJid = bin(escalus_client:full_jid(Kate)),
-    MikeJid = bin(escalus_client:full_jid(Mike)),
+    KateJid = lbin(escalus_client:full_jid(Kate)),
+    MikeJid = lbin(escalus_client:full_jid(Mike)),
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
@@ -429,7 +428,7 @@ leave_and_remain_conversation(Config) ->
     muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
     check_inbox(Alice, <<"1">>, [{<<"0">>, AliceRoomJid,  AliceJid, Msg}]),
     check_inbox(Kate, <<"1">>, [{<<"1">>, AliceRoomJid,  KateJid, Msg}]),
-    %% Bob still have a conversation in inbox
+    %% Bob still has a conversation in inbox
     check_inbox(Bob, <<"1">>, [{<<"1">>, AliceRoomJid,  BobJid, Msg}])
                                                            end).
 
@@ -541,28 +540,26 @@ check_inbox(Client, ExpectedCount, MsgCheckList, AdditionalCheck) ->
   ResIQ = escalus:wait_for_stanza(Client),
   ExpectedCount = get_inbox_count(ResIQ),
   Merged = lists:zip(Stanzas, MsgCheckList),
- [foreach_inbox_message(M, Unread, FromJid, ToJid, Content)
+ [process_inbox_message(M, Unread, FromJid, ToJid, Content)
     || {M, {Unread, FromJid, ToJid, Content}} <- Merged],
   %% Apply additional asserts
   [AdditionalCheck(M) || M <- Stanzas].
 
 
-foreach_inbox_message(Message, Unread, FromJid, ToJid, Content) ->
+process_inbox_message(Message, Unread, FromJid, ToJid, Content) ->
   Unread = get_unread_count(Message),
-  true = escalus_pred:is_message(Message),
+  escalus:assert(is_message, Message),
   Unread = get_unread_count(Message),
   [InnerMsg] = get_inner_msg(Message),
-  FromJid = exml_query:path(InnerMsg, [{attr, <<"from">>}]),
-  ToJid = exml_query:path(InnerMsg, [{attr, <<"to">>}]),
+  FromJid = exml_query:attr(InnerMsg, <<"from">>),
+  ToJid = exml_query:attr(InnerMsg, <<"to">>),
   InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
-  InnerContent = Content.
+  Content = InnerContent.
 
 set_type(Msg, Type) ->
-  Attrs = Msg#xmlel.attrs,
-  Msg#xmlel{attrs = Attrs ++ [{<<"type">>, Type}]}.
+  Attrs = lists:keystore(<<"type">>, 1, Msg#xmlel.attrs, [{<<"type">>, Type}]),
+  Msg#xmlel{attrs = Attrs}.
 
--spec bin(Bin :: binary()) -> binary().
-bin(Bin) -> list_to_binary(binary_to_list(Bin)).
 
 
 get_inner_msg(Msg) ->
@@ -584,8 +581,6 @@ get_inbox_count(Packet) ->
   [Val] = exml_query:paths(Packet, [{element_with_ns, ?NS_ESL_INBOX}, cdata]),
   Val.
 
-get_msg_id(Msg) ->
-  exml_query:path(Msg, [{attr, <<"id">>}], undefined).
 
 clear_inbox_all() ->
   Host = ct:get_config({hosts, mim, domain}),
@@ -596,6 +591,13 @@ clear_inboxes(UserList, Host) ->
   [escalus_ejabberd:rpc(mod_inbox, clear_inbox, [JID,Host]) || JID <- JIDs].
 
 
--spec ver(Int :: integer()) -> binary().
-ver(Int) ->
-  <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
+reload_inbox_option(Config, Key, Value) ->
+  Host = domain(),
+  Args = proplists:get_value(inbox_opts, Config),
+  Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
+  dynamic_modules:restart(Host, mod_inbox, Args1).
+
+restore_inbox_option(Config) ->
+  Host = domain(),
+  Args = proplists:get_value(inbox_opts, Config),
+  dynamic_modules:restart(Host, mod_inbox, Args).
