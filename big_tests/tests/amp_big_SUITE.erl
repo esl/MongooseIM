@@ -11,6 +11,13 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
+suite() ->
+    require_rpc_nodes([mim]) ++ escalus:suite().
+
 all() -> [{group, Group} || Group <- enabled_group_names()].
 
 enabled_group_names() ->
@@ -95,13 +102,10 @@ drop_deliver_test_cases() ->
      drop_deliver_to_stranger_test].
 
 init_per_suite(C) ->
-    escalus_ejabberd:rpc(ejabberd_config, add_local_option,
-                         [outgoing_s2s_options, {[ipv4, ipv6], 1000}]),
+    rpc(mim(), ejabberd_config, add_local_option, [outgoing_s2s_options, {[ipv4, ipv6], 1000}]),
     escalus:init_per_suite(C).
 end_per_suite(C) ->
-    escalus_ejabberd:rpc(ejabberd_config, del_local_option,
-                         [outgoing_s2s_options]),
-
+    rpc(mim(), ejabberd_config, del_local_option, [outgoing_s2s_options]),
     escalus_fresh:clean(),
     escalus:end_per_suite(C).
 
@@ -113,11 +117,9 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, ConfigWithRules).
 
 setup_meck(mam_failure) ->
-    ok = escalus_ejabberd:rpc(meck, expect, [mod_mam_odbc_arch, archive_message, 9,
-                                             {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_mam_odbc_arch, archive_message, 9, {error, simulated}]);
 setup_meck(offline_failure) ->
-    ok = escalus_ejabberd:rpc(meck, expect, [mod_offline_mnesia, write_messages, 3,
-                                             {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 3, {error, simulated}]);
 setup_meck(_) -> ok.
 
 save_offline_status(mam_success, Config) -> [{offline_storage, mam} | Config];
@@ -133,7 +135,7 @@ end_per_group(GroupName, Config) ->
 
 teardown_meck(G) when G == mam_failure;
                       G == offline_failure ->
-    escalus_ejabberd:rpc(meck, unload, []);
+    rpc(mim(), meck, unload, []);
 teardown_meck(_) -> ok.
 
 init_per_testcase(Name, C) -> escalus:init_per_testcase(Name, C).
@@ -914,7 +916,7 @@ amp_error_container(<<"unsupported-conditions">>) -> <<"unsupported-conditions">
 amp_error_container(<<"undefined-condition">>) -> <<"failed-rules">>.
 
 is_module_loaded(Mod) ->
-    escalus_ejabberd:rpc(gen_mod, is_loaded, [domain(), Mod]).
+    rpc(mim(), gen_mod, is_loaded, [domain(), Mod]).
 
 required_modules(basic) ->
     mam_modules(off) ++ offline_modules(off);
