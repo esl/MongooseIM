@@ -204,10 +204,10 @@ inject_creds_to_opts(PathOpts, any) ->
     lists:keydelete(auth, 1, PathOpts);
 inject_creds_to_opts(PathOpts, Creds) ->
     case lists:keymember(auth, 1, PathOpts) of
-	    true -> 
-	        lists:keyreplace(auth, 1, PathOpts, {auth, Creds});
-	    false ->
-	        lists:append(PathOpts, [{auth, Creds}])
+        true ->
+            lists:keyreplace(auth, 1, PathOpts, {auth, Creds});
+        false ->
+            lists:append(PathOpts, [{auth, Creds}])
     end.
 
 % @doc Checks whether a config for a port is an admin or client one.
