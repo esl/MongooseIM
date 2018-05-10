@@ -56,7 +56,7 @@ server_string_type() ->
     try
         is_ejabberd_community() andalso throw(binary),
         is_mongooseim() andalso throw(binary),
-        try_ejabberd2(),
+        try_ejabberd_v2(),
         error(server_string_type_unknown)
     catch
         throw:binary -> binary;
@@ -83,8 +83,8 @@ is_mongooseim() ->
             false
     end.
 
--spec try_ejabberd2() -> no_return().
-try_ejabberd2() ->
+-spec try_ejabberd_v2() -> no_return().
+try_ejabberd_v2() ->
     [{config, hosts, [XMPPDomain | _]}] = rpc(mim(), ets, lookup, [config, hosts]),
     case XMPPDomain of
         BString when is_binary(BString) ->
