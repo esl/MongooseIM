@@ -13,6 +13,10 @@
 
 -define(NS_SIC, <<"urn:xmpp:sic:1">>).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -27,7 +31,7 @@ groups() ->
     [{mod_sic_tests, [sequence], all_tests()}].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%%===================================================================
 %%% Init & teardown
@@ -103,11 +107,11 @@ is_sic_response() ->
 
 start_module(ModuleName, Options) ->
     Args = [ct:get_config({hosts, mim, domain}), ModuleName, Options],
-    escalus_ejabberd:rpc(gen_mod, start_module, Args).
+    rpc(mim(), gen_mod, start_module, Args).
 
 stop_module(ModuleName) ->
     Args = [ct:get_config({hosts, mim, domain}), ModuleName],
-    escalus_ejabberd:rpc(gen_mod, stop_module, Args).
+    rpc(mim(), gen_mod, stop_module, Args).
 
 sic_iq_get() ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
