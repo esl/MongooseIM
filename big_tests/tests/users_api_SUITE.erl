@@ -19,9 +19,14 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
+
 all() ->
     [{group, transaction},
      {group, negative}].
@@ -54,9 +59,13 @@ init_per_testcase(_CaseName, Config) ->
 end_per_testcase(_CaseName, _Config) ->
     ok.
 
+suite() ->
+    require_rpc_nodes([mim]).
+
 %%--------------------------------------------------------------------
 %% users_api tests
 %%--------------------------------------------------------------------
+
 user_transaction(Config) ->
     Params = [{host, ct:get_config({hosts, mim, domain})},
               {username, "http_guy"}],
@@ -75,6 +84,7 @@ negative_calls(Config) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
+
 is_external_auth() ->
     lists:member(ejabberd_auth_external, auth_modules()).
 
@@ -82,10 +92,10 @@ is_riak_auth() ->
     lists:member(ejabberd_auth_riak, auth_modules()).
 
 auth_modules() ->
-    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
+    Hosts = rpc(mim(), ejabberd_config, get_global_option, [hosts]),
     lists:flatmap(
       fun(Host) ->
-              escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
+              rpc(mim(), ejabberd_auth, auth_modules, [Host])
       end, Hosts).
 
 wait_for_user_removal(false) ->
@@ -97,7 +107,7 @@ do_wait_for_user_removal(0) ->
     ok;
 do_wait_for_user_removal(N) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    case escalus_ejabberd:rpc(ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) of
+    case rpc(mim(), ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) of
         0 ->
             ok;
         _ ->
