@@ -953,7 +953,7 @@ parse_messages(Messages) ->
 
 bootstrap_archive(Config) ->
     random:seed(os:timestamp()),
-    Users = escalus_ct:get_config(escalus_users),
+    _Users = escalus_ct:get_config(escalus_users),
     AliceJID    = escalus_users:get_jid(Config, alice),
     BobJID      = escalus_users:get_jid(Config, bob),
     CarolJID    = escalus_users:get_jid(Config, carol),
@@ -1064,7 +1064,6 @@ muc_bootstrap_archive(Config) ->
     BobServer   = escalus_users:get_server(Config, bob),
 
     Domain = muc_host(),
-    Host = host(),
     RoomJid = make_jid(Room, Domain, <<>>),
     ArcJID = {R, RoomJid,
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
