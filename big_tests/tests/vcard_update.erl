@@ -5,6 +5,9 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -type escalus_client() :: #client{}.
 
 -spec discard_vcard_update(User) -> NDiscarded when
@@ -35,8 +38,7 @@ is_vcard_update(_) ->
 
 has_mod_vcard_xupdate() ->
     Server = ct:get_config({hosts, mim, domain}),
-    escalus_ejabberd:rpc(gen_mod, is_loaded,
-                         [server_string(Server), mod_vcard_xupdate]).
+    rpc(mim(), gen_mod, is_loaded, [server_string(Server), mod_vcard_xupdate]).
 
 server_string(BString) when is_binary(BString) ->
     case server_string_type() of
@@ -63,7 +65,7 @@ server_string_type() ->
 
 -spec is_ejabberd_community() -> boolean().
 is_ejabberd_community() ->
-    Apps = escalus_ejabberd:rpc(application, which_applications, []),
+    Apps = rpc(mim(), application, which_applications, []),
     case lists:keyfind(ejabberd, 1, Apps) of
         {ejabberd, "ejabberd", "community" ++ _} ->
             true;
@@ -73,7 +75,7 @@ is_ejabberd_community() ->
 
 -spec is_mongooseim() -> boolean().
 is_mongooseim() ->
-    Apps = escalus_ejabberd:rpc(application, which_applications, []),
+    Apps = rpc(mim(), application, which_applications, []),
     case lists:keyfind(ejabberd, 1, Apps) of
         {ejabberd, "ejabberd", "2.1.8+mim" ++ _} ->
             true;
@@ -83,9 +85,7 @@ is_mongooseim() ->
 
 -spec try_ejabberd2() -> no_return().
 try_ejabberd2() ->
-    [{config, hosts,
-      [XMPPDomain | _]}] = escalus_ejabberd:rpc(ets, lookup,
-                                                [config, hosts]),
+    [{config, hosts, [XMPPDomain | _]}] = rpc(mim(), ets, lookup, [config, hosts]),
     case XMPPDomain of
         BString when is_binary(BString) ->
             throw(binary);
@@ -94,6 +94,5 @@ try_ejabberd2() ->
     end.
 
 is_vcard_ldap()->
-    ldap==escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                               [ct:get_config({hosts, mim, domain}),
-                                mod_vcard, backend, mnesia]).
+    ldap == rpc(mim(), gen_mod, get_module_opt,
+                [ct:get_config({hosts, mim, domain}), mod_vcard, backend, mnesia]).
