@@ -31,7 +31,6 @@
 
 %% API
 -export([start_link/4,
-         start/3,
          start/4,
          change_shaper/2,
          starttls/2,
@@ -54,10 +53,9 @@
                 max_stanza_size,
                 stanza_chunk_size,
                 parser,
-                timeout}).
+                timeout,
+                hibernate_after = 0 :: non_neg_integer()}).
 -type state() :: #state{}.
-
--define(HIBERNATE_TIMEOUT, 90000).
 
 %%====================================================================
 %% API
@@ -67,21 +65,18 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 -spec start_link(_, _, _, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(Socket, SockMod, Shaper, MaxStanzaSize) ->
+start_link(Socket, SockMod, Shaper, ConnOpts) ->
     gen_server:start_link(
-      ?MODULE, [Socket, SockMod, Shaper, MaxStanzaSize], []).
+      ?MODULE, [Socket, SockMod, Shaper, ConnOpts], []).
 
 %%--------------------------------------------------------------------
 %% Function: start() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start(Socket, SockMod, Shaper) ->
-    start(Socket, SockMod, Shaper, infinity).
-
-start(Socket, SockMod, Shaper, MaxStanzaSize) ->
+start(Socket, SockMod, Shaper, ConnOpts) ->
     {ok, Pid} = supervisor:start_child(
                   ejabberd_receiver_sup,
-                  [Socket, SockMod, Shaper, MaxStanzaSize]),
+                  [Socket, SockMod, Shaper, ConnOpts]),
     Pid.
 
 -spec change_shaper(atom() | pid() | {atom(), _} | {'via', _, _}, _) -> 'ok'.
@@ -116,7 +111,7 @@ close(Pid) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 -spec init([any(), ...]) -> {'ok', state()}.
-init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
+init([Socket, SockMod, Shaper, ConnOpts]) ->
     ShaperState = shaper:new(Shaper),
     Timeout = case SockMod of
                   ssl ->
@@ -124,12 +119,23 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
                   _ ->
                       infinity
               end,
+    MaxStanzaSize =
+        case lists:keyfind(max_stanza_size, 1, ConnOpts) of
+            {_, Size} -> Size;
+            _ -> infinity
+        end,
+    HibernateAfter =
+        case lists:keyfind(hibernate_after, 1, ConnOpts) of
+            {_, HA} -> HA;
+            _ -> 0
+        end,
     {ok, #state{socket = Socket,
                 sock_mod = SockMod,
                 shaper_state = ShaperState,
                 max_stanza_size = MaxStanzaSize,
                 stanza_chunk_size = 0,
-                timeout = Timeout}}.
+                timeout = Timeout,
+                hibernate_after = HibernateAfter}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -141,9 +147,8 @@ init([Socket, SockMod, Shaper, MaxStanzaSize]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call(get_socket, _From, #state{socket = Socket} = State) ->
-    {reply, {ok, Socket}, State, ?HIBERNATE_TIMEOUT};
-handle_call({starttls, TLSOpts}, From, #state{parser = Parser,
-                                              socket = TCPSocket} = State) ->
+    {reply, {ok, Socket}, State, maybe_hibernate(State)};
+handle_call({starttls, TLSOpts}, From, #state{socket = TCPSocket} = State) ->
     %% the next message from client is part of TLS handshake, it must
     %% be handled by TLS library (another process in case of just_tls)
     %% so deactivating the socket.
@@ -161,7 +166,8 @@ handle_call({starttls, TLSOpts}, From, #state{parser = Parser,
             %% handshake. such call is simply ignored by just_tls backend.
             case ejabberd_tls:recv_data(TLSSocket, <<"">>) of
                 {ok, TLSData} ->
-                    {noreply, process_data(TLSData, NewState), ?HIBERNATE_TIMEOUT};
+                    NewState2 = process_data(TLSData, NewState),
+                    {noreply, NewState2, maybe_hibernate(NewState2)};
                 {error, Reason} ->
                     ?WARNING_MSG("tcp_to_tls failed with reason ~p~n", [Reason]),
                     {stop, normal, NewState}
@@ -177,11 +183,12 @@ handle_call({compress, ZlibSocket}, _From,
                                  sock_mod = ejabberd_zlib},
     case ejabberd_zlib:recv_data(ZlibSocket, "") of
         {ok, ZlibData} ->
-            {reply, ok, process_data(ZlibData, NewState), ?HIBERNATE_TIMEOUT};
+            NewState2 = process_data(ZlibData, NewState),
+            {reply, ok, NewState2, maybe_hibernate(NewState2)};
         {error, inflate_size_exceeded} ->
             apply(gen_fsm(), send_event,
                 [C2SPid, {xmlstreamerror, <<"child element too big">>}]),
-            {reply, ok, NewState, ?HIBERNATE_TIMEOUT};
+            {reply, ok, NewState, maybe_hibernate(NewState)};
         {error, inflate_error} ->
             {stop, normal, ok, NewState}
     end;
@@ -190,10 +197,10 @@ handle_call({become_controller, C2SPid}, _From, State) ->
     NewState = StateAfterReset#state{c2s_pid = C2SPid},
     activate_socket(NewState),
     Reply = ok,
-    {reply, Reply, NewState, ?HIBERNATE_TIMEOUT};
+    {reply, Reply, NewState, maybe_hibernate(NewState)};
 handle_call(_Request, _From, State) ->
     Reply = ok,
-    {reply, Reply, State, ?HIBERNATE_TIMEOUT}.
+    {reply, Reply, State, maybe_hibernate(State)}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -203,11 +210,12 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({change_shaper, Shaper}, State) ->
     NewShaperState = shaper:new(Shaper),
-    {noreply, State#state{shaper_state = NewShaperState}, ?HIBERNATE_TIMEOUT};
+    NewState = State#state{shaper_state = NewShaperState},
+    {noreply, NewState, maybe_hibernate(NewState)};
 handle_cast(close, State) ->
     {stop, normal, State};
 handle_cast(_Msg, State) ->
-    {noreply, State, ?HIBERNATE_TIMEOUT}.
+    {noreply, State, maybe_hibernate(State)}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
@@ -226,8 +234,8 @@ handle_info({Tag, _TCPSocket, Data},
                             [data, xmpp, received, encrypted_size], size(Data)),
             case ejabberd_tls:recv_data(Socket, Data) of
                 {ok, TLSData} ->
-                    {noreply, process_data(TLSData, State),
-                    ?HIBERNATE_TIMEOUT};
+                    NewState = process_data(TLSData, State),
+                    {noreply, NewState, maybe_hibernate(NewState)};
                 {error, _Reason} ->
                     {stop, normal, State}
             end;
@@ -236,17 +244,18 @@ handle_info({Tag, _TCPSocket, Data},
                            [data, xmpp, received, compressed_size], size(Data)),
             case ejabberd_zlib:recv_data(Socket, Data) of
                 {ok, ZlibData} ->
-                    {noreply, process_data(ZlibData, State),
-                    ?HIBERNATE_TIMEOUT};
+                    NewState = process_data(ZlibData, State),
+                    {noreply, NewState, maybe_hibernate(NewState)};
                 {error, inflate_size_exceeded} ->
                     apply(gen_fsm(), send_event,
                        [C2SPid, {xmlstreamerror, <<"child element too big">>}]),
-                    {noreply, State, ?HIBERNATE_TIMEOUT};
+                    {noreply, State, maybe_hibernate(State)};
                 {error, inflate_error} ->
                     {stop, normal, State}
             end;
         _ ->
-            {noreply, process_data(Data, State), ?HIBERNATE_TIMEOUT}
+            NewState = process_data(Data, State),
+            {noreply, NewState, maybe_hibernate(NewState)}
     end;
 handle_info({Tag, _TCPSocket}, State)
   when (Tag == tcp_closed) or (Tag == ssl_closed) ->
@@ -255,18 +264,17 @@ handle_info({Tag, _TCPSocket, Reason}, State)
   when (Tag == tcp_error) or (Tag == ssl_error) ->
     case Reason of
         timeout ->
-            {noreply, State, ?HIBERNATE_TIMEOUT};
+            {noreply, State, maybe_hibernate(State)};
         _ ->
             {stop, normal, State}
     end;
 handle_info({timeout, _Ref, activate}, State) ->
     activate_socket(State),
-    {noreply, State, ?HIBERNATE_TIMEOUT};
+    {noreply, State, maybe_hibernate(State)};
 handle_info(timeout, State) ->
-    proc_lib:hibernate(gen_server, enter_loop, [?MODULE, [], State]),
-    {noreply, State, ?HIBERNATE_TIMEOUT};
+    {noreply, State, hibernate()};
 handle_info(_Info, State) ->
-    {noreply, State, ?HIBERNATE_TIMEOUT}.
+    {noreply, State, maybe_hibernate(State)}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, State) -> void()
@@ -421,3 +429,14 @@ gen_server_call_or_noproc(Pid, Message) ->
     end.
 
 gen_fsm() -> p1_fsm.
+
+-spec hibernate() -> hibernate | infinity.
+hibernate() ->
+    case process_info(self(), message_queue_len) of
+        {_, 0} -> hibernate;
+        _ -> infinity
+    end.
+
+-spec maybe_hibernate(state()) -> hibernate | infinity | pos_integer().
+maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
+maybe_hibernate(#state{hibernate_after = HA}) -> HA.

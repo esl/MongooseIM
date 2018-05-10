@@ -31,6 +31,9 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
 * `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
+* `hibernate_after` (integer, default: 0) - Time in milliseconds after which a client process spawned by this listener will hibernate.
+  Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
+  The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 

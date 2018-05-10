@@ -180,6 +180,11 @@ init([{SockMod, Socket}, Opts]) ->
                  true -> verify_peer;
                  false -> verify_none
              end,
+    HibernateAfter =
+        case lists:keyfind(hibernate_after, 1, Opts) of
+            {_, HA} -> HA;
+            _ -> 0
+        end,
     StartTLS = lists:member(starttls, Opts) orelse Verify =:= verify_peer,
     StartTLSRequired = lists:member(starttls_required, Opts),
     TLSEnabled = lists:member(tls, Opts),
@@ -225,7 +230,8 @@ init([{SockMod, Socket}, Opts]) ->
                                          access         = Access,
                                          shaper         = Shaper,
                                          ip             = IP,
-                                         lang           = default_language()},
+                                         lang           = default_language(),
+                                         hibernate_after= HibernateAfter},
              ?C2S_OPEN_TIMEOUT}
     end.
 
@@ -993,11 +999,7 @@ session_established({xmlstreamelement, El}, StateData) ->
 %% We hibernate the process to reduce memory consumption after a
 %% configurable activity timeout
 session_established(timeout, StateData) ->
-    %% TODO: Options must be stored in state:
-    Options = [],
-    proc_lib:hibernate(p1_fsm_old, enter_loop,
-                       [?MODULE, Options, session_established, StateData]),
-    fsm_next_state(session_established, StateData);
+    {next_state, session_established, StateData, hibernate()};
 session_established({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
@@ -1094,18 +1096,18 @@ resume_session({xmlstreamelement, _}, StateData) ->
                                 <<"session in resume state cannot accept incoming stanzas">>),
     maybe_send_element_safe(StateData, Err),
     maybe_send_trailer_safe(StateData),
-    {next_state, resume_session, StateData, hibernate};
+    {next_state, resume_session, StateData, hibernate()};
 
 %%-------------------------------------------------------------------------
 %% ignore mod_ping closed messages because we are already in resume session
 %% state
 resume_session(closed, StateData) ->
-    {next_state, resume_session, StateData, hibernate};
+    {next_state, resume_session, StateData, hibernate()};
 resume_session(timeout, StateData) ->
-    {next_state, resume_session, StateData, hibernate};
+    {next_state, resume_session, StateData, hibernate()};
 resume_session(Msg, StateData) ->
     ?WARNING_MSG("unexpected message ~p", [Msg]),
-    {next_state, resume_session, StateData, hibernate}.
+    {next_state, resume_session, StateData, hibernate()}.
 
 
 %%----------------------------------------------------------------------
@@ -2628,7 +2630,7 @@ fsm_next_state_gc(StateName, PackedStateData) ->
 %% @doc fsm_next_state: Generate the next_state FSM tuple with different
 %% timeout, depending on the future state
 fsm_next_state(session_established, StateData) ->
-    {next_state, session_established, StateData, ?C2S_HIBERNATE_TIMEOUT};
+    {next_state, session_established, StateData, maybe_hibernate(StateData)};
 fsm_next_state(StateName, StateData) ->
     {next_state, StateName, StateData, ?C2S_OPEN_TIMEOUT}.
 
@@ -2636,7 +2638,7 @@ fsm_next_state(StateName, StateData) ->
 %% @doc fsm_reply: Generate the reply FSM tuple with different timeout,
 %% depending on the future state
 fsm_reply(Reply, session_established, StateData) ->
-    {reply, Reply, session_established, StateData, ?C2S_HIBERNATE_TIMEOUT};
+    {reply, Reply, session_established, StateData, maybe_hibernate(StateData)};
 fsm_reply(Reply, StateName, StateData) ->
     {reply, Reply, StateName, StateData, ?C2S_OPEN_TIMEOUT}.
 
@@ -3155,7 +3157,7 @@ maybe_enter_resume_session(_SMID, #state{} = SD) ->
               _TRef ->
                   SD
           end,
-    {next_state, resume_session, NSD, hibernate}.
+    {next_state, resume_session, NSD, hibernate()}.
 
 maybe_resume_session(NextState, El, StateData) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
@@ -3408,3 +3410,16 @@ element_to_origin_accum(El, #state{sid = SID, jid = JID}) ->
     Acc = mongoose_acc:from_element(El),
     Acc1 = mongoose_acc:add_prop(origin_sid, SID, Acc),
     mongoose_acc:add_prop(origin_jid, JID, Acc1).
+
+-spec hibernate() -> hibernate | infinity.
+hibernate() ->
+    {_, QueueLen} = process_info(self(), message_queue_len),
+    InternalQueueLen = get('$internal_queue_len'),
+    case QueueLen + InternalQueueLen of
+        0 -> hibernate;
+        _ -> infinity
+    end.
+
+-spec maybe_hibernate(state()) -> hibernate | infinity | pos_integer().
+maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
+maybe_hibernate(#state{hibernate_after = HA}) -> HA.

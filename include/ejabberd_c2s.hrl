@@ -73,7 +73,8 @@
                 stream_mgmt_resume_tref,
                 stream_mgmt_constraint_check_tref,
                 csi_state = active :: mod_csi:state(),
-                csi_buffer = []
+                csi_buffer = [],
+                hibernate_after = 0 :: non_neg_integer()
                 }).
 -type aux_key() :: atom().
 -type aux_value() :: any().
@@ -138,7 +139,6 @@
 %% This is the timeout to apply between event when starting a new
 %% session:
 -define(C2S_OPEN_TIMEOUT, 60000).
--define(C2S_HIBERNATE_TIMEOUT, 90000).
 
 -define(STREAM_HEADER,
         "<?xml version='1.0'?>"
