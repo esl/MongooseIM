@@ -5,14 +5,16 @@
 -export([save_modules/2, ensure_modules/2, restore_modules/2]).
 -export([stop/2, stop/3, start/3, start/4, restart/3, stop_running/2, start_running/1]).
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 save_modules(Domain, Config) ->
     [{saved_modules, get_current_modules(Domain)} | Config].
 
 ensure_modules(Domain, RequiredModules) ->
     CurrentModules = get_current_modules(Domain),
     {ToReplace, ReplaceWith} = to_replace(RequiredModules, CurrentModules, [], []),
-    ok = escalus_ejabberd:rpc(gen_mod_deps, replace_modules,
-                              [Domain, ToReplace, ReplaceWith]).
+    ok = rpc(mim(), gen_mod_deps, replace_modules, [Domain, ToReplace, ReplaceWith]).
 
 to_replace([], _CurrentModules, ReplaceAcc, ReplaceWithAcc) ->
     {lists:usort(ReplaceAcc), ReplaceWithAcc};
@@ -31,11 +33,10 @@ to_replace([RequiredModule | Rest], CurrentModules, ReplaceAcc, ReplaceWithAcc) 
 restore_modules(Domain, Config) ->
     SavedModules = ?config(saved_modules, Config),
     CurrentModules = get_current_modules(Domain),
-    escalus_ejabberd:rpc(gen_mod_deps, replace_modules,
-                         [Domain, CurrentModules, SavedModules]).
+    rpc(mim(), gen_mod_deps, replace_modules, [Domain, CurrentModules, SavedModules]).
 
 get_current_modules(Domain) ->
-    escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]).
+    rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]).
 
 stop(Domain, Mod) ->
     Node = escalus_ct:get_config(ejabberd_node),
@@ -92,9 +93,7 @@ stop_running(Mod, Config) ->
     ModL = atom_to_list(Mod),
     Domain = escalus_ejabberd:unify_str_arg(
                ct:get_config({hosts, mim, domain})),
-    Modules = escalus_ejabberd:rpc(ejabberd_config,
-                                   get_local_option,
-                                   [{modules, Domain}]),
+    Modules = rpc(mim(), ejabberd_config, get_local_option, [{modules, Domain}]),
     Filtered = lists:filter(fun({Module, _}) ->
                     ModuleL = atom_to_list(Module),
                     case lists:sublist(ModuleL, 1, length(ModL)) of
