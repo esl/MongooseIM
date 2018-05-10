@@ -23,7 +23,9 @@
 
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
 -import(mongoose_helper, [auth_modules/0]).
--import(ejabberd_node_utils, [mim/0]).
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 -define(SINGLE_QUOTE_CHAR, $\').
 -define(DOUBLE_QUOTE_CHAR, $\").
@@ -102,7 +104,7 @@ stanza() -> [send_message, send_message_wrong_jid, send_stanza, send_stanzac2s_w
 stats() -> [stats_global, stats_host].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
     Cwd0 = escalus_config:get_config(data_dir, Config),
@@ -122,9 +124,9 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config1).
 
 init_per_group(vcard, Config) ->
-    case escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                              [ct:get_config({hosts, mim, domain}),
-                               mod_vcard, backend, mnesia]) of
+    case rpc(mim(), gen_mod, get_module_opt,
+             [ct:get_config({hosts, mim, domain}), mod_vcard, backend, mnesia])
+    of
         ldap ->
             {skip, vcard_set_not_supported_with_ldap};
         _ ->
@@ -132,9 +134,9 @@ init_per_group(vcard, Config) ->
     end;
 
 init_per_group(roster_advanced, Config) ->
-    case escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                             [ct:get_config({hosts, mim, domain}),
-                             mod_roster, backend, mnesia]) of
+    case rpc(mim(), gen_mod, get_module_opt,
+             [ct:get_config({hosts, mim, domain}), mod_roster, backend, mnesia])
+    of
         mnesia ->
             Config;
         _ ->
@@ -153,7 +155,7 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
             true ->
                 SB = string_to_binary(S),
                 UB = string_to_binary(U),
-                escalus_ejabberd:rpc(ejabberd_hooks, run, [remove_user, SB, [UB, SB]]);
+                rpc(mim(), ejabberd_hooks, run, [remove_user, SB, [UB, SB]]);
             _ ->
                ok
         end
@@ -189,7 +191,7 @@ end_per_testcase(delete_old_users, Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, Pass} = get_user_data(UserSpec, Config),
-                escalus_ejabberd:rpc(ejabberd_auth, try_register, [Username, Domain, Pass])
+                rpc(mim(), ejabberd_auth, try_register, [Username, Domain, Pass])
         end, Users),
     escalus:end_per_testcase(delete_old_users, Config);
 end_per_testcase(CaseName, Config) ->
@@ -1090,14 +1092,14 @@ get_sha(AccountPass) ->
                    || X <- binary_to_list(crypto:hash(sha, AccountPass))]).
 
 set_last(User, Domain, TStamp) ->
-    escalus_ejabberd:rpc(mod_last, store_last_info,
-                         [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
+    rpc(mim(), mod_last, store_last_info,
+        [escalus_utils:jid_to_lower(User), Domain, TStamp, <<>>]).
 
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),
     lists:foreach(fun({_User, UserSpec}) ->
                 {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
-                escalus_ejabberd:rpc(ejabberd_auth, remove_user, [Username, Domain])
+                rpc(mim(), ejabberd_auth, remove_user, [Username, Domain])
         end, Users).
 
 %%-----------------------------------------------------------------
