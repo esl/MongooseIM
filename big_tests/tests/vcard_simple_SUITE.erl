@@ -31,6 +31,9 @@
 
 -import(vcard_update, [is_vcard_ldap/0]).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -58,8 +61,7 @@ all_tests() ->
      search_wildcard].
 
 suite() ->
-    escalus:suite().
-
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -449,7 +451,7 @@ get_FN(Config) ->
 
 configure_ldap_vcards(Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    CurrentConfigs = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
+    CurrentConfigs = rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
     Cfg = [{backend,ldap}, {host, "vjud.@HOST@"},
