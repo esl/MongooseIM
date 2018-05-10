@@ -29,6 +29,10 @@
 -define(RELOADED_DOMAIN_USER, astrid).
 -define(INITIAL_DOMAIN_USER, alice).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -46,6 +50,7 @@ groups() ->
        ]}].
 
 suite() ->
+    require_rpc_nodes([mim]) ++
     [{required, {hosts, mim, reloaded_domain}} | escalus:suite()].
 
 %%--------------------------------------------------------------------
@@ -141,13 +146,13 @@ user_should_be_disconnected_from_removed_domain(Config) ->
 %%--------------------------------------------------------------------
 
 get_ejabberd_hosts() ->
-    escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]).
+    rpc(mim(), ejabberd_config, get_global_option, [hosts]).
 
 register_user_by_ejabberd_admin(User, Host) ->
-    escalus_ejabberd:rpc(ejabberd_admin, register, [User, Host, <<"doctor">>]).
+    rpc(mim(), ejabberd_admin, register, [User, Host, <<"doctor">>]).
 
 unregister_user_by_ejabberd_admin(User, Host) ->
-    escalus_ejabberd:rpc(ejabberd_admin, unregister, [User, Host]).
+    rpc(mim(), ejabberd_admin, unregister, [User, Host]).
 
 change_domain_in_config_file(Config) ->
     ejabberd_node_utils:modify_config_file(
