@@ -367,13 +367,13 @@ is_query_allowed(Query) ->
 locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
     Result = case is_query_allowed(Query) of
                  true ->
-                     process_iq_owner(From, set, Lang, Query, StateData);
+                     process_iq_owner(From, set, Lang, Query, StateData, locked_state);
                  false ->
                      {error, mongoose_xmpp_errors:item_not_found(Lang, <<"Query not allowed">>)}
              end,
     {Result, normal_state};
 locked_state_process_owner_iq(From, Query, Lang, get, StateData) ->
-    {process_iq_owner(From, get, Lang, Query, StateData), locked_state};
+    {process_iq_owner(From, get, Lang, Query, StateData, locked_state), locked_state};
 locked_state_process_owner_iq(_From, _Query, Lang, _Type, _StateData) ->
     {{error, mongoose_xmpp_errors:item_not_found(Lang, <<"Wrong type">>)}, locked_state}.
 
@@ -3211,32 +3211,38 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Owner stuff
 
--spec process_iq_owner(jid:jid(), get | set, ejabberd:lang(), exml:element(), state()) ->
+-spec process_iq_owner(jid:jid(), get | set, ejabberd:lang(), exml:element(),
+                       state(), statename()) ->
     {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
-process_iq_owner(From, Type, Lang, SubEl, StateData) ->
+process_iq_owner(From, Type, Lang, SubEl, StateData, StateName) ->
     case get_affiliation(From, StateData) of
         owner ->
-            process_authorized_iq_owner(From, Type, Lang, SubEl, StateData);
+            process_authorized_iq_owner(From, Type, Lang, SubEl, StateData, StateName);
         _ ->
             ErrText = <<"Owner privileges required">>,
             {error, mongoose_xmpp_errors:forbidden(Lang, ErrText)}
     end.
 
--spec process_authorized_iq_owner(jid:jid(), get | set, ejabberd:lang(),
-                                  exml:element(), state()) ->
+-spec process_authorized_iq_owner(jid:jid(), get | set, ejabberd:lang(), exml:element(),
+                                  state(), statename()) ->
     {error, exml:element()} | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
-process_authorized_iq_owner(From, set, Lang, SubEl, StateData) ->
+process_authorized_iq_owner(From, set, Lang, SubEl, StateData, StateName) ->
     #xmlel{children = Els} = SubEl,
     case xml:remove_cdata(Els) of
         [#xmlel{name = <<"x">>} = XEl] ->
             case {xml:get_tag_attr_s(<<"xmlns">>, XEl),
-                  xml:get_tag_attr_s(<<"type">>, XEl)} of
-                {?NS_XDATA, <<"cancel">>} ->
+                  xml:get_tag_attr_s(<<"type">>, XEl),
+                  StateName} of
+                {?NS_XDATA, <<"cancel">>, locked_state} ->
+                    %% received cancel before the room was configured - destroy room
                     ?INFO_MSG("Destroyed MUC room ~s by the owner ~s : cancelled",
                               [jid:to_binary(StateData#state.jid), jid:to_binary(From)]),
                     add_to_log(room_existence, destroyed, StateData),
                     destroy_room(XEl, StateData);
-                {?NS_XDATA, <<"submit">>} ->
+                {?NS_XDATA, <<"cancel">>, normal_state} ->
+                    %% received cancel when room was configured - continue without changes
+                    {result, [], StateData};
+                {?NS_XDATA, <<"submit">>, _} ->
                     process_authorized_submit_owner(From, XEl, StateData);
                 _ ->
                     {error, mongoose_xmpp_errors:bad_request()}
@@ -3249,7 +3255,7 @@ process_authorized_iq_owner(From, set, Lang, SubEl, StateData) ->
         Items ->
             process_admin_items_set(From, Items, Lang, StateData)
     end;
-process_authorized_iq_owner(From, get, Lang, SubEl, StateData) ->
+process_authorized_iq_owner(From, get, Lang, SubEl, StateData, _StateName) ->
     case exml_query:path(SubEl, [{element, <<"item">>}, {attr, <<"affiliation">>}]) of
         undefined ->
             get_config(Lang, StateData, From);
@@ -4553,7 +4559,7 @@ route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lan
     do_route_iq(Acc, Res, Routed, StateData);
 route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_OWNER, lang = Lang,
     sub_el = SubEl}, from = From} = Routed, StateData) ->
-    Res = process_iq_owner(From, Type, Lang, SubEl, StateData),
+    Res = process_iq_owner(From, Type, Lang, SubEl, StateData, normal_state),
     do_route_iq(Acc, Res, Routed, StateData);
 route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_DISCO_INFO, lang = Lang},
     from = From} = Routed, StateData) ->
