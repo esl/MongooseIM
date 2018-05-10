@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mam_SUITE).
+
 %% CT callbacks
 -export([all/0,
          groups/0,
@@ -115,6 +116,10 @@
          archive_chat_markers/1,
          dont_archive_chat_markers/1,
          save_unicode_messages/1]).
+
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -482,7 +487,7 @@ impl_specific() ->
   [check_user_exist].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
     muc_helper:load_muc(muc_host()),
@@ -994,10 +999,8 @@ init_per_testcase(C=muc_text_search_request, Config) ->
 
     skip_if_cassandra(Config, Init);
 init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    OrigVal = escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                                   [host(), mod_mam, archive_groupchats, false]),
-    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
-                                [host(), mod_mam, archive_groupchats, true]),
+    OrigVal = rpc(mim(), gen_mod, get_module_opt, [host(), mod_mam, archive_groupchats, false]),
+    true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, true]),
     clean_archives(Config),
     escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
 init_per_testcase(C=archive_chat_markers, Config) ->
@@ -1082,8 +1085,7 @@ end_per_testcase(C=muc_only_archived, Config) ->
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
     {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
-    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
-                                [host(), mod_mam, archive_groupchats, OrigVal]),
+    true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, OrigVal]),
     escalus:end_per_testcase(C, Config1);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -2966,13 +2968,13 @@ check_user_exist(Config) ->
   %% when
   [{_, AdminSpec}] = escalus_users:get_users([admin]),
   [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  #{} = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+  #{} = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
   %% admin user already registered
-  true = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
+  true = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, AdminS]),
+  false = rpc(mim(), ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
+  false = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
   %% cleanup
-  ok = escalus_ejabberd:rpc(ejabberd_auth, remove_user, [AdminU, AdminS]).
+  ok = rpc(mim(), ejabberd_auth, remove_user, [AdminU, AdminS]).
 
 parallel_story(Config, ResourceCounts, F) ->
     Config1 = override_for_parallel(Config),
