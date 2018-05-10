@@ -4734,7 +4734,7 @@ stanza_room_subject(Room, Subject) ->
         attrs = [{<<"type">>,<<"groupchat">>}],
         children = [#xmlel{
             name = <<"subject">>,
-            children = [exml:escape_cdata(Subject)]
+            children = [#xmlcdata{content = Subject}]
         }]
     }, Room).
 
