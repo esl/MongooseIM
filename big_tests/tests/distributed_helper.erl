@@ -8,7 +8,7 @@
 -compile(export_all).
 
 is_sm_distributed() ->
-    Backend = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
+    Backend = rpc(mim(), ejabberd_sm_backend, backend, []),
     is_sm_backend_distributed(Backend).
 
 is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
