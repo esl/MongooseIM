@@ -5,7 +5,10 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberd_node_utils, [mim/0, mim2/0]).
+-import(distributed_helper, [mim/0, mim2/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -36,14 +39,14 @@ test_cases() ->
     ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case escalus_ejabberd:rpc(application, get_application, [nksip]) of
+    case rpc(mim(), application, get_application, [nksip]) of
         {ok, nksip} ->
             Port = 12345,
             Host = ct:get_config({hosts, mim, domain}),
@@ -75,7 +78,7 @@ end_per_suite(Config) ->
     distributed_helper:remove_node_from_cluster(mim2(), Config),
     escalus:end_per_suite(Config).
 
-init_per_group(GroupName, Config) ->
+init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(_GroupName, Config) ->
