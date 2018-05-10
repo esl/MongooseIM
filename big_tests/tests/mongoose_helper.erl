@@ -216,7 +216,8 @@ ensure_muc_clean() ->
 stop_online_rooms() ->
     Host = ct:get_config({hosts, mim, domain}),
     Supervisor = rpc(mim(), gen_mod, get_module_proc, [Host, ejabberd_mod_muc_sup]),
-    rpc(mim(), erlang, exit, [Supervisor, kill]),
+    SupervisorPid = rpc(mim(), erlang, whereis, [Supervisor]),
+    rpc(mim(), erlang, exit, [SupervisorPid, kill]),
     rpc(mim(), mnesia, clear_table, [muc_online_room]),
     ok.
 

@@ -303,7 +303,8 @@ init_per_suite(Config) ->
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(domain(), Config2),
     load_muc(muc_host()),
-    mongoose_helper:ensure_muc_clean(), Config3.
+    mongoose_helper:ensure_muc_clean(),
+    Config3.
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
