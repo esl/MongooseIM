@@ -23,21 +23,23 @@
 -export([logout_user/2]).
 -export([wait_until/3, wait_until/4]).
 
--import(escalus_ejabberd, [rpc/3]).
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 -spec is_odbc_enabled(Host :: binary()) -> boolean().
 is_odbc_enabled(Host) ->
-    case escalus_ejabberd:rpc(mongoose_rdbms, sql_transaction, [Host, fun erlang:yield/0]) of
+    case rpc(mim(), mongoose_rdbms, sql_transaction, [Host, fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
     end.
 
 -spec auth_modules() -> [atom()].
 auth_modules() ->
-    Hosts = escalus_ejabberd:rpc(ejabberd_config, get_global_option, [hosts]),
+    Hosts = rpc(mim(), ejabberd_config, get_global_option, [hosts]),
     lists:flatmap(
         fun(Host) ->
-            escalus_ejabberd:rpc(ejabberd_auth, auth_modules, [Host])
+            rpc(mim(), ejabberd_auth, auth_modules, [Host])
         end, Hosts).
 
 -spec total_offline_messages() -> integer() | false.
@@ -67,8 +69,8 @@ total_vcard_items() ->
 -spec total_roster_items() -> integer() | false.
 total_roster_items() ->
     Domain = ct:get_config({hosts, mim, domain}),
-    RosterMnesia = rpc(gen_mod, is_loaded, [Domain, mod_roster]),
-    RosterODBC = rpc(gen_mod, is_loaded, [Domain, mod_roster_odbc]),
+    RosterMnesia = rpc(mim(), gen_mod, is_loaded, [Domain, mod_roster]),
+    RosterODBC = rpc(mim(), gen_mod, is_loaded, [Domain, mod_roster_odbc]),
     case {RosterMnesia, RosterODBC} of
         {true, _} ->
             generic_count_backend(mod_roster_mnesia);
@@ -87,7 +89,7 @@ total_roster_items() ->
 -spec clear_last_activity(list(), atom() | binary() | [atom() | binary()]) -> no_return().
 clear_last_activity(Config, User) ->
     S = ct:get_config({hosts, mim, domain}),
-    case catch escalus_ejabberd:rpc(gen_mod, is_loaded, [S, mod_last]) of
+    case catch rpc(mim(), gen_mod, is_loaded, [S, mod_last]) of
         true ->
             do_clear_last_activity(Config, User);
         _ ->
@@ -110,16 +112,16 @@ new_mongoose_acc() ->
     successful_rpc(mongoose_acc, new, []).
 
 clear_caps_cache(CapsNode) ->
-    ok = rpc(mod_caps, delete_caps, [CapsNode]).
+    ok = rpc(mim(), mod_caps, delete_caps, [CapsNode]).
 
 get_backend(Module) ->
-  case rpc(Module, backend, []) of
+  case rpc(mim(), Module, backend, []) of
     {badrpc, _Reason} -> false;
     Backend -> Backend
   end.
 
 generic_count(mod_offline_backend, {User, Server}) ->
-    rpc(mod_offline_backend, count_offline_messages, [User, Server, 100]).
+    rpc(mim(), mod_offline_backend, count_offline_messages, [User, Server, 100]).
 
 
 generic_count(Module) ->
@@ -149,7 +151,7 @@ generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
     D = ct:get_config({hosts, mim, domain}),
     %% number of vcards in ldap is the same as number of users
-    rpc(ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
+    rpc(mim(), ejabberd_auth_ldap, get_vh_registered_users_number, [D]);
 generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
 generic_count_backend(mod_roster_riak) ->
     count_riak(<<"rosters">>),
@@ -157,13 +159,14 @@ generic_count_backend(mod_roster_riak) ->
 generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
-    Pattern = rpc(mnesia, table_info, [Table, wild_pattern]),
-    length(rpc(mnesia, dirty_match_object, [Pattern])).
+    Pattern = rpc(mim(), mnesia, table_info, [Table, wild_pattern]),
+    length(rpc(mim(), mnesia, dirty_match_object, [Pattern])).
 
 
 count_odbc(Table) ->
     {selected, [{N}]} =
-        rpc(mongoose_rdbms,sql_query, [<<"localhost">>,[<<"select count(*) from ", Table/binary, " ;">>]]),
+        rpc(mim(), mongoose_rdbms, sql_query,
+            [<<"localhost">>, [<<"select count(*) from ", Table/binary, " ;">>]]),
     count_to_integer(N).
 
 count_to_integer(N) when is_binary(N) ->
@@ -172,12 +175,12 @@ count_to_integer(N) when is_integer(N)->
     N.
 
 count_riak(BucketType) ->
-    {ok, Buckets} = rpc(mongoose_riak, list_buckets, [BucketType]),
-    BucketKeys = [rpc(mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
+    {ok, Buckets} = rpc(mim(), mongoose_riak, list_buckets, [BucketType]),
+    BucketKeys = [rpc(mim(), mongoose_riak, list_keys, [{BucketType, Bucket}]) || Bucket <- Buckets],
     length(lists:flatten(BucketKeys)).
 
 kick_everyone() ->
-    [rpc(ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
+    [rpc(mim(), ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
     asset_session_count(0, 50).
 
 asset_session_count(Expected, Retries) ->
@@ -200,7 +203,7 @@ wait_for_session_count(Expected, Retries) ->
     end.
 
 get_session_specs() ->
-    rpc(supervisor, which_children, [ejabberd_c2s_sup]).
+    rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup]).
 
 get_session_pids() ->
     [element(2, X) || X <- get_session_specs()].
@@ -212,20 +215,19 @@ ensure_muc_clean() ->
 
 stop_online_rooms() ->
     Host = ct:get_config({hosts, mim, domain}),
-    Supervisor = escalus_ejabberd:rpc(gen_mod, get_module_proc,
-                                      [Host, ejabberd_mod_muc_sup]),
-    escalus_ejabberd:rpc(erlang, exit, [Supervisor, kill]),
-    escalus_ejabberd:rpc(mnesia, clear_table, [muc_online_room]),
+    Supervisor = rpc(mim(), gen_mod, get_module_proc, [Host, ejabberd_mod_muc_sup]),
+    rpc(mim(), erlang, exit, [Supervisor, kill]),
+    rpc(mim(), mnesia, clear_table, [muc_online_room]),
     ok.
 
 forget_persistent_rooms() ->
-    escalus_ejabberd:rpc(mnesia, clear_table, [muc_room]),
-    escalus_ejabberd:rpc(mnesia, clear_table, [muc_registered]),
+    rpc(mim(), mnesia, clear_table, [muc_room]),
+    rpc(mim(), mnesia, clear_table, [muc_registered]),
     ok.
 
 -spec successful_rpc(atom(), atom(), list()) -> term().
 successful_rpc(Module, Function, Args) ->
-    case escalus_ejabberd:rpc(Module, Function, Args) of
+    case rpc(mim(), Module, Function, Args) of
         {badrpc, Reason} ->
             ct:fail({badrpc, Module, Function, Args, Reason});
         Result ->
