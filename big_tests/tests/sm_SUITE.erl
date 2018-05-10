@@ -8,9 +8,14 @@
 -define(MOD_SM, mod_stream_management).
 -define(CONSTRAINT_CHECK_TIMEOUT, 5000).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 -import(vcard_update, [discard_vcard_update/1,
                        has_mod_vcard_xupdate/0,
                        server_string/1]).
+
 -import(escalus_stanza, [setattr/3]).
 
 -define(SHORT_RESUME_TIMEOUT, 5).
@@ -68,7 +73,7 @@ parallel_manual_ack_test_cases() ->
 
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -87,33 +92,33 @@ end_per_suite(Config) ->
     escalus:end_per_suite(NewConfig1).
 
 init_per_group(manual_ack_freq_long_session_timeout, Config) ->
-    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(parallel_manual_ack_freq_1, Config) ->
-    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [1]),
-    escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
+    rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(_GroupName, Config) ->
     Config.
 
 end_per_group(manual_ack_freq_long_session_timeout, Config) ->
-    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
     Config;
 end_per_group(parallel_manual_ack, Config) ->
-    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
-    escalus_ejabberd:rpc(?MOD_SM, set_resume_timeout, [600]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
+    rpc(mim(), ?MOD_SM, set_resume_timeout, [600]),
     Config;
 end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(server_requests_ack_freq_2, Config) ->
-    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [2]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [2]),
     Config;
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(server_requests_ack_freq_2, Config) ->
-    true = escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [never]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
     Config;
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -453,11 +458,11 @@ resend_unacked_after_resume_timeout(Config) ->
 
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
-    1 = length(escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S])),
+    1 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
     %% wait 2 times longer to be sure that c2s is dead
     ct:sleep({seconds, 2 * ?SHORT_RESUME_TIMEOUT}),
     %% ensure there is no session
-    0 = length(escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S])),
+    0 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
 
     %% alice come back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
@@ -497,7 +502,7 @@ resume_session_state_send_message(Config) ->
 
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
-    1 = length(escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S])),
+    1 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
 
     %% send some messages and check if c2s can handle it
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-2">>)),
@@ -542,10 +547,10 @@ resume_session_state_stop_c2s(Config) ->
     % session should be  alive
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
-    [Res] = escalus_ejabberd:rpc(ejabberd_sm, get_user_resources, [U, S]),
+    [Res] = rpc(mim(), ejabberd_sm, get_user_resources, [U, S]),
     %% get pid of c2s and stop him !
-    C2SRef = escalus_ejabberd:rpc(ejabberd_sm, get_session_pid, [U, S, Res]),
-    escalus_ejabberd:rpc(ejabberd_c2s, stop, [C2SRef] ),
+    C2SRef = rpc(mim(), ejabberd_sm, get_session_pid, [U, S, Res]),
+    rpc(mim(), ejabberd_c2s, stop, [C2SRef] ),
     ct:sleep(1000), %% c2s should be in resume_session_state
 
     %% alice comes back and receives unacked message
@@ -644,7 +649,7 @@ resume_session_with_wrong_namespace_is_a_noop(Config) ->
 resume_dead_session_results_in_item_not_found(Config) ->
     SMID = base64:encode(crypto:strong_rand_bytes(21)),
     SID = {os:timestamp(), undefined},
-    escalus_ejabberd:rpc(mod_stream_management, register_smid, [SMID, SID]),
+    rpc(mim(), mod_stream_management, register_smid, [SMID, SID]),
     session_resumption_expects_item_not_found(Config, SMID).
 
 session_resumption_expects_item_not_found(Config, SMID) ->
@@ -769,26 +774,26 @@ discard_offline_messages(Config, User, H) ->
 buffer_max(BufferMax) ->
     {buffer_max,
      fun () ->
-             escalus_ejabberd:rpc(?MOD_SM, get_buffer_max, [unset])
+             rpc(mim(), ?MOD_SM, get_buffer_max, [unset])
      end,
      fun (unset) ->
              ct:pal("buffer_max was not set - setting to 'undefined'"),
-             escalus_ejabberd:rpc(?MOD_SM, set_buffer_max, [undefined]);
+             rpc(mim(), ?MOD_SM, set_buffer_max, [undefined]);
          (V) ->
-             escalus_ejabberd:rpc(?MOD_SM, set_buffer_max, [V])
+             rpc(mim(), ?MOD_SM, set_buffer_max, [V])
      end,
      BufferMax}.
 
 ack_freq(AckFreq) ->
     {ack_freq,
      fun () ->
-             escalus_ejabberd:rpc(?MOD_SM, get_ack_freq, [unset])
+             rpc(mim(), ?MOD_SM, get_ack_freq, [unset])
      end,
      fun (unset) ->
              ct:pal("ack_freq was not set - setting to 'undefined'"),
-             escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [undefined]);
+             rpc(mim(), ?MOD_SM, set_ack_freq, [undefined]);
          (V) ->
-             escalus_ejabberd:rpc(?MOD_SM, set_ack_freq, [V])
+             rpc(mim(), ?MOD_SM, set_ack_freq, [V])
      end,
      AckFreq}.
 
@@ -818,7 +823,7 @@ assert_c2s_state(C2SPid, StateName) ->
     StateName = get_c2s_state(C2SPid).
 
 get_c2s_state(C2SPid) when is_pid(C2SPid) ->
-    SysStatus = escalus_ejabberd:rpc(sys, get_status, [C2SPid]),
+    SysStatus = rpc(mim(), sys, get_status, [C2SPid]),
     extract_state_name(SysStatus).
 
 extract_state_name(SysStatus) ->
@@ -833,7 +838,7 @@ wait_until_disconnected(UserSpec) ->
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),
-    case escalus_ejabberd:rpc(ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]) of
+    case rpc(mim(), ejabberd_sm, get_session_pid, [U, S, server_string(Resource)]) of
         none ->
             {error, no_found};
         C2SPid ->
@@ -842,10 +847,10 @@ get_session_pid(UserSpec, Resource) ->
 
 get_user_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
-    escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [U, S]).
+    rpc(mim(), ejabberd_sm, get_user_present_resources, [U, S]).
 
 get_sid_by_stream_id(SMID) ->
-    escalus_ejabberd:rpc(mod_stream_management, get_sid, [SMID]).
+    rpc(mim(), mod_stream_management, get_sid, [SMID]).
 
 get_us_from_spec(UserSpec) ->
     ConfigUS = [proplists:get_value(username, UserSpec),
@@ -855,11 +860,11 @@ get_us_from_spec(UserSpec) ->
 
 clear_session_table() ->
     Node = ct:get_config({hosts, mim, node}),
-    SessionBackend  = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
-    escalus_ejabberd:rpc(SessionBackend, cleanup, [Node]).
+    SessionBackend  = rpc(mim(), ejabberd_sm_backend, backend, []),
+    rpc(mim(), SessionBackend, cleanup, [Node]).
 
 clear_sm_session_table() ->
-    escalus_ejabberd:rpc(mnesia, clear_table, [sm_session]).
+    rpc(mim(), mnesia, clear_table, [sm_session]).
 
 is_chat(Content) ->
     fun(Stanza) -> escalus_pred:is_chat_message(Content, Stanza) end.
