@@ -13,6 +13,9 @@
 
 -export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 ns_push() -> <<"urn:xmpp:push:0">>.
 ns_pubsub_pub_options() -> <<"http://jabber.org/protocol/pubsub#publish-options">>.
 push_form_type()-> <<"urn:xmpp:push:summary">>.
@@ -68,7 +71,7 @@ become_unavailable(Client) ->
     end). %% There is no ACK for unavailable status
 
 is_offline(LUser, LServer, LRes) ->
-    PResources =  escalus_ejabberd:rpc(ejabberd_sm, get_user_present_resources, [LUser, LServer]),
+    PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),
     case lists:keyfind(LRes, 2, PResources) of
         false ->
             true;
