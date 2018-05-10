@@ -26,6 +26,10 @@
 
 -behaviour(cyrsasl).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -40,7 +44,7 @@ all_tests() ->
     [text_response].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -69,17 +73,12 @@ end_per_testcase(CaseName, Config) ->
 
 text_response(Config) ->
     {Mod, Bin, File} = code:get_object_code(?MODULE),
-    escalus_ejabberd:rpc(code, load_binary, [Mod, File, Bin]),
-    escalus_ejabberd:rpc(
-      cyrsasl, register_mechanism, [?TEST_MECHANISM, ?MODULE, plain]),
-
+    rpc(mim(), code, load_binary, [Mod, File, Bin]),
+    rpc(mim(), cyrsasl, register_mechanism, [?TEST_MECHANISM, ?MODULE, plain]),
     AliceSpec = escalus_users:get_options(Config, alice),
-    {ok, Client, _} = escalus_connection:start(AliceSpec,
-                                                  [start_stream,
-                                                   stream_features]),
+    {ok, Client, _} = escalus_connection:start(AliceSpec, [start_stream, stream_features]),
     Stanza = escalus_stanza:auth(?TEST_MECHANISM,
-                                 [#xmlcdata{content =
-                                            base64:encode(<<"alice">>)}]),
+                                 [#xmlcdata{content = base64:encode(<<"alice">>)}]),
     Result = escalus:send_and_wait(Client, Stanza),
     assert_is_failure_with_text(Result).
 
