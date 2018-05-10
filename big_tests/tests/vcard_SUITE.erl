@@ -1058,20 +1058,18 @@ get_ldap_pid_and_base(Server) ->
     {Pid, Base}.
 
 delete_vcards(Config) ->
-     AllVCards
-        = escalus_config:get_ct({vcard, data, all_search, expected_vcards}),
-
+    AllVCards = escalus_config:get_ct({vcard, data, all_search, expected_vcards}),
     lists:foreach(
-        fun({JID, _}) ->
-                case binary:match(JID, <<"@">>) of
-                    nomatch ->
-                        ok;
-                    _ ->
-                        RJID = get_jid_record(JID),
-                        ok = vcard_rpc(RJID,
-                                       escalus_stanza:vcard_update(JID, []))
-                end
-        end, AllVCards),
+      fun({JID, _}) ->
+              case binary:match(JID, <<"@">>) of
+                  nomatch ->
+                      ok;
+                  _ ->
+                      RJID = get_jid_record(JID),
+                      ok = vcard_rpc(RJID,
+                                     escalus_stanza:vcard_update(JID, []))
+              end
+      end, AllVCards),
     Config.
 
 get_jid_record(JID) ->
@@ -1101,7 +1099,7 @@ stop_running_vcard_mod(Config) ->
     dynamic_modules:stop(Domain, mod_vcard),
     [{mod_vcard, CurrentVcardConfig} | Config].
 
-stop_vcard_mod(Config) ->
+stop_vcard_mod(_Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Domain, mod_vcard).
 
