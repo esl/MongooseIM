@@ -40,7 +40,7 @@ unescape_binary(_Pool, Bin) when is_binary(Bin) ->
 connect(Settings, QueryTimeout) ->
     case mysql:start_link([{query_timeout, QueryTimeout} | db_opts(Settings)]) of
         {ok, Ref} ->
-            mysql:query(Ref, <<"set names 'utf8';">>),
+            mysql:query(Ref, <<"set names 'utf8mb4';">>),
             mysql:query(Ref, <<"SET SESSION query_cache_type=1;">>),
             {ok, Ref};
         Error ->

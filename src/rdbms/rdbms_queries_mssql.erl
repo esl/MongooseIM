@@ -55,12 +55,13 @@ query_archive_id(Host, SServer, SUserName) ->
         Host,
         ["SELECT TOP 1 id "
         "FROM mam_server_user "
-        "WHERE server='", SServer, "' AND user_name='", SUserName, "'"]).
+        "WHERE server=", mongoose_rdbms:use_escaped_string(SServer),
+        " AND user_name=", mongoose_rdbms:use_escaped_string(SUserName)]).
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
     mongoose_rdbms:sql_query(
         LServer,
-        [<<"select top ">>, integer_to_list(Limit),
-         <<"count(*) from offline_message "
-         "where server = '">>, SServer, <<"' and "
-         "username = '">>, SUser, <<"'">>]).
+        [<<"SELECT TOP ">>, integer_to_list(Limit),
+         <<"count(*) FROM offline_message "
+         "WHERE server=">>, mongoose_rdbms:use_escaped_string(SServer),
+         <<" AND username=">>, mongoose_rdbms:use_escaped_string(SUser)]).

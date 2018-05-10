@@ -42,9 +42,16 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config0) ->
-    Config1 = escalus:create_users(Config0, escalus:get_users([alice, bob])),
+    Config1 = escalus_fresh:create_users(Config0, [{alice, 1}, {bob, 1}]),
     Config2 = escalus:make_everyone_friends(Config1),
+    %% This check ensures that there are no registered sessions.
+    %% But in ejabberd_c2s we first unset session,
+    %% then broadcast presence unavailable.
+    %% This check uses ejabberd_sm to get information about sessions.
     escalus_ejabberd:wait_for_session_count(Config2, 0),
+    %% Kick "friendly" users
+    %% kick_everyone uses ejabberd_c2s_sup to information about client processes.
+    mongoose_helper:kick_everyone(),
     Config2.
 
 end_per_group(_GroupName, Config) ->
@@ -54,12 +61,14 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
+    mongoose_helper:kick_everyone(),
     escalus:end_per_testcase(CaseName, Config).
 
 %%--------------------------------------------------------------------
 %% Last tests
 %%--------------------------------------------------------------------
 last_online_user(Config) ->
+    %% Alice and Bob are friends
     escalus:story(Config, [{alice, 1}, {bob, 1}],
                   fun(Alice, Bob) ->
                           %% Alice asks about Bob's last activity
@@ -73,6 +82,7 @@ last_online_user(Config) ->
                   end).
 
 last_offline_user(Config) ->
+    %% Alice and Bob are friends
     escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Bob logs in
@@ -95,7 +105,9 @@ last_offline_user(Config) ->
                           true = (1 =< get_last_activity(Stanza)),
                           <<"I am a banana!">> = get_last_status(Stanza)
                   end).
+
 last_server(Config) ->
+    %% This story can be fresh_story
     escalus:story(Config, [{alice, 1}],
                   fun(Alice) ->
                           %% Alice asks for server's uptime

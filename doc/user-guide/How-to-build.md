@@ -34,6 +34,13 @@ $ xcode-select --install # install compilation tools
 $ brew install git erlang openssl
 ```
 
+If you are planning to use ODBC to connect to MSSQL:
+
+```bash
+$ brew install unixodbc
+$ brew install freetds --with-unixodbc
+```
+
 Additionally you'll need to export some environment variables to point the compiler to OpenSSL
 installed with Homebrew:
 

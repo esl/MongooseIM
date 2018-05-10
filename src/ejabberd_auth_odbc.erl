@@ -59,6 +59,21 @@
 -define(DEFAULT_SCRAMMIFY_COUNT, 10000).
 -define(DEFAULT_SCRAMMIFY_INTERVAL, 1000).
 
+
+%%%----------------------------------------------------------------------
+%%% Types
+%%%----------------------------------------------------------------------
+
+%% Used to construct queries
+-type escaped_password() :: mongoose_rdbms:escaped_string().
+-type escaped_password_details() :: mongoose_rdbms:escaped_string().
+
+-type prepared_scrammed_password() ::
+        #{password => escaped_password(),
+          details => escaped_password_details()}.
+%% Both non-scram and scram versions
+-type prepared_password() :: escaped_password() | prepared_scrammed_password().
+
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -84,8 +99,8 @@ authorize(Creds) ->
                      LServer :: jid:lserver(),
                      Password :: binary()) -> boolean().
 check_password(LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape(LUser),
-    true == check_password_wo_escape(Username, LServer, Password).
+    Username = mongoose_rdbms:escape_string(LUser),
+    true == check_password_wo_escape(LUser, Username, LServer, Password).
 
 
 -spec check_password(LUser :: jid:luser(),
@@ -94,7 +109,7 @@ check_password(LUser, LServer, Password) ->
                      Digest :: binary(),
                      DigestGen :: fun()) -> boolean().
 check_password(LUser, LServer, Password, Digest, DigestGen) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     try rdbms_queries:get_password(LServer, Username) of
         %% Account exists, check if password is valid
         {selected, [{Passwd, null}]} ->
@@ -108,18 +123,25 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
             end;
         {selected, []} ->
             false; %% Account does not exist
-        {error, _Error} ->
+        {error, Error} ->
+            ?ERROR_MSG("event=check_password_failed "
+                       "reason=~p user=~ts", [Error, LUser]),
             false %% Typical error is that table doesn't exist
     catch
-        _:_ ->
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=check_password_failed "
+                       "reason=~p:~p user=~ts stacktrace=~1000p",
+                       [Class, Reason, LUser, Stacktrace]),
             false %% Typical error is database not accessible
     end.
 
--spec check_password_wo_escape(LUser::jid:luser(),
+-spec check_password_wo_escape(LUser :: jid:luser(),
+                               Username::mongoose_rdbms:escaped_string(),
                                LServer::jid:lserver(),
                                Password::binary()) -> boolean() | not_exists.
-check_password_wo_escape(LUser, LServer, Password) ->
-    try rdbms_queries:get_password(LServer, LUser) of
+check_password_wo_escape(LUser, Username, LServer, Password) ->
+    try rdbms_queries:get_password(LServer, Username) of
         {selected, [{Password, null}]} ->
             Password /= <<"">>; %% Password is correct, and not empty
         {selected, [{_Password2, null}]} ->
@@ -133,10 +155,17 @@ check_password_wo_escape(LUser, LServer, Password) ->
             end;
         {selected, []} ->
             not_exists; %% Account does not exist
-        {error, _Error} ->
+        {error, Error} ->
+            ?ERROR_MSG("event=check_password_failed "
+                       "reason=~p user=~ts ",
+                       [Error, LUser]),
             false %% Typical error is that table doesn't exist
     catch
-        _:_ ->
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=check_password_failed "
+                       "reason=~p:~p user=~ts stacktrace=~1000p",
+                       [Class, Reason, LUser, Stacktrace]),
             false %% Typical error is database not accessible
     end.
 
@@ -146,7 +175,7 @@ check_password_wo_escape(LUser, LServer, Password) ->
                    Password :: binary()
                    ) -> ok | {error, not_allowed}.
 set_password(LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     PreparedPass = prepare_password(LServer, Password),
     case catch rdbms_queries:set_password_t(LServer, Username, PreparedPass) of
         {atomic, ok} ->
@@ -161,13 +190,17 @@ set_password(LUser, LServer, Password) ->
                    Password :: binary()
                    ) -> ok | {error, exists}.
 try_register(LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     PreparedPass = prepare_password(LServer, Password),
     case catch rdbms_queries:add_user(LServer, Username, PreparedPass) of
         {updated, 1} ->
             ok;
-        _ ->
-            {error, exists}
+        {updated, 0} ->
+            {error, exists};
+        Other ->
+            ?ERROR_MSG("event=try_register_failed "
+                       "user=~ts reason=~p ", [LUser, Other]),
+            {error, exists} %% XXX wrong error type - fix type in a separate PR
     end.
 
 -spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
@@ -181,35 +214,60 @@ dirty_get_registered_users() ->
 
 -spec get_vh_registered_users(LServer :: jid:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer) ->
-    case catch rdbms_queries:list_users(LServer) of
+    try rdbms_queries:list_users(LServer) of
         {selected, Res} ->
             [{U, LServer} || {U} <- Res];
-        _ ->
+        Other ->
+            ?ERROR_MSG("event=get_vh_registered_users_failed "
+                       "reason=~1000p", [Other]),
             []
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ?ERROR_MSG("event=get_vh_registered_users_failed "
+                   "reason=~p:~p "
+                   "stacktrace=~1000p",
+                   [Class, Reason, Stacktrace]),
+        []
     end.
 
 
 -spec get_vh_registered_users(LServer :: jid:lserver(), Opts :: list()
                              ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(LServer, Opts) ->
-    case catch rdbms_queries:list_users(LServer, Opts) of
+    try rdbms_queries:list_users(LServer, Opts) of
         {selected, Res} ->
             [{U, LServer} || {U} <- Res];
-        _ ->
+        Other ->
+            ?ERROR_MSG("event=get_vh_registered_users_failed "
+                       "reason=~1000p opts=~1000p ", [Other, Opts]),
             []
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ?ERROR_MSG("event=get_vh_registered_users_failed "
+                   "reason=~p:~p opts=~1000p stacktrace=~1000p",
+                   [Class, Reason, Opts, Stacktrace]),
+        []
     end.
 
 
 -spec get_vh_registered_users_number(LServer :: jid:lserver()
                                     ) -> integer().
 get_vh_registered_users_number(LServer) ->
-    case catch rdbms_queries:users_number(LServer) of
+    try rdbms_queries:users_number(LServer) of
         {selected, [{Res}]} when is_integer(Res) ->
             Res;
         {selected, [{Res}]} ->
             mongoose_rdbms:result_to_integer(Res);
-        _ ->
+        Other ->
+            ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
+                       "reason=~1000p", [Other]),
             0
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
+                   "reason=~p:~p stacktrace=~1000p",
+                   [Class, Reason, Stacktrace]),
+        0
     end.
 
 
@@ -219,14 +277,16 @@ get_vh_registered_users_number(LServer, Opts) ->
     case catch rdbms_queries:users_number(LServer, Opts) of
         {selected, [{Res}]} ->
             list_to_integer(Res);
-        _Other ->
+        Other ->
+            ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
+                       "reason=~1000p opts=~1000p ", [Other, Opts]),
             0
     end.
 
 
 -spec get_password(jid:luser(), jid:lserver()) -> ejabberd_auth:passterm() | false.
 get_password(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     case catch rdbms_queries:get_password(LServer, Username) of
         {selected, [{Password, null}]} ->
             Password; %%Plain password
@@ -237,7 +297,11 @@ get_password(LUser, LServer) ->
                 _ ->
                     false
             end;
-        _ ->
+        {selected, []} ->
+            false;
+        Other ->
+            ?ERROR_MSG("event=get_password_failed "
+                       "reason=~1000p user=~ts", [Other, LUser]),
             false
     end.
 
@@ -245,12 +309,16 @@ get_password(LUser, LServer) ->
 -spec get_password_s(LUser :: jid:user(),
                      LServer :: jid:server()) -> binary().
 get_password_s(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     case catch rdbms_queries:get_password(LServer, Username) of
         {selected, [{Password, _}]} ->
             Password;
-        _ ->
-            <<"">>
+        {selected, []} ->
+            <<>>;
+        Other ->
+            ?ERROR_MSG("event=get_password_s_failed "
+                       "reason=~1000p user=~ts", [Other, LUser]),
+            <<>>
     end.
 
 
@@ -258,17 +326,23 @@ get_password_s(LUser, LServer) ->
                      LServer :: jid:lserver()
                     ) -> boolean() | {error, atom()}.
 does_user_exist(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     try rdbms_queries:get_password(LServer, Username) of
         {selected, [{_Password, _}]} ->
             true; %% Account exists
         {selected, []} ->
             false; %% Account does not exist
         {error, Error} ->
+            ?ERROR_MSG("event=does_user_exist_failed "
+                       "reason=~1000p user=~ts", [Error, LUser]),
             {error, Error} %% Typical error is that table doesn't exist
     catch
-        _:B ->
-            {error, B} %% Typical error is database not accessible
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=does_user_exist_failed "
+                       "reason=~p:~p user=~ts stacktrace=~1000p",
+                       [Class, Reason, LUser, Stacktrace]),
+            {error, Reason} %% Typical error is database not accessible
     end.
 
 
@@ -278,8 +352,15 @@ does_user_exist(LUser, LServer) ->
                   LServer :: jid:lserver()
                   ) -> ok.
 remove_user(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
-    catch rdbms_queries:del_user(LServer, Username),
+    Username = mongoose_rdbms:escape_string(LUser),
+    try rdbms_queries:del_user(LServer, Username)
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ?ERROR_MSG("event=remove_user_failed "
+                   "reason=~p:~p user=~ts stacktrace=~1000p",
+                   [Class, Reason, LUser, Stacktrace]),
+        ok
+    end,
     ok.
 
 
@@ -289,9 +370,8 @@ remove_user(LUser, LServer) ->
                   Password :: binary()
                  ) -> ok | {error, not_exists | not_allowed}.
 remove_user(LUser, LServer, Password) ->
-    Username = mongoose_rdbms:escape(LUser),
-    Pass = mongoose_rdbms:escape(Password),
-    case check_password_wo_escape(Username, LServer, Pass) of
+    Username = mongoose_rdbms:escape_string(LUser),
+    case check_password_wo_escape(LUser, Username, LServer, Password) of
         true ->
             case catch rdbms_queries:del_user(LServer, Username) of
                 {'EXIT', Error} ->
@@ -311,21 +391,23 @@ remove_user(LUser, LServer, Password) ->
 %%%------------------------------------------------------------------
 
 -spec prepare_scrammed_password(Iterations :: pos_integer(), Password :: binary()) ->
-    {PreparedPassword :: binary(), ExtendedPassword :: binary()}.
+    prepared_scrammed_password().
 prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
     Scram = scram:password_to_scram(Password, Iterations),
     PassDetails = scram:serialize(Scram),
-    PassDetailsEscaped = mongoose_rdbms:escape(PassDetails),
-    {<<>>, PassDetailsEscaped}.
+    PassDetailsEscaped = mongoose_rdbms:escape_string(PassDetails),
+    EmptyPassword = mongoose_rdbms:escape_string(<<>>),
+    #{password => EmptyPassword,
+      details => PassDetailsEscaped}.
 
 -spec prepare_password(Server :: jid:server(), Password :: binary()) ->
-    PreparedPassword :: {binary(), binary()} | binary().
+    PreparedPassword :: prepared_password().
 prepare_password(Server, Password) ->
     case scram:enabled(Server) of
         true ->
             prepare_scrammed_password(scram:iterations(Server), Password);
         _ ->
-            mongoose_rdbms:escape(Password)
+            mongoose_rdbms:escape_string(Password)
     end.
 
 scram_passwords(Server, ScramIterationCount) ->

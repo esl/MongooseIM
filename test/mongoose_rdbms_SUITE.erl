@@ -37,8 +37,8 @@ tests() ->
      keepalive_exit].
 
 init_per_group(odbc, Config) ->
-    case code:ensure_loaded(odbc) of
-        {module, odbc} ->
+    case code:ensure_loaded(eodbc) of
+        {module, eodbc} ->
             [{db_type, odbc} | Config];
         _ ->
             {skip, no_odbc_application}
@@ -141,10 +141,10 @@ meck_config(Server, KeepaliveInterval, MaxInterval) ->
                 end).
 
 meck_db(odbc) ->
-    meck:new(odbc, [no_link]),
+    meck:new(eodbc, [no_link]),
     meck:expect(mongoose_rdbms_odbc, disconnect, fun(_) -> ok end),
-    meck:expect(odbc, connect, fun(_, _) -> {ok, self()} end),
-    meck:expect(odbc, sql_query, fun(_Ref, _Query, _Timeout) -> {selected, ["row"]} end);
+    meck:expect(eodbc, connect, fun(_, _) -> {ok, self()} end),
+    meck:expect(eodbc, sql_query, fun(_Ref, _Query, _Timeout) -> {selected, ["row"]} end);
 meck_db(mysql) ->
     meck:new(mysql, [no_link]),
     meck:expect(mongoose_rdbms_mysql, disconnect, fun(_) -> ok end),
@@ -162,13 +162,13 @@ meck_db(pgsql) ->
 meck_connection_error(pgsql) ->
     meck:expect(epgsql, connect, fun(_) -> connection_error end);
 meck_connection_error(odbc) ->
-    meck:expect(odbc, connect, fun(_, _) -> connection_error end);
+    meck:expect(eodbc, connect, fun(_, _) -> connection_error end);
 meck_connection_error(mysql) ->
     meck:expect(mongoose_rdbms_mysql, connect, fun(_, _) -> {error, connection_error} end).
 
 
 meck_error(odbc) ->
-    meck:expect(odbc, sql_query,
+    meck:expect(eodbc, sql_query,
                 fun(_Ref, _Query, _Timeout) ->
                         {error, "connection broken"}
                 end);
@@ -185,7 +185,7 @@ meck_config_and_db_unload(DbType) ->
     do_meck_unload(DbType).
 
 do_meck_unload(odbc) ->
-    meck:unload(odbc);
+    meck:unload(eodbc);
 do_meck_unload(mysql) ->
     meck:unload(mongoose_rdbms_mysql),
     meck:unload(mysql);
@@ -198,7 +198,7 @@ query_calls(Config) ->
     meck:num_calls(M, F, a(DbType)).
 
 mf(odbc) ->
-    {odbc, sql_query};
+    {eodbc, sql_query};
 mf(mysql) ->
     {mysql, query};
 mf(pgsql) ->

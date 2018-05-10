@@ -67,38 +67,90 @@ get_list_names(LUser, LServer) ->
     {ok, {Default, Names}}.
 
 get_default_list_name(LUser, LServer) ->
-    case catch sql_get_default_privacy_list(LUser, LServer) of
+    try sql_get_default_privacy_list(LUser, LServer) of
         {selected, []} ->
             none;
         {selected, [{DefName}]} ->
             DefName;
-        _ ->
+        Other ->
+            ?ERROR_MSG("event=get_default_list_name_failed "
+                       "user=~ts server=~ts result=~1000p",
+                       [LUser, LServer, Other]),
+            none
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=get_default_list_name_failed "
+                       "user=~ts server=~ts"
+                       "reason=~p:~p stacktrace=~1000p",
+                       [LUser, LServer,
+                        Class, Reason, Stacktrace]),
             none
     end.
 
 get_list_names_only(LUser, LServer) ->
-    case catch sql_get_privacy_list_names(LUser, LServer) of
-    {selected, Names} ->
-        [Name || {Name} <- Names];
-    _ ->
-        []
+    try sql_get_privacy_list_names(LUser, LServer) of
+        {selected, Names} ->
+            [Name || {Name} <- Names];
+        Other ->
+            ?ERROR_MSG("event=get_list_names_only_failed "
+                       "user=~ts server=~ts result=~1000p",
+                       [LUser, LServer, Other]),
+            []
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=get_list_names_only_failed "
+                       "user=~ts server=~ts"
+                       "reason=~p:~p stacktrace=~1000p",
+                       [LUser, LServer,
+                        Class, Reason, Stacktrace]),
+            []
     end.
 
 
 get_privacy_list(LUser, LServer, Name) ->
-    case catch sql_get_privacy_list_id(LUser, LServer, Name) of
+    try sql_get_privacy_list_id(LUser, LServer, Name) of
         {selected, []} ->
             {error, not_found};
         {selected, [{ID}]} ->
-            case catch sql_get_privacy_list_data_by_id(ID, LServer) of
-                {selected, RItems} ->
-                    Items = raw_to_items(RItems),
-                    {ok, Items};
-                Other ->
-                    {error, Other}
-            end;
-        Other2 ->
-            {error, Other2}
+            IntID = mongoose_rdbms:result_to_integer(ID),
+            get_privacy_list_by_id(LUser, LServer, Name, IntID, LServer);
+        Other ->
+            ?ERROR_MSG("event=get_privacy_list_failed "
+                       "user=~ts server=~ts listname=~ts result=~1000p",
+                       [LUser, LServer, Name, Other]),
+            {error, Other}
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=get_privacy_list_failed "
+                       "user=~ts server=~ts listname=~ts"
+                       "reason=~p:~p stacktrace=~1000p",
+                       [LUser, LServer, Name,
+                        Class, Reason, Stacktrace]),
+            {error, Reason}
+    end.
+
+get_privacy_list_by_id(LUser, LServer, Name, ID, LServer) when is_integer(ID) ->
+    try sql_get_privacy_list_data_by_id(ID, LServer) of
+        {selected, RItems} ->
+            Items = raw_to_items(RItems),
+            {ok, Items};
+        Other ->
+            ?ERROR_MSG("event=get_privacy_list_by_id_failed "
+                       "user=~ts server=~ts listname=~ts id=~p result=~1000p",
+                       [LUser, LServer, Name, ID, Other]),
+            {error, Other}
+    catch
+        Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=get_privacy_list_by_id_failed "
+                       "user=~ts server=~ts listname=~ts id=~p"
+                       "reason=~p:~p stacktrace=~1000p",
+                       [LUser, LServer, Name, ID,
+                        Class, Reason, Stacktrace]),
+            {error, Reason}
     end.
 
 raw_to_items(RItems) ->
@@ -106,13 +158,23 @@ raw_to_items(RItems) ->
 
 %% @doc Set no default list for user.
 forget_default_list(LUser, LServer) ->
-    case catch sql_unset_default_privacy_list(LUser, LServer) of
-    {'EXIT', Reason} ->
-        {error, Reason};
-    {error, Reason} ->
-        {error, Reason};
-    _ ->
-        ok
+    try sql_unset_default_privacy_list(LUser, LServer) of
+        {updated, _} ->
+            ok;
+        Other ->
+            ?ERROR_MSG("event=forget_default_list_failed "
+                       "user=~ts server=~ts result=~1000p",
+                       [LUser, LServer, Other]),
+            {error, Other}
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("event=forget_default_list_failed "
+                       "user=~ts server=~ts"
+                       "reason=~p:~p stacktrace=~1000p",
+                       [LUser, LServer,
+                        Class, Reason, Stacktrace]),
+            {error, Reason}
     end.
 
 set_default_list(LUser, LServer, Name) ->
@@ -178,7 +240,7 @@ replace_privacy_list(LUser, LServer, Name, List) ->
             {selected, [{I}]} ->
                 I
             end,
-        sql_set_privacy_list(ID, RItems),
+        sql_set_privacy_list(mongoose_rdbms:result_to_integer(ID), RItems),
         ok
     end,
     case rdbms_queries:sql_transaction(LServer, F) of
@@ -242,6 +304,7 @@ raw_to_item({BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
           match_presence_out = MatchPresenceOut
          }.
 
+-spec item_to_raw(mod_privacy:list_item()) -> list(mongoose_rdbms:escaped_value()).
 item_to_raw(#listitem{type = Type,
               value = Value,
               action = Action,
@@ -255,11 +318,11 @@ item_to_raw(#listitem{type = Type,
     {BType, BValue} =
     case Type of
         none ->
-        {<<"n">>, <<"">>};
+        {<<"n">>, <<>>};
         jid ->
-        {<<"j">>, mongoose_rdbms:escape(jid:to_binary(Value))};
+        {<<"j">>, jid:to_binary(Value)};
         group ->
-        {<<"g">>, mongoose_rdbms:escape(Value)};
+        {<<"g">>, Value};
         subscription ->
         case Value of
             none ->
@@ -272,80 +335,76 @@ item_to_raw(#listitem{type = Type,
             {<<"s">>, <<"to">>}
         end
     end,
+    SType = mongoose_rdbms:escape_string(BType),
+    SValue = mongoose_rdbms:escape_string(BValue),
     BAction =
     case Action of
         allow -> <<"a">>;
         deny -> <<"d">>;
         block -> <<"b">>
     end,
-    BOrder = integer_to_binary(Order),
-    BMatchAll = boolean_to_binary_number(MatchAll),
-    BMatchIQ = boolean_to_binary_number(MatchIQ),
-    BMatchMessage = boolean_to_binary_number(MatchMessage),
-    BMatchPresenceIn = boolean_to_binary_number(MatchPresenceIn),
-    BMatchPresenceOut = boolean_to_binary_number(MatchPresenceOut),
-    [BType, BValue, BAction, BOrder, BMatchAll, BMatchIQ,
-     BMatchMessage, BMatchPresenceIn, BMatchPresenceOut].
-
-boolean_to_binary_number(true) -> <<"1">>;
-boolean_to_binary_number(_)   -> <<"0">>.
+    SAction = mongoose_rdbms:escape_string(BAction),
+    SOrder = mongoose_rdbms:escape_integer(Order),
+    SMatchAll = mongoose_rdbms:escape_boolean(MatchAll),
+    SMatchIQ = mongoose_rdbms:escape_boolean(MatchIQ),
+    SMatchMessage = mongoose_rdbms:escape_boolean(MatchMessage),
+    SMatchPresenceIn = mongoose_rdbms:escape_boolean(MatchPresenceIn),
+    SMatchPresenceOut = mongoose_rdbms:escape_boolean(MatchPresenceOut),
+    [SType, SValue, SAction, SOrder, SMatchAll, SMatchIQ,
+     SMatchMessage, SMatchPresenceIn, SMatchPresenceOut].
 
 sql_get_default_privacy_list(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:get_default_privacy_list(LServer, Username).
 
 sql_get_default_privacy_list_t(LUser) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:get_default_privacy_list_t(Username).
 
 sql_get_privacy_list_names(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:get_privacy_list_names(LServer, Username).
 
 sql_get_privacy_list_names_t(LUser) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:get_privacy_list_names_t(Username).
 
 sql_get_privacy_list_id(LUser, LServer, Name) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SName = mongoose_rdbms:escape(Name),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SName = mongoose_rdbms:escape_string(Name),
     rdbms_queries:get_privacy_list_id(LServer, Username, SName).
 
 sql_get_privacy_list_id_t(LUser, Name) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SName = mongoose_rdbms:escape(Name),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SName = mongoose_rdbms:escape_string(Name),
     rdbms_queries:get_privacy_list_id_t(Username, SName).
 
 sql_get_privacy_list_data_by_id(ID, LServer) when is_integer(ID) ->
-    rdbms_queries:get_privacy_list_data_by_id(LServer, integer_to_binary(ID));
-sql_get_privacy_list_data_by_id(ID, LServer) ->
-    rdbms_queries:get_privacy_list_data_by_id(LServer, ID).
+    rdbms_queries:get_privacy_list_data_by_id(LServer, mongoose_rdbms:escape_integer(ID)).
 
 sql_set_default_privacy_list(LUser, Name) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SName = mongoose_rdbms:escape(Name),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SName = mongoose_rdbms:escape_string(Name),
     rdbms_queries:set_default_privacy_list(Username, SName).
 
 sql_unset_default_privacy_list(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
+    Username = mongoose_rdbms:escape_string(LUser),
     rdbms_queries:unset_default_privacy_list(LServer, Username).
 
 sql_remove_privacy_list(LUser, Name) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SName = mongoose_rdbms:escape(Name),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SName = mongoose_rdbms:escape_string(Name),
     rdbms_queries:remove_privacy_list(Username, SName).
 
 sql_add_privacy_list(LUser, Name) ->
-    Username = mongoose_rdbms:escape(LUser),
-    SName = mongoose_rdbms:escape(Name),
+    Username = mongoose_rdbms:escape_string(LUser),
+    SName = mongoose_rdbms:escape_string(Name),
     rdbms_queries:add_privacy_list(Username, SName).
 
 sql_set_privacy_list(ID, RItems) when is_integer(ID)->
-    rdbms_queries:set_privacy_list(integer_to_binary(ID), RItems);
-sql_set_privacy_list(ID, RItems) ->
-    rdbms_queries:set_privacy_list(ID, RItems).
+    rdbms_queries:set_privacy_list(mongoose_rdbms:escape_integer(ID), RItems).
 
 sql_del_privacy_lists(LUser, LServer) ->
-    Username = mongoose_rdbms:escape(LUser),
-    Server = mongoose_rdbms:escape(LServer),
+    Username = mongoose_rdbms:escape_string(LUser),
+    Server = mongoose_rdbms:escape_string(LServer),
     rdbms_queries:del_privacy_lists(LServer, Server, Username).
