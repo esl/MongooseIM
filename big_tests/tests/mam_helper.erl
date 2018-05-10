@@ -25,6 +25,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -import(muc_helper,
         [muc_host/0,
          room_address/1, room_address/2,
@@ -1141,7 +1144,7 @@ is_mam_possible(Host) ->
     is_cassandra_enabled(Host).
 
 is_riak_enabled(_Host) ->
-    case escalus_ejabberd:rpc(mongoose_riak, get_worker, []) of
+    case rpc(mim(), mongoose_riak, get_worker, []) of
         Pid when is_pid(Pid) ->
             true;
         _ ->
@@ -1149,7 +1152,7 @@ is_riak_enabled(_Host) ->
     end.
 
 is_cassandra_enabled(_) ->
-    case escalus_ejabberd:rpc(mongoose_cassandra_sup, get_all_workers, []) of
+    case rpc(mim(), mongoose_cassandra_sup, get_all_workers, []) of
         [_|_]=_Pools ->
             true;
         _ ->
@@ -1157,7 +1160,7 @@ is_cassandra_enabled(_) ->
     end.
 
 sql_transaction(Host, F) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, sql_transaction, [Host, F]).
+    rpc(mim(), mongoose_rdbms, sql_transaction, [Host, F]).
 
 login_send_presence(Config, User) ->
     Spec = escalus_users:get_userspec(Config, User),
