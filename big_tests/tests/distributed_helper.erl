@@ -3,7 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberd_node_utils, [get_cwd/2, mim/0, mim2/0, fed/0]).
+-import(ejabberd_node_utils, [get_cwd/2]).
 
 -compile(export_all).
 
@@ -65,6 +65,24 @@ rpc(Node, M, F, A, TimeOut) ->
     escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
 
 %% @doc Require nodes defined in `test.config' for later convenient RPCing into.
+%%
+%% The use case would be to require and import the same names in your suite like:
+%%
+%%  -import(distributed_helper, [mim/0, fed/0,
+%%                               require_rpc_nodes/1,
+%%                               rpc/4]).
+%%
+%%  ...
+%%
+%%  suite() ->
+%%      require_rpc_nodes([mim, fed]) ++ escalus:suite().
+%%
+%%  ...
+%%
+%%  example_test(_Config) ->
+%%      RPCResult = rpc(mim(), remote_mod, remote_fun, [arg1, arg2]),
+%%      ...
+%%
 require_rpc_nodes(Nodes) ->
     [ {require, {hosts, Node, node}} || Node <- Nodes ].
 
@@ -72,9 +90,15 @@ require_rpc_nodes(Nodes) ->
 mim() ->
     get_or_fail({hosts, mim, node}).
 
+mim2() ->
+    get_or_fail({hosts, mim2, node}).
+
+mim3() ->
+    get_or_fail({hosts, mim3, node}).
+
 %% @doc Shorthand for hosts->fed->node from `test.config'.
 fed() ->
-    get_or_fail(fed_node).
+    get_or_fail({hosts, fed, node}).
 
 get_or_fail(Key) ->
     Val = ct:get_config(Key),
