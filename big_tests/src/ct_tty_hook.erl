@@ -28,6 +28,9 @@
 -export([terminate/1]).
 -record(state, { total, suite_total, ts, tcs, data, print_group, print_case }).
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
     "ct_tty_hook_001".
@@ -42,7 +45,7 @@ init(_Id, Opts) ->
                  print_group = PrintGroup, print_case = PrintCase }}.
 
 %% @doc Called before init_per_suite is called.
-pre_init_per_suite(Suite,Config,State) ->
+pre_init_per_suite(_Suite, Config, State) ->
     {Config, State#state{ suite_total = 0, tcs = [] }}.
 
 %% @doc Called after init_per_suite.
@@ -140,13 +143,11 @@ maybe_print_test_case({testcase, Name,{error, Content},_}) ->
     io:format("~n====== Reason:    ~p~n", [Content]).
 
 print_group_enter(Group, #state{print_group = true}, Msg) ->
-    escalus_ejabberd:rpc(error_logger, warning_msg, ["====== ~s GROUP ~p",
-                         [Msg, Group]]);
+    rpc(mim(), error_logger, warning_msg, ["====== ~s GROUP ~p", [Msg, Group]]);
 print_group_enter(_Group, _State, _Msg) ->
     ok.
 
 print_case_enter(Group, #state{print_case = true}, Msg) ->
-    escalus_ejabberd:rpc(error_logger, warning_msg, ["====== ~s CASE ~p",
-        [Msg, Group]]);
+    rpc(mim(), error_logger, warning_msg, ["====== ~s CASE ~p", [Msg, Group]]);
 print_case_enter(_Group, _State, _Msg) ->
     ok.
