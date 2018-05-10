@@ -44,7 +44,7 @@ rpc_apply(M, F, Args) ->
 rpc_call(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
+    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
 mam03_props() ->
     [{data_form, true},                 %% send data forms

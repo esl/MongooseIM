@@ -273,7 +273,7 @@ start_publish_listener(Config) ->
 rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
+    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
 make_topic_arn(Config, TopicVar) ->
     SNSConfig = proplists:get_value(sns_config, Config),
