@@ -43,14 +43,14 @@ stop(Domain, Mod) ->
 
 stop(Node, Domain, Mod) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    IsLoaded = escalus_ct:rpc_call(Node, gen_mod, is_loaded, [Domain, Mod], 5000, Cookie),
+    IsLoaded = escalus_rpc:call(Node, gen_mod, is_loaded, [Domain, Mod], 5000, Cookie),
     case IsLoaded of
         true -> unsafe_stop(Node, Cookie, Domain, Mod);
         false -> {error, stopped}
     end.
 
 unsafe_stop(Node, Cookie, Domain, Mod) ->
-    case escalus_ct:rpc_call(Node, gen_mod, stop_module, [Domain, Mod], 5000, Cookie) of
+    case escalus_rpc:call(Node, gen_mod, stop_module, [Domain, Mod], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [Mod, Reason]);
         R -> R
@@ -62,7 +62,7 @@ start(Domain, Mod, Args) ->
 
 start(Node, Domain, Mod, Args) ->
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    case escalus_ct:rpc_call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of
+    case escalus_rpc:call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
         R -> R

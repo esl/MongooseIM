@@ -882,7 +882,7 @@ listen_endpoint(Port) ->
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, timer:seconds(30), Cookie).
+    escalus_rpc:call(Node, M, F, A, timer:seconds(30), Cookie).
 
 hide_node(NodeName, Config) ->
     NodesKey = ?config(nodes_key, Config),

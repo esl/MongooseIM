@@ -62,7 +62,7 @@ rpc(Node, M, F, A) ->
 
 rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
+    escalus_rpc:call(Node, M, F, A, TimeOut, Cookie).
 
 %% @doc Require nodes defined in `test.config' for later convenient RPCing into.
 %%
