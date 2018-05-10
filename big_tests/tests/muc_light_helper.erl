@@ -66,7 +66,7 @@ then_muc_light_affiliations_are_received_by(Users, {_Room, Affiliations}) ->
     [ F(escalus:wait_for_stanza(User)) || User <- Users ].
 
 when_archive_query_is_sent(Sender, RecipientJid, Config) ->
-	P = ?config(props, Config),
+    P = ?config(props, Config),
     Request = case RecipientJid of
                   undefined -> mam_helper:stanza_archive_request(P, <<"q">>);
                   _ -> escalus_stanza:to(mam_helper:stanza_archive_request(P, <<"q">>), RecipientJid)
@@ -74,7 +74,7 @@ when_archive_query_is_sent(Sender, RecipientJid, Config) ->
     escalus:send(Sender, Request).
 
 then_archive_response_is(Receiver, Expected, Config) ->
-	P = ?config(props, Config),
+    P = ?config(props, Config),
     Response = mam_helper:wait_archive_respond(P, Receiver),
     Stanzas = mam_helper:respond_messages(mam_helper:assert_respond_size(length(Expected), Response)),
     ParsedStanzas = [ mam_helper:parse_forwarded_message(Stanza) || Stanza <- Stanzas ],
