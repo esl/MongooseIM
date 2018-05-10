@@ -1704,13 +1704,13 @@ message_with_stanzaid_and_archived(Config) ->
         IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
 
         %% The attributes of <stanza-id/> and <archived/> are the same
-	?assert_equal(ByArchived, ByStanzaid),
-	?assert_equal(IdArchived, IdStanzaid),
+        ?assert_equal(ByArchived, ByStanzaid),
+        ?assert_equal(IdArchived, IdStanzaid),
 
-	%% stanza-id has a namespace 'urn:xmpp:sid:0'
-	<<"urn:xmpp:sid:0">> = exml_query:attr(ArcStanzaid, <<"xmlns">>),
-	ok
-	end,
+        %% stanza-id has a namespace 'urn:xmpp:sid:0'
+        <<"urn:xmpp:sid:0">> = exml_query:attr(ArcStanzaid, <<"xmlns">>),
+        ok
+    end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 
@@ -1951,9 +1951,9 @@ muc_message_with_archived_and_stanzaid(Config) ->
         ?assert_equal(ByArchived, ByStanzaid),
         ?assert_equal(IdArchived, IdStanzaid),
 
-	%% stanza-id has a namespace 'urn:xmpp:sid:0'
-	Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
-	?assert_equal(Xmlns, <<"urn:xmpp:sid:0">>),
+        %% stanza-id has a namespace 'urn:xmpp:sid:0'
+        Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
+        ?assert_equal(Xmlns, <<"urn:xmpp:sid:0">>),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
