@@ -1,3 +1,18 @@
+%% During dev you would use something similar to:
+%% TEST_HOSTS="mim1" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%%
+%% If you also want to start just mim1 node use:
+%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%%
+%% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
+%% DEV_NAMES variable contains release names from profiles in rebar.config.
+%% Release names are also used to name directories in the _build directory.
+%%
+%% Valid TEST_HOSTS are mim, mim2, mim3, fed, reg.
+%% Valid DEV_NAMES are mim1, mim2, mim3, fed1, reg1.
+%%
+%% Example with two nodes:
+%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
 -module(run_common_test).
 
 -export([main/1, analyze/2]).
@@ -182,7 +197,8 @@ run_config_test({Name, Variables}, Test, N, Tests) ->
 enable_preset(Name, PresetVars, Test, N, Tests) ->
     %% TODO: Do this with a multicall, otherwise it's not as fast as possible (not parallelized).
     %%       A multicall requires the function to be defined on the other side, though.
-    Rs = [ enable_preset_on_node(host_node(H), PresetVars, host_vars(H))
+    Rs = [ maybe_enable_preset_on_node(host_node(H), PresetVars,
+                                       host_vars(H), host_name(H))
            || H <- get_hosts(Test) ],
     [ok] = lists:usort(Rs),
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
@@ -190,6 +206,28 @@ enable_preset(Name, PresetVars, Test, N, Tests) ->
 
 backend(Node) ->
     rpc:call(Node, ejabberd_config, get_global_option, [sm_backend]).
+
+%% Specify just some nodes to run the tests on:
+%% TEST_HOSTS="mim1" ./tools/travis-test.sh -p odbc_mssql_mnesia
+maybe_enable_preset_on_node(Node, PresetVars, HostVars, HostName) ->
+    case is_test_host_enabled(HostName) of
+        true ->
+            enable_preset_on_node(Node, PresetVars, HostVars);
+        false ->
+            error_logger:info_msg("Skip enable_preset_on_node for node=~p host=~p",
+                                  [Node, HostName]),
+            ok
+    end.
+
+%% Check, that node is listed in TEST_HOSTS list (if TEST_HOSTS envvar is set).
+is_test_host_enabled(HostName) ->
+    case os:getenv("TEST_HOSTS") of
+        false ->
+            true; %% By default all hosts are enabled
+        EnvValue -> %% EnvValue examples are "mim" or "mim mim2"
+            BinHosts = binary:split(iolist_to_binary(EnvValue), <<" ">>, [global]),
+            lists:member(atom_to_binary(HostName, utf8), BinHosts)
+    end.
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
@@ -420,6 +458,7 @@ group_by(F, L) ->
 host_cluster(Host) -> host_param(cluster, Host).
 host_node(Host)    -> host_param(node, Host).
 host_vars(Host)    -> host_param(vars, Host).
+host_name({HostName,_}) -> HostName.
 
 host_param(Name, {_, Params}) ->
     {Name, Param} = lists:keyfind(Name, 1, Params),
