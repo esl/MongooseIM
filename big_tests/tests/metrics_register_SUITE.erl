@@ -23,8 +23,12 @@
 -define(WAIT_TIME, 500).
 -define(RT_WAIT_TIME, 60000).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 -import(metrics_helper, [assert_counter/2,
-                      get_counter_value/1]).
+                         get_counter_value/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -38,7 +42,7 @@ groups() ->
                                  unregister]}].
 
 suite() ->
-    [{require, ejabberd_node} | escalus:suite()].
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -62,8 +66,7 @@ init_per_testcase(unregister, Config) ->
     Config;
 init_per_testcase(registered_users, Config) ->
     XMPPDomain = ct:get_config({hosts, mim, domain}),
-    case escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                              [{auth_method, XMPPDomain}]) of
+    case rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]) of
         external ->
             {skip, "counter not supported with ejabberd_auth_external"};
         anonymous ->
