@@ -423,14 +423,14 @@ preserve_order(Config) ->
 receive_all_ordered(Conn, N) ->
     case catch escalus_connection:get_stanza(Conn, msg) of
         #xmlel{} = Stanza ->
-	    NN = case Stanza#xmlel.name of
-        <<"message">> ->
-%% 		    ct:pal("~p~n", [Stanza]),
-            escalus:assert(is_chat_message, [list_to_binary(integer_to_list(N))], Stanza),
-            N+1;
-		_ ->
-		    N
-	    end,
+            NN = case Stanza#xmlel.name of
+                     <<"message">> ->
+                         %ct:pal("~p~n", [Stanza]),
+                         escalus:assert(is_chat_message, [list_to_binary(integer_to_list(N))], Stanza),
+                         N + 1;
+                     _ ->
+                         N
+                 end,
             receive_all_ordered(Conn, NN);
         _Error ->
             ok
