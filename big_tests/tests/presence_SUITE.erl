@@ -20,6 +20,10 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -51,7 +55,7 @@ groups() ->
                                     remove_unsubscribe]}].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -644,14 +648,14 @@ check_subscription_stanzas(Stanzas, Type) ->
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = [escalus_ejabberd:unify_str_arg(Item) ||
                                  Item <- escalus_users:get_usp(Config, UserSpec)],
-    Mods = escalus_ejabberd:rpc(gen_mod, loaded_modules, [Server]),
+    Mods = rpc(mim(), gen_mod, loaded_modules, [Server]),
     case lists:member(mod_roster, Mods) of
         true ->
-            escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]);
+            rpc(mim(), mod_roster, remove_user, [Username, Server]);
         false ->
             case lists:member(mod_roster_odbc, Mods) of
                 true ->
-                    escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]);
+                    rpc(mim(), mod_roster_odbc, remove_user, [Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end
@@ -659,14 +663,12 @@ remove_roster(Config, UserSpec) ->
 
 set_versioning(Versioning, VersionStore, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    RosterVersioning = escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                        [Host, mod_roster, versioning, false]),
-    RosterVersionOnDb = escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                          [Host, mod_roster, store_current_id, false]),
-    escalus_ejabberd:rpc(gen_mod, set_module_opt,
-                        [Host, mod_roster, versioning, Versioning]),
-    escalus_ejabberd:rpc(gen_mod, set_module_opt,
-                        [Host, mod_roster, store_current_id, VersionStore]),
+    RosterVersioning = rpc(mim(), gen_mod, get_module_opt,
+                           [Host, mod_roster, versioning, false]),
+    RosterVersionOnDb = rpc(mim(), gen_mod, get_module_opt,
+                            [Host, mod_roster, store_current_id, false]),
+    rpc(mim(), gen_mod, set_module_opt, [Host, mod_roster, versioning, Versioning]),
+    rpc(mim(), gen_mod, set_module_opt, [Host, mod_roster, store_current_id, VersionStore]),
     [{versioning, RosterVersioning},
      {store_current_id, RosterVersionOnDb} | Config].
 
@@ -674,8 +676,8 @@ restore_versioning(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     RosterVersioning = proplists:get_value(versioning, Config),
     RosterVersionOnDb = proplists:get_value(store_current_id, Config),
-    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
-    escalus_ejabberd:rpc(gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]).
+    rpc(mim(), gen_mod, get_module_opt, [Host, mod_roster, versioning, RosterVersioning]),
+    rpc(mim(), gen_mod, get_module_opt, [Host, mod_roster, store_current_id, RosterVersionOnDb]).
 
 
 check_roster_count(User, ExpectedCount) ->
