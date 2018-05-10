@@ -27,6 +27,9 @@
          create_users/2,
          delete_users/2]).
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -type user_spec() :: escalus_users:user_spec().
 
 -spec start(any()) -> ok.
@@ -49,7 +52,7 @@ delete_users(Config, Users) ->
 
 create_user({_User, Spec}) ->
     {User, Server, Password} = get_usp(Spec),
-    {ok, State} = escalus_ejabberd:rpc(eldap_utils, get_state, [Server, ejabberd_auth_ldap]),
+    {ok, State} = rpc(mim(), eldap_utils, get_state, [Server, ejabberd_auth_ldap]),
     UserStr=binary_to_list(User),
     DN = "cn=" ++ UserStr ++ "," ++ binary_to_list(State#state.base),
     Attrs = [{"objectclass", ["inetOrgPerson"]},
@@ -58,11 +61,11 @@ create_user({_User, Spec}) ->
              {"userPassword", [binary_to_list(Password)]},
              {"ou", ["shared_group"]},
              {"uid", [UserStr]}],
-    escalus_ejabberd:rpc(eldap_pool, add, [State#state.eldap_id, DN, Attrs]).
+    rpc(mim(), eldap_pool, add, [State#state.eldap_id, DN, Attrs]).
 
 delete_user({_Name, Spec}) ->
     {User, Server, _Password} = get_usp(Spec),
-    escalus_ejabberd:rpc(ejabberd_auth_ldap, remove_user, [User, Server]).
+    rpc(mim(), ejabberd_auth_ldap, remove_user, [User, Server]).
 
 get_usp(Spec) ->
     Username = proplists:get_value(username, Spec),
