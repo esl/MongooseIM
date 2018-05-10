@@ -25,6 +25,10 @@
 
 -define(SLEEP_TIME, 50).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -46,16 +50,15 @@ message_test_cases() ->
     ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    {Mod, Code} = escalus_ejabberd:rpc(dynamic_compile, from_string,
-                                       [acc_test_helper_code(Config)]),
-    escalus_ejabberd:rpc(code, load_binary, [Mod, "acc_test_helper.erl", Code]),
+    {Mod, Code} = rpc(mim(), dynamic_compile, from_string, [acc_test_helper_code(Config)]),
+    rpc(mim(), code, load_binary, [Mod, "acc_test_helper.erl", Code]),
     recreate_table(),
     escalus:init_per_suite(Config).
 
@@ -130,13 +133,13 @@ acc_test_helper_code(Config) ->
     binary_to_list(Code).
 
 add_handler(Hook, F, Seq) ->
-    escalus_ejabberd:rpc(ejabberd_hooks, add, [Hook, host(), acc_test_helper, F, Seq]).
+    rpc(mim(), ejabberd_hooks, add, [Hook, host(), acc_test_helper, F, Seq]).
 
 remove_handler(Hook, F, Seq) ->
-    escalus_ejabberd:rpc(ejabberd_hooks, delete, [Hook, host(), acc_test_helper, F, Seq]).
+    rpc(mim(), ejabberd_hooks, delete, [Hook, host(), acc_test_helper, F, Seq]).
 
 host() -> <<"localhost">>.
 
 %% creates a temporary ets table keeping refs and some attrs of accumulators created in c2s
 recreate_table() ->
-    escalus_ejabberd:rpc(acc_test_helper, recreate_table, []).
+    rpc(mim(), acc_test_helper, recreate_table, []).
