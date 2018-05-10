@@ -4,6 +4,9 @@
 
 -compile(export_all).
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 %% We introduce a convention, where metrics-related suites use only 2 accounts
 %% but it depends on `all_metrics_are_global` flag, which duet it will be.
 -define(METRICS_GROUP_USERS, [alice, bob]).
@@ -13,7 +16,7 @@ get_counter_value(CounterName) ->
     get_counter_value(ct:get_config({hosts, mim, domain}), CounterName).
 
 get_counter_value(Host, Metric) ->
-    case escalus_ejabberd:rpc(mongoose_metrics, get_metric_value, [Host, Metric]) of
+    case rpc(mim(), mongoose_metrics, get_metric_value, [Host, Metric]) of
         {ok, [{count, Total}, {one, _}]} ->
             {value, Total};
         {ok, [{value, Value} | _]} when is_integer(Value) ->
