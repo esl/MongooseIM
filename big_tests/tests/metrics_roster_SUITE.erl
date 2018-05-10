@@ -20,9 +20,12 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 -import(metrics_helper, [assert_counter/2,
-                      get_counter_value/1]).
+                         get_counter_value/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -39,7 +42,7 @@ groups() ->
     ].
 
 suite() ->
-    [{required, ejabberd_node} | escalus:suite()].
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 roster_tests() -> [get_roster,
                    add_contact,
@@ -293,8 +296,8 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    escalus_ejabberd:rpc(mod_roster_odbc, remove_user, [Username, Server]),
-    escalus_ejabberd:rpc(mod_roster, remove_user, [Username, Server]).
+    rpc(mim(), mod_roster_odbc, remove_user, [Username, Server]),
+    rpc(mim(), mod_roster, remove_user, [Username, Server]).
 
 mongoose_metrics(ConfigIn, Metrics) ->
     Predefined = proplists:get_value(mongoose_metrics, ConfigIn, []),
@@ -302,4 +305,4 @@ mongoose_metrics(ConfigIn, Metrics) ->
     [{mongoose_metrics, MongooseMetrics} | ConfigIn].
 
 roster_odbc_precondition() ->
-    mod_roster_odbc == escalus_ejabberd:rpc(mod_roster_backend, backend, []).
+    mod_roster_odbc == rpc(mim(), mod_roster_backend, backend, []).
