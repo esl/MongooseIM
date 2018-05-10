@@ -27,7 +27,9 @@
 
 -export([terminate/1]).
 
--define(RPC(M,F,A), escalus_ejabberd:rpc(M, F, A)).
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -record(state, {print_group, print_case}).
 
 %% @doc Return a unique id for this CTH.
@@ -53,7 +55,7 @@ pre_init_per_suite(Suite,Config,State) ->
     {NewConfig, State}.
 
 %% @doc Called after init_per_suite.
-post_init_per_suite(Suite,_Config,Return,State) ->
+post_init_per_suite(_Suite, _Config, Return, State) ->
     {Return, State}.
 
 %% @doc Called before end_per_suite.
@@ -111,8 +113,7 @@ terminate(_State) ->
 maybe_print_on_server(false, _, _, _) ->
     ok;
 maybe_print_on_server(true, Event, EventName, EvenType) ->
-    escalus_ejabberd:rpc(error_logger, warning_msg,
-                         ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
+    rpc(mim(), error_logger, warning_msg, ["====== ~s ~p ~s", [Event, EventName, EvenType]]).
 
 check_server_purity(Suite, Config) ->
     case escalus_server:name(Config) of
@@ -142,20 +143,20 @@ do_check_server_purity(_Suite) ->
     lists:flatmap(fun(F) -> F() end, Funs).
 
 check_sessions() ->
-    case ?RPC(ejabberd_sm, get_full_session_list, []) of
+    case rpc(mim(), ejabberd_sm, get_full_session_list, []) of
         [] -> [];
         Sessions -> [{opened_sessions, Sessions}]
     end.
 
 check_registered_users() ->
-    case ?RPC(ejabberd_auth, dirty_get_registered_users, []) of
+    case rpc(mim(), ejabberd_auth, dirty_get_registered_users, []) of
         [] -> [];
         Users -> [{registered_users, Users}]
     end.
 
 check_registered_users_count() ->
     D = ct:get_config({hosts, mim, domain}),
-    case ?RPC(ejabberd_auth, get_vh_registered_users_number, [D]) of
+    case rpc(mim(), ejabberd_auth, get_vh_registered_users_number, [D]) of
         0 -> [];
         N -> [{registered_users_count, N}]
     end.
@@ -180,7 +181,7 @@ check_roster() ->
 
 check_carboncopy() ->
     D = ct:get_config({hosts, mim, domain}),
-    case ?RPC(gen_mod, is_loaded, [D, mod_carboncopy]) of
+    case rpc(mim(), gen_mod, is_loaded, [D, mod_carboncopy]) of
         true ->
             do_check_carboncopy();
         _ ->
@@ -195,7 +196,7 @@ generic_via_mongoose_helper(Function) ->
     end.
 
 do_check_carboncopy() ->
-    case ?RPC(ets, tab2list, [carboncopy]) of
+    case rpc(mim(), ets, tab2list, [carboncopy]) of
         [] -> [];
         L -> [{remaining_carbon_copy_settings, L}]
     end.
