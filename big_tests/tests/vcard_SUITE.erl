@@ -40,6 +40,10 @@
 -define(PHOTO_BIN, <<130, 192, 33, 159, 204, 86, 12, 63, 132, 164>>).
 -define(PHOTO_BASE_64, <<"gsAhn8xWDD+EpA==">>). %% jlib:encode_base64(?PHOTO_BIN)
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -102,7 +106,7 @@ ldap_only_tests() ->
      return_photo_inserted_as_binary_by_3rd_party_service].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -1000,12 +1004,12 @@ prepare_vcard(ldap, JID, Fields) ->
             undefined ->
                 undefined;
             LdapField ->
-                escalus_ejabberd:rpc(eldap, mod_replace, [LdapField, [Val]])
+                rpc(mim(), eldap, mod_replace, [LdapField, [Val]])
         end
     end,
     Modificators = convert_vcard_fields(Fields, [], Fun),
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = escalus_ejabberd:rpc(eldap, modify, [EPid, Dn, Modificators]);
+    ok = rpc(mim(), eldap, modify, [EPid, Dn, Modificators]);
 prepare_vcard(_, JID, Fields) ->
     RJID = get_jid_record(JID),
     VCard = escalus_stanza:vcard_update(JID, Fields),
@@ -1016,9 +1020,9 @@ insert_alice_photo(Config) ->
     Server = domain(),
     {EPid, Base} = get_ldap_pid_and_base(Server),
     Photo = ?PHOTO_BIN,
-    Modificators = [escalus_ejabberd:rpc(eldap, mod_replace, [<<"jpegPhoto">>, [Photo]])],
+    Modificators = [rpc(mim(), eldap, mod_replace, [<<"jpegPhoto">>, [Photo]])],
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = escalus_ejabberd:rpc(eldap, modify, [EPid, Dn, Modificators]),
+    ok = rpc(mim(), eldap, modify, [EPid, Dn, Modificators]),
     Config.
 
 
@@ -1029,7 +1033,7 @@ fields_to_ldap_modificators(VcardMap, [{Field, Val} | Rest], Acc) when is_binary
         undefined ->
             NewAcc = Acc;
         LdapField ->
-            LdapModify = escalus_ejabberd:rpc(eldap, mod_replace, [LdapField, [Val]]),
+            LdapModify = rpc(mim(), eldap, mod_replace, [LdapField, [Val]]),
             NewAcc = [LdapModify | Acc]
     end,
     fields_to_ldap_modificators(VcardMap, Rest, NewAcc);
@@ -1046,11 +1050,10 @@ vcard_field_to_ldap(Map, Field) ->
     end.
 
 get_ldap_pid_and_base(Server) ->
-    {ok, State} = escalus_ejabberd:rpc(eldap_utils, get_state,
-        [Server, ejabberd_mod_vcard_ldap]),
+    {ok, State} = rpc(mim(), eldap_utils, get_state, [Server, ejabberd_mod_vcard_ldap]),
     EldapId = element(4, State),
     PoolId = binary_to_atom(<<"eldap_pool_", EldapId/binary>>, utf8),
-    Pid = escalus_ejabberd:rpc(pg2, get_closest_pid, [PoolId]),
+    Pid = rpc(mim(), pg2, get_closest_pid, [PoolId]),
     Base = element(10, State),
     {Pid, Base}.
 
@@ -1076,7 +1079,7 @@ get_jid_record(JID) ->
     {jid, User, Server, <<"">>, User, Server, <<"">>}.
 
 vcard_rpc(JID, Stanza) ->
-    escalus_ejabberd:rpc(ejabberd_sm, route, [JID, JID, Stanza]).
+    rpc(mim(), ejabberd_sm, route, [JID, JID, Stanza]).
 
 restart_vcard_mod(Config, ro_limited) ->
     restart_mod(params_limited(Config));
@@ -1093,7 +1096,7 @@ start_running_vcard_mod(Config) ->
     dynamic_modules:start(Domain, mod_vcard, OriginalVcardConfig).
 stop_running_vcard_mod(Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    CurrentConfigs = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
+    CurrentConfigs = rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_vcard, CurrentVcardConfig} = lists:keyfind(mod_vcard, 1, CurrentConfigs),
     dynamic_modules:stop(Domain, mod_vcard),
     [{mod_vcard, CurrentVcardConfig} | Config].
