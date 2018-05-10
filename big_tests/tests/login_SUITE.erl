@@ -25,6 +25,9 @@
 
 -include_lib("exml/include/exml.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -79,7 +82,7 @@ all_tests() ->
     ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -217,7 +220,7 @@ register(Config) ->
     [Username2, _Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
 
-    escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    distributed_helper:rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
 
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
             escalus:create_users(Config, escalus:get_users([Name1, Name2])),

@@ -64,6 +64,23 @@ rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
     escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
 
+%% @doc Require nodes defined in `test.config' for later convenient RPCing into.
+require_rpc_nodes(Nodes) ->
+    [ {require, {hosts, Node, node}} || Node <- Nodes ].
+
+%% @doc Shorthand for hosts->mim->node from `test.config'.
+mim() ->
+    get_or_fail({hosts, mim, node}).
+
+%% @doc Shorthand for hosts->fed->node from `test.config'.
+fed() ->
+    get_or_fail(fed_node).
+
+get_or_fail(Key) ->
+    Val = ct:get_config(Key),
+    Val == undefined andalso error({undefined, Key}),
+    Val.
+
 start_node(Node, Config) ->
     {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),
     {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "started", [], Config),
