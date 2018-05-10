@@ -1827,7 +1827,7 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-    ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
+    ArcMsgs = respond_messages(wait_archive_respond(P, Bob)),
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
     escalus_client:stop(Config, Bob).
@@ -1844,7 +1844,7 @@ nostore_hint(Config) ->
 
         %% Bob checks his archive.
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
+        ArcMsgs = respond_messages(wait_archive_respond(P, Bob)),
         assert_not_stored(ArcMsgs, Msg),
         ok
         end,
@@ -2019,7 +2019,7 @@ muc_archive_request(Config) ->
 %% Copied from 'muc_archive_reuest' test in case to show some bug in mod_mam_muc related to
 %% issue #512
 muc_archive_purge(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
@@ -2184,9 +2184,9 @@ muc_deny_protected_room_access(Config) ->
 %% @doc Allow access to non-in-room users who able to connect
 muc_allow_access_to_owner(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
+    F = fun(Alice, _Bob) ->
         Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
+        _RoomAddr = room_address(Room),
 
         %% Alice (not in room) requests the room's archive.
         escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -2829,7 +2829,7 @@ after_complete_true_after11(Config) ->
 %% ------------------------------------------------------------------
 
 prefs_set_request(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2879,7 +2879,7 @@ query_get_request(Config) ->
 %% without whitespaces. In the real world it is not true.
 %% Put "\n" between two jid elements.
 prefs_set_cdata_request(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2909,7 +2909,7 @@ prefs_set_cdata_request(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
@@ -2928,7 +2928,7 @@ mam_service_discovery(Config) ->
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         Domain = ct:get_config({hosts, mim, domain}),
         Server = escalus_client:server(Alice),
@@ -3001,7 +3001,7 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(ConfigIn) ->
-    P = ?config(props, ConfigIn),
+    _P = ?config(props, ConfigIn),
     F = fun(Config, Alice, _Bob, _Kate) ->
         Namespace = mam_ns_binary_v04(),
         [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
