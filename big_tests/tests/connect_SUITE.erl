@@ -32,6 +32,10 @@
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -87,7 +91,7 @@ cipher_test_cases() ->
 
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -294,18 +298,18 @@ reset_stream_noproc(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
+    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
+    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
-    ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
+    ok = rpc(mim(), sys, suspend, [C2sPid]),
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
     %% Sim client disconnection
-    ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
+    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
     %% Resume
-    ok = escalus_ejabberd:rpc(sys, resume, [C2sPid]),
+    ok = rpc(mim(), sys, resume, [C2sPid]),
     receive
         {'DOWN', MonRef, process, C2sPid, normal} ->
             ok;
@@ -321,18 +325,18 @@ starttls_noproc(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
+    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
+    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
-    ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
+    ok = rpc(mim(), sys, suspend, [C2sPid]),
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
     %% Sim client disconnection
-    ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
+    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
     %% Resume
-    ok = escalus_ejabberd:rpc(sys, resume, [C2sPid]),
+    ok = rpc(mim(), sys, resume, [C2sPid]),
     receive
         {'DOWN', MonRef, process, C2sPid, normal} ->
             ok;
@@ -348,19 +352,19 @@ compress_noproc(Config) ->
     Steps = [start_stream, stream_features],
     {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
 
-    [C2sPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_c2s_sup])),
-    [RcvPid] = children_specs_to_pids(escalus_ejabberd:rpc(supervisor, which_children, [ejabberd_receiver_sup])),
+    [C2sPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
+    [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
-    ok = escalus_ejabberd:rpc(sys, suspend, [C2sPid]),
+    ok = rpc(mim(), sys, suspend, [C2sPid]),
     %% Add compress element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, compressed},
                  escalus_session:compress(Conn#client{props = [{compression, <<"zlib">>}|Props]})),
     %% Sim client disconnection
-    ok = escalus_ejabberd:rpc(ejabberd_receiver, close, [RcvPid]),
+    ok = rpc(mim(), ejabberd_receiver, close, [RcvPid]),
     %% ...c2s process receives close and DOWN messages...
     %% Resume
-    ok = escalus_ejabberd:rpc(sys, resume, [C2sPid]),
+    ok = rpc(mim(), sys, resume, [C2sPid]),
     receive
         {'DOWN', MonRef, process, C2sPid, normal} ->
             ok;
