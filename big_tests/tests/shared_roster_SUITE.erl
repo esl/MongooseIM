@@ -24,24 +24,30 @@
 
 -define(USERS, [alice, bob]).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
-all() ->
 
+all() ->
     [{group, shared_roster}].
 
 groups() ->
-    [{shared_roster,[sequence],[receive_presences,get_contacts,delete_user,add_user]}].
-
-
+    [{shared_roster, [sequence], [receive_presences,
+                                  get_contacts,
+                                  delete_user,
+                                  add_user]}].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
+
 init_per_suite(Config) ->
     case get_auth_method() of
         ldap ->
@@ -133,10 +139,10 @@ add_user(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
 start_roster_module(ldap) ->
-    case escalus_ejabberd:rpc(gen_mod, start_module,
-                              [ct:get_config({hosts, mim, domain}),
-                               mod_shared_roster_ldap, get_ldap_args()]) of
+    case rpc(mim(), gen_mod, start_module,
+             [ct:get_config({hosts, mim, domain}), mod_shared_roster_ldap, get_ldap_args()]) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [mod_shared_roster, Reason]);
         _ -> ok
@@ -144,21 +150,19 @@ start_roster_module(ldap) ->
 start_roster_module(_) ->
     ok.
 
-stop_roster_module(ldap)->
-    case escalus_ejabberd:rpc(gen_mod, stop_module,
-                              [ct:get_config({hosts, mim, domain}),
-                               mod_shared_roster_ldap]) of
+stop_roster_module(ldap) ->
+    case rpc(mim(), gen_mod, stop_module,
+             [ct:get_config({hosts, mim, domain}), mod_shared_roster_ldap]) of
         {badrpc, Reason} ->
             ct:fail("Cannot stop module ~p reason ~p", [mod_shared_roster_ldap, Reason]);
         _ -> ok
     end;
-stop_roster_module(_)->
+stop_roster_module(_) ->
     ok.
 
 get_auth_method() ->
     XMPPDomain = ct:get_config({hosts, mim, domain}),
-    escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                         [{auth_method, XMPPDomain}]).
+    rpc(mim(), ejabberd_config, get_local_option, [{auth_method, XMPPDomain}]).
 
 get_ldap_args() ->
     [
