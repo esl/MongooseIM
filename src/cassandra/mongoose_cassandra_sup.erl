@@ -72,12 +72,15 @@ delete_worker_pool(PoolName) ->
 register_worker(PoolName, WorkerPid) ->
     pg2:join(group_name(PoolName), WorkerPid).
 
-select_worker(PoolName, UserJID) ->
-    case pg2:get_local_members(group_name(PoolName)) of
+select_worker(PoolName, ContextId) ->
+    case pg2:get_local_members(group_name(PoolName)) -- [self()] of
         [] ->
             error({no_worker, PoolName});
+        Workers when ContextId /= undefined ->
+            N = erlang:phash2(ContextId, length(Workers)) + 1,
+            lists:nth(N, Workers);
         Workers ->
-            N = erlang:phash2(UserJID, length(Workers)) + 1,
+            N = rand:uniform(length(Workers)),
             lists:nth(N, Workers)
     end.
 
