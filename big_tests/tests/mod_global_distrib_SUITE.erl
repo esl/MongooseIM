@@ -640,8 +640,9 @@ test_component_unregister(_Config) ->
 
 test_error_on_wrong_hosts(_Config) ->
     Opts = [{cookie, "cookie"}, {local_host, "no_such_host"}, {global_host, "localhost"}],
-    Result = rpc(europe_node1, gen_mod, start_module, [<<"localhost">>, mod_global_distrib, Opts]),
-    ?assertMatch({badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}}, Result).
+    ?assertException(error, {badrpc, {'EXIT', {"no_such_host is not a member of the host list", _}}},
+                     rpc(europe_node1, gen_mod, start_module,
+                         [<<"localhost">>, mod_global_distrib, Opts])).
 
 refresh_nodes(Config) ->
     NodesKey = ?config(nodes_key, Config),
