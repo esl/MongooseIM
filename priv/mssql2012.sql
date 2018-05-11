@@ -2,7 +2,9 @@
 GO
 CREATE TABLE [dbo].[test_types](
     [unicode] [nvarchar](max),
-    [binary_data] [varbinary](max),
+    [binary_data_8k] [varbinary](8000),
+    [binary_data_65k] [varbinary](max),
+    [binary_data_16m] [varbinary](max), -- varbinary(max) is 2^31-1 bytes
     [ascii_char] char(1),
     [ascii_string] varchar(250), -- limited usage, base64-like stuff
     [int32] [int],

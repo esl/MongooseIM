@@ -358,9 +358,9 @@ check_ascii_string(Config, Value) when is_binary(Value) ->
 check_binary(Config, Value) when is_binary(Value) ->
     SValue = escape_binary(Config, Value),
     EraseResult = erase_table(Config),
-    InsertQuery = ["INSERT INTO test_types (binary_data) "
+    InsertQuery = ["INSERT INTO test_types (binary_data_65k) "
                         "VALUES (", use_escaped(Config, SValue), ")"],
-    SelectQuery = <<"SELECT binary_data FROM test_types">>,
+    SelectQuery = <<"SELECT binary_data_65k FROM test_types">>,
     InsertResult = sql_query(Config, InsertQuery),
     SelectResult = sql_query(Config, SelectQuery),
     %% Compare as binaries
@@ -456,7 +456,7 @@ check_prep_ascii_string(Config, Value) ->
 
 check_prep_binary(Config, Value) ->
     %% MSSQL returns binaries in HEX encoding
-    check_generic_prep(Config, Value, <<"binary_data">>, unescape_binary).
+    check_generic_prep(Config, Value, <<"binary_data_65k">>, unescape_binary).
 
 check_generic_prep_integer(Config, Value, Column) ->
     check_generic_prep(Config, Value, Column).
@@ -471,7 +471,7 @@ check_prep_boolean(Config, Value) ->
 %% {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123", []).
 %% odbc:describe_table(Conn, "test_types").
 %% [{"unicode",{sql_wvarchar,536870911}},
-%%  {"binary_data",'SQL_VARBINARY'},
+%%  {"binary_data_65k",'SQL_VARBINARY'},
 %%  {"ascii_char",{sql_char,1}},
 %%  {"ascii_string",{sql_varchar,250}},
 %%  {"int32",sql_integer},
