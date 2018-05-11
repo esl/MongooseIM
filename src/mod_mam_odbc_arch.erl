@@ -5,8 +5,6 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_odbc_arch).
-%% Use few separate tables.
-%% Check `priv/mysql-part.sql' for schema.
 
 %% ----------------------------------------------------------------------
 %% Exports
