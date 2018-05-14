@@ -26,7 +26,7 @@
     backup_config_file/1, backup_config_file/2,
     restore_config_file/1, restore_config_file/2,
     modify_config_file/2, modify_config_file/4,
-    get_cwd/2, mim/0, mim2/0, mim3/0, fed/0]).
+    get_cwd/2]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -182,23 +182,6 @@ modify_config_file(Node, VarsFile, CfgVarsToChange, Config) ->
 get_cwd(Node, Config) ->
     cwd(Node, Config).
 
-%% MongooseIM node names
--spec mim() -> node() | no_return().
-mim() ->
-    get_or_fail({hosts, mim, node}).
-
--spec mim2() -> node() | no_return().
-mim2() ->
-    get_or_fail({hosts, mim2, node}).
-
--spec mim3() -> node() | no_return().
-mim3() ->
-    get_or_fail({hosts, mim3, node}).
-
--spec fed() -> node() | no_return().
-fed() ->
-    get_or_fail({hosts, fed, node}).
-
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -211,8 +194,3 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
     lists:foldl(fun({Var, Val}, Acc) ->
                         lists:keystore(Var, 1, Acc,{Var, Val})
                 end, CfgVars, CfgVarsToChange).
-
-get_or_fail(Key) ->
-    Val = ct:get_config(Key),
-    Val == undefined andalso error({undefined, Key}),
-    Val.
