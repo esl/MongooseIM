@@ -17,10 +17,13 @@
 -module(cluster_commands_SUITE).
 -compile(export_all).
 
--import(distributed_helper, [add_node_to_cluster/2, rpc/5,
-        remove_node_from_cluster/2, is_sm_distributed/0]).
+-import(distributed_helper, [add_node_to_cluster/2,
+                             is_sm_distributed/0,
+                             mim/0, mim2/0, mim3/0,
+                             remove_node_from_cluster/2,
+                             require_rpc_nodes/1,
+                             rpc/5]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
--import(ejabberd_node_utils, [mim/0, mim2/0, mim3/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -43,8 +46,7 @@ groups() ->
         {clustering_three, [], clustering_three_tests()},
         {mnesia, [], [set_master_test]}].
 suite() ->
-    require_all_nodes() ++
-    escalus:suite().
+    require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 clustering_two_tests() ->
     [join_successful_prompt,
@@ -62,11 +64,6 @@ clustering_three_tests() ->
         leave_the_three,
         %remove_dead_from_cluster, % TODO: Breaks cover
         remove_alive_from_cluster].
-
-require_all_nodes() ->
-    [{require, mim_node, {hosts, mim, node}},
-     {require, mim_node2, {hosts, mim2, node}},
-     {require, mim_node3, {hosts, mim3, node}}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
