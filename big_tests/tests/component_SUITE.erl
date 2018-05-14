@@ -30,7 +30,9 @@
                         restart_ejabberd_node/1]).
 
 -import(distributed_helper, [add_node_to_cluster/1,
+                             mim/0,
                              remove_node_from_cluster/1,
+                             require_rpc_nodes/1,
                              start_node/2,
                              stop_node/2]).
 
@@ -68,7 +70,7 @@ groups() ->
                        ]}].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 xep0114_tests() ->
     [register_one_component,
@@ -363,8 +365,8 @@ clear_on_node_down(Config) ->
     ?assertMatch({_, _, _}, connect_component(CompOpts)),
     ?assertThrow({stream_error, _}, connect_component(CompOpts)),
 
-    stop_node(ejabberd_node_utils:mim(), Config),
-    start_node(ejabberd_node_utils:mim(), Config),
+    stop_node(mim(), Config),
+    start_node(mim(), Config),
 
     {Comp, Addr, _} = connect_component(CompOpts),
     disconnect_component(Comp, Addr).
