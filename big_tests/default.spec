@@ -69,6 +69,7 @@
 {suites, "tests", websockets_SUITE}.
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", mod_global_distrib_SUITE}.
+{suites, "tests", mongoose_cassandra_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
