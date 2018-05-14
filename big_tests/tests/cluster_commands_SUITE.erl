@@ -27,7 +27,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
--define(LOCAL_NODE, mim()).
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 -define(ne(A, B), ?assertNot(A == B)).
 
@@ -37,33 +36,35 @@
 
 all() ->
     [{group, clustered},
-        {group, mnesia},
-        {group, clustering_two},
-        {group, clustering_three}].
+     {group, mnesia},
+     {group, clustering_two},
+     {group, clustering_three}].
+
 groups() ->
     [{clustered, [], [one_to_one_message]},
-        {clustering_two, [], clustering_two_tests()},
-        {clustering_three, [], clustering_three_tests()},
-        {mnesia, [], [set_master_test]}].
+     {clustering_two, [], clustering_two_tests()},
+     {clustering_three, [], clustering_three_tests()},
+     {mnesia, [], [set_master_test]}].
+
 suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 clustering_two_tests() ->
     [join_successful_prompt,
-        join_successful_force,
-        leave_successful_prompt,
-        leave_successful_force,
-        join_unsuccessful,
-        leave_unsuccessful,
-        leave_but_no_cluster,
-        join_twice,
-        leave_twice].
+     join_successful_force,
+     leave_successful_prompt,
+     leave_successful_force,
+     join_unsuccessful,
+     leave_unsuccessful,
+     leave_but_no_cluster,
+     join_twice,
+     leave_twice].
 
 clustering_three_tests() ->
     [cluster_of_three,
-        leave_the_three,
-        %remove_dead_from_cluster, % TODO: Breaks cover
-        remove_alive_from_cluster].
+     leave_the_three,
+     %remove_dead_from_cluster, % TODO: Breaks cover
+     remove_alive_from_cluster].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -80,9 +81,9 @@ init_per_suite(Config) ->
     Node2CtlPath = distributed_helper:ctl_path(Node2, Config3),
     Node3CtlPath = distributed_helper:ctl_path(Node3, Config3),
     escalus:init_per_suite([{ctl_path_atom(Node1), NodeCtlPath},
-        {ctl_path_atom(Node2), Node2CtlPath},
-        {ctl_path_atom(Node3), Node3CtlPath}]
-    ++ Config3).
+                            {ctl_path_atom(Node2), Node2CtlPath},
+                            {ctl_path_atom(Node3), Node3CtlPath}]
+                           ++ Config3).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
