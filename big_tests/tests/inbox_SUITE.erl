@@ -23,6 +23,8 @@
          mark_read/1,
          mark_unread_bad_id/1,
          two_conversations/1,
+         to_offline/1,
+         to_not_existing/1,
          simple_muclight/1,
          advanced_muclight/1,
          groupchat_markers_simple/1,
@@ -56,6 +58,8 @@ groups() ->
       {one_to_one, [sequence], [
         simple_msg,
         two_conversations,
+        to_offline,
+        to_not_existing,
         empty_inbox,
         two_unread,
         mark_read,
@@ -69,7 +73,8 @@ groups() ->
         create_groupchat,
         create_groupchat_no_aff,
         leave_and_remove_conversation,
-        leave_and_remain_conversation]}
+        leave_and_remain_conversation
+      ]}
   ].
 
 suite() ->
@@ -80,8 +85,8 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-  InboxOptions=
-  dynamic_modules:ensure_modules(domain(), required_modules()),
+  ok = dynamic_modules:ensure_modules(domain(), required_modules()),
+  InboxOptions = inbox_opts(),
   Config1 = escalus:init_per_suite(Config),
   Config2 = [{inbox_opts, InboxOptions} | Config1],
   escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike, carol])).
@@ -98,6 +103,9 @@ required_modules() ->
                  {remove_on_kicked, true},
                  {groupchat, [muclight]}]}
   ].
+
+inbox_opts() ->
+  [{backend, odbc}, {aff_changes, true}, {remove_on_kicked, true}, {groupchat, [muclight]}].
 
 domain() ->
   ct:get_config({hosts, mim, domain}).
@@ -192,6 +200,33 @@ two_conversations(Config) ->
     check_inbox(Bob, <<"1">>, [{<<"1">>,AliceJid, BobJid,  <<"Hello Bob">>}])
 
                                                            end).
+
+to_offline(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    mongoose_helper:logout_user(Config, Bob),
+    Msg1 = escalus_stanza:chat_to(Bob, <<"test">>),
+    BobJid = lbin(escalus_client:full_jid(Bob)),
+    AliceJid = lbin(escalus_client:full_jid(Alice)),
+    escalus:send(Alice, Msg1),
+    {ok, NewBob} = escalus_client:start(Config, bob, <<"new-session">>),
+    escalus:send(NewBob, escalus_stanza:presence(<<"available">>)),
+    Stanzas = escalus:wait_for_stanzas(NewBob, 2),
+    escalus_new_assert:mix_match
+    ([is_presence, fun(Stanza) -> escalus_pred:is_chat_message(<<"test">>, Stanza) end],
+      Stanzas),
+    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, BobJid,<<"test">>}]),
+    check_inbox(NewBob, <<"1">>, [{<<"1">>, AliceJid, BobJid,<<"test">>}])
+                                                end).
+
+to_not_existing(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+    Msg1 = escalus_stanza:chat_to(<<"not_existing_user@localhost">>, <<"test">>),
+    AliceJid = lbin(escalus_client:full_jid(Alice)),
+    escalus:send(Alice, Msg1),
+    ServiceUnavailable = escalus:wait_for_stanza(Alice),
+    escalus_pred:is_error(<<"cancel">>,<<"service-unavailable">>, ServiceUnavailable),
+    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, <<"not_existing_user@localhost">>,<<"test">>}])
+                                                end).
 
 empty_inbox(Config) ->
   escalus:story(Config, [{kate, 1}], fun(Kate) ->
@@ -551,13 +586,13 @@ process_inbox_message(Message, Unread, FromJid, ToJid, Content) ->
   escalus:assert(is_message, Message),
   Unread = get_unread_count(Message),
   [InnerMsg] = get_inner_msg(Message),
-  FromJid = exml_query:attr(InnerMsg, <<"from">>),
-  ToJid = exml_query:attr(InnerMsg, <<"to">>),
+  FromJid = lbin(exml_query:attr(InnerMsg, <<"from">>)),
+  ToJid = lbin(exml_query:attr(InnerMsg, <<"to">>)),
   InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
   Content = InnerContent.
 
 set_type(Msg, Type) ->
-  Attrs = lists:keystore(<<"type">>, 1, Msg#xmlel.attrs, [{<<"type">>, Type}]),
+  Attrs = lists:keystore(<<"type">>, 1, Msg#xmlel.attrs, {<<"type">>, Type}),
   Msg#xmlel{attrs = Attrs}.
 
 
