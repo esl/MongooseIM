@@ -105,3 +105,25 @@ As indicated by square brackets `PACKAGE-REVISION` is optional.
 
 Check or modify `env/publish` for the location where the package is published.
 This will vary depending on your project.
+
+## Building a Debian build container
+
+In `platforms/debian_stretch` there is Dockerfile and buildscripts for image
+with all dependencies required to build Debian packages.
+The container image is already uploaded to DockerHub repo
+as `erlangsolutions/mongooseim.debian_stretch.builder`,
+so there is no reason to build it.
+However it might be rebuilt and pushed with:
+
+```
+cd platforms/debian_stretch
+docker build -t erlangsolutions/mongooseim.debian_stretch.builder .
+docker push erlangsolutions/mongooseim.debian_stretch.builder
+```
+
+To start container out of this image, one needs just to run:
+
+```
+cd tools/pkg
+./run debian_stretch
+```
