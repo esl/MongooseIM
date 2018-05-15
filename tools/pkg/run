@@ -11,6 +11,5 @@ pushd `dirname $0` > /dev/null
 SCRIPTPATH=`pwd`
 popd > /dev/null
 
-docker run -it --hostname $PLATFORM --rm \
-    -v $SCRIPTPATH/packages:/packages $BUILD_CONTAINER_PREFIX.$PLATFORM bash
-
+TAG="$BUILD_CONTAINER_PREFIX.$PLATFORM.$BUILD_CONTAINER_SUFFIX"
+docker run -it --hostname $PLATFORM --rm -v $SCRIPTPATH/packages:/packages $TAG bash
