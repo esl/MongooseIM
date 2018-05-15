@@ -10,32 +10,23 @@
 -define(DEFAULT_PORTS, [5222, 5280, 5269]).
 -define(ALT_PORTS, [5222, 5280, 5296]). %% yes it is different
 
-
 all() ->
     [tcp_socket_is_started_with_default_backlog,
      tcp_socket_is_started_with_options,
      udp_socket_is_started_with_defaults,
      tcp_start_stop_reload].
 
-init_per_testcase(udp_socket_is_started_with_defaults, C) ->
-    meck:new(gen_udp, [unstick, passthrough]),
-    meck:expect(gen_udp, open, fun(Port, Opts) ->
-                                       meck:passthrough([Port, Opts])
-                               end),
-    C;
-init_per_testcase(_T, C) ->
-    meck:new(gen_tcp, [unstick, passthrough]),
-    meck:expect(gen_tcp, listen, fun(Port, Opts) ->
-                                         meck:passthrough([Port, Opts])
-                                 end),
-    C.
+init_per_testcase(_Case, Config) ->
+    meck:new([gen_udp, gen_tcp], [unstick, passthrough]),
+    meck:expect(gen_udp, open,
+                fun(Port, Opts) -> meck:passthrough([Port, Opts]) end),
+    meck:expect(gen_tcp, listen,
+                fun(Port, Opts) -> meck:passthrough([Port, Opts]) end),
+    Config.
 
-end_per_testcase(udp_socket_is_started_with_defaults, C) ->
-    meck:unload(gen_udp),
-    C;
-end_per_testcase(_T, C) ->
-    meck:unload(gen_tcp),
-    C.
+end_per_testcase(_Case, Config) ->
+    meck:unload(),
+    Config.
 
 init_per_suite(C) ->
    C.
@@ -69,12 +60,16 @@ udp_socket_is_started_with_defaults(_C) ->
 
     {0,0,0,0} = proplists:get_value(ip, Opts).
 
-listener_started(Opts) ->
-    proc_lib:start_link(ejabberd_listener, init, [tcp_port_ip(), ?MODULE, Opts]).
+listener_started(RawOpts) ->
+    {tcp, Opts, SockOpts, Port, IPS} =
+        ejabberd_listener:opts_to_listener_args(tcp_port_ip(), RawOpts),
+    mongoose_tcp_listener:start_link(tcp_port_ip(), ?MODULE, Opts, SockOpts, Port, IPS).
 
-receiver_started(Opts) ->
+receiver_started(RawOpts) ->
     ets:new(listen_sockets, [named_table, public]),
-    proc_lib:start_link(ejabberd_listener, init, [udp_port_ip(), ?MODULE, Opts]).
+    {udp, Opts, SockOpts, Port, IPS} =
+        ejabberd_listener:opts_to_listener_args(udp_port_ip(), RawOpts),
+    mongoose_udp_listener:start_link(udp_port_ip(), ?MODULE, Opts, SockOpts, Port, IPS).
 
 udp_port_ip() ->
     {1805, {0,0,0,0}, udp}.

@@ -34,6 +34,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `hibernate_after` (integer, default: 0) - Time in milliseconds after which a client process spawned by this listener will hibernate.
   Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
   The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
+* `acceptors_num` (integer, default: 100) - For TCP-based listeners: the number of processes accepting new connections on the listening socket.
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
