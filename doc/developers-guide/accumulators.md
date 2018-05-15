@@ -177,7 +177,126 @@ Given that each accumulator has a timestamp denoting its creation time, it is no
 
 
 
+## Appendix: accumulator's lifecycle
 
+Basic lifecycle of an accumulator is within a c2s process: it is created when stanza enters the process and is passed through all processing functions collecting various values along the way.
+Accumulator leaving a sender's c2s process is stripped of everything except timestamp, reference and some persistent properties.
+From the point of view of the recipient's c2s it is a new accumulator, created from the stanza the recipient's c2s receives.
+
+In other words, accumulator has two lives, and carries only selected parts of his memories between them.
+
+The following diagram hopefully makes it clear:
+
+<pre>
+
+
+                    ┌─────────────┐                                                         ┌─────────────┐
+                    │ Alice's C2S │                                                         │  Bob's C2S  │
+                    ├─────────────┴─────────────────────────────────────────┐               ├─────────────┴────────────────────────────────────────┐
+┌──────────────┐    │                                                       │               │                                                      │       ┌──────────────┐
+│S1            │    │                                                       │               │                                                      │       │S3            │
+│from:alice    │    │      ┌───────────────────────────┐                    │               │      ┌───────────────────────────────┐               │       │from:alice    │
+│to:bob        │────┼─────▶│ mongoose_acc:from_element │                    │               │      │   ejabberd_c2s:send_element   │───────────────┼──────▶│to:bob        │
+│type:message  │    │      └───────────────────────────┘                    │               │      └───────────────────────────────┘               │       │type:message  │
+│              │    │                    │                                  │               │                      ▲                               │       │              │
+└──────────────┘    │                    │                                  │               │                      │                               │       └──────────────┘
+                    │                    │                                  │               │                      │                               │
+                    │                    │                                  │               │                      │                               │
+                    │                    ▼                                  │               │                ╔═══════════╗                         │
+                    │     ╔════════════════════════════╗                    │               │                ║           ║                         │
+                    │     ║ref => R1                   ║                    │               │                ║           ║                         │
+                    │     ║timestamp => T1             ║                    │               │                ║S3         ║                         │
+                    │     ║element => S1               ║                    │               │                ║           ║                         │
+                    │     ║persistent_properties => [] ║                    │               │                ║           ║                         │
+                    │     ║hooks_run => []             ║                    │               │                ║           ║                         │
+                    │     ╚════════════════════════════╝                    │               │                ╚═══════════╝                         │
+                    │                    │                                  │               │                      ▲                               │
+                    │                    │                                  │               │                      │                               │
+                    │                    │                                  │               │                      │                               │
+                    │                    ▼                                  │               │                      │                               │
+                    │    ┌───────────────────────────────┐                  │               │                      │                               │
+                    │    │  some_modules:some_functions  │                  │               │                      │                               │
+                    │    ├───────────────────────────────┤                  │               │                      │                               │
+                    │    │  some_modules:some_functions  │                  │               │                      │                               │
+                    │    ├───────────────────────────────┤                  │               │      ┌───────────────────────────────┐               │
+                    │    │  some_modules:some_functions  │                  │               │      │ejabberd_c2s:ship_to_local_user│               │
+                    │    └───────────────────────────────┘                  │               │      └───────────────────────────────┘               │
+                    │                    │                                  │               │                      ▲                               │
+                    │                    │                                  │               │                      │                               │
+                    │                    │                                  │               │                      │                               │
+                    │                    ▼                                  │               │                      │                               │
+                    │  ╔═══════════════════════════════════╗                │               │                      ├───────────────────────┐       │
+                    │  ║ref => R1                          ║                │               │                      │                       │       │
+                    │  ║timestamp => T1                    ║                │               │                      │                       │       │
+                    │  ║element => S1                      ║                │               │                      │                       │       │
+                    │  ║persistent_properties => [{a, 1}]  ║                │               │                      │                       │       │
+                    │  ║hooks_run => [a_long_list]         ║                │               │                      │                       │       │
+                    │  ║some_cached_values => term()       ║                │               │    ╔═══════════════════════════════════╦═══════════╗ │
+                    │  ╚═══════════════════════════════════╝                │               │    ║ref => R1                          ║           ║ │
+                    │                     │                                 │               │    ║timestamp => T1                    ║           ║ │
+                    │                     │                                 │               │    ║element => S2                      ║S3         ║ │
+                    │                     ▼                                 │               │    ║persistent_properties => [{a, 1}]  ║           ║ │
+                    │     ┌───────────────────────────────┐                 │               │    ║hooks_run => [a_long_list]         ║           ║ │
+                    │     │  some_modules:some_functions  │                 │               │    ║some_cached_values => term()       ║           ║ │
+                    │     └───────────────────────────────┘                 │               │    ╚═══════════════════════════════════╩═══════════╝ │
+                    │                     │                                 │               │                      ▲                               │
+                    │                     │                                 │               │                      │                               │
+                    │                     ▼                                 │               │                      │                               │
+                    │   ╔══════════════════════════════════╦═══════════╗    │               │                      │                               │
+                    │   ║ref => R1                         ║           ║    │               │                      │                               │
+                    │   ║timestamp => T1                   ║           ║    │               │                      │                               │
+                    │   ║element => S1                     ║S2         ║    │               │                      │                               │
+                    │   ║persistent_properties => [{a, 1}] ║           ║    │               │                      │                               │
+                    │   ║hooks_run => [a_long_list]        ║           ║    │               │                      │                               │
+                    │   ║some_cached_values => term()      ║           ║    │               │                      │                               │
+                    │   ╚══════════════════════════════════╩═══════════╝    │               │                      │                               │
+                    │                     │                      │          │               │                      │                               │
+                    │                     │                      │          │               │      ┌───────────────────────────────┐               │
+                    │                     ├──────────────────────┘          │               │      │  some_modules:some_functions  │               │
+                    │                     │                                 │               │      ├───────────────────────────────┤               │
+                    │                     │                                 │               │      │  some_modules:some_functions  │               │
+                    │                     ▼                                 │               │      ├───────────────────────────────┤               │
+                    │     ┌───────────────────────────────┐                 │               │      │  some_modules:some_functions  │               │
+                    │     │    ejabberd_router:route/4    │                 │               │      └───────────────────────────────┘               │
+                    │     └───────────────────────────────┘                 │               │                      ▲                               │
+                    │                     │                                 │               │                      │                               │
+                    │                     │                                 │               │                      │                               │
+                    │                     ▼                                 │               │                      │                               │
+                    │   ╔══════════════════════════════════╦═══════════╗    │               │                      │                               │
+                    │   ║ref => R1                         ║           ║    │               │                      │                               │
+                    │   ║timestamp => T1                   ║           ║    │               │                      │                               │
+                    │   ║element => S1                     ║S2         ║    │               │                      │                               │
+                    │   ║persistent_properties => [{a, 1}] ║           ║    │               │                      │                               │
+                    │   ║hooks_run => [a_long_list]        ║           ║    │               │                      │                               │
+                    │   ║some_cached_values => term()      ║           ║    │               │    ╔═══════════════════════════════════╗             │
+                    │   ╚══════════════════════════════════╩═══════════╝    │               │    ║ref => R1                          ║             │
+                    │                     │                      │          │               │    ║timestamp => T1                    ║             │
+                    │                     │                      │          │               │    ║element => S2                      ║             │
+                    │                     ├──────────────────────┘          │               │    ║persistent_properties => [{a, 1}]  ║             │
+                    │                     │                                 │               │    ║hooks_run => []                    ║             │
+                    │                     ▼                                 │               │    ╚═══════════════════════════════════╝             │
+                    │     ┌───────────────────────────────┐                 │               │                      ▲                               │
+                    │     │     mongoose_acc:strip/2      │                 │               │                      │                               │
+                    │     └───────────────────────────────┘                 │               │                      │                               │
+                    │                     │                                 │               │                      │                               │
+                    │                     │                                 │               │                      │                               │
+                    │                     │                                 │               │                      │                               │
+                    │                     ▼                                 │               │                      │                               │
+                    │   ╔═══════════════════════════════════╗               │               │                      │                               │
+                    │   ║ref => R1                          ║               │               │                      │                               │
+                    │   ║timestamp => T1                    ║               │               │        ┌───────────────────────────┐                 │
+                    │   ║element => S2                      ║───────────────┼───────────────┼───────▶│ ejabberd_c2s:handle_info  │                 │
+                    │   ║persistent_properties => [{a, 1}]  ║               │               │        └───────────────────────────┘                 │
+                    │   ║hooks_run => []                    ║               │               │                                                      │
+                    │   ╚═══════════════════════════════════╝               │               │                                                      │
+                    │                                                       │               │                                                      │
+                    │                                                       │               │                                                      │
+                    │                                                       │               │                                                      │
+                    │                                                       │               │                                                      │
+                    └───────────────────────────────────────────────────────┘               └──────────────────────────────────────────────────────┘
+
+
+</pre>
 
 
 
