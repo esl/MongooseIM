@@ -27,12 +27,6 @@ ENV BUILDSCRIPTS_REF feb5b2b7aa09ce9ccac2ae43ee0dbdac80c42417
 RUN git clone $BUILDSCRIPTS_REPO package-buildscripts \
  && cd package-buildscripts && git checkout $BUILDSCRIPTS_REF
 
-# GPG key for signing the packages
-COPY files/necromancer.gpg.key /root/gpg.key
-COPY files/esl-sign-private.key /root/esl-sign-private.key
-RUN gpg --import /root/gpg.key
-RUN gpg --allow-secret-key-import --import /root/esl-sign-private.key
-
 # Package output mountpoint
 VOLUME /packages
 
