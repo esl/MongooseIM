@@ -1,6 +1,6 @@
 # Package build scripts for MongooseIM
 
-Build MongooseIM packages locally in a container.
+Build MongooseIM packages in a local container.
 Contents:
 
 ```sh
@@ -16,20 +16,19 @@ Contents:
 ```
 
 
-## Building the build container
+## Building a build container
 
 Run:
 
 ```sh
-./build centos6
+./build PLATFORM
 ```
 
-Specify `centos7` if that's the platform you want the RPM for.
+Look into `platforms/` for valid values of `PLATFORM`.
 
-To build the container you need to have read access to
-https://github.com/esl/package-buildscripts.
+For example, specify `centos7` if you want to build an `.rpm` or `debian_stretch` to get a `.deb`
+package for the relevant versions of the systems.
 
-Available platforms are listed under `platforms/`.
 Adding support for a new platform is basically writing a Dockerfile
 which will preinstall all the build dependencies for the project.
 The build container image is reused for consecutive builds,
@@ -37,22 +36,25 @@ so make sure to do as much as possible when building the build container
 to effectively shorten package build times later.
 
 
-## Running the build container and building a package
+## Building a package
 
 Run:
 
 ```sh
-$ ./run centos6
+$ ./run PLATFORM
 [root@centos6 /]# ./build TAGGED-PUBLIC-VERSION
 ```
 
-Again, you can specify `centos7` or any other platform.
+Look into `platforms/` for valid values of `PLATFORM` - it is the same thing
+as when building a build container.
+
 If all goes well, the package will land in `packages/`
 subdirectory - mounted as a container volume at `/packages`.
 The container instance is discarded once you exit the shell.
 
 Repository to build MongooseIM from can be overridden by exporting
 `MONGOOSEIM_REPO` inside the container, but before running `build`.
+The default is the official MongooseIM repository: https://github.com/esl/mongooseim.git
 
 In the rare case of changing the package build scripts,
 but not released code itself, it's also possible to specify package
@@ -105,25 +107,3 @@ As indicated by square brackets `PACKAGE-REVISION` is optional.
 
 Check or modify `env/publish` for the location where the package is published.
 This will vary depending on your project.
-
-## Building a Debian build container
-
-In `platforms/debian_stretch` there is Dockerfile and buildscripts for image
-with all dependencies required to build Debian packages.
-The container image is already uploaded to DockerHub repo
-as `erlangsolutions/mongooseim.debian_stretch.builder`,
-so there is no reason to build it.
-However it might be rebuilt and pushed with:
-
-```
-cd platforms/debian_stretch
-docker build -t erlangsolutions/mongooseim.debian_stretch.builder .
-docker push erlangsolutions/mongooseim.debian_stretch.builder
-```
-
-To start container out of this image, one needs just to run:
-
-```
-cd tools/pkg
-./run debian_stretch
-```
