@@ -984,7 +984,6 @@ session_established({xmlstreamelement, El}, StateData) ->
                     end,
             Acc = mongoose_acc:update(Acc0, #{user => User,
                                               server => Server,
-                                              user_jid => UserJID,
                                               from_jid => FromJID,
                                               from => jid:to_binary(FromJID),
                                               to_jid => ToJID,

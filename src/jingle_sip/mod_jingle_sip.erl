@@ -95,7 +95,7 @@ maybe_iq_stanza(Acc) ->
 
 maybe_iq_to_other_user(Acc) ->
     #jid{luser = StanzaTo} = mongoose_acc:get(to_jid, Acc),
-    #jid{luser = LUser} = mongoose_acc:get(user_jid, Acc),
+    #jid{luser = LUser} = mongoose_acc:get_prop(origin_jid, Acc),
     case LUser of
         StanzaTo ->
             QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
@@ -207,7 +207,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     Server = mongoose_acc:get(server, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(user_jid, Acc)) of
+    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
         {ok, ReqID} ->
             try_to_accept_session(ReqID, Jingle, Acc, Server, SID);
         _ ->
@@ -216,7 +216,7 @@ translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(user_jid, Acc)) of
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
         {ok, undefined} ->
             ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
             {error, item_not_found};
@@ -230,7 +230,7 @@ translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
-    From = mongoose_acc:get(user_jid, Acc),
+    From = mongoose_acc:get_prop(origin_jid, Acc),
     FromLUS = jid:to_lus(From),
     ToLUS = jid:to_lus(ToJID),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
