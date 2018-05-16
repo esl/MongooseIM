@@ -55,6 +55,8 @@
          get_local_config/0,
          get_host_local_config/0]).
 
+-export([log_configs/1]).
+
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -879,16 +881,25 @@ reload_cluster() ->
             {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
                                    [ConfigFile, ConfigVersion, FileVersion],
                                    30000),
+            ?ERROR_MSG("S and F: ~p~n~p", [S, F]),
+            case S of
+                [] ->
+                    ok;
+                Results ->
+                    log_configs(node()),
+                    lists:foreach(fun({error, Node, _}) -> log_configs(Node) end,
+                                  Results)
+            end,
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
             ResultText = (groups_to_string("# Reloaded:", S1)
                           ++ groups_to_string("\n# Failed:", F1)),
-            case F1 of
-                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
-                [_ | _] ->
-                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
-                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
-                                 [FailedUpdateOrRPC])
-            end,
+            %case F1 of
+            %    [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
+            %    [_ | _] ->
+            %        FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
+            %        ?WARNING_MSG("cluster config reload failed on nodes: ~p",
+            %                     [FailedUpdateOrRPC])
+            %end,
             {ok, ResultText};
         Error ->
             Reason = msg("failed to apply config on node: ~p~nreason: ~p",
@@ -897,6 +908,16 @@ reload_cluster() ->
                          "config file: ~s~n"
                          "reason: ~ts", [ConfigFile, Reason]),
             exit(Reason)
+    end.
+
+log_configs(Node) ->
+    case node() of
+        Node ->
+            ?ERROR_MSG("Local configs:~n~p~n~p", [get_local_config(), get_host_local_config()]);
+        _ ->
+            LocalConfig = rpc:call(Node, ?MODULE, get_local_config, []),
+            LocalHostConfig = rpc:call(Node, ?MODULE, get_host_local_config, []),
+            ?ERROR_MSG("configs on ~p:~n~p~n~p", [Node, LocalConfig, LocalHostConfig])
     end.
 
 -spec groups_to_string(string(), [string()]) -> string().
@@ -953,7 +974,7 @@ apply_changes_remote(NewConfigFilePath,
                                   override_local  = true,
                                   override_acls   = false},
             case catch apply_changes(CC, LC, LHC, State1,
-                                     DesiredConfigVersion) of
+                                     DesiredConfigVersion) of % jak tu się wywali, to chcemy zwrócić z RPC configi
                 {ok, Node} = R ->
                     ?WARNING_MSG("remote config reload succeeded", []),
                     R;
