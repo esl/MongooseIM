@@ -64,7 +64,8 @@ groups() ->
         two_unread,
         mark_read,
         mark_unread_bad_id
-      ]},
+      ]}
+    ,
       {muclight, [sequence], [
         simple_muclight,
         advanced_muclight,
@@ -97,15 +98,11 @@ required_modules() ->
     {mod_mam_muc, [{archive_chat_markers, true}]},
     {mod_muc_light, [{host, binary_to_list(muclight_domain())},
                      {backend, odbc}]},
-    {mod_inbox, [{backend, odbc},
-                 {markers, [displayed]},
-                 {aff_changes, true},
-                 {remove_on_kicked, true},
-                 {groupchat, [muclight]}]}
+    {mod_inbox, inbox_opts()}
   ].
 
 inbox_opts() ->
-  [{backend, odbc}, {aff_changes, true}, {remove_on_kicked, true}, {groupchat, [muclight]}].
+  [{backend, odbc}, {aff_changes, true}, {remove_on_kicked, true}, {groupchat, [muclight]},  {markers, [displayed]}].
 
 domain() ->
   ct:get_config({hosts, mim, domain}).
@@ -178,7 +175,8 @@ simple_msg(Config) ->
     escalus:send(Alice, Msg1),
     M = escalus:wait_for_stanza(Bob),
     escalus:assert(is_chat_message, M),
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, BobJid,<<"Hello">>}])
+    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, BobJid,<<"Hello">>}]),
+    check_inbox(Bob, <<"1">>, [{<<"1">>, AliceJid, BobJid,<<"Hello">>}])
                                                 end).
 
 two_conversations(Config) ->

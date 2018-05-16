@@ -774,40 +774,56 @@ get_inbox(LUser, LServer) ->
   mongoose_rdbms:sql_query(
     LServer,
     [<<"select remote_bare_jid, sender, content, unread_count from inbox "
-    "where username='">>, LUser, "';"]).
+    "where username=">>, mongoose_rdbms:use_escaped_string(LUser), ";"]).
 
 get_inbox_unread(LUser, LServer, ToBareJid) ->
   mongoose_rdbms:sql_query(
     LServer,
     [<<"select unread_count from inbox "
-    "where username='">>, LUser,<<"' and remote_bare_jid='">>,ToBareJid, "';"]).
+    "where username=">>, mongoose_rdbms:use_escaped_string(LUser),<<" and remote_bare_jid=">>,
+                          mongoose_rdbms:use_escaped_string(ToBareJid), ";"]).
 
 %% TODO make compatibile with other backend than postgres
 set_inbox(Username, LServer, ToBareJid, Sender, Content, C, MsgId) ->
   mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, sender, content,
-  unread_count, msg_id) values ('">>, Username, <<"', '">>, ToBareJid, <<"', '">>, Sender, <<"', '">>,
-    Content, <<"', '">>, C, <<"', '">>,MsgId, <<"') on conflict(username, remote_bare_jid)
-     do update set sender='">>,Sender,<<"', content='">>,Content,
-    <<"', unread_count='">>,C,<<"',msg_id='">>,MsgId, "';"]).
+  unread_count, msg_id) values (">>, mongoose_rdbms:use_escaped_string(Username), <<",">>,
+                                      mongoose_rdbms:use_escaped_string(ToBareJid), <<",">>,
+                                      mongoose_rdbms:use_escaped_string(Sender), <<",">>,
+                                      mongoose_rdbms:use_escaped_string(Content), <<",">>,
+                                      mongoose_rdbms:use_escaped_string(C), <<",">>,
+                                      mongoose_rdbms:use_escaped_string(MsgId), <<") on conflict(username, remote_bare_jid)do update set sender=">>,
+                                      mongoose_rdbms:use_escaped_string(Sender),<<", content=">>,
+                                      mongoose_rdbms:use_escaped_string(Content), <<", unread_count=">>,
+                                      mongoose_rdbms:use_escaped_string(C),<<",msg_id=">>,
+                                      mongoose_rdbms:use_escaped_string(MsgId), ";"]).
 
 remove_inbox(Username, LServer, ToBareJid) ->
-  mongoose_rdbms:sql_query(LServer, [<<"delete from inbox where username='">>,Username,
-    <<"' and remote_bare_jid='">>, ToBareJid,"';"]).
+  mongoose_rdbms:sql_query(LServer, [<<"delete from inbox where username=">>,
+    mongoose_rdbms:use_escaped_string(Username),
+    <<" and remote_bare_jid=">>,
+    mongoose_rdbms:use_escaped_string(ToBareJid),";"]).
 
 set_inbox_incr_unread(Username, LServer, ToBareJid, Sender, Content, MsgId) ->
   mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, sender,
-  content, unread_count, msg_id) values ('">>, Username, <<"', '">>, ToBareJid, <<"', '">>, Sender, <<"', '">>,
-    Content, <<"', '">>, <<"1">>, <<"', '">>, MsgId, <<"') on conflict(username, remote_bare_jid)
-     do update set sender='">>,Sender,<<"', content='">>,Content,
-    <<"', unread_count=inbox.unread_count + 1, msg_id='">>,MsgId,"';"]).
+  content, unread_count, msg_id) values (">>, mongoose_rdbms:use_escaped_string(Username), <<", ">>,
+                                               mongoose_rdbms:use_escaped_string(ToBareJid), <<", ">>,
+                                               mongoose_rdbms:use_escaped_string(Sender), <<", ">>,
+                                               mongoose_rdbms:use_escaped_string(Content), <<", ">>, <<"1">>, <<", ">>,
+                                               mongoose_rdbms:use_escaped_string(MsgId), <<") on conflict(username, remote_bare_jid)
+                     do update set sender=">>,mongoose_rdbms:use_escaped_string(Sender),<<", content=">>,
+                                               mongoose_rdbms:use_escaped_string(Content), <<", unread_count=inbox.unread_count + 1, msg_id=">>,
+                                               mongoose_rdbms:use_escaped_string(MsgId),";"]).
 
 
 reset_inbox_unread(Username, LServer, ToBareJid, MsgId) ->
-  mongoose_rdbms:sql_query(LServer, [<<"update inbox set unread_count=0 where username='">>,Username,
-    <<"' and remote_bare_jid='">>, ToBareJid,<<"' and msg_id='">>,MsgId, "';"]).
+  mongoose_rdbms:sql_query(LServer, [<<"update inbox set unread_count=0 where username=">>,
+    mongoose_rdbms:use_escaped_string(Username),
+    <<" and remote_bare_jid=">>,
+    mongoose_rdbms:use_escaped_string(ToBareJid),<<" and msg_id=">>,
+    mongoose_rdbms:use_escaped_string(MsgId), ";"]).
 
 clear_inbox(Username, LServer) ->
-  mongoose_rdbms:sql_query(LServer, [<<"delete from inbox where username='">>,Username, <<"';">>]).
+  mongoose_rdbms:sql_query(LServer, [<<"delete from inbox where username=">>, mongoose_rdbms:use_escaped_string(Username), <<";">>]).
 
 
 %% Count number of records in a table given a where clause

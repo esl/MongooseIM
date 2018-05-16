@@ -11,26 +11,69 @@
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
 -include("mongoose_ns.hrl").
+-include("mongoose.hrl").
 
--export([start/2, stop/1]).
--export([process_iq/4, process_message_with_muclight/9, process_message_one_to_one/9]).
+-export([start/2, stop/1, deps/2]).
+-export([process_iq/4,  user_send_packet/4, filter_packet/1]).
 -export([clear_inbox/2]).
+-define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
 
+-callback init(Host, Opts) -> ok when
+  Host :: binary(),
+  Opts :: list().
+
+-callback get_inbox(LUser, LServer) -> any() when
+  LUser :: binary(),
+  LServer :: binary().
+
+-callback set_inbox(User, Server, ToBareJid, ToResource, Content, Count, MsgId) -> any() when
+  User :: binary(),
+  Server :: binary(),
+  ToBareJid :: binary(),
+  ToResource :: binary(),
+  Content :: binary(),
+  Count :: binary(),
+  MsgId :: binary().
+
+-callback remove_inbox(User, Server, ToBareJid) -> any() when
+  User :: binary(),
+  Server :: binary(),
+  ToBareJid :: binary().
+
+-callback set_inbox_incr_unread(User, Server, ToBareJid, ToResource, Content, MsgId) -> any() when
+  User :: binary(),
+  Server :: binary(),
+  ToBareJid :: binary(),
+  ToResource :: binary(),
+  Content :: binary(),
+  MsgId :: binary().
+
+-callback reset_unread(User, Server, BareJid, MsgId) -> any() when
+  User :: binary(),
+  Server :: binary(),
+  BareJid :: binary(),
+  MsgId :: binary().
+
+-callback clear_inbox(User, Server) -> any() when
+  User :: binary(),
+  Server :: binary().
+
+deps(_Host, Opts) ->
+  groupchat_deps(Opts).
 
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
-  {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
-  mod_disco:register_feature(Host, ?NS_ESL_INBOX),
-  IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
-  Mode = gen_mod:get_opt(groupchat, Opts, [muclight]),
-  register_handler(Host, Mode),
-  gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
+    {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
+    mod_disco:register_feature(Host, ?NS_ESL_INBOX),
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
+
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
   mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
-  Mode = gen_mod:get_module_opt(Host, mod_inbox, mode, [muclight]),
-  unregister_handler(Host, Mode),
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 %%%%%%%%%%%%%%%%%%%
@@ -40,7 +83,7 @@ stop(Host) ->
                  Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-  {Acc, IQ#iq{type = error, sub_el = [SubEl,mongoose_xmpp_errors:not_allowed()]}};
+  {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
   Username = jid:to_binary(jid:to_bare(From)),
   Host = To#jid.lserver,
@@ -63,45 +106,55 @@ send_message(To, Mess) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
--spec process_message_one_to_one(Result :: any(),
-                                 Host    :: jid:server(),
-                                 _MamId  :: mod_mam:message_id(),
-                                 _ArcID  :: mod_mam:archive_id(),
-                                 _LocJID :: jid:jid(),
-                                 _RemJID :: jid:jid(),
-                                 _SrcJID :: jid:jid(),
-                                 Dir     :: outgoing | incomming,
-                                 _Packet :: exml:element()) -> any().
-process_message_one_to_one(Result, Host, _MamID, _ArcID, LocJID, RemJID, _SrcJID, outgoing, Packet) ->
-  mod_inbox_one2one:handle_message(Host, LocJID, RemJID, Packet),
-  Result;
-process_message_one_to_one(Result, _, _, _, _, _, _, incomming, _) ->
-  Result.
+user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
+  Host = From#jid.server,
+  maybe_process_message(Host, From, To, Msg, outgoing),
+  Acc;
+user_send_packet(Acc, From, To, Packet) ->
+  Acc.
 
--spec process_message_with_muclight(Result :: any(),
-                                    Host    :: jid:server(),
-                                    _MamId  :: mod_mam:message_id(),
-                                    _ArcID  :: mod_mam:archive_id(),
-                                    _LocJID :: jid:jid(),
-                                    _RemJID :: jid:jid(),
-                                    _SrcJID :: jid:jid(),
-                                    Dir     :: outgoing | incomming,
-                                    _Packet :: exml:element()) -> any().
-process_message_with_muclight(Result, Host, _, _, LocJID, RemJID, _, outgoing, Packet) ->
-  %% one_to_one case
-  mod_inbox_one2one:handle_message(Host, LocJID, RemJID, Packet),
-  Result;
-process_message_with_muclight(Result, Host, _, _, LocJID, RemJID, _, incoming, Packet) ->
-  case exml_query:attr(Packet, <<"type">>, undefined) of
-    <<"groupchat">> ->
-      %% groupchat case
-      mod_inbox_muclight:handle_message(Host, LocJID, RemJID, Packet);
-    _ ->
+filter_packet(drop) ->
+  drop;
+filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
+  Host = To#jid.server,
+  maybe_process_message(Host, From, To, Msg, incomming),
+  {From, To, Acc, Msg};
+filter_packet({From, To, Acc, Packet}) ->
+  {From, To, Acc, Packet}.
+
+
+maybe_process_message(Host, From, To, Msg, Dir) ->
+  AcceptableMessage = should_be_stored_in_inbox(Msg),
+  if AcceptableMessage ->
+      Type = get_message_type(Msg),
+      GroupchatsEnabled = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
+      MuclightEnabled = lists:member(muclight, GroupchatsEnabled),
+      MuclightEnabled == true andalso
+        process_message(Host, From, To, Msg, Dir, Type);
+    true ->
       ok
-  end,
-  Result;
-process_message_with_muclight(Result, _, _, _, _, _, _, _, _) ->
-  Result.
+  end.
+
+process_message(Host, From, To, Message, outgoing, one2one) ->
+  mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
+process_message(Host, From, To, Message, incomming, one2one) ->
+  mod_inbox_one2one:handle_incomming_message(Host, From, To, Message);
+process_message(_Host, _From, _To, _Message, outgoing, groupchat) ->
+  %% For muclight we process only incoming messages
+  ok;
+process_message(Host, From, To, Message, incomming, groupchat) ->
+  mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
+process_message(_, _, _, Message, _, _) ->
+  ?WARNING_MSG("unknown messasge not written in inbox='~p'", [Message]),
+  ok.
+
+get_message_type(Msg) ->
+  case exml_query:attr(Msg, <<"type">>, undefined) of
+    <<"groupchat">> ->
+      groupchat;
+    _ ->
+      one2one
+  end.
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
@@ -132,32 +185,28 @@ build_forward_el(Content) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
+%%
 
-register_for_muclight(Mode) ->
-  lists:member(muclight, Mode).
+groupchat_deps(Opts) ->
+  case lists:keyfind(groupchat, 1, Opts) of
+    [] ->
+      [];
+    {groupchat, List} ->
+      muclight_dep(List) ++ muc_dep(List);
+    false ->
+      []
+  end.
 
-register_for_muc(Mode) ->
-  lists:member(muc, Mode).
+muclight_dep(List) ->
+  case lists:member(muclight, List) of
+    true -> [{mod_muc_light, hard}];
+    false -> []
+  end.
 
-register_handler(Host, Mode) ->
-  {M, H} = handler(Mode),
-  ejabberd_hooks:add(mam_archive_message, Host, M, H, 90).
-
-unregister_handler(Host, Mode) ->
-  {M, H} = handler(Mode),
-  ejabberd_hooks:delete(mam_archive_message, Host, M, H, 90).
-
-handler(Mode) ->
-  Muclight = register_for_muclight(Mode),
-  Muc = register_for_muc(Mode),
-  %% TODO implement inbox for MUC
-  case {Muclight, Muc} of
-    {true, false} ->
-      {?MODULE, process_message_with_muclight};
-    {false, false} ->
-      {?MODULE, process_message_one_to_one};
-    _ ->
-      erlang:throw({not_implemented})
+muc_dep(List) ->
+  case lists:member(muc, List) of
+    true -> [{mod_muc, hard}];
+    false -> []
   end.
 
 callback_funs() ->
@@ -166,3 +215,35 @@ callback_funs() ->
 
 clear_inbox(Username, Server) ->
   mod_inbox_utils:clear_inbox(Username, Server).
+
+%%%%%%%%%%%%%%%%%%%
+%% Message Predicates
+
+should_be_stored_in_inbox(Msg) ->
+  not is_forwarded_message(Msg) andalso
+    not is_error_message(Msg) andalso
+    not is_offline_message(Msg).
+
+is_forwarded_message(Msg) ->
+  case exml_query:subelement_with_ns(Msg, ?NS_FORWARD, undefined) of
+    undefined ->
+      false;
+    _ ->
+      true
+  end.
+
+is_error_message(Msg) ->
+  case exml_query:attr(Msg, <<"type">>, undefined) of
+    <<"error">> ->
+      true;
+    _ ->
+      false
+  end.
+
+is_offline_message(Msg) ->
+  case exml_query:subelement_with_ns(Msg, ?NS_DELAY, undefined) of
+    undefined ->
+      false;
+    _ ->
+      true
+  end.

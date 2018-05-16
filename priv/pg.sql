@@ -300,7 +300,8 @@ CREATE TABLE muc_light_blocking(
 
 CREATE INDEX i_muc_light_blocking ON muc_light_blocking (luser, lserver);
 
-CREATE TABLE inbox (username varchar(250),
+CREATE TABLE inbox (
+    username varchar(250),
     remote_bare_jid varchar(250),
     sender varchar(250),
     content bytea NOT NULL, 

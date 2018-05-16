@@ -12,7 +12,7 @@
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
 
--export([handle_message/4]).
+-export([handle_incoming_message/4]).
 -type packet() :: exml:element().
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
@@ -20,74 +20,63 @@
 -type r_none() :: binary().
 
 
--spec handle_message(Host :: jid:server(),
+-spec handle_incoming_message(Host :: jid:server(),
                      User :: jid:jid(),
                      Remote :: jid:jid(),
                      Packet :: packet()) -> any().
-handle_message(Host, User, Remote, Packet) ->
+handle_incoming_message(Host, RoomUser, Remote, Packet) ->
   Markers = mod_inbox_utils:get_reset_markers(Host),
   case mod_inbox_utils:has_chat_marker(Packet, Markers) of
     true ->
-      maybe_reset_unread_count(User, Remote, Packet);
+      maybe_reset_unread_count(RoomUser, Remote, Packet);
     false ->
-      FromBin = jid:to_binary(User),
-      Packet2 = mod_inbox_utils:add_from(Packet, FromBin),
-      message_check(User, Remote, Packet2)
+      maybe_handle_system_message(Host, RoomUser, Remote, Packet)
   end.
 
--spec maybe_reset_unread_count(User :: jid:jid(),
-                               Remote :: jid:jid(),
-                               Packet :: exml:element()) -> ok.
-maybe_reset_unread_count(User, Remote, Packet) ->
-  RoomSender = jid:nameprep(Remote#jid.resource),
-  Receiver = jid:nameprep(jid:to_binary(jid:to_bare(User))),
+
+maybe_reset_unread_count(RoomUser, Remote, Packet) ->
+  RoomSender = jid:nameprep(RoomUser#jid.resource),
+  Room = jid:to_bare(RoomUser),
+  RemoteBin = jid:nameprep(jid:to_binary(jid:to_bare(Remote))),
   Id = mod_inbox_utils:get_markered_msg_id(Packet),
   case {RoomSender, Id} of
     {_, no_id} ->
       ok;
-    {Receiver, _} ->
-      mod_inbox_utils:reset_unread_count(User, Remote, Id);
+    {RemoteBin, _} ->
+      mod_inbox_utils:reset_unread_count(Remote, Room, Id);
     _ ->
       %% do not reset because another user sent chat marker
       ok
   end.
 
--spec message_check(User :: jid:jid(),
-                    UserFromRoom :: jid:jid(),
-                    Packet :: exml:element()) -> ok.
-message_check(User, UserFromRoom, Packet) ->
-  Server = User#jid.lserver,
+
+maybe_handle_system_message(Host, RoomUser, Remote, Packet) ->
   MsgId = mod_inbox_utils:get_msg_id(Packet),
-  Sender = jid:from_binary(UserFromRoom#jid.lresource),
-  case check_system_message(Packet) of
+  Sender = jid:from_binary(RoomUser#jid.lresource),
+  case is_system_message(Packet) of
     true ->
-      WriteAffChanges = mod_inbox_utils:check_write_aff_changes(Server),
-      handle_system_message(User, Server, UserFromRoom, Packet, MsgId, WriteAffChanges);
+%%      ok;
+      WriteAffChanges = mod_inbox_utils:get_option_write_aff_changes(Host),
+      handle_system_message(Host, RoomUser, Remote, Packet, MsgId, WriteAffChanges);
     _ ->
-      write_to_inbox(Server, User, UserFromRoom, Sender, MsgId, Packet)
+      write_to_inbox(Host, RoomUser, Remote, Sender, MsgId, Packet)
   end.
 
--spec handle_system_message(User :: jid:jid(),
-                            Server :: host(),
-                            UserFromRoom :: jid:jid(),
-                            Packet :: exml:element(),
-                            MsgId :: id(),
-                            WriteAffChanges :: boolean()) -> ok.
-handle_system_message(_User, _Server, _UserFromRoom, _Packet, _MsgId, false) ->
+
+handle_system_message(_Host, _Room, _Remote, _Packet, _MsgId, false) ->
   ok;
-handle_system_message(User, Server, UserFromRoom, Packet, MsgId, true) ->
-  case {check_invitation_message(User, Packet),
-        check_new_owner_message(User, Packet)} of
+handle_system_message(Host, Room, Remote, Packet, MsgId, true) ->
+  case {is_invitation_message(Remote, Packet), is_new_owner_message(Remote, Packet)} of
     {false, false} ->
-      case check_kicked_message(User, Packet) of
+      case is_kicked_message(Remote, Packet) of
         true ->
-          handle_kicked_message(User, Server, UserFromRoom);
+          handle_kicked_message(Host, Remote, Room);
         false ->
           %% some other system muc light message. Do not write to inbox.
           ok
       end;
     _ ->
-      handle_invitation_message(User, Server, UserFromRoom, Packet, MsgId)
+      handle_invitation_message(Host, Room, Remote, Packet, MsgId)
   end.
 
 -spec handle_invitation_message(User :: jid:jid(),
@@ -95,27 +84,23 @@ handle_system_message(User, Server, UserFromRoom, Packet, MsgId, true) ->
                                 UserFromRoom ::  jid:jid(),
                                 Packet ::  exml:element(),
                                 MsgId ::  id()) -> ok.
-handle_invitation_message(User, Server, UserFromRoom, Packet, MsgId) ->
-  BareRemJID = jid:to_bare(UserFromRoom),
-  mod_inbox_utils:write_to_receiver_inbox(Server, UserFromRoom, User, BareRemJID, MsgId, Packet).
+handle_invitation_message(Host, Room, Remote, Packet, MsgId) ->
+  mod_inbox_utils:write_to_receiver_inbox(Host, Room, Remote, MsgId, Packet).
 
--spec handle_kicked_message(User :: jid:jid(),
-                            Server :: host(),
-                            UserFromRoom ::  jid:jid()) -> ok.
-handle_kicked_message(User, Server, UserFromRoom) ->
-  CheckRemove = mod_inbox_utils:check_remove_on_kicked(Server),
-  maybe_remove_inbox_row(User, Server, UserFromRoom, CheckRemove).
+%%-spec handle_kicked_message(User :: jid:jid(),
+%%                            Server :: host(),
+%%                            UserFromRoom ::  jid:jid()) -> ok.
+handle_kicked_message(Host, User, Room) ->
+  CheckRemove = mod_inbox_utils:get_option_remove_on_kicked(Host),
+  maybe_remove_inbox_row(Host, User, Room, CheckRemove).
 
--spec maybe_remove_inbox_row(Username :: jid:jid(),
-                             Server :: host(),
-                             RemoteJid :: jid:jid(),
-                             CheckRemote :: boolean()) -> ok.
-maybe_remove_inbox_row(_, _, _ , false) ->
+
+maybe_remove_inbox_row(_, _, _, false) ->
   ok;
-maybe_remove_inbox_row(Username, Server, RemoteJid, true) ->
-  UBin = jid:to_binary(jid:to_bare(Username)),
-  RemoteBin = jid:to_binary(RemoteJid),
-  mod_inbox_backend:remove_inbox(UBin, Server, RemoteBin).
+maybe_remove_inbox_row(Host, User, Room, true) ->
+  UserBin = jid:to_binary(jid:to_bare(User)),
+  RoomBin = jid:to_binary(Room),
+  mod_inbox_backend:remove_inbox(UserBin, Host, RoomBin).
 
 -spec write_to_inbox(Server :: host(),
                      RemoteIsSender :: jid:jid(),
@@ -123,23 +108,22 @@ maybe_remove_inbox_row(Username, Server, RemoteJid, true) ->
                      RemoteIsSender :: jid:jid(),
                      MsgId :: id(),
                      Packet :: exml:packet()) -> ok.
-write_to_inbox(Server, RemoteIsSender, User, RemoteIsSender, MsgId, Packet) ->
-  BareRemJID = jid:to_bare(RemoteIsSender),
-  mod_inbox_utils:write_to_sender_inbox(Server, RemoteIsSender, User, BareRemJID, MsgId, Packet);
-write_to_inbox(Server, Remote, User, Sender, MsgId, Packet) ->
-  mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, Sender, MsgId, Packet).
+write_to_inbox(Server, FullRoomJid, RemoteIsSender, RemoteIsSender, MsgId, Packet) ->
+  mod_inbox_utils:write_to_sender_inbox(Server, RemoteIsSender, FullRoomJid, MsgId, Packet);
+write_to_inbox(Server, FullRoomJid, Remote, _Sender, MsgId, Packet) ->
+  mod_inbox_utils:write_to_receiver_inbox(Server, FullRoomJid, Remote, MsgId, Packet).
 
 %%%%%%%
 %% Predicate funs
--spec check_system_message(exml:packet()) -> boolean().
-check_system_message(Packet) ->
+-spec is_system_message(exml:packet()) -> boolean().
+is_system_message(Packet) ->
   NSs = [?NS_MUC_LIGHT_CONFIGURATION, ?NS_MUC_LIGHT_AFFILIATIONS,
     ?NS_MUC_LIGHT_INFO, ?NS_MUC_LIGHT_BLOCKING, ?NS_MUC_LIGHT_DESTROY],
   Filtered = [exml_query:path(Packet, [{element_with_ns, NS}], undefined) || NS <- NSs],
   lists:any(fun(undefined) -> false;(_) -> true end, Filtered).
 
--spec check_change_aff_message(jid:jid(), exml:element(), role()) -> binary().
-check_change_aff_message(User, Packet, Role) ->
+-spec is_change_aff_message(jid:jid(), exml:element(), role()) -> binary().
+is_change_aff_message(User, Packet, Role) ->
   AffItems = exml_query:paths(Packet, [{element_with_ns, ?NS_MUC_LIGHT_AFFILIATIONS},
     {element, <<"user">>}]),
   AffList = get_users_with_affiliation(AffItems, Role),
@@ -147,18 +131,18 @@ check_change_aff_message(User, Packet, Role) ->
   UserBin = jid:to_binary(jid:to_lower(jid:to_bare(User))),
   lists:member(UserBin, Jids).
 
--spec check_invitation_message(jid:jid(), exml:element()) -> true.
-check_invitation_message(User, Packet) ->
-  check_change_aff_message(User, Packet, <<"member">>).
+-spec is_invitation_message(jid:jid(), exml:element()) -> true.
+is_invitation_message(User, Packet) ->
+  is_change_aff_message(User, Packet, <<"member">>).
 
--spec check_new_owner_message(jid:jid(), exml:element()) -> true.
-check_new_owner_message(User, Packet) ->
-  check_change_aff_message(User, Packet, <<"owner">>).
+-spec is_new_owner_message(jid:jid(), exml:element()) -> true.
+is_new_owner_message(User, Packet) ->
+  is_change_aff_message(User, Packet, <<"owner">>).
 
--spec check_kicked_message(jid:jid(), exml:element()) -> true.
-check_kicked_message(User, Packet) ->
-  check_change_aff_message(User, Packet, <<"none">>).
+-spec is_kicked_message(jid:jid(), exml:element()) -> true.
+is_kicked_message(User, Packet) ->
+  is_change_aff_message(User, Packet, <<"none">>).
 
 -spec get_users_with_affiliation(list(exml:element()), role()) -> list(exml:element()).
 get_users_with_affiliation(AffItems, Role) ->
-  [M || #xmlel{name = <<"user">>, attrs=[{<<"affiliation">>, Role}]} = M <- AffItems].
+  [M || #xmlel{name = <<"user">>, attrs=[{<<"affiliation">>, R}]} = M <- AffItems, R == Role].
