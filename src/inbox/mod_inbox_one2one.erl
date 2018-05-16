@@ -24,7 +24,7 @@ handle_outgoing_message(Host, User, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:has_chat_marker(Packet, Markers) of
         true ->
-            maybe_reset_unread_count(User, Remote, Packet);
+            mod_inbox_utils:maybe_reset_unread_count(User, Remote, Packet);
         false ->
             FromBin = jid:to_binary(User),
             Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
@@ -44,17 +44,6 @@ handle_incomming_message(Host, User, Remote, Packet) ->
             mod_inbox_utils:write_to_receiver_inbox(Host, User, Remote, MsgId, Packet2)
     end.
 
--spec maybe_reset_unread_count(User :: jid:jid(),
-    Remote :: jid:jid(),
-    Packet :: exml:element()) -> ok.
-maybe_reset_unread_count(User, Remote, Packet) ->
-    Id = mod_inbox_utils:get_markered_msg_id(Packet),
-    case Id of
-        no_id ->
-            ok;
-        _ ->
-            mod_inbox_utils:reset_unread_count(User, Remote, Id)
-    end.
 
 -spec write_to_inbox(User :: jid:jid(),
     Remote :: jid:jid(),

@@ -10,6 +10,7 @@
 -author("ludwikbukowski").
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
+-include("jid.hrl").
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 
@@ -19,44 +20,44 @@
 -define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
 
 -callback init(Host, Opts) -> ok when
-    Host :: lserver(),
+    Host :: jid:lserver(),
     Opts :: list().
 
 -callback get_inbox(Username, Server) -> inbox_db_res() when
-    Username :: luser(),
-    Server :: lserver().
+    Username :: jid:luser(),
+    Server :: jid:lserver().
 
 -callback set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_db_res() when
-    Username :: luser(),
-    Server :: lserver(),
+    Username :: jid:luser(),
+    Server :: jid:lserver(),
     ToBareJid :: binary(),
     Content :: binary(),
     Count :: binary(),
     MsgId :: binary().
 
 -callback remove_inbox(Username, Server, ToBareJid) -> inbox_db_res() when
-    Username :: luser(),
-    Server :: lserver(),
+    Username :: jid:luser(),
+    Server :: jid:lserver(),
     ToBareJid :: binary().
 
 -callback set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) -> inbox_db_res() when
-    Username :: luser(),
-    Server :: lserver(),
+    Username :: jid:luser(),
+    Server :: jid:lserver(),
     ToBareJid :: binary(),
     Content :: binary(),
     MsgId :: binary().
 
 -callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_db_res() when
-    Username :: luser(),
-    Server :: lserver(),
+    Username :: jid:luser(),
+    Server :: jid:lserver(),
     BareJid :: binary(),
     MsgId :: binary().
 
 -callback clear_inbox(Username, Server) -> inbox_db_res() when
-    Username :: luser(),
-    Server :: lserver().
+    Username :: jid:luser(),
+    Server :: jid:lserver().
 
--spec deps(server(), list()) -> list().
+-spec deps(jid:lserver(), list()) -> list().
 deps(_Host, Opts) ->
     groupchat_deps(Opts).
 
@@ -149,9 +150,8 @@ process_message(Host, From, To, Message, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incomming, one2one) ->
     mod_inbox_one2one:handle_incomming_message(Host, From, To, Message);
-process_message(_Host, _From, _To, _Message, outgoing, groupchat) ->
-    %% For muclight we process only incoming messages
-    ok;
+process_message(Host, From, To, Message, outgoing, groupchat) ->
+    mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incomming, groupchat) ->
     mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
 process_message(_, _, _, Message, _, _) ->

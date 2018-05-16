@@ -1,4 +1,5 @@
 -type username() :: binary().
+-type host() :: binary().
 -type sender() :: binary().
 -type content() :: binary().
 -type count() :: binary().

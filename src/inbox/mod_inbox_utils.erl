@@ -17,6 +17,13 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
+-spec maybe_reset_unread_count(User :: jid:jid(),
+    Remote :: jid:jid(),
+    Packet :: exml:element()) -> ok.
+maybe_reset_unread_count(User, Remote, Packet) ->
+    Id = mod_inbox_utils:get_markered_msg_id(Packet),
+    Id /= no_id andalso reset_unread_count(User, Remote, Id).
+
 -spec reset_unread_count(From :: jid:jid(),
     To :: jid:jid(),
     MsgId :: id()) -> ok.

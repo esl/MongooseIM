@@ -12,13 +12,27 @@
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
 
--export([handle_incoming_message/4]).
+-export([handle_outgoing_message/4, handle_incoming_message/4]).
 -type packet() :: exml:element().
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
 -type r_owner() :: binary().
 -type r_none() :: binary().
 
+
+-spec handle_outgoing_message(Host :: jid:server(),
+                              User :: jid:jid(),
+                              Room :: jid:jid(),
+                              Packet :: packet()) -> any().
+handle_outgoing_message(Host, User, Room, Packet) ->
+    Markers = mod_inbox_utils:get_reset_markers(Host),
+    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
+        true ->
+            mod_inbox_utils:maybe_reset_unread_count(User, Room, Packet);
+        false ->
+            %% we store in inbox only on incomming messages
+            ok
+    end.
 
 -spec handle_incoming_message(Host :: jid:server(),
     User :: jid:jid(),
@@ -28,26 +42,17 @@ handle_incoming_message(Host, RoomUser, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:has_chat_marker(Packet, Markers) of
         true ->
-            maybe_reset_unread_count(RoomUser, Remote, Packet);
+            %% we reset counter only on outgoing messages
+            ok;
         false ->
             maybe_handle_system_message(Host, RoomUser, Remote, Packet)
     end.
 
 
-maybe_reset_unread_count(RoomUser, Remote, Packet) ->
-    RoomSender = jid:nameprep(RoomUser#jid.resource),
-    Room = jid:to_bare(RoomUser),
-    RemoteBin = jid:nameprep(jid:to_binary(jid:to_bare(Remote))),
+maybe_reset_unread_count(User, Room, Packet) ->
     Id = mod_inbox_utils:get_markered_msg_id(Packet),
-    case {RoomSender, Id} of
-        {_, no_id} ->
-            ok;
-        {RemoteBin, _} ->
-            mod_inbox_utils:reset_unread_count(Remote, Room, Id);
-        _ ->
-            %% do not reset because another user sent chat marker
-            ok
-    end.
+    Id /= no_id andalso mod_inbox_utils:reset_unread_count(User, Room, Id).
+
 
 
 maybe_handle_system_message(Host, RoomUser, Remote, Packet) ->
