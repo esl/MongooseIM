@@ -953,7 +953,6 @@ parse_messages(Messages) ->
 
 bootstrap_archive(Config) ->
     random:seed(os:timestamp()),
-    _Users = escalus_ct:get_config(escalus_users),
     AliceJID    = escalus_users:get_jid(Config, alice),
     BobJID      = escalus_users:get_jid(Config, bob),
     CarolJID    = escalus_users:get_jid(Config, carol),

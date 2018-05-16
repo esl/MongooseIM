@@ -44,10 +44,10 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc(Host) ->
-    _Backend = case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
-                   true -> odbc;
-                   false -> mnesia
-               end,
+    case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
+        true -> odbc;
+        false -> mnesia
+    end,
     %% TODO refactoring. "localhost" should be passed as a parameter
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
