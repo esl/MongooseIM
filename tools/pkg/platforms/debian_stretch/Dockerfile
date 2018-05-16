@@ -26,7 +26,7 @@ RUN locale-gen en_US.UTF-8
 VOLUME /packages
 
 # Copy the build script
+COPY platforms/debian_stretch/files/build /buildfiles
 COPY files/build /build
-COPY files/build.sh /
 
 CMD ["/bin/bash"]

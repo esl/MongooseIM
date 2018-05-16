@@ -10,7 +10,6 @@ if [ x"$VER" == x"" ]; then
     exit 1
 fi
 
-cd package-buildscripts
-cd scripts/mongooseim/rpm/
+cd /buildfiles
 bash ./script.sh ${VER} ${REVISION}
-cp -i mongooseim-*.rpm /packages/
+cp -i mongooseim*.??? /packages/

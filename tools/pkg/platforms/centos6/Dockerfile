@@ -16,22 +16,11 @@ RUN yum --setopt=obsoletes=0 install -y sudo telnet lsof vim gcc rpm-build rpm-s
 # See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 
-# Deploy key for fetching private GitHub repositories
-COPY files/docker.id_rsa     /root/.ssh/id_rsa
-COPY files/docker.id_rsa.pub /root/.ssh/id_rsa.pub
-COPY files/known_hosts       /root/.ssh/known_hosts
-RUN  chmod go-wr             /root/.ssh/id_rsa
-
-# Clone esl/package-buildscripts
-ENV BUILDSCRIPTS_REPO git@github.com:esl/package-buildscripts
-ENV BUILDSCRIPTS_REF feb5b2b7aa09ce9ccac2ae43ee0dbdac80c42417
-RUN git clone $BUILDSCRIPTS_REPO package-buildscripts \
- && cd package-buildscripts && git checkout $BUILDSCRIPTS_REF
-
 # Package output mountpoint
 VOLUME /packages
 
 # Copy the build script
+COPY platforms/centos6/files/build /buildfiles
 COPY files/build /build
 
 ENTRYPOINT ["scl", "enable", "devtoolset-4"]
