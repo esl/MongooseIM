@@ -7,6 +7,7 @@
   {registered, [
                ]},
   {applications, [
+                  amqp_client,
                   asn1,
                   backoff,
                   base16,
