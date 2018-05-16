@@ -17,13 +17,6 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
--spec maybe_reset_unread_count(User :: jid:jid(),
-    Remote :: jid:jid(),
-    Packet :: exml:element()) -> ok.
-maybe_reset_unread_count(User, Remote, Packet) ->
-    Id = mod_inbox_utils:get_markered_msg_id(Packet),
-    Id /= no_id andalso reset_unread_count(User, Remote, Id).
-
 -spec reset_unread_count(From :: jid:jid(),
     To :: jid:jid(),
     MsgId :: id()) -> ok.
@@ -67,20 +60,28 @@ get_reset_markers(Host) ->
         true -> erlang:throw(unknown_markers, MarkersBin)
     end.
 
+if_chat_marker_get_id(Packet, Markers) when is_list(Markers) ->
+    Ids = [if_chat_marker_get_id(Packet, M) || M <- Markers],
+    Filtered = [El || El <- Ids, El /= undefined],
+    case Filtered of
+        [] ->
+            undefined;
+        _ ->
+            lists:nth(1, Filtered)
+    end;
+if_chat_marker_get_id(Packet, Marker) ->
+    case exml_query:paths(Packet, [{element, Marker}, {attr, <<"id">>}]) of
+        [Id] ->
+            Id;
+        _ ->
+            undefined
+    end.
 
 has_chat_marker(_Packet, []) -> false;
 has_chat_marker(Packet, [Marker | R]) ->
     case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
         #xmlel{name = Marker} -> true;
         _ -> has_chat_marker(Packet, R)
-    end.
-
-get_markered_msg_id(#xmlel{name = <<"message">>} = Msg) ->
-    case exml_query:paths(Msg, [{element, <<"displayed">>}, {attr, <<"id">>}]) of
-        [Id] ->
-            Id;
-        _ ->
-            no_id
     end.
 
 get_msg_id(#xmlel{name = <<"message">>} = Msg) ->

@@ -22,13 +22,13 @@
                               Packet :: packet()) -> any().
 handle_outgoing_message(Host, User, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
-    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
-        true ->
-            mod_inbox_utils:maybe_reset_unread_count(User, Remote, Packet);
-        false ->
+    case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
+        undefined ->
             FromBin = jid:to_binary(User),
             Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
-            write_to_inbox(User, Remote, Packet2)
+            write_to_inbox(User, Remote, Packet2);
+        Id ->
+            mod_inbox_utils:reset_unread_count(User, Remote, Id)
     end.
 
 handle_incomming_message(Host, User, Remote, Packet) ->

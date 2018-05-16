@@ -26,12 +26,12 @@
                               Packet :: packet()) -> any().
 handle_outgoing_message(Host, User, Room, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
-    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
-        true ->
-            mod_inbox_utils:maybe_reset_unread_count(User, Room, Packet);
-        false ->
+    case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
+        undefined ->
             %% we store in inbox only on incomming messages
-            ok
+            ok;
+        Id ->
+            mod_inbox_utils:reset_unread_count(User, Room, Id)
     end.
 
 -spec handle_incoming_message(Host :: jid:server(),
