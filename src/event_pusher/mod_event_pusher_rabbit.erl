@@ -64,7 +64,7 @@ publish_user_presence_change(JID, Status) ->
     {User, Host, _} = jid:to_lower(JID),
     Topic = opt(Host, presence_updates_topic, ?DEFAULT_PRESENCE_TOPIC),
     wpool:cast(pool_name(Host), {user_presence_changed,
-                                 #{user_jid => jid(User, Host),
+                                 #{user_jid => jid:to_binary({User, Host}),
                                    status => Status,
                                    topic => Topic}}, available_worker).
 
@@ -73,13 +73,8 @@ publish_user_presence_change(JID, Status) ->
 pool_name(Host) ->
     gen_mod:get_module_proc(Host, ?MODULE).
 
--spec jid(User :: binary(), Host :: binary()) -> binary().
-jid(User, Host) ->
-    <<User/binary, "@", Host/binary>>.
-
 %% Getter for module options
--spec opt(Host :: jid:lserver(), Option :: atom()) ->
-    Value :: term() | undefined.
+-spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().
 opt(Host, Option) ->
     opt(Host, Option, undefined).
 
