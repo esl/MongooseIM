@@ -85,7 +85,7 @@ has_chat_marker(Packet, [Marker | R]) ->
     end.
 
 get_msg_id(#xmlel{name = <<"message">>} = Msg) ->
-    exml_query:attr(Msg, <<"id">>, <<"noid">>).
+    exml_query:attr(Msg, <<"id">>, <<>>).
 
 
 fill_from_attr(Msg = #xmlel{attrs = Attrs}, FromBin) ->

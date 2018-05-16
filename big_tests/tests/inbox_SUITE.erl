@@ -158,9 +158,15 @@ end_per_testcase(leave_and_remain_conversation, Config) ->
   clear_inbox_all(),
   restore_inbox_option(Config),
   escalus:end_per_testcase(leave_and_remain_conversation, Config);
+end_per_testcase(to_not_existing, Config) ->
+  Host = ct:get_config({hosts, mim, domain}),
+  escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user@localhost">>,Host]),
+  escalus:end_per_testcase(to_not_existing, Config);
 end_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:end_per_testcase(CaseName, Config).
+
+
 
 %%--------------------------------------------------------------------
 %% Inbox tests one-to-one
