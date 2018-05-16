@@ -395,7 +395,7 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              to = To,
              packet = jlib:remove_delay_tags(Packet)},
     Pid ! {Acc, Msg},
-    mongoose_acc:put(stored_offlne, true, Acc).
+    Acc.
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
