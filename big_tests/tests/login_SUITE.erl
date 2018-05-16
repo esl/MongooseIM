@@ -221,7 +221,7 @@ register(Config) ->
     [Username2, _Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
 
-    distributed_helper:rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
 
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
             escalus:create_users(Config, escalus:get_users([Name1, Name2])),
