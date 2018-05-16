@@ -1,8 +1,9 @@
--type inbox_res() :: {username(), sender(), content(), count()}.
 -type username() :: binary().
 -type sender() :: binary().
 -type content() :: binary().
 -type count() :: binary().
 -type id() :: binary().
--type host() :: binary().
--type inbox_db_res() :: ok | {error, any()}.
+-type inbox_db_res() :: read_res() | write_res().
+-type read_res() :: list(inbox_res()).
+-type inbox_res() :: {username(), content(), count()}.
+-type write_res() :: ok | {error, any()}.
