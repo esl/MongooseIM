@@ -160,7 +160,7 @@ get_message_type(Msg) ->
 %% Stanza builders
 
 -spec build_inbox_message(inbox_res(), id()) -> exml:element().
-build_inbox_message({_Username, _Sender, Content, Count}, QueryId) ->
+build_inbox_message({_Username, Content, Count}, QueryId) ->
   #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
     children=[build_result_el(Content, QueryId, Count)]}.
 

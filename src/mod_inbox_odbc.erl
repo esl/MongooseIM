@@ -103,10 +103,10 @@ clear_inbox(Username, Server) ->
   check_result(Res).
 
 -spec decode_row(host(), {username(), sender(), binary(), count()}) -> inbox_res().
-decode_row(LServer, {Username, Sender, Content, Count}) ->
+decode_row(LServer, {Username, Content, Count}) ->
   Pool = mongoose_rdbms_sup:pool(LServer),
   Data = mongoose_rdbms:unescape_binary(Pool, Content),
-  {Username, Sender, Data, Count}.
+  {Username, Data, Count}.
 
 check_result({updated, Val}, Val) ->
   ok.

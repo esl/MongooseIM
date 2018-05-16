@@ -773,7 +773,7 @@ del_privacy_lists(LServer, _Server, Username) ->
 get_inbox(LUser, LServer) ->
   mongoose_rdbms:sql_query(
     LServer,
-    [<<"select remote_bare_jid, sender, content, unread_count from inbox "
+    [<<"select remote_bare_jid, content, unread_count from inbox "
     "where username=">>, mongoose_rdbms:use_escaped_string(LUser), ";"]).
 
 get_inbox_unread(LUser, LServer, ToBareJid) ->
@@ -785,14 +785,12 @@ get_inbox_unread(LUser, LServer, ToBareJid) ->
 
 %% TODO make compatibile with other backend than postgres
 set_inbox(Username, LServer, ToBareJid, Sender, Content, C, MsgId) ->
-  mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, sender, content,
+  mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, content,
   unread_count, msg_id) values (">>, mongoose_rdbms:use_escaped_string(Username), <<",">>,
                                       mongoose_rdbms:use_escaped_string(ToBareJid), <<",">>,
-                                      mongoose_rdbms:use_escaped_string(Sender), <<",">>,
                                       mongoose_rdbms:use_escaped_string(Content), <<",">>,
                                       mongoose_rdbms:use_escaped_string(C), <<",">>,
-                                      mongoose_rdbms:use_escaped_string(MsgId), <<") on conflict(username, remote_bare_jid)do update set sender=">>,
-                                      mongoose_rdbms:use_escaped_string(Sender),<<", content=">>,
+                                      mongoose_rdbms:use_escaped_string(MsgId), <<") on conflict(username, remote_bare_jid)do update set content=">>,
                                       mongoose_rdbms:use_escaped_string(Content), <<", unread_count=">>,
                                       mongoose_rdbms:use_escaped_string(C),<<",msg_id=">>,
                                       mongoose_rdbms:use_escaped_string(MsgId), ";"]).
@@ -804,14 +802,12 @@ remove_inbox(Username, LServer, ToBareJid) ->
     mongoose_rdbms:use_escaped_string(ToBareJid),";"]).
 
 set_inbox_incr_unread(Username, LServer, ToBareJid, Sender, Content, MsgId) ->
-  mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid, sender,
+  mongoose_rdbms:sql_query(LServer, [<<"insert into inbox(username, remote_bare_jid,
   content, unread_count, msg_id) values (">>, mongoose_rdbms:use_escaped_string(Username), <<", ">>,
                                                mongoose_rdbms:use_escaped_string(ToBareJid), <<", ">>,
-                                               mongoose_rdbms:use_escaped_string(Sender), <<", ">>,
                                                mongoose_rdbms:use_escaped_string(Content), <<", ">>, <<"1">>, <<", ">>,
                                                mongoose_rdbms:use_escaped_string(MsgId), <<") on conflict(username, remote_bare_jid)
-                     do update set sender=">>,mongoose_rdbms:use_escaped_string(Sender),<<", content=">>,
-                                               mongoose_rdbms:use_escaped_string(Content), <<", unread_count=inbox.unread_count + 1, msg_id=">>,
+                     do update set content=">>, mongoose_rdbms:use_escaped_string(Content), <<", unread_count=inbox.unread_count + 1, msg_id=">>,
                                                mongoose_rdbms:use_escaped_string(MsgId),";"]).
 
 
