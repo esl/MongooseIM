@@ -5,4 +5,4 @@
 -type count() :: binary().
 -type id() :: binary().
 -type host() :: binary().
-
+-type inbox_db_res() :: ok | {error, any()}.

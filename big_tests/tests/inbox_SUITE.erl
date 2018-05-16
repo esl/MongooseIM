@@ -64,8 +64,7 @@ groups() ->
         two_unread,
         mark_read,
         mark_unread_bad_id
-      ]}
-    ,
+      ]},
       {muclight, [sequence], [
         simple_muclight,
         advanced_muclight,

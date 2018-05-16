@@ -100,7 +100,7 @@ maybe_remove_inbox_row(_, _, _, false) ->
 maybe_remove_inbox_row(Host, User, Room, true) ->
   UserBin = (jid:to_bare(User))#jid.luser,
   RoomBin = jid:to_binary(Room),
-  mod_inbox_backend:remove_inbox(UserBin, Host, RoomBin).
+  ok = mod_inbox_backend:remove_inbox(UserBin, Host, RoomBin).
 
 -spec write_to_inbox(Server :: host(),
                      RemoteIsSender :: jid:jid(),

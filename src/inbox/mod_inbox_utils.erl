@@ -24,7 +24,7 @@ reset_unread_count(User, Remote, MsgId) ->
   FromUsername = User#jid.luser,
   Server = User#jid.lserver,
   ToBareJid = jid:to_binary(jid:to_bare(Remote)),
-  mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgId).
+  ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgId).
 
 write_to_sender_inbox(Server, From, To, MsgId, Packet) ->
   Content = exml:to_binary(Packet),
@@ -32,19 +32,19 @@ write_to_sender_inbox(Server, From, To, MsgId, Packet) ->
   RemoteBareJid = jid:to_binary(jid:to_bare(To)),
   %% no unread for a user because he writes new messages which assumes he read all previous messages.
   Count = integer_to_binary(0),
-  mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid, Content, Count, MsgId).
+  ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid, Content, Count, MsgId).
 
 
 write_to_receiver_inbox(Server, From, To, MsgId, Packet) ->
   Content = exml:to_binary(Packet),
   Username = To#jid.luser,
   RemoteBareJid = jid:to_binary(jid:to_bare(From)),
-  mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid, Content, MsgId).
+  ok = mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid, Content, MsgId).
 
 
 clear_inbox(User, Server) when is_binary(User) ->
   JidForm = jid:from_binary(User),
-  mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
+  ok = mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
 
 
 %%%%%%%%%%%%%%%%%%%
@@ -83,7 +83,7 @@ get_msg_id(#xmlel{name = <<"message">>} = Msg) ->
 fill_from_attr(Msg = #xmlel{attrs = Attrs}, FromBin) ->
   case exml_query:attr(Msg, <<"from">>, undefined) of
     undefined ->
-      Msg#xmlel{attrs = Attrs ++ [{<<"from">>, FromBin}]};
+      Msg#xmlel{attrs = [{<<"from">>, FromBin} | Attrs]};
     _ ->
       Msg
   end.

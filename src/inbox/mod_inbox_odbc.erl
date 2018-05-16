@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author ludwikbukowski
-%%% @copyright (C) 2018, <COMPANY>
+%%% @copyright (C) 2018, Erlang Solutions Ltd.
 %%% @doc
 %%%
 %%% @end
@@ -25,6 +25,7 @@
 
 init(_VHost, _Options) ->
   ok.
+
 -spec get_inbox(LUser, LServer) -> ok when
                 LUser  :: binary(),
                 LServer :: binary().
@@ -43,7 +44,7 @@ set_inbox(Username, Server, ToBareJid, Content, C, MsgId) ->
   LServer = jid:nameprep(Server),
   LToBareJid = jid:nameprep(ToBareJid),
   Res = mod_inbox_odbc_psql:set_inbox(LUsername, LServer, LToBareJid, Content, C, MsgId),
-  check_result(Res, 1).
+  ok = check_result(Res, 1).
 
 -spec remove_inbox(User :: binary(),
                    Server :: binary(),
@@ -92,7 +93,13 @@ decode_row(LServer, {Username, Content, Count}) ->
   {Username, Data, Count}.
 
 check_result({updated, Val}, Val) ->
-  ok.
+  ok;
+check_result({updated, Res}, Exp) ->
+  {error, {expected_does_not_match, Exp, Res}};
+check_result(Result, _) ->
+  {error, {bad_result, Result}}.
 
 check_result({updated, _}) ->
-  ok.
+  ok;
+check_result(Result) ->
+  {error, {bad_result, Result}}.
