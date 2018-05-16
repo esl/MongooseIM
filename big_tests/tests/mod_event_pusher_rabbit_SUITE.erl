@@ -135,10 +135,9 @@ connected_users_create_exchanges_when_available(Config) ->
               escalus:wait_for_stanzas(Bob, 1),
               escalus:wait_for_stanzas(Alice, 1),
               %% THEN exchanges are created
-              Result = [is_exchange_present(Connection, Channel, Exchange,
-                                 ?IF_EXCHANGE_EXISTS_RETRIES)
-                        || Exchange <- Exchanges],
-              ?assert(lists:all(fun(E) -> E == true end, Result))
+              [?assert(is_exchange_present(Connection, Channel, Exchange,
+                                           ?IF_EXCHANGE_EXISTS_RETRIES))
+               || Exchange <- Exchanges]
       end).
 
 disconnected_users_delete_exchanges_when_unavailable(Config) ->
@@ -157,10 +156,8 @@ disconnected_users_delete_exchanges_when_unavailable(Config) ->
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
               escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
               %% THEN exchanges are deleted
-              [?assertException(_Error, _Reason,
-                                error_when_exchange_is_absent(Connection,
-                                                              Channel, Exchange,
-                                                              ?IF_EXCHANGE_EXISTS_RETRIES))
+              wait_for_exchanges_to_be_deleted(Connection, Exchanges),
+              [?assert(is_exchange_absent(Connection, Channel, Exchange, 1))
                || Exchange <- Exchanges]
       end).
 
@@ -225,6 +222,13 @@ wait_for_exchanges_to_be_created(Connection, Exchanges) ->
      || Exchange <- Exchanges],
     ok.
 
+wait_for_exchanges_to_be_deleted(Connection, Exchanges) ->
+    {ok, TestChannel} = amqp_connection:open_channel(Connection),
+    [is_exchange_absent(Connection, TestChannel, Exchange,
+                        ?IF_EXCHANGE_EXISTS_RETRIES)
+     || Exchange <- Exchanges],
+    ok.
+
 -spec declare_rabbit_queue(Channel :: pid()) -> binary().
 declare_rabbit_queue(Channel) ->
     #'queue.declare_ok'{queue = Queue} =
@@ -242,16 +246,19 @@ presence_bindings(Queue, JIDs) ->
 bind_queues_to_exchanges(Channel, Bindings) ->
     [bind_queue_to_exchange(Channel, Binding) || Binding <- Bindings].
 
+-spec bind_queue_to_exchange(Channel :: pid(), rabbit_binding()) ->
+    amqp_client:amqp_method() | ok | blocked | closing.
 bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
-    amqp_channel:call(Channel, #'queue.bind'{exchange = Exchange,
-                                             routing_key = RoutingKey,
-                                             queue = Queue}).
+    #'queue.bind_ok'{} =
+        amqp_channel:call(Channel, #'queue.bind'{exchange = Exchange,
+                                                 routing_key = RoutingKey,
+                                                 queue = Queue}).
 
 -spec is_exchange_present(Connection :: pid(), Channel :: pid(),
-                                      Exchange :: binary(),
-                                      Retries :: non_neg_integer()) ->
+                          Exchange :: binary(),
+                          Retries :: non_neg_integer()) ->
     true | no_return().
-is_exchange_present(_Connection, Channel, Exchange, 0) ->
+is_exchange_present(_Connection, Channel, Exchange, 1) ->
     amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
                                                    type = <<"topic">>,
                                                    passive = true}),
@@ -269,16 +276,27 @@ is_exchange_present(Connection, Channel, Exchange, Retries) ->
             is_exchange_present(Connection, NewChannel, Exchange, Retries - 1)
     end.
 
-error_when_exchange_is_absent(Connection, Channel, Exchange, 0) ->
-    is_exchange_present(Connection, Channel, Exchange, 0);
-error_when_exchange_is_absent(Connection, Channel, Exchange, Retries) ->
-    case is_exchange_present(Connection, Channel, Exchange, Retries) of
-        true ->
+-spec is_exchange_absent(Connection :: pid(), Channel :: pid(),
+                         Exchange :: binary(),
+                         Retries :: non_neg_integer()) ->
+    true | no_return().
+is_exchange_absent(_Connection, Channel, Exchange, 1) ->
+    try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
+                                                       type = <<"topic">>,
+                                                       passive = true}) of
+        {'exchange.declare_ok'} -> throw("Some exchange is present.")
+    catch
+        _Error:_Reason -> true
+    end;
+is_exchange_absent(Connection, Channel, Exchange, Retries) ->
+    try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
+                                                       type = <<"topic">>,
+                                                       passive = true}) of
+        {'exchange.declare_ok'} ->
             timer:sleep(?WAIT_FOR_EXCHANGE_INTERVAL),
-            error_when_exchange_is_absent(Connection, Channel, Exchange,
-                                          Retries - 1);
-        Else ->
-            Else
+            is_exchange_absent(Connection, Channel, Exchange, Retries - 1)
+    catch
+        _Error:_Reason -> true
     end.
 
 -spec subscribe_to_rabbit_queue(Channel :: pid(), Queue :: binary()) -> ok.
@@ -287,6 +305,8 @@ subscribe_to_rabbit_queue(Channel, Queue) ->
                                                      no_ack = true}, self()),
     receive
         #'basic.consume_ok'{} -> ok
+    after
+        5000 -> throw("Subscribe channel timeout.")
     end.
 
 -spec send_presence_stanzas(Users :: [binary()], NumOfMsgs :: non_neg_integer())
