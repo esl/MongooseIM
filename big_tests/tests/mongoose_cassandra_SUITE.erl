@@ -245,7 +245,7 @@ load_test_module(_Config) ->
     call(code, load_binary, [Mod, File, Bin]).
 
 is_cassandra_enabled() ->
-    case call(mongoose_cassandra_sup, get_all_workers, []) of
+    case call(mongoose_cassandra_pool, all, []) of
         [_|_]=_Pools ->
             true;
         _ ->
