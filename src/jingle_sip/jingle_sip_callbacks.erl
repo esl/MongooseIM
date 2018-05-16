@@ -22,6 +22,7 @@
 -module(jingle_sip_callbacks).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include_lib("nksip/include/nksip.hrl").
 -include_lib("nksip/include/nksip_call.hrl").
@@ -93,7 +94,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
 
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
     {reply, ringing}.
@@ -112,7 +113,7 @@ sip_reinvite_unsafe(Req, _Call) ->
     ?WARNING_MSG("ContentEls: ~p", [ContentEls]),
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"transport-info">>, ContentEls ++ OtherEls),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     {reply, ok}.
 
@@ -137,7 +138,7 @@ sip_bye(Req, _Call) ->
                       children = [#xmlel{name = <<"success">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
     {reply, ok}.
@@ -151,7 +152,7 @@ sip_cancel(_InviteReq, Req, _Call) ->
                       children = [#xmlel{name = <<"decline">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
     {reply, ok}.
@@ -204,7 +205,7 @@ invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
 
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-accept">>, ContentEls ++ OtherEls),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     ok = mod_jingle_sip_backend:set_outgoing_accepted(CallID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
@@ -221,7 +222,7 @@ invite_resp_callback({resp, 486, SIPMsg, _Call}) ->
                       children = [#xmlel{name = <<"decline">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
 invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
@@ -234,7 +235,7 @@ invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
 
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
 
@@ -257,7 +258,7 @@ send_ringing_session_info(SIPMsg) ->
                        attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:1:info">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-info">>, [RingingEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = ?new_acc(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok.
 

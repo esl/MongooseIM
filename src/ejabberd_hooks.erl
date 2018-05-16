@@ -52,6 +52,7 @@
          delete/1]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 
 -type hook() :: {atom(), jid:server() | global, module(), fun() | atom(), integer()}.
 
@@ -128,7 +129,7 @@ run(Hook, Args) ->
           Host :: jid:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
-    run_fold(Hook, Host, mongoose_acc:new(), Args).
+    run_fold(Hook, Host, ?new_acc(), Args).
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
 %% @doc Run the calls of this hook in order.

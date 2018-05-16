@@ -66,6 +66,7 @@
 -export([update_tables/0]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include("route.hrl").
 -include("external_component.hrl").
@@ -115,7 +116,7 @@ start_link() ->
 route(From, To, #xmlel{} = Packet) ->
     % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
     % (called by broadcasting)
-    route(From, To, mongoose_acc:from_element(Packet, From, To));
+    route(From, To, ?new_acc(Packet, From, To));
 route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Acc]),

@@ -74,6 +74,7 @@
 -export([do_route/4]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_privacy.hrl").
@@ -131,9 +132,9 @@ start_link() ->
       Packet :: exml:element() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    route(From, To, mongoose_acc:from_element(Packet, From, To));
+    route(From, To, ?new_acc(Packet, From, To));
 route(From, To, {broadcast, Payload}) ->
-    route(From, To, mongoose_acc:new(), {broadcast, Payload});
+    route(From, To, ?new_acc(), {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:get(element, Acc)).
 

@@ -51,6 +51,7 @@
          unregister_subhost/2]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 
 -type feature() :: any().
@@ -389,7 +390,7 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
 is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserver=LServer}) ->
     % TODO this one probably could be smarter too
-    A = mongoose_acc:new(),
+    A = ?new_acc(),
     A2 = ejabberd_hooks:run_fold(roster_get, Server, A, [{User, Server}]),
     Roster = mongoose_acc:get(roster, A2, []),
     lists:any(fun({roster, _, _, {TUser, TServer, _}, _, S, _, _, _, _}) ->

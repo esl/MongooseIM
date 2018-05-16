@@ -34,6 +34,7 @@
     ]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -69,7 +70,7 @@ commands() ->
 -spec private_get(jid:user(), jid:server(), binary(), binary()) ->
     {error, string()} | string().
 private_get(Username, Host, Element, Ns) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     case ejabberd_auth:is_user_exists(Username, Host) of
         true ->
             do_private_get(Acc, Username, Host, Element, Ns);
@@ -105,7 +106,7 @@ private_set(Username, Host, ElementString) ->
 
 
 private_set2(Username, Host, Xml) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     case ejabberd_auth:is_user_exists(Username, Host) of
         true ->
             do_private_set2(Acc, Username, Host, Xml);

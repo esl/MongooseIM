@@ -39,6 +39,7 @@
     ]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").
 -include("jlib.hrl").
@@ -252,7 +253,7 @@ unsubscribe(LU, LS, User, Server) ->
 get_roster(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     Acc2 = ejabberd_hooks:run_fold(roster_get, Server, Acc, [{LUser, LServer}]),
     Items = mongoose_acc:get(roster, Acc2, []),
     make_roster(Items).

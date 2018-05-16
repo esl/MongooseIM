@@ -16,6 +16,7 @@
 -export([maybe_before_to_us/2]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -81,7 +82,7 @@ send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     ToJID = jid:from_binary(To),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     XMLMsg0 = build_message(RawUser, To, UUID, MsgBody),
-    Acc0 = mongoose_acc:from_element(XMLMsg0, FromJID, ToJID),
+    Acc0 = ?new_acc(XMLMsg0, FromJID, ToJID),
     Acc1 = ejabberd_hooks:run_fold(rest_user_send_packet, FromJID#jid.lserver, Acc0,
                                    [FromJID, ToJID, XMLMsg0]),
     XMLMsg1 = mongoose_acc:get(element, Acc1),

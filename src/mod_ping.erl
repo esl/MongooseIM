@@ -31,6 +31,7 @@
 -behavior(gen_server).
 -xep([{xep, 199}, {version, "2.0"}]).
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 
 -define(SUPERVISOR, ejabberd_sup).
@@ -190,7 +191,7 @@ handle_info({timeout, _TRef, {ping, JID}},
                 gen_server:cast(Pid, {iq_pong, JID, Response})
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
-    Acc = mongoose_acc:from_element(IQ, From, JID),
+    Acc = ?new_acc(IQ, From, JID),
     ejabberd_local:route_iq(From, JID, Acc, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};

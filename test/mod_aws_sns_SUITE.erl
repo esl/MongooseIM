@@ -2,6 +2,7 @@
 
 -compile([export_all]).
 
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include("mod_event_pusher_events.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -146,19 +147,19 @@ send_packet_callback(Config, Type, Body) ->
     Packet = message(Config, Type, Body),
     Sender = #jid{lserver = Host} = ?config(sender, Config),
     Recipient = ?config(recipient, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(), Host,
+    mod_event_pusher_sns:push_event(?new_acc(), Host,
                                     #chat_event{type = chat, direction = in,
                                                 from = Sender, to = Recipient,
                                                 packet = Packet}).
 
 user_present_callback(Config) ->
     Jid = #jid{lserver = Host} = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(), Host,
+    mod_event_pusher_sns:push_event(?new_acc(), Host,
                                     #user_status_event{jid = Jid, status = online}).
 
 user_not_present_callback(Config) ->
     Jid = #jid{lserver = Host} = ?config(sender, Config),
-    mod_event_pusher_sns:push_event(mongoose_acc:new(), Host,
+    mod_event_pusher_sns:push_event(?new_acc(), Host,
                                     #user_status_event{jid = Jid, status = offline}).
 
 %% Helpers

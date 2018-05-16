@@ -18,6 +18,7 @@
 -compile(export_all).
 -author('piotr.nosek@erlang-solutions.com').
 
+-include("mongoose_acc.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
@@ -84,7 +85,7 @@ missing_struct_in_message_from_user(_Config) ->
     {Acc, To} = fake_acc_to_component(From),
     % The handler must not crash and return unchanged Acc
     Acc = mod_global_distrib_mapping:packet_to_component(Acc, From, To).
-        
+
 %% Update logic has two separate paths: when a packet is sent by a user or by another
 %% component. This test covers the latter.
 missing_struct_in_message_from_component(_Config) ->
@@ -117,7 +118,7 @@ fake_acc_to_component(From) ->
                 attrs = [{<<"from">>, FromBin}, {<<"to">>, ToBin}, {<<"type">>, <<"chat">>}],
                 children = [BodyEl]
                },
-    {mongoose_acc:from_element(Packet), To}.
+    {?new_acc(Packet), To}.
 
 %%--------------------------------------------------------------------
 %% Meck & fake zone

@@ -16,6 +16,7 @@
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 
 %% Callback API
 -export([should_publish/3, sender_id/2]).
@@ -59,7 +60,7 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
     lists:foreach(
       fun({PubsubJID, Node, Form}) ->
               Stanza = push_notification_iq(From, Packet, Node, Form),
-              Acc = mongoose_acc:from_element(Stanza, To, PubsubJID),
+              Acc = ?new_acc(Stanza, To, PubsubJID),
               ResponseHandler =
                   fun(Response) ->
                           mod_event_pusher_push:cast(Host, handle_publish_response,

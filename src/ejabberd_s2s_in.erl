@@ -46,6 +46,7 @@
          terminate/3]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 
 -record(state, {socket,
@@ -404,7 +405,7 @@ route_incoming_stanza(From, To, El, StateData) ->
     LFrom = From#jid.lserver,
     LTo = To#jid.lserver,
     #xmlel{name = Name} = El,
-    Acc = mongoose_acc:from_element(El, From, To),
+    Acc = ?new_acc(El, From, To),
     case is_s2s_authenticated(LFrom, LTo, StateData) of
         true ->
             route_stanza(Name, Acc);

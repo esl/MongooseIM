@@ -62,6 +62,7 @@
          print_state/1]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("ejabberd_c2s.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -1192,7 +1193,7 @@ handle_info(replaced, _StateName, StateData) ->
 handle_info(new_offline_messages, session_established,
             #state{pres_last = Presence, pres_invis = Invisible} = StateData)
   when Presence =/= undefined orelse Invisible ->
-    resend_offline_messages(mongoose_acc:new(), StateData),
+    resend_offline_messages(?new_acc(), StateData),
     {next_state, session_established, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
@@ -1277,7 +1278,7 @@ handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
     process_incoming_stanza_with_conflict_check(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
-    Acc0 = mongoose_acc:new(),
+    Acc0 = ?new_acc(),
     Acc = setup_accum(Acc0, StateData),
     Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
         true, [StateData#state.server, StateData,
@@ -1764,7 +1765,7 @@ maybe_send_element_safe(State, El) ->
 -spec send_element(state(), exml:element()) -> any().
 send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     % used mostly in states other then session_established
-    Acc = mongoose_acc:from_element(El),
+    Acc = ?new_acc(El),
     Acc1 = send_element(mongoose_acc:put(server, Server, Acc), El, StateData),
     mongoose_acc:get(send_result, Acc1).
 
@@ -2243,7 +2244,7 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
                            StateData :: state()) -> allow|deny|block.
 privacy_check_packet(#xmlel{} = Packet, From, To, Dir, StateData) ->
     % in some cases we need an accumulator-less privacy check
-    Acc = mongoose_acc:from_element(Packet),
+    Acc = ?new_acc(Packet),
     Acc1 = mongoose_acc:put(from_jid, From, Acc),
     {_, Res} = privacy_check_packet(Acc1, To, Dir, StateData),
     Res.
@@ -3406,7 +3407,7 @@ setup_accum(Acc, StateData) ->
 %% @doc This function is executed when c2s receives a stanza from TCP connection.
 -spec element_to_origin_accum(jlib:xmlel(), StateData :: state()) -> mongoose_acc:t().
 element_to_origin_accum(El, #state{sid = SID, jid = JID}) ->
-    Acc = mongoose_acc:from_element(El),
+    Acc = ?new_acc(El),
     Acc1 = mongoose_acc:add_prop(origin_sid, SID, Acc),
     mongoose_acc:add_prop(origin_jid, JID, Acc1).
 

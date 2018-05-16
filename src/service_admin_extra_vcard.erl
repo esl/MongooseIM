@@ -37,6 +37,7 @@
 ]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("ejabberd_commands.hrl").
 -include("mod_roster.hrl").
 -include("jlib.hrl").
@@ -124,7 +125,7 @@ commands() ->
 -spec get_vcard(jid:user(), jid:server(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
             get_vcard_content(Acc, User, Host, [Name]);
@@ -135,7 +136,7 @@ get_vcard(User, Host, Name) ->
 -spec get_vcard(jid:user(), jid:server(), any(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
             get_vcard_content(Acc, User, Host, [Name, Subname]);
@@ -146,7 +147,7 @@ get_vcard(User, Host, Name, Subname) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, SomeContent) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
             set_vcard_content(Acc, User, Host, [Name], SomeContent);
@@ -157,7 +158,7 @@ set_vcard(User, Host, Name, SomeContent) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()], [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, Subname, SomeContent) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
             set_vcard_content(Acc, User, Host, [Name, Subname], SomeContent);

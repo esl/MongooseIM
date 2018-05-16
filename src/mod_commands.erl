@@ -26,6 +26,7 @@
         ]).
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
@@ -387,7 +388,7 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     L.
 
 create_acc(CallerJid, Name, Type) ->
-    A = mongoose_acc:new(),
+    A = ?new_acc(),
     Map = #{name => Name, type => Type, from => jid:to_binary(CallerJid),
             from_jid => CallerJid},
     mongoose_acc:update(A, Map).

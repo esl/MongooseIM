@@ -2,6 +2,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include_lib("common_test/include/ct.hrl").
 -compile([export_all]).
@@ -64,7 +65,7 @@ make_iq_reply_changes_type_to_result(_) ->
 
 error_reply_check(_) ->
     BaseIQReply = jlib:make_result_iq_reply(base_iq()),
-    Acc = mongoose_acc:from_element(BaseIQReply),
+    Acc = ?new_acc(BaseIQReply),
     {Acc1, ErrorReply1} = jlib:make_error_reply(Acc, BaseIQReply, #xmlel{name = <<"testerror">>}),
     ?assertMatch(#xmlel{}, ErrorReply1),
     {_Acc2, ErrorReply2} = jlib:make_error_reply(Acc1, ErrorReply1, #xmlel{name = <<"testerror">>}),

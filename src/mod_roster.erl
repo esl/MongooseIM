@@ -69,6 +69,7 @@
 -export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
 
 -include("mongoose.hrl").
+-include("mongoose_acc.hrl").
 -include("jlib.hrl").
 -include("mod_roster.hrl").
 
@@ -824,7 +825,7 @@ remove_test_user(User, Server) ->
     mod_roster_backend:remove_user(User, Server).
 
 remove_user(User, Server) ->
-    remove_user(mongoose_acc:new(), User, Server).
+    remove_user(?new_acc(), User, Server).
 
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
@@ -1009,7 +1010,7 @@ get_roster_old(LUser, LServer) ->
     get_roster_old(LServer, LUser, LServer).
 
 get_roster_old(DestServer, LUser, LServer) ->
-    A = mongoose_acc:new(),
+    A = ?new_acc(),
     A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
     mongoose_acc:get(roster, A2, []).
 

@@ -9,6 +9,7 @@
 -module(roster_SUITE).
 -author("bartek").
 
+-include("mongoose_acc.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("ejabberd_c2s.hrl").
 -include_lib("exml/include/exml_stream.hrl").
@@ -140,7 +141,7 @@ get_roster_old() ->
     get_roster_old(a()).
 
 get_roster_old(User) ->
-    Acc = mongoose_acc:new(),
+    Acc = ?new_acc(),
     Acc1 = mod_roster:get_user_roster(Acc, {User, host()}),
     mongoose_acc:get(roster, Acc1).
 
