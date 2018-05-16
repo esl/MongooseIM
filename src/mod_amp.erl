@@ -117,7 +117,7 @@ amp_check_packet(_, <<"message">>, Acc, From, Event) ->
         drop ->
             mongoose_acc:put(amp_check_result, drop, Acc);
         NewElem ->
-            mongoose_acc:put(element, NewElem, Acc)
+            mongoose_acc:set_element(Acc, NewElem)
     end;
 amp_check_packet(_, _, Acc, _, _) ->
     Acc.

@@ -52,6 +52,7 @@
 %%%-------------------------------------------------------------------
 
 -export([new/3, new/4, new/5, new/6]).
+-export([set_element/2]).
 -export([get_element/1, get_element_name/1, get_element_type/1, get_element_attrs/1]).
 -export([get_from_jid/1, get_from_bin/1]).
 -export([get_to_jid/1, get_to_bin/1]).
@@ -102,6 +103,37 @@ new(Element, From, Module, Function, Line) ->
 -spec new(element(), jid:jid(), jid:jid(), module(), atom(), pos_integer()) -> t().
 new(Element, From, To, Module, Function, Line) ->
     set_to(new(Element, From, Module, Function, Line), To).
+
+%%% Setters
+
+%-------------------------------------------------------------------
+% @doc Sets XML stanza in the given accumulator.
+%
+% This function should be used very rarely, only when it is absolutely necessary to modify the
+% stanza for further processing. Examples include MAM or AMP which inject additional elements into
+% the original stanza.
+%
+% Ideally stanza should be set using `new/4,5,6'.
+% @end
+%-------------------------------------------------------------------
+-spec set_element(t(), element()) -> t().
+set_element(Acc, #xmlel{name = ElName, attrs = ElAttrs} = El) ->
+    ElType = exml_query:attr(El, <<"type">>, undefined),
+    ElProps = #{record => El,
+                name   => ElName,
+                type   => ElType,
+                attrs  => ElAttrs},
+    put_prop(Acc, {element, ElProps});
+set_element(Acc, #iq{type = IqType} = El) ->
+    ElType = atom_to_binary(IqType, latin1),
+    ElAttrs = [{<<"type">>, ElType}],
+    ElProps = #{record => El,
+                name   => <<"iq">>,
+                type   => ElType,
+                attrs  => ElAttrs},
+    put_prop(Acc, {element, ElProps}).
+
+%%% Getters
 
 %-------------------------------------------------------------------
 % @doc Retrieves the whole XML element record set using `new/4,5,6'.
@@ -231,23 +263,6 @@ get_to_bin(Acc) ->
 -spec put_prop(t(), prop()) -> t().
 put_prop(Acc, {PropKey, PropVal}) ->
     maps:put(PropKey, PropVal, Acc).
-
--spec set_element(t(), element()) -> t().
-set_element(Acc, #xmlel{name = ElName, attrs = ElAttrs} = El) ->
-    ElType = exml_query:attr(El, <<"type">>, undefined),
-    ElProps = #{record => El,
-                name   => ElName,
-                type   => ElType,
-                attrs  => ElAttrs},
-    put_prop(Acc, {element, ElProps});
-set_element(Acc, #iq{type = IqType} = El) ->
-    ElType = atom_to_binary(IqType, latin1),
-    ElAttrs = [{<<"type">>, ElType}],
-    ElProps = #{record => El,
-                name   => <<"iq">>,
-                type   => ElType,
-                attrs  => ElAttrs},
-    put_prop(Acc, {element, ElProps}).
 
 -spec set_from(t(), jid:jid()) -> t().
 set_from(Acc, #jid{} = Jid) ->
