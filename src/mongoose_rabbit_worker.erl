@@ -31,10 +31,6 @@
 %% Starts the server
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() -> {ok, Pid :: pid()} |
-                      {error, Error :: {already_started, pid()}} |
-                      {error, Error :: term()} |
-                      ignore.
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
@@ -48,11 +44,6 @@ start_link() ->
 %% Initializes the server
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) -> {ok, State :: term()} |
-                              {ok, State :: term(), Timeout :: timeout()} |
-                              {ok, State :: term(), hibernate} |
-                              {stop, Reason :: term()} |
-                              ignore.
 init([]) ->
     process_flag(trap_exit, true),
     {ok, Connection} =
@@ -66,15 +57,6 @@ init([]) ->
 %% Handling call messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_call(Request :: term(), From :: {pid(), term()}, State :: term()) ->
-                         {reply, Reply :: term(), NewState :: term()} |
-                         {reply, Reply :: term(), NewState :: term(), Timeout :: timeout()} |
-                         {reply, Reply :: term(), NewState :: term(), hibernate} |
-                         {noreply, NewState :: term()} |
-                         {noreply, NewState :: term(), Timeout :: timeout()} |
-                         {noreply, NewState :: term(), hibernate} |
-                         {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
-                         {stop, Reason :: term(), NewState :: term()}.
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -85,11 +67,6 @@ handle_call(_Request, _From, State) ->
 %% Handling cast messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_cast(Request :: term(), State :: term()) ->
-                         {noreply, NewState :: term()} |
-                         {noreply, NewState :: term(), Timeout :: timeout()} |
-                         {noreply, NewState :: term(), hibernate} |
-                         {stop, Reason :: term(), NewState :: term()}.
 handle_cast({user_presence_changed, #{status := online, user_jid := JID,
                                       topic := Topic}},
             #state{channel = Channel} = State) ->
@@ -109,11 +86,6 @@ handle_cast({user_presence_changed, #{status := offline, user_jid := JID,
 %% Handling all non call/cast messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info :: timeout() | term(), State :: term()) ->
-                         {noreply, NewState :: term()} |
-                         {noreply, NewState :: term(), Timeout :: timeout()} |
-                         {noreply, NewState :: term(), hibernate} |
-                         {stop, Reason :: normal | term(), NewState :: term()}.
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -126,8 +98,6 @@ handle_info(_Info, State) ->
 %% with Reason. The return value is ignored.
 %% @end
 %%--------------------------------------------------------------------
--spec terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
-                State :: term()) -> any().
 terminate(_Reason, #state{connection = Connection, channel = Channel}) ->
     close_rabbit_connection(Connection, Channel),
     ok.
@@ -138,10 +108,6 @@ terminate(_Reason, #state{connection = Connection, channel = Channel}) ->
 %% Convert process state when code is changed
 %% @end
 %%--------------------------------------------------------------------
--spec code_change(OldVsn :: term() | {down, term()},
-                  State :: term(),
-                  Extra :: term()) -> {ok, NewState :: term()} |
-                                      {error, Reason :: term()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -153,8 +119,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% or when it appears in termination error logs.
 %% @end
 %%--------------------------------------------------------------------
--spec format_status(Opt :: normal | terminate,
-                    Status :: list()) -> Status :: term().
 format_status(_Opt, Status) ->
     Status.
 
