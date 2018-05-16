@@ -1149,10 +1149,10 @@ match_roster(ItemsValid, Items) ->
     ItemsTokens = [ string:tokens(ItemToken, "\t") || ItemToken <- string:tokens(Items, "\n") ],
 
     true = (length(ItemsValid) == length(ItemsTokens)),
-    true = lists:all(fun({Username, Domain, _Nick, _Group, _Sub}) ->
+    true = lists:all(fun({Username, Domain, Nick, Group, Sub}) ->
                     JID = escalus_utils:jid_to_lower(<<Username/binary, "@", Domain/binary >>),
                     lists:any(fun
-                                ([RosterJID, __Nick, __Sub, "none", __Group]) ->
+                                ([RosterJID, Nick, Sub, "none", Group]) ->
                                     JID =:= escalus_utils:jid_to_lower(list_to_binary(RosterJID));
                                 (_) ->
                                     false
