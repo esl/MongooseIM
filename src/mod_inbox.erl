@@ -26,11 +26,10 @@
   LUser :: binary(),
   LServer :: binary().
 
--callback set_inbox(User, Server, ToBareJid, ToResource, Content, Count, MsgId) -> any() when
+-callback set_inbox(User, Server, ToBareJid, Content, Count, MsgId) -> any() when
   User :: binary(),
   Server :: binary(),
   ToBareJid :: binary(),
-  ToResource :: binary(),
   Content :: binary(),
   Count :: binary(),
   MsgId :: binary().
@@ -40,11 +39,10 @@
   Server :: binary(),
   ToBareJid :: binary().
 
--callback set_inbox_incr_unread(User, Server, ToBareJid, ToResource, Content, MsgId) -> any() when
+-callback set_inbox_incr_unread(User, Server, ToBareJid, Content, MsgId) -> any() when
   User :: binary(),
   Server :: binary(),
   ToBareJid :: binary(),
-  ToResource :: binary(),
   Content :: binary(),
   MsgId :: binary().
 
@@ -85,8 +83,8 @@ stop(Host) ->
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
   {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
-  Username = jid:to_binary(jid:to_bare(From)),
-  Host = To#jid.lserver,
+  Username = From#jid.luser,
+  Host = From#jid.lserver,
   List = mod_inbox_backend:get_inbox(Username, Host),
   QueryId = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
   forward_messages(List, QueryId, To),

@@ -15,91 +15,74 @@
 %% API
 -export([get_inbox/2,
          init/2,
-         set_inbox/7,
-         set_inbox_incr_unread/6,
+         set_inbox/6,
+         set_inbox_incr_unread/5,
          reset_unread/4,
          remove_inbox/3,
          clear_inbox/2]).
 
 -import(mongoose_rdbms, [escape_string/1]).
 
-
 init(_VHost, _Options) ->
   ok.
 -spec get_inbox(LUser, LServer) -> ok when
                 LUser  :: binary(),
                 LServer :: binary().
-get_inbox(User, Server) ->
-  LUser = mongoose_rdbms:escape_string(jid:nameprep(User)),
+get_inbox(Username, Server) ->
+  LUsername = jid:nodeprep(Username),
   LServer = jid:nameprep(Server),
-  case rdbms_queries:get_inbox(LUser, LServer) of
+  case mod_inbox_odbc_psql:get_inbox(LUsername, LServer) of
     {selected, []} ->
       [];
     {selected, Res} ->
       [decode_row(LServer, R) || R <- Res]
   end.
 
--spec set_inbox(User :: binary(),
-               Server :: binary(),
-               ToBareJid :: binary(),
-               ToResource :: binary(),
-               Content :: binary(),
-               Count :: binary(),
-               MsgId :: binary()) -> ok.
-set_inbox(User, Server, ToBareJid, Sender, Content, C, MsgId) ->
-  Username = mongoose_rdbms:escape_string(jid:nameprep(User)),
+set_inbox(Username, Server, ToBareJid, Content, C, MsgId) ->
+  LUsername = jid:nodeprep(Username),
   LServer = jid:nameprep(Server),
-  EscToBareJid = mongoose_rdbms:escape_string(jid:nameprep(ToBareJid)),
-  EscSender = mongoose_rdbms:escape_string(jid:nameprep(Sender)),
-  EscContent = mongoose_rdbms:escape_string(Content),
-  EscCount = mongoose_rdbms:escape_string(C),
-  EscMsgId = mongoose_rdbms:escape_string(MsgId),
-  Res = rdbms_queries:set_inbox(Username, LServer, EscToBareJid, EscSender, EscContent, EscCount, EscMsgId),
+  LToBareJid = jid:nameprep(ToBareJid),
+  Res = mod_inbox_odbc_psql:set_inbox(LUsername, LServer, LToBareJid, Content, C, MsgId),
   check_result(Res, 1).
 
 -spec remove_inbox(User :: binary(),
                    Server :: binary(),
                    ToBareJid :: binary()) -> ok.
-remove_inbox(User, Server, ToBareJid) ->
-  Username = mongoose_rdbms:escape_string(jid:nameprep(User)),
+remove_inbox(Username, Server, ToBareJid) ->
+  LUsername = jid:nodeprep(Username),
   LServer = jid:nameprep(Server),
-  EscToBareJid = mongoose_rdbms:escape_string(jid:nameprep(ToBareJid)),
-  Res = rdbms_queries:remove_inbox(Username, LServer, EscToBareJid),
+  LToBareJid = jid:nameprep(ToBareJid),
+  Res = mod_inbox_odbc_psql:remove_inbox(LUsername, LServer, LToBareJid),
   check_result(Res).
 
--spec set_inbox_incr_unread(User :: binary(),
+-spec set_inbox_incr_unread(Username :: binary(),
                             Server :: binary(),
                             ToBareJid :: binary(),
-                            ToResource :: binary(),
                             Content :: binary(),
                             MsgId :: binary()) -> ok.
-set_inbox_incr_unread(User, Server, ToBareJid, Sender, Content, MsgId) ->
-  Username = mongoose_rdbms:escape_string(jid:nameprep(User)),
+set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) ->
+  LUsername = jid:nodeprep(Username),
   LServer = jid:nameprep(Server),
-  EscToBareJid = mongoose_rdbms:escape_string(jid:nameprep(ToBareJid)),
-  EscSender = mongoose_rdbms:escape_string(jid:nameprep(Sender)),
-  EscContent = mongoose_rdbms:escape_string(Content),
-  EscMsgId =  mongoose_rdbms:escape_string(MsgId),
-  Res = rdbms_queries:set_inbox_incr_unread(Username, LServer, EscToBareJid, EscSender, EscContent, EscMsgId),
+  LToBareJid = jid:nameprep(ToBareJid),
+  Res = mod_inbox_odbc_psql:set_inbox_incr_unread(LUsername, LServer, LToBareJid, Content, MsgId),
   check_result(Res, 1).
 
 -spec reset_unread(User :: binary(),
                    Server :: binary(),
                    BareJid :: binary(),
                    MsgId :: binary()) -> ok.
-reset_unread(User, Server, ToBareJid, Id) ->
-  Username = mongoose_rdbms:escape_string(jid:nameprep(User)),
+reset_unread(Username, Server, ToBareJid, MsgId) ->
+  LUsername = jid:nodeprep(Username),
   LServer = jid:nameprep(Server),
-  EscToBareJid = mongoose_rdbms:escape_string(jid:nameprep(ToBareJid)),
-  EscId = mongoose_rdbms:escape_string(Id),
-  Res = rdbms_queries:reset_inbox_unread(Username, LServer, EscToBareJid, EscId),
+  LToBareJid = jid:nameprep(ToBareJid),
+  Res = mod_inbox_odbc_psql:reset_inbox_unread(LUsername, LServer, LToBareJid, MsgId),
   check_result(Res).
 
--spec clear_inbox(User :: binary(),  Server :: binary()) -> ok.
+-spec clear_inbox(Username :: binary(),  Server :: binary()) -> ok.
 clear_inbox(Username, Server) ->
-  EscUsername = mongoose_rdbms:escape_string(jid:nameprep(Username)),
+  LUsername = jid:nodeprep(Username),
   LServer = jid:nameprep(Server),
-  Res = rdbms_queries:clear_inbox(EscUsername, LServer),
+  Res = mod_inbox_odbc_psql:clear_inbox(LUsername, LServer),
   check_result(Res).
 
 -spec decode_row(host(), {username(), sender(), binary(), count()}) -> inbox_res().

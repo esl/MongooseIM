@@ -10,6 +10,7 @@
 -include("mongoose_ns.hrl").
 -include("mod_inbox.hrl").
 -include("jlib.hrl").
+
 -author("ludwikbukowski").
 -compile(export_all).
 
@@ -20,31 +21,30 @@
                          To    :: jid:jid(),
                          MsgId :: id())   -> ok.
 reset_unread_count(User, Remote, MsgId) ->
-  FromJid = jid:to_binary(jid:to_bare(User)),
+  FromUsername = User#jid.luser,
   Server = User#jid.lserver,
   ToBareJid = jid:to_binary(jid:to_bare(Remote)),
-  mod_inbox_backend:reset_unread(FromJid, Server, ToBareJid, MsgId).
+  mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgId).
 
 write_to_sender_inbox(Server, From, To, MsgId, Packet) ->
   Content = exml:to_binary(Packet),
-  FromJid = jid:to_binary(jid:to_bare(From)),
-  ToBareJid = jid:to_binary(jid:to_bare(To)),
-  SenderBin = jid:to_binary(From),
+  Username = From#jid.luser,
+  RemoteBareJid = jid:to_binary(jid:to_bare(To)),
   %% no unread for a user because he writes new messages which assumes he read all previous messages.
   Count = integer_to_binary(0),
-  mod_inbox_backend:set_inbox(FromJid, Server, ToBareJid, SenderBin, Content, Count, MsgId).
+  mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid, Content, Count, MsgId).
 
 
 write_to_receiver_inbox(Server, From, To, MsgId, Packet) ->
   Content = exml:to_binary(Packet),
-  FromJid = jid:to_binary(jid:to_bare(To)),
-  ToBareJid = jid:to_binary(jid:to_bare(From)),
-  SenderBin = jid:to_binary(From),
-  mod_inbox_backend:set_inbox_incr_unread(FromJid, Server, ToBareJid, SenderBin, Content, MsgId).
+  Username = To#jid.luser,
+  RemoteBareJid = jid:to_binary(jid:to_bare(From)),
+  mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid, Content, MsgId).
 
--spec clear_inbox(binary(), host()) -> ok.
-clear_inbox(Username, Server) ->
-  mod_inbox_backend:clear_inbox(Username, Server).
+
+clear_inbox(User, Server) when is_binary(User) ->
+  JidForm = jid:from_binary(User),
+  mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
 
 
 %%%%%%%%%%%%%%%%%%%

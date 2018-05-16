@@ -621,7 +621,7 @@ clear_inbox_all() ->
 
 clear_inboxes(UserList, Host) ->
   JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],
-  [escalus_ejabberd:rpc(mod_inbox, clear_inbox, [JID,Host]) || JID <- JIDs].
+  [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [JID,Host]) || JID <- JIDs].
 
 
 reload_inbox_option(Config, Key, Value) ->

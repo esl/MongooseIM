@@ -98,7 +98,7 @@ handle_kicked_message(Host, User, Room) ->
 maybe_remove_inbox_row(_, _, _, false) ->
   ok;
 maybe_remove_inbox_row(Host, User, Room, true) ->
-  UserBin = jid:to_binary(jid:to_bare(User)),
+  UserBin = (jid:to_bare(User))#jid.luser,
   RoomBin = jid:to_binary(Room),
   mod_inbox_backend:remove_inbox(UserBin, Host, RoomBin).
 
