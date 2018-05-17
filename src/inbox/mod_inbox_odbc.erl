@@ -26,12 +26,10 @@
 init(_VHost, _Options) ->
     ok.
 
--spec get_inbox(LUser, LServer) -> ok when
-    LUser :: binary(),
-    LServer :: binary().
-get_inbox(Username, Server) ->
-    LUsername = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+-spec get_inbox(LUsername, LServer) -> ok when
+                LUsername :: binary(),
+                LServer :: binary().
+get_inbox(LUsername, LServer) ->
     case mod_inbox_odbc_psql:get_inbox(LUsername, LServer) of
         {selected, []} ->
             [];

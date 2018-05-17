@@ -12,43 +12,35 @@
 -include("jlib.hrl").
 -include("mongoose_ns.hrl").
 
--export([handle_outgoing_message/4, handle_incomming_message/4]).
+-export([handle_outgoing_message/4, handle_incoming_message/4]).
 
 -type packet() :: exml:element().
 
 -spec handle_outgoing_message(Host :: jid:server(),
-                              User :: jid:jid(),
-                              Remote :: jid:jid(),
-                              Packet :: packet()) -> any().
+    User :: jid:jid(),
+    Remote :: jid:jid(),
+    Packet :: packet()) -> any().
 handle_outgoing_message(Host, User, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
         undefined ->
             FromBin = jid:to_binary(User),
             Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
-            write_to_inbox(User, Remote, Packet2);
+            Server = User#jid.lserver,
+            mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, Packet2);
         Id ->
             mod_inbox_utils:reset_unread_count(User, Remote, Id)
     end.
 
-handle_incomming_message(Host, User, Remote, Packet) ->
+handle_incoming_message(Host, User, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
-    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
-        true ->
-            %% do not save chat markers
-            ok;
-        false ->
-            MsgId = mod_inbox_utils:get_msg_id(Packet),
+    case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
+        undefined ->
             FromBin = jid:to_binary(User),
             Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
-            mod_inbox_utils:write_to_receiver_inbox(Host, User, Remote, MsgId, Packet2)
+            mod_inbox_utils:write_to_receiver_inbox(Host, User, Remote, Packet2);
+        _Id ->
+            %% do not store chat markers in inbox
+            ok
     end.
 
-
--spec write_to_inbox(User :: jid:jid(),
-    Remote :: jid:jid(),
-    Packet :: exml:element()) -> ok.
-write_to_inbox(User, Remote, Packet) ->
-    Server = User#jid.lserver,
-    MsgId = mod_inbox_utils:get_msg_id(Packet),
-    mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, MsgId, Packet).

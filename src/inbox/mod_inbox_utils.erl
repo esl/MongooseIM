@@ -17,6 +17,7 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
+
 -spec reset_unread_count(From :: jid:jid(),
     To :: jid:jid(),
     MsgId :: id()) -> ok.
@@ -26,19 +27,21 @@ reset_unread_count(User, Remote, MsgId) ->
     ToBareJid = jid:to_binary(jid:to_bare(Remote)),
     ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgId).
 
-write_to_sender_inbox(Server, From, To, MsgId, Packet) ->
+write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
+    MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
-    Username = From#jid.luser,
-    RemoteBareJid = jid:to_binary(jid:to_bare(To)),
+    Username = Sender#jid.luser,
+    RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = integer_to_binary(0),
     ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid, Content, Count, MsgId).
 
 
-write_to_receiver_inbox(Server, From, To, MsgId, Packet) ->
+write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
+    MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
-    Username = To#jid.luser,
-    RemoteBareJid = jid:to_binary(jid:to_bare(From)),
+    Username = Receiver#jid.luser,
+    RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
     ok = mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid, Content, MsgId).
 
 

@@ -158,13 +158,6 @@ process_message(_, _, _, Message, _, _) ->
     ?WARNING_MSG("unknown messasge not written in inbox='~p'", [Message]),
     ok.
 
-get_message_type(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
-        <<"groupchat">> ->
-            groupchat;
-        _ ->
-            one2one
-    end.
 
 %%%%%%%%%%%%%%%%%%%
 %% Stanza builders
@@ -220,6 +213,15 @@ muc_dep(List) ->
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
         reset_unread, remove_inbox, clear_inbox].
+
+
+get_message_type(Msg) ->
+    case exml_query:attr(Msg, <<"type">>, undefined) of
+        <<"groupchat">> ->
+            groupchat;
+        _ ->
+            one2one
+    end.
 
 clear_inbox(Username, Server) ->
     mod_inbox_utils:clear_inbox(Username, Server).
