@@ -86,7 +86,7 @@ intercept_jingle_stanza(Acc, _C2SState) ->
     end.
 
 maybe_iq_stanza(Acc) ->
-    case mongoose_acc:get(name, Acc) of
+    case mongoose_acc:get_element_name(Acc) of
         <<"iq">> ->
             maybe_iq_to_other_user(Acc);
         _ ->

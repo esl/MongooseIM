@@ -57,7 +57,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
                            SType = exml_query:attr(Stanza, <<"type">>, undefined),
                            {A, SName, SType};
                        _ ->
-                           {Acc0, mongoose_acc:get(name, Acc0), mongoose_acc:get(type, Acc0)}
+                           {Acc0, mongoose_acc:get_element_name(Acc0), mongoose_acc:get(type, Acc0)}
                    end,
     % check if it is there, if not then set default and run a hook
     FromBin = jid:to_binary(From),

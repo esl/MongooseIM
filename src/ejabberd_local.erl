@@ -395,7 +395,7 @@ do_route(Acc, From, To, El) ->
         user ->
             ejabberd_sm:route(From, To, Acc, El);
         server ->
-            case mongoose_acc:get(name, Acc) of
+            case mongoose_acc:get_element_name(Acc) of
                 <<"iq">> ->
                     process_iq(Acc, From, To, El);
                 _ ->

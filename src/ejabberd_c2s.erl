@@ -1023,7 +1023,7 @@ session_established(closed, StateData) ->
 -spec process_outgoing_stanza(mongoose_acc:t(), state()) -> fsm_return().
 process_outgoing_stanza(Acc, StateData) ->
     ToJID = mongoose_acc:get_to_jid(Acc),
-    Name = mongoose_acc:get(name, Acc),
+    Name = mongoose_acc:get_element_name(Acc),
     NState = process_outgoing_stanza(Acc, ToJID, Name, StateData),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, mongoose_acc:get_element(Acc)}]),
     fsm_next_state(session_established, NState).
@@ -1274,7 +1274,7 @@ handle_incoming_message({broadcast, Accum}, StateName, StateData) ->
 handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
     Acc = setup_accum(Acc0, StateData),
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
-    Name = mongoose_acc:get(name, Acc1),
+    Name = mongoose_acc:get_element_name(Acc1),
     process_incoming_stanza_with_conflict_check(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module

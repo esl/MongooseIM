@@ -143,7 +143,7 @@ xmpp_send_element(Acc, _El) ->
     case mongoose_acc:get(type, Acc) of
         <<"error">> ->
             mongoose_metrics:update(Server, xmppErrorTotal, 1),
-            case mongoose_acc:get(name, Acc) of
+            case mongoose_acc:get_element_name(Acc) of
                 <<"iq">> ->
                     mongoose_metrics:update(Server, xmppErrorIq, 1);
                 <<"message">> ->
