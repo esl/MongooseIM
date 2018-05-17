@@ -23,11 +23,11 @@
     Host :: jid:lserver(),
     Opts :: list().
 
--callback get_inbox(Username, Server) -> inbox_db_res() when
-    Username :: jid:luser(),
-    Server :: jid:lserver().
+-callback get_inbox(LUsername, LServer) -> get_inbox_res() when
+    LUsername :: jid:luser(),
+    LServer :: jid:lserver().
 
--callback set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_db_res() when
+-callback set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_write_res() when
     Username :: jid:luser(),
     Server :: jid:lserver(),
     ToBareJid :: binary(),
@@ -35,25 +35,25 @@
     Count :: binary(),
     MsgId :: binary().
 
--callback remove_inbox(Username, Server, ToBareJid) -> inbox_db_res() when
+-callback remove_inbox(Username, Server, ToBareJid) -> inbox_write_res() when
     Username :: jid:luser(),
     Server :: jid:lserver(),
     ToBareJid :: binary().
 
--callback set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) -> inbox_db_res() when
+-callback set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) -> inbox_write_res() when
     Username :: jid:luser(),
     Server :: jid:lserver(),
     ToBareJid :: binary(),
     Content :: binary(),
     MsgId :: binary().
 
--callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_db_res() when
+-callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_write_res() when
     Username :: jid:luser(),
     Server :: jid:lserver(),
     BareJid :: binary(),
     MsgId :: binary().
 
--callback clear_inbox(Username, Server) -> inbox_db_res() when
+-callback clear_inbox(Username, Server) -> inbox_write_res() when
     Username :: jid:luser(),
     Server :: jid:lserver().
 
