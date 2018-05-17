@@ -48,14 +48,12 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
-         apply_changes_remote/3,
-         apply_changes/5]).
+         apply_changes_remote/5,
+         apply_changes/6]).
 
 -export([compute_config_version/2,
          get_local_config/0,
          get_host_local_config/0]).
-
--export([log_configs/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -839,7 +837,7 @@ reload_local() ->
                           override_local  = true,
                           override_acls   = true},
     try
-        {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
+        {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion, ""),
         ?WARNING_MSG("node config reloaded from ~s", [ConfigFile]),
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
@@ -861,8 +859,13 @@ reload_local() ->
 msg(Fmt, Args) ->
     lists:flatten(io_lib:format(Fmt, Args)).
 
+unique_id() ->
+        binary_to_list(uuid:uuid_to_string(uuid:get_v4(), binary_standard)).
+
 -spec reload_cluster() -> {ok, string()} | no_return().
 reload_cluster() ->
+    RunId = unique_id(),
+    ?ERROR_MSG("Executing reload cluster id: ~p", [RunId]),
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
@@ -875,19 +878,19 @@ reload_cluster() ->
     %% first apply on local
     State1 = State0#state{override_global = true,
                           override_local  = true, override_acls = true},
-    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
+    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion, RunId) of
         {ok, CurrentNode} ->
             %% apply on other nodes
             {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigVersion, FileVersion],
+                                   [ConfigFile, ConfigDiff,
+                                    ConfigVersion, FileVersion, RunId],
                                    30000),
-            ?ERROR_MSG("S and F: ~p~n~p", [S, F]),
             case S of
                 [] ->
                     ok;
                 Results ->
-                    log_configs(node()),
-                    lists:foreach(fun({error, Node, _}) -> log_configs(Node) end,
+                    log_configs(node(), RunId),
+                    lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId) end,
                                   Results)
             end,
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
@@ -910,15 +913,48 @@ reload_cluster() ->
             exit(Reason)
     end.
 
-log_configs(Node) ->
+log_configs(Node, RunId) ->
+    BaseDir = "/tmp/reload_cluster/",
+    Dir = BaseDir ++ "run_" ++ RunId ++ "/",
+    filelib:ensure_dir(Dir),
     case node() of
         Node ->
-            ?ERROR_MSG("Local configs:~n~p~n~p", [get_local_config(), get_host_local_config()]);
+            file:write_file(Dir ++ "local_config", io_lib:fwrite("~p.\n", [get_local_config()])),
+            file:write_file(Dir ++ "local_host_config", io_lib:fwrite("~p.\n", [get_host_local_config()]));
         _ ->
             LocalConfig = rpc:call(Node, ?MODULE, get_local_config, []),
             LocalHostConfig = rpc:call(Node, ?MODULE, get_host_local_config, []),
-            ?ERROR_MSG("configs on ~p:~n~p~n~p", [Node, LocalConfig, LocalHostConfig])
+            file:write_file(Dir ++ "remote_config", io_lib:fwrite("~p.\n", [LocalConfig ])),
+            file:write_file(Dir ++ "remote_host_config", io_lib:fwrite("~p.\n", [LocalHostConfig]))
     end.
+
+pretty_term(Term) ->
+    Abstract = erl_syntax:abstract(Term),
+    AnnF = fun(Node) -> annotate_tuple(Node) end,
+    AnnAbstract = postorder(AnnF, Abstract),
+    HookF = fun(Node, Ctxt, Cont) ->
+                    Doc = Cont(Node, Ctxt),
+                    prettypr:above(prettypr:empty(), Doc)
+            end,
+    Io = erl_prettypr:format(AnnAbstract, [{hook, HookF}]),
+    io:put_chars(Io),
+    io:format(".~n").
+
+annotate_tuple(Node) ->
+    case erl_syntax:type(Node) of
+        tuple -> erl_syntax:add_ann(tuple, Node);
+        _ -> Node
+    end.
+
+%% from the erl_syntax manpage
+postorder(F, Tree) ->
+    F(case erl_syntax:subtrees(Tree) of
+          [] -> Tree;
+          List -> erl_syntax:update_tree(Tree,
+                                         [[postorder(F, Subtree)
+                                           || Subtree <- Group]
+                                          || Group <- List])
+      end).
 
 -spec groups_to_string(string(), [string()]) -> string().
 groups_to_string(_Header, []) ->
@@ -957,24 +993,25 @@ get_config_diff(State) ->
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     {CC, LC, LHC}.
 
--spec apply_changes_remote(file:name(), binary(), binary()) ->
+-spec apply_changes_remote(file:name(), term(), binary(), binary(), string()) ->
                                   {ok, node()}| {error, node(), string()}.
-apply_changes_remote(NewConfigFilePath,
-                     DesiredConfigVersion, DesiredFileVersion) ->
-    ?WARNING_MSG("remote config reload scheduled", []),
+apply_changes_remote(NewConfigFilePath, ConfigDiff,
+                     DesiredConfigVersion, DesiredFileVersion, RunId) ->
+    ?ERROR_MSG("Executing reload cluster on remote node, id: ~p~nDesiredConfigVersion: ~p, DesiredFileVersion: ~p", [RunId, DesiredConfigVersion, DesiredFileVersion]),
     ?DEBUG("~ndesired config version: ~p"
            "~ndesired file version: ~p",
            [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
     State0 = parse_file(NewConfigFilePath),
-    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
+    {CC, LC, LHC} = ConfigDiff, %get_config_diff(State0),
+    ?ERROR_MSG("(runid ~p) Real value - ConfigFileVersion: ~p", [RunId, compute_config_file_version(State0)]),
     case compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = State0#state{override_global = false,
                                   override_local  = true,
                                   override_acls   = false},
             case catch apply_changes(CC, LC, LHC, State1,
-                                     DesiredConfigVersion) of % jak tu się wywali, to chcemy zwrócić z RPC configi
+                                     DesiredConfigVersion, RunId) of
                 {ok, Node} = R ->
                     ?WARNING_MSG("remote config reload succeeded", []),
                     R;
@@ -990,13 +1027,13 @@ apply_changes_remote(NewConfigFilePath,
             {error, Node, io_lib:format("Mismatching config file", [])}
     end.
 
--spec apply_changes(term(), term(), term(), state(), binary()) ->
+-spec apply_changes(term(), term(), term(), state(), binary(), string()) ->
                            {ok, node()} | {error, node(), string()}.
 apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
-              State, DesiredConfigVersion) ->
+              State, DesiredConfigVersion, RunId) ->
     ConfigVersion = compute_config_version(get_local_config(),
                                            get_host_local_config()),
-    ?DEBUG("config version: ~p", [ConfigVersion]),
+    ?ERROR_MSG("(Runid: ~p) ConfigVersion: ~p", [RunId, ConfigVersion]),
     case ConfigVersion of
         DesiredConfigVersion ->
             ok;
