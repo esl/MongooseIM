@@ -5,6 +5,10 @@ Currently there is only one such mechanism: `SASL EXTERNAL`.
 
 It extracts Common Name from a certificate and returns it as a username part in JID.
 
+## Client certificate requirements
+
+Common Name must be equal to username part of the client JID.
+
 ## WARNING
 
 Some of its callbacks return hardcoded values, as it's impossible for this backend to properly acquire certain pieces of information.

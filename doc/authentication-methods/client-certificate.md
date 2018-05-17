@@ -1,16 +1,13 @@
 ## Overview
 
 Clients connected to MongooseIM may authenticate with their TLS certificates.
-This method is based on combination of [`ejabberd_auth_pki` backend](../authentication-backends/PKI-authentication-module.md) and `SASL EXTERNAL` mechanism.
+This method is a combination of `SASL EXTERNAL` mechanism and compatible certificate-aware backend.
 
 ## Server-side prerequisites
 
 ### Properly configure `ejabberd_c2s` listener
 
-By default MongooseIM uses `fast_tls` driver but unfortunatelly it doesn't implement an API to get the client certificate.
-In order for this method to work properly, we'll need `just_tls` module (`tls_module` option), which uses an OTP TLS implementation.
-
-Proper client verification is required as well, so you'll need to enable `verify_peer` option and provide a path to a certificate of a CA that signed client's certificate (`cafile` option).
+A server must request the certificate from a client, so you'll need to enable `verify_peer` option and provide a path to CA chain that may be used for client's certificate check (`cafile` option).
 
 Please check [Listener modules](../advanced-configuration/Listener-modules.md#client-to-server-c2s-ejabberd_c2s) page for more information or simply follow the examples at the end of this section.
 
@@ -21,10 +18,20 @@ In order to enable it, please add [`sasl_mechanisms` option](../Advanced-configu
 Its value must include a `cyrsasl_external` item.
 Obviously the list may be longer, if the system should support both certificate and password based authentication.
 
-### Enable PKI authentication backend
+### Enable compatible authentication backend
 
-A PKI authentication backend extracts username from certificate's Common Name.
-Please modify [`auth_opts` option](../Advanced-configuration.md#authentication) in MongooseIM's config file to include `pki` item.
+Please modify [`auth_opts` option](../Advanced-configuration.md#authentication) in MongooseIM's config file to include proper item.
+For now, only [`pki` backend](../authentication-backends/PKI-authentication-module.md) supports `SASL EXTERNAL`.
+
+### WARNING!
+
+Some authentication backends may enforce `plain` password storage format, which automatically disables `SASL EXTERNAL`.
+Below you may find a list of backends that are safe to use with `cyrsasl_external` mechanism.
+
+* `pki`
+* `anonymous`
+* `http` **without** `{is_external, true}` option
+* `odbc`
 
 ### Examples
 
@@ -36,7 +43,6 @@ Certificate authentication only.
            {5222, ejabberd_c2s, [
                                   (...)
                                   {cafile, "/path/to/ca.pem"},
-                                  {tls_module, just_tls},
                                   verify_peer,
                                   (...)
                                 ]},
@@ -48,7 +54,7 @@ Certificate authentication only.
 {sasl_mechanisms, [cyrsasl_external]}.
 ```
 
-Authentication with a client certificate (validated with provided CA certificate) or password (validated with data stored in RDBMS).
+Authentication with a client certificate (validated with provided CA chain) or password (validated with data stored in RDBMS).
 
 ```
 {listen, [
@@ -56,7 +62,6 @@ Authentication with a client certificate (validated with provided CA certificate
            {5222, ejabberd_c2s, [
                                   (...)
                                   {cafile, "/path/to/ca.pem"},
-                                  {tls_module, just_tls},
                                   verify_peer,
                                   (...)
                                 ]},
@@ -71,7 +76,9 @@ Authentication with a client certificate (validated with provided CA certificate
 
 ## Client certificate prerequisites
 
-All the client must provide, is a certificate with the username in Common Name.
+`SASL EXTERNAL` will be offered by the server **only when a client provides a valid certificate**.
+
+Please check documentation of a specific authentication backend you're going to use.
 
 ## Usage example - Gajim
 
@@ -90,7 +97,7 @@ openssl pkcs12 -export -inkey client.key -in client.crt -out client.p12
 
 ### Configure MongooseIM
 
-See examples before this section. Configuration without `odbc` and `cyrsasl_scram` is sufficient.
+See examples before this section. We recommend the first snippet for sake of simplicity.
 
 You don't need to pre-create user account in order to log in with certificate.
 
