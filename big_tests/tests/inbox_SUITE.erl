@@ -653,10 +653,10 @@ leave_and_store_conversation(Config) ->
     check_inbox(Kate, #inbox{
       total = 1,
       convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]}),
-    %% Bob still has a conversation in inbox
+    %% Bob still has a conversation in inbox. Two unread - first is invitation, the second the leaving affiliation
     check_inbox(Bob, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]})
+      convs = [#conv{unread = 2, from = RoomJid, to = BobJid, content = <<>>}]})
                                                            end).
 
 %%%%
