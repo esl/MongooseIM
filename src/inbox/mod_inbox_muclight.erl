@@ -28,7 +28,7 @@ handle_outgoing_message(Host, User, Room, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
         undefined ->
-            %% we store in inbox only on incomming messages
+            %% we store in inbox only on incoming messages
             ok;
         Id ->
             mod_inbox_utils:reset_unread_count(User, Room, Id)

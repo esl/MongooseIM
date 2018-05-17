@@ -128,7 +128,7 @@ filter_packet(drop) ->
     drop;
 filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
     Host = To#jid.server,
-    maybe_process_message(Host, From, To, Msg, incomming),
+    maybe_process_message(Host, From, To, Msg, incoming),
     {From, To, Acc, Msg};
 filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
@@ -149,7 +149,7 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
 process_message(Host, From, To, Message, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, one2one) ->
-    mod_inbox_one2one:handle_incomming_message(Host, From, To, Message);
+    mod_inbox_one2one:handle_incoming_message(Host, From, To, Message);
 process_message(Host, From, To, Message, outgoing, groupchat) ->
     mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, groupchat) ->
