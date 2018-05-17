@@ -44,10 +44,9 @@ start_link() ->
 %% Initializes the server
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
+init([{amqp_client_opts, Opts}]) ->
     process_flag(trap_exit, true),
-    {ok, Connection} =
-        amqp_connection:start(#amqp_params_network{host = "localhost"}),
+    {ok, Connection} = amqp_connection:start(Opts),
     {ok, Channel} = amqp_connection:open_channel(Connection),
     {ok, #state{connection = Connection, channel = Channel}}.
 
