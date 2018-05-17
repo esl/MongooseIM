@@ -433,7 +433,7 @@ wrap_message(MamNs, Packet, QueryID, MessageUID, WrapperID, DateTime, SrcJID) ->
 forwarded(Packet, DateTime, SrcJID) ->
     #xmlel{
        name = <<"forwarded">>,
-       attrs = [{<<"xmlns">>, <<"urn:xmpp:forward:0">>}],
+       attrs = [{<<"xmlns">>, ?NS_FORWARD}],
        %% Two places to include SrcJID:
        %% - delay.from - optional XEP-0297 (TODO: depricate adding it?)
        %% - message.from - required XEP-0313

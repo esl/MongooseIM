@@ -17,7 +17,6 @@
 -export([start/2, stop/1, deps/2]).
 -export([process_iq/4, user_send_packet/4, filter_packet/1]).
 -export([clear_inbox/2]).
--define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
 
 -callback init(Host, Opts) -> ok when
     Host :: jid:lserver(),
@@ -182,7 +181,7 @@ build_result_iq(CountBin) ->
 -spec build_forward_el(content()) -> exml:element().
 build_forward_el(Content) ->
     {ok, Parsed} = exml:parse(Content),
-    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, <<"urn:xmpp:forward:0">>}], children = [Parsed]}.
+    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}], children = [Parsed]}.
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers

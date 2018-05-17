@@ -19,6 +19,7 @@
 -define(NS_PRIVACY,             <<"jabber:iq:privacy">>).
 -define(NS_BLOCKING,            <<"urn:xmpp:blocking">>).
 -define(NS_BLOCKING_ERRORS,     <<"urn:xmpp:blocking:errors">>).
+-define(NS_FORWARD,             <<"urn:xmpp:forward:0">>).
 -define(NS_PRIVATE,             <<"jabber:iq:private">>).
 -define(NS_VERSION,             <<"jabber:iq:version">>).
 -define(NS_TIME90,              <<"jabber:iq:time">>). % TODO: Remove once XEP-0090 is Obsolete
