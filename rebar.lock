@@ -1,5 +1,6 @@
 {"1.1.0",
-[{<<"backoff">>,{pkg,<<"backoff">>,<<"1.1.3">>},1},
+[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.5">>},0},
+ {<<"backoff">>,{pkg,<<"backoff">>,<<"1.1.3">>},1},
  {<<"base16">>,
   {git,"git://github.com/goj/base16.git",
        {ref,"f78918e7b593fbdc35ec9bcc349aa50f47f45a8b"}},
@@ -177,10 +178,12 @@
   {git,"https://github.com/okeuday/quickrand.git",
        {ref,"de0f2c7657723a223c5f8fc92a388e101697eae3"}},
   1},
+ {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.5">>},1},
  {<<"ranch">>,
   {git,"https://github.com/ninenines/ranch",
        {ref,"a004ad710eddd0c21aaccc30d5633a76b06164b5"}},
   1},
+ {<<"ranch_proxy_protocol">>,{pkg,<<"ranch_proxy_protocol">>,<<"1.5.0">>},2},
  {<<"re2">>,
   {git,"https://github.com/tuncer/re2.git",
        {ref,"2471e06ed7e548ca1af522e95b16867135afdfdc"}},
@@ -231,6 +234,7 @@
   0}]}.
 [
 {pkg_hash,[
+ {<<"amqp_client">>, <<"EE5FF6209CA4BE0FF950E92775F4E4AAB272C74003ABD84DED9CFF64AF1B597A">>},
  {<<"backoff">>, <<"DE762C05ED6DFAE862D83DC9E58AE936792B01302B3595F5CFFE86F2D8E6C1DD">>},
  {<<"bear">>, <<"E95FCA1627CD9E15BAF93CE0A52AFF16917BAF325F0EE65B88CD715376CD2344">>},
  {<<"cpool">>, <<"76222AA1DAC0F8089707167BD69D221EDA63DB65B8BD67DBF6E133075392EEDC">>},
@@ -240,5 +244,7 @@
  {<<"jsx">>, <<"749BEC6D205C694AE1786D62CEA6CC45A390437E24835FD16D12D74F07097727">>},
  {<<"lhttpc">>, <<"2137CB82D123751B21CC0461A00734CD32CB470BC6278BA139EE13C1ECC3C2B1">>},
  {<<"observer_cli">>, <<"F3A47C22327424291758167DF3C4600DCF8BF34795A3787612019AA5B86A5C21">>},
- {<<"parse_trans">>, <<"1BAD3B959941CC53FFD6F4769A5D2666F9CDF179B2D62826636497D3FBAD9EC0">>}]}
+ {<<"parse_trans">>, <<"1BAD3B959941CC53FFD6F4769A5D2666F9CDF179B2D62826636497D3FBAD9EC0">>},
+ {<<"rabbit_common">>, <<"3346C2C65DF2528891C3113AA33E78AADBD5E6996E4230B937C2429F86861268">>},
+ {<<"ranch_proxy_protocol">>, <<"E698AAEB590AD504B649DC0D3055ABEE6CAF0B49D3CAEE1A080AE83B5B499F30">>}]}
 ].

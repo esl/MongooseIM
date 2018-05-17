@@ -35,6 +35,9 @@
 {suites, "tests", metrics_session_SUITE}.
 {suites, "tests", mod_aws_sns_SUITE}.
 {suites, "tests", mod_blocking_SUITE}.
+%% Make sure that `amqp_client` application is accessible. For details check
+%% the suite documentation.
+{suites, "tests", mod_event_pusher_rabbit_SUITE}.
 {suites, "tests", mod_http_notification_SUITE}.
 {suites, "tests", mod_http_upload_SUITE}.
 {suites, "tests", mod_ping_SUITE}.

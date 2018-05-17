@@ -29,7 +29,7 @@ stop(PoolName) ->
     delete_worker_pool(PoolName).
 
 start_link(PoolName, WorkerCount) ->
-    supervisor2:start_link({local, PoolName}, ?MODULE, [PoolName, WorkerCount]).
+    mongoose_supervisor2:start_link({local, PoolName}, ?MODULE, [PoolName, WorkerCount]).
 
 supervisor_spec(PoolName, WorkerCount) ->
     {

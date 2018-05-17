@@ -1,7 +1,7 @@
 %% This file is a copy of supervisor.erl from the R16B Erlang/OTP
 %% distribution, with the following modifications:
 %%
-%% 1) the module name is supervisor2
+%% 1) the module name is mongoose_supervisor2
 %%
 %% 2) a find_child/2 utility function has been added
 %%
@@ -67,7 +67,7 @@
 %%
 %% %CopyrightEnd%
 %%
--module(supervisor2).
+-module(mongoose_supervisor2).
 
 -behaviour(gen_server).
 
