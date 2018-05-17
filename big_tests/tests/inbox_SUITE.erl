@@ -141,7 +141,7 @@ init_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
 init_per_testcase(leave_and_remove_conversation, Config) ->
   clear_inbox_all(),
   create_room(?ROOM2, muclight_domain(), alice, [bob, kate], Config, ver(1)),
-  escalus:init_per_testcase(kick_and_remove_conversation, Config);
+  escalus:init_per_testcase(leave_and_remove_conversation, Config);
 init_per_testcase(leave_and_store_conversation, Config) ->
   clear_inbox_all(),
   reload_inbox_option(Config, remove_on_kicked, false),

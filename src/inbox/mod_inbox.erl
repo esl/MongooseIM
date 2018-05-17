@@ -19,42 +19,42 @@
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
-    Host :: jid:lserver(),
-    Opts :: list().
+               Host :: jid:lserver(),
+               Opts :: list().
 
 -callback get_inbox(LUsername, LServer) -> get_inbox_res() when
-    LUsername :: jid:luser(),
-    LServer :: jid:lserver().
+                    LUsername :: jid:luser(),
+                    LServer :: jid:lserver().
 
 -callback set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_write_res() when
-    Username :: jid:luser(),
-    Server :: jid:lserver(),
-    ToBareJid :: binary(),
-    Content :: binary(),
-    Count :: binary(),
-    MsgId :: binary().
+                    Username :: jid:luser(),
+                    Server :: jid:lserver(),
+                    ToBareJid :: binary(),
+                    Content :: binary(),
+                    Count :: binary(),
+                    MsgId :: binary().
 
 -callback remove_inbox(Username, Server, ToBareJid) -> inbox_write_res() when
-    Username :: jid:luser(),
-    Server :: jid:lserver(),
-    ToBareJid :: binary().
+                       Username :: jid:luser(),
+                       Server :: jid:lserver(),
+                       ToBareJid :: binary().
 
 -callback set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) -> inbox_write_res() when
-    Username :: jid:luser(),
-    Server :: jid:lserver(),
-    ToBareJid :: binary(),
-    Content :: binary(),
-    MsgId :: binary().
+                                Username :: jid:luser(),
+                                Server :: jid:lserver(),
+                                ToBareJid :: binary(),
+                                Content :: binary(),
+                                MsgId :: binary().
 
 -callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_write_res() when
-    Username :: jid:luser(),
-    Server :: jid:lserver(),
-    BareJid :: binary(),
-    MsgId :: binary().
+                       Username :: jid:luser(),
+                       Server :: jid:lserver(),
+                       BareJid :: binary(),
+                       MsgId :: binary().
 
 -callback clear_inbox(Username, Server) -> inbox_write_res() when
-    Username :: jid:luser(),
-    Server :: jid:lserver().
+                      Username :: jid:luser(),
+                      Server :: jid:lserver().
 
 -spec deps(jid:lserver(), list()) -> list().
 deps(_Host, Opts) ->
@@ -67,6 +67,7 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
 
@@ -145,6 +146,12 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
             ok
     end.
 
+-spec process_message(Host :: host(),
+                      From :: jid:jid(),
+                      To :: jid:jid(),
+                      Message :: exml:element(),
+                      Dir :: outgoing | incoming,
+                      Type :: one2one | groupchat) -> ok.
 process_message(Host, From, To, Message, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, one2one) ->
@@ -213,6 +220,10 @@ callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
         reset_unread, remove_inbox, clear_inbox].
 
+store_bin_reset_markers(Host, Opts) ->
+    ResetMarkers = gen_mod:get_opt(reset_markers, Opts, [displayed]),
+    ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
+    gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
 
 get_message_type(Msg) ->
     case exml_query:attr(Msg, <<"type">>, undefined) of

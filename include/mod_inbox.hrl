@@ -7,3 +7,4 @@
 -type get_inbox_res() :: list(inbox_res()).
 -type inbox_res() :: {username(), content(), count()}.
 -type inbox_write_res() :: ok | {error, any()}.
+-type marker() :: binary().
