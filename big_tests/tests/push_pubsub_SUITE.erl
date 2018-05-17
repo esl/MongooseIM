@@ -366,7 +366,7 @@ parse_form(Fields) when is_list(Fields) ->
 rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
+    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
 bare_jid(JIDOrClient) ->
     ShortJID = escalus_client:short_jid(JIDOrClient),
@@ -384,7 +384,7 @@ setup_mock_rest() ->
 handle(Req, Master) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     Master ! {rest_req, Req2, Body},
-	cowboy_req:reply(204, #{}, <<>>, Req).
+    cowboy_req:reply(204, #{}, <<>>, Req).
 
 teardown_mock_rest() ->
     http_helper:stop().

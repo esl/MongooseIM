@@ -3,12 +3,12 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(ejabberd_node_utils, [get_cwd/2, mim/0, mim2/0, fed/0]).
+-import(ejabberd_node_utils, [get_cwd/2]).
 
 -compile(export_all).
 
 is_sm_distributed() ->
-    Backend = escalus_ejabberd:rpc(ejabberd_sm_backend, backend, []),
+    Backend = rpc(mim(), ejabberd_sm_backend, backend, []),
     is_sm_backend_distributed(Backend).
 
 is_sm_backend_distributed(ejabberd_sm_mnesia) -> true;
@@ -62,7 +62,48 @@ rpc(Node, M, F, A) ->
 
 rpc(Node, M, F, A, TimeOut) ->
     Cookie = ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, TimeOut, Cookie).
+    escalus_rpc:call(Node, M, F, A, TimeOut, Cookie).
+
+%% @doc Require nodes defined in `test.config' for later convenient RPCing into.
+%%
+%% The use case would be to require and import the same names in your suite like:
+%%
+%%  -import(distributed_helper, [mim/0, fed/0,
+%%                               require_rpc_nodes/1,
+%%                               rpc/4]).
+%%
+%%  ...
+%%
+%%  suite() ->
+%%      require_rpc_nodes([mim, fed]) ++ escalus:suite().
+%%
+%%  ...
+%%
+%%  example_test(_Config) ->
+%%      RPCResult = rpc(mim(), remote_mod, remote_fun, [arg1, arg2]),
+%%      ...
+%%
+require_rpc_nodes(Nodes) ->
+    [ {require, {hosts, Node, node}} || Node <- Nodes ].
+
+%% @doc Shorthand for hosts->mim->node from `test.config'.
+mim() ->
+    get_or_fail({hosts, mim, node}).
+
+mim2() ->
+    get_or_fail({hosts, mim2, node}).
+
+mim3() ->
+    get_or_fail({hosts, mim3, node}).
+
+%% @doc Shorthand for hosts->fed->node from `test.config'.
+fed() ->
+    get_or_fail({hosts, fed, node}).
+
+get_or_fail(Key) ->
+    Val = ct:get_config(Key),
+    Val == undefined andalso error({undefined, Key}),
+    Val.
 
 start_node(Node, Config) ->
     {_, 0} = ejabberdctl_helper:ejabberdctl(Node, "start", [], Config),

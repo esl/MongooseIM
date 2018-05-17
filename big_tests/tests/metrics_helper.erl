@@ -4,6 +4,9 @@
 
 -compile(export_all).
 
+-import(distributed_helper, [mim/0, mim2/0,
+                             rpc/4]).
+
 %% We introduce a convention, where metrics-related suites use only 2 accounts
 %% but it depends on `all_metrics_are_global` flag, which duet it will be.
 -define(METRICS_GROUP_USERS, [alice, bob]).
@@ -13,7 +16,7 @@ get_counter_value(CounterName) ->
     get_counter_value(ct:get_config({hosts, mim, domain}), CounterName).
 
 get_counter_value(Host, Metric) ->
-    case escalus_ejabberd:rpc(mongoose_metrics, get_metric_value, [Host, Metric]) of
+    case rpc(mim(), mongoose_metrics, get_metric_value, [Host, Metric]) of
         {ok, [{count, Total}, {one, _}]} ->
             {value, Total};
         {ok, [{value, Value} | _]} when is_integer(Value) ->
@@ -37,7 +40,7 @@ prepare_by_all_metrics_are_global(Config, false) ->
 prepare_by_all_metrics_are_global(Config, true) ->
     Config1 = [{all_metrics_are_global, true} | Config],
     %% TODO: Refactor once escalus becomes compatible with multiple nodes RPC
-    Config2 = distributed_helper:add_node_to_cluster(ejabberd_node_utils:mim2(), Config1),
+    Config2 = distributed_helper:add_node_to_cluster(mim2(), Config1),
     escalus:create_users(Config2, escalus:get_users(?ONLY_GLOBAL_METRICS_GROUP_USERS)).
 
 -spec finalise_by_all_metrics_are_global(Config :: list(), UseAllMetricsAreGlobal :: boolean()) ->
@@ -47,8 +50,7 @@ finalise_by_all_metrics_are_global(Config, false) ->
 finalise_by_all_metrics_are_global(Config, true) ->
     Config1 = lists:keydelete(all_metrics_are_global, 1, Config),
     %% TODO: Refactor once escalus becomes compatible with multiple nodes RPC
-    distributed_helper:remove_node_from_cluster(ejabberd_node_utils:mim2(),
-                                                Config1),
+    distributed_helper:remove_node_from_cluster(mim2(), Config1),
     escalus:delete_users(Config1,
                          escalus:get_users(?ONLY_GLOBAL_METRICS_GROUP_USERS)).
 

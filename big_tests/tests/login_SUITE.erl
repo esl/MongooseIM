@@ -25,6 +25,10 @@
 
 -include_lib("exml/include/exml.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -79,25 +83,25 @@ all_tests() ->
     ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-     escalus:init_per_suite(Config).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(register, Config) ->
-    [{escalus_user_db, xmpp} | skip_if_mod_register_not_enabled(Config)];
+    skip_if_mod_register_not_enabled([{escalus_user_db, xmpp} | Config]);
 init_per_group(bad_registration, Config) ->
     [{escalus_user_db, xmpp} | Config];
 init_per_group(bad_cancelation, Config) ->
-    [{escalus_user_db, xmpp} | skip_if_mod_register_not_enabled(Config)];
+    skip_if_mod_register_not_enabled([{escalus_user_db, xmpp} | Config]);
 init_per_group(registration_timeout, Config) ->
     case escalus_users:is_mod_register_enabled(Config) of
         true ->
@@ -122,14 +126,14 @@ init_per_group(_GroupName, Config) ->
 
 end_per_group(register, Config) ->
     escalus:delete_users(Config, escalus:get_users([admin, alice, bob]));
-end_per_group(change_account_details, Config) ->
+end_per_group(change_account_details, _Config) ->
     ok;
 end_per_group(bad_registration, _Config) ->
     ok;
 end_per_group(bad_cancelation, _Config) ->
     ok;
 end_per_group(registration_timeout, Config) ->
-    Config1 = restore_registration_timeout(Config);
+    restore_registration_timeout(Config);
 end_per_group(login_scram, Config) ->
     set_store_password(plain),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
@@ -168,7 +172,7 @@ init_per_testcase(registration_failure_timeout, Config) ->
     escalus:init_per_testcase(registration_failure_timeout, Config);
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
-                 || {Listener, _, _} <- escalus_ejabberd:rpc(ejabberd_config, get_local_option, [listen])],
+                 || {Listener, _, _} <- rpc(mim(), ejabberd_config, get_local_option, [listen])],
     [{_U, Props}] = escalus_users:get_users([hacker]),
     Port = proplists:get_value(port, Props),
     case lists:keymember(Port, 1, Listeners) of
@@ -184,7 +188,7 @@ init_per_testcase(CaseName, Config) ->
 end_per_testcase(change_password, Config) ->
     [{alice, Details}] = escalus_users:get_users([alice]),
     Alice = {alice, lists:keyreplace(password, 1, Details, {password, strong_pwd()})},
-    {ok, result, Response} = escalus_users:delete_user(Config, Alice);
+    {ok, result, _Response} = escalus_users:delete_user(Config, Alice);
 end_per_testcase(change_password_to_null, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_testcase(message_zlib_limit, Config) ->
@@ -200,7 +204,7 @@ end_per_testcase(not_allowed_registration_cancelation, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_testcase(registration_timeout, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
-end_per_testcase(registration_failure_timeout, Config) ->
+end_per_testcase(registration_failure_timeout, _Config) ->
     ok = allow_everyone_registration();
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -217,7 +221,7 @@ register(Config) ->
     [Username2, _Server2, _Pass2] = escalus_users:get_usp(Config, UserSpec2),
     [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
 
-    escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+    rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
 
     escalus:story(Config, [{admin, 1}], fun(Admin) ->
             escalus:create_users(Config, escalus:get_users([Name1, Name2])),
@@ -263,13 +267,13 @@ null_password(Config) ->
     {username, Name} = lists:keyfind(username, 1, Details),
     {server, Server} = lists:keyfind(server, 1, Details),
     escalus:assert(is_error, [<<"modify">>, <<"not-acceptable">>], Response),
-    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Name, Server]).
+    false = rpc(mim(), ejabberd_auth, is_user_exists, [Name, Server]).
 
 check_unregistered(Config) ->
     escalus:delete_users(Config, escalus:get_users([admin, alice, bob])),
     [{_, UserSpec}| _] = escalus_users:get_users(all),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    false = escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
+    false = rpc(mim(), ejabberd_auth, is_user_exists, [Username, Server]).
 
 bad_request_registration_cancelation(Config) ->
 
@@ -529,15 +533,14 @@ strong_pwd() ->
 
 set_registration_timeout(Config) ->
     Record = {local_config, registration_timeout, ?REGISTRATION_TIMEOUT},
-    OldTimeout = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                                      [registration_timeout]),
-    true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
+    OldTimeout = rpc(mim(), ejabberd_config, get_local_option, [registration_timeout]),
+    true = rpc(mim(), ets, insert, [local_config, Record]),
     [ {old_timeout, OldTimeout} | Config ].
 
 restore_registration_timeout(Config) ->
     {old_timeout, OldTimeout} = proplists:lookup(old_timeout, Config),
     Record = {local_config, registration_timeout, OldTimeout},
-    true = escalus_ejabberd:rpc(ets, insert, [local_config, Record]),
+    true = rpc(mim(), ets, insert, [local_config, Record]),
     proplists:delete(old_timeout, Config).
 
 deny_everyone_registration() ->
@@ -548,8 +551,8 @@ allow_everyone_registration() ->
 
 change_registration_settings_for_everyone(Rule)
   when allow =:= Rule; deny =:= Rule ->
-    {atomic,ok} = escalus_ejabberd:rpc(ejabberd_config, add_global_option,
-        [{access, register, global}, [{Rule, all}]]),
+    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option,
+                      [{access, register, global}, [{Rule, all}]]),
     ok.
 
 get_client_details(Identifier) ->
@@ -561,17 +564,14 @@ get_client_details(Identifier) ->
 get_store_type() ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config({hosts, mim, domain})),
-    escalus_ejabberd:rpc(ejabberd_auth, store_type,
-                         [XMPPDomain]).
+    rpc(mim(), ejabberd_auth, store_type, [XMPPDomain]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config({hosts, mim, domain})),
-    AuthOpts = escalus_ejabberd:rpc(ejabberd_config, get_local_option,
-                                    [{auth_opts, XMPPDomain}]),
+    AuthOpts = rpc(mim(), ejabberd_config, get_local_option, [{auth_opts, XMPPDomain}]),
     NewAuthOpts = lists:keystore(password_format, 1, AuthOpts, {password_format, Type}),
-    escalus_ejabberd:rpc(ejabberd_config, add_local_option,
-                         [{auth_opts, XMPPDomain}, NewAuthOpts]).
+    rpc(mim(), ejabberd_config, add_local_option, [{auth_opts, XMPPDomain}, NewAuthOpts]).
 
 
 
@@ -590,7 +590,7 @@ verify_format(GroupName, {_User, Props}) ->
     Server = proplists:get_value(server, Props),
     Password = proplists:get_value(password, Props),
 
-    SPassword = escalus_ejabberd:rpc(ejabberd_auth, get_password, [Username, Server]),
+    SPassword = rpc(mim(), ejabberd_auth, get_password, [Username, Server]),
     do_verify_format(GroupName, Password, SPassword).
 
 do_verify_format(login_scram, _Password, SPassword) ->
@@ -613,7 +613,7 @@ bad_cancelation_stanza() ->
 
 restart_mod_register_with_option(Config, Name, Value) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    ModuleOptions = escalus_ejabberd:rpc(gen_mod, loaded_modules_with_opts, [Domain]),
+    ModuleOptions = rpc(mim(), gen_mod, loaded_modules_with_opts, [Domain]),
     {mod_register, OldRegisterOptions} = lists:keyfind(mod_register, 1, ModuleOptions),
     ok = dynamic_modules:stop(Domain, mod_register),
     NewRegisterOptions = lists:keystore(Name, 1, OldRegisterOptions, Value),
@@ -631,7 +631,7 @@ restore_mod_register_options(Config0) ->
 user_exists(Name, Config) ->
     {Name, Client} = escalus_users:get_user_by_name(Name),
     [Username, Server, _Pass] = escalus_users:get_usp(Config, Client),
-    escalus_ejabberd:rpc(ejabberd_auth, is_user_exists, [Username, Server]).
+    rpc(mim(), ejabberd_auth, is_user_exists, [Username, Server]).
 
 string(<<_/binary>> = Subject) ->
     erlang:binary_to_list(Subject).
@@ -647,4 +647,4 @@ modify_acl_for_blocking(Method, Spec) ->
     Domain = ct:get_config({hosts, mim, domain}),
     User = proplists:get_value(username, Spec),
     Lower = escalus_utils:jid_to_lower(User),
-    escalus_ejabberd:rpc(acl, Method, [Domain, blocked, {user, Lower}]).
+    rpc(mim(), acl, Method, [Domain, blocked, {user, Lower}]).

@@ -7,17 +7,8 @@
 -module(s2s_SUITE).
 -compile(export_all).
 
--import(distributed_helper, [rpc/4, rpc/5]).
-
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
-
--record(s2s_opts, {
-          node1_s2s_certfile = undefined,
-          node1_s2s_use_starttls = undefined,
-          node2_s2s_certfile = undefined,
-          node2_s2s_use_starttls = undefined
-         }).
 
 %%%===================================================================
 %%% Suite configuration

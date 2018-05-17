@@ -7,6 +7,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
 
@@ -23,11 +26,11 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     RoomUS = {RoomU, MUCHost},
     AffUsers = [{to_lus(Owner, Config), owner}
                 | [ {to_lus(Member, Config), member} || Member <- Members ]],
-    {ok, _RoomUS} = escalus_ejabberd:rpc(mod_muc_light_db_backend, create_room,
-                                         [RoomUS, DefaultConfig, AffUsers, Version]).
+    {ok, _RoomUS} = rpc(mim(), mod_muc_light_db_backend, create_room,
+                        [RoomUS, DefaultConfig, AffUsers, Version]).
 
 -spec default_config() -> list().
-default_config() -> escalus_ejabberd:rpc(mod_muc_light, default_config, [muc_host()]).
+default_config() -> rpc(mim(), mod_muc_light, default_config, [muc_host()]).
 
 -spec ns_muc_light_affiliations() -> binary().
 ns_muc_light_affiliations() ->
@@ -63,7 +66,7 @@ then_muc_light_affiliations_are_received_by(Users, {_Room, Affiliations}) ->
     [ F(escalus:wait_for_stanza(User)) || User <- Users ].
 
 when_archive_query_is_sent(Sender, RecipientJid, Config) ->
-	P = ?config(props, Config),
+    P = ?config(props, Config),
     Request = case RecipientJid of
                   undefined -> mam_helper:stanza_archive_request(P, <<"q">>);
                   _ -> escalus_stanza:to(mam_helper:stanza_archive_request(P, <<"q">>), RecipientJid)
@@ -71,7 +74,7 @@ when_archive_query_is_sent(Sender, RecipientJid, Config) ->
     escalus:send(Sender, Request).
 
 then_archive_response_is(Receiver, Expected, Config) ->
-	P = ?config(props, Config),
+    P = ?config(props, Config),
     Response = mam_helper:wait_archive_respond(P, Receiver),
     Stanzas = mam_helper:respond_messages(mam_helper:assert_respond_size(length(Expected), Response)),
     ParsedStanzas = [ mam_helper:parse_forwarded_message(Stanza) || Stanza <- Stanzas ],
@@ -217,5 +220,5 @@ stanza_aff_set(Room, AffUsers) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
 
 clear_db() ->
-    escalus_ejabberd:rpc(mod_muc_light_db_backend, force_clear, []).
+    rpc(mim(), mod_muc_light_db_backend, force_clear, []).
 

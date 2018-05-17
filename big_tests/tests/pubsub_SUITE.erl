@@ -92,12 +92,16 @@
          disable_delivery_test/1
         ]).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 all() -> [
           {group, basic},
@@ -1282,7 +1286,7 @@ debug_get_items_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
 
-              Items = escalus_ejabberd:rpc(mod_pubsub, get_items, [NodeAddr, NodeName]),
+              Items = rpc(mim(), mod_pubsub, get_items, [NodeAddr, NodeName]),
               % We won't bother with importing records etc...
               2 = length(Items),
 
@@ -1501,12 +1505,12 @@ is_not_allowed_and_closed(IQError) ->
 %% TODO: Functions below will most probably fail when mod_pubsub gets some nice refactoring!
 
 set_service_option(Host, Key, Val) ->
-    true = escalus_ejabberd:rpc(ets, insert, [service_tab_name(Host), {Key, Val}]).
+    true = rpc(mim(), ets, insert, [service_tab_name(Host), {Key, Val}]).
 
 lookup_service_option(Host, Key) ->
-    [{_, Val}] = escalus_ejabberd:rpc(ets, lookup, [service_tab_name(Host), Key]),
+    [{_, Val}] = rpc(mim(), ets, lookup, [service_tab_name(Host), Key]),
     Val.
 
 service_tab_name(Host) ->
-    escalus_ejabberd:rpc(gen_mod, get_module_proc, [Host, config]).
+    rpc(mim(), gen_mod, get_module_proc, [Host, config]).
 

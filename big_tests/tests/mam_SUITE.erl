@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mam_SUITE).
+
 %% CT callbacks
 -export([all/0,
          groups/0,
@@ -116,6 +117,10 @@
          dont_archive_chat_markers/1,
          save_unicode_messages/1,
          unicode_messages_can_be_extracted/1]).
+
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
 
 -import(muc_helper,
         [muc_host/0,
@@ -484,7 +489,7 @@ impl_specific() ->
   [check_user_exist].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
     muc_helper:load_muc(muc_host()),
@@ -996,10 +1001,8 @@ init_per_testcase(C=muc_text_search_request, Config) ->
 
     skip_if_cassandra(Config, Init);
 init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
-    OrigVal = escalus_ejabberd:rpc(gen_mod, get_module_opt,
-                                   [host(), mod_mam, archive_groupchats, false]),
-    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
-                                [host(), mod_mam, archive_groupchats, true]),
+    OrigVal = rpc(mim(), gen_mod, get_module_opt, [host(), mod_mam, archive_groupchats, false]),
+    true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, true]),
     clean_archives(Config),
     escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
 init_per_testcase(C=archive_chat_markers, Config) ->
@@ -1084,8 +1087,7 @@ end_per_testcase(C=muc_only_archived, Config) ->
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
     {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
-    true = escalus_ejabberd:rpc(gen_mod, set_module_opt,
-                                [host(), mod_mam, archive_groupchats, OrigVal]),
+    true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, OrigVal]),
     escalus:end_per_testcase(C, Config1);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
@@ -1702,13 +1704,13 @@ message_with_stanzaid_and_archived(Config) ->
         IdStanzaid  = exml_query:attr(ArcStanzaid, <<"id">>),
 
         %% The attributes of <stanza-id/> and <archived/> are the same
-	?assert_equal(ByArchived, ByStanzaid),
-	?assert_equal(IdArchived, IdStanzaid),
+        ?assert_equal(ByArchived, ByStanzaid),
+        ?assert_equal(IdArchived, IdStanzaid),
 
-	%% stanza-id has a namespace 'urn:xmpp:sid:0'
-	<<"urn:xmpp:sid:0">> = exml_query:attr(ArcStanzaid, <<"xmlns">>),
-	ok
-	end,
+        %% stanza-id has a namespace 'urn:xmpp:sid:0'
+        <<"urn:xmpp:sid:0">> = exml_query:attr(ArcStanzaid, <<"xmlns">>),
+        ok
+    end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 
@@ -1825,7 +1827,7 @@ offline_message(Config) ->
 
     %% Bob checks his archive.
     escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-    ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
+    ArcMsgs = respond_messages(wait_archive_respond(P, Bob)),
     assert_only_one_of_many_is_equal(ArcMsgs, Msg),
 
     escalus_client:stop(Config, Bob).
@@ -1842,7 +1844,7 @@ nostore_hint(Config) ->
 
         %% Bob checks his archive.
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
-        ArcMsgs = R = respond_messages(wait_archive_respond(P, Bob)),
+        ArcMsgs = respond_messages(wait_archive_respond(P, Bob)),
         assert_not_stored(ArcMsgs, Msg),
         ok
         end,
@@ -1949,9 +1951,9 @@ muc_message_with_archived_and_stanzaid(Config) ->
         ?assert_equal(ByArchived, ByStanzaid),
         ?assert_equal(IdArchived, IdStanzaid),
 
-	%% stanza-id has a namespace 'urn:xmpp:sid:0'
-	Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
-	?assert_equal(Xmlns, <<"urn:xmpp:sid:0">>),
+        %% stanza-id has a namespace 'urn:xmpp:sid:0'
+        Xmlns = exml_query:attr(ArcStanzaid, <<"xmlns">>),
+        ?assert_equal(Xmlns, <<"urn:xmpp:sid:0">>),
         ok
         end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
@@ -2017,7 +2019,7 @@ muc_archive_request(Config) ->
 %% Copied from 'muc_archive_reuest' test in case to show some bug in mod_mam_muc related to
 %% issue #512
 muc_archive_purge(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
         RoomAddr = room_address(Room),
@@ -2182,9 +2184,9 @@ muc_deny_protected_room_access(Config) ->
 %% @doc Allow access to non-in-room users who able to connect
 muc_allow_access_to_owner(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
+    F = fun(Alice, _Bob) ->
         Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
+        _RoomAddr = room_address(Room),
 
         %% Alice (not in room) requests the room's archive.
         escalus:send(Alice, stanza_to_room(stanza_archive_request(P, <<"q1">>), Room)),
@@ -2827,7 +2829,7 @@ after_complete_true_after11(Config) ->
 %% ------------------------------------------------------------------
 
 prefs_set_request(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2877,7 +2879,7 @@ query_get_request(Config) ->
 %% without whitespaces. In the real world it is not true.
 %% Put "\n" between two jid elements.
 prefs_set_cdata_request(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         %% Send
         %%
@@ -2907,7 +2909,7 @@ prefs_set_cdata_request(Config) ->
     escalus_fresh:story(Config, [{alice, 1}], F).
 
 mam_service_discovery(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         Server = escalus_client:server(Alice),
         escalus:send(Alice, escalus_stanza:disco_info(Server)),
@@ -2926,7 +2928,7 @@ mam_service_discovery(Config) ->
 
 %% Check, that MUC is supported.
 muc_service_discovery(Config) ->
-    P = ?config(props, Config),
+    _P = ?config(props, Config),
     F = fun(Alice) ->
         Domain = ct:get_config({hosts, mim, domain}),
         Server = escalus_client:server(Alice),
@@ -2999,7 +3001,7 @@ run_prefs_cases(DefaultPolicy, ConfigIn) ->
 
 %% The same as prefs_set_request case but for different configurations
 run_set_and_get_prefs_cases(ConfigIn) ->
-    P = ?config(props, ConfigIn),
+    _P = ?config(props, ConfigIn),
     F = fun(Config, Alice, _Bob, _Kate) ->
         Namespace = mam_ns_binary_v04(),
         [run_set_and_get_prefs_case(Case, Namespace, Alice, Config) || Case <- prefs_cases2()]
@@ -3011,13 +3013,13 @@ check_user_exist(Config) ->
   %% when
   [{_, AdminSpec}] = escalus_users:get_users([admin]),
   [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  #{} = escalus_ejabberd:rpc(ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+  #{} = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
   %% admin user already registered
-  true = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
-  false = escalus_ejabberd:rpc(ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
+  true = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, AdminS]),
+  false = rpc(mim(), ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),
+  false = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, <<"fake-domain">>]),
   %% cleanup
-  ok = escalus_ejabberd:rpc(ejabberd_auth, remove_user, [AdminU, AdminS]).
+  ok = rpc(mim(), ejabberd_auth, remove_user, [AdminU, AdminS]).
 
 parallel_story(Config, ResourceCounts, F) ->
     Config1 = override_for_parallel(Config),

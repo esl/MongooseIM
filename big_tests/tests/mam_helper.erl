@@ -25,6 +25,9 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -import(muc_helper,
         [muc_host/0,
          room_address/1, room_address/2,
@@ -44,7 +47,7 @@ rpc_apply(M, F, Args) ->
 rpc_call(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_ct:rpc_call(Node, M, F, A, 10000, Cookie).
+    escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
 mam03_props() ->
     [{data_form, true},                 %% send data forms
@@ -950,7 +953,6 @@ parse_messages(Messages) ->
 
 bootstrap_archive(Config) ->
     random:seed(os:timestamp()),
-    Users = escalus_ct:get_config(escalus_users),
     AliceJID    = escalus_users:get_jid(Config, alice),
     BobJID      = escalus_users:get_jid(Config, bob),
     CarolJID    = escalus_users:get_jid(Config, carol),
@@ -1061,7 +1063,6 @@ muc_bootstrap_archive(Config) ->
     BobServer   = escalus_users:get_server(Config, bob),
 
     Domain = muc_host(),
-    Host = host(),
     RoomJid = make_jid(Room, Domain, <<>>),
     ArcJID = {R, RoomJid,
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
@@ -1141,7 +1142,7 @@ is_mam_possible(Host) ->
     is_cassandra_enabled(Host).
 
 is_riak_enabled(_Host) ->
-    case escalus_ejabberd:rpc(mongoose_riak, get_worker, []) of
+    case rpc(mim(), mongoose_riak, get_worker, []) of
         Pid when is_pid(Pid) ->
             true;
         _ ->
@@ -1149,7 +1150,7 @@ is_riak_enabled(_Host) ->
     end.
 
 is_cassandra_enabled(_) ->
-    case escalus_ejabberd:rpc(mongoose_cassandra_sup, get_all_workers, []) of
+    case rpc(mim(), mongoose_cassandra_sup, get_all_workers, []) of
         [_|_]=_Pools ->
             true;
         _ ->
@@ -1157,7 +1158,7 @@ is_cassandra_enabled(_) ->
     end.
 
 sql_transaction(Host, F) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, sql_transaction, [Host, F]).
+    rpc(mim(), mongoose_rdbms, sql_transaction, [Host, F]).
 
 login_send_presence(Config, User) ->
     Spec = escalus_users:get_userspec(Config, User),

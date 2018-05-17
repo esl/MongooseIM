@@ -21,6 +21,10 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -53,7 +57,7 @@ groups() ->
      ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 essential_test_cases() ->
     [create_and_terminate_session,
@@ -762,14 +766,14 @@ force_cache_trimming(Config) ->
 %%--------------------------------------------------------------------
 
 get_bosh_sessions() ->
-    escalus_ejabberd:rpc(mod_bosh_backend, get_sessions, []).
+    rpc(mim(), mod_bosh_backend, get_sessions, []).
 
 get_bosh_session(Sid) ->
     BoshSessions = get_bosh_sessions(),
     lists:keyfind(Sid, 2, BoshSessions).
 
 get_handlers(BoshSessionPid) ->
-    escalus_ejabberd:rpc(mod_bosh_socket, get_handlers, [BoshSessionPid]).
+    rpc(mim(), mod_bosh_socket, get_handlers, [BoshSessionPid]).
 
 get_bosh_sid(#client{rcv_pid = Pid}) ->
     escalus_bosh:get_sid(Pid).
@@ -835,19 +839,18 @@ ack_body(Body, Rid) ->
     Body#xmlel{attrs = NewAttrs}.
 
 set_client_acks(SessionPid, Enabled) ->
-    escalus_ejabberd:rpc(mod_bosh_socket, set_client_acks,
-                         [SessionPid, Enabled]).
+    rpc(mim(), mod_bosh_socket, set_client_acks, [SessionPid, Enabled]).
 
 get_cached_responses(SessionPid) ->
-    escalus_ejabberd:rpc(mod_bosh_socket, get_cached_responses, [SessionPid]).
+    rpc(mim(), mod_bosh_socket, get_cached_responses, [SessionPid]).
 
 inactivity() ->
     inactivity(?INACTIVITY).
 
 inactivity(Value) ->
     {inactivity,
-     fun() -> escalus_ejabberd:rpc(mod_bosh, get_inactivity, []) end,
-     fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_inactivity, [V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_inactivity, []) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_inactivity, [V]) end,
      Value}.
 
 max_wait() ->
@@ -855,14 +858,14 @@ max_wait() ->
 
 max_wait(Value) ->
     {max_wait,
-     fun() -> escalus_ejabberd:rpc(mod_bosh, get_max_wait, []) end,
-     fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_max_wait, [V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_max_wait, []) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_max_wait, [V]) end,
      Value}.
 
 server_acks_opt() ->
     {server_acks,
-     fun() -> escalus_ejabberd:rpc(mod_bosh, get_server_acks, []) end,
-     fun(V) -> escalus_ejabberd:rpc(mod_bosh, set_server_acks, [V]) end,
+     fun() -> rpc(mim(), mod_bosh, get_server_acks, []) end,
+     fun(V) -> rpc(mim(), mod_bosh, set_server_acks, [V]) end,
      true}.
 
 is_sesssion_alive(Sid) ->

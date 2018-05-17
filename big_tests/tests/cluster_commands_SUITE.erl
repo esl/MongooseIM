@@ -17,14 +17,16 @@
 -module(cluster_commands_SUITE).
 -compile(export_all).
 
--import(distributed_helper, [add_node_to_cluster/2, rpc/5,
-        remove_node_from_cluster/2, is_sm_distributed/0]).
+-import(distributed_helper, [add_node_to_cluster/2,
+                             is_sm_distributed/0,
+                             mim/0, mim2/0, mim3/0,
+                             remove_node_from_cluster/2,
+                             require_rpc_nodes/1,
+                             rpc/5]).
 -import(ejabberdctl_helper, [ejabberdctl/3, rpc_call/3]).
--import(ejabberd_node_utils, [mim/0, mim2/0, mim3/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
--define(LOCAL_NODE, mim()).
 -define(eq(Expected, Actual), ?assertEqual(Expected, Actual)).
 -define(ne(A, B), ?assertNot(A == B)).
 
@@ -34,39 +36,35 @@
 
 all() ->
     [{group, clustered},
-        {group, mnesia},
-        {group, clustering_two},
-        {group, clustering_three}].
+     {group, mnesia},
+     {group, clustering_two},
+     {group, clustering_three}].
+
 groups() ->
     [{clustered, [], [one_to_one_message]},
-        {clustering_two, [], clustering_two_tests()},
-        {clustering_three, [], clustering_three_tests()},
-        {mnesia, [], [set_master_test]}].
+     {clustering_two, [], clustering_two_tests()},
+     {clustering_three, [], clustering_three_tests()},
+     {mnesia, [], [set_master_test]}].
+
 suite() ->
-    require_all_nodes() ++
-    escalus:suite().
+    require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().
 
 clustering_two_tests() ->
     [join_successful_prompt,
-        join_successful_force,
-        leave_successful_prompt,
-        leave_successful_force,
-        join_unsuccessful,
-        leave_unsuccessful,
-        leave_but_no_cluster,
-        join_twice,
-        leave_twice].
+     join_successful_force,
+     leave_successful_prompt,
+     leave_successful_force,
+     join_unsuccessful,
+     leave_unsuccessful,
+     leave_but_no_cluster,
+     join_twice,
+     leave_twice].
 
 clustering_three_tests() ->
     [cluster_of_three,
-        leave_the_three,
-        %remove_dead_from_cluster, % TODO: Breaks cover
-        remove_alive_from_cluster].
-
-require_all_nodes() ->
-    [{require, mim_node, {hosts, mim, node}},
-     {require, mim_node2, {hosts, mim2, node}},
-     {require, mim_node3, {hosts, mim3, node}}].
+     leave_the_three,
+     %remove_dead_from_cluster, % TODO: Breaks cover
+     remove_alive_from_cluster].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -83,9 +81,9 @@ init_per_suite(Config) ->
     Node2CtlPath = distributed_helper:ctl_path(Node2, Config3),
     Node3CtlPath = distributed_helper:ctl_path(Node3, Config3),
     escalus:init_per_suite([{ctl_path_atom(Node1), NodeCtlPath},
-        {ctl_path_atom(Node2), Node2CtlPath},
-        {ctl_path_atom(Node3), Node3CtlPath}]
-    ++ Config3).
+                            {ctl_path_atom(Node2), Node2CtlPath},
+                            {ctl_path_atom(Node3), Node3CtlPath}]
+                           ++ Config3).
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).

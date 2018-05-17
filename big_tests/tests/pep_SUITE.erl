@@ -31,6 +31,10 @@
          send_initial_presence_with_caps/2
         ]).
 
+-import(distributed_helper, [mim/0,
+                             require_rpc_nodes/1,
+                             rpc/4]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -53,7 +57,7 @@ groups() -> [
             ].
 
 suite() ->
-    escalus:suite().
+    require_rpc_nodes([mim]) ++ escalus:suite().
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -312,7 +316,7 @@ random_node_ns() ->
     base64:encode(crypto:strong_rand_bytes(16)).
 
 caps_hash(PEPNodeNS) ->
-    escalus_ejabberd:rpc(mod_caps, make_disco_hash, [feature_elems(PEPNodeNS), sha1]).
+    rpc(mim(), mod_caps, make_disco_hash, [feature_elems(PEPNodeNS), sha1]).
 
 caps_node_name() ->
     <<"http://www.chatopus.com">>.
