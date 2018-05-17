@@ -23,5 +23,8 @@ VOLUME /packages
 COPY platforms/centos6/files/build /buildfiles
 COPY files/build /build
 
-ENTRYPOINT ["scl", "enable", "devtoolset-4"]
-CMD ["/bin/bash"]
+# Copy the shim for SCL
+# (see https://access.redhat.com/documentation/en-us/red_hat_software_collections/1/html/packaging_guide/sect-Enabling_the_Software_Collection)
+COPY platforms/centos6/files/scl-bash /
+
+ENTRYPOINT ["/scl-bash"]

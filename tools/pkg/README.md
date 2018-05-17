@@ -41,8 +41,7 @@ to effectively shorten package build times later.
 Run:
 
 ```sh
-$ ./run PLATFORM
-[root@centos6 /]# ./build TAGGED-PUBLIC-VERSION
+$ ./run PLATFORM <VERSION>
 ```
 
 Look into `platforms/` for valid values of `PLATFORM` - it is the same thing
@@ -50,10 +49,10 @@ as when building a build container.
 
 If all goes well, the package will land in `packages/`
 subdirectory - mounted as a container volume at `/packages`.
-The container instance is discarded once you exit the shell.
+The container instance is removed once the build finishes.
 
 Repository to build MongooseIM from can be overridden by exporting
-`MONGOOSEIM_REPO` inside the container, but before running `build`.
+the `MONGOOSEIM_REPO` environment variable.
 The default is the official MongooseIM repository: https://github.com/esl/mongooseim.git
 
 In the rare case of changing the package build scripts,
@@ -61,7 +60,7 @@ but not released code itself, it's also possible to specify package
 revision:
 
 ```sh
-[root@centos6 /]# ./build TAGGED-PUBLIC-VERSION PACKAGE-REVISION
+$ ./run PLATFORM <VERSION> <PACKAGE-REVISION>
 ```
 
 The default `PACKAGE-REVISION` is 1, so if you have to specify it,

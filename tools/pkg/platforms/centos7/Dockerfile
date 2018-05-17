@@ -22,4 +22,4 @@ VOLUME /packages
 COPY platforms/centos7/files/build /buildfiles
 COPY files/build /build
 
-CMD ["/bin/bash"]
+ENTRYPOINT ["/build"]

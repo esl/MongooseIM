@@ -4,33 +4,26 @@ set -e
 
 . env/build-run
 
-INTERACTIVE=yes
-
-# Flags have to come first!
-while [ x${1:0:1} == "x-" ]; do
-case $1 in
-  --non-interactive)
-    shift
-    INTERACTIVE=no
-    ;;
-  *)
-    echo "$0: unknown option $1"
-    exit 1
-    ;;
-esac
-done
+MONGOOSEIM_REPO=${MONGOOSEIM_REPO:-https://github.com/esl/mongooseim.git}
 
 PLATFORM=$1
 [ x"$PLATFORM" = x"" ] && ( echo "$0: which platform container to run?"; exit 1 )
+
+VERSION=$2
+if [ x"$VERSION" = x"" ]; then
+    VERSION=$(cat ../../VERSION)
+fi
+
+REVISION=${3:-1}
+
+echo "Building package for"
+echo "    platform: $PLATFORM"
+echo "    version : $VERSION"
 
 pushd `dirname $0` > /dev/null
 SCRIPTPATH=`pwd`
 popd > /dev/null
 
-TAG="$BUILD_CONTAINER_PREFIX.$PLATFORM.$BUILD_CONTAINER_SUFFIX"
-if [ x$INTERACTIVE = xyes ]; then
-  docker run -it --hostname $PLATFORM --rm -v $SCRIPTPATH/packages:/packages $TAG bash
-else
-  VERSION=$(cat ../../VERSION)
-  docker run --hostname $PLATFORM --rm -v $SCRIPTPATH/packages:/packages $TAG "./build $VERSION"
-fi
+CONTAINER="$BUILD_CONTAINER_PREFIX.$PLATFORM.$BUILD_CONTAINER_SUFFIX"
+docker run --rm --hostname $PLATFORM -e MONGOOSEIM_REPO=$MONGOOSEIM_REPO \
+    -v $SCRIPTPATH/packages:/packages $CONTAINER $VERSION $REVISION
