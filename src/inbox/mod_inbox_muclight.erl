@@ -92,8 +92,8 @@ handle_invitation_message(Host, Room, Remote, Packet) ->
                             Packet :: exml:element()) -> ok.
 handle_kicked_message(Host, Room, Remote, Packet) ->
     CheckRemove = mod_inbox_utils:get_option_remove_on_kicked(Host),
-    maybe_remove_inbox_row(Host, Room, Remote, CheckRemove),
-    maybe_store_system_message(Host, Remote, Room, Packet).
+    maybe_store_system_message(Host, Room, Remote, Packet),
+    maybe_remove_inbox_row(Host, Room, Remote, CheckRemove).
 
 -spec maybe_store_system_message(Host :: host(),
                                   Room :: jid:jid(),

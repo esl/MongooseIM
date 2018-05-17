@@ -32,7 +32,9 @@
          create_groupchat/1,
          create_groupchat_no_affiliation_stored/1,
          leave_and_remove_conversation/1,
-         leave_and_store_conversation/1]).
+         leave_and_store_conversation/1,
+         no_aff_stored_and_remove_on_kicked/1,
+         no_stored_and_remain_after_kicked/1]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(muc_light_helper, [bin_aff_users/1, aff_msg_verify_fun/1, gc_message_verify_fun/3, ver/1,
@@ -42,6 +44,8 @@
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(ROOM, <<"testroom1">>).
 -define(ROOM2, <<"testroom2">>).
+-define(ROOM3, <<"testroom3">>).
+-define(ROOM4, <<"testroom4">>).
 -record(conv, {unread, from, to, content}).
 -record(inbox, {total, convs = []}).
 %%--------------------------------------------------------------------
@@ -74,7 +78,9 @@ groups() ->
         create_groupchat,
         create_groupchat_no_affiliation_stored,
         leave_and_remove_conversation,
-        leave_and_store_conversation
+        leave_and_store_conversation,
+        no_aff_stored_and_remove_on_kicked,
+        no_stored_and_remain_after_kicked
       ]}
   ].
 
@@ -146,6 +152,16 @@ init_per_testcase(leave_and_store_conversation, Config) ->
   clear_inbox_all(),
   reload_inbox_option(Config, remove_on_kicked, false),
   escalus:init_per_testcase(leave_and_store_conversation, Config);
+init_per_testcase(no_aff_stored_and_remove_on_kicked, Config) ->
+    clear_inbox_all(),
+    create_room(?ROOM3, muclight_domain(), alice, [bob, kate], Config, ver(1)),
+    reload_inbox_option(Config, [{remove_on_kicked, true}, {aff_changes, false}]),
+    escalus:init_per_testcase(no_aff_stored_and_remove_on_kicked, Config);
+init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
+  clear_inbox_all(),
+  create_room(?ROOM4, muclight_domain(), alice, [bob, kate], Config, ver(1)),
+  reload_inbox_option(Config, [{remove_on_kicked, false}, {aff_changes, true}]),
+  escalus:init_per_testcase(no_stored_and_remain_after_kicked, Config);
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:init_per_testcase(CaseName, Config).
@@ -157,12 +173,23 @@ end_per_testcase(leave_and_remove_conversation, Config) ->
   escalus:end_per_testcase(leave_and_remove_conversation, Config);
 end_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
   clear_inbox_all(),
+  muc_light_helper:clear_db(),
   restore_inbox_option(Config),
   escalus:end_per_testcase(create_groupchat_no_affiliation_stored, Config);
 end_per_testcase(leave_and_store_conversation, Config) ->
   clear_inbox_all(),
   restore_inbox_option(Config),
   escalus:end_per_testcase(leave_and_store_conversation, Config);
+end_per_testcase(no_aff_stored_and_remove_on_kicked, Config) ->
+    clear_inbox_all(),
+    muc_light_helper:clear_db(),
+    restore_inbox_option(Config),
+    escalus:end_per_testcase(no_aff_stored_and_remove_on_kicked, Config);
+end_per_testcase(no_stored_and_remain_after_kicked, Config) ->
+  clear_inbox_all(),
+  muc_light_helper:clear_db(),
+  restore_inbox_option(Config),
+  escalus:end_per_testcase(no_stored_and_remain_after_kicked, Config);
 end_per_testcase(msg_sent_to_not_existing_user, Config) ->
   Host = ct:get_config({hosts, mim, domain}),
   escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user@localhost">>,Host]),
@@ -170,6 +197,7 @@ end_per_testcase(msg_sent_to_not_existing_user, Config) ->
 end_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:end_per_testcase(CaseName, Config).
+
 
 
 
@@ -438,12 +466,20 @@ groupchat_markers_advanced(Config) ->
       convs = [#conv{unread = 0, from = AliceRoomJid, to = BobJid, content = Msg}]})
 
                                                            end).
+
+%% this test combines options:
+%% ...
+%%{aff_changes, true},
+%%{remove_on_kicked, true},
 create_groupchat(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     RoomNode = <<"bobroom">>,
     create_room_and_check_inbox(Bob, [Alice, Kate], RoomNode)
                                                            end).
-
+%% this test combines options:
+%% ...
+%%{aff_changes, false},
+%%{remove_on_kicked, true},
 create_groupchat_no_affiliation_stored(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     InitOccupants = [{Alice, member}, {Kate, member}],
@@ -492,6 +528,78 @@ create_groupchat_no_affiliation_stored(Config) ->
       convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]})
                                                            end).
 
+%% this test combines options:
+%% ...
+%%{aff_changes, false},
+%%{remove_on_kicked, true},
+no_aff_stored_and_remove_on_kicked(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    AliceJid = lbin(escalus_client:short_jid(Alice)),
+    KateJid = lbin(escalus_client:short_jid(Kate)),
+    RoomJid = room_bin_jid(?ROOM3),
+    AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
+    Msg = <<"Hi all">>,
+    Stanza = escalus_stanza:set_id(
+      escalus_stanza:groupchat_to(RoomJid, Msg), <<"33">>),
+    escalus:send(Alice, Stanza),
+    R0 = escalus:wait_for_stanza(Alice),
+    R1 = escalus:wait_for_stanza(Bob),
+    R2 = escalus:wait_for_stanza(Kate),
+    escalus:assert(is_groupchat_message, R0),
+    escalus:assert(is_groupchat_message, R1),
+    escalus:assert(is_groupchat_message, R2),
+    %% Bob leaves the room
+    muc_light_helper:user_leave(?ROOM3, Bob, [{Alice, owner}, {Kate, member}]),
+    %% Alice and Kate have message in groupchats
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]}),
+    %% Bob doesnt have a conversation in inbox
+    check_inbox(Bob, #inbox{total = 0, convs = []})
+                                                           end).
+
+
+%% this test combines options:
+%% ...
+%%{aff_changes, true},
+%%{remove_on_kicked, false},
+no_stored_and_remain_after_kicked(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    AliceJid = lbin(escalus_client:short_jid(Alice)),
+    KateJid = lbin(escalus_client:short_jid(Kate)),
+    BobJid = lbin(escalus_client:short_jid(Bob)),
+    RoomJid = room_bin_jid(?ROOM4),
+    AliceRoomJid = <<RoomJid/binary, "/", AliceJid/binary>>,
+    Msg = <<"Hi all">>,
+    Stanza = escalus_stanza:set_id(
+      escalus_stanza:groupchat_to(RoomJid, Msg), <<"33">>),
+    escalus:send(Alice, Stanza),
+    R0 = escalus:wait_for_stanza(Alice),
+    R1 = escalus:wait_for_stanza(Bob),
+    R2 = escalus:wait_for_stanza(Kate),
+    escalus:assert(is_groupchat_message, R0),
+    escalus:assert(is_groupchat_message, R1),
+    escalus:assert(is_groupchat_message, R2),
+    %% Bob leaves the room
+    muc_light_helper:user_leave(?ROOM4, Bob, [{Alice, owner}, {Kate, member}]),
+    %% Alice and Kate have message in groupchats
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]}),
+    %% Bob have a conversation in inbox. First unread is message from Alice, the second the affiliation change
+    check_inbox(Bob, #inbox{total = 1, convs = [#conv{unread = 2, from = RoomJid, to = BobJid, content = <<>>}]})
+                                                           end).
+
+%% this test combines options:
+%% ...
+%%{aff_changes, true},
+%%{remove_on_kicked, true},
 leave_and_remove_conversation(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     Msg = <<"Hi Room!">>,
@@ -522,7 +630,10 @@ leave_and_remove_conversation(Config) ->
     %% Bob doesn't have conversation in his inbox
     check_inbox(Bob, #inbox{total = 0, convs = []})
                                                            end).
-
+%% this test combines options:
+%% ...
+%%{aff_changes, true},
+%%{remove_on_kicked, false},
 leave_and_store_conversation(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     RoomName = <<"kicking-room">>,
@@ -701,7 +812,13 @@ get_unread_count(Msg) ->
 
 get_inbox_count(Packet) ->
   [Val] = exml_query:paths(Packet, [{element_with_ns, ?NS_ESL_INBOX}, cdata]),
-  binary_to_integer(Val).
+  case Val of
+    <<>> ->
+      {error, no_unread_count};
+    _ ->
+      binary_to_integer(Val)
+  end.
+
 
 
 clear_inbox_all() ->
@@ -712,6 +829,13 @@ clear_inboxes(UserList, Host) ->
   JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],
   [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [JID,Host]) || JID <- JIDs].
 
+reload_inbox_option(Config, KeyValueList) ->
+    Host = domain(),
+    Args = proplists:get_value(inbox_opts, Config),
+    Args2 = lists:foldl(fun({K, V}, AccIn) ->
+        lists:keyreplace(K, 1, AccIn, {K, V})
+                end, Args, KeyValueList),
+    dynamic_modules:restart(Host, mod_inbox, Args2).
 
 reload_inbox_option(Config, Key, Value) ->
   Host = domain(),
