@@ -17,16 +17,17 @@
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
 -export([reset_unread_count/3,
-    write_to_sender_inbox/4,
-    write_to_receiver_inbox/4,
-    clear_inbox/2,
-    get_reset_markers/1,
-    if_chat_marker_get_id/2,
-    has_chat_marker/2,
-    fill_from_attr/2,
-    wrapper_id/0,
-    get_option_write_aff_changes/1,
-    get_option_remove_on_kicked/1, reset_marker_to_bin/1]).
+         write_to_sender_inbox/4,
+         write_to_receiver_inbox/4,
+         clear_inbox/2,
+         get_reset_markers/1,
+         if_chat_marker_get_id/2,
+         has_chat_marker/2,
+         fill_from_attr/2,
+         wrapper_id/0,
+         get_option_write_aff_changes/1,
+         get_option_remove_on_kicked/1,
+         reset_marker_to_bin/1]).
 
 
 -spec reset_unread_count(User :: jid:jid(),

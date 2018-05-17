@@ -80,9 +80,9 @@ stop(Host) ->
 %%%%%%%%%%%%%%%%%%%
 %% Process IQ
 -spec process_iq(From :: jid:jid(),
-    To :: jid:jid(),
-    Acc :: mongoose_acc:t(),
-    IQ :: jlib:iq()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+                 To :: jid:jid(),
+                 Acc :: mongoose_acc:t(),
+                 IQ :: jlib:iq()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
 process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
     {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
 process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
@@ -96,8 +96,8 @@ process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
     {Acc, Res}.
 
 -spec forward_messages(List :: list(inbox_res()),
-    QueryId :: id(),
-    To :: jid:jid()) -> list(mongoose_acc:t()).
+                       QueryId :: id(),
+                       To :: jid:jid()) -> list(mongoose_acc:t()).
 forward_messages(List, QueryId, To) when is_list(List) ->
     Msgs = [build_inbox_message(El, QueryId) || El <- List],
     [send_message(To, Msg) || Msg <- Msgs].
@@ -110,8 +110,8 @@ send_message(To, Msg) ->
 %%%%%%%%%%%%%%%%%%%
 %% Handlers
 -spec user_send_packet(Acc :: map(), From :: jid:jid(),
-    To :: jid:jid(),
-    Packet :: exml:element()) -> map().
+                       To :: jid:jid(),
+                       Packet :: exml:element()) -> map().
 user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
     Host = From#jid.server,
     maybe_process_message(Host, From, To, Msg, outgoing),
@@ -120,9 +120,9 @@ user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
 -type fpacket() :: {From :: jid:jid(),
-    To :: jid:jid(),
-    Acc :: mongoose_acc:t(),
-    Packet :: exml:element()}.
+                    To :: jid:jid(),
+                    Acc :: mongoose_acc:t(),
+                    Packet :: exml:element()}.
 -spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
 filter_packet(drop) ->
     drop;
@@ -133,7 +133,11 @@ filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
 filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
-
+-spec maybe_process_message(Host :: host(),
+                            From :: jid:jid(),
+                            To :: jid:jid(),
+                            Msg :: exml:element(),
+                            Dir :: outgoing | incoming) -> ok.
 maybe_process_message(Host, From, To, Msg, Dir) ->
     AcceptableMessage = should_be_stored_in_inbox(Msg),
     if AcceptableMessage ->
@@ -194,6 +198,25 @@ build_forward_el(Content) ->
 %% Helpers
 %%
 
+-spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
+store_bin_reset_markers(Host, Opts) ->
+    ResetMarkers = gen_mod:get_opt(reset_markers, Opts, [displayed]),
+    ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
+    gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
+
+-spec get_message_type(Msg :: exml:element()) ->groupchat | one2one.
+get_message_type(Msg) ->
+    case exml_query:attr(Msg, <<"type">>, undefined) of
+        <<"groupchat">> ->
+            groupchat;
+        _ ->
+            one2one
+    end.
+
+-spec clear_inbox(Username :: jid:luser(), Server :: host()) -> ok.
+clear_inbox(Username, Server) ->
+    mod_inbox_utils:clear_inbox(Username, Server).
+
 groupchat_deps(Opts) ->
     case lists:keyfind(groupchat, 1, Opts) of
         [] ->
@@ -220,30 +243,16 @@ callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
         reset_unread, remove_inbox, clear_inbox].
 
-store_bin_reset_markers(Host, Opts) ->
-    ResetMarkers = gen_mod:get_opt(reset_markers, Opts, [displayed]),
-    ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
-    gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
-
-get_message_type(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
-        <<"groupchat">> ->
-            groupchat;
-        _ ->
-            one2one
-    end.
-
-clear_inbox(Username, Server) ->
-    mod_inbox_utils:clear_inbox(Username, Server).
-
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
 
+-spec should_be_stored_in_inbox(Msg :: exml:element()) -> boolean().
 should_be_stored_in_inbox(Msg) ->
     not is_forwarded_message(Msg) andalso
         not is_error_message(Msg) andalso
         not is_offline_message(Msg).
 
+-spec is_forwarded_message(Msg :: exml:element()) -> boolean().
 is_forwarded_message(Msg) ->
     case exml_query:subelement_with_ns(Msg, ?NS_FORWARD, undefined) of
         undefined ->
@@ -252,6 +261,7 @@ is_forwarded_message(Msg) ->
             true
     end.
 
+-spec is_error_message(Msg :: exml:element()) -> boolean().
 is_error_message(Msg) ->
     case exml_query:attr(Msg, <<"type">>, undefined) of
         <<"error">> ->
@@ -260,6 +270,7 @@ is_error_message(Msg) ->
             false
     end.
 
+-spec is_offline_message(Msg :: exml:element()) -> boolean().
 is_offline_message(Msg) ->
     case exml_query:subelement_with_ns(Msg, ?NS_DELAY, undefined) of
         undefined ->

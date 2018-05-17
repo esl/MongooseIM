@@ -26,9 +26,8 @@
 init(_VHost, _Options) ->
     ok.
 
--spec get_inbox(LUsername, LServer) -> ok when
-                LUsername :: binary(),
-                LServer :: binary().
+-spec get_inbox(LUsername :: jid:luser(),
+                LServer :: jid:lserver()) -> get_inbox_res().
 get_inbox(LUsername, LServer) ->
     case mod_inbox_odbc_psql:get_inbox(LUsername, LServer) of
         {selected, []} ->
@@ -37,11 +36,18 @@ get_inbox(LUsername, LServer) ->
             [decode_row(LServer, R) || R <- Res]
     end.
 
-set_inbox(Username, Server, ToBareJid, Content, C, MsgId) ->
+-spec set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_write_res() when
+                Username :: jid:luser(),
+                Server :: jid:lserver(),
+                ToBareJid :: binary(),
+                Content :: binary(),
+                Count :: binary(),
+                MsgId :: binary().
+set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = mod_inbox_odbc_psql:set_inbox(LUsername, LServer, LToBareJid, Content, C, MsgId),
+    Res = mod_inbox_odbc_psql:set_inbox(LUsername, LServer, LToBareJid, Content, Count, MsgId),
     ok = check_result(Res, 1).
 
 -spec remove_inbox(User :: binary(),
@@ -55,10 +61,10 @@ remove_inbox(Username, Server, ToBareJid) ->
     check_result(Res).
 
 -spec set_inbox_incr_unread(Username :: binary(),
-    Server :: binary(),
-    ToBareJid :: binary(),
-    Content :: binary(),
-    MsgId :: binary()) -> ok.
+                            Server :: binary(),
+                            ToBareJid :: binary(),
+                            Content :: binary(),
+                            MsgId :: binary()) -> ok.
 set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
@@ -67,9 +73,9 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) ->
     check_result(Res, 1).
 
 -spec reset_unread(User :: binary(),
-    Server :: binary(),
-    BareJid :: binary(),
-    MsgId :: binary()) -> ok.
+                   Server :: binary(),
+                   BareJid :: binary(),
+                   MsgId :: binary()) -> ok.
 reset_unread(Username, Server, ToBareJid, MsgId) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
