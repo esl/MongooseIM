@@ -120,7 +120,7 @@ route(From, To, #xmlel{} = Packet) ->
 route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Acc]),
-    El = mongoose_acc:get(element, Acc),
+    El = mongoose_acc:get_element(Acc),
     route(From, To, Acc, El, routing_modules_list()).
 
 route(From, To, Acc, {error, Reason}) ->

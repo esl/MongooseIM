@@ -145,7 +145,7 @@ make_error_reply(#xmlel{name = Name, attrs = Attrs,
     NewAttrs = make_error_reply_attrs(Attrs),
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
 make_error_reply(Acc, Error) ->
-    make_error_reply(Acc, mongoose_acc:get(element, Acc), Error).
+    make_error_reply(Acc, mongoose_acc:get_element(Acc), Error).
 
 make_error_reply(Acc, Packet, Error) ->
     case mongoose_acc:get(return_type, Acc, undefined) of

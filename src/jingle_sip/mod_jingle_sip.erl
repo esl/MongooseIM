@@ -98,10 +98,10 @@ maybe_iq_to_other_user(Acc) ->
     #jid{luser = LUser} = mongoose_acc:get_prop(origin_jid, Acc),
     case LUser of
         StanzaTo ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
+            QueryInfo = jlib:iq_query_info(mongoose_acc:get_element(Acc)),
             maybe_jingle_get_stanza_to_self(QueryInfo, Acc);
         _ ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
+            QueryInfo = jlib:iq_query_info(mongoose_acc:get_element(Acc)),
             maybe_jingle_stanza(QueryInfo, Acc)
     end.
 

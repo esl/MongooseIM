@@ -75,7 +75,7 @@ check_packet(Acc, Event) ->
 -spec check_packet(exml:element()|mongoose_acc:t(), jid:jid(), amp_event()) ->
     exml:element() | mongoose_acc:t() | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, From, Event) ->
-    mongoose_acc:get(element, check_packet(?new_acc(Packet), From, Event));
+    mongoose_acc:get_element(check_packet(?new_acc(Packet), From, Event));
 check_packet(Packet = #xmlel{}, _, _) ->
     Packet;
 check_packet(Acc, #jid{lserver = Host} = From, Event) ->
@@ -107,7 +107,7 @@ amp_check_packet(Acc, From, Event) ->
 amp_check_packet(drop, _, Acc, _, _) ->
     Acc;
 amp_check_packet(_, <<"message">>, Acc, From, Event) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get_element(Acc),
     Res = case amp:extract_requested_rules(Packet) of
               none                    -> Packet;
               {rules, Rules}          -> process_amp_rules(Packet, From, Event, Rules);

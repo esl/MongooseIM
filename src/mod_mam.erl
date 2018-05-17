@@ -319,7 +319,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
         end,
     Acc1 = mongoose_acc:set_element(Acc, PacketAfterArchive),
     Acc2 = mod_amp:check_packet(Acc1, From, AmpEvent),
-    {From, To, Acc, mongoose_acc:get(element, Acc2)}.
+    {From, To, Acc, mongoose_acc:get_element(Acc2)}.
 
 
 process_incoming_packet(From, To, Packet) ->

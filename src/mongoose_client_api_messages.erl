@@ -85,7 +85,7 @@ send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
     Acc0 = ?new_acc(XMLMsg0, FromJID, ToJID),
     Acc1 = ejabberd_hooks:run_fold(rest_user_send_packet, FromJID#jid.lserver, Acc0,
                                    [FromJID, ToJID, XMLMsg0]),
-    XMLMsg1 = mongoose_acc:get(element, Acc1),
+    XMLMsg1 = mongoose_acc:get_element(Acc1),
     ejabberd_router:route(FromJID, ToJID, Acc1, XMLMsg1),
     Resp = #{<<"id">> => UUID},
     Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req2),

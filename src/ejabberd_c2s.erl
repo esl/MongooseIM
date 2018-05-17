@@ -875,7 +875,7 @@ maybe_open_session(Acc, #state{jid = JID} = StateData) ->
     {stop | established, mongoose_acc:t(), state()}.
 do_open_session(Acc, JID, StateData) ->
     ?INFO_MSG("(~w) Opened session for ~s", [StateData#state.socket, jid:to_binary(JID)]),
-    Resp = jlib:make_result_iq_reply(mongoose_acc:get(element, Acc)),
+    Resp = jlib:make_result_iq_reply(mongoose_acc:get_element(Acc)),
     Packet = {jid:to_bare(StateData#state.jid), StateData#state.jid, Resp},
     case send_and_maybe_buffer_stanza(Acc, Packet, StateData) of
         {ok, Acc1, NStateData} ->
@@ -1025,7 +1025,7 @@ process_outgoing_stanza(Acc, StateData) ->
     ToJID = mongoose_acc:get(to_jid, Acc),
     Name = mongoose_acc:get(name, Acc),
     NState = process_outgoing_stanza(Acc, ToJID, Name, StateData),
-    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, mongoose_acc:get(element, Acc)}]),
+    ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, mongoose_acc:get_element(Acc)}]),
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, error, _Name, StateData) ->
@@ -1042,7 +1042,7 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     Server = mongoose_acc:get_server(Acc),
     User = mongoose_acc:get(user, Acc),
     Res = ejabberd_hooks:run_fold(c2s_update_presence, Server, Acc, []),
-    El = mongoose_acc:get(element, Res),
+    El = mongoose_acc:get_element(Res),
     Res1 = ejabberd_hooks:run_fold(user_send_packet,
                                    Server,
                                    Res,
@@ -1060,7 +1060,7 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     Acc = mongoose_acc:require(xmlns, Acc0),
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get_server(Acc),
-    El = mongoose_acc:get(element, Acc),
+    El = mongoose_acc:get_element(Acc),
     {_Acc, NState} = case mongoose_acc:get(xmlns, Acc, undefined) of
                          ?NS_PRIVACY ->
                              process_privacy_iq(Acc, ToJID, StateData);
@@ -1078,7 +1078,7 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     Server = mongoose_acc:get_server(Acc),
-    El = mongoose_acc:get(element, Acc),
+    El = mongoose_acc:get_element(Acc),
     Acc1 = ejabberd_hooks:run_fold(user_send_packet,
                                    Server,
                                    Acc,
@@ -1266,7 +1266,7 @@ handle_incoming_message({broadcast, Accum}, StateName, StateData) ->
                       from => jid:to_binary(From)});
               _ -> Acc0
           end,
-    Broadcast = mongoose_acc:get(element, Acc),
+    Broadcast = mongoose_acc:get_element(Acc),
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{broadcast, Broadcast}]),
     ?DEBUG("broadcast=~p", [Broadcast]),
     {Acc2, Res} = handle_routed_broadcast(Acc1, Broadcast, StateData),
@@ -1364,7 +1364,7 @@ check_incoming_accum_for_conflicts(Acc, #state{sid = SID, jid = JID}) ->
     end.
 
 process_incoming_stanza(Name, From, To, Acc, StateName, StateData) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get_element(Acc),
     {Act, _NextAcc, NextState} = case handle_routed(Name, From, To, Acc, StateData) of
                                      {allow, NewAcc, NewPacket, NewState} ->
                                          preprocess_and_ship(NewAcc, From, To, NewPacket, NewState);
@@ -1541,7 +1541,7 @@ privacy_list_push_iq(PrivListName) ->
 -spec handle_routed_presence(From :: jid:jid(), To :: jid:jid(),
                              Acc0 :: mongoose_acc:t(), StateData :: state()) -> routing_result().
 handle_routed_presence(From, To, Acc, StateData) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get_element(Acc),
     State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
                                     StateData, [{From, To, Packet}]),
     case mongoose_acc:get(type, Acc) of
@@ -1557,7 +1557,7 @@ handle_routed_presence(From, To, Acc, StateData) ->
             NewA = gb_sets:del_element(jid:to_lower(From), State#state.pres_a),
             {allow, Acc, State#state{pres_a = NewA}};
         <<"invisible">> ->
-            El = mongoose_acc:get(element, Acc),
+            El = mongoose_acc:get_element(Acc),
             #xmlel{attrs = Attrs} = El,
             Attrs1 = lists:keydelete(<<"type">>, 1, Attrs),
             Attrs2 = [{<<"type">>, <<"unavailable">>} | Attrs1],
@@ -2017,7 +2017,7 @@ specifically_visible_to(LFrom, #state{pres_invis = Invisible} = S) ->
                       From :: 'undefined' | jid:jid(),
                       State :: state()) -> {mongoose_acc:t(), state()}.
 presence_update(Acc, From, StateData) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get_element(Acc),
     case mongoose_acc:get(type, Acc) of
         <<"unavailable">> ->
             Status = case xml:get_subtag(Packet, <<"status">>) of
@@ -2223,7 +2223,7 @@ check_privacy_and_route(Acc, FromRoute, StateData) ->
     From = mongoose_acc:get(from_jid, Acc),
     To = mongoose_acc:get(to_jid, Acc),
     {Acc1, Res} = privacy_check_packet(Acc, To, out, StateData),
-    Packet = mongoose_acc:get(element, Acc1),
+    Packet = mongoose_acc:get_element(Acc1),
     case Res of
        deny ->
            {Acc2, Err} = jlib:make_error_reply(Acc1, Packet,

@@ -416,7 +416,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
                                    Server,
                                    Acc1,
                                    [LUser, LServer, OtherJid, Type]),
-    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
+    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get_element(Acc2)),
     ok.
 
 set_subscription(Caller, Other, <<"connect">>) ->

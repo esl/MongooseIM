@@ -353,7 +353,7 @@ handle_info({send_element, El}, StateName, StateData) ->
     send_element(StateData, El),
     {next_state, StateName, StateData};
 handle_info({route, From, To, Acc}, StateName, StateData) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:get_element(Acc),
     ?DEBUG("event=packet_to_component,component=\"~s\",from=\"~s\",to=\"~s\"",
            [component_host(StateData), jid:to_binary(From), jid:to_binary(To)]),
     case acl:match_rule(global, StateData#state.access, From) of

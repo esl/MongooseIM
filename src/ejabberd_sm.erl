@@ -136,7 +136,7 @@ route(From, To, #xmlel{} = Packet) ->
 route(From, To, {broadcast, Payload}) ->
     route(From, To, ?new_acc(), {broadcast, Payload});
 route(From, To, Acc) ->
-    route(From, To, Acc, mongoose_acc:get(element, Acc)).
+    route(From, To, Acc, mongoose_acc:get_element(Acc)).
 
 route(From, To, Acc, {broadcast, Payload}) ->
     case (catch do_route(Acc, From, To, {broadcast, Payload})) of
