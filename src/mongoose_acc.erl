@@ -23,7 +23,8 @@
                  init_location := init_location(),
                  element       => element_props(),
                  from          => jid_props(),
-                 to            => jid_props()}.
+                 to            => jid_props(),
+                 server        => jid:server()}.
 
 -type element()       :: exml:element() | jlib:iq().
 -type element_name()  :: binary().
@@ -39,7 +40,8 @@
 -type init_location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
 -type prop() :: {element, element_props()}
               | {from, jid_props()}
-              | {to, jid_props()}.
+              | {to, jid_props()}
+              | {server, jid:server()}.
 -type element_props() :: #{record := element(),
                            name   := element_name(),
                            type   := element_type(),
@@ -53,9 +55,11 @@
 
 -export([new/3, new/4, new/5, new/6]).
 -export([set_element/2]).
+-export([set_server/2]).
 -export([get_element/1, get_element_name/1, get_element_type/1, get_element_attrs/1]).
 -export([get_from_jid/1, get_from_bin/1]).
 -export([get_to_jid/1, get_to_bin/1]).
+-export([get_server/1]).
 
 %%%-------------------------------------------------------------------
 % @doc Creates a new accumulator instance given location in the source code.
@@ -132,6 +136,16 @@ set_element(Acc, #iq{type = IqType} = El) ->
                 type   => ElType,
                 attrs  => ElAttrs},
     put_prop(Acc, {element, ElProps}).
+
+%-------------------------------------------------------------------
+% @doc Sets the current XMPP domain in the given accumulator.
+%
+% The value can be later retrieved using `get_server/1'.
+% @end
+%-------------------------------------------------------------------
+-spec set_server(t(), jid:server()) -> t().
+set_server(Acc, Server) when is_binary(Server) ->
+    put_prop(Acc, {server, Server}).
 
 %%% Getters
 
@@ -213,13 +227,15 @@ get_to_jid(Acc) ->
 %-------------------------------------------------------------------
 -spec get_to_bin(t()) -> getter_result(binary()).
 get_to_bin(Acc) ->
-    case maps:find(to, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(bin_jid, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(bin_jid, get_prop(Acc, to, new)).
 
+%-------------------------------------------------------------------
+% @doc Retrieves the XMPP domain set using `set_server/2'.
+% @end
+%-------------------------------------------------------------------
+-spec get_server(t()) -> getter_result(jid:server()).
+get_server(Acc) ->
+    get_prop(Acc, server, set_server).
 
 %%%-------------------------------------------------------------------
 %%% Internal "API"

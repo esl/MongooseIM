@@ -184,7 +184,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
     From = jid:to_binary(jid:to_lus(FromJID)),
     To = jid:to_binary(jid:to_lus(ToJID)),
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     SDP = prepare_initial_sdp(Server, Jingle),
     ProxyURI = get_proxy_uri(Server),
     RequestURI = list_to_binary(["sip:", ToUser, "@", ProxyURI]),
@@ -205,7 +205,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
     {ok, Handle};
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
     case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
         {ok, ReqID} ->

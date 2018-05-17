@@ -1039,7 +1039,7 @@ process_outgoing_stanza(Acc, error, _Name, StateData) ->
     end;
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     User = mongoose_acc:get(user, Acc),
     Res = ejabberd_hooks:run_fold(c2s_update_presence, Server, Acc, []),
     El = mongoose_acc:get(element, Res),
@@ -1059,7 +1059,7 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
 process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     Acc = mongoose_acc:require(xmlns, Acc0),
     FromJID = mongoose_acc:get(from_jid, Acc),
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     El = mongoose_acc:get(element, Acc),
     {_Acc, NState} = case mongoose_acc:get(xmlns, Acc, undefined) of
                          ?NS_PRIVACY ->
@@ -1077,7 +1077,7 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     NState;
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
     FromJID = mongoose_acc:get(from_jid, Acc),
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     El = mongoose_acc:get(element, Acc),
     Acc1 = ejabberd_hooks:run_fold(user_send_packet,
                                    Server,
@@ -1766,7 +1766,7 @@ maybe_send_element_safe(State, El) ->
 send_element(#state{server = Server} = StateData, #xmlel{} = El) ->
     % used mostly in states other then session_established
     Acc = ?new_acc(El),
-    Acc1 = send_element(mongoose_acc:put(server, Server, Acc), El, StateData),
+    Acc1 = send_element(mongoose_acc:set_server(Acc, Server), El, StateData),
     mongoose_acc:get(send_result, Acc1).
 
 %% @doc This is the termination point - from here stanza is sent to the user

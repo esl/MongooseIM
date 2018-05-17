@@ -126,7 +126,7 @@ user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
 
 -spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> metrics_notify_return().
 xmpp_bounce_message(Acc) ->
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     mongoose_metrics:update(Server, xmppMessageBounced, 1),
     Acc.
 
@@ -138,7 +138,7 @@ xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
 
 -spec xmpp_send_element(Acc :: map(), Server :: jid:server()) -> ok | metrics_notify_return().
 xmpp_send_element(Acc, _El) ->
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:get_server(Acc),
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
     case mongoose_acc:get(type, Acc) of
         <<"error">> ->
