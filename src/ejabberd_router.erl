@@ -138,7 +138,7 @@ route(From, To, Acc, El) ->
                   Acc :: mongoose_acc:t(),
                   ErrPacket :: exml:element()) -> mongoose_acc:t().
 route_error(From, To, Acc, ErrPacket) ->
-    case <<"error">> == mongoose_acc:get(type, Acc) of
+    case <<"error">> == mongoose_acc:get_element_type(Acc) of
         false ->
             route(From, To, Acc, ErrPacket);
         true ->

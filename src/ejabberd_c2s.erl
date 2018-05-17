@@ -1029,7 +1029,7 @@ process_outgoing_stanza(Acc, StateData) ->
     fsm_next_state(session_established, NState).
 
 process_outgoing_stanza(Acc, error, _Name, StateData) ->
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:get_element_type(Acc) of
         <<"error">> -> StateData;
         <<"result">> -> StateData;
         _ ->
@@ -1397,7 +1397,7 @@ preprocess_and_ship(Acc, From, To, El, StateData) ->
 response_negative(<<"iq">>, forbidden, From, To, Acc) ->
     send_back_error(mongoose_xmpp_errors:forbidden(), From, To, Acc);
 response_negative(<<"iq">>, deny, From, To, Acc) ->
-    IqType = mongoose_acc:get(type, Acc),
+    IqType = mongoose_acc:get_element_type(Acc),
     response_iq_deny(IqType, From, To, Acc);
 response_negative(<<"message">>, deny, From, To, Acc) ->
     mod_amp:check_packet(Acc, From, delivery_failed),
@@ -1544,7 +1544,7 @@ handle_routed_presence(From, To, Acc, StateData) ->
     Packet = mongoose_acc:get_element(Acc),
     State = ejabberd_hooks:run_fold(c2s_presence_in, StateData#state.server,
                                     StateData, [{From, To, Packet}]),
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:get_element_type(Acc) of
         <<"probe">> ->
             {LFrom, LBFrom} = lowcase_and_bare(From),
             NewState = case am_i_available_to(LFrom, LBFrom, State) of
@@ -2018,7 +2018,7 @@ specifically_visible_to(LFrom, #state{pres_invis = Invisible} = S) ->
                       State :: state()) -> {mongoose_acc:t(), state()}.
 presence_update(Acc, From, StateData) ->
     Packet = mongoose_acc:get_element(Acc),
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:get_element_type(Acc) of
         <<"unavailable">> ->
             Status = case xml:get_subtag(Packet, <<"status">>) of
                          false ->
@@ -2156,7 +2156,7 @@ presence_track(Acc, StateData) ->
     LTo = jid:to_lower(To),
     User = StateData#state.user,
     Server = StateData#state.server,
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:get_element_type(Acc) of
         <<"unavailable">> ->
             Acc1 = check_privacy_and_route(Acc, StateData),
             I = gb_sets:del_element(LTo, StateData#state.pres_i),

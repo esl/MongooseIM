@@ -402,7 +402,7 @@ do_route(Acc, From, To, El) ->
                     ok
             end;
         local_resource ->
-            case mongoose_acc:get(type, Acc) of
+            case mongoose_acc:get_element_type(Acc) of
                 <<"error">> -> ok;
                 <<"result">> -> ok;
                 _ ->

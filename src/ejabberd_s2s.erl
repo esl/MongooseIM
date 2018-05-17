@@ -284,7 +284,7 @@ do_route(From, To, Acc, Packet) ->
             send_element(Pid, Acc1, NewPacket),
             done;
         {aborted, _Reason} ->
-            case mongoose_acc:get(type, Acc) of
+            case mongoose_acc:get_element_type(Acc) of
                 <<"error">> -> done;
                 <<"result">> -> done;
                 _ ->

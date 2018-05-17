@@ -705,7 +705,7 @@ disco_items(Host, Node, From) ->
 
 handle_pep_authorization_response({From, To, Acc, Packet}) ->
     Name = mongoose_acc:get_element_name(Acc),
-    Type = mongoose_acc:get(type, Acc),
+    Type = mongoose_acc:get_element_type(Acc),
     handle_pep_authorization_response(Name, Type, From, To, Acc, Packet).
 
 handle_pep_authorization_response(_, <<"error">>, From, To, Acc, Packet) ->

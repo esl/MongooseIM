@@ -43,7 +43,7 @@ handle_info(_Msg, State) ->
 
 handle_msg(<<"message">>, Acc, El, State) ->
     Timestamp = usec:from_now(os:timestamp()),
-    Type = mongoose_acc:get(type, Acc),
+    Type = mongoose_acc:get_element_type(Acc),
     maybe_send_message_event(Type, El, Timestamp, State).
 
 handle_error(_Msg, _Reson, State) ->

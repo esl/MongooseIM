@@ -140,7 +140,7 @@ xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
 xmpp_send_element(Acc, _El) ->
     Server = mongoose_acc:get_server(Acc),
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:get_element_type(Acc) of
         <<"error">> ->
             mongoose_metrics:update(Server, xmppErrorTotal, 1),
             case mongoose_acc:get_element_name(Acc) of

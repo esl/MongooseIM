@@ -861,7 +861,7 @@ send_queue(StateData, Q) ->
 %% @doc Bounce a single message (xmlel)
 -spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> 'ok'.
 bounce_element(Acc, El, Error) ->
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:get_element_type(Acc) of
         <<"error">> -> ok;
         <<"result">> -> ok;
         _ ->
