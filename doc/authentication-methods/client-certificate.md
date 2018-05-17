@@ -1,7 +1,7 @@
 ## Overview
 
 Clients connected to MongooseIM may authenticate with their TLS certificates.
-This method is a combination of `SASL EXTERNAL` mechanism and compatible certificate-aware backend.
+This method is a combination of the `SASL EXTERNAL` mechanism and a compatible certificate-aware backend.
 
 ## Server-side prerequisites
 
@@ -99,9 +99,9 @@ openssl pkcs12 -export -inkey client.key -in client.crt -out client.p12
 
 ### Configure MongooseIM
 
-See examples before this section. We recommend the first snippet for sake of simplicity.
+See examples in the section above. We recommend using the first snippet for simplicity.
 
-You don't need to pre-create user account in order to log in with certificate.
+You don't need to pre-create a user account in order to log in with a certificate.
 
 ### Add an account in Gajim
 
@@ -110,8 +110,8 @@ You don't need to pre-create user account in order to log in with certificate.
 3. Jabber ID is `[Common Name from certificate]@localhost` (domain is different if you've changed it in `hosts` option). Press "Next".
 5. Untick "Connect when I press Finish" and press "Advanced".
 6. Unfold "Client certificate" and choose the `.p12` you've created earlier. Tick "Certificate is encrypted".
-7. Click "Close" and set status to "Available". Tell Gajim to ingnore unverified server certificate (by default it's self-signed).
+7. Click "Close" and set status to "Available". Tell Gajim to ingnore the unverified server certificate (by default it's self-signed).
 
 If Gajim fails to connect, try to restart it.
-Version 0.16.8 sometimes "forgets" to ask for client certificate password.
+Version 0.16.8 sometimes "forgets" to ask for the client certificate password.
 
