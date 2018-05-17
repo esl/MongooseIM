@@ -17,22 +17,22 @@
          init_per_testcase/2,
          end_per_testcase/2]).
 %% tests
--export([simple_msg/1,
-         empty_inbox/1,
-         two_unread/1,
-         mark_read/1,
-         mark_unread_bad_id/1,
-         two_conversations/1,
-         to_offline/1,
-         to_not_existing/1,
-         simple_muclight/1,
-         advanced_muclight/1,
+-export([msg_sent_stored_in_inbox/1,
+         user_has_empty_inbox/1,
+         user_has_two_unread_messages/1,
+         reset_unread_counter/1,
+         try_to_reset_unread_counter_with_bad_marker/1,
+         user_has_two_conversations/1,
+         msg_sent_to_offline_user/1,
+         msg_sent_to_not_existing_user/1,
+         simple_groupchat_stored_in_all_inbox/1,
+         advanced_groupchat_stored_in_all_inbox/1,
          groupchat_markers_simple/1,
          groupchat_markers_advanced/1,
          create_groupchat/1,
-         create_groupchat_no_aff/1,
+         create_groupchat_no_affiliation_stored/1,
          leave_and_remove_conversation/1,
-         leave_and_remain_conversation/1]).
+         leave_and_store_conversation/1]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(muc_light_helper, [bin_aff_users/1, aff_msg_verify_fun/1, gc_message_verify_fun/3, ver/1,
@@ -42,7 +42,8 @@
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
 -define(ROOM, <<"testroom1">>).
 -define(ROOM2, <<"testroom2">>).
-
+-record(conv, {unread, from, to, content}).
+-record(inbox, {total, convs = []}).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -56,24 +57,24 @@ all() ->
 groups() ->
   [
       {one_to_one, [sequence], [
-        simple_msg,
-        two_conversations,
-        to_offline,
-        to_not_existing,
-        empty_inbox,
-        two_unread,
-        mark_read,
-        mark_unread_bad_id
+        msg_sent_stored_in_inbox,
+        user_has_two_conversations,
+        msg_sent_to_offline_user,
+        msg_sent_to_not_existing_user,
+        user_has_empty_inbox,
+        user_has_two_unread_messages,
+        reset_unread_counter,
+        try_to_reset_unread_counter_with_bad_marker
       ]},
       {muclight, [sequence], [
-        simple_muclight,
-        advanced_muclight,
+        simple_groupchat_stored_in_all_inbox,
+        advanced_groupchat_stored_in_all_inbox,
         groupchat_markers_simple,
         groupchat_markers_advanced,
         create_groupchat,
-        create_groupchat_no_aff,
+        create_groupchat_no_affiliation_stored,
         leave_and_remove_conversation,
-        leave_and_remain_conversation
+        leave_and_store_conversation
       ]}
   ].
 
@@ -101,7 +102,11 @@ required_modules() ->
   ].
 
 inbox_opts() ->
-  [{backend, odbc}, {aff_changes, true}, {remove_on_kicked, true}, {groupchat, [muclight]},  {markers, [displayed]}].
+  [{backend, odbc},
+   {aff_changes, true},
+   {remove_on_kicked, true},
+   {groupchat, [muclight]},
+   {markers, [displayed]}].
 
 domain() ->
   ct:get_config({hosts, mim, domain}).
@@ -129,18 +134,18 @@ end_per_group(_GroupName, Config) ->
   Config.
 
 
-init_per_testcase(create_groupchat_no_aff, Config) ->
+init_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
   clear_inbox_all(),
   reload_inbox_option(Config, aff_changes, false),
-  escalus:init_per_testcase(create_groupchat_no_aff, Config);
+  escalus:init_per_testcase(create_groupchat_no_affiliation_stored, Config);
 init_per_testcase(leave_and_remove_conversation, Config) ->
   clear_inbox_all(),
   create_room(?ROOM2, muclight_domain(), alice, [bob, kate], Config, ver(1)),
   escalus:init_per_testcase(kick_and_remove_conversation, Config);
-init_per_testcase(leave_and_remain_conversation, Config) ->
+init_per_testcase(leave_and_store_conversation, Config) ->
   clear_inbox_all(),
   reload_inbox_option(Config, remove_on_kicked, false),
-  escalus:init_per_testcase(leave_and_remain_conversation, Config);
+  escalus:init_per_testcase(leave_and_store_conversation, Config);
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:init_per_testcase(CaseName, Config).
@@ -150,18 +155,18 @@ end_per_testcase(leave_and_remove_conversation, Config) ->
   muc_light_helper:clear_db(),
   restore_inbox_option(Config),
   escalus:end_per_testcase(leave_and_remove_conversation, Config);
-end_per_testcase(create_groupchat_no_aff, Config) ->
+end_per_testcase(create_groupchat_no_affiliation_stored, Config) ->
   clear_inbox_all(),
   restore_inbox_option(Config),
-  escalus:end_per_testcase(create_groupchat_no_aff, Config);
-end_per_testcase(leave_and_remain_conversation, Config) ->
+  escalus:end_per_testcase(create_groupchat_no_affiliation_stored, Config);
+end_per_testcase(leave_and_store_conversation, Config) ->
   clear_inbox_all(),
   restore_inbox_option(Config),
-  escalus:end_per_testcase(leave_and_remain_conversation, Config);
-end_per_testcase(to_not_existing, Config) ->
+  escalus:end_per_testcase(leave_and_store_conversation, Config);
+end_per_testcase(msg_sent_to_not_existing_user, Config) ->
   Host = ct:get_config({hosts, mim, domain}),
   escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user@localhost">>,Host]),
-  escalus:end_per_testcase(to_not_existing, Config);
+  escalus:end_per_testcase(msg_sent_to_not_existing_user, Config);
 end_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:end_per_testcase(CaseName, Config).
@@ -172,7 +177,7 @@ end_per_testcase(CaseName, Config) ->
 %% Inbox tests one-to-one
 %%--------------------------------------------------------------------
 
-simple_msg(Config) ->
+msg_sent_stored_in_inbox(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
     Msg1 = escalus_stanza:chat_to(Bob, <<"Hello">>),
     BobJid = lbin(escalus_client:full_jid(Bob)),
@@ -180,11 +185,15 @@ simple_msg(Config) ->
     escalus:send(Alice, Msg1),
     M = escalus:wait_for_stanza(Bob),
     escalus:assert(is_chat_message, M),
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, BobJid,<<"Hello">>}]),
-    check_inbox(Bob, <<"1">>, [{<<"1">>, AliceJid, BobJid,<<"Hello">>}])
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceJid, to = BobJid, content = <<"Hello">>}]}),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceJid, to = BobJid, content = <<"Hello">>}]})
                                                 end).
 
-two_conversations(Config) ->
+user_has_two_conversations(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     Msg1 = escalus_stanza:chat_to(Bob, <<"Hello Bob">>),
     Msg2 = escalus_stanza:chat_to(Kate, <<"Hello Kate">>),
@@ -197,14 +206,21 @@ two_conversations(Config) ->
     M2 = escalus:wait_for_stanza(Kate),
     escalus:assert(is_chat_message, M1),
     escalus:assert(is_chat_message, M2),
-    check_inbox(Alice, <<"2">>, [{<<"0">>,  AliceJid, BobJid,  <<"Hello Bob">>},
-                                 {<<"0">>, AliceJid, KateJid, <<"Hello Kate">>}]),
-    check_inbox(Kate, <<"1">>, [{<<"1">>,AliceJid, KateJid,  <<"Hello Kate">>}]),
-    check_inbox(Bob, <<"1">>, [{<<"1">>,AliceJid, BobJid,  <<"Hello Bob">>}])
+    check_inbox(Alice, #inbox{
+      total = 2,
+      convs =
+      [#conv{unread = 0, from = AliceJid, to = BobJid, content = <<"Hello Bob">>},
+        #conv{unread = 0, from = AliceJid, to = KateJid, content = <<"Hello Kate">>}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceJid, to = KateJid, content = <<"Hello Kate">>}]}),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceJid, to = BobJid, content = <<"Hello Bob">>}]})
 
                                                            end).
 
-to_offline(Config) ->
+msg_sent_to_offline_user(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
     mongoose_helper:logout_user(Config, Bob),
     Msg1 = escalus_stanza:chat_to(Bob, <<"test">>),
@@ -217,31 +233,40 @@ to_offline(Config) ->
     escalus_new_assert:mix_match
     ([is_presence, fun(Stanza) -> escalus_pred:is_chat_message(<<"test">>, Stanza) end],
       Stanzas),
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, BobJid,<<"test">>}]),
-    check_inbox(NewBob, <<"1">>, [{<<"1">>, AliceJid, BobJid,<<"test">>}])
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceJid, to = BobJid, content = <<"test">>}]}),
+    check_inbox(NewBob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceJid, to = BobJid, content = <<"test">>}]})
                                                 end).
 
-to_not_existing(Config) ->
+msg_sent_to_not_existing_user(Config) ->
   escalus:story(Config, [{alice, 1}], fun(Alice) ->
-    Msg1 = escalus_stanza:chat_to(<<"not_existing_user@localhost">>, <<"test">>),
+    Msg1 = escalus_stanza:chat_to(<<"not_existing_user@localhost">>, <<"test2">>),
     AliceJid = lbin(escalus_client:full_jid(Alice)),
     escalus:send(Alice, Msg1),
     ServiceUnavailable = escalus:wait_for_stanza(Alice),
     escalus_pred:is_error(<<"cancel">>,<<"service-unavailable">>, ServiceUnavailable),
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceJid, <<"not_existing_user@localhost">>,<<"test">>}])
-                                                end).
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0,
+                     from = AliceJid,
+                     to = <<"not_existing_user@localhost">>,
+                     content = <<"test2">>}]})
+                                      end).
 
-empty_inbox(Config) ->
+user_has_empty_inbox(Config) ->
   escalus:story(Config, [{kate, 1}], fun(Kate) ->
     Stanza = get_inbox_stanza(),
     escalus:send(Kate, Stanza),
     [ResIQ] = escalus:wait_for_stanzas(Kate, 1),
     true = escalus_pred:is_iq_result(ResIQ),
     TotalCount = get_inbox_count(ResIQ),
-    <<"0">> = TotalCount
+    0= TotalCount
                                      end).
 
-two_unread(Config) ->
+user_has_two_unread_messages(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
     Msg1 = escalus_stanza:chat_to(Mike, <<"Hello">>),
     Msg2 = escalus_stanza:chat_to(Mike, <<"How are you">>),
@@ -254,11 +279,15 @@ two_unread(Config) ->
     [M1, M2] = escalus:wait_for_stanzas(Mike, 2),
     escalus:assert(is_chat_message, M1),
     escalus:assert(is_chat_message, M2),
-    check_inbox(Mike, <<"1">>, [{<<"2">>, KateJid, MikeJid, <<"How are you">>}]),
-    check_inbox(Kate, <<"1">>, [{<<"0">>, KateJid, MikeJid, <<"How are you">>}])
+    check_inbox(Mike, #inbox{
+      total = 1,
+      convs = [#conv{unread = 2, from = KateJid, to = MikeJid, content = <<"How are you">>}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = KateJid, to = MikeJid, content = <<"How are you">>}]})
                                                 end).
 
-mark_read(Config) ->
+reset_unread_counter(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
     MsgId =  <<"123123">>,
     Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
@@ -268,14 +297,18 @@ mark_read(Config) ->
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
-    check_inbox(Mike, <<"1">>, [{<<"1">>, KateJid, MikeJid, <<"Hi mike">>}]),
+    check_inbox(Mike, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = KateJid, to = MikeJid, content = <<"Hi mike">>}]}),
     ChatMarker = escalus_stanza:chat_marker(KateJid, <<"displayed">>, MsgId),
     escalus:send(Mike, ChatMarker),
     %% Now Mike asks for inbox second time
-    check_inbox(Mike, <<"1">>, [{<<"0">>, KateJid, MikeJid, <<"Hi mike">>}])
+    check_inbox(Mike, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = KateJid, to = MikeJid, content = <<"Hi mike">>}]})
                                                 end).
 
-mark_unread_bad_id(Config) ->
+try_to_reset_unread_counter_with_bad_marker(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
     Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"okey dockey">>), <<"111">>),
     %% sender is bare JID
@@ -284,19 +317,23 @@ mark_unread_bad_id(Config) ->
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
-    check_inbox(Mike, <<"1">>, [{<<"1">>, KateJid, MikeJid, <<"okey dockey">>}]),
+    check_inbox(Mike, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = KateJid, to = MikeJid, content = <<"okey dockey">>}]}),
     MsgId = <<"badId">>,
     ChatMarker = escalus_stanza:chat_marker(KateJid, <<"displayed">>, MsgId),
     escalus:send(Mike, ChatMarker),
     %% Now Mike asks for inbox second time. Unread count should remain the same
-    check_inbox(Mike, <<"1">>, [{<<"1">>, KateJid, MikeJid, <<"okey dockey">>}])
+    check_inbox(Mike, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = KateJid, to = MikeJid, content = <<"okey dockey">>}]})
                                                 end).
 
 %%--------------------------------------------------------------------
 %% Inbox tests muclight
 %%--------------------------------------------------------------------
 
-simple_muclight(Config) ->
+simple_groupchat_stored_in_all_inbox(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     Msg = <<"Hi Room!">>,
     Id = <<"MyID">>,
@@ -314,12 +351,18 @@ simple_muclight(Config) ->
     escalus:assert(is_groupchat_message, R0),
     escalus:assert(is_groupchat_message, R1),
     escalus:assert(is_groupchat_message, R2),
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceRoomJid,  AliceJid, Msg}]),
-    check_inbox(Bob, <<"1">>, [{<<"1">>, AliceRoomJid,  BobJid, Msg}]),
-    check_inbox(Kate, <<"1">>, [{<<"1">>, AliceRoomJid,  KateJid, Msg}])
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]})
                                                            end).
 
-advanced_muclight(Config) ->
+advanced_groupchat_stored_in_all_inbox(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     Msg1 = <<"Hi Room!">>,
     Msg2 = <<"How are you?">>,
@@ -331,6 +374,7 @@ advanced_muclight(Config) ->
     BobRoomJid = <<RoomJid/binary,"/", BobJid/binary>>,
     Stanza1 = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomJid, Msg1), Id),
+    %% Alice sends msg to room
     escalus:send(Alice, Stanza1),
     R0 = escalus:wait_for_stanza(Alice),
     R1 = escalus:wait_for_stanza(Bob),
@@ -348,9 +392,15 @@ advanced_muclight(Config) ->
     escalus:assert(is_groupchat_message, R3),
     escalus:assert(is_groupchat_message, R4),
     escalus:assert(is_groupchat_message, R5),
-    check_inbox(Alice, <<"1">>, [{<<"1">>, BobRoomJid,  AliceJid, Msg2}]),
-    check_inbox(Bob, <<"1">>, [{<<"0">>, BobRoomJid,  BobJid, Msg2}]),
-    check_inbox(Kate, <<"1">>, [{<<"2">>, BobRoomJid,  KateJid, Msg2}])
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg2}]}),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg2}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 2, from = BobRoomJid, to = KateJid, content = Msg2}]})
                                                            end).
 groupchat_markers_simple(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -360,8 +410,8 @@ groupchat_markers_simple(Config) ->
     AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
     Msg = <<"Mark me!">>,
     create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"some-id">>),
-    [mark_last_muclight_message(U, [Alice, Bob, Kate], <<"1">>) || U <- [Bob, Kate]],
-    foreach_check_inbox([Bob, Kate, Alice], <<"1">>, <<"0">>, AliceRoomJid, Msg)
+    [mark_last_muclight_message(U, [Alice, Bob, Kate], 1) || U <- [Bob, Kate]],
+    foreach_check_inbox([Bob, Kate, Alice], 1, 0, AliceRoomJid, Msg)
                                                            end).
 
 groupchat_markers_advanced(Config) ->
@@ -375,11 +425,17 @@ groupchat_markers_advanced(Config) ->
     KateJid = lbin(escalus_client:short_jid(Kate)),
     create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"another-id">>),
     %% Now Bob sends marker
-    mark_last_muclight_message(Bob, [Alice, Bob, Kate], <<"1">>),
+    mark_last_muclight_message(Bob, [Alice, Bob, Kate], 1),
     %% The crew ask for inbox second time. Only Kate has unread messages
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceRoomJid, AliceJid, Msg}]),
-    check_inbox(Kate, <<"1">>, [{<<"1">>, AliceRoomJid,  KateJid, Msg}]),
-    check_inbox(Bob, <<"1">>, [{<<"0">>,  AliceRoomJid,  BobJid, Msg}])
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]}),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = BobJid, content = Msg}]})
 
                                                            end).
 create_groupchat(Config) ->
@@ -388,7 +444,7 @@ create_groupchat(Config) ->
     create_room_and_check_inbox(Bob, [Alice, Kate], RoomNode)
                                                            end).
 
-create_groupchat_no_aff(Config) ->
+create_groupchat_no_affiliation_stored(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     InitOccupants = [{Alice, member}, {Kate, member}],
     FinalOccupants = [{Bob, owner} | InitOccupants],
@@ -405,9 +461,15 @@ create_groupchat_no_aff(Config) ->
     verify_aff_bcast(FinalOccupants, FinalOccupants),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
     %% affiliation change messages are not stored in inbox
-    check_inbox(Alice, <<"0">>, []),
-    check_inbox(Bob, <<"0">>, []),
-    check_inbox(Kate, <<"0">>, []),
+    check_inbox(Alice, #inbox{
+      total = 0,
+      convs = []}),
+    check_inbox(Bob, #inbox{
+      total = 0,
+      convs = []}),
+    check_inbox(Kate, #inbox{
+      total = 0,
+      convs = []}),
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomJid, Msg), <<"123">>),
     %% Alice sends a message
@@ -419,9 +481,15 @@ create_groupchat_no_aff(Config) ->
     escalus:assert(is_groupchat_message, R1),
     escalus:assert(is_groupchat_message, R2),
     %% now inboxes are not empty
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceRoomJid,  AliceJid, Msg}]),
-    check_inbox(Bob, <<"1">>, [{<<"1">>, AliceRoomJid,  BobJid, Msg}]),
-    check_inbox(Kate, <<"1">>, [{<<"1">>, AliceRoomJid,  KateJid, Msg}])
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]})
                                                            end).
 
 leave_and_remove_conversation(Config) ->
@@ -445,13 +513,17 @@ leave_and_remove_conversation(Config) ->
     %% Bob leaves the room
     muc_light_helper:user_leave(?ROOM2, Bob, [{Alice, owner}, {Kate, member}]),
     %% Alice and Kate have one message
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceRoomJid,  AliceJid, Msg}]),
-    check_inbox(Kate, <<"1">>, [{<<"1">>, AliceRoomJid,  KateJid, Msg}]),
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]}),
     %% Bob doesn't have conversation in his inbox
-    check_inbox(Bob, <<"0">>, [])
+    check_inbox(Bob, #inbox{total = 0, convs = []})
                                                            end).
 
-leave_and_remain_conversation(Config) ->
+leave_and_store_conversation(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     RoomName = <<"kicking-room">>,
     AliceJid = lbin(escalus_client:short_jid(Alice)),
@@ -464,10 +536,16 @@ leave_and_remain_conversation(Config) ->
     create_room_send_msg_check_inbox(Alice, [Bob, Kate], RoomName, Msg, <<"leave-id">>),
     %% Bob leaves room
     muc_light_helper:user_leave(RoomName, Bob, [{Alice, owner}, {Kate, member}]),
-    check_inbox(Alice, <<"1">>, [{<<"0">>, AliceRoomJid,  AliceJid, Msg}]),
-    check_inbox(Kate, <<"1">>, [{<<"1">>, AliceRoomJid,  KateJid, Msg}]),
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]}),
     %% Bob still has a conversation in inbox
-    check_inbox(Bob, <<"1">>, [{<<"1">>, AliceRoomJid,  BobJid, Msg}])
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]})
                                                            end).
 
 %%%%
@@ -486,17 +564,25 @@ create_room_and_check_inbox(Owner, MemberList, RoomName) ->
   verify_aff_bcast(FinalOccupants, FinalOccupants),
   escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)),
   %% check for the owner. Unread from owner is affiliation change to owner
-  check_inbox(Owner, <<"1">>, [{<<"1">>, room_bin_jid(RoomName), OwnerJid, <<>>}]),
+  check_inbox(Owner, #inbox{
+    total = 1,
+    convs = [#conv{unread = 1, from = room_bin_jid(RoomName), to = OwnerJid, content = <<>>}]}),
   %% check for the members. Every has affiliation change to member
-  [check_inbox(Member, <<"1">>, [{<<"1">>, room_bin_jid(RoomName), Jid, <<>>}])
+  [check_inbox(Member, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = room_bin_jid(RoomName), to = Jid, content = <<>>}]})
     || {Member, Jid} <- MemberAndJids],
   %% Each room participant send chat marker
-  [begin mark_last_muclight_system_message(U, <<"1">>),
+  [begin mark_last_muclight_system_message(U, 1),
          foreach_recipient(MembersAndOwner, fun(_Stanza) -> ok end) end || U <- MembersAndOwner],
   %% counter is reset for owner
-  check_inbox(Owner, <<"1">>, [{<<"0">>, room_bin_jid(RoomName), OwnerJid, <<>>}]),
+  check_inbox(Owner, #inbox{
+    total = 1,
+    convs = [#conv{unread = 0, from = room_bin_jid(RoomName), to = OwnerJid, content = <<>>}]}),
   %% counter is reset for members
-  [check_inbox(Member, <<"1">>, [{<<"0">>, room_bin_jid(RoomName), Jid, <<>>}])
+  [check_inbox(Member, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = room_bin_jid(RoomName), to = Jid, content = <<>>}]})
     || {Member, Jid} <- MemberAndJids].
 
 
@@ -507,7 +593,7 @@ mark_last_muclight_message(User, AllUsers, ExpectedCount) ->
 mark_last_muclight_message(User, AllUsers, ExpectedCount, MarkerType) ->
   GetInbox = get_inbox_stanza(),
   escalus:send(User, GetInbox),
-  Stanzas = escalus:wait_for_stanzas(User, binary_to_integer(ExpectedCount)),
+  Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
   ResIQ = escalus:wait_for_stanza(User),
   ExpectedCount = get_inbox_count(ResIQ),
   LastMsg = lists:last(Stanzas),
@@ -528,7 +614,7 @@ mark_last_muclight_system_message(User, ExpectedCount) ->
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
   GetInbox = get_inbox_stanza(),
   escalus:send(User, GetInbox),
-  Stanzas = escalus:wait_for_stanzas(User, binary_to_integer(ExpectedCount)),
+  Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
   ResIQ = escalus:wait_for_stanza(User),
   ExpectedCount = get_inbox_count(ResIQ),
   LastMsg = lists:last(Stanzas),
@@ -555,36 +641,34 @@ create_room_send_msg_check_inbox(Owner, MemberList, RoomName, Msg, Id) ->
   %% send chat marker per each
   OwnerRoomJid = <<RoomJid/binary,"/", OwnerJid/binary>>,
   %% Owner sent the message so he has unread set to 0
-  check_inbox(Owner, <<"1">>, [{<<"0">>, OwnerRoomJid, OwnerJid, Msg}]),
-  foreach_check_inbox(MemberList, <<"1">>, <<"1">>, OwnerRoomJid, Msg).
+  check_inbox(Owner, #inbox{
+    total = 1,
+    convs = [#conv{unread = 0, from = OwnerRoomJid, to = OwnerJid, content = Msg}]}),
+  foreach_check_inbox(MemberList, 1, 1, OwnerRoomJid, Msg).
 
 
 foreach_check_inbox(Users, Total, Unread, SenderJid, Msg) ->
   [begin
      UserJid = lbin(escalus_client:short_jid(U)),
-     check_inbox(U, Total, [{Unread, SenderJid,  UserJid, Msg}])
+     check_inbox(U, Total, [#conv{unread = Unread, from = SenderJid,  to = UserJid, content = Msg}])
     end || U <- Users].
 
+check_inbox(Client, #inbox{total = Total, convs = Convs}) ->
+  check_inbox(Client, integer_to_binary(Total), Convs).
 
-check_inbox(Client, ExpectedCount, MsgCheckList) when is_integer(ExpectedCount) ->
-  check_inbox(Client, integer_to_binary(ExpectedCount), MsgCheckList);
+check_inbox(Client, ExpectedCount, MsgCheckList) when is_binary(ExpectedCount) ->
+  check_inbox(Client, binary_to_integer(ExpectedCount), MsgCheckList);
 check_inbox(Client, ExpectedCount, MsgCheckList) ->
-  check_inbox(Client, ExpectedCount, MsgCheckList, fun(X) -> X end).
-
-check_inbox(Client, ExpectedCount, MsgCheckList, AdditionalCheck) ->
   GetInbox = get_inbox_stanza(),
   escalus:send(Client, GetInbox),
-  Stanzas = escalus:wait_for_stanzas(Client, binary_to_integer(ExpectedCount)),
+  Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
   ResIQ = escalus:wait_for_stanza(Client),
   ExpectedCount = get_inbox_count(ResIQ),
   Merged = lists:zip(Stanzas, MsgCheckList),
- [process_inbox_message(M, Unread, FromJid, ToJid, Content)
-    || {M, {Unread, FromJid, ToJid, Content}} <- Merged],
-  %% Apply additional asserts
-  [AdditionalCheck(M) || M <- Stanzas].
+  [process_inbox_message(M, ConvCheck) || {M, ConvCheck} <- Merged].
 
 
-process_inbox_message(Message, Unread, FromJid, ToJid, Content) ->
+process_inbox_message(Message, #conv{unread = Unread, from = FromJid, to = ToJid, content = Content}) ->
   Unread = get_unread_count(Message),
   escalus:assert(is_message, Message),
   Unread = get_unread_count(Message),
@@ -613,11 +697,11 @@ get_inbox_stanza() ->
 
 get_unread_count(Msg) ->
   [Val] = exml_query:paths(Msg, [{element, <<"result">>}, {attr, <<"unread">>}]),
-  Val.
+  binary_to_integer(Val).
 
 get_inbox_count(Packet) ->
   [Val] = exml_query:paths(Packet, [{element_with_ns, ?NS_ESL_INBOX}, cdata]),
-  Val.
+  binary_to_integer(Val).
 
 
 clear_inbox_all() ->

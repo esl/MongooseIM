@@ -148,11 +148,11 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
 
 process_message(Host, From, To, Message, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
-process_message(Host, From, To, Message, incomming, one2one) ->
+process_message(Host, From, To, Message, incoming, one2one) ->
     mod_inbox_one2one:handle_incomming_message(Host, From, To, Message);
 process_message(Host, From, To, Message, outgoing, groupchat) ->
     mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message);
-process_message(Host, From, To, Message, incomming, groupchat) ->
+process_message(Host, From, To, Message, incoming, groupchat) ->
     mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
 process_message(_, _, _, Message, _, _) ->
     ?WARNING_MSG("unknown messasge not written in inbox='~p'", [Message]),
