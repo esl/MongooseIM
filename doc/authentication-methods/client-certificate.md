@@ -31,7 +31,9 @@ Below you may find a list of backends that are safe to use with `cyrsasl_externa
 * `pki`
 * `anonymous`
 * `http` **without** `{is_external, true}` option
+* `internal`
 * `odbc`
+* `riak`
 
 ### Examples
 
