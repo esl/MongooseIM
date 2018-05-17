@@ -30,7 +30,7 @@
 -type element_type()  :: binary() | undefined.
 -type element_attrs() :: [exml:attr()].
 
--type getter_result(Prop) :: {ok, Prop} | error.
+-type getter_result(Prop) :: Prop | no_return().
 
 %%%-------------------------------------------------------------------
 %%% Internal types
@@ -143,12 +143,7 @@ set_element(Acc, #iq{type = IqType} = El) ->
 %-------------------------------------------------------------------
 -spec get_element(t()) -> getter_result(element()).
 get_element(Acc) ->
-    case maps:find(element, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(record, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(record, get_prop(Acc, element, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves name of the XML element record set using `new/4,5,6'.
@@ -158,12 +153,7 @@ get_element(Acc) ->
 %-------------------------------------------------------------------
 -spec get_element_name(t()) -> getter_result(element_name()).
 get_element_name(Acc) ->
-    case maps:find(element, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(name, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(name, get_prop(Acc, element, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves type of the XML element set using `new/4,5,6'.
@@ -173,12 +163,7 @@ get_element_name(Acc) ->
 %-------------------------------------------------------------------
 -spec get_element_type(t()) -> getter_result(element_type()).
 get_element_type(Acc) ->
-    case maps:find(element, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(type, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(type, get_prop(Acc, element, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves list of attributes of the XML element set using `new/4,5,6'.
@@ -188,12 +173,7 @@ get_element_type(Acc) ->
 %-------------------------------------------------------------------
 -spec get_element_attrs(t()) -> getter_result(element_attrs()).
 get_element_attrs(Acc) ->
-    case maps:find(element, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(attrs, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(attrs, get_prop(Acc, element, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves `jid:jid()' representation of the sender of the stanza set using `new/5,6'.
@@ -203,12 +183,7 @@ get_element_attrs(Acc) ->
 %-------------------------------------------------------------------
 -spec get_from_jid(t()) -> getter_result(jid:jid()).
 get_from_jid(Acc) ->
-    case maps:find(from, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(jid, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(jid, get_prop(Acc, from, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves binary representation of the sender of the stanza set using `new/5,6'.
@@ -218,12 +193,7 @@ get_from_jid(Acc) ->
 %-------------------------------------------------------------------
 -spec get_from_bin(t()) -> getter_result(binary()).
 get_from_bin(Acc) ->
-    case maps:find(from, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(bin_jid, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(bin_jid, get_prop(Acc, from, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves `jid:jid()' representation of the recipient of the stanza set using `new/6'.
@@ -233,12 +203,7 @@ get_from_bin(Acc) ->
 %-------------------------------------------------------------------
 -spec get_to_jid(t()) -> getter_result(jid:jid()).
 get_to_jid(Acc) ->
-    case maps:find(to, Acc) of
-        {ok, ElProps} ->
-            {ok, maps:get(jid, ElProps)};
-        error ->
-            error
-    end.
+    maps:get(jid, get_prop(Acc, to, new)).
 
 %-------------------------------------------------------------------
 % @doc Retrieves binary representation of the recipient of the stanza set using `new/5,6'.
@@ -263,6 +228,22 @@ get_to_bin(Acc) ->
 -spec put_prop(t(), prop()) -> t().
 put_prop(Acc, {PropKey, PropVal}) ->
     maps:put(PropKey, PropVal, Acc).
+
+-spec get_prop(t(), atom(), atom()) -> term() | no_return().
+get_prop(Acc, PropKey, Setter) ->
+    case maps:find(PropKey, Acc) of
+        {ok, PropVal} ->
+            PropVal;
+        error ->
+            {Module, Function, Line} = maps:get(init_location, Acc),
+            ?ERROR_MSG("Accumulator created in ~p:~p, line ~p, is missing property `~p`. "
+                       "It needs to be set first using ~p:~p.",
+                       [Module, Function, Line, PropKey, ?MODULE, Setter]),
+            Reason = {acc_property_missing, [{acc, Acc},
+                                             {property, PropKey},
+                                             {setter, Setter}]},
+            error(Reason)
+    end.
 
 -spec set_from(t(), jid:jid()) -> t().
 set_from(Acc, #jid{} = Jid) ->
