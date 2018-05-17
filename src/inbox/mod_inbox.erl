@@ -74,6 +74,8 @@ start(Host, Opts) ->
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
+    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_local_packet, 90),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 
