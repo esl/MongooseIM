@@ -1022,7 +1022,7 @@ session_established(closed, StateData) ->
 %% comes back whence it originated
 -spec process_outgoing_stanza(mongoose_acc:t(), state()) -> fsm_return().
 process_outgoing_stanza(Acc, StateData) ->
-    ToJID = mongoose_acc:get(to_jid, Acc),
+    ToJID = mongoose_acc:get_to_jid(Acc),
     Name = mongoose_acc:get(name, Acc),
     NState = process_outgoing_stanza(Acc, ToJID, Name, StateData),
     ejabberd_hooks:run(c2s_loop_debug, [{xmlstreamelement, mongoose_acc:get_element(Acc)}]),
@@ -2151,7 +2151,7 @@ presence_update_to_available(false, Acc, OldPriority, NewPriority, From, Packet,
 -spec presence_track(Acc :: mongoose_acc:t(),
                      State :: state()) -> {mongoose_acc:t(), state()}.
 presence_track(Acc, StateData) ->
-    To = mongoose_acc:get(to_jid, Acc),
+    To = mongoose_acc:get_to_jid(Acc),
     From = mongoose_acc:get_from_jid(Acc),
     LTo = jid:to_lower(To),
     User = StateData#state.user,
@@ -2221,7 +2221,7 @@ check_privacy_and_route(Acc, StateData) ->
                               StateData :: state()) -> mongoose_acc:t().
 check_privacy_and_route(Acc, FromRoute, StateData) ->
     From = mongoose_acc:get_from_jid(Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    To = mongoose_acc:get_to_jid(Acc),
     {Acc1, Res} = privacy_check_packet(Acc, To, out, StateData),
     Packet = mongoose_acc:get_element(Acc1),
     case Res of

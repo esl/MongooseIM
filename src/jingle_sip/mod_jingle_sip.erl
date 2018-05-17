@@ -94,7 +94,7 @@ maybe_iq_stanza(Acc) ->
     end.
 
 maybe_iq_to_other_user(Acc) ->
-    #jid{luser = StanzaTo} = mongoose_acc:get(to_jid, Acc),
+    #jid{luser = StanzaTo} = mongoose_acc:get_to_jid(Acc),
     #jid{luser = LUser} = mongoose_acc:get_prop(origin_jid, Acc),
     case LUser of
         StanzaTo ->
@@ -108,7 +108,7 @@ maybe_iq_to_other_user(Acc) ->
 maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, Acc) ->
     JingleAction = exml_query:attr(Jingle, <<"action">>),
     From = mongoose_acc:get_from_jid(Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    To = mongoose_acc:get_to_jid(Acc),
     maybe_translate_to_sip(JingleAction, From, To, IQ, Acc);
 maybe_jingle_stanza(_, Acc) ->
     Acc.
@@ -168,7 +168,7 @@ route_ok_result(From, To, IQ) ->
 
 resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
     From = mongoose_acc:get_from_jid(Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    To = mongoose_acc:get_to_jid(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
         {ok, Session} ->

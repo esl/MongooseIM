@@ -866,7 +866,7 @@ bounce_element(Acc, El, Error) ->
         <<"result">> -> ok;
         _ ->
             From = mongoose_acc:get_from_jid(Acc),
-            To = mongoose_acc:get(to_jid, Acc),
+            To = mongoose_acc:get_to_jid(Acc),
             {Acc1, Err} = jlib:make_error_reply(Acc, El, Error),
             ejabberd_router:route(To, From, Acc1, Err)
     end.
