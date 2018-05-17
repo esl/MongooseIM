@@ -26,8 +26,12 @@
 -define(PRESENCE_TOPIC, <<"custom_presence_topic">>).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit,
-                                  [{presence_updates_topic, ?PRESENCE_TOPIC
-                                    }]}]}]).
+                                  [{presence_updates_topic, ?PRESENCE_TOPIC},
+                                   {amqp_host, "localhost"},
+                                   {amqp_port, 5672},
+                                   {amqp_username, <<"guest">>},
+                                   {amqp_password, <<"guest">>}
+                                  ]}]}]).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
 
