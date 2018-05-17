@@ -14,9 +14,8 @@
                                {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
 %% API
--export([get_inbox/2, get_inbox_unread/3, set_inbox/6,
-    remove_inbox/3, set_inbox_incr_unread/5,
-    reset_inbox_unread/4, clear_inbox/2]).
+-export([get_inbox/2, set_inbox/6, remove_inbox/3, set_inbox_incr_unread/5,
+         reset_inbox_unread/4, clear_inbox/2]).
 
 -define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
 
@@ -26,13 +25,6 @@ get_inbox(LUser, Server) ->
         Server,
         ["select remote_bare_jid, content, unread_count from inbox "
         "where luser=", ?ESC(LUser), " and lserver=", ?ESC(Server), ";"]).
-
--spec get_inbox_unread(LUser :: jid:luser(), Server :: jid:lserver(), ToBareJid :: binary()) -> query_result().
-get_inbox_unread(LUser, Server, ToBareJid) ->
-    mongoose_rdbms:sql_query(
-        Server,
-        ["select unread_count from inbox where luser=", ?ESC(LUser), " and lserver=", ?ESC(Server),
-            " and remote_bare_jid=", ?ESC(ToBareJid), ";"]).
 
 -spec set_inbox(Username :: jid:luser(),
                 Server :: jid:lserver(),
