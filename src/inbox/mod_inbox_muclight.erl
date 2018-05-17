@@ -45,7 +45,7 @@ handle_incoming_message(Host, RoomUser, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:has_chat_marker(Packet, Markers) of
         true ->
-            %% we reset counter only on outgoing messages
+            %% don't store chat markers in inbox
             ok;
         false ->
             maybe_handle_system_message(Host, RoomUser, Remote, Packet)
