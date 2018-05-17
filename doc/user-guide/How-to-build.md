@@ -6,14 +6,14 @@ To compile MongooseIM you need:
 
 *   GNU Make
 *   GCC
-*   Libexpat 1.95 or higher
-    * CentOS: expat-devel
-    * Ubuntu: libexpat-dev
 *   Erlang/OTP 18.3 or higher
 *   Reltool 0.6.6 or higher
 *   OpenSSL 0.9.8 or higher, for STARTTLS, SASL and SSL encryption
     * CentOS: openssl-devel
     * Ubuntu: libssl-dev
+*   ODBC library
+    * CentOS: unixODBC-devel
+    * Ubuntu: unixodbc-dev
 *   Zlib 1.2.3 or higher for Stream Compression support (XEP-0138). Optional.
 
 ## Compiling on macOS
@@ -25,19 +25,19 @@ Before you can compile and run MongooseIM, you will need to install the followin
 * Git
 * Erlang/OTP 18.3 or higher
 * OpenSSL
+* ODBC
 
 We recommend using [Homebrew](http://brew.sh) to manage packages on your Mac.
 With Homebrew installed, getting all dependencies is a matter of running the following commands:
 
 ```bash
 $ xcode-select --install # install compilation tools
-$ brew install git erlang openssl
+$ brew install git erlang openssl unixodbc
 ```
 
 If you are planning to use ODBC to connect to MSSQL:
 
 ```bash
-$ brew install unixodbc
 $ brew install freetds --with-unixodbc
 ```
 
