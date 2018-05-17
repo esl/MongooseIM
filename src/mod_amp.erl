@@ -51,7 +51,7 @@ hooks(Host) ->
 run_initial_check(#{result := drop} = Acc, _C2SState) ->
     Acc;
 run_initial_check(Acc, _C2SState) ->
-    Acc1 = mod_amp:check_packet(Acc, mongoose_acc:get(from_jid, Acc), initial_check),
+    Acc1 = mod_amp:check_packet(Acc, mongoose_acc:get_from_jid(Acc), initial_check),
     case mongoose_acc:get(amp_check_result, Acc1, ok) of
         drop -> mongoose_acc:put(result, drop, Acc1);
         _ -> Acc1
@@ -70,7 +70,7 @@ check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
             Packet
     end;
 check_packet(Acc, Event) ->
-    check_packet(Acc, mongoose_acc:get(from_jid, Acc), Event).
+    check_packet(Acc, mongoose_acc:get_from_jid(Acc), Event).
 
 -spec check_packet(exml:element()|mongoose_acc:t(), jid:jid(), amp_event()) ->
     exml:element() | mongoose_acc:t() | drop.

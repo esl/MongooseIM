@@ -107,7 +107,7 @@ maybe_iq_to_other_user(Acc) ->
 
 maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, Acc) ->
     JingleAction = exml_query:attr(Jingle, <<"action">>),
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     To = mongoose_acc:get(to_jid, Acc),
     maybe_translate_to_sip(JingleAction, From, To, IQ, Acc);
 maybe_jingle_stanza(_, Acc) ->
@@ -167,7 +167,7 @@ route_ok_result(From, To, IQ) ->
     ejabberd_router:route(To, From, Packet).
 
 resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     To = mongoose_acc:get(to_jid, Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
@@ -181,7 +181,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     FromUser = mongoose_acc:get(user, Acc),
     #jid{luser = ToUser} = ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
-    FromJID = mongoose_acc:get(from_jid, Acc),
+    FromJID = mongoose_acc:get_from_jid(Acc),
     From = jid:to_binary(jid:to_lus(FromJID)),
     To = jid:to_binary(jid:to_lus(ToJID)),
     Server = mongoose_acc:get_server(Acc),
@@ -273,7 +273,7 @@ try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     end.
 
 terminate_session_on_other_devices(SID, Acc) ->
-    #jid{lresource = Res} = From = mongoose_acc:get(from_jid, Acc),
+    #jid{lresource = Res} = From = mongoose_acc:get_from_jid(Acc),
     FromBin = jid:to_binary(From),
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = <<"cancel">>}]},

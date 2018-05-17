@@ -1038,7 +1038,7 @@ process_outgoing_stanza(Acc, error, _Name, StateData) ->
             StateData
     end;
 process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
-    FromJID = mongoose_acc:get(from_jid, Acc),
+    FromJID = mongoose_acc:get_from_jid(Acc),
     Server = mongoose_acc:get_server(Acc),
     User = mongoose_acc:get(user, Acc),
     Res = ejabberd_hooks:run_fold(c2s_update_presence, Server, Acc, []),
@@ -1058,7 +1058,7 @@ process_outgoing_stanza(Acc, ToJID, <<"presence">>, StateData) ->
     NState;
 process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     Acc = mongoose_acc:require(xmlns, Acc0),
-    FromJID = mongoose_acc:get(from_jid, Acc),
+    FromJID = mongoose_acc:get_from_jid(Acc),
     Server = mongoose_acc:get_server(Acc),
     El = mongoose_acc:get_element(Acc),
     {_Acc, NState} = case mongoose_acc:get(xmlns, Acc, undefined) of
@@ -1076,7 +1076,7 @@ process_outgoing_stanza(Acc0, ToJID, <<"iq">>, StateData) ->
     end,
     NState;
 process_outgoing_stanza(Acc, ToJID, <<"message">>, StateData) ->
-    FromJID = mongoose_acc:get(from_jid, Acc),
+    FromJID = mongoose_acc:get_from_jid(Acc),
     Server = mongoose_acc:get_server(Acc),
     El = mongoose_acc:get_element(Acc),
     Acc1 = ejabberd_hooks:run_fold(user_send_packet,
@@ -1259,7 +1259,7 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
 handle_incoming_message({broadcast, Accum}, StateName, StateData) ->
     Acc0 = setup_accum(Accum, StateData),
     % DEPRECATED - some obsolete modules broadcast a barebones acc
-    Acc = case mongoose_acc:get(from_jid, Acc0, undefined) of
+    Acc = case mongoose_acc:get_from_jid(Acc0, undefined) of
               undefined ->
                   From = StateData#state.jid,
                   mongoose_acc:update(Acc0, #{from_jid => From,
@@ -2152,7 +2152,7 @@ presence_update_to_available(false, Acc, OldPriority, NewPriority, From, Packet,
                      State :: state()) -> {mongoose_acc:t(), state()}.
 presence_track(Acc, StateData) ->
     To = mongoose_acc:get(to_jid, Acc),
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     LTo = jid:to_lower(To),
     User = StateData#state.user,
     Server = StateData#state.server,
@@ -2214,13 +2214,13 @@ presence_track(Acc, StateData) ->
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
                               StateData :: state()) -> mongoose_acc:t().
 check_privacy_and_route(Acc, StateData) ->
-    check_privacy_and_route(Acc, mongoose_acc:get(from_jid, Acc), StateData).
+    check_privacy_and_route(Acc, mongoose_acc:get_from_jid(Acc), StateData).
 
 -spec check_privacy_and_route(Acc :: mongoose_acc:t(),
                               FromRoute :: jid:jid(),
                               StateData :: state()) -> mongoose_acc:t().
 check_privacy_and_route(Acc, FromRoute, StateData) ->
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     To = mongoose_acc:get(to_jid, Acc),
     {Acc1, Res} = privacy_check_packet(Acc, To, out, StateData),
     Packet = mongoose_acc:get_element(Acc1),
@@ -2280,7 +2280,7 @@ privacy_check_packet(Acc, Packet, From, To, Dir, StateData) ->
                          JIDSet :: jid_set(),
                          State :: state()) -> mongoose_acc:t().
 presence_broadcast(Acc, JIDSet, StateData) ->
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     lists:foldl(fun(JID, A) ->
                           FJID = jid:make(JID),
                           {A1, Res} = privacy_check_packet(A, FJID, out, StateData),
@@ -2442,7 +2442,7 @@ process_privacy_iq(Acc0, To, StateData) ->
     case mongoose_acc:get(iq_query_info, Acc) of
         #iq{type = Type, sub_el = SubEl} = IQ ->
             Acc1 = mongoose_acc:put(iq, IQ, Acc),
-            From = mongoose_acc:get(from_jid, Acc1),
+            From = mongoose_acc:get_from_jid(Acc1),
             {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
             Res = mongoose_acc:get(iq_result, Acc2, {error, mongoose_xmpp_errors:feature_not_implemented()}),
             IQRes = case Res of
@@ -2464,7 +2464,7 @@ process_privacy_iq(Acc0, To, StateData) ->
                          To :: jid:jid(),
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc, get, To, StateData) ->
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     IQ = mongoose_acc:get(iq, Acc),
     Acc1 = ejabberd_hooks:run_fold(privacy_iq_get,
                                    StateData#state.server,
@@ -2472,7 +2472,7 @@ process_privacy_iq(Acc, get, To, StateData) ->
                                    [From, To, IQ, StateData#state.privacy_list]),
     {Acc1, StateData};
 process_privacy_iq(Acc, set, To, StateData) ->
-    From = mongoose_acc:get(from_jid, Acc),
+    From = mongoose_acc:get_from_jid(Acc),
     IQ = mongoose_acc:get(iq, Acc),
     Acc1 = ejabberd_hooks:run_fold(privacy_iq_set,
                                    StateData#state.server,

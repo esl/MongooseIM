@@ -37,7 +37,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
            {Acc, #xmlel{}} -> Acc;
             _ -> Acc0
         end,
-    From = mongoose_acc:get(from_jid, Acc1),
+    From = mongoose_acc:get_from_jid(Acc1),
     privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
