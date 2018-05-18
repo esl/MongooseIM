@@ -23,15 +23,15 @@
 
 -include("assert_received_match.hrl").
 
--define(PRESENCE_TOPIC, <<"custom_presence_topic">>).
+-define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
+-define(MOD_EVENT_PUSHER_RABBIT_CFG, [{presence_exchange, ?PRESENCE_EXCHANGE},
+                                      {amqp_host, "localhost"},
+                                      {amqp_port, 5672},
+                                      {amqp_username, <<"guest">>},
+                                      {amqp_password, <<"guest">>}
+                                     ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
-                                [{rabbit,
-                                  [{presence_updates_topic, ?PRESENCE_TOPIC},
-                                   {amqp_host, "localhost"},
-                                   {amqp_port, 5672},
-                                   {amqp_username, <<"guest">>},
-                                   {amqp_password, <<"guest">>}
-                                  ]}]}]).
+                                [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
 
@@ -43,16 +43,20 @@
 
 all() ->
     [
+     {group, exchange_handling},
      {group, presence_status_publish}
     ].
 
 groups() ->
     [
+     {exchange_handling, [],
+      [
+       exchanges_are_created_on_module_startup,
+       exchanges_are_deleted_on_module_stop
+      ]},
      {presence_status_publish, [],
       [
        connected_users_push_presence_events_when_change_status,
-       connected_users_create_exchanges_when_available,
-       disconnected_users_delete_exchanges_when_unavailable,
        presence_messages_are_properly_formatted
       ]}
     ].
@@ -72,6 +76,8 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
+init_per_group(exchange_handling, Config) ->
+    Config;
 init_per_group(_, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
     Config = dynamic_modules:save_modules(Host, Config0),
@@ -79,9 +85,11 @@ init_per_group(_, Config0) ->
                                    [{mod_event_pusher, ?MOD_EVENT_PUSHER_CFG}]),
     Config.
 
+end_per_group(exchange_handling, Config) ->
+    Config;
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    dynamic_modules:stop("localhost", mod_event_pusher),
+    dynamic_modules:stop(Host, mod_event_pusher),
     dynamic_modules:restore_modules(Host, Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
@@ -90,13 +98,46 @@ init_per_testcase(CaseName, Config0) ->
     Config = Config1 ++ listen_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(disconnected_users_delete_exchanges_when_unavailable = CaseName,
-                 Config) ->
-    escalus:end_per_testcase(CaseName, Config);
+end_per_testcase(exchanges_are_deleted_on_module_stop, Config) -> Config;
 end_per_testcase(CaseName, Config) ->
     close_rabbit_connection(Config),
     escalus:end_per_testcase(CaseName, Config).
 
+
+%%--------------------------------------------------------------------
+%% GROUP exchange_handling
+%%--------------------------------------------------------------------
+
+exchanges_are_created_on_module_startup(Config) ->
+    %% GIVEN
+    Host = ct:get_config({hosts, mim, domain}),
+    Connection = proplists:get_value(rabbit_connection, Config),
+    Channel = proplists:get_value(rabbit_channel, Config),
+    Exchanges = [?PRESENCE_EXCHANGE],
+    %% WHEN
+    dynamic_modules:start(Host, mod_event_pusher_rabbit,
+                          ?MOD_EVENT_PUSHER_RABBIT_CFG),
+    %% THEN exchanges are created
+    [?assert(is_exchange_present(Connection, Channel, Exchange,
+                                 ?IF_EXCHANGE_EXISTS_RETRIES))
+     || Exchange <- Exchanges],
+    %% CLEANUP
+    dynamic_modules:stop(Host, mod_event_pusher_rabbit).
+
+exchanges_are_deleted_on_module_stop(Config) ->
+    %% GIVEN
+    Host = ct:get_config({hosts, mim, domain}),
+    Connection = proplists:get_value(rabbit_connection, Config),
+    Channel = proplists:get_value(rabbit_channel, Config),
+    Exchanges = [?PRESENCE_EXCHANGE],
+    %% WHEN
+    dynamic_modules:start(Host, mod_event_pusher_rabbit,
+                          ?MOD_EVENT_PUSHER_RABBIT_CFG),
+    dynamic_modules:stop(Host, mod_event_pusher_rabbit),
+    %% THEN
+    wait_for_exchanges_to_be_deleted(Connection, Exchanges),
+    [?assert(is_exchange_absent(Connection, Channel, Exchange, 1))
+     || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
 %% GROUP presence_status_publish
@@ -123,46 +164,6 @@ connected_users_push_presence_events_when_change_status(Config) ->
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = AliceRoutingKey},
                                     #amqp_msg{}}, timer:seconds(5))
-      end).
-
-connected_users_create_exchanges_when_available(Config) ->
-    escalus:story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
-              %% GIVEN
-              Connection = proplists:get_value(rabbit_connection, Config),
-              Channel = proplists:get_value(rabbit_channel, Config),
-              BobJID = nick_to_jid(bob, Config),
-              AliceJID = nick_to_jid(alice, Config),
-              Exchanges = [BobJID, AliceJID],
-              %% WHEN users login
-              escalus:wait_for_stanzas(Bob, 1),
-              escalus:wait_for_stanzas(Alice, 1),
-              %% THEN exchanges are created
-              [?assert(is_exchange_present(Connection, Channel, Exchange,
-                                           ?IF_EXCHANGE_EXISTS_RETRIES))
-               || Exchange <- Exchanges]
-      end).
-
-disconnected_users_delete_exchanges_when_unavailable(Config) ->
-    escalus:story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
-              %% GIVEN
-              Connection = proplists:get_value(rabbit_connection, Config),
-              Channel = proplists:get_value(rabbit_channel, Config),
-              BobJID = nick_to_jid(bob, Config),
-              AliceJID = nick_to_jid(alice, Config),
-              Exchanges = [BobJID, AliceJID],
-              %% WHEN users login and logout
-              escalus:wait_for_stanzas(Bob, 1),
-              escalus:wait_for_stanzas(Alice, 1),
-              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
-              escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
-              %% THEN exchanges are deleted
-              wait_for_exchanges_to_be_deleted(Connection, Exchanges),
-              [?assert(is_exchange_absent(Connection, Channel, Exchange, 1))
-               || Exchange <- Exchanges]
       end).
 
 presence_messages_are_properly_formatted(Config) ->
@@ -213,7 +214,7 @@ listen_to_presence_events_from_rabbit(JIDs, Config) ->
     Channel = proplists:get_value(rabbit_channel, Config),
     Queue = declare_rabbit_queue(Channel),
     QueueBindings = presence_bindings(Queue, JIDs),
-    wait_for_exchanges_to_be_created(Connection, JIDs),
+    wait_for_exchanges_to_be_created(Connection, [?PRESENCE_EXCHANGE]),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, Queue).
 
@@ -242,7 +243,7 @@ declare_rabbit_queue(Channel) ->
 -spec presence_bindings(Queue :: binary(), JIDs :: [binary()]) ->
     [rabbit_binding()].
 presence_bindings(Queue, JIDs) ->
-    [{Queue, JID, presence_rk(JID)} || JID <- JIDs].
+    [{Queue, ?PRESENCE_EXCHANGE, presence_rk(JID)} || JID <- JIDs].
 
 -spec bind_queues_to_exchanges(Channel :: pid(),
                                Bindings :: [rabbit_binding()]) ->
@@ -333,9 +334,9 @@ make_pres_stanza(X) when X rem 2 == 0 ->
 make_pres_stanza(_) ->
     <<"unavailable">>.
 
-presence_rk(JID) -> user_topic_routing_key(JID, ?PRESENCE_TOPIC).
+presence_rk(JID) -> user_topic_routing_key(?PRESENCE_EXCHANGE, JID).
 
-user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
+user_topic_routing_key(Exchange, JID) -> <<Exchange/binary, ".", JID/binary>>.
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
