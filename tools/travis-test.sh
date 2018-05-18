@@ -185,7 +185,7 @@ build_pkg () {
   local platform=$1
   cd tools/pkg
   ./build $platform
-  ./run --non-interactive $platform
+  ./run $platform
   set +e
 }
 
