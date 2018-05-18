@@ -293,7 +293,6 @@ basic_groups() ->
     [
      {mam_all, [parallel],
            [{mam_metrics, [], mam_metrics_cases()},
-            {mam02, [parallel], mam_cases() ++ [querying_for_all_messages_with_jid]},
             {mam03, [parallel], mam_cases() ++ [retrieve_form_fields] ++ text_search_cases()},
             {mam04, [parallel], mam_cases() ++ text_search_cases()},
             {mam06, [parallel], mam_cases() ++ stanzaid_cases()},
@@ -302,7 +301,7 @@ basic_groups() ->
             {mam_purge, [parallel], mam_purge_cases()},
             {configurable_archiveid, [], configurable_archiveid_cases()},
             {rsm_all, [], %% not parallel, because we want to limit concurrency
-             [{rsm02,      [parallel], rsm_cases()},
+             [
               %% Functions mod_mam_utils:make_fin_element_v03/5 and make_fin_element/5
               %% are almost the same, so don't need to test all versions of
               %% MAM protocol with complete_flag_cases.
@@ -315,20 +314,17 @@ basic_groups() ->
               {rsm04,      [parallel], rsm_cases()},
               {rsm03_comp, [parallel], complete_flag_cases()},
               {rsm04_comp, [parallel], complete_flag_cases()},
-              {with_rsm02, [parallel], with_rsm_cases()},
               {with_rsm03, [parallel], with_rsm_cases()},
               {with_rsm04, [parallel], with_rsm_cases()}]}]},
      {chat_markers, [parallel], [archive_chat_markers,
                                  dont_archive_chat_markers]},
      {muc_all, [parallel],
-           [{muc02, [parallel], muc_cases()},
-            {muc03, [parallel], muc_cases() ++ muc_text_search_cases()},
+           [{muc03, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc04, [parallel], muc_cases() ++ muc_text_search_cases()},
             {muc06, [parallel], muc_cases() ++ muc_stanzaid_cases()},
             {muc_configurable_archiveid, [], muc_configurable_archiveid_cases()},
             {muc_rsm_all, [parallel],
-             [{muc_rsm02, [parallel], muc_rsm_cases()},
-              {muc_rsm03, [parallel], muc_rsm_cases()},
+             [{muc_rsm03, [parallel], muc_rsm_cases()},
               {muc_rsm04, [parallel], muc_rsm_cases()}]}]},
      {policy_violation, [], policy_violation_cases()},
      {muc_light,        [], muc_light_cases()},
@@ -554,8 +550,6 @@ set_sessions_limit(NewLimit) ->
     rpc_apply(ejabberd_config, add_global_option,
               [{access, max_user_sessions, global}, NewLimit]).
 
-init_per_group(mam02, Config) ->
-    Config;
 init_per_group(mam03, Config) ->
     [{props, mam03_props()}|Config];
 init_per_group(mam04, Config) ->
@@ -567,8 +561,6 @@ init_per_group(mam06, Config) ->
 init_per_group(rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
     send_rsm_messages(Config1);
-init_per_group(rsm02, Config) ->
-    Config;
 init_per_group(rsm03, Config) ->
     [{props, mam03_props()}|Config];
 init_per_group(rsm04, Config) ->
@@ -577,8 +569,6 @@ init_per_group(rsm03_comp, Config) ->
     [{props, mam03_props()}|Config];
 init_per_group(rsm04_comp, Config) ->
     [{props, mam04_props()}|Config];
-init_per_group(with_rsm02, Config) ->
-    [{with_rsm, true}|Config];
 init_per_group(with_rsm03, Config) ->
     [{props, mam03_props()}, {with_rsm, true}|Config];
 init_per_group(with_rsm04, Config) ->
@@ -591,8 +581,6 @@ init_per_group(nostore, Config) ->
 init_per_group(archived, Config) ->
     Config;
 init_per_group(mam_metrics, Config) ->
-    Config;
-init_per_group(muc02, Config) ->
     Config;
 init_per_group(muc03, Config) ->
     [{props, mam03_props()}, {with_rsm, true}|Config];
@@ -611,8 +599,6 @@ init_per_group(muc_rsm_all, Config) ->
     Config2 = start_alice_room(Config1),
     Config3 = send_muc_rsm_messages(Config2),
     [{muc_rsm, true} | Config3];
-init_per_group(muc_rsm02, Config) ->
-    Config;
 init_per_group(muc_rsm03, Config) ->
     [{props, mam03_props()}|Config];
 init_per_group(muc_rsm04, Config) ->
@@ -643,7 +629,6 @@ do_init_per_group(C, ConfigIn) ->
     end.
 
 end_per_group(G, Config) when G == rsm_all; G == mam_purge; G == nostore;
-    G == mam02; G == rsm02; G == with_rsm02; G == muc02; G == muc_rsm02;
     G == mam03; G == rsm03; G == with_rsm03; G == muc03; G == muc_rsm03;
     G == mam04; G == rsm04; G == with_rsm04; G == muc04; G == muc_rsm04;
     G == rsm03_comp; G == rsm04_comp;

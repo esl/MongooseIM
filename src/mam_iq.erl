@@ -16,7 +16,6 @@
 -export([form_to_lookup_params/4]).
 
 -export([lookup_params_with_archive_details/3]).
--export([is_mam02/1]).
 
 -import(mod_mam_utils,
         [maybe_microseconds/1,
@@ -73,29 +72,12 @@
 -callback extra_lookup_params(jlib:iq(), lookup_params()) -> lookup_params().
 
 -spec action(jlib:iq()) -> action().
-action(IQ = #iq{xmlns = ?NS_MAM}) ->
-    action_v02(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_03}) ->
     action_v03(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_04}) ->
     action_v03(IQ);
 action(IQ = #iq{xmlns = ?NS_MAM_06}) ->
     action_v03(IQ).
-
-is_mam02(#iq{xmlns = ?NS_MAM}) -> true;
-is_mam02(_) -> false.
-
-action_v02(#iq{type = Action, sub_el = SubEl = #xmlel{name = Category}}) ->
-    case {Action, Category} of
-        {set, <<"prefs">>} -> mam_set_prefs;
-        {get, <<"prefs">>} -> mam_get_prefs;
-        {get, <<"query">>} -> mam_lookup_messages;
-        {set, <<"purge">>} ->
-            case exml_query:attr(SubEl, <<"id">>, <<>>) of
-                <<>> -> mam_purge_multiple_messages;
-                _    -> mam_purge_single_message
-            end
-    end.
 
 action_v03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
     case {Action, Category} of
@@ -105,7 +87,6 @@ action_v03(#iq{type = Action, sub_el = #xmlel{name = Category}}) ->
         {set, <<"query">>} ->
             mam_set_message_form
             %% Purge is NOT official extention, it is not implemented for XEP-0313 v0.3.
-            %% Use v0.2 namespace if you really want it.
     end.
 
 -spec action_type(action()) -> 'get' | 'set'.

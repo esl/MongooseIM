@@ -69,7 +69,7 @@
 
 %% XML
 -import(mod_mam_utils,
-        [maybe_add_arcid_elems/5,
+        [maybe_add_arcid_elems/4,
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
@@ -244,7 +244,6 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
                     maybe_add_arcid_elems(RoomJID,
                                           mess_id_to_external_binary(MessID),
                                              Packet,
-                                             mod_mam_params:add_archived_element(?MODULE, Host),
                                              mod_mam_params:add_stanzaid_element(?MODULE, Host));
                 {error, _} -> Packet
             end;

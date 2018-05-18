@@ -29,7 +29,6 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam).
 -behavior(gen_mod).
--xep([{xep, 313}, {version, "0.2"}]).
 -xep([{xep, 313}, {version, "0.3"}]).
 -xep([{xep, 313}, {version, "0.4.1"}]).
 -xep([{xep, 313}, {version, "0.5"}]).
@@ -71,7 +70,7 @@
 
 %% XML
 -import(mod_mam_utils,
-        [maybe_add_arcid_elems/5,
+        [maybe_add_arcid_elems/4,
          wrap_message/6,
          result_set/4,
          result_query/2,
@@ -183,21 +182,13 @@ start(Host, Opts) ->
        "mod_mam is enabled without explicit archive_groupchats option value."
        " It will default to `false` in one of future releases."
        " Please check the mod_mam documentation for more details.", []),
-    case gen_mod:get_opt(add_archived_element, Opts, undefined) of
-        undefined -> ok;
-        _ ->
-            mongoose_deprecations:log(mam02, mod_mam_utils:mam02_deprecation_message())
-    end,
 
     ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(Host, ?NS_MAM),
     mod_disco:register_feature(Host, ?NS_MAM_03),
     mod_disco:register_feature(Host, ?NS_MAM_04),
     mod_disco:register_feature(Host, ?NS_MAM_06),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM,
-                                  ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_03,
                                   ?MODULE, process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_MAM_04,
@@ -227,11 +218,9 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
-    gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
-    mod_disco:unregister_feature(Host, ?NS_MAM),
     mod_disco:unregister_feature(Host, ?NS_MAM_03),
     mod_disco:unregister_feature(Host, ?NS_MAM_04),
     mod_disco:unregister_feature(Host, ?NS_MAM_06),
@@ -313,7 +302,6 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
                     undefined -> {mam_failed, Packet};
                     MessID -> {archived, maybe_add_arcid_elems(
                                            To, MessID, Packet,
-                                           mod_mam_params:add_archived_element(?MODULE, LServer),
                                            mod_mam_params:add_stanzaid_element(?MODULE, LServer))}
                 end
         end,
@@ -594,7 +582,7 @@ handle_package(Dir, ReturnMessID,
     end.
 
 should_archive_if_groupchat(Host, <<"groupchat">>) ->
-    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, true);
+    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, archive_groupchats);
 should_archive_if_groupchat(_, _) ->
     true.
 
