@@ -149,7 +149,7 @@ is_system_message(Sender, Receiver, Packet) ->
     end.
 
 
--spec is_change_aff_message(jid:jid(), exml:element(), role()) -> binary().
+-spec is_change_aff_message(jid:jid(), exml:element(), role()) -> boolean().
 is_change_aff_message(User, Packet, Role) ->
     AffItems = exml_query:paths(Packet, [{element_with_ns, ?NS_MUC_LIGHT_AFFILIATIONS},
         {element, <<"user">>}]),
@@ -171,15 +171,15 @@ system_message_type(User, Packet) ->
             other
             end.
 
--spec is_invitation_message(jid:jid(), exml:element()) -> true.
+-spec is_invitation_message(jid:jid(), exml:element()) -> boolean().
 is_invitation_message(User, Packet) ->
     is_change_aff_message(User, Packet, <<"member">>).
 
--spec is_new_owner_message(jid:jid(), exml:element()) -> true.
+-spec is_new_owner_message(jid:jid(), exml:element()) -> boolean().
 is_new_owner_message(User, Packet) ->
     is_change_aff_message(User, Packet, <<"owner">>).
 
--spec is_kicked_message(jid:jid(), exml:element()) -> true.
+-spec is_kicked_message(jid:jid(), exml:element()) -> boolean().
 is_kicked_message(User, Packet) ->
     is_change_aff_message(User, Packet, <<"none">>).
 

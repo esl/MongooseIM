@@ -72,11 +72,11 @@ tests() ->
 groups() ->
   [
       {one_to_one, [sequence], [
+        user_has_empty_inbox,
         msg_sent_stored_in_inbox,
         user_has_two_conversations,
         msg_sent_to_offline_user,
         msg_sent_to_not_existing_user,
-        user_has_empty_inbox,
         user_has_two_unread_messages,
         reset_unread_counter,
         try_to_reset_unread_counter_with_bad_marker
@@ -223,6 +223,19 @@ end_per_testcase(CaseName, Config) ->
 %% Inbox tests one-to-one
 %%--------------------------------------------------------------------
 
+user_has_empty_inbox(Config) ->
+  escalus:story(Config, [{kate, 1}], fun(Kate) ->
+    Stanza = get_inbox_stanza(),
+    %% Kate logs in for first time and ask for inbox
+    escalus:send(Kate, Stanza),
+    [ResIQ] = escalus:wait_for_stanzas(Kate, 1),
+    true = escalus_pred:is_iq_result(ResIQ),
+    %% Inbox is empty
+    TotalCount = get_inbox_count(ResIQ),
+    0 = TotalCount
+                                     end).
+
+
 msg_sent_stored_in_inbox(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
     Msg1 = escalus_stanza:chat_to(Bob, <<"Hello">>),
@@ -315,18 +328,6 @@ msg_sent_to_not_existing_user(Config) ->
                      to = <<"not_existing_user@localhost">>,
                      content = <<"test2">>}]})
                                       end).
-
-user_has_empty_inbox(Config) ->
-  escalus:story(Config, [{kate, 1}], fun(Kate) ->
-    Stanza = get_inbox_stanza(),
-    %% Kate logs in for first time and ask for inbox
-    escalus:send(Kate, Stanza),
-    [ResIQ] = escalus:wait_for_stanzas(Kate, 1),
-    true = escalus_pred:is_iq_result(ResIQ),
-    %% Inbox is empty
-    TotalCount = get_inbox_count(ResIQ),
-    0 = TotalCount
-                                     end).
 
 user_has_two_unread_messages(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->

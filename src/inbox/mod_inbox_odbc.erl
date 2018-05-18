@@ -123,7 +123,7 @@ clear_inbox_rdbms(Username, Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
         ?ESC(Username), " and lserver=", ?ESC(Server), ";"]).
 
--spec decode_row(host(), {username(), sender(), binary(), count()}) -> inbox_res().
+-spec decode_row(host(), {username(), binary(), count()}) -> inbox_res().
 decode_row(LServer, {Username, Content, Count}) ->
     Pool = mongoose_rdbms_sup:pool(LServer),
     Data = mongoose_rdbms:unescape_binary(Pool, Content),

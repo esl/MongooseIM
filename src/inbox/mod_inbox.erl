@@ -93,7 +93,7 @@ process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
     List = mod_inbox_backend:get_inbox(Username, Host),
     QueryId = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
     forward_messages(List, QueryId, To),
-    BinCount = integer_to_list(length(List)),
+    BinCount = integer_to_binary(length(List)),
     Res = IQ#iq{type = result, sub_el = [build_result_iq(BinCount)]},
     {Acc, Res}.
 
@@ -221,8 +221,6 @@ clear_inbox(Username, Server) ->
 
 groupchat_deps(Opts) ->
     case lists:keyfind(groupchat, 1, Opts) of
-        [] ->
-            [];
         {groupchat, List} ->
             muclight_dep(List) ++ muc_dep(List);
         false ->

@@ -63,7 +63,7 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
     ok = mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid, Content, MsgId).
 
--spec clear_inbox(User :: jid:jid(), Server :: host()) -> ok.
+-spec clear_inbox(User :: jid:luser(), Server :: host()) -> ok.
 clear_inbox(User, Server) when is_binary(User) ->
     JidForm = jid:from_binary(User),
     ok = mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
