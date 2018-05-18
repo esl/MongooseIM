@@ -156,8 +156,6 @@ get_element(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves name of the XML element record set using `new/4,5,6'.
-%
-% Returns `error' atom if element isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_element_name(t()) -> getter_result(element_name()).
@@ -166,8 +164,6 @@ get_element_name(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves type of the XML element set using `new/4,5,6'.
-%
-% Returns `error' atom if element isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_element_type(t()) -> getter_result(element_type()).
@@ -176,8 +172,6 @@ get_element_type(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves list of attributes of the XML element set using `new/4,5,6'.
-%
-% Returns `error' atom if element isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_element_attrs(t()) -> getter_result(element_attrs()).
@@ -211,8 +205,6 @@ get_element_iq_query_info(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves `jid:jid()' representation of the sender of the stanza set using `new/5,6'.
-%
-% Returns `error' atom if sender isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_from_jid(t()) -> getter_result(jid:jid()).
@@ -221,8 +213,6 @@ get_from_jid(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves binary representation of the sender of the stanza set using `new/5,6'.
-%
-% Returns `error' atom if sender isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_from_bin(t()) -> getter_result(binary()).
@@ -231,8 +221,6 @@ get_from_bin(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves `jid:jid()' representation of the recipient of the stanza set using `new/6'.
-%
-% Returns `error' atom if recipient isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_to_jid(t()) -> getter_result(jid:jid()).
@@ -241,8 +229,6 @@ get_to_jid(Acc) ->
 
 %-------------------------------------------------------------------
 % @doc Retrieves binary representation of the recipient of the stanza set using `new/5,6'.
-%
-% Returns `error' atom if recipient isn't set.
 % @end
 %-------------------------------------------------------------------
 -spec get_to_bin(t()) -> getter_result(binary()).
