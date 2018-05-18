@@ -29,4 +29,4 @@ VOLUME /packages
 COPY platforms/debian_stretch/files/build /buildfiles
 COPY files/build /build
 
-CMD ["/bin/bash"]
+ENTRYPOINT ["/build"]
