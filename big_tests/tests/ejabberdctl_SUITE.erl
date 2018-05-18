@@ -38,16 +38,16 @@
 
 all() ->
     [
-     {group, accounts},
-     {group, sessions},
-     {group, vcard},
-     {group, roster},
-     {group, roster_advanced},
-     {group, last},
-     {group, private},
-     {group, stanza},
-     {group, stats},
-     {group, basic}
+     %{group, accounts},
+     %{group, sessions},
+     %{group, vcard},
+     %{group, roster},
+     %{group, roster_advanced},
+     %{group, last},
+     %{group, private},
+     %{group, stanza},
+     {group, stats}
+     %{group, basic}
     ].
 
 groups() ->
@@ -60,7 +60,7 @@ groups() ->
       {stanza, [sequence], stanza()},
       {roster_advanced, [sequence], roster_advanced()},
       {basic, [sequence], basic()},
-      {stats, [sequence], stats()}].
+      {stats, [sequence, {repeat_until_any_fail, 100}], stats()}].
 
 basic() ->
     [simple_register, simple_unregister, register_twice,
@@ -857,11 +857,19 @@ stats_global(Config) ->
                 RegisteredCount = length(escalus_config:get_config(escalus_users, Config, [])),
                 Registered = integer_to_list(RegisteredCount) ++ "\n",
 
+
                 {UpTime, 0} = ejabberdctl("stats", ["uptimeseconds"], Config),
                 _ = list_to_integer(string:strip(UpTime, both, $\n)),
+
+                Passwd = rpc(mim(), ets, tab2list, [passwd]),
+                ct:pal("passwd: ~p\n", [Passwd]),
                 {Registered, 0} = ejabberdctl("stats", ["registeredusers"], Config),
 
+                Session1 = rpc(mim(), ets, tab2list, [session]),
+                ct:pal("session 1: ~p\n", [Session1]),
                 {"2\n", 0} = ejabberdctl("stats", ["onlineusersnode"], Config),
+                Session2 = rpc(mim(), ets, tab2list, [session]),
+                ct:pal("session 2: ~p\n", [Session2]),
 
                 {"2\n", 0} = ejabberdctl("stats", ["onlineusers"], Config)
         end).
