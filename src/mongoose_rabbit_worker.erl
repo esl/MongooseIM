@@ -56,9 +56,14 @@ init([{amqp_client_opts, Opts}]) ->
 %% Handling call messages
 %% @end
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+handle_call({create_exchanges, Exchanges}, _From,
+            #state{channel = Channel} = State) ->
+    [declare_exchange(Channel, Exchange) || Exchange <- Exchanges],
+    {reply, ok, State};
+handle_call({delete_exchanges, Exchanges}, _From,
+            #state{channel = Channel} = State) ->
+    [delete_exchange(Channel, Exchange) || Exchange <- Exchanges],
+    {reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -66,17 +71,11 @@ handle_call(_Request, _From, State) ->
 %% Handling cast messages
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({user_presence_changed, #{status := online, user_jid := JID,
-                                      topic := Topic}},
+handle_cast({user_presence_changed, #{user_jid := UserJID,
+                                      exchange := Exchange,
+                                      status := Status}},
             #state{channel = Channel} = State) ->
-    declare_exchange(Channel, JID),
-    publish_online_status(Channel, JID, Topic),
-    {noreply, State};
-handle_cast({user_presence_changed, #{status := offline, user_jid := JID,
-                                      topic := Topic}},
-            #state{channel = Channel} = State) ->
-    publish_offline_status(Channel, JID, Topic),
-    delete_exchange(Channel, JID),
+    publish_status(Status, Channel, Exchange, UserJID),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -134,22 +133,12 @@ declare_exchange(Channel, Exchange) ->
 delete_exchange(Channel, Exchange) ->
     amqp_channel:call(Channel, #'exchange.delete'{exchange = Exchange}).
 
--spec publish_online_status(Channel :: pid(), JID :: binary(),
-                            Topic :: binary()) -> term().
-publish_online_status(Channel, JID, Topic) ->
-    publish_status(online, Channel, JID, Topic).
-
--spec publish_offline_status(Channel :: pid(), JID :: binary(),
-                             Topic :: binary()) -> term().
-publish_offline_status(Channel, JID, Topic) ->
-    publish_status(offline, Channel, JID, Topic).
-
--spec publish_status(Status :: atom(), Channel :: pid(), JID :: binary(),
-                     Topic :: binary()) -> term().
-publish_status(Status, Channel, JID, Topic) ->
-    RoutingKey = user_topic_routing_key(JID, Topic),
+-spec publish_status(Status :: atom(), Channel :: pid(), Exchange :: binary(),
+                     JID :: binary()) -> term().
+publish_status(Status, Channel, Exchange, JID) ->
+    RoutingKey = user_topic_routing_key(Exchange, JID),
     Message = presence_msg(JID, Status),
-    publish(Channel, JID, RoutingKey, Message).
+    publish(Channel, Exchange, RoutingKey, Message).
 
 -spec publish(Channel :: pid(), Exchange :: binary(), RoutingKey :: binary(),
               Message :: binary()) -> term().
@@ -165,8 +154,10 @@ presence_msg(JID, Status) ->
     Msg = #{user_id => JID, present => is_user_online(Status)},
     jiffy:encode(Msg).
 
--spec user_topic_routing_key(JID :: binary(), Topic :: binary()) -> binary().
-user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
+-spec user_topic_routing_key(Exchange :: binary(), Topic :: binary()) ->
+    binary().
+user_topic_routing_key(Exchange, Topic) ->
+    <<Exchange/binary, ".", Topic/binary>>.
 
 -spec is_user_online(online | offline) -> boolean().
 is_user_online(online) -> true;

@@ -19,7 +19,7 @@
 %%% Types and definitions
 %%%===================================================================
 
--define(DEFAULT_PRESENCE_TOPIC, <<"presence">>).
+-define(DEFAULT_PRESENCE_EXCHANGE, <<"presence">>).
 
 %%%===================================================================
 %%% Exports
@@ -45,10 +45,12 @@ start(Host, _Opts) ->
                                     [{amqp_client_opts, amqp_client_opts(Host)}]
                                    }},
                           {workers, WorkerNum}]),
+    create_exchanges(Host),
     ok.
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
+    delete_exchanges(Host),
     wpool:stop_sup_pool(pool_name(Host)),
     ok.
 
@@ -62,15 +64,26 @@ push_event(Acc, _, _) ->
 %%% Internal functions
 %%%===================================================================
 
+-spec create_exchanges(Host :: jid:server()) -> ok.
+create_exchanges(Host) ->
+    wpool:call(pool_name(Host), {create_exchanges, exchanges(Host)},
+               available_worker).
+
+-spec delete_exchanges(Host :: jid:server()) -> ok.
+delete_exchanges(Host) ->
+    wpool:call(pool_name(Host), {delete_exchanges, exchanges(Host)},
+               available_worker).
+
 -spec publish_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
 publish_user_presence_change(JID, Status) ->
     {User, Host, _} = jid:to_lower(JID),
-    Topic = opt(Host, presence_updates_topic, ?DEFAULT_PRESENCE_TOPIC),
+    UserJID = jid:to_binary({User, Host}),
+    PresenceExchange = opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
     wpool:cast(pool_name(Host), {user_presence_changed,
-                                 #{user_jid => jid:to_binary({User, Host}),
+                                 #{user_jid => UserJID,
                                    status => Status,
-                                   topic => Topic}}, available_worker).
-
+                                   exchange => PresenceExchange}},
+               available_worker).
 
 -spec pool_name(Host :: jid:lserver()) -> atom().
 pool_name(Host) ->
@@ -87,6 +100,10 @@ amqp_client_opts(Host) ->
                       DefaultParams#amqp_params_network.username),
        password = opt(Host, amqp_password,
                       DefaultParams#amqp_params_network.password)}.
+
+-spec exchanges(Host :: jid:server()) -> [binary()].
+exchanges(Host) ->
+    [opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE)].
 
 %% Getter for module options
 -spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().
