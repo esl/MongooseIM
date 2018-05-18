@@ -137,8 +137,8 @@ odbc_specific_backend(Host) ->
         list_to_existing_atom("mod_inbox_odbc_" ++ atom_to_list(Type))
     catch Err:Type ->
         ?ERROR_MSG(
-            "Error when creating inbox backend module ~p:~p",
-            [Err, Type])
+            "Error when creating inbox backend module ~p, err:~p:~p",
+            [Type, Err, Type])
     end.
 
 
