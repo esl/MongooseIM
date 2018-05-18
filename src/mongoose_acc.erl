@@ -13,7 +13,7 @@
 %%%-------------------------------------------------------------------
 
 -export_type([t/0]).
--export_type([element/0, element_name/0, element_type/0, element_attrs/0]).
+-export_type([element_name/0, element_type/0, element_attrs/0]).
 
 -export_type([getter_result/1]).
 
@@ -26,7 +26,6 @@
                  to            => jid_props(),
                  server        => jid:server()}.
 
--type element()       :: exml:element() | jlib:iq().
 -type element_name()  :: binary().
 -type element_type()  :: binary() | undefined.
 -type element_attrs() :: [exml:attr()].
@@ -42,10 +41,12 @@
               | {from, jid_props()}
               | {to, jid_props()}
               | {server, jid:server()}.
--type element_props() :: #{record := element(),
-                           name   := element_name(),
-                           type   := element_type(),
-                           attrs  := element_attrs()}.
+-type element_iq_query_info() :: not_computed | undefined | jlib:iq().
+-type element_props() :: #{record        := exml:element(),
+                           name          := element_name(),
+                           type          := element_type(),
+                           attrs         := element_attrs(),
+                           iq_query_info := element_iq_query_info()}.
 -type jid_props() :: #{jid     := jid:jid(),
                        bin_jid := binary()}.
 
@@ -79,10 +80,12 @@ new(Module, Function, Line) when is_atom(Module),
 % @doc Creates a new accumulator instance given XML stanza which initiated the processing and
 % location in the source code.
 %
+% The XML stanza can be either `exml:element()' or `jlib:iq()'.
+%
 % See `new/3' for more information.
 % @end
 %-------------------------------------------------------------------
--spec new(element(), module(), atom(), pos_integer()) -> t().
+-spec new(exml:element() | jlib:iq(), module(), atom(), pos_integer()) -> t().
 new(Element, Module, Function, Line) ->
     set_element(new(Module, Function, Line), Element).
 
@@ -93,7 +96,7 @@ new(Element, Module, Function, Line) ->
 % See `new/3' for more information.
 % @end
 %-------------------------------------------------------------------
--spec new(element(), jid:jid(), module(), atom(), pos_integer()) -> t().
+-spec new(exml:element() | jlib:iq(), jid:jid(), module(), atom(), pos_integer()) -> t().
 new(Element, From, Module, Function, Line) ->
     set_from(new(Element, Module, Function, Line), From).
 
@@ -104,7 +107,7 @@ new(Element, From, Module, Function, Line) ->
 % See `new/3' for more information.
 % @end
 %-------------------------------------------------------------------
--spec new(element(), jid:jid(), jid:jid(), module(), atom(), pos_integer()) -> t().
+-spec new(exml:element() | jlib:iq(), jid:jid(), jid:jid(), module(), atom(), pos_integer()) -> t().
 new(Element, From, To, Module, Function, Line) ->
     set_to(new(Element, From, Module, Function, Line), To).
 
@@ -120,22 +123,11 @@ new(Element, From, To, Module, Function, Line) ->
 % Ideally stanza should be set using `new/4,5,6'.
 % @end
 %-------------------------------------------------------------------
--spec set_element(t(), element()) -> t().
-set_element(Acc, #xmlel{name = ElName, attrs = ElAttrs} = El) ->
-    ElType = exml_query:attr(El, <<"type">>, undefined),
-    ElProps = #{record => El,
-                name   => ElName,
-                type   => ElType,
-                attrs  => ElAttrs},
-    put_prop(Acc, {element, ElProps});
-set_element(Acc, #iq{type = IqType} = El) ->
-    ElType = atom_to_binary(IqType, latin1),
-    ElAttrs = [{<<"type">>, ElType}],
-    ElProps = #{record => El,
-                name   => <<"iq">>,
-                type   => ElType,
-                attrs  => ElAttrs},
-    put_prop(Acc, {element, ElProps}).
+-spec set_element(t(), exml:element() | jlib:iq()) -> t().
+set_element(Acc, #xmlel{} = El) ->
+    set_element(Acc, El, not_computed);
+set_element(Acc, #iq{} = Iq) ->
+    set_element(Acc, jlib:iq_to_xml(Iq), Iq).
 
 %-------------------------------------------------------------------
 % @doc Sets the current XMPP domain in the given accumulator.
@@ -150,12 +142,15 @@ set_server(Acc, Server) when is_binary(Server) ->
 %%% Getters
 
 %-------------------------------------------------------------------
-% @doc Retrieves the whole XML element record set using `new/4,5,6'.
+% @doc Retrieves `exml:element()' representation of XML stanza set using `new/4,5,6'.
 %
-% Returns `error' atom if element isn't set.
+% If `exml:element()' was passed  to `new/4,5,6', the exact same record is returned. If `jlib:iq()'
+% was used to create the accumulator, an `exml:element()' representation of that record is returned.
+%
+% To get `jlib:iq()' representation of XML stanza, use `get_element_iq_query_info/1'.
 % @end
 %-------------------------------------------------------------------
--spec get_element(t()) -> getter_result(element()).
+-spec get_element(t()) -> getter_result(exml:element()).
 get_element(Acc) ->
     maps:get(record, get_prop(Acc, element, new)).
 
@@ -188,6 +183,31 @@ get_element_type(Acc) ->
 -spec get_element_attrs(t()) -> getter_result(element_attrs()).
 get_element_attrs(Acc) ->
     maps:get(attrs, get_prop(Acc, element, new)).
+
+%-------------------------------------------------------------------
+% @doc Retrieves `jlib:iq()' representation of the XML stanza set using `new/4,5,6'.
+%
+% If `jlib:iq()' was passed  to `new/4,5,6', the exact same record is returned. If `exml:element()'
+% was used to create the accumulator, a `jlib:iq()' representation of that record is returned, or
+% `undefined' atom if the element isn't a valid IQ request.
+%
+% To get `exml:element()' representation of XML stanza, use `get_element/1'.
+% @end
+%-------------------------------------------------------------------
+-spec get_element_iq_query_info(t()) -> getter_result({t(), jlib:iq() | undefined}).
+get_element_iq_query_info(Acc) ->
+    ElProps = get_prop(Acc, element, new),
+    IqQueryInfo = maps:get(iq_query_info, ElProps),
+    case IqQueryInfo of
+        undefined ->
+            {Acc, undefined};
+        #iq{} = Iq ->
+            {Acc, Iq};
+        not_computed ->
+            Iq = iq_query_info(maps:get(record, ElProps)),
+            NewElProps = ElProps#{iq_query_info := Iq},
+            {put_prop(Acc, {element, NewElProps}), Iq}
+    end.
 
 %-------------------------------------------------------------------
 % @doc Retrieves `jid:jid()' representation of the sender of the stanza set using `new/5,6'.
@@ -260,6 +280,25 @@ get_prop(Acc, PropKey, Setter) ->
                                              {setter, Setter}]},
             error(Reason)
     end.
+
+-spec iq_query_info(exml:element()) -> jlib:iq() | undefined.
+iq_query_info(El) ->
+    case jlib:iq_query_info(El) of
+        #iq{} = Iq ->
+            Iq;
+        _ ->
+            undefined
+    end.
+
+-spec set_element(t(), exml:element(), element_iq_query_info()) -> t().
+set_element(Acc, #xmlel{name = ElName, attrs = ElAttrs} = El, IqQueryInfo) ->
+    ElType = exml_query:attr(El, <<"type">>, undefined),
+    ElProps = #{record => El,
+                name   => ElName,
+                type   => ElType,
+                attrs  => ElAttrs,
+                iq_query_info => IqQueryInfo},
+    put_prop(Acc, {element, ElProps}).
 
 -spec set_from(t(), jid:jid()) -> t().
 set_from(Acc, #jid{} = Jid) ->

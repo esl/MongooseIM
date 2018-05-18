@@ -967,10 +967,9 @@ get_max_user_sessions(LUser, Host) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element(),
       Result :: ok | todo | pid() | {error, lager_not_running} | {process_iq, _, _, _}.
-process_iq(From, To, Acc0, Packet) ->
-    Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
-    process_iq(IQ, From, To, Acc0, Packet).
+process_iq(From, To, Acc, Packet) ->
+    IQ = mongoose_acc:get_element_iq_query_info(Acc),
+    process_iq(IQ, From, To, Acc, Packet).
 
 process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
     Host = To#jid.lserver,

@@ -446,7 +446,7 @@ route_stanza(_, _Acc) ->
 -spec route_stanza(mongoose_acc:t()) -> mongoose_acc:t().
 route_stanza(Acc) ->
     From = mongoose_acc:get_from_jid(Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    To = mongoose_acc:get_to_jid(Acc),
     LTo = To#jid.lserver,
     Acc1 = ejabberd_hooks:run_fold(s2s_receive_packet,
                                    LTo, Acc, []),

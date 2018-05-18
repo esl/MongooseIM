@@ -449,11 +449,10 @@ normal_state({route, From, <<>>, _Acc,
         packet = Packet,
         lang = Lang}, StateData),
     next_normal_state(NewStateData);
-normal_state({route, From, <<>>, Acc0,
+normal_state({route, From, <<>>, Acc,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
-    Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
+    IQ = mongoose_acc:get_element_iq_query_info(Acc),
     {RoutingEffect, NewStateData} = route_iq(Acc, #routed_iq{
         iq = IQ,
         from = From,

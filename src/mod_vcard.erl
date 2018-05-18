@@ -233,9 +233,8 @@ handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
 handle_info({route, From, To, Acc, _El}, State) ->
-    Acc1 = mongoose_acc:require(iq_query_info, Acc),
-    IQ = mongoose_acc:get(iq_query_info, Acc1),
-    case catch do_route(State#state.host, From, To, Acc1, IQ) of
+    IQ = mongoose_acc:get_element_iq_query_info(Acc),
+    case catch do_route(State#state.host, From, To, Acc, IQ) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);
         _ ->

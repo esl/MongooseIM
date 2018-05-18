@@ -92,9 +92,8 @@ start_link() ->
                  El :: exml:element()
                  ) -> 'nothing' | 'ok' | 'todo' | pid()
                     | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
-process_iq(Acc0, From, To, El) ->
-    Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
+process_iq(Acc, From, To, El) ->
+    IQ = mongoose_acc:get_element_iq_query_info(Acc),
     process_iq(IQ, Acc, From, To, El).
 
 process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->

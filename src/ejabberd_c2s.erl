@@ -1438,9 +1438,8 @@ handle_routed(_, _From, _To, Acc, StateData) ->
                        Acc :: mongoose_acc:t(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, StateData) ->
-    Acc1 = mongoose_acc:require(iq_query_info, Acc),
-    Qi = mongoose_acc:get(iq_query_info, Acc1),
-    handle_routed_iq(From, To, Acc1, Qi, StateData).
+    Qi = mongoose_acc:get_element_iq_query_info(Acc),
+    handle_routed_iq(From, To, Acc, Qi, StateData).
 
 -spec handle_routed_iq(From :: jid:jid(),
                        To :: jid:jid(),
@@ -2438,10 +2437,9 @@ get_priority_from_presence(PresencePacket) ->
                          To :: jid:jid(),
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc0, To, StateData) ->
-    Acc = mongoose_acc:require(iq_query_info, Acc0),
-    case mongoose_acc:get(iq_query_info, Acc) of
+    case mongoose_acc:get_element_iq_query_info(Acc0) of
         #iq{type = Type, sub_el = SubEl} = IQ ->
-            Acc1 = mongoose_acc:put(iq, IQ, Acc),
+            Acc1 = mongoose_acc:put(iq, IQ, Acc0),
             From = mongoose_acc:get_from_jid(Acc1),
             {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
             Res = mongoose_acc:get(iq_result, Acc2, {error, mongoose_xmpp_errors:feature_not_implemented()}),
