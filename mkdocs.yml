@@ -32,11 +32,14 @@ pages:
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
       - 'Services': 'advanced-configuration/Services.md'
+  - 'Authentication methods':
+      - 'Client Certificate': 'authentication-methods/client-certificate.md'
   - 'Authentication backends':
       - 'External Authentication Module': 'authentication-backends/External-authentication-module.md'
       - 'HTTP Authentication Module': 'authentication-backends/HTTP-authentication-module.md'
       - 'JWT Authentication Module': 'authentication-backends/JWT-authentication-module.md'
       - 'LDAP Authentication Module': 'authentication-backends/LDAP-authentication-module.md'
+      - 'PKI Authentication Module': 'authentication-backends/PKI-authentication-module.md'
   - 'MongooseIM open XMPP extensions':
       - 'MUC light': 'open-extensions/muc_light.md'
       - 'Token-based reconnection': 'open-extensions/token-reconnection.md'
@@ -81,6 +84,7 @@ pages:
           - 'Push backend': 'modules/mod_event_pusher_push.md'
           - 'SNS backend': 'modules/mod_event_pusher_sns.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
+      - 'mod_jingle_sip': 'modules/mod_jingle_sip.md'
       - 'mod_keystore': 'modules/mod_keystore.md'
       - 'mod_last': 'modules/mod_last.md'
       - 'mod_mam': 'modules/mod_mam.md'
