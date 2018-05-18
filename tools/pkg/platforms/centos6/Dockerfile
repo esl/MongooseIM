@@ -25,6 +25,6 @@ COPY files/build /build
 
 # Copy the shim for SCL
 # (see https://access.redhat.com/documentation/en-us/red_hat_software_collections/1/html/packaging_guide/sect-Enabling_the_Software_Collection)
-COPY platforms/centos6/files/scl-bash /
+COPY platforms/centos6/files/scl-build /
 
-ENTRYPOINT ["/scl-bash"]
+ENTRYPOINT ["/scl-build"]
