@@ -659,7 +659,7 @@ leave_and_store_conversation(Config) ->
       convs = [#conv{unread = 2, from = RoomJid, to = BobJid, content = <<>>}]})
                                                            end).
 
-%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
 
 create_room_and_check_inbox(Owner, MemberList, RoomName) ->
