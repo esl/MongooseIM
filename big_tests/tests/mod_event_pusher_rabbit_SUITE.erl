@@ -152,17 +152,15 @@ connected_users_push_presence_events_when_change_status(Config) ->
               escalus:wait_for_stanzas(Alice, 1),
               BobJID = nick_to_jid(bob, Config),
               AliceJID = nick_to_jid(alice, Config),
-              BobRoutingKey = presence_rk(BobJID),
-              AliceRoutingKey = presence_rk(AliceJID),
               listen_to_presence_events_from_rabbit([BobJID, AliceJID], Config),
               %% WHEN users generate some traffic.
               send_presence_stanzas([Bob, Alice], 10),
               %% THEN  wait for presence events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = BobRoutingKey},
+                                       routing_key = BobJID},
                                     #amqp_msg{}}, timer:seconds(5)),
               ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = AliceRoutingKey},
+                                       routing_key = AliceJID},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
@@ -173,13 +171,12 @@ presence_messages_are_properly_formatted(Config) ->
               %% GIVEN
               escalus:wait_for_stanzas(Bob, 1),
               BobJID = nick_to_jid(bob, Config),
-              BobRoutingKey = presence_rk(BobJID),
               listen_to_presence_events_from_rabbit([BobJID], Config),
               %% WHEN user logout
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
               %% THEN receive message
               receive
-                  {#'basic.deliver'{routing_key = BobRoutingKey},
+                  {#'basic.deliver'{routing_key = BobJID},
                    #amqp_msg{payload = BobMsg}} ->
                       ?assertMatch(#{<<"user_id">> := BobJID,
                                      <<"present">> := false},
@@ -243,7 +240,7 @@ declare_rabbit_queue(Channel) ->
 -spec presence_bindings(Queue :: binary(), JIDs :: [binary()]) ->
     [rabbit_binding()].
 presence_bindings(Queue, JIDs) ->
-    [{Queue, ?PRESENCE_EXCHANGE, presence_rk(JID)} || JID <- JIDs].
+    [{Queue, ?PRESENCE_EXCHANGE, JID} || JID <- JIDs].
 
 -spec bind_queues_to_exchanges(Channel :: pid(),
                                Bindings :: [rabbit_binding()]) ->
@@ -333,10 +330,6 @@ make_pres_stanza(X) when X rem 2 == 0 ->
     <<"available">>;
 make_pres_stanza(_) ->
     <<"unavailable">>.
-
-presence_rk(JID) -> user_topic_routing_key(?PRESENCE_EXCHANGE, JID).
-
-user_topic_routing_key(Exchange, JID) -> <<Exchange/binary, ".", JID/binary>>.
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
