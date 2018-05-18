@@ -175,5 +175,8 @@ is_user_online(offline) -> false.
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid()) ->
     ok | term().
 close_rabbit_connection(Connection, Channel) ->
-    amqp_channel:close(Channel),
+    try amqp_channel:close(Channel)
+    catch
+        _Error:_Reason -> already_closed
+    end,
     amqp_connection:close(Connection).
