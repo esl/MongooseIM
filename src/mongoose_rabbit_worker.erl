@@ -136,9 +136,8 @@ delete_exchange(Channel, Exchange) ->
 -spec publish_status(Status :: atom(), Channel :: pid(), Exchange :: binary(),
                      JID :: binary()) -> term().
 publish_status(Status, Channel, Exchange, JID) ->
-    RoutingKey = user_topic_routing_key(Exchange, JID),
     Message = presence_msg(JID, Status),
-    publish(Channel, Exchange, RoutingKey, Message).
+    publish(Channel, Exchange, JID, Message).
 
 -spec publish(Channel :: pid(), Exchange :: binary(), RoutingKey :: binary(),
               Message :: binary()) -> term().
@@ -153,11 +152,6 @@ publish(Channel, Exchange, RoutingKey, Message) ->
 presence_msg(JID, Status) ->
     Msg = #{user_id => JID, present => is_user_online(Status)},
     jiffy:encode(Msg).
-
--spec user_topic_routing_key(Exchange :: binary(), Topic :: binary()) ->
-    binary().
-user_topic_routing_key(Exchange, Topic) ->
-    <<Exchange/binary, ".", Topic/binary>>.
 
 -spec is_user_online(online | offline) -> boolean().
 is_user_online(online) -> true;
