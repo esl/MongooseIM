@@ -928,33 +928,6 @@ log_configs(Node, RunId) ->
             file:write_file(Dir ++ "remote_host_config", io_lib:fwrite("~p.\n", [LocalHostConfig]))
     end.
 
-pretty_term(Term) ->
-    Abstract = erl_syntax:abstract(Term),
-    AnnF = fun(Node) -> annotate_tuple(Node) end,
-    AnnAbstract = postorder(AnnF, Abstract),
-    HookF = fun(Node, Ctxt, Cont) ->
-                    Doc = Cont(Node, Ctxt),
-                    prettypr:above(prettypr:empty(), Doc)
-            end,
-    Io = erl_prettypr:format(AnnAbstract, [{hook, HookF}]),
-    io:put_chars(Io),
-    io:format(".~n").
-
-annotate_tuple(Node) ->
-    case erl_syntax:type(Node) of
-        tuple -> erl_syntax:add_ann(tuple, Node);
-        _ -> Node
-    end.
-
-%% from the erl_syntax manpage
-postorder(F, Tree) ->
-    F(case erl_syntax:subtrees(Tree) of
-          [] -> Tree;
-          List -> erl_syntax:update_tree(Tree,
-                                         [[postorder(F, Subtree)
-                                           || Subtree <- Group]
-                                          || Group <- List])
-      end).
 
 -spec groups_to_string(string(), [string()]) -> string().
 groups_to_string(_Header, []) ->
