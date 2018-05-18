@@ -34,5 +34,5 @@ sudo sed -i "s#@ARCH@#${ARCH}#" mongooseim/DEBIAN/control
 sudo sed -i "s#@VER@#${VER}-${REV}#" mongooseim/DEBIAN/changelog
 dpkg --build mongooseim ./
 
-mv mongooseim_*.deb ../mongooseim_${VER}-${REV}~${HOSTNAME}.deb
+mv mongooseim_*.deb ../mongooseim_${VER}-${REV}~${HOSTNAME}_${ARCH}.deb
 
