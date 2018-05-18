@@ -53,6 +53,14 @@
 %%--------------------------------------------------------------------
 
 all() ->
+  case is_odbc_enabled(domain()) of
+    true ->
+      tests();
+    false ->
+      {skip, require_odbc}
+  end.
+
+tests() ->
   [
       {group, one_to_one},
       {group, muclight}
@@ -97,6 +105,9 @@ init_per_suite(Config) ->
   Config1 = escalus:init_per_suite(Config),
   Config2 = [{inbox_opts, InboxOptions} | Config1],
   escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike, carol])).
+
+is_odbc_enabled(Host) ->
+  mongoose_helper:is_odbc_enabled(Host).
 
 required_modules() ->
   [
