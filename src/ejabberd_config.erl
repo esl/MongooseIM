@@ -890,7 +890,8 @@ reload_cluster() ->
                     ok;
                 Results ->
                     log_configs(node(), RunId),
-                    lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId) end,
+                    lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId);
+                                     (_) -> ok end,
                                   Results)
             end,
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
