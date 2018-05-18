@@ -13,6 +13,7 @@
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 -include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/jlib.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 
 %%%===================================================================
 %%% Types and definitions
@@ -40,7 +41,9 @@ start(Host, _Opts) ->
     application:ensure_all_started(worker_pool),
     WorkerNum = opt(Host, pool_size, 100),
     wpool:start_sup_pool(pool_name(Host),
-                         [{worker, {mongoose_rabbit_worker, []}},
+                         [{worker, {mongoose_rabbit_worker,
+                                    [{amqp_client_opts, amqp_client_opts(Host)}]
+                                   }},
                           {workers, WorkerNum}]),
     ok.
 
@@ -72,6 +75,18 @@ publish_user_presence_change(JID, Status) ->
 -spec pool_name(Host :: jid:lserver()) -> atom().
 pool_name(Host) ->
     gen_mod:get_module_proc(Host, ?MODULE).
+
+-spec amqp_client_opts(Host :: jid:lserver()) ->
+    amqp_client:amqp_params_network().
+amqp_client_opts(Host) ->
+    DefaultParams = #amqp_params_network{},
+    #amqp_params_network{
+       host = opt(Host, amqp_host, DefaultParams#amqp_params_network.host),
+       port = opt(Host, amqp_port, DefaultParams#amqp_params_network.port),
+       username = opt(Host, amqp_username,
+                      DefaultParams#amqp_params_network.username),
+       password = opt(Host, amqp_password,
+                      DefaultParams#amqp_params_network.password)}.
 
 %% Getter for module options
 -spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().
