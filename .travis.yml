@@ -82,8 +82,6 @@ matrix:
         - otp_release: 18.3
           env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - otp_release: 20.0
-          env: PRESET=pkg pkg_PLATFORM=centos6
-        - otp_release: 20.0
           env: PRESET=pkg pkg_PLATFORM=centos7
         - otp_release: 20.0
           env: PRESET=pkg pkg_PLATFORM=debian_stretch
