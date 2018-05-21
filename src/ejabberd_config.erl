@@ -889,9 +889,9 @@ reload_cluster() ->
                 [] ->
                     ok;
                 Results ->
-                    log_configs(node(), RunId),
-                    lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId);
-                                     ({ok, Node}) -> log_configs(Node, RunId);
+                    log_configs(node(), RunId, ConfigFile),
+                    lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId, ConfigFile);
+                                     ({ok, Node}) -> log_configs(Node, RunId, ConfigFile);
                                      (_) -> ok end,
                                   Results)
             end,
@@ -915,19 +915,22 @@ reload_cluster() ->
             exit(Reason)
     end.
 
-log_configs(Node, RunId) ->
+log_configs(Node, RunId, ConfigFile) ->
     BaseDir = "/tmp/reload_cluster/",
     Dir = BaseDir ++ "run_" ++ RunId ++ "/",
     filelib:ensure_dir(Dir),
     case node() of
         Node ->
             file:write_file(Dir ++ "local_config", io_lib:fwrite("~p.\n", [get_local_config()])),
-            file:write_file(Dir ++ "local_host_config", io_lib:fwrite("~p.\n", [get_host_local_config()]));
+            file:write_file(Dir ++ "local_host_config", io_lib:fwrite("~p.\n", [get_host_local_config()])),
+            file:write_file(Dir ++ "local_file", io_lib:fwrite("~p.\n", [parse_file(ConfigFile)]));
         _ ->
             LocalConfig = rpc:call(Node, ?MODULE, get_local_config, []),
             LocalHostConfig = rpc:call(Node, ?MODULE, get_host_local_config, []),
-            file:write_file(Dir ++ "remote_config", io_lib:fwrite("~p.\n", [LocalConfig ])),
-            file:write_file(Dir ++ "remote_host_config", io_lib:fwrite("~p.\n", [LocalHostConfig]))
+            File = rpc:call(Node, ?MODULE, parse_file, [ConfigFile]),
+            file:write_file(Dir ++ "remote_config-" ++ atom_to_list(Node), io_lib:fwrite("~p.\n", [LocalConfig ])),
+            file:write_file(Dir ++ "remote_host_config-" ++ atom_to_list(Node), io_lib:fwrite("~p.\n", [LocalHostConfig])),
+            file:write_file(Dir ++ "remote_file-" ++ atom_to_list(Node), io_lib:fwrite("~p.\n", [parse_file(ConfigFile)]))
     end.
 
 
