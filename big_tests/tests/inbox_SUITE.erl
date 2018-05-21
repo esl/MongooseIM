@@ -906,7 +906,7 @@ process_inbox_messages(Client, [], UnmatchedConvs, UnmatchedItems) ->
                unmatched_convs => UnmatchedConvs,
                unmatched_result_items => UnmatchedItems });
 process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems) ->
-    Pred = fun(Conv) -> catch process_inbox_message(Client, Stanza, Conv) == ok end,
+    Pred = fun(Conv) -> (catch process_inbox_message(Client, Stanza, Conv)) == ok end,
     case lists:partition(Pred, MsgCheckList) of
         {[], _NoConvSatisfiedPred} ->
             process_inbox_messages(Client, RStanzas, MsgCheckList, [Stanza | UnmatchedItems]);
