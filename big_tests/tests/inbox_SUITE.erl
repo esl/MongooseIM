@@ -894,9 +894,25 @@ check_inbox(Client, ExpectedCount, MsgCheckList) ->
   Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
   ResIQ = escalus:wait_for_stanza(Client),
   ExpectedCount = get_inbox_count(ResIQ),
-  Merged = lists:zip(Stanzas, MsgCheckList),
-  [process_inbox_message(Client, M, ConvCheck) || {M, ConvCheck} <- Merged].
+  %% TODO: Replace with commented code when inbox starts sorting by timestamp by default
+  %% Merged = lists:zip(Stanzas, MsgCheckList),
+  %% [process_inbox_message(Client, M, ConvCheck) || {M, ConvCheck} <- Merged].
+  process_inbox_messages(Client, Stanzas, MsgCheckList, []).
 
+process_inbox_messages(Client, [], [], []) ->
+    ok;
+process_inbox_messages(Client, [], UnmatchedConvs, UnmatchedItems) ->
+    ct:fail(#{ reason => inbox_mismatch,
+               unmatched_convs => UnmatchedConvs,
+               unmatched_result_items => UnmatchedItems });
+process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems) ->
+    Pred = fun(Conv) -> catch process_inbox_message(Client, Stanza, Conv) == ok end,
+    case lists:partition(Pred, MsgCheckList) of
+        {[], _NoConvSatisfiedPred} ->
+            process_inbox_messages(Client, RStanzas, MsgCheckList, [Stanza | UnmatchedItems]);
+        {[_MatchedConv], RConvs} ->
+            process_inbox_messages(Client, RStanzas, RConvs, UnmatchedItems)
+    end.
 
 process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
                                              to = ToJid, content = Content, verify = Fun}) ->
@@ -908,7 +924,8 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
   ToJid = lbin(exml_query:attr(InnerMsg, <<"to">>)),
   InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
   Content = InnerContent,
-  Fun(Client, InnerMsg).
+  Fun(Client, InnerMsg),
+  ok.
 
 verify_is_owner_aff_change(Client, Msg) ->
   verify_muc_light_aff_msg(Msg, [{Client,  owner}]).
