@@ -660,7 +660,6 @@ is_mam_result_message(_) ->
 maybe_get_result_namespace(Packet) ->
     exml_query:path(Packet, [{element, <<"result">>}, {attr, <<"xmlns">>}], <<>>).
 
-is_mam_namespace(?NS_MAM)    -> true;
 is_mam_namespace(?NS_MAM_03) -> true;
 is_mam_namespace(?NS_MAM_04) -> true;
 is_mam_namespace(?NS_MAM_06) -> true;

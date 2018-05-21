@@ -162,12 +162,9 @@ start(Host, Opts) ->
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(MUCHost, ?NS_MAM),
     mod_disco:register_feature(MUCHost, ?NS_MAM_03),
     mod_disco:register_feature(MUCHost, ?NS_MAM_04),
     mod_disco:register_feature(MUCHost, ?NS_MAM_06),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
@@ -186,11 +183,9 @@ stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
-    mod_disco:unregister_feature(MUCHost, ?NS_MAM),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_03),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_04),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_06),
@@ -749,6 +744,7 @@ return_message_form_iq(Host, IQ) ->
     IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
 
 
+% the stacktrace is a big lie
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
     report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);
 report_issue(Reason, Issue, ArcJID, IQ) ->

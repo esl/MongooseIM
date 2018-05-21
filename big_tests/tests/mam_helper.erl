@@ -50,19 +50,18 @@ rpc_call(M, F, A) ->
     escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
 mam03_props() ->
-    [{data_form, true},                 %% send data forms
-     {final_message, true},             %% expect final message with <fin/> inside
+    [{final_message, true},             %% expect final message with <fin/> inside
      {result_format, mess_fin},         %% RSM is inside final message
      {mam_ns, mam_ns_binary_v03()}].    %% v0.3 namespace
 
 mam04_props() ->
-    [{data_form, true},                 %% send data forms
+    [{final_message, false},
      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
      {mam_ns, mam_ns_binary_v04()}].
 
 mam06_props() ->
-     [{data_form, true},                 %% send data forms
-     {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
+     [{final_message, false},
+      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
      {mam_ns, mam_ns_binary_v06()}].   
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
@@ -77,13 +76,11 @@ respond_fin(#mam_archive_respond{respond_fin=Fin}) ->
 get_prop(Key, undefined) ->
     get_prop(Key, []);
 get_prop(final_message, P) ->
-    proplists:get_bool(final_message, P);
+    proplists:get_value(final_message, P, true);
 get_prop(result_format, P) ->
-    proplists:get_value(result_format, P, iq_query);
+    proplists:get_value(result_format, P, mess_fin);
 get_prop(mam_ns, P) ->
-    proplists:get_value(mam_ns, P, mam_ns_binary());
-get_prop(data_form, P) ->
-    proplists:get_bool(data_form, P).
+    proplists:get_value(mam_ns, P, mam_ns_binary_v03()).
 
 wait_archive_respond(P, User) ->
     case get_prop(final_message, P) of
@@ -207,11 +204,11 @@ rsm_send1(Config, User, Packet) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
+mam_ns_binary() -> mam_ns_binary_v03().
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
-namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04(), mam_ns_binary_v06()].
+namespaces() -> [mam_ns_binary(), mam_ns_binary_v04(), mam_ns_binary_v06()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
 stanza_purge_single_message(MessId) ->
@@ -297,12 +294,7 @@ stanza_text_search_archive_request(P, QueryId, TextSearch) ->
                               undefined, undefined, TextSearch).
 
 stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
-    case get_prop(data_form, P) of
-        false ->
-            stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM);
-        true ->
-            stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch)
-    end.
+    stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch).
 
 stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
@@ -589,8 +581,6 @@ parse_result_iq(P, Result) ->
     case get_prop(result_format, P) of
         mess_fin ->
             parse_fin_and_iq(Result);
-        iq_query ->
-            parse_legacy_iq(respond_iq(Result));
         iq_fin ->
             parse_fin_iq(Result)
     end.
@@ -1168,7 +1158,7 @@ login_send_presence(Config, User) ->
 
 maybe_wait_for_archive(Config) ->
     case ?config(archive_wait, Config) of
-        undefined ->
+        0 ->
             ok;
         Value ->
             timer:sleep(Value)
