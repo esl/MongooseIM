@@ -62,16 +62,17 @@ Check out our test results:
 
 ## Documentation
 
-Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [http://mongooseim.readthedocs.org/en/latest/](http://mongooseim.readthedocs.org/en/latest/).
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [http://mongooseim.readthedocs.io/en/latest/](http://mongooseim.readthedocs.io/en/latest/).
 
 Latest releases:
-* [2.1.0](http://mongooseim.readthedocs.io/en/rel-2.1/)
-* [2.0.1](http://mongooseim.readthedocs.org/en/2.0.1/)
-* [2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
-* [1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
-* [1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
-* [1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
-
+* [2.2.2](http://mongooseim.readthedocs.io/en/2.2.2/)
+* [2.1.1](http://mongooseim.readthedocs.io/en/2.1.1/)
+* [2.1.0](http://mongooseim.readthedocs.io/en/2.1.0/)
+* [2.0.1](http://mongooseim.readthedocs.io/en/2.0.1/)
+* [2.0.0](http://mongooseim.readthedocs.io/en/2.0.0/)
+* [1.6.2](http://mongooseim.readthedocs.io/en/1.6.2/)
+* [1.6.1](http://mongooseim.readthedocs.io/en/1.6.1/)
+* [1.6.0](http://mongooseim.readthedocs.io/en/1.6.0/)
 
  
 **MongooseIM documentation highligts:**

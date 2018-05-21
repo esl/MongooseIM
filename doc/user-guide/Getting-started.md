@@ -21,7 +21,7 @@ Double click the .pkg file and follow the instructions of the installation wizar
 Once the deb file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
 
 ```bash
-$ sudo dpkg -i mongooseim_2.1.0-1~ubuntu~artful_amd64.deb
+$ sudo dpkg -i mongooseim_[version here].deb
 ```
 
 #### CentOS
@@ -32,7 +32,7 @@ $ sudo yum install unixODBC
 ```
 Once the rpm file is downloaded, open a terminal window and navigate to the directory containing the package. Use the following command to unpack and install MongooseIM:
 ```bash
-$ sudo rpm -i mongooseim_2.1.0-1~centos~7_amd64.rpm
+$ sudo rpm -i mongooseim_[version here].rpm
 ```
 
 ## Running MongooseIM installed from package

@@ -75,12 +75,14 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](http://mongooseim.readthedocs.org/en/latest/)
-* [2.1.0](http://mongooseim.readthedocs.io/en/rel-2.1/)
-* [2.0.1](http://mongooseim.readthedocs.org/en/2.0.1/)
-* [2.0.0](http://mongooseim.readthedocs.org/en/2.0.0/)
-* [1.6.2](http://mongooseim.readthedocs.org/en/1.6.2/)
-* [1.6.1](http://mongooseim.readthedocs.org/en/1.6.1/)
-* [1.6.0](http://mongooseim.readthedocs.org/en/1.6.0/)
+* [2.2.2](http://mongooseim.readthedocs.io/en/2.2.2/)
+* [2.1.1](http://mongooseim.readthedocs.io/en/2.1.1/)
+* [2.1.0](http://mongooseim.readthedocs.io/en/2.1.0/)
+* [2.0.1](http://mongooseim.readthedocs.io/en/2.0.1/)
+* [2.0.0](http://mongooseim.readthedocs.io/en/2.0.0/)
+* [1.6.2](http://mongooseim.readthedocs.io/en/1.6.2/)
+* [1.6.1](http://mongooseim.readthedocs.io/en/1.6.1/)
+* [1.6.0](http://mongooseim.readthedocs.io/en/1.6.0/)
 
 
 When developing new features/modules, please make sure you add basic documentation to the `doc/` directory, and add a link to your document in `doc/README.md.`
