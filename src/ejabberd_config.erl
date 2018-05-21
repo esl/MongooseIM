@@ -891,19 +891,20 @@ reload_cluster() ->
                 Results ->
                     log_configs(node(), RunId),
                     lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId);
-                                     (Node) -> log_configs(Node, RunId) end,
+                                     ({ok, Node}) -> log_configs(Node, RunId);
+                                     (_) -> ok end,
                                   Results)
             end,
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
             ResultText = (groups_to_string("# Reloaded:", S1)
                           ++ groups_to_string("\n# Failed:", F1)),
-            %case F1 of
-            %    [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
-            %    [_ | _] ->
-            %        FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
-            %        ?WARNING_MSG("cluster config reload failed on nodes: ~p",
-            %                     [FailedUpdateOrRPC])
-            %end,
+            case F1 of
+                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
+                [_ | _] ->
+                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
+                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
+                                 [FailedUpdateOrRPC])
+            end,
             {ok, ResultText};
         Error ->
             Reason = msg("failed to apply config on node: ~p~nreason: ~p",
