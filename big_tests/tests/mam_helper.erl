@@ -1120,7 +1120,7 @@ login_send_presence(Config, User) ->
 
 maybe_wait_for_archive(Config) ->
     case ?config(archive_wait, Config) of
-        0 ->
+        undefined ->
             ok;
         Value ->
             timer:sleep(Value)
