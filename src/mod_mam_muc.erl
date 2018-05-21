@@ -154,11 +154,6 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam_muc starting", []),
-    case gen_mod:get_opt(add_archived_element, Opts, undefined) of
-        undefined -> ok;
-        _ ->
-            mongoose_deprecations:log(mam02, mod_mam_utils:mam02_deprecation_message())
-    end,
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type

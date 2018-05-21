@@ -59,7 +59,6 @@ produces_valid_configurations(_Config) ->
     Deps = deps([
                  {backend, odbc},
                  cache_users,
-                 add_archived_element,
 
                  {pm, [{user_prefs_store, odbc}, archive_groupchats, {async_writer, false}]},
                  {muc, [
@@ -71,7 +70,7 @@ produces_valid_configurations(_Config) ->
 
     ExpandedSimpleOpts = [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}],
 
-    check_has_args(mod_mam, [{add_archived_element, true}, {archive_groupchats, true}], Deps),
+    check_has_args(mod_mam, [{archive_groupchats, true}], Deps),
     check_has_args(mod_mam_muc, [{host, <<"host">>}], Deps),
     check_has_args(mod_mam_odbc_arch, [pm], Deps),
     check_has_args(mod_mam_muc_odbc_arch, [no_writer | ExpandedSimpleOpts], Deps),

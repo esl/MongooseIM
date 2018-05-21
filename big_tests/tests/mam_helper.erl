@@ -101,13 +101,13 @@ wait_archive_respond_fin(User) ->
 
 wait_archive_respond_nofin(User) ->
     %% rot1
-    [IQ|Messages] = lists:reverse(wait_archive_respond_v02(User)),
+    [IQ|Messages] = lists:reverse(wait_archive_respond_v04plus(User)),
     #mam_archive_respond{
        respond_iq=IQ,
        respond_messages=lists:reverse(Messages)}.
 
-%% MAM v0.2 respond
-wait_archive_respond_v02(User) ->
+%% MAM v0.4+ respond
+wait_archive_respond_v04plus(User) ->
     S = escalus:wait_for_stanza(User, 5000),
     case escalus_pred:is_iq_error(S) of
         true ->
@@ -117,7 +117,7 @@ wait_archive_respond_v02(User) ->
     end,
     case escalus_pred:is_iq_result(S) of
         true  -> [S];
-        false -> [S|wait_archive_respond_v02(User)]
+        false -> [S|wait_archive_respond_v04plus(User)]
     end.
 
 %% MAM v0.3 respond
@@ -349,21 +349,6 @@ form_bool_field(Name, true) ->
     form_field(Name, <<"true">>);
 form_bool_field(_Name, _) ->
     undefined.
-
-stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
-    escalus_stanza:iq(<<"get">>, [#xmlel{
-       name = <<"query">>,
-       attrs = mam_ns_attr(P)
-            ++ maybe_attr(<<"queryid">>, QueryId)
-            ++ border_attributes(RSM),
-       children = skip_undefined([
-           maybe_simple_elem(RSM),
-           maybe_opt_count_elem(RSM),
-           maybe_start_elem(BStart),
-           maybe_end_elem(BEnd),
-           maybe_with_elem(BWithJID),
-           maybe_rsm_elem(RSM)])
-    }]).
 
 stanza_retrieve_form_fields(QueryId, NS) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
@@ -601,12 +586,6 @@ parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
     %% MongooseIM does not add complete attribute, if complete is false
     Complete = exml_query:attr(Fin, <<"complete">>, <<"false">>),
     parse_set_and_iq(IQ, Set, not_supported, Complete).
-
-%% MAM v0.2
-parse_legacy_iq(IQ) ->
-    Fin = exml_query:subelement(IQ, <<"query">>),
-    Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set, not_supported, not_supported).
 
 parse_set_and_iq(IQ, Set, QueryId, Complete) ->
     #result_iq{
