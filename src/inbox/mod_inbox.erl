@@ -146,8 +146,10 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
         Type = get_message_type(Msg),
         GroupchatsEnabled = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
         MuclightEnabled = lists:member(muclight, GroupchatsEnabled),
-        MuclightEnabled == true andalso
-            process_message(Host, From, To, Msg, Dir, Type);
+        Type == one2one andalso
+            process_message(Host, From, To, Msg, Dir, one2one),
+        (Type == groupchat andalso MuclightEnabled) andalso
+            process_message(Host, From, To, Msg, Dir, groupchat);
         true ->
             ok
     end.

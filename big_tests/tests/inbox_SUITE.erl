@@ -142,7 +142,10 @@ end_per_suite(Config) ->
   muc_light_helper:clear_db(),
   escalus:end_per_suite(Config1).
 
+init_per_group(one_to_one, Config) ->
+  reload_inbox_option(Config, groupchat, []);
 init_per_group(muclight, Config) ->
+  reload_inbox_option(Config, groupchat, [muclight]),
   create_room(?ROOM, muclight_domain(), alice, [bob, kate], Config, ver(1));
 init_per_group(_GroupName, Config) ->
   Config.
