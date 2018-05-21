@@ -885,13 +885,13 @@ reload_cluster() ->
                                    [ConfigFile, ConfigDiff,
                                     ConfigVersion, FileVersion, RunId],
                                    30000),
-            case S of
+            case S ++ F of
                 [] ->
                     ok;
                 Results ->
                     log_configs(node(), RunId),
                     lists:foreach(fun({error, Node, _}) -> log_configs(Node, RunId);
-                                     (_) -> ok end,
+                                     (Node) -> log_configs(Node, RunId) end,
                                   Results)
             end,
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
