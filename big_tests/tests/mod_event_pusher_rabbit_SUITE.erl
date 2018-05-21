@@ -28,12 +28,19 @@
 
 -define(QUEUE_NAME, <<"test_queue">>).
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
--define(MOD_EVENT_PUSHER_RABBIT_CFG, [{presence_exchange, ?PRESENCE_EXCHANGE},
-                                      {amqp_host, "localhost"},
-                                      {amqp_port, 5672},
-                                      {amqp_username, <<"guest">>},
-                                      {amqp_password, <<"guest">>}
-                                     ]).
+-define(CHAT_MSG_EXCHANGE, <<"custom_chat_msg_exchange">>).
+-define(CHAT_MSG_SENT_TOPIC, <<"custom_chat_msg_sent_topic">>).
+-define(CHAT_MSG_RECV_TOPIC, <<"custom_chat_msg_recv_topic">>).
+-define(MOD_EVENT_PUSHER_RABBIT_CFG,
+        [{amqp_host, "localhost"},
+         {amqp_port, 5672},
+         {amqp_username, <<"guest">>},
+         {amqp_password, <<"guest">>},
+         {presence_exchange, ?PRESENCE_EXCHANGE},
+         {chat_msg_exchange, ?CHAT_MSG_EXCHANGE},
+         {chat_msg_sent_topic, ?CHAT_MSG_SENT_TOPIC},
+         {chat_msg_recv_topic, ?CHAT_MSG_RECV_TOPIC}
+        ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
@@ -48,7 +55,8 @@
 all() ->
     [
      {group, exchange_handling},
-     {group, presence_status_publish}
+     {group, presence_status_publish},
+     {group, chat_message_publish}
     ].
 
 groups() ->
@@ -62,6 +70,13 @@ groups() ->
       [
        connected_users_push_presence_events_when_change_status,
        presence_messages_are_properly_formatted
+      ]},
+     {chat_message_publish, [],
+      [
+       users_push_chat_message_sent_events,
+       chat_message_sent_messages_are_properly_formatted,
+       users_push_chat_message_received_events,
+       chat_message_received_messages_are_properly_formatted
       ]}
     ].
 
@@ -120,7 +135,7 @@ exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE],
+    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE],
     %% WHEN
     start_mod_event_pusher_rabbit(),
     %% THEN exchanges are created
@@ -132,7 +147,7 @@ exchanges_are_deleted_on_module_stop(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE],
+    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE],
     %% WHEN
     start_mod_event_pusher_rabbit(),
     stop_mod_event_pusher_rabbit(),
@@ -180,6 +195,111 @@ presence_messages_are_properly_formatted(Config) ->
               ?assertMatch(#{<<"user_id">> := BobJID, <<"present">> := false},
                            get_decoded_message_from_rabbit(BobJID))
       end).
+
+%%--------------------------------------------------------------------
+%% GROUP message_publish
+%%--------------------------------------------------------------------
+
+users_push_chat_message_sent_events(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              BobJID = nick_to_jid(bob, Config),
+              AliceJID = nick_to_jid(alice, Config),
+              BobChatMsgSentRK = chat_msg_sent_rk(BobJID),
+              AliceChatMsgSentRK = chat_msg_sent_rk(AliceJID),
+              listen_to_chat_msg_sent_events_from_rabbit([BobJID, AliceJID],
+                                                         Config),
+              %% WHEN users chat
+              escalus:send(Bob,
+                           escalus_stanza:chat_to(Alice, <<"Oh, hi Alice!">>)),
+              escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi Bob!">>)),
+              %% THEN  wait for chat message sent events events from Rabbit.
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = BobChatMsgSentRK},
+                                    #amqp_msg{}}, timer:seconds(5)),
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = AliceChatMsgSentRK},
+                                    #amqp_msg{}}, timer:seconds(5))
+      end).
+
+users_push_chat_message_received_events(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              BobJID = nick_to_jid(bob, Config),
+              AliceJID = nick_to_jid(alice, Config),
+              BobChatMsgRecvRK = chat_msg_recv_rk(BobJID),
+              AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
+              listen_to_chat_msg_recv_events_from_rabbit([BobJID, AliceJID],
+                                                         Config),
+              %% WHEN users chat
+              escalus:send(Bob,
+                           escalus_stanza:chat_to(Alice, <<"Oh, hi Alice!">>)),
+              escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi Bob!">>)),
+              escalus:wait_for_stanzas(Bob, 2),
+              escalus:wait_for_stanzas(Alice, 2),
+              %% THEN  wait for chat message received events events from
+              %% Rabbit.
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = AliceChatMsgRecvRK},
+                                    #amqp_msg{}}, timer:seconds(5)),
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = BobChatMsgRecvRK},
+                                    #amqp_msg{}}, timer:seconds(5))
+      end).
+
+chat_message_sent_messages_are_properly_formatted(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              AliceJID = nick_to_jid(alice, Config),
+              BobJID = nick_to_jid(bob, Config),
+              AliceChatMsgSentRK = chat_msg_sent_rk(AliceJID),
+              Message = <<"Hi Bob!">>,
+              listen_to_chat_msg_sent_events_from_rabbit([AliceJID], Config),
+              %% WHEN users chat
+              escalus:send(Alice, escalus_stanza:chat_to(Bob, Message)),
+              receive
+                  {#'basic.deliver'{routing_key = AliceChatMsgSentRK},
+                   #amqp_msg{payload = AliceMsg}} ->
+                      ?assertMatch(#{<<"from_user_id">> := AliceJID,
+                                     <<"to_user_id">> := BobJID,
+                                     <<"message">> := Message},
+                                   jiffy:decode(AliceMsg, [return_maps]))
+              after
+                  5000 -> exit(timeout)
+              end
+      end).
+
+chat_message_received_messages_are_properly_formatted(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              AliceJID = nick_to_jid(alice, Config),
+              BobJID = nick_to_jid(bob, Config),
+              AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
+              Message = <<"Hi Alice!">>,
+              listen_to_chat_msg_recv_events_from_rabbit([AliceJID], Config),
+              %% WHEN users chat
+              escalus:send(Bob, escalus_stanza:chat_to(Alice, Message)),
+              escalus:wait_for_stanzas(Alice, 2),
+              receive
+                  {#'basic.deliver'{routing_key = AliceChatMsgRecvRK},
+                   #amqp_msg{payload = AliceMsg}} ->
+                      ?assertMatch(#{<<"from_user_id">> := BobJID,
+                                     <<"to_user_id">> := AliceJID,
+                                     <<"message">> := Message},
+                                   jiffy:decode(AliceMsg, [return_maps]))
+              after
+                  5000 -> exit(timeout)
+              end
+      end).
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
@@ -205,6 +325,20 @@ listen_to_presence_events_from_rabbit(JIDs, Config) ->
     QueueBindings = presence_bindings(?QUEUE_NAME, JIDs),
     listen_to_events_from_rabbit(QueueBindings, Config).
 
+-spec listen_to_chat_msg_sent_events_from_rabbit(JIDs :: [binary()],
+                                                 Config :: proplists:proplist()) ->
+    ok | term().
+listen_to_chat_msg_sent_events_from_rabbit(JIDs, Config) ->
+    QueueBindings = chat_msg_sent_bindings(?QUEUE_NAME, JIDs),
+    listen_to_events_from_rabbit(QueueBindings, Config).
+
+-spec listen_to_chat_msg_recv_events_from_rabbit(JIDs :: [binary()],
+                                                 Config :: proplists:proplist()) ->
+    ok | term().
+listen_to_chat_msg_recv_events_from_rabbit(JIDs, Config) ->
+    QueueBindings = chat_msg_recv_bindings(?QUEUE_NAME, JIDs),
+    listen_to_events_from_rabbit(QueueBindings, Config).
+
 -spec listen_to_events_from_rabbit(QueueBindings :: [rabbit_binding()],
                                    Config :: proplists:proplist()) ->
     ok | term().
@@ -212,7 +346,8 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
     declare_rabbit_queue(Channel, ?QUEUE_NAME),
-    wait_for_exchanges_to_be_created(Connection, [?PRESENCE_EXCHANGE]),
+    wait_for_exchanges_to_be_created(Connection,
+                                     [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE]),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
 
@@ -242,6 +377,16 @@ declare_rabbit_queue(Channel, Queue) ->
     [rabbit_binding()].
 presence_bindings(Queue, JIDs) ->
     [{Queue, ?PRESENCE_EXCHANGE, JID} || JID <- JIDs].
+
+-spec chat_msg_sent_bindings(Queue :: binary(), JIDs :: [binary()]) ->
+    [rabbit_binding()].
+chat_msg_sent_bindings(Queue, JIDs) ->
+    [{Queue, ?CHAT_MSG_EXCHANGE, chat_msg_sent_rk(JID)} || JID <- JIDs].
+
+-spec chat_msg_recv_bindings(Queue :: binary(), JIDs :: [binary()]) ->
+    [rabbit_binding()].
+chat_msg_recv_bindings(Queue, JIDs) ->
+    [{Queue, ?CHAT_MSG_EXCHANGE, chat_msg_recv_rk(JID)} || JID <- JIDs].
 
 -spec bind_queues_to_exchanges(Channel :: pid(),
                                Bindings :: [rabbit_binding()]) ->
@@ -350,6 +495,12 @@ make_pres_stanza(X) when X rem 2 == 0 ->
     <<"available">>;
 make_pres_stanza(_) ->
     <<"unavailable">>.
+
+chat_msg_sent_rk(JID) -> user_topic_routing_key(JID, ?CHAT_MSG_SENT_TOPIC).
+
+chat_msg_recv_rk(JID) -> user_topic_routing_key(JID, ?CHAT_MSG_RECV_TOPIC).
+
+user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
