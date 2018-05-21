@@ -17,7 +17,7 @@ RUN apt-get install -y git \
                        libexpat-dev \
                        zlib1g-dev \
                        locales \
-                       esl-erlang=1:18.3.4.5
+                       esl-erlang=1:19.3.6
 
 # fix locales
 RUN locale-gen en_US.UTF-8

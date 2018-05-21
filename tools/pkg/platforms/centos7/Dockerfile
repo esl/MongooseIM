@@ -9,7 +9,7 @@ RUN rpm -ivh epel-release-7-9.noarch.rpm
 RUN wget http://packages.erlang-solutions.com/erlang-solutions-1.0-1.noarch.rpm
 RUN rpm -Uvh erlang-solutions-1.0-1.noarch.rpm
 RUN yum --setopt=obsoletes=0 install -y sudo telnet lsof vim gcc rpm-build rpm-sign make automake expat-devel \
-                   git gcc-c++ kernel-devel openssl openssl-devel yum-utils chrpath esl-erlang-18.3-1 \
+                   git gcc-c++ kernel-devel openssl openssl-devel yum-utils chrpath esl-erlang-19.3.6-1 \
  && yum clean all
 # Fix locale setup once packages are installed.
 # See https://github.com/CentOS/sig-cloud-instance-images/issues/71#issuecomment-266957519
