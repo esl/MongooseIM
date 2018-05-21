@@ -91,7 +91,46 @@ that the package name/version, release version and git tag all match.
 
 Git hooks can be a great reminder here!
 
-TODO: add git hook example
+```sh
+#!/usr/bin/env sh
+
+# Make sure VERSION file and git tag define the same MongooseIM version.
+#
+# Put in:
+#
+#   <MONGOOSEIM_ROOT>/.git/hooks/pre-commit
+#
+# or
+#
+#   <MONGOOSEIM_ROOT>/.git/hooks/post-commit
+#
+# depending on whether you want to be reminded before or after
+# entering the commit message.
+# When this script fails committing will also fail.
+
+set -e
+
+VERSION=$(cat VERSION)
+GIT_TAG=$(git describe --tags)
+
+if [ x"$VERSION" = x"$GIT_TAG" ]; then
+    :
+else
+    echo "Versions do not match!"
+    echo "VERSION file: " $VERSION
+    echo "git tag:      " $GIT_TAG
+    echo
+    echo "Set IGNORE_VERSION_CHECK to commit anyway."
+    echo
+    if [ x"$IGNORE_VERSION_CHECK" != x"" ]; then
+        exit 0
+    else
+        exit 1
+    fi
+fi
+
+exit 0
+```
 
 
 ## Publishing the package
