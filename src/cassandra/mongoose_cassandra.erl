@@ -16,22 +16,31 @@
 -module(mongoose_cassandra).
 -author('rafal.slota@erlang-solutions.com').
 
--include("mongoose.hrl").
--include("jlib.hrl").
 -include_lib("cqerl/include/cqerl.hrl").
+-include("mongoose_logger.hrl").
 
--define(READ_TIMEOUT, timer:minutes(1)).
+%% ====================================================================
+%% Definitions
+%% ====================================================================
+
+-define(WRITE_TIMEOUT, timer:minutes(5)).
+-define(READ_TIMEOUT, timer:minutes(5)).
+
+-define(WRITE_RETRY_COUNT, 3).
+-define(READ_RETRY_COUNT, 3).
 
 %% ====================================================================
 %% Types
 %% ====================================================================
 
--type row() :: #{atom() => term()}.
--type parameters() :: proplists:proplist() | row().
--type row_fold_fun() :: fun((Page :: [row()], AccIn :: term()) -> AccOut :: term()).
--type pool_name() :: atom().
--type cql_query() :: #cql_query{}.
--type query_name() :: atom() | {atom(), atom()}.
+-type row()                 :: #{atom() => term()}.
+-type rows()                :: [row()].
+-type parameters()          :: proplists:proplist() | row().
+-type fold_fun()            :: fun((Page :: rows(), fold_accumulator()) -> fold_accumulator()).
+-type fold_accumulator()    :: any().
+
+-type pool_name()           :: atom().
+-type query_name()          :: atom() | {atom(), atom()}.
 
 %% ====================================================================
 %% Exports
@@ -49,7 +58,8 @@
 -export([test_query/1, test_query/2, total_count_query/2]).
 
 %% Types
--export_type([pool_name/0, row/0, query_name/0]).
+-export_type([pool_name/0, query_name/0]).
+-export_type([row/0, rows/0, parameters/0, fold_fun/0, fold_accumulator/0]).
 
 %% Callbacks definitions
 -callback prepared_queries() -> list({term(), string()}).
@@ -89,77 +99,61 @@ init_pool({PoolName, PoolSize, PoolConfig}) ->
     ok.
 
 extend_config(PoolConfig) ->
-    PoolConfig
-        ++ [{servers, [{"localhost", 9042}]},
-            %%            {tcp_opts, [{connect_timeout, 4000}]},
-            {keyspace, mongooseim}].
+    Defaults = #{
+      servers     => [{"localhost", 9042}],
+      tcp_opts    => [{keepalive, true}],
+      keyspace    => mongooseim
+     },
+
+    ConfigMap = maps:merge(Defaults, maps:from_list(PoolConfig)),
+    maps:to_list(ConfigMap).
 
 
 %% ====================================================================
 %% Cassandra API
 %% ====================================================================
 
-%% @doc Return timestamp in nanoseconds
-now_timestamp() ->
-    now_to_usec(os:timestamp()).
-
--spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
-now_to_usec({MSec, Sec, USec}) ->
-    (MSec*1000000 + Sec)*1000000 + USec.
-
 
 %% --------------------------------------------------------
 %% @doc Execute batch write query to cassandra (insert, update or delete).
 %% Note that Cassandra doesn't like big batches, therefore this function will try to
-%% split given rows into batches of 50 rows and will fall back to smaller batches if
+%% split given rows into batches of 20 rows and will fall back to smaller batches if
 %% Cassandra rejects the query due to its size being to big.
 %% --------------------------------------------------------
--spec cql_write(PoolName :: pool_name(), UserJID :: jid:jid(), Module :: atom(),
+-spec cql_write(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Rows :: [parameters()]) ->
                        ok | {error, Reason :: any()}.
-cql_write(PoolName, _UserJID, Module, QueryName, Rows)  ->
+cql_write(PoolName, UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
-    Query = #cql_query{statement = QueryStr},
-
-    {ok, Client} = cqerl:get_client(PoolName),
-    cql_write_rows(Client, Query, Rows, 50, 3).
+    Opts = #{
+      retry   => ?WRITE_RETRY_COUNT,
+      timeout => ?WRITE_TIMEOUT
+     },
+    mongoose_cassandra_worker:write(PoolName, UserJID, QueryStr, Rows, Opts).
 
 %% --------------------------------------------------------
 %% @doc Execute async batch write query to cassandra (insert, update or delete).
 %% Note that Cassandra doesn't like big batches and there's not retry login when query size will
 %% be exceeded like in cql_write/5.
 %% --------------------------------------------------------
--spec cql_write_async(PoolName :: pool_name(), UserJID :: jid:jid(), Module :: atom(),
+-spec cql_write_async(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
                       QueryName :: query_name(), Rows :: [parameters()]) ->
                              ok | {error, Reason :: any()}.
 cql_write_async(PoolName, UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
-    Query = #cql_query{statement = QueryStr},
-
-    {ok, Client} = cqerl:get_client(PoolName),
-    BatchQuery =
-        #cql_query_batch{
-           mode = unlogged,
-           queries = [Query#cql_query{values = Row}
-                      || Row <- Rows]
-          },
-
-    QueryExecutor =
-        fun() ->
-                cqerl:send_query(Client, BatchQuery)
-        end,
-
-    Worker = mongoose_cassandra_sup:select_worker(PoolName, UserJID),
-    gen_server:cast(Worker, {cql_write, QueryExecutor}).
+    Opts = #{
+      retry   => ?WRITE_RETRY_COUNT
+     },
+    mongoose_cassandra_worker:write_async(PoolName, UserJID, QueryStr, Rows, Opts).
 
 
 %% --------------------------------------------------------
 %% @doc Execute read query to cassandra (select).
 %% Returns all rows at once even if there are several query pages.
 %% --------------------------------------------------------
--spec cql_read(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
+-spec cql_read(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
                QueryName :: query_name(), Params :: parameters()) ->
-                      {ok, Rows :: [row()]} | {error, Reason :: any()}.
+                      {ok, Rows :: rows()} | {error, Reason :: any()}.
 cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
     Fun = fun(Page, Acc) -> [Page | Acc] end,
     case cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, []) of
@@ -176,96 +170,30 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 %% query. Therefore each execution of given fun gets list of several result rows (by default 100 at
 %% most).
 %% --------------------------------------------------------
--spec cql_foldl(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
+-spec cql_foldl(PoolName :: pool_name(), UserJID :: ejabberd:jid() | undefined, Module :: atom(),
                 QueryName :: query_name(), Params :: parameters(),
-                row_fold_fun(), AccIn :: term()) ->
-                       {ok, AccOut :: term()} | {error, Reason :: any()}.
+                fold_fun(), AccIn :: fold_accumulator()) ->
+                       {ok, AccOut :: fold_accumulator()} | {error, Reason :: any()}.
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
-    cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, 3).
-
--spec cql_foldl(PoolName :: pool_name(), UserJID :: jid:jid() | undefined, Module :: atom(),
-                QueryName :: query_name(), Params :: parameters(),
-                row_fold_fun(), AccIn :: term(), TryCount :: non_neg_integer()) ->
-                       {ok, AccOut :: term()} | {error, Reason :: any()}.
-cql_foldl(_PoolName, _UserJID, _Module, QueryName, Params, _Fun, _AccIn, 0)  ->
-    {error, {query_timeout, QueryName, Params}};
-cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
-    Query = #cql_query{statement = QueryStr, values = Params},
+    Opts = #{
+      retry   => ?READ_RETRY_COUNT,
+      timeout => ?READ_TIMEOUT
+     },
+    mongoose_cassandra_worker:read(PoolName, UserJID, QueryStr, Params, Fun, AccIn, Opts).
 
-    {ok, Client} = cqerl:get_client(PoolName),
-    Tag = cqerl:send_query(Client, Query),
-    receive
-        {result, Tag, Result} ->
-            cql_read_pages(Result, Fun, AccIn, TryCount);
-        {error, Tag, {16#1200, _, _}} ->
-            cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount - 1);
-        {error, Tag, Reason} ->
-            {error, Reason}
-    after ?READ_TIMEOUT ->
-            cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn, TryCount - 1)
-    end.
 
+%% @doc Return timestamp in microseconds
+now_timestamp() ->
+    now_to_usec(os:timestamp()).
+
+-spec now_to_usec(erlang:timestamp()) -> non_neg_integer().
+now_to_usec({MSec, Sec, USec}) ->
+    (MSec*1000000 + Sec)*1000000 + USec.
 
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
-
--spec cql_read_pages(ResultHandle :: term(), row_fold_fun(), AccIn :: term(),
-                     TryCount :: non_neg_integer()) ->
-                            {ok, AccOut :: term()} | {error, Reason :: any()}.
-cql_read_pages(Result, _Fun, _AccIn, 0) ->
-    {error, {query_page_timeout, Result}};
-cql_read_pages(Result, Fun, AccIn, Retry) ->
-    NextAcc = Fun(cqerl:all_rows(Result), AccIn),
-    case cqerl:has_more_pages(Result) of
-        true ->
-            Tag = cqerl:fetch_more_async(Result),
-            receive
-                {result, Tag, NextResult} ->
-                    cql_read_pages(NextResult, Fun, NextAcc, Retry);
-                {error, Tag, {16#1200, _, _}} ->
-                    timer:sleep(crypto:rand_uniform(50, 500)),
-                    cql_read_pages(Result, Fun, NextAcc, Retry - 1);
-                {error, Tag, Reason} ->
-                    {error, Reason}
-            after ?READ_TIMEOUT ->
-                    cql_read_pages(Result, Fun, NextAcc, Retry - 1)
-            end;
-        false ->
-            {ok, NextAcc}
-    end.
-
--spec cql_write_rows(Client :: cqerl:client(), WriteQuery :: cql_query(), Rows :: [row()],
-                     BatchSize :: non_neg_integer(), TryCount :: non_neg_integer()) ->
-                            ok | {error, Reason :: term()}.
-cql_write_rows(_, _, [], _, _) ->
-    ok;
-
-cql_write_rows(_, WriteQuery, _, _, 0) ->
-    error({query_batch_timeout, WriteQuery});
-cql_write_rows(Client, WriteQuery, Rows, BatchSize, TryCount) ->
-    {NewRows, Tail} = lists:split(min(BatchSize, length(Rows)), Rows),
-    Tag = cqerl:send_query(Client, #cql_query_batch{
-                                      mode = unlogged,
-                                      queries = [WriteQuery#cql_query{values = NewRow}
-                                                 || NewRow <- NewRows]
-                                     }),
-    WriteTimeout = timer:minutes(1),
-    receive
-        {result, _, void} ->
-            cql_write_rows(Client, WriteQuery, Tail, BatchSize, TryCount);
-        {error, Tag, {16#2200, _, _}} ->
-            NewBatchSize = max(1, round(BatchSize * 0.75)),
-            cql_write_rows(Client, WriteQuery, Rows, NewBatchSize, TryCount);
-        {error, Tag, {16#1100, _, _}} ->
-            timer:sleep(crypto:rand_uniform(10, 50)),
-            cql_write_rows(Client, WriteQuery, Rows, BatchSize, TryCount - 1);
-        {error, Tag, Reason} ->
-            {error, Reason}
-    after WriteTimeout ->
-            cql_write_rows(Client, WriteQuery, Tail, BatchSize, 0)
-    end.
 
 %% ====================================================================
 %% Queries

@@ -171,7 +171,7 @@ elif [ "$DB" = 'cassandra' ]; then
 
     docker_entry="${DB_CONF_DIR}/docker_entry.sh"
 
-    docker run -d -p 9042:9042                   \
+    docker run -d                                \
                -e MAX_HEAP_SIZE=128M             \
                -e HEAP_NEWSIZE=64M               \
                -v "${SSLDIR}:/ssl:ro"            \
@@ -180,16 +180,32 @@ elif [ "$DB" = 'cassandra' ]; then
                --entrypoint "/entry.sh"          \
                cassandra:${CASSANDRA_VERSION}    \
                "${init_opts[@]}"
+    tools/wait_for_service.sh cassandra         9042 || docker logs cassandra
 
-    tools/wait_for_service.sh cassandra 9042 || docker logs cassandra
+    # Start TCP proxy
+    CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cassandra)
+    echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
+    $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" ${DB_CONF_DIR}/proxy/zazkia-routes.json
+    docker run -d                               \
+               -p 9042:9042                     \
+               -p 9191:9191                     \
+               -v ${DB_CONF_DIR}/proxy:/data    \
+               --name=cassandra_proxy           \
+               emicklei/zazkia
+    tools/wait_for_service.sh cassandra_proxy   9042 || docker logs cassandra_proxy
 
-    # Deleted --rm on travis for speedup
-    docker run -it -e SSL_CERTFILE=/cacert.pem                  \
-               -v "${SSLDIR}/ca/cacert.pem:/cacert.pem:ro"      \
-               -v "$(pwd)/priv/cassandra.cql:/cassandra.cql:ro" \
-               --link cassandra:cassandra                       \
-               cassandra:${CASSANDRA_VERSION}                   \
-               sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
+
+    MIM_SCHEMA=$(pwd)/priv/cassandra.cql
+    TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
+    for cql_file in $MIM_SCHEMA $TEST_SCHEMA; do
+        # Deleted --rm on travis for speedup
+        docker run -it -e SSL_CERTFILE=/cacert.pem                  \
+                       -v "${SSLDIR}/ca/cacert.pem:/cacert.pem:ro"  \
+                       -v "${cql_file}:/cassandra.cql:ro"           \
+                       --link cassandra:cassandra                   \
+                       cassandra:${CASSANDRA_VERSION}               \
+                       sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
+    done
 
 elif [ "$DB" = 'mssql' ]; then
     # LICENSE STUFF, IMPORTANT
