@@ -27,7 +27,7 @@ Run:
 Look into `platforms/` for valid values of `PLATFORM`.
 
 For example, specify `centos7` if you want to build an `.rpm` or `debian_stretch` to get a `.deb`
-package for the relevant versions of the systems.
+package for the relevant version of the system.
 
 Adding support for a new platform is basically writing a Dockerfile
 which will preinstall all the build dependencies for the project.
