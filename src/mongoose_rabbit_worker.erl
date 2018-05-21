@@ -18,7 +18,7 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3, format_status/2, presence_msg/2]).
+         terminate/2, code_change/3, format_status/2]).
 
 -record(state, {connection, channel}).
 
@@ -70,11 +70,9 @@ handle_call({delete_exchanges, Exchanges}, _From,
 %% Handling cast messages
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({user_presence_changed, #{user_jid := UserJID,
-                                      exchange := Exchange,
-                                      status := Status}},
+handle_cast({user_presence_changed, EventData},
             #state{channel = Channel} = State) ->
-    publish_status(Status, Channel, Exchange, UserJID),
+    publish_status(Channel, EventData),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -134,10 +132,11 @@ declare_exchange(Channel, Exchange) ->
 delete_exchange(Channel, Exchange) ->
     amqp_channel:call(Channel, #'exchange.delete'{exchange = Exchange}).
 
--spec publish_status(Status :: atom(), Channel :: pid(), Exchange :: binary(),
-                     JID :: binary()) -> term().
-publish_status(Status, Channel, Exchange, JID) ->
-    Message = presence_msg(JID, Status),
+-spec publish_status(Channel :: pid(), map()) -> term().
+publish_status(Channel, #{user_jid := JID,
+                          exchange := Exchange,
+                          status := Status}) ->
+    Message = make_presence_msg(JID, Status),
     publish(Channel, Exchange, JID, Message).
 
 -spec publish(Channel :: pid(), Exchange :: binary(), RoutingKey :: binary(),
@@ -149,8 +148,8 @@ publish(Channel, Exchange, RoutingKey, Message) ->
                          routing_key = RoutingKey},
                       #amqp_msg{payload = Message}).
 
--spec presence_msg(JID :: binary(), Status :: atom()) -> binary().
-presence_msg(JID, Status) ->
+-spec make_presence_msg(JID :: binary(), Status :: atom()) -> binary().
+make_presence_msg(JID, Status) ->
     Msg = #{user_id => JID, present => is_user_online(Status)},
     jiffy:encode(Msg).
 
