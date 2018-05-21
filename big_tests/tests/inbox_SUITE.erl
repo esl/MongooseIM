@@ -58,7 +58,13 @@
 all() ->
   case is_odbc_enabled(domain()) of
     true ->
-      tests();
+      %% TODO remove when supported
+      case is_mssql_enabled(domain()) of
+        true ->
+          {skip, mssql_not_supported};
+        _ ->
+          tests()
+      end;
     false ->
       {skip, require_odbc}
   end.
@@ -108,7 +114,7 @@ init_per_suite(Config) ->
   InboxOptions = inbox_opts(),
   Config1 = escalus:init_per_suite(Config),
   Config2 = [{inbox_opts, InboxOptions} | Config1],
-  escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike, carol])).
+  escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
 is_odbc_enabled(Host) ->
   mongoose_helper:is_odbc_enabled(Host).
@@ -979,3 +985,7 @@ restore_inbox_option(Config) ->
   Host = domain(),
   Args = proplists:get_value(inbox_opts, Config),
   dynamic_modules:restart(Host, mod_inbox, Args).
+
+is_mssql_enabled(Host) ->
+  Engine = rpc(mongoose_rdbms,db_engine,[Host]),
+  Engine =:= mssql.
