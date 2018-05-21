@@ -27,8 +27,6 @@
 
 -type action() :: 'mam_get_prefs'
                  | 'mam_lookup_messages'
-                 | 'mam_purge_multiple_messages'
-                 | 'mam_purge_single_message'
                  | 'mam_set_prefs'
                  | 'mam_set_message_form'
                  | 'mam_get_message_form'.
@@ -94,9 +92,7 @@ action_type(mam_get_prefs) -> get;
 action_type(mam_set_prefs) -> set;
 action_type(mam_lookup_messages) -> get;
 action_type(mam_set_message_form) -> get;
-action_type(mam_get_message_form) -> get;
-action_type(mam_purge_single_message) -> set;
-action_type(mam_purge_multiple_messages) -> set.
+action_type(mam_get_message_form) -> get.
 
 %% @doc Convert id into internal format.
 -spec fix_rsm('none' | jlib:rsm_in()) -> 'undefined' | jlib:rsm_in().

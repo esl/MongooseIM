@@ -43,7 +43,6 @@
          muc_message_with_stanzaid/1,
          muc_text_search_request/1,
          muc_archive_request/1,
-         muc_archive_purge/1,
          muc_multiple_devices/1,
          muc_protected_message/1,
          muc_deny_protected_room_access/1,
@@ -159,8 +158,6 @@
          assert_only_one_of_many_is_equal/2,
          add_nostore_hint/1,
          assert_not_stored/2,
-         stanza_purge_single_message/1,
-         stanza_purge_multiple_messages/3,
          has_x_user_element/1,
          stanza_date_range_archive_request/1,
          make_iso_time/1,
@@ -373,7 +370,6 @@ nostore_cases() ->
 muc_cases() ->
     [muc_service_discovery,
      muc_archive_request,
-%%     muc_archive_purge,
      muc_multiple_devices,
      muc_protected_message,
      muc_deny_protected_room_access,
@@ -886,9 +882,6 @@ init_per_testcase(C=only_stanzaid, Config) ->
 init_per_testcase(C=muc_message_with_stanzaid, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
-init_per_testcase(C=muc_archive_purge, Config) ->
-    Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:init_per_testcase(C, start_alice_room(Config1));
 init_per_testcase(C=muc_multiple_devices, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, start_alice_room(Config1));
@@ -968,9 +961,6 @@ end_per_testcase(C=muc_text_search_request, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_archive_request, Config) ->
-    destroy_room(Config),
-    escalus:end_per_testcase(C, Config);
-end_per_testcase(C=muc_archive_purge, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_multiple_devices, Config) ->
@@ -1772,41 +1762,6 @@ muc_archive_request(Config) ->
                             [{forwarded_message, ArcMsg}]),
         ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
-%% Copied from 'muc_archive_reuest' test in case to show some bug in mod_mam_muc related to
-%% issue #512
-muc_archive_purge(Config) ->
-    _P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
-        Room = ?config(room, Config),
-        RoomAddr = room_address(Room),
-        Text = <<"Hi, Bob!">>,
-        escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-        escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
-
-        %% Bob received presences.
-        escalus:wait_for_stanzas(Bob, 2),
-
-        %% Bob received the room's subject.
-        escalus:wait_for_stanzas(Bob, 1),
-
-        %% Alice sends to the chat room.
-        escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Text)),
-
-        %% Bob received the message "Hi, Bob!".
-        %% This message will be archived (by alicesroom@localhost).
-        %% User's archive is disabled (i.e. bob@localhost).
-        BobMsg = escalus:wait_for_stanza(Bob),
-        escalus:assert(is_message, BobMsg),
-        %% Flush all msgs to Alice
-        escalus:wait_for_stanzas(Alice, 6),
-        %% Alice purges the room's archive.
-        escalus:send(Alice, stanza_to_room(stanza_purge_multiple_messages(
-           undefined, undefined, undefined), Room)),
-        escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
-        maybe_wait_for_archive(Config),
-        ok
-    end,
     escalus:story(Config, [{alice, 1}, {bob, 1}], F).
 
 muc_multiple_devices(Config) ->

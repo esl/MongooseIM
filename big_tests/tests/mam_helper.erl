@@ -211,23 +211,6 @@ mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
 namespaces() -> [mam_ns_binary(), mam_ns_binary_v04(), mam_ns_binary_v06()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
 
-stanza_purge_single_message(MessId) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{
-       name = <<"purge">>,
-       attrs = [{<<"xmlns">>, mam_ns_binary()}, {<<"id">>, MessId}]
-    }]).
-
-stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{
-       name = <<"purge">>,
-       attrs = [{<<"xmlns">>, mam_ns_binary()}],
-       children = skip_undefined([
-           maybe_start_elem(BStart),
-           maybe_end_elem(BEnd),
-           maybe_with_elem(BWithJID)])
-    }]).
-
-
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
 

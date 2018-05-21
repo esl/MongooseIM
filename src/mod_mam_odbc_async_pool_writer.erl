@@ -28,9 +28,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -131,8 +129,6 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 30),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
 stop_pm(Host) ->
@@ -140,8 +136,6 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 30),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
 
@@ -153,8 +147,6 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
 stop_muc(Host) ->
@@ -162,9 +154,6 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
-                          purge_multiple_messages, 30),
     ok.
 
 
@@ -267,30 +256,6 @@ remove_archive(Acc, Host, ArcID, _ArcJID)
     when is_integer(ArcID) ->
     wait_flushing(Host, ArcID),
     Acc.
-
--spec purge_single_message(Result :: any(), Host :: jid:server(),
-                           MessID :: mod_mam:message_id(), ArchiveID :: mod_mam:archive_id(),
-                           RoomJID :: jid:jid(), Now :: mod_mam:unix_timestamp())
-                          -> ok | {error, 'not-allowed' | 'not-found'}.
-purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now)
-    when is_integer(ArcID) ->
-    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
-    wait_flushing_before(Host, ArcID, Microseconds, Now),
-    Result.
-
-
--spec purge_multiple_messages(Result :: any(), Host :: jid:server(),
-                              RoomID :: mod_mam:archive_id(), ArchiveID :: jid:jid(),
-                              Borders :: mod_mam:borders() | undefined,
-                              Start :: mod_mam:unix_timestamp() | undefined,
-                              End :: mod_mam:unix_timestamp() | undefined,
-                              Now :: mod_mam:unix_timestamp(),
-                              WithJID :: jid:jid() | undefined) -> ok | {error, 'not-allowed'}.
-purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
-                        _Start, End, Now, _WithJID)
-    when is_integer(ArcID) ->
-    wait_flushing_before(Host, ArcID, End, Now),
-    Result.
 
 wait_flushing(Host, ArcID) ->
     gen_server:call(select_worker(Host, ArcID), wait_flushing).
