@@ -26,6 +26,7 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
+-define(QUEUE_NAME, <<"test_queue">>).
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
 -define(MOD_EVENT_PUSHER_RABBIT_CFG, [{presence_exchange, ?PRESENCE_EXCHANGE},
                                       {amqp_host, "localhost"},
@@ -201,13 +202,19 @@ close_rabbit_connection(Config) ->
                                             Config :: proplists:proplist()) ->
     ok | term().
 listen_to_presence_events_from_rabbit(JIDs, Config) ->
+    QueueBindings = presence_bindings(?QUEUE_NAME, JIDs),
+    listen_to_events_from_rabbit(QueueBindings, Config).
+
+-spec listen_to_events_from_rabbit(QueueBindings :: [rabbit_binding()],
+                                   Config :: proplists:proplist()) ->
+    ok | term().
+listen_to_events_from_rabbit(QueueBindings, Config) ->
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Queue = declare_rabbit_queue(Channel),
-    QueueBindings = presence_bindings(Queue, JIDs),
+    declare_rabbit_queue(Channel, ?QUEUE_NAME),
     wait_for_exchanges_to_be_created(Connection, [?PRESENCE_EXCHANGE]),
     bind_queues_to_exchanges(Channel, QueueBindings),
-    subscribe_to_rabbit_queue(Channel, Queue).
+    subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
 
 -spec wait_for_exchanges_to_be_created(Connection :: pid(),
                                        Exchanges :: [binary()]) -> pid().
@@ -225,11 +232,11 @@ wait_for_exchanges_to_be_deleted(Connection, Exchanges) ->
      || Exchange <- Exchanges],
     ok.
 
--spec declare_rabbit_queue(Channel :: pid()) -> binary().
-declare_rabbit_queue(Channel) ->
-    #'queue.declare_ok'{queue = Queue} =
-        amqp_channel:call(Channel, #'queue.declare'{exclusive = true}),
-    Queue.
+-spec declare_rabbit_queue(Channel :: pid(), Queue :: binary()) -> binary().
+declare_rabbit_queue(Channel, Queue) ->
+    #'queue.declare_ok'{} =
+        amqp_channel:call(Channel, #'queue.declare'{queue = Queue,
+                                                    exclusive = true}).
 
 -spec presence_bindings(Queue :: binary(), JIDs :: [binary()]) ->
     [rabbit_binding()].
