@@ -309,4 +309,7 @@ CREATE TABLE inbox (
     msg_id varchar(250),
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
+CREATE INDEX i_inbox
+    ON inbox
+    USING BTREE(luser, lserver);
 
