@@ -23,6 +23,9 @@
 
 -include("assert_received_match.hrl").
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
 -define(MOD_EVENT_PUSHER_RABBIT_CFG, [{presence_exchange, ?PRESENCE_EXCHANGE},
                                       {amqp_host, "localhost"},
@@ -98,7 +101,11 @@ init_per_testcase(CaseName, Config0) ->
     Config = Config1 ++ listen_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(exchanges_are_deleted_on_module_stop, Config) -> Config;
+end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
+    stop_mod_event_pusher_rabbit(),
+    Config;
+end_per_testcase(exchanges_are_deleted_on_module_stop, Config) ->
+    Config;
 end_per_testcase(CaseName, Config) ->
     close_rabbit_connection(Config),
     escalus:end_per_testcase(CaseName, Config).
@@ -110,33 +117,27 @@ end_per_testcase(CaseName, Config) ->
 
 exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
-    Host = ct:get_config({hosts, mim, domain}),
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
     Exchanges = [?PRESENCE_EXCHANGE],
     %% WHEN
-    dynamic_modules:start(Host, mod_event_pusher_rabbit,
-                          ?MOD_EVENT_PUSHER_RABBIT_CFG),
+    start_mod_event_pusher_rabbit(),
     %% THEN exchanges are created
-    [?assert(is_exchange_present(Connection, Channel, Exchange,
+    [?assert(ensure_exchange_present(Connection, Channel, Exchange,
                                  ?IF_EXCHANGE_EXISTS_RETRIES))
-     || Exchange <- Exchanges],
-    %% CLEANUP
-    dynamic_modules:stop(Host, mod_event_pusher_rabbit).
+     || Exchange <- Exchanges].
 
 exchanges_are_deleted_on_module_stop(Config) ->
     %% GIVEN
-    Host = ct:get_config({hosts, mim, domain}),
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
     Exchanges = [?PRESENCE_EXCHANGE],
     %% WHEN
-    dynamic_modules:start(Host, mod_event_pusher_rabbit,
-                          ?MOD_EVENT_PUSHER_RABBIT_CFG),
-    dynamic_modules:stop(Host, mod_event_pusher_rabbit),
+    start_mod_event_pusher_rabbit(),
+    stop_mod_event_pusher_rabbit(),
     %% THEN
     wait_for_exchanges_to_be_deleted(Connection, Exchanges),
-    [?assert(is_exchange_absent(Connection, Channel, Exchange, 1))
+    [?assert(ensure_exchange_absent(Connection, Channel, Exchange, 1))
      || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
@@ -154,7 +155,7 @@ connected_users_push_presence_events_when_change_status(Config) ->
               AliceJID = nick_to_jid(alice, Config),
               listen_to_presence_events_from_rabbit([BobJID, AliceJID], Config),
               %% WHEN users generate some traffic.
-              send_presence_stanzas([Bob, Alice], 10),
+              send_presence_stanzas([Bob, Alice], 1),
               %% THEN  wait for presence events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobJID},
@@ -175,15 +176,8 @@ presence_messages_are_properly_formatted(Config) ->
               %% WHEN user logout
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
               %% THEN receive message
-              receive
-                  {#'basic.deliver'{routing_key = BobJID},
-                   #amqp_msg{payload = BobMsg}} ->
-                      ?assertMatch(#{<<"user_id">> := BobJID,
-                                     <<"present">> := false},
-                                   jiffy:decode(BobMsg, [return_maps]))
-              after
-                  5000 -> exit(timeout)
-              end
+              ?assertMatch(#{<<"user_id">> := BobJID, <<"present">> := false},
+                           get_decoded_message_from_rabbit(BobJID))
       end).
 %%--------------------------------------------------------------------
 %% Test helpers
@@ -219,14 +213,14 @@ listen_to_presence_events_from_rabbit(JIDs, Config) ->
                                        Exchanges :: [binary()]) -> pid().
 wait_for_exchanges_to_be_created(Connection, Exchanges) ->
     {ok, TestChannel} = amqp_connection:open_channel(Connection),
-    [is_exchange_present(Connection, TestChannel, Exchange,
+    [ensure_exchange_present(Connection, TestChannel, Exchange,
                          ?IF_EXCHANGE_EXISTS_RETRIES)
      || Exchange <- Exchanges],
     ok.
 
 wait_for_exchanges_to_be_deleted(Connection, Exchanges) ->
     {ok, TestChannel} = amqp_connection:open_channel(Connection),
-    [is_exchange_absent(Connection, TestChannel, Exchange,
+    [ensure_exchange_absent(Connection, TestChannel, Exchange,
                         ?IF_EXCHANGE_EXISTS_RETRIES)
      || Exchange <- Exchanges],
     ok.
@@ -256,16 +250,16 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                                                  routing_key = RoutingKey,
                                                  queue = Queue}).
 
--spec is_exchange_present(Connection :: pid(), Channel :: pid(),
+-spec ensure_exchange_present(Connection :: pid(), Channel :: pid(),
                           Exchange :: binary(),
                           Retries :: non_neg_integer()) ->
     true | no_return().
-is_exchange_present(_Connection, Channel, Exchange, 1) ->
+ensure_exchange_present(_Connection, Channel, Exchange, 1) ->
     amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
                                                    type = <<"topic">>,
                                                    passive = true}),
     true;
-is_exchange_present(Connection, Channel, Exchange, Retries) ->
+ensure_exchange_present(Connection, Channel, Exchange, Retries) ->
     try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
                                                        type = <<"topic">>,
                                                        passive = true}) of
@@ -275,14 +269,14 @@ is_exchange_present(Connection, Channel, Exchange, Retries) ->
             timer:sleep(?WAIT_FOR_EXCHANGE_INTERVAL),
             %% The old channel `Channel` is closed.
             {ok, NewChannel} = amqp_connection:open_channel(Connection),
-            is_exchange_present(Connection, NewChannel, Exchange, Retries - 1)
+            ensure_exchange_present(Connection, NewChannel, Exchange, Retries - 1)
     end.
 
--spec is_exchange_absent(Connection :: pid(), Channel :: pid(),
+-spec ensure_exchange_absent(Connection :: pid(), Channel :: pid(),
                          Exchange :: binary(),
                          Retries :: non_neg_integer()) ->
     true | no_return().
-is_exchange_absent(_Connection, Channel, Exchange, 1) ->
+ensure_exchange_absent(_Connection, Channel, Exchange, 1) ->
     try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
                                                        type = <<"topic">>,
                                                        passive = true}) of
@@ -290,13 +284,13 @@ is_exchange_absent(_Connection, Channel, Exchange, 1) ->
     catch
         _Error:_Reason -> true
     end;
-is_exchange_absent(Connection, Channel, Exchange, Retries) ->
+ensure_exchange_absent(Connection, Channel, Exchange, Retries) ->
     try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
                                                        type = <<"topic">>,
                                                        passive = true}) of
         {'exchange.declare_ok'} ->
             timer:sleep(?WAIT_FOR_EXCHANGE_INTERVAL),
-            is_exchange_absent(Connection, Channel, Exchange, Retries - 1)
+            ensure_exchange_absent(Connection, Channel, Exchange, Retries - 1)
     catch
         _Error:_Reason -> true
     end.
@@ -322,9 +316,28 @@ send_presence_stanza(User, NumOfMsgs) ->
     [escalus:send(User, escalus_stanza:presence(make_pres_stanza(X)))
      || X <- lists:seq(1, NumOfMsgs)].
 
+-spec get_decoded_message_from_rabbit(RoutingKey :: binary()) ->
+    map() | no_return().
+get_decoded_message_from_rabbit(RoutingKey) ->
+    receive
+        {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
+            jiffy:decode(Msg, [return_maps])
+    after
+        5000 -> ct:fail(timeout)
+    end.
+
 %%--------------------------------------------------------------------
 %% Utils
 %%--------------------------------------------------------------------
+
+start_mod_event_pusher_rabbit() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    rpc(mim(), gen_mod, start_module, [Host, mod_event_pusher_rabbit,
+                                       ?MOD_EVENT_PUSHER_RABBIT_CFG]).
+
+stop_mod_event_pusher_rabbit() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    rpc(mim(), gen_mod, stop_module, [Host, mod_event_pusher_rabbit]).
 
 make_pres_stanza(X) when X rem 2 == 0 ->
     <<"available">>;
