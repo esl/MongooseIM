@@ -280,7 +280,7 @@ change_subject(Config) ->
                                    attrs = [{<<"type">>, <<"groupchat">>}],
                                    children = [#xmlel{
                                                   name = <<"subject">>,
-                                                  children = [exml:escape_cdata(Subject)]
+                                                  children = [#xmlcdata{content = Subject}]
                                                  }]
                                   },
             foreach_occupant([Alice, Bob, Kate],

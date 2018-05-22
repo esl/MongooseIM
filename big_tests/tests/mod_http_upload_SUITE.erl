@@ -258,23 +258,23 @@ create_request_for_namespace(Filename, BinSize, ContentType, Namespace = ?NS_HTT
     ContentTypeEl =
         case ContentType of
             undefined -> [];
-            _ -> [#xmlel{name = <<"content-type">>, children = [exml:escape_cdata(ContentType)]}]
+            _ -> [#xmlel{name = <<"content-type">>, children = [#xmlcdata{content = ContentType}]}]
         end,
     #xmlel{name     = <<"request">>,
            attrs    = [{<<"xmlns">>, Namespace}],
            children =
-               [#xmlel{name = <<"filename">>, children = [exml:escape_cdata(Filename)]},
-                #xmlel{name = <<"size">>, children = [exml:escape_cdata(BinSize)]}
+               [#xmlel{name = <<"filename">>, children = [#xmlcdata{content = Filename}]},
+                #xmlel{name = <<"size">>, children = [#xmlcdata{content = BinSize}]}
                 | ContentTypeEl]};
 create_request_for_namespace(Filename, BinSize, ContentType, Namespace = ?NS_HTTP_UPLOAD_030) ->
     ContentTypeEl = case ContentType of
                         undefined -> [];
-                        _ -> [{<<"content-type">>, exml:escape_attr(ContentType)}]
+                        _ -> [{<<"content-type">>, ContentType}]
                     end,
     #xmlel{name  = <<"request">>,
            attrs = [{<<"xmlns">>, Namespace},
-                    {<<"filename">>, exml:escape_attr(Filename)},
-                    {<<"size">>, exml:escape_attr(BinSize)}
+                    {<<"filename">>, Filename},
+                    {<<"size">>, BinSize}
                     | ContentTypeEl]}.
 
 has_namespace(Namespace, #xmlel{name = <<"iq">>, children = [Slot]}) ->
