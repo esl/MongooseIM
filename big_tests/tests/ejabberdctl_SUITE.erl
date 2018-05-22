@@ -253,17 +253,23 @@ ban_account(Config) ->
     escalus_cleaner:remove_client(Config, Mike).
 
 num_active_users(Config) ->
+    %% Given some users with recorded last activity timestamps
     {AliceName, Domain, _} = get_user_data(alice, Config),
     {MikeName, Domain, _} = get_user_data(mike, Config),
-
     {Mega, Secs, _} = os:timestamp(),
-    Now = Mega*1000000+Secs,
+    Now = Mega * 1000000 + Secs,
     set_last(AliceName, Domain, Now),
-    {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
-    set_last(MikeName, Domain, Now - 864000), %% Now - 10 days
-    %We expect than number of active user in last 5 days is the same as before
-    %the change above
-    {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config).
+    set_last(MikeName, Domain, Now),
+    {SLastActiveBefore, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
+    %% When we artificially remove a user's last activity timestamp in the given period
+    TenDaysAgo = Now - 864000,
+    set_last(MikeName, Domain, TenDaysAgo),
+    %% Then we expect that the number of active users in the last 5 days is one less
+    %% than before the change above
+    {SLastActiveAfter, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
+    NLastActiveBefore = list_to_integer(string:strip(SLastActiveBefore, both, $\n)),
+    NLastActiveAfter = list_to_integer(string:strip(SLastActiveAfter, both, $\n)),
+    NLastActiveAfter = NLastActiveBefore - 1.
 
 delete_old_users(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),
