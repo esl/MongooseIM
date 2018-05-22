@@ -180,12 +180,23 @@ enable_tls_dist () {
   done
 }
 
+build_pkg () {
+  set -e
+  local platform=$1
+  cd tools/pkg
+  ./build $platform
+  ./run $platform
+  set +e
+}
+
 if [ $PRESET == "dialyzer_only" ]; then
   tools/print-dots.sh start
   ./rebar3 dialyzer
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
+elif [ $PRESET == "pkg" ]; then
+  build_pkg $pkg_PLATFORM
 else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests

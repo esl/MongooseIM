@@ -1,0 +1,23 @@
+Source: mongooseim
+Section: net
+Priority: extra
+Maintainer: Erlang Solutions <packages@erlang-solutions.com>
+Build-Depends: debhelper (>= 8.0.0), libexpat1-dev (>= 2.0.1), libssl-dev (>= 0.9.8), libpam0g-dev (>= 1.1.1), esl-erlang (>=1:15) | erlang (>=1:15), sudo (>= 1.8.0)
+Version: 2.1.1
+Standards-Version: 3.9.2
+Homepage: http://erlang-solutions.com
+#Vcs-Git: git://git.debian.org/collab-maint/mongooseim.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/mongooseim.git;a=summary
+Package: mongooseim
+Architecture: @ARCH@
+Description: distributed, fault-tolerant Jabber/XMPP server written in Erlang
+ mongooseim is a distributed, fault-tolerant Jabber/XMPP server written in Erlang.
+ Its features contain:
+  - XMPP-compliant
+  - Load balancing: can run in a cluster of machines
+  - Fault-tolerance: database can be replicated and stored on multiple
+    nodes (nodes can be added or replaced 'on the fly')
+  - Virtual hosting: several virtual domains can be served using single mongooseim
+    instance
+  - SSL/TLS support
+  - Service Discovery

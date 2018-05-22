@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -e
+
+. env/build-run
+
+PLATFORM=$1
+DOCKERFILE=platforms/$PLATFORM/Dockerfile
+
+[ x"$PLATFORM" = x"" ] && ( echo "$0: what platform to build for?"; exit 1 )
+[ ! -f "$DOCKERFILE" ] && ( echo "$0: $DOCKERFILE not available"; exit 2 )
+
+TAG="$BUILD_CONTAINER_PREFIX.$PLATFORM.$BUILD_CONTAINER_SUFFIX"
+docker build -f $DOCKERFILE -t $TAG .
+echo "Successfully built $TAG"

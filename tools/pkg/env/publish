@@ -1,0 +1,3 @@
+PACKAGES_PROJECT=mongooseim
+PACKAGES_HOST=packages.erlang-solutions.com
+PACKAGES_PATH=/var/www/packages.erlang-solutions.com/www/$PACKAGES_PROJECT/
