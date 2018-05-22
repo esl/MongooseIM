@@ -53,4 +53,7 @@ if [ -t 0 ]; then
     DOCKER_RUN_OPTIONS="$DOCKER_RUN_OPTIONS -i"
 fi
 
-exec docker run --rm $DOCKER_RUN_OPTIONS $DOCKER_ADDR $COMPOSE_OPTIONS $VOLUMES -w "$(pwd)" $IMAGE "$@"
+# docker-compose is slow, help it to resolve the host
+# https://github.com/docker/compose/issues/3419#issuecomment-221793401
+exec docker run --add-host=localunixsocket.local:127.0.0.1 \
+    --rm $DOCKER_RUN_OPTIONS $DOCKER_ADDR $COMPOSE_OPTIONS $VOLUMES -w "$(pwd)" $IMAGE "$@"
