@@ -17,16 +17,16 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
-        # execute step for any preset, except packaging
-        - test "$PRESET" = 'pkg' || tools/configure $REL_CONFIG
+        # Do not execute this step, if environment variable SKIP_CONFIGURE is "1"
+        - test 1 = "$SKIP_CONFIGURE" || tools/configure $REL_CONFIG
 install:
-        - test "$PRESET" = 'pkg' || travis_retry ./rebar3 get-deps
-        - test "$PRESET" = 'pkg' || ./rebar3 compile
-        - test "$PRESET" = 'pkg' || make dev
-        - test "$PRESET" = 'pkg' || tools/travis-build-tests.sh
-        - test "$PRESET" = 'pkg' || travis_retry pip install --user codecov
+        - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
+        - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+        - test 1 = "$SKIP_RELEASE" || make dev
+        - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+        - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
 before_script:
-        - test "$PRESET" = 'pkg' || tools/travis-setup-db.sh
+        - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
 script: tools/travis-test.sh -p $PRESET
 
@@ -44,8 +44,8 @@ after_failure:
 after_success:
         # env variables help to distinguish CI builds
         # It takes less time without gcov
-        - test "$PRESET" = 'pkg' || codecov --disable=gcov --env PRESET
-        - test "$PRESET" = 'pkg' || ./rebar3 coveralls send
+        - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
+        - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
             then tools/travis-build-and-push-docker.sh;
           fi
@@ -76,14 +76,17 @@ matrix:
     include:
         - otp_release: 20.0
           env: PRESET=dialyzer_only
+               SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1
         - otp_release: 20.0
           env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip"
         - otp_release: 18.3
           env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-        - otp_release: 19.3
+        - language: generic
           env: PRESET=pkg pkg_PLATFORM=centos7
-        - otp_release: 19.3
+               SKIP_CONFIGURE=1 SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1
+        - language: generic
           env: PRESET=pkg pkg_PLATFORM=debian_stretch
+               SKIP_CONFIGURE=1 SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1
 
 notifications:
     webhooks:
