@@ -57,7 +57,7 @@
   0},
  {<<"exml">>,
   {git,"git://github.com/esl/exml.git",
-       {ref,"a064e571062a305cefae191234ae14e8b90c039e"}},
+       {ref,"01f6941176d5f339aaf0c3af890f726eb19b7158"}},
   0},
  {<<"exometer_core">>,
   {git,"git://github.com/esl/exometer_core.git",
