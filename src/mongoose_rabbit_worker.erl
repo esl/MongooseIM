@@ -28,7 +28,7 @@
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Starts the server
+%% Starts the RabbitMQ worker.
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
@@ -38,23 +38,11 @@ start_link() ->
 %%% gen_server callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Initializes the server
-%% @end
-%%--------------------------------------------------------------------
 init([{amqp_client_opts, Opts}]) ->
     process_flag(trap_exit, true),
     self() ! {init, Opts},
     {ok, #state{}}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling call messages
-%% @end
-%%--------------------------------------------------------------------
 handle_call({create_exchanges, Exchanges}, _From,
             #state{channel = Channel} = State) ->
     [declare_exchange(Channel, Exchange) || Exchange <- Exchanges],
@@ -64,12 +52,6 @@ handle_call({delete_exchanges, Exchanges}, _From,
     [delete_exchange(Channel, Exchange) || Exchange <- Exchanges],
     {reply, ok, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling cast messages
-%% @end
-%%--------------------------------------------------------------------
 handle_cast({user_presence_changed, EventData},
             #state{channel = Channel} = State) ->
     publish_status(Channel, EventData),
@@ -83,47 +65,18 @@ handle_cast({user_chat_msg_recv, EventData},
     publish_chat_msg_received(Channel, EventData),
     {noreply, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Handling all non call/cast messages
-%% @end
-%%--------------------------------------------------------------------
 handle_info({init, Opts}, State) ->
     {ok, Connection} = amqp_connection:start(Opts),
     {ok, Channel} = amqp_connection:open_channel(Connection),
     {noreply, State#state{connection = Connection, channel = Channel}}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any
-%% necessary cleaning up. When it returns, the gen_server terminates
-%% with Reason. The return value is ignored.
-%% @end
-%%--------------------------------------------------------------------
 terminate(_Reason, #state{connection = Connection, channel = Channel}) ->
     close_rabbit_connection(Connection, Channel),
     ok.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Convert process state when code is changed
-%% @end
-%%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% This function is called for changing the form and appearance
-%% of gen_server status when it is returned from sys:get_status/1,2
-%% or when it appears in termination error logs.
-%% @end
-%%--------------------------------------------------------------------
 format_status(_Opt, Status) ->
     Status.
 
