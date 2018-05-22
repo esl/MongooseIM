@@ -46,9 +46,8 @@ start_link() ->
 %%--------------------------------------------------------------------
 init([{amqp_client_opts, Opts}]) ->
     process_flag(trap_exit, true),
-    {ok, Connection} = amqp_connection:start(Opts),
-    {ok, Channel} = amqp_connection:open_channel(Connection),
-    {ok, #state{connection = Connection, channel = Channel}}.
+    self() ! {init, Opts},
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -84,8 +83,10 @@ handle_cast({user_presence_changed, #{user_jid := UserJID,
 %% Handling all non call/cast messages
 %% @end
 %%--------------------------------------------------------------------
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info({init, Opts}, State) ->
+    {ok, Connection} = amqp_connection:start(Opts),
+    {ok, Channel} = amqp_connection:open_channel(Connection),
+    {noreply, State#state{connection = Connection, channel = Channel}}.
 
 %%--------------------------------------------------------------------
 %% @private
