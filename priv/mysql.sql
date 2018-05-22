@@ -237,8 +237,9 @@ CREATE TABLE mam_message(
   direction ENUM('I','O') NOT NULL,
   -- Term-encoded message packet
   -- Don't try to decode it using MySQL tools
-  message blob NOT NULL,
-  search_body text,
+  -- Type test_types.binary_data_16m
+  message mediumblob NOT NULL,
+  search_body mediumtext,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
 ) CHARACTER SET utf8mb4
@@ -280,8 +281,8 @@ CREATE TABLE mam_muc_message(
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
-  message blob NOT NULL,
-  search_body text,
+  message mediumblob NOT NULL,
+  search_body mediumtext,
   PRIMARY KEY (room_id, id)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
@@ -293,7 +294,7 @@ CREATE TABLE offline_message(
   server    varchar(250)    NOT NULL,
   username  varchar(250)    NOT NULL,
   from_jid  varchar(250)    NOT NULL,
-  packet    blob            NOT NULL
+  packet    mediumblob      NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
