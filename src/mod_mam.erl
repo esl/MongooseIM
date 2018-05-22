@@ -509,7 +509,7 @@ handle_package(Dir, ReturnMessID,
     end.
 
 should_archive_if_groupchat(Host, <<"groupchat">>) ->
-    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, archive_groupchats);
+    gen_mod:get_module_opt(Host, ?MODULE, archive_groupchats, true);
 should_archive_if_groupchat(_, _) ->
     true.
 
