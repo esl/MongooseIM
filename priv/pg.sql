@@ -299,3 +299,17 @@ CREATE TABLE muc_light_blocking(
 );
 
 CREATE INDEX i_muc_light_blocking ON muc_light_blocking (luser, lserver);
+
+CREATE TABLE inbox (
+    luser VARCHAR(250)               NOT NULL,
+    lserver VARCHAR(250)             NOT NULL,
+    remote_bare_jid VARCHAR(250)     NOT NULL,
+    content bytea                    NOT NULL,
+    unread_count int                 NOT NULL,
+    msg_id varchar(250),
+    PRIMARY KEY(luser, lserver, remote_bare_jid));
+
+CREATE INDEX i_inbox
+    ON inbox
+    USING BTREE(luser, lserver);
+

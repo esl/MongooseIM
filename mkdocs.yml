@@ -76,6 +76,7 @@ pages:
       - 'mod_carboncopy': 'modules/mod_carboncopy.md'
       - 'mod_commands': 'modules/mod_commands.md'
       - 'mod_csi': 'modules/mod_csi.md'
+      - 'mod_inbox': 'modules/mod_inbox.md'
       - 'mod_disco': 'modules/mod_disco.md'
       - 'mod_global_distrib': 'modules/mod_global_distrib.md'
       - 'mod_event_pusher':

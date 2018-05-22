@@ -48,7 +48,6 @@
 
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
 -define(NS_CC_1, <<"urn:xmpp:carbons:1">>).
--define(NS_FORWARD, <<"urn:xmpp:forward:0">>).
 -define(CC_KEY, 'cc').
 -define(CC_DISABLED, undefined).
 

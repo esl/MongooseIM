@@ -73,6 +73,15 @@ when_archive_query_is_sent(Sender, RecipientJid, Config) ->
               end,
     escalus:send(Sender, Request).
 
+-spec user_leave(Room :: binary(), User :: escalus:client(), RemainingOccupants :: ct_aff_users()) -> ok.
+user_leave(Room, User, RemainingOccupants) ->
+  AffUsersChanges = [{User, none}],
+  Stanza = stanza_aff_set(Room, AffUsersChanges),
+  escalus:send(User, Stanza),
+  % bcast
+  verify_aff_bcast(RemainingOccupants, AffUsersChanges),
+  escalus:assert(is_iq_result, escalus:wait_for_stanza(User)).
+
 then_archive_response_is(Receiver, Expected, Config) ->
     P = ?config(props, Config),
     Response = mam_helper:wait_archive_respond(P, Receiver),
@@ -221,4 +230,8 @@ stanza_aff_set(Room, AffUsers) ->
 
 clear_db() ->
     rpc(mim(), mod_muc_light_db_backend, force_clear, []).
+
+-spec ver(Int :: integer()) -> binary().
+ver(Int) ->
+  <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 

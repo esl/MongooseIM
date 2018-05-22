@@ -19,8 +19,8 @@
 -type mam_module() :: mod_mam | mod_mam_muc.
 
 -export([extra_params_module/2, max_result_limit/2, default_result_limit/2,
-         has_full_text_search/2, is_archivable_message_fun/2, archive_chat_markers/2,
-         add_archived_element/2, add_stanzaid_element/2]).
+    has_full_text_search/2, is_archivable_message_fun/2, archive_chat_markers/2,
+    add_archived_element/2, add_stanzaid_element/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -37,6 +37,7 @@ max_result_limit(Module, Host) ->
 -spec default_result_limit(mam_module(), Host :: ejabberd:lserver()) -> pos_integer().
 default_result_limit(Module, Host) ->
     param(Module, Host, default_result_limit, 50).
+
 
 -spec has_full_text_search(Module :: mod_mam | mod_mam_muc, Host :: ejabberd:server()) -> boolean().
 has_full_text_search(Module, Host) ->
