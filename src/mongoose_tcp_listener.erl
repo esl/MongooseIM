@@ -62,7 +62,7 @@ init({PortIP, Module, Opts, SockOpts, Port, IPS}) ->
 
 -spec start_accept_loop(Socket :: port(),
                         Module :: atom(),
-                        Opts :: [any(), ...]) -> no_return().
+                        Opts :: [any(), ...]) -> {ok, pid()}.
 start_accept_loop(ListenSock, Module, Opts) ->
     Pid = proc_lib:spawn_link(?MODULE, accept_loop, [ListenSock, Module, Opts]),
     {ok, Pid}.
