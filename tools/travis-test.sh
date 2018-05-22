@@ -94,6 +94,7 @@ maybe_start_services() {
 start_services() {
     for env in ${BASE}/big_tests/services/*-compose.yml; do
         echo "Stating service" $(basename "${env}") "..."
+        time ${BASE}/tools/docker-compose.sh -f "${env}" pull --parallel
         time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
         echo "docker-compose execution time reported above"
         echo ""
