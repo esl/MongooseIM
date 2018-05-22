@@ -27,7 +27,6 @@ of words does not matter. Messages are sorted by timestamp (not by relevance).
 ### Options
 
 * **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
-* **add_archived_element** (boolean, default: `false`) - Add an `<archived/>` element from MAM v0.2. **Please note:** The element is going to be deprecated in one of future releases so it's not recommended to enable this option.
 * **no_stanzaid_element** (boolean, default: `false`) - Do not add a `<stanza-id/>` element from MAM v0.6.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
@@ -39,7 +38,7 @@ of words does not matter. Messages are sorted by timestamp (not by relevance).
  This can be used to extend currently supported MAM query fields by a custom field or fields.
  This field(s) can be added to lookup params later passed to MAM backend.
 
-**backend**, **add_archived_element**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
+**backend**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
 
 #### PM-specific options
 

@@ -21,9 +21,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% Called from mod_mam_odbc_async_writer
 -export([prepare_message/8, prepare_insert/2]).
@@ -125,8 +123,6 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 
@@ -141,8 +137,6 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 
@@ -160,8 +154,6 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 
@@ -176,9 +168,6 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
-                          purge_multiple_messages, 50),
     ok.
 
 
@@ -455,45 +444,6 @@ remove_archive(Acc, Host, UserID, _UserJID) ->
       ["DELETE FROM mam_message "
        "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]),
     Acc.
-
--spec purge_single_message(Result :: any(), Host :: jid:server(),
-                           MessID :: mod_mam:message_id(),
-                           ArchiveID :: mod_mam:archive_id(),
-                           RoomJID :: jid:jid(),
-                           Now :: mod_mam:unix_timestamp()) ->
-                                  ok  | {error, 'not-allowed'  | 'not-found'}.
-purge_single_message(_Result, Host, MessID, UserID, _UserJID, _Now) ->
-    Result =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["DELETE FROM mam_message "
-           "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID)), " "
-           "AND id = ", use_escaped_integer(escape_message_id(MessID))]),
-    case Result of
-        {updated, 0} -> {error, 'not-found'};
-        {updated, 1} -> ok
-    end.
-
--spec purge_multiple_messages(Result :: any(),
-                              Host :: jid:server(),
-                              ArchiveID :: mod_mam:archive_id(),
-                              RoomJID :: jid:jid(),
-                              Borders :: mod_mam:borders()  | undefined,
-                              Start :: mod_mam:unix_timestamp()  | undefined,
-                              End :: mod_mam:unix_timestamp()  | undefined,
-                              Now :: mod_mam:unix_timestamp(),
-                              WithJID :: jid:jid()  | undefined) ->
-                                     ok  | {error, 'not-allowed'}.
-purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
-                        Start, End, _Now, WithJID) ->
-    Filter = prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, undefined),
-    {updated, _} =
-        mod_mam_utils:success_sql_query(
-          Host,
-          ["DELETE FROM mam_message ", Filter]),
-    ok.
-
-
 
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.

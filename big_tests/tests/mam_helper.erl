@@ -50,19 +50,18 @@ rpc_call(M, F, A) ->
     escalus_rpc:call(Node, M, F, A, 10000, Cookie).
 
 mam03_props() ->
-    [{data_form, true},                 %% send data forms
-     {final_message, true},             %% expect final message with <fin/> inside
+    [{final_message, true},             %% expect final message with <fin/> inside
      {result_format, mess_fin},         %% RSM is inside final message
      {mam_ns, mam_ns_binary_v03()}].    %% v0.3 namespace
 
 mam04_props() ->
-    [{data_form, true},                 %% send data forms
+    [{final_message, false},
      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
      {mam_ns, mam_ns_binary_v04()}].
 
 mam06_props() ->
-     [{data_form, true},                 %% send data forms
-     {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
+     [{final_message, false},
+      {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
      {mam_ns, mam_ns_binary_v06()}].   
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
@@ -77,13 +76,11 @@ respond_fin(#mam_archive_respond{respond_fin=Fin}) ->
 get_prop(Key, undefined) ->
     get_prop(Key, []);
 get_prop(final_message, P) ->
-    proplists:get_bool(final_message, P);
+    proplists:get_value(final_message, P, true);
 get_prop(result_format, P) ->
-    proplists:get_value(result_format, P, iq_query);
+    proplists:get_value(result_format, P, mess_fin);
 get_prop(mam_ns, P) ->
-    proplists:get_value(mam_ns, P, mam_ns_binary());
-get_prop(data_form, P) ->
-    proplists:get_bool(data_form, P).
+    proplists:get_value(mam_ns, P, mam_ns_binary_v03()).
 
 wait_archive_respond(P, User) ->
     case get_prop(final_message, P) of
@@ -104,13 +101,13 @@ wait_archive_respond_fin(User) ->
 
 wait_archive_respond_nofin(User) ->
     %% rot1
-    [IQ|Messages] = lists:reverse(wait_archive_respond_v02(User)),
+    [IQ|Messages] = lists:reverse(wait_archive_respond_v04plus(User)),
     #mam_archive_respond{
        respond_iq=IQ,
        respond_messages=lists:reverse(Messages)}.
 
-%% MAM v0.2 respond
-wait_archive_respond_v02(User) ->
+%% MAM v0.4+ respond
+wait_archive_respond_v04plus(User) ->
     S = escalus:wait_for_stanza(User, 5000),
     case escalus_pred:is_iq_error(S) of
         true ->
@@ -120,7 +117,7 @@ wait_archive_respond_v02(User) ->
     end,
     case escalus_pred:is_iq_result(S) of
         true  -> [S];
-        false -> [S|wait_archive_respond_v02(User)]
+        false -> [S|wait_archive_respond_v04plus(User)]
     end.
 
 %% MAM v0.3 respond
@@ -207,29 +204,12 @@ rsm_send1(Config, User, Packet) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-mam_ns_binary() -> <<"urn:xmpp:mam:tmp">>.
+mam_ns_binary() -> mam_ns_binary_v03().
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
 mam_ns_binary_v04() -> <<"urn:xmpp:mam:1">>.
 mam_ns_binary_v06() -> <<"urn:xmpp:mam:2">>.
-namespaces() -> [mam_ns_binary(), mam_ns_binary_v03(), mam_ns_binary_v04(), mam_ns_binary_v06()].
+namespaces() -> [mam_ns_binary(), mam_ns_binary_v04(), mam_ns_binary_v06()].
 muc_ns_binary() -> <<"http://jabber.org/protocol/muc">>.
-
-stanza_purge_single_message(MessId) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{
-       name = <<"purge">>,
-       attrs = [{<<"xmlns">>, mam_ns_binary()}, {<<"id">>, MessId}]
-    }]).
-
-stanza_purge_multiple_messages(BStart, BEnd, BWithJID) ->
-    escalus_stanza:iq(<<"set">>, [#xmlel{
-       name = <<"purge">>,
-       attrs = [{<<"xmlns">>, mam_ns_binary()}],
-       children = skip_undefined([
-           maybe_start_elem(BStart),
-           maybe_end_elem(BEnd),
-           maybe_with_elem(BWithJID)])
-    }]).
-
 
 skip_undefined(Xs) ->
     [X || X <- Xs, X =/= undefined].
@@ -297,12 +277,7 @@ stanza_text_search_archive_request(P, QueryId, TextSearch) ->
                               undefined, undefined, TextSearch).
 
 stanza_lookup_messages_iq(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
-    case get_prop(data_form, P) of
-        false ->
-            stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM);
-        true ->
-            stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch)
-    end.
+    stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch).
 
 stanza_lookup_messages_iq_v03(P, QueryId, BStart, BEnd, BWithJID, RSM, TextSearch) ->
     escalus_stanza:iq(<<"set">>, [#xmlel{
@@ -357,21 +332,6 @@ form_bool_field(Name, true) ->
     form_field(Name, <<"true">>);
 form_bool_field(_Name, _) ->
     undefined.
-
-stanza_lookup_messages_iq_v02(P, QueryId, BStart, BEnd, BWithJID, RSM) ->
-    escalus_stanza:iq(<<"get">>, [#xmlel{
-       name = <<"query">>,
-       attrs = mam_ns_attr(P)
-            ++ maybe_attr(<<"queryid">>, QueryId)
-            ++ border_attributes(RSM),
-       children = skip_undefined([
-           maybe_simple_elem(RSM),
-           maybe_opt_count_elem(RSM),
-           maybe_start_elem(BStart),
-           maybe_end_elem(BEnd),
-           maybe_with_elem(BWithJID),
-           maybe_rsm_elem(RSM)])
-    }]).
 
 stanza_retrieve_form_fields(QueryId, NS) ->
     escalus_stanza:iq(<<"get">>, [#xmlel{
@@ -589,8 +549,6 @@ parse_result_iq(P, Result) ->
     case get_prop(result_format, P) of
         mess_fin ->
             parse_fin_and_iq(Result);
-        iq_query ->
-            parse_legacy_iq(respond_iq(Result));
         iq_fin ->
             parse_fin_iq(Result)
     end.
@@ -611,12 +569,6 @@ parse_fin_iq(#mam_archive_respond{respond_iq=IQ, respond_fin=undefined}) ->
     %% MongooseIM does not add complete attribute, if complete is false
     Complete = exml_query:attr(Fin, <<"complete">>, <<"false">>),
     parse_set_and_iq(IQ, Set, not_supported, Complete).
-
-%% MAM v0.2
-parse_legacy_iq(IQ) ->
-    Fin = exml_query:subelement(IQ, <<"query">>),
-    Set = exml_query:subelement(Fin, <<"set">>),
-    parse_set_and_iq(IQ, Set, not_supported, not_supported).
 
 parse_set_and_iq(IQ, Set, QueryId, Complete) ->
     #result_iq{

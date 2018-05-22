@@ -21,9 +21,8 @@
          wrapper_id/0]).
 
 %% XML
--export([maybe_add_arcid_elems/5,
+-export([maybe_add_arcid_elems/4,
          maybe_log_deprecation/1,
-         mam02_deprecation_message/0,
          is_arcid_elem_for/3,
          replace_arcid_elem/4,
          replace_x_user_element/4,
@@ -241,36 +240,19 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
 
 -spec maybe_add_arcid_elems(To :: jid:simple_jid()  | jid:jid(),
                             MessID :: binary(), Packet :: exml:element(),
-                            AddArchived :: boolean(), AddStanzaid :: boolean()) ->
+                            AddStanzaid :: boolean()) ->
           AlteredPacket :: exml:element().
-maybe_add_arcid_elems(To, MessID, Packet, AddArchived, AddStanzaid) ->
+maybe_add_arcid_elems(To, MessID, Packet, AddStanzaid) ->
     BareTo = jid:to_binary(jid:to_bare(To)),
-    WithArchived = case AddArchived of
-                       true ->
-                           mongoose_deprecations:log(mam02, mam02_deprecation_message()),
-                           replace_arcid_elem(<<"archived">>, BareTo, MessID, Packet);
-                       _ -> Packet
-                   end,
     case AddStanzaid of
         true ->
-            replace_arcid_elem(<<"stanza-id">>, BareTo, MessID, WithArchived);
-        _ -> WithArchived
+            replace_arcid_elem(<<"stanza-id">>, BareTo, MessID, Packet);
+        _ -> Packet
     end.
 
--spec maybe_log_deprecation(jlib:iq()) -> ok.
-maybe_log_deprecation(IQ) ->
-    case mam_iq:is_mam02(IQ) of
-        true ->
-            mongoose_deprecations:log(mam02, mam02_deprecation_message());
-        _ ->
-            ok
-    end.
-
--spec mam02_deprecation_message() -> string().
-mam02_deprecation_message() ->
-    "MAM 0.2 along with its <archived/> element is going to be removed in release 3.0.0"
-    " It is not recommended to use it."
-    " Consider using a <stanza-id/> element and MAM 0.3 or newer".
+maybe_log_deprecation(_IQ) ->
+    %% Left for future deprecations
+    ok.
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
@@ -678,7 +660,6 @@ is_mam_result_message(_) ->
 maybe_get_result_namespace(Packet) ->
     exml_query:path(Packet, [{element, <<"result">>}, {attr, <<"xmlns">>}], <<>>).
 
-is_mam_namespace(?NS_MAM)    -> true;
 is_mam_namespace(?NS_MAM_03) -> true;
 is_mam_namespace(?NS_MAM_04) -> true;
 is_mam_namespace(?NS_MAM_06) -> true;
@@ -1128,7 +1109,7 @@ wrapper_id() ->
 check_result_for_policy_violation(
          _Params = #{limit_passed := LimitPassed,
                      max_result_limit := MaxResultLimit},
-         Result = {ok, {TotalCount, Offset, MessageRows}})
+         Result = {ok, {TotalCount, Offset, _MessageRows}})
         when is_integer(TotalCount), is_integer(Offset) ->
     case is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) of
         true ->
@@ -1136,7 +1117,7 @@ check_result_for_policy_violation(
         false ->
             Result
     end;
-check_result_for_policy_violation(Params, Result) ->
+check_result_for_policy_violation(_Params, Result) ->
     Result.
 
 is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->

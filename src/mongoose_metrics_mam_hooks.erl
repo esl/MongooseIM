@@ -24,8 +24,6 @@
          mam_drop_message/2,
          mam_drop_iq/6,
          mam_drop_messages/3,
-         mam_purge_single_message/6,
-         mam_purge_multiple_messages/9,
          mam_muc_get_prefs/4,
          mam_muc_set_prefs/7,
          mam_muc_remove_archive/4,
@@ -34,9 +32,7 @@
          mam_muc_flush_messages/3,
          mam_muc_drop_message/1,
          mam_muc_drop_iq/6,
-         mam_muc_drop_messages/2,
-         mam_muc_purge_single_message/6,
-         mam_muc_purge_multiple_messages/9
+         mam_muc_drop_messages/2
         ]).
 
 -type metrics_notify_return() :: mongoose_metrics_hooks:metrics_notify_return().
@@ -48,7 +44,8 @@
 %% @doc Here will be declared which hooks should be registered
 -spec get_hooks(_) -> [mongoose_metrics_hooks:t(), ...].
 get_hooks(Host) ->
-    [[mam_set_prefs, Host, ?MODULE, mam_set_prefs, 50],
+    [
+     [mam_set_prefs, Host, ?MODULE, mam_set_prefs, 50],
      [mam_get_prefs, Host, ?MODULE, mam_get_prefs, 50],
      [mam_archive_message, Host, ?MODULE, mam_archive_message, 50],
      [mam_flush_messages, Host, ?MODULE, mam_flush_messages, 50],
@@ -57,16 +54,12 @@ get_hooks(Host) ->
      [mam_drop_messages, Host, ?MODULE, mam_drop_messages, 50],
      [mam_remove_archive, Host, ?MODULE, mam_remove_archive, 50],
      [mam_lookup_messages, Host, ?MODULE, mam_lookup_messages, 100],
-     [mam_purge_single_message, Host, ?MODULE, mam_purge_single_message, 50],
-     [mam_purge_multiple_messages, Host, ?MODULE, mam_purge_multiple_messages, 50],
      [mam_muc_set_prefs, Host, ?MODULE, mam_muc_set_prefs, 50],
      [mam_muc_get_prefs, Host, ?MODULE, mam_muc_get_prefs, 50],
      [mam_muc_archive_message, Host, ?MODULE, mam_muc_archive_message, 50],
      [mam_muc_remove_archive, Host, ?MODULE, mam_muc_remove_archive, 50],
-     [mam_muc_lookup_messages, Host, ?MODULE, mam_muc_lookup_messages, 100],
-     [mam_muc_purge_single_message, Host, ?MODULE, mam_muc_purge_single_message, 50],
-     [mam_muc_purge_multiple_messages, Host, ?MODULE, mam_muc_purge_multiple_messages, 50]].
-
+     [mam_muc_lookup_messages, Host, ?MODULE, mam_muc_lookup_messages, 100]
+    ].
 
 -spec mam_get_prefs(Result :: any(),
                     Host :: jid:server(),
@@ -143,16 +136,6 @@ mam_drop_messages(Acc, Host, Count) ->
     mongoose_metrics:update(Host, modMamDropped2, Count),
     Acc.
 
-mam_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
-    mongoose_metrics:update(Host, modMamSinglePurges, 1),
-    Result.
-
-mam_purge_multiple_messages(Result, Host,
-    _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->
-    mongoose_metrics:update(Host, modMamMultiplePurges, 1),
-    Result.
-
-
 %% ----------------------------------------------------------------------------
 %% mod_mam_muc
 
@@ -198,21 +181,5 @@ mam_muc_drop_iq(Acc, Host, _To, _IQ, _Action, _Reason) ->
 
 mam_muc_drop_messages(Host, Count) ->
     mongoose_metrics:update(Host, modMucMamDropped2, Count).
-
--spec mam_muc_purge_single_message(Result :: any(), Host :: jid:server(),
-    _MessID :: mod_mam:message_id(), _ArcID :: mod_mam:archive_id(),
-    _ArcJID :: jid:jid(), _Now :: mod_mam:unix_timestamp()) -> any().
-mam_muc_purge_single_message(Result, Host, _MessID, _ArcID, _ArcJID, _Now) ->
-    mongoose_metrics:update(Host, modMucMamSinglePurges, 1),
-    Result.
-
--spec mam_muc_purge_multiple_messages(Result :: any(),
-    Host :: jid:server(), _ArcID :: mod_mam:archive_id(),
-    _ArcJID :: jid:jid(), _Borders :: any(), _Start :: any(),
-    _End :: any(), _Now :: mod_mam:unix_timestamp(), _WithJID :: any()) -> any().
-mam_muc_purge_multiple_messages(Result, Host,
-    _ArcID, _ArcJID, _Borders, _Start, _End, _Now, _WithJID) ->
-    mongoose_metrics:update(Host, modMucMamMultiplePurges, 1),
-    Result.
 
 %%% vim: set sts=4 ts=4 sw=4 et filetype=erlang foldmarker=%%%',%%%. foldmethod=marker:

@@ -18,9 +18,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0]).
@@ -66,10 +64,7 @@
 
 -type filter() :: #mam_ca_filter{}.
 -type message_id() :: non_neg_integer().
--type user_id() :: non_neg_integer().
 -type server_hostname() :: binary().
--type server_host() :: binary().
--type unix_timestamp() :: non_neg_integer().
 
 
 %% ----------------------------------------------------------------------
@@ -96,8 +91,6 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 stop_pm(Host) ->
@@ -110,8 +103,6 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -122,11 +113,10 @@ prepared_queries() ->
      {insert_offset_hint_query, insert_offset_hint_query_cql()},
      {prev_offset_query, prev_offset_query_cql()},
      {insert_query, insert_query_cql()},
-     {delete_query, delete_query_cql()},
      {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
-     {remove_archive_offsets_query, remove_archive_offsets_query_cql()},
-     {message_id_to_remote_jid_query, message_id_to_remote_jid_cql()}]
+     {remove_archive_offsets_query, remove_archive_offsets_query_cql()}
+    ]
         ++ extract_messages_queries()
         ++ extract_messages_r_queries()
         ++ calc_count_queries()
@@ -195,27 +185,6 @@ message_to_params(#mam_message{
     #{id => MessID, user_jid => BLocJID, from_jid => BSrcJID,
       remote_jid => BRemJID, with_jid => BWithJID, message => BPacket}.
 
-
-%% ----------------------------------------------------------------------
-%% DELETE MESSAGE
-
-delete_query_cql() ->
-    "DELETE FROM mam_message "
-        "WHERE user_jid = ? AND with_jid = ? AND id = ?".
-
-delete_messages(PoolName, UserJID, Messages) ->
-    MultiParams = [delete_message_to_params(M) || M <- Messages],
-    mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE, delete_query,
-                                 MultiParams).
-
-delete_message_to_params(#mam_message{
-                            id       = MessID,
-                            user_jid = BLocJID,
-                            with_jid = BWithJID
-                           }) ->
-    #{user_jid => BLocJID, with_jid => BWithJID, id => MessID}.
-
-
 %% ----------------------------------------------------------------------
 %% REMOVE ARCHIVE
 
@@ -245,26 +214,6 @@ remove_archive(Acc, _Host, _UserID, UserJID) ->
     mongoose_cassandra:cql_foldl(PoolName, UserJID, ?MODULE,
                                  select_for_removal_query, Params, DeleteFun, []),
     Acc.
-
-
-%% ----------------------------------------------------------------------
-%% GET FULL REMOTE JID
-
-message_id_to_remote_jid_cql() ->
-    "SELECT remote_jid FROM mam_message "
-        "WHERE user_jid = ? AND with_jid = '' AND id = ? ALLOW FILTERING".
-
-message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID) ->
-    Params = #{user_jid => BUserJID, id => MessID, with_jid => <<>>},
-    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE,
-                                             message_id_to_remote_jid_query, Params),
-    case Rows of
-        [] ->
-            {error, not_found};
-        [#{remote_jid := RemoteJID}] ->
-            {ok, RemoteJID}
-    end.
-
 
 %% ----------------------------------------------------------------------
 %% SELECT MESSAGES
@@ -476,63 +425,6 @@ row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
 
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
-
--spec purge_single_message(_Result, Host, MessID, _UserID, UserJID,
-                           Now) ->
-                                  ok  | {error, 'not-supported'} when
-      Host :: server_host(), MessID :: message_id(),
-      _UserID :: user_id(), UserJID :: jid:jid(),
-      Now :: unix_timestamp().
-purge_single_message(_Result, _Host, MessID, _UserID, UserJID, _Now) ->
-    PoolName = pool_name(UserJID),
-    BUserJID = bare_jid(UserJID),
-    Result = message_id_to_remote_jid(PoolName, UserJID, BUserJID, MessID),
-    case Result of
-        {ok, BRemFullJID} ->
-            RemFullJID = jid:from_binary(BRemFullJID),
-            RemBareJID = jid:to_bare(RemFullJID),
-            BRemBareJID = jid:to_binary(RemBareJID),
-            %% Remove duplicates if RemFullJID =:= RemBareJID
-            BWithJIDs = lists:usort([BRemFullJID, BRemBareJID, <<>>]), %% 2 or 3
-            %% Set some fields
-            %% To remove record we need to know user_jid, with_jid and id.
-            Messages = [#mam_message{
-                           id         = MessID,
-                           user_jid   = BUserJID,
-                           remote_jid = BRemFullJID, %% set the field for debugging
-                           with_jid   = BWithJID
-                          }           || BWithJID <- BWithJIDs, is_binary(BWithJID)],
-            delete_messages(PoolName, UserJID, Messages),
-            ok;
-        {error, _} ->
-            ok
-    end.
-
--spec purge_multiple_messages(_Result, Host, _UserID, UserJID, Borders,
-                              Start, End, Now, WithJID) ->
-                                     ok when
-      Host :: server_host(), _UserID :: user_id(),
-      UserJID ::jid:jid(), Borders :: mod_mam:borders(),
-      Start :: unix_timestamp()  | undefined,
-      End :: unix_timestamp()  | undefined,
-      Now :: unix_timestamp(),
-      WithJID :: jid:jid()  | undefined.
-purge_multiple_messages(_Result, Host, UserID, UserJID, Borders,
-                        Start, End, Now, WithJID) ->
-    %% Simple query without calculating offset and total count
-    Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
-    PoolName = pool_name(UserJID),
-    Limit = 500, %% TODO something smarter
-    QueryName = {list_message_ids_query, select_filter(Filter)},
-    Params = maps:put('[limit]', Limit, eval_filter_params(Filter)),
-    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,
-                                             Params),
-    %% TODO can be faster
-    %% TODO rate limiting
-    [purge_single_message(ok, Host, Id, UserID, UserJID, Now)
-     || #{id := Id} <- Rows],
-    ok.
-
 
 %% Offset is not supported
 %% Each record is a tuple of form

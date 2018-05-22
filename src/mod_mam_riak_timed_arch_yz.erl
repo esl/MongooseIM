@@ -31,9 +31,7 @@
          stop/1,
          archive_size/4,
          lookup_messages/2,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 -export([archive_message/9,
          archive_message_muc/9,
@@ -76,17 +74,13 @@ start_chat_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50).
 
 start_muc_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50).
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50).
 
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -107,8 +101,6 @@ stop_chat_archive(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
     ok.
 
 stop_muc_archive(Host) ->
@@ -116,9 +108,6 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
-                          purge_multiple_messages, 50),
     ok.
 
 archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
@@ -346,28 +335,6 @@ do_remove_archive(N, {ok, _TotalResults, _RowsIterated, Acc}, Host, ArchiveJID) 
     R = remove_chunk(Host, ArchiveJID, Acc),
     do_remove_archive(N-1, R, Host, ArchiveJID).
 
-purge_single_message(_Result, _Host, MessID, _ArchiveID, ArchiveJID, _Now) ->
-    ArchiveJIDBin = mod_mam_utils:bare_jid(ArchiveJID),
-    KeyFilters = key_filters(ArchiveJIDBin, MessID),
-    {ok, 1, 1, 1} = fold_archive(fun delete_key_fun/3, KeyFilters, [], 0),
-    ok.
-
-purge_multiple_messages(_Result, _Host, _ArchiveID,
-                        ArchiveJID, _Borders, Start, End, _Now, WithJID) ->
-    ArchiveJIDBin = mod_mam_utils:bare_jid(ArchiveJID),
-    KeyFilters = key_filters(ArchiveJIDBin, WithJID, Start, End),
-    {ok, Total, _Iterated, Deleted} =
-        fold_archive(fun delete_key_fun/3,
-                     KeyFilters,
-                     [{rows, 50}, {sort, <<"msg_id_register asc">>}], 0),
-    case Total == Deleted of
-        true ->
-            ok;
-        _ ->
-            lager:warning("not all messages have been purged for user ~p", [ArchiveJID]),
-            ok
-    end.
-
 delete_key_fun(Bucket, Key, N) ->
     ok = mongoose_riak:delete(Bucket, Key, [{dw, 2}]),
     N + 1.
@@ -422,13 +389,6 @@ do_fold_archive(Fun, BucketKeys, InitialAcc) ->
 %% Filter API
 key_filters(LocalJid) ->
     key_filters(LocalJid, undefined, undefined, undefined, undefined).
-
-key_filters(LocalJid, MsgId) ->
-    key_filters(LocalJid, undefined, MsgId, MsgId, undefined).
-
-key_filters(LocalJid, RemoteJid, Start, End) ->
-    key_filters(LocalJid, RemoteJid, Start, End, undefined).
-
 
 key_filters(LocalJid, RemoteJid, Start, End, SearchText) ->
     JidFilter = jid_filters(LocalJid, RemoteJid),

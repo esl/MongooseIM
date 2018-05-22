@@ -69,7 +69,7 @@
 
 %% XML
 -import(mod_mam_utils,
-        [maybe_add_arcid_elems/5,
+        [maybe_add_arcid_elems/4,
          replace_x_user_element/4,
          delete_x_user_element/1,
          packet_to_x_user_jid/1,
@@ -102,12 +102,6 @@
 
 -callback is_complete_message(Module :: atom(), Dir :: atom(), Packet :: any()) ->
     boolean().
-
-%% ----------------------------------------------------------------------
-%% Datetime types
-%% Microseconds from 01.01.1970
-
--type unix_timestamp() :: mod_mam:unix_timestamp().
 
 %% ----------------------------------------------------------------------
 %% Other types
@@ -154,20 +148,12 @@ archive_id(SubHost, RoomName) when is_binary(SubHost), is_binary(RoomName) ->
 -spec start(Host :: jid:server(), Opts :: list()) -> any().
 start(Host, Opts) ->
     ?DEBUG("mod_mam_muc starting", []),
-    case gen_mod:get_opt(add_archived_element, Opts, undefined) of
-        undefined -> ok;
-        _ ->
-            mongoose_deprecations:log(mam02, mod_mam_utils:mam02_deprecation_message())
-    end,
     %% MUC host.
     MUCHost = gen_mod:get_opt_subhost(Host, Opts, mod_muc:default_host()),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
-    mod_disco:register_feature(MUCHost, ?NS_MAM),
     mod_disco:register_feature(MUCHost, ?NS_MAM_03),
     mod_disco:register_feature(MUCHost, ?NS_MAM_04),
     mod_disco:register_feature(MUCHost, ?NS_MAM_06),
-    gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM,
-                                  ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03,
                                   ?MODULE, room_process_mam_iq, IQDisc),
     gen_iq_handler:add_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04,
@@ -186,11 +172,9 @@ stop(Host) ->
     ?DEBUG("mod_mam stopping", []),
     ejabberd_hooks:delete(filter_room_packet, MUCHost, ?MODULE, filter_room_packet, 90),
     ejabberd_hooks:delete(forget_room, MUCHost, ?MODULE, forget_room, 90),
-    gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(mod_muc_iq, MUCHost, ?NS_MAM_06),
-    mod_disco:unregister_feature(MUCHost, ?NS_MAM),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_03),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_04),
     mod_disco:unregister_feature(MUCHost, ?NS_MAM_06),
@@ -244,7 +228,6 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
                     maybe_add_arcid_elems(RoomJID,
                                           mess_id_to_external_binary(MessID),
                                              Packet,
-                                             mod_mam_params:add_archived_element(?MODULE, Host),
                                              mod_mam_params:add_stanzaid_element(?MODULE, Host));
                 {error, _} -> Packet
             end;
@@ -332,7 +315,7 @@ is_user_identity_hidden(User, Room) ->
 can_access_room(User, Room) ->
     ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
 
--spec handle_mam_iq('mam_get_prefs', From :: jid:jid(), jid:jid(),
+-spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(),
                     jlib:iq()) ->
                            jlib:iq() | {error, any(), jlib:iq()}.
 handle_mam_iq(Action, From, To, IQ) ->
@@ -341,16 +324,10 @@ handle_mam_iq(Action, From, To, IQ) ->
             handle_get_prefs(To, IQ);
         mam_set_prefs ->
             handle_set_prefs(To, IQ);
-        mam_lookup_messages ->
-            handle_lookup_messages(From, To, IQ);
         mam_set_message_form ->
             handle_set_message_form(From, To, IQ);
         mam_get_message_form ->
-            handle_get_message_form(From, To, IQ);
-        mam_purge_single_message ->
-            handle_purge_single_message(To, IQ);
-        mam_purge_multiple_messages ->
-            handle_purge_multiple_messages(To, IQ)
+            handle_get_message_form(From, To, IQ)
     end.
 
 -spec handle_set_prefs(jid:jid(), jlib:iq()) ->
@@ -388,40 +365,6 @@ handle_get_prefs_result({DefaultMode, AlwaysJIDs, NeverJIDs}, IQ) ->
     IQ#iq{type = result, sub_el = [ResultPrefsEl]};
 handle_get_prefs_result({error, Reason}, IQ) ->
     return_error_iq(IQ, Reason).
-
-
--spec handle_lookup_messages(From :: jid:jid(), ArcJID :: jid:jid(),
-                             IQ :: jlib:iq()) -> jlib:iq() | {error, any(), jlib:iq()}.
-handle_lookup_messages(#jid{} = From, #jid{} = ArcJID,
-                       #iq{xmlns = MamNs, sub_el = QueryEl} = IQ) ->
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    ArcID = archive_id_int(Host, ArcJID),
-    QueryID = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    Params0 = mam_iq:query_to_lookup_params(IQ, mod_mam_params:max_result_limit(?MODULE, Host),
-                                            mod_mam_params:default_result_limit(?MODULE, Host),
-                                            mod_mam_params:extra_params_module(?MODULE, Host)),
-    Params = mam_iq:lookup_params_with_archive_details(Params0, ArcID, ArcJID),
-    case lookup_messages(Host, Params) of
-        {error, 'policy-violation'} ->
-            ?DEBUG("Policy violation by ~p.", [jid:to_binary(From)]),
-            ErrorEl = jlib:stanza_errort(<<"">>, <<"modify">>, <<"policy-violation">>,
-                                         <<"en">>, <<"Too many results">>),
-            IQ#iq{type = error, sub_el = [ErrorEl]};
-        {error, Reason} ->
-            report_issue(Reason, mam_muc_lookup_failed, ArcJID, IQ),
-            return_error_iq(IQ, Reason);
-        {ok, {TotalCount, Offset, MessageRows}} ->
-            {FirstMessID, LastMessID} = forward_messages(From, ArcJID, MamNs,
-                                                         QueryID, MessageRows, false),
-
-            ResultSetEl = result_set(FirstMessID, LastMessID, Offset, TotalCount),
-            ResultQueryEl = result_query(ResultSetEl, MamNs),
-            %% On receiving the query, the server pushes to the client a series of
-            %% messages from the archive that match the client's given criteria,
-            %% and finally returns the <iq/> result.
-            IQ#iq{type = result, sub_el = [ResultQueryEl]}
-    end.
-
 
 -spec handle_set_message_form(From :: jid:jid(), ArcJID :: jid:jid(),
                               IQ :: jlib:iq()) ->
@@ -504,40 +447,6 @@ forward_messages(From, ArcJID, MamNs, QueryID, MessageRows, SetClientNs) ->
 handle_get_message_form(_From = #jid{lserver = Host}, _ArcJID = #jid{}, IQ = #iq{}) ->
     return_message_form_iq(Host, IQ).
 
-
-%% @doc Purging multiple messages.
--spec handle_purge_multiple_messages(jid:jid(), jlib:iq()) ->
-                                            jlib:iq() | {error, any(), jlib:iq()}.
-handle_purge_multiple_messages(ArcJID = #jid{},
-                               IQ = #iq{sub_el = PurgeEl}) ->
-    Now = p1_time_compat:system_time(micro_seconds),
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    ArcID = archive_id_int(Host, ArcJID),
-    %% Filtering by date.
-    %% Start :: integer() | undefined
-    Start = mam_iq:elem_to_start_microseconds(PurgeEl),
-    End = mam_iq:elem_to_end_microseconds(PurgeEl),
-    %% Set borders.
-    Borders = borders_decode(PurgeEl),
-    %% Filtering by contact.
-    With = mam_iq:elem_to_with_jid(PurgeEl),
-    Res = purge_multiple_messages(Host, ArcID, ArcJID, Borders,
-                                  Start, End, Now, With),
-    return_purge_multiple_message_iq(IQ, Res).
-
-
--spec handle_purge_single_message(jid:jid(), jlib:iq()) ->
-                                         jlib:iq() | {error, any(), jlib:iq()}.
-handle_purge_single_message(ArcJID = #jid{},
-                            IQ = #iq{sub_el = PurgeEl}) ->
-    Now = p1_time_compat:system_time(micro_seconds),
-    {ok, Host} = mongoose_subhosts:get_host(ArcJID#jid.lserver),
-    ArcID = archive_id_int(Host, ArcJID),
-    BExtMessID = exml_query:attr(PurgeEl, <<"id">>, <<>>),
-    MessID = mod_mam_utils:external_binary_to_mess_id(BExtMessID),
-    PurgingResult = purge_single_message(Host, MessID, ArcID, ArcJID, Now),
-    return_purge_single_message_iq(IQ, PurgingResult).
-
 %% ----------------------------------------------------------------------
 %% Backend wrappers
 
@@ -617,31 +526,6 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,
                             [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
 
-
--spec purge_single_message(Host :: jid:server(),
-                           MessID :: mod_mam:message_id(),
-                           ArcID :: mod_mam:archive_id(),
-                           ArcJID :: jid:jid(),
-                           Now :: unix_timestamp()) ->
-                                  ok  | {error, 'not-found'}
-                                      | {error, Reason :: term()}.
-purge_single_message(Host, MessID, ArcID, ArcJID, Now) ->
-    ejabberd_hooks:run_fold(mam_muc_purge_single_message, Host, ok,
-                            [Host, MessID, ArcID, ArcJID, Now]).
-
-
--spec purge_multiple_messages(Host :: jid:server(),
-                              ArcID :: mod_mam:archive_id(), ArcJID :: jid:jid(),
-                              Borders :: mod_mam:borders() | undefined,
-                              Start :: unix_timestamp() | undefined,
-                              End :: unix_timestamp() | undefined,
-                              Now :: unix_timestamp(), WithJID :: jid:jid() | undefined) ->
-                                     ok | {error, Reason :: term()}.
-purge_multiple_messages(Host, ArcID, ArcJID, Borders,
-                        Start, End, Now, WithJID) ->
-    ejabberd_hooks:run_fold(mam_muc_purge_multiple_messages, Host, ok,
-                            [Host, ArcID, ArcJID, Borders, Start, End, Now, WithJID]).
-
 %% ----------------------------------------------------------------------
 %% Helpers
 
@@ -707,24 +591,6 @@ return_action_not_allowed_error_iq(IQ) ->
                                  <<"en">>, <<"The action is not allowed.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
-return_purge_multiple_message_iq(IQ, ok) ->
-    return_purge_success(IQ);
-return_purge_multiple_message_iq(IQ, {error, Reason}) ->
-    return_error_iq(IQ, Reason).
-
--spec return_purge_success(jlib:iq()) -> jlib:iq().
-return_purge_success(IQ) ->
-    IQ#iq{type = result, sub_el = []}.
-
--spec return_purge_not_found_error_iq(jlib:iq()) -> jlib:iq().
-return_purge_not_found_error_iq(IQ) ->
-    %% Message not found.
-    ErrorEl = jlib:stanza_errort(<<"">>, <<"cancel">>, <<"item-not-found">>, <<"en">>,
-                                 <<"The provided UID did not match any message",
-                                   "stored in archive.">>),
-    IQ#iq{type = error, sub_el = [ErrorEl]}.
-
-
 -spec return_max_delay_reached_error_iq(jlib:iq()) -> jlib:iq().
 return_max_delay_reached_error_iq(IQ) ->
     %% Message not found.
@@ -732,24 +598,11 @@ return_max_delay_reached_error_iq(IQ) ->
                  <<"en">>, <<"The action is cancelled because of flooding.">>),
     IQ#iq{type = error, sub_el = [ErrorEl]}.
 
-
--spec return_purge_single_message_iq(jlib:iq(),
-                                     ok  | {error, 'not-found'}
-                                     | {error, Reason :: term()}) ->
-                                            jlib:iq()
-                                                | {error, any(), jlib:iq()}.
-return_purge_single_message_iq(IQ, ok) ->
-    return_purge_success(IQ);
-return_purge_single_message_iq(IQ, {error, 'not-found'}) ->
-    return_purge_not_found_error_iq(IQ);
-return_purge_single_message_iq(IQ, {error, Reason}) ->
-    return_error_iq(IQ, Reason).
-
-
 return_message_form_iq(Host, IQ) ->
     IQ#iq{type = result, sub_el = [message_form(?MODULE, Host, IQ#iq.xmlns)]}.
 
 
+% the stacktrace is a big lie
 report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
     report_issue(Reason, Stacktrace, Issue, ArcJID, IQ);
 report_issue(Reason, Issue, ArcJID, IQ) ->

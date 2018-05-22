@@ -56,7 +56,6 @@
 -define(NS_BYTESTREAMS,         <<"http://jabber.org/protocol/bytestreams">>).
 -define(NS_ADMIN,               <<"http://jabber.org/protocol/admin">>).
 -define(NS_SERVERINFO,          <<"http://jabber.org/network/serverinfo">>).
--define(NS_MAM,                 <<"urn:xmpp:mam:tmp">>).
 -define(NS_MAM_03,              <<"urn:xmpp:mam:0">>). % MAM 0.3
 -define(NS_MAM_04,              <<"urn:xmpp:mam:1">>). % MAM 0.4.1 or 0.5
 -define(NS_MAM_06,              <<"urn:xmpp:mam:2">>).  % MAM 0.6
