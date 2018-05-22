@@ -1,3 +1,50 @@
+# [MongooseIM 3.0.0](https://github.com/esl/MongooseIM/releases/tag/3.0.0) - 2018-05-22
+
+## Highlights
+
+- `exml 3.0.1`, much faster and efficient than previous versions, thanks to a new XML parser: RapidXML
+- Inbox extension - a way to display conversations list in chat application
+
+## All changes
+
+### Added
+
+- Inbox extension - experimental (#1783)
+- Acceptor pool for incoming XMPP TCP/UDP connections (#1849)
+- OTP 20 support in `mod_jingle_sip` (#1825)
+
+### Changed
+
+- MongooseIM uses `exml 3.0.1`, based on new XML parser: RapidXML (#1729, #1870)
+- Updated `fast_tls` to a version that avoids extensive usage of `stat` function (#1806)
+- User sessions are hibernated (e.g. garbage collected) as frequently as possible (#1821)
+- Cassandra connection pool has been refactored (#1847)
+- Removed support for Message Archive Management v0.2 (#1860)
+- `policy-violation` check is performed in `mod_mam(_muc)`, not in its backends (#1817)
+- Removed unnecessary `-part` schemas for MySQL (#1845)
+- `mod_jingle_sip` uses `origin_` acc keys instead of custom ones (#1841)
+
+### Fixed
+
+- ODBC support - replaced ODBC library and refactored RDBMS code (#1816, #1838)
+- `mod_muc` terminated the room when a `cancel` form was received for a room in normal state (#1798)
+- C2S process now ignores IQ replies addressed to previous process for the same user session (#1803)
+- Metrics skipping (#1819)
+
+### Other
+
+- Documentation fixes and improvements (#1835, #1851, #1852)
+- Tests improvements and refactoring (#1413, #1782, #1808, #1813, #1820, #1823, #1836, #1846)
+- `escalus 4.0.0`
+- Flexible preset application during test execution (#1802)
+- Added packaging tools (#1662)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/issues?q=is%3Aclosed+milestone%3A3.0.0+sort%3Acreated-asc)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-04-18..2018-05-22%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-04-18&to=2018-05-22&type=c)
+
 # [MongooseIM 2.2.2](https://github.com/esl/MongooseIM/releases/tag/2.2.2) - 2018-04-18
 
 ## Fixed
