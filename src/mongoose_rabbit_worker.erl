@@ -74,12 +74,6 @@ terminate(_Reason, #state{connection = Connection, channel = Channel}) ->
     close_rabbit_connection(Connection, Channel),
     ok.
 
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-format_status(_Opt, Status) ->
-    Status.
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
