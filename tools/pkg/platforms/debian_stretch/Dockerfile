@@ -17,6 +17,7 @@ RUN apt-get install -y git \
                        libexpat-dev \
                        zlib1g-dev \
                        locales \
+                       unixodbc-dev \
                        esl-erlang=1:19.3.6
 
 # fix locales
