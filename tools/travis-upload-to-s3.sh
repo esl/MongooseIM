@@ -23,4 +23,4 @@ chmod +x tools/s3-parallel-put
 AWS_S3_HOST="${AWS_S3_HOST:-s3.amazonaws.com}"
 
 echo "Uploading"
-time tools/s3-parallel-put --quiet --bucket_region=$AWS_DEFAULT_REGION --put=stupid --bucket=${AWS_BUCKET:-mongooseim-ct-results} --prefix=${CT_REPORTS} ${CT_REPORTS}
+time tools/s3-parallel-put --quiet --bucket_region=$AWS_DEFAULT_REGION --processes=32 --put=stupid --bucket=${AWS_BUCKET:-mongooseim-ct-results} --prefix=${CT_REPORTS} ${CT_REPORTS}
