@@ -18,7 +18,7 @@
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3, format_status/2, presence_msg/2]).
+         terminate/2, code_change/3, format_status/2]).
 
 -record(state, {connection, channel}).
 
@@ -70,11 +70,17 @@ handle_call({delete_exchanges, Exchanges}, _From,
 %% Handling cast messages
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({user_presence_changed, #{user_jid := UserJID,
-                                      exchange := Exchange,
-                                      status := Status}},
+handle_cast({user_presence_changed, EventData},
             #state{channel = Channel} = State) ->
-    publish_status(Status, Channel, Exchange, UserJID),
+    publish_status(Channel, EventData),
+    {noreply, State};
+handle_cast({user_chat_msg_sent, EventData},
+            #state{channel = Channel} = State) ->
+    publish_chat_msg_sent(Channel, EventData),
+    {noreply, State};
+handle_cast({user_chat_msg_recv, EventData},
+            #state{channel = Channel} = State) ->
+    publish_chat_msg_received(Channel, EventData),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -134,11 +140,33 @@ declare_exchange(Channel, Exchange) ->
 delete_exchange(Channel, Exchange) ->
     amqp_channel:call(Channel, #'exchange.delete'{exchange = Exchange}).
 
--spec publish_status(Status :: atom(), Channel :: pid(), Exchange :: binary(),
-                     JID :: binary()) -> term().
-publish_status(Status, Channel, Exchange, JID) ->
-    Message = presence_msg(JID, Status),
+-spec publish_status(Channel :: pid(), map()) -> term().
+publish_status(Channel, #{user_jid := JID,
+                          exchange := Exchange,
+                          status := Status}) ->
+    Message = make_presence_msg(JID, Status),
     publish(Channel, Exchange, JID, Message).
+
+-spec publish_chat_msg_sent(Channel :: pid(), EventData :: map()) -> ok.
+publish_chat_msg_sent(Channel, EventData = #{from_jid := From,
+                                             topic := Topic}) ->
+    RoutingKey = user_topic_routing_key(From, Topic),
+    publish_chat_msg_event(Channel, RoutingKey, EventData).
+
+-spec publish_chat_msg_received(Channel :: pid(), EventData :: map()) -> ok.
+publish_chat_msg_received(Channel, EventData = #{to_jid := To,
+                                                 topic := Topic}) ->
+    RoutingKey = user_topic_routing_key(To, Topic),
+    publish_chat_msg_event(Channel, RoutingKey, EventData).
+
+-spec publish_chat_msg_event(Channel :: pid(), RoutingKey :: binary(), map()) ->
+    term().
+publish_chat_msg_event(Channel, RoutingKey, #{from_jid := From,
+                                              to_jid := To,
+                                              msg := UserMsg,
+                                              exchange := Exchange}) ->
+    Message = make_chat_msg(From, To, UserMsg),
+    publish(Channel, Exchange, RoutingKey, Message).
 
 -spec publish(Channel :: pid(), Exchange :: binary(), RoutingKey :: binary(),
               Message :: binary()) -> term().
@@ -149,9 +177,18 @@ publish(Channel, Exchange, RoutingKey, Message) ->
                          routing_key = RoutingKey},
                       #amqp_msg{payload = Message}).
 
--spec presence_msg(JID :: binary(), Status :: atom()) -> binary().
-presence_msg(JID, Status) ->
+-spec user_topic_routing_key(JID :: jid:jid(), Topic :: binary()) -> binary().
+user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
+
+-spec make_presence_msg(JID :: binary(), Status :: atom()) -> binary().
+make_presence_msg(JID, Status) ->
     Msg = #{user_id => JID, present => is_user_online(Status)},
+    jiffy:encode(Msg).
+
+-spec make_chat_msg(From :: binary(), To :: atom(), UserMsg :: binary()) ->
+    binary().
+make_chat_msg(From, To, UserMsg) ->
+    Msg = #{to_user_id => To, message => UserMsg, from_user_id => From},
     jiffy:encode(Msg).
 
 -spec is_user_online(online | offline) -> boolean().
