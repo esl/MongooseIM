@@ -338,5 +338,5 @@ user_sees_message_from(User, Room, Times, Messages) ->
     user_sees_message_from(User, Room, Times - 1, [{UserRoomJID, Body} | Messages]).
 
 is_unavailable_presence_from(Stanza, RoomJID) ->
-    escalus_assert:is_presence_type(<<"unavailable">>, Stanza),
+    escalus:assert(is_presence_with_type, [<<"unavailable">>], Stanza),
     escalus_assert:is_stanza_from(RoomJID, Stanza).
