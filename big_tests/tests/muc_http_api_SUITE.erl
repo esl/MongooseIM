@@ -35,7 +35,8 @@ all() ->
     [{group, positive}].
 
 groups() ->
-    [{positive, [parallel], success_response() ++ complex()}].
+    G = [{positive, [parallel], success_response() ++ complex()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 success_response() ->
     [
