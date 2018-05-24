@@ -63,16 +63,17 @@ groups() ->
       {stats, [sequence], stats()}].
 
 basic() ->
-    [simple_register, simple_unregister, register_twice,
-        backup_restore_mnesia,
-        restore_mnesia_wrong,
-        dump_and_load,
-        load_mnesia_wrong,
-        dump_table,
-        get_loglevel,
-        remove_old_messages_test,
-        remove_expired_messages_test
-    ].
+    [simple_register,
+     simple_unregister,
+     register_twice,
+     backup_restore_mnesia,
+     restore_mnesia_wrong,
+     dump_and_load,
+     load_mnesia_wrong,
+     dump_table,
+     get_loglevel,
+     remove_old_messages_test,
+     remove_expired_messages_test].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
@@ -83,17 +84,18 @@ sessions() -> [num_resources_num, kick_session, status,
 
 vcard() -> [vcard_rw, vcard2_rw, vcard2_multi_rw].
 
-roster() -> [rosteritem_rw, presence_after_add_rosteritem,
+roster() -> [rosteritem_rw,
+             presence_after_add_rosteritem,
              push_roster,
              push_roster_all,
              push_roster_alltoall].
 
-roster_advanced() ->[process_rosteritems_list_simple,
-                          process_rosteritems_list_nomatch,
-                          process_rosteritems_list_advanced1,
-                          process_rosteritems_list_advanced2,
-                          process_rosteritems_delete_advanced,
-                          process_rosteritems_delete_advanced2].
+roster_advanced() -> [process_rosteritems_list_simple,
+                      process_rosteritems_list_nomatch,
+                      process_rosteritems_list_advanced1,
+                      process_rosteritems_list_advanced2,
+                      process_rosteritems_delete_advanced,
+                      process_rosteritems_delete_advanced2].
 
 last() -> [set_last].
 
