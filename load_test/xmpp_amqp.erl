@@ -249,10 +249,10 @@ xmpp_do(#{neighborIDs := NeighborIDs,
     xmpp_do(S).
 
 -spec process_stanza(exml:element()) -> ok.
-process_stanza(#xmlel{name = <<"message">>, attrs = A}) ->
-    case lists:keyfind(<<"timestamp">>, 1, A) of
-        false -> ok;
-        {_, BinaryTimestamp} -> report_message_ttd(BinaryTimestamp)
+process_stanza(#xmlel{name = <<"message">>} = Stanza) ->
+    case exml_query:path(Stanza, [{element, <<"body">>}, cdata]) of
+        undefined -> ok;
+        BinaryTimestamp -> report_message_ttd(BinaryTimestamp)
     end;
 
 process_stanza(_Stanza) -> ok.
@@ -329,9 +329,8 @@ send_presence_unavailable(Client) ->
 
 -spec send_message(escalus:client(), binjid()) -> ok.
 send_message(Client, ToId) ->
-    MsgIn = make_message(ToId),
-    TimeStamp = integer_to_binary(usec:from_now(os:timestamp())),
-    escalus_connection:send(Client, escalus_stanza:setattr(MsgIn, <<"timestamp">>, TimeStamp)),
+    Stanza = make_message(ToId),
+    escalus_connection:send(Client, Stanza),
     exometer:update([amoc, counters, messages_sent], 1).
 
 -spec report_message_ttd(Timestamp :: binary()) -> ok.
@@ -466,9 +465,9 @@ bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey) ->
 
 -spec make_message(binjid()) -> exml:element().
 make_message(ToId) ->
-    Body = <<"hello sir, you are a gentelman and a scholar.">>,
+    Timestamp = integer_to_binary(usec:from_now(os:timestamp())),
     Id = escalus_stanza:id(),
-    escalus_stanza:set_id(escalus_stanza:chat_to(ToId, Body), Id).
+    escalus_stanza:set_id(escalus_stanza:chat_to(ToId, Timestamp), Id).
 
 -spec make_full_jid(amoc_scenario:user_id()) -> binjid().
 make_full_jid(Id) ->
