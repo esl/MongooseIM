@@ -16,7 +16,8 @@ echo $(s3_url ${CT_REPORTS})
 
 echo "Installing awscli"
 sudo time pip install boto python-magic
-wget -O tools/s3-parallel-put https://raw.githubusercontent.com/arcusfelis/s3-parallel-put/e2f66d215eb6b3e376f9bafc4f52891ce671eff0/s3-parallel-put
+S3PP_COMMIT=6fd430a54e976d2d580042efdf82ac2fb66d5e57
+wget -O tools/s3-parallel-put https://raw.githubusercontent.com/arcusfelis/s3-parallel-put/$S3PP_COMMIT/s3-parallel-put
 chmod +x tools/s3-parallel-put
 
 
