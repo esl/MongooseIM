@@ -51,16 +51,17 @@ all() ->
     ].
 
 groups() ->
-     [{accounts, [sequence], accounts()},
-      {sessions, [sequence], sessions()},
-      {vcard, [sequence], vcard()},
-      {roster, [sequence], roster()},
-      {last, [sequence], last()},
-      {private, [sequence], private()},
-      {stanza, [sequence], stanza()},
-      {roster_advanced, [sequence], roster_advanced()},
-      {basic, [sequence], basic()},
-      {stats, [sequence], stats()}].
+    G = [{accounts, [sequence], accounts()},
+         {sessions, [sequence], sessions()},
+         {vcard, [sequence], vcard()},
+         {roster, [sequence], roster()},
+         {last, [sequence], last()},
+         {private, [sequence], private()},
+         {stanza, [sequence], stanza()},
+         {roster_advanced, [sequence], roster_advanced()},
+         {basic, [sequence], basic()},
+         {stats, [sequence], stats()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 basic() ->
     [simple_register,
