@@ -31,7 +31,8 @@ all() ->
     [{group, main_group}].
 
 groups() ->
-    [{main_group, [], main_group_tests()}].
+    G = [{main_group, [], main_group_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 main_group_tests() ->
     [confirm_c2s_queue_is_flushed_works,

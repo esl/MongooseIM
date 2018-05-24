@@ -46,28 +46,29 @@ all() ->
     ].
 
 groups() ->
-    [ {c2s_noproc, [], [reset_stream_noproc,
-                        starttls_noproc,
-                        compress_noproc,
-                        bad_xml,
-                        invalid_host,
-                        invalid_stream_namespace,
-                        pre_xmpp_1_0_stream]},
-      {starttls, test_cases()},
-      {tls, [parallel], [auth_bind_pipelined_session,
-                         auth_bind_pipelined_auth_failure |
-                         generate_tls_vsn_tests() ++ cipher_test_cases()]},
-      {feature_order, [parallel], [stream_features_test,
-                                   tls_authenticate,
-                                   tls_compression_fail,
-                                   tls_compression_authenticate_fail,
-                                   tls_authenticate_compression,
-                                   auth_compression_bind_session,
-                                   auth_bind_compression_session,
-                                   bind_server_generated_resource]},
-      {just_tls,all_groups()},
-      {fast_tls,all_groups()}
-    ].
+    G = [ {c2s_noproc, [], [reset_stream_noproc,
+                            starttls_noproc,
+                            compress_noproc,
+                            bad_xml,
+                            invalid_host,
+                            invalid_stream_namespace,
+                            pre_xmpp_1_0_stream]},
+          {starttls, [], test_cases()},
+          {tls, [parallel], [auth_bind_pipelined_session,
+                             auth_bind_pipelined_auth_failure |
+                             generate_tls_vsn_tests() ++ cipher_test_cases()]},
+          {feature_order, [parallel], [stream_features_test,
+                                       tls_authenticate,
+                                       tls_compression_fail,
+                                       tls_compression_authenticate_fail,
+                                       tls_authenticate_compression,
+                                       auth_compression_bind_session,
+                                       auth_bind_compression_session,
+                                       bind_server_generated_resource]},
+          {just_tls,all_groups()},
+          {fast_tls,all_groups()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_groups()->
     [{group, c2s_noproc},

@@ -28,16 +28,19 @@ all() ->
      {group, private_negative}].
 
 groups() ->
-    [{private_positive, [sequence], positive_test_cases()},
-      {private_negative, [sequence], negative_test_cases()}].
-                                      %% FIXME: broken exmpp prevents us from sending
-                                      %% out elements without NS set
-                                      %% missing_ns]}].
+    G = [{private_positive, [sequence], positive_test_cases()},
+         {private_negative, [sequence], negative_test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
+    %% FIXME: broken exmpp prevents us from sending
+    %% out elements without NS set missing_ns]}].
+
 positive_test_cases() ->
     [store_retrieve].
+
 negative_test_cases() ->
     [get_other_user,
      set_other_user].
+
 suite() ->
     escalus:suite().
 

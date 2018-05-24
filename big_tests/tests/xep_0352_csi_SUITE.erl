@@ -12,10 +12,8 @@ all() ->
 
 
 groups() ->
-    [{basic,
-      [parallel, shuffle],
-      all_tests()
-     }].
+    G = [{basic, [parallel, shuffle], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_tests() ->
     [

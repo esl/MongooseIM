@@ -50,24 +50,25 @@ all() ->
     ].
 
 groups() ->
-    [{register, [sequence], [register,
-                             already_registered,
-                             check_unregistered]},
-     {bad_registration, [no_sequence], [null_password]},
-     {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
-                                       not_allowed_registration_cancelation]},
-     {registration_timeout, [sequence], [registration_timeout,
-                                         registration_failure_timeout]},
-     {change_account_details, [no_sequence], [change_password,
-                                              change_password_to_null]},
-     {login, [parallel], all_tests()},
-     {login_scram, [parallel], scram_tests()},
-     {login_scram_store_plain, [parallel], scram_tests()},
-     {legacy_auth, [parallel], [legacy_successful_plain,
-                                legacy_unsuccessful_plain,
-                                legacy_successful_digest,
-                                legacy_blocked_user]},
-     {messages, [sequence], [messages_story, message_zlib_limit]}].
+    G = [{register, [sequence], [register,
+                                 already_registered,
+                                 check_unregistered]},
+         {bad_registration, [no_sequence], [null_password]},
+         {bad_cancelation, [no_sequence], [bad_request_registration_cancelation,
+                                           not_allowed_registration_cancelation]},
+         {registration_timeout, [sequence], [registration_timeout,
+                                             registration_failure_timeout]},
+         {change_account_details, [no_sequence], [change_password,
+                                                  change_password_to_null]},
+         {login, [parallel], all_tests()},
+         {login_scram, [parallel], scram_tests()},
+         {login_scram_store_plain, [parallel], scram_tests()},
+         {legacy_auth, [parallel], [legacy_successful_plain,
+                                    legacy_unsuccessful_plain,
+                                    legacy_successful_digest,
+                                    legacy_blocked_user]},
+         {messages, [sequence], [messages_story, message_zlib_limit]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
     [log_one, log_one_scram].

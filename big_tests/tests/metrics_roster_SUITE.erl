@@ -37,9 +37,9 @@ all() ->
     ].
 
 groups() ->
-    [{roster, [sequence], roster_tests()},
-     {subscriptions, [sequence], subscription_tests()}
-    ].
+    G = [{roster, [sequence], roster_tests()},
+         {subscriptions, [sequence], subscription_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

@@ -59,12 +59,13 @@ all() ->
 groups() ->
     %% setting test data before tests is proving awkward so might as well use the
     %% data set in the update tests to test the rest.
-    [{rw, [sequence], rw_tests()},
-     {ro_full, [], ro_full_search_tests()},
-     {ro_limited, [], ro_limited_search_tests()},
-     {ro_no, [sequence], ro_no_search_tests()},
-     {ldap_only, [], ldap_only_tests()}
-    ].
+    G = [{rw, [sequence], rw_tests()},
+         {ro_full, [], ro_full_search_tests()},
+         {ro_limited, [], ro_limited_search_tests()},
+         {ro_no, [sequence], ro_no_search_tests()},
+         {ldap_only, [], ldap_only_tests()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 rw_tests() ->
     [

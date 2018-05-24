@@ -38,8 +38,9 @@ all() ->
     [{group, registration}].
 
 groups() ->
-    [{registration, [sequence], [register,
-                                 unregister]}].
+    G = [{registration, [sequence], [register,
+                                     unregister]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

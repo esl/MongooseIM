@@ -44,16 +44,19 @@ all() ->
     ].
 
 groups() ->
-    [
-     {presence_status_publish, [], [
-         connected_user_changes_status,
-         disconnected_user_becomes_unavailable
-     ]},
-     {message_publish, [], [
-         pm_messages,
-         muc_messages
-     ]}
-    ].
+    G = [
+         {presence_status_publish, [],
+          [
+           connected_user_changes_status,
+           disconnected_user_becomes_unavailable
+          ]},
+         {message_publish, [],
+          [
+           pm_messages,
+           muc_messages
+          ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

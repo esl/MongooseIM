@@ -63,10 +63,11 @@ all() ->
     ].
 
 groups() ->
-    [
-        {happy_cases,          [parallel], happy_cases()},
-        {not_so_happy_cases,   [sequence, {repeat_until_all_ok, 5}], not_so_happy_cases()}
-    ].
+    G = [
+         {happy_cases,          [parallel], happy_cases()},
+         {not_so_happy_cases,   [sequence, {repeat_until_all_ok, 5}], not_so_happy_cases()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 happy_cases() ->
     [

@@ -86,43 +86,44 @@ all() ->
     ].
 
 groups() ->
-    [
-     {entity, [sequence], [
-                            disco_service,
-                            disco_features,
-                            disco_rooms,
-                            disco_rooms_rsm,
-                            unauthorized_stanza
-                         ]},
-     {occupant, [sequence], [
-                             send_message,
-                             change_subject,
-                             all_can_configure,
-                             set_config_deny,
-                             get_room_config,
-                             get_room_occupants,
-                             leave_room,
-                             change_other_aff_deny
-                            ]},
-     {owner, [sequence], [
-                          create_room,
-                          create_room_with_equal_occupants,
-                          create_existing_room_deny,
-                          destroy_room,
-                          set_config,
-                          assorted_config_doesnt_lead_to_duplication,
-                          remove_and_add_users,
-                          explicit_owner_change,
-                          implicit_owner_change,
-                          edge_case_owner_change
-                         ]},
-     {blocking, [sequence], [
-                             manage_blocklist,
-                             block_room,
-                             block_user,
-                             blocking_disabled
-                            ]}
-    ].
+    G = [
+         {entity, [sequence], [
+                               disco_service,
+                               disco_features,
+                               disco_rooms,
+                               disco_rooms_rsm,
+                               unauthorized_stanza
+                              ]},
+         {occupant, [sequence], [
+                                 send_message,
+                                 change_subject,
+                                 all_can_configure,
+                                 set_config_deny,
+                                 get_room_config,
+                                 get_room_occupants,
+                                 leave_room,
+                                 change_other_aff_deny
+                                ]},
+         {owner, [sequence], [
+                              create_room,
+                              create_room_with_equal_occupants,
+                              create_existing_room_deny,
+                              destroy_room,
+                              set_config,
+                              assorted_config_doesnt_lead_to_duplication,
+                              remove_and_add_users,
+                              explicit_owner_change,
+                              implicit_owner_change,
+                              edge_case_owner_change
+                             ]},
+         {blocking, [sequence], [
+                                 manage_blocklist,
+                                 block_room,
+                                 block_user,
+                                 blocking_disabled
+                                ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

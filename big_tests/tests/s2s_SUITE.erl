@@ -34,22 +34,22 @@ all() ->
     ].
 
 groups() ->
-    [{both_plain, [sequence], all_tests()},
-     {both_tls_optional, [], essentials()},
-     {both_tls_required, [], essentials()},
+    G = [{both_plain, [sequence], all_tests()},
+         {both_tls_optional, [], essentials()},
+         {both_tls_required, [], essentials()},
 
-     {node1_tls_optional_node2_tls_required, [], essentials()},
-     {node1_tls_required_node2_tls_optional, [], essentials()},
+         {node1_tls_optional_node2_tls_required, [], essentials()},
+         {node1_tls_required_node2_tls_optional, [], essentials()},
 
-     %% Node1 closes connection with "self-signed certificate" reason
-     {node1_tls_required_trusted_node2_tls_optional, [], negative()},
+         %% Node1 closes connection with "self-signed certificate" reason
+         {node1_tls_required_trusted_node2_tls_optional, [], negative()},
 
-     {node1_tls_false_node2_tls_optional, [], essentials()},
-     {node1_tls_optional_node2_tls_false, [], essentials()},
+         {node1_tls_false_node2_tls_optional, [], essentials()},
+         {node1_tls_optional_node2_tls_false, [], essentials()},
 
-     {node1_tls_false_node2_tls_required, [], negative()},
-     {node1_tls_required_node2_tls_false, [], negative()}
-    ].
+         {node1_tls_false_node2_tls_required, [], negative()},
+         {node1_tls_required_node2_tls_false, [], negative()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 essentials() ->
     [simple_message].

@@ -41,16 +41,17 @@ all() ->
     ].
 
 groups() ->
-    [
-     {token_login, [sequence], token_login_tests()},
-     {token_revocation, [sequence], token_revocation_tests()},
-     {provision_token, [], [provision_token_login]},
-     {commands, [], [revoke_token_cmd_when_no_token,
-                     revoke_token_cmd]},
-     {cleanup, [], [token_removed_on_user_removal]},
-     {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
-                            check_for_oauth_with_mod_auth_token_loaded]}
-    ].
+    G = [
+         {token_login, [sequence], token_login_tests()},
+         {token_revocation, [sequence], token_revocation_tests()},
+         {provision_token, [], [provision_token_login]},
+         {commands, [], [revoke_token_cmd_when_no_token,
+                         revoke_token_cmd]},
+         {cleanup, [], [token_removed_on_user_removal]},
+         {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
+                                check_for_oauth_with_mod_auth_token_loaded]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 token_login_tests() ->
     [

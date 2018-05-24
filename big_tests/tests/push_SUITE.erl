@@ -33,37 +33,38 @@ all() ->
     ].
 
 groups() ->
-    [
-        {disco, [], [
-            push_notifications_listed_disco_when_available,
-            push_notifications_not_listed_disco_when_not_available
-        ]},
-        {toggling, [parallel], [
-            enable_should_fail_with_missing_attributes,
-            enable_should_fail_with_invalid_attributes,
-            enable_should_succeed_without_form,
-            enable_with_form_should_fail_with_incorrect_from,
-            enable_should_accept_correct_from,
-            disable_should_fail_with_missing_attributes,
-            disable_should_fail_with_invalid_attributes,
-            disable_all,
-            disable_node
-        ]},
-        {pm_msg_notifications, [parallel], [
-            pm_no_msg_notifications_if_not_enabled,
-            pm_no_msg_notifications_if_user_online,
-            pm_msg_notify_if_user_offline,
-            pm_msg_notify_if_user_offline_with_publish_options,
-            pm_msg_notify_stops_after_disabling
-        ]},
-        {muclight_msg_notifications, [parallel], [
-            muclight_no_msg_notifications_if_not_enabled,
-            muclight_no_msg_notifications_if_user_online,
-            muclight_msg_notify_if_user_offline,
-            muclight_msg_notify_if_user_offline_with_publish_options,
-            muclight_msg_notify_stops_after_disabling
-        ]}
-    ].
+    G = [
+         {disco, [], [
+                      push_notifications_listed_disco_when_available,
+                      push_notifications_not_listed_disco_when_not_available
+                     ]},
+         {toggling, [parallel], [
+                                 enable_should_fail_with_missing_attributes,
+                                 enable_should_fail_with_invalid_attributes,
+                                 enable_should_succeed_without_form,
+                                 enable_with_form_should_fail_with_incorrect_from,
+                                 enable_should_accept_correct_from,
+                                 disable_should_fail_with_missing_attributes,
+                                 disable_should_fail_with_invalid_attributes,
+                                 disable_all,
+                                 disable_node
+                                ]},
+         {pm_msg_notifications, [parallel], [
+                                             pm_no_msg_notifications_if_not_enabled,
+                                             pm_no_msg_notifications_if_user_online,
+                                             pm_msg_notify_if_user_offline,
+                                             pm_msg_notify_if_user_offline_with_publish_options,
+                                             pm_msg_notify_stops_after_disabling
+                                            ]},
+         {muclight_msg_notifications, [parallel], [
+                                                   muclight_no_msg_notifications_if_not_enabled,
+                                                   muclight_no_msg_notifications_if_user_online,
+                                                   muclight_msg_notify_if_user_offline,
+                                                   muclight_msg_notify_if_user_offline_with_publish_options,
+                                                   muclight_msg_notify_stops_after_disabling
+                                                  ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

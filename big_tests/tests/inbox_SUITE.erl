@@ -76,31 +76,34 @@ tests() ->
   ].
 
 groups() ->
-  [
-      {one_to_one, [sequence], [
-        user_has_empty_inbox,
-        msg_sent_stored_in_inbox,
-        user_has_two_conversations,
-        msg_sent_to_offline_user,
-        msg_sent_to_not_existing_user,
-        user_has_two_unread_messages,
-        reset_unread_counter,
-        try_to_reset_unread_counter_with_bad_marker
-      ]},
-      {muclight, [sequence], [
-        simple_groupchat_stored_in_all_inbox,
-        advanced_groupchat_stored_in_all_inbox,
-        groupchat_markers_one_reset,
-        create_groupchat,
-        create_groupchat_no_affiliation_stored,
-        leave_and_remove_conversation,
-        leave_and_store_conversation,
-        no_aff_stored_and_remove_on_kicked,
-        no_stored_and_remain_after_kicked,
-        groupchat_markers_one_reset_room_created,
-        groupchat_markers_all_reset_room_created
-      ]}
-  ].
+    G = [
+         {one_to_one, [sequence],
+          [
+           user_has_empty_inbox,
+           msg_sent_stored_in_inbox,
+           user_has_two_conversations,
+           msg_sent_to_offline_user,
+           msg_sent_to_not_existing_user,
+           user_has_two_unread_messages,
+           reset_unread_counter,
+           try_to_reset_unread_counter_with_bad_marker
+          ]},
+         {muclight, [sequence],
+          [
+           simple_groupchat_stored_in_all_inbox,
+           advanced_groupchat_stored_in_all_inbox,
+           groupchat_markers_one_reset,
+           create_groupchat,
+           create_groupchat_no_affiliation_stored,
+           leave_and_remove_conversation,
+           leave_and_store_conversation,
+           no_aff_stored_and_remove_on_kicked,
+           no_stored_and_remain_after_kicked,
+           groupchat_markers_one_reset_room_created,
+           groupchat_markers_all_reset_room_created
+          ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
   escalus:suite().

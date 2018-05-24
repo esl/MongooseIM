@@ -28,7 +28,8 @@ all() ->
     [{group, anonymous}].
 
 groups() ->
-    [{anonymous, [sequence], all_tests()}].
+    G = [{anonymous, [sequence], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_tests() ->
     [messages_story].

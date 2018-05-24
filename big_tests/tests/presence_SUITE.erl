@@ -36,23 +36,24 @@ all() ->
      {group, subscribe_group}].
 
 groups() ->
-    [{presence, [sequence], [available,
-                             available_direct,
-                             available_direct_then_unavailable,
-                             available_direct_then_disconnect,
-                             additions,
-                             invisible_presence]},
-     {presence_priority, [sequence], [negative_priority_presence]},
-     {roster, [sequence], [get_roster,
-                           add_contact,
-                           remove_contact]},
-     {roster_versioning, [sequence], [versioning,
-                                      versioning_no_store]},
-     {subscribe_group, [sequence], [subscribe,
-                                    subscribe_decline,
-                                    subscribe_relog,
-                                    unsubscribe,
-                                    remove_unsubscribe]}].
+    G = [{presence, [sequence], [available,
+                                 available_direct,
+                                 available_direct_then_unavailable,
+                                 available_direct_then_disconnect,
+                                 additions,
+                                 invisible_presence]},
+         {presence_priority, [sequence], [negative_priority_presence]},
+         {roster, [sequence], [get_roster,
+                               add_contact,
+                               remove_contact]},
+         {roster_versioning, [sequence], [versioning,
+                                          versioning_no_store]},
+         {subscribe_group, [sequence], [subscribe,
+                                        subscribe_decline,
+                                        subscribe_relog,
+                                        unsubscribe,
+                                        remove_unsubscribe]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
