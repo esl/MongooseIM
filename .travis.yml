@@ -17,8 +17,9 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
-        # Do not execute this step, if environment variable SKIP_CONFIGURE is "1"
-        - test 1 = "$SKIP_CONFIGURE" || tools/configure $REL_CONFIG
+        # Do not execute this step, if environment variable SKIP_RELEASE is "1"
+        # Configure is a part of release creation
+        - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
 install:
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
         - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
@@ -90,11 +91,11 @@ matrix:
           env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
         - language: generic
           env: PRESET=pkg pkg_PLATFORM=centos7
-               SKIP_CONFIGURE=1 SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
                SKIP_COV=1 SKIP_REPORT_UPLOAD=1
         - language: generic
           env: PRESET=pkg pkg_PLATFORM=debian_stretch
-               SKIP_CONFIGURE=1 SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
                SKIP_COV=1 SKIP_REPORT_UPLOAD=1
 
 notifications:
