@@ -79,7 +79,7 @@
 
 %% Metrics should be defined here
 -define(MESSAGES_CT, [amoc, counters, messages_sent]).
--define(MESSAGE_TTD, [amoc, times, message_ttd]).
+-define(MESSAGE_TTD(UserType), [amoc, times, message_ttd, UserType]).
 -define(MESSAGE_SERVER_TO_CLIENT_TIME, [amoc, times, server_to_client]).
 -define(CONNECTION_TIME(UserType), [amoc, times, connection, UserType]).
 -define(CONNECTION_COUNT(UserType), [amoc, counters, connections, UserType]).
@@ -91,7 +91,8 @@
 -define(METRICS,
         [
          {?MESSAGES_CT, spiral},
-         {?MESSAGE_TTD, histogram},
+         {?MESSAGE_TTD(amqp), histogram},
+         {?MESSAGE_TTD(xmpp), histogram},
          {?MESSAGE_SERVER_TO_CLIENT_TIME, histogram},
          {?CONNECTION_TIME(amqp), histogram},
          {?CONNECTION_TIME(xmpp), histogram},
@@ -252,7 +253,7 @@ xmpp_do(#{neighborIDs := NeighborIDs,
 process_stanza(#xmlel{name = <<"message">>} = Stanza) ->
     case exml_query:path(Stanza, [{element, <<"body">>}, cdata]) of
         undefined -> ok;
-        BinaryTimestamp -> report_message_ttd(BinaryTimestamp)
+        BinaryTimestamp -> report_message_ttd(BinaryTimestamp, xmpp)
     end;
 
 process_stanza(_Stanza) -> ok.
@@ -289,10 +290,17 @@ amqp_start(MyId) ->
 amqp_do(State) ->
     NewState =
     receive
-        {#'basic.deliver'{},
-         #'amqp_msg'{props = P, payload = Payload}} ->
-            Ts = P#'P_basic'.timestamp,
-            lager:debug("Got msg ~p with timestamp ~p", [Payload, Ts]),
+        {
+         #'basic.deliver'{exchange = ?AMQP_PRESENCE_EXCHANGE},
+         #'amqp_msg'{} = M
+        } ->
+            process_presence_message(M),
+            State;
+        {
+         #'basic.deliver'{exchange = ?AMQP_MESSAGE_EXCHANGE},
+         #'amqp_msg'{} = M
+        } ->
+            process_chat_message(M),
             State;
         #'basic.consume_ok'{} ->
             State;
@@ -301,6 +309,18 @@ amqp_do(State) ->
             State
     end,
     amqp_do(NewState).
+
+-spec process_presence_message(#'amqp_msg'{}) -> ok.
+process_presence_message(#'amqp_msg'{payload = P}) ->
+    lager:debug("Got presence message ~p", [P]),
+    ok.
+
+-spec process_chat_message(#'amqp_msg'{}) -> ok.
+process_chat_message(#'amqp_msg'{payload = P}) ->
+    lager:debug("Got chat message ~p", [P]),
+    #{<<"message">> := BinaryTimestamp} = jiffy:decode(P, [return_maps]),
+    report_message_ttd(BinaryTimestamp, amqp),
+    ok.
 
 %================================================
 % XMPP actions
@@ -333,11 +353,11 @@ send_message(Client, ToId) ->
     escalus_connection:send(Client, Stanza),
     exometer:update([amoc, counters, messages_sent], 1).
 
--spec report_message_ttd(Timestamp :: binary()) -> ok.
-report_message_ttd(Timestamp) ->
+-spec report_message_ttd(Timestamp :: binary(), role()) -> ok.
+report_message_ttd(Timestamp, Role) ->
     IntegerTimestamp = binary_to_integer(Timestamp),
     Diff = usec:from_now(os:timestamp()) - IntegerTimestamp,
-    exometer:update(?MESSAGE_TTD, Diff).
+    exometer:update(?MESSAGE_TTD(Role), Diff).
 
 %================================================
 % AMQP actions
