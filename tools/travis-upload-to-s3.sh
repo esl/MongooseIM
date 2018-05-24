@@ -14,7 +14,7 @@ fi
 echo "Uploading test results to s3"
 echo $(s3_url ${CT_REPORTS})
 
-echo "Installing awscli"
+echo "Installing s3-parallel-put based on boto"
 sudo time pip install boto python-magic
 S3PP_COMMIT=6fd430a54e976d2d580042efdf82ac2fb66d5e57
 wget -O tools/s3-parallel-put https://raw.githubusercontent.com/arcusfelis/s3-parallel-put/$S3PP_COMMIT/s3-parallel-put
