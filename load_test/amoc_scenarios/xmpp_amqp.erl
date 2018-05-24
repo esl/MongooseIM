@@ -69,7 +69,6 @@
 -define(HOST, <<"localhost">>). %% The virtual host served by the server
 -define(XMPP_RESOURCE, <<"resource">>).
 
-
 %% rabbit stuff
 -define(RABBIT_CONNECTIONS, 10).
 -define(AMOC_AMQP_CONNECTIONS_TABLE_NAME, amoc_amqp_connections).
@@ -78,28 +77,31 @@
 
 
 %% Metrics should be defined here
--define(MESSAGES_CT, [amoc, counters, messages_sent]).
--define(MESSAGE_TTD(UserType), [amoc, times, message_ttd, UserType]).
--define(MESSAGE_SERVER_TO_CLIENT_TIME, [amoc, times, server_to_client]).
--define(CONNECTION_TIME(UserType), [amoc, times, connection, UserType]).
--define(CONNECTION_COUNT(UserType), [amoc, counters, connections, UserType]).
--define(CONNECTION_FAILURE(UserType), [amoc, counters, connection_failures, UserType]).
--define(OPEN_CHANNEL_TIME, [amoc, times, open_channel]).
--define(OPEN_CHANNEL_FAILURE, [amoc, counters, open_channel_failures]).
--define(OPEN_CHANNELS, [amoc, times, open_channels]).
+-define(MESSAGES_SENT_COUNT(UserType), [amoc, UserType, counters, messages_sent]).
+-define(MESSAGE_TTD(UserType), [amoc, UserType, times, message_ttd]).
+-define(CONNECTION_TIME(UserType), [amoc, UserType, times, connection]).
+-define(CONNECTION_COUNT(UserType), [amoc, UserType, counters, connections]).
+-define(CONNECTION_FAILURE(UserType), [amoc, UserType, counters, connection_failures]).
+-define(OPEN_CHANNEL_TIME, [amoc, amqp, times, open_channel]).
+-define(OPEN_CHANNEL_FAILURE, [amoc, amqp, counters, open_channel_failures]).
+-define(OPEN_CHANNELS, [amoc, amqp, counters, open_channels]).
 
 -define(METRICS,
         [
-         {?MESSAGES_CT, spiral},
+         {?MESSAGES_SENT_COUNT(xmpp), spiral},
+
          {?MESSAGE_TTD(amqp), histogram},
          {?MESSAGE_TTD(xmpp), histogram},
-         {?MESSAGE_SERVER_TO_CLIENT_TIME, histogram},
+
          {?CONNECTION_TIME(amqp), histogram},
          {?CONNECTION_TIME(xmpp), histogram},
+
          {?CONNECTION_COUNT(amqp), spiral},
          {?CONNECTION_COUNT(xmpp), spiral},
+
          {?CONNECTION_FAILURE(amqp), spiral},
          {?CONNECTION_FAILURE(xmpp), spiral},
+
          {?OPEN_CHANNEL_TIME, histogram},
          {?OPEN_CHANNEL_FAILURE, spiral},
          {?OPEN_CHANNELS, spiral}
@@ -317,9 +319,9 @@ process_presence_message(#'amqp_msg'{payload = P}) ->
 
 -spec process_chat_message(#'amqp_msg'{}) -> ok.
 process_chat_message(#'amqp_msg'{payload = P}) ->
-    lager:debug("Got chat message ~p", [P]),
     #{<<"message">> := BinaryTimestamp} = jiffy:decode(P, [return_maps]),
     report_message_ttd(BinaryTimestamp, amqp),
+    lager:debug("Got chat message ~p", [P]),
     ok.
 
 %================================================
@@ -351,7 +353,7 @@ send_presence_unavailable(Client) ->
 send_message(Client, ToId) ->
     Stanza = make_message(ToId),
     escalus_connection:send(Client, Stanza),
-    exometer:update([amoc, counters, messages_sent], 1).
+    exometer:update(?MESSAGES_SENT_COUNT(xmpp), 1).
 
 -spec report_message_ttd(Timestamp :: binary(), role()) -> ok.
 report_message_ttd(Timestamp, Role) ->
@@ -583,33 +585,33 @@ routing_key_for_user(message, ID, received) ->
 % Helpers
 %================================================
 
--spec generic_connect(ConnectFun, Type) -> Connection | no_return()
+-spec generic_connect(ConnectFun, Role) -> Connection | no_return()
       when ConnectFun    :: fun(() -> ConnectionRet),
            ConnectionRet :: {ok, Connection} | {error, Connection} | no_return(),
-           Type          :: xmpp | amqp,
+           Role          :: role(),
            Connection    :: escalus_connection:escalus_connection()
                           | pid().
-generic_connect(ConnectFun, Type) ->
-    generic_connect(ConnectFun, Type, ?MAX_RETRIES).
+generic_connect(ConnectFun, Role) ->
+    generic_connect(ConnectFun, Role, ?MAX_RETRIES).
 
 % @doc Function which calls ConnectFun. It measures connection time, provides
 % retry mechanism and reports metrics.
-generic_connect(_, Type, 0) ->
-    Msg = io_lib:format("Could not connect to ~p, check logs", Type),
+generic_connect(_, Role, 0) ->
+    Msg = io_lib:format("Could not connect in role ~p, check logs", Role),
     error(Msg);
 
-generic_connect(ConnectFun, Type, Retries) ->
+generic_connect(ConnectFun, Role, Retries) ->
     try timer:tc(ConnectFun) of
         {ConnectionTime, {ok, Connection}} ->
-            exometer:update(?CONNECTION_COUNT(Type), 1),
-            exometer:update(?CONNECTION_TIME(Type), ConnectionTime),
+            exometer:update(?CONNECTION_COUNT(Role), 1),
+            exometer:update(?CONNECTION_TIME(Role), ConnectionTime),
             Connection
     catch
         Error ->
-            exometer:update(?CONNECTION_FAILURE(Type), 1),
-            lager:error("Could not connect to ~p, reason=~p", [Type, Error]),
+            exometer:update(?CONNECTION_FAILURE(Role), 1),
+            lager:error("Could not connect to ~p, reason=~p", [Role, Error]),
             timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
-            generic_connect(ConnectFun, Type, Retries - 1)
+            generic_connect(ConnectFun, Role, Retries - 1)
     end.
 
 
