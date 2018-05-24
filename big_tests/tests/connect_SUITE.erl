@@ -71,9 +71,9 @@ groups() ->
 
 all_groups()->
     [{group, c2s_noproc},
-        {group, starttls},
-        {group, feature_order},
-        {group, tls}].
+     {group, starttls},
+     {group, feature_order},
+     {group, tls}].
 
 test_cases() ->
     generate_tls_vsn_tests() ++

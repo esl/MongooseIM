@@ -48,8 +48,8 @@ groups() ->
 
 
 subgroup_names() -> notify_deliver_group_names() ++
-                        error_deliver_group_names() ++
-                        drop_deliver_group_names().
+                    error_deliver_group_names() ++
+                    drop_deliver_group_names().
 
 notify_deliver_group_names() ->
     [notify_deliver_none,
