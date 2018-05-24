@@ -26,7 +26,8 @@ all() ->
     [{group, adhoc}].
 
 groups() ->
-    [{adhoc, [sequence], [ping]}].
+    G = [{adhoc, [sequence], [ping]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
