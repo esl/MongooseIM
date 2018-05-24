@@ -26,28 +26,14 @@
      || (E) =/= (V)]
     )).
 
-
-%% If map is extra, format it as it in "k = v" format.
--define(assert_equal_extra(E, V, Extra), (
-    (fun(E0, V0, Extra0) when is_map(Extra0), E0 =/= V0 ->
-            %% preserve map ordering
-            ExtraArgs = maps:fold(fun(MK,MV,A) -> A ++ [MK,MV] end, [], Extra0),
-            ExtraFmt = lists:append(lists:duplicate(maps:size(Extra0), "~n~p = ~p")),
-            ?safe_fail("assert_equal_extra(~s, ~s)~n\t"
-                        "Expected ~p~n\tValue ~p" ++ ExtraFmt,
-                       [??E, ??V, E0, V0|ExtraArgs]);
-        (E0, V0, Extra0) when E0 =/= V0 ->
-            ?safe_fail("assert_equal_extra(~s, ~s)~n\t"
-                        "Expected ~p~n\tValue ~p~nExtra ~p~n",
-                       [??E, ??V, E0, V0, Extra0]);
-        (_, _, _) ->
-            ok
-      end)((E), (V), (Extra))
-    )).
+-define(assert_equal_extra(E, V, Extra),
+    [?safe_fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~ts~n",
+             [(??E), (??V), (E), (V), assert_helper:transform_extra(Extra)])
+     || (E) =/= (V)]).
 
 -define(_assert_equal_extra(E, V, Extra), (
-    [ct:pal("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
-            [(??E), (??V), (E), (V), (Extra)])
+    [ct:pal("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~ts~n",
+            [(??E), (??V), (E), (V), assert_helper:transform_extra(Extra)])
      || (E) =/= (V)]
     )).
 
