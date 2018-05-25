@@ -46,6 +46,12 @@
 %% General settings
 -define(NUMBER_OF_PREV_NEIGHBOURS, 4).
 -define(NUMBER_OF_NEXT_NEIGHBOURS, 4).
+-define(MAX_RETRIES, 5).
+-define(SLEEP_TIME_BEFORE_RETRY, 5000). % milliseconds
+% MAX_RETRIES and SLEEP_TIME_BEFORE_RETRY and used for
+%  - connectiong to XMPP
+%  - connection to AMQP
+%  - opening channel via AMQP connection
 
 %% XMPP stuff
 -define(XMPP_GO_OFFLINE_AFTER, 1*1000).
@@ -291,16 +297,22 @@ amqp_do(State) ->
 
 -spec connect_xmpp(proplists:proplist()) -> escalus:client().
 connect_xmpp(Cfg) ->
-    case catch timer:tc(escalus_connection, start, [Cfg]) of
+    connect_xmpp(Cfg, ?MAX_RETRIES).
+
+-spec connect_xmpp(proplists:proplist(), non_neg_integer()) -> escalus:client().
+connect_xmpp(_Cfg, 0) -> error("Could not connect to XMPP, check logs");
+connect_xmpp(Cfg, Retries) ->
+    try timer:tc(escalus_connection, start, [Cfg]) of
         {ConnectionTime, {ok, Client, _EscalusSessionFeatures}} ->
             exometer:update(?CONNECTION_COUNT(xmpp), 1),
             exometer:update(?CONNECTION_TIME(xmpp), ConnectionTime),
-            Client;
+            Client
+    catch
         Error ->
             exometer:update(?CONNECTION_FAILURE(xmpp), 1),
             lager:error("Could not connect user=~p, reason=~p", [Cfg, Error]),
-            timer:sleep(5000),
-            connect_xmpp(Cfg)
+            timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
+            connect_xmpp(Cfg, Retries - 1)
     end.
 
 -spec send_presence_available(escalus:client()) -> ok.
@@ -332,18 +344,20 @@ send_message(Client, ToId) ->
 %  - connections count
 -spec connect_amqp(#amqp_params_network{}) -> ok | no_return().
 connect_amqp(Params) ->
-    connect_amqp(Params, 5).
+    connect_amqp(Params, ?MAX_RETRIES).
 
 connect_amqp(_Params, 0) -> error("Could not connect to Rabbit, check logs");
 connect_amqp(Params, Retries) ->
-    case catch timer:tc(amqp_connection, start, [Params]) of
-        {ConnectionTime, {ok, _Connection}} ->
+    try timer:tc(amqp_connection, start, [Params]) of
+        {ConnectionTime, {ok, Connection}} ->
             exometer:update(?CONNECTION_COUNT(amqp), 1),
             exometer:update(?CONNECTION_TIME(amqp), ConnectionTime),
-            ok;
+            Connection
+    catch
         Error ->
             exometer:update(?CONNECTION_FAILURE(amqp), 1),
             lager:error("Could not connect to Rabbit, reason=~p", [Error]),
+            timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
             connect_amqp(Params, Retries - 1)
     end.
 
@@ -354,44 +368,48 @@ connect_amqp(Params, Retries) ->
 %  - open channel time
 %  - opened channels count
 -spec open_channel() -> ChannelPid :: pid() | no_return().
-open_channel() -> open_channel(5).
+open_channel() -> open_channel(?MAX_RETRIES).
 
 open_channel(0) -> error("Could not open channel, see logs");
 open_channel(Retries) ->
     Connection = get_amqp_connection(),
-    case catch timer:tc(amqp_connection, open_channel, [Connection]) of
+    try timer:tc(amqp_connection, open_channel, [Connection]) of
         {ConnectionTime, {ok, Channel}} ->
             exometer:update(?OPEN_CHANNELS, 1),
             exometer:update(?OPEN_CHANNEL_TIME, ConnectionTime),
-            Channel;
+            Channel
+    catch
         Error ->
             exometer:update(?OPEN_CHANNEL_FAILURE, 1),
             lager:error("Could not open channel to Rabbit, reason=~p", [Error]),
+            timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
             open_channel(Retries - 1)
     end.
 
 -spec create_queue(ChannelPid :: pid(), QueueName :: binary()) -> ok | error.
-create_queue(Channel, QueueName) ->
+create_queue(ChannelPid, QueueName) ->
     Declare = #'queue.declare'{queue = QueueName},
-    case amqp_channel:call(Channel, Declare) of
+    try amqp_channel:call(ChannelPid, Declare) of
         #'queue.declare_ok'{} ->
             lager:info("Declared queue for ~p", [QueueName]),
-            ok;
+            ok
+    catch
         Err ->
             lager:error("Couldnt declare queue ~p", [Err]),
-            errror
+            error
     end.
 
--spec subscribe_to_queue(ChannelPid :: pid, QueueName ::binary()) ->
+-spec subscribe_to_queue(ChannelPid :: pid(), QueueName ::binary()) ->
     ok | error.
-subscribe_to_queue(Channel, QueueName) ->
+subscribe_to_queue(ChannelPid, QueueName) ->
     Consume = #'basic.consume'{queue = QueueName,
                                consumer_tag = <<"amoc">>,
                                no_ack = true},
-    case amqp_channel:subscribe(Channel, Consume, self()) of
+    try amqp_channel:subscribe(ChannelPid, Consume, self()) of
         #'basic.consume_ok'{} ->
             lager:info("Successfully subscribed to queue ~p ", [QueueName]),
-            ok;
+            ok
+    catch
         Err ->
             lagger:error("Couldnt subscribe to queue ~p, reason: ~p", [QueueName, Err]),
             error
@@ -423,13 +441,14 @@ bind_queue_to_presence_exchange(Channel, Queue, NeighborIDs) ->
                              Queue       :: binary(),
                              Exchange    :: binary(),
                              RoutingKey  :: binary()) -> ok | error.
-bind_queue_to_exchange(Channel, Queue, Exchange, RoutingKey) ->
+bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey) ->
     Binding = #'queue.bind'{queue = Queue,
                             exchange = Exchange,
                             routing_key = RoutingKey},
-    case amqp_channel:call(Channel, Binding) of
+    try amqp_channel:call(ChannelPid, Binding) of
         #'queue.bind_ok'{} ->
-            ok;
+            ok
+    catch
         Err ->
             lager:error("Could not bind queue ~p to exchange ~p error: ~p", [Queue, Exchange, Err]),
             error
