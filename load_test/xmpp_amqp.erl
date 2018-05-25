@@ -293,25 +293,16 @@ amqp_do(State) ->
 % XMPP actions
 %================================================
 
--spec connect_xmpp(proplists:proplist()) -> escalus:client().
+% @doc This helper function wraps connecting to RabbitMQ servers.
+% It uses generic_connect/2.
+-spec connect_xmpp(proplists:proplist()) -> escalus:client() | no_return().
 connect_xmpp(Cfg) ->
-    connect_xmpp(Cfg, ?MAX_RETRIES).
-
--spec connect_xmpp(proplists:proplist(), non_neg_integer()) -> escalus:client().
-connect_xmpp(_Cfg, 0) -> error("Could not connect to XMPP, check logs");
-connect_xmpp(Cfg, Retries) ->
-    try timer:tc(escalus_connection, start, [Cfg]) of
-        {ConnectionTime, {ok, Client, _EscalusSessionFeatures}} ->
-            exometer:update(?CONNECTION_COUNT(xmpp), 1),
-            exometer:update(?CONNECTION_TIME(xmpp), ConnectionTime),
-            Client
-    catch
-        Error ->
-            exometer:update(?CONNECTION_FAILURE(xmpp), 1),
-            lager:error("Could not connect user=~p, reason=~p", [Cfg, Error]),
-            timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
-            connect_xmpp(Cfg, Retries - 1)
-    end.
+    ConnectFun =
+      fun() ->
+              {ok, Client, _Features} = escalus_connection:start(Cfg),
+              {ok, Client}
+      end,
+    generic_connect(ConnectFun, xmpp).
 
 -spec send_presence_available(escalus:client()) -> ok.
 send_presence_available(Client) ->
@@ -335,29 +326,10 @@ send_message(Client, ToId) ->
 %================================================
 
 % @doc This helper function wraps connecting to RabbitMQ servers.
-%
-% It provides retry mechanism and reports following metrics:
-%  - connection failures count
-%  - connection time
-%  - connections count
+% It uses generic_connect/2.
 -spec connect_amqp(#amqp_params_network{}) -> ok | no_return().
 connect_amqp(Params) ->
-    connect_amqp(Params, ?MAX_RETRIES).
-
-connect_amqp(_Params, 0) -> error("Could not connect to Rabbit, check logs");
-connect_amqp(Params, Retries) ->
-    try timer:tc(amqp_connection, start, [Params]) of
-        {ConnectionTime, {ok, Connection}} ->
-            exometer:update(?CONNECTION_COUNT(amqp), 1),
-            exometer:update(?CONNECTION_TIME(amqp), ConnectionTime),
-            Connection
-    catch
-        Error ->
-            exometer:update(?CONNECTION_FAILURE(amqp), 1),
-            lager:error("Could not connect to Rabbit, reason=~p", [Error]),
-            timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
-            connect_amqp(Params, Retries - 1)
-    end.
+    ConnectFun = fun() -> amqp_connection:start(Params) end,
 
 % @doc This helper function wraps opening channel to RabbitMQ servers.
 %
@@ -533,6 +505,36 @@ routing_key_for_user(presence, ID, all_topics) ->
 %================================================
 % Helpers
 %================================================
+
+-spec generic_connect(ConnectFun, Type) -> Connection | no_return()
+      when ConnectFun    :: fun(() -> ConnectionRet),
+           ConnectionRet :: {ok, Connection} | {error, Connection} | no_return(),
+           Type          :: xmpp | amqp,
+           Connection    :: escalus_connection:escalus_connection()
+                          | pid().
+generic_connect(ConnectFun, Type) ->
+    generic_connect(ConnectFun, Type, ?MAX_RETRIES).
+
+% @doc Function which calls ConnectFun. It measures connection time, provides
+% retry mechanism and reports metrics.
+generic_connect(_, Type, 0) ->
+    Msg = io_lib:format("Could not connect to ~p, check logs", Type),
+    error(Msg);
+
+generic_connect(ConnectFun, Type, Retries) ->
+    try timer:tc(ConnectFun) of
+        {ConnectionTime, {ok, Connection}} ->
+            exometer:update(?CONNECTION_COUNT(Type), 1),
+            exometer:update(?CONNECTION_TIME(Type), ConnectionTime),
+            Connection
+    catch
+        Error ->
+            exometer:update(?CONNECTION_FAILURE(Type), 1),
+            lager:error("Could not connect to ~p, reason=~p", [Type, Error]),
+            timer:sleep(?SLEEP_TIME_BEFORE_RETRY),
+            generic_connect(ConnectFun, Type, Retries - 1)
+    end.
+
 
 -spec make_user(amoc_scenario:user_id(), binary()) -> escalus_users:user_spec().
 make_user(Id, R) ->
