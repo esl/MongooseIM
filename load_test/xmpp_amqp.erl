@@ -72,7 +72,7 @@
 
 %% Metrics should be defined here
 -define(MESSAGES_CT, [amoc, counters, messages_sent]).
--define(MESSAGE_TTD_CT, [amoc, times, message_ttd]).
+-define(MESSAGE_TTD, [amoc, times, message_ttd]).
 -define(MESSAGE_SERVER_TO_CLIENT_TIME, [amoc, times, server_to_client]).
 -define(CONNECTION_TIME(UserType), [amoc, times, connection, UserType]).
 -define(CONNECTION_COUNT(UserType), [amoc, counters, connections, UserType]).
@@ -84,7 +84,7 @@
 -define(METRICS,
         [
          {?MESSAGES_CT, spiral},
-         {?MESSAGE_TTD_CT, histogram},
+         {?MESSAGE_TTD, histogram},
          {?MESSAGE_SERVER_TO_CLIENT_TIME, histogram},
          {?CONNECTION_TIME(amqp), histogram},
          {?CONNECTION_TIME(xmpp), histogram},
@@ -205,7 +205,7 @@ xmpp_start(MyId) ->
     Cfg1 = make_user(MyId, ?XMPP_RESOURCE),
     Cfg2 = [{socket_opts, socket_opts()} | Cfg1],
     Client = connect_xmpp(Cfg2),
-    escalus_connection:set_filter_predicate(Client, none),
+    escalus_connection:set_filter_predicate(Client, fun escalus_pred:is_chat_message/1),
     schedule(go_online, 0),
     schedule(send_message, 0),
     State = #{neighborIDs => xmpp_neighbors(MyId),
@@ -229,7 +229,7 @@ xmpp_do(#{neighborIDs := NeighborIDs,
           go_online_after := GoOnlineAfter,
           send_message_after := SendMessageAfter} = S) ->
     receive
-        {stanza, Stanza} ->
+        {stanza, _ClientPid, Stanza} ->
             process_stanza(Stanza);
         {scheduled, go_offline} ->
             schedule(go_online, GoOnlineAfter),
@@ -239,11 +239,19 @@ xmpp_do(#{neighborIDs := NeighborIDs,
             send_presence_available(Client);
         {scheduled, send_message} ->
             schedule(send_message, SendMessageAfter),
-            send_messages_to_neighbors(Client, NeighborIDs)
+            send_messages_to_neighbors(Client, NeighborIDs);
+        {system, {From, Mref}, get_state} -> % allows to do sys:get_state(Pid)
+            From ! {Mref, S}
     end,
     xmpp_do(S).
 
 -spec process_stanza(exml:element()) -> ok.
+process_stanza(#xmlel{name = <<"message">>, attrs = A}) ->
+    case lists:keyfind(<<"timestamp">>, 1, A) of
+        false -> ok;
+        {_, BinaryTimestamp} -> report_message_ttd(BinaryTimestamp)
+    end;
+
 process_stanza(_Stanza) -> ok.
 
 -spec send_messages_to_neighbors(escalus:client(),
@@ -322,6 +330,12 @@ send_message(Client, ToId) ->
     TimeStamp = integer_to_binary(usec:from_now(os:timestamp())),
     escalus_connection:send(Client, escalus_stanza:setattr(MsgIn, <<"timestamp">>, TimeStamp)),
     exometer:update([amoc, counters, messages_sent], 1).
+
+-spec report_message_ttd(Timestamp :: binary()) -> ok.
+report_message_ttd(Timestamp) ->
+    IntegerTimestamp = binary_to_integer(Timestamp),
+    Diff = usec:from_now(os:timestamp()) - IntegerTimestamp,
+    exometer:update(?MESSAGE_TTD, Diff).
 
 %================================================
 % AMQP actions
