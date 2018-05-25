@@ -13,7 +13,7 @@
 %% Function get_my_role(MyId) returns role for each user, basing on IS_AMQP and
 %% IS_XMPP macros. To modify ratio of users type, please modify macros.
 %%
-%% XMPP users works as follow:
+%% XMPP users work as follow:
 %% - connect to XMPP server
 %% - schedule going online
 %% - schedule sending message
@@ -29,8 +29,9 @@
 %% AMQP users works as follow:
 %% - open channel within existing connection
 %% - creates its own queue
-%% - binds own queue with presence exchanges of ?NUMBER_OF_PREV_NEIGHBOURS and ?NUMBER_OF_NEXT_NEIGHBOURS
-%%   XMPP users are chosen.
+%% - binds own queue with ?AMQP_PRESENCE_EXCHANGE exchange for
+%%   ?NUMBER_OF_PREV_NEIGHBOURS and ?NUMBER_OF_NEXT_NEIGHBOURS
+%%   XMPP users.
 %% - subscribes to own queue
 %% - wait for synchronization with all other users
 %% - They wait for #'basic_deliver'{} events. Currently it is ignored, just debug
@@ -54,9 +55,9 @@
 %  - opening channel via AMQP connection
 
 %% XMPP stuff
--define(XMPP_GO_OFFLINE_AFTER, 1*1000).
--define(XMPP_GO_ONLINE_AFTER, 1*1000).
--define(XMPP_SEND_MESSAGE_AFTER, 30*1000).
+-define(XMPP_GO_OFFLINE_AFTER, 1*1000). % milliseconds
+-define(XMPP_GO_ONLINE_AFTER, 1*1000).  % milliseconds
+-define(XMPP_SEND_MESSAGE_AFTER, 30*1000). % milliseconds
 
 -define(HOST, <<"localhost">>). %% The virtual host served by the server
 -define(XMPP_RESOURCE, <<"resource">>).
@@ -64,7 +65,8 @@
 
 %% rabbit stuff
 -define(RABBIT_CONNECTIONS, 10).
--define(RABBIT_XMPP_EVENTS_TO_BIND, [login, logout, chat]).
+-define(AMOC_AMQP_CONNECTIONS_TABLE_NAME, amoc_amqp_connections).
+-define(AMQP_PRESENCE_EXCHANGE, <<"presence">>).
 
 
 %% Metrics should be defined here
@@ -172,8 +174,8 @@ datapoints(histogram) -> [mean, min, max, median, 95, 99, 999].
 % Assigning fuctions
 %================================================
 
--define(IS_AMQP(ID), ID rem 3 == 0).
--define(IS_XMPP(ID), ID rem 3 =/= 0).
+-define(IS_AMQP(ID), ID rem 10 == 0).
+-define(IS_XMPP(ID), ID rem 10 =/= 0).
 
 %% @doc This function returns role for specific user.
 -spec get_my_role(amoc_scenario:user_id()) -> role().
@@ -415,10 +417,10 @@ subscribe_to_queue(ChannelPid, QueueName) ->
             error
     end.
 
-%% @doc Function binds given queue to exchanges where neighborIDs are pushing
-%% presence events.
+%% @doc Function binds given queue to exchange, where XMPP users are pushing
+%% presence events, for given NeighborIDs' presences.
 %%
-%% As a result, all messages presence messages published to neighbor exchanges
+%% As a result, all messages presence messages published to exchange
 %% will be routed to the given queue. This does not mean user will receive
 %% them. To receive them, user need to be subscribed to Queue. Returns
 %% ok on success, error on error.
@@ -427,12 +429,12 @@ subscribe_to_queue(ChannelPid, QueueName) ->
       ChannelPid  :: pid(),
       Queue       :: binary(),
       NeighborIDs :: [amoc_scenario:user_id()].
-bind_queue_to_presence_exchange(Channel, Queue, NeighborIDs) ->
-    Exchange = amoc_config:get(rabbit_presence_exchange, <<"presence">>),
+bind_queue_to_presence_exchange(ChannelPid, Queue, NeighborIDs) ->
+    Exchange = amoc_config:get(rabbit_presence_exchange, ?AMQP_PRESENCE_EXCHANGE),
     RoutingKeys =
-      [routing_keys_for_user(presence, ID, all_topics) || ID <- NeighborIDs],
+      [routing_key_for_user(presence, ID, all_topics) || ID <- NeighborIDs],
     Results =
-      [bind_queue_to_exchange(Channel, Queue, Exchange, RoutingKey)
+      [bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey)
        || RoutingKey <- RoutingKeys],
     return_ok_if_all_ok_else_error(Results).
 
@@ -516,19 +518,20 @@ make_queue_name(Id) ->
     BinInt = integer_to_binary(Id),
     <<"amoc_amqp_", BinInt/binary>>.
 
-%% @doc Returns routing keys, which should be used to bind to given Exchange,
+%% @doc Returns routing key, which should be used to bind to given Exchange,
 %% for given user, for given topic (or 'all_topic').
 %%
 %% Presence exchange
 %% ---
 %%
-%% It publishes all event with user's JID topic. So, this is possible to bind
-%% only for all events (user online or user offline) for given user.
--spec routing_keys_for_user(ExchangeType :: presence,
+%% It publishes all event with user's bare JID as a routing key. So, it is
+%% possible to bind only for all events (user online or user offline) for
+%% given user.
+-spec routing_key_for_user(ExchangeType :: presence,
                             UserID       :: amoc_scenario:user_id(),
                             Topics       :: all_topics) ->
-    RoutingKeys :: [binary()].
-routing_keys_for_user(presence, ID, all_topics) ->
+    RoutingKey :: [binary()].
+routing_key_for_user(presence, ID, all_topics) ->
     make_bare_jid(ID).
 
 %================================================
@@ -561,12 +564,12 @@ socket_opts() ->
 -spec pick_server() -> [proplists:property()].
 pick_server() ->
     Servers = amoc_config:get(xmpp_servers),
-    verify(Servers),
+    verify_host_addr_defined(Servers),
     S = length(Servers),
     N = erlang:phash2(self(), S) + 1,
     lists:nth(N, Servers).
 
-verify(Servers) ->
+verify_host_addr_defined(Servers) ->
     lists:foreach(
       fun(Proplist) ->
               true = proplists:is_defined(host, Proplist)
