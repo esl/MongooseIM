@@ -146,11 +146,15 @@ binary_values() ->
     binary:copy(<<8>>, 8002),
     binary:copy(<<0>>, 100000)
     ] ++
-    case is_odbc() of
+    case is_odbc() orelse is_pgsql() of
         true ->
             [];
         false ->
             %% FIXME long data causes timeout with mssql
+            %%
+            %% FIXME %% epgsql_sock:handle_info/2 is not optimized
+            %% The query takes 30 seconds on Postgres
+            %% mongoose_rdbms:sql_query(<<"localhost">>, <<"SELECT binary_data_16m FROM test_types">>).
             [binary:copy(<<16>>, 16777215)]
     end.
 
@@ -294,19 +298,19 @@ host() ->
     ct:get_config({hosts, mim, domain}).
 
 sql_query(_Config, Query) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, sql_query, [host(), Query]).
+    slow_rpc(mongoose_rdbms, sql_query, [host(), Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
     escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
 
 sql_execute(_Config, Name, Parameters) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, execute, [host(), Name, Parameters]).
+    slow_rpc(mongoose_rdbms, execute, [host(), Name, Parameters]).
 
 escape_string(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_string, [Value]).
 
 escape_binary(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_binary, [host(), Value]).
+    slow_rpc(mongoose_rdbms, escape_binary, [host(), Value]).
 
 escape_boolean(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_boolean, [Value]).
@@ -693,3 +697,17 @@ drop_common_prefix(Pos, SelValue, Value) ->
 
 is_odbc() ->
     escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == odbc.
+
+is_pgsql() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == pgsql.
+
+slow_rpc(M, F, A) ->
+    Node = ct:get_config({hosts, mim, node}),
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    Res = escalus_ct:rpc_call(Node, M, F, A, timer:seconds(30), Cookie),
+    case Res of
+        {badrpc, timeout} ->
+            {badrpc, {timeout, M, F}};
+        _ ->
+            Res
+    end.
