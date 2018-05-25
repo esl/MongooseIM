@@ -67,6 +67,7 @@
 -define(RABBIT_CONNECTIONS, 10).
 -define(AMOC_AMQP_CONNECTIONS_TABLE_NAME, amoc_amqp_connections).
 -define(AMQP_PRESENCE_EXCHANGE, <<"presence">>).
+-define(AMQP_MESSAGE_EXCHANGE, <<"chat_msg">>).
 
 
 %% Metrics should be defined here
@@ -266,6 +267,7 @@ amqp_start(MyId) ->
     ok = create_queue(Channel, MyQueueName),
     N = xmpp_neighbors(MyId),
     ok = bind_queue_to_presence_exchange(Channel, MyQueueName, N),
+    ok = bind_queue_to_message_exchange(Channel, MyQueueName, N),
     ok = subscribe_to_queue(Channel, MyQueueName),
     State = #{amqp_channel => Channel},
     barrier_wait(after_connection),
@@ -330,6 +332,7 @@ send_message(Client, ToId) ->
 -spec connect_amqp(#amqp_params_network{}) -> ok | no_return().
 connect_amqp(Params) ->
     ConnectFun = fun() -> amqp_connection:start(Params) end,
+    generic_connect(ConnectFun, amqp).
 
 % @doc This helper function wraps opening channel to RabbitMQ servers.
 %
@@ -406,6 +409,21 @@ bind_queue_to_presence_exchange(ChannelPid, Queue, NeighborIDs) ->
        || RoutingKey <- RoutingKeys],
     return_ok_if_all_ok_else_error(Results).
 
+
+%% @doc
+-spec bind_queue_to_message_exchange(ChannelPid, Queue, NeighborIDs) ->
+    ok | error when
+      ChannelPid  :: pid(),
+      Queue       :: binary(),
+      NeighborIDs :: [amoc_scenario:user_id()].
+bind_queue_to_message_exchange(ChannelPid, Queue, NeighborIDs) ->
+    Exchange = amoc_config:get(rabbit_presence_exchange, ?AMQP_MESSAGE_EXCHANGE),
+    RoutingKeys =
+      [routing_key_for_user(message, ID, all_topics) || ID <- NeighborIDs],
+    Results =
+      [bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey)
+       || RoutingKey <- RoutingKeys],
+    return_ok_if_all_ok_else_error(Results).
 % @doc Generic function for binding queue to exchange with given routing key.
 -spec bind_queue_to_exchange(ChannelPid  :: pid(),
                              Queue       :: binary(),
@@ -489,18 +507,40 @@ make_queue_name(Id) ->
 %% @doc Returns routing key, which should be used to bind to given Exchange,
 %% for given user, for given topic (or 'all_topic').
 %%
-%% Presence exchange
-%% ---
+
+-spec routing_key_for_user(ExchangeType :: presence,
+                            UserID      :: amoc_scenario:user_id(),
+                            Topics      :: all_topics) ->
+    RoutingKey :: binary();
+                          (ExchangeType :: message,
+                           UserID       :: amoc_scenario:user_id(),
+                           Topics       :: all_topics | sent | received) ->
+    RoutingKey :: binary().
+
+%% @doc Presence exchange
 %%
 %% It publishes all event with user's bare JID as a routing key. So, it is
 %% possible to bind only for all events (user online or user offline) for
 %% given user.
--spec routing_key_for_user(ExchangeType :: presence,
-                            UserID       :: amoc_scenario:user_id(),
-                            Topics       :: all_topics) ->
-    RoutingKey :: [binary()].
 routing_key_for_user(presence, ID, all_topics) ->
-    make_bare_jid(ID).
+    make_bare_jid(ID);
+
+%% @doc Message exchange
+%%
+%% It publishes all event with user's bare JID as a routing key. So, it is
+%% possible to bind only for all events (user online or user offline) for
+%% given user.
+routing_key_for_user(message, ID, all_topics) ->
+    JID = make_bare_jid(ID),
+    <<JID/binary, ".*">>;
+routing_key_for_user(message, ID, sent) ->
+    JID = make_bare_jid(ID),
+    <<JID/binary, ".chat_msg_sent">>;
+routing_key_for_user(message, ID, received) ->
+    JID = make_bare_jid(ID),
+    <<JID/binary, ".chat_msg_recv">>.
+
+
 
 %================================================
 % Helpers
