@@ -17,13 +17,15 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
-        - tools/configure $REL_CONFIG
+        # Do not execute this step, if environment variable SKIP_RELEASE is "1"
+        # Configure is a part of release creation
+        - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
 install:
-        - travis_retry ./rebar3 get-deps
-        - ./rebar3 compile
-        - make dev
-        - tools/travis-build-tests.sh
-        - travis_retry pip install --user codecov
+        - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
+        - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+        - test 1 = "$SKIP_RELEASE" || make dev
+        - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+        - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
@@ -39,17 +41,22 @@ after_failure:
 after_success:
         # env variables help to distinguish CI builds
         # It takes less time without gcov
-        - codecov --disable=gcov --env PRESET
-        - ./rebar3 coveralls send
+        - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
+        - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
             then tools/travis-build-and-push-docker.sh;
           fi
 
 after_script:
-        - tools/travis-prepare-log-dir.sh
-        - if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
-        - if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
-        - tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
+        # Upload logs to s3 for debugging
+        - test 1 = "$SKIP_REPORT_UPLOAD" ||
+            tools/travis-prepare-log-dir.sh
+        - test 1 = "$SKIP_REPORT_UPLOAD" ||
+            if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+        - test 1 = "$SKIP_REPORT_UPLOAD" ||
+            if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+        - test 1 = "$SKIP_REPORT_UPLOAD" ||
+            tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 services:
         - redis-server
@@ -77,14 +84,19 @@ matrix:
     include:
         - otp_release: 20.0
           env: PRESET=dialyzer_only
+               SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
         - otp_release: 20.0
           env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip"
         - otp_release: 18.3
           env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-        - otp_release: 19.3
+        - language: generic
           env: PRESET=pkg pkg_PLATFORM=centos7
-        - otp_release: 19.3
+               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+               SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+        - language: generic
           env: PRESET=pkg pkg_PLATFORM=debian_stretch
+               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+               SKIP_COV=1 SKIP_REPORT_UPLOAD=1
 
 notifications:
     webhooks:
