@@ -492,20 +492,24 @@ ensure_amqp_connection_pool() ->
                                   port = Port,
                                   username = Username,
                                   password = Password},
-    [connect_amqp(Params) || _ <- lists:seq(1, ?RABBIT_CONNECTIONS)].
+    Connections =
+      [{Num, connect_amqp(Params)} || Num <- lists:seq(1, ?RABBIT_CONNECTIONS)],
+    ets:new(?AMOC_AMQP_CONNECTIONS_TABLE_NAME, [set,
+                                                protected,
+                                                named_table,
+                                                {read_concurrency, true}]),
+    lists:foreach(fun ({_Num, _ConnectPid} = Elem) ->
+                          ets:insert(?AMOC_AMQP_CONNECTIONS_TABLE_NAME, Elem)
+                  end,
+                  Connections).
 
-% @doc This helper function utilizes internal amqp_client supervisor as
-% a pool manager. Returns pid which identifies amqp connection handler.
+% @doc This helper function returns AMQP connections, which are stored in
+% ?AMOC_AMQP_CONNECTIONS_TABLE
 -spec get_amqp_connection() -> ConnectionPid :: pid() | no_return().
 get_amqp_connection() ->
-    ConnectionSups = supervisor:which_children(amqp_sup),
-    Length = length(ConnectionSups),
-    {_, Pid, _, _} = lists:nth(rand:uniform(Length), ConnectionSups),
-    Workers = supervisor:which_children(Pid),
-    case lists:keyfind(connection, 1, Workers) of
-        {connection, Pid2, worker, [amqp_gen_connection]} -> Pid2;
-        _ -> error(no_connection)
-    end.
+    Position = rand:uniform(?RABBIT_CONNECTIONS),
+    [{_, ConnectionPid}] = ets:lookup(?AMOC_AMQP_CONNECTIONS_TABLE_NAME, Position),
+    ConnectionPid.
 
 -spec make_queue_name(amoc_scenario:user_id()) -> binary().
 make_queue_name(Id) ->
