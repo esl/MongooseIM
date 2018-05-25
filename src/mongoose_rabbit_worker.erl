@@ -141,11 +141,12 @@ delete_exchange(Channel, Exchange) ->
     amqp_channel:call(Channel, #'exchange.delete'{exchange = Exchange}).
 
 -spec publish_status(Channel :: pid(), map()) -> term().
-publish_status(Channel, #{user_jid := JID,
+publish_status(Channel, #{user_jid := {User, Host, _} = JID,
                           exchange := Exchange,
                           status := Status}) ->
+    RoutingKey = jid:to_binary({User, Host}),
     Message = make_presence_msg(JID, Status),
-    publish(Channel, Exchange, JID, Message).
+    publish(Channel, Exchange, RoutingKey, Message).
 
 -spec publish_chat_msg_sent(Channel :: pid(), EventData :: map()) -> ok.
 publish_chat_msg_sent(Channel, EventData = #{from_jid := From,
@@ -177,18 +178,23 @@ publish(Channel, Exchange, RoutingKey, Message) ->
                          routing_key = RoutingKey},
                       #amqp_msg{payload = Message}).
 
--spec user_topic_routing_key(JID :: jid:jid(), Topic :: binary()) -> binary().
-user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
+-spec user_topic_routing_key(JID :: {binary(), binary(), binary()},
+                             Topic :: binary()) -> binary().
+user_topic_routing_key({User, Host, _Res}, Topic) ->
+    JID = jid:to_binary({User, Host}),
+    <<JID/binary, ".", Topic/binary>>.
 
 -spec make_presence_msg(JID :: binary(), Status :: atom()) -> binary().
 make_presence_msg(JID, Status) ->
-    Msg = #{user_id => JID, present => is_user_online(Status)},
+    Msg = #{user_id => jid:to_binary(JID), present => is_user_online(Status)},
     jiffy:encode(Msg).
 
 -spec make_chat_msg(From :: binary(), To :: atom(), UserMsg :: binary()) ->
     binary().
 make_chat_msg(From, To, UserMsg) ->
-    Msg = #{to_user_id => To, message => UserMsg, from_user_id => From},
+    Msg = #{to_user_id => jid:to_binary(To),
+            message => UserMsg,
+            from_user_id => jid:to_binary(From)},
     jiffy:encode(Msg).
 
 -spec is_user_online(online | offline) -> boolean().

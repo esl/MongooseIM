@@ -188,16 +188,17 @@ presence_messages_are_properly_formatted(Config) ->
               %% GIVEN
               escalus:wait_for_stanzas(Bob, 1),
               BobJID = nick_to_jid(bob, Config),
+              BobFullJID = nick_to_full_jid(bob, Config),
               listen_to_presence_events_from_rabbit([BobJID], Config),
               %% WHEN user logout
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
               %% THEN receive message
-              ?assertMatch(#{<<"user_id">> := BobJID, <<"present">> := false},
+              ?assertMatch(#{<<"user_id">> := BobFullJID, <<"present">> := false},
                            get_decoded_message_from_rabbit(BobJID))
       end).
 
 %%--------------------------------------------------------------------
-%% GROUP message_publish
+%% GROUP chat_message_publish
 %%--------------------------------------------------------------------
 
 users_push_chat_message_sent_events(Config) ->
@@ -257,15 +258,16 @@ chat_message_sent_messages_are_properly_formatted(Config) ->
       fun(Bob, Alice) ->
               %% GIVEN
               AliceJID = nick_to_jid(alice, Config),
-              BobJID = nick_to_jid(bob, Config),
+              AliceFullJID = nick_to_full_jid(alice, Config),
+              BobFullJID = nick_to_full_jid(bob, Config),
               AliceChatMsgSentRK = chat_msg_sent_rk(AliceJID),
               Message = <<"Hi Bob!">>,
               listen_to_chat_msg_sent_events_from_rabbit([AliceJID], Config),
               %% WHEN users chat
               escalus:send(Alice, escalus_stanza:chat_to(Bob, Message)),
               %% THEN
-              ?assertMatch(#{<<"from_user_id">> := AliceJID,
-                             <<"to_user_id">> := BobJID,
+              ?assertMatch(#{<<"from_user_id">> := AliceFullJID,
+                             <<"to_user_id">> := BobFullJID,
                              <<"message">> := Message},
                            get_decoded_message_from_rabbit(AliceChatMsgSentRK))
       end).
@@ -276,7 +278,8 @@ chat_message_received_messages_are_properly_formatted(Config) ->
       fun(Bob, Alice) ->
               %% GIVEN
               AliceJID = nick_to_jid(alice, Config),
-              BobJID = nick_to_jid(bob, Config),
+              AliceFullJID = nick_to_full_jid(alice, Config),
+              BobFullJID = nick_to_full_jid(bob, Config),
               AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
               Message = <<"Hi Alice!">>,
               listen_to_chat_msg_recv_events_from_rabbit([AliceJID], Config),
@@ -284,8 +287,8 @@ chat_message_received_messages_are_properly_formatted(Config) ->
               escalus:send(Bob, escalus_stanza:chat_to(Alice, Message)),
               escalus:wait_for_stanzas(Alice, 2),
               %% THEN
-              ?assertMatch(#{<<"from_user_id">> := BobJID,
-                             <<"to_user_id">> := AliceJID,
+              ?assertMatch(#{<<"from_user_id">> := BobFullJID,
+                             <<"to_user_id">> := AliceFullJID,
                              <<"message">> := Message},
                            get_decoded_message_from_rabbit(AliceChatMsgRecvRK))
       end).
@@ -498,5 +501,9 @@ user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
 nick_to_jid(UserName, Config) when is_atom(UserName) ->
     UserSpec = escalus_users:get_userspec(Config, UserName),
     escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
+
+nick_to_full_jid(UserName, Config) ->
+    JID = nick_to_jid(UserName, Config),
+    <<JID/binary, "/res1">>.
 
 nick(User) -> escalus_utils:get_username(User).

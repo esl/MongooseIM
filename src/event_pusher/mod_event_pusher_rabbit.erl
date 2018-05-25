@@ -24,15 +24,8 @@
 -define(DEFAULT_CHAT_MSG_SENT_TOPIC, <<"chat_msg_sent">>).
 -define(DEFAULT_CHAT_MSG_RECV_TOPIC, <<"chat_msg_recv">>).
 
--record(chat_event_data, {from :: jid:jid(),
-                          to :: jid:jid(),
-                          packet :: exml:element(),
-                          topic :: binary(),
-                          event :: chat_msg_event()}).
-
--type chat_msg_event() :: user_chat_msg_sent
-                        | user_chat_msg_recv.
--type chat_event_data() :: #chat_event_data{}.
+-type chat_event() :: user_chat_msg_sent
+                    | user_chat_msg_recv.
 
 %%%===================================================================
 %%% Exports
@@ -45,7 +38,7 @@
 -export([push_event/3]).
 
 %% Types
--export_type([chat_msg_event/0]).
+-export_type([chat_event/0]).
 
 %%%===================================================================
 %%% Callbacks
@@ -73,17 +66,8 @@ stop(Host) ->
 push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
     publish_user_presence_change(UserJID, Status),
     Acc;
-push_event(Acc, _, #chat_event{type = chat, direction = in, from = From,
-                               to = To, packet = Packet}) ->
-    EventData = #chat_event_data{from = From, to = To, packet = Packet,
-                                 event = user_chat_msg_sent},
-    publish_user_chat_message_sent_event(EventData),
-    Acc;
-push_event(Acc, _, #chat_event{type = chat, direction = out, from = From,
-                               to = To, packet = Packet}) ->
-    EventData = #chat_event_data{from = From, to = To, packet = Packet,
-                                 event = user_chat_recv_sent},
-    publish_user_chat_message_received_event(EventData),
+push_event(Acc, _, ChatEvent = #chat_event{}) ->
+    publish_user_chat_event(ChatEvent),
     Acc;
 push_event(Acc, _, _) ->
     Acc.
@@ -104,7 +88,7 @@ delete_exchanges(Host) ->
 
 -spec publish_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
 publish_user_presence_change(JID = #jid{lserver = Host}, Status) ->
-    UserJID = jid_to_lower_binary(JID),
+    UserJID = jid:to_lower(JID),
     PresenceExchange = opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
     wpool:cast(pool_name(Host), {user_presence_changed,
                                  #{user_jid => UserJID,
@@ -112,48 +96,48 @@ publish_user_presence_change(JID = #jid{lserver = Host}, Status) ->
                                    exchange => PresenceExchange}},
                available_worker).
 
--spec publish_user_chat_message_sent_event(EventData :: chat_event_data()) -> ok.
-publish_user_chat_message_sent_event(EventData =
-                                         #chat_event_data{
-                                            from = #jid{lserver = Host}}) ->
-    Topic = opt(Host, chat_msg_sent_topic, ?DEFAULT_CHAT_MSG_SENT_TOPIC),
-    publish_user_chat_message_event(EventData#chat_event_data{topic = Topic}).
-
--spec publish_user_chat_message_received_event(EventData :: chat_event_data()) ->
-    ok.
-publish_user_chat_message_received_event(EventData =
-                                             #chat_event_data{
-                                                from = #jid{lserver = Host}}) ->
-    Topic = opt(Host, chat_msg_recv_topic, ?DEFAULT_CHAT_MSG_RECV_TOPIC),
-    publish_user_chat_message_event(EventData#chat_event_data{topic = Topic}).
-
--spec publish_user_chat_message_event(EventData :: chat_event_data()) -> ok.
-publish_user_chat_message_event(#chat_event_data{from = From =
-                                                     #jid{lserver = Host},
-                                                 to = To,
-                                                 packet = Packet,
-                                                 topic = Topic,
-                                                 event = Event}) ->
-    FromJID = jid_to_lower_binary(From),
-    ToJID = jid_to_lower_binary(To),
+-spec publish_user_chat_event(#chat_event{}) -> ok.
+publish_user_chat_event(#chat_event{from = From,
+                                    to = To,
+                                    packet = Packet,
+                                    type = Type,
+                                    direction = Direction}) ->
+    Host = get_host(From, To, Direction),
+    FromJID = jid:to_lower(From),
+    ToJID = jid:to_lower(To),
     Message = extract_message(Packet),
-    ChatMsgExchange = opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
+    Exchange = get_chat_exchange(Type, Host),
+    Event = get_chat_event(Type, Direction),
+    Topic = get_chat_topic(Event, Host),
     wpool:cast(pool_name(Host), {Event, #{from_jid => FromJID,
                                           to_jid => ToJID,
                                           msg => Message,
-                                          exchange => ChatMsgExchange,
+                                          exchange => Exchange,
                                           topic => Topic}},
                available_worker).
 
--spec jid_to_lower_binary(JID :: jid:jid()) -> binary().
-jid_to_lower_binary(JID) ->
-    {LowerUser, LowerHost, _} = jid:to_lower(JID),
-    jid:to_binary({LowerUser, LowerHost}).
+-spec get_host(jid:jid(), jid:jid(), in | out) -> binary().
+get_host(#jid{lserver = Host}, _To, in) -> Host;
+get_host(_From, #jid{lserver = Host}, out) -> Host.
 
 -spec extract_message(Packet :: exml:element()) -> binary().
 extract_message(Packet) ->
     Body = exml_query:subelement(Packet, <<"body">>),
     exml_query:cdata(Body).
+
+-spec get_chat_exchange(chat | groupchat, Host :: binary()) -> binary().
+get_chat_exchange(chat, Host) ->
+    opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE);
+
+-spec get_chat_event(chat, in | out) -> chat_event().
+get_chat_event(chat, in) -> user_chat_msg_sent;
+get_chat_event(chat, out) -> user_chat_msg_recv.
+
+-spec get_chat_topic(event(), Host :: binary()) -> binary().
+get_chat_topic(user_chat_msg_sent, Host) ->
+    opt(Host, chat_msg_sent_topic, ?DEFAULT_CHAT_MSG_SENT_TOPIC);
+get_chat_topic(user_chat_msg_recv, Host) ->
+    opt(Host, chat_msg_recv_topic, ?DEFAULT_CHAT_MSG_RECV_TOPIC).
 
 -spec pool_name(Host :: jid:lserver()) -> atom().
 pool_name(Host) ->
