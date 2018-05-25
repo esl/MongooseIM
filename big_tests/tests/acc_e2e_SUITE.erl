@@ -39,9 +39,10 @@ all() ->
     ].
 
 groups() ->
-    [
-        {message, [], message_test_cases()}
-    ].
+    G = [
+         {message, [], message_test_cases()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 message_test_cases() ->
     [

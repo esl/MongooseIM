@@ -39,22 +39,25 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
-all() -> [
-          {group, pep_tests}
-         ].
+all() ->
+    [
+     {group, pep_tests}
+    ].
 
-groups() -> [
-             {pep_tests, [parallel],
-              [
-               pep_caps_test,
-               publish_and_notify_test,
-               send_caps_after_login_test,
-               h_ok_after_notify_test,
-               authorize_access_model,
-               unsubscribe_after_presence_unsubscription
-              ]
-             }
-            ].
+groups() ->
+    G = [
+         {pep_tests, [parallel],
+          [
+           pep_caps_test,
+           publish_and_notify_test,
+           send_caps_after_login_test,
+           h_ok_after_notify_test,
+           authorize_access_model,
+           unsubscribe_after_presence_unsubscription
+          ]
+         }
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

@@ -46,8 +46,9 @@ all() ->
 groups() ->
     %% setting test data before tests is proving awkward so might as well use the
     %% data set in the update tests to test the rest.
-    [{all, [sequence], all_tests()}
-    ].
+    G = [{all, [sequence], all_tests()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_tests() ->
     [update_own_card,

@@ -31,26 +31,29 @@ all() ->
     ].
 
 groups() ->
-    [
-        {pm_msg_notifications, [parallel], [
-            pm_msg_notify_on_apns_no_click_action,
-            pm_msg_notify_on_fcm_no_click_action,
-            pm_msg_notify_on_apns_w_click_action,
-            pm_msg_notify_on_fcm_w_click_action,
-            pm_msg_notify_on_apns_silent,
-            pm_msg_notify_on_fcm_silent,
-            pm_msg_notify_on_apns_w_topic
-        ]},
-        {muclight_msg_notifications, [parallel], [
-            muclight_msg_notify_on_apns_no_click_action,
-            muclight_msg_notify_on_fcm_no_click_action,
-            muclight_msg_notify_on_apns_w_click_action,
-            muclight_msg_notify_on_fcm_w_click_action,
-            muclight_msg_notify_on_apns_silent,
-            muclight_msg_notify_on_fcm_silent,
-            muclight_msg_notify_on_w_topic
-        ]}
-    ].
+    G = [
+         {pm_msg_notifications, [parallel],
+          [
+           pm_msg_notify_on_apns_no_click_action,
+           pm_msg_notify_on_fcm_no_click_action,
+           pm_msg_notify_on_apns_w_click_action,
+           pm_msg_notify_on_fcm_w_click_action,
+           pm_msg_notify_on_apns_silent,
+           pm_msg_notify_on_fcm_silent,
+           pm_msg_notify_on_apns_w_topic
+          ]},
+         {muclight_msg_notifications, [parallel],
+          [
+           muclight_msg_notify_on_apns_no_click_action,
+           muclight_msg_notify_on_fcm_no_click_action,
+           muclight_msg_notify_on_apns_w_click_action,
+           muclight_msg_notify_on_fcm_w_click_action,
+           muclight_msg_notify_on_apns_silent,
+           muclight_msg_notify_on_fcm_silent,
+           muclight_msg_notify_on_w_topic
+          ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

@@ -5,7 +5,8 @@ all() ->
     [{group, all_tests}].
 
 groups() ->
-    [{all_tests, [parallel], all_test_cases()}].
+    G = [{all_tests, [parallel], all_test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_test_cases() ->
     [caps_feature_is_advertised,

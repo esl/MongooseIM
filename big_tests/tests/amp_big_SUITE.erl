@@ -28,26 +28,28 @@ enabled_group_names() ->
     end.
 
 groups() ->
-    [{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
-     {mam, [], [{group, mam_success},
-                {group, mam_failure}]},
-     {mam_success, [], [{group, G} || G <- subgroup_names()]},
-     {mam_failure, [], [{group, G} || G <- subgroup_names()]},
-     {offline, [], [{group, offline_success},
-                    {group, offline_failure}]},
-     {offline_success, [], [{group, G} || G <- subgroup_names()]},
-     {offline_failure, [], [{group, G} || G <- subgroup_names()]}
-    ] ++
-        [{G, [parallel, shuffle], notify_deliver_test_cases()}
-         || G <- notify_deliver_group_names()] ++
-        [{G, [parallel, shuffle], error_deliver_test_cases()}
-         || G <- error_deliver_group_names()] ++
-        [{G, [parallel, shuffle], drop_deliver_test_cases()}
-         || G <- drop_deliver_group_names()].
+    Gs = ([{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
+           {mam, [], [{group, mam_success},
+                      {group, mam_failure}]},
+           {mam_success, [], [{group, G} || G <- subgroup_names()]},
+           {mam_failure, [], [{group, G} || G <- subgroup_names()]},
+           {offline, [], [{group, offline_success},
+                          {group, offline_failure}]},
+           {offline_success, [], [{group, G} || G <- subgroup_names()]},
+           {offline_failure, [], [{group, G} || G <- subgroup_names()]}
+          ] ++
+          [{G, [parallel, shuffle], notify_deliver_test_cases()}
+           || G <- notify_deliver_group_names()] ++
+          [{G, [parallel, shuffle], error_deliver_test_cases()}
+           || G <- error_deliver_group_names()] ++
+          [{G, [parallel, shuffle], drop_deliver_test_cases()}
+           || G <- drop_deliver_group_names()]),
+    ct_helper:repeat_all_until_all_ok(Gs).
+
 
 subgroup_names() -> notify_deliver_group_names() ++
-                        error_deliver_group_names() ++
-                        drop_deliver_group_names().
+                    error_deliver_group_names() ++
+                    drop_deliver_group_names().
 
 notify_deliver_group_names() ->
     [notify_deliver_none,

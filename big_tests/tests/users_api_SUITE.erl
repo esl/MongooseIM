@@ -32,9 +32,10 @@ all() ->
      {group, negative}].
 
 groups() ->
-    [{transaction, [{repeat_until_any_fail, 10}], [user_transaction]},
-     {negative, [], [negative_calls]}
-    ].
+    G = [{transaction, [{repeat_until_any_fail, 10}], [user_transaction]},
+         {negative, [], [negative_calls]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 init_per_suite(Config) ->
     case is_external_auth() of

@@ -17,7 +17,8 @@ all() ->
     [{group, all}].
 
 groups() ->
-    [{all, [parallel], test_cases()}].
+    G = [{all, [parallel], test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 test_cases() ->
     [jingle_session_is_established_for_full_jids,

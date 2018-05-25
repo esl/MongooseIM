@@ -35,7 +35,8 @@ all() ->
     [{group, positive}].
 
 groups() ->
-    [{positive, [parallel], success_response() ++ complex()}].
+    G = [{positive, [parallel], success_response() ++ complex()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 success_response() ->
     [
@@ -338,5 +339,5 @@ user_sees_message_from(User, Room, Times, Messages) ->
     user_sees_message_from(User, Room, Times - 1, [{UserRoomJID, Body} | Messages]).
 
 is_unavailable_presence_from(Stanza, RoomJID) ->
-    escalus_assert:is_presence_type(<<"unavailable">>, Stanza),
+    escalus:assert(is_presence_with_type, [<<"unavailable">>], Stanza),
     escalus_assert:is_stanza_from(RoomJID, Stanza).

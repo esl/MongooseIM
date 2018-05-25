@@ -41,13 +41,14 @@ all() ->
     [{group, xmpp_domain_local_reload}].
 
 groups() ->
-    [{xmpp_domain_local_reload, [],
-      [
-       domain_should_change,
-       user_should_be_registered_and_unregistered_via_ctl,
-       user_should_be_registered_and_unregistered_via_xmpp,
-       user_should_be_disconnected_from_removed_domain
-       ]}].
+    G = [{xmpp_domain_local_reload, [],
+          [
+           domain_should_change,
+           user_should_be_registered_and_unregistered_via_ctl,
+           user_should_be_registered_and_unregistered_via_xmpp,
+           user_should_be_disconnected_from_removed_domain
+          ]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++

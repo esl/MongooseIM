@@ -27,7 +27,8 @@ all() ->
     [{group, last}].
 
 groups() ->
-     [{last, [sequence], test_cases()}].
+    G = [{last, [sequence], test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 test_cases() -> [last_online_user,
                  last_offline_user,

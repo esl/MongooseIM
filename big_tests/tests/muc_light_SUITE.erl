@@ -123,67 +123,68 @@ all() ->
     ].
 
 groups() ->
-    [
-     {service, [sequence], [
-                            mismatched_default_config_is_rejected,
-                            removing_users_from_server_triggers_room_destruction
-                           ]},
-     {entity, [sequence], [
-                            disco_service,
-                            disco_features,
-                            disco_rooms,
-                            disco_rooms_rsm,
-                            disco_rooms_created_page_1,
-                            disco_rooms_created_page_infinity,
-                            disco_rooms_empty_page_infinity,
-                            disco_rooms_empty_page_1,
-                            rooms_in_rosters,
-                            no_roomname_in_schema_doesnt_break_disco_and_roster,
-                            unauthorized_stanza
-                         ]},
-     {occupant, [sequence], [
-                             send_message,
-                             change_subject,
-                             change_roomname,
-                             all_can_configure,
-                             set_config_deny,
-                             get_room_config,
-                             custom_schema_works_with_standard_default_config,
-                             custom_default_config_works,
-                             get_room_occupants,
-                             get_room_info,
-                             leave_room,
-                             change_other_aff_deny
-                            ]},
-     {owner, [sequence], [
-                          create_room,
-                          create_room_unique,
-                          create_room_with_equal_occupants,
-                          create_existing_room_deny,
-                          destroy_room,
-                          destroy_room_get_disco_items_empty,
-                          destroy_room_get_disco_items_one_left,
-                          set_config,
-                          set_config_with_custom_schema,
-                          deny_config_change_that_conflicts_with_schema,
-                          assorted_config_doesnt_lead_to_duplication,
-                          remove_and_add_users,
-                          explicit_owner_change,
-                          implicit_owner_change,
-                          edge_case_owner_change,
-                          adding_wrongly_named_user_triggers_infinite_loop
-                         ]},
-     {limits, [sequence], [
-                           rooms_per_user,
-                           max_occupants
-                          ]},
-     {blocking, [sequence], [
-                             manage_blocklist,
-                             block_room,
-                             block_user,
-                             blocking_disabled
-                            ]}
-    ].
+    G = [
+         {service, [sequence], [
+                                mismatched_default_config_is_rejected,
+                                removing_users_from_server_triggers_room_destruction
+                               ]},
+         {entity, [sequence], [
+                               disco_service,
+                               disco_features,
+                               disco_rooms,
+                               disco_rooms_rsm,
+                               disco_rooms_created_page_1,
+                               disco_rooms_created_page_infinity,
+                               disco_rooms_empty_page_infinity,
+                               disco_rooms_empty_page_1,
+                               rooms_in_rosters,
+                               no_roomname_in_schema_doesnt_break_disco_and_roster,
+                               unauthorized_stanza
+                              ]},
+         {occupant, [sequence], [
+                                 send_message,
+                                 change_subject,
+                                 change_roomname,
+                                 all_can_configure,
+                                 set_config_deny,
+                                 get_room_config,
+                                 custom_schema_works_with_standard_default_config,
+                                 custom_default_config_works,
+                                 get_room_occupants,
+                                 get_room_info,
+                                 leave_room,
+                                 change_other_aff_deny
+                                ]},
+         {owner, [sequence], [
+                              create_room,
+                              create_room_unique,
+                              create_room_with_equal_occupants,
+                              create_existing_room_deny,
+                              destroy_room,
+                              destroy_room_get_disco_items_empty,
+                              destroy_room_get_disco_items_one_left,
+                              set_config,
+                              set_config_with_custom_schema,
+                              deny_config_change_that_conflicts_with_schema,
+                              assorted_config_doesnt_lead_to_duplication,
+                              remove_and_add_users,
+                              explicit_owner_change,
+                              implicit_owner_change,
+                              edge_case_owner_change,
+                              adding_wrongly_named_user_triggers_infinite_loop
+                             ]},
+         {limits, [sequence], [
+                               rooms_per_user,
+                               max_occupants
+                              ]},
+         {blocking, [sequence], [
+                                 manage_blocklist,
+                                 block_room,
+                                 block_user,
+                                 blocking_disabled
+                                ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
