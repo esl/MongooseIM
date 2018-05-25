@@ -1,5 +1,6 @@
 %%==============================================================================
-%% Copyright 2015 Erlang Solutions Ltd.
+%% Copyright 2018 Erlang Solutions Ltd.
+%% Bartosz Szafran <bartosz.szafran@erlang-solutions.com>
 %% Licensed under the Apache License, Version 2.0 (see LICENSE file)
 %%
 %%==============================================================================
@@ -13,6 +14,12 @@
 %% Function get_my_role(MyId) returns role for each user, basing on IS_AMQP and
 %% IS_XMPP macros. To modify ratio of users type, please modify macros.
 %%
+%% Before starting users are started: (init/0 function)
+%% - there is a check for required variables for scenario. It will crash
+%%   if they are not set.
+%% - Metrics are initialized.
+%% - Connection pool to AMQP is created.
+%%
 %% XMPP users work as follow:
 %% - connect to XMPP server
 %% - schedule going online
@@ -22,7 +29,7 @@
 %%   ?XMPP_GO_OFFLINE_AFTER
 %% - if event go_offline arrives they go offline, and schedule go_online after
 %%   ?XMPP_GO_ONLINE_AFTER
-%% - if event stanza arrives, they handle it (currently ignores it)
+%% - if event stanza arrives, they handle it (measure TTD and report it)
 %% - if event send_message arrives, they send message to ?NUMBER_OF_PREV_NEIGHBOURS
 %%   and ?NUMBER_OF_NEXT_NEIGHBOURS and schedule send_message after ?XMPP_SEND_MESSAGE_AFTER
 %%
@@ -125,14 +132,10 @@ required_vars() ->
 % are available. Throws an arror otherwise.
 -spec check_vars() -> ok | no_return().
 check_vars() ->
-    NonDefinedVars = lists:foldl(fun (Var, Acc) ->
-                                         case amoc_config:get(Var) of
-                                             undefined -> [Var|Acc];
-                                             _ -> Acc
-                                         end
-                                 end,
-                                 [],
-                                 required_vars()),
+    NonDefinedVars = lists:filter(fun (Var) ->
+                                          amoc_config:get(Var) == undefined
+                                  end,
+                                  required_vars()),
     case NonDefinedVars of
         [] -> ok;
         _ -> error({undefined_variables, NonDefinedVars})
@@ -438,6 +441,7 @@ bind_queue_to_message_exchange(ChannelPid, Queue, NeighborIDs) ->
       [bind_queue_to_exchange(ChannelPid, Queue, Exchange, RoutingKey)
        || RoutingKey <- RoutingKeys],
     return_ok_if_all_ok_else_error(Results).
+
 % @doc Generic function for binding queue to exchange with given routing key.
 -spec bind_queue_to_exchange(ChannelPid  :: pid(),
                              Queue       :: binary(),
