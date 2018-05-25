@@ -185,19 +185,15 @@ get_my_role(ID) when ?IS_XMPP(ID) -> xmpp.
 %% @doc This function returns a list of neighbours which connects via xmpp
 -spec xmpp_neighbors(amoc_scenario:user_id()) -> [amoc_scenario:user_id()].
 xmpp_neighbors(MyID) ->
-    Filter = fun (ID) -> ?IS_XMPP(ID) end,
+    AmocUsers = amoc_config:get(amoc_users),
 
-    PrevAmount = ?NUMBER_OF_PREV_NEIGHBOURS,
-    PrevLimit = 1,
-    PrevGenerator = fun (PrevValue) -> PrevValue - 1 end,
+    PrevNeighbors = [ ID || ID <- lists:seq(1, MyID-1), ?IS_XMPP(ID) ],
+    LimitedPrevNeighbors = lists:sublist(lists:reverse(PrevNeighbors), ?NUMBER_OF_PREV_NEIGHBOURS),
 
-    NextAmount = ?NUMBER_OF_NEXT_NEIGHBOURS,
-    NextLimit = amoc_config:get(amoc_users),
-    NextGenerator = fun (PrevValue) -> PrevValue + 1 end,
+    NextNeighbors = [ ID || ID <- lists:seq(MyID+1, AmocUsers), ?IS_XMPP(ID) ],
+    LimitedNextNeighbors = lists:sublist(NextNeighbors, ?NUMBER_OF_PREV_NEIGHBOURS),
 
-    get_sequence([], PrevGenerator, Filter, PrevAmount, MyID - 1, PrevLimit)
-    ++
-    get_sequence([], NextGenerator, Filter, NextAmount, MyID + 1, NextLimit).
+    LimitedPrevNeighbors ++ LimitedNextNeighbors.
 
 %================================================
 % XMPP client behaviour
@@ -582,42 +578,8 @@ schedule(Msg, 0) ->
 schedule(Msg, Timeout) ->
     erlang:send_after(Timeout, self(), {scheduled, Msg}).
 
-%% @doc This function generates a sequence of values.
-%%
-%% This is helper function for lazy creation of lists.
-%%
-%% Things to be supplied:
-%% - generator - function which returns next element, when there is
-%%               old one given.
-%% - filter - function which determines if element should be included in a result.
-%% - Amount - how many elements should be generated
-%% - element - initial element for generator
-%% - limit - If emitted element is equal to this value stop.
--spec get_sequence(Acc       :: [X],
-                   Generator :: fun((X) -> X),
-                   Filter    :: fun((X) -> boolean()),
-                   Amount    :: integer(),
-                   Elem      :: X,
-                   Limit     :: X) -> [X].
-get_sequence(Acc, _Generator, _Filter, 0, _Elem, _Limit) ->
-    Acc;
-get_sequence(Acc, _Generator, Filter, _Amount, Elem, Limit)
-  when Elem =:= Limit ->
-    case Filter(Elem) of
-        true -> [Elem|Acc];
-        false -> Acc
-    end;
-get_sequence(Acc, Generator, Filter, Amount, Elem, Limit) ->
-    NextElem = Generator(Elem),
-    case Filter(Elem) of
-        true ->
-            get_sequence([Elem|Acc], Generator, Filter, Amount - 1, NextElem, Limit);
-        false ->
-            get_sequence(Acc, Generator, Filter, Amount, NextElem, Limit)
-    end.
-
-%% @doc Functions checks if list of results contains only 'ok' atoms. Returns
-%% 'ok' or 'error'.
+ %% @doc Functions checks if list of results contains only 'ok' atoms. Returns
+ %% 'ok' or 'error'.
 -spec return_ok_if_all_ok_else_error([ok | error]) -> ok | error.
 return_ok_if_all_ok_else_error(Results) ->
     case lists:all(fun (Res) -> Res == ok end, Results) of
