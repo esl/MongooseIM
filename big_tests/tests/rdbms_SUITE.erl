@@ -125,7 +125,8 @@ unicode_values() ->
     %% gives 010101.... as expected
     [iolist_to_binary([lists:duplicate(1000, X) || X <- lists:seq(1, 10)]),
      binary:copy(<<$a>>, 10000),
-    %% There is a bug with 8001 chars limit
+    %% There is a bug with 8001 chars limit in upstream odbc
+    %% We use a fork arcusfelis/eodbc, that has the bug fixed
     %% https://bugs.erlang.org/browse/ERL-421
      binary:copy(<<10>>, 10000)].
 
@@ -138,14 +139,20 @@ binary_values() ->
     binary:copy(<<1>>, 1024),
     %% two kilobytes
     binary:copy(<<2>>, 2048),
-    %% There is a bug with 8001 chars limit
-    %% https://bugs.erlang.org/browse/ERL-421
-    %% I like otp
     binary:copy(<<5>>, 1024*5),
+    %% There is a bug with 8001 chars limit in upstream odbc
+    %% We use a fork arcusfelis/eodbc, that has the bug fixed
+    %% https://bugs.erlang.org/browse/ERL-421
     binary:copy(<<8>>, 8002),
     binary:copy(<<0>>, 100000)
-%   binary:copy(<<16>>, 16777215) %% causes timeout with mssql
-    ].
+    ] ++
+    case is_odbc() of
+        true ->
+            [];
+        false ->
+            %% FIXME long data causes timeout with mssql
+            [binary:copy(<<16>>, 16777215)]
+    end.
 
 binary_8k_values() ->
     truncate_binaries(8000, unicode_values() ++ binary_values()).
@@ -683,3 +690,6 @@ drop_common_prefix(Pos, SelValue, Value) ->
     #{pos => Pos,
       selected_suffix => safe_binary(100, SelValue),
       expected_suffix => safe_binary(100, Value)}.
+
+is_odbc() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == odbc.
