@@ -81,6 +81,14 @@ handle_cast({user_chat_msg_sent, EventData},
 handle_cast({user_chat_msg_recv, EventData},
             #state{channel = Channel} = State) ->
     publish_chat_msg_received(Channel, EventData),
+    {noreply, State};
+handle_cast({user_groupchat_msg_sent, EventData},
+            #state{channel = Channel} = State) ->
+    publish_groupchat_msg_sent(Channel, EventData),
+    {noreply, State};
+handle_cast({user_groupchat_msg_recv, EventData},
+            #state{channel = Channel} = State) ->
+    publish_groupchat_msg_recv(Channel, EventData),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -157,6 +165,18 @@ publish_chat_msg_sent(Channel, EventData = #{from_jid := From,
 -spec publish_chat_msg_received(Channel :: pid(), EventData :: map()) -> ok.
 publish_chat_msg_received(Channel, EventData = #{to_jid := To,
                                                  topic := Topic}) ->
+    RoutingKey = user_topic_routing_key(To, Topic),
+    publish_chat_msg_event(Channel, RoutingKey, EventData).
+
+-spec publish_groupchat_msg_sent(Channel :: pid(), EventData :: map()) -> ok.
+publish_groupchat_msg_sent(Channel, EventData = #{from_jid := From,
+                                                  topic := Topic}) ->
+    RoutingKey = user_topic_routing_key(From, Topic),
+    publish_chat_msg_event(Channel, RoutingKey, EventData).
+
+-spec publish_groupchat_msg_recv(Channel :: pid(), EventData :: map()) -> ok.
+publish_groupchat_msg_recv(Channel, EventData = #{to_jid := To,
+                                                  topic := Topic}) ->
     RoutingKey = user_topic_routing_key(To, Topic),
     publish_chat_msg_event(Channel, RoutingKey, EventData).
 

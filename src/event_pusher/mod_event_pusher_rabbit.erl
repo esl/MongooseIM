@@ -23,9 +23,14 @@
 -define(DEFAULT_CHAT_MSG_EXCHANGE, <<"chat_msg">>).
 -define(DEFAULT_CHAT_MSG_SENT_TOPIC, <<"chat_msg_sent">>).
 -define(DEFAULT_CHAT_MSG_RECV_TOPIC, <<"chat_msg_recv">>).
+-define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE, <<"groupchat_msg">>).
+-define(DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC, <<"groupchat_msg_sent">>).
+-define(DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC, <<"groupchat_msg_recv">>).
 
 -type chat_event() :: user_chat_msg_sent
-                    | user_chat_msg_recv.
+                    | user_chat_msg_recv
+                    | user_groupchat_msg_sent
+                    | user_groupchat_msg_recv.
 
 %%%===================================================================
 %%% Exports
@@ -128,16 +133,25 @@ extract_message(Packet) ->
 -spec get_chat_exchange(chat | groupchat, Host :: binary()) -> binary().
 get_chat_exchange(chat, Host) ->
     opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE);
+get_chat_exchange(groupchat, Host) ->
+    opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE).
 
--spec get_chat_event(chat, in | out) -> chat_event().
+-spec get_chat_event(chat | groupchat, in | out) -> chat_event().
 get_chat_event(chat, in) -> user_chat_msg_sent;
-get_chat_event(chat, out) -> user_chat_msg_recv.
+get_chat_event(chat, out) -> user_chat_msg_recv;
+get_chat_event(groupchat, in) -> user_groupchat_msg_sent;
+get_chat_event(groupchat, out) -> user_groupchat_msg_recv.
 
 -spec get_chat_topic(event(), Host :: binary()) -> binary().
 get_chat_topic(user_chat_msg_sent, Host) ->
     opt(Host, chat_msg_sent_topic, ?DEFAULT_CHAT_MSG_SENT_TOPIC);
 get_chat_topic(user_chat_msg_recv, Host) ->
-    opt(Host, chat_msg_recv_topic, ?DEFAULT_CHAT_MSG_RECV_TOPIC).
+    opt(Host, chat_msg_recv_topic, ?DEFAULT_CHAT_MSG_RECV_TOPIC);
+get_chat_topic(user_groupchat_msg_sent, Host) ->
+    opt(Host, groupchat_msg_sent_topic, ?DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC);
+get_chat_topic(user_groupchat_msg_recv, Host) ->
+    opt(Host, groupchat_msg_recv_topic, ?DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC).
+
 
 -spec pool_name(Host :: jid:lserver()) -> atom().
 pool_name(Host) ->
@@ -159,7 +173,8 @@ amqp_client_opts(Host) ->
 exchanges(Host) ->
     [
      opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
-     opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE)
+     opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
+     opt(Host, groupchat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE)
     ].
 
 %% Getter for module options

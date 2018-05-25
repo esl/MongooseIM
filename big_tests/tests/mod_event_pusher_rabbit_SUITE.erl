@@ -682,28 +682,19 @@ nick_to_full_jid(UserName, Config) ->
 
 nick(User) -> escalus_utils:get_username(User).
 
-maybe_prepare_muc(users_push_group_chat_message_sent_events, Config) ->
-    prepare_muc(Config);
-maybe_prepare_muc(users_push_group_chat_message_received_events, Config) ->
-    prepare_muc(Config);
-maybe_prepare_muc(group_chat_message_sent_messages_are_properly_formatted,
-                  Config) ->
-    prepare_muc(Config);
-maybe_prepare_muc(group_chat_message_received_messages_are_properly_formatted,
-                  Config) ->
+maybe_prepare_muc(TestCase, Config) when
+      TestCase == users_push_group_chat_message_sent_events orelse
+      TestCase == users_push_group_chat_message_received_events orelse
+      TestCase == group_chat_message_sent_messages_are_properly_formatted orelse
+      TestCase == group_chat_message_received_messages_are_properly_formatted ->
     prepare_muc(Config);
 maybe_prepare_muc(_, Config) -> Config.
 
-
-maybe_cleanup_muc(users_push_group_chat_message_sent_events, Config) ->
-    cleanup_muc(Config);
-maybe_cleanup_muc(users_push_group_chat_message_received_events, Config) ->
-    cleanup_muc(Config);
-maybe_cleanup_muc(group_chat_message_sent_messages_are_properly_formatted,
-                  Config) ->
-    cleanup_muc(Config);
-maybe_cleanup_muc(group_chat_message_received_messages_are_properly_formatted,
-                  Config) ->
+maybe_cleanup_muc(TestCase, Config) when
+      TestCase == users_push_group_chat_message_sent_events orelse
+      TestCase == users_push_group_chat_message_received_events orelse
+      TestCase == group_chat_message_sent_messages_are_properly_formatted orelse
+      TestCase == group_chat_message_received_messages_are_properly_formatted ->
     cleanup_muc(Config);
 maybe_cleanup_muc(_, _) -> ok.
 
