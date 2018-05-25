@@ -26,11 +26,15 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
+-define(MUC_HOST, <<"muc.localhost">>).
 -define(QUEUE_NAME, <<"test_queue">>).
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
 -define(CHAT_MSG_EXCHANGE, <<"custom_chat_msg_exchange">>).
+-define(GROUP_CHAT_MSG_EXCHANGE, <<"custom_group_chat_msg_exchange">>).
 -define(CHAT_MSG_SENT_TOPIC, <<"custom_chat_msg_sent_topic">>).
 -define(CHAT_MSG_RECV_TOPIC, <<"custom_chat_msg_recv_topic">>).
+-define(GROUP_CHAT_MSG_SENT_TOPIC, <<"custom_group_chat_msg_sent_topic">>).
+-define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
 -define(MOD_EVENT_PUSHER_RABBIT_CFG,
         [{amqp_host, "localhost"},
          {amqp_port, 5672},
@@ -39,7 +43,10 @@
          {presence_exchange, ?PRESENCE_EXCHANGE},
          {chat_msg_exchange, ?CHAT_MSG_EXCHANGE},
          {chat_msg_sent_topic, ?CHAT_MSG_SENT_TOPIC},
-         {chat_msg_recv_topic, ?CHAT_MSG_RECV_TOPIC}
+         {chat_msg_recv_topic, ?CHAT_MSG_RECV_TOPIC},
+         {groupchat_msg_exchange, ?GROUP_CHAT_MSG_EXCHANGE},
+         {groupchat_msg_sent_topic, ?GROUP_CHAT_MSG_SENT_TOPIC},
+         {groupchat_msg_recv_topic, ?GROUP_CHAT_MSG_RECV_TOPIC}
         ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
@@ -56,7 +63,8 @@ all() ->
     [
      {group, exchange_handling},
      {group, presence_status_publish},
-     {group, chat_message_publish}
+     {group, chat_message_publish},
+     {group, group_chat_message_publish}
     ].
 
 groups() ->
@@ -77,7 +85,14 @@ groups() ->
        chat_message_sent_messages_are_properly_formatted,
        users_push_chat_message_received_events,
        chat_message_received_messages_are_properly_formatted
-      ]}
+      ]},
+     {group_chat_message_publish, [],
+     [
+      users_push_group_chat_message_sent_events,
+      group_chat_message_sent_messages_are_properly_formatted,
+      users_push_group_chat_message_received_events,
+      group_chat_message_received_messages_are_properly_formatted
+     ]}
     ].
 
 suite() ->
@@ -89,10 +104,12 @@ suite() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(amqp_client),
+    muc_helper:load_muc(muc_host()),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
+    muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
 init_per_group(exchange_handling, Config) ->
@@ -114,7 +131,8 @@ end_per_group(_, Config) ->
 
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
-    Config = Config1 ++ listen_to_rabbit(),
+    Config2 = maybe_prepare_muc(CaseName, Config1),
+    Config = Config2 ++ listen_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
@@ -123,6 +141,7 @@ end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
 end_per_testcase(exchanges_are_deleted_on_module_stop, Config) ->
     Config;
 end_per_testcase(CaseName, Config) ->
+    maybe_cleanup_muc(CaseName, Config),
     close_rabbit_connection(Config),
     escalus:end_per_testcase(CaseName, Config).
 
@@ -135,7 +154,8 @@ exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE],
+    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE,
+                 ?GROUP_CHAT_MSG_EXCHANGE],
     %% WHEN
     start_mod_event_pusher_rabbit(),
     %% THEN exchanges are created
@@ -147,7 +167,8 @@ exchanges_are_deleted_on_module_stop(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE],
+    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE,
+                 ?GROUP_CHAT_MSG_EXCHANGE],
     %% WHEN
     start_mod_event_pusher_rabbit(),
     stop_mod_event_pusher_rabbit(),
@@ -294,6 +315,127 @@ chat_message_received_messages_are_properly_formatted(Config) ->
       end).
 
 %%--------------------------------------------------------------------
+%% GROUP group_message_publish
+%%--------------------------------------------------------------------
+
+users_push_group_chat_message_sent_events(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              Room = ?config(room, Config),
+              RoomAddr = room_address(Room),
+              BobJID = nick_to_jid(bob, Config),
+              AliceJID = nick_to_jid(alice, Config),
+              BobGroupChatMsgSentRK = group_chat_msg_sent_rk(BobJID),
+              AliceGroupChatMsgSentRK = group_chat_msg_sent_rk(AliceJID),
+              listen_to_group_chat_msg_sent_events_from_rabbit([BobJID,
+                                                                AliceJID],
+                                                               Config),
+              %% WHEN users chat
+              escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+              escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr,
+                                                            <<"Hi there!">>)),
+              escalus:send(Alice,
+                           escalus_stanza:groupchat_to(RoomAddr,
+                                                       <<"Hello everyone!">>)),
+
+              %% THEN  wait for chat message sent events events from Rabbit.
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = BobGroupChatMsgSentRK},
+                                    #amqp_msg{}}, timer:seconds(5)),
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = AliceGroupChatMsgSentRK},
+                                    #amqp_msg{}}, timer:seconds(5))
+      end).
+
+users_push_group_chat_message_received_events(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              Room = ?config(room, Config),
+              RoomAddr = room_address(Room),
+              BobJID = nick_to_jid(bob, Config),
+              AliceJID = nick_to_jid(alice, Config),
+              BobGroupChatMsgRecvRK = group_chat_msg_recv_rk(BobJID),
+              AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
+              listen_to_group_chat_msg_recv_events_from_rabbit([BobJID,
+                                                                AliceJID],
+                                                               Config),
+              %% WHEN users chat
+              escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+              escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr,
+                                                            <<"Hi there!">>)),
+              escalus:send(Alice,
+                           escalus_stanza:groupchat_to(RoomAddr,
+                                                       <<"Hello everyone!">>)),
+
+              %% THEN  wait for chat message received events events from Rabbit.
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = BobGroupChatMsgRecvRK},
+                                    #amqp_msg{}}, timer:seconds(5)),
+              ?assertReceivedMatch({#'basic.deliver'{
+                                       routing_key = AliceGroupChatMsgRecvRK},
+                                    #amqp_msg{}}, timer:seconds(5))
+      end).
+
+group_chat_message_sent_messages_are_properly_formatted(Config) ->
+    escalus:story(
+      Config, [{bob, 1}],
+      fun(Bob) ->
+              %% GIVEN
+              Room = ?config(room, Config),
+              RoomAddr = room_address(Room),
+              BobJID = nick_to_jid(bob, Config),
+              BobFullJID = nick_to_full_jid(bob, Config),
+              BobGroupChatMsgSentRK = group_chat_msg_sent_rk(BobJID),
+              Message = <<"Hi there!">>,
+              listen_to_group_chat_msg_sent_events_from_rabbit([BobJID], Config),
+              %% WHEN a user chat
+              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+              escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Message)),
+              %% THEN
+              ?assertMatch(#{<<"from_user_id">> := BobFullJID,
+                             <<"to_user_id">> := RoomAddr,
+                             <<"message">> := Message},
+                           get_decoded_message_from_rabbit(BobGroupChatMsgSentRK))
+      end).
+
+group_chat_message_received_messages_are_properly_formatted(Config) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              %% GIVEN
+              Room = ?config(room, Config),
+              RoomAddr = room_address(Room),
+              BobRoomJID = user_room_jid(RoomAddr, Bob),
+              AliceJID = nick_to_jid(alice, Config),
+              AliceFullJID = nick_to_full_jid(alice, Config),
+              AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
+              Message = <<"Hi there!">>,
+              listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID],
+                                                               Config),
+              %% WHEN users chat
+              escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
+              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+
+              escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Message)),
+              %% THEN
+              %% TODO: Investigate why there is an empty message sent.
+              get_decoded_message_from_rabbit(AliceGroupChatMsgRecvRK),
+              ?assertMatch(#{<<"from_user_id">> := BobRoomJID,
+                             <<"to_user_id">> := AliceFullJID,
+                             <<"message">> := Message},
+                           get_decoded_message_from_rabbit(AliceGroupChatMsgRecvRK))
+      end).
+
+%%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
 
@@ -330,6 +472,20 @@ listen_to_chat_msg_sent_events_from_rabbit(JIDs, Config) ->
     ok | term().
 listen_to_chat_msg_recv_events_from_rabbit(JIDs, Config) ->
     QueueBindings = chat_msg_recv_bindings(?QUEUE_NAME, JIDs),
+    listen_to_events_from_rabbit(QueueBindings, Config).
+
+-spec listen_to_group_chat_msg_sent_events_from_rabbit(JIDs :: [binary()],
+                                                       Config :: proplists:proplist()) ->
+    ok | term().
+listen_to_group_chat_msg_sent_events_from_rabbit(JIDs, Config) ->
+    QueueBindings = group_chat_msg_sent_bindings(?QUEUE_NAME, JIDs),
+    listen_to_events_from_rabbit(QueueBindings, Config).
+
+-spec listen_to_group_chat_msg_recv_events_from_rabbit(JIDs :: [binary()],
+                                                       Config :: proplists:proplist()) ->
+    ok | term().
+listen_to_group_chat_msg_recv_events_from_rabbit(JIDs, Config) ->
+    QueueBindings = group_chat_msg_recv_bindings(?QUEUE_NAME, JIDs),
     listen_to_events_from_rabbit(QueueBindings, Config).
 
 -spec listen_to_events_from_rabbit(QueueBindings :: [rabbit_binding()],
@@ -380,6 +536,18 @@ chat_msg_sent_bindings(Queue, JIDs) ->
     [rabbit_binding()].
 chat_msg_recv_bindings(Queue, JIDs) ->
     [{Queue, ?CHAT_MSG_EXCHANGE, chat_msg_recv_rk(JID)} || JID <- JIDs].
+
+-spec group_chat_msg_sent_bindings(Queue :: binary(), JIDs :: [binary()]) ->
+    [rabbit_binding()].
+group_chat_msg_sent_bindings(Queue, JIDs) ->
+    [{Queue, ?GROUP_CHAT_MSG_EXCHANGE, group_chat_msg_sent_rk(JID)}
+     || JID <- JIDs].
+
+-spec group_chat_msg_recv_bindings(Queue :: binary(), JIDs :: [binary()]) ->
+    [rabbit_binding()].
+group_chat_msg_recv_bindings(Queue, JIDs) ->
+    [{Queue, ?GROUP_CHAT_MSG_EXCHANGE, group_chat_msg_recv_rk(JID)}
+     || JID <- JIDs].
 
 -spec bind_queues_to_exchanges(Channel :: pid(),
                                Bindings :: [rabbit_binding()]) ->
@@ -495,6 +663,12 @@ chat_msg_sent_rk(JID) -> user_topic_routing_key(JID, ?CHAT_MSG_SENT_TOPIC).
 
 chat_msg_recv_rk(JID) -> user_topic_routing_key(JID, ?CHAT_MSG_RECV_TOPIC).
 
+group_chat_msg_sent_rk(JID) ->
+    user_topic_routing_key(JID, ?GROUP_CHAT_MSG_SENT_TOPIC).
+
+group_chat_msg_recv_rk(JID) ->
+    user_topic_routing_key(JID, ?GROUP_CHAT_MSG_RECV_TOPIC).
+
 user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
 
 %% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
@@ -507,3 +681,68 @@ nick_to_full_jid(UserName, Config) ->
     <<JID/binary, "/res1">>.
 
 nick(User) -> escalus_utils:get_username(User).
+
+maybe_prepare_muc(users_push_group_chat_message_sent_events, Config) ->
+    prepare_muc(Config);
+maybe_prepare_muc(users_push_group_chat_message_received_events, Config) ->
+    prepare_muc(Config);
+maybe_prepare_muc(group_chat_message_sent_messages_are_properly_formatted,
+                  Config) ->
+    prepare_muc(Config);
+maybe_prepare_muc(group_chat_message_received_messages_are_properly_formatted,
+                  Config) ->
+    prepare_muc(Config);
+maybe_prepare_muc(_, Config) -> Config.
+
+
+maybe_cleanup_muc(users_push_group_chat_message_sent_events, Config) ->
+    cleanup_muc(Config);
+maybe_cleanup_muc(users_push_group_chat_message_received_events, Config) ->
+    cleanup_muc(Config);
+maybe_cleanup_muc(group_chat_message_sent_messages_are_properly_formatted,
+                  Config) ->
+    cleanup_muc(Config);
+maybe_cleanup_muc(group_chat_message_received_messages_are_properly_formatted,
+                  Config) ->
+    cleanup_muc(Config);
+maybe_cleanup_muc(_, _) -> ok.
+
+prepare_muc(Config) ->
+    [User | _] = ?config(escalus_users, Config),
+    muc_helper:start_room(Config, User, <<"muc_publish">>, <<"user_nick">>,
+                          [{persistent, true},
+                           {anonymous, false}]).
+
+cleanup_muc(Config) ->
+    muc_helper:destroy_room(Config).
+
+muc_host() ->
+    ?MUC_HOST.
+
+stanza_muc_enter_room(Room, Nick) ->
+    stanza_to_room(
+      escalus_stanza:presence(<<"available">>,
+                              [#xmlel{name = <<"x">>,
+                                      attrs=[{<<"xmlns">>,
+                                              <<"http://jabber.org/protocol/muc">>}]}
+                              ]),
+      Room, Nick).
+
+stanza_default_muc_room(Room, Nick) ->
+    Form = escalus_stanza:x_data_form(<<"submit">>, []),
+    Query = escalus_stanza:query_el(?NS_MUC_OWNER, [Form]),
+    IQSet = escalus_stanza:iq(<<"set">>, [Query]),
+    stanza_to_room(IQSet, Room, Nick).
+
+stanza_to_room(Stanza, Room, Nick) ->
+    escalus_stanza:to(Stanza, room_address(Room, Nick)).
+
+room_address(Room) ->
+    <<Room/binary, "@", ?MUC_HOST/binary>>.
+
+room_address(Room, Nick) ->
+    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
+
+user_room_jid(RoomJID, UserJID) ->
+    Nick = nick(UserJID),
+    <<RoomJID/binary, "/", Nick/binary>>.
