@@ -1,0 +1,71 @@
+%% @doc Count successful and failed groups in the test suite.
+%%
+%% Use by adding the following line to `test.spec`:
+%% {ct_hooks, [ct_results_summary_hook]}.
+-module(ct_groups_summary_hook).
+
+%% Callbacks
+-export([id/1,
+         init/2,
+         post_end_per_suite/4,
+         post_end_per_group/4]).
+
+-include_lib("common_test/include/ct.hrl").
+
+%% @doc Return a unique id for this CTH.
+id(_Opts) ->
+    "ct_results_summary_hook_001".
+
+%% @doc Always called before any other callback function. Use this to initiate
+%% any common state.
+init(_Id, Opts) ->
+    %ct:pal("init opts: ~p", [Opts]),
+    {ok, #{}}.
+
+post_end_per_suite(_SuiteName, Config, Return, State) ->
+    write_groups_summary(Config, State),
+    {Return, State}.
+
+post_end_per_group(GroupName, Config, Return, State) ->
+    ct:pal("post_end_per_group config: ~p", [Config]),
+    ct:pal("post_end_per_group state: ~p", [State]),
+    ct:pal("post_end_per_group return: ~p", [Return]),
+    State1 = update_group_status(GroupName, Config, State),
+    {Return, State1}.
+
+%% @doc If the group property repeat_until_all_ok is enabled,
+%% then update the outcome of this group in State.
+%% In other words, if a previous run of this group failed,
+%% and this one succeeded, State will be updated to reflect success.
+update_group_status(GroupName, Config, State) ->
+    case lists:keyfind(tc_group_properties, 1, Config) of
+        false -> State;
+        {tc_group_properties, Properties} ->
+            case proplists:is_defined(repeat_until_all_ok, Properties) of
+                false -> State;
+                true ->
+                    GroupResult = ?config(tc_group_result, Config),
+                    case {proplists:get_value(skipped, GroupResult, []),
+                          proplists:get_value(failed, GroupResult, [])}
+                    of
+                        {[], []} -> State#{GroupName => ok};
+                        {__, __} -> State#{GroupName => failed}
+                    end
+            end
+    end.
+
+%% @doc Write down the number successful and failing groups in a per-suite groups.summary file.
+write_groups_summary(Config, State) ->
+    {Ok, Failed} = maps:fold(fun (_GroupName, ok, {OkAcc, FailedAcc}) -> {OkAcc + 1, FailedAcc};
+                                 (_GroupName, __, {OkAcc, FailedAcc}) -> {OkAcc, FailedAcc + 1} end,
+                             {0, 0},
+                             State),
+    PrivDir = ?config(priv_dir, Config),
+    case PrivDir of
+        undefined ->
+            error(priv_dir_undefined);
+        _ ->
+            SuiteDir = filename:dirname(string:strip(PrivDir, right, $/)),
+            file:write_file(filename:join([SuiteDir, "groups.summary"]),
+                            io_lib:format("~p.", [{groups_summary, {Ok, Failed}}]))
+    end.
