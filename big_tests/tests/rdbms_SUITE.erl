@@ -704,7 +704,7 @@ is_pgsql() ->
 slow_rpc(M, F, A) ->
     Node = ct:get_config({hosts, mim, node}),
     Cookie = escalus_ct:get_config(ejabberd_cookie),
-    Res = escalus_ct:rpc_call(Node, M, F, A, timer:seconds(30), Cookie),
+    Res = escalus_rpc:call(Node, M, F, A, timer:seconds(30), Cookie),
     case Res of
         {badrpc, timeout} ->
             {badrpc, {timeout, M, F}};
