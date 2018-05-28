@@ -1,25 +1,44 @@
 #!/usr/bin/env escript
 
 main(Directories) ->
-    Files = lists:foldl(fun(Dir, Acc) ->
-                    Wildcard = filename:join([Dir, "*.logs",
-                                              "*", "suite.summary"]),
-                    Acc ++ filelib:wildcard(Wildcard)
-            end, [], Directories),
-    Result = lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
-        {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
-        {OkAcc+Ok, FAcc+F, USAcc+US, ASAcc+AS}
-    end, {0, 0, 0, 0}, Files),
-    {Ok, Failed, UserSkipped, AutoSkipped} = Result,
+    {OkTests, FailedTests, UserSkipped, AutoSkipped} =
+        add_up_suite_results(suite_summaries(Directories)),
+    {OkGroups, FailedGroups} = add_up_group_results(group_summaries(Directories)),
     io:format("CT results:~n"
+              "    ~p groups passed~n"
+              "    ~p groups failed~n"
               "    ~p tests passed~n"
               "    ~p tests failed~n"
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
-          [Ok, Failed, UserSkipped, AutoSkipped]),
-    case Ok =< 0 of
+              [OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped]),
+    case Ok =< 0 orelse OkGroups =< 0 of
         true ->
             erlang:halt(100404);
         _ ->
-            erlang:halt(Failed + AutoSkipped)
+            erlang:halt(FailedGroups + Failed + AutoSkipped)
     end.
+
+suite_summaries(Directories) ->
+    summaries(Directories, "suite.summary").
+
+group_summaries(Directories) ->
+    summaries(Directories, "groups.summary").
+
+summaries(Directories, Filename) ->
+    lists:foldl(fun(Dir, Acc) ->
+                        Wildcard = filename:join([Dir, "*.logs", "*", Filename]),
+                        Acc ++ filelib:wildcard(Wildcard)
+                end, [], Directories).
+
+add_up_suite_results(SuiteSummaries) ->
+    lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
+                        {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
+                        {OkAcc + Ok, FAcc + F, USAcc + US, ASAcc + AS}
+                end, {0, 0, 0, 0}, SuiteSummaries).
+
+add_up_group_results(SuiteSummaries) ->
+    lists:foldl(fun(Filename, {OkAcc, FAcc}) ->
+                        {ok, [{groups_summary, {Ok, F}}]} = file:consult(Filename),
+                        {OkAcc + Ok, FAcc + F}
+                end, {0, 0}, SuiteSummaries).
