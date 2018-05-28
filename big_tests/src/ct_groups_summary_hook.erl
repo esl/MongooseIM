@@ -49,7 +49,7 @@ update_group_status(GroupName, Config, State) ->
                           proplists:get_value(failed, GroupResult, [])}
                     of
                         {[], []} -> State#{GroupName => ok};
-                        {__, __} -> State#{GroupName => failed}
+                        {_, _} -> State#{GroupName => failed}
                     end
             end
     end.
