@@ -3,6 +3,7 @@
 -behaviour(escalus_user_db).
 
 % copied from ejabberd_auth_ldap
+-type deref() :: never | searching | finding | always.
 -record(state, {host = <<"">>          :: jid:server(),
                 eldap_id = <<"">>      :: binary(),
                 bind_eldap_id = <<"">> :: binary(),
@@ -17,7 +18,7 @@
                 ufilter = <<"">>       :: binary(),
                 sfilter = <<"">>       :: binary(),
                 lfilter                :: {any(), any()},
-                deref = never  :: never | searching | finding | always,
+                deref =   never        :: deref(),
                 dn_filter              :: binary(),
                 dn_filter_attrs = []   :: [binary()]}).
 

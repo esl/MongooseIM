@@ -69,7 +69,7 @@
          base = <<"">>                                :: binary(),
          password = <<"">>                            :: binary(),
          uid = <<"">>                                 :: binary(),
-         deref =                   neverDerefAliases  :: neverDerefAliases |
+         deref =                                         neverDerefAliases  :: neverDerefAliases |
                                                          derefInSearching |
                                                          derefFindingBaseObj |
                                                          derefAlways,
@@ -358,7 +358,7 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
 
 get_user_displayed_groups({User, Host}) ->
     {ok, State} = eldap_utils:get_state(Host, ?MODULE),
-    GroupAttr =State#state.group_attr,
+    GroupAttr = State#state.group_attr,
     Entries = eldap_search(State,
                            [eldap_filter:do_sub(State#state.rfilter, [{<<"%u">>, User}])],
                            [GroupAttr]),
