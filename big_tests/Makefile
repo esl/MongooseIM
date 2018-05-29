@@ -110,6 +110,6 @@ clean:
 	-@rm -rf tests/*.beam > /dev/null 2>&1
 	-@../rebar3 clean > /dev/null 2>&1
 
-# to compile esip
+# to compile esip. It should able to find stun.hrl. But searching paths are hardcoded
 deps:
 	ln -fds `pwd`/_build/default/lib deps
