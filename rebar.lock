@@ -37,7 +37,7 @@
  {<<"eini">>,{pkg,<<"eini">>,<<"1.2.4">>},1},
  {<<"eodbc">>,
   {git,"git://github.com/arcusfelis/eodbc.git",
-       {ref,"7dfed7e29cbfc9497e7969ea84aac2c96b3dcb81"}},
+       {ref,"528e5e9a51263e6938b7140970893b8128553abc"}},
   0},
  {<<"eper">>,
   {git,"http://github.com/basho/eper.git",
@@ -169,7 +169,6 @@
   {git,"git://github.com/devinus/poolboy.git",
        {ref,"3bb48a893ff5598f7c73731ac17545206d259fac"}},
   0},
- {<<"pooler">>,{pkg,<<"pooler">>,<<"1.5.3">>},1},
  {<<"proper">>,
   {git,"git://github.com/manopapad/proper.git",
        {ref,"5f0d69c831b6c9f52535c3d1846efca480f6190d"}},
@@ -241,6 +240,5 @@
  {<<"jsx">>, <<"749BEC6D205C694AE1786D62CEA6CC45A390437E24835FD16D12D74F07097727">>},
  {<<"lhttpc">>, <<"2137CB82D123751B21CC0461A00734CD32CB470BC6278BA139EE13C1ECC3C2B1">>},
  {<<"observer_cli">>, <<"F3A47C22327424291758167DF3C4600DCF8BF34795A3787612019AA5B86A5C21">>},
- {<<"parse_trans">>, <<"1BAD3B959941CC53FFD6F4769A5D2666F9CDF179B2D62826636497D3FBAD9EC0">>},
- {<<"pooler">>, <<"898CD1FA301FC42D4A8ED598CE139B71CA85B54C16AB161152B5CC5FBDCFA1A8">>}]}
+ {<<"parse_trans">>, <<"1BAD3B959941CC53FFD6F4769A5D2666F9CDF179B2D62826636497D3FBAD9EC0">>}]}
 ].
