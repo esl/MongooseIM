@@ -26,7 +26,7 @@ if [ "$TRAVIS" = 'true' ]; then
     RM_FLAG=""
 fi
 
-# Limux volumes are faster than layer fs.
+# Linux volumes are faster than layer fs.
 # Mac volumes are actually slower than layer fs.
 case "$(uname -s)" in
     Darwin*)    DEFAULT_DATA_ON_VOLUME=false;;
