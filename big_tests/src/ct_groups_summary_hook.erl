@@ -30,6 +30,9 @@ pre_init_per_suite(_Suite, Config, State) ->
     {Config, #{}}.
 
 post_end_per_suite(_SuiteName, Config, Return, State) ->
+    ct:pal("post_end_per_suite config: ~p", [Config]),
+    ct:pal("post_end_per_suite state: ~p", [State]),
+    ct:pal("post_end_per_suite return: ~p", [Return]),
     write_groups_summary(Config, State),
     {Return, State}.
 
