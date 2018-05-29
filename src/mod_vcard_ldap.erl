@@ -240,7 +240,7 @@ find_ldap_user(User, State) ->
       {ok, EldapFilterList} when is_list(EldapFilterList) ->
           hd(eldap_pool_search(EldapID, Base, EldapFilterList, State#state.deref, VCardAttrs, false));
         {ok, EldapFilter} ->
-            eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false);
+            eldap_pool_search(EldapID, Base, [EldapFilter], State#state.deref, VCardAttrs, false);
         _ -> false
     end.
 
