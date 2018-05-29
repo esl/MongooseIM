@@ -73,6 +73,6 @@ write_groups_summary(Config, State) ->
             error(priv_dir_undefined);
         _ ->
             SuiteDir = filename:dirname(string:strip(PrivDir, right, $/)),
-            file:write_file(filename:join([SuiteDir, "groups.summary"]),
-                            io_lib:format("~p.", [{groups_summary, {Ok, Failed}}]))
+            ok = file:write_file(filename:join([SuiteDir, "groups.summary"]),
+                                 io_lib:format("~p.", [{groups_summary, {Ok, Failed}}]))
     end.
