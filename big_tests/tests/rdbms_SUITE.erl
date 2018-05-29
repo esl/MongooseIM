@@ -45,7 +45,9 @@ rdbms_queries_cases() ->
      read_unicode_case,
      read_ascii_char_case,
      read_ascii_string_case,
-     read_binary_case,
+     read_binary_8k_case,
+     read_binary_65k_case,
+     read_binary_16m_case,
      read_enum_char_case,
      read_boolean_case,
 
@@ -54,7 +56,9 @@ rdbms_queries_cases() ->
      read_prep_unicode_case,
      read_prep_ascii_char_case,
      read_prep_ascii_string_case,
-     read_prep_binary_case,
+     read_prep_binary_8k_case,
+     read_prep_binary_65k_case,
+     read_prep_binary_16m_case,
      read_prep_enum_char_case,
      read_prep_boolean_case,
 
@@ -100,9 +104,31 @@ unicode_values() ->
     ascii_string_values() ++
     [<<"юникод"/utf8>>, <<"😁"/utf8>>]
     ++
-    %% There is a bug with 8001 chars limit
+    %% Would fail with binary_data_8k and mssql.
+    %% For some reason mssql returns string "7878...." of length 4000.
+    %% What is 78? 16#78 = 120 = $x.
+    %% i.e. half of 8000 bytes for data.
+    %% Probably 2 bytes encoding is used for this.
+%   [binary:copy(<<$x>>, 4001),
+    %% Helps to debug if we don't consume all data from a buffer.
+    %% Than there would be a gap of missing numbers in the middle.
+    %% 1000 of 1-es, 1000 of 2-s, ..., 1000 of 10-s.
+    %%
+    %% In one version of eodbc, it returns 5,5,5,5... instead of 1,1,1,1...
+    %%
+    %% Also,
+    %% eodbc:sql_query(Conn, "SELECT convert(varbinary(max), binary_data_8k) FROM test_types") = gives correct result.
+    %% but
+    %% eodbc:sql_query(Conn, "SELECT binary_data_8k FROM test_types") = gives not correct result.
+    %%
+    %% eodbc:sql_query(Conn, "SELECT convert(varbinary(1000), binary_data_8k) FROM test_types") = gives correct result.
+    %% gives 010101.... as expected
+    [iolist_to_binary([lists:duplicate(1000, X) || X <- lists:seq(1, 10)]),
+     binary:copy(<<$a>>, 10000),
+    %% There is a bug with 8001 chars limit in upstream odbc
+    %% We use a fork arcusfelis/eodbc, that has the bug fixed
     %% https://bugs.erlang.org/browse/ERL-421
-    [binary:copy(<<10>>, 10000)].
+     binary:copy(<<10>>, 10000)].
 
 binary_values() ->
     [<<0>>, <<"255">>,
@@ -113,12 +139,33 @@ binary_values() ->
     binary:copy(<<1>>, 1024),
     %% two kilobytes
     binary:copy(<<2>>, 2048),
-    %% There is a bug with 8001 chars limit
-    %% https://bugs.erlang.org/browse/ERL-421
-    %% I like otp
     binary:copy(<<5>>, 1024*5),
-    binary:copy(<<8>>, 8002)
-    ].
+    %% There is a bug with 8001 chars limit in upstream odbc
+    %% We use a fork arcusfelis/eodbc, that has the bug fixed
+    %% https://bugs.erlang.org/browse/ERL-421
+    binary:copy(<<8>>, 8002),
+    binary:copy(<<0>>, 100000)
+    ] ++
+    case is_odbc() orelse is_pgsql() of
+        true ->
+            [];
+        false ->
+            %% FIXME long data causes timeout with mssql
+            %%
+            %% FIXME %% epgsql_sock:handle_info/2 is not optimized
+            %% The query takes 30 seconds on Postgres
+            %% mongoose_rdbms:sql_query(<<"localhost">>, <<"SELECT binary_data_16m FROM test_types">>).
+            [binary:copy(<<16>>, 16777215)]
+    end.
+
+binary_8k_values() ->
+    truncate_binaries(8000, unicode_values() ++ binary_values()).
+
+binary_65k_values() ->
+    truncate_binaries(65535, unicode_values() ++ binary_values()).
+
+binary_16m_values() ->
+    truncate_binaries(16777215, unicode_values() ++ binary_values()).
 
 ascii_char_values() ->
     [<<"a">>, <<"b">>].
@@ -168,8 +215,14 @@ read_ascii_string_case(Config) ->
     [check_ascii_string(Config, Value)
      || Value <- ascii_char_values() ++ ascii_string_values()].
 
-read_binary_case(Config) ->
-    [check_binary(Config, Value) || Value <- unicode_values() ++ binary_values()].
+read_binary_8k_case(Config) ->
+    [check_binary_8k(Config, Value) || Value <- binary_8k_values()].
+
+read_binary_65k_case(Config) ->
+    [check_binary_65k(Config, Value) || Value <- binary_65k_values()].
+
+read_binary_16m_case(Config) ->
+    [check_binary_16m(Config, Value) || Value <- binary_16m_values()].
 
 read_enum_char_case(Config) ->
     [check_enum_char(Config, Value) || Value <- enum_char_values()].
@@ -199,15 +252,36 @@ read_prep_ascii_string_case(Config) ->
     [check_prep_ascii_string(Config, Value)
      || Value <- ascii_char_values() ++ ascii_string_values()].
 
-read_prep_binary_case(Config) ->
-    [check_prep_binary(Config, Value)
-     || Value <- unicode_values() ++ binary_values()].
+read_prep_binary_8k_case(Config) ->
+    [check_prep_binary_8k(Config, Value) || Value <- binary_8k_values()].
+
+read_prep_binary_65k_case(Config) ->
+    [check_prep_binary_65k(Config, Value) || Value <- binary_65k_values()].
+
+read_prep_binary_16m_case(Config) ->
+    [check_prep_binary_16m(Config, Value) || Value <- binary_16m_values()].
 
 read_prep_enum_char_case(Config) ->
     [check_prep_enum_char(Config, Value) || Value <- enum_char_values()].
 
 read_prep_boolean_case(Config) ->
     [check_prep_boolean(Config, Value) || Value <- [0, 1]].
+
+truncate_binaries(Len, List) ->
+    [truncate_binary(Len, Bin) || Bin <- List].
+
+truncate_binary(Len, Bin) when byte_size(Bin) > Len ->
+    binary:part(Bin, {0,Len});
+truncate_binary(Len, Bin) when is_binary(Bin), is_integer(Len) ->
+    Bin.
+
+safe_binary(Len, Bin) when byte_size(Bin) > Len ->
+    #{what => truncated_safe_binary,
+      truncated_length => Len,
+      total_length => byte_size(Bin),
+      truncated_binary => binary:part(Bin, {0,Len})};
+safe_binary(Len, Bin) when is_binary(Bin), is_integer(Len) ->
+    Bin.
 
 %%--------------------------------------------------------------------
 %% Text searching
@@ -224,19 +298,19 @@ host() ->
     ct:get_config({hosts, mim, domain}).
 
 sql_query(_Config, Query) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, sql_query, [host(), Query]).
+    slow_rpc(mongoose_rdbms, sql_query, [host(), Query]).
 
 sql_prepare(_Config, Name, Table, Fields, Query) ->
     escalus_ejabberd:rpc(mongoose_rdbms, prepare, [Name, Table, Fields, Query]).
 
 sql_execute(_Config, Name, Parameters) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, execute, [host(), Name, Parameters]).
+    slow_rpc(mongoose_rdbms, execute, [host(), Name, Parameters]).
 
 escape_string(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_string, [Value]).
 
 escape_binary(_Config, Value) ->
-    escalus_ejabberd:rpc(mongoose_rdbms, escape_binary, [host(), Value]).
+    slow_rpc(mongoose_rdbms, escape_binary, [host(), Value]).
 
 escape_boolean(_Config, Value) ->
     escalus_ejabberd:rpc(mongoose_rdbms, escape_boolean, [Value]).
@@ -310,6 +384,7 @@ check_unicode(Config, Value) when is_binary(Value) ->
                         #{erase_result => EraseResult,
                           expected_length => byte_size(Value),
                           selected_length => maybe_selected_length(Config, SelectResult),
+                          compare_selected => compare_selected(Config, SelectResult, Value),
                           test_value => Value,
                           insert_query => InsertQuery,
                           insert_query_binary => iolist_to_binary(InsertQuery),
@@ -355,22 +430,33 @@ check_ascii_string(Config, Value) when is_binary(Value) ->
                           select_result => SelectResult,
                           insert_result => InsertResult}).
 
-check_binary(Config, Value) when is_binary(Value) ->
+check_binary_8k(Config, Value) ->
+    check_binary(Config, Value, <<"binary_data_8k">>).
+
+check_binary_65k(Config, Value) ->
+    check_binary(Config, Value, <<"binary_data_65k">>).
+
+check_binary_16m(Config, Value) ->
+    check_binary(Config, Value, <<"binary_data_16m">>).
+
+check_binary(Config, Value, Column) when is_binary(Value) ->
     SValue = escape_binary(Config, Value),
     EraseResult = erase_table(Config),
-    InsertQuery = ["INSERT INTO test_types (binary_data) "
+    InsertQuery = ["INSERT INTO test_types (", Column, ") "
                         "VALUES (", use_escaped(Config, SValue), ")"],
-    SelectQuery = <<"SELECT binary_data FROM test_types">>,
+    SelectQuery = <<"SELECT ", Column/binary, " FROM test_types">>,
     InsertResult = sql_query(Config, InsertQuery),
     SelectResult = sql_query(Config, SelectQuery),
     %% Compare as binaries
     ?assert_equal_extra({selected, [{Value}]},
                         selected_unescape(Config, SelectResult),
                         #{erase_result => EraseResult,
+                          inserted_length => byte_size(Value),
                           %% pgsql+odbc can truncate binaries
                           maybe_selected_length => maybe_selected_length(Config, SelectResult),
+                          maybe_selected_tail => maybe_selected_tail(Config, SelectResult),
+                          compare_selected => compare_selected(Config, selected_unescape(Config, SelectResult), Value),
                           test_value => Value,
-                          insert_query => InsertQuery,
                           insert_query_binary => iolist_to_binary(InsertQuery),
                           select_query => SelectQuery,
                           select_result => SelectResult,
@@ -437,6 +523,17 @@ maybe_selected_length(Config, {selected, [{Value}]}) when is_binary(Value) ->
 maybe_selected_length(_Config, Other) ->
     unknown.
 
+maybe_selected_tail(Config, Selected) ->
+    maybe_selected_tail(Config, Selected, 100).
+
+maybe_selected_tail(Config, {selected, [{Value}]}, TailLen)
+  when is_binary(Value), byte_size(Value) > TailLen ->
+    binary:part(Value, {byte_size(Value), -TailLen});
+maybe_selected_tail(Config, {selected, [{Value}]}, _TailLen) ->
+    Value;
+maybe_selected_tail(_Config, _Other, _TailLen) ->
+    unknown.
+
 check_prep_int32(Config, Value) ->
     check_generic_prep_integer(Config, Value, <<"int32">>).
 
@@ -454,9 +551,17 @@ check_prep_ascii_char(Config, Value) ->
 check_prep_ascii_string(Config, Value) ->
     check_generic_prep(Config, Value, <<"ascii_string">>).
 
-check_prep_binary(Config, Value) ->
+check_prep_binary_65k(Config, Value) ->
     %% MSSQL returns binaries in HEX encoding
-    check_generic_prep(Config, Value, <<"binary_data">>, unescape_binary).
+    check_generic_prep(Config, Value, <<"binary_data_65k">>, unescape_binary).
+
+check_prep_binary_8k(Config, Value) ->
+    %% MSSQL returns binaries in HEX encoding
+    check_generic_prep(Config, Value, <<"binary_data_8k">>, unescape_binary).
+
+check_prep_binary_16m(Config, Value) ->
+    %% MSSQL returns binaries in HEX encoding
+    check_generic_prep(Config, Value, <<"binary_data_16m">>, unescape_binary).
 
 check_generic_prep_integer(Config, Value, Column) ->
     check_generic_prep(Config, Value, Column).
@@ -471,7 +576,7 @@ check_prep_boolean(Config, Value) ->
 %% {ok, Conn} = odbc:connect("DSN=mongoose-mssql;UID=sa;PWD=mongooseim_secret+ESL123", []).
 %% odbc:describe_table(Conn, "test_types").
 %% [{"unicode",{sql_wvarchar,536870911}},
-%%  {"binary_data",'SQL_VARBINARY'},
+%%  {"binary_data_65k",'SQL_VARBINARY'},
 %%  {"ascii_char",{sql_char,1}},
 %%  {"ascii_string",{sql_varchar,250}},
 %%  {"int32",sql_integer},
@@ -577,3 +682,32 @@ check_like_not_matching(Config, TextValue, NotMatching, Info) ->
                         Info#{pattern => NotMatching,
                               select_query => SelectQuery,
                               select_result => SelectResult}).
+
+compare_selected(Config, {selected, [{SelValue}]}, Value) ->
+    drop_common_prefix(0, SelValue, Value);
+compare_selected(_Config, _, _Value) ->
+    nomatch.
+
+drop_common_prefix(Pos, <<X, SelValue/binary>>, <<X, Value/binary>>) ->
+    drop_common_prefix(Pos+1, SelValue, Value);
+drop_common_prefix(Pos, SelValue, Value) ->
+    #{pos => Pos,
+      selected_suffix => safe_binary(100, SelValue),
+      expected_suffix => safe_binary(100, Value)}.
+
+is_odbc() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == odbc.
+
+is_pgsql() ->
+    escalus_ejabberd:rpc(mongoose_rdbms, db_engine, [host()]) == pgsql.
+
+slow_rpc(M, F, A) ->
+    Node = ct:get_config({hosts, mim, node}),
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    Res = escalus_rpc:call(Node, M, F, A, timer:seconds(30), Cookie),
+    case Res of
+        {badrpc, timeout} ->
+            {badrpc, {timeout, M, F}};
+        _ ->
+            Res
+    end.
