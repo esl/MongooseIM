@@ -24,7 +24,7 @@ repeat_all_until_all_ok(GroupDefs) ->
 %% while allowing repeat_all_until_all_ok/2 to add the default for the remaining groups.
 repeat_all_until_all_ok(GroupDefs, Retries) ->
     [ {Name, repeat_type(repeat_until_all_ok, Retries, Properties), Tests}
-      || {Name, Properties, Tests} <- GroupDefs ].
+      || {Name, Properties, Tests} <- prepare_group_defs(GroupDefs) ].
 
 repeat_type(RepeatType, Retries, Properties) ->
     %% lists:keyfind expects tuples, but Properties might contain just RepeatType atoms,
@@ -37,3 +37,9 @@ repeat_type(RepeatType, Retries, Properties) ->
             ct:pal("~s present in ~p - leaving as is", [RepeatType, Properties]),
             Properties
     end.
+
+%% @doc Expand 2-element group definitions into 3-element group definitions.
+prepare_group_defs(GroupDefs) ->
+    lists:map(fun ({Name, Properties, Tests}) -> {Name, Properties, Tests};
+                  ({Name, Tests}) -> {Name, [], Tests} end,
+              GroupDefs).
