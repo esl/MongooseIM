@@ -293,6 +293,15 @@ analyze(Test, CoverOpts) ->
     report_time("Export cover data from MongooseIM nodes", fun() ->
             multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
         end),
+    case os:getenv("KEEP_COVER_RUNNING") of
+        "1" ->
+            io:format("Skip stopping cover~n"),
+            ok;
+        _ ->
+            report_time("Stopping cover on MongooseIM nodes", fun() ->
+                            multicall(Nodes, mongoose_cover_helper, stop, [], cover_timeout())
+                    end)
+    end,
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
