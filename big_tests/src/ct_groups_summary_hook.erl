@@ -7,6 +7,7 @@
 %% Callbacks
 -export([id/1,
          init/2,
+         pre_init_per_suite/3,
          post_end_per_suite/4,
          post_end_per_group/4]).
 
@@ -21,6 +22,12 @@ id(_Opts) ->
 init(_Id, Opts) ->
     %ct:pal("init opts: ~p", [Opts]),
     {ok, #{}}.
+
+pre_init_per_suite(_Suite, Config, State) ->
+    %ct:pal("pre_init_per_suite config: ~p", [Config]),
+    %ct:pal("pre_init_per_suite state: ~p", [State]),
+    %% Start with an empty CT hook state for each suite.
+    {Config, #{}}.
 
 post_end_per_suite(_SuiteName, Config, Return, State) ->
     write_groups_summary(Config, State),
