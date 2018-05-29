@@ -51,14 +51,23 @@ update_group_status(GroupName, Config, State) ->
             case proplists:is_defined(repeat_until_all_ok, Properties) of
                 false -> State;
                 true ->
+                    GroupNameWPath = group_name_with_path(GroupName, Config),
                     GroupResult = ?config(tc_group_result, Config),
                     case {proplists:get_value(skipped, GroupResult, []),
                           proplists:get_value(failed, GroupResult, [])}
                     of
-                        {[], []} -> State#{GroupName => ok};
-                        {_, _} -> State#{GroupName => failed}
+                        {[], []} -> State#{GroupNameWPath => ok};
+                        {_, _} -> State#{GroupNameWPath => failed}
                     end
             end
+    end.
+
+group_name_with_path(GroupName, Config) ->
+    case lists:keyfind(tc_group_path, 1, Config) of
+        false -> GroupName;
+        {tc_group_path, PathProperties} ->
+            [ proplists:get_value(name, ParentGroup)
+              || ParentGroup <- PathProperties ] ++ [GroupName]
     end.
 
 %% @doc Write down the number successful and failing groups in a per-suite groups.summary file.
