@@ -56,11 +56,19 @@ update_group_status(GroupName, Config, State) ->
                 true ->
                     GroupNameWPath = group_name_with_path(GroupName, Config),
                     GroupResult = ?config(tc_group_result, Config),
-                    case {proplists:get_value(skipped, GroupResult, []),
-                          proplists:get_value(failed, GroupResult, [])}
-                    of
-                        {[], []} -> State#{GroupNameWPath => ok};
-                        {_, _} -> State#{GroupNameWPath => failed}
+                    case proplists:get_value(failed, GroupResult, []) of
+                        [] ->
+                            %% If there are no failed cases, then the only skipped cases present
+                            %% in the group result are user-skipped cases.
+                            %% In this case we do not want to fail the whole group.
+                            State#{GroupNameWPath => ok};
+                        Failed ->
+                            %% If there are failed cases, it doesn't matter if the skipped cases
+                            %% are user-skipped or auto-skipped (which might depend on `sequence`
+                            %% group property being enabled or not) - we fail in either case.
+                            %% TODO: Report to the respective GitHub PR
+                            ct:pal("Failed in this group: ~p", [Failed]),
+                            State#{GroupNameWPath => failed}
                     end
             end
     end.
