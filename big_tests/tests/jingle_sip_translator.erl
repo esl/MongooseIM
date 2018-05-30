@@ -17,6 +17,7 @@
 -export([make_200_ok_for_phone_call/3]).
 -export([make_200_ok_for_conference_call/4]).
 -export([in_invite_transaction_callback/4]).
+-export([dialog_callback/3]).
 
 -include_lib("esip/include/esip.hrl").
 -include_lib("esip/include/esip_lib.hrl").
@@ -152,11 +153,13 @@ make_provisional_response(#sip{hdrs = Hdrs} = Sip, Status, Contact, Correspondin
     To = esip:get_hdr(to, RespHdrs),
     From = esip:get_hdr(from, RespHdrs),
     CallID = esip:get_hdr('call-id', Hdrs),
+    {ok, DialogId}  = esip_dialog:open(Sip, Resp, uas, {?MODULE, dialog_callback, []}),
+    ct:pal("Provisional Dialog: ~p", [DialogId]),
     Data = #{initiator => From,
              receiver => To,
              receiver_tag => Tag,
              direction => in,
-             dialog_id => undefined},
+             dialog_id => DialogId},
     ets:insert(?MODULE, {CallID, Data}),
     {Tag, Resp}.
 
@@ -241,16 +244,17 @@ back_invite_callbacks(#sip{type = response, method = <<"INVITE">>,
 
     ok;
 back_invite_callbacks(#sip{type = response, status = 180, hdrs = Hdrs} = Sip, _, TrID,
-                    InitialReq, InitialTr, _, Tag) ->
+                    InitialReq, InitialTr, ForwardedRequest, Tag) ->
     {_, #uri{user = ToUser}, _} = To = esip:get_hdr(to, Hdrs),
     {_, #uri{user = FromUser}, _} = From = esip:get_hdr(from, Hdrs),
     CallID = esip:get_hdr('call-id', Hdrs),
-    %{ok, DialogId}  = esip_dialog:open(InitialReq, Sip, uac, {?MODULE, dialog_callback, []}),
+    {ok, DialogId}  = esip_dialog:open(ForwardedRequest, Sip, uac, {?MODULE, dialog_callback, []}),
+    ct:pal("Back Dialog ~p for call ~p", [DialogId, CallID]),
     Data = #{initiator => From,
              receiver => To,
              receiver_tag => Tag,
              direction => out,
-             dialog_id => undefined},
+             dialog_id => DialogId},
     ets:insert(?MODULE, {CallID, Data}),
     ok;
 back_invite_callbacks(#sip{type = response, status = 486}, _, _TrId, InitialReq, InitialTr, _, Tag) ->
@@ -290,6 +294,47 @@ in_invite_transaction_callback(#sip{type = request, method = <<"CANCEL">>, hdrs 
 in_invite_transaction_callback(Req, Socket, Tr, CorrespondingCall) ->
     ct:pal("in invite transaction callback:~n~p~n=========~n~p~n=========~n~p~n=========~n~p",
            [Req, Socket, Tr, CorrespondingCall]).
+
+dialog_callback(#sip{type = request, method = <<"ACK">>}, _, _) ->
+   ok;
+dialog_callback(#sip{type = request, method = <<"INVITE">>, hdrs = Hdrs} = Req, Socket, Tr) ->
+    ct:pal("dialog INVITE: ~p ~p", [Req, Tr]),
+    CallID = esip:get_hdr('call-id', Hdrs),
+    [{_, OtherCallID}] = ets:lookup(jingle_sip_translator_bindings, CallID),
+
+    ct:pal("Other call id: ~p", [OtherCallID]),
+
+    [{_, Data}] = ets:lookup(?MODULE, OtherCallID),
+    DialogID = maps:get(dialog_id, Data),
+    ct:pal("Other dialog: ~p", [DialogID]),
+
+    {_, #uri{user = FromUserReq}, _} = esip:get_hdr(from, Hdrs),
+    {From, To} = get_from_and_to_for_request_and_call_id(OtherCallID, FromUserReq),
+    {_, #uri{user = ToUser}, _} = To,
+    {_, #uri{user = FromUser}, _} = From,
+
+    Branch = base16:encode(crypto:strong_rand_bytes(3)),
+    URIBin = <<"sip:",ToUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
+    ContactURI = esip_codec:decode_uri(URIBin),
+    Contact = {<<>>, ContactURI, []},
+
+    Via = #via{transport = <<"UDP">>, host = <<"127.0.0.1">>, port = 12345,
+               params = [{<<"rport">>, <<>>},
+                         {<<"branch">>, <<"z9hG4bK-", Branch/binary>>}]},
+
+    Hdrs1 = esip:filter_hdrs(['cseq',
+                              'route', 'max-forwards',
+                              'authorization',
+                              'proxy-authorization'], Hdrs),
+
+    Hdrs2 = [{via, [Via]}, {contact, [Contact]}, {'call-id', OtherCallID}, {from, From},
+                            {to, To} | Hdrs1],
+    ReqBack = Req#sip{uri = esip_codec:decode_uri(<<"sip:127.0.0.1:5600">>),
+                      hdrs = Hdrs2},
+    esip:request(Socket, ReqBack),
+    esip:make_response(Req, #sip{type = response,
+                                        status = 200
+                                        }).
 
 send_invite(From, To, Pid) ->
     FromUser = escalus_client:username(From),

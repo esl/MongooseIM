@@ -127,6 +127,7 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
   when JingleAction =:= <<"session-initiate">>;
        JingleAction =:= <<"session-accept">>;
        JingleAction =:= <<"session-terminate">>;
+       JingleAction =:= <<"source-remove">>;
        JingleAction =:= <<"transport-info">> ->
     #iq{sub_el = Jingle} = IQ,
     try
@@ -211,6 +212,21 @@ translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
         {ok, ReqID} ->
             try_to_accept_session(ReqID, Jingle, Acc, Server, SID);
         _ ->
+            {error, item_not_found}
+    end;
+translate_to_sip(<<"source-remove">>, Jingle, Acc) ->
+    SID = exml_query:attr(Jingle, <<"sid">>),
+    Server = mongoose_acc:get(server, Acc),
+    SDP = prepare_initial_sdp(Server, Jingle),
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
+        {ok, undefined} ->
+            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
+            {error, item_not_found};
+        {ok, Handle} ->
+            nksip_uac:invite(Handle, [auto_2xx_ack,
+                                      {body, SDP}]);
+        _ ->
+            ?ERROR_MSG("There was no such session ~p", [SID]),
             {error, item_not_found}
     end;
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
