@@ -67,6 +67,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(dynamic_modules:save_modules(domain(), Config)).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
