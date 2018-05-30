@@ -4,6 +4,32 @@ main(Directories) ->
     {OkTests, FailedTests, UserSkipped, AutoSkipped} =
         add_up_suite_results(suite_summaries(Directories)),
     {OkGroups, FailedGroups} = add_up_group_results(group_summaries(Directories)),
+    verify_results(OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped).
+
+verify_results(0 = _OkGroups, 0 = _FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    %% These are likely small tests - we're not writing
+    %% groups.summaries files, therefore we get 0 for both group kinds.
+    verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped);
+verify_results(OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    verify_results_with_groups(OkGroups, FailedGroups,
+                               OkTests, FailedTests, UserSkipped, AutoSkipped).
+
+verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    io:format("CT results:~n"
+              "    ~p tests passed~n"
+              "    ~p tests failed~n"
+              "    ~p tests skipped by user~n"
+              "    ~p tests skipped automatically~n",
+              [OkTests, FailedTests, UserSkipped, AutoSkipped]),
+    case OkTests =< 0 of
+        true ->
+            erlang:halt(100404);
+        _ ->
+            erlang:halt(FailedTests + AutoSkipped)
+    end.
+
+%% TODO: Alas, this won't take into account suites which do not use groups at all.
+verify_results_with_groups(OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     io:format("CT results:~n"
               "    ~p groups passed~n"
               "    ~p groups failed~n"
@@ -12,11 +38,13 @@ main(Directories) ->
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
               [OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped]),
-    case OkTests =< 0 orelse OkGroups =< 0 of
-        true ->
+    if
+        OkTests =< 0 ->
             erlang:halt(100404);
-        _ ->
-            erlang:halt(FailedGroups + FailedTests + AutoSkipped)
+        OkGroups =< 0 ->
+            erlang:halt(100405);
+        true ->
+            erlang:halt(FailedGroups)
     end.
 
 suite_summaries(Directories) ->
