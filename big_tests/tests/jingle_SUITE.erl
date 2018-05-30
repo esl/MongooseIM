@@ -9,6 +9,9 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(jingle_helper, [content/1,
+                        content_group/1]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -443,7 +446,9 @@ other_iq_stanza_addressed_to_bare_jid_are_not_routed(Config) ->
 
 
 jingle_initiate() ->
-    I = jingle_element(<<"session-initiate">>, [content(audio), content(video), content_group([audio_1, video_1])]),
+    Audio = content(audio),
+    Video = content(video),
+    I = jingle_element(<<"session-initiate">>, [Audio, Video, content_group([Audio, Video])]),
     iq_set(I).
 
 iq_set(I) ->
@@ -474,7 +479,18 @@ jingle_element(SID, Action, Children) ->
 
 jingle_accept(InviteRequest) ->
     SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
-    I = jingle_element(SID, <<"session-accept">>, [content(audio), content(video_disabled), content_group([audio])]),
+    Audio = content(audio),
+    Video = content(video_disabled),
+    I = jingle_element(SID, <<"session-accept">>, [Audio, Video, content_group([Audio])]),
+    iq_set(I).
+
+
+jingle_source_remove(InviteRequest) ->
+    SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
+    Audio = content(audio_source_remove),
+    Video = content(video_source_remove),
+    I = jingle_element(SID, <<"source-remove">>, [Audio, Video,
+                                                  content_group([Audio, Video])]),
     iq_set(I).
 
 jingle_transport_info(InviteRequest, Creator, Media, TransportAttrs) ->
@@ -486,99 +502,6 @@ jingle_terminate(InviteRequest, Reason) ->
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = Reason}]},
     iq_set(jingle_element(SID, <<"session-terminate">>, [ReasonEl])).
-
-content(audio) ->
-    escalus_stanza:from_xml(<<"
-      <content creator='initiator' name='audio_1' senders='both'>
-         <description xmlns='urn:xmpp:jingle:apps:rtp:1' media='audio' ssrc='948015790'>
-            <payload-type id='111' name='opus' clockrate='48000' channels='2'>
-               <parameter name='minptime' value='10' />
-               <parameter name='useinbandfec' value='1' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='transport-cc' />
-            </payload-type>
-            <payload-type id='103' name='ISAC' clockrate='16000' channels='1' />
-            <payload-type id='104' name='ISAC' clockrate='32000' channels='1' />
-            <payload-type id='9' name='G722' clockrate='8000' channels='1' />
-            <payload-type id='102' name='ILBC' clockrate='8000' channels='1' />
-            <payload-type id='0' name='PCMU' clockrate='8000' channels='1' />
-            <payload-type id='8' name='PCMA' clockrate='8000' channels='1' />
-            <payload-type id='106' name='CN' clockrate='32000' channels='1' />
-            <payload-type id='105' name='CN' clockrate='16000' channels='1' />
-            <payload-type id='13' name='CN' clockrate='8000' channels='1' />
-            <payload-type id='110' name='telephone-event' clockrate='48000' channels='1' />
-            <payload-type id='112' name='telephone-event' clockrate='32000' channels='1' />
-            <payload-type id='113' name='telephone-event' clockrate='16000' channels='1' />
-            <payload-type id='126' name='telephone-event' clockrate='8000' channels='1' />
-            <rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='1' uri='urn:ietf:params:rtp-hdrext:ssrc-audio-level' senders='both' />
-            <rtcp-mux />
-            <source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0' ssrc='948015790'>
-               <parameter name='cname' value='3dYy6Ys3wP//8AoS' />
-               <parameter name='msid' value='c5f700e1-1897-41c2-9421-697103982067 a4423a33-ffb9-40e2-a300-8317d9d00a46' />
-            </source>
-         </description>
-         <transport xmlns='urn:xmpp:jingle:transports:ice-udp:1' ufrag='TIxp' pwd='MkQXObfhEelTbQdRV1e0ADGh'>
-            <fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0' hash='sha-256' setup='actpass'>08:D7:8E:6D:A6:40:77:4C:CC:F8:46:68:80:F2:2A:B1:7B:A0:AF:02:02:CA:2A:2A:F4:35:1A:95:11:75:B2:F7</fingerprint>
-         </transport>
-      </content>">>);
-content(video) ->
-    escalus_stanza:from_xml(<<"
-      <content creator='initiator' name='video_1' senders='responder'>
-         <description xmlns='urn:xmpp:jingle:apps:rtp:1' media='video'>
-            <payload-type id='96' name='VP8' clockrate='90000' channels='1'>
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='ccm' subtype='fir' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='nack' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='nack' subtype='pli' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='goog-remb' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='transport-cc' />
-            </payload-type>
-            <payload-type id='98' name='VP9' clockrate='90000' channels='1'>
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='ccm' subtype='fir' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='nack' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='nack' subtype='pli' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='goog-remb' />
-               <rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='transport-cc' />
-            </payload-type>
-            <payload-type id='100' name='red' clockrate='90000' channels='1' />
-            <payload-type id='127' name='ulpfec' clockrate='90000' channels='1' />
-            <payload-type id='97' name='rtx' clockrate='90000' channels='1'>
-               <parameter name='apt' value='96' />
-            </payload-type>
-            <payload-type id='99' name='rtx' clockrate='90000' channels='1'>
-               <parameter name='apt' value='98' />
-            </payload-type>
-            <payload-type id='101' name='rtx' clockrate='90000' channels='1'>
-               <parameter name='apt' value='100' />
-            </payload-type>
-            <rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='2' uri='urn:ietf:params:rtp-hdrext:toffset' senders='both' />
-            <rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='3' uri='http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time' senders='both' />
-            <rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='4' uri='urn:3gpp:video-orientation' senders='both' />
-            <rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='5' uri='http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01' senders='both' />
-            <rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='6' uri='http://www.webrtc.org/experiments/rtp-hdrext/playout-delay' senders='both' />
-            <rtcp-mux />
-         </description>
-         <transport xmlns='urn:xmpp:jingle:transports:ice-udp:1' ufrag='TIxp' pwd='MkQXObfhEelTbQdRV1e0ADGh'>
-            <fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0' hash='sha-256' setup='actpass'>08:D7:8E:6D:A6:40:77:4C:CC:F8:46:68:80:F2:2A:B1:7B:A0:AF:02:02:CA:2A:2A:F4:35:1A:95:11:75:B2:F7</fingerprint>
-         </transport>
-      </content>">>);
-content(video_disabled) ->
-    escalus_stanza:from_xml(
-      <<"<content creator='initiator' name='video' senders='none'>
-      <description xmlns='urn:xmpp:jingle:apps:rtp:1' media='video'>
-        <payload-type id='120' name='VP8' clockrate='90000' channels='1'/>
-      </description>
-      <transport xmlns='urn:xmpp:jingle:transports:ice-udp:1'>
-        <fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0' hash='sha-256'>99:A4:F2:DC:C0:9C:44:6E:29:7B:4C:4F:1A:00:5B:EA:24:2A:D9:3A:D1:6D:D8:C1:45:2D:E7:52:D8:E4:95:D1</fingerprint>
-      </transport>
-    </content>">>).
-
-content_group(Channels) ->
-    Contents = [#xmlel{name = <<"content">>,
-                       attrs = [{<<"name">>, atom_to_binary(Channel, utf8)}]}
-                || Channel <- Channels],
-    #xmlel{name = <<"group">>,
-           attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:grouping:0">>},
-                    {<<"semantics">>, <<"BUNDLE">>}],
-           children = Contents}.
 
 get_ice_candidates() ->
     [
