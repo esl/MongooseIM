@@ -94,7 +94,7 @@ valid_core_mod_opts(mod_mam) ->
 valid_core_mod_opts(mod_mam_muc) ->
     [is_archivable_message, host, extra_lookup_params, full_text_search].
 
--spec parse_backend_opts(odbc | cassandra | riak, Type :: pm | muc,
+-spec parse_backend_opts(odbc | cassandra | riak | elasticsearch, Type :: pm | muc,
                          Opts :: proplists:proplist(), deps()) -> deps().
 parse_backend_opts(cassandra, Type, Opts, Deps0) ->
     ModArch =
@@ -133,8 +133,29 @@ parse_backend_opts(odbc, Type, Opts0, Deps0) ->
 
     lists:foldl(
       pa:bind(fun parse_backend_opt/5, Type, ModODBCArch, ModAsyncWriter),
-      Deps, Opts).
+      Deps, Opts);
 
+parse_backend_opts(elasticsearch, Type, Opts, Deps0) ->
+    ExtraOpts =
+        case proplists:get_value(elasticsearch_index_name, Opts) of
+            IndexName when is_binary(IndexName) ->
+                [{index_name, IndexName}];
+            _ ->
+                []
+        end,
+
+    ModArch =
+        case Type of
+            pm -> mod_mam_elasticsearch_arch;
+            muc -> mod_mam_muc_elasticsearch_arch
+        end,
+
+    Deps = add_dep(ModArch, ExtraOpts, Deps0),
+
+    case proplists:get_value(user_prefs_store, Opts, false) of
+        mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
+        _ -> Deps
+    end.
 
 -spec normalize(proplists:proplist()) -> [{atom(), term()}].
 normalize(Opts) ->
