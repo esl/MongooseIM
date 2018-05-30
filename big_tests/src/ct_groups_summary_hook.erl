@@ -61,17 +61,25 @@ update_group_status(GroupName, Config, State) ->
                             %% If there are no failed cases, then the only skipped cases present
                             %% in the group result are user-skipped cases.
                             %% In this case we do not want to fail the whole group.
-                            State#{GroupNameWPath => ok};
+                            do_update_group_status(ok, GroupNameWPath, 0, State);
                         Failed ->
                             %% If there are failed cases, it doesn't matter if the skipped cases
                             %% are user-skipped or auto-skipped (which might depend on `sequence`
                             %% group property being enabled or not) - we fail in either case.
                             %% TODO: Report to the respective GitHub PR
                             ct:pal("Failed in this group: ~p", [Failed]),
-                            State#{GroupNameWPath => failed}
+                            do_update_group_status(failed, GroupNameWPath, length(Failed), State)
                     end
             end
     end.
+
+do_update_group_status(Status, GroupNameWPath, NFailed, State) ->
+    maps:update_with(GroupNameWPath,
+                     fun ({_PreviousStatus, {n_failed, NFailedAcc}}) ->
+                             {Status, {n_failed, NFailedAcc + NFailed}}
+                     end,
+                     {Status, {n_failed, NFailed}},
+                     State).
 
 group_name_with_path(GroupName, Config) ->
     case lists:keyfind(tc_group_path, 1, Config) of
@@ -83,10 +91,7 @@ group_name_with_path(GroupName, Config) ->
 
 %% @doc Write down the number successful and failing groups in a per-suite groups.summary file.
 write_groups_summary(Config, State) ->
-    {Ok, Failed} = maps:fold(fun (_GroupName, ok, {OkAcc, FailedAcc}) -> {OkAcc + 1, FailedAcc};
-                                 (_GroupName, __, {OkAcc, FailedAcc}) -> {OkAcc, FailedAcc + 1} end,
-                             {0, 0},
-                             State),
+    {Ok, Failed, FailedTests} = maps:fold(fun acc_groups_summary/3, {0, 0, 0}, State),
     PrivDir = ?config(priv_dir, Config),
     case PrivDir of
         undefined ->
@@ -94,5 +99,19 @@ write_groups_summary(Config, State) ->
         _ ->
             SuiteDir = filename:dirname(string:strip(PrivDir, right, $/)),
             ok = file:write_file(filename:join([SuiteDir, "groups.summary"]),
-                                 io_lib:format("~p.", [{groups_summary, {Ok, Failed}}]))
+                                 io_lib:format("~p.\n"
+                                               "~p.\n",
+                                               [{groups_summary, {Ok, Failed}},
+                                                {eventually_ok_tests, FailedTests}]))
     end.
+
+acc_groups_summary(_GroupName, {ok, {n_failed, NFailedTests}},
+                   {OkGroupsAcc, FailedGroupsAcc, EventuallyOkAcc}) ->
+    {OkGroupsAcc + 1, FailedGroupsAcc,
+     %% The group was repeated, but it eventually passed, so the tests must finally be ok.
+     EventuallyOkAcc + NFailedTests};
+acc_groups_summary(_GroupName, {__, {n_failed, _NFailedTests}},
+                   {OkGroupsAcc, FailedGroupsAcc, EventuallyOkAcc}) ->
+    {OkGroupsAcc, FailedGroupsAcc + 1,
+     %% The group never succeeded, the failed tests are NOT eventually ok.
+     EventuallyOkAcc}.

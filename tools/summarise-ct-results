@@ -3,15 +3,18 @@
 main(Directories) ->
     {OkTests, FailedTests, UserSkipped, AutoSkipped} =
         add_up_suite_results(suite_summaries(Directories)),
-    {OkGroups, FailedGroups} = add_up_group_results(group_summaries(Directories)),
-    verify_results(OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped).
+    {OkGroups, FailedGroups, EventuallyOkTests} =
+        add_up_group_results(group_summaries(Directories)),
+    verify_results(OkGroups, FailedGroups, EventuallyOkTests,
+                   OkTests, FailedTests, UserSkipped, AutoSkipped).
 
-verify_results(0 = _OkGroups, 0 = _FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+verify_results(0 = _OkGroups, 0 = _FailedGroups, 0 = _EventuallyOkTests,
+               OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     %% These are likely small tests - we're not writing
     %% groups.summaries files, therefore we get 0 for both group kinds.
     verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped);
-verify_results(OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped) ->
-    verify_results_with_groups(OkGroups, FailedGroups,
+verify_results(OkGroups, FailedGroups, OkTests, EventuallyOkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
                                OkTests, FailedTests, UserSkipped, AutoSkipped).
 
 verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped) ->
@@ -28,23 +31,25 @@ verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped) ->
             erlang:halt(FailedTests + AutoSkipped)
     end.
 
-%% TODO: Alas, this won't take into account suites which do not use groups at all.
-verify_results_with_groups(OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
+                           OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     io:format("CT results:~n"
               "    ~p groups passed~n"
               "    ~p groups failed~n"
+              "    ~p tests eventually passed~n"
               "    ~p tests passed~n"
               "    ~p tests failed~n"
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
-              [OkGroups, FailedGroups, OkTests, FailedTests, UserSkipped, AutoSkipped]),
+              [OkGroups, FailedGroups, EventuallyOkTests,
+               OkTests, FailedTests, UserSkipped, AutoSkipped]),
     if
         OkTests =< 0 ->
             erlang:halt(100404);
         OkGroups =< 0 ->
             erlang:halt(100405);
         true ->
-            erlang:halt(FailedGroups)
+            erlang:halt(FailedGroups + FailedTests - EventuallyOkTests)
     end.
 
 suite_summaries(Directories) ->
@@ -67,6 +72,7 @@ add_up_suite_results(SuiteSummaries) ->
 
 add_up_group_results(SuiteSummaries) ->
     lists:foldl(fun(Filename, {OkAcc, FAcc}) ->
-                        {ok, [{groups_summary, {Ok, F}}]} = file:consult(Filename),
-                        {OkAcc + Ok, FAcc + F}
-                end, {0, 0}, SuiteSummaries).
+                        {ok, [{groups_summary, {Ok, F}},
+                              {eventually_ok_tests, EvOk}]} = file:consult(Filename),
+                        {OkAcc + Ok, FAcc + F, EvOkAcc + EvOk}
+                end, {0, 0, 0}, SuiteSummaries).
