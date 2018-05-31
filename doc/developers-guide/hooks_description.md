@@ -178,6 +178,8 @@ This is the perfect place to plug in custom security control.
 * forget_room
 * host_config_update
 * is_muc_room_owner
+* join_room
+* leave_room
 * local_send_to_resource_hook
 * mam_archive_id
 * mam_archive_message
