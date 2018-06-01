@@ -26,23 +26,8 @@ if [ "$TRAVIS" = 'true' ]; then
     RM_FLAG=""
 fi
 
-# Linux volumes are faster than layer fs.
-# Mac volumes are actually slower than layer fs.
-case "$(uname -s)" in
-    Darwin*)    DEFAULT_DATA_ON_VOLUME=false;;
-    *)          DEFAULT_DATA_ON_VOLUME=true
-esac
-DATA_ON_VOLUME=${DATA_ON_VOLUME:-$DEFAULT_DATA_ON_VOLUME}
-
+# DATA_ON_VOLUME variable and data_on_volume function come from travis-common-vars.sh
 echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
-
-# Returns its arguments if data on volume is enabled
-function data_on_volume
-{
-    if [ "$DATA_ON_VOLUME" = 'true' ]; then
-        echo "$@"
-    fi
-}
 
 # Default cassandra version
 CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
