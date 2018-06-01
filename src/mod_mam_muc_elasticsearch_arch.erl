@@ -1,0 +1,277 @@
+-module(mod_mam_elasticsearch_arch).
+
+-behaviour(gen_mod).
+-behaviour(ejabberd_gen_mam_archive).
+
+%% gen_mod callbacks
+-export([start/2]).
+-export([stop/1]).
+
+%% ejabberd_gen_mam_archive callbacks
+-export([archive_message/9]).
+-export([lookup_messages/3]).
+-export([remove_archive/4]).
+-export([archive_size/4]).
+
+-include("mongoose.hrl").
+-include("mongoose_rsm.hrl").
+-include("mod_mam.hrl").
+-include("jlib.hrl").
+
+-define(INDEX_NAME, <<"muc_messages">>).
+-define(TYPE_NAME, <<"muc">>).
+
+%%-------------------------------------------------------------------
+%% gen_mod callbacks
+%%-------------------------------------------------------------------
+
+-spec start(jid:server(), list()) -> ok.
+start(Host, _Opts) ->
+    ejabberd_hooks:add(hooks(Host)),
+    ok.
+
+-spec stop(jid:server()) -> ok.
+stop(Host) ->
+    ejabberd_hooks:delete(hooks(Host)),
+    ok.
+
+%%-------------------------------------------------------------------
+%% ejabberd_gen_mam_archive callbacks
+%%-------------------------------------------------------------------
+
+-spec archive_message(PrevResult :: term(),
+                      Host :: jid:server(),
+                      MessageId :: mod_mam:message_id(),
+                      ArchiveId :: mod_mam:archive_id(),
+                      RoomJid :: jid:jid(),
+                      UserJid :: jid:jid(),
+                      SourceJid :: jid:jid(),
+                      Dir :: incoming | outgoing,
+                      Packet :: exml:element()) -> ok | {error, term()}.
+archive_message(_Result, Host, MessageId, _UserId, RoomJid, UserJid, _SourceJid, _Dir, Packet) ->
+    Room = mod_mam_utils:bare_jid(RoomJid),
+    User = mod_mam_utils:bare_jid(UserJid),
+    DocId = make_document_id(Room, MessageId),
+    Doc = make_document(MessageId, Room, User, Packet),
+    case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
+        {ok, _} ->
+            ok;
+        {error, _} = Err ->
+            ?ERROR_MSG("Failed to archive message in ElasticSearch: ~p", [Err]),
+            ejabberd_hooks:run(mam_drop_message, Host, [Host]),
+            Err
+    end.
+
+-spec lookup_messages(PrevResult :: term(),
+                      Host :: jid:server(),
+                      Params :: map()) -> {ok, mod_mam:lookup_result()} | {error, term()}.
+lookup_messages(_Result, _Host, Params) ->
+    SearchQuery0 = build_search_query(Params),
+    Sorting = [#{mam_id => #{order => determine_sorting(Params)}}],
+    ResultLimit = maps:get(page_size, Params),
+    SearchQuery1 = SearchQuery0#{sort => Sorting,
+                                 size => ResultLimit},
+    SearchQuery2 = maybe_add_from_constraint(SearchQuery1, Params),
+    case mongoose_elastichsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
+        {ok, Result} ->
+            {ok, search_result_to_mam_lookup_result(Result, Params)};
+        {error, _} = Err ->
+            ?ERROR_MSG("Failed to lookup messages in ElasticSearch: ~p", [Err]),
+            Err
+    end.
+
+-spec archive_size(Size :: integer(),
+                   Host :: jid:server(),
+                   _ArchiveId,
+                   RoomJid :: jid:jid()) -> non_neg_integer().
+archive_size(_Size, _Host, _ArchiveId, RoomJid) ->
+    SearchQuery = build_search_query(#{owner_jid => RoomJid}),
+    archive_size(SearchQuery).
+
+-spec remove_archive(Acc :: mongoose_acc:t(),
+                     Host :: jid:server(),
+                     ArchiveId :: mod_mam:archive_id(),
+                     RoomJid :: jid:jid()) -> Acc when Acc :: map().
+remove_archive(Acc, _Host, _ArchiveId, RoomJid) ->
+    SearchQuery = build_search_query(#{owner_jid => RoomJid}),
+    case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
+        ok ->
+            ok;
+        {error, _} = Err ->
+            ?ERROR_MSG("Failed to delete messages in ElasticSearch: ~p", [Err]),
+            ok
+    end,
+    Acc.
+
+%%-------------------------------------------------------------------
+%% Helpers
+%%-------------------------------------------------------------------
+
+-spec hooks(jid:lserver()) -> [ejabberd_hooks:hook()].
+hooks(Host) ->
+    [{mam_muc_archive_message, Host, ?MODULE, archive_message, 50},
+     {mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50},
+     {mam_muc_archive_size, Host, ?MODULE, archive_size, 50},
+     {mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50}].
+
+-spec make_document_id(binary(), mod_mam:message_id()) -> binary().
+make_document_id(Room, MessageId) ->
+    <<Room/binary, $$, (integer_to_binary(MessageId))/binary>>.
+
+-spec make_document(mod_mam:message_id(), binary(), binary(), binary(), exml:element()) ->
+    map().
+make_document(MessageId, Room, User, Packet) ->
+    #{mam_id     => MessageId,
+      room       => Room,
+      user       => User,
+      message    => exml:to_binary(Packet),
+      body       => exml_query:path(Packet, [{element, <<"body">>}, cdata])
+     }.
+
+-spec build_search_query(map()) -> mongoose_elasticsearch:query().
+build_search_query(Params) ->
+    Filters = build_filters(Params),
+    TextSearchQuery = build_text_search_query(Params),
+    #{query =>
+      #{bool =>
+        #{must => TextSearchQuery,
+          filter => Filters}}}.
+
+-spec build_filters(map()) -> [map()].
+build_filters(Params) ->
+    Builders = [fun room_filter/1,
+                fun with_jid_filter/1,
+                fun range_filter/1],
+    lists:flatmap(fun(F) -> F(Params) end, Builders).
+
+-spec room_filter(map()) -> [map()].
+room_filter(#{owner_jid := Room}) ->
+    BinRoom = mod_mam_utils:bare_jid(Room),
+    [#{term => #{room => BinRoom}}].
+
+-spec with_jid_filter(map()) -> [map()].
+with_jid_filter(#{with_jid := #jid{} = WithJid}) ->
+    [#{term => #{user => mod_mam_utils:bare_jid(WithJid)}}];
+with_jid_filter(_) ->
+    [].
+
+-spec range_filter(map()) -> [map()].
+range_filter(#{end_ts := End, start_ts := Start, borders := Borders, rsm := RSM}) ->
+    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
+    Range1 = maybe_add_end_filter(EndId, #{}),
+    Range2 = maybe_add_start_filter(StartId, Range1),
+
+    case maps:size(Range2) of
+        0 ->
+            [];
+        _ ->
+            [#{range => #{mam_id => Range2}}]
+    end;
+range_filter(_) ->
+    [].
+
+-spec maybe_add_end_filter(undefined | mod_mam:message_id(), map()) -> map().
+maybe_add_end_filter(undefined, RangeMap) ->
+    RangeMap;
+maybe_add_end_filter(Value, RangeMap) ->
+    RangeMap#{lt => Value}.
+
+-spec maybe_add_start_filter(undefined | mod_mam:message_id(), map()) -> map().
+maybe_add_start_filter(undefined, RangeMap) ->
+    RangeMap;
+maybe_add_start_filter(Value, RangeMap) ->
+    RangeMap#{gt => Value}.
+
+-spec build_text_search_query(map()) -> map().
+build_text_search_query(#{search_text := SearchText}) when is_binary(SearchText) ->
+    #{simple_query_string => #{query => SearchText,
+                               fields => [<<"body">>],
+                               default_operator => <<"and">>}};
+build_text_search_query(_) ->
+    #{match_all => #{}}.
+
+-spec determine_sorting(map()) -> asc | desc.
+determine_sorting(#{rsm := #rsm_in{direction = before}}) ->
+    desc;
+determine_sorting(_) ->
+    asc.
+
+-spec maybe_add_from_constraint(mongoose_elasticsearch:query(), map()) ->
+    mongoose_elasticsearch:query().
+maybe_add_from_constraint(Query, #{rsm := #rsm_in{index = Offset}}) when is_integer(Offset) ->
+    Query#{from => Offset};
+maybe_add_from_constraint(Query, _) ->
+    Query.
+
+-spec search_result_to_mam_lookup_result(map(), map()) -> mod_mam:lookup_result().
+search_result_to_mam_lookup_result(Result, Params) ->
+    #{<<"hits">> :=
+      #{<<"hits">> := Hits,
+        <<"total">> := TotalCount}} = Result,
+
+    Messages = lists:map(Hits, fun hit_to_mam_message/1),
+
+    case maps:get(is_simple, Params) of
+        true ->
+            {undefined, undefined, Messages};
+        false ->
+            CorrectedTotalCount = corrected_total_count(TotalCount, Params),
+            Count = length(Messages),
+            Offset = calculate_offset(TotalCount, Count, Params),
+            {CorrectedTotalCount, Offset, Messages}
+    end.
+
+-spec hit_to_mam_message(map()) -> {mod_mam:message_id(), jid:jid(), exml:element()}.
+hit_to_mam_message(#{<<"_source">> := JSON}) ->
+    MessageId = maps:get(<<"mam_id">>, JSON),
+    Packet = maps:get(<<"message">>, JSON),
+    User = maps:get(<<"user">>, JSON),
+
+    {ok, Stanza} = exml:parse(Packet),
+    {MessageId, jid:from_binary(User), Stanza}.
+
+%% Usage of RSM affects the `"total"' value returned by ElasticSearch. Per RSM spec, the count
+%% returned by the query should represent the size of the whole result set, which in case of MAM
+%% is bound only by the MAM filters.
+%% The solution is to compute the archive size as if the RSM wasn't used. There is an obvious race
+%% condition here, because a user may send a message between initial request to ElasticSearch and
+%% the count request issued here.
+-spec corrected_total_count(non_neg_integer(), mongoose_elasticsearch:query()) ->
+    non_neg_integer().
+corrected_total_count(_, #{rsm := #rsm_in{id = Id}} = Params) when is_integer(Id) ->
+    Query = build_search_query(Params#{rsm := undefined}),
+    archive_size(Query);
+corrected_total_count(Count, _) ->
+    Count.
+
+-spec calculate_offset(non_neg_integer(), non_neg_integer(), map()) -> non_neg_integer().
+calculate_offset(_, _, #{rsm := #rsm_in{direction = undefined, index = Index}}) when is_integer(Index) ->
+    Index;
+calculate_offset(TotalCount, Count, #{rsm := #rsm_in{direction = before}}) ->
+    TotalCount - Count;
+calculate_offset(_, _, #{rsm := #rsm_in{direction = aft, id = Id}} = Params0) when is_integer(Id) ->
+    %% Not sure how this works..
+    Params1 = update_borders(Params0#{rsm := undefined}, Id + 1),
+    Query = build_search_query(Params1),
+    archive_size(Query).
+
+-spec update_borders(map(), non_neg_integer()) -> map().
+update_borders(#{borders := Borders} = Params, EndId) ->
+    Params#{borders := update_borders_to_id(Borders, EndId)}.
+
+-spec update_borders_to_id(#mam_borders{} | undefined, non_neg_integer()) -> #mam_borders{}.
+update_borders_to_id(undefined, EndId) ->
+    #mam_borders{to_id = EndId};
+update_borders_to_id(Borders, EndId) ->
+    Borders#mam_borders{to_id = EndId}.
+
+-spec archive_size(mod_mam_elasticsearch:query()) -> non_neg_integer().
+archive_size(Query) ->
+    case mongoose_elasticsearch:count(?INDEX_NAME, ?TYPE_NAME, Query) of
+        {ok, Count} ->
+            Count;
+        {error, _} = Err ->
+            ?ERROR_MSG("Failed to retrieve count of messages from ElasticSearch: ~p", [Err]),
+            0
+    end.
+
