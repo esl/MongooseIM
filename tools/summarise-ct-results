@@ -13,7 +13,8 @@ verify_results(0 = _OkGroups, 0 = _FailedGroups, 0 = _EventuallyOkTests,
     %% These are likely small tests - we're not writing
     %% groups.summaries files, therefore we get 0 for both group kinds.
     verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped);
-verify_results(OkGroups, FailedGroups, OkTests, EventuallyOkTests, FailedTests, UserSkipped, AutoSkipped) ->
+verify_results(OkGroups, FailedGroups, EventuallyOkTests,
+               OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
                                OkTests, FailedTests, UserSkipped, AutoSkipped).
 
