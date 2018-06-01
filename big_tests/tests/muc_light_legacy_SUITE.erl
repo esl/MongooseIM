@@ -146,7 +146,6 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     clear_db(),
-    escalus_fresh:clean(),
     Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
     dynamic_modules:stop(domain(), mod_muc_light),
     escalus:end_per_suite(Config1).
