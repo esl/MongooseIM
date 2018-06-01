@@ -44,6 +44,7 @@ app_opts() ->
      {"jingle-sip",    ["nksip"],           include_driver("nksip")},
      {"cassandra",     ["cqerl"],           include_driver("cassandra")},
      {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
+     {"elixir",        ["elixir", "iex"],   "include elixir support"},
      {"aws",           ["erlcloud"],        "include support for AWS services"}].
 
 opts() ->
