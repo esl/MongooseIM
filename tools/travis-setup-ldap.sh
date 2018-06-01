@@ -8,31 +8,23 @@ LDAP_ORGANISATION="Erlang Solutions"
 
 echo "configuring slapd"
 
-cat <<EOF | debconf-set-selections
-slapd slapd/internal/generated_adminpw password ${LDAP_ROOTPASS}
-slapd slapd/internal/adminpw password ${LDAP_ROOTPASS}
-slapd slapd/password2 password ${LDAP_ROOTPASS}
-slapd slapd/password1 password ${LDAP_ROOTPASS}
-slapd slapd/dump_database_destdir string /var/backups/slapd-VERSION
-slapd slapd/domain string ${LDAP_DOMAIN}
-slapd shared/organization string ${LDAP_ORGANISATION}
-slapd slapd/backend string HDB
-slapd slapd/purge_database boolean true
-slapd slapd/move_old_database boolean true
-slapd slapd/allow_ldap_v2 boolean false
-slapd slapd/no_configuration boolean false
-slapd slapd/dump_database select when needed
-EOF
+LDAP_ROOT_DIR="$(mktemp -d --suffix=mongoose_ldap_root)"
+LDAP_SCHEMAS_DIR="$LDAP_ROOT_DIR/prepopulate"
 
-dpkg-reconfigure -f noninteractive slapd
+mkdir -p "$LDAP_SCHEMAS_DIR"
 
-service slapd restart
-
-
-cat > init_entries.ldif << EOL
+cat > "$LDAP_SCHEMAS_DIR/init_entries.ldif" << EOL
 dn: ou=Users,dc=esl,dc=com
 objectClass: organizationalUnit
 ou: users
 EOL
 
-ldapadd -x -D${LDAP_ROOT} -f init_entries.ldif -w ${LDAP_ROOTPASS}
+docker rm -f mongooseim-ldap || echo "Skip removing previous container"
+docker run -d \
+    --name mongooseim-ldap \
+    -p 3389:389 \
+    -e SLAPD_DOMAIN="$LDAP_DOMAIN" \
+    -e SLAPD_PASSWORD="$LDAP_ROOTPASS" \
+    -e SLAPD_ORGANIZATION="$LDAP_ORGANISATION" \
+    -v "$LDAP_SCHEMAS_DIR":/etc/ldap.dist/prepopulate/ \
+    openfrontier/openldap-server
