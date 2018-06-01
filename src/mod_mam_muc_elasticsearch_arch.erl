@@ -1,4 +1,4 @@
--module(mod_mam_elasticsearch_arch).
+-module(mod_mam_muc_elasticsearch_arch).
 
 -behaviour(gen_mod).
 -behaviour(ejabberd_gen_mam_archive).
@@ -44,15 +44,15 @@ stop(Host) ->
                       MessageId :: mod_mam:message_id(),
                       ArchiveId :: mod_mam:archive_id(),
                       RoomJid :: jid:jid(),
-                      UserJid :: jid:jid(),
+                      SourceJid :: jid:jid(),
                       SourceJid :: jid:jid(),
                       Dir :: incoming | outgoing,
                       Packet :: exml:element()) -> ok | {error, term()}.
-archive_message(_Result, Host, MessageId, _UserId, RoomJid, UserJid, _SourceJid, _Dir, Packet) ->
+archive_message(_Result, Host, MessageId, _UserId, RoomJid, _SourceJid, SourceJid, _Dir, Packet) ->
     Room = mod_mam_utils:bare_jid(RoomJid),
-    User = mod_mam_utils:bare_jid(UserJid),
+    SourceBinJid = mod_mam_utils:full_jid(SourceJid),
     DocId = make_document_id(Room, MessageId),
-    Doc = make_document(MessageId, Room, User, Packet),
+    Doc = make_document(MessageId, Room, SourceBinJid, Packet),
     case mongoose_elasticsearch:insert_document(?INDEX_NAME, ?TYPE_NAME, DocId, Doc) of
         {ok, _} ->
             ok;
@@ -72,7 +72,7 @@ lookup_messages(_Result, _Host, Params) ->
     SearchQuery1 = SearchQuery0#{sort => Sorting,
                                  size => ResultLimit},
     SearchQuery2 = maybe_add_from_constraint(SearchQuery1, Params),
-    case mongoose_elastichsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
+    case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
         {ok, Result} ->
             {ok, search_result_to_mam_lookup_result(Result, Params)};
         {error, _} = Err ->
@@ -118,12 +118,12 @@ hooks(Host) ->
 make_document_id(Room, MessageId) ->
     <<Room/binary, $$, (integer_to_binary(MessageId))/binary>>.
 
--spec make_document(mod_mam:message_id(), binary(), binary(), binary(), exml:element()) ->
+-spec make_document(mod_mam:message_id(), binary(), binary(), exml:element()) ->
     map().
-make_document(MessageId, Room, User, Packet) ->
+make_document(MessageId, Room, SourceBinJid, Packet) ->
     #{mam_id     => MessageId,
       room       => Room,
-      user       => User,
+      source_jid => SourceBinJid,
       message    => exml:to_binary(Packet),
       body       => exml_query:path(Packet, [{element, <<"body">>}, cdata])
      }.
@@ -151,7 +151,7 @@ room_filter(#{owner_jid := Room}) ->
 
 -spec with_jid_filter(map()) -> [map()].
 with_jid_filter(#{with_jid := #jid{} = WithJid}) ->
-    [#{term => #{user => mod_mam_utils:bare_jid(WithJid)}}];
+    [#{term => #{source_jid => mod_mam_utils:full_jid(WithJid)}}];
 with_jid_filter(_) ->
     [].
 
@@ -209,12 +209,13 @@ search_result_to_mam_lookup_result(Result, Params) ->
       #{<<"hits">> := Hits,
         <<"total">> := TotalCount}} = Result,
 
-    Messages = lists:map(Hits, fun hit_to_mam_message/1),
+    Messages = lists:sort(
+                 lists:map(fun hit_to_mam_message/1, Hits)),
 
     case maps:get(is_simple, Params) of
         true ->
             {undefined, undefined, Messages};
-        false ->
+        _ ->
             CorrectedTotalCount = corrected_total_count(TotalCount, Params),
             Count = length(Messages),
             Offset = calculate_offset(TotalCount, Count, Params),
@@ -225,10 +226,10 @@ search_result_to_mam_lookup_result(Result, Params) ->
 hit_to_mam_message(#{<<"_source">> := JSON}) ->
     MessageId = maps:get(<<"mam_id">>, JSON),
     Packet = maps:get(<<"message">>, JSON),
-    User = maps:get(<<"user">>, JSON),
+    SourceJid = maps:get(<<"source_jid">>, JSON),
 
     {ok, Stanza} = exml:parse(Packet),
-    {MessageId, jid:from_binary(User), Stanza}.
+    {MessageId, jid:from_binary(SourceJid), Stanza}.
 
 %% Usage of RSM affects the `"total"' value returned by ElasticSearch. Per RSM spec, the count
 %% returned by the query should represent the size of the whole result set, which in case of MAM
@@ -253,7 +254,9 @@ calculate_offset(_, _, #{rsm := #rsm_in{direction = aft, id = Id}} = Params0) wh
     %% Not sure how this works..
     Params1 = update_borders(Params0#{rsm := undefined}, Id + 1),
     Query = build_search_query(Params1),
-    archive_size(Query).
+    archive_size(Query);
+calculate_offset(_, _, _) ->
+    0.
 
 -spec update_borders(map(), non_neg_integer()) -> map().
 update_borders(#{borders := Borders} = Params, EndId) ->

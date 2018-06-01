@@ -54,7 +54,12 @@ stop() ->
 %% more information.
 -spec health() -> {ok, Resp :: map()} | {error, term()}.
 health() ->
-    tirerl:health(?POOL_NAME).
+    case catch tirerl:health(?POOL_NAME) of
+        {'EXIT', _} = Err ->
+            {error, Err};
+        Other ->
+            Other
+    end.
 
 %% @doc Tries to insert a document into given ElasticSearch index.
 %%
@@ -82,8 +87,8 @@ search(Index, Type, SearchQuery) ->
 %% information.
 -spec count(index(), type(), query()) -> {ok, Count :: non_neg_integer()} | {error, term()}.
 count(Index, Type, SearchQuery) ->
-    case tirerl:count(?POOL_NAME, Index, Type, SearchQuery) of
-        {ok, #{<<"count">> := Count}} when is_integer(Count), Count > 0 ->
+    case tirerl:count(?POOL_NAME, Index, Type, SearchQuery, []) of
+        {ok, #{<<"count">> := Count}} when is_integer(Count), Count >= 0 ->
             {ok, Count};
         {error, _} = Err ->
             Err

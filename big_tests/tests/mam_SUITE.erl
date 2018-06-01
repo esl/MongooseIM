@@ -123,6 +123,7 @@
         [rpc_apply/3,
          is_riak_enabled/1,
          is_cassandra_enabled/1,
+         is_elasticsearch_enabled/1,
          is_mam_possible/1,
          print_configuration_not_supported/2,
          start_alice_room/1,
@@ -214,7 +215,8 @@
 configurations() ->
     cassandra_configs(is_cassandra_enabled(host()))
     ++ odbc_configs(mongoose_helper:is_odbc_enabled(host()))
-    ++ riak_configs(is_riak_enabled(host())).
+    ++ riak_configs(is_riak_enabled(host()))
+    ++ elasticsearch_configs(is_elasticsearch_enabled(host())).
 
 odbc_configs(true) ->
     [odbc,
@@ -238,6 +240,11 @@ cassandra_configs(true) ->
      [cassandra];
 cassandra_configs(_) ->
      [].
+
+elasticsearch_configs(true) ->
+    [elasticsearch];
+elasticsearch_configs(_) ->
+    [].
 
 basic_group_names() ->
     [
@@ -594,6 +601,8 @@ do_init_per_group(C, ConfigIn) ->
             [{archive_wait, 2500} | Config0];
         cassandra ->
             [{archive_wait, 1500} | Config0];
+        elasticsearch ->
+            [{archive_wait, 2500} | Config0];
         _ ->
             [{archive_wait, 0} | Config0]
     end.
@@ -638,6 +647,12 @@ init_modules(BT = cassandra, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    Config;
+init_modules(BT = elasticsearch, muc_light, config) ->
+    init_modules_for_muc_light(BT, config);
+init_modules(elasticsearch, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_elasticsearch_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(odbc, muc_all, Config) ->
@@ -725,6 +740,11 @@ init_modules(cassandra, C, Config) ->
     init_module(host(), mod_mam_cassandra_prefs, [pm]),
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
     Config;
+init_modules(elasticsearch, C, Config) ->
+    init_module(host(), mod_mam_elasticsearch_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    Config;
 init_modules(odbc_async, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
@@ -800,6 +820,8 @@ mam_modules() ->
      mod_mam_cassandra_arch,
      mod_mam_muc_cassandra_arch,
      mod_mam_cassandra_prefs,
+     mod_mam_elasticsearch_arch,
+     mod_mam_muc_elasticsearch_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_odbc_async_pool_writer,

@@ -73,7 +73,7 @@ lookup_messages(_Result, _Host, Params) ->
     SearchQuery1 = SearchQuery0#{sort => Sorting,
                                  size => ResultLimit},
     SearchQuery2 = maybe_add_from_constraint(SearchQuery1, Params),
-    case mongoose_elastichsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
+    case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery2) of
         {ok, Result} ->
             {ok, search_result_to_mam_lookup_result(Result, Params)};
         {error, _} = Err ->
@@ -211,12 +211,13 @@ search_result_to_mam_lookup_result(Result, Params) ->
       #{<<"hits">> := Hits,
         <<"total">> := TotalCount}} = Result,
 
-    Messages = lists:map(Hits, fun hit_to_mam_message/1),
+    Messages = lists:sort(
+                 lists:map(fun hit_to_mam_message/1, Hits)),
 
     case maps:get(is_simple, Params) of
         true ->
             {undefined, undefined, Messages};
-        false ->
+        _ ->
             CorrectedTotalCount = corrected_total_count(TotalCount, Params),
             Count = length(Messages),
             Offset = calculate_offset(TotalCount, Count, Params),
@@ -255,7 +256,9 @@ calculate_offset(_, _, #{rsm := #rsm_in{direction = aft, id = Id}} = Params0) wh
     %% Not sure how this works..
     Params1 = update_borders(Params0#{rsm := undefined}, Id + 1),
     Query = build_search_query(Params1),
-    archive_size(Query).
+    archive_size(Query);
+calculate_offset(_, _, _) ->
+    0.
 
 -spec update_borders(map(), non_neg_integer()) -> map().
 update_borders(#{borders := Borders} = Params, EndId) ->
