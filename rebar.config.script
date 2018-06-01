@@ -56,12 +56,12 @@ end,
 
 RequiredApps = fun() -> [mongooseim, inets, tools] end,
 EnvApps = GetEnvApps(),
+EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
 
 SetupIncludedApps =
 fun(Config, EnvApps) ->
         RelxCfg = proplists:get_value(relx, Config),
         {release, Desc, _Apps} = lists:keyfind(release, 1, RelxCfg),
-        EnvAppsToInclude = [ list_to_atom(App) || App <- string:tokens(EnvApps, " \n\r") ],
         AppsToIncludeIn = RequiredApps() ++ DevAppsToInclude() ++ EnvAppsToInclude,
         AppsToInclude = ordsets:to_list(ordsets:from_list(AppsToIncludeIn)),
         NewReleaseCfg = {release, Desc, AppsToInclude},
@@ -82,6 +82,39 @@ MaybeFIPSSupport = fun(Config) ->
     end
 end,
 
+%% Removes hook handler from provider_hooks list
+DisableHooksFor = fun(Config, DisabledPluginName) ->
+    Hooks = proplists:get_value(provider_hooks, Config),
+    Hooks2 = [[Rule || {_Command, {Plugin, _Call}} = Rule <- Rules,
+                       Plugin =/= DisabledPluginName]
+              || {PreOrPost, Rules} <- Hooks],
+    lists:keyreplace(provider_hooks, 1, Config, {provider_hooks, Hooks2})
+end,
+
+%% There are several ways to specify plugin
+GetPluginName = fun(Plugin) when is_tuple(Plugin) -> element(1, Plugin);
+                   (Plugin) -> Plugin end, %% most likely atom
+
+DisablePlugin = fun(Config, DisabledPluginName) ->
+    Plugins = proplists:get_value(plugins, Config),
+    Plugins2 = [Plugin || Plugin <- Plugins,
+                GetPluginName(Plugin) =/= DisabledPluginName],
+    lists:keyreplace(plugins, 1, Config, {plugins, Plugins2})
+end,
+
+%% If tools/configure has added elixir application, we keep config as-is
+%% Otherwise, we can remove rebar3_elixir_compile and it's hooks
+MaybeDisableElixirSupport = fun(Config) ->
+    case lists:member(elixir, EnvAppsToInclude) of
+        true ->
+            Config;
+        false ->
+            Config2 = DisableHooksFor(Config, ex),
+            DisablePlugin(Config2, rebar3_elixir_compile)
+    end
+end,
+
 Config0 = MaybeConfigureCoveralls(CONFIG),
 Config1 = SetupIncludedApps(Config0, EnvApps),
-MaybeFIPSSupport(Config1).
+Config2 = MaybeFIPSSupport(Config1),
+MaybeDisableElixirSupport(Config2).
