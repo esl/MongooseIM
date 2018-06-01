@@ -30,16 +30,16 @@ pre_init_per_suite(_Suite, Config, State) ->
     {Config, #{}}.
 
 post_end_per_suite(_SuiteName, Config, Return, State) ->
-    ct:pal("post_end_per_suite config: ~p", [Config]),
-    ct:pal("post_end_per_suite state: ~p", [State]),
-    ct:pal("post_end_per_suite return: ~p", [Return]),
+    %ct:pal("post_end_per_suite config: ~p", [Config]),
+    %ct:pal("post_end_per_suite state: ~p", [State]),
+    %ct:pal("post_end_per_suite return: ~p", [Return]),
     write_groups_summary(Config, State),
     {Return, State}.
 
 post_end_per_group(GroupName, Config, Return, State) ->
-    ct:pal("post_end_per_group config: ~p", [Config]),
-    ct:pal("post_end_per_group state: ~p", [State]),
-    ct:pal("post_end_per_group return: ~p", [Return]),
+    %ct:pal("post_end_per_group config: ~p", [Config]),
+    %ct:pal("post_end_per_group state: ~p", [State]),
+    %ct:pal("post_end_per_group return: ~p", [Return]),
     State1 = update_group_status(GroupName, Config, State),
     {Return, State1}.
 
