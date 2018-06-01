@@ -70,9 +70,10 @@ add_up_suite_results(SuiteSummaries) ->
                         {OkAcc + Ok, FAcc + F, USAcc + US, ASAcc + AS}
                 end, {0, 0, 0, 0}, SuiteSummaries).
 
-add_up_group_results(SuiteSummaries) ->
-    lists:foldl(fun(Filename, {OkAcc, FAcc}) ->
-                        {ok, [{groups_summary, {Ok, F}},
-                              {eventually_ok_tests, EvOk}]} = file:consult(Filename),
+add_up_group_results(GroupSummaries) ->
+    lists:foldl(fun(Filename, {OkAcc, FAcc, EvOkAcc}) ->
+                        {ok, Terms} = file:consult(Filename),
+                        #{eventually_ok_tests := EvOk,
+                          groups_summary := {Ok, F}} = maps:from_list(Terms),
                         {OkAcc + Ok, FAcc + F, EvOkAcc + EvOk}
-                end, {0, 0, 0}, SuiteSummaries).
+                end, {0, 0, 0}, GroupSummaries).
