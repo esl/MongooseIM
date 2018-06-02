@@ -1684,8 +1684,8 @@ remove_online_user(JID, StateData, Reason) ->
     Sessions = case is_last_session(Nick, StateData) of
         true ->
             add_to_log(leave, {Nick, Reason}, StateData),
-            run_leave_room_hook(JID, StateData),
             tab_remove_online_user(JID, StateData),
+            run_leave_room_hook(JID, StateData),
             dict:erase(Nick, StateData#state.sessions);
         false ->
             IsOtherLJID = fun(J) -> jid:to_lower(J) /= LJID end,
