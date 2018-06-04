@@ -194,8 +194,10 @@ init_per_group(_, Config0) ->
 end_per_group(advertised_endpoints, Config) ->
     Pids = ?config(meck_handlers, Config),
     unmock_inet(Pids),
+    escalus_fresh:clean(),
     Config;
 end_per_group(start_checks, Config) ->
+    escalus_fresh:clean(),
     Config;
 end_per_group(invalidation, Config) ->
     redis_query(europe_node1, [<<"HDEL">>, ?config(nodes_key, Config),

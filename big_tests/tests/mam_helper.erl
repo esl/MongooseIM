@@ -1196,8 +1196,7 @@ make_alice_and_bob_friends(Alice, Bob) ->
 run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
-    escalus:send(Alice, IqSet),
-    _ReplySet = escalus:wait_for_stanza(Alice),
+    _ReplySet = escalus:send_iq_and_wait_for_result(Alice, IqSet),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
                                                [N, PrefsState, os:timestamp()]))
                 || N <- [1, 2, 3, 4]],
@@ -1278,8 +1277,7 @@ print_configuration_not_supported(C, B) ->
 run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Namespace, Alice, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
-    escalus:send(Alice, IqSet),
-    ReplySet = escalus:wait_for_stanza(Alice, 5000),
+    ReplySet = escalus:send_iq_and_wait_for_result(Alice, IqSet),
     ReplySetNS = exml_query:path(ReplySet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
     ?assert_equal(ReplySetNS, Namespace),
     escalus:send(Alice, stanza_prefs_get_request(Namespace)),
