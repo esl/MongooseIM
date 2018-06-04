@@ -10,7 +10,7 @@ LDAP_ORGANISATION="Erlang Solutions"
 
 echo "configuring slapd"
 
-LDAP_ROOT_DIR="$(mktemp -d --suffix=mongoose_ldap_root)"
+LDAP_ROOT_DIR="$(mktempdir mongoose_ldap_root)"
 LDAP_SCHEMAS_DIR="$LDAP_ROOT_DIR/prepopulate"
 LDAP_DATA_DIR="$LDAP_ROOT_DIR/data"
 LDAP_CONFIG_DIR="$LDAP_ROOT_DIR/config"

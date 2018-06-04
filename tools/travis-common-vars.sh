@@ -33,3 +33,13 @@ function data_on_volume
         echo "$@"
     fi
 }
+
+# Example: mktempdir "SUFFIX_OR_PREFIX"
+function mktempdir
+{
+    case "$(uname -s)" in
+        Darwin*)    mktemp -d -t "$1" ;; # On mac -t is prefix
+        Linux*)     mktemp -d --suffix="$1" ;; # gnu mktemp
+        *)          mktemp -d
+    esac
+}

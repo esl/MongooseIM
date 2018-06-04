@@ -85,7 +85,7 @@ EOL
 }
 
 # Stores all the data needed by the container
-SQL_ROOT_DIR="$(mktemp -d --suffix=mongoose_sql_root)"
+SQL_ROOT_DIR="$(mktempdir mongoose_sql_root)"
 echo "SQL_ROOT_DIR is $SQL_ROOT_DIR"
 
 # A directory, that contains resources that needed to bootstrap a container
