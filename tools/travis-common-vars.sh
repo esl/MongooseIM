@@ -34,12 +34,14 @@ function data_on_volume
     fi
 }
 
-# Example: mktempdir "SUFFIX_OR_PREFIX"
+# Example: mktempdir "PREFIX"
+#
+# MAC OS X and docker specific:
+#   Docker for Mac limits where mounts can be.
+#   Mounts can be in /tmp, /Users, /Volumes but not in /var/folders/cd/
+#   Default behaviour of mktemp on Mac is to create a directory like
+#   /var/folders/cd/qgvc26bj6hg1kgr41q96zydh0000gp/T/tmp.Sa9w8Xp3
 function mktempdir
 {
-    case "$(uname -s)" in
-        Darwin*)    mktemp -d -t "$1" ;; # On mac -t is prefix
-        Linux*)     mktemp -d --suffix="$1" ;; # gnu mktemp
-        *)          mktemp -d
-    esac
+    mktemp -d "/tmp/$1.XXXXXXXXX"
 }
