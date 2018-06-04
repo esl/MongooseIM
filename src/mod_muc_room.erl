@@ -1662,11 +1662,7 @@ add_online_user(JID, Nick, Role, StateData) ->
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
 -spec run_join_room_hook(jid:jid(), state()) -> ok.
-run_join_room_hook(JID, StateData) ->
-  ServerHost = StateData#state.server_host,
-  Room = StateData#state.room,
-  Host = StateData#state.host,
-  MucJID = StateData#state.jid,
+run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost) ->
   ejabberd_hooks:run(join_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
   ok.
 
@@ -1697,11 +1693,7 @@ remove_online_user(JID, StateData, Reason) ->
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
 -spec run_leave_room_hook(jid:jid(), state()) -> ok.
-run_leave_room_hook(JID, StateData) ->
-  ServerHost = StateData#state.server_host,
-  Room = StateData#state.room,
-  Host = StateData#state.host,
-  MucJID = StateData#state.jid,
+run_leave_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost) ->
   ejabberd_hooks:run(leave_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
   ok.
 
