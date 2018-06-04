@@ -154,8 +154,7 @@ start(Host, Opts) ->
          1000,
          worker,
          [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
-
+    ejabberd_sup:start_child(ChildSpec).
 
 -spec stop(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
@@ -167,8 +166,7 @@ stop_gen_server(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
     %% Proc can still be alive because of a race condition
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 
 %% @doc This function is called by a room in three situations:
@@ -456,15 +454,14 @@ start_supervisor(Host) ->
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 
 -spec stop_supervisor(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 
 -spec process_packet(Acc :: mongoose_acc:t(),

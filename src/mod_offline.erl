@@ -233,12 +233,11 @@ start_worker(Host, AccessMaxOfflineMsgs) ->
     {Proc,
      {?MODULE, start_link, [Proc, Host, AccessMaxOfflineMsgs]},
      permanent, 5000, worker, [?MODULE]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 stop_worker(Host) ->
     Proc = srv_name(Host),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 start_link(Name, Host, AccessMaxOfflineMsgs) ->
     gen_server:start_link({local, Name}, ?MODULE, [Host, AccessMaxOfflineMsgs], []).

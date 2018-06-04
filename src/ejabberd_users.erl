@@ -50,7 +50,7 @@ start(Host) ->
      5000,
      worker,
      [ejabberd_users]},
-    supervisor:start_child(ejabberd_sup, UserChildSpec),
+    ejabberd_sup:start_child(UserChildSpec),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 

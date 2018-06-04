@@ -549,8 +549,8 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                  Class:Other ->
                      Stacktrace = erlang:get_stacktrace(),
                      ?ERROR_MSG("issue=outer_transaction_failed "
-                                "stacktrace=~1000p",
-                                [Stacktrace]),
+                                "reason=~p:~p stacktrace=~1000p",
+                                [Class, Other, Stacktrace]),
                      {'EXIT', Other}
           end,
     erase(?STATE_KEY), % Explicitly ignore state changed inside transaction

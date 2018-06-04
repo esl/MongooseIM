@@ -164,10 +164,9 @@ start_outgoing_conns_sup() ->
       type => supervisor,
       modules => [ConnsSup]
      },
-    {ok, _Pid} = supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 
 stop_outgoing_conns_sup() ->
     ConnsSup = mod_global_distrib_outgoing_conns_sup,
-    supervisor:terminate_child(ejabberd_sup, ConnsSup),
-    supervisor:delete_child(ejabberd_sup, ConnsSup).
+    ejabberd_sup:stop_child(ConnsSup).
