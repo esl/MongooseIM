@@ -26,6 +26,8 @@ ou: users
 EOL
 
 docker rm -f mongooseim-ldap || echo "Skip removing previous container"
+# Host on non-standard higher port 3389 to avoid problems with lower ports
+# Default LDAP port is 389
 docker run -d \
     --name mongooseim-ldap \
     -p 3389:389 \
