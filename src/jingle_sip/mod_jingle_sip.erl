@@ -128,6 +128,8 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
        JingleAction =:= <<"session-accept">>;
        JingleAction =:= <<"session-terminate">>;
        JingleAction =:= <<"source-remove">>;
+       JingleAction =:= <<"source-add">>;
+       JingleAction =:= <<"source-update">>;
        JingleAction =:= <<"transport-info">> ->
     #iq{sub_el = Jingle} = IQ,
     try
@@ -214,26 +216,12 @@ translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
         _ ->
             {error, item_not_found}
     end;
-translate_to_sip(<<"source-remove">>, Jingle, Acc) ->
-    SID = exml_query:attr(Jingle, <<"sid">>),
-    Server = mongoose_acc:get(server, Acc),
-    #sdp{attributes = SDPAttrs} = RawSDP = prepare_initial_sdp(Server, Jingle),
-
-    SDPAttrsWithActionName = [{<<"jingle-action">>, [exml_query:attr(Jingle, <<"action">>)]}
-                              | SDPAttrs],
-    SDP = RawSDP#sdp{attributes = SDPAttrsWithActionName},
-
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
-        {ok, undefined} ->
-            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
-            {error, item_not_found};
-        {ok, Handle} ->
-            nksip_uac:invite(Handle, [auto_2xx_ack,
-                                      {body, SDP}]);
-        _ ->
-            ?ERROR_MSG("There was no such session ~p", [SID]),
-            {error, item_not_found}
-    end;
+translate_to_sip(<<"source-remove">> = Name, Jingle, Acc) ->
+    translate_source_change_to_sip(Name, Jingle, Acc);
+translate_to_sip(<<"source-add">> = Name, Jingle, Acc) ->
+    translate_source_change_to_sip(Name, Jingle, Acc);
+translate_to_sip(<<"source-update">> = Name, Jingle, Acc) ->
+    translate_source_change_to_sip(Name, Jingle, Acc);
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
@@ -258,6 +246,27 @@ translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
         {ok, Session} ->
             try_to_terminate_the_session(FromLUS, ToLUS, Session);
         _ ->
+            {error, item_not_found}
+    end.
+
+translate_source_change_to_sip(ActionName, Jingle, Acc) ->
+    SID = exml_query:attr(Jingle, <<"sid">>),
+    Server = mongoose_acc:get(server, Acc),
+    #sdp{attributes = SDPAttrs} = RawSDP = prepare_initial_sdp(Server, Jingle),
+
+    SDPAttrsWithActionName = [{<<"jingle-action">>, [ActionName]}
+                              | SDPAttrs],
+    SDP = RawSDP#sdp{attributes = SDPAttrsWithActionName},
+
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
+        {ok, undefined} ->
+            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
+            {error, item_not_found};
+        {ok, Handle} ->
+            nksip_uac:invite(Handle, [auto_2xx_ack,
+                                      {body, SDP}]);
+        _ ->
+            ?ERROR_MSG("There was no such session ~p", [SID]),
             {error, item_not_found}
     end.
 

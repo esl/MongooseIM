@@ -39,7 +39,9 @@ test_cases() ->
      mongoose_replies_with_480_when_invitee_is_offline,
      mongoose_returns_404_when_not_authorized_user_tires_to_accept_a_session,
      mongoose_returns_404_when_nto_authorized_user_tries_to_cancel_a_session,
-     mongoose_sends_reINVITE_on_source_remove_action
+     mongoose_sends_reINVITE_on_source_remove_action,
+     mongoose_sends_reINVITE_on_source_add_action,
+     mongoose_sends_reINVITE_on_source_update_action
 
     ].
 
@@ -314,6 +316,35 @@ mongoose_sends_reINVITE_on_source_remove_action(Config) ->
 
     end).
 
+mongoose_sends_reINVITE_on_source_add_action(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+        accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest),
+
+        %% then Alice sends source-remove
+        SourceRemoveStanza = escalus_stanza:to(jingle_source_add(InviteStanza), Bob),
+        escalus:send(Alice, SourceRemoveStanza),
+        SourceRemoveResult = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, [SourceRemoveStanza], SourceRemoveResult),
+        SourceRemoveToBob = escalus:wait_for_stanza(Bob),
+        assert_source_add_action(SourceRemoveToBob, InviteRequest)
+
+    end).
+
+mongoose_sends_reINVITE_on_source_update_action(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {InviteStanza, InviteRequest} = initiate_jingle_session(Alice, Bob),
+        accept_jingle_session(Alice, Bob, InviteStanza, InviteRequest),
+
+        %% then Alice sends source-remove
+        SourceRemoveStanza = escalus_stanza:to(jingle_source_update(InviteStanza), Bob),
+        escalus:send(Alice, SourceRemoveStanza),
+        SourceRemoveResult = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, [SourceRemoveStanza], SourceRemoveResult),
+        SourceRemoveToBob = escalus:wait_for_stanza(Bob),
+        assert_source_update_action(SourceRemoveToBob, InviteRequest)
+
+    end).
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -436,6 +467,17 @@ assert_source_remove_action(SourceRemoveRequest, InviteRequest) ->
     ?assertEqual(<<"source-remove">>,
                  (exml_query:attr(JingleEl, <<"action">>))).
 
+assert_source_add_action(SourceRemoveRequest, InviteRequest) ->
+    assert_same_sid(InviteRequest, SourceRemoveRequest),
+    JingleEl = exml_query:subelement(SourceRemoveRequest, <<"jingle">>),
+    ?assertEqual(<<"source-add">>,
+                 (exml_query:attr(JingleEl, <<"action">>))).
+
+assert_source_update_action(SourceRemoveRequest, InviteRequest) ->
+    assert_same_sid(InviteRequest, SourceRemoveRequest),
+    JingleEl = exml_query:subelement(SourceRemoveRequest, <<"jingle">>),
+    ?assertEqual(<<"source-update">>,
+                 (exml_query:attr(JingleEl, <<"action">>))).
 
 jingle_stanza_addressed_to_bare_jid_is_delivered(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -513,6 +555,22 @@ jingle_source_remove(InviteRequest) ->
     Audio = content(audio_source_remove),
     Video = content(video_source_remove),
     I = jingle_element(SID, <<"source-remove">>, [Audio, Video,
+                                                  content_group([Audio, Video])]),
+    iq_set(I).
+
+jingle_source_add(InviteRequest) ->
+    SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
+    Audio = content(audio_source_remove),
+    Video = content(video_source_remove),
+    I = jingle_element(SID, <<"source-add">>, [Audio, Video,
+                                               content_group([Audio, Video])]),
+    iq_set(I).
+
+jingle_source_update(InviteRequest) ->
+    SID = exml_query:path(InviteRequest, path_to_jingle_sid()),
+    Audio = content(audio_source_remove),
+    Video = content(video_source_remove),
+    I = jingle_element(SID, <<"source-update">>, [Audio, Video,
                                                   content_group([Audio, Video])]),
     iq_set(I).
 
