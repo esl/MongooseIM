@@ -1662,7 +1662,7 @@ add_online_user(JID, Nick, Role, StateData) ->
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
 -spec run_join_room_hook(jid:jid(), state()) -> ok.
-run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost) ->
+run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
   ejabberd_hooks:run(join_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
   ok.
 
