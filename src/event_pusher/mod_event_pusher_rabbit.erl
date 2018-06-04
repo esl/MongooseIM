@@ -174,7 +174,7 @@ exchanges(Host) ->
     [
      opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
      opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
-     opt(Host, groupchat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE)
+     opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE)
     ].
 
 %% Getter for module options
