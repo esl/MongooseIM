@@ -9,6 +9,7 @@
 %%%-------------------------------------------------------------------
 -module(mongoose_rabbit_worker).
 
+-include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/mod_event_pusher_rabbit.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
 
@@ -153,11 +154,16 @@ publish(Channel, Exchange, RoutingKey, Message, Host) ->
             mongoose_metrics:update(Host, ?MESSAGE_PUBLISH_TIME_METRIC,
                                     PublishTime),
             mongoose_metrics:update(Host, ?MESSAGE_PAYLOAD_SIZE_METRIC,
-                                    byte_size(Message));
+                                    byte_size(Message)),
+            ?DEBUG("Message sent to RabbitMQ node: ~p", [Message]);
         false ->
-            mongoose_metrics:update(Host, ?MESSAGES_FAILED_METRIC, 1);
+            mongoose_metrics:update(Host, ?MESSAGES_FAILED_METRIC, 1),
+            ?WARNING_MSG("RabbitMQ node was not able to process the message:",
+                         []);
         timeout ->
-            mongoose_metrics:update(Host, ?MESSAGES_TIMEOUT_METRIC, 1)
+            mongoose_metrics:update(Host, ?MESSAGES_TIMEOUT_METRIC, 1),
+            ?WARNING_MSG("Timeout waiting for a response from RabbitMQ node.",
+                         [])
     end.
 
 -spec user_topic_routing_key(JID :: {binary(), binary(), binary()},
@@ -189,6 +195,7 @@ establish_rabbit_connection(Opts, Host) ->
     {ok, Connection} = amqp_connection:start(Opts),
     {ok, Channel} = amqp_connection:open_channel(Connection),
     mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_METRIC, 1),
+    ?DEBUG("Connection to RabbitMQ node is established.~n", []),
     {Connection, Channel}.
 
 -spec enable_confirms(Channel :: pid()) -> ok.
