@@ -55,7 +55,6 @@ sip_invite(Req, Call) ->
     end.
 
 sip_reinvite(Req, Call) ->
-    ?WARNING_MSG("re-INVITE: ~p", [Req]),
     try
         sip_reinvite_unsafe(Req, Call)
     catch Class:Reason ->
@@ -84,6 +83,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     {ok, ReqID} = nksip_request:get_handle(Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
+
     OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
@@ -99,6 +99,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     {reply, ringing}.
 
 sip_reinvite_unsafe(Req, _Call) ->
+    ?INFO_MSG("re-INVITE: ~p", [Req]),
     {FromJID, FromBinary} = get_user_from_sip_msg(from, Req),
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
 
@@ -106,15 +107,25 @@ sip_reinvite_unsafe(Req, _Call) ->
     Body = nksip_sipmsg:meta(body, Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
-    OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
+    RemainingAttrs = SDP#sdp.attributes,
+    OtherEls = sip_to_jingle:parse_sdp_attributes(RemainingAttrs),
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
-    ?WARNING_MSG("ContentEls: ~p", [ContentEls]),
-    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"transport-info">>, ContentEls ++ OtherEls),
+    Name = get_action_name_from_sdp(RemainingAttrs, <<"transport-info">>),
+    ?WARNING_MSG("name: ~p", [Name]),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, Name, ContentEls ++ OtherEls),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     {reply, ok}.
+
+get_action_name_from_sdp(Attrs, Default) ->
+    case lists:keyfind(<<"jingle-action">>, 1, Attrs) of
+        {_, [Name]} ->
+            Name;
+        _ ->
+            Default
+    end.
 
 
 sip_info(Req, _Call) ->

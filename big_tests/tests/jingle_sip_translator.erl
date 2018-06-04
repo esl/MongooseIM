@@ -68,70 +68,6 @@ request(#sip{method = <<"INVITE">>, hdrs = Hdrs, uri = Uri} = Sip, Socket, Tr) -
             timer:apply_after(10, esip_transaction, reply, [Tr, Resp]),
             {?MODULE, in_invite_transaction_callback, [ReqBack]}
     end;
-request(#sip{method = <<"INFO">>, hdrs = Hdrs, uri = Uri} = Sip, Socket, Tr) ->
-
-    {_, #uri{user = ToUser}, _} = esip:get_hdr(to, Hdrs),
-    {_, #uri{user = FromUser}, _} = esip:get_hdr(from, Hdrs),
-
-    CallID = esip:get_hdr('call-id', Hdrs),
-
-    [{_, Data}] = ets:lookup(?MODULE, CallID),
-
-
-    ReqBack = esip_dialog:prepare_request(maps:get(dialog_id, Data), Sip),
-
-    {ok, _TrID} = esip:request(Socket, ReqBack,
-                               {?MODULE, info_sent, []}),
-    [{_, #uri{user = ToUser}, _} | _] = esip:get_hdrs(to, Hdrs),
-    Contact = esip:get_hdrs(contact, Hdrs),
-    Hdrs1 = esip:filter_hdrs(['call-id', 'cseq',
-                              'route', 'max-forwards',
-                              'authorization', 'to', 'from',
-                              'proxy-authorization'], Hdrs),
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
-    Via = #via{transport = <<"UDP">>, host = <<"127.0.0.1">>, port = 12345,
-               params = [{<<"rport">>, <<>>},
-                         {<<"branch">>, <<"z9hG4bK-", Branch/binary>>}]},
-    ACK = #sip{type = request,
-               uri = Uri#uri{user = ToUser},
-               method = <<"ACK">>,
-               hdrs = [{via, [Via]}, {contact, Contact} | Hdrs1]},
-    esip_transport:send(Socket, ACK),
-
-    fun noop/1;
-request(#sip{method = <<"BYE">>, hdrs = Hdrs} = Sip, Socket, Tr) ->
-    {_, #uri{user = FromUserReq}, _} = esip:get_hdr(from, Hdrs),
-
-    CallID = esip:get_hdr('call-id', Hdrs),
-    [{_, OtherCallID}] = ets:lookup(jingle_sip_translator_bindings, CallID),
-
-
-    {From, To} = get_from_and_to_for_request_and_call_id(OtherCallID, FromUserReq),
-    {_, #uri{user = ToUser}, _} = To,
-    {_, #uri{user = FromUser}, _} = From,
-
-
-    Branch = base16:encode(crypto:strong_rand_bytes(3)),
-    URIBin = <<"sip:",ToUser/binary,"@127.0.0.1:12345;ob;transport=tcp">>,
-    ContactURI = esip_codec:decode_uri(URIBin),
-    Contact = {<<>>, ContactURI, []},
-
-    Via = #via{transport = <<"UDP">>, host = <<"127.0.0.1">>, port = 12345,
-               params = [{<<"rport">>, <<>>},
-                         {<<"branch">>, <<"z9hG4bK-", Branch/binary>>}]},
-
-    Hdrs1 = esip:filter_hdrs(['cseq',
-                              'route', 'max-forwards',
-                              'authorization',
-                              'proxy-authorization'], Hdrs),
-
-    Hdrs2 = [{via, [Via]}, {'call-id', OtherCallID}, {contact, [Contact]}, {to, To}, {from, From} | Hdrs1],
-    ReqBack = Sip#sip{uri = esip_codec:decode_uri(<<"sip:127.0.0.1:5600">>),
-                      hdrs = Hdrs2},
-    {ok, TrID} = esip:request(Socket, ReqBack),
-    esip:make_response(Sip, #sip{type = response,
-                                        status = 200});
-
 request(Sip, Socket, Tr) ->
     ct:pal("UNKNOWN req: ~p~nsock: ~p~ntr: ~p", [Sip, Socket, Tr]),
     error.
@@ -297,7 +233,8 @@ in_invite_transaction_callback(Req, Socket, Tr, CorrespondingCall) ->
 
 dialog_callback(#sip{type = request, method = <<"ACK">>}, _, _) ->
    ok;
-dialog_callback(#sip{type = request, method = <<"INVITE">>, hdrs = Hdrs} = Req, Socket, Tr) ->
+%% Below function forwards any in-dialog request to correspoding jingle session
+dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, Tr) ->
     ct:pal("dialog INVITE: ~p ~p", [Req, Tr]),
     CallID = esip:get_hdr('call-id', Hdrs),
     [{_, OtherCallID}] = ets:lookup(jingle_sip_translator_bindings, CallID),
@@ -334,7 +271,9 @@ dialog_callback(#sip{type = request, method = <<"INVITE">>, hdrs = Hdrs} = Req, 
     esip:request(Socket, ReqBack),
     esip:make_response(Req, #sip{type = response,
                                         status = 200
-                                        }).
+                                        });
+dialog_callback(SIP, Socket, Tr) ->
+   ct:pal("uknown in-dialog sip msg: ~p", [SIP]).
 
 send_invite(From, To, Pid) ->
     FromUser = escalus_client:username(From),
