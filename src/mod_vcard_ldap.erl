@@ -237,10 +237,14 @@ find_ldap_user(User, State) ->
     EldapID = State#state.eldap_id,
     VCardAttrs = State#state.vcard_map_attrs,
     case eldap_filter:parse(RFC2254Filter, [{<<"%u">>, User}]) of
-      {ok, EldapFilterList} when is_list(EldapFilterList) ->
-          hd(eldap_pool_search(EldapID, Base, EldapFilterList, State#state.deref, VCardAttrs, false));
         {ok, EldapFilter} ->
-            eldap_pool_search(EldapID, Base, [EldapFilter], State#state.deref, VCardAttrs, false);
+            Res = eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false),
+            case Res of
+                L when is_list(L) ->
+                    hd(Res);
+                _ ->
+                    Res
+            end;
         _ -> false
     end.
 
