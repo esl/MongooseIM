@@ -13,6 +13,7 @@
 -include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 -include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/jlib.hrl").
+-include_lib("mongooseim/include/mod_event_pusher_rabbit.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
 
 %%%===================================================================
@@ -53,10 +54,13 @@
 start(Host, _Opts) ->
     application:ensure_all_started(amqp_client),
     application:ensure_all_started(worker_pool),
+    initialize_metrics(Host),
+    mongoose_metrics:init_subscriptions(),
     WorkerNum = opt(Host, pool_size, 100),
     wpool:start_sup_pool(pool_name(Host),
                          [{worker, {mongoose_rabbit_worker,
-                                    [{amqp_client_opts, amqp_client_opts(Host)}]
+                                    [{amqp_client_opts, amqp_client_opts(Host)},
+                                     {host, Host}]
                                    }},
                           {workers, WorkerNum}]),
     create_exchanges(Host),
@@ -118,7 +122,8 @@ publish_user_chat_event(#chat_event{from = From,
                                           to_jid => ToJID,
                                           msg => Message,
                                           exchange => Exchange,
-                                          topic => Topic}},
+                                          topic => Topic,
+                                          host => Host}},
                available_worker).
 
 -spec get_host(jid:jid(), jid:jid(), in | out) -> binary().
@@ -176,6 +181,17 @@ exchanges(Host) ->
      opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
      opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE)
     ].
+
+-spec initialize_metrics(Host :: jid:server()) -> ok.
+initialize_metrics(Host) ->
+    [mongoose_metrics:ensure_metric(Host, Name, Type)
+     || {Name, Type} <- [{?RABBIT_CONNECTIONS_METRIC, spiral},
+                         {?MESSAGES_PUBLISH_METRIC, spiral},
+                         {?MESSAGES_FAILED_METRIC, spiral},
+                         {?MESSAGES_TIMEOUT_METRIC, spiral},
+                         {?MESSAGE_PUBLISH_TIME_METRIC, histogram},
+                         {?MESSAGE_PAYLOAD_SIZE_METRIC, histogram}
+                        ]].
 
 %% Getter for module options
 -spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().
