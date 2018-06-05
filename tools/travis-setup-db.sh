@@ -3,6 +3,9 @@
 # Environment variable DB is used by this script.
 # If DB is undefined, than this script does nothing.
 
+# Docker for Mac should be used on Mac (not docker-machine!)
+# https://store.docker.com/editions/community/docker-ce-desktop-mac
+
 set -e
 
 TOOLS=`dirname $0`
@@ -172,7 +175,7 @@ elif [ "$DB" = 'riak' ]; then
     # Export config from a container
     docker cp "mongooseim-riak:/etc/riak/riak.conf" "$TEMP_RIAK_CONF"
     # Enable search
-    sed -i "s/^search = \(.*\)/search = on/" "$TEMP_RIAK_CONF"
+    $SED -i "s/^search = \(.*\)/search = on/" "$TEMP_RIAK_CONF"
     # Enable ssl by appending settings from riak.conf.ssl
     cat "${DB_CONF_DIR}/riak.conf.ssl" >> "$TEMP_RIAK_CONF"
     # Import config back into container
@@ -197,7 +200,11 @@ elif [ "$DB" = 'cassandra' ]; then
 
     opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
     opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
-    readarray -t -s 1 init_opts <<< "$opts"
+    while read -r line; do
+        if [ ! -z "$line" ]; then
+             init_opts+=("$line")
+        fi
+    done <<<"$opts"
     echo -e "cassandra startup cmd:\n\t${init_opts[@]}"
 
     docker_entry="${DB_CONF_DIR}/docker_entry.sh"
@@ -217,11 +224,12 @@ elif [ "$DB" = 'cassandra' ]; then
     # Start TCP proxy
     CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' mongooseim-cassandra)
     echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
-    $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" ${DB_CONF_DIR}/proxy/zazkia-routes.json
+    cp ${DB_CONF_DIR}/proxy/zazkia-routes.json "$SQL_TEMP_DIR/"
+    $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" "$SQL_TEMP_DIR/zazkia-routes.json"
     docker run -d                               \
                -p 9042:9042                     \
                -p 9191:9191                     \
-               $(mount_ro_volume "${DB_CONF_DIR}/proxy" /data)  \
+               $(mount_ro_volume "$SQL_TEMP_DIR" /data)  \
                --name=mongooseim-cassandra-proxy \
                emicklei/zazkia
     tools/wait_for_service.sh mongooseim-cassandra-proxy 9042 || docker logs mongooseim-cassandra-proxy

@@ -21,8 +21,9 @@ IFS=' ' read -r -a DEV_NODES_ARRAY <<< "$DEV_NODES"
 
 # Linux volumes are faster than layer fs.
 # Mac volumes are actually slower than layer fs.
+# DEFAULT_REMOTE_RO_VOLUMES is for docker-machine.
 case "$(uname -s)" in
-    Darwin*)    DEFAULT_DATA_ON_VOLUME=false DEFAULT_REMOTE_RO_VOLUMES=true;;
+    Darwin*)    DEFAULT_DATA_ON_VOLUME=false DEFAULT_REMOTE_RO_VOLUMES=false;;
     *)          DEFAULT_DATA_ON_VOLUME=true DEFAULT_REMOTE_RO_VOLUMES=false
 esac
 DATA_ON_VOLUME=${DATA_ON_VOLUME:-$DEFAULT_DATA_ON_VOLUME}
