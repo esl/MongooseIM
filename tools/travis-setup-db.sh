@@ -192,6 +192,13 @@ elif [ "$DB" = 'cassandra' ]; then
     docker image pull cassandra:${CASSANDRA_VERSION}
     docker rm -f mongooseim-cassandra mongooseim-cassandra-proxy || echo "Skip removing previous container"
 
+    # Volume for configuration
+    docker rm -f mongooseim-volume-helper || echo "Skip removing previous container"
+    docker volume rm mongooseim-cassandra-volume || echo "Skip removing previous volume"
+    docker volume create --name mongooseim-cassandra-volume
+    # It's an access entry for our volume
+    docker run -v mongooseim-cassandra-volume:/data --name=mongooseim-volume-helper busybox true
+
     opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
     opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
 
