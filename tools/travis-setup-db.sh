@@ -219,11 +219,18 @@ elif [ "$DB" = 'cassandra' ]; then
     # Start TCP proxy
     CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' mongooseim-cassandra)
     echo "Connecting TCP proxy to Cassandra on $CASSANDRA_IP..."
-    $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" ${DB_CONF_DIR}/proxy/zazkia-routes.json
+    cp -R "$DB_CONF_DIR/proxy" "$SQL_TEMP_DIR/proxy"
+    $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" ${SQL_TEMP_DIR}/proxy/zazkia-routes.json
+    echo docker run -d                               \
+               -p 9042:9042                     \
+               -p 9191:9191                     \
+               -v ${SQL_TEMP_DIR}/proxy:/data   \
+               --name=mongooseim-cassandra-proxy \
+               emicklei/zazkia
     docker run -d                               \
                -p 9042:9042                     \
                -p 9191:9191                     \
-               -v ${DB_CONF_DIR}/proxy:/data    \
+               -v ${SQL_TEMP_DIR}/proxy:/data   \
                --name=mongooseim-cassandra-proxy \
                emicklei/zazkia
     tools/wait_for_service.sh mongooseim-cassandra-proxy 9042 || docker logs mongooseim-cassandra-proxy

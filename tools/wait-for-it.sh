@@ -2,7 +2,6 @@
 #   Use this script to test if a given TCP host/port are available
 
 cmdname=$(basename $0)
-timeout_cmd=$(dirname $0)/timeout.sh
 
 echoerr() { if [[ $QUIET -ne 1 ]]; then echo "$@" 1>&2; fi }
 
@@ -23,17 +22,6 @@ USAGE
     exit 1
 }
 
-try_to_connect()
-{
-    HOST="$1"
-    PORT="$2"
-    if hash nc; then
-        (echo > /dev/tcp/$HOST/$PORT) >/dev/null 2>&1
-    else
-        echo "test" | nc "$1" "$2"
-    fi
-}
-
 wait_for()
 {
     if [[ $TIMEOUT -gt 0 ]]; then
@@ -44,7 +32,7 @@ wait_for()
     start_ts=$(date +%s)
     while :
     do
-        try_to_connect "$HOST" "$PORT"
+        (echo > /dev/tcp/$HOST/$PORT) >/dev/null 2>&1
         result=$?
         if [[ $result -eq 0 ]]; then
             end_ts=$(date +%s)
@@ -60,9 +48,9 @@ wait_for_wrapper()
 {
     # In order to support SIGINT during timeout: http://unix.stackexchange.com/a/57692
     if [[ $QUIET -eq 1 ]]; then
-        $timeout_cmd $TIMEOUT $0 --quiet --child --host=$HOST --port=$PORT --timeout=$TIMEOUT &
+        timeout $TIMEOUT $0 --quiet --child --host=$HOST --port=$PORT --timeout=$TIMEOUT &
     else
-        $timeout_cmd $TIMEOUT $0 --child --host=$HOST --port=$PORT --timeout=$TIMEOUT &
+        timeout $TIMEOUT $0 --child --host=$HOST --port=$PORT --timeout=$TIMEOUT &
     fi
     PID=$!
     trap "kill -INT -$PID" INT
