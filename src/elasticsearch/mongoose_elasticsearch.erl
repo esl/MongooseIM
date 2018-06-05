@@ -139,18 +139,18 @@ start_pool(Opts) ->
     Port = proplists:get_value(port, Opts, 9200),
     case tirerl:start_pool(?POOL_NAME, [{host, list_to_binary(Host)}, {port, Port}]) of
         {ok, _} ->
-            ?INFO_MSG("Started pool of connections to ElasticSearch at ~p:~p",
-                          [Host, Port]),
+            ?INFO_MSG("event=elasticsearch_pool_started elasticsearch_host=~p elasticsearch_port=~p",
+                      [Host, Port]),
             ok;
         {ok, _, _} ->
-            ?INFO_MSG("Started pool of connections to ElasticSearch at ~p:~p",
-                          [Host, Port]),
+            ?INFO_MSG("event=elasticsearch_pool_started elasticsearch_host=~p elasticsearch_port=~p",
+                      [Host, Port]),
             ok;
         {error, {already_started, _}} ->
-            ?INFO_MSG("Pool of connections to ElasticSearch is already started", []),
             ok;
         {error, _} = Err ->
-            ?ERROR_MSG("Failed to start pool of connections to ElasticSearch at ~p:~p: ~p",
+            ?ERROR_MSG("event=elasticsearch_pool_start_failed elasticsearch_host=~p "
+                       "elasticsearch_port=~p reason=~1000p",
                        [Host, Port, Err]),
             error(Err)
     end.

@@ -67,12 +67,13 @@ archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJi
         {ok, _} ->
             ok;
         {error, _} = Err ->
-            ?ERROR_MSG("Failed to archive message in ElasticSearch: ~p", [Err]),
+            ?ERROR_MSG("event=archive_message_failed server=~s user=~s remote=~s mess_id=~p reason=~1000p",
+                       [Host, Owner, Remote, MessageId, Err]),
             ejabberd_hooks:run(mam_drop_message, Host, [Host]),
             Err
     end.
 
-lookup_messages(_Result, _Host, Params) ->
+lookup_messages(_Result, Host, Params) ->
     SearchQuery0 = build_search_query(Params),
     Sorting = [#{mam_id => #{order => determine_sorting(Params)}}],
     ResultLimit = maps:get(page_size, Params),
@@ -83,7 +84,8 @@ lookup_messages(_Result, _Host, Params) ->
         {ok, Result} ->
             {ok, search_result_to_mam_lookup_result(Result, Params)};
         {error, _} = Err ->
-            ?ERROR_MSG("Failed to lookup messages in ElasticSearch: ~p", [Err]),
+            ?ERROR_MSG("event=lookup_messages_failed server=~s reason=~1000p",
+                       [Host, Err]),
             Err
     end.
 
@@ -99,13 +101,14 @@ archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
                      Host :: jid:server(),
                      ArchiveId :: mod_mam:archive_id(),
                      OwnerJid :: jid:jid()) -> Acc when Acc :: map().
-remove_archive(Acc, _Host, _ArchiveId, OwnerJid) ->
+remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         ok ->
             ok;
         {error, _} = Err ->
-            ?ERROR_MSG("Failed to delete messages in ElasticSearch: ~p", [Err]),
+            ?ERROR_MSG("event=remove_archive_failed server=~s user=~s reason=~1000p",
+                       [Host, jid:to_binary(OwnerJid), Err]),
             ok
     end,
     Acc.
