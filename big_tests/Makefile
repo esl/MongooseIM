@@ -25,7 +25,7 @@ COMMON_OPTS := -sname test -setcookie ejabberd -hidden \
                -env TEST_DIR "$(shell $(REPO_DIR)/tools/abs_dirpath.sh $(TEST_DIR))" \
                -pa `pwd`/tests \
                    `pwd`/ebin \
-                   `pwd`/deps/*/ebin \
+                   `pwd`/_build/default/lib/*/ebin \
                $(DEPS_PATHS)
 
 ifeq ($(shell uname), Linux)
@@ -73,7 +73,7 @@ test: $(PREPARE)
 		> $@.log 2>&1 || (cat $@.log; exit 1)
 
 prepare: mim_ct_rest compile vm.dist.args
-	erlc -Ideps/exml/include \
+	erlc -I_build/default/lib/exml/include \
 		 run_common_test.erl
 	mkdir -p ct_report
 
@@ -99,17 +99,17 @@ priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem: \
 console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS)
 
-compile: get-deps
-	./rebar compile > $@.log 2>&1 || (cat $@.log; exit 1)
+compile: get-deps deps
+	../rebar3 compile > $@.log 2>&1 || (cat $@.log; exit 1)
 
-get-deps: rebar
-	./rebar get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
+get-deps:
+	../rebar3 get-deps > $@.log 2>&1 || (cat $@.log; exit 1)
 
-clean: rebar
+clean:
 	-@rm priv/ssl/*
 	-@rm -rf tests/*.beam > /dev/null 2>&1
-	-@./rebar clean > /dev/null 2>&1
+	-@../rebar3 clean > /dev/null 2>&1
 
-rebar:
-	wget http://cloud.github.com/downloads/basho/rebar/rebar
-	chmod u+x rebar
+# to compile esip. It should able to find stun.hrl. But searching paths are hardcoded
+deps:
+	ln -fds `pwd`/_build/default/lib deps
