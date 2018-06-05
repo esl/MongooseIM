@@ -167,6 +167,12 @@ send_message_to_room(Config) ->
         %% XMPP: Alice creates a room.
         escalus:send(Alice, stanza_create_room(undefined,
             [{<<"roomname">>, Name}], [{Bob, member}, {Kate, member}])),
+        %% XMPP: Alice gets her own affiliation info
+        escalus:wait_for_stanza(Alice),
+        %% XMPP: And Alice gets IQ result
+        CreationResult = escalus:wait_for_stanza(Alice),
+        ct:pal("Result: ~p", [CreationResult]),
+        escalus:assert(is_iq_result, CreationResult),
         %% XMPP: Get Bob and Kate recieve their affiliation information.
         [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
         %% HTTP: Alice sends a message to the MUC room.
@@ -194,7 +200,7 @@ delete_room_by_non_owner(Config) ->
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
                                 {{<<"403">>, <<"Forbidden">>},
-                                 <<"Command not available for this user">>} = 
+                                 <<"Command not available for this user">>} =
                                     check_delete_room(Config, RoomName, RoomName,
                                                       Alice, [Bob, Kate], Bob)
                         end).
@@ -262,10 +268,17 @@ member_is_affiliated(Stanza, User) ->
 check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
                   RoomMembers, UserToExecuteDelete) ->
     Domain = muc_light_domain(),
+    Members = [{Member, member} || Member <- RoomMembers],
     escalus:send(RoomOwner, stanza_create_room(undefined,
                                            [{<<"roomname">>, RoomNameToCreate}],
-                                           [{Member, member} || Member <- RoomMembers])),
-    [escalus:wait_for_stanza(Member) || Member <- [RoomOwner] ++ RoomMembers],
+                                           Members)),
+    %% XMPP RoomOwner gets affiliation and IQ result
+    Affiliations = [{RoomOwner, owner} | Members],
+    muc_light_helper:verify_aff_bcast([{RoomOwner, owner}], Affiliations),
+    %% and now RoomOwner gets IQ result
+    CreationResult = escalus:wait_for_stanza(RoomOwner),
+    escalus:assert(is_iq_result, CreationResult),
+    muc_light_helper:verify_aff_bcast(Members, Affiliations),
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
     Path = <<"/muc-lights",$/,Domain/binary,$/,
              RoomNameToDelete/binary,$/,ShortJID/binary,$/,"management">>,
