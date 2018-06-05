@@ -313,7 +313,6 @@ mongoose_sends_reINVITE_on_source_remove_action(Config) ->
         escalus:assert(is_iq_result, [SourceRemoveStanza], SourceRemoveResult),
         SourceRemoveToBob = escalus:wait_for_stanza(Bob),
         assert_source_remove_action(SourceRemoveToBob, InviteRequest)
-
     end).
 
 mongoose_sends_reINVITE_on_source_add_action(Config) ->
@@ -328,7 +327,6 @@ mongoose_sends_reINVITE_on_source_add_action(Config) ->
         escalus:assert(is_iq_result, [SourceRemoveStanza], SourceRemoveResult),
         SourceRemoveToBob = escalus:wait_for_stanza(Bob),
         assert_source_add_action(SourceRemoveToBob, InviteRequest)
-
     end).
 
 mongoose_sends_reINVITE_on_source_update_action(Config) ->
@@ -343,7 +341,6 @@ mongoose_sends_reINVITE_on_source_update_action(Config) ->
         escalus:assert(is_iq_result, [SourceRemoveStanza], SourceRemoveResult),
         SourceRemoveToBob = escalus:wait_for_stanza(Bob),
         assert_source_update_action(SourceRemoveToBob, InviteRequest)
-
     end).
 %%--------------------------------------------------------------------
 %% Helpers

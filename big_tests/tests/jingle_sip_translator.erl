@@ -235,7 +235,6 @@ dialog_callback(#sip{type = request, method = <<"ACK">>}, _, _) ->
    ok;
 %% Below function forwards any in-dialog request to correspoding jingle session
 dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, Tr) ->
-    ct:pal("dialog INVITE: ~p ~p", [Req, Tr]),
     CallID = esip:get_hdr('call-id', Hdrs),
     [{_, OtherCallID}] = ets:lookup(jingle_sip_translator_bindings, CallID),
 

@@ -112,7 +112,6 @@ sip_reinvite_unsafe(Req, _Call) ->
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
     Name = get_action_name_from_sdp(RemainingAttrs, <<"transport-info">>),
-    ?WARNING_MSG("name: ~p", [Name]),
     JingleEl = jingle_sip_helper:jingle_element(CallID, Name, ContentEls ++ OtherEls),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
     Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),

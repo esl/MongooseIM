@@ -233,7 +233,7 @@ translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
             nksip_uac:info(Handle, [{content_type, <<"application/sdp">>},
                                     {body, SDP}]);
         _ ->
-            ?ERROR_MSG("There was no such session ~p", [SID]),
+            ?ERROR_MSG("event=missing_sip_session sid=~p", [SID]),
             {error, item_not_found}
     end;
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
