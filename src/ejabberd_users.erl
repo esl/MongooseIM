@@ -50,13 +50,15 @@ start(Host) ->
      5000,
      worker,
      [ejabberd_users]},
-    ejabberd_sup:start_child(UserChildSpec),
+    %% XXX lifecycle of this child is broken
+    supervisor:start_child(ejabberd_sup, UserChildSpec),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
 
 -spec stop(jid:server()) -> 'ok'.
 stop(Host) ->
+    %% TODO properly remove ejabberd_sup child
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ok.
 
