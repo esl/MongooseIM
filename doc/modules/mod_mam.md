@@ -9,6 +9,7 @@ Configure MAM with different storage backends:
 * ODBC (RDBMS, like MySQL, PostgreSQL, MS SQL Server)
 * Riak KV (NOSQL)
 * Cassandra (NOSQL)
+* ElasticSearch (NOSQL)
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
@@ -19,14 +20,20 @@ If this happens, the client will receive only messages that contain words specif
 
 The exact behaviour, like whether word ordering matters, may depend on the storage backend in use.
 For now `odbc` backend has very limited support for this feature, while `cassandra` does not support it at all.
-`riak` backend on the other hand should provide you with the best results when it comes to text filtering.
+`riak` and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
 
 `mod_mam_odbc_arch` returns all messages that contain all search words, order
 of words does not matter. Messages are sorted by timestamp (not by relevance).
 
+##### Note on full text search with ElasticSearch backend
+
+When using ElasticSearch MAM backend, the value provided in `full-text-search` form field will be passed to ElasticSearch as [Simple Search Query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html).
+If you're using our official ElasticSearch mappings from `priv/elasticsearch` then the query analyzer is set to `english`.
+Also note that the default separator for the search query is `AND` (which roughly means that ElasticSearch will search for messages containing all the terms provided in the query string).
+
 ### Options
 
-* **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
+* **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak`, `cassandra` and `elasticsearch` are supported.
 * **no_stanzaid_element** (boolean, default: `false`) - Do not add a `<stanza-id/>` element from MAM v0.6.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
@@ -146,6 +153,21 @@ You can change the default settings using extra parameters:
  ]
 }.
 ```
+
+### ElasticSearch backend
+
+First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
+Please refer to [database backends configuration](../advanced-configuration/database-backends-configuration.md#elasticsearch) page for information on how to configure ElasticSearch properly.
+
+Edit main config section adding:
+
+```erlang
+{elasticsearch_server, []}.
+```
+
+MongooseIM will create one pool with one worker which will try to connect to localhost:9200.
+Make sure that your ElasticSearch node's HTTP API is listening on this address!
+For more information on how to configure the connection pool, please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page.
 
 ### Example configuration
 
