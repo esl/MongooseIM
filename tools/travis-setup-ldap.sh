@@ -25,6 +25,8 @@ objectClass: organizationalUnit
 ou: users
 EOL
 
+init_docker
+
 docker rm -f mongooseim-ldap || echo "Skip removing previous container"
 # Host on non-standard higher port 3389 to avoid problems with lower ports
 # Default LDAP port is 389
