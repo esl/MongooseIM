@@ -26,6 +26,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(muc_light_helper, [stanza_create_room/3]).
+
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -291,24 +293,4 @@ check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
 muc_light_domain() ->
     XMPPParentDomain = ct:get_config({hosts, mim, domain}),
     <<"muclight", ".", XMPPParentDomain/binary>>.
-
-
-stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
-    ToBinJID = case RoomNode of
-                   undefined -> muc_light_domain();
-                   _ -> <<RoomNode/binary, $@, (muc_light_domain())/binary>>
-               end,
-    ConfigItem = #xmlel{ name = <<"configuration">>,
-        children = [ kv_el(K, V) || {K, V} <- InitConfig ] },
-    OccupantsItems = [ #xmlel{ name = <<"user">>,
-        attrs = [{<<"affiliation">>, BinAff}],
-        children = [#xmlcdata{ content = BinJID }] }
-        || {BinJID, BinAff} <- muc_light_helper:bin_aff_users(InitOccupants) ],
-    OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
-    escalus_stanza:to(escalus_stanza:iq_set(<<"urn:xmpp:muclight:0#create">>,
-                                            [ConfigItem, OccupantsItem]),
-                      ToBinJID).
-
-kv_el(K, V) ->
-    #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
 
