@@ -8,7 +8,7 @@ fi
 
 CONTAINER="$1"
 PORT="$2"
-IP=$(/usr/bin/docker inspect -f {{.NetworkSettings.IPAddress}} "$CONTAINER")
+IP=$(docker inspect -f {{.NetworkSettings.IPAddress}} "$CONTAINER")
 echo "$CONTAINER IP is $IP"
 
 tools/wait-for-it.sh -h $IP -p $PORT

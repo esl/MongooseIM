@@ -25,4 +25,5 @@ keytool -importkeystore                                     \
         -srcstorepass "${password}"                         \
         -srcstoretype 'PKCS12'
 
+echo "Executing $@"
 exec "$@"

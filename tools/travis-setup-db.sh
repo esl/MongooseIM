@@ -194,21 +194,26 @@ elif [ "$DB" = 'cassandra' ]; then
 
     opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
     opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
-    readarray -t -s 1 init_opts <<< "$opts"
+
+    while read -r line; do
+        if [ ! -z "$line" ]; then
+             init_opts+=("$line")
+        fi
+    done <<<"$opts"
+
     echo -e "cassandra startup cmd:\n\t${init_opts[@]}"
 
-    docker_entry="${DB_CONF_DIR}/docker_entry.sh"
-
-    docker run -d                                \
+    docker create                                \
                -e MAX_HEAP_SIZE=128M             \
                -e HEAP_NEWSIZE=64M               \
-               -v "${SSLDIR}:/ssl:ro"            \
-               -v "${docker_entry}:/entry.sh:ro" \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/cassandra) \
                --name=mongooseim-cassandra       \
-               --entrypoint "/entry.sh"          \
+	       --entrypoint="/entry.sh"          \
                cassandra:${CASSANDRA_VERSION}    \
                "${init_opts[@]}"
+    docker cp ${DB_CONF_DIR}/docker_entry.sh mongooseim-cassandra:/entry.sh
+    docker cp "${SSLDIR}" mongooseim-cassandra:/ssl
+    docker start mongooseim-cassandra
     tools/wait_for_service.sh mongooseim-cassandra 9042 || docker logs mongooseim-cassandra
 
     # Start TCP proxy
