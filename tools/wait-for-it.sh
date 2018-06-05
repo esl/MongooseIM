@@ -23,6 +23,17 @@ USAGE
     exit 1
 }
 
+try_to_connect()
+{
+    HOST="$1"
+    PORT="$2"
+    if hash nc; then
+        (echo > /dev/tcp/$HOST/$PORT) >/dev/null 2>&1
+    else
+        echo "test" | nc "$1" "$2"
+    fi
+}
+
 wait_for()
 {
     if [[ $TIMEOUT -gt 0 ]]; then
@@ -33,7 +44,7 @@ wait_for()
     start_ts=$(date +%s)
     while :
     do
-        (echo > /dev/tcp/$HOST/$PORT) >/dev/null 2>&1
+        try_to_connect "$HOST" "$PORT"
         result=$?
         if [[ $result -eq 0 ]]; then
             end_ts=$(date +%s)
