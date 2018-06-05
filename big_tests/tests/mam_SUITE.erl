@@ -1377,7 +1377,7 @@ save_unicode_messages(Config) ->
                 ?assert_equal(<<"Hi! this is an unicode character lol 😂"/utf8>>, Body1),
                 ?assert_equal(<<"This is the same again lol 😂"/utf8>>, Body2),
 
-                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"no"/utf8>>)),
+                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"another"/utf8>>)),
                 Res2 = wait_archive_respond(P, Alice),
                 assert_respond_size(1, Res2),
                 assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
