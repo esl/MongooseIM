@@ -124,6 +124,9 @@ start_pool(Opts) ->
             ?INFO_MSG("Started pool of connections to ElasticSearch at ~p:~p",
                           [Host, Port]),
             ok;
+        {error, {already_started, _}} ->
+            ?INFO_MSG("Pool of connections to ElasticSearch is already started", []),
+            ok;
         {error, _} = Err ->
             ?ERROR_MSG("Failed to start pool of connections to ElasticSearch at ~p:~p: ~p",
                        [Host, Port, Err]),

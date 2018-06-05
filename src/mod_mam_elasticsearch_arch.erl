@@ -39,15 +39,6 @@ stop(Host) ->
 %% ejabberd_gen_mam_archive callbacks
 %%-------------------------------------------------------------------
 
--spec archive_message(PrevResult :: term(),
-                      Host :: jid:server(),
-                      MessageId :: mod_mam:message_id(),
-                      ArchiveId :: mod_mam:archive_id(),
-                      LocalJid :: jid:jid(),
-                      RemoteJid :: jid:jid(),
-                      SourceJid :: jid:jid(),
-                      Dir :: incoming | outgoing,
-                      Packet :: exml:element()) -> ok | {error, term()}.
 archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJid, _Dir, Packet) ->
     Owner = mod_mam_utils:bare_jid(LocalJid),
     Remote = mod_mam_utils:bare_jid(RemoteJid),
@@ -63,9 +54,6 @@ archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJi
             Err
     end.
 
--spec lookup_messages(PrevResult :: term(),
-                      Host :: jid:server(),
-                      Params :: map()) -> {ok, mod_mam:lookup_result()} | {error, term()}.
 lookup_messages(_Result, _Host, Params) ->
     SearchQuery0 = build_search_query(Params),
     Sorting = [#{mam_id => #{order => determine_sorting(Params)}}],
