@@ -165,13 +165,12 @@ start() ->
     ejabberd_hooks:add(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
     ejabberd_hooks:add(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
     ChildSpec = {?MODULE, {?MODULE, start_link, []}, permanent, 1000, worker, [?MODULE]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 -spec stop() -> any().
 stop() ->
     Host = opt(global_host),
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE),
+    ejabberd_sup:stop_child(?MODULE),
     ejabberd_hooks:delete(mod_global_distrib_known_recipient, Host, ?MODULE, reroute_messages, 80),
     ejabberd_hooks:delete(mod_global_distrib_unknown_recipient, Host, ?MODULE, maybe_store_message, 80),
     ets:delete(?MS_BY_TARGET),

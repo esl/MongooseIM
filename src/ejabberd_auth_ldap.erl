@@ -101,7 +101,7 @@ start(Host) ->
     ChildSpec = {Proc, {?MODULE, start_link, [Host]},
                  transient, 1000, worker, [?MODULE]},
     ejabberd_hooks:add(host_config_update, Host, ?MODULE, config_change, 50),
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec),
+    ejabberd_sup:start_child(ChildSpec),
     ok.
 
 -spec stop(Host :: jid:lserver()) -> ok.
@@ -109,8 +109,7 @@ stop(Host) ->
     ejabberd_hooks:delete(host_config_update, Host, ?MODULE, config_change, 50),
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     gen_server:call(Proc, stop),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc),
+    ejabberd_sup:stop_child(Proc),
     ok.
 
 start_link(Host) ->

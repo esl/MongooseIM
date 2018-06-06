@@ -44,6 +44,8 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc(Host) ->
+    %% Stop modules before trying to start them
+    unload_muc(),
     case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
         true -> odbc;
         false -> mnesia

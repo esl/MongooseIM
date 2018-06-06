@@ -20,12 +20,11 @@ stop() ->
 
 start(PoolName, WorkerCount) ->
     create_worker_pool(PoolName),
-    supervisor:start_child(ejabberd_sup, supervisor_spec(PoolName, WorkerCount)).
+    ejabberd_sup:start_child(supervisor_spec(PoolName, WorkerCount)).
 
 stop(PoolName) ->
     Tag = {mongoose_cassandra_sup, PoolName},
-    supervisor:terminate_child(ejabberd_sup, Tag),
-    supervisor:delete_child(ejabberd_sup, Tag),
+    ejabberd_sup:stop_child(Tag),
     delete_worker_pool(PoolName).
 
 start_link(PoolName, WorkerCount) ->

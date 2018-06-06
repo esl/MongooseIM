@@ -36,7 +36,7 @@
 start(Workers, Addr, Port, PBOpts) ->
     ChildSpec = {?MODULE, {?MODULE, start_link, [Workers, Addr, Port, PBOpts]},
         transient, infinity, supervisor, [?MODULE]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the supervisor
@@ -50,8 +50,7 @@ start_link(Workers, Addr, Port, PBOpts) ->
 
 -spec stop() -> _.
 stop() ->
-    supervisor:terminate_child(ejabberd_sup, ?MODULE),
-    supervisor:delete_child(ejabberd_sup, ?MODULE).
+    ejabberd_sup:stop_child(?MODULE).
 
 %%%===================================================================
 %%% Supervisor callbacks

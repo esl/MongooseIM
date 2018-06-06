@@ -49,12 +49,11 @@ start(Host) ->
     ChildMods = [fusco],
     ChildMF = {fusco, start_link},
     ChildArgs = {for_all, [AuthHost, Opts]},
-
-    {ok, _} = supervisor:start_child(ejabberd_sup,
-                                     {{ejabberd_auth_http_sup, Host},
-                                      {cuesport, start_link,
-                                       [pool_name(Host), PoolSize, ChildMods, ChildMF, ChildArgs]},
-                                      transient, 2000, supervisor, [cuesport | ChildMods]}),
+    ChildSpec = {{ejabberd_auth_http_sup, Host},
+                  {cuesport, start_link,
+                   [pool_name(Host), PoolSize, ChildMods, ChildMF, ChildArgs]},
+                  transient, 2000, supervisor, [cuesport | ChildMods]},
+    ejabberd_sup:start_child(ChildSpec),
     ok.
 
 

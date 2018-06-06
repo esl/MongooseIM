@@ -30,6 +30,9 @@
 -behaviour(supervisor).
 
 -export([start_link/0, init/1]).
+-export([start_child/1, stop_child/1]).
+
+-include("mongoose_logger.hrl").
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -196,3 +199,19 @@ init([]) ->
            Listener,
            MucIQ,
            MAM]}}.
+
+start_child(ChildSpec) ->
+    case supervisor:start_child(ejabberd_sup, ChildSpec) of
+        {ok, Pid} ->
+            {ok, Pid};
+        Other ->
+            Stacktrace = element(2, erlang:process_info(self(), current_stacktrace)),
+            ?ERROR_MSG("event=start_child_failed spec=~1000p stacktrace=~1000p",
+                       [ChildSpec, Stacktrace]),
+            erlang:error({start_child_failed, ChildSpec})
+    end.
+
+stop_child(Proc) ->
+    supervisor:terminate_child(ejabberd_sup, Proc),
+    supervisor:delete_child(ejabberd_sup, Proc),
+    ok.

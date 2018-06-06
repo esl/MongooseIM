@@ -162,10 +162,9 @@ start_supervisor() ->
          infinity,
          supervisor,
          [Proc]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 stop_supervisor() ->
     Proc = sup_proc_name(),
-    ok = supervisor:terminate_child(ejabberd_sup, Proc),
-    ok = supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
