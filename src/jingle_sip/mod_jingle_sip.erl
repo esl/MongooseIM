@@ -227,7 +227,7 @@ translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SDP = make_sdp_for_ice_candidate(Jingle),
     case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
         {ok, undefined} ->
-            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
+            ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
             {error, item_not_found};
         {ok, Handle} ->
             nksip_uac:info(Handle, [{content_type, <<"application/sdp">>},
@@ -260,13 +260,13 @@ translate_source_change_to_sip(ActionName, Jingle, Acc) ->
 
     case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
         {ok, undefined} ->
-            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
+            ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
             {error, item_not_found};
         {ok, Handle} ->
             nksip_uac:invite(Handle, [auto_2xx_ack,
                                       {body, SDP}]);
         _ ->
-            ?ERROR_MSG("There was no such session ~p", [SID]),
+            ?ERROR_MSG("event=missing_sip_session sid=~p", [SID]),
             {error, item_not_found}
     end.
 

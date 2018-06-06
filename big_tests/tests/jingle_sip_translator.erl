@@ -272,7 +272,7 @@ dialog_callback(#sip{type = request, hdrs = Hdrs} = Req, Socket, Tr) ->
                                         status = 200
                                         });
 dialog_callback(SIP, Socket, Tr) ->
-   ct:pal("uknown in-dialog sip msg: ~p", [SIP]).
+   ct:pal("unknown in-dialog sip msg: ~p", [SIP]).
 
 send_invite(From, To, Pid) ->
     FromUser = escalus_client:username(From),
