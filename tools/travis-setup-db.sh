@@ -100,8 +100,6 @@ SQL_TEMP_DIR="$SQL_ROOT_DIR/temp"
 SQL_DATA_DIR="$SQL_ROOT_DIR/data"
 mkdir -p "$SQL_TEMP_DIR" "$SQL_DATA_DIR"
 
-init_docker
-
 if [ "$DB" = 'mysql' ]; then
     echo "Configuring mysql"
     # TODO We should not use sudo
