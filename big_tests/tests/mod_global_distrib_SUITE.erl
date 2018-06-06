@@ -402,6 +402,11 @@ test_muc_conversation_history(Config0) ->
                                     Msg = <<"test-", (integer_to_binary(I))/binary>>,
                                     escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg))
                             end, lists:seq(1, 3)),
+              %% Ensure that the messages are received by the room
+              %% before trying to login Eve.
+              %% Otherwise, Eve would receive some messages from history and
+              %% some as regular groupchat messages.
+              escalus:wait_for_stanzas(Alice, 3),
 
               EveUsername = escalus_utils:get_username(Eve),
               escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
