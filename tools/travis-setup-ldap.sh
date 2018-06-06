@@ -36,5 +36,5 @@ docker run -d \
     -e SLAPD_ORGANIZATION="$LDAP_ORGANISATION" \
     $(data_on_volume -v "$LDAP_CONFIG_DIR:/etc/ldap") \
     $(data_on_volume -v "$LDAP_DATA_DIR:/var/lib/ldap") \
-    -v "$LDAP_SCHEMAS_DIR":/etc/ldap.dist/prepopulate/ \
+    $(mount_ro_volume "$LDAP_SCHEMAS_DIR" /etc/ldap.dist/prepopulate/) \
     openfrontier/openldap-server

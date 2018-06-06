@@ -4,6 +4,7 @@ TOOLS=`dirname $0`
 
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
+    # Don't forget to install gsed command using "brew install gnu-sed"
     SED=gsed
 else
     BASE=`readlink -f ${TOOLS}/..`
@@ -44,4 +45,9 @@ function data_on_volume
 function mktempdir
 {
     mktemp -d "/tmp/$1.XXXXXXXXX"
+}
+
+function mount_ro_volume
+{
+    echo "-v $1:$2:ro"
 }
