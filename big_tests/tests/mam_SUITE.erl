@@ -341,6 +341,7 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
+     querying_for_all_messages_with_jid,
      unicode_messages_can_be_extracted
     ].
 
