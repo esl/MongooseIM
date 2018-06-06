@@ -4,7 +4,7 @@ TOOLS=`dirname $0`
 
 if [ `uname` = "Darwin" ]; then
     BASE=$(cd "$TOOLS/.."; pwd -P)
-    # Don't forget to install in with "brew install gnu-sed"
+    # Don't forget to install gsed command using "brew install gnu-sed"
     SED=gsed
 else
     BASE=`readlink -f ${TOOLS}/..`
