@@ -225,7 +225,7 @@ start_module_sup(_PortIPProto, Module) ->
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
-    %% XXX Rewrite using ejabberd_sup:start_child
+    %% TODO Rewrite using ejabberd_sup:start_child
     %% This function is called more than once
     supervisor:start_child(ejabberd_sup, ChildSpec).
 
