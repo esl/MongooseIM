@@ -284,6 +284,28 @@ $ cqlsh
 $ cqlsh> source '$REPO/priv/casssandra.cql';
 ```
 
+## ElasticSearch
+
+**Can be used for:**
+
+* MAM (Message Archive Management)
+
+**Setup**
+
+Please note that MongooseIM has been tested to work properly with ElasticSearch version 5.6.9.
+
+In order to use ElasticSearch as a MAM backend, you'll need to create required indexes and mappings.
+From the root of MongooseIM's repository run:
+
+```bash
+curl -X PUT $ELASTICSEARCH_URL/messages -d '@priv/elasticsearch/pm.json'
+curl -X PUT $ELASTICSEARCH_URL/muc_messages -d '@priv/elasticsearch/muc.json'
+```
+
+where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP API endpoint.
+
+Please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page to check how to configure MongooseIM to connect to ElasticSearch node.
+
 ## Redis
 
 **Can be used for:**
@@ -304,4 +326,4 @@ No additional steps required.
 
 **Setup**
 
-No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.
+No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.d

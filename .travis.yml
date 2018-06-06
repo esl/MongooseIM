@@ -77,6 +77,7 @@ env:
         - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
         - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
         - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.9
+        - PRESET=elasticsearch_mnesia DB=elasticsearch REL_CONFIG=with-elasticsearch ELASTICSEARCH_VERSION=5.6.9
           # In case you want to test with another ODBC driver, uncomment this
       # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
 

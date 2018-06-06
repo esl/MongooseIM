@@ -35,6 +35,9 @@ echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 # Default cassandra version
 CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
 
+# Default ElasticSearch version
+ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
+
 # There is one odbc.ini for both mssql and pgsql
 # Allows to run both in parallel
 function install_odbc_ini
@@ -243,6 +246,33 @@ elif [ "$DB" = 'cassandra' ]; then
                        cassandra:${CASSANDRA_VERSION}               \
                        sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
     done
+
+elif [ "$DB" = 'elasticsearch' ]; then
+    ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
+    ELASTICSEARCH_PORT=9200
+    ELASTICSEARCH_NAME=mongoooseim-elasticsearch
+
+    echo $ELASTICSEARCH_IMAGE
+    docker image pull $ELASTICSEARCH_IMAGE
+    echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
+    docker run -d $RM_FLAG \
+           -p $ELASTICSEARCH_PORT:9200 \
+           -e "http.host=0.0.0.0" \
+           -e "transport.host=127.0.0.1" \
+           -e "xpack.security.enabled=false" \
+           --name $ELASTICSEARCH_NAME \
+           $ELASTICSEARCH_IMAGE
+    echo "Waiting for ElasticSearch to start listening on port"
+    tools/wait_for_service.sh $ELASTICSEARCH_NAME $ELASTICSEARCH_PORT || docker logs $ELASTICSEARCH_NAME
+
+    ELASTICSEARCH_URL=http://localhost:$ELASTICSEARCH_PORT
+    ELASTICSEARCH_PM_MAPPING="$(pwd)/priv/elasticsearch/pm.json"
+    ELASTICSEARCH_MUC_MAPPING="$(pwd)/priv/elasticsearch/muc.json"
+    echo "Putting ElasticSearch mappings"
+    (curl -X PUT $ELASTICSEARCH_URL/messages -d "@$ELASTICSEARCH_PM_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
+        echo "Failed to put PM mapping into ElasticSearch"
+    (curl -X PUT $ELASTICSEARCH_URL/muc_messages -d "@$ELASTICSEARCH_MUC_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
+        echo "Failed to put MUC mapping into ElasticSearch"
 
 elif [ "$DB" = 'mssql' ]; then
     # LICENSE STUFF, IMPORTANT

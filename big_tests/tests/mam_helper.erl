@@ -62,7 +62,7 @@ mam04_props() ->
 mam06_props() ->
      [{final_message, false},
       {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
-     {mam_ns, mam_ns_binary_v06()}].   
+     {mam_ns, mam_ns_binary_v06()}].
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
@@ -1091,7 +1091,7 @@ maybe_cassandra(Host) ->
 
 is_mam_possible(Host) ->
     mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse
-    is_cassandra_enabled(Host).
+    is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
 
 is_riak_enabled(_Host) ->
     case rpc(mim(), mongoose_riak, get_worker, []) of
@@ -1106,6 +1106,14 @@ is_cassandra_enabled(_) ->
         [_|_]=_Pools ->
             true;
         _ ->
+            false
+    end.
+
+is_elasticsearch_enabled(_Host) ->
+    case rpc(mim(), mongoose_elasticsearch, health, []) of
+        {ok, _} ->
+            true;
+        {error, _} ->
             false
     end.
 
