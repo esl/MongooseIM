@@ -153,14 +153,14 @@ publish(Channel, Exchange, RoutingKey, Message, Host) ->
                                     PublishTime),
             mongoose_metrics:update(Host, ?MESSAGE_PAYLOAD_SIZE_METRIC,
                                     byte_size(Message)),
-            ?DEBUG("Message sent to RabbitMQ node: ~p", [Message]);
+            ?DEBUG("event=rabbit_message_sent message=~1000p", [Message]);
         false ->
             mongoose_metrics:update(Host, ?MESSAGES_FAILED_METRIC, 1),
-            ?WARNING_MSG("RabbitMQ node was not able to process the message:",
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=negative_ack",
                          []);
         timeout ->
             mongoose_metrics:update(Host, ?MESSAGES_TIMEOUT_METRIC, 1),
-            ?WARNING_MSG("Timeout waiting for a response from RabbitMQ node.",
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout",
                          [])
     end.
 
@@ -203,7 +203,7 @@ establish_rabbit_connection(Opts, Host) ->
     {ok, Connection} = amqp_connection:start(Opts),
     {ok, Channel} = amqp_connection:open_channel(Connection),
     mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_METRIC, 1),
-    ?DEBUG("Connection to RabbitMQ node is established.~n", []),
+    ?DEBUG("event=rabbit_connection_established", []),
     {Connection, Channel}.
 
 -spec enable_confirms(Channel :: pid()) -> ok.
