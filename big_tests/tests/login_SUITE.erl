@@ -125,6 +125,8 @@ init_per_testcase(message_zlib_limit, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(message_zlib_limit, Config) ->
+    escalus:delete_users(Config, escalus:get_users([hacker]));
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
