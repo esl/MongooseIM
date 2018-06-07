@@ -56,6 +56,7 @@ pages:
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
   - "Developer's guide":
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
+      - 'Logging': 'developers-guide/logging.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/message_routing.md'
