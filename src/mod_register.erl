@@ -224,7 +224,7 @@ process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
                                        #xmlel{name = <<"password">>}
                                        | QuerySubels]}]}.
 
-try_register_or_set_password(User, Server, Password, #jid{ luser = User, lserver = Server },
+try_register_or_set_password(User, Server, Password, #jid{ user = User, lserver = Server },
                              IQ, SubEl, _Source, Lang) ->
     try_set_password(User, Server, Password, IQ, SubEl, Lang);
 try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, Lang) ->
