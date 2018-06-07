@@ -42,7 +42,9 @@
          get_config/2,
          decode_octet_string/3,
          uids_domain_subst/2,
-         singleton_value/1]).
+         singleton_value/1,
+         maybe_list2b/1,
+         maybe_b2list/1]).
 
 -include("mongoose.hrl").
 -include("eldap.hrl").
@@ -75,7 +77,7 @@ find_ldap_attrs([{Attr} | Rest], Attributes) ->
     find_ldap_attrs([{Attr, <<"%u">>} | Rest], Attributes);
 find_ldap_attrs([{Attr, Format} | Rest], Attributes) ->
     case get_ldap_attr(Attr, Attributes) of
-        Value when is_binary(Value), Value /= <<>> ->
+        Value when Value /= <<>>, Value /= [] ->
             {Value, Format};
         _ ->
             find_ldap_attrs(Rest, Attributes)
@@ -91,7 +93,7 @@ get_ldap_attr(LDAPAttr, Attributes) ->
                     case_insensitive_match(Name, LDAPAttr)
             end, Attributes),
     case singleton_value(Res) of
-        {_, Value} -> Value;
+        {_, Value} -> eldap_utils:maybe_list2b(Value);
         _ -> <<>>
     end.
 
@@ -126,8 +128,8 @@ get_user_part(String, Pattern) ->
 generate_substring_list(Value)->
     Splits = binary:split(Value, <<"*">>, [global]),
     {Acc, S}=case Splits of
-        [<<"">>|T]->{[], T};
-        [H|T]-> {[{initial, H}], T}
+        [<<"">>|T]->{[], maybe_b2list(T)};
+        [H|T]-> {[{initial, maybe_b2list(H)}], T}
     end,
     lists:reverse(generate_substring_list(S, Acc)).
 generate_substring_list([<<"">>], Acc)->
@@ -148,24 +150,7 @@ make_filter(Data, UIDs, Op) ->
     NewUIDs = [{U, eldap_filter:do_sub(
                      UF, [{<<"%u">>, <<"*%u*">>, 1}])} || {U, UF} <- UIDs],
     Filter = lists:flatmap(
-               fun({Name, [Value | _]}) ->
-                       case Name of
-                           <<"%u">> when Value /= <<"">> ->
-                               case eldap_filter:parse(
-                                      generate_subfilter(NewUIDs),
-                                      [{<<"%u">>, Value}]) of
-                                   {ok, F} -> [F];
-                                   _ -> []
-                               end;
-                           _ when Value /= <<"">> ->
-                    case binary:match(Value, <<"*">>) of
-                        nomatch -> [eldap:equalityMatch(Name, Value)];
-                        _ -> [eldap:substrings(Name, generate_substring_list(Value))]
-                    end;
-                           _ ->
-                               []
-                       end
-               end, Data),
+               traverse_filter_fun(NewUIDs), Data),
     case Filter of
         [F] ->
             F;
@@ -173,15 +158,35 @@ make_filter(Data, UIDs, Op) ->
             eldap:Op(Filter)
     end.
 
+traverse_filter_fun(NewUIDs) ->
+  fun(Entry) ->
+    match_filter_name(Entry, NewUIDs)
+  end.
+
+match_filter_name({<<"%u">>, [Value | _]}, NewUIDs) when Value /= <<"">> ->
+  case eldap_filter:parse(
+    generate_subfilter(NewUIDs),
+    [{<<"%u">>, Value}]) of
+    {ok, F} -> [F];
+    _ -> []
+  end;
+match_filter_name({Name, [Value | _]}, _NewUIDs) when Value /= <<"">> ->
+  case binary:match(Value, <<"*">>) of
+    nomatch -> [eldap:equalityMatch(Name, Value)];
+    _ -> [eldap:substrings(maybe_b2list(Name),
+      generate_substring_list(Value))]
+  end;
+match_filter_name(_, _) ->
+  [].
 
 -spec case_insensitive_match(binary(), binary()) -> boolean().
 case_insensitive_match(X, Y) ->
-    X1 = string:to_lower(binary_to_list(X)),
-    Y1 = string:to_lower(binary_to_list(Y)),
-    if
-        X1 == Y1 -> true;
-        true -> false
-    end.
+    X1 = string:to_lower(maybe_b2list(X)),
+    Y1 = string:to_lower(maybe_b2list(Y)),
+  case X1 == Y1 of
+    true -> true;
+    _-> false
+  end.
 
 
 -spec get_state(binary() | string(), atom()) -> any().
@@ -302,12 +307,12 @@ get_config(Host, Opts) ->
     Base = get_opt({ldap_base, Host}, Opts,
                    fun iolist_to_binary/1,
                    <<"">>),
-    DerefAliases = get_opt({deref_aliases, Host}, Opts,
-                           fun(never) -> never;
-                              (searching) -> searching;
-                              (finding) -> finding;
-                              (always) -> always
-                           end, never),
+    DerefAliases = get_opt({deref, Host}, Opts,
+                               fun(never) -> neverDerefAliases;
+                                    (searching) -> derefInSearching;
+                                    (finding) -> derefFindingBaseObj;
+                                    (always) -> derefAlways
+                                end, neverDerefAliases),
     #eldap_config{servers = Servers,
                   backups = Backups,
                   tls_options = [{encrypt, Encrypt},
@@ -318,7 +323,7 @@ get_config(Host, Opts) ->
                   dn = RootDN,
                   password = Password,
                   base = Base,
-                  deref_aliases = DerefAliases}.
+                  deref = DerefAliases}.
 
 -spec singleton_value(list()) -> {binary(), binary()} | false.
 singleton_value([{K, [V]}]) ->
@@ -444,4 +449,18 @@ collect_parts([], Acc) ->
 collect_parts_bit([{?N_BIT_STRING, <<Unused, Bits/binary>>}|Rest], Acc, Uacc) ->
     collect_parts_bit(Rest, [Bits|Acc], Unused+Uacc);
 collect_parts_bit([], Acc, Uacc) ->
-    list_to_binary([Uacc|lists:reverse(Acc)]).
+    maybe_list2b([Uacc|lists:reverse(Acc)]).
+
+maybe_b2list(B) when is_binary(B) ->
+  binary_to_list(B);
+maybe_b2list(L) when is_list(L) ->
+  L;
+maybe_b2list(O) ->
+  {error, {unknown_type, O}}.
+
+maybe_list2b(L) when is_list(L) ->
+  list_to_binary(L);
+maybe_list2b(B) when is_binary(B) ->
+  B;
+maybe_list2b(O) ->
+  {error, {unknown_type, O}}.

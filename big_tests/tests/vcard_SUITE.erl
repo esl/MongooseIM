@@ -1004,12 +1004,12 @@ prepare_vcard(ldap, JID, Fields) ->
             undefined ->
                 undefined;
             LdapField ->
-                rpc(mim(), eldap, mod_replace, [LdapField, [Val]])
+                rpc(mim(), eldap, mod_replace, [binary_to_list(LdapField), [binary_to_list(Val)]])
         end
     end,
     Modificators = convert_vcard_fields(Fields, [], Fun),
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = rpc(mim(), eldap, modify, [EPid, Dn, Modificators]);
+    ok = rpc(mim(), eldap, modify, [EPid, binary_to_list(Dn), Modificators]);
 prepare_vcard(_, JID, Fields) ->
     RJID = get_jid_record(JID),
     VCard = escalus_stanza:vcard_update(JID, Fields),
@@ -1020,9 +1020,9 @@ insert_alice_photo(Config) ->
     Server = domain(),
     {EPid, Base} = get_ldap_pid_and_base(Server),
     Photo = ?PHOTO_BIN,
-    Modificators = [rpc(mim(), eldap, mod_replace, [<<"jpegPhoto">>, [Photo]])],
+    Modificators = [rpc(mim(), eldap, mod_replace, ["jpegPhoto", [binary_to_list(Photo)]])],
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = rpc(mim(), eldap, modify, [EPid, Dn, Modificators]),
+    ok = rpc(mim(), eldap, modify, [EPid, binary_to_list(Dn), Modificators]),
     Config.
 
 
@@ -1033,7 +1033,7 @@ fields_to_ldap_modificators(VcardMap, [{Field, Val} | Rest], Acc) when is_binary
         undefined ->
             NewAcc = Acc;
         LdapField ->
-            LdapModify = rpc(mim(), eldap, mod_replace, [LdapField, [Val]]),
+            LdapModify = rpc(mim(), eldap, mod_replace, [binary_to_list(LdapField), [binary_to_list(Val)]]),
             NewAcc = [LdapModify | Acc]
     end,
     fields_to_ldap_modificators(VcardMap, Rest, NewAcc);

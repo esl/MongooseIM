@@ -171,7 +171,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Values:** String
     * **Default:** empty string
 
-* **ldap_deref_aliases**
+* **ldap_deref**
     * **Description:** Whether or not to dereference aliases
     * **Values:** `never`, `always`, `finding`, `searching`
     * **Default:** `never`
