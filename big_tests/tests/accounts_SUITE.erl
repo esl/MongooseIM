@@ -55,7 +55,7 @@ init_per_suite(Config1) ->
     Host = ct:get_config({hosts, mim, domain}),
     ok = dynamic_modules:ensure_modules(Host, required_modules()),
     Config2 = [{mod_register_options, mod_register_options()} | Config1],
-    escalus:init_per_suite(Config2).
+    escalus:init_per_suite([{escalus_user_db, xmpp} | Config2]).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
@@ -71,24 +71,18 @@ mod_register_options() ->
      {access, register},
      {registration_watchers, []}].
 
-init_per_group(register, Config) ->
-    skip_if_mod_register_not_enabled([{escalus_user_db, xmpp} | Config]);
-init_per_group(registration_watchers, Config) ->
-    skip_if_mod_register_not_enabled([{escalus_user_db, xmpp} | Config]);
 init_per_group(bad_cancelation, Config) ->
     escalus:create_users(Config, escalus:get_users([alice]));
-init_per_group(registration_timeout, Config) ->
-    case escalus_users:is_mod_register_enabled(Config) of
-        true ->
-            set_registration_timeout(Config);
-        _ ->
-            {skip, mod_register_disabled}
-    end;
 init_per_group(change_account_details, Config) ->
-    skip_if_mod_register_not_enabled(Config);
+    [{escalus_user_db,  {module, escalus_ejabberd}} |Config];
+init_per_group(registration_timeout, Config) ->
+    set_registration_timeout(Config);
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(change_account_details, Config) ->
+    escalus_fresh:clean(),
+    [{escalus_user_db, xmpp} | Config];
 end_per_group(bad_cancelation, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice]));
 end_per_group(registration_timeout, Config) ->
@@ -103,8 +97,7 @@ init_per_testcase(admin_notify, Config) ->
     enable_watcher(Config, AdminJid),
     escalus:init_per_testcase(admin_notify, Config);
 init_per_testcase(not_allowed_registration_cancelation, Config) ->
-    %% Use a configuration that will not allow inband cancelation (and
-    %% registration).
+    %% Use a configuration that will not allow inband cancelation (and registration).
     reload_mod_register_option(Config, access, {access, none}),
     escalus:init_per_testcase(not_allowed_registration_cancelation, Config);
 init_per_testcase(registration_failure_timeout, Config) ->
@@ -130,7 +123,6 @@ end_per_testcase(registration_timeout, Config) ->
     escalus:end_per_testcase(registration_timeout, Config);
 end_per_testcase(registration_failure_timeout, Config) ->
     ok = allow_everyone_registration(),
-    escalus:delete_users(Config, escalus:get_users([alice, bob])),
     escalus:end_per_testcase(registration_failure_timeout, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
