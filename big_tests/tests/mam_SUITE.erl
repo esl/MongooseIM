@@ -604,6 +604,8 @@ do_init_per_group(C, ConfigIn) ->
             [{archive_wait, 1500} | Config0];
         elasticsearch ->
             [{archive_wait, 2500} | Config0];
+        odbc_async_pool ->
+            [{archive_wait, 200} | Config0];
         _ ->
             [{archive_wait, 0} | Config0]
     end.

@@ -35,7 +35,7 @@
          queue_lengths/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([init/1, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
@@ -47,12 +47,10 @@
 -record(state, {
     flush_interval, %% milliseconds
     max_packet_size,
-    max_subscribers,
     host,
     connection_pool :: atom(),
     number,
-    acc=[],
-    subscribers=[],
+    acc = [],
     flush_interval_tref}).
 
 worker_prefix() ->
@@ -201,7 +199,6 @@ archive_message(_Result, Host,
             gen_server:cast(Worker, {archive_message, Row});
         true ->
             {Pid, MonRef} = spawn_monitor(fun() ->
-                                                  gen_server:call(Worker, wait_flushing),
                                                   gen_server:cast(Worker, {archive_message, Row})
                                           end),
             receive
@@ -237,7 +234,6 @@ worker_queue_length(SrvName) ->
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArchiveID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID) ->
-    wait_flushing(Host, ArcID),
     Size.
 
 
@@ -245,7 +241,6 @@ archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID
     {ok, mod_mam:lookup_result()}.
 lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
     when is_integer(ArcID) ->
-    wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
 %% #rh
@@ -254,26 +249,7 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
                      RoomJID :: jid:jid()) -> map().
 remove_archive(Acc, Host, ArcID, _ArcJID)
     when is_integer(ArcID) ->
-    wait_flushing(Host, ArcID),
     Acc.
-
-wait_flushing(Host, ArcID) ->
-    gen_server:call(select_worker(Host, ArcID), wait_flushing).
-
-wait_flushing_before(Host, ArcID, End, Now) ->
-    case are_recent_entries_required(End, Now) of
-        true ->
-            wait_flushing(Host, ArcID);
-        false ->
-            ok
-    end.
-
-are_recent_entries_required(End, Now) when is_integer(End) ->
-    %% 10 seconds
-    End + 10000000 > Now;
-are_recent_entries_required(_End, _Now) ->
-    true.
-
 
 %%====================================================================
 %% Internal functions
@@ -289,7 +265,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
 
 do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
                                           max_packet_size = MaxSize, flush_interval_tref = TRef,
-                                          acc = Acc, subscribers = Subs}) ->
+                                          acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
@@ -313,11 +289,10 @@ do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
             ok
     end,
     spawn_link(fun() ->
-                       [gen_server:reply(Sub, ok) || Sub <- Subs],
                        ejabberd_hooks:run(mam_flush_messages, Host, [Host, MessageCount])
                end),
     erlang:garbage_collect(),
-    State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
+    State#state{acc=[], flush_interval_tref=undefined}.
 
 cancel_and_flush_timer(undefined) ->
     ok;
@@ -345,11 +320,9 @@ cancel_and_flush_timer(TRef) ->
 init([Host, N, Pool, MaxSize]) ->
     %% Use a private ODBC-connection.
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
-    MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
     {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
-                max_packet_size = MaxSize,
-                max_subscribers = MaxSubs}}.
+                max_packet_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -360,18 +333,6 @@ init([Host, N, Pool, MaxSize]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
-    {reply, ok, State};
-handle_call(wait_flushing, From,
-            State=#state{max_subscribers=MaxSubs, subscribers=Subs}) ->
-    State2 = State#state{subscribers=[From|Subs]},
-    %% Run flusging earlier, if there are too much IQ requests waiting.
-    %% Write only full packets of messages in overloaded state.
-    case length(Subs) + 1 >= MaxSubs andalso not is_overloaded(self()) of
-        true -> {noreply, run_flush(State2)};
-        false -> {noreply, State2}
-    end.
-
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |
