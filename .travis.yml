@@ -23,7 +23,7 @@ before_install:
 install:
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
         - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
-        - test 1 = "$SKIP_RELEASE" || make dev
+        - test 1 = "$SKIP_RELEASE" || make devrel
         - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
         - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
 before_script:
