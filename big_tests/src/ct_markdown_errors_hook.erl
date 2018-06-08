@@ -90,7 +90,7 @@ log_error(SuiteName, GroupName, Place, Error, #state{file = File}) ->
     %%    </details>
     SummaryText = make_summary_text(SuiteName, GroupName, Place),
     BinError = iolist_to_binary(io_lib:format("~p", [Error])),
-    Content = truncate_binary(1000, BinError),
+    Content = truncate_binary(1500, reindent(BinError)),
     %% Don't use exml here to avoid escape errors
     Out = <<"<details><summary>", SummaryText/binary, "</summary>\n"
             "\n\n```erlang\n", Content/binary, "\n```\n</details>\n">>,
@@ -131,3 +131,8 @@ truncate_binary(Len, Bin) ->
         false ->
             Bin
     end.
+
+reindent(Bin) ->
+    %% Use 2 whitespaces instead of 4 for indention
+    %% to make more compact look
+    binary:replace(Bin, <<"    ">>, <<"  ">>, [global]).
