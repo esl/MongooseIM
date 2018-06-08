@@ -37,12 +37,47 @@ echo "export TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
 PRESET="${PRESET:-default}"
 TRAVIS_OTP_RELEASE="${TRAVIS_OTP_RELEASE:-unknown}"
 
+function remove_ct_log_links
+{
+    mv /tmp/ct_markdown /tmp/ct_markdown_original
+    grep -v "Report log" /tmp/ct_markdown_original > /tmp/ct_markdown
+}
+
+# https://stackoverflow.com/questions/407523/escape-a-string-for-a-sed-replace-pattern
+function replace_string {
+    sed -i "s/$(
+        echo "$1" | sed -e 's/\([[\/.*]\|\]\)/\\&/g'
+                  | sed -e 's:\t:\\t:g'
+    )/$(
+        echo "$2" | sed -e 's/[\/&]/\\&/g'
+                  | sed -e 's:\t:\\t:g'
+    )/g" "$3"
+}
+
+function rewrite_log_links_to_s3
+{
+    # REPORTS_URL is
+    # http://esl.github.io/mongooseim-ct-reports/s3_reports.html?prefix=PR/1916/4855/ldap_mnesia.19.3
+    # redirects to
+    # http://mongooseim-ct-results.s3-eu-west-1.amazonaws.com/PR/1885/4744/mysql_redis.19.3/big/
+    REPORTS_URL="$1"
+    CT_REPORT=big_tests/ct_report
+    CT_REPORT_ABS=$(realpath "$CT_REPORT")
+    S3_REPORT="$REPORTS_URL/big"
+    cp /tmp/ct_markdown /tmp/ct_markdown_original
+    replace_string "$CT_REPORT_ABS" "$S3_REPORT" /tmp/ct_markdown
+    # URL escape for s3_reports.html script
+    replace_string "ct_run.test@" "ct_run.test%40" /tmp/ct_markdown
+}
+
 if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     REPORTS_URL_BODY="Reports are not uploaded"
+    remove_ct_log_links
 else
     CT_REPORTS=$(ct_reports_dir)
     REPORTS_URL=$(s3_url ${CT_REPORTS})
     REPORTS_URL_BODY="[Reports URL](${REPORTS_URL})"
+    rewrite_log_links_to_s3 "$REPORTS_URL"
 fi
 
 # Link to a travis job

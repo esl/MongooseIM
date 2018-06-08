@@ -26,35 +26,35 @@ init(_Id, _Opts) ->
     file:write_file(File, "", []),
     {ok, #state{ file = File, limit = 25 }}.
 
-post_init_per_suite(SuiteName, _Config, Return, State) ->
-    State2 = handle_return(SuiteName, '', init_per_suite, Return, State),
+post_init_per_suite(SuiteName, Config, Return, State) ->
+    State2 = handle_return(SuiteName, '', init_per_suite, Return, Config, State),
     {Return, State2#state{group = '', suite = SuiteName}}.
 
-post_init_per_group(GroupName, _Config, Return, State=#state{suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, init_per_group, Return, State),
+post_init_per_group(GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+    State2 = handle_return(SuiteName, GroupName, init_per_group, Return, Config, State),
     {Return, State2#state{group = GroupName}}.
 
-post_init_per_testcase(TC, _Config, Return, State=#state{group = GroupName,
+post_init_per_testcase(TC, Config, Return, State=#state{group = GroupName,
                                                          suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, TC, Return, State),
+    State2 = handle_return(SuiteName, GroupName, TC, Return, Config, State),
     {Return, State2}.
 
-post_end_per_suite(SuiteName, _Config, Return, State) ->
-    State2 = handle_return(SuiteName, '', end_per_suite, Return, State),
+post_end_per_suite(SuiteName, Config, Return, State) ->
+    State2 = handle_return(SuiteName, '', end_per_suite, Return, Config, State),
     {Return, State2#state{suite = '', group = ''}}.
 
-post_end_per_group(GroupName, _Config, Return, State=#state{suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, end_per_group, Return, State),
+post_end_per_group(GroupName, Config, Return, State=#state{suite = SuiteName}) ->
+    State2 = handle_return(SuiteName, GroupName, end_per_group, Return, Config, State),
     {Return, State2#state{group = ''}}.
 
 %% @doc Called after each test case.
-post_end_per_testcase(TC, _Config, Return, State=#state{group = GroupName,
+post_end_per_testcase(TC, Config, Return, State=#state{group = GroupName,
                                                         suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, TC, Return, State),
+    State2 = handle_return(SuiteName, GroupName, TC, Return, Config, State),
     {Return, State2}.
 
-handle_return(SuiteName, GroupName, Place, Return, State) ->
-    try handle_return_unsafe(SuiteName, GroupName, Place, Return, State)
+handle_return(SuiteName, GroupName, Place, Return, Config, State) ->
+    try handle_return_unsafe(SuiteName, GroupName, Place, Return, Config, State)
     catch Class:Error ->
         Stacktrace = erlang:get_stacktrace(),
         ct:pal("issue=handle_return_unsafe_failed reason=~p:~p~n"
@@ -62,13 +62,13 @@ handle_return(SuiteName, GroupName, Place, Return, State) ->
         State
     end.
 
-handle_return_unsafe(SuiteName, GroupName, Place, Return, State) ->
+handle_return_unsafe(SuiteName, GroupName, Place, Return, Config, State) ->
     case to_error_message(Return) of
         ok ->
             State;
         Error ->
             F = fun() ->
-                log_error(SuiteName, GroupName, Place, Error, State)
+                log_error(SuiteName, GroupName, Place, Error, Config, State)
                 end,
             exec_limited_number_of_times(F, State)
     end.
@@ -81,7 +81,9 @@ exec_limited_number_of_times(F, State=#state{limit=Limit}) ->
     F(),
     State#state{limit=Limit-1}.
 
-log_error(SuiteName, GroupName, Place, Error, #state{file = File}) ->
+log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File}) ->
+    MaybeLogLink = make_log_link(Config),
+    LogLink = make_log_link(Config),
     %% Spoler syntax
     %% https://github.com/dear-github/dear-github/issues/166
     %%    <details>
@@ -93,7 +95,8 @@ log_error(SuiteName, GroupName, Place, Error, #state{file = File}) ->
     Content = truncate_binary(1500, reindent(BinError)),
     %% Don't use exml here to avoid escape errors
     Out = <<"<details><summary>", SummaryText/binary, "</summary>\n"
-            "\n\n```erlang\n", Content/binary, "\n```\n</details>\n">>,
+            "\n\n```erlang\n", Content/binary, "\n```\n",
+            LogLink/binary, "</details>\n">>,
     file:write_file(File, Out, [append]),
     ok.
 
@@ -108,6 +111,16 @@ make_summary_text(SuiteName, GroupName, TC) ->
     BGroupName = atom_to_binary(GroupName, utf8),
     BTC = atom_to_binary(TC, utf8),
     <<BSuiteName/binary, ":", BGroupName/binary, ":", BTC/binary>>.
+
+make_log_link(Config) ->
+    LogFile = proplists:get_value(tc_logfile, Config, ""),
+    LogLink =
+    case LogFile of
+        "" ->
+            <<>>;
+        _ ->
+            <<"\n[Report log](", (list_to_binary(LogFile))/binary, ")\n">>
+    end.
 
 to_error_message(Return) ->
     case Return of
