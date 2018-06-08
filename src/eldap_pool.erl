@@ -90,11 +90,11 @@ parse_add_atrs(Attrs) ->
 parse_add_attr({N, List}) ->
   {maybe_b2list(N), [maybe_b2list(L) || L <- List]}.
 
-start_link(Name, Hosts, _Backups, _Port, Rootdn, Passwd, _Opts) ->
+start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, _Opts) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
   lists:foreach(fun (Host) ->
-    case catch eldap:open([maybe_b2list(Host)])
+    case catch eldap:open([maybe_b2list(Host)], [{port, Port}])
     of
       {ok, Pid} ->
         ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
@@ -111,7 +111,7 @@ ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
       ?INFO_MSG("LDAP authentication successful for Rootdn ~p~n", [Rootdn]),
       pg2:join(PoolName, Handle);
     {error, Reason} = Err ->
-      ?ERROR_MSG("LDAP authentication unsuccessful with readon: ~p", [Reason]),
+      ?ERROR_MSG("LDAP authentication unsuccessful with reason: ~p", [Reason]),
       Err
   end.
 
