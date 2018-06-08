@@ -30,6 +30,7 @@ echo "export PRESET=$PRESET"
 echo "export TRAVIS_COMMIT=$TRAVIS_COMMIT"
 echo "export TRAVIS_JOB_ID=$TRAVIS_JOB_ID"
 echo "export TRAVIS_JOB_NUMBER=$TRAVIS_JOB_NUMBER"
+echo "export TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER"
 echo "export TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG"
 echo "export TRAVIS_OTP_RELEASE=$TRAVIS_OTP_RELEASE"
 echo "export TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
@@ -56,30 +57,43 @@ function replace_string {
 
 function rewrite_log_links_to_s3
 {
-    # REPORTS_URL is
-    # http://esl.github.io/mongooseim-ct-reports/s3_reports.html?prefix=PR/1916/4855/ldap_mnesia.19.3
-    # redirects to
-    # http://mongooseim-ct-results.s3-eu-west-1.amazonaws.com/PR/1885/4744/mysql_redis.19.3/big/
-    REPORTS_URL="$1"
-    CT_REPORT=big_tests/ct_report
-    CT_REPORT_ABS=$(./tools/abs_dirpath.sh "$CT_REPORT")
-    S3_REPORT="$REPORTS_URL/big"
+    local CT_REPORT=big_tests/ct_report
+    local CT_REPORT_ABS=$(./tools/abs_dirpath.sh "$CT_REPORT")
+    local CT_REPORTS=$(ct_reports_dir)
+    local BIG_TESTS_URL="$(direct_s3_url ${CT_REPORTS})/big"
     cp /tmp/ct_markdown /tmp/ct_markdown_original
-    replace_string "$CT_REPORT_ABS" "$S3_REPORT" /tmp/ct_markdown
+    replace_string "$CT_REPORT_ABS" "$BIG_TESTS_URL" /tmp/ct_markdown
     # URL escape for s3_reports.html script
     replace_string "ct_run.test@" "ct_run.test%40" /tmp/ct_markdown
+}
+
+function last_ct_run_name
+{
+    ls -1 -t big_tests/ct_report/ | grep ct_run | head -n1
+}
+
+function ct_run_url
+{
+    local CT_REPORTS=$(ct_reports_dir)
+    local BIG_TESTS_URL="$(direct_s3_url ${CT_REPORTS})/big"
+    local RUN_PART=$(echo "$(last_ct_run_name)" | sed "s/@/%40/g")
+    echo "$BIG_TESTS_URL/$RUN_PART/index.html"
+}
+
+function reports_url
+{
+    local CT_REPORTS=$(ct_reports_dir)
+    s3_url "${CT_REPORTS}"
 }
 
 if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     REPORTS_URL_BODY="Reports are not uploaded"$'\n'
     remove_ct_log_links
 else
-    CT_REPORTS=$(ct_reports_dir)
-    REPORTS_URL=$(s3_url ${CT_REPORTS})
-    REPORTS_URL_BODY="[Reports URL](${REPORTS_URL})"$'\n'
-
-    REPORTS_URL=$(direct_s3_url ${CT_REPORTS})
-    rewrite_log_links_to_s3 "$REPORTS_URL"
+    rewrite_log_links_to_s3
+    REPORTS_URL="$(reports_url)"
+    CT_RUN_URL="$(ct_run_url)"
+    REPORTS_URL_BODY="Reports [root](${REPORTS_URL}) / [big]($CT_RUN_URL)"$'\n'
 fi
 
 # Link to a travis job
