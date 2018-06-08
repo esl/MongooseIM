@@ -72,12 +72,30 @@ function last_ct_run_name
     ls -1 -t big_tests/ct_report/ | grep ct_run | head -n1
 }
 
+
+function small_suite_path
+{
+    if [ -d _build/test/logs ]; then
+        cd _build/test/logs
+        ls -t -1 ct_run.mongooseim@localhost.*/lib.mongooseim.logs/run.*/suite.log.html
+        cd ../../..
+    fi
+}
+
 function ct_run_url
 {
     local CT_REPORTS=$(ct_reports_dir)
     local BIG_TESTS_URL="$(direct_s3_url ${CT_REPORTS})/big"
     local RUN_PART=$(echo "$(last_ct_run_name)" | sed "s/@/%40/g")
     echo "$BIG_TESTS_URL/$RUN_PART/index.html"
+}
+
+function ct_small_url
+{
+    local CT_REPORTS=$(ct_reports_dir)
+    local SMALL_TESTS_URL="$(direct_s3_url ${CT_REPORTS})/small"
+    local SUFFIX=$(small_suite_path)
+    echo "$SMALL_TESTS_URL/$SUFFIX"
 }
 
 function reports_url
@@ -93,7 +111,8 @@ else
     rewrite_log_links_to_s3
     REPORTS_URL="$(reports_url)"
     CT_RUN_URL="$(ct_run_url)"
-    REPORTS_URL_BODY="Reports [root](${REPORTS_URL}) / [big]($CT_RUN_URL)"$'\n'
+    SMALL_CT_URL="$(ct_small_url)"
+    REPORTS_URL_BODY="Reports [root](${REPORTS_URL}) / [big]($CT_RUN_URL) / [small]($SMALL_CT_URL)"$'\n'
 fi
 
 # Link to a travis job
