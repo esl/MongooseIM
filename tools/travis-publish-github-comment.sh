@@ -45,12 +45,12 @@ function remove_ct_log_links
 
 # https://stackoverflow.com/questions/407523/escape-a-string-for-a-sed-replace-pattern
 function replace_string {
-    sed -i "s/$(
-        echo "$1" | sed -e 's/\([[\/.*]\|\]\)/\\&/g'
-                  | sed -e 's:\t:\\t:g'
-    )/$(
-        echo "$2" | sed -e 's/[\/&]/\\&/g'
-                  | sed -e 's:\t:\\t:g'
+    sed -i "s/$( \
+        echo "$1" | sed -e 's/\([[\/.*]\|\]\)/\\&/g' \
+                  | sed -e 's:\t:\\t:g' \
+    )/$( \
+        echo "$2" | sed -e 's/[\/&]/\\&/g' \
+                  | sed -e 's:\t:\\t:g' \
     )/g" "$3"
 }
 
@@ -62,7 +62,7 @@ function rewrite_log_links_to_s3
     # http://mongooseim-ct-results.s3-eu-west-1.amazonaws.com/PR/1885/4744/mysql_redis.19.3/big/
     REPORTS_URL="$1"
     CT_REPORT=big_tests/ct_report
-    CT_REPORT_ABS=$(realpath "$CT_REPORT")
+    CT_REPORT_ABS=$(./tools/abs_dirpath.sh "$CT_REPORT")
     S3_REPORT="$REPORTS_URL/big"
     cp /tmp/ct_markdown /tmp/ct_markdown_original
     replace_string "$CT_REPORT_ABS" "$S3_REPORT" /tmp/ct_markdown
@@ -71,12 +71,13 @@ function rewrite_log_links_to_s3
 }
 
 if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-    REPORTS_URL_BODY="Reports are not uploaded"
+    REPORTS_URL_BODY="Reports are not uploaded"$'\n'
     remove_ct_log_links
+    rewrite_log_links_to_s3 "test"
 else
     CT_REPORTS=$(ct_reports_dir)
     REPORTS_URL=$(s3_url ${CT_REPORTS})
-    REPORTS_URL_BODY="[Reports URL](${REPORTS_URL})"
+    REPORTS_URL_BODY="[Reports URL](${REPORTS_URL})"$'\n'
     rewrite_log_links_to_s3 "$REPORTS_URL"
 fi
 
