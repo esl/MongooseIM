@@ -13,7 +13,7 @@
 -export([post_end_per_suite/4,
          post_end_per_group/4,
          post_end_per_testcase/4]).
--record(state, { file, suite, group, limit }).
+-record(state, { file, truncated_counter_file, suite, group, limit }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -23,8 +23,10 @@ id(_Opts) ->
 %% any common state.
 init(_Id, _Opts) ->
     File = "/tmp/ct_markdown",
-    file:write_file(File, "", []),
-    {ok, #state{ file = File, limit = 25 }}.
+    TrFile = "/tmp/ct_markdown_truncated",
+    file:write_file(File, ""),
+    file:delete(TrFile),
+    {ok, #state{ file = File, truncated_counter_file = TrFile, limit = 25 }}.
 
 post_init_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, '', init_per_suite, Return, Config, State),
@@ -73,13 +75,23 @@ handle_return_unsafe(SuiteName, GroupName, Place, Return, Config, State) ->
             exec_limited_number_of_times(F, State)
     end.
 
-exec_limited_number_of_times(F, State=#state{limit=0, file=File}) ->
-    %% Log truncated
-    file:write_file(File, ".", [append]),
+exec_limited_number_of_times(F, State=#state{limit=0, file=File,
+                                             truncated_counter_file = TrFile}) ->
+    %% Log truncated, increment counter
+    TrCounter = old_truncated_counter_value(TrFile),
+    file:write_file(TrFile, integer_to_binary(TrCounter+1)),
     State;
 exec_limited_number_of_times(F, State=#state{limit=Limit}) ->
     F(),
     State#state{limit=Limit-1}.
+
+old_truncated_counter_value(TrFile) ->
+    case file:read_file(TrFile) of
+        {ok, Bin} ->
+            binary_to_integer(TrFile);
+        _ ->
+            0
+    end.
 
 log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File}) ->
     MaybeLogLink = make_log_link(Config),
