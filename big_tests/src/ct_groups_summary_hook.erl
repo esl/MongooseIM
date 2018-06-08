@@ -73,13 +73,18 @@ update_group_status(GroupName, Config, State) ->
             end
     end.
 
+
 do_update_group_status(Status, GroupNameWPath, NFailed, State) ->
-    maps:update_with(GroupNameWPath,
-                     fun ({_PreviousStatus, {n_failed, NFailedAcc}}) ->
-                             {Status, {n_failed, NFailedAcc + NFailed}}
-                     end,
-                     {Status, {n_failed, NFailed}},
-                     State).
+    case maps:get(GroupNameWPath, State, undefined) of
+        undefined ->
+            State#{GroupNameWPath => group_status(Status, NFailed)};
+        {_PrevStatus, {n_failed, NFailedAcc}} ->
+            State#{GroupNameWPath => group_status(Status, NFailed + NFailedAcc)}
+    end.
+
+group_status(Status, NFailed) ->
+    {Status, {n_failed, NFailed}}.
+
 
 group_name_with_path(GroupName, Config) ->
     case lists:keyfind(tc_group_path, 1, Config) of
