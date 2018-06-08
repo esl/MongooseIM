@@ -124,16 +124,10 @@ stop(Host) ->
 
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -142,16 +136,10 @@ stop_pm(Host) ->
 
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -235,7 +223,6 @@ worker_queue_length(SrvName) ->
                    ArchiveID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID) ->
     Size.
-
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}.
