@@ -932,7 +932,7 @@ bootstrap_archive(Config) ->
 %% Wait for messages to be written
 wait_for_msgs(Msgs, Users) ->
     UsersCnt = [{S, U, count_msgs(Msgs, S, U)} || {S, U} <- Users],
-    [wait_for_archive_size_or_warning(S, U, 10, C) || {S, U, C} <- UsersCnt],
+    [wait_for_archive_size_or_warning(S, U, 20, C) || {S, U, C} <- UsersCnt],
     ok.
 
 count_msgs(Msgs, S, U) ->
