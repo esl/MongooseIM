@@ -26,7 +26,7 @@
          queue_lengths/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([init/1, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
@@ -38,11 +38,9 @@
 -type packet() :: any().
 -record(state, {flush_interval      :: non_neg_integer(), %% milliseconds
                 max_packet_size     :: non_neg_integer(),
-                max_subscribers     :: non_neg_integer(),
                 host                :: jid:server(),
                 connection_pool     :: atom(),
                 acc=[]              :: list(),
-                subscribers=[]      :: list(),
                 flush_interval_tref :: reference() | undefined
               }).
 -type state() :: #state{}.
@@ -108,23 +106,12 @@ stop(Host) ->
 -spec start_muc(jid:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 30),
     ok.
 
 
 -spec stop_muc(jid:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
-    ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 30),
-    ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
-                          purge_multiple_messages, 30),
     ok.
 
 %%====================================================================
@@ -183,7 +170,6 @@ archive_message(_Result, Host,
             gen_server:cast(Worker, {archive_message, Row});
         true ->
             {Pid, MonRef} = spawn_monitor(fun() ->
-                                                  gen_server:call(Worker, wait_flushing),
                                                   gen_server:cast(Worker, {archive_message, Row})
                                           end),
             receive
@@ -227,23 +213,18 @@ worker_queue_length(SrvName) ->
 -spec archive_size(integer(), jid:server(), mod_mam:archive_id(),
                    jid:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
-    wait_flushing(Host, ArcID),
     Size.
 
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}.
 lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now}) ->
-    wait_flushing_before(Host, ArcID, End, Now),
     Result.
-
 
 %% #rh
 -spec remove_archive(map(), jid:server(), mod_mam:archive_id(), jid:jid()) -> map().
 remove_archive(Acc, Host, ArcID, _ArcJID) ->
-    wait_flushing(Host, ArcID),
     Acc.
-
 
 -spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
                            jid:server(), MessId :: mod_mam:message_id(),
@@ -252,7 +233,6 @@ remove_archive(Acc, Host, ArcID, _ArcJID) ->
                                   ejabberd_gen_mam_archive:purge_single_message_result().
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
     {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
-    wait_flushing_before(Host, ArcID, Microseconds, Now),
     Result.
 
 
@@ -263,35 +243,7 @@ purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
                               _WithJID :: jid:jid()) -> ok.
 purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
                         _Start, End, Now, _WithJID) ->
-    wait_flushing_before(Host, ArcID, End, Now),
     Result.
-
-
--spec wait_flushing(jid:server(), mod_mam:archive_id()) -> ok.
-wait_flushing(Host, ArcID) ->
-    gen_server:call(select_worker(Host, ArcID), wait_flushing).
-
-
--spec wait_flushing_before(jid:server(), mod_mam:archive_id(),
-                           End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp()) -> ok.
-wait_flushing_before(Host, ArcID, End, Now) ->
-    case are_recent_entries_required(End, Now) of
-        true ->
-            wait_flushing(Host, ArcID);
-        false ->
-            ok
-    end.
-
-
-%% @doc Returns true, if `End' is too old.
--spec are_recent_entries_required(mod_mam:unix_timestamp(),
-                                  mod_mam:unix_timestamp()) -> boolean().
-are_recent_entries_required(End, Now) when is_integer(End) ->
-    %% 10 seconds
-    End + 10000000 > Now;
-are_recent_entries_required(_End, _Now) ->
-    true.
-
 
 %%====================================================================
 %% Internal functions
@@ -308,7 +260,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
 
 do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
                                           max_packet_size = MaxSize, flush_interval_tref = TRef,
-                                          acc = Acc, subscribers = Subs}) ->
+                                          acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
@@ -332,12 +284,11 @@ do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
             ok
     end,
     spawn_link(fun() ->
-                       [gen_server:reply(Sub, ok) || Sub <- Subs],
                        ejabberd_hooks:run(mam_muc_flush_messages, Host,
                                           [Host, MessageCount])
                end),
     erlang:garbage_collect(),
-    State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
+    State#state{acc=[], flush_interval_tref=undefined}.
 
 
 -spec cancel_and_flush_timer('undefined' | reference()) -> 'ok'.
@@ -367,34 +318,9 @@ cancel_and_flush_timer(TRef) ->
 init([Host, Pool, MaxSize]) ->
     %% Use a private ODBC-connection.
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
-    MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
     {ok, #state{host=Host, connection_pool=Pool,
                 flush_interval = Int,
-                max_packet_size = MaxSize,
-                max_subscribers = MaxSubs}}.
-
-%%--------------------------------------------------------------------
-%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
-%%                                      {reply, Reply, State, Timeout} |
-%%                                      {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, Reply, State} |
-%%                                      {stop, Reason, State}
-%% Description: Handling call messages
-%%--------------------------------------------------------------------
--spec handle_call('wait_flushing', _, state())
-      -> {'noreply', state()} | {'reply', 'ok', state()}.
-handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
-    {reply, ok, State};
-handle_call(wait_flushing, From,
-            State=#state{max_subscribers=MaxSubs, subscribers=Subs}) ->
-    State2 = State#state{subscribers=[From|Subs]},
-    %% Run flusging earlier, if there are too much IQ requests waiting.
-    %% Write only full packets of messages in overloaded state.
-    case length(Subs) + 1 >= MaxSubs andalso not is_overloaded(self()) of
-        true -> {noreply, run_flush(State2)};
-        false -> {noreply, State2}
-    end.
+                max_packet_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
