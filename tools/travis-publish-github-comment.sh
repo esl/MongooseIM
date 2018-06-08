@@ -73,11 +73,12 @@ function rewrite_log_links_to_s3
 if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     REPORTS_URL_BODY="Reports are not uploaded"$'\n'
     remove_ct_log_links
-    rewrite_log_links_to_s3 "test"
 else
     CT_REPORTS=$(ct_reports_dir)
     REPORTS_URL=$(s3_url ${CT_REPORTS})
     REPORTS_URL_BODY="[Reports URL](${REPORTS_URL})"$'\n'
+
+    REPORTS_URL=$(direct_s3_url ${CT_REPORTS})
     rewrite_log_links_to_s3 "$REPORTS_URL"
 fi
 
