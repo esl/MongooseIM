@@ -10,10 +10,9 @@
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
 
--include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 -include_lib("mongooseim/include/mongoose.hrl").
 -include_lib("mongooseim/include/jlib.hrl").
--include_lib("mongooseim/include/mod_event_pusher_rabbit.hrl").
+-include_lib("mongooseim/include/mod_event_pusher_events.hrl").
 -include_lib("amqp_client/include/amqp_client.hrl").
 
 %%%===================================================================
@@ -55,7 +54,6 @@ start(Host, _Opts) ->
     application:ensure_all_started(amqp_client),
     application:ensure_all_started(worker_pool),
     initialize_metrics(Host),
-    mongoose_metrics:init_subscriptions(),
     WorkerNum = opt(Host, pool_size, 100),
     wpool:start_sup_pool(pool_name(Host),
                          [{worker, {mongoose_rabbit_worker,
@@ -185,13 +183,7 @@ exchanges(Host) ->
 -spec initialize_metrics(Host :: jid:server()) -> ok.
 initialize_metrics(Host) ->
     [mongoose_metrics:ensure_metric(Host, Name, Type)
-     || {Name, Type} <- [{?RABBIT_CONNECTIONS_METRIC, spiral},
-                         {?MESSAGES_PUBLISHED_METRIC, spiral},
-                         {?MESSAGES_FAILED_METRIC, spiral},
-                         {?MESSAGES_TIMEOUT_METRIC, spiral},
-                         {?MESSAGE_PUBLISH_TIME_METRIC, histogram},
-                         {?MESSAGE_PAYLOAD_SIZE_METRIC, histogram}
-                        ]].
+     || {Name, Type} <- mongoose_rabbit_worker:list_metrics()].
 
 %% Getter for module options
 -spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().
