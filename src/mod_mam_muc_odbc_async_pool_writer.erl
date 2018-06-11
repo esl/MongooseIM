@@ -37,7 +37,7 @@
 
 -type packet() :: any().
 -record(state, {flush_interval      :: non_neg_integer(), %% milliseconds
-                max_packet_size     :: non_neg_integer(),
+                max_batch_size     :: non_neg_integer(),
                 host                :: jid:server(),
                 connection_pool     :: atom(),
                 acc=[]              :: list(),
@@ -88,7 +88,7 @@ worker_number(Host, ArcID) ->
 -spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
     PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
-    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
+    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
     mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_message, 1),
     mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_messages, MaxSize),
     start_workers(Host, PoolName, MaxSize),
@@ -259,7 +259,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
     NewState.
 
 do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
-                                          max_packet_size = MaxSize, flush_interval_tref = TRef,
+                                          max_batch_size = MaxSize, flush_interval_tref = TRef,
                                           acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
@@ -320,7 +320,7 @@ init([Host, Pool, MaxSize]) ->
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
     {ok, #state{host=Host, connection_pool=Pool,
                 flush_interval = Int,
-                max_packet_size = MaxSize}}.
+                max_batch_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -331,7 +331,7 @@ init([Host, Pool, MaxSize]) ->
 
 handle_cast({archive_message, Row},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
-                         max_packet_size=Max}) ->
+                         max_batch_size=Max}) ->
     TRef2 = case {Acc, TRef} of
                 {[], undefined} -> erlang:send_after(Int, self(), flush);
                 {_, _} -> TRef

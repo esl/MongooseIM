@@ -46,7 +46,7 @@
 
 -record(state, {
     flush_interval, %% milliseconds
-    max_packet_size,
+    max_batch_size,
     host,
     connection_pool :: atom(),
     number,
@@ -86,7 +86,7 @@ worker_number(Host, ArcID) when is_integer(ArcID) ->
 start(Host, Opts) ->
     mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
     PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
-    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
+    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
     mod_mam_odbc_arch:prepare_insert(insert_mam_message, 1),
     mod_mam_odbc_arch:prepare_insert(insert_mam_messages, MaxSize),
 
@@ -251,7 +251,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
     NewState.
 
 do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
-                                          max_packet_size = MaxSize, flush_interval_tref = TRef,
+                                          max_batch_size = MaxSize, flush_interval_tref = TRef,
                                           acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
@@ -309,7 +309,7 @@ init([Host, N, Pool, MaxSize]) ->
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
     {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
-                max_packet_size = MaxSize}}.
+                max_batch_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -329,7 +329,7 @@ init([Host, N, Pool, MaxSize]) ->
 
 handle_cast({archive_message, Row},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
-                         max_packet_size=Max}) ->
+                         max_batch_size=Max}) ->
     TRef2 = case {Acc, TRef} of
                 {[], undefined} -> erlang:send_after(Int, self(), flush);
                 {_, _} -> TRef
