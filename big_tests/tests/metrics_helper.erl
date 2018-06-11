@@ -31,7 +31,9 @@ assert_counter(Value, CounterName) ->
     assert_counter(ct:get_config({hosts, mim, domain}), Value, CounterName).
 
 assert_counter(Host, Value, CounterName) ->
-    {value, Value} = get_counter_value(Host, CounterName).
+    R = get_counter_value(Host, CounterName),
+    ct:pal("Got: ~p, Should: ~p", [R, {value, Value}]),
+    {value, Value} = R.
 
 -spec prepare_by_all_metrics_are_global(Config :: list(), UseAllMetricsAreGlobal :: boolean()) ->
     list().

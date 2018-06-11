@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/3, wait_until/4]).
+-export([wait_until/3, wait_until/4, factor_backoff/5]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -269,18 +269,28 @@ logout_user(Config, User) ->
 wait_until(Predicate, Attempts, Sleeptime) ->
      wait_until(Predicate, true, Attempts, Sleeptime).
 
- wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
-     wait_until(Fun, ExpectedValue, Attempts, SleepTime, []).
+wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
+     wait_until(Fun, ExpectedValue, Attempts, SleepTime, [], fun(E) -> E end).
 
- wait_until(_Fun, _ExpectedValue, 0, _SleepTime, History) ->
+factor_backoff(Fun, ExpectedValue, Attempts, Mintime, Maxtime) ->
+     wait_until(Fun, ExpectedValue, Attempts, Mintime, [], fun(E) ->
+                                                                   min(E * 2, Maxtime)
+                                                           end).
+
+ wait_until(_Fun, _ExpectedValue, 0, _SleepTime, History, _NextSleepTimeFun) ->
      error({badmatch, History});
- wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History) ->
-     case Fun() of
+ wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History, NextSleepTimeFun) ->
+     case catch Fun() of
          ExpectedValue ->
              ok;
          OtherValue ->
              timer:sleep(SleepTime),
-             wait_until(Fun, ExpectedValue, dec_attempts(AttemptsLeft), SleepTime, [OtherValue | History])
+             wait_until(Fun,
+                        ExpectedValue,
+                        dec_attempts(AttemptsLeft),
+                        NextSleepTimeFun(SleepTime),
+                        [OtherValue | History],
+                        NextSleepTimeFun)
      end.
 
 dec_attempts(infinity) -> infinity;
