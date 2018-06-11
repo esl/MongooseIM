@@ -14,6 +14,7 @@
 {suites, "tests", rdbms_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", acc_e2e_SUITE}.
+{suites, "tests", accounts_SUITE}.
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
