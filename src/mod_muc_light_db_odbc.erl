@@ -362,7 +362,8 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
                 [] ->
                     ok;
                 _ ->
-                    ?ERROR_MSG("event=many_ids_for_pk_select, ids=~p aborting the transaction", [AllIds]),
+                    ?ERROR_MSG("event=many_ids_for_pk_select room_name=~p ids=~p aborting the transaction",
+                               [RoomU, AllIds]),
                     throw({aborted, <<"Many IDs returned for PK select query, most probably MSSQL deadlock">>})
             end,
             lists:foreach(

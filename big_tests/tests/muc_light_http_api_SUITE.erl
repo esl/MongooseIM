@@ -176,7 +176,6 @@ send_message_to_room(Config) ->
         escalus:wait_for_stanza(Alice),
         %% XMPP: And Alice gets IQ result
         CreationResult = escalus:wait_for_stanza(Alice),
-        ct:pal("Result: ~p", [CreationResult]),
         escalus:assert(is_iq_result, CreationResult),
         %% XMPP: Get Bob and Kate recieve their affiliation information.
         [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
