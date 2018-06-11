@@ -1203,7 +1203,7 @@ simple_archive_request(Config) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
@@ -1261,7 +1261,7 @@ simple_text_search_request(Config) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Also my bike broke down so I'm unable ",
                                                           "to return him home">>)),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, 3),
 
         %% 'Cat' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
@@ -1303,11 +1303,12 @@ long_text_search_request(Config) ->
         %% The test should work without this block.
         %% But sometimes on the CI server we ending up with not all messages
         %% yet archived, which leads to the test failure.
-        BobMessages = escalus:wait_for_stanzas(Bob, length(Msgs), 15000),
-        ?assert_equal_extra(length(Msgs), length(BobMessages),
+        ExpectedLen = length(Msgs),
+        BobMessages = escalus:wait_for_stanzas(Bob, ExpectedLen, 15000),
+        ?assert_equal_extra(ExpectedLen, length(BobMessages),
                             #{bob_messages => BobMessages}),
 
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Bob, ExpectedLen),
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
         Res = wait_archive_respond(P, Alice),
@@ -1337,7 +1338,7 @@ unicode_messages_can_be_extracted(Config) ->
 
         [escalus:send(Alice, escalus_stanza:chat_to(Bob, Text))
          || Text <- Texts],
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, length(Texts)),
 
         %% WHEN Getting all messages
         escalus:send(Alice, stanza_archive_request(P, <<"uni-q">>)),
@@ -1365,7 +1366,7 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi! this is an unicode character lol 😂"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"this is another one no 🙅"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
-                maybe_wait_for_archive(Config),
+                mam_helper:wait_for_archive_size(Alice, 3),
 
                 %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
@@ -1634,7 +1635,7 @@ filter_forwarded(Config) ->
 
         %% Bob receives a message.
         escalus:wait_for_stanza(Bob),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Bob, 1),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         assert_respond_size(1, wait_archive_respond(P, Bob)),
 
