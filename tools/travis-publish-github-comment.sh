@@ -41,7 +41,8 @@ TRAVIS_OTP_RELEASE="${TRAVIS_OTP_RELEASE:-unknown}"
 function remove_ct_log_links
 {
     mv /tmp/ct_markdown /tmp/ct_markdown_original
-    grep -v "Report log" /tmp/ct_markdown_original > /tmp/ct_markdown
+    # grep fails if nothing matches
+    { grep -v "Report log" /tmp/ct_markdown_original || echo ""; } > /tmp/ct_markdown
 }
 
 # https://stackoverflow.com/questions/407523/escape-a-string-for-a-sed-replace-pattern
@@ -115,12 +116,29 @@ else
     REPORTS_URL_BODY="Reports [root](${REPORTS_URL}) / [big]($CT_RUN_URL) / [small]($SMALL_CT_URL)"$'\n'
 fi
 
+COUNTERS_FILE=/tmp/ct_stats_vars
+COUNTERS_BODY=""
+if [ -f "$COUNTERS_FILE" ]; then
+    . "$COUNTERS_FILE"
+    COUNTERS_BODY="OK: $CT_COUNTER_OK "
+    if [ "$CT_COUNTER_FAILED" != "0" ]; then
+        COUNTERS_BODY="$COUNTERS_BODY/ Failed: $CT_COUNTER_FAILED "
+    fi
+    if [ "$CT_COUNTER_USER_SKIPPED" != "0" ]; then
+        COUNTERS_BODY="$COUNTERS_BODY/ User-skipped: $CT_COUNTER_USER_SKIPPED "
+    fi
+    if [ "$CT_COUNTER_AUTO_SKIPPED" != "0" ]; then
+        COUNTERS_BODY="$COUNTERS_BODY/ Auto-skipped: $CT_COUNTER_AUTO_SKIPPED "
+    fi
+    COUNTERS_BODY="$COUNTERS_BODY"$'\n'
+fi
+
 TRUNCATED_BODY=""
 # Number of truncated failed tests if file exists
 TRUNCATED_FILE="/tmp/ct_markdown_truncated"
 if [ -f "$TRUNCATED_FILE" ]; then
     TRUNCATED_COUNTER=$(cat "$TRUNCATED_FILE")
-    TRUNCATED_BODY='$\n''$\n'"$TRUNCATED_COUNTER errors were truncated"
+    TRUNCATED_BODY=$'\n'$'\n'"$TRUNCATED_COUNTER errors were truncated"
 fi
 
 # Link to a travis job
@@ -128,7 +146,7 @@ JOB_URL="https://travis-ci.org/$TRAVIS_REPO_SLUG/jobs/$TRAVIS_JOB_ID"
 DESC_BODY="[$TRAVIS_JOB_NUMBER]($JOB_URL) / Erlang $TRAVIS_OTP_RELEASE / $PRESET / $TRAVIS_COMMIT"$'\n'
 # This file is created by ct_markdown_errors_hook
 ERRORS_BODY="$(cat /tmp/ct_markdown || echo '/tmp/ct_markdown missing')"
-BODY="${DESC_BODY}${REPORTS_URL_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"
+BODY="${DESC_BODY}${REPORTS_URL_BODY}${COUNTERS_BODY}${ERRORS_BODY}${TRUNCATED_BODY}"
 # SLUG is the same for both GitHub and Travis CI
 TRAVIS_REPO_SLUG=${TRAVIS_REPO_SLUG:-esl/MongooseIM}
 

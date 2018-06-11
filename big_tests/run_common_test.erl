@@ -414,6 +414,7 @@ process_results(CTResults) ->
     process_results(CTResults, {{Ok, Failed, UserSkipped, AutoSkipped}, Errors}).
 
 process_results([], {StatsAcc, Errors}) ->
+    write_stats_into_vars_file(StatsAcc),
     print_errors(Errors),
     print_stats(StatsAcc),
     init:stop(exit_code(StatsAcc));
@@ -435,6 +436,16 @@ do_print_stats({Ok, Failed, _UserSkipped, AutoSkipped}) when Ok == 0;
     Ok == 0 andalso print(standard_error,         "  ok          : ~b~n", [Ok]),
     Failed > 0 andalso print(standard_error,      "  failed      : ~b~n", [Failed]),
     AutoSkipped > 0 andalso print(standard_error, "  auto-skipped: ~b~n", [AutoSkipped]).
+
+write_stats_into_vars_file(Stats) ->
+    file:write_file("/tmp/ct_stats_vars", [format_stats_as_vars(Stats)]).
+
+format_stats_as_vars({Ok, Failed, UserSkipped, AutoSkipped}) ->
+    io_lib:format("CT_COUNTER_OK=~p~n"
+                  "CT_COUNTER_FAILED=~p~n"
+                  "CT_COUNTER_USER_SKIPPED=~p~n"
+                  "CT_COUNTER_AUTO_SKIPPED=~p~n",
+                  [Ok, Failed, UserSkipped, AutoSkipped]).
 
 %% Fail if there are failed test cases, auto skipped cases,
 %% or the number of passed tests is 0 (which is also strange - a misconfiguration?).
