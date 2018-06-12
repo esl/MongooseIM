@@ -120,15 +120,21 @@ COUNTERS_FILE=/tmp/ct_stats_vars
 COUNTERS_BODY=""
 if [ -f "$COUNTERS_FILE" ]; then
     . "$COUNTERS_FILE"
-    COUNTERS_BODY="OK: $CT_COUNTER_OK "
+    COUNTERS_BODY="**OK: $CT_COUNTER_OK** "
     if [ "$CT_COUNTER_FAILED" != "0" ]; then
-        COUNTERS_BODY="$COUNTERS_BODY/ Failed: $CT_COUNTER_FAILED "
+        COUNTERS_BODY="$COUNTERS_BODY/ **Failed: $CT_COUNTER_FAILED** "
+    else
+        COUNTERS_BODY="$COUNTERS_BODY/ Failed: 0 "
     fi
     if [ "$CT_COUNTER_USER_SKIPPED" != "0" ]; then
-        COUNTERS_BODY="$COUNTERS_BODY/ User-skipped: $CT_COUNTER_USER_SKIPPED "
+        COUNTERS_BODY="$COUNTERS_BODY/ **User-skipped: $CT_COUNTER_USER_SKIPPED** "
+    else
+        COUNTERS_BODY="$COUNTERS_BODY/ User-skipped: 0 "
     fi
     if [ "$CT_COUNTER_AUTO_SKIPPED" != "0" ]; then
-        COUNTERS_BODY="$COUNTERS_BODY/ Auto-skipped: $CT_COUNTER_AUTO_SKIPPED "
+        COUNTERS_BODY="$COUNTERS_BODY/ **Auto-skipped: $CT_COUNTER_AUTO_SKIPPED** "
+    else
+        COUNTERS_BODY="$COUNTERS_BODY/ Auto-skipped: 0 "
     fi
     COUNTERS_BODY="$COUNTERS_BODY"$'\n'
 fi
