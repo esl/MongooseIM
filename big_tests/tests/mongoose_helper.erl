@@ -266,12 +266,6 @@ logout_user(Config, User) ->
             end
     end.
 
-wait_until(Predicate, Attempts, Sleeptime) ->
-    wait_until(Predicate, true, Attempts, Sleeptime).
-
-wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
-    wait_until(Fun, ExpectedValue, Attempts, SleepTime, [], fun(E) -> E end).
-
 % @doc Waits for `Fun` to return `ExpectedValue`.
 % Each time Different value is returned or
 % functions throws an error, we sleep.
@@ -284,7 +278,15 @@ factor_backoff(Fun, ExpectedValue, #{attempts := Attempts,
                                                                   min(E * 2, Maxtime)
                                                           end).
 
-wait_until(_Fun, _ExpectedValue, 0, _SleepTime, History, _NextSleepTimeFun) ->
+wait_until(Predicate, Attempts, Sleeptime) ->
+    wait_until(Predicate, true, Attempts, Sleeptime).
+
+wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
+    wait_until(Fun, ExpectedValue, Attempts, SleepTime, [], fun(E) -> E end).
+
+
+wait_until(_Fun, _ExpectedValue, 0, _SleepTime,
+           History, _NextSleepTimeFun) ->
     error({badmatch, History});
 wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History, NextSleepTimeFun) ->
     try case Fun() of
