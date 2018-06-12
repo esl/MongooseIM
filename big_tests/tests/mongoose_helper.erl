@@ -297,12 +297,11 @@ do_wait_until(Fun, ExpectedValue, #{attempts := AttemptsLeft,
                                     sleep_time := SleepTime,
                                     history := History,
                                     next_sleep_time_fun := NextSleepTimeFun} = State) ->
-    try case Fun() of
-            ExpectedValue ->
-                ok;
-            OtherValue ->
-                wait_and_continue(Fun, ExpectedValue, OtherValue, State)
-        end
+    try Fun() of
+        ExpectedValue ->
+            ok;
+        OtherValue ->
+            wait_and_continue(Fun, ExpectedValue, OtherValue, State)
     catch Error:Reason ->
               wait_and_continue(Fun, ExpectedValue, {Error, Reason}, State)
     end.
