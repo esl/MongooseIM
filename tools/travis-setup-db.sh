@@ -7,14 +7,11 @@
 # https://store.docker.com/editions/community/docker-ce-desktop-mac
 
 set -e
-
 TOOLS=`dirname $0`
 
 source tools/travis-common-vars.sh
 
 MIM_PRIV_DIR=${BASE}/priv
-
-DB_CONF_DIR=${BASE}/${TOOLS}/db_configs/$DB
 
 MYSQL_DIR=/etc/mysql/conf.d
 
@@ -103,7 +100,13 @@ SQL_TEMP_DIR="$SQL_ROOT_DIR/temp"
 SQL_DATA_DIR="$SQL_ROOT_DIR/data"
 mkdir -p "$SQL_TEMP_DIR" "$SQL_DATA_DIR"
 
-if [ "$DB" = 'mysql' ]; then
+function setup_db(){
+db=${1:-none}
+echo "Setting up db: $db"
+DB_CONF_DIR=${BASE}/${TOOLS}/db_configs/$db
+
+
+if [ "$db" = 'mysql' ]; then
     echo "Configuring mysql"
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
@@ -127,7 +130,7 @@ if [ "$DB" = 'mysql' ]; then
         -p 3306:3306 --name=mongooseim-mysql \
         mysql --default-authentication-plugin=mysql_native_password
 
-elif [ "$DB" = 'pgsql' ]; then
+elif [ "$db" = 'pgsql' ]; then
     # If you see "certificate verify failed" error in Mongoose logs, try:
     # Inside tools/ssl/:
     # make clean && make
@@ -150,7 +153,7 @@ elif [ "$DB" = 'pgsql' ]; then
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
     install_odbc_ini
 
-elif [ "$DB" = 'riak' ]; then
+elif [ "$db" = 'riak' ]; then
     echo "Configuring Riak with SSL"
     docker rm -f mongooseim-riak || echo "Skip removing previous container"
     # Instead of docker run, use "docker create" + "docker start".
@@ -195,7 +198,7 @@ elif [ "$DB" = 'riak' ]; then
     # Use this command to read Riak's logs if something goes wrong
     # docker exec -it mongooseim-riak bash -c 'tail -f /var/log/riak/*'
 
-elif [ "$DB" = 'cassandra' ]; then
+elif [ "$db" = 'cassandra' ]; then
     docker image pull cassandra:${CASSANDRA_VERSION}
     docker rm -f mongooseim-cassandra mongooseim-cassandra-proxy || echo "Skip removing previous container"
 
@@ -247,7 +250,7 @@ elif [ "$DB" = 'cassandra' ]; then
                        sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
     done
 
-elif [ "$DB" = 'elasticsearch' ]; then
+elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
     ELASTICSEARCH_PORT=9200
     ELASTICSEARCH_NAME=mongoooseim-elasticsearch
@@ -274,7 +277,7 @@ elif [ "$DB" = 'elasticsearch' ]; then
     (curl -X PUT $ELASTICSEARCH_URL/muc_messages -d "@$ELASTICSEARCH_MUC_MAPPING" -w "status: %{http_code}" | grep "status: 200" > /dev/null) || \
         echo "Failed to put MUC mapping into ElasticSearch"
 
-elif [ "$DB" = 'mssql' ]; then
+elif [ "$db" = 'mssql' ]; then
     # LICENSE STUFF, IMPORTANT
     #
     # SQL Server Developer edition
@@ -343,3 +346,12 @@ elif [ "$DB" = 'mssql' ]; then
 else
     echo "Skip setting up database"
 fi
+}
+
+# The DB env var may contain single value "mysql"
+# or list of values separated with a space "elasticsearch cassandra"
+# in case of list of values all listed database will be set up (or at least tried)
+
+for db in ${DB}; do
+    setup_db $db
+done
