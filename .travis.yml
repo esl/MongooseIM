@@ -17,6 +17,7 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
+        - pip install --user awscli
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
@@ -81,7 +82,7 @@ jobs:
       env:
         - SKIP_REPORT_UPLOAD=1 SKIP_COV=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
       after_success:
-        - echo "need to upload artifacts to s3"
+        - tools/travis-upload-build-artifacts-to-s3.sh
     - stage: test
       before_install:
         - echo "I wonder when this is run"
