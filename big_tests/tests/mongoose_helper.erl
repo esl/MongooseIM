@@ -272,7 +272,9 @@ wait_until(Predicate, Attempts, Sleeptime) ->
 wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
     wait_until(Fun, ExpectedValue, Attempts, SleepTime, [], fun(E) -> E end).
 
-factor_backoff(Fun, ExpectedValue, #{attempts := Attempts, min_time := Mintime, max_time := Maxtime}) ->
+factor_backoff(Fun, ExpectedValue, #{attempts := Attempts,
+                                     min_time := Mintime,
+                                     max_time := Maxtime}) ->
     wait_until(Fun, ExpectedValue, Attempts, Mintime, [], fun(E) ->
                                                                   min(E * 2, Maxtime)
                                                           end).
