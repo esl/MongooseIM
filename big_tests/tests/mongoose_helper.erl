@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/3, wait_until/4, factor_backoff/5]).
+-export([wait_until/3, wait_until/4, factor_backoff/3]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,

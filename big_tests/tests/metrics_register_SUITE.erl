@@ -30,7 +30,7 @@
 -import(metrics_helper, [assert_counter/2,
                          get_counter_value/1]).
 
--import(mongoose_helper, [factor_backoff/5]).
+-import(mongoose_helper, [factor_backoff/3]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
