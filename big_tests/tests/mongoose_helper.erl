@@ -272,6 +272,11 @@ wait_until(Predicate, Attempts, Sleeptime) ->
 wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
     wait_until(Fun, ExpectedValue, Attempts, SleepTime, [], fun(E) -> E end).
 
+% @doc Waits for `Fun` to return `ExpectedValue`.
+% Each time Different value is returned or
+% functions throws an error, we sleep.
+% Sleep time is 2x longer each try
+% but not longer than `max_time`
 factor_backoff(Fun, ExpectedValue, #{attempts := Attempts,
                                      min_time := Mintime,
                                      max_time := Maxtime}) ->
