@@ -333,6 +333,9 @@ elif [ "$DB" = 'mssql' ]; then
         -Q "CREATE DATABASE ejabberd"
     docker exec -it mongoose-mssql \
         /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
+        -Q "ALTER DATABASE ejabberd SET READ_COMMITTED_SNAPSHOT ON"
+    docker exec -it mongoose-mssql \
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
         -i mongoose.sql
 
     install_odbc_ini

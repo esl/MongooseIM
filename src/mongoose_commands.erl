@@ -356,7 +356,8 @@ execute_command(Caller, Command, Args) ->
         caller_jid_mismatch ->
             {error, denied, <<"Caller ids do not match">>};
         X:E ->
-            ?ERROR_MSG("Caught ~p:~p while executing ~p", [X, E, Command#mongoose_command.name]),
+            ?ERROR_MSG("Caught ~p:~p while executing ~p stacktrace=~p",
+                       [X, E, Command#mongoose_command.name, erlang:get_stacktrace()]),
             {error, internal, term_to_binary(E)}
     end.
 

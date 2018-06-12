@@ -26,6 +26,8 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(muc_light_helper, [stanza_create_room/3]).
+
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -63,6 +65,7 @@ init_per_suite(Config) ->
               true -> odbc;
               false -> mnesia
             end,
+
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
         [{host, binary_to_list(muc_light_domain())},
          {rooms_in_rosters, true}, {backend, Backend}]),
@@ -110,20 +113,22 @@ create_identifiable_room(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Domain = <<"localhost">>,
         Path = <<"/muc-lights", $/, Domain/binary>>,
+        RandBits = base16:encode(crypto:strong_rand_bytes(5)),
         Name = <<"wonderland">>,
-        Body = #{ id => <<"just_some_id">>,
+        RoomID = <<"just_some_id_", RandBits/binary>>,
+        RoomIDescaped = escalus_utils:jid_to_lower(RoomID),
+        Body = #{ id => RoomID,
                   name => Name,
                   owner => escalus_client:short_jid(Alice),
                   subject => <<"Lewis Carol">>
                 },
-        {{<<"201">>, _},
-         <<"just_some_id", $@, MUCLightDomain/binary>>
-        } = rest_helper:putt(admin, Path, Body),
+        {{<<"201">>, _}, RoomJID} = rest_helper:putt(admin, Path, Body),
         [Item] = get_disco_rooms(Alice),
+        [RoomIDescaped, MUCLightDomain] = binary:split(RoomJID, <<"@">>),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
         true = is_room_domain(MUCLightDomain, Item),
-        true = is_room_id(<<"just_some_id">>, Item)
+        true = is_room_id(RoomIDescaped, Item)
     end).
 
 invite_to_room(Config) ->
@@ -167,6 +172,11 @@ send_message_to_room(Config) ->
         %% XMPP: Alice creates a room.
         escalus:send(Alice, stanza_create_room(undefined,
             [{<<"roomname">>, Name}], [{Bob, member}, {Kate, member}])),
+        %% XMPP: Alice gets her own affiliation info
+        escalus:wait_for_stanza(Alice),
+        %% XMPP: And Alice gets IQ result
+        CreationResult = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_iq_result, CreationResult),
         %% XMPP: Get Bob and Kate recieve their affiliation information.
         [ escalus:wait_for_stanza(U) || U <- [Bob, Kate] ],
         %% HTTP: Alice sends a message to the MUC room.
@@ -194,7 +204,7 @@ delete_room_by_non_owner(Config) ->
                         [{alice, 1}, {bob, 1}, {kate, 1}],
                         fun(Alice, Bob, Kate)->
                                 {{<<"403">>, <<"Forbidden">>},
-                                 <<"Command not available for this user">>} = 
+                                 <<"Command not available for this user">>} =
                                     check_delete_room(Config, RoomName, RoomName,
                                                       Alice, [Bob, Kate], Bob)
                         end).
@@ -262,10 +272,17 @@ member_is_affiliated(Stanza, User) ->
 check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
                   RoomMembers, UserToExecuteDelete) ->
     Domain = muc_light_domain(),
+    Members = [{Member, member} || Member <- RoomMembers],
     escalus:send(RoomOwner, stanza_create_room(undefined,
                                            [{<<"roomname">>, RoomNameToCreate}],
-                                           [{Member, member} || Member <- RoomMembers])),
-    [escalus:wait_for_stanza(Member) || Member <- [RoomOwner] ++ RoomMembers],
+                                           Members)),
+    %% XMPP RoomOwner gets affiliation and IQ result
+    Affiliations = [{RoomOwner, owner} | Members],
+    muc_light_helper:verify_aff_bcast([{RoomOwner, owner}], Affiliations),
+    %% and now RoomOwner gets IQ result
+    CreationResult = escalus:wait_for_stanza(RoomOwner),
+    escalus:assert(is_iq_result, CreationResult),
+    muc_light_helper:verify_aff_bcast(Members, Affiliations),
     ShortJID = escalus_client:short_jid(UserToExecuteDelete),
     Path = <<"/muc-lights",$/,Domain/binary,$/,
              RoomNameToDelete/binary,$/,ShortJID/binary,$/,"management">>,
@@ -278,24 +295,4 @@ check_delete_room(Config, RoomNameToCreate, RoomNameToDelete, RoomOwner,
 muc_light_domain() ->
     XMPPParentDomain = ct:get_config({hosts, mim, domain}),
     <<"muclight", ".", XMPPParentDomain/binary>>.
-
-
-stanza_create_room(RoomNode, InitConfig, InitOccupants) ->
-    ToBinJID = case RoomNode of
-                   undefined -> muc_light_domain();
-                   _ -> <<RoomNode/binary, $@, (muc_light_domain())/binary>>
-               end,
-    ConfigItem = #xmlel{ name = <<"configuration">>,
-        children = [ kv_el(K, V) || {K, V} <- InitConfig ] },
-    OccupantsItems = [ #xmlel{ name = <<"user">>,
-        attrs = [{<<"affiliation">>, BinAff}],
-        children = [#xmlcdata{ content = BinJID }] }
-        || {BinJID, BinAff} <- muc_light_helper:bin_aff_users(InitOccupants) ],
-    OccupantsItem = #xmlel{ name = <<"occupants">>, children = OccupantsItems },
-    escalus_stanza:to(escalus_stanza:iq_set(<<"urn:xmpp:muclight:0#create">>,
-                                            [ConfigItem, OccupantsItem]),
-                      ToBinJID).
-
-kv_el(K, V) ->
-    #xmlel{ name = K, children = [ #xmlcdata{ content = V } ] }.
 
