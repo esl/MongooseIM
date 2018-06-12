@@ -143,12 +143,10 @@ publish_chat_msg_event(Channel, RoutingKey, #{from_jid := From,
 -spec publish(Channel :: pid(), Exchange :: binary(), RoutingKey :: binary(),
               Message :: binary(), Host :: jid:server()) -> term().
 publish(Channel, Exchange, RoutingKey, Message, Host) ->
-    {PublishTime, _} = timer:tc(amqp_channel, call,
-                                [Channel,
-                                 #'basic.publish'{exchange = Exchange,
-                                                  routing_key = RoutingKey},
-                                 #amqp_msg{payload = Message}]),
-    case amqp_channel:wait_for_confirms(Channel) of
+    {PublishTime, Result} =
+        timer:tc(fun publish_message_and_wait_for_confirm/4,
+                 [Channel, Exchange, RoutingKey, Message]),
+    case Result of
         true ->
             mongoose_metrics:update(Host, ?MESSAGES_PUBLISHED_METRIC, 1),
             mongoose_metrics:update(Host, ?MESSAGE_PUBLISH_TIME_METRIC,
@@ -188,6 +186,16 @@ make_chat_msg(From, To, UserMsg) ->
 -spec is_user_online(online | offline) -> boolean().
 is_user_online(online) -> true;
 is_user_online(offline) -> false.
+
+-spec publish_message_and_wait_for_confirm(Channel :: pid(),
+                                           Exchange :: binary(),
+                                           RoutingKey :: binary(),
+                                           Message :: binary()) -> term().
+publish_message_and_wait_for_confirm(Channel, Exchange, RoutingKey, Message) ->
+    amqp_channel:call(Channel, #'basic.publish'{exchange = Exchange,
+                                                routing_key = RoutingKey},
+                      #amqp_msg{payload = Message}),
+    amqp_channel:wait_for_confirms(Channel).
 
 -spec establish_rabbit_connection(Opts :: #amqp_params_network{},
                                   Host :: jid:server()) -> ok.
