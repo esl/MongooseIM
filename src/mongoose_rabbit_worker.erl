@@ -150,7 +150,7 @@ publish(Channel, Exchange, RoutingKey, Message, Host) ->
                                  #amqp_msg{payload = Message}]),
     case amqp_channel:wait_for_confirms(Channel) of
         true ->
-            mongoose_metrics:update(Host, ?MESSAGES_PUBLISH_METRIC, 1),
+            mongoose_metrics:update(Host, ?MESSAGES_PUBLISHED_METRIC, 1),
             mongoose_metrics:update(Host, ?MESSAGE_PUBLISH_TIME_METRIC,
                                     PublishTime),
             mongoose_metrics:update(Host, ?MESSAGE_PAYLOAD_SIZE_METRIC,

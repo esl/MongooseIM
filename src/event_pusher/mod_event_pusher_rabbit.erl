@@ -186,7 +186,7 @@ exchanges(Host) ->
 initialize_metrics(Host) ->
     [mongoose_metrics:ensure_metric(Host, Name, Type)
      || {Name, Type} <- [{?RABBIT_CONNECTIONS_METRIC, spiral},
-                         {?MESSAGES_PUBLISH_METRIC, spiral},
+                         {?MESSAGES_PUBLISHED_METRIC, spiral},
                          {?MESSAGES_FAILED_METRIC, spiral},
                          {?MESSAGES_TIMEOUT_METRIC, spiral},
                          {?MESSAGE_PUBLISH_TIME_METRIC, histogram},
