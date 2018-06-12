@@ -274,42 +274,50 @@ logout_user(Config, User) ->
 factor_backoff(Fun, ExpectedValue, #{attempts := Attempts,
                                      min_time := Mintime,
                                      max_time := Maxtime}) ->
-    wait_until(Fun, ExpectedValue, Attempts, Mintime, [], fun(E) ->
+    do_wait_until(Fun, ExpectedValue, #{attempts => Attempts,
+                                        sleep_time => Mintime,
+                                        history => [],
+                                        next_sleep_time_fun => fun(E) ->
                                                                   min(E * 2, Maxtime)
-                                                          end).
+                                                          end}).
 
 wait_until(Predicate, Attempts, Sleeptime) ->
     wait_until(Predicate, true, Attempts, Sleeptime).
 
 wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
-    wait_until(Fun, ExpectedValue, Attempts, SleepTime, [], fun(E) -> E end).
+    do_wait_until(Fun, ExpectedValue, #{attempts => Attempts,
+                                        sleep_time => SleepTime,
+                                        history => [],
+                                        next_sleep_time_fun => fun(E) -> E end}).
 
 
-wait_until(_Fun, _ExpectedValue, 0, _SleepTime,
-           History, _NextSleepTimeFun) ->
+do_wait_until(_Fun, _ExpectedValue, #{attempts := 0, history := History}) ->
     error({badmatch, History});
-wait_until(Fun, ExpectedValue, AttemptsLeft, SleepTime, History, NextSleepTimeFun) ->
+do_wait_until(Fun, ExpectedValue, #{attempts := AttemptsLeft,
+                                    sleep_time := SleepTime,
+                                    history := History,
+                                    next_sleep_time_fun := NextSleepTimeFun} = State) ->
     try case Fun() of
             ExpectedValue ->
                 ok;
             OtherValue ->
-                timer:sleep(SleepTime),
-                wait_until(Fun,
-                           ExpectedValue,
-                           dec_attempts(AttemptsLeft),
-                           NextSleepTimeFun(SleepTime),
-                           [OtherValue | History],
-                           NextSleepTimeFun)
+                wait_and_continue(Fun, ExpectedValue, OtherValue, State)
         end
     catch Error:Reason ->
-              timer:sleep(SleepTime),
-              wait_until(Fun,
-                         ExpectedValue,
-                         dec_attempts(AttemptsLeft),
-                         NextSleepTimeFun(SleepTime),
-                         [{Error, Reason} | History],
-                         NextSleepTimeFun)
+              wait_and_continue(Fun, ExpectedValue, {Error, Reason}, State)
     end.
+
+wait_and_continue(Fun, ExpectedValue, FunResult, #{attempts := AttemptsLeft,
+                                                   sleep_time := SleepTime,
+                                                   next_sleep_time_fun := NextSleepTimeFun,
+                                                   history := History} = State) ->
+    timer:sleep(SleepTime),
+    do_wait_until(Fun,
+                  ExpectedValue,
+                  State#{attempts => dec_attempts(AttemptsLeft),
+                         sleep_time => NextSleepTimeFun(SleepTime),
+                         history => [FunResult | History]}).
+
 
 
 dec_attempts(infinity) -> infinity;
