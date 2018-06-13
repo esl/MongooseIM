@@ -128,6 +128,11 @@ as well. Provided metrics:
   * `message_payload_size` - size of a messages (in bytes) that was published to
   a RabbitMQ server
 
+> All the above metrics have a prefix which looks as follows:  
+> `mongooseim.<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
+> For example a proper metric name would look like:
+> `mongooseim.localhost.backends.mod_event_pusher_rabbit.rabbit_connections_active`
+
 ### Current status
 
 This module is still in an experimental phase.
@@ -149,8 +154,8 @@ other hand it can cause performance degratation.
 
 ### Worker selection strategy
 
-`avaiable_worker` strategy is in use. Different strategies imply different
-behaviours of the system.
+The module uses `wpool` library for managing worker processes  and `avaiable_worker`
+strategy is in use. Different strategies imply different behaviours of the system.
 
 #### Event messages queueing
 
