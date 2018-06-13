@@ -172,8 +172,8 @@ delayed_receive(Config) ->
         [{alice, 1}, {bob, 1}],
         fun(Alice, Bob) ->
             pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
-            make_friends(Bob, Alice),
-            Message = escalus:wait_for_stanza(Bob),
+            [Message] = make_friends(Bob, Alice),
+            ct:pal("Message: ~p", [Message]),
             pubsub_tools:check_item_notification(
                 Message, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
             ok
@@ -191,13 +191,12 @@ delayed_receive_with_sm(Config) ->
               enable_sm(Alice),
               enable_sm(Bob),
               publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
-              make_friends(Bob, Alice, sm),
-              Message = escalus:wait_for_stanza(Bob),
+              [Message] = make_friends(Bob, Alice),
+              ct:pal("Message: ~p", [Message]),
               pubsub_tools:check_item_notification(Message,
                                                    <<"item2">>,
                                                    {escalus_utils:get_short_jid(Alice), NodeNS},
                                                    []),
-              Message = 1,
               ok
       end).
 
@@ -378,21 +377,16 @@ make_friends(Bob, Alice) ->
     % makes uni-directional presence subscriptions
     % returns stanzas received finally by the inviter
     send_presence(Bob, <<"subscribe">>, Alice),
-    escalus:wait_for_stanzas(Bob, 1),
-    escalus:wait_for_stanzas(Alice, 1),
     send_presence(Alice, <<"subscribed">>, Bob),
-    escalus:wait_for_stanzas(Bob, 3),
-    escalus:wait_for_stanzas(Alice, 1).
-
-make_friends(Bob, Alice, sm) ->
-    % makes uni-directional presence subscriptions
-    % returns stanzas received finally by the inviter
-    send_presence(Bob, <<"subscribe">>, Alice),
-    escalus:wait_for_stanzas(Bob, 2),
-    escalus:wait_for_stanzas(Alice, 2),
-    send_presence(Alice, <<"subscribed">>, Bob),
-    escalus:wait_for_stanzas(Bob, 6),
-    escalus:wait_for_stanzas(Alice, 2).
+    escalus:wait_for_stanzas(Alice, 10, 200),
+    BobStanzas = escalus:wait_for_stanzas(Bob, 10, 200),
+    lists:filter(fun(S) -> N = S#xmlel.name,
+        ct:pal("N: ~p", [N]),
+                           N =/= <<"iq">>
+                             andalso N =/= <<"presence">>
+                             andalso N =/= <<"r">>
+                 end,
+                 BobStanzas).
 
 publish_with_sm(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
