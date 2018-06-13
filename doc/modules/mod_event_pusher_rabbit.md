@@ -161,7 +161,7 @@ possiblity to change the worker strategy for now.
 
 #### Event messages ordering
 
-`available_worker` strategy ensures that user events will be delivered to
+`available_worker` strategy does not ensure that user events will be delivered to
 a RabbitMQ server properly ordered in time.
 
 [mod_event_pusher]: ./mod_event_pusher.md
