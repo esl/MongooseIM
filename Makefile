@@ -4,6 +4,7 @@ RUN=./tools/silent_exec.sh "$@.log"
 XEP_TOOL = tools/xep_tool
 EBIN = ebin
 DEVNODES = mim1 mim2 mim3 fed1 reg1
+REBAR=./rebar3
 
 # Top-level targets aka user interface
 
@@ -16,14 +17,14 @@ clean:
 
 ct:
 	@(if [ "$(SUITE)" ]; \
-		then $(RUN) ./rebar3 ct --dir test --suite $(SUITE) ; \
-		else $(RUN) ./rebar3 ct ; fi)
+		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) ; \
+		else $(RUN) $(REBAR) ct ; fi)
 
 rel: certs configure.out rel/vars.config
-	. ./configure.out && ./rebar3 as prod release
+	. ./configure.out && $(REBAR) as prod release
 
 shell: certs etc/ejabberd.cfg
-	./rebar3 shell
+	$(REBAR) shell
 
 # Top-level targets' dependency chain
 
@@ -48,7 +49,7 @@ devrel: $(DEVNODES)
 $(DEVNODES): certs configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
-	DEVNODE=true $(RUN) ./rebar3 as $@ release)
+	DEVNODE=true $(RUN) $(REBAR) as $@ release)
 
 certs: tools/ssl/ca/cacert.pem \
        tools/ssl/fake_cert.pem \
