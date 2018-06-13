@@ -22,6 +22,8 @@
          pep_caps_test/1,
          publish_and_notify_test/1,
          send_caps_after_login_test/1,
+         delayed_receive/1,
+         delayed_receive_with_sm/1,
          h_ok_after_notify_test/1,
          authorize_access_model/1,
          unsubscribe_after_presence_unsubscription/1
@@ -51,6 +53,8 @@ groups() ->
            pep_caps_test,
            publish_and_notify_test,
            send_caps_after_login_test,
+           delayed_receive,
+           delayed_receive_with_sm,
            h_ok_after_notify_test,
            authorize_access_model,
            unsubscribe_after_presence_unsubscription
@@ -155,6 +159,46 @@ send_caps_after_login_test(Config) ->
                 Bob, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
 
               [] = escalus_client:peek_stanzas(Bob)
+        end).
+
+delayed_receive(Config) ->
+%%    if alice publishes an item and then bob subscribes successfully to her presence
+%%    then bob will receive the item right after final subscription stanzas
+    NodeNS = random_node_ns(),
+    escalus:fresh_story(
+        [{escalus_overrides,
+            [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
+            | Config],
+        [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
+            make_friends(Bob, Alice),
+            Message = escalus:wait_for_stanza(Bob),
+            pubsub_tools:check_item_notification(
+                Message, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
+            ok
+        end).
+
+delayed_receive_with_sm(Config) ->
+%%    Same as delayed_receive but with stream management turned on
+    NodeNS = random_node_ns(),
+    escalus:fresh_story(
+        [{escalus_overrides,
+            [{initial_activity, {?MODULE, send_initial_presence_with_caps, [NodeNS]}}]}
+            | Config],
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              enable_sm(Alice),
+              enable_sm(Bob),
+              publish_with_sm(Alice, <<"item2">>, {pep, NodeNS}, []),
+              make_friends(Bob, Alice, sm),
+              Message = escalus:wait_for_stanza(Bob),
+              pubsub_tools:check_item_notification(Message,
+                                                   <<"item2">>,
+                                                   {escalus_utils:get_short_jid(Alice), NodeNS},
+                                                   []),
+              Message = 1,
+              ok
       end).
 
 h_ok_after_notify_test(ConfigIn) ->
@@ -325,3 +369,48 @@ caps_hash(PEPNodeNS) ->
 caps_node_name() ->
     <<"http://www.chatopus.com">>.
 
+send_presence(From, Type, To) ->
+    ToJid = escalus_client:short_jid(To),
+    Stanza = escalus_stanza:presence_direct(ToJid, Type),
+    escalus_client:send(From, Stanza).
+
+make_friends(Bob, Alice) ->
+    % makes uni-directional presence subscriptions
+    % returns stanzas received finally by the inviter
+    send_presence(Bob, <<"subscribe">>, Alice),
+    escalus:wait_for_stanzas(Bob, 1),
+    escalus:wait_for_stanzas(Alice, 1),
+    send_presence(Alice, <<"subscribed">>, Bob),
+    escalus:wait_for_stanzas(Bob, 3),
+    escalus:wait_for_stanzas(Alice, 1).
+
+make_friends(Bob, Alice, sm) ->
+    % makes uni-directional presence subscriptions
+    % returns stanzas received finally by the inviter
+    send_presence(Bob, <<"subscribe">>, Alice),
+    escalus:wait_for_stanzas(Bob, 2),
+    escalus:wait_for_stanzas(Alice, 2),
+    send_presence(Alice, <<"subscribed">>, Bob),
+    escalus:wait_for_stanzas(Bob, 6),
+    escalus:wait_for_stanzas(Alice, 2).
+
+publish_with_sm(User, ItemId, Node, Options) ->
+    Id = id(User, Node, <<"publish">>),
+    Request = case proplists:get_value(with_payload, Options, true) of
+                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
+              end,
+    escalus_client:send(User, Request),
+    escalus:wait_for_stanzas(User, 2).
+
+id(User, {NodeAddr, NodeName}, Suffix) ->
+    UserName = escalus_utils:get_username(User),
+    list_to_binary(io_lib:format("~s-~s-~s-~s", [UserName, NodeAddr, NodeName, Suffix])).
+
+item_content() ->
+    #xmlel{name = <<"entry">>,
+        attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}]}.
+
+enable_sm(User) ->
+    escalus_client:send(User, escalus_stanza:enable_sm()),
+    #xmlel{name = <<"enabled">>} = escalus:wait_for_stanza(User).

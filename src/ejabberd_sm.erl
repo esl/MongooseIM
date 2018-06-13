@@ -131,9 +131,18 @@ start_link() ->
       Packet :: exml:element() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    route(From, To, mongoose_acc:from_element(Packet, From, To));
+    Acc0 = mongoose_acc:from_element(Packet, From, To),
+    Acc1 = mongoose_acc:update(Acc0,
+                              #{user => From#jid.luser,
+                                server => From#jid.lserver}),
+    route(From, To, Acc1);
 route(From, To, {broadcast, Payload}) ->
-    route(From, To, mongoose_acc:new(), {broadcast, Payload});
+    Acc0 = mongoose_acc:new(),
+    Acc1 = mongoose_acc:update(Acc0,
+                               #{user => From#jid.luser,
+                                 server => From#jid.lserver,
+                                 type => undefined}),
+    route(From, To, Acc1, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:get(element, Acc)).
 

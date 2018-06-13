@@ -114,8 +114,12 @@ start_link() ->
     Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
+    Acc0 = mongoose_acc:from_element(Packet, From, To),
+    Acc1 = mongoose_acc:update(Acc0,
+                               #{user => From#jid.luser,
+                                 server => From#jid.lserver}),
     % (called by broadcasting)
-    route(From, To, mongoose_acc:from_element(Packet, From, To));
+    route(From, To, Acc1);
 route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Acc]),
