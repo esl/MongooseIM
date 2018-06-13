@@ -989,9 +989,9 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
     case ets:lookup(sm_iqtable, {XMLNS, Host}) of
         [{_, Module, Function}] ->
             case Module:Function(From, To, IQ) of
-                ignore -> ok;
-                ResIQ ->
-                    ejabberd_router:route(To, From, Acc,
+                {_Acc, ignore} -> ok;
+                {Acc1, ResIQ} ->
+                    ejabberd_router:route(To, From, Acc1,
                         jlib:iq_to_xml(ResIQ))
             end;
         [{_, Module, Function, Opts}] ->

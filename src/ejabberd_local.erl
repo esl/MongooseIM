@@ -102,8 +102,8 @@ process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
         [{_, Module, Function}] ->
             case Module:Function(From, To, IQ) of
-                ignore -> ok;
-                ResIQ -> ejabberd_router:route(To, From, Acc, jlib:iq_to_xml(ResIQ))
+                {_Acc, ignore} -> ok;
+                {Acc1, ResIQ} -> ejabberd_router:route(To, From, Acc1, jlib:iq_to_xml(ResIQ))
             end;
         [{_, Module, Function, Opts}] ->
             gen_iq_handler:handle(Host, Module, Function, Opts,
