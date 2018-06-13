@@ -102,6 +102,7 @@ get-deps:
 	$(RUN) $(REBAR) get-deps
 
 clean:
+	-@rm -rf _build
 	-@rm priv/ssl/*
 	-@rm -rf tests/*.beam > /dev/null 2>&1
 	-@$(REBAR) clean > /dev/null 2>&1
