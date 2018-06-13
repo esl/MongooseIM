@@ -56,7 +56,7 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
 ]}
 ```
 
-## JSON Schema examples
+### JSON Schema examples
 The different kinds of notifications deliver slightly different messages.
 The messages are delivered in a JSON format.
 #### Presence updates
