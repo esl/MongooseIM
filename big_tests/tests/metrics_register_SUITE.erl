@@ -30,6 +30,8 @@
 -import(metrics_helper, [assert_counter/2,
                          get_counter_value/1]).
 
+-import(mongoose_helper, [factor_backoff/3]).
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -93,7 +95,14 @@ register(Config) ->
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:create_user(Config, Alice),
 
-    assert_counter(Registarations + 1, modRegisterCount).
+    factor_backoff(fun() -> assert_counter(Registarations + 1, modRegisterCount) end,
+                   {value, Registarations + 1},
+                   #{
+                             attempts => 10,
+                             min_time => 30,
+                             max_time => 150
+                            }
+                  ).
 
 
 unregister(Config) ->
@@ -102,6 +111,11 @@ unregister(Config) ->
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:delete_user(Config, Alice),
 
-    %% TODO replace sleep with backoff - wait until the metric is updated
-    timer:sleep(100),
-    assert_counter(Deregistarations + 1, modUnregisterCount).
+    factor_backoff(fun() -> assert_counter(Deregistarations + 1, modUnregisterCount) end,
+                   {value, Deregistarations + 1},
+                   #{
+                             attempts => 10,
+                             min_time => 30,
+                             max_time => 150
+                            }
+                  ).
