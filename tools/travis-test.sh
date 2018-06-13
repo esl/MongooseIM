@@ -2,7 +2,8 @@
 set -o pipefail
 IFS=$'\n\t'
 
-PRESET="internal_mnesia"
+DEFAULT_PRESET=internal_mnesia
+PRESET=${PRESET:-$DEFAULT_PRESET}
 SMALL_TESTS="true"
 START_SERVICES="true"
 COVER_ENABLED="true"

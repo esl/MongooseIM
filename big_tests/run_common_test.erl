@@ -79,6 +79,7 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
     run_test(tests_to_run(Spec), case Preset of
                                      all -> all;
                                      undefined -> all;
+                                     _ when is_list(Preset) -> Preset;
                                      _   -> [Preset]
                                  end, Cover).
 
@@ -111,7 +112,8 @@ quick_or_full("quick") -> quick;
 quick_or_full("full")  -> full.
 
 preset(undefined) -> undefined;
-preset(Preset) -> list_to_atom(Preset).
+preset(PresetList) ->
+    [list_to_atom(Preset) || Preset <- string:tokens(PresetList, " ")].
 
 read_file(ConfigFile) when is_list(ConfigFile) ->
     {ok, CWD} = file:get_cwd(),

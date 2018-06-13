@@ -57,7 +57,7 @@ cover_quicktest: $(PREPARE)
 cover_test_preset: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
 			-s run_common_test main test=full spec=$(TESTSPEC) \
-			preset=$(PRESET) cover=true
+			preset="$(PRESET)" cover=true
 
 cover_test: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
@@ -65,7 +65,7 @@ cover_test: $(PREPARE)
 
 test_preset: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
-			-s run_common_test main test=full spec=$(TESTSPEC) preset=$(PRESET)
+			-s run_common_test main test=full spec=$(TESTSPEC) preset="$(PRESET)"
 
 test: $(PREPARE)
 	$(RUN) erl -noinput $(COMMON_OPTS) $(ADD_OPTS) \
