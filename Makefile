@@ -11,6 +11,7 @@ REBAR=./rebar3
 all: rel
 
 clean:
+	-rm -rf asngen
 	-rm -rf _build
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
