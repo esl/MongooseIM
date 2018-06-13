@@ -18,6 +18,7 @@ addons:
         - muc.localhost
 before_install:
         - pip install --user awscli
+        - tools/travis-download-build-artifacts-from-s3.sh
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
@@ -84,8 +85,6 @@ jobs:
       after_success:
         - tools/travis-upload-build-artifacts-to-s3.sh
     - stage: test
-      before_install:
-        - echo "I wonder when this is run"
       script:
         - ls -la _build
         - ls -la tools/ssl
