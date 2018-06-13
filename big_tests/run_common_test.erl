@@ -302,6 +302,8 @@ analyze(Test, CoverOpts) ->
                             multicall(Nodes, mongoose_cover_helper, stop, [], cover_timeout())
                     end)
     end,
+    cover:start(),
+    deduplicate_cover_server_console_prints(),
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
@@ -586,5 +588,86 @@ handle_file_error(FileName, {error, Reason}) ->
     {error, Reason};
 handle_file_error(_FileName, Other) ->
     Other.
+
+%% ------------------------------------------------------------------
+
+%% cover_server process is using io:format too much.
+%% This code removes duplicate io:formats.
+%% Each io:format would be written only once with this group leader.
+%%
+%% Example of a message we want to write only once:
+%% "Analysis includes data from imported files" from cover.erl in Erlang/R19
+%% ------------------------------------------------------------------
+
+%% Set a new group leader for cover_server
+deduplicate_cover_server_console_prints() ->
+    CoverPid = whereis(cover_server),
+    OldGroupLeader = get_process_group_leader(CoverPid),
+    ProxyGroupLeader = start_proxy_group_leader(OldGroupLeader),
+    erlang:group_leader(ProxyGroupLeader, CoverPid),
+    ok.
+
+%% Returns group_leader of a process
+-spec get_process_group_leader(pid()) -> pid().
+get_process_group_leader(Pid) ->
+    {group_leader, GroupLeader} = erlang:process_info(Pid, group_leader),
+    GroupLeader.
+
+%% Starts a new process, that would filter out io:format duplicates.
+%% It would forward all other messages to OldGroupLeader.
+-spec start_proxy_group_leader(pid()) -> pid().
+start_proxy_group_leader(OldGroupLeader) ->
+    State = #{old_group_leader => OldGroupLeader, prev_requests => []},
+    spawn_link(fun() -> proxy_group_leader_loop(State) end).
+
+proxy_group_leader_loop(State) ->
+    receive
+        Msg ->
+            State2 = handle_proxy_group_leader_message(Msg, State),
+            proxy_group_leader_loop(State2)
+    end.
+
+handle_proxy_group_leader_message(Msg, State = #{old_group_leader := OldGroupLeader}) ->
+    {State2, Action} = filter_io_request(Msg, State),
+    case Action of
+        drop ->
+            reply_ok(Msg);
+        pass ->
+            %% OldGroupLeader would handle Msg and reply to the client directly
+            OldGroupLeader ! Msg
+    end,
+    State2.
+
+filter_io_request(Msg, State = #{prev_requests := PrevRequests}) ->
+    case request_type(Msg) of
+        put_chars ->
+            Request = unwrap_io_request(Msg),
+            case lists:member(Request, PrevRequests) of
+                true ->
+                    %% Filter out io:format duplicate call
+                    {State, drop};
+                false ->
+                    %% Allow to execute this request just once and remember it
+                    State2 = State#{prev_requests => [Request|PrevRequests]},
+                    {State2, pass}
+            end;
+        _ ->
+            %% unknown or non-relevant message
+            {State, pass}
+    end.
+
+%% Erlang IO-protocol docs
+%% http://erlang.org/doc/apps/stdlib/io_protocol.html
+request_type({io_request, _From, _ReplyAs, Request}) when is_tuple(Request) ->
+    element(1, Request);
+request_type(_) ->
+    unknown.
+
+unwrap_io_request({io_request, _From, _ReplyAs, Request}) ->
+    Request.
+
+%% Simulate reply to the client.
+reply_ok({io_request, From, ReplyAs, _Request}) ->
+    From ! {io_reply, ReplyAs, ok}.
 
 %% ------------------------------------------------------------------
