@@ -18,7 +18,7 @@ addons:
         - muc.localhost
 before_install:
         - pip install --user awscli
-        - tools/travis-download-build-artifacts-from-s3.sh
+        - if [ $PRESET != "pkg" ]; then tools/travis-download-build-artifacts-from-s3.sh; fi
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
@@ -88,11 +88,33 @@ jobs:
       script: make ct
       env:
         - PRESET=only_small_tests SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+    - stage: test
+      otp_release: 20.3
+      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip" RUN_SMALL_TESTS=true
+    - stage: test
+      otp_release: 20.3
+      env: PRESET=dialyzer_only SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+    - stage: test
+      otp_release: 18.3
+      env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak RUN_SMALL_TESTS=true
+    - stage: post tests
+      language: generic
+      env: PRESET=pkg pkg_PLATFORM=centos7
+           SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+           SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+    - stage: post tests
+      language: generic
+      env: PRESET=pkg pkg_PLATFORM=debian_stretch
+           SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+           SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+
+
 
 stages:
   - build
   - pre test
   - test
+  - post tests
 
 env:
         - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes RUN_SMALL_TESTS=false
@@ -106,24 +128,7 @@ env:
 #          #          # In case you want to test with another ODBC driver, uncomment this
 #          #      # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
 #          #
-#matrix:
-#  include:
-#          #        - otp_release: 20.0
-#          #          env: PRESET=dialyzer_only
-#          #               SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
-#    - otp_release: 20.0
-#      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip"
-#    - otp_release: 18.3
-#      env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-#          #        - language: generic
-#          #          env: PRESET=pkg pkg_PLATFORM=centos7
-#          #               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-#          #               SKIP_COV=1 SKIP_REPORT_UPLOAD=1
-#          #        - language: generic
-#          #          env: PRESET=pkg pkg_PLATFORM=debian_stretch
-#          #               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-#          #               SKIP_COV=1 SKIP_REPORT_UPLOAD=1
-#
+
 notifications:
     webhooks:
         # trigger Buildtime Trend Service to parse Travis CI log
