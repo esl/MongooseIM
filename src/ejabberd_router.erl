@@ -126,6 +126,10 @@ route(From, To, Acc) ->
     El = mongoose_acc:get(element, Acc),
     route(From, To, Acc, El, routing_modules_list()).
 
+-spec route(From   :: jid:jid(),
+            To     :: jid:jid(),
+            Acc :: mongoose_acc:t(),
+            El :: exml:element() | {error, term()}) -> mongoose_acc:t().
 route(From, To, Acc, {error, Reason}) ->
     ?INFO_MSG("event=cannot_route_stanza,from=~p,to=~p,reason=~p,acc=~p", [From, To, Reason, Acc]),
     mongoose_acc:append(errors, Reason, Acc);

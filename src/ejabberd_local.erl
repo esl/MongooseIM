@@ -90,8 +90,7 @@ start_link() ->
                  From :: jid:jid(),
                  To :: jid:jid(),
                  El :: exml:element()
-                 ) -> 'nothing' | 'ok' | 'todo' | pid()
-                    | {'error', 'lager_not_running'} | {'process_iq', _, _, _}.
+                 ) -> mongoose_acc:t().
 process_iq(Acc0, From, To, El) ->
     Acc = mongoose_acc:require(iq_query_info, Acc0),
     IQ = mongoose_acc:get(iq_query_info, Acc),
@@ -102,7 +101,7 @@ process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
         [{_, Module, Function}] ->
             case Module:Function(From, To, IQ) of
-                {_Acc, ignore} -> ok;
+                {Acc1, ignore} -> Acc1;
                 {Acc1, ResIQ} -> ejabberd_router:route(To, From, Acc1, jlib:iq_to_xml(ResIQ))
             end;
         [{_, Module, Function, Opts}] ->
@@ -116,24 +115,20 @@ process_iq(reply, Acc, From, To, El) ->
     process_iq_reply(From, To, Acc, IQReply);
 process_iq(_, Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),
-    ejabberd_router:route(To, From, Acc1, Err),
-    ok.
+    ejabberd_router:route(To, From, Acc1, Err).
 
 -spec process_iq_reply(From :: jid:jid(),
                        To :: jid:jid(),
                        mongoose_acc:t(),
-                       IQ :: jlib:iq() ) -> 'nothing' | 'ok'.
-process_iq_reply(From, To, _Acc, #iq{id = ID} = IQ) ->
-    % this is used only by mod_ping, doesn't make sense to rewrite it further
+                       IQ :: jlib:iq() ) -> mongoose_acc:t().
+process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
     case get_iq_callback(ID) of
         {ok, undefined, Function} ->
-            Function(IQ),
-            ok;
+            Function(From, To, Acc, IQ);
         {ok, Module, Function} ->
-            Module:Function(From, To, IQ),
-            ok;
+            Module:Function(From, To, Acc, IQ);
         _ ->
-            nothing
+            Acc
     end.
 
 
@@ -387,7 +382,7 @@ code_change(_OldVsn, State, _Extra) ->
 -spec do_route(Acc :: mongoose_acc:t(),
                From :: jid:jid(),
                To :: jid:jid(),
-               El :: mongoose_acc:t()) -> 'ok'.
+               El :: mongoose_acc:t()) -> mongoose_acc:t().
 do_route(Acc, From, To, El) ->
     ?DEBUG("local route~n\tfrom ~p~n\tto ~p~n\tpacket ~P~n",
            [From, To, El, 8]),
@@ -399,12 +394,12 @@ do_route(Acc, From, To, El) ->
                 <<"iq">> ->
                     process_iq(Acc, From, To, El);
                 _ ->
-                    ok
+                    Acc
             end;
         local_resource ->
             case mongoose_acc:get(type, Acc) of
-                <<"error">> -> ok;
-                <<"result">> -> ok;
+                <<"error">> -> Acc;
+                <<"result">> -> Acc;
                 _ ->
                     ejabberd_hooks:run_fold(local_send_to_resource_hook,
                                             To#jid.lserver,
@@ -457,7 +452,7 @@ process_iq_timeout() ->
         ID ->
             case get_iq_callback(ID) of
                 {ok, undefined, Function} ->
-                    Function(timeout);
+                    Function(undefined, undefined, undefined, timeout);
                 _ ->
                     ok
             end

@@ -257,10 +257,10 @@ process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _Acc, OrigPa
     end;
 process_decoded_packet(From, To, {ok, #iq{} = IQ}, Acc, OrigPacket) ->
     case mod_muc_iq:process_iq(To#jid.lserver, From, To, Acc, IQ) of
-        ignore -> ok;
-        error ->
+        {_Acc1, error} ->
             mod_muc_light_codec_backend:encode_error(
-              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3)
+              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3);
+        _ -> ok
     end;
 process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, _Acc, OrigPacket)
   when RoomU =/= <<>> ->

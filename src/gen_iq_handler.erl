@@ -116,32 +116,34 @@ stop_iq_handler(_Module, _Function, Opts) ->
 -spec handle(Host :: jid:server(), Module :: atom(), Function :: atom(),
              Opts :: options(), From :: jid:jid(), To :: jid:jid(),
              mongoose_acc:t(),
-             IQ :: jlib:iq()) -> 'ok' | 'todo' | pid() | mongoose_acc:t()
-                                  | {'error', 'lager_not_running'}
-                                  | {'process_iq', _, _, _}.
+             IQ :: jlib:iq()) -> mongoose_acc:t().
 handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
     case Opts of
         no_queue ->
             process_iq(Host, Module, Function, From, To, Acc, IQ);
         {one_queue, Pid} ->
-            Pid ! {process_iq, From, To, Acc, IQ};
+            Pid ! {process_iq, From, To, Acc, IQ},
+            Acc;
         {queues, Pids} ->
             Pid = lists:nth(erlang:phash(p1_time_compat:unique_integer(), length(Pids)), Pids),
-            Pid ! {process_iq, From, To, Acc, IQ};
+            Pid ! {process_iq, From, To, Acc, IQ},
+            Acc;
         parallel ->
-            spawn(?MODULE, process_iq, [Host, Module, Function, From, To, Acc, IQ]);
+            spawn(?MODULE, process_iq, [Host, Module, Function, From, To, Acc, IQ]),
+            Acc;
         _ ->
-            todo
+            Acc
     end.
 
 
 -spec process_iq(Host :: jid:server(), Module :: atom(), Function :: atom(),
                  From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
-                 IQ :: jlib:iq()) -> mongoose_acc:t() | {'error', 'lager_not_running'}.
+                 IQ :: jlib:iq()) -> mongoose_acc:t().
 process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
     case catch Module:Function(From, To, Acc, IQ) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]);
+            ?ERROR_MSG("~p", [Reason]),
+            Acc;
         {Acc1, ignore} ->
             Acc1;
         {Acc1, ResIQ} ->

@@ -61,9 +61,10 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
               Stanza = push_notification_iq(From, Packet, Node, Form),
               Acc = mongoose_acc:from_element(Stanza, To, PubsubJID),
               ResponseHandler =
-                  fun(Response) ->
+                  fun(_From, _To, Acc1, Response) ->
                           mod_event_pusher_push:cast(Host, handle_publish_response,
-                                                     [BareRecipient, PubsubJID, Node, Response])
+                                                     [BareRecipient, PubsubJID, Node, Response]),
+                          Acc1
                   end,
               mod_event_pusher_push:cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Acc, Stanza, ResponseHandler])
       end, Services),

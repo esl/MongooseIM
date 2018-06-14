@@ -415,8 +415,8 @@ feature_request(Acc, Host, From, Caps,
                               {ok, TS} -> now_ts() >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
-            F = fun (IQReply) ->
-                        feature_response(Acc, IQReply, Host, From, Caps,
+            F = fun (_From, _To, Acc1, IQReply) ->
+                        feature_response(Acc1, IQReply, Host, From, Caps,
                                          SubNodes)
                 end,
             case NeedRequest of

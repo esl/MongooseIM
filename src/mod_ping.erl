@@ -186,8 +186,9 @@ handle_info({timeout, _TRef, {ping, JID}},
              sub_el = [#xmlel{name = <<"ping">>,
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
     Pid = self(),
-    F = fun(Response) ->
-                gen_server:cast(Pid, {iq_pong, JID, Response})
+    F = fun(_From, _To, Acc, Response) ->
+                gen_server:cast(Pid, {iq_pong, JID, Response}),
+                Acc
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
     Acc = mongoose_acc:from_element(IQ, From, JID),
