@@ -109,13 +109,13 @@ and for "received" events:
 The module provides some metrics related to RabbitMQ connections and messages
 as well. Provided metrics:
 
-  * `rabbit_connections_active` - number of active connections to a RabbitMQ
+  * `connections_active` - number of active connections to a RabbitMQ
   server
-  * `rabbit_connections_opened` - number of opened connections to a RabbitMQ
+  * `connections_opened` - number of opened connections to a RabbitMQ
   server since module startup
-  * `rabbit_connections_closed` - number of closed connections to a RabbitMQ
+  * `connections_closed` - number of closed connections to a RabbitMQ
   server since module startup
-  * `rabbit_connections_failed` - number of failed connections to a RabbitMQ
+  * `connections_failed` - number of failed connections to a RabbitMQ
   server since module startup
   * `messages_published` - number of published messages to a RabbitMQ server
   since module startup
@@ -131,7 +131,7 @@ as well. Provided metrics:
 > All the above metrics have a prefix which looks as follows:  
 > `mongooseim.<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
 > For example a proper metric name would look like:
-> `mongooseim.localhost.backends.mod_event_pusher_rabbit.rabbit_connections_active`
+> `mongooseim.localhost.backends.mod_event_pusher_rabbit.connections_active`
 
 ### Current status
 
