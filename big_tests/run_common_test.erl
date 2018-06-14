@@ -302,6 +302,8 @@ analyze(Test, CoverOpts) ->
                             multicall(Nodes, mongoose_cover_helper, stop, [], cover_timeout())
                     end)
     end,
+    cover:start(),
+    deduplicate_cover_server_console_prints(),
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
@@ -599,3 +601,14 @@ handle_file_error(_FileName, Other) ->
     Other.
 
 %% ------------------------------------------------------------------
+
+%% cover_server process is using io:format too much.
+%% This code removes duplicate io:formats.
+%%
+%% Example of a message we want to write only once:
+%% "Analysis includes data from imported files" from cover.erl in Erlang/R19
+deduplicate_cover_server_console_prints() ->
+    %% Set a new group leader for cover_server
+    CoverPid = whereis(cover_server),
+    dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
+
