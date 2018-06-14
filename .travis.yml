@@ -89,10 +89,10 @@ jobs:
       env:
         - PRESET=only_small_tests SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
     - stage: test
-      otp_release: 20.3
+      otp_release: 20.0
       env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip" RUN_SMALL_TESTS=true
     - stage: test
-      otp_release: 20.3
+      otp_release: 20.0
       env: PRESET=dialyzer_only SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
     - stage: test
       otp_release: 18.3
@@ -117,17 +117,19 @@ stages:
   - post tests
 
 env:
-        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes RUN_SMALL_TESTS=false
-        - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis" RUN_SMALL_TESTS=false
-#          #        - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
-#          #        - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
-#          #        - PRESET=cassandra_mnesia DB=cassandra REL_CONFIG=with-cassandra CASSANDRA_VERSION=3.9
-#          #        - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
-#          #          REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
-#          #          ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
-#          #          # In case you want to test with another ODBC driver, uncomment this
-#          #      # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
-#          #
+  global:
+    - RUN_SMALL_TESTS=false
+  matrix:
+    - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
+    - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
+    - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
+    - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
+    - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
+      REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
+      ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
+    # In case you want to test with another ODBC driver, uncomment this
+    # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
+
 
 notifications:
     webhooks:
