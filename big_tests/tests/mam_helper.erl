@@ -795,6 +795,17 @@ assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) -
        X -> ct:fail({not_empty, Server, Username, {actual_size, X}})
     end.
 
+wait_for_archive_size(User, ExpectedSize) ->
+    Server = escalus_utils:get_server(User),
+    Username = escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
+    case wait_for_archive_size(Server, Username, 100, ExpectedSize) of
+		ExpectedSize ->
+			ok;
+		ArchiveSize ->
+			ct:fail({expected_archive_size, Username, Server, ExpectedSize,
+					 {actual_size, ArchiveSize}})
+	end.
+
 wait_for_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
     archive_size(Server, Username);
 wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
@@ -932,7 +943,7 @@ bootstrap_archive(Config) ->
 %% Wait for messages to be written
 wait_for_msgs(Msgs, Users) ->
     UsersCnt = [{S, U, count_msgs(Msgs, S, U)} || {S, U} <- Users],
-    [wait_for_archive_size_or_warning(S, U, 10, C) || {S, U, C} <- UsersCnt],
+    [wait_for_archive_size_or_warning(S, U, 20, C) || {S, U, C} <- UsersCnt],
     ok.
 
 count_msgs(Msgs, S, U) ->

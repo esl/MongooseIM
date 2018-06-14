@@ -35,7 +35,7 @@
          queue_lengths/1]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([init/1, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
@@ -46,13 +46,11 @@
 
 -record(state, {
     flush_interval, %% milliseconds
-    max_packet_size,
-    max_subscribers,
+    max_batch_size,
     host,
     connection_pool :: atom(),
     number,
-    acc=[],
-    subscribers=[],
+    acc = [],
     flush_interval_tref}).
 
 worker_prefix() ->
@@ -88,7 +86,7 @@ worker_number(Host, ArcID) when is_integer(ArcID) ->
 start(Host, Opts) ->
     mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
     PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
-    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_packet_size, 30),
+    MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
     mod_mam_odbc_arch:prepare_insert(insert_mam_message, 1),
     mod_mam_odbc_arch:prepare_insert(insert_mam_messages, MaxSize),
 
@@ -126,16 +124,10 @@ stop(Host) ->
 
 start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -144,16 +136,10 @@ stop_pm(Host) ->
 
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 30),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 30),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 100),
     ok.
 
 
@@ -201,7 +187,6 @@ archive_message(_Result, Host,
             gen_server:cast(Worker, {archive_message, Row});
         true ->
             {Pid, MonRef} = spawn_monitor(fun() ->
-                                                  gen_server:call(Worker, wait_flushing),
                                                   gen_server:cast(Worker, {archive_message, Row})
                                           end),
             receive
@@ -237,15 +222,12 @@ worker_queue_length(SrvName) ->
 -spec archive_size(Size :: integer(), Host :: jid:server(),
                    ArchiveID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
 archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID) ->
-    wait_flushing(Host, ArcID),
     Size.
-
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}.
 lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
     when is_integer(ArcID) ->
-    wait_flushing_before(Host, ArcID, End, Now),
     Result.
 
 %% #rh
@@ -254,26 +236,7 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
                      RoomJID :: jid:jid()) -> map().
 remove_archive(Acc, Host, ArcID, _ArcJID)
     when is_integer(ArcID) ->
-    wait_flushing(Host, ArcID),
     Acc.
-
-wait_flushing(Host, ArcID) ->
-    gen_server:call(select_worker(Host, ArcID), wait_flushing).
-
-wait_flushing_before(Host, ArcID, End, Now) ->
-    case are_recent_entries_required(End, Now) of
-        true ->
-            wait_flushing(Host, ArcID);
-        false ->
-            ok
-    end.
-
-are_recent_entries_required(End, Now) when is_integer(End) ->
-    %% 10 seconds
-    End + 10000000 > Now;
-are_recent_entries_required(_End, _Now) ->
-    true.
-
 
 %%====================================================================
 %% Internal functions
@@ -288,8 +251,8 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
     NewState.
 
 do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
-                                          max_packet_size = MaxSize, flush_interval_tref = TRef,
-                                          acc = Acc, subscribers = Subs}) ->
+                                          max_batch_size = MaxSize, flush_interval_tref = TRef,
+                                          acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
@@ -313,11 +276,10 @@ do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
             ok
     end,
     spawn_link(fun() ->
-                       [gen_server:reply(Sub, ok) || Sub <- Subs],
                        ejabberd_hooks:run(mam_flush_messages, Host, [Host, MessageCount])
                end),
     erlang:garbage_collect(),
-    State#state{acc=[], subscribers=[], flush_interval_tref=undefined}.
+    State#state{acc=[], flush_interval_tref=undefined}.
 
 cancel_and_flush_timer(undefined) ->
     ok;
@@ -345,11 +307,9 @@ cancel_and_flush_timer(TRef) ->
 init([Host, N, Pool, MaxSize]) ->
     %% Use a private ODBC-connection.
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
-    MaxSubs = gen_mod:get_module_opt(Host, ?MODULE, max_subscribers, 100),
     {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
-                max_packet_size = MaxSize,
-                max_subscribers = MaxSubs}}.
+                max_batch_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -360,18 +320,6 @@ init([Host, N, Pool, MaxSize]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call(wait_flushing, _From, State=#state{acc=[]}) ->
-    {reply, ok, State};
-handle_call(wait_flushing, From,
-            State=#state{max_subscribers=MaxSubs, subscribers=Subs}) ->
-    State2 = State#state{subscribers=[From|Subs]},
-    %% Run flusging earlier, if there are too much IQ requests waiting.
-    %% Write only full packets of messages in overloaded state.
-    case length(Subs) + 1 >= MaxSubs andalso not is_overloaded(self()) of
-        true -> {noreply, run_flush(State2)};
-        false -> {noreply, State2}
-    end.
-
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |
@@ -381,7 +329,7 @@ handle_call(wait_flushing, From,
 
 handle_cast({archive_message, Row},
             State=#state{acc=Acc, flush_interval_tref=TRef, flush_interval=Int,
-                         max_packet_size=Max}) ->
+                         max_batch_size=Max}) ->
     TRef2 = case {Acc, TRef} of
                 {[], undefined} -> erlang:send_after(Int, self(), flush);
                 {_, _} -> TRef
