@@ -19,14 +19,10 @@
 %%%===================================================================
 
 -define(BACKEND, mod_event_pusher_rabbit).
--define(RABBIT_CONNECTIONS_ACTIVE_METRIC,
-        [backends, ?BACKEND, rabbit_connections_active]).
--define(RABBIT_CONNECTIONS_OPENED_METRIC,
-        [backends, ?BACKEND, rabbit_connections_opened]).
--define(RABBIT_CONNECTIONS_CLOSED_METRIC,
-        [backends, ?BACKEND, rabbit_connections_closed]).
--define(RABBIT_CONNECTIONS_FAILED_METRIC,
-        [backends, ?BACKEND, rabbit_connections_failed]).
+-define(CONNECTIONS_ACTIVE_METRIC, [backends, ?BACKEND, connections_active]).
+-define(CONNECTIONS_OPENED_METRIC, [backends, ?BACKEND, connections_opened]).
+-define(CONNECTIONS_CLOSED_METRIC, [backends, ?BACKEND, connections_closed]).
+-define(CONNECTIONS_FAILED_METRIC, [backends, ?BACKEND, connections_failed]).
 -define(MESSAGES_PUBLISHED_METRIC, [backends, ?BACKEND, messages_published]).
 -define(MESSAGES_FAILED_METRIC, [backends, ?BACKEND, messages_failed]).
 -define(MESSAGES_TIMEOUT_METRIC, [backends, ?BACKEND, messages_timeout]).
@@ -57,10 +53,10 @@ start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
 list_metrics() ->
-    [{?RABBIT_CONNECTIONS_ACTIVE_METRIC, spiral},
-     {?RABBIT_CONNECTIONS_OPENED_METRIC, spiral},
-     {?RABBIT_CONNECTIONS_CLOSED_METRIC, spiral},
-     {?RABBIT_CONNECTIONS_FAILED_METRIC, spiral},
+    [{?CONNECTIONS_ACTIVE_METRIC, spiral},
+     {?CONNECTIONS_OPENED_METRIC, spiral},
+     {?CONNECTIONS_CLOSED_METRIC, spiral},
+     {?CONNECTIONS_FAILED_METRIC, spiral},
      {?MESSAGES_PUBLISHED_METRIC, spiral},
      {?MESSAGES_FAILED_METRIC, spiral},
      {?MESSAGES_TIMEOUT_METRIC, spiral},
@@ -229,12 +225,12 @@ publish_message_and_wait_for_confirm(Channel, Exchange, RoutingKey, Message) ->
 establish_rabbit_connection(Opts, Host) ->
     case amqp_connection:start(Opts) of
         {ok, Connection} ->
-            update_success_rabbit_connections_metrics(Host),
+            update_success_connections_metrics(Host),
             {ok, Channel} = amqp_connection:open_channel(Connection),
             ?DEBUG("event=rabbit_connection_established", []),
             {Connection, Channel};
         {error, Error} ->
-            update_failed_rabbit_connections_metrics(Host),
+            update_failed_connections_metrics(Host),
             ?ERROR_MSG("event=rabbit_connection_failed reason=~1000p", [Error]),
             exit("connection to a Rabbit server failed")
     end.
@@ -248,7 +244,7 @@ enable_confirms(Channel) ->
                               Host :: jid:server()) ->
     ok | term().
 close_rabbit_connection(Connection, Channel, Host) ->
-    update_closed_rabbit_connections_metrics(Host),
+    update_closed_connections_metrics(Host),
     try amqp_channel:close(Channel)
     catch
         _Error:_Reason -> already_closed
@@ -272,16 +268,16 @@ update_messages_failed_metrics(Host) ->
 update_messages_timeout_metrics(Host) ->
     mongoose_metrics:update(Host, ?MESSAGES_TIMEOUT_METRIC, 1).
 
--spec update_success_rabbit_connections_metrics(Host :: jid:server()) -> any().
-update_success_rabbit_connections_metrics(Host) ->
-    mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_ACTIVE_METRIC, 1),
-    mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_OPENED_METRIC, 1).
+-spec update_success_connections_metrics(Host :: jid:server()) -> any().
+update_success_connections_metrics(Host) ->
+    mongoose_metrics:update(Host, ?CONNECTIONS_ACTIVE_METRIC, 1),
+    mongoose_metrics:update(Host, ?CONNECTIONS_OPENED_METRIC, 1).
 
--spec update_failed_rabbit_connections_metrics(Host :: jid:server()) -> any().
-update_failed_rabbit_connections_metrics(Host) ->
-    mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_FAILED_METRIC, 1).
+-spec update_failed_connections_metrics(Host :: jid:server()) -> any().
+update_failed_connections_metrics(Host) ->
+    mongoose_metrics:update(Host, ?CONNECTIONS_FAILED_METRIC, 1).
 
--spec update_closed_rabbit_connections_metrics(Host :: jid:server()) -> any().
-update_closed_rabbit_connections_metrics(Host) ->
-    mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_ACTIVE_METRIC, -1),
-    mongoose_metrics:update(Host, ?RABBIT_CONNECTIONS_CLOSED_METRIC, 1).
+-spec update_closed_connections_metrics(Host :: jid:server()) -> any().
+update_closed_connections_metrics(Host) ->
+    mongoose_metrics:update(Host, ?CONNECTIONS_ACTIVE_METRIC, -1),
+    mongoose_metrics:update(Host, ?CONNECTIONS_CLOSED_METRIC, 1).
