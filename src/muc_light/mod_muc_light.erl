@@ -228,21 +228,21 @@ process_packet(Acc, From, To, El, _Extra) ->
                      DecodedPacket :: mod_muc_light_codec:decode_result(),
                      Acc :: mongoose_acc:t(),
                      OrigPacket :: exml:element()) -> any().
-process_decoded_packet(From, To, {ok, {set, #create{} = Create}}, _Acc, OrigPacket) ->
+process_decoded_packet(From, To, {ok, {set, #create{} = Create}}, Acc, OrigPacket) ->
     FromUS = jid:to_lus(From),
     case not mod_muc_light_utils:room_limit_reached(FromUS, To#jid.lserver) of
         true ->
-            create_room(From, FromUS, To, Create, OrigPacket);
+            create_room(Acc, From, FromUS, To, Create, OrigPacket);
         false ->
             mod_muc_light_codec_backend:encode_error(
-              {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
+              {error, bad_request}, From, To, OrigPacket, make_handler_fun(Acc))
     end;
 process_decoded_packet(From, To, {ok, {get, #disco_info{} = DI}}, _Acc, _OrigPacket) ->
     handle_disco_info_get(From, To, DI);
 process_decoded_packet(From, To, {ok, {get, #disco_items{} = DI}}, _Acc, OrigPacket) ->
     handle_disco_items_get(From, To, DI, OrigPacket);
-process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _Acc, OrigPacket) ->
-    RouteFun = fun ejabberd_router:route/3,
+process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, Acc, OrigPacket) ->
+    RouteFun = make_handler_fun(Acc),
     case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
         true ->
             Res = handle_blocking(From, To, Blocking),
@@ -253,30 +253,30 @@ process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, _Acc, OrigPa
                     mod_muc_light_codec_backend:encode_error(Res, From, To, OrigPacket, RouteFun)
             end;
         false -> mod_muc_light_codec_backend:encode_error(
-                   {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3)
+                   {error, bad_request}, From, To, OrigPacket, RouteFun)
     end;
 process_decoded_packet(From, To, {ok, #iq{} = IQ}, Acc, OrigPacket) ->
     case mod_muc_iq:process_iq(To#jid.lserver, From, To, Acc, IQ) of
-        {_Acc1, error} ->
+        {Acc1, error} ->
             mod_muc_light_codec_backend:encode_error(
-              {error, feature_not_implemented}, From, To, OrigPacket, fun ejabberd_router:route/3);
+              {error, feature_not_implemented}, From, To, OrigPacket, make_handler_fun(Acc1));
         _ -> ok
     end;
-process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, _Acc, OrigPacket)
+process_decoded_packet(From, #jid{ luser = RoomU } = To, {ok, RequestToRoom}, Acc, OrigPacket)
   when RoomU =/= <<>> ->
     case mod_muc_light_db_backend:room_exists(jid:to_lus(To)) of
         true -> mod_muc_light_room:handle_request(From, To, OrigPacket, RequestToRoom);
         false -> mod_muc_light_codec_backend:encode_error(
-                   {error, item_not_found}, From, To, OrigPacket, fun ejabberd_router:route/3)
+                   {error, item_not_found}, From, To, OrigPacket, make_handler_fun(Acc))
     end;
-process_decoded_packet(From, To, {error, _} = Err, _Acc, OrigPacket) ->
+process_decoded_packet(From, To, {error, _} = Err, Acc, OrigPacket) ->
     mod_muc_light_codec_backend:encode_error(
-      Err, From, To, OrigPacket, fun ejabberd_router:route/3);
+      Err, From, To, OrigPacket, make_handler_fun(Acc));
 process_decoded_packet(_From, _To, ignore, _Acc, _OrigPacket) ->
      ok;
-process_decoded_packet(From, To, _InvalidReq, _Acc, OrigPacket) ->
+process_decoded_packet(From, To, _InvalidReq, Acc, OrigPacket) ->
     mod_muc_light_codec_backend:encode_error(
-      {error, bad_request}, From, To, OrigPacket, fun ejabberd_router:route/3).
+      {error, bad_request}, From, To, OrigPacket, make_handler_fun(Acc)).
 
 %%====================================================================
 %% Hook handlers
@@ -425,24 +425,24 @@ get_affiliation(Room, User) ->
             none
     end.
 
--spec create_room(From :: jid:jid(), FromUS :: jid:simple_bare_jid(),
+-spec create_room(mongoose_acc:t(), From :: jid:jid(), FromUS :: jid:simple_bare_jid(),
                   To :: jid:jid(), Create :: create_req_props(), OrigPacket :: exml:element()) ->
     exml:element().
-create_room(From, FromUS, To, Create0, OrigPacket) ->
+create_room(Acc, From, FromUS, To, Create0, OrigPacket) ->
     case try_to_create_room(FromUS, To, Create0) of
         {ok, FinalRoomUS, Details} ->
             mod_muc_light_codec_backend:encode({set, Details, To#jid.luser == <<>>}, From,
                                                FinalRoomUS, fun ejabberd_router:route/3);
         {error, exists} ->
             mod_muc_light_codec_backend:encode_error({error, conflict}, From, To, OrigPacket,
-                                                     fun ejabberd_router:route/3);
+                                                     make_handler_fun(Acc));
         {error, bad_request} ->
             mod_muc_light_codec_backend:encode_error({error, bad_request}, From, To, OrigPacket,
-                                                     fun ejabberd_router:route/3);
+                                                     make_handler_fun(Acc));
         {error, Error} ->
             ErrorText = io_lib:format("~s:~p", tuple_to_list(Error)),
             mod_muc_light_codec_backend:encode_error(
-              {error, bad_request, ErrorText}, From, To, OrigPacket, fun ejabberd_router:route/3)
+              {error, bad_request, ErrorText}, From, To, OrigPacket, make_handler_fun(Acc))
     end.
 
 -spec process_create_aff_users_if_valid(MUCServer :: jid:lserver(),
@@ -633,3 +633,5 @@ maybe_forget_rooms([{RoomUS, {ok, _, NewAffUsers, _, _}} | RAffectedRooms]) ->
     mod_muc_light_room:maybe_forget(RoomUS, NewAffUsers),
     maybe_forget_rooms(RAffectedRooms).
 
+make_handler_fun(Acc) ->
+    fun(From, To, Packet) -> ejabberd_router:route(From, To, Acc, Packet) end.
