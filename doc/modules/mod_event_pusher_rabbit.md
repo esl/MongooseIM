@@ -56,7 +56,7 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
 ]}
 ```
 
-## JSON Schema examples
+### JSON Schema examples
 The different kinds of notifications deliver slightly different messages.
 The messages are delivered in a JSON format.
 #### Presence updates
@@ -103,5 +103,70 @@ and for "received" events:
     "from_user_id": "muc_publish@muc.localhost/alice"
 }
 ```
+
+### Metrics
+
+The module provides some metrics related to RabbitMQ connections and messages
+as well. Provided metrics:
+
+  * `connections_active` - number of active connections to a RabbitMQ
+  server
+  * `connections_opened` - number of opened connections to a RabbitMQ
+  server since module startup
+  * `connections_closed` - number of closed connections to a RabbitMQ
+  server since module startup
+  * `connections_failed` - number of failed connections to a RabbitMQ
+  server since module startup
+  * `messages_published` - number of published messages to a RabbitMQ server
+  since module startup
+  * `messages_timeout` - number of messages to a RabbitMQ server that weren't
+  confirmed by the server since module startup
+  * `messages_failed` - number of messages to a RabbitMQ server that were
+  rejected by the server since module startup
+  * `message_publish_time` - amount of time it takes to publish a message to
+  a RabbitMQ server and receives a confirmation
+  * `message_payload_size` - size of a messages (in bytes) that was published to
+  a RabbitMQ server
+
+> All the above metrics have a prefix which looks as follows:  
+> `mongooseim.<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
+> For example a proper metric name would look like:
+> `mongooseim.localhost.backends.mod_event_pusher_rabbit.connections_active`
+
+### Current status
+
+This module is still in an experimental phase.
+
+### Guarantees
+
+There are no guarantees. The current implementation uses "best effort" approach
+which means that we don't care if a message is delivered to a RabbitMQ server.
+If a message couldn't be delivered to the server for any reason the module
+just updates appropriate metrics and print some log messages.
+
+### Publisher confirms
+
+One-to-one confirmations are in use. When a worker sends a message to a RabbitMQ
+server it waits for a confirmation from the server before it starts to process
+next message. This approach allows to introduce backpressure on a RabbitMQ server
+connection cause the server can reject messages when it's overloaded. On the
+other hand it can cause performance degratation.
+
+### Worker selection strategy
+
+The module uses `wpool` library for managing worker processes  and `avaiable_worker`
+strategy is in use. Different strategies imply different behaviours of the system.
+
+#### Event messages queueing
+
+When `available_worker` strategy is set all the event messages are queued in
+single worker pool manager process state. When diffrenet strategy is set e.g
+`next_worker` those messages are placed in worker processes inboxes. There is no
+possiblity to change the worker strategy for now.
+
+#### Event messages ordering
+
+`available_worker` strategy does not ensure that user events will be delivered to
+a RabbitMQ server properly ordered in time.
 
 [mod_event_pusher]: ./mod_event_pusher.md
