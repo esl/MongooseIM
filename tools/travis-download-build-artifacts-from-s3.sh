@@ -28,6 +28,7 @@ ARTIFACTS_DIR=/tmp/build_artifacts
 
 cp -r -a ${ARTIFACTS_DIR}/_build ${TRAVIS_BUILD_DIR}
 cp -r ${ARTIFACTS_DIR}/ssl ${TRAVIS_BUILD_DIR}/tools
+cp -r ${ARTIFACTS_DIR}/big_tests_build ${TRAVIS_BUILD_DIR}/big_tests/_build
 
 echo "Listing ${TRAVIS_BUILD_DIR}"
 ls -lth ${TRAVIS_BUILD_DIR}
