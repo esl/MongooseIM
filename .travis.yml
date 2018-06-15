@@ -79,15 +79,13 @@ otp_release:
 jobs:
   include:
     - stage: build
-      script: make rel
+      script:
+        - make rel
+        - make ct
       env:
         - SKIP_REPORT_UPLOAD=1 SKIP_COV=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
       after_success:
         - tools/travis-upload-build-artifacts-to-s3.sh
-    - stage: pre test
-      script: make ct
-      env:
-        - PRESET=only_small_tests SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
     - stage: test
       otp_release: 20.0
       env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip" RUN_SMALL_TESTS=true
@@ -109,10 +107,8 @@ jobs:
            SKIP_COV=1 SKIP_REPORT_UPLOAD=1
 
 
-
 stages:
   - build
-  - pre test
   - test
   - post tests
 
