@@ -60,13 +60,6 @@ summaries_dir() {
 }
 
 run_small_tests() {
-  echo "############################"
-  echo "Running small tests (test/)"
-  echo "############################"
-  echo "Advice: "
-  echo "    Add option \"-s false\" to skip embeded common tests"
-  echo "Example: "
-  echo "    ./tools/travis-test.sh -s false"
   make ct
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
   SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
@@ -75,6 +68,13 @@ run_small_tests() {
 
 maybe_run_small_tests() {
   if [ "$SMALL_TESTS" = "true" ]; then
+    echo "############################"
+    echo "Running small tests (test/)"
+    echo "############################"
+    echo "Advice: "
+    echo "    Add option \"-s false\" to skip embeded common tests"
+    echo "Example: "
+    echo "    ./tools/travis-test.sh -s false"
     run_small_tests
   else
     echo "############################"
@@ -199,6 +199,8 @@ if [ $PRESET == "dialyzer_only" ]; then
   exit ${RESULT}
 elif [ $PRESET == "pkg" ]; then
   build_pkg $pkg_PLATFORM
+elif [ $PRESET == "small_tests" ]; then
+  run_small_tests
 else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
