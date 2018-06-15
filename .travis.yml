@@ -81,7 +81,6 @@ jobs:
   include:
     - stage: build
       script:
-        - make rel
         - make ct
       env:
         - SKIP_REPORT_UPLOAD=1 SKIP_COV=1 SKIP_RELEASE=1
