@@ -4130,9 +4130,8 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
-        ct:print("~p", [Presence]),
+        escalus:assert(is_presence, Presence),
         MessageWithSubject = escalus:wait_for_stanza(Bob),
-        ct:print("~p", [MessageWithSubject]),
         true = is_subject_message(MessageWithSubject, <<"Restorable">>),
 
         {ok, _Pid2} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),

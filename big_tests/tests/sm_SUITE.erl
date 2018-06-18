@@ -492,13 +492,14 @@ resume_session_state_send_message(Config) ->
     {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
-
+    %% Ack the presence stanza
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus:send(Alice, escalus_stanza:sm_ack(1)),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
     escalus_connection:kill(Alice),
-    ct:sleep(1000), %% alice should be in resume_session_state
+    ct:sleep(200), %% alice should be in resume_session_state
 
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
@@ -515,6 +516,7 @@ resume_session_state_send_message(Config) ->
     Stanzas = [escalus_connection:get_stanza(NewAlice, msg) || _ <- lists:seq(1,4) ],
 
     % what about order ?
+    % alice receive presence from herself and 3 unacked messages from bob
     escalus_new_assert:mix_match([is_presence,
                                   is_chat(<<"msg-1">>),
                                   is_chat(<<"msg-2">>),

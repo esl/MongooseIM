@@ -75,6 +75,9 @@ writer_child_spec() ->
      [?MODULE]}.
 
 start_server(_Host) ->
+    %% TODO make per host server to be consistent with the way
+    %%      other modules start servers
+    %% This is a global server
     supervisor:start_child(ejabberd_sup, writer_child_spec()).
 
 stop_server(_Host) ->

@@ -217,15 +217,17 @@ start_listener2(Port, Module, Opts) ->
 -spec start_module_sup(_, Module :: module())
       -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start_module_sup(_PortIPProto, Module) ->
-    Proc1 = gen_mod:get_module_proc("sup", Module),
-    ChildSpec1 =
-        {Proc1,
-         {ejabberd_tmp_sup, start_link, [Proc1, Module]},
+    Proc = gen_mod:get_module_proc("sup", Module),
+    ChildSpec =
+        {Proc,
+         {ejabberd_tmp_sup, start_link, [Proc, Module]},
          permanent,
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
-    supervisor:start_child(ejabberd_sup, ChildSpec1).
+    %% TODO Rewrite using ejabberd_sup:start_child
+    %% This function is called more than once
+    supervisor:start_child(ejabberd_sup, ChildSpec).
 
 -spec start_listener_sup(port_ip_proto(), Module :: atom(), Opts :: [any()])
       -> {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.

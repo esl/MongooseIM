@@ -59,16 +59,15 @@ start(Opts) ->
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
                  permanent, 1000, supervisor, [?MODULE]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, WorkerPool),
-    {ok, _} = supervisor:start_child(ejabberd_sup, Refresher),
+    ejabberd_sup:start_child(WorkerPool),
+    ejabberd_sup:start_child(Refresher),
     ok.
 
 -spec stop() -> any().
 stop() ->
     lists:foreach(
      fun(Id) ->
-             supervisor:terminate_child(ejabberd_sup, Id),
-             supervisor:delete_child(ejabberd_sup, Id)
+             ejabberd_sup:stop_child(Id)
      end,
       [?MODULE, mod_global_distrib_redis_refresher]),
     [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]].

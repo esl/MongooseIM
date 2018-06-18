@@ -97,6 +97,7 @@ writer_child_spec() ->
      [?MODULE]}.
 
 start_server(_Host) ->
+    %% TODO make per host server
     supervisor:start_child(ejabberd_sup, writer_child_spec()).
 
 stop_server(_Host) ->

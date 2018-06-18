@@ -293,6 +293,17 @@ analyze(Test, CoverOpts) ->
     report_time("Export cover data from MongooseIM nodes", fun() ->
             multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
         end),
+    case os:getenv("KEEP_COVER_RUNNING") of
+        "1" ->
+            io:format("Skip stopping cover~n"),
+            ok;
+        _ ->
+            report_time("Stopping cover on MongooseIM nodes", fun() ->
+                            multicall(Nodes, mongoose_cover_helper, stop, [], cover_timeout())
+                    end)
+    end,
+    cover:start(),
+    deduplicate_cover_server_console_prints(),
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
@@ -405,6 +416,7 @@ process_results(CTResults) ->
     process_results(CTResults, {{Ok, Failed, UserSkipped, AutoSkipped}, Errors}).
 
 process_results([], {StatsAcc, Errors}) ->
+    write_stats_into_vars_file(StatsAcc),
     print_errors(Errors),
     print_stats(StatsAcc),
     init:stop(exit_code(StatsAcc));
@@ -426,6 +438,16 @@ do_print_stats({Ok, Failed, _UserSkipped, AutoSkipped}) when Ok == 0;
     Ok == 0 andalso print(standard_error,         "  ok          : ~b~n", [Ok]),
     Failed > 0 andalso print(standard_error,      "  failed      : ~b~n", [Failed]),
     AutoSkipped > 0 andalso print(standard_error, "  auto-skipped: ~b~n", [AutoSkipped]).
+
+write_stats_into_vars_file(Stats) ->
+    file:write_file("/tmp/ct_stats_vars", [format_stats_as_vars(Stats)]).
+
+format_stats_as_vars({Ok, Failed, UserSkipped, AutoSkipped}) ->
+    io_lib:format("CT_COUNTER_OK=~p~n"
+                  "CT_COUNTER_FAILED=~p~n"
+                  "CT_COUNTER_USER_SKIPPED=~p~n"
+                  "CT_COUNTER_AUTO_SKIPPED=~p~n",
+                  [Ok, Failed, UserSkipped, AutoSkipped]).
 
 %% Fail if there are failed test cases, auto skipped cases,
 %% or the number of passed tests is 0 (which is also strange - a misconfiguration?).
@@ -579,3 +601,14 @@ handle_file_error(_FileName, Other) ->
     Other.
 
 %% ------------------------------------------------------------------
+
+%% cover_server process is using io:format too much.
+%% This code removes duplicate io:formats.
+%%
+%% Example of a message we want to write only once:
+%% "Analysis includes data from imported files" from cover.erl in Erlang/R19
+deduplicate_cover_server_console_prints() ->
+    %% Set a new group leader for cover_server
+    CoverPid = whereis(cover_server),
+    dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
+

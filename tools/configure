@@ -33,17 +33,18 @@ main(Args) ->
     end.
 
 app_opts() ->
-    %% Opt         Apps                 Desc
-    [{"none",      [],                  "include no 3rd party drivers"},
-     {"all",       [],                  "include all drivers"},
-     {"mysql",     ["mysql"],           include_driver("mysql")},
-     {"odbc",      ["eodbc"],           "include alternative version of ODBC driver"},
-     {"pgsql",     ["epgsql"],          include_driver("pgsql")},
-     {"redis",     ["redo"],            include_driver("redis")},
-     {"riak",      ["riakc"],           include_driver("riak")},
-     {"jingle-sip",["nksip"],           include_driver("nksip")},
-     {"cassandra", ["cqerl"],           include_driver("cassandra")},
-     {"aws",       ["erlcloud"],        "include support for AWS services"}].
+    %% Opt             Apps                 Desc
+    [{"none",          [],                  "include no 3rd party drivers"},
+     {"all",           [],                  "include all drivers"},
+     {"mysql",         ["mysql"],           include_driver("mysql")},
+     {"odbc",          ["eodbc"],           "include alternative version of ODBC driver"},
+     {"pgsql",         ["epgsql"],          include_driver("pgsql")},
+     {"redis",         ["redo"],            include_driver("redis")},
+     {"riak",          ["riakc"],           include_driver("riak")},
+     {"jingle-sip",    ["nksip"],           include_driver("nksip")},
+     {"cassandra",     ["cqerl"],           include_driver("cassandra")},
+     {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
+     {"aws",           ["erlcloud"],        "include support for AWS services"}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},

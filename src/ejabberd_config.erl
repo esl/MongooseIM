@@ -641,6 +641,8 @@ process_host_term(Term, Host, State) ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
             add_option(cassandra_servers, CassandraConfig, State);
+        {elasticsearch_server, ESConfig} ->
+            add_option(elasticsearch_server, ESConfig, State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.

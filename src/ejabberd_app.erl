@@ -62,6 +62,7 @@ start(normal, _Args) ->
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
     mongoose_cassandra:start(),
+    mongoose_elasticsearch:start(),
     mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),

@@ -130,8 +130,10 @@ delete_mnesia() ->
         Dir ->
             %% Both settings match, OK!
             ok;
-        _NotDir ->
-            error(mnesia_dir_inconsistent)
+        AppEnvDir ->
+            ?WARNING_MSG("mnesia:system_info(directory) returned ~p, but application:get_env(mnesia, dir) "
+                         "returned ~p: the values are different", [Dir, AppEnvDir]),
+            ok
     end,
     ok = rmrf(Dir),
     ?WARNING_MSG("Mnesia schema and files deleted", []),

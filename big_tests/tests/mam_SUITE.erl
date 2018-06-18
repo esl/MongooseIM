@@ -123,6 +123,7 @@
         [rpc_apply/3,
          is_riak_enabled/1,
          is_cassandra_enabled/1,
+         is_elasticsearch_enabled/1,
          is_mam_possible/1,
          print_configuration_not_supported/2,
          start_alice_room/1,
@@ -214,7 +215,8 @@
 configurations() ->
     cassandra_configs(is_cassandra_enabled(host()))
     ++ odbc_configs(mongoose_helper:is_odbc_enabled(host()))
-    ++ riak_configs(is_riak_enabled(host())).
+    ++ riak_configs(is_riak_enabled(host()))
+    ++ elasticsearch_configs(is_elasticsearch_enabled(host())).
 
 odbc_configs(true) ->
     [odbc,
@@ -238,6 +240,11 @@ cassandra_configs(true) ->
      [cassandra];
 cassandra_configs(_) ->
      [].
+
+elasticsearch_configs(true) ->
+    [elasticsearch];
+elasticsearch_configs(_) ->
+    [].
 
 basic_group_names() ->
     [
@@ -335,6 +342,7 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
+     querying_for_all_messages_with_jid,
      unicode_messages_can_be_extracted
     ].
 
@@ -595,8 +603,10 @@ do_init_per_group(C, ConfigIn) ->
             [{archive_wait, 2500} | Config0];
         cassandra ->
             [{archive_wait, 1500} | Config0];
+        elasticsearch ->
+            [{archive_wait, 2500} | Config0];
         _ ->
-            [{archive_wait, 0} | Config0]
+            [{archive_wait, 200} | Config0]
     end.
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
@@ -639,6 +649,12 @@ init_modules(BT = cassandra, muc_light, config) ->
     init_modules_for_muc_light(BT, config);
 init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    Config;
+init_modules(BT = elasticsearch, muc_light, config) ->
+    init_modules_for_muc_light(BT, config);
+init_modules(elasticsearch, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_elasticsearch_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(odbc, muc_all, Config) ->
@@ -726,6 +742,11 @@ init_modules(cassandra, C, Config) ->
     init_module(host(), mod_mam_cassandra_prefs, [pm]),
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
     Config;
+init_modules(elasticsearch, C, Config) ->
+    init_module(host(), mod_mam_elasticsearch_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    Config;
 init_modules(odbc_async, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
     init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
@@ -801,6 +822,8 @@ mam_modules() ->
      mod_mam_cassandra_arch,
      mod_mam_muc_cassandra_arch,
      mod_mam_cassandra_prefs,
+     mod_mam_elasticsearch_arch,
+     mod_mam_muc_elasticsearch_arch,
      mod_mam_odbc_arch,
      mod_mam_muc_odbc_arch,
      mod_mam_odbc_async_pool_writer,
@@ -1181,7 +1204,7 @@ simple_archive_request(Config) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
@@ -1239,7 +1262,7 @@ simple_text_search_request(Config) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Also my bike broke down so I'm unable ",
                                                           "to return him home">>)),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, 3),
 
         %% 'Cat' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
@@ -1281,11 +1304,12 @@ long_text_search_request(Config) ->
         %% The test should work without this block.
         %% But sometimes on the CI server we ending up with not all messages
         %% yet archived, which leads to the test failure.
-        BobMessages = escalus:wait_for_stanzas(Bob, length(Msgs), 15000),
-        ?assert_equal_extra(length(Msgs), length(BobMessages),
+        ExpectedLen = length(Msgs),
+        BobMessages = escalus:wait_for_stanzas(Bob, ExpectedLen, 15000),
+        ?assert_equal_extra(ExpectedLen, length(BobMessages),
                             #{bob_messages => BobMessages}),
 
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Bob, ExpectedLen),
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
         Res = wait_archive_respond(P, Alice),
@@ -1315,7 +1339,7 @@ unicode_messages_can_be_extracted(Config) ->
 
         [escalus:send(Alice, escalus_stanza:chat_to(Bob, Text))
          || Text <- Texts],
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, length(Texts)),
 
         %% WHEN Getting all messages
         escalus:send(Alice, stanza_archive_request(P, <<"uni-q">>)),
@@ -1343,7 +1367,7 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi! this is an unicode character lol 😂"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"this is another one no 🙅"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
-                maybe_wait_for_archive(Config),
+                mam_helper:wait_for_archive_size(Alice, 3),
 
                 %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
@@ -1356,7 +1380,7 @@ save_unicode_messages(Config) ->
                 ?assert_equal(<<"Hi! this is an unicode character lol 😂"/utf8>>, Body1),
                 ?assert_equal(<<"This is the same again lol 😂"/utf8>>, Body2),
 
-                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"no"/utf8>>)),
+                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"another"/utf8>>)),
                 Res2 = wait_archive_respond(P, Alice),
                 assert_respond_size(1, Res2),
                 assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
@@ -1612,7 +1636,7 @@ filter_forwarded(Config) ->
 
         %% Bob receives a message.
         escalus:wait_for_stanza(Bob),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Bob, 1),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         assert_respond_size(1, wait_archive_respond(P, Bob)),
 

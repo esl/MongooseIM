@@ -188,22 +188,35 @@ set_prefs1(Host, UserID, DefaultMode, AlwaysJIDs, NeverJIDs) ->
     InsQuery = ["INSERT INTO mam_config(user_id, behaviour, remote_jid) "
                 "VALUES ", Values],
 
-    run_transaction_or_retry_on_deadlock(fun() ->
-            {atomic, [{updated, _}, {updated, _}]} =
-                sql_transaction_map(Host, [DelQuery, InsQuery])
-        end, UserID, 10),
+    run_transaction_or_retry_on_abort(fun() ->
+            case sql_transaction_map(Host, [DelQuery, InsQuery]) of
+                {atomic, [{updated, _}, {updated, _}]} ->
+                    {atomic, ok};
+                Other ->
+                    Other
+            end
+        end, UserID, 5),
     ok.
 
-run_transaction_or_retry_on_deadlock(F, UserID, Retries) ->
-    try
-        F()
-    %% MySQL specific error
-    catch error:{badmatch, {aborted, {{sql_error, "Deadlock" ++ _}, _}}}
-            when Retries > 0 ->
-        ?ERROR_MSG("issue=\"Deadlock detected. Restart\", user_id=~p, retries=~p",
-                   [UserID, Retries]),
-        timer:sleep(100),
-        run_transaction_or_retry_on_deadlock(F, UserID, Retries-1)
+%% Possible error with mysql
+%% Reason "Deadlock found when trying to get lock; try restarting transaction"
+%% triggered mod_mam_utils:error_on_sql_error
+run_transaction_or_retry_on_abort(F, UserID, Retries) ->
+    Result = F(),
+    case Result of
+        {atomic, _} ->
+            Result;
+        {aborted, Reason} when Retries > 0 ->
+            ?WARNING_MSG("event=\"Transaction aborted. Restart\", "
+                          "user_id=~p, reason=~p, retries=~p",
+                         [UserID, Reason, Retries]),
+            timer:sleep(100),
+            run_transaction_or_retry_on_abort(F, UserID, Retries-1);
+        _ ->
+            ?ERROR_MSG("event=\"Transaction failed\", "
+                        "user_id=~p, reason=~p, retries=~p",
+                         [UserID, Result, Retries]),
+            erlang:error({transaction_failed, #{user_id => UserID, result => Result}})
     end.
 
 -spec get_prefs(mod_mam:preference(), _Host :: jid:server(),

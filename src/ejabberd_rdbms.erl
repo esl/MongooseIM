@@ -53,7 +53,7 @@ start_pool_sup() ->
          infinity,
          supervisor,
          [mongoose_rdbms_sup]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 pools() ->
     ejabberd_config:get_local_option_or_default(odbc_pools, []).

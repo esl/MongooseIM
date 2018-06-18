@@ -77,7 +77,10 @@
         ufilter = <<"">>       :: binary(),
         sfilter = <<"">>       :: binary(),
         lfilter                :: {any(), any()} | undefined,
-        deref_aliases = never  :: never | searching | finding | always,
+        deref =                neverDerefAliases  :: neverDerefAliases |
+                                                     derefInSearching |
+                                                     derefFindingBaseObj |
+                                                     derefAlways,
         dn_filter              :: binary() | undefined,
         dn_filter_attrs = []   :: [binary()]
        }).
@@ -101,7 +104,7 @@ start(Host) ->
     ChildSpec = {Proc, {?MODULE, start_link, [Host]},
                  transient, 1000, worker, [?MODULE]},
     ejabberd_hooks:add(host_config_update, Host, ?MODULE, config_change, 50),
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec),
+    ejabberd_sup:start_child(ChildSpec),
     ok.
 
 -spec stop(Host :: jid:lserver()) -> ok.
@@ -109,8 +112,7 @@ stop(Host) ->
     ejabberd_hooks:delete(host_config_update, Host, ?MODULE, config_change, 50),
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     gen_server:call(Proc, stop),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc),
+    ejabberd_sup:stop_child(Proc),
     ok.
 
 start_link(Host) ->
@@ -312,7 +314,7 @@ get_vh_registered_users_ldap(LServer) ->
                                  [{base, State#state.base},
                                   {filter, EldapFilter},
                                   {timeout, ?LDAP_SEARCH_TIMEOUT},
-                                  {deref_aliases, State#state.deref_aliases},
+                                  {deref, State#state.deref},
                                   {attributes, ResAttrs}]) of
               #eldap_search_result{entries = Entries} ->
                   get_users_from_ldap_entries(Entries, UIDs, LServer, State);
@@ -378,7 +380,7 @@ find_user_dn(LUser, State) ->
       {ok, Filter} ->
           case eldap_pool:search(State#state.eldap_id,
                                  [{base, State#state.base}, {filter, Filter},
-                                  {deref_aliases, State#state.deref_aliases},
+                                  {deref, State#state.deref},
                                   {attributes, ResAttrs}])
               of
             #eldap_search_result{entries =
@@ -432,7 +434,7 @@ is_valid_dn(DN, Attrs, State) ->
           case eldap_pool:search(State#state.eldap_id,
                                  [{base, State#state.base},
                                   {filter, EldapFilter},
-                                  {deref_aliases, State#state.deref_aliases},
+                                  {deref, State#state.deref},
                                   {attributes, [<<"dn">>]}])
               of
             #eldap_search_result{entries = [_ | _]} -> DN;
@@ -540,7 +542,7 @@ parse_options(Host) ->
            dn = Cfg#eldap_config.dn,
            password = Cfg#eldap_config.password,
            base = Cfg#eldap_config.base,
-           deref_aliases = Cfg#eldap_config.deref_aliases,
+           deref = Cfg#eldap_config.deref,
            uids = UIDs, ufilter = UserFilter,
            sfilter = SearchFilter, lfilter = LocalFilter,
            dn_filter = DNFilter, dn_filter_attrs = DNFilterAttrs}.

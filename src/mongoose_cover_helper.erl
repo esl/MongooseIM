@@ -17,7 +17,7 @@
 
 
 %% API
--export([start/1, analyze/0]).
+-export([start/1, analyze/0, stop/0]).
 
 -spec start([atom()]) -> list().
 start(Apps) ->
@@ -27,6 +27,9 @@ start(Apps) ->
 analyze() ->
     file:make_dir("priv/cover"),
     cover:export("priv/cover/" ++ atom_to_list(node()) ++ ".coverdata"),
+    ok.
+
+stop() ->
     cover:stop().
 
 cover_compile_app(App) ->

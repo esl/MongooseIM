@@ -58,6 +58,7 @@ Persistent Data:
 * privacy/block lists
 * last activity
 * mam (message archive management)
+* muc_light rooms
 
 **Setup**
 
@@ -96,6 +97,7 @@ For versions `5.7.9` and newer, all of the above options are set correctly by de
 * privacy/block lists
 * last activity
 * mam (message archive management)
+* muc_light rooms
 
 **Setup**
 
@@ -124,6 +126,7 @@ Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 * privacy/block lists
 * last activity
 * mam (message archive management)
+* muc_light rooms
 
 **Setup**
 
@@ -141,33 +144,36 @@ You also need FreeTDS (an ODBC driver for MSSQL) installed in your system.
 Then you need to configure the ODBC and FreeTDS drivers.
 You can find an example configuration for CentOS, given that unixODBC and freetds packages have been installed.
 
-Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` file:
+Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` or ``$HOME/.odbc.ini`` file:
 ```ini
 [mongoose-mssql]
-Driver = FreeTDS
-Servername = mssql-local
-Database = mongooseim
+Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
+Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+Server      = 127.0.0.1
+Port        = 1433
+Database    = mongooseim
+Charset     = UTF-8
+TDS_Version = 7.2
+client_charset = UTF-8
 ```
 
-Add path to the ``FreeTDS`` driver to the ``/etc/odbcinst.ini`` file:
-```ini
-[FreeTDS]
-Description = TDS driver (Sybase/MS SQL)
-Setup = /usr/lib64/libtdsS.so.2
-Driver = /usr/lib64/libtdsodbc.so.0
-UsageCount = 1
-```
-For more details please refer to the [odbc.ini and odbcinst.ini documentation](http://www.unixodbc.org/odbcinst.html).
+For more details please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm) and
+[unixodbc documentation](http://www.unixodbc.org/odbcinst.html).
 
-Add database host to the ``/etc/freetds.conf`` file:
-```ini
-[mssql-local]
-    host = localhost
-    port = 1433
-    tds version = 8.0
-    client charset = UTF-8
+**Deadlocks notice**
+
+If muc_light's backend is set to odbc and in your system there is many rooms created in parallel,
+there may be some deadlocks due to the `READ_COMMITTED_SNAPSHOT` set to `OFF` by default.
+In this case we recommend to set this database property to `ON`, this will enable row level locking which significantly reduces
+deadlock chances around muc_light operations.
+
+This property can be set by the following `ALTER DATABASE` query:
+
+```sql
+ALTER DATABASE $name_of_your_db SET READ_COMMITTED_SNAPSHOT ON
 ```
-For more details please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm).
+
+The above command may take some time.
 
 Then you need to import the SQL schema from either ``mssql2012.sql`` or ``azuresql.sql`` file depending on which database you are using.
 You can use a Microsoft's GUI tool (the provided .sql files should work with it) or isql, but after a slight modification of the dump file:
@@ -284,6 +290,28 @@ $ cqlsh
 $ cqlsh> source '$REPO/priv/casssandra.cql';
 ```
 
+## ElasticSearch
+
+**Can be used for:**
+
+* MAM (Message Archive Management)
+
+**Setup**
+
+Please note that MongooseIM has been tested to work properly with ElasticSearch version 5.6.9.
+
+In order to use ElasticSearch as a MAM backend, you'll need to create required indexes and mappings.
+From the root of MongooseIM's repository run:
+
+```bash
+curl -X PUT $ELASTICSEARCH_URL/messages -d '@priv/elasticsearch/pm.json'
+curl -X PUT $ELASTICSEARCH_URL/muc_messages -d '@priv/elasticsearch/muc.json'
+```
+
+where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP API endpoint.
+
+Please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page to check how to configure MongooseIM to connect to ElasticSearch node.
+
 ## Redis
 
 **Can be used for:**
@@ -304,4 +332,4 @@ No additional steps required.
 
 **Setup**
 
-No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.
+No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.d

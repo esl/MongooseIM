@@ -356,8 +356,16 @@ create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
                     {error, exists}
             end;
         {updated, _} ->
-            {selected, [{RoomID}]} = mongoose_rdbms:sql_query_t(
+            {selected, [{RoomID} | Rest] = AllIds} = mongoose_rdbms:sql_query_t(
                                           mod_muc_light_db_odbc_sql:select_room_id(RoomU, RoomS)),
+            case Rest of
+                [] ->
+                    ok;
+                _ ->
+                    ?ERROR_MSG("event=many_ids_for_pk_select room_name=~p ids=~p aborting the transaction",
+                               [RoomU, AllIds]),
+                    throw({aborted, <<"Many IDs returned for PK select query, most probably MSSQL deadlock">>})
+            end,
             lists:foreach(
               fun({{UserU, UserS}, Aff}) ->
                       {updated, _} = mongoose_rdbms:sql_query_t(

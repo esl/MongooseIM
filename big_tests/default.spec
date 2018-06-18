@@ -14,6 +14,7 @@
 {suites, "tests", rdbms_SUITE}.
 {suites, "tests", race_conditions_SUITE}.
 {suites, "tests", acc_e2e_SUITE}.
+{suites, "tests", accounts_SUITE}.
 {suites, "tests", adhoc_SUITE}.
 {suites, "tests", amp_big_SUITE}.
 {suites, "tests", anonymous_SUITE}.
@@ -71,6 +72,7 @@
 {suites, "tests", xep_0352_csi_SUITE}.
 {suites, "tests", mod_global_distrib_SUITE}.
 {suites, "tests", mongoose_cassandra_SUITE}.
+{suites, "tests", mongoose_elasticsearch_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
@@ -81,6 +83,7 @@
 %% * ensure preset value is passed to ct Config
 %% * check server's purity after SUITE
 {ct_hooks, [ct_groups_summary_hook, ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
+            ct_markdown_errors_hook,
             {ct_mongoose_log_hook, [ejabberd_node, ejabberd_cookie]},
             {ct_mongoose_log_hook, [ejabberd2_node, ejabberd_cookie]}
            ]}.

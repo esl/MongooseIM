@@ -178,9 +178,7 @@ attempt_cancelation(ClientJID, #jid{lserver = ServerDomain}, #iq{id = ID, sub_el
             %% this): as it is, when canceling a
             %% registration, there is no way to deal
             %% with failure.
-            ResIQ = #iq{type = result, xmlns = ?NS_REGISTER,
-                        id = ID,
-                        sub_el = [Child]},
+            ResIQ = IQ#iq{type = result, sub_el = []},
             ejabberd_router:route(
               jid:make(<<>>, <<>>, <<>>),
               jid:make(Username, UserDomain, Resource),
@@ -224,7 +222,7 @@ process_iq_get(From, _To, #iq{lang = Lang, sub_el = Child} = IQ, _Source) ->
                                        #xmlel{name = <<"password">>}
                                        | QuerySubels]}]}.
 
-try_register_or_set_password(User, Server, Password, #jid{ luser = User, lserver = Server },
+try_register_or_set_password(User, Server, Password, #jid{ user = User, lserver = Server },
                              IQ, SubEl, _Source, Lang) ->
     try_set_password(User, Server, Password, IQ, SubEl, Lang);
 try_register_or_set_password(User, Server, Password, _From, IQ, SubEl, Source, Lang) ->

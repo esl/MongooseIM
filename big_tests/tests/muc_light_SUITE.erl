@@ -204,7 +204,7 @@ init_per_suite(Config) ->
                            {backend, Backend},
                            {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike, carol])).
+    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -230,8 +230,9 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(removing_users_from_server_triggers_room_destruction = CN, Config) ->
     set_default_mod_config(),
-    create_room(?ROOM, ?MUCHOST, carol, [], Config, ver(1)),
-    escalus:init_per_testcase(CN, Config);
+    Config1 = escalus:create_users(Config, escalus:get_users([carol])),
+    create_room(?ROOM, ?MUCHOST, carol, [], Config1, ver(1)),
+    escalus:init_per_testcase(CN, Config1);
 init_per_testcase(disco_rooms_rsm, Config) ->
     set_default_mod_config(),
     set_mod_config(rooms_per_page, 1),

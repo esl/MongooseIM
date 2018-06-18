@@ -62,7 +62,7 @@ mam04_props() ->
 mam06_props() ->
      [{final_message, false},
       {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
-     {mam_ns, mam_ns_binary_v06()}].   
+     {mam_ns, mam_ns_binary_v06()}].
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
@@ -795,6 +795,17 @@ assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) -
        X -> ct:fail({not_empty, Server, Username, {actual_size, X}})
     end.
 
+wait_for_archive_size(User, ExpectedSize) ->
+    Server = escalus_utils:get_server(User),
+    Username = escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
+    case wait_for_archive_size(Server, Username, 100, ExpectedSize) of
+		ExpectedSize ->
+			ok;
+		ArchiveSize ->
+			ct:fail({expected_archive_size, Username, Server, ExpectedSize,
+					 {actual_size, ArchiveSize}})
+	end.
+
 wait_for_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
     archive_size(Server, Username);
 wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
@@ -932,7 +943,7 @@ bootstrap_archive(Config) ->
 %% Wait for messages to be written
 wait_for_msgs(Msgs, Users) ->
     UsersCnt = [{S, U, count_msgs(Msgs, S, U)} || {S, U} <- Users],
-    [wait_for_archive_size_or_warning(S, U, 10, C) || {S, U, C} <- UsersCnt],
+    [wait_for_archive_size_or_warning(S, U, 20, C) || {S, U, C} <- UsersCnt],
     ok.
 
 count_msgs(Msgs, S, U) ->
@@ -1091,7 +1102,7 @@ maybe_cassandra(Host) ->
 
 is_mam_possible(Host) ->
     mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse
-    is_cassandra_enabled(Host).
+    is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
 
 is_riak_enabled(_Host) ->
     case rpc(mim(), mongoose_riak, get_worker, []) of
@@ -1106,6 +1117,14 @@ is_cassandra_enabled(_) ->
         [_|_]=_Pools ->
             true;
         _ ->
+            false
+    end.
+
+is_elasticsearch_enabled(_Host) ->
+    case rpc(mim(), mongoose_elasticsearch, health, []) of
+        {ok, _} ->
+            true;
+        {error, _} ->
             false
     end.
 
@@ -1196,8 +1215,7 @@ make_alice_and_bob_friends(Alice, Bob) ->
 run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
-    escalus:send(Alice, IqSet),
-    _ReplySet = escalus:wait_for_stanza(Alice),
+    _ReplySet = escalus:send_iq_and_wait_for_result(Alice, IqSet),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
                                                [N, PrefsState, os:timestamp()]))
                 || N <- [1, 2, 3, 4]],
@@ -1278,8 +1296,7 @@ print_configuration_not_supported(C, B) ->
 run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Namespace, Alice, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
-    escalus:send(Alice, IqSet),
-    ReplySet = escalus:wait_for_stanza(Alice, 5000),
+    ReplySet = escalus:send_iq_and_wait_for_result(Alice, IqSet),
     ReplySetNS = exml_query:path(ReplySet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
     ?assert_equal(ReplySetNS, Namespace),
     escalus:send(Alice, stanza_prefs_get_request(Namespace)),
