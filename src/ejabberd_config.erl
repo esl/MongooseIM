@@ -207,38 +207,47 @@ set_opts(State) ->
 -spec do_set_opts(state()) -> 'ok' | none().
 do_set_opts(State) ->
     Opts = mongoose_config:state_to_opts(State),
-    do_set_global_opts(State),
-    do_set_local_opts(State),
-    do_set_acls_opts(State),
+    maybe_clean_global_opts(State),
+    maybe_clean_local_opts(State),
+    maybe_clean_acls_opts(State),
     lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
 
-do_set_global_opts(State) ->
+maybe_clean_global_opts(State) ->
     case mongoose_config:can_override(global, State) of
         true ->
-            Ksg = mnesia:all_keys(config),
-            lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg);
+            clean_global_opts();
         _ ->
             ok
     end.
 
-do_set_local_opts(State) ->
+maybe_clean_local_opts(State) ->
     case mongoose_config:can_override(local, State) of
         true ->
-            Ksl = mnesia:all_keys(local_config),
-            lists:foreach(fun(K) -> mnesia:delete({local_config, K}) end,
-                          lists:delete(node_start, Ksl));
+            clean_local_opts();
         _ ->
             ok
     end.
 
-do_set_acls_opts(State) ->
+maybe_clean_acls_opts(State) ->
     case mongoose_config:can_override(acls, State) of
         true ->
-            Ksa = mnesia:all_keys(acl),
-            lists:foreach(fun(K) -> mnesia:delete({acl, K}) end, Ksa);
+            clean_acls_opts();
         _ ->
             ok
     end.
+
+clean_global_opts() ->
+    Ksg = mnesia:all_keys(config),
+    lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg).
+
+clean_local_opts() ->
+    Ksl = mnesia:all_keys(local_config),
+    Ksl2 = lists:delete(node_start, Ksl),
+    lists:foreach(fun(K) -> mnesia:delete({local_config, K}) end, Ksl2).
+
+clean_acls_opts() ->
+    Ksa = mnesia:all_keys(acl),
+    lists:foreach(fun(K) -> mnesia:delete({acl, K}) end, Ksa).
 
 -spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_global_option(Opt, Val) ->
