@@ -17,6 +17,8 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
+        - pip install --user awscli
+        - if [ $PRESET != "pkg" ]; then tools/travis-download-build-artifacts-from-s3.sh; fi
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
@@ -25,13 +27,14 @@ before_install:
 install:
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
         - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+        - test 1 = "$SKIP_COMPILE" || make certs
         - test 1 = "$SKIP_RELEASE" || make devrel
         - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
         - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-script: KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET
+script: KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 
 after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
@@ -75,34 +78,56 @@ branches:
 
 otp_release:
         - 19.3
-env:
-        - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
-        - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
-        - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
-        - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
-        - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
-          REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
-          ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
-          # In case you want to test with another ODBC driver, uncomment this
-      # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
 
-matrix:
-    include:
-        - otp_release: 20.0
-          env: PRESET=dialyzer_only
-               SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
-        - otp_release: 20.0
-          env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip"
-        - otp_release: 18.3
-          env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak
-        - language: generic
-          env: PRESET=pkg pkg_PLATFORM=centos7
-               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-               SKIP_COV=1 SKIP_REPORT_UPLOAD=1
-        - language: generic
-          env: PRESET=pkg pkg_PLATFORM=debian_stretch
-               SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-               SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+jobs:
+  include:
+    - stage: build
+      script:
+        - make ct
+      env:
+        - SKIP_REPORT_UPLOAD=1 SKIP_COV=1 SKIP_RELEASE=1
+      after_success:
+        - tools/travis-upload-build-artifacts-to-s3.sh
+    - stage: test
+      otp_release: 20.0
+      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip" RUN_SMALL_TESTS=true
+    - stage: test
+      otp_release: 20.0
+      env: PRESET=dialyzer_only SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+    - stage: test
+      otp_release: 18.3
+      env: PRESET=riak_mnesia DB=riak REL_CONFIG=with-riak RUN_SMALL_TESTS=true
+    - stage: post tests
+      language: generic
+      env: PRESET=pkg pkg_PLATFORM=centos7
+           SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+           SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+    - stage: post tests
+      language: generic
+      env: PRESET=pkg pkg_PLATFORM=debian_stretch
+           SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
+           SKIP_COV=1 SKIP_REPORT_UPLOAD=1
+
+
+stages:
+  - build
+  - test
+  - post tests
+
+env:
+  global:
+    - RUN_SMALL_TESTS=false
+  matrix:
+    - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
+    - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"
+    - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
+    - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
+    - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
+      REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
+      ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
+    # In case you want to test with another ODBC driver, uncomment this
+    # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
+
 
 notifications:
     webhooks:
