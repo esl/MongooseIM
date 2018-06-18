@@ -79,7 +79,8 @@ prepare: mim_ct_rest compile vm.dist.args
 mim_ct_rest: \
 	$(REPO_DIR)/test/mim_ct_rest.erl \
 	$(REPO_DIR)/test/mim_ct_rest_handler.erl \
-	$(REPO_DIR)/test/mim_ct_sup.erl
+	$(REPO_DIR)/test/mim_ct_sup.erl \
+	$(REPO_DIR)/test/codecov_helper.erl
 	cp $^ src/
 
 vm.dist.args: vm.dist.args.in certs
