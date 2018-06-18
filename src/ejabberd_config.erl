@@ -312,9 +312,7 @@ reload_local() ->
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
     ConfigDiff = get_config_diff(State0),
-    ConfigVersion = mongoose_config:compute_config_version(
-                                           get_local_config(),
-                                           get_host_local_config()),
+    ConfigVersion = compute_current_config_version(),
     State1 = mongoose_config:allow_override_all(State0),
     try
         {ok, _} = apply_changes(ConfigDiff, State1, ConfigVersion),
@@ -345,9 +343,7 @@ reload_cluster() ->
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
     ConfigDiff = get_config_diff(State0),
-    ConfigVersion = mongoose_config:compute_config_version(
-                                           get_local_config(),
-                                           get_host_local_config()),
+    ConfigVersion = compute_current_config_version(),
     FileVersion = mongoose_config:compute_config_file_version(State0),
     ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     %% first apply on local
@@ -459,9 +455,7 @@ apply_changes(ConfigDiff, State, DesiredConfigVersion) ->
     #{config_changes := ConfigChanges,
       local_config_changes := LocalConfigChanges,
       local_hosts_changes := LocalHostsChanges} = ConfigDiff,
-    ConfigVersion = mongoose_config:compute_config_version(
-                                           get_local_config(),
-                                           get_host_local_config()),
+    ConfigVersion = compute_current_config_version(),
     ?DEBUG("config version: ~p", [ConfigVersion]),
     case ConfigVersion of
         DesiredConfigVersion ->
@@ -655,3 +649,7 @@ get_local_config() ->
 -spec get_global_config() -> [{config, term(), term()}].
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
+
+compute_current_config_version() ->
+    mongoose_config:compute_config_version(get_local_config(),
+                                           get_host_local_config()).
