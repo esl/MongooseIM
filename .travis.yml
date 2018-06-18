@@ -20,6 +20,8 @@ before_install:
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
+        # Always use git protocol for github - tiny optimization
+        - git config --global url."git://github".insteadOf https://github
 install:
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
         - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
