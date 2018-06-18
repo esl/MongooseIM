@@ -21,6 +21,11 @@
 %% for unit tests
 -export([group_host_changes/1]).
 
+%% Support for 'include_config_file'
+-export([config_filenames_to_include/1,
+         include_config_files/2]).
+
+
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
@@ -657,3 +662,87 @@ can_override(local, #state{override_local = Override}) ->
     Override;
 can_override(acls, #state{override_acls = Override}) ->
     Override.
+
+
+%% -----------------------------------------------------------------
+%% Support for 'include_config_file'
+%% -----------------------------------------------------------------
+
+config_filenames_to_include([{include_config_file, Filename} | Terms]) ->
+    [Filename|config_filenames_to_include(Terms)];
+config_filenames_to_include([{include_config_file, Filename, _Options} | Terms]) ->
+    [Filename|config_filenames_to_include(Terms)];
+config_filenames_to_include([_Other | Terms]) ->
+    config_filenames_to_include(Terms);
+config_filenames_to_include([]) ->
+    [].
+
+include_config_files(Terms, Configs) ->
+    include_config_files(Terms, Configs, []).
+
+include_config_files([], _Configs, Res) ->
+    Res;
+include_config_files([{include_config_file, Filename} | Terms], Configs, Res) ->
+    include_config_files([{include_config_file, Filename, []} | Terms], Configs, Res);
+include_config_files([{include_config_file, Filename, Options} | Terms], Configs, Res) ->
+    IncludedTerms = find_plain_terms_for_file(Filename, Configs),
+    Disallow = proplists:get_value(disallow, Options, []),
+    IncludedTerms2 = delete_disallowed(Disallow, IncludedTerms),
+    AllowOnly = proplists:get_value(allow_only, Options, all),
+    IncludedTerms3 = keep_only_allowed(AllowOnly, IncludedTerms2),
+    include_config_files(Terms, Configs, Res ++ IncludedTerms3);
+include_config_files([Term | Terms], Configs, Res) ->
+    include_config_files(Terms, Configs, Res ++ [Term]).
+
+find_plain_terms_for_file(Filename, Configs) ->
+    case lists:keyfind(Filename, Configs) of
+        false ->
+            %% Terms were not provided by caller for this file
+            erlang:error({config_not_found, Filename});
+        {Filename, Terms} ->
+            Terms
+    end.
+
+%% @doc Filter from the list of terms the disallowed.
+%% Returns a sublist of Terms without the ones which first element is
+%% included in Disallowed.
+-spec delete_disallowed(Disallowed :: [atom()],
+                        Terms :: [term()]) -> [term()].
+delete_disallowed(Disallowed, Terms) ->
+    lists:foldl(
+      fun(Dis, Ldis) ->
+          delete_disallowed2(Dis, Ldis)
+      end,
+      Terms,
+      Disallowed).
+
+
+delete_disallowed2(Disallowed, [H | T]) ->
+    case element(1, H) of
+        Disallowed ->
+            ?WARNING_MSG("The option '~p' is disallowed, "
+                         "and will not be accepted", [Disallowed]),
+            delete_disallowed2(Disallowed, T);
+        _ ->
+            [H | delete_disallowed2(Disallowed, T)]
+    end;
+delete_disallowed2(_, []) ->
+    [].
+
+%% @doc Keep from the list only the allowed terms.
+%% Returns a sublist of Terms with only the ones which first element is
+%% included in Allowed.
+-spec keep_only_allowed(Allowed :: [atom()],
+                        Terms :: [term()]) -> [term()].
+keep_only_allowed(all, Terms) ->
+    Terms;
+keep_only_allowed(Allowed, Terms) ->
+    {As, NAs} = lists:partition(
+                  fun(Term) ->
+                      lists:member(element(1, Term), Allowed)
+                  end,
+                  Terms),
+    [?WARNING_MSG("This option is not allowed, "
+                  "and will not be accepted:~n~p", [NA])
+     || NA <- NAs],
+    As.

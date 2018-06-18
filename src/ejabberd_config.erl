@@ -237,68 +237,11 @@ exit_or_halt(ExitText) ->
 %% @doc Include additional configuration files in the list of terms.
 -spec include_config_files([term()]) -> [term()].
 include_config_files(Terms) ->
-    include_config_files(Terms, []).
-
-
-include_config_files([], Res) ->
-    Res;
-include_config_files([{include_config_file, Filename} | Terms], Res) ->
-    include_config_files([{include_config_file, Filename, []} | Terms], Res);
-include_config_files([{include_config_file, Filename, Options} | Terms], Res) ->
-    IncludedTerms = get_plain_terms_file(Filename),
-    Disallow = proplists:get_value(disallow, Options, []),
-    IncludedTerms2 = delete_disallowed(Disallow, IncludedTerms),
-    AllowOnly = proplists:get_value(allow_only, Options, all),
-    IncludedTerms3 = keep_only_allowed(AllowOnly, IncludedTerms2),
-    include_config_files(Terms, Res ++ IncludedTerms3);
-include_config_files([Term | Terms], Res) ->
-    include_config_files(Terms, Res ++ [Term]).
-
-
-%% @doc Filter from the list of terms the disallowed.
-%% Returns a sublist of Terms without the ones which first element is
-%% included in Disallowed.
--spec delete_disallowed(Disallowed :: [atom()],
-                        Terms :: [term()]) -> [term()].
-delete_disallowed(Disallowed, Terms) ->
-    lists:foldl(
-      fun(Dis, Ldis) ->
-          delete_disallowed2(Dis, Ldis)
-      end,
-      Terms,
-      Disallowed).
-
-
-delete_disallowed2(Disallowed, [H | T]) ->
-    case element(1, H) of
-        Disallowed ->
-            ?WARNING_MSG("The option '~p' is disallowed, "
-                         "and will not be accepted", [Disallowed]),
-            delete_disallowed2(Disallowed, T);
-        _ ->
-            [H | delete_disallowed2(Disallowed, T)]
-    end;
-delete_disallowed2(_, []) ->
-    [].
-
-
-%% @doc Keep from the list only the allowed terms.
-%% Returns a sublist of Terms with only the ones which first element is
-%% included in Allowed.
--spec keep_only_allowed(Allowed :: [atom()],
-                        Terms :: [term()]) -> [term()].
-keep_only_allowed(all, Terms) ->
-    Terms;
-keep_only_allowed(Allowed, Terms) ->
-    {As, NAs} = lists:partition(
-                  fun(Term) ->
-                      lists:member(element(1, Term), Allowed)
-                  end,
-                  Terms),
-    [?WARNING_MSG("This option is not allowed, "
-                  "and will not be accepted:~n~p", [NA])
-     || NA <- NAs],
-    As.
+    Filenames = mongoose_config:config_filenames_to_include(Terms),
+    Configs = lists:map(fun(Filename) ->
+            {Filename, get_plain_terms_file(Filename)}
+        end, Filenames),
+    mongoose_config:include_config_files(Terms, Configs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
