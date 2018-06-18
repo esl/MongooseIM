@@ -211,13 +211,21 @@ set_opts(State) ->
 -spec do_set_opts(state()) -> 'ok' | none().
 do_set_opts(State) ->
     Opts = mongoose_config:state_to_opts(State),
+    do_set_global_opts(State),
+    do_set_local_opts(State),
+    do_set_acls_opts(State),
+    lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
+
+do_set_global_opts(State) ->
     case mongoose_config:can_override(global, State) of
         true ->
             Ksg = mnesia:all_keys(config),
             lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg);
         _ ->
             ok
-    end,
+    end.
+
+do_set_local_opts(State) ->
     case mongoose_config:can_override(local, State) of
         true ->
             Ksl = mnesia:all_keys(local_config),
@@ -225,16 +233,16 @@ do_set_opts(State) ->
                           lists:delete(node_start, Ksl));
         _ ->
             ok
-    end,
+    end.
+
+do_set_acls_opts(State) ->
     case mongoose_config:can_override(acls, State) of
         true ->
             Ksa = mnesia:all_keys(acl),
             lists:foreach(fun(K) -> mnesia:delete({acl, K}) end, Ksa);
         _ ->
             ok
-    end,
-    lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
-
+    end.
 
 -spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_global_option(Opt, Val) ->
@@ -263,7 +271,6 @@ get_global_option(Opt) ->
         _ ->
             undefined
     end.
-
 
 -spec get_local_option(key()) -> value() | undefined.
 get_local_option(Opt) ->
