@@ -357,7 +357,7 @@ reload_cluster() ->
     ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     %% first apply on local
     State1 = mongoose_config:allow_override_all(State0),
-    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
+    try apply_changes(CC, LC, LHC, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% apply on other nodes
             {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
@@ -378,6 +378,15 @@ reload_cluster() ->
         Error ->
             Reason = msg("failed to apply config on node: ~p~nreason: ~p",
                          [CurrentNode, Error]),
+            ?WARNING_MSG("cluster config reload failed!~n"
+                         "config file: ~s~n"
+                         "reason: ~ts", [ConfigFile, Reason]),
+            exit(Reason)
+    catch
+        ErrorClass:ErrorReason ->
+            Stacktrace = erlang:get_stacktrace(),
+            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
+                         [CurrentNode, {ErrorClass, ErrorReason, Stacktrace}]),
             ?WARNING_MSG("cluster config reload failed!~n"
                          "config file: ~s~n"
                          "reason: ~ts", [ConfigFile, Reason]),
@@ -435,7 +444,7 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
     case mongoose_config:compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = mongoose_config:allow_override_local_only(State0),
-            case catch apply_changes(CC, LC, LHC, State1,
+            try apply_changes(CC, LC, LHC, State1,
                                      DesiredConfigVersion) of
                 {ok, Node} = R ->
                     ?WARNING_MSG("remote config reload succeeded", []),
@@ -445,6 +454,14 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
                                  "can't apply desired config", []),
                     {error, Node,
                      lists:flatten(io_lib:format("~p", [UnknownResult]))}
+            catch
+                ErrorClass:ErrorReason ->
+                    Stacktrace = erlang:get_stacktrace(),
+                    Reason = {ErrorClass, ErrorReason, Stacktrace},
+                    ?WARNING_MSG("remote config reload failed! "
+                                 "can't apply desired config", []),
+                    {error, Node,
+                     lists:flatten(io_lib:format("~p", [Reason]))}
             end;
         _ ->
             ?WARNING_MSG("remote config reload failed! "
