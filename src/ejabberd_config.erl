@@ -192,16 +192,7 @@ set_opts(State) ->
     case mnesia:transaction(fun() -> do_set_opts(State) end) of
         {atomic, _} -> ok;
         {aborted, {no_exists, Table}} ->
-            MnesiaDirectory = mnesia:system_info(directory),
-            ?ERROR_MSG("Error reading Mnesia database spool files:~n"
-                       "The Mnesia database couldn't read the spool file for the table '~p'.~n"
-                       "ejabberd needs read and write access in the directory:~n   ~s~n"
-                       "Maybe the problem is a change in the computer hostname, ~n"
-                       "or a change in the Erlang node name, which is currently:~n   ~p~n"
-                       "Check the ejabberd guide for details about changing the~n"
-                       "computer hostname or Erlang node name.~n",
-                       [Table, MnesiaDirectory, node()]),
-            exit("Error reading Mnesia database")
+            handle_table_does_not_exist_error(Table)
     end.
 
 -spec do_set_opts(state()) -> 'ok' | none().
@@ -307,6 +298,18 @@ get_vh_by_auth_method(AuthMethod) ->
     mnesia:dirty_select(local_config,
                         [{#local_config{key   = {auth_method, '$1'},
                                         value = AuthMethod}, [], ['$1']}]).
+
+handle_table_does_not_exist_error(Table) ->
+    MnesiaDirectory = mnesia:system_info(directory),
+    ?ERROR_MSG("Error reading Mnesia database spool files:~n"
+               "The Mnesia database couldn't read the spool file for the table '~p'.~n"
+               "ejabberd needs read and write access in the directory:~n   ~s~n"
+               "Maybe the problem is a change in the computer hostname, ~n"
+               "or a change in the Erlang node name, which is currently:~n   ~p~n"
+               "Check the ejabberd guide for details about changing the~n"
+               "computer hostname or Erlang node name.~n",
+               [Table, MnesiaDirectory, node()]),
+    exit("Error reading Mnesia database").
 
 %%--------------------------------------------------------------------
 %% Configuration reload
