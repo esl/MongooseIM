@@ -74,7 +74,7 @@ smoke(Config) ->
     ok = stop_ejabberd().
 
 coalesce_multiple_local_config_options(_Config) ->
-    F = fun ejabberd_config:group_host_changes/1,
+    F = fun mongoose_config:group_host_changes/1,
     ?eq(coalesced_modules_section(), F(multiple_modules_sections())).
 
 add_a_module(C) ->
