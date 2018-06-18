@@ -133,39 +133,24 @@ load_file(File) ->
 %% and the terms in those files were included.
 -spec get_plain_terms_file(string()) -> [term()].
 get_plain_terms_file(File1) ->
-    File = get_absolute_path(File1),
+    File = mongoose_config_utils:get_absolute_path(File1),
     case file:consult(File) of
         {ok, Terms} ->
             include_config_files(Terms);
         {error, {LineNumber, erl_parse, _ParseMessage} = Reason} ->
             ExitText = describe_config_problem(File, Reason, LineNumber),
             ?ERROR_MSG(ExitText, []),
-            exit_or_halt(ExitText);
+            mongoose_config_utils:exit_or_halt(ExitText);
         {error, Reason} ->
             ExitText = describe_config_problem(File, Reason),
             ?ERROR_MSG(ExitText, []),
-            exit_or_halt(ExitText)
-    end.
-
-
-%% @doc Convert configuration filename to absolute path.
-%% Input is an absolute or relative path to an ejabberd configuration file.
-%% And returns an absolute path to the configuration file.
--spec get_absolute_path(string()) -> string().
-get_absolute_path(File) ->
-    case filename:pathtype(File) of
-        absolute ->
-            File;
-        relative ->
-            {ok, Cwd} = file:get_cwd(),
-            filename:absname_join(Cwd, File)
+            mongoose_config_utils:exit_or_halt(ExitText)
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
 
 -type config_problem() :: atom() | {integer(), atom() | tuple(), _}. % spec me better
--type config_line() :: [[any()] | non_neg_integer(), ...]. % spec me better
 
 -spec describe_config_problem(Filename :: string(),
                               Reason :: config_problem()) -> string().
@@ -184,50 +169,11 @@ describe_config_problem(Filename, Reason, LineNumber) ->
     Text2 = lists:flatten(" approximately in the line "
                           ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
-    Lines = get_config_lines(Filename, LineNumber, 10, 3),
+    Lines = mongoose_config_utils:get_config_lines(Filename, LineNumber, 10, 3),
     ?ERROR_MSG("The following lines from your configuration file might be"
                " relevant to the error: ~n~s", [Lines]),
     ExitText.
 
-
--spec get_config_lines(Filename :: string(),
-                       TargetNumber :: integer(),
-                       PreContext :: 10,
-                       PostContext :: 3) -> [config_line()].
-get_config_lines(Filename, TargetNumber, PreContext, PostContext) ->
-    {ok, Fd} = file:open(Filename, [read]),
-    LNumbers = lists:seq(TargetNumber - PreContext, TargetNumber + PostContext),
-    NextL = io:get_line(Fd, no_prompt),
-    R = get_config_lines2(Fd, NextL, 1, LNumbers, []),
-    file:close(Fd),
-    R.
-
-
-get_config_lines2(_Fd, eof, _CurrLine, _LNumbers, R) ->
-    lists:reverse(R);
-get_config_lines2(_Fd, _NewLine, _CurrLine, [], R) ->
-    lists:reverse(R);
-get_config_lines2(Fd, Data, CurrLine, [NextWanted | LNumbers], R) when is_list(Data) ->
-    NextL = io:get_line(Fd, no_prompt),
-    case CurrLine >= NextWanted of
-        true ->
-            Line2 = [integer_to_list(CurrLine), ": " | Data],
-            get_config_lines2(Fd, NextL, CurrLine + 1, LNumbers, [Line2 | R]);
-        false ->
-            get_config_lines2(Fd, NextL, CurrLine + 1, [NextWanted | LNumbers], R)
-    end.
-
-
-%% @doc If ejabberd isn't yet running in this node, then halt the node
--spec exit_or_halt(ExitText :: string()) -> none().
-exit_or_halt(ExitText) ->
-    case [Vsn || {mongooseim, _Desc, Vsn} <- application:which_applications()] of
-        [] ->
-            timer:sleep(1000),
-            halt(string:substr(ExitText, 1, 199));
-        [_] ->
-            exit(ExitText)
-    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Support for 'include_config_file'
