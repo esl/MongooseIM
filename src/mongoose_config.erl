@@ -299,7 +299,7 @@ process_term(Term, State) ->
         {s2s_ciphers, Ciphers} ->
             add_option(s2s_ciphers, Ciphers, State);
         {s2s_certfile, CertFile} ->
-            case ejabberd_config:is_file_readable(CertFile) of
+            case mongoose_config_utils:is_file_readable(CertFile) of
                 true -> add_option(s2s_certfile, CertFile, State);
                 false ->
                     ErrorText = "There is a problem in the configuration: "
@@ -307,7 +307,7 @@ process_term(Term, State) ->
                     throw({error, ErrorText ++ CertFile})
             end;
         {domain_certfile, Domain, CertFile} ->
-            case ejabberd_config:is_file_readable(CertFile) of
+            case mongoose_config_utils:is_file_readable(CertFile) of
                 true -> add_option({domain_certfile, Domain}, CertFile, State);
                 false ->
                     ErrorText = "There is a problem in the configuration: "

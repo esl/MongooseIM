@@ -363,7 +363,7 @@ certfile_readable(Opts) ->
     case proplists:lookup(certfile, Opts) of
         none -> true;
         {certfile, Path} ->
-            case ejabberd_config:is_file_readable(Path) of
+            case mongoose_config_utils:is_file_readable(Path) of
                 true -> true;
                 false -> {false, Path}
             end

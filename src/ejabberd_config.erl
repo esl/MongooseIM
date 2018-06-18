@@ -37,7 +37,6 @@
          del_local_option/1,
          get_local_option_or_default/2]).
 -export([get_vh_by_auth_method/1]).
--export([is_file_readable/1]).
 
 %% conf reload
 -export([reload_local/0,
@@ -52,7 +51,6 @@
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
--include_lib("kernel/include/file.hrl").
 
 -define(CONFIG_RELOAD_TIMEOUT, 30000).
 
@@ -351,20 +349,6 @@ get_vh_by_auth_method(AuthMethod) ->
     mnesia:dirty_select(local_config,
                         [{#local_config{key   = {auth_method, '$1'},
                                         value = AuthMethod}, [], ['$1']}]).
-
-
--spec is_file_readable(Path :: string()) -> boolean().
-is_file_readable(Path) ->
-    case file:read_file_info(Path) of
-        {ok, FileInfo} ->
-            case {FileInfo#file_info.type, FileInfo#file_info.access} of
-                {regular, read} -> true;
-                {regular, read_write} -> true;
-                _ -> false
-            end;
-        {error, _Reason} ->
-            false
-    end.
 
 %%--------------------------------------------------------------------
 %% Configuration reload
