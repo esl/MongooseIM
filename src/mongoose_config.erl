@@ -56,6 +56,12 @@
         to_reload => list()
        }.
 
+-type config_diff() :: #{
+        config_changes => compare_result(),
+        local_config_changes => compare_result(),
+        local_hosts_changes => compare_result()
+       }.
+
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
 -type macro() :: {macro_key(), macro_value()}.

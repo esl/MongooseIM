@@ -68,6 +68,7 @@
 -export_type([key/0, value/0]).
 
 -type compare_result() :: mongoose_config:compare_result().
+-type config_diff() :: mongoose_config:config_diff().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config:state().
@@ -310,13 +311,13 @@ parse_file(ConfigFile) ->
 reload_local() ->
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
-    {CC, LC, LHC} = get_config_diff(State0),
+    ConfigDiff = get_config_diff(State0),
     ConfigVersion = mongoose_config:compute_config_version(
                                            get_local_config(),
                                            get_host_local_config()),
     State1 = mongoose_config:allow_override_all(State0),
     try
-        {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
+        {ok, _} = apply_changes(ConfigDiff, State1, ConfigVersion),
         ?WARNING_MSG("node config reloaded from ~s", [ConfigFile]),
         {ok, io_lib:format("# Reloaded: ~s", [node()])}
     catch
@@ -343,8 +344,7 @@ reload_cluster() ->
     CurrentNode = node(),
     ConfigFile = get_ejabberd_config_path(),
     State0 = parse_file(ConfigFile),
-    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
-
+    ConfigDiff = get_config_diff(State0),
     ConfigVersion = mongoose_config:compute_config_version(
                                            get_local_config(),
                                            get_host_local_config()),
@@ -352,7 +352,7 @@ reload_cluster() ->
     ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
     %% first apply on local
     State1 = mongoose_config:allow_override_all(State0),
-    try apply_changes(CC, LC, LHC, State1, ConfigVersion) of
+    try apply_changes(ConfigDiff, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% apply on other nodes
             {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
@@ -406,12 +406,7 @@ group_nodes_results(SuccessfullRPC, FailedRPC) ->
                          end, {[], []}, SuccessfullRPC),
     {S, F ++ lists:map(fun(E) -> {atom_to_list(E) ++ " " ++ "RPC failed"} end, FailedRPC)}.
 
--spec get_config_diff(state()) -> {ConfigChanges,
-                                   LocalConfigChanges,
-                                   LocalHostsChanges} when
-      ConfigChanges :: compare_result(),
-      LocalConfigChanges :: compare_result(),
-      LocalHostsChanges :: compare_result().
+-spec get_config_diff(state()) -> config_diff().
 get_config_diff(State) ->
     Config = get_global_config(),
     Local = get_local_config(),
@@ -419,13 +414,9 @@ get_config_diff(State) ->
     Args = #{global_config => Config,
              local_config => Local,
              host_local_config => HostsLocal},
-    Result = mongoose_config:get_config_diff(State, Args),
-    #{config_changes := CC,
-      local_config_changes := LC,
-      local_hosts_changes := LHC} = Result,
-    {CC, LC, LHC}.
+    mongoose_config:get_config_diff(State, Args).
 
--spec apply_changes_remote(file:name(), term(), binary(), binary()) ->
+-spec apply_changes_remote(file:name(), config_diff(), binary(), binary()) ->
                                   {ok, node()}| {error, node(), string()}.
 apply_changes_remote(NewConfigFilePath, ConfigDiff,
                      DesiredConfigVersion, DesiredFileVersion) ->
@@ -434,13 +425,11 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
            "~ndesired file version: ~p",
            [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
-    {CC, LC, LHC} = ConfigDiff,
     State0 = parse_file(NewConfigFilePath),
     case mongoose_config:compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = mongoose_config:allow_override_local_only(State0),
-            try apply_changes(CC, LC, LHC, State1,
-                                     DesiredConfigVersion) of
+            try apply_changes(ConfigDiff, State1, DesiredConfigVersion) of
                 {ok, Node} = R ->
                     ?WARNING_MSG("remote config reload succeeded", []),
                     R;
@@ -464,10 +453,12 @@ apply_changes_remote(NewConfigFilePath, ConfigDiff,
             {error, Node, io_lib:format("Mismatching config file", [])}
     end.
 
--spec apply_changes(term(), term(), term(), state(), binary()) ->
+-spec apply_changes(config_diff(), state(), binary()) ->
                            {ok, node()} | {error, node(), string()}.
-apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
-              State, DesiredConfigVersion) ->
+apply_changes(ConfigDiff, State, DesiredConfigVersion) ->
+    #{config_changes := ConfigChanges,
+      local_config_changes := LocalConfigChanges,
+      local_hosts_changes := LocalHostsChanges} = ConfigDiff,
     ConfigVersion = mongoose_config:compute_config_version(
                                            get_local_config(),
                                            get_host_local_config()),
