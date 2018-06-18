@@ -50,11 +50,11 @@
                 override_global = false :: boolean(),
                 override_acls = false :: boolean()}).
 
--record(compare_result, {to_start = [] :: list(),
-                         to_stop = [] :: list(),
-                         to_reload = [] :: list()}).
-
--type compare_result() :: #compare_result{}.
+-type compare_result() :: #{
+        to_start => list(),
+        to_stop => list(),
+        to_reload => list()
+       }.
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -593,9 +593,9 @@ compare_terms(OldTerms, NewTerms, KeyPos, ValuePos)
                                      {[], []}, OldTerms),
     ToStart = lists:foldl(pa:bind(fun find_modules_to_start/4,
                                   KeyPos, OldTerms), [], NewTerms),
-    #compare_result{to_start  = ToStart,
-                    to_stop   = ToStop,
-                    to_reload = ToReload}.
+    #{to_start  => ToStart,
+      to_stop   => ToStop,
+      to_reload => ToReload}.
 
 find_modules_to_start(KeyPos, OldTerms, Element, ToStart) ->
     case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of

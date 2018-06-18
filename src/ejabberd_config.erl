@@ -41,8 +41,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
-         apply_changes_remote/4,
-         apply_changes/5]).
+         apply_changes_remote/4]).
 
 -export([get_local_config/0,
          get_host_local_config/0]).
@@ -68,11 +67,7 @@
 
 -export_type([key/0, value/0]).
 
--record(compare_result, {to_start = [] :: list(),
-                         to_stop = [] :: list(),
-                         to_reload = [] :: list()}).
-
--type compare_result() :: #compare_result{}.
+-type compare_result() :: mongoose_config:compare_result().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config:state().
@@ -492,20 +487,26 @@ apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
 
     {ok, node()}.
 
-reload_config(#compare_result{to_start  = CAdd, to_stop = CDel,
-                              to_reload = CChange}) ->
+-spec reload_config(compare_result()) -> ok.
+reload_config(#{to_start := CAdd,
+                to_stop := CDel,
+                to_reload := CChange}) ->
     lists:foreach(fun handle_config_change/1, CChange),
     lists:foreach(fun handle_config_add/1, CAdd),
     lists:foreach(fun handle_config_del/1, CDel).
 
-reload_local_config(#compare_result{to_start  = LCAdd, to_stop = LCDel,
-                                    to_reload = LCChange}) ->
+-spec reload_local_config(compare_result()) -> ok.
+reload_local_config(#{to_start := LCAdd,
+                      to_stop := LCDel,
+                      to_reload := LCChange}) ->
     lists:foreach(fun handle_local_config_change/1, LCChange),
     lists:foreach(fun handle_local_config_add/1, LCAdd),
     lists:foreach(fun handle_local_config_del/1, LCDel).
 
-reload_local_hosts_config(#compare_result{to_start  = LCHAdd, to_stop = LCHDel,
-                                          to_reload = LCHChange}) ->
+-spec reload_local_hosts_config(compare_result()) -> ok.
+reload_local_hosts_config(#{to_start := LCHAdd,
+                            to_stop := LCHDel,
+                            to_reload := LCHChange}) ->
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
@@ -632,8 +633,9 @@ remove_virtual_host(Host) ->
     ejabberd_local:unregister_host(Host).
 
 -spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
-reload_listeners(#compare_result{to_start  = Add, to_stop = Del,
-                                 to_reload = Change} = ChangedListeners) ->
+reload_listeners(#{to_start := Add,
+                   to_stop := Del,
+                   to_reload := Change} = ChangedListeners) ->
     ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
                       ejabberd_listener:delete_listener(PortIP, Module, Opts)
