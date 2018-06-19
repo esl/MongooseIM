@@ -25,6 +25,9 @@
 -export([config_filenames_to_include/1,
          include_config_files/2]).
 
+-export([flatten_opts/2,
+         expand_opts/1]).
+
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -482,14 +485,26 @@ get_config_diff(State, #{global_config := Config,
 
 
 
+%% Config version hash does not depend on order of arguments in the config
 compute_config_version(LC, LCH) ->
-    L0 = lists:filter(mk_node_start_filter(), LC ++ LCH),
-    L1 = sort_config(L0),
-    crypto:hash(sha, term_to_binary(L1)).
+    L0 = skip_special_config_opts(LC) ++ LCH,
+    L1 = lists:sort(flatten_opts(LC, LCH)),
+    ShaBin = crypto:hash(sha, term_to_binary(L1)),
+    bin_to_hex:bin_to_hex(ShaBin).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    L = sort_config(Opts ++ Hosts),
-    crypto:hash(sha, term_to_binary(L)).
+    compute_config_version(Opts, Hosts).
+
+skip_special_config_opts(Opts) ->
+    lists:filter(fun(Opt) -> not is_special_config_opt(Opt) end, Opts).
+
+is_special_config_opt(#local_config{key = Key}) ->
+    lists:member(Key, special_local_config_opts());
+is_special_config_opt(_) -> %% There are also #config{} and acls
+    false.
+
+special_local_config_opts() ->
+    [node_start].
 
 -spec check_hosts([jid:server()], [jid:server()]) -> {[jid:server()],
                                                                 [jid:server()]}.
@@ -627,23 +642,6 @@ find_modules_to_change(KeyPos, NewTerms, ValuePos,
             end
     end.
 
-mk_node_start_filter() ->
-    fun(#local_config{key = node_start}) ->
-        false;
-       (_) ->
-        true
-    end.
-
-sort_config(Config) when is_list(Config) ->
-    L = lists:map(fun(ConfigItem) when is_list(ConfigItem) ->
-                      sort_config(ConfigItem);
-                     (ConfigItem) when is_tuple(ConfigItem) ->
-                      sort_config(tuple_to_list(ConfigItem));
-                     (ConfigItem) ->
-                      ConfigItem
-                  end, Config),
-    lists:sort(L).
-
 
 %% -----------------------------------------------------------------
 %% State API
@@ -752,3 +750,206 @@ keep_only_allowed(Allowed, Terms) ->
                   "and will not be accepted:~n~p", [NA])
      || NA <- NAs],
     As.
+
+
+
+%% @doc Convert LocalConfig and HostLocalConfig to a flat list of options
+flatten_opts(LC, LCH) ->
+    flatten_local_config_opts(LC) ++ flatten_local_config_host_opts(LCH).
+
+flatten_local_config_opts(LC) ->
+    lists:flatmap(fun(#local_config{key = K, value = V}) ->
+                          flatten_local_config_opt(K, V);
+                     (#config{key  = K, value = V}) ->
+                          flatten_global_config_opt(K, V);
+                     ({acl, K, V}) ->
+                          flatten_acl_config_opt(K, V);
+                     (Other) ->
+                     ?ERROR_MSG("issue=strange_local_config value=~1000p",
+                                [Other]),
+                     []
+                  end, LC).
+
+flatten_local_config_host_opts(LCH) ->
+    lists:flatmap(fun(#local_config{key = {K, Host}, value = V}) ->
+                          flatten_local_config_host_opt(K, Host, V);
+                     (Host) ->
+                     [{hostname, Host}];
+                     (Other) ->
+                     ?ERROR_MSG("issue=strange_local_host_config value=~1000p",
+                                [Other]),
+                     []
+                  end, LCH).
+
+flatten_global_config_opt(K, V) ->
+    [{[g, K], V}].
+
+flatten_acl_config_opt(K, V) ->
+    [{[a, K], V}].
+
+flatten_local_config_opt(listen, V) ->
+    [{[l, listen], flatten}] ++
+    lists:append([flatten_listen(Address, Module, Opts)
+                  || {Address, Module, Opts} <- V]);
+flatten_local_config_opt(K, V) ->
+    [{[l, K], V}].
+
+flatten_listen(Address, Module, Opts) ->
+    [{[l, listener, Address, Module], flatten}
+     | flatten_listen_opts(Address, Module, Opts)].
+
+flatten_listen_opts(Address, Module, Opts) ->
+    lists:map(fun({OptName, OptValue}) ->
+                {[l, listener_opt, Address, Module, OptName], OptValue};
+                 (Opt) -> %% not key-value option, example: starttls
+                {[l, listener_simple_opt, Address, Module, Opt], simple}
+              end, Opts).
+
+flatten_local_config_host_opt(modules, Host, V) ->
+    [{[h, Host, modules], flatten}] ++
+    lists:append([flatten_module(Host, Module, Opts) || {Module, Opts} <- V]);
+flatten_local_config_host_opt(K, Host, V) ->
+    [{[h, Host, K], V}].
+
+flatten_module(H, Module, Opts) ->
+    [{[h, H, module, Module], flatten}|flatten_module_opts(H, Module, Opts)].
+
+flatten_module_opts(H, Module, Opts) ->
+    lists:map(fun({OptName, OptValue}) ->
+                {[h, H, module_opt, Module, OptName], OptValue}
+        end, Opts).
+
+
+%% @doc Convert flat list of options back to LocalConfig and HostLocalConfig
+expand_opts(FlattenOpts) ->
+    Groups = group_flat_opts(FlattenOpts),
+    GlobalConfigGroup = maps:get(global_config, Groups, []),
+    LocalConfigGroup = maps:get(local_config, Groups, []),
+    HostConfigGroup = maps:get(host_config, Groups, []),
+    LocalConfig = expand_local_config_group(LocalConfigGroup, Groups),
+    HostConfig = expand_host_config_group(HostConfigGroup, Groups),
+    {LocalConfig, HostConfig}.
+
+expand_global_config_group(LocalConfigGroup, Groups) ->
+    [expand_global_config_group_item(K, V, Groups)
+     || {K, V} <- LocalConfigGroup].
+
+expand_global_config_group_item(K, V, Groups) ->
+    Value = expand_local_config_group_item_value(K, V, Groups),
+    #config{key = K, value = Value}.
+
+%% @doc Rewrite LocalConfigGroup to `{local_config, _, _}' format
+%% using `Groups' for quick lookups
+expand_local_config_group(LocalConfigGroup, Groups) ->
+    [expand_local_config_group_item(Type, K, V, Groups)
+     || {Type, K, V} <- LocalConfigGroup].
+
+expand_local_config_group_item(local, K, V, Groups) ->
+    Value = expand_local_config_group_item_value(K, V, Groups),
+    #local_config{key = K, value = Value};
+expand_local_config_group_item(global, K, V, Groups) ->
+    #config{key = K, value = V};
+expand_local_config_group_item(acl, K, V, Groups) ->
+    {acl, K, V};
+expand_local_config_group_item(hostname, Host, simple, Groups) ->
+    Host.
+
+expand_local_config_group_item_value(listen, flatten, Groups) ->
+    make_listeners_from_groups(Groups);
+expand_local_config_group_item_value(_K, V, _Groups) ->
+    V.
+
+make_listeners_from_groups(Groups) ->
+    Listeners = maps:get(listeners, Groups, []),
+    [{Address, Module, make_listener_opts_from_groups(Address, Module, Groups)}
+     || {Address, Module} <- Listeners].
+
+make_listener_opts_from_groups(Address, Module, Groups) ->
+    GroupName = {listener, Address, Module},
+    maps:get(GroupName, Groups, []).
+
+expand_host_config_group(HostConfigGroup, Groups) ->
+    [expand_host_config_group_item(Host, K, V, Groups)
+     || {Host, K, V} <- HostConfigGroup].
+
+expand_host_config_group_item(Host, K, V, Groups) ->
+    Value = expand_host_config_group_item_value(Host, K, V, Groups),
+    {local_config, {K, Host}, Value}.
+
+expand_host_config_group_item_value(Host, modules, flatten, Groups) ->
+    make_modules_for_host_from_groups(Host, Groups);
+expand_host_config_group_item_value(_Host, _K, V, _Groups) ->
+    V.
+
+make_modules_for_host_from_groups(Host, Groups) ->
+    GroupName = {modules, Host},
+    Modules = maps:get(GroupName, Groups, []),
+    [{Module, make_module_opts_from_groups(Host, Module, Groups)}
+     || Module <- Modules].
+
+make_module_opts_from_groups(Host, Module, Groups) ->
+    GroupName = {module_opts, Host, Module},
+    maps:get(GroupName, Groups, []).
+
+%% @doc group opts for faster lookups in expand_opts
+group_flat_opts(FlattenOpts) ->
+    %% Process FlattenOpts in reverse order
+    lists:foldr(fun group_flat_opt/2, #{}, FlattenOpts).
+
+group_flat_opt({[g, K], V}, Groups) ->
+    GroupName  = local_config,
+    GroupValue = {global, K, V},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[l, K], V}, Groups) ->
+    GroupName  = local_config,
+    GroupValue = {local, K, V},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[a, K], V}, Groups) ->
+    GroupName  = local_config,
+    GroupValue = {acl, K, V},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[h, Host, K], V}, Groups) ->
+    GroupName  = host_config,
+    GroupValue = {Host, K, V},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[h, Host, module, Module], flatten}, Groups) ->
+    GroupName  = {modules, Host},
+    GroupValue = Module,
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[h, Host, module_opt, Module, OptName], OptValue}, Groups) ->
+    GroupName  = {module_opts, Host, Module},
+    GroupValue = {OptName, OptValue},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[l, listener, Address, Module], flatten}, Groups) ->
+    GroupName  = listeners,
+    GroupValue = {Address, Module},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[l, listener_opt, Address, Module, OptName], OptValue}, Groups) ->
+    GroupName  = {listener, Address, Module},
+    GroupValue = {OptName, OptValue},
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[l, listener_simple_opt, Address, Module, Opt], simple}, Groups) ->
+    GroupName  = {listener, Address, Module},
+    GroupValue = Opt,
+    add_to_group(GroupName, GroupValue, Groups);
+
+group_flat_opt({[hostname, Host], simple}, Groups) ->
+    GroupName  = local_config,
+    GroupValue = {hostname, Host, simple},
+    add_to_group(GroupName, GroupValue, Groups).
+
+%% @doc Append into a group for later use
+%% Returns updated Groups
+-spec add_to_group(term(), term(), Groups :: map()) -> Groups :: map().
+add_to_group(Group, Value, Groups) ->
+    Values = maps:get(Group, Groups, []),
+    maps:put(Group, [Value|Values], Groups).
+

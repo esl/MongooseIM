@@ -46,6 +46,9 @@
 -export([get_local_config/0,
          get_host_local_config/0]).
 
+%% Introspection
+-export([config_info/0]).
+
 -import(mongoose_config, [can_be_ignored/1]).
 
 -include("mongoose.hrl").
@@ -665,3 +668,12 @@ get_global_config() ->
 compute_current_config_version() ->
     mongoose_config:compute_config_version(get_local_config(),
                                            get_host_local_config()).
+
+compute_config_file_version() ->
+    ConfigFile = get_ejabberd_config_path(),
+    State = parse_file(ConfigFile),
+    mongoose_config:compute_config_file_version(State).
+
+config_info() ->
+    [{config_file_version, compute_config_file_version()},
+     {config_version, compute_config_file_version()}].
