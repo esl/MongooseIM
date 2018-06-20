@@ -52,7 +52,16 @@ main(RawArgs) ->
         Results = run(Opts),
         %% Waiting for messages to be flushed
         timer:sleep(50),
-        process_results(Results)
+        ExitStatusByGroups = anaylyze_groups_runs(),
+        ExitStatusByTestCases = process_results(Results),
+        case ExitStatusByGroups of
+            undefined ->
+                io:format("Exiting by test cases summary: ~p~n", [ExitStatusByTestCases]),
+                init:stop(ExitStatusByTestCases);
+            _ when is_integer(ExitStatusByGroups) ->
+                io:format("Exiting by groups summary: ~p~n",  [ExitStatusByGroups]),
+                init:stop(ExitStatusByGroups)
+        end
     catch Type:Reason ->
         Stacktrace = erlang:get_stacktrace(),
         io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
@@ -419,7 +428,7 @@ process_results([], {StatsAcc, Errors}) ->
     write_stats_into_vars_file(StatsAcc),
     print_errors(Errors),
     print_stats(StatsAcc),
-    init:stop(exit_code(StatsAcc));
+    exit_code(StatsAcc);
 process_results([ {ok, RunStats} | T ], {StatsAcc, Errors}) ->
     process_results(T, {add(RunStats, StatsAcc), Errors});
 process_results([ Error | T ], {StatsAcc, Errors}) ->
@@ -612,3 +621,15 @@ deduplicate_cover_server_console_prints() ->
     CoverPid = whereis(cover_server),
     dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
 
+anaylyze_groups_runs() ->
+    CTRunDirs = filelib:wildcard("ct_report/ct_run*"),
+    SortFun = fun(F1, F2) -> filelib:last_modified(F1) > filelib:last_modified(F2) end,
+    SortedCTRunDirs = lists:sort(SortFun, CTRunDirs),
+    LatestCTRun = hd(SortedCTRunDirs),
+    case file:consult(LatestCTRun ++ "/all_groups.summary") of
+        {ok, Terms} ->
+            proplists:get_value(total_failed, Terms, undefined);
+      {error, Error} ->
+            error_logger:error_msg("Error reading all_groups.summary: ~p~n", [Error]),
+            undefined
+    end.

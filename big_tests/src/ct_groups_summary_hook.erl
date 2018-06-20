@@ -34,7 +34,7 @@ pre_init_per_suite(Suite, Config, State) ->
 
 post_end_per_suite(_SuiteName, Config, Return, State) ->
     %ct:pal("post_end_per_suite config: ~p", [Config]),
-    ct:pal("post_end_per_suite state: ~p", [State]),
+    %ct:pal("post_end_per_suite state: ~p", [State]),
     %ct:pal("post_end_per_suite return: ~p", [Return]),
     NewState = write_groups_summary(Config, State),
     {Return, NewState}.
@@ -47,9 +47,13 @@ post_end_per_group(GroupName, Config, Return, State) ->
     ct:log("NewState: ~p", [State1]),
     {Return, State1}.
 
-terminate(State) ->
-    io:format("~p", [State]),
-    ct:log("~p", [State]),
+terminate(#{total_ok := OK, total_eventually_ok_tests := TotalEventuallyOK,
+            total_failed := TotalFailed} = State) ->
+    Content = io_lib:format("~p.~n~p.~n~p~n.",
+                            [{total_ok, OK},
+                             {total_eventually_ok_tests, TotalEventuallyOK},
+                             {total_failed, TotalFailed}]),
+    ok = file:write_file("all_groups.summary", Content),
     State.
 
 %% @doc If the group property repeat_until_all_ok is enabled,
