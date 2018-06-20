@@ -107,171 +107,173 @@ all() -> [
           {group, register_over_s2s}
         ].
 
-groups() -> [
-             {hibernation, [parallel], [room_is_hibernated,
-                                        room_with_participants_is_hibernated,
-                                        hibernation_metrics_are_updated,
-                                        room_with_participants_and_messages_is_hibernated,
-                                        hibernated_room_can_be_queried_for_archive,
-                                        hibernated_room_is_stopped,
-                                        hibernated_room_is_stopped_and_restored_by_presence,
-                                        stopped_rooms_history_is_available,
-                                        stopped_members_only_room_process_invitations_correctly,
-                                        room_with_participants_is_not_stopped,
-                                        room_with_only_owner_is_stopped,
-                                        deep_hibernation_metrics_are_updated,
-                                        can_found_in_db_when_stopped
-                                       ]},
-        {disco, [parallel], [
-                disco_service,
-                disco_features,
-                disco_rooms,
-                disco_info,
-                disco_items,
-                disco_items_nonpublic
-                ]},
-        {disco_rsm, [parallel], rsm_cases()},
-        {moderator, [parallel], [
-                moderator_subject,
-                moderator_subject_unauthorized,
-                moderator_kick,
-                moderator_kick_with_reason,
-                moderator_kick_unauthorized,
-                moderator_voice,
-                moderator_voice_with_reason,
-                moderator_voice_unauthorized,
-                moderator_voice_list,
-                moderator_voice_approval,
-                moderator_voice_forbidden,
-                moderator_voice_not_occupant,
-                moderator_voice_nonick
-                ]},
-        {admin, [parallel], [
-                admin_ban,
-                admin_ban_with_reason,
-                admin_ban_list,
-                admin_get_form,
-                admin_invalid_affiliation,
-                admin_invalid_jid,
-                %% test should fail, temporarily changed
-                admin_ban_higher_user,
-                admin_membership,
-                admin_membership_with_reason,
-                admin_member_list,
-                admin_member_list_allowed,
-                admin_moderator,
-                admin_moderator_with_reason,
-                admin_moderator_revoke_owner,
-                admin_moderator_list,
-                admin_invalid_role,
-                admin_invalid_nick
-                ]},
-        {admin_membersonly, [], [
-                admin_mo_revoke,
-                admin_mo_invite,
-                admin_mo_invite_with_reason,
-                admin_mo_invite_mere
-                ]},
-        {occupant, [parallel], [
-                %nick registration in a room is not implemented and will not be tested
-                groupchat_user_enter,
-                groupchat_user_enter_no_nickname,
-                muc_user_enter,
-                enter_non_anonymous_room,
-                deny_access_to_password_protected_room,
-                enter_password_protected_room,
-                deny_accesss_to_memebers_only_room,
-                deny_entry_to_a_banned_user,
-                deny_entry_nick_conflict,
-                multi_sessions_enter,
-                multi_sessions_messages,
-                multi_sessions_exit_session,
-                multi_sessions_exit,
-                deny_entry_with_multiple_sessions_disallowed,
-                enter_room_with_logging,
-                deny_entry_user_limit_reached,
-                send_history,
-                history_since,
+groups() ->
+    G = [
+         {hibernation, [parallel], [room_is_hibernated,
+                                    room_with_participants_is_hibernated,
+                                    hibernation_metrics_are_updated,
+                                    room_with_participants_and_messages_is_hibernated,
+                                    hibernated_room_can_be_queried_for_archive,
+                                    hibernated_room_is_stopped,
+                                    hibernated_room_is_stopped_and_restored_by_presence,
+                                    stopped_rooms_history_is_available,
+                                    stopped_members_only_room_process_invitations_correctly,
+                                    room_with_participants_is_not_stopped,
+                                    room_with_only_owner_is_stopped,
+                                    deep_hibernation_metrics_are_updated,
+                                    can_found_in_db_when_stopped
+                                   ]},
+         {disco, [parallel], [
+                              disco_service,
+                              disco_features,
+                              disco_rooms,
+                              disco_info,
+                              disco_items,
+                              disco_items_nonpublic
+                             ]},
+         {disco_rsm, [parallel], rsm_cases()},
+         {moderator, [parallel], [
+                                  moderator_subject,
+                                  moderator_subject_unauthorized,
+                                  moderator_kick,
+                                  moderator_kick_with_reason,
+                                  moderator_kick_unauthorized,
+                                  moderator_voice,
+                                  moderator_voice_with_reason,
+                                  moderator_voice_unauthorized,
+                                  moderator_voice_list,
+                                  moderator_voice_approval,
+                                  moderator_voice_forbidden,
+                                  moderator_voice_not_occupant,
+                                  moderator_voice_nonick
+                                 ]},
+         {admin, [parallel], [
+                              admin_ban,
+                              admin_ban_with_reason,
+                              admin_ban_list,
+                              admin_get_form,
+                              admin_invalid_affiliation,
+                              admin_invalid_jid,
+                              %% test should fail, temporarily changed
+                              admin_ban_higher_user,
+                              admin_membership,
+                              admin_membership_with_reason,
+                              admin_member_list,
+                              admin_member_list_allowed,
+                              admin_moderator,
+                              admin_moderator_with_reason,
+                              admin_moderator_revoke_owner,
+                              admin_moderator_list,
+                              admin_invalid_role,
+                              admin_invalid_nick
+                             ]},
+         {admin_membersonly, [], [
+                                  admin_mo_revoke,
+                                  admin_mo_invite,
+                                  admin_mo_invite_with_reason,
+                                  admin_mo_invite_mere
+                                 ]},
+         {occupant, [parallel], [
+                                 %nick registration in a room is not implemented and will not be tested
+                                 groupchat_user_enter,
+                                 groupchat_user_enter_no_nickname,
+                                 muc_user_enter,
+                                 enter_non_anonymous_room,
+                                 deny_access_to_password_protected_room,
+                                 enter_password_protected_room,
+                                 deny_accesss_to_memebers_only_room,
+                                 deny_entry_to_a_banned_user,
+                                 deny_entry_nick_conflict,
+                                 multi_sessions_enter,
+                                 multi_sessions_messages,
+                                 multi_sessions_exit_session,
+                                 multi_sessions_exit,
+                                 deny_entry_with_multiple_sessions_disallowed,
+                                 enter_room_with_logging,
+                                 deny_entry_user_limit_reached,
+                                 send_history,
+                                 history_since,
 
-                %% the following tests fail and have been commented because
-                %% certain features are not implemented in ejabberd
-                %% send_non_anonymous_history,
-                %% limit_history_chars,
-                %% limit_history_messages,
-                %% recent_history, %unfinished,
-                %% no_history,
+                                 %% the following tests fail and have been commented because
+                                 %% certain features are not implemented in ejabberd
+                                 %% send_non_anonymous_history,
+                                 %% limit_history_chars,
+                                 %% limit_history_messages,
+                                 %% recent_history, %unfinished,
+                                 %% no_history,
 
-                subject,
-                no_subject,
-                send_to_all,
-                send_and_receive_private_message,
-                send_private_groupchat,
-                change_nickname,
-                deny_nickname_change_conflict,
-                change_availability_status,
-                mediated_invite,
-                one2one_chat_to_muc,
-                exit_room,
-                exit_room_with_status,
-                kicked_after_sending_malformed_presence
-                ]},
-        {owner, [parallel], [
-                %% fails, see testcase
-                cant_enter_locked_room,
-                create_instant_room,
-                destroy_locked_room,
-                create_reserved_room,
-                %% fails, see testcase
-                reserved_room_cancel,
-                reserved_room_unacceptable,
-                reserved_room_configuration,
-                owner_grant_revoke,
-                owner_grant_revoke_with_reason,
-                owner_list,
-                owner_unauthorized,
-                admin_grant_revoke,
-                admin_grant_revoke_with_reason,
-                admin_list,
-                admin_unauthorized,
-                destroy,
-                destroy_unauthorized,
-                config_denial,
-                config_cancel,
-                configure,
-                configure_logging,
-                %% fails, see testcase
-                configure_anonymous,
-                cancel_iq_sent_to_locked_room_destroys_it,
-                cancel_iq_sent_to_unlocked_room_has_no_effect
-                ]},
-        {owner_no_parallel, [], [
-                                 room_creation_not_allowed
+                                 subject,
+                                 no_subject,
+                                 send_to_all,
+                                 send_and_receive_private_message,
+                                 send_private_groupchat,
+                                 change_nickname,
+                                 deny_nickname_change_conflict,
+                                 change_availability_status,
+                                 mediated_invite,
+                                 one2one_chat_to_muc,
+                                 exit_room,
+                                 exit_room_with_status,
+                                 kicked_after_sending_malformed_presence
                                 ]},
-        {room_management, [], [
-                create_and_destroy_room,
-                create_and_destroy_room_multiple_x_elements
-                ]},
-        {http_auth_no_server, [parallel], [
-                deny_access_to_http_password_protected_room_service_unavailable,
-                deny_creation_of_http_password_protected_room_service_unavailable
-                ]},
-        {http_auth, [parallel], [
-                enter_http_password_protected_room,
-                deny_access_to_password_protected_room,
-                deny_access_to_http_password_protected_room_wrong_password,
-                create_instant_http_password_protected_room,
-                deny_creation_of_http_password_protected_room,
-                deny_creation_of_http_password_protected_room_wrong_password
-                ]},
-        {room_registration_race_condition, [], [
-                load_already_registered_permanent_rooms,
-                create_already_registered_room,
-                check_presence_route_to_offline_room,
-                check_message_route_to_offline_room
-               ]},
-        {register, [parallel], register_cases()},
-        {register_over_s2s, [parallel], register_cases()}
-        ].
+         {owner, [parallel], [
+                              %% fails, see testcase
+                              cant_enter_locked_room,
+                              create_instant_room,
+                              destroy_locked_room,
+                              create_reserved_room,
+                              %% fails, see testcase
+                              reserved_room_cancel,
+                              reserved_room_unacceptable,
+                              reserved_room_configuration,
+                              owner_grant_revoke,
+                              owner_grant_revoke_with_reason,
+                              owner_list,
+                              owner_unauthorized,
+                              admin_grant_revoke,
+                              admin_grant_revoke_with_reason,
+                              admin_list,
+                              admin_unauthorized,
+                              destroy,
+                              destroy_unauthorized,
+                              config_denial,
+                              config_cancel,
+                              configure,
+                              configure_logging,
+                              %% fails, see testcase
+                              configure_anonymous,
+                              cancel_iq_sent_to_locked_room_destroys_it,
+                              cancel_iq_sent_to_unlocked_room_has_no_effect
+                             ]},
+         {owner_no_parallel, [], [
+                                  room_creation_not_allowed
+                                 ]},
+         {room_management, [], [
+                                create_and_destroy_room,
+                                create_and_destroy_room_multiple_x_elements
+                               ]},
+         {http_auth_no_server, [parallel], [
+                                            deny_access_to_http_password_protected_room_service_unavailable,
+                                            deny_creation_of_http_password_protected_room_service_unavailable
+                                           ]},
+         {http_auth, [parallel], [
+                                  enter_http_password_protected_room,
+                                  deny_access_to_password_protected_room,
+                                  deny_access_to_http_password_protected_room_wrong_password,
+                                  create_instant_http_password_protected_room,
+                                  deny_creation_of_http_password_protected_room,
+                                  deny_creation_of_http_password_protected_room_wrong_password
+                                 ]},
+         {room_registration_race_condition, [], [
+                                                 load_already_registered_permanent_rooms,
+                                                 create_already_registered_room,
+                                                 check_presence_route_to_offline_room,
+                                                 check_message_route_to_offline_room
+                                                ]},
+         {register, [parallel], register_cases()},
+         {register_over_s2s, [parallel], register_cases()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 register_cases() ->
     [user_asks_for_registration_form,

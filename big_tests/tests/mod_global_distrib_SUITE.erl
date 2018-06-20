@@ -43,59 +43,60 @@ all() ->
     ].
 
 groups() ->
-    [{mod_global_distrib, [shuffle],
-      [
-       test_pm_between_users_at_different_locations,
-       test_pm_between_users_before_available_presence,
-       test_muc_conversation_on_one_host,
-       test_component_disconnect,
-       test_component_on_one_host,
-       test_components_in_different_regions,
-       test_hidden_component_disco_in_different_region,
-       test_pm_with_disconnection_on_other_server,
-       test_pm_with_graceful_reconnection_to_different_server,
-       test_pm_with_ungraceful_reconnection_to_different_server,
-       test_global_disco,
-       test_component_unregister,
-       test_update_senders_host,
-       test_update_senders_host_by_ejd_service
-       %% TODO: Add test case fo global_distrib_addr option
-      ]},
-     {hosts_refresher, [],
-      [test_host_refreshing]},
-     {cluster_restart, [],
-      [
-       test_location_disconnect
-      ]},
-     {start_checks, [],
-      [
-       test_error_on_wrong_hosts
-      ]},
-     {invalidation, [],
-      [
-       % TODO: Add checks for other mapping refreshes
-       refresh_nodes
-      ]},
-     {multi_connection, [shuffle],
-      [
-       test_in_order_messages_on_multiple_connections,
-       test_muc_conversation_history,
-       test_in_order_messages_on_multiple_connections_with_bounce,
-       test_messages_bounced_in_order
-      ]},
-     {rebalancing, [shuffle],
-      [
-       enable_new_endpoint_on_refresh,
-       disable_endpoint_on_refresh,
-       wait_for_connection,
-       closed_connection_is_removed_from_disabled
-      ]},
-     {advertised_endpoints, [],
-      [
-       test_advertised_endpoints_override_endpoints,
-       test_pm_between_users_at_different_locations
-      ]}
-    ].
+    G = [{mod_global_distrib, [shuffle],
+          [
+           test_pm_between_users_at_different_locations,
+           test_pm_between_users_before_available_presence,
+           test_muc_conversation_on_one_host,
+           test_component_disconnect,
+           test_component_on_one_host,
+           test_components_in_different_regions,
+           test_hidden_component_disco_in_different_region,
+           test_pm_with_disconnection_on_other_server,
+           test_pm_with_graceful_reconnection_to_different_server,
+           test_pm_with_ungraceful_reconnection_to_different_server,
+           test_global_disco,
+           test_component_unregister,
+           test_update_senders_host,
+           test_update_senders_host_by_ejd_service
+           %% TODO: Add test case fo global_distrib_addr option
+          ]},
+         {hosts_refresher, [],
+          [test_host_refreshing]},
+         {cluster_restart, [],
+          [
+           test_location_disconnect
+          ]},
+         {start_checks, [],
+          [
+           test_error_on_wrong_hosts
+          ]},
+         {invalidation, [],
+          [
+           % TODO: Add checks for other mapping refreshes
+           refresh_nodes
+          ]},
+         {multi_connection, [shuffle],
+          [
+           test_in_order_messages_on_multiple_connections,
+           test_muc_conversation_history,
+           test_in_order_messages_on_multiple_connections_with_bounce,
+           test_messages_bounced_in_order
+          ]},
+         {rebalancing, [shuffle],
+          [
+           enable_new_endpoint_on_refresh,
+           disable_endpoint_on_refresh,
+           wait_for_connection,
+           closed_connection_is_removed_from_disabled
+          ]},
+         {advertised_endpoints, [],
+          [
+           test_advertised_endpoints_override_endpoints,
+           test_pm_between_users_at_different_locations
+          ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},

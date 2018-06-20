@@ -45,14 +45,15 @@ all() ->
     ].
 
 groups() ->
-    [{login, [parallel], all_tests()},
-     {login_scram, [parallel], scram_tests()},
-     {login_scram_store_plain, [parallel], scram_tests()},
-     {legacy_auth, [parallel], [legacy_successful_plain,
-                                legacy_unsuccessful_plain,
-                                legacy_successful_digest,
-                                legacy_blocked_user]},
-     {messages, [sequence], [messages_story, message_zlib_limit]}].
+    G = [{login, [parallel], all_tests()},
+         {login_scram, [parallel], scram_tests()},
+         {login_scram_store_plain, [parallel], scram_tests()},
+         {legacy_auth, [parallel], [legacy_successful_plain,
+                                    legacy_unsuccessful_plain,
+                                    legacy_successful_digest,
+                                    legacy_blocked_user]},
+         {messages, [sequence], [messages_story, message_zlib_limit]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 scram_tests() ->
     [log_one, log_one_scram].

@@ -13,8 +13,9 @@ all() ->
     [{group, soft_version}, {group, soft_version_with_os}].
 
 groups() ->
-    [{soft_version, [], [version_service_discovery, ask_for_version]},
-     {soft_version_with_os, [], [version_service_discovery, ask_for_version_with_os]}].
+    G = [{soft_version, [], [version_service_discovery, ask_for_version]},
+         {soft_version_with_os, [], [version_service_discovery, ask_for_version_with_os]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

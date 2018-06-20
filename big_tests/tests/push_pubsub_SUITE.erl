@@ -21,20 +21,21 @@ all() ->
     ].
 
 groups() ->
-    [
-        {disco, [], [has_disco_identity]},
-        {allocate, [], [allocate_basic_node]},
-        {pubsub_publish, [], [
-            publish_fails_with_invalid_item,
-            publish_fails_with_no_options,
-            publish_succeeds_with_valid_options
-        ]},
-        {rest_integration_v2, [], [
-            rest_service_called_with_correct_path_v2,
-            rest_service_gets_correct_payload_v2,
-            rest_service_gets_correct_payload_silent_v2
-        ]}
-    ].
+    G = [
+         {disco, [], [has_disco_identity]},
+         {allocate, [], [allocate_basic_node]},
+         {pubsub_publish, [], [
+                               publish_fails_with_invalid_item,
+                               publish_fails_with_no_options,
+                               publish_succeeds_with_valid_options
+                              ]},
+         {rest_integration_v2, [], [
+                                    rest_service_called_with_correct_path_v2,
+                                    rest_service_gets_correct_payload_v2,
+                                    rest_service_gets_correct_payload_silent_v2
+                                   ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

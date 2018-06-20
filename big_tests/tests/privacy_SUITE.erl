@@ -35,11 +35,12 @@ all() ->
     ].
 
 groups() ->
-    [{management, [sequence], management_test_cases()},
-     {blocking, [sequence], blocking_test_cases()},
-        {my, [sequence], mytest()},
-     {allowing, [sequence], allowing_test_cases()}
-    ].
+    G = [{management, [sequence], management_test_cases()},
+         {blocking, [sequence], blocking_test_cases()},
+         {my, [sequence], mytest()},
+         {allowing, [sequence], allowing_test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
+
 mytest() ->
     [block_jid_message_but_not_presence].
 management_test_cases() ->

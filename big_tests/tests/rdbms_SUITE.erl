@@ -35,7 +35,8 @@ all() ->
     end.
 
 groups() ->
-    [{rdbms_queries, [sequence], rdbms_queries_cases()}].
+    G = [{rdbms_queries, [sequence], rdbms_queries_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 rdbms_queries_cases() ->
     [select_one_works_case,

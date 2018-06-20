@@ -30,19 +30,20 @@ all() ->
     ].
 
 groups() ->
-    [{register, [parallel], [register,
-                             already_registered,
-                             registration_conflict,
-                             check_unregistered]},
-     {registration_watchers, [sequence], [admin_notify]},
-     {bad_registration, [sequence], [null_password]},
-     {bad_cancelation, [sequence], [bad_request_registration_cancelation,
-                                    not_allowed_registration_cancelation]},
-     {registration_timeout, [sequence], [registration_timeout,
-                                         registration_failure_timeout]},
-     {change_account_details, [parallel], [change_password,
-                                           change_password_to_null]}
-     ].
+    G = [{register, [parallel], [register,
+                                 already_registered,
+                                 registration_conflict,
+                                 check_unregistered]},
+         {registration_watchers, [sequence], [admin_notify]},
+         {bad_registration, [sequence], [null_password]},
+         {bad_cancelation, [sequence], [bad_request_registration_cancelation,
+                                        not_allowed_registration_cancelation]},
+         {registration_timeout, [sequence], [registration_timeout,
+                                             registration_failure_timeout]},
+         {change_account_details, [parallel], [change_password,
+                                               change_password_to_null]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

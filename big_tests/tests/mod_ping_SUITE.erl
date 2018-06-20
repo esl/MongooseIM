@@ -29,10 +29,11 @@ all() ->
      {group, server_ping_kill}].
 
 groups() ->
-    [{client_ping, [], [ping]},
-     {server_ping, [parallel], all_tests()},
-     {server_ping_kill, [parallel], all_tests()}
-    ].
+    G = [{client_ping, [], [ping]},
+         {server_ping, [parallel], all_tests()},
+         {server_ping_kill, [parallel], all_tests()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_tests() ->
     [ping,

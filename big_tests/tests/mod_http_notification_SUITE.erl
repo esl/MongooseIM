@@ -32,8 +32,9 @@ all_tests() ->
     [simple_message, simple_message_no_listener, simple_message_failing_listener, proper_http_message_encode_decode].
 
 groups() ->
-    [{mod_http_notification_tests, [sequence], all_tests()},
-        {mod_http_notification_tests_with_prefix, [sequence], all_tests()}].
+    G = [{mod_http_notification_tests, [sequence], all_tests()},
+         {mod_http_notification_tests_with_prefix, [sequence], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

@@ -29,7 +29,8 @@ all_tests() ->
      max_offline_messages_reached].
 
 groups() ->
-    [{mod_offline_tests, [parallel], all_tests()}].
+    G = [{mod_offline_tests, [parallel], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

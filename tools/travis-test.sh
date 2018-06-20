@@ -165,7 +165,7 @@ run_tests() {
     echo "Build failed:"
     [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
     [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
-    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites"
+    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
     print_running_nodes
   fi

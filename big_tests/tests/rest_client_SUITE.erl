@@ -33,10 +33,10 @@ all() ->
     [{group, messages}, {group, muc}, {group, roster}].
 
 groups() ->
-    [{messages, [parallel], message_test_cases()},
-     {muc, [parallel], muc_test_cases()},
-     {roster, [parallel], roster_test_cases()}
-    ].
+    G = [{messages, [parallel], message_test_cases()},
+         {muc, [parallel], muc_test_cases()},
+         {roster, [parallel], roster_test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
