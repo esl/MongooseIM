@@ -28,6 +28,8 @@
 -export([flatten_opts/2,
          expand_opts/1]).
 
+-export([does_pattern_match/2]).
+
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -953,3 +955,15 @@ add_to_group(Group, Value, Groups) ->
     Values = maps:get(Group, Groups, []),
     maps:put(Group, [Value|Values], Groups).
 
+
+%% @doc Use erlang match spec to check if the Subject fits the Pattern.
+%% http://erlang.org/doc/apps/erts/match_spec.html
+-spec does_pattern_match(term(), ets:match_pattern()) -> boolean().
+does_pattern_match(Subject, Pattern) ->
+    case ets:test_ms({Subject}, [ {{Pattern}, [], [true]} ]) of
+        {ok, Matches} ->
+            Matches;
+        Other ->
+            erlang:error(#{issue => does_pattern_match_failed,
+                           subject => Subject, patten => Pattern})
+    end.

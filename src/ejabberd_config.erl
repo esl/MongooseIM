@@ -41,6 +41,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
+         reload_cluster_dryrun/0,
          apply_changes_remote/4]).
 
 -export([get_local_config/0,
@@ -366,7 +367,8 @@ reload_cluster() ->
     try apply_changes(ConfigDiff, State1, ConfigVersion) of
         {ok, CurrentNode} ->
             %% apply on other nodes
-            {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
+            {S, F} = rpc:multicall(other_cluster_nodes(),
+                                   ?MODULE, apply_changes_remote,
                                    [ConfigFile, ConfigDiff,
                                     ConfigVersion, FileVersion],
                                    30000),
@@ -398,6 +400,9 @@ reload_cluster() ->
                          "reason: ~ts", [ConfigFile, Reason]),
             exit(Reason)
     end.
+
+reload_cluster_dryrun() ->
+    {ok, "done"}.
 
 -spec groups_to_string(string(), [string()]) -> string().
 groups_to_string(_Header, []) ->
@@ -677,3 +682,13 @@ compute_config_file_version() ->
 config_info() ->
     [{config_file_version, compute_config_file_version()},
      {config_version, compute_config_file_version()}].
+
+
+-spec other_cluster_nodes() -> [node()].
+other_cluster_nodes() ->
+    lists:filter(fun is_mongooseim_node/1, nodes()).
+
+-spec is_mongooseim_node(node()) -> boolean().
+is_mongooseim_node(Node) ->
+    Apps = rpc:call(Node, application, which_applications, []),
+    lists:keymember(mongooseim, 1, Apps).
