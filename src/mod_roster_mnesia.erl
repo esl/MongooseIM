@@ -82,8 +82,7 @@ get_roster_entry(LUser, LServer, LJID) ->
         [] ->
             does_not_exist;
         [I] ->
-            I#roster{jid = LJID, name = <<"">>,
-                xs = []}
+            I#roster{jid = LJID, xs = []}
     end.
 
 get_roster_entry(LUser, LServer, LJID, full) ->
@@ -94,8 +93,7 @@ get_roster_entry_t(LUser, LServer, LJID) ->
         [] ->
             does_not_exist;
         [I] ->
-            I#roster{jid = LJID, name = <<"">>,
-                xs = []}
+            I#roster{jid = LJID, xs = []}
     end.
 
 get_roster_entry_t(LUser, LServer, LJID, full) ->

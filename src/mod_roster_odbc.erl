@@ -131,7 +131,7 @@ do_get_roster_entry(LUser, LServer, LJID, FuncName) ->
                         us = {LUser, LServer}, jid = LJID};
                 _ ->
                     R#roster{usj = {LUser, LServer, LJID},
-                        us = {LUser, LServer}, jid = LJID, name = <<"">>}
+                        us = {LUser, LServer}, jid = LJID}
             end
     end.
 
