@@ -415,6 +415,8 @@ process_host_term(Term, Host, State) ->
             add_option(cassandra_servers, CassandraConfig, State);
         {elasticsearch_server, ESConfig} ->
             add_option(elasticsearch_server, ESConfig, State);
+        {node_specific_options, NodeOpts} ->
+            add_option(node_specific_options, NodeOpts, State);
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
@@ -432,6 +434,8 @@ add_option(Opt, Val, State) ->
                 language ->
                     config;
                 sm_backend ->
+                    config;
+                node_specific_options ->
                     config;
                 _ ->
                     local_config
