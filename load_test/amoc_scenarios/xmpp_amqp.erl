@@ -674,7 +674,7 @@ return_ok_if_all_ok_else_error(Results) ->
 
 barrier_init(BarrierName, ExpectedUsers) ->
     Pid = spawn(fun() -> barrier_fun(ExpectedUsers, 0) end),
-    register(BarrierName, Pid).
+    global:register_name(BarrierName, Pid).
 
 barrier_fun(TotalUsers, TotalUsers) -> ok;
 barrier_fun(ExpectedUsers, TotalUsers) ->
@@ -683,8 +683,9 @@ barrier_fun(ExpectedUsers, TotalUsers) ->
     end.
 
 barrier_wait(BarrierName) ->
-    Ref = monitor(process, BarrierName),
-    BarrierName ! hi,
+    Pid = global:whereis_name(BarrierName),
+    Ref = monitor(process, Pid),
+    Pid ! hi,
     receive
         {'DOWN', Ref, _, _, _} -> []
     end.
