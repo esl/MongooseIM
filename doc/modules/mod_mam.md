@@ -78,11 +78,11 @@ These options will only have effect when the `odbc` backend is used:
 * **odbc_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs.
  When set to `internal`, stores messages and JIDs in internal format.
  **Warning**: Archive MUST be empty to change this option.
-* **async_writer** (boolean, default: `true`) - Enables asynchronous writer that is faster than synchronous but harder to debug.
-  This async writer does not message routing, on the other hand messages are stored in the archive with a delay.
-* **flush_interval** (integer, default: `2000`) How often (in milliseconds) buffered message are flushed to db.
-* **max_batch_size** (integer, default, `30`) Max size of the batch insert query for async writer.
-  If the buffer is filled, messages are flushed to database immediately and the `flush_interval` is restarted.
+* **async_writer** (boolean, default: `true`) - Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
+  The async writers store batches of messages with a certain delay (see **flush_interval**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes.
+* **flush_interval** (integer, default: `2000`) How often (in milliseconds) the buffered messages are flushed to a DB.
+* **max_batch_size** (integer, default, `30`) Max size of the batch insert query for an async writer.
+  If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
 #### Common backend options
 
