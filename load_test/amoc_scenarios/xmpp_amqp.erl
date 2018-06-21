@@ -64,7 +64,7 @@
 %% XMPP stuff
 -define(XMPP_GO_OFFLINE_AFTER, 1*1000). % milliseconds
 -define(XMPP_GO_ONLINE_AFTER, 1*1000).  % milliseconds
--define(XMPP_SEND_MESSAGE_AFTER, 30*1000). % milliseconds
+-define(XMPP_SEND_MESSAGE_AFTER, 5*60*1000). % milliseconds
 
 -define(HOST, <<"localhost">>). %% The virtual host served by the server
 -define(XMPP_RESOURCE, <<"resource">>).
@@ -213,13 +213,18 @@ xmpp_start(MyId) ->
     Client = connect_xmpp(Cfg2),
     escalus_connection:set_filter_predicate(Client, fun escalus_pred:is_chat_message/1),
     schedule(go_online, 0),
-    schedule(send_message, 0),
     State = #{neighborIDs => xmpp_neighbors(MyId),
               client => Client,
               go_offline_after => ?XMPP_GO_OFFLINE_AFTER,
               go_online_after => ?XMPP_GO_ONLINE_AFTER,
               send_message_after => ?XMPP_SEND_MESSAGE_AFTER},
+    % This will provide constant message rate if we have uniformly
+    % distributed message delay
+    FirstMessageAfter = rand:uniform(?XMPP_SEND_MESSAGE_AFTER),
+    % We did not start test for real, so it is good to GC
+    garbage_collect(),
     barrier_wait(after_connection),
+    schedule(send_message, FirstMessageAfter),
     xmpp_do(State).
 
 -spec xmpp_do(State :: #{
@@ -284,6 +289,8 @@ amqp_start(MyId) ->
     ok = bind_queue_to_message_exchange(Channel, MyQueueName, N),
     ok = subscribe_to_queue(Channel, MyQueueName),
     State = #{amqp_channel => Channel},
+    % We did not start test for real, so it is good to GC
+    garbage_collect(),
     barrier_wait(after_connection),
     amqp_do(State).
 
