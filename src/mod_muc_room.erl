@@ -1654,12 +1654,17 @@ add_online_user(JID, Nick, Role, StateData) ->
     case is_first_session(Nick, StateData) of
         true ->
             add_to_log(join, Nick, StateData),
-            tab_add_online_user(JID, StateData);
+            tab_add_online_user(JID, StateData),
+            run_join_room_hook(JID, StateData);
         _ ->
             ok
     end,
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
+-spec run_join_room_hook(jid:jid(), state()) -> ok.
+run_join_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
+  ejabberd_hooks:run(join_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
+  ok.
 
 -spec remove_online_user(jid:jid(), state()) -> state().
 remove_online_user(JID, StateData) ->
@@ -1676,6 +1681,7 @@ remove_online_user(JID, StateData, Reason) ->
         true ->
             add_to_log(leave, {Nick, Reason}, StateData),
             tab_remove_online_user(JID, StateData),
+            run_leave_room_hook(JID, StateData),
             dict:erase(Nick, StateData#state.sessions);
         false ->
             IsOtherLJID = fun(J) -> jid:to_lower(J) /= LJID end,
@@ -1686,6 +1692,10 @@ remove_online_user(JID, StateData, Reason) ->
 
     notify_users_modified(StateData#state{users = Users, sessions = Sessions}).
 
+-spec run_leave_room_hook(jid:jid(), state()) -> ok.
+run_leave_room_hook(JID, #state{room = Room, host = Host, jid = MucJID, server_host = ServerHost}) ->
+  ejabberd_hooks:run(leave_room, ServerHost, [ServerHost, Room, Host, JID, MucJID]),
+  ok.
 
 -spec filter_presence(exml:element()) -> exml:element().
 filter_presence(#xmlel{name = <<"presence">>, attrs = Attrs, children = Els}) ->
