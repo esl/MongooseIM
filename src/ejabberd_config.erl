@@ -49,6 +49,8 @@
 
 %% Introspection
 -export([config_info/0]).
+-export([config_state/0]).
+-export([config_states/0]).
 
 -import(mongoose_config, [can_be_ignored/1]).
 
@@ -671,6 +673,32 @@ get_categorized_options() ->
     Local = get_local_config(),
     HostsLocal = get_host_local_config(),
     mongoose_config:make_categorized_options(Config, Local, HostsLocal).
+
+%% @doc Returns configs on disc and in memory for this node.
+%% This function prepares all state data to pass into pure code part
+%% (i.e. mongoose_config).
+config_state() ->
+    ConfigFile = get_ejabberd_config_path(),
+    Terms = get_plain_terms_file(ConfigFile),
+    #{mongoose_node => node(),
+      config_file => ConfigFile,
+      loaded_categorized_options => get_categorized_options(),
+      ondisc_config_terms => Terms}.
+
+%% @doc Returns config states from all nodes in cluster
+%% State from the local node comes as head of a list
+config_states() ->
+    ThisNodeState = config_state(),
+    Nodes = other_cluster_nodes(),
+    {S, F} = rpc:multicall(Nodes, ?MODULE, config_state, [], 30000),
+    case F of
+        [] ->
+            [ThisNodeState|S];
+        [_|_] ->
+            erlang:error(#{issue => config_state_failed,
+                           cluster_nodes => Nodes,
+                           failed_nodes => F})
+    end.
 
 compute_current_config_version() ->
     mongoose_config:compute_config_version(get_local_config(),

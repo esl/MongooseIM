@@ -806,7 +806,7 @@ flatten_opts(LC, LCH) ->
 %% @doc It ignores global options
 state_to_flatten_local_opts(State) ->
     #{local_config := Local,
-      host_local_config := HostLocal} =
+      host_local_config := HostsLocal} =
         state_to_categorized_options(State),
     mongoose_config:flatten_opts(Local, HostsLocal).
 
@@ -1020,7 +1020,7 @@ does_pattern_match(Subject, Pattern) ->
     end.
 
 %% @doc Make a categorize_options() map
--spec make_categorized_options(state()) -> categorized_options().
+-spec make_categorized_options(list(), list(), list()) -> categorized_options().
 make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
     #{global_config => GlobalConfig,
       local_config => LocalConfig,
