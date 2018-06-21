@@ -26,6 +26,7 @@
          include_config_files/2]).
 
 -export([flatten_opts/2,
+         flatten_state/1,
          expand_opts/1]).
 
 -export([does_pattern_match/2]).
@@ -195,7 +196,7 @@ split_terms_macros(Terms) ->
 -spec split_terms_macros_fold(any(), Acc) -> Acc when
       Acc :: {[term()], [{Key :: any(), Value :: any()}]}.
 split_terms_macros_fold({define_macro, Key, Value} = Term, {TOs, Ms}) ->
-    case is_atom(Key) and is_all_uppercase(Key) of
+    case is_macro_name(Key) of
         true ->
             {TOs, Ms ++ [{Key, Value}]};
         false ->
@@ -215,7 +216,7 @@ replace([Term | Terms], Macros) ->
 
 
 replace_term(Key, Macros) when is_atom(Key) ->
-    case is_all_uppercase(Key) of
+    case is_macro_name(Key) of
         true ->
             case proplists:get_value(Key, Macros) of
                 undefined -> exit({undefined_macro, Key});
@@ -235,12 +236,24 @@ replace_term(Term, Macros) when is_tuple(Term) ->
 replace_term(Term, _) ->
     Term.
 
+%% Check is the term is a config macro
+-spec is_macro_name(atom()) -> boolean().
+is_macro_name(Atom) when is_atom(Atom) ->
+    is_all_uppercase(Atom) andalso has_any_uppercase(Atom);
+is_macro_name(_) ->
+    false.
 
 -spec is_all_uppercase(atom()) -> boolean().
 is_all_uppercase(Atom) ->
     String = erlang:atom_to_list(Atom),
     lists:all(fun(C) when C >= $a, C =< $z -> false;
                  (_) -> true
+              end, String).
+
+has_any_uppercase(Atom) ->
+    String = erlang:atom_to_list(Atom),
+    lists:any(fun(C) when C >= $A, C =< $Z -> true;
+                 (_) -> false
               end, String).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -758,6 +771,10 @@ keep_only_allowed(Allowed, Terms) ->
 %% @doc Convert LocalConfig and HostLocalConfig to a flat list of options
 flatten_opts(LC, LCH) ->
     flatten_local_config_opts(LC) ++ flatten_local_config_host_opts(LCH).
+
+flatten_state(#state{opts = Opts}) ->
+    {_NewConfig, Local, HostsLocal} = categorize_options(Opts),
+    mongoose_config:flatten_opts(Local, HostsLocal).
 
 flatten_local_config_opts(LC) ->
     lists:flatmap(fun(#local_config{key = K, value = V}) ->
