@@ -16,6 +16,7 @@
 -export([allow_override_all/1,
          allow_override_local_only/1,
          state_to_opts/1,
+         state_to_global_opt/3,
          can_override/2]).
 
 %% for unit tests
@@ -26,7 +27,7 @@
          include_config_files/2]).
 
 -export([flatten_opts/2,
-         flatten_state/1,
+         state_to_flatten_local_opts/1,
          expand_opts/1]).
 
 -export([does_pattern_match/2]).
@@ -67,6 +68,11 @@
         local_config_changes => compare_result(),
         local_hosts_changes => compare_result()
        }.
+
+-type categorized_options() :: #{
+        global_config => list(),
+        local_config => list(),
+        host_local_config => list()}.
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -487,13 +493,14 @@ parse_terms(Terms) ->
                 add_option(odbc_pools, State#state.odbc_pools, State),
                 TermsWExpandedMacros).
 
--spec get_config_diff(state(), map()) -> map().
+-spec get_config_diff(state(), categorized_options()) -> map().
 get_config_diff(State, #{global_config := Config,
                          local_config := Local,
                          host_local_config := HostsLocal}) ->
-                                                % New Options
-    {NewConfig, NewLocal, NewHostsLocal} = categorize_options(State#state.opts),
-                                                % Current Options
+    #{global_config := NewConfig,
+      local_config := NewLocal,
+      host_local_config := NewHostsLocal} =
+        state_to_categorized_options(State),
     %% global config diff
     CC = compare_terms(Config, NewConfig, 2, 3),
     LC = compare_terms(Local, NewLocal, 2, 3),
@@ -582,6 +589,14 @@ is_not_host_specific({Key, PoolType, PoolName})
   when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
     true.
 
+-spec state_to_categorized_options(state()) -> categorized_options().
+state_to_categorized_options(State=#state{opts = RevOpts}) ->
+    {GlobalConfig, LocalConfig, HostsConfig} = categorize_options(RevOpts),
+    #{global_config => GlobalConfig,
+      local_config => LocalConfig,
+      host_local_config => HostsConfig}.
+
+%% Takes opts in reverse order
 -spec categorize_options([term()]) -> {GlobalConfig, LocalConfig, HostsConfig} when
       GlobalConfig :: list(),
       LocalConfig :: list(),
@@ -686,6 +701,17 @@ can_override(local, #state{override_local = Override}) ->
 can_override(acls, #state{override_acls = Override}) ->
     Override.
 
+state_to_global_opt(OptName, State, Default) ->
+    Opts = state_to_opts(State),
+    opts_to_global_opt(Opts, OptName, Default).
+
+opts_to_global_opt([{config, OptName, OptValue}|_], OptName, _Default) ->
+    OptValue;
+opts_to_global_opt([_|Opts], OptName, Default) ->
+    opts_to_global_opt(Opts, OptName, Default);
+opts_to_global_opt([], _OptName, Default) ->
+    Default.
+
 
 %% -----------------------------------------------------------------
 %% Support for 'include_config_file'
@@ -776,8 +802,11 @@ keep_only_allowed(Allowed, Terms) ->
 flatten_opts(LC, LCH) ->
     flatten_local_config_opts(LC) ++ flatten_local_config_host_opts(LCH).
 
-flatten_state(#state{opts = Opts}) ->
-    {_NewConfig, Local, HostsLocal} = categorize_options(Opts),
+%% @doc It ignores global options
+state_to_flatten_local_opts(State) ->
+    #{local_config := Local,
+      host_local_config := HostLocal} =
+        state_to_categorized_options(State),
     mongoose_config:flatten_opts(Local, HostsLocal).
 
 flatten_local_config_opts(LC) ->

@@ -6,8 +6,10 @@
 
 all() -> [
     does_pattern_match_case,
-    flatten_state_case,
-    parse_config_with_underscore_pattern_case
+    state_to_flatten_local_opts_case,
+    parse_config_with_underscore_pattern_case,
+    node_specific_options_presents_case,
+    node_specific_options_missing_case
 ].
 
 init_per_suite(C) ->
@@ -73,10 +75,10 @@ match_cases() ->
     ].
 
 
-flatten_state_case(_C) ->
+state_to_flatten_local_opts_case(_C) ->
     State = mongoose_config:parse_terms(cool_mod_mam_config()),
     ?assertEqual(cool_mod_mam_config_flatten(),
-                 mongoose_config:flatten_state(State)).
+                 mongoose_config:state_to_flatten_local_opts(State)).
 
 cool_mod_mam_config() ->
     [{hosts, [<<"localhost">>]},
@@ -92,6 +94,19 @@ cool_mod_mam_config_flatten() ->
 %% Check that underscore is not treated as a config macro by config parser
 parse_config_with_underscore_pattern_case(_C) ->
     mongoose_config:parse_terms(node_specific_cool_mod_mam_config()).
+
+%% Check that we can convert state into node_specific_options list
+node_specific_options_presents_case(_C) ->
+    State = mongoose_config:parse_terms(node_specific_cool_mod_mam_config()),
+    NodeOpts = mongoose_config:state_to_global_opt(node_specific_options, State, missing),
+    ?assertEqual([ {[h,'_',module_opt,mod_mam,pool],cool_pool} ],
+                 NodeOpts).
+
+%% Check that we would not crash if node_specific_options is not defined
+node_specific_options_missing_case(_C) ->
+    State = mongoose_config:parse_terms(cool_mod_mam_config()),
+    NodeOpts = mongoose_config:state_to_global_opt(node_specific_options, State, missing),
+    ?assertEqual(missing, NodeOpts).
 
 node_specific_cool_mod_mam_config() ->
     [{node_specific_options, [ {[h,'_',module_opt,mod_mam,pool],cool_pool} ]},
