@@ -31,6 +31,7 @@
          expand_opts/1]).
 
 -export([does_pattern_match/2]).
+-export([make_categorized_options/3]).
 
 
 -include("mongoose.hrl").
@@ -1017,3 +1018,11 @@ does_pattern_match(Subject, Pattern) ->
             erlang:error(#{issue => does_pattern_match_failed,
                            subject => Subject, patten => Pattern})
     end.
+
+%% @doc Make a categorize_options() map
+-spec make_categorized_options(state()) -> categorized_options().
+make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
+    #{global_config => GlobalConfig,
+      local_config => LocalConfig,
+      host_local_config => HostLocalConfig}.
+

@@ -424,13 +424,8 @@ group_nodes_results(SuccessfullRPC, FailedRPC) ->
 
 -spec get_config_diff(state()) -> config_diff().
 get_config_diff(State) ->
-    Config = get_global_config(),
-    Local = get_local_config(),
-    HostsLocal = get_host_local_config(),
-    Args = #{global_config => Config,
-             local_config => Local,
-             host_local_config => HostsLocal},
-    mongoose_config:get_config_diff(State, Args).
+    CatOptions = get_categorized_options(),
+    mongoose_config:get_config_diff(State, CatOptions).
 
 -spec apply_changes_remote(file:name(), config_diff(), binary(), binary()) ->
                                   {ok, node()}| {error, node(), string()}.
@@ -669,6 +664,13 @@ get_local_config() ->
 -spec get_global_config() -> [{config, term(), term()}].
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
+
+%% @doc Returns current all options in memory, grouped by category.
+get_categorized_options() ->
+    Config = get_global_config(),
+    Local = get_local_config(),
+    HostsLocal = get_host_local_config(),
+    mongoose_config:make_categorized_options(Config, Local, HostsLocal).
 
 compute_current_config_version() ->
     mongoose_config:compute_config_version(get_local_config(),
