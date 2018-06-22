@@ -15,7 +15,7 @@
 -import(escalus_ejabberd, [rpc/3]).
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
-    disable_stanza/1, disable_stanza/2
+    disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
 -record(route, {from, to, acc, packet}).
@@ -638,24 +638,6 @@ is_offline(LUser, LServer) ->
             false;
         _ ->
             true
-    end.
-
-become_unavailable(Client) ->
-    escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    ok = wait_for(timer:seconds(20), fun() ->
-        is_offline(lower(escalus_client:username(Client)), lower(escalus_client:server(Client)))
-    end). %% There is no ACK for unavailable status
-
-wait_for(TimeLeft, _Fun) when TimeLeft < 0 ->
-    timeout;
-wait_for(TimeLeft, Fun) ->
-    Step = 500,
-    case Fun() of
-        true ->
-            ok;
-        false ->
-            timer:sleep(Step),
-            wait_for(TimeLeft - Step, Fun)
     end.
 
 lower(Bin) when is_binary(Bin) ->
