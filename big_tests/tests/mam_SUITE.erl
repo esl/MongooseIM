@@ -1310,6 +1310,7 @@ long_text_search_request(Config) ->
                             #{bob_messages => BobMessages}),
 
         mam_helper:wait_for_archive_size(Bob, ExpectedLen),
+        mam_helper:wait_for_archive_size(Alice, ExpectedLen),
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
         Res = wait_archive_respond(P, Alice),
