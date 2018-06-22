@@ -285,7 +285,7 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
 
 notify_deliver_to_offline_user_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:story(
+    escalus_fresh:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -327,14 +327,14 @@ notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
 
 do_notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{bob, 1}],
       fun(Bob) ->
               %% given
               privacy_helper:set_and_activate(Bob, <<"deny_all_message">>),
               privacy_helper:set_default_list(Bob, <<"deny_all_message">>)
       end),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -498,7 +498,7 @@ error_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, error},
     Rules = rules(Config, [Rule]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -579,7 +579,7 @@ drop_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, drop},
     Rules = rules(Config, [Rule]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -649,7 +649,7 @@ last_rule_applies_test(Config) ->
 %% Internal
 
 user_has_no_incoming_offline_messages(FreshConfig, UserName) ->
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{UserName, 1}],
       fun(User) ->
               client_receives_nothing(User),
