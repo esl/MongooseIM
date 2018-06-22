@@ -101,6 +101,7 @@ init_per_group(_, Config0) ->
     Config.
 
 end_per_group(disco, Config) ->
+    escalus:delete_users(Config),
     Config;
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
