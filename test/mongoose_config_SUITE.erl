@@ -6,10 +6,11 @@
 
 all() -> [
     does_pattern_match_case,
-    state_to_flatten_local_opts_case,
+    flatten_state_case,
     parse_config_with_underscore_pattern_case,
     node_specific_options_presents_case,
-    node_specific_options_missing_case
+    node_specific_options_missing_case,
+    cluster_reload_strategy_case
 ].
 
 init_per_suite(C) ->
@@ -75,13 +76,13 @@ match_cases() ->
     ].
 
 
-state_to_flatten_local_opts_case(_C) ->
+flatten_state_case(_C) ->
     State = mongoose_config:parse_terms(cool_mod_mam_config()),
     ?assertEqual(cool_mod_mam_config_flatten(),
                  mongoose_config:state_to_flatten_local_opts(State)).
 
 cool_mod_mam_config() ->
-    [{hosts, [<<"localhost">>]},
+    [{hosts, ["localhost"]},
      {modules, [{mod_mam, [{pool, cool_pool}]}]}].
 
 cool_mod_mam_config_flatten() ->
@@ -99,7 +100,7 @@ parse_config_with_underscore_pattern_case(_C) ->
 node_specific_options_presents_case(_C) ->
     State = mongoose_config:parse_terms(node_specific_cool_mod_mam_config()),
     NodeOpts = mongoose_config:state_to_global_opt(node_specific_options, State, missing),
-    ?assertEqual([ {[h,'_',module_opt,mod_mam,pool],cool_pool} ],
+    ?assertEqual([ [h,'_',module_opt,mod_mam,pool] ],
                  NodeOpts).
 
 %% Check that we would not crash if node_specific_options is not defined
@@ -109,6 +110,144 @@ node_specific_options_missing_case(_C) ->
     ?assertEqual(missing, NodeOpts).
 
 node_specific_cool_mod_mam_config() ->
-    [{node_specific_options, [ {[h,'_',module_opt,mod_mam,pool],cool_pool} ]},
-     {hosts, [<<"localhost">>]},
+    [{hosts, ["localhost"]},
+     {node_specific_options, [ [h,'_',module_opt,mod_mam,pool] ]},
      {modules, [{mod_mam, [{pool, cool_pool}]}]}].
+
+
+terms_to_categorized_options(Terms) ->
+    State = mongoose_config:parse_terms(Terms),
+    mongoose_config:state_to_categorized_options(State).
+
+cluster_reload_strategy_case(_C) ->
+    Strategy = mongoose_config:cluster_reload_strategy(example_config_states()),
+    ct:pal("Strategy ~p", [Strategy]),
+    ct:fail(oops),
+    ok.
+
+
+%% ejabberd_config:config_states/0 example
+%% Password was modified on both nodes
+example_config_states() ->
+    [config_node1_config_v2(),
+     config_node2_config_v2()].
+
+%% node1_config_v1 configuration both in memory and on disc
+config_node1_config_v1() ->
+    Terms = node1_config_v1(),
+    #{mongoose_node => mim1,
+      config_file => "/etc/ejabberd.cfg",
+      loaded_categorized_options => terms_to_categorized_options(Terms),
+      ondisc_config_terms => Terms}.
+
+%% node2_config_v1 configuration both in memory and on disc
+config_node2_config_v1() ->
+    Terms = node2_config_v1(),
+    #{mongoose_node => mim2,
+      config_file => "/etc/ejabberd.cfg",
+      loaded_categorized_options => terms_to_categorized_options(Terms),
+      ondisc_config_terms => Terms}.
+
+%% node1_config_v1 configuration in memory
+%% node1_config_v2 configuration on disc
+config_node1_config_v2() ->
+    Terms_v1 = node1_config_v1(),
+    Terms_v2 = node1_config_v2(),
+    #{mongoose_node => mim1,
+      config_file => "/etc/ejabberd.cfg",
+      loaded_categorized_options => terms_to_categorized_options(Terms_v1),
+      ondisc_config_terms => Terms_v2}.
+
+%% node2_config_v1 configuration in memory
+%% node2_config_v2 configuration on disc
+config_node2_config_v2() ->
+    Terms_v1 = node2_config_v1(),
+    Terms_v2 = node2_config_v2(),
+    #{mongoose_node => mim2,
+      config_file => "/etc/ejabberd.cfg",
+      loaded_categorized_options => terms_to_categorized_options(Terms_v1),
+      ondisc_config_terms => Terms_v2}.
+
+node1_config_v1() ->
+    [
+        {hosts, ["localhost"]},
+        {node_specific_options,
+         [
+            [h,'_',module_opt,mod_mam,pool],
+            [h,'_',module_opt,mod_mam_muc,pool]
+         ]},
+        {modules,
+         [
+            {mod_mam,
+             [
+                {pool, node1_pool},
+                {iqdisc, parallel},
+                {password, <<"secret">>}
+             ]},
+            {mod_mam_muc, [{pool, node1_pool}]}
+         ]}
+    ].
+
+node1_config_v2() ->
+    %% Different more secure password was applied in version 2
+    [
+        {hosts, ["localhost"]},
+        {node_specific_options,
+         [
+            [h,'_',module_opt,mod_mam,pool],
+            [h,'_',module_opt,mod_mam_muc,pool]
+         ]},
+        {modules,
+         [
+            {mod_mam,
+             [
+                {pool, node1_pool},
+                {iqdisc, parallel},
+                {password, <<"secret123">>}
+             ]},
+            {mod_mam_muc, [{pool, node1_pool}]}
+         ]}
+    ].
+
+node2_config_v1() ->
+    %% Pools are different for different nodes
+    [
+        {hosts, ["localhost"]},
+        {node_specific_options,
+         [
+            [h,'_',module_opt,mod_mam,pool],
+            [h,'_',module_opt,mod_mam_muc,pool]
+         ]},
+        {modules,
+         [
+            {mod_mam,
+             [
+                {pool, node2_pool},
+                {iqdisc, parallel},
+                {password, <<"secret">>}
+             ]},
+            {mod_mam_muc, [{pool, node1_pool}]}
+         ]}
+    ].
+
+node2_config_v2() ->
+    %% Pools are different for different nodes
+    %% Different more secure password was applied in version 2
+    [
+        {hosts, ["localhost"]},
+        {node_specific_options,
+         [
+            [h,'_',module_opt,mod_mam,pool],
+            [h,'_',module_opt,mod_mam_muc,pool]
+         ]},
+        {modules,
+         [
+            {mod_mam,
+             [
+                {pool, node2_pool},
+                {iqdisc, parallel},
+                {password, <<"secret123">>}
+             ]},
+            {mod_mam_muc, [{pool, node1_pool}]}
+         ]}
+    ].

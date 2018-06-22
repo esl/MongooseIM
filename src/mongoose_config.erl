@@ -32,6 +32,8 @@
 
 -export([does_pattern_match/2]).
 -export([make_categorized_options/3]).
+-export([state_to_categorized_options/1]).
+-export([cluster_reload_strategy/1]).
 
 
 -include("mongoose.hrl").
@@ -74,6 +76,12 @@
         global_config => list(),
         local_config => list(),
         host_local_config => list()}.
+
+-type node_state() :: #{
+        mongoose_node => node(),
+        config_file => string(),
+        loaded_categorized_options => categorized_options(),
+        ondisc_config_terms => list()}.
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -119,6 +127,9 @@
                    | {host, _}
                    | {hosts, _}
                    | {odbc_server, _}.
+
+-type flatten_option() :: term().
+-type flatten_options() :: list(flatten_option()).
 
 -callback stop(host()) -> any().
 
@@ -494,7 +505,7 @@ parse_terms(Terms) ->
                 add_option(odbc_pools, State#state.odbc_pools, State),
                 TermsWExpandedMacros).
 
--spec get_config_diff(state(), categorized_options()) -> map().
+-spec get_config_diff(state(), categorized_options()) -> config_diff().
 get_config_diff(State, #{global_config := Config,
                          local_config := Local,
                          host_local_config := HostsLocal}) ->
@@ -514,9 +525,14 @@ get_config_diff(State, #{global_config := Config,
 
 %% Config version hash does not depend on order of arguments in the config
 compute_config_version(LC, LCH) ->
-    L0 = skip_special_config_opts(LC) ++ LCH,
-    L1 = lists:sort(flatten_opts(LC, LCH)),
+    LC1 = skip_special_config_opts(LC),
+    L1 = lists:sort(flatten_opts(LC1, LCH)),
     ShaBin = crypto:hash(sha, term_to_binary(L1)),
+    bin_to_hex:bin_to_hex(ShaBin).
+
+flatten_global_opts_version(FlattenOpts) ->
+    Sorted = lists:sort(FlattenOpts),
+    ShaBin = crypto:hash(sha, term_to_binary(Sorted)),
     bin_to_hex:bin_to_hex(ShaBin).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
@@ -591,7 +607,7 @@ is_not_host_specific({Key, PoolType, PoolName})
     true.
 
 -spec state_to_categorized_options(state()) -> categorized_options().
-state_to_categorized_options(State=#state{opts = RevOpts}) ->
+state_to_categorized_options(#state{opts = RevOpts}) ->
     {GlobalConfig, LocalConfig, HostsConfig} = categorize_options(RevOpts),
     #{global_config => GlobalConfig,
       local_config => LocalConfig,
@@ -805,10 +821,37 @@ flatten_opts(LC, LCH) ->
 
 %% @doc It ignores global options
 state_to_flatten_local_opts(State) ->
+    CatOptions = state_to_categorized_options(State),
+    categorize_options_to_flatten_local_config_opts(CatOptions).
+
+%% Be aware, that
+%% categorize_options_to_flatten_local_config_opts
+%% and
+%% categorize_options_to_flatten_local_config_opts
+%% returns different sets of flatten_options
+-spec categorize_options_to_flatten_local_config_opts(categorized_options()) ->
+    flatten_options().
+categorize_options_to_flatten_local_config_opts(
     #{local_config := Local,
-      host_local_config := HostsLocal} =
-        state_to_categorized_options(State),
+      host_local_config := HostsLocal}) ->
     mongoose_config:flatten_opts(Local, HostsLocal).
+
+%% Flat categorize_options for global options only
+-spec categorize_options_to_flatten_global_config_opts(categorized_options()) ->
+    flatten_options().
+categorize_options_to_flatten_global_config_opts(#{global_config := GlobalConfig}) ->
+    flatten_global_config_opts(GlobalConfig).
+
+flatten_global_config_opts(LC) ->
+    lists:flatmap(fun(#config{key  = K, value = V}) ->
+                          flatten_global_config_opt(K, V);
+                     ({acl, K, V}) ->
+                          flatten_acl_config_opt(K, V);
+                     (Other) ->
+                     ?ERROR_MSG("issue=strange_global_config value=~1000p",
+                                [Other]),
+                     []
+                  end, LC).
 
 flatten_local_config_opts(LC) ->
     lists:flatmap(fun(#local_config{key = K, value = V}) ->
@@ -826,7 +869,7 @@ flatten_local_config_opts(LC) ->
 flatten_local_config_host_opts(LCH) ->
     lists:flatmap(fun(#local_config{key = {K, Host}, value = V}) ->
                           flatten_local_config_host_opt(K, Host, V);
-                     (Host) ->
+                     (Host) when is_binary(Host) ->
                      [{hostname, Host}];
                      (Other) ->
                      ?ERROR_MSG("issue=strange_local_host_config value=~1000p",
@@ -1020,9 +1063,247 @@ does_pattern_match(Subject, Pattern) ->
     end.
 
 %% @doc Make a categorize_options() map
+%% Does not work with acls
 -spec make_categorized_options(list(), list(), list()) -> categorized_options().
 make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
     #{global_config => GlobalConfig,
       local_config => LocalConfig,
       host_local_config => HostLocalConfig}.
 
+-spec cluster_reload_strategy([node_state()]) -> term().
+cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) ->
+    Data = prepare_data_for_cluster_reload_strategy(NodeStates),
+    cluster_reload_version_check(Data).
+
+cluster_reload_version_check(Data) ->
+    FailedChecks = lists:append(cluster_reload_version_checks(Data)),
+    %% If there is at least one FailedChecks, we are not allowed to
+    %% run reload_cluster.
+    Data#{failed_checks => FailedChecks}.
+
+cluster_reload_version_checks(Data) ->
+    [check(inconsistent_loaded_global_versions,
+           "Runtime configuration inconsistency! "
+           "Global configs should be the same for all nodes in cluster. "
+           "loaded_global_versions contains more than one unique config version. "
+           "cluster_reload is not allowed to continue. "
+           "How to fix: stop nodes, that run wrong config version.",
+           not all_same(loaded_global_versions, Data)),
+
+     check(inconsistent_ondisc_global_versions,
+           "Ondisc configuration inconsistency. "
+           "Global configs should be the same for all nodes in cluster. "
+           "ondisc_global_versions contains more than one unique config version. "
+           "cluster_reload is not allowed to continue. "
+           "How to fix: ensure that ejabberd.cfg-s are the same for all nodes.",
+           not all_same(loaded_global_versions, Data)),
+
+     check(inconsistent_loaded_local_versions,
+           "Runtime configuration inconsistency! "
+           "Local configs should be the same for all nodes in cluster. "
+           "Only node-specific parameters can be different. "
+           "loaded_local_versions contains more than one unique config version. "
+           "cluster_reload is not allowed to continue. "
+           "How to fix: stop nodes, that run wrong config version.",
+           not all_same(loaded_local_versions, Data)),
+
+     check(inconsistent_ondisc_global_versions,
+           "Ondisc configuration inconsistency. "
+           "Local configs should be the same for all nodes in cluster. "
+           "ondisc_local_versions contains more than one unique config version. "
+           "cluster_reload is not allowed to continue. "
+           "How to fix: ensure that ejabberd.cfg-s are the same for all nodes.",
+           not all_same(ondisc_local_versions, Data)),
+
+     check(no_update_required,
+           "No nodes need cluster reload.",
+           all_empty(version_transitions_lists, Data))
+    ].
+
+check(CheckName, Message, _Triggered=true) ->
+    [#{check => CheckName, message => Message}];
+check(_CheckName, _Message, _Triggered=false) ->
+    [].
+
+all_empty(Key, Data) ->
+    all_equal_to(Key, Data, []).
+
+all_equal_to(Key, Data, ExpectedValue) ->
+    List = maps:get(Key, Data),
+    Values = lists:map(fun({_Node, Value}) -> Value end, List),
+    case Values of
+        [ExpectedValue] ->
+            true;
+        _ ->
+            false
+    end.
+
+all_same(Key, Data) ->
+    List = maps:get(Key, Data),
+    Values = lists:map(fun({_Node, Value}) -> Value end, List),
+    case lists:usort(Values) of
+        [_] ->
+            true;
+        _ ->
+            false
+    end.
+
+prepare_data_for_cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) ->
+    ExtNodeStates = extend_node_states(NodeStates),
+    %% check that global options are the same everywhere:
+    %% - same before
+    %% - same after
+    #{coordinatior_node => maps:get(mongoose_node, CoordinatorNodeState),
+      %% All of these versions should be the same for reload_cluster to continue
+      loaded_global_versions => node_values(loaded_global_version, ExtNodeStates),
+      %% All of these versions should be the same for reload_cluster to continue
+      ondisc_global_versions => node_values(loaded_global_version, ExtNodeStates),
+
+      %% All of these versions should be the same for reload_cluster to continue
+      %% Doest not count node-specific options
+      loaded_local_versions => node_values(loaded_local_version, ExtNodeStates),
+      %% All of these versions should be the same for reload_cluster to continue
+      %% Doest not count node-specific options
+      ondisc_local_versions => node_values(loaded_local_version, ExtNodeStates),
+
+      %% These versions can be different
+      loaded_local_node_specific_versions =>
+            node_values(loaded_local_node_specific_version, ExtNodeStates),
+      %% These versions can be different
+      ondisc_local_node_specific_versions =>
+            node_values(ondisc_local_node_specific_version, ExtNodeStates),
+
+      %% If all are empty lists, we don't need to update
+      version_transitions_lists =>
+            node_values(version_transitions, ExtNodeStates),
+
+      extended_node_states => ExtNodeStates
+      }.
+
+node_values(Key, NodeStates) ->
+    [{maps:get(mongoose_node, NodeState), maps:get(Key, NodeState)}
+     || NodeState <- NodeStates].
+
+%% mongoose_node => node(),
+%% config_file => string(),
+%% loaded_categorized_options => categorized_options(),
+%% ondisc_config_terms => list()
+
+extend_node_states(NodeStates) ->
+    lists:map(fun(NodeState) -> extend_node_state(NodeState) end, NodeStates).
+
+extend_node_state(NodeStates=#{
+                    loaded_categorized_options := LoadedCatOptions,
+                    ondisc_config_terms := OndiscTerms}) ->
+    OndiscState = parse_terms(OndiscTerms),
+    OndiscCatOptions = state_to_categorized_options(OndiscState),
+    NodeSpecificPatterns = mongoose_config:state_to_global_opt(node_specific_options, OndiscState, []),
+    LoadedFlattenGlobalOptions = categorize_options_to_flatten_global_config_opts(LoadedCatOptions),
+    OndiscFlattenGlobalOptions = categorize_options_to_flatten_global_config_opts(OndiscCatOptions),
+    LoadedFlattenLocalOptions = categorize_options_to_flatten_local_config_opts(LoadedCatOptions),
+    OndiscFlattenLocalOptions = categorize_options_to_flatten_local_config_opts(OndiscCatOptions),
+    #{node_specific_options := LoadedFlattenLocalNodeSpecificOptions,
+      common_options := LoadedFlattenLocalCommonOptions,
+      matched_patterns := LoadedMatchedPatterns} =
+        split_node_specific_options(NodeSpecificPatterns, LoadedFlattenLocalOptions),
+    #{node_specific_options := OndiscFlattenLocalNodeSpecificOptions,
+      common_options := OndiscFlattenLocalCommonOptions,
+      matched_patterns := OndiscMatchedPatterns} =
+        split_node_specific_options(NodeSpecificPatterns, OndiscFlattenLocalOptions),
+    LoadedGlobalVersion = flatten_global_opts_version(LoadedFlattenGlobalOptions),
+    OndiscGlobalVersion = flatten_global_opts_version(OndiscFlattenGlobalOptions),
+    LoadedLocalVersion = flatten_global_opts_version(LoadedFlattenLocalCommonOptions),
+    OndiscLocalVersion = flatten_global_opts_version(OndiscFlattenLocalCommonOptions),
+    LoadedNodeSpecificVersion = flatten_global_opts_version(LoadedFlattenLocalNodeSpecificOptions),
+    OndiscNodeSpecificVersion = flatten_global_opts_version(OndiscFlattenLocalNodeSpecificOptions),
+    VersionTransitions = [#{type => global,
+                            loaded => LoadedGlobalVersion,
+                            ondisc => OndiscGlobalVersion},
+                          #{type => local,
+                            loaded => LoadedLocalVersion,
+                            ondisc => OndiscLocalVersion},
+                          #{type => node_specific,
+                            loaded => LoadedNodeSpecificVersion,
+                            ondisc => OndiscNodeSpecificVersion}],
+    %% Modified versions
+    %% Ignore same version transitions
+    NeededVersionTransitions = [Transition ||
+                                Transition = #{loaded := Loaded, ondisc := Ondisc}
+                                <- VersionTransitions,
+                                Loaded =/= Ondisc],
+    NodeStates#{
+      version_transitions => NeededVersionTransitions,
+      ondisc_config_state => OndiscState,
+      ondisc_categorized_options => OndiscCatOptions,
+      loaded_global_flatten_opts => LoadedFlattenGlobalOptions,
+      ondisc_global_flatten_opts => OndiscFlattenGlobalOptions,
+      loaded_global_version => LoadedGlobalVersion,
+      ondisc_global_version => OndiscGlobalVersion,
+      %% Doest not count node-specific options
+      loaded_local_version => LoadedLocalVersion,
+      %% Doest not count node-specific options
+      ondisc_local_version => OndiscLocalVersion,
+      loaded_local_node_specific_version => LoadedNodeSpecificVersion,
+      ondisc_local_node_specific_version => OndiscNodeSpecificVersion,
+      %% Just node specific options
+      loaded_local_node_specific_options => LoadedFlattenLocalNodeSpecificOptions,
+      ondisc_local_node_specific_options => OndiscFlattenLocalNodeSpecificOptions,
+      loaded_local_common_options => LoadedFlattenLocalCommonOptions,
+      ondisc_local_common_options => OndiscFlattenLocalCommonOptions,
+      loaded_matched_patterns => LoadedMatchedPatterns,
+      ondisc_matched_patterns => OndiscMatchedPatterns
+     }.
+
+
+%% Split local options to:
+%% - node specific (can be different for different nodes)
+%% - common local options (same for all nodes, but not global)
+%% Collects information about matches for debugging
+split_node_specific_options([], FlattenOpts) ->
+    %% No patterns case
+    #{node_specific_options => [],
+      common_options => FlattenOpts,
+      matched_patterns => []};
+split_node_specific_options(NodeSpecificPatterns, FlattenOpts) ->
+    split_node_specific_options(NodeSpecificPatterns, FlattenOpts, [], [], []).
+
+split_node_specific_options(NodeSpecificPatterns,
+                            [{OptKey, Value}=Opt|FlattenOpts],
+                            NodeSpecificOpts,
+                            CommonOpts,
+                            MatchedPatterns) ->
+    case find_matching_node_specific_pattern(NodeSpecificPatterns, OptKey) of
+        nomatch ->
+            CommonOpts2 = [Opt|CommonOpts],
+            split_node_specific_options(NodeSpecificPatterns, FlattenOpts,
+                                        NodeSpecificOpts, CommonOpts2,
+                                        MatchedPatterns);
+        {match, Pattern} ->
+            NodeSpecificOpts2 = [Opt|NodeSpecificOpts],
+            %% For debugging
+            MPattern = #{option_key => OptKey,
+                         option_value => Value,
+                         matched_pattern => Pattern},
+            MatchedPatterns2 = [MPattern|MatchedPatterns],
+            split_node_specific_options(NodeSpecificPatterns, FlattenOpts,
+                                        NodeSpecificOpts2, CommonOpts,
+                                        MatchedPatterns2)
+    end;
+split_node_specific_options(_NodeSpecificPatterns,
+                            [],
+                            NodeSpecificOpts,
+                            CommonOpts,
+                            MatchedPatterns) ->
+    #{node_specific_options => NodeSpecificOpts,
+      common_options => CommonOpts,
+      matched_patterns => MatchedPatterns}.
+
+find_matching_node_specific_pattern([Pattern|NodeSpecificPatterns], OptKey) ->
+    case does_pattern_match(OptKey, Pattern) of
+        true ->
+            {match, Pattern};
+        false ->
+            find_matching_node_specific_pattern(NodeSpecificPatterns, OptKey)
+    end;
+find_matching_node_specific_pattern([], _OptKey) ->
+    nomatch.
