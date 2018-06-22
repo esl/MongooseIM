@@ -606,7 +606,7 @@ notify_only_available_users_test(Config) ->
 
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
 
-              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+              push_helper:become_unavailable(Bob),
 
               %% Item from node 2 not received (blocked by resource-based delivery)
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
@@ -625,7 +625,7 @@ notify_unavailable_user_test(Config) ->
 
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
 
-              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+              push_helper:become_unavailable(Bob),
 
               %% Receive item from node 1 (also make sure the presence is processed)
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
