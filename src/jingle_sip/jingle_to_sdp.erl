@@ -31,7 +31,6 @@
 
 -type source() :: {SSRC :: binary(), [{binary(), binary()}]}.
 
--ifndef(no_typed_maps).
 -type content() :: #{media := undefined | binary(),
                      name := undefined | binary(),
                      protocol := binary(),
@@ -55,14 +54,6 @@
                    channels := binary(),
                    params := [param()], %% basic codec parameters.
                    rtcp_fb_params := rtcp_fb_param()}.
--else.
-
--type content() :: map().
--type description() :: map().
--type transport() :: map().
--type codec() :: map().
-
--endif.
 
 -type param() :: {binary(), binary()}.
 -type rtcp_fb_param() :: [binary()].
