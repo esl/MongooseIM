@@ -106,12 +106,33 @@ make_json_msg(Msg, MAMId) ->
 
 -spec encode(exml:item(), integer()) -> map().
 encode(Msg, Timestamp) ->
+    RawProps = exml_query:path(Msg, [{element,<<"properties">>}]),
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
-    #{from => exml_query:attr(Msg, <<"from">>),
-      to => exml_query:attr(Msg, <<"to">>),
-      id => exml_query:attr(Msg, <<"id">>),
-      body => exml_query:cdata(BodyTag),
-      timestamp => Timestamp}.
+
+    CoreList = [{<<"from">>, exml_query:attr(Msg, <<"from">>)},
+                {<<"to">>, exml_query:attr(Msg, <<"to">>)},
+                {<<"id">>,exml_query:attr(Msg, <<"id">>)},
+                {<<"body">>,exml_query:cdata(BodyTag)},
+                {<<"timestamp">>,Timestamp}],
+
+    ExtensionList =
+      case RawProps of
+           #xmlel{name = Name
+              ,attrs = Attrs
+              ,children = Children} ->
+           Props = [convert_prop_child(Child) || Child <- Children],
+           [{<<"properties">>,maps:from_list(Props)}];
+       _ -> []
+      end,
+
+    maps:from_list(CoreList ++ ExtensionList).
+
+convert_prop_child(Child)->
+    Name = exml_query:path(Child,[{element,<<"name">>},cdata]),
+    Value = exml_query:path(Child,[{element,<<"value">>},cdata]),
+    {Name, Value}.
+
+
 
 maybe_jid(undefined) ->
     undefined;
