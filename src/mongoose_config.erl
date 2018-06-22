@@ -34,6 +34,7 @@
 -export([make_categorized_options/3]).
 -export([state_to_categorized_options/1]).
 -export([cluster_reload_strategy/1]).
+-export([strategy_to_checks/1]).
 
 
 -include("mongoose.hrl").
@@ -82,6 +83,8 @@
         config_file => string(),
         loaded_categorized_options => categorized_options(),
         ondisc_config_terms => list()}.
+
+-type reloading_strategy() :: map().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -1070,10 +1073,52 @@ make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
       local_config => LocalConfig,
       host_local_config => HostLocalConfig}.
 
--spec cluster_reload_strategy([node_state()]) -> term().
+-spec cluster_reload_strategy([node_state()]) -> reloading_strategy().
 cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) ->
     Data = prepare_data_for_cluster_reload_strategy(NodeStates),
-    cluster_reload_version_check(Data).
+    Data2 = cluster_reload_version_check(Data),
+    calculate_changes(Data2).
+
+-spec strategy_to_checks(reloading_strategy()) -> boolean().
+strategy_to_checks(Data=#{failed_checks := FailedChecks}) ->
+    lists:map(fun(#{check := CheckName}) -> CheckName end, FailedChecks).
+
+%% Checks what to pass into ejabberd_config:apply_changes/3
+%% for each node
+calculate_changes(Data=#{extended_node_states := ExtNodeStates}) ->
+    [CoordinatorNodeState|OtherNodeStates] = ExtNodeStates,
+    CoordinatorChanges = calculate_changes_on_coordinator(CoordinatorNodeState),
+    OtherNodeChanges = lists:map(fun calculate_changes_on_remote_node/1,
+                                 OtherNodeStates),
+    Changes = [CoordinatorChanges|OtherNodeChanges],
+    %% Changes that we need to apply for cluster_reload,
+    %% if all checks are green.
+    Data#{changes_to_apply => Changes}.
+
+%% Coordinator node applies global changes
+calculate_changes_on_coordinator(ExtNodeState = #{
+          mongoose_node := Node,
+          ondisc_config_state := State,
+          loaded_categorized_options := CatOptions}) ->
+    State1 = allow_override_all(State),
+    Diff = get_config_diff(State, CatOptions),
+    #{
+        mongoose_node => Node,
+        state_to_apply => State1,
+        config_diff_to_apply => Diff
+    }.
+
+calculate_changes_on_remote_node(ExtNodeState = #{
+          mongoose_node := Node,
+          ondisc_config_state := State,
+          loaded_categorized_options := CatOptions}) ->
+    State1 = allow_override_local_only(State),
+    Diff = get_config_diff(State, CatOptions),
+    #{
+        mongoose_node => Node,
+        state_to_apply => State1,
+        config_diff_to_apply => Diff
+    }.
 
 cluster_reload_version_check(Data) ->
     FailedChecks = lists:append(cluster_reload_version_checks(Data)),
@@ -1192,7 +1237,7 @@ node_values(Key, NodeStates) ->
 extend_node_states(NodeStates) ->
     lists:map(fun(NodeState) -> extend_node_state(NodeState) end, NodeStates).
 
-extend_node_state(NodeStates=#{
+extend_node_state(NodeState=#{
                     loaded_categorized_options := LoadedCatOptions,
                     ondisc_config_terms := OndiscTerms}) ->
     OndiscState = parse_terms(OndiscTerms),
@@ -1231,7 +1276,7 @@ extend_node_state(NodeStates=#{
                                 Transition = #{loaded := Loaded, ondisc := Ondisc}
                                 <- VersionTransitions,
                                 Loaded =/= Ondisc],
-    NodeStates#{
+    NodeState#{
       version_transitions => NeededVersionTransitions,
       ondisc_config_state => OndiscState,
       ondisc_categorized_options => OndiscCatOptions,

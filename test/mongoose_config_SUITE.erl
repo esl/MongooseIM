@@ -10,7 +10,8 @@ all() -> [
     parse_config_with_underscore_pattern_case,
     node_specific_options_presents_case,
     node_specific_options_missing_case,
-    cluster_reload_strategy_case
+    cluster_reload_strategy_case,
+    get_config_diff_case
 ].
 
 init_per_suite(C) ->
@@ -251,3 +252,21 @@ node2_config_v2() ->
             {mod_mam_muc, [{pool, node1_pool}]}
          ]}
     ].
+
+
+get_config_diff_case(_C) ->
+    %% Calculate changes to node1 reload_local to transit from v1 to v2
+    Terms_v1 = node1_config_v1(),
+    Terms_v2 = node1_config_v2(),
+    CatOptions = terms_to_categorized_options(Terms_v1),
+    State = mongoose_config:parse_terms(Terms_v2),
+    Diff = mongoose_config:get_config_diff(State, CatOptions),
+    #{local_hosts_changes := #{ to_reload := ToReload }} = Diff,
+    [{ {modules,<<"localhost">>}, OldModules, NewModules }] = ToReload,
+    ?assertEqual(<<"secret">>, get_module_opt(mod_mam, password, OldModules)),
+    ?assertEqual(<<"secret123">>, get_module_opt(mod_mam, password, NewModules)),
+    ok.
+
+get_module_opt(Module, Key, Modules) ->
+    {Module, Opts} = lists:keyfind(Module, 1, Modules),
+    proplists:get_value(Key, Opts).
