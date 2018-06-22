@@ -34,7 +34,8 @@
 -export([make_categorized_options/3]).
 -export([state_to_categorized_options/1]).
 -export([cluster_reload_strategy/1]).
--export([strategy_to_checks/1]).
+-export([strategy_to_failed_checks/1]).
+-export([strategy_to_changes_to_apply/1]).
 
 
 -include("mongoose.hrl").
@@ -85,6 +86,12 @@
         ondisc_config_terms => list()}.
 
 -type reloading_strategy() :: map().
+
+-type reloading_change() :: #{
+        mongoose_node => node(),
+        state_to_apply => state(),
+        config_diff_to_apply => config_diff()
+       }.
 
 -type host() :: any(). % TODO: specify this
 -type state() :: #state{}.
@@ -764,7 +771,7 @@ include_config_files([Term | Terms], Configs, Res) ->
     include_config_files(Terms, Configs, Res ++ [Term]).
 
 find_plain_terms_for_file(Filename, Configs) ->
-    case lists:keyfind(Filename, Configs) of
+    case lists:keyfind(Filename, 1, Configs) of
         false ->
             %% Terms were not provided by caller for this file
             erlang:error({config_not_found, Filename});
@@ -1079,9 +1086,14 @@ cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) ->
     Data2 = cluster_reload_version_check(Data),
     calculate_changes(Data2).
 
--spec strategy_to_checks(reloading_strategy()) -> boolean().
-strategy_to_checks(Data=#{failed_checks := FailedChecks}) ->
+-spec strategy_to_failed_checks(reloading_strategy()) -> boolean().
+strategy_to_failed_checks(#{failed_checks := FailedChecks}) ->
     lists:map(fun(#{check := CheckName}) -> CheckName end, FailedChecks).
+
+-spec strategy_to_changes_to_apply(reloading_strategy()) -> [reloading_change()].
+strategy_to_changes_to_apply(#{coordinatior_node := Coordinator,
+                               changes_to_apply := Changes}) ->
+    [Change#{coordinatior_node => Coordinator} || Change <- Changes].
 
 %% Checks what to pass into ejabberd_config:apply_changes/3
 %% for each node
@@ -1096,6 +1108,7 @@ calculate_changes(Data=#{extended_node_states := ExtNodeStates}) ->
     Data#{changes_to_apply => Changes}.
 
 %% Coordinator node applies global changes
+-spec calculate_changes_on_coordinator(map()) -> reloading_change().
 calculate_changes_on_coordinator(ExtNodeState = #{
           mongoose_node := Node,
           ondisc_config_state := State,
@@ -1108,6 +1121,7 @@ calculate_changes_on_coordinator(ExtNodeState = #{
         config_diff_to_apply => Diff
     }.
 
+-spec calculate_changes_on_remote_node(map()) -> reloading_change().
 calculate_changes_on_remote_node(ExtNodeState = #{
           mongoose_node := Node,
           ondisc_config_state := State,

@@ -41,8 +41,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
-         reload_cluster_dryrun/0,
-         apply_changes_remote/4]).
+         reload_cluster_dryrun/0]).
 
 -export([get_local_config/0,
          get_host_local_config/0]).
@@ -53,6 +52,8 @@
 -export([config_states/0]).
 
 -import(mongoose_config, [can_be_ignored/1]).
+
+-export([apply_reloading_change/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -74,7 +75,6 @@
 -export_type([key/0, value/0]).
 
 -type compare_result() :: mongoose_config:compare_result().
--type config_diff() :: mongoose_config:config_diff().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config:state().
@@ -327,167 +327,93 @@ parse_file(ConfigFile) ->
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
-    ConfigFile = get_ejabberd_config_path(),
-    State0 = parse_file(ConfigFile),
-    ConfigDiff = get_config_diff(State0),
-    ConfigVersion = compute_current_config_version(),
-    State1 = mongoose_config:allow_override_all(State0),
-    try
-        {ok, _} = apply_changes(ConfigDiff, State1, ConfigVersion),
-        ?WARNING_MSG("node config reloaded from ~s", [ConfigFile]),
-        {ok, io_lib:format("# Reloaded: ~s", [node()])}
-    catch
-        Error:Reason ->
-            Msg = msg("failed to apply config on node: ~p~nreason: ~p",
-                      [node(), {Error, Reason}]),
-            ?WARNING_MSG("node config reload failed!~n"
-                         "current config version: ~p~n"
-                         "config file: ~s~n"
-                         "reason: ~p~n"
-                         "stacktrace: ~ts",
-                         [ConfigVersion, ConfigFile, Msg,
-                          msg("~p", [erlang:get_stacktrace()])]),
-            error(Msg)
+    NodeStates = [config_state()],
+    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
+    print_reload_strategy(ReloadStrategy),
+    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    case FailedChecks of
+        [] ->
+            Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
+            do_reload_cluster(Changes),
+            assert_local_config_reloaded(),
+            {ok, io_lib:format("# Reloaded: ~s", [node()])};
+        [_|_] ->
+            error({reload_cluster_failed, FailedChecks})
     end.
-
-%% Won't be unnecessarily evaluated if used as an argument
-%% to lager parse transform.
-msg(Fmt, Args) ->
-    lists:flatten(io_lib:format(Fmt, Args)).
 
 -spec reload_cluster() -> {ok, string()} | no_return().
 reload_cluster() ->
-    CurrentNode = node(),
-    ConfigFile = get_ejabberd_config_path(),
-    State0 = parse_file(ConfigFile),
-    ConfigDiff = get_config_diff(State0),
-    ConfigVersion = compute_current_config_version(),
-    FileVersion = mongoose_config:compute_config_file_version(State0),
-    ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
-    %% first apply on local
-    State1 = mongoose_config:allow_override_all(State0),
-    try apply_changes(ConfigDiff, State1, ConfigVersion) of
-        {ok, CurrentNode} ->
-            %% apply on other nodes
-            {S, F} = rpc:multicall(other_cluster_nodes(),
-                                   ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigDiff,
-                                    ConfigVersion, FileVersion],
-                                   30000),
-            {S1, F1} = group_nodes_results([{ok, node()} | S], F),
-            ResultText = (groups_to_string("# Reloaded:", S1)
-                          ++ groups_to_string("\n# Failed:", F1)),
-            case F1 of
-                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
-                [_ | _] ->
-                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
-                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
-                                 [FailedUpdateOrRPC])
-            end,
-            {ok, ResultText};
-        Error ->
-            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
-                         [CurrentNode, Error]),
-            ?WARNING_MSG("cluster config reload failed!~n"
-                         "config file: ~s~n"
-                         "reason: ~ts", [ConfigFile, Reason]),
-            exit(Reason)
-    catch
-        ErrorClass:ErrorReason ->
-            Stacktrace = erlang:get_stacktrace(),
-            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
-                         [CurrentNode, {ErrorClass, ErrorReason, Stacktrace}]),
-            ?WARNING_MSG("cluster config reload failed!~n"
-                         "config file: ~s~n"
-                         "reason: ~ts", [ConfigFile, Reason]),
-            exit(Reason)
+    NodeStates = config_states(),
+    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
+    print_reload_strategy(ReloadStrategy),
+    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    case FailedChecks of
+        [] ->
+            Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
+            do_reload_cluster(Changes),
+            assert_config_reloaded(),
+            {ok, "done"};
+        [_|_] ->
+            error({reload_cluster_failed, FailedChecks})
     end.
 
 reload_cluster_dryrun() ->
-    {ok, "done"}.
-
--spec groups_to_string(string(), [string()]) -> string().
-groups_to_string(_Header, []) ->
-    "";
-groups_to_string(Header, S) ->
-    Header ++ "\n" ++ string:join(S, "\n").
-
--spec group_nodes_results(list(), [atom]) -> {[string()], [string()]}.
-group_nodes_results(SuccessfullRPC, FailedRPC) ->
-    {S, F} = lists:foldl(fun(El, {SN, FN}) ->
-                             case El of
-                                 {ok, Node} ->
-                                     {[atom_to_list(Node) | SN], FN};
-                                 {error, Node, Reason} ->
-                                     {SN, [atom_to_list(Node) ++ " " ++ Reason | FN]}
-                             end
-                         end, {[], []}, SuccessfullRPC),
-    {S, F ++ lists:map(fun(E) -> {atom_to_list(E) ++ " " ++ "RPC failed"} end, FailedRPC)}.
-
--spec get_config_diff(state()) -> config_diff().
-get_config_diff(State) ->
-    CatOptions = get_categorized_options(),
-    mongoose_config:get_config_diff(State, CatOptions).
-
--spec apply_changes_remote(file:name(), config_diff(), binary(), binary()) ->
-                                  {ok, node()}| {error, node(), string()}.
-apply_changes_remote(NewConfigFilePath, ConfigDiff,
-                     DesiredConfigVersion, DesiredFileVersion) ->
-    ?WARNING_MSG("remote config reload scheduled", []),
-    ?DEBUG("~ndesired config version: ~p"
-           "~ndesired file version: ~p",
-           [DesiredConfigVersion, DesiredFileVersion]),
-    Node = node(),
-    State0 = parse_file(NewConfigFilePath),
-    case mongoose_config:compute_config_file_version(State0) of
-        DesiredFileVersion ->
-            State1 = mongoose_config:allow_override_local_only(State0),
-            try apply_changes(ConfigDiff, State1, DesiredConfigVersion) of
-                {ok, Node} = R ->
-                    ?WARNING_MSG("remote config reload succeeded", []),
-                    R;
-                UnknownResult ->
-                    ?WARNING_MSG("remote config reload failed! "
-                                 "can't apply desired config", []),
-                    {error, Node,
-                     lists:flatten(io_lib:format("~p", [UnknownResult]))}
-            catch
-                ErrorClass:ErrorReason ->
-                    Stacktrace = erlang:get_stacktrace(),
-                    Reason = {ErrorClass, ErrorReason, Stacktrace},
-                    ?WARNING_MSG("remote config reload failed! "
-                                 "can't apply desired config", []),
-                    {error, Node,
-                     lists:flatten(io_lib:format("~p", [Reason]))}
-            end;
-        _ ->
-            ?WARNING_MSG("remote config reload failed! "
-                         "can't compute current config version", []),
-            {error, Node, io_lib:format("Mismatching config file", [])}
+    NodeStates = config_states(),
+    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
+    print_reload_strategy(ReloadStrategy),
+    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    case FailedChecks of
+        [] ->
+            _Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
+            {ok, "done"};
+        [_|_] ->
+            error({reload_cluster_failed, FailedChecks})
     end.
 
--spec apply_changes(config_diff(), state(), binary()) ->
-                           {ok, node()} | {error, node(), string()}.
-apply_changes(ConfigDiff, State, DesiredConfigVersion) ->
+assert_config_reloaded() ->
+    NodeStates = config_states(),
+    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
+    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    case FailedChecks of
+        [no_update_required] ->
+            ok;
+        _ ->
+            error({assert_config_reloaded, FailedChecks})
+    end.
+
+assert_local_config_reloaded() ->
+    NodeStates = [config_state()],
+    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
+    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    case FailedChecks of
+        [no_update_required] ->
+            ok;
+        _ ->
+            error({assert_config_reloaded, FailedChecks})
+    end.
+
+print_reload_strategy(_ReloadStrategy) ->
+    %% TODO
+    ok.
+
+do_reload_cluster(Changes) ->
+    lists:map(fun(Change) -> apply_reloading_change(Change) end, Changes),
+    ok.
+
+apply_reloading_change(#{
+              mongoose_node := Node,
+              state_to_apply := State,
+              config_diff_to_apply := ConfigDiff}) when node() =:= Node ->
     #{config_changes := ConfigChanges,
       local_config_changes := LocalConfigChanges,
       local_hosts_changes := LocalHostsChanges} = ConfigDiff,
-    ConfigVersion = compute_current_config_version(),
-    ?DEBUG("config version: ~p", [ConfigVersion]),
-    case ConfigVersion of
-        DesiredConfigVersion ->
-            ok;
-        _ ->
-            exit("Outdated configuration on node; cannot apply new one")
-    end,
-    %% apply config
     set_opts(State),
-
     reload_config(ConfigChanges),
     reload_local_config(LocalConfigChanges),
     reload_local_hosts_config(LocalHostsChanges),
-
-    {ok, node()}.
+    {ok, node()};
+apply_reloading_change(Change=#{mongoose_node := Node}) ->
+    rpc:call(Node, ?MODULE, apply_reloading_change, [Change]).
 
 -spec reload_config(compare_result()) -> ok.
 reload_config(#{to_start := CAdd,
@@ -699,10 +625,6 @@ config_states() ->
                            cluster_nodes => Nodes,
                            failed_nodes => F})
     end.
-
-compute_current_config_version() ->
-    mongoose_config:compute_config_version(get_local_config(),
-                                           get_host_local_config()).
 
 compute_config_file_version() ->
     ConfigFile = get_ejabberd_config_path(),

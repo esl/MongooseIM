@@ -30,6 +30,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
+    stringprep:start(),
     Config.
 
 end_per_suite(_Config) ->
