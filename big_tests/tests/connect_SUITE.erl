@@ -46,9 +46,9 @@ all() ->
     ].
 
 groups() ->
-    G = [ {c2s_noproc, [], [reset_stream_noproc,
-                            starttls_noproc,
-                            compress_noproc,
+    G = [ {c2s_suspend, [], [reset_stream_suspend,
+                            starttls_suspend,
+                            compress_suspend,
                             bad_xml,
                             invalid_host,
                             invalid_stream_namespace,
@@ -71,7 +71,7 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 all_groups()->
-    [{group, c2s_noproc},
+    [{group, c2s_suspend},
      {group, starttls},
      {group, feature_order},
      {group, tls}].
@@ -111,7 +111,7 @@ end_per_suite(Config) ->
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(c2s_noproc, Config) ->
+init_per_group(c2s_suspend, Config) ->
     config_ejabberd_node_tls(Config,
                              fun mk_value_for_starttls_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
@@ -294,7 +294,7 @@ clients_can_connect_with_advertised_ciphers(Config) ->
                          ciphers_working_with_ssl_clients(Config))).
 
 
-reset_stream_noproc(Config) ->
+reset_stream_suspend(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
@@ -303,6 +303,7 @@ reset_stream_noproc(Config) ->
     [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
+    timer:sleep(100),
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
@@ -321,7 +322,7 @@ reset_stream_noproc(Config) ->
     end,
     ok.
 
-starttls_noproc(Config) ->
+starttls_suspend(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
@@ -330,6 +331,7 @@ starttls_noproc(Config) ->
     [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
+    timer:sleep(100),
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
@@ -348,7 +350,7 @@ starttls_noproc(Config) ->
     end,
     ok.
 
-compress_noproc(Config) ->
+compress_suspend(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
@@ -357,6 +359,7 @@ compress_noproc(Config) ->
     [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
+    timer:sleep(100),
     %% Add compress element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, compressed},
