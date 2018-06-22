@@ -132,40 +132,44 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"apns">>, EnableOpts),
             Notification = get_push_logs(DeviceToken),
 
-            ?assertMatch(#{<<"service">> := <<"apns">>}, Notification),
+            assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID)
 
-            APNSAlert = maps:get(<<"alert">>, Notification, undefined),
-            APNSData = maps:get(<<"data">>, Notification, undefined),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, APNSAlert),
-                    ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
-                    ?assertMatch(#{<<"badge">> := 1}, APNSAlert),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"click_action">> := null}, APNSAlert);
-                        Activity ->
-                            ?assertMatch(#{<<"click_action">> := Activity}, APNSAlert)
-                    end;
-                <<"true">> ->
-                    ?assert(not maps:is_key(<<"aps">>, Notification)),
-                    ?assert(not maps:is_key(<<"sound">>, Notification)),
-                    ?assert(not maps:is_key(<<"badge">>, Notification)),
-                    ?assertMatch(#{<<"last-message-body">> := <<"OH, HAI!">>}, APNSData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
-                    ?assertMatch(#{<<"message-count">> := 1}, APNSData)
-            end,
-
-            case  proplists:get_value(<<"topic">>, EnableOpts) of
-                undefined -> ok;
-                Topic ->
-                    ?assertMatch(Topic, maps:get(<<"topic">>, Notification, undefined))
-            end,
-
-            ok
         end).
+
+assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
+
+    ?assertMatch(#{<<"service">> := Service}, Notification),
+
+    Alert = maps:get(<<"alert">>, Notification, undefined),
+    Data = maps:get(<<"data">>, Notification, undefined),
+
+    ExpectedBody = proplists:get_value(body, EnableOpts, <<"OH, HAI!">>),
+
+    case proplists:get_value(<<"silent">>, EnableOpts) of
+        undefined ->
+            ?assertMatch(#{<<"body">> := ExpectedBody}, Alert),
+            ?assertMatch(#{<<"title">> := SenderJID}, Alert),
+            ?assertMatch(#{<<"badge">> := 1}, Alert),
+            ?assertMatch(#{<<"tag">> := SenderJID}, Alert),
+
+            case proplists:get_value(<<"click_action">>, EnableOpts) of
+                undefined ->
+                    ?assertMatch(#{<<"click_action">> := null}, Alert);
+                Activity ->
+                    ?assertMatch(#{<<"click_action">> := Activity}, Alert)
+            end;
+        <<"true">> ->
+            ?assertMatch(#{<<"last-message-body">> := ExpectedBody}, Data),
+            ?assertMatch(#{<<"last-message-sender">> := SenderJID}, Data),
+            ?assertMatch(#{<<"message-count">> := 1}, Data)
+    end,
+
+    case  proplists:get_value(<<"topic">>, EnableOpts) of
+        undefined -> ok;
+        Topic ->
+            ?assertMatch(Topic, maps:get(<<"topic">>, Notification, undefined))
+    end.
+
 
 pm_msg_notify_on_fcm(Config, EnableOpts) ->
     escalus:story(
@@ -173,31 +177,9 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts),
             Notification = get_push_logs(DeviceToken),
-            ?assertMatch(#{<<"service">> := <<"fcm">>}, Notification),
 
-            FCMNotification = maps:get(<<"alert">>, Notification, undefined),
+            assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
-            FCMData = maps:get(<<"data">>, Notification, undefined),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, FCMNotification),
-                    ?assertMatch(#{<<"title">> := SenderJID}, FCMNotification),
-                    ?assertMatch(#{<<"tag">> := SenderJID}, FCMNotification),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"click_action">> :=  null}, FCMNotification);
-                        Activity ->
-                            ?assertMatch(#{<<"click_action">> :=  Activity}, FCMNotification)
-                    end;
-                <<"true">> ->
-                    ?assertMatch(#{<<"last-message-body">> := <<"OH, HAI!">>}, FCMData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, FCMData),
-                    ?assertMatch(#{<<"message-count">> := 1}, FCMData)
-            end,
-
-            ok
         end).
 
 pm_msg_notify_on_apns_no_click_action(Config) ->
@@ -231,41 +213,11 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
             {SenderJID, DeviceToken} =
-                muclight_conversation(Config, Alice, Bob, <<"apns">>,EnableOpts),
+                muclight_conversation(Config, Alice, Bob, <<"apns">>, EnableOpts),
             Notification = get_push_logs(DeviceToken),
-            ?assertMatch(#{<<"service">> := <<"apns">>}, Notification),
+            assert_push_notification(Notification, <<"apns">>,
+                                     [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
 
-            APNSData = maps:get(<<"data">>, Notification, undefined),
-            APNSAlert = maps:get(<<"alert">>, Notification, undefined),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"Heyah!">>}, APNSAlert),
-                    ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
-                    ?assertMatch(#{<<"badge">> := 1}, APNSAlert),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"click_action">> := null}, APNSAlert);
-                        Activity ->
-                            ?assertMatch(#{<<"click_action">> := Activity}, APNSAlert)
-                    end;
-                <<"true">> ->
-                    ?assert(not maps:is_key(<<"aps">>, Notification)),
-                    ?assert(not maps:is_key(<<"sound">>, Notification)),
-                    ?assert(not maps:is_key(<<"badge">>, Notification)),
-                    ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, APNSData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
-                    ?assertMatch(#{<<"message-count">> := 1}, APNSData)
-            end,
-
-            case  proplists:get_value(<<"topic">>, EnableOpts) of
-                undefined -> ok;
-                Topic ->
-                    ?assertMatch(Topic, maps:get(<<"topic">>, Notification, undefined))
-            end,
-
-            ok
         end).
 
 muclight_msg_notify_on_fcm(Config, EnableOpts) ->
@@ -275,31 +227,8 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
             {SenderJID, DeviceToken} =
                 muclight_conversation(Config, Alice, Bob, <<"fcm">>,EnableOpts),
             Notification = get_push_logs(DeviceToken),
-            ?assertMatch(#{<<"service">> := <<"fcm">>}, Notification),
-
-            FCMNotification = maps:get(<<"alert">>, Notification, undefined),
-
-            FCMData = maps:get(<<"data">>, Notification, undefined),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"Heyah!">>}, FCMNotification),
-                    ?assertMatch(#{<<"title">> := SenderJID}, FCMNotification),
-                    ?assertMatch(#{<<"tag">> := SenderJID}, FCMNotification),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"click_action">> :=  null}, FCMNotification);
-                        Activity ->
-                            ?assertMatch(#{<<"click_action">> :=  Activity}, FCMNotification)
-                    end;
-                <<"true">> ->
-                    ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, FCMData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, FCMData),
-                    ?assertMatch(#{<<"message-count">> := 1}, FCMData)
-            end,
-
-            ok
+            assert_push_notification(Notification, <<"fcm">>,
+                                     [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
         end).
 
 muclight_msg_notify_on_apns_no_click_action(Config) ->
