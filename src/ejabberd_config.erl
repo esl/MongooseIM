@@ -389,6 +389,7 @@ assert_local_config_reloaded() ->
         [no_update_required] ->
             ok;
         _ ->
+            io:format(user, "ReloadStrategy ~p~n", [ReloadStrategy]),
             error({assert_config_reloaded, FailedChecks})
     end.
 

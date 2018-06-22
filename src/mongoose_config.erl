@@ -525,7 +525,7 @@ get_config_diff(State, #{global_config := Config,
         state_to_categorized_options(State),
     %% global config diff
     CC = compare_terms(Config, NewConfig, 2, 3),
-    LC = compare_terms(Local, NewLocal, 2, 3),
+    LC = compare_terms(skip_special_config_opts(Local), NewLocal, 2, 3),
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     #{config_changes => CC,
       local_config_changes => LC,
@@ -844,7 +844,8 @@ state_to_flatten_local_opts(State) ->
 categorize_options_to_flatten_local_config_opts(
     #{local_config := Local,
       host_local_config := HostsLocal}) ->
-    mongoose_config:flatten_opts(Local, HostsLocal).
+    Local2 = skip_special_config_opts(Local),
+    mongoose_config:flatten_opts(Local2, HostsLocal).
 
 %% Flat categorize_options for global options only
 -spec categorize_options_to_flatten_global_config_opts(categorized_options()) ->
@@ -922,7 +923,9 @@ flatten_module(H, Module, Opts) ->
 
 flatten_module_opts(H, Module, Opts) ->
     lists:map(fun({OptName, OptValue}) ->
-                {[h, H, module_opt, Module, OptName], OptValue}
+                {[h, H, module_opt, Module, OptName], OptValue};
+                  (OptName) -> %% Special case, flag is the same as {flag, true}
+                {[h, H, module_opt, Module, OptName], true}
         end, Opts).
 
 
@@ -1310,9 +1313,20 @@ extend_node_state(NodeState=#{
       loaded_local_common_options => LoadedFlattenLocalCommonOptions,
       ondisc_local_common_options => OndiscFlattenLocalCommonOptions,
       loaded_matched_patterns => LoadedMatchedPatterns,
-      ondisc_matched_patterns => OndiscMatchedPatterns
+      ondisc_matched_patterns => OndiscMatchedPatterns,
+      %% For debugging
+      flatten_diff => #{
+        ondisc_global_only => subtract_lists(OndiscFlattenGlobalOptions, LoadedFlattenGlobalOptions),
+        loaded_global_only => subtract_lists(LoadedFlattenGlobalOptions, OndiscFlattenGlobalOptions),
+        ondisc_local_only => subtract_lists(OndiscFlattenLocalOptions, LoadedFlattenLocalOptions),
+        loaded_local_only => subtract_lists(LoadedFlattenLocalOptions, OndiscFlattenLocalOptions)
+       }
      }.
 
+subtract_lists(List, Except) ->
+    SetList = ordsets:from_list(List),
+    SetExcept = ordsets:from_list(Except),
+    ordsets:subtract(SetList, SetExcept).
 
 %% Split local options to:
 %% - node specific (can be different for different nodes)
