@@ -337,6 +337,8 @@ reload_local() ->
             do_reload_cluster(Changes),
             assert_local_config_reloaded(),
             {ok, io_lib:format("# Reloaded: ~s", [node()])};
+        [no_update_required] ->
+            {ok, io_lib:format("# No update required: ~s", [node()])};
         [_|_] ->
             dump_reload_state(reload_local, ReloadStrategy),
             error({reload_cluster_failed, FailedChecks})
@@ -354,6 +356,8 @@ reload_cluster() ->
             do_reload_cluster(Changes),
             assert_config_reloaded(),
             {ok, "done"};
+        [no_update_required] ->
+            {ok, io_lib:format("No update required", [])};
         [_|_] ->
             dump_reload_state(reload_cluster, ReloadStrategy),
             error({reload_cluster_failed, FailedChecks})
@@ -368,6 +372,8 @@ reload_cluster_dryrun() ->
         [] ->
             _Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
             {ok, "done"};
+        [no_update_required] ->
+            {ok, io_lib:format("No update required", [])};
         [_|_] ->
             dump_reload_state(reload_cluster_dryrun, ReloadStrategy),
             error({reload_cluster_failed, FailedChecks})
