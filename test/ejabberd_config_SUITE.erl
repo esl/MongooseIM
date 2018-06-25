@@ -26,7 +26,8 @@ groups() ->
                          add_a_module,
                          delete_a_module,
                          reload_a_module]},
-     {reload_cluster, [], [cluster_smoke]},
+     {reload_cluster, [], [cluster_smoke,
+                           change_module_option_with_node_param_opts]},
      {odbc_pools, [], [odbc_server_no_pools,
                           odbc_server_pools]}
     ].
@@ -181,9 +182,23 @@ cluster_smoke(C) ->
     copy(data(C, "ejabberd.no_listeners.cfg"), data(C, "ejabberd.cfg")),
     {ok, _} = start_ejabberd_with_config(C, "ejabberd.cfg"),
     {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd.cfg"),
-    {ok, _} = rpc:call(SlaveNode, ejabberd_admin, join_cluster,
-                       [atom_to_list(node())]),
+    maybe_join_cluster(SlaveNode),
     [_,_] = ejabberd_config:config_states(),
+    % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
+
+change_module_option_with_node_param_opts(C) ->
+    SlaveNode = slave_node(),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node2_v1.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd_n2.cfg"),
+    maybe_join_cluster(SlaveNode),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node1_v2.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node2_v2.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok,_} = ejabberd_config:reload_cluster(),
     % cleanup
     ok = stop_ejabberd(),
     stop_remote_ejabberd(SlaveNode),
@@ -242,10 +257,10 @@ start_slave_node() ->
     %% /usr/lib/erlang/lib/
     %% So add_paths is NOT enough here
     ok = rpc:call(SlaveNode, code, add_pathsa, [lists:reverse(code_paths())]),
-    check_that_p1_tls_is_correct(),
+    check_that_p1_tls_is_correct(SlaveNode),
     ok.
 
-check_that_p1_tls_is_correct() ->
+check_that_p1_tls_is_correct(SlaveNode) ->
     ?assertEqual(fast_tls:module_info(md5),
                  rpc:call(SlaveNode, fast_tls, module_info, [md5])).
 
@@ -263,3 +278,13 @@ stop_remote_ejabberd(SlaveNode) ->
 
 code_paths() ->
     [filename:absname(Path) || Path <- code:get_path()].
+
+maybe_join_cluster(SlaveNode) ->
+    Result = rpc:call(SlaveNode, ejabberd_admin, join_cluster,
+                      [atom_to_list(node())]),
+    case Result of
+        {ok, _} ->
+            ok;
+        {already_joined, _} ->
+            ok
+    end.

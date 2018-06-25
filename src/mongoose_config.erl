@@ -1215,7 +1215,7 @@ all_empty(Key, Data) ->
 all_equal_to(Key, Data, ExpectedValue) ->
     List = maps:get(Key, Data),
     Values = lists:map(fun({_Node, Value}) -> Value end, List),
-    case Values of
+    case lists:usort(Values) of
         [ExpectedValue] ->
             true;
         _ ->

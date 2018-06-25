@@ -227,7 +227,7 @@ remove_rpc_alive_node(AliveNode) ->
             {rpc_error, String}
     end.
 
--spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {alread_joined, string()} |
+-spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {already_joined, string()} |
                                 {mnesia_error, string()} | {error, string()}.
 join_cluster(NodeString) ->
     NodeAtom = list_to_atom(NodeString),
@@ -235,7 +235,7 @@ join_cluster(NodeString) ->
     case lists:member(NodeAtom, NodeList) of
         true ->
             String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
-            {alread_joined, String};
+            {already_joined, String};
         _ ->
             do_join_cluster(NodeAtom)
     end.
