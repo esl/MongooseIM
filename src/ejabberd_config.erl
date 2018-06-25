@@ -408,6 +408,8 @@ dump_reload_state(From, ReloadStrategy) ->
     %% Wow, so important!
     ?CRITICAL_MSG("issue=dump_reload_state from=~p filename=~p",
                   [From, Filename]),
+    io:format("issue=dump_reload_state from=~p filename=~p",
+                  [From, Filename]),
     file:write_file(Filename, Io).
 
 dump_reload_state_filename() ->

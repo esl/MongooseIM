@@ -11,6 +11,8 @@ all() -> [
     node_specific_options_presents_case,
     node_specific_options_missing_case,
     cluster_reload_strategy_case,
+    auth_method_and_cluster_reload_case,
+    no_duplicate_options_case,
     get_config_diff_case
 ].
 
@@ -92,6 +94,30 @@ cool_mod_mam_config_flatten() ->
      {[h,<<"localhost">>,module,mod_mam],flatten},
      {[h,<<"localhost">>,module_opt,mod_mam,pool],cool_pool}].
 
+auth_config() ->
+    [{hosts, ["localhost", "anonymous.localhost"]},
+     {auth_method, internal},
+     {host_config,"anonymous.localhost",
+       [{auth_method,anonymous}]}].
+
+auth_config_states() ->
+    [auth_config_node1_config_v1()].
+
+auth_config_node1_config_v1() ->
+    Terms = auth_config(),
+    #{mongoose_node => mim1,
+      config_file => "/etc/ejabberd.cfg",
+      loaded_categorized_options => terms_to_categorized_options(Terms),
+      ondisc_config_terms => Terms}.
+
+auth_host_local_config() ->
+    Terms = auth_config(),
+    CatOpts = terms_to_categorized_options(Terms),
+    maps:get(host_local_config, CatOpts).
+
+auth_config_state() ->
+    Terms = auth_config(),
+    mongoose_config:parse_terms(Terms).
 
 %% Check that underscore is not treated as a config macro by config parser
 parse_config_with_underscore_pattern_case(_C) ->
@@ -126,6 +152,28 @@ cluster_reload_strategy_case(_C) ->
     ct:fail(oops),
     ok.
 
+%% Check that auth_method is treated correctly
+auth_method_and_cluster_reload_case(_C) ->
+    Strategy = mongoose_config:cluster_reload_strategy(auth_config_states()),
+    ct:pal("Auth strategy ~p", [Strategy]),
+    ct:fail(oops),
+    ok.
+
+no_duplicate_options_case(_C) ->
+    HostOpts = auth_host_local_config(),
+    %% Check that there are no duplicates
+    %% Bad case example:
+    %% HostOpts =
+    %%  [{local_config,{auth_method,<<"localhost">>},internal},
+    %%   {local_config,{auth_method,<<"anonymous.localhost">>},internal},
+    %%   {local_config,{auth_method,<<"anonymous.localhost">>},anonymous}]
+    ?assertEqual({local_config,{auth_method,<<"anonymous.localhost">>},anonymous},
+                 lists:keyfind({auth_method,<<"anonymous.localhost">>}, 2,
+                               HostOpts)),
+    ?assertEqual({local_config,{auth_method,<<"anonymous.localhost">>},anonymous},
+                 lists:keyfind({auth_method,<<"anonymous.localhost">>}, 2,
+                               lists:reverse(HostOpts))),
+    ok.
 
 %% ejabberd_config:config_states/0 example
 %% Password was modified on both nodes

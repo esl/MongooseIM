@@ -509,6 +509,10 @@ compact(Opt, Val, [O | Os1], Os2) ->
 
 -spec parse_terms(term()) -> state().
 parse_terms(Terms) ->
+    State = just_parse_terms(Terms),
+    dedup_state_opts(State).
+
+just_parse_terms(Terms) ->
     State = lists:foldl(fun search_hosts_and_pools/2, #state{}, Terms),
     TermsWExpandedMacros = replace_macros(Terms),
     lists:foldl(fun process_term/2,
@@ -1380,3 +1384,24 @@ find_matching_node_specific_pattern([Pattern|NodeSpecificPatterns], OptKey) ->
     end;
 find_matching_node_specific_pattern([], _OptKey) ->
     nomatch.
+
+
+dedup_state_opts(State = #state{opts = RevOpts}) ->
+    {RevOpts2, _Removed} = dedup_state_opts_list(RevOpts, [], [], sets:new()),
+    State#state{opts = RevOpts2}.
+
+dedup_state_opts_list([{Type, K, V} = H|List], Removed, Keep, Set)
+  when Type =:= config; Type =:= local_config ->
+    Element = {Type, K},
+    case sets:is_element(Element, Set) of
+        true ->
+            dedup_state_opts_list(List, [H|Removed], Keep, Set);
+        false ->
+            Set1 = sets:add_element(Element, Set),
+            dedup_state_opts_list(List, Removed, [H|Keep], Set1)
+    end;
+dedup_state_opts_list([H|List], Removed, Keep, Set) ->
+    dedup_state_opts_list(List, Removed, [H|Keep], Set);
+dedup_state_opts_list([], Removed, Keep, _Set) ->
+    {Keep, Removed}.
+
