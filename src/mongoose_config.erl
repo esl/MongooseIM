@@ -28,7 +28,8 @@
 
 -export([flatten_opts/2,
          state_to_flatten_local_opts/1,
-         expand_opts/1]).
+         expand_opts/1,
+         expand_all_opts/1]).
 
 -export([does_pattern_match/2]).
 -export([make_categorized_options/3]).
@@ -934,18 +935,34 @@ flatten_module_opts(H, Module, Opts) ->
 
 
 %% @doc Convert flat list of options back to LocalConfig and HostLocalConfig
+%% Useful, but not used
 expand_opts(FlattenOpts) ->
     Groups = group_flat_opts(FlattenOpts),
-    GlobalConfigGroup = maps:get(global_config, Groups, []),
+    %% We ignore global options here
     LocalConfigGroup = maps:get(local_config, Groups, []),
     HostConfigGroup = maps:get(host_config, Groups, []),
     LocalConfig = expand_local_config_group(LocalConfigGroup, Groups),
     HostConfig = expand_host_config_group(HostConfigGroup, Groups),
     {LocalConfig, HostConfig}.
 
-expand_global_config_group(LocalConfigGroup, Groups) ->
+%% Useful, but not used
+expand_all_opts(FlattenOpts) ->
+    Groups = group_flat_opts(FlattenOpts),
+    GlobalConfigGroup = maps:get(global_config, Groups, []),
+    LocalConfigGroup = maps:get(local_config, Groups, []),
+    HostConfigGroup = maps:get(host_config, Groups, []),
+    GlobalConfig = expand_global_config_group(GlobalConfigGroup, Groups),
+    LocalConfig = expand_local_config_group(LocalConfigGroup, Groups),
+    HostConfig = expand_host_config_group(HostConfigGroup, Groups),
+    #{
+        global_config => GlobalConfig,
+        local_config => LocalConfig,
+        host_config => HostConfig
+    }.
+
+expand_global_config_group(GlobalConfigGroup, Groups) ->
     [expand_global_config_group_item(K, V, Groups)
-     || {K, V} <- LocalConfigGroup].
+     || {K, V} <- GlobalConfigGroup].
 
 expand_global_config_group_item(K, V, Groups) ->
     Value = expand_local_config_group_item_value(K, V, Groups),
@@ -960,11 +977,11 @@ expand_local_config_group(LocalConfigGroup, Groups) ->
 expand_local_config_group_item(local, K, V, Groups) ->
     Value = expand_local_config_group_item_value(K, V, Groups),
     #local_config{key = K, value = Value};
-expand_local_config_group_item(global, K, V, Groups) ->
+expand_local_config_group_item(global, K, V, _Groups) ->
     #config{key = K, value = V};
-expand_local_config_group_item(acl, K, V, Groups) ->
+expand_local_config_group_item(acl, K, V, _Groups) ->
     {acl, K, V};
-expand_local_config_group_item(hostname, Host, simple, Groups) ->
+expand_local_config_group_item(hostname, Host, simple, _Groups) ->
     Host.
 
 expand_local_config_group_item_value(listen, flatten, Groups) ->
@@ -1076,7 +1093,8 @@ does_pattern_match(Subject, Pattern) ->
             Matches;
         Other ->
             erlang:error(#{issue => does_pattern_match_failed,
-                           subject => Subject, patten => Pattern})
+                           subject => Subject, patten => Pattern,
+                           test_ms_result => Other})
     end.
 
 %% @doc Make a categorize_options() map
@@ -1088,7 +1106,7 @@ make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
       host_local_config => HostLocalConfig}.
 
 -spec cluster_reload_strategy([node_state()]) -> reloading_strategy().
-cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) ->
+cluster_reload_strategy(NodeStates) ->
     Data = prepare_data_for_cluster_reload_strategy(NodeStates),
     Data2 = cluster_reload_version_check(Data),
     calculate_changes(Data2).
@@ -1116,7 +1134,7 @@ calculate_changes(Data=#{extended_node_states := ExtNodeStates}) ->
 
 %% Coordinator node applies global changes
 -spec calculate_changes_on_coordinator(map()) -> reloading_change().
-calculate_changes_on_coordinator(ExtNodeState = #{
+calculate_changes_on_coordinator(_ExtNodeState = #{
           mongoose_node := Node,
           ondisc_config_state := State,
           loaded_categorized_options := CatOptions}) ->
@@ -1129,7 +1147,7 @@ calculate_changes_on_coordinator(ExtNodeState = #{
     }.
 
 -spec calculate_changes_on_remote_node(map()) -> reloading_change().
-calculate_changes_on_remote_node(ExtNodeState = #{
+calculate_changes_on_remote_node(_ExtNodeState = #{
           mongoose_node := Node,
           ondisc_config_state := State,
           loaded_categorized_options := CatOptions}) ->
@@ -1390,7 +1408,7 @@ dedup_state_opts(State = #state{opts = RevOpts}) ->
     {RevOpts2, _Removed} = dedup_state_opts_list(RevOpts, [], [], sets:new()),
     State#state{opts = RevOpts2}.
 
-dedup_state_opts_list([{Type, K, V} = H|List], Removed, Keep, Set)
+dedup_state_opts_list([{Type, K, _V} = H|List], Removed, Keep, Set)
   when Type =:= config; Type =:= local_config ->
     Element = {Type, K},
     case sets:is_element(Element, Set) of
