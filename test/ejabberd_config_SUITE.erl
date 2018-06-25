@@ -17,6 +17,7 @@
 all() ->
     [smoke,
      {group, reload_local},
+     {group, reload_cluster},
      {group, odbc_pools},
      split_config].
 
@@ -25,6 +26,7 @@ groups() ->
                          add_a_module,
                          delete_a_module,
                          reload_a_module]},
+     {reload_cluster, [], [cluster_smoke]},
      {odbc_pools, [], [odbc_server_no_pools,
                           odbc_server_pools]}
     ].
@@ -42,6 +44,18 @@ init_per_testcase(_TestCase, Config) ->
     Config.
 
 end_per_testcase(_TestCase, _Config) ->
+    ok.
+
+init_per_group(reload_cluster, Config) ->
+    start_slave_node(),
+    Config;
+init_per_group(_GroupName, Config) ->
+    Config.
+
+end_per_group(reload_cluster, _Config) ->
+    stop_slave_node(),
+    ok;
+end_per_group(_GroupName, _Config) ->
     ok.
 
 %%
@@ -162,12 +176,25 @@ then_vhost_config_works(_C) ->
     ?eq(false, gen_mod:is_loaded(<<"fake.domain.one">>, mod_offline)),
     ?eq(false, gen_mod:is_loaded(<<"fake.domain.two">>, mod_ping)).
 
-is_empty([]) -> true;
-is_empty(_) -> false.
+cluster_smoke(C) ->
+    SlaveNode = slave_node(),
+    copy(data(C, "ejabberd.no_listeners.cfg"), data(C, "ejabberd.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd.cfg"),
+    {ok, _} = rpc:call(SlaveNode, ejabberd_admin, join_cluster,
+                       [atom_to_list(node())]),
+    [_,_] = ejabberd_config:config_states(),
+    % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
 
 %%
 %% Helpers
 %%
+
+is_empty([]) -> true;
+is_empty(_) -> false.
 
 get_ejabberd_cfg(Config, Name) ->
     DataDir = proplists:get_value(data_dir, Config),
@@ -202,3 +229,37 @@ times(N, E) -> times(N, E, []).
 
 times(0, _, Acc) -> Acc;
 times(N, E, Acc) -> times(N-1, E, [E | Acc]).
+
+
+start_slave_node() ->
+    Opts = [{monitor_master, true}],
+    SlaveNode = slave_node(),
+    {ok, SlaveNode} = ct_slave:start(SlaveNode, Opts),
+    {ok, CWD} = file:get_cwd(),
+    ok = rpc:call(SlaveNode, file, set_cwd, [CWD]),
+    %% Tell the remote node where to find the SUITE code
+    %% Be aware, that P1 likes to put there stuff into
+    %% /usr/lib/erlang/lib/
+    %% So add_paths is NOT enough here
+    ok = rpc:call(SlaveNode, code, add_pathsa, [lists:reverse(code_paths())]),
+    check_that_p1_tls_is_correct(),
+    ok.
+
+check_that_p1_tls_is_correct() ->
+    ?assertEqual(fast_tls:module_info(md5),
+                 rpc:call(SlaveNode, fast_tls, module_info, [md5])).
+
+stop_slave_node() ->
+    ok.
+
+slave_node() ->
+    'mim_slave@localhost'.
+
+start_remote_ejabberd_with_config(RemoteNode, C, ConfigFile) ->
+    rpc:call(RemoteNode, ?MODULE, start_ejabberd_with_config, [C, ConfigFile]).
+
+stop_remote_ejabberd(SlaveNode) ->
+    rpc:call(SlaveNode, ?MODULE, stop_ejabberd, []).
+
+code_paths() ->
+    [filename:absname(Path) || Path <- code:get_path()].

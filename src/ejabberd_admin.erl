@@ -253,7 +253,8 @@ do_join_cluster(Node) ->
             String = io_lib:format("Cannot get storage type for table ~p~n. Reason: ~p:~p", [T, E, R]),
             {mnesia_error, String};
         E:R ->
-            {error, {E, R}}
+            Stacktrace = erlang:get_stacktrace(),
+            {error, {E, R, Stacktrace}}
     end.
 
 -spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.
