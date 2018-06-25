@@ -89,6 +89,7 @@
 -type reloading_strategy() :: map().
 
 -type reloading_change() :: #{
+        coordinatior_node => node() | undefined,
         mongoose_node => node(),
         state_to_apply => state(),
         config_diff_to_apply => config_diff()
@@ -1111,7 +1112,7 @@ cluster_reload_strategy(NodeStates) ->
     Data2 = cluster_reload_version_check(Data),
     calculate_changes(Data2).
 
--spec strategy_to_failed_checks(reloading_strategy()) -> boolean().
+-spec strategy_to_failed_checks(reloading_strategy()) -> list().
 strategy_to_failed_checks(#{failed_checks := FailedChecks}) ->
     lists:map(fun(#{check := CheckName}) -> CheckName end, FailedChecks).
 
