@@ -338,6 +338,7 @@ reload_local() ->
             assert_local_config_reloaded(),
             {ok, io_lib:format("# Reloaded: ~s", [node()])};
         [_|_] ->
+            dump_reload_state(reload_local, ReloadStrategy),
             error({reload_cluster_failed, FailedChecks})
     end.
 
@@ -354,6 +355,7 @@ reload_cluster() ->
             assert_config_reloaded(),
             {ok, "done"};
         [_|_] ->
+            dump_reload_state(reload_cluster, ReloadStrategy),
             error({reload_cluster_failed, FailedChecks})
     end.
 
@@ -367,6 +369,7 @@ reload_cluster_dryrun() ->
             _Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
             {ok, "done"};
         [_|_] ->
+            dump_reload_state(reload_cluster_dryrun, ReloadStrategy),
             error({reload_cluster_failed, FailedChecks})
     end.
 
@@ -378,6 +381,7 @@ assert_config_reloaded() ->
         [no_update_required] ->
             ok;
         _ ->
+            dump_reload_state(assert_config_reloaded, ReloadStrategy),
             error({assert_config_reloaded, FailedChecks})
     end.
 
@@ -389,13 +393,29 @@ assert_local_config_reloaded() ->
         [no_update_required] ->
             ok;
         _ ->
-            io:format(user, "ReloadStrategy ~p~n", [ReloadStrategy]),
+            dump_reload_state(assert_local_config_reloaded, ReloadStrategy),
             error({assert_config_reloaded, FailedChecks})
     end.
 
 print_reload_strategy(_ReloadStrategy) ->
     %% TODO
     ok.
+
+dump_reload_state(From, ReloadStrategy) ->
+    Map = ReloadStrategy#{what => From},
+    Io = io_lib:format("~p.", [Map]),
+    Filename = dump_reload_state_filename(),
+    %% Wow, so important!
+    ?CRITICAL_MSG("issue=dump_reload_state from=~p filename=~p",
+                  [From, Filename]),
+    file:write_file(Filename, Io).
+
+dump_reload_state_filename() ->
+    {ok, Pwd} = file:get_cwd(),
+    DateTime = jlib:now_to_utc_string(os:timestamp()),
+    Filename = "reload_state_" ++ DateTime ++ ".dump",
+    filename:join(Pwd, Filename).
+
 
 do_reload_cluster(Changes) ->
     lists:map(fun(Change) -> apply_reloading_change(Change) end, Changes),
