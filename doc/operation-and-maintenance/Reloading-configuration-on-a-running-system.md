@@ -76,23 +76,25 @@ Example:
 ```erlang
 _build/mim1/rel/mongooseim/bin/mongooseimctl print_flatten_config
 Flatten options:
-{[l,listen],flatten}.
-{[l,listener,{5280,{0,0,0,0},tcp},ejabberd_cowboy],flatten}.
+{[l,listen],'FLATTEN'}.
+{[l,listener,{5280,{0,0,0,0},tcp},ejabberd_cowboy],'FLATTEN'}.
 {[l,listener_opt,{5280,{0,0,0,0},tcp},ejabberd_cowboy,num_acceptors],10}.
 {[l,listener_opt,{5280,{0,0,0,0},tcp},ejabberd_cowboy,transport_options],
  [{max_connections,1024}]}.
 ...
 {[h,<<"anonymous.localhost">>,auth_method],anonymous}.
-{[h,<<"localhost.bis">>,modules],flatten}.
-{[h,<<"localhost.bis">>,module,mod_carboncopy],flatten}.
-{[h,<<"localhost.bis">>,module,mod_stream_management],flatten}.
-{[h,<<"localhost.bis">>,module,mod_muc_commands],flatten}.
-{[h,<<"localhost.bis">>,module,mod_amp],flatten}.
-{[h,<<"localhost.bis">>,module,mod_offline],flatten}.
+{[h,<<"localhost.bis">>,modules],'FLATTEN'}.
+{[h,<<"localhost.bis">>,module,mod_carboncopy],'FLATTEN'}.
+{[h,<<"localhost.bis">>,module,mod_stream_management],'FLATTEN'}.
+{[h,<<"localhost.bis">>,module,mod_muc_commands],'FLATTEN'}.
+{[h,<<"localhost.bis">>,module,mod_amp],'FLATTEN'}.
+{[h,<<"localhost.bis">>,module,mod_offline],'FLATTEN'}.
 {[h,<<"localhost.bis">>,module_opt,mod_offline,access_max_user_messages],
  max_user_offline_messages}.
 ...
 ```
+
+[More information about flatten options format](../developers-guide/flatten_options.md)
 
 ### Node-specific options for Global Distribution
 
