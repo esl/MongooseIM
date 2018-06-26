@@ -78,7 +78,7 @@
 -type categorized_options() :: #{
         global_config => list(),
         local_config => list(),
-        host_local_config => list()}.
+        host_config => list()}.
 
 -type node_state() :: #{
         mongoose_node => node(),
@@ -524,10 +524,10 @@ just_parse_terms(Terms) ->
 -spec get_config_diff(state(), categorized_options()) -> config_diff().
 get_config_diff(State, #{global_config := Config,
                          local_config := Local,
-                         host_local_config := HostsLocal}) ->
+                         host_config := HostsLocal}) ->
     #{global_config := NewConfig,
       local_config := NewLocal,
-      host_local_config := NewHostsLocal} =
+      host_config := NewHostsLocal} =
         state_to_categorized_options(State),
     %% global config diff
     CC = compare_terms(Config, NewConfig, 2, 3),
@@ -627,7 +627,7 @@ state_to_categorized_options(#state{opts = RevOpts}) ->
     {GlobalConfig, LocalConfig, HostsConfig} = categorize_options(RevOpts),
     #{global_config => GlobalConfig,
       local_config => LocalConfig,
-      host_local_config => HostsConfig}.
+      host_config => HostsConfig}.
 
 %% Takes opts in reverse order
 -spec categorize_options([term()]) -> {GlobalConfig, LocalConfig, HostsConfig} when
@@ -849,7 +849,7 @@ state_to_flatten_local_opts(State) ->
     flatten_options().
 categorize_options_to_flatten_local_config_opts(
     #{local_config := Local,
-      host_local_config := HostsLocal}) ->
+      host_config := HostsLocal}) ->
     Local2 = skip_special_config_opts(Local),
     mongoose_config:flatten_opts(Local2, HostsLocal).
 
@@ -928,12 +928,47 @@ flatten_module(H, Module, Opts) ->
     [{[h, H, module, Module], flatten}|flatten_module_opts(H, Module, Opts)].
 
 flatten_module_opts(H, Module, Opts) ->
-    lists:map(fun({OptName, OptValue}) ->
-                {[h, H, module_opt, Module, OptName], OptValue};
+    lists:flatmap(fun({OptName, OptValue}) ->
+                {OptValue2, FlattenOpts} =
+                    flatten_module_subopts(H, OptName, OptValue, Module),
+                [ {[h, H, module_opt, Module, OptName], OptValue2} | FlattenOpts ];
                   (OptName) -> %% Special case, flag is the same as {flag, true}
-                {[h, H, module_opt, Module, OptName], true}
+                [ {[h, H, module_opt, Module, OptName], true} ]
         end, Opts).
 
+flatten_module_subopts(Host, OptName, OptValue, Module) ->
+    Path = [h, Host, module_subopt, Module, OptName],
+    flatten_subopts(Path, OptValue).
+
+flatten_subopts(Path, OptValue) ->
+    case can_be_flatten_value(OptValue) of
+        false ->
+            {OptValue, []};
+        true ->
+            FlattenOpts = lists:flatmap(fun({SubOptName, SubOptValue}) ->
+                                            flatten_subopt(Path, SubOptName, SubOptValue)
+                                    end, OptValue),
+            {flatten, FlattenOpts}
+    end.
+
+flatten_subopt(Path, SubOptName, SubOptValue) ->
+    Path2 = Path ++ [SubOptName],
+    case can_be_flatten_value(SubOptValue) of
+        false ->
+            [{Path2, SubOptValue}];
+        true ->
+            FlattenOpts = lists:flatmap(fun({SubOptName2, SubOptValue2}) ->
+                                            flatten_subopt(Path2, SubOptName2, SubOptValue2)
+                                    end, SubOptValue),
+            [{Path2, flatten}|FlattenOpts]
+    end.
+
+
+
+can_be_flatten_value(List) when is_list(List) ->
+    lists:all(fun({_,_}) -> true; (_) -> false end, List);
+can_be_flatten_value(_) ->
+    false.
 
 %% @doc Convert flat list of options back to LocalConfig and HostLocalConfig
 %% Useful, but not used
@@ -1020,7 +1055,32 @@ make_modules_for_host_from_groups(Host, Groups) ->
 
 make_module_opts_from_groups(Host, Module, Groups) ->
     GroupName = {module_opts, Host, Module},
-    maps:get(GroupName, Groups, []).
+    ModuleOpts = maps:get(GroupName, Groups, []),
+    expand_module_opts(ModuleOpts, Host, Module, Groups).
+
+expand_module_opts([{OptName, flatten} | ModuleOpts], Host, Module, Groups) ->
+    OptValue = expand_module_subopts(OptName, Host, Module, Groups),
+    Opt = {OptName, OptValue},
+    [Opt | expand_module_opts(ModuleOpts, Host, Module, Groups)];
+expand_module_opts([Opt | ModuleOpts], Host, Module, Groups) ->
+    [Opt | expand_module_opts(ModuleOpts, Host, Module, Groups)];
+expand_module_opts([], _Host, _Module, _Groups) ->
+    [].
+
+expand_module_subopts(OptName, Host, Module, Groups) ->
+    Path = [OptName],
+    expand_module_subopts_path(Path, Host, Module, Groups).
+
+expand_module_subopts_path(Path, Host, Module, Groups) ->
+    GroupName = {module_subopts, Host, Module, Path},
+    SubOpts = maps:get(GroupName, Groups, []),
+    lists:map(fun({SubOptName, flatten}) ->
+                      Path2 = Path ++ [SubOptName],
+                      SubOptValue = expand_module_subopts_path(Path2, Host, Module, Groups),
+                      {SubOptName, SubOptValue};
+                 (SubOpt) ->
+                      SubOpt
+              end, SubOpts).
 
 %% @doc group opts for faster lookups in expand_opts
 group_flat_opts(FlattenOpts) ->
@@ -1057,6 +1117,12 @@ group_flat_opt({[h, Host, module_opt, Module, OptName], OptValue}, Groups) ->
     GroupValue = {OptName, OptValue},
     add_to_group(GroupName, GroupValue, Groups);
 
+group_flat_opt({[h, Host, module_subopt, Module, OptName|Path], OptValue}, Groups) ->
+    {Last, Init} = last_init(Path),
+    GroupName  = {module_subopts, Host, Module,  [OptName|Init]},
+    GroupValue = {Last, OptValue},
+    add_to_group(GroupName, GroupValue, Groups);
+
 group_flat_opt({[l, listener, Address, Module], flatten}, Groups) ->
     GroupName  = listeners,
     GroupValue = {Address, Module},
@@ -1076,6 +1142,10 @@ group_flat_opt({[hostname, Host], simple}, Groups) ->
     GroupName  = local_config,
     GroupValue = {hostname, Host, simple},
     add_to_group(GroupName, GroupValue, Groups).
+
+last_init(List) ->
+    [Last|RevInit] = lists:reverse(List),
+    {Last, lists:reverse(RevInit)}.
 
 %% @doc Append into a group for later use
 %% Returns updated Groups
@@ -1104,7 +1174,7 @@ does_pattern_match(Subject, Pattern) ->
 make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
     #{global_config => GlobalConfig,
       local_config => LocalConfig,
-      host_local_config => HostLocalConfig}.
+      host_config => HostLocalConfig}.
 
 -spec cluster_reload_strategy([node_state()]) -> reloading_strategy().
 cluster_reload_strategy(NodeStates) ->

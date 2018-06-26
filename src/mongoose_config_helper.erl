@@ -3,7 +3,8 @@
 -export([get_flatten_opts/0,
          get_opts/0,
          get_expanded_opts/0,
-         diff_expanded/0]).
+         diff_expanded/0,
+         get_flatten_opts_iolist/0]).
 
 get_flatten_opts() ->
     LC = ejabberd_config:get_local_config(),
@@ -27,3 +28,9 @@ diff_expanded() ->
       diff_local_host => LCH -- ELCH, %% in LCH, but not in ELCH
       diff_local_expanded => ELC -- LC,
       diff_local_host_expanded => ELCH -- LCH}.
+
+get_flatten_opts_iolist() ->
+    format_opts(get_flatten_opts()).
+
+format_opts(Opts) ->
+    [io_lib:format("~p.~n", [Opt]) || Opt <- Opts].

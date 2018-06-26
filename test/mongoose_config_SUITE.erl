@@ -13,7 +13,10 @@ all() -> [
     cluster_reload_strategy_case,
     auth_method_and_cluster_reload_case,
     no_duplicate_options_case,
-    get_config_diff_case
+    get_config_diff_case,
+    flatten_module_subopts_case,
+    expand_opts_case,
+    expand_module_subopts_case
 ].
 
 init_per_suite(C) ->
@@ -94,6 +97,70 @@ cool_mod_mam_config_flatten() ->
      {[h,<<"localhost">>,module,mod_mam],flatten},
      {[h,<<"localhost">>,module_opt,mod_mam,pool],cool_pool}].
 
+flatten_module_subopts_case(_C) ->
+    State = mongoose_config:parse_terms(gd_config()),
+    FlatOpts = mongoose_config:state_to_flatten_local_opts(State),
+    NumConnsKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
+                   connections,num_of_connections],
+    ConnsKey = [h,<<"localhost">>,module_opt,mod_global_distrib,
+                connections],
+    ?assertEqual(22, proplists:get_value(NumConnsKey, FlatOpts)),
+    ?assertEqual(flatten, proplists:get_value(ConnsKey, FlatOpts)),
+    ok.
+
+expand_opts_case(_C) ->
+    State = mongoose_config:parse_terms(cool_mod_mam_config()),
+    FlatOpts = mongoose_config:state_to_flatten_local_opts(State),
+    ExpandedOpts = mongoose_config:expand_all_opts(FlatOpts),
+    CatOpts = mongoose_config:state_to_categorized_options(State),
+    ?assertEqual(maps:get(local_config, CatOpts),
+                 maps:get(local_config, ExpandedOpts)),
+    ?assertEqual(maps:get(host_config, CatOpts),
+                 maps:get(host_config, ExpandedOpts)),
+    ok.
+
+expand_module_subopts_case(_C) ->
+    State = mongoose_config:parse_terms(gd_config()),
+    FlatOpts = mongoose_config:state_to_flatten_local_opts(State),
+    ExpandedOpts = mongoose_config:expand_all_opts(FlatOpts),
+    CatOpts = mongoose_config:state_to_categorized_options(State),
+    ?assertEqual(maps:get(local_config, CatOpts),
+                 maps:get(local_config, ExpandedOpts)),
+    ?assertEqual(maps:get(host_config, CatOpts),
+                 maps:get(host_config, ExpandedOpts)),
+    ok.
+
+gd_config() ->
+    [{hosts, ["localhost"]},
+     {modules, [
+
+         {mod_global_distrib, [
+             {global_host, "example.com"},
+             {local_host, "datacenter1.example.com"},
+             {connections, [
+                   {endpoints, [{"172.16.0.2", 5555}]},
+                   {num_of_connections, 22},
+                   {tls_opts, [
+                         {certfile, "/home/user/dc1.pem"},
+                         {cafile, "/home/user/ca.pem"}
+                        ]}
+                  ]},
+             {cache, [
+                   {domain_lifetime_seconds, 60}
+                  ]},
+             {bounce, [
+                   {resend_after_ms, 300},
+                   {max_retries, 3}
+                  ]},
+             {redis, [
+                   {pool_size, 24},
+                   {server, "172.16.0.3"}
+                  ]}
+            ]}
+
+      ]}
+    ].
+
 auth_config() ->
     [{hosts, ["localhost", "anonymous.localhost"]},
      {auth_method, internal},
@@ -113,7 +180,7 @@ auth_config_node1_config_v1() ->
 auth_host_local_config() ->
     Terms = auth_config(),
     CatOpts = terms_to_categorized_options(Terms),
-    maps:get(host_local_config, CatOpts).
+    maps:get(host_config, CatOpts).
 
 auth_config_state() ->
     Terms = auth_config(),
@@ -148,15 +215,13 @@ terms_to_categorized_options(Terms) ->
 
 cluster_reload_strategy_case(_C) ->
     Strategy = mongoose_config:cluster_reload_strategy(example_config_states()),
-    ct:pal("Strategy ~p", [Strategy]),
-    ct:fail(oops),
+%   ct:pal("Strategy ~p", [Strategy]),
     ok.
 
 %% Check that auth_method is treated correctly
 auth_method_and_cluster_reload_case(_C) ->
     Strategy = mongoose_config:cluster_reload_strategy(auth_config_states()),
-    ct:pal("Auth strategy ~p", [Strategy]),
-    ct:fail(oops),
+%   ct:pal("Auth strategy ~p", [Strategy]),
     ok.
 
 no_duplicate_options_case(_C) ->

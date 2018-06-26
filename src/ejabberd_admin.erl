@@ -162,6 +162,10 @@ commands() ->
                         desc = "Display what the reload_cluster command would do, without making any changes",
                         module = ejabberd_config, function = reload_cluster_dryrun,
                         args = [], result = {res, restuple}},
+     #ejabberd_commands{name = print_flatten_config, tags = [server],
+                        desc = "Display configuration file in the flatten format",
+                        module = ejabberd_config, function = print_flatten_config,
+                        args = [], result = {res, restuple}},
      #ejabberd_commands{name = join_cluster, tags = [server],
                         desc = "Join the node to a cluster. Call it from the joining node.
                                 Use `-f` or `--force` flag to avoid question prompt and force join the node",
