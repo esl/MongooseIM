@@ -93,8 +93,8 @@ cool_mod_mam_config() ->
 
 cool_mod_mam_config_flatten() ->
     [{[l,odbc_pools],[]},
-     {[h,<<"localhost">>,modules],flatten},
-     {[h,<<"localhost">>,module,mod_mam],flatten},
+     {[h,<<"localhost">>,modules],'FLATTEN'},
+     {[h,<<"localhost">>,module,mod_mam],'FLATTEN'},
      {[h,<<"localhost">>,module_opt,mod_mam,pool],cool_pool}].
 
 flatten_module_subopts_case(_C) ->
@@ -107,7 +107,7 @@ flatten_module_subopts_case(_C) ->
     RedisServerKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
                 redis,server],
     ?assertEqual(22, proplists:get_value(NumConnsKey, FlatOpts)),
-    ?assertEqual(flatten, proplists:get_value(ConnsKey, FlatOpts)),
+    ?assertEqual('FLATTEN', proplists:get_value(ConnsKey, FlatOpts)),
     ?assertEqual("172.16.0.3", proplists:get_value(RedisServerKey, FlatOpts)),
     ok.
 

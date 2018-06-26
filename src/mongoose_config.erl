@@ -901,14 +901,14 @@ flatten_acl_config_opt(K, V) ->
     [{[a, K], V}].
 
 flatten_local_config_opt(listen, V) ->
-    [{[l, listen], flatten}] ++
+    [{[l, listen], 'FLATTEN'}] ++
     lists:append([flatten_listen(Address, Module, Opts)
                   || {Address, Module, Opts} <- V]);
 flatten_local_config_opt(K, V) ->
     [{[l, K], V}].
 
 flatten_listen(Address, Module, Opts) ->
-    [{[l, listener, Address, Module], flatten}
+    [{[l, listener, Address, Module], 'FLATTEN'}
      | flatten_listen_opts(Address, Module, Opts)].
 
 flatten_listen_opts(Address, Module, Opts) ->
@@ -919,13 +919,13 @@ flatten_listen_opts(Address, Module, Opts) ->
               end, Opts).
 
 flatten_local_config_host_opt(modules, Host, V) ->
-    [{[h, Host, modules], flatten}] ++
+    [{[h, Host, modules], 'FLATTEN'}] ++
     lists:append([flatten_module(Host, Module, Opts) || {Module, Opts} <- V]);
 flatten_local_config_host_opt(K, Host, V) ->
     [{[h, Host, K], V}].
 
 flatten_module(H, Module, Opts) ->
-    [{[h, H, module, Module], flatten}|flatten_module_opts(H, Module, Opts)].
+    [{[h, H, module, Module], 'FLATTEN'}|flatten_module_opts(H, Module, Opts)].
 
 flatten_module_opts(H, Module, Opts) ->
     lists:flatmap(fun({OptName, OptValue}) ->
@@ -948,7 +948,7 @@ flatten_subopts(Path, OptValue) ->
             FlattenOpts = lists:flatmap(fun({SubOptName, SubOptValue}) ->
                                             flatten_subopt(Path, SubOptName, SubOptValue)
                                     end, OptValue),
-            {flatten, FlattenOpts}
+            {'FLATTEN', FlattenOpts}
     end.
 
 flatten_subopt(Path, SubOptName, SubOptValue) ->
@@ -960,7 +960,7 @@ flatten_subopt(Path, SubOptName, SubOptValue) ->
             FlattenOpts = lists:flatmap(fun({SubOptName2, SubOptValue2}) ->
                                             flatten_subopt(Path2, SubOptName2, SubOptValue2)
                                     end, SubOptValue),
-            [{Path2, flatten}|FlattenOpts]
+            [{Path2, 'FLATTEN'}|FlattenOpts]
     end.
 
 
@@ -1020,7 +1020,7 @@ expand_local_config_group_item(acl, K, V, _Groups) ->
 expand_local_config_group_item(hostname, Host, simple, _Groups) ->
     Host.
 
-expand_local_config_group_item_value(listen, flatten, Groups) ->
+expand_local_config_group_item_value(listen, 'FLATTEN', Groups) ->
     make_listeners_from_groups(Groups);
 expand_local_config_group_item_value(_K, V, _Groups) ->
     V.
@@ -1042,7 +1042,7 @@ expand_host_config_group_item(Host, K, V, Groups) ->
     Value = expand_host_config_group_item_value(Host, K, V, Groups),
     {local_config, {K, Host}, Value}.
 
-expand_host_config_group_item_value(Host, modules, flatten, Groups) ->
+expand_host_config_group_item_value(Host, modules, 'FLATTEN', Groups) ->
     make_modules_for_host_from_groups(Host, Groups);
 expand_host_config_group_item_value(_Host, _K, V, _Groups) ->
     V.
@@ -1058,7 +1058,7 @@ make_module_opts_from_groups(Host, Module, Groups) ->
     ModuleOpts = maps:get(GroupName, Groups, []),
     expand_module_opts(ModuleOpts, Host, Module, Groups).
 
-expand_module_opts([{OptName, flatten} | ModuleOpts], Host, Module, Groups) ->
+expand_module_opts([{OptName, 'FLATTEN'} | ModuleOpts], Host, Module, Groups) ->
     OptValue = expand_module_subopts(OptName, Host, Module, Groups),
     Opt = {OptName, OptValue},
     [Opt | expand_module_opts(ModuleOpts, Host, Module, Groups)];
@@ -1074,7 +1074,7 @@ expand_module_subopts(OptName, Host, Module, Groups) ->
 expand_module_subopts_path(Path, Host, Module, Groups) ->
     GroupName = {module_subopts, Host, Module, Path},
     SubOpts = maps:get(GroupName, Groups, []),
-    lists:map(fun({SubOptName, flatten}) ->
+    lists:map(fun({SubOptName, 'FLATTEN'}) ->
                       Path2 = Path ++ [SubOptName],
                       SubOptValue = expand_module_subopts_path(Path2, Host, Module, Groups),
                       {SubOptName, SubOptValue};
@@ -1107,7 +1107,7 @@ group_flat_opt({[h, Host, K], V}, Groups) ->
     GroupValue = {Host, K, V},
     add_to_group(GroupName, GroupValue, Groups);
 
-group_flat_opt({[h, Host, module, Module], flatten}, Groups) ->
+group_flat_opt({[h, Host, module, Module], 'FLATTEN'}, Groups) ->
     GroupName  = {modules, Host},
     GroupValue = Module,
     add_to_group(GroupName, GroupValue, Groups);
@@ -1123,7 +1123,7 @@ group_flat_opt({[h, Host, module_subopt, Module, OptName|Path], OptValue}, Group
     GroupValue = {Last, OptValue},
     add_to_group(GroupName, GroupValue, Groups);
 
-group_flat_opt({[l, listener, Address, Module], flatten}, Groups) ->
+group_flat_opt({[l, listener, Address, Module], 'FLATTEN'}, Groups) ->
     GroupName  = listeners,
     GroupValue = {Address, Module},
     add_to_group(GroupName, GroupValue, Groups);
