@@ -104,8 +104,11 @@ flatten_module_subopts_case(_C) ->
                    connections,num_of_connections],
     ConnsKey = [h,<<"localhost">>,module_opt,mod_global_distrib,
                 connections],
+    RedisServerKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
+                redis,server],
     ?assertEqual(22, proplists:get_value(NumConnsKey, FlatOpts)),
     ?assertEqual(flatten, proplists:get_value(ConnsKey, FlatOpts)),
+    ?assertEqual("172.16.0.3", proplists:get_value(RedisServerKey, FlatOpts)),
     ok.
 
 expand_opts_case(_C) ->
