@@ -135,7 +135,7 @@ find_in_rostermap(LJID, RosterMap) ->
 roster_entry_strip(_, does_not_exist) ->
     does_not_exist;
 roster_entry_strip(LJID, Entry) ->
-    Entry#roster{ jid = LJID, name = <<>>, groups = [], xs = [] }.
+    Entry#roster{ jid = LJID}.
 
 %% this is a transaction-less equivalent of get_t_roster
 get_rostermap(LUser, LServer) ->

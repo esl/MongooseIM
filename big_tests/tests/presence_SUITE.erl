@@ -51,6 +51,7 @@ groups() ->
          {subscribe_group, [sequence], [subscribe,
                                         subscribe_decline,
                                         subscribe_relog,
+                                        subscribe_preserves_extra_info,
                                         unsubscribe,
                                         remove_unsubscribe]}],
     ct_helper:repeat_all_until_all_ok(G).
@@ -66,6 +67,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
@@ -279,7 +281,8 @@ add_contact(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
 
         %% add contact
-        Stanza = escalus_stanza:roster_add_contact(Bob, [<<"friends">>], <<"Bobby">>),
+        Stanza = escalus_stanza:roster_add_contact(Bob, bobs_default_groups(),
+                                                   bobs_default_name()),
         escalus:send(Alice, Stanza),
         Received = escalus:wait_for_stanzas(Alice, 2),
         escalus:assert_many([is_roster_set, is_iq_result], Received),
@@ -337,7 +340,8 @@ versioning(Config) ->
         true = Ver /= undefined,
 
         %% add contact
-        Stanza = escalus_stanza:roster_add_contact(Bob, [<<"friends">>], <<"Bobby">>),
+        Stanza = escalus_stanza:roster_add_contact(Bob, bobs_default_groups(),
+                                                   bobs_default_name()),
         escalus:send(Alice, Stanza),
         Received = escalus:wait_for_stanzas(Alice, 2),
 
@@ -516,6 +520,38 @@ subscribe_relog(Config) ->
 
         end).
 
+%% This test verifies that a subscription request doesn't remove nickname of a contact
+%% and doesn't remove them from a group.
+subscribe_preserves_extra_info(Config) ->
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        %% Alice adds Bob as a contact
+        add_sample_contact(Alice, Bob),
+
+        %% Subscription without confirmation to prevent unavailable presence exchange
+        %% after the test; TODO: escalus_story should ignore them automatically
+        BobJid = escalus_client:short_jid(Bob),
+        escalus:send(Alice, escalus_stanza:presence_direct(BobJid, <<"subscribe">>)),
+        PushReq = escalus:wait_for_stanza(Alice), % Roster set
+        escalus:send(Alice, escalus_stanza:iq_result(PushReq)),
+        Received = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_presence_with_type, [<<"subscribe">>], Received),
+        
+        %% Alice gets current roster
+        escalus:send(Alice, escalus_stanza:roster_get()),
+        RosterResult = escalus:wait_for_stanza(Alice),
+        escalus_assert:is_roster_result(RosterResult),
+
+        %% Actual verification
+        [BobItem] = exml_query:paths(RosterResult, [{element, <<"query">>}, {element, <<"item">>}]),
+        
+        ValidName = bobs_default_name(),
+        ValidGroups = lists:sort(bobs_default_groups()),
+
+        {ValidName, ValidGroups}
+        = {exml_query:attr(BobItem, <<"name">>),
+           lists:sort(exml_query:paths(BobItem, [{element, <<"group">>}, cdata]))}
+        end).
+
 unsubscribe(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice,Bob) ->
         BobJid = escalus_users:get_jid(Config, bob),
@@ -628,10 +664,14 @@ remove_unsubscribe(Config) ->
 %% Helpers
 %%-----------------------------------------------------------------
 
+bobs_default_groups() -> [<<"friends">>].
+
+bobs_default_name() -> <<"Bobby">>.
+
 add_sample_contact(Alice, Bob) ->
     escalus:send(Alice, escalus_stanza:roster_add_contact(Bob,
-                                                          [<<"friends">>],
-                                                          <<"Bobby">>)),
+                                                          bobs_default_groups(),
+                                                          bobs_default_name())),
 
     Received = escalus:wait_for_stanzas(Alice, 2),
     escalus:assert_many([is_roster_set, is_iq_result], Received),
