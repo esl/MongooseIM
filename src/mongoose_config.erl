@@ -859,6 +859,17 @@ categorize_options_to_flatten_local_config_opts(
 categorize_options_to_flatten_global_config_opts(#{global_config := GlobalConfig}) ->
     flatten_global_config_opts(GlobalConfig).
 
+flatten_all_opts(#{
+        global_config := GlobalConfig,
+        local_config := LocalConfig,
+        host_config := HostConfig
+    }) ->
+    flatten_global_config_opts(GlobalConfig)
+    ++
+    flatten_local_config_opts(LocalConfig)
+    ++
+    flatten_local_config_host_opts(HostConfig).
+
 flatten_global_config_opts(LC) ->
     lists:flatmap(fun(#config{key  = K, value = V}) ->
                           flatten_global_config_opt(K, V);
@@ -1180,7 +1191,27 @@ make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
 cluster_reload_strategy(NodeStates) ->
     Data = prepare_data_for_cluster_reload_strategy(NodeStates),
     Data2 = cluster_reload_version_check(Data),
-    calculate_changes(Data2).
+    Data3 = calculate_changes(Data2),
+    calculate_inconsistent_opts(Data3).
+
+calculate_inconsistent_opts(Data=#{extended_node_states := ExtNodeStates}) ->
+    NodeOpts = node_values(loaded_local_common_options, ExtNodeStates),
+    Inconsistent = inconsistent_node_opts(NodeOpts),
+    Data#{inconsistent_loaded_local_common_options => Inconsistent}.
+
+%% Return a list with inconsistent options for each node.
+%% Useful for inconsistent ejabberd.cfg debugging (when just hash is not enough).
+inconsistent_node_opts(NodeOpts) ->
+    {Nodes, OptLists} = lists:unzip(NodeOpts),
+    OptSets = lists:map(fun sets:from_list/1, OptLists),
+    AllConsistentSet = sets:intersection(OptSets),
+    InconsistentOpts = lists:map(fun(OptSet) ->
+                      sets:to_list(sets:subtract(OptSet, AllConsistentSet))
+              end, OptSets),
+    filter_out_empty_value_pairs(lists:zip(Nodes, InconsistentOpts)).
+
+filter_out_empty_value_pairs(KVs) ->
+    [KV || {_K,V} = KV <- KVs, V =/= []].
 
 -spec strategy_to_failed_checks(reloading_strategy()) -> list().
 strategy_to_failed_checks(#{failed_checks := FailedChecks}) ->
@@ -1259,6 +1290,8 @@ cluster_reload_version_checks(Data) ->
            "Only node-specific parameters can be different. "
            "loaded_local_versions contains more than one unique config version. "
            "cluster_reload is not allowed to continue. "
+           "Compare loaded_local_common_options for all nodes. "
+           "Check inconsistent_loaded_local_common_options, it should be empty. "
            "How to fix: stop nodes, that run wrong config version.",
            not all_same(loaded_local_versions, Data)),
 
@@ -1359,12 +1392,14 @@ extend_node_state(NodeState=#{
     OndiscFlattenLocalOptions = categorize_options_to_flatten_local_config_opts(OndiscCatOptions),
     #{node_specific_options := LoadedFlattenLocalNodeSpecificOptions,
       common_options := LoadedFlattenLocalCommonOptions,
-      matched_patterns := LoadedMatchedPatterns} =
-        split_node_specific_options(NodeSpecificPatterns, LoadedFlattenLocalOptions),
+      matched_patterns := LoadedMatchedPatterns,
+      node_specific_orphans := LoadedNodeSpecificOrphans} =
+        split_node_specific_options_tree(NodeSpecificPatterns, LoadedFlattenLocalOptions),
     #{node_specific_options := OndiscFlattenLocalNodeSpecificOptions,
       common_options := OndiscFlattenLocalCommonOptions,
-      matched_patterns := OndiscMatchedPatterns} =
-        split_node_specific_options(NodeSpecificPatterns, OndiscFlattenLocalOptions),
+      matched_patterns := OndiscMatchedPatterns,
+      node_specific_orphans := OndiscNodeSpecificOrphans} =
+        split_node_specific_options_tree(NodeSpecificPatterns, OndiscFlattenLocalOptions),
     LoadedGlobalVersion = flatten_global_opts_version(LoadedFlattenGlobalOptions),
     OndiscGlobalVersion = flatten_global_opts_version(OndiscFlattenGlobalOptions),
     LoadedLocalVersion = flatten_global_opts_version(LoadedFlattenLocalCommonOptions),
@@ -1403,6 +1438,8 @@ extend_node_state(NodeState=#{
       %% Just node specific options
       loaded_local_node_specific_options => LoadedFlattenLocalNodeSpecificOptions,
       ondisc_local_node_specific_options => OndiscFlattenLocalNodeSpecificOptions,
+      loaded_node_specific_orphans => LoadedNodeSpecificOrphans,
+      ondisc_node_specific_orphans => OndiscNodeSpecificOrphans,
       loaded_local_common_options => LoadedFlattenLocalCommonOptions,
       ondisc_local_common_options => OndiscFlattenLocalCommonOptions,
       loaded_matched_patterns => LoadedMatchedPatterns,
@@ -1420,6 +1457,30 @@ subtract_lists(List, Except) ->
     SetList = ordsets:from_list(List),
     SetExcept = ordsets:from_list(Except),
     ordsets:subtract(SetList, SetExcept).
+
+%% split_node_specific_options does not count nested options.
+%% split_node_specific_options_tree works for nested options too.
+%% I.e. options of node specific module would be filtered by this function.
+split_node_specific_options_tree(NodeSpecificPatterns, FlattenOpts) ->
+    Split = split_node_specific_options(NodeSpecificPatterns, FlattenOpts),
+    case maps:get(matched_patterns, Split) of
+        [] ->
+            Split#{node_specific_orphans => []}; %% no node specific stuff
+        [_|_] ->
+            do_split_node_specific_options_tree(Split)
+    end.
+
+do_split_node_specific_options_tree(Split=#{common_options := CommonOpts}) ->
+    Orphans = node_specific_orphans(CommonOpts),
+    CommonOpts2 = subtract_lists(CommonOpts, Orphans),
+    Split#{common_options => CommonOpts2,
+           node_specific_orphans => Orphans}.
+
+%% node_specific_orphans are for example options of node-specific modules.
+node_specific_orphans(FlattenOpts) ->
+    CatOpts = expand_all_opts(FlattenOpts),
+    ReflattenOpts = flatten_all_opts(CatOpts),
+    subtract_lists(FlattenOpts, ReflattenOpts).
 
 %% Split local options to:
 %% - node specific (can be different for different nodes)

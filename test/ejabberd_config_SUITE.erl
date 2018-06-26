@@ -27,7 +27,8 @@ groups() ->
                          delete_a_module,
                          reload_a_module]},
      {reload_cluster, [], [cluster_smoke,
-                           change_module_option_with_node_param_opts]},
+                           change_module_option_with_node_param_opts,
+                           change_module_option_with_node_specific_mods]},
      {odbc_pools, [], [odbc_server_no_pools,
                           odbc_server_pools]}
     ].
@@ -204,6 +205,21 @@ change_module_option_with_node_param_opts(C) ->
     stop_remote_ejabberd(SlaveNode),
     ok.
 
+change_module_option_with_node_specific_mods(C) ->
+    SlaveNode = slave_node(),
+    copy(data(C, "ejabberd.no_listeners.node_specific_module_node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.node_specific_module_node2_v1.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd_n2.cfg"),
+    maybe_join_cluster(SlaveNode),
+%   copy(data(C, "ejabberd.no_listeners.node_specific_module_node1_v2.cfg"), data(C, "ejabberd_n1.cfg")),
+%   copy(data(C, "ejabberd.no_listeners.node_specific_module_node2_v2.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok,_} = ejabberd_config:reload_cluster(),
+    % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
+
 %%
 %% Helpers
 %%
@@ -274,7 +290,7 @@ start_remote_ejabberd_with_config(RemoteNode, C, ConfigFile) ->
     rpc:call(RemoteNode, ?MODULE, start_ejabberd_with_config, [C, ConfigFile]).
 
 stop_remote_ejabberd(SlaveNode) ->
-    rpc:call(SlaveNode, ?MODULE, stop_ejabberd, []).
+    rpc:call(SlaveNode, ejabberd_helper, stop_ejabberd, []).
 
 code_paths() ->
     [filename:absname(Path) || Path <- code:get_path()].

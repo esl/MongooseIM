@@ -343,8 +343,10 @@ reload_local() ->
         [no_update_required] ->
             {ok, io_lib:format("# No update required: ~s", [node()])};
         [_|_] ->
-            dump_reload_state(reload_local, ReloadStrategy),
-            error({reload_cluster_failed, FailedChecks})
+            Filename = dump_reload_state(reload_local, ReloadStrategy),
+            error(#{reason => reload_local_failed,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename})
     end.
 
 -spec reload_cluster() -> {ok, string()} | no_return().
@@ -362,8 +364,10 @@ reload_cluster() ->
         [no_update_required] ->
             {ok, io_lib:format("No update required", [])};
         [_|_] ->
-            dump_reload_state(reload_cluster, ReloadStrategy),
-            error({reload_cluster_failed, FailedChecks})
+            Filename = dump_reload_state(reload_cluster, ReloadStrategy),
+            error(#{reason => reload_cluster_failed,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename})
     end.
 
 reload_cluster_dryrun() ->
@@ -378,8 +382,10 @@ reload_cluster_dryrun() ->
         [no_update_required] ->
             {ok, io_lib:format("No update required", [])};
         [_|_] ->
-            dump_reload_state(reload_cluster_dryrun, ReloadStrategy),
-            error({reload_cluster_failed, FailedChecks})
+            Filename = dump_reload_state(reload_cluster_dryrun, ReloadStrategy),
+            error(#{reason => reload_cluster_failed,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename})
     end.
 
 print_flatten_config() ->
@@ -395,8 +401,10 @@ assert_config_reloaded() ->
         [no_update_required] ->
             ok;
         _ ->
-            dump_reload_state(assert_config_reloaded, ReloadStrategy),
-            error({assert_config_reloaded, FailedChecks})
+            Filename = dump_reload_state(assert_config_reloaded, ReloadStrategy),
+            error(#{reason => assert_config_reloaded,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename})
     end.
 
 assert_local_config_reloaded() ->
@@ -407,8 +415,10 @@ assert_local_config_reloaded() ->
         [no_update_required] ->
             ok;
         _ ->
-            dump_reload_state(assert_local_config_reloaded, ReloadStrategy),
-            error({assert_config_reloaded, FailedChecks})
+            Filename = dump_reload_state(assert_local_config_reloaded, ReloadStrategy),
+            error(#{reason => assert_config_reloaded,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename})
     end.
 
 print_reload_strategy(_ReloadStrategy) ->
@@ -424,7 +434,8 @@ dump_reload_state(From, ReloadStrategy) ->
                   [From, Filename]),
     io:format("issue=dump_reload_state from=~p filename=~p",
                   [From, Filename]),
-    file:write_file(Filename, Io).
+    file:write_file(Filename, Io),
+    Filename.
 
 dump_reload_state_filename() ->
     {ok, Pwd} = file:get_cwd(),

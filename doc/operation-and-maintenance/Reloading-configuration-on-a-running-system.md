@@ -112,3 +112,15 @@ Real life configuration example:
     [h,'_',module_subopt,mod_global_distrib,redis,server]
 ]}.
 ```
+
+### Node-specific modules
+
+We don't compare options of node-specific modules for configuration consistency
+check. We also don't check, if all nodes run these modules (it's fine to run
+them only on some nodes in a cluster).
+
+```erlang
+{node_specific_options, [
+    [h,'_',module,mod_global_distrib]
+]}.
+```
