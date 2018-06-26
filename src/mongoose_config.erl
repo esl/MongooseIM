@@ -965,7 +965,7 @@ flatten_subopt(Path, SubOptName, SubOptValue) ->
 
 
 
-can_be_flatten_value(List) when is_list(List) ->
+can_be_flatten_value([_|_] = List) ->
     lists:all(fun({_,_}) -> true; (_) -> false end, List);
 can_be_flatten_value(_) ->
     false.
