@@ -46,13 +46,13 @@ all() ->
     ].
 
 groups() ->
-    G = [ {c2s_noproc, [], [reset_stream_noproc,
-                            starttls_noproc,
-                            compress_noproc,
-                            bad_xml,
-                            invalid_host,
-                            invalid_stream_namespace,
-                            pre_xmpp_1_0_stream]},
+    G = [ {c2s_error_cases, [], [reset_stream_no_receiver,
+                                 starttls_no_receiver,
+                                 compress_no_receiver,
+                                 bad_xml,
+                                 invalid_host,
+                                 invalid_stream_namespace,
+                                 pre_xmpp_1_0_stream]},
           {starttls, [], test_cases()},
           {tls, [parallel], [auth_bind_pipelined_session,
                              auth_bind_pipelined_auth_failure |
@@ -71,7 +71,7 @@ groups() ->
     ct_helper:repeat_all_until_all_ok(G).
 
 all_groups()->
-    [{group, c2s_noproc},
+    [{group, c2s_error_cases},
      {group, starttls},
      {group, feature_order},
      {group, tls}].
@@ -111,7 +111,7 @@ end_per_suite(Config) ->
     restore_ejabberd_node(Config),
     escalus:end_per_suite(Config).
 
-init_per_group(c2s_noproc, Config) ->
+init_per_group(c2s_error_cases, Config) ->
     config_ejabberd_node_tls(Config,
                              fun mk_value_for_starttls_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
@@ -294,7 +294,7 @@ clients_can_connect_with_advertised_ciphers(Config) ->
                          ciphers_working_with_ssl_clients(Config))).
 
 
-reset_stream_noproc(Config) ->
+reset_stream_no_receiver(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
@@ -303,6 +303,7 @@ reset_stream_noproc(Config) ->
     [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
+    wait_until_c2s_is_suspended(C2sPid),
     %% Add auth element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, auth_reply}, escalus_session:authenticate(Conn)),
@@ -321,7 +322,7 @@ reset_stream_noproc(Config) ->
     end,
     ok.
 
-starttls_noproc(Config) ->
+starttls_no_receiver(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn, _Features} = escalus_connection:start(UserSpec, Steps),
@@ -330,6 +331,9 @@ starttls_noproc(Config) ->
     [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
+
+    wait_until_c2s_is_suspended(C2sPid),
+
     %% Add starttls element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, proceed}, escalus_session:starttls(Conn)),
@@ -348,7 +352,7 @@ starttls_noproc(Config) ->
     end,
     ok.
 
-compress_noproc(Config) ->
+compress_no_receiver(Config) ->
     UserSpec = escalus_users:get_userspec(Config, alice),
     Steps = [start_stream, stream_features],
     {ok, Conn = #client{props = Props}, _Features} = escalus_connection:start(UserSpec, Steps),
@@ -357,6 +361,7 @@ compress_noproc(Config) ->
     [RcvPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_receiver_sup])),
     MonRef = erlang:monitor(process, C2sPid),
     ok = rpc(mim(), sys, suspend, [C2sPid]),
+    wait_until_c2s_is_suspended(C2sPid),
     %% Add compress element into message queue of the c2s process
     %% There is no reply because the process is suspended
     ?assertThrow({timeout, compressed},
@@ -661,3 +666,12 @@ pipeline_connect(UserSpec) ->
 
     escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session]),
     Conn.
+
+wait_until_c2s_is_suspended(C2sPid) ->
+    ok = mongoose_helper:wait_until(fun() -> check_if_c2s_is_suspended(C2sPid) end,
+                                    10, 100).
+
+check_if_c2s_is_suspended(C2sPid) ->
+    {current_function, {M, F, _}} = rpc(mim(), erlang, process_info, [C2sPid, current_function]),
+    {M, F} == {sys, suspend_loop}.
+
