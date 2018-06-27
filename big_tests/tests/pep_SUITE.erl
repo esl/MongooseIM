@@ -381,10 +381,11 @@ make_friends(Bob, Alice) ->
     escalus:wait_for_stanzas(Alice, 10, 200),
     BobStanzas = escalus:wait_for_stanzas(Bob, 10, 200),
     lists:filter(fun(S) -> N = S#xmlel.name,
-        ct:pal("N: ~p", [N]),
                            N =/= <<"iq">>
-                             andalso N =/= <<"presence">>
-                             andalso N =/= <<"r">>
+                           andalso
+                           N =/= <<"presence">>
+                           andalso
+                           N =/= <<"r">>
                  end,
                  BobStanzas).
 
