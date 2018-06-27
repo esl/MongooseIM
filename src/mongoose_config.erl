@@ -1295,7 +1295,7 @@ cluster_reload_version_checks(Data) ->
            "How to fix: stop nodes, that run wrong config version.",
            not all_same(loaded_local_versions, Data)),
 
-     check(inconsistent_ondisc_global_versions,
+     check(inconsistent_ondisc_local_versions,
            "Ondisc configuration inconsistency. "
            "Local configs should be the same for all nodes in cluster. "
            "ondisc_local_versions contains more than one unique config version. "
