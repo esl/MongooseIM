@@ -14,6 +14,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(muc_light_helper, [lbin/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -285,7 +286,7 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
 
 notify_deliver_to_offline_user_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:story(
+    escalus_fresh:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -327,20 +328,18 @@ notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
 
 do_notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:story(
-      FreshConfig, [{bob, 1}],
-      fun(Bob) ->
-              %% given
+    escalus:fresh_story(
+      FreshConfig, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+
               privacy_helper:set_and_activate(Bob, <<"deny_all_message">>),
-              privacy_helper:set_default_list(Bob, <<"deny_all_message">>)
-      end),
-    escalus:story(
-      FreshConfig, [{alice, 1}],
-      fun(Alice) ->
+              privacy_helper:set_default_list(Bob, <<"deny_all_message">>),
+              mongoose_helper:logout_user(Config, Bob),
               %% given
               Rule = {deliver, none, notify},
               Rules = rules(Config, [Rule]),
-              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              BobJid = lbin(escalus_client:short_jid(Bob)),
+
               Msg = amp_message_to(BobJid, Rules, <<"A message in a bottle...">>),
 
               %% when
@@ -498,7 +497,7 @@ error_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, error},
     Rules = rules(Config, [Rule]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -579,7 +578,7 @@ drop_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, drop},
     Rules = rules(Config, [Rule]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -649,7 +648,7 @@ last_rule_applies_test(Config) ->
 %% Internal
 
 user_has_no_incoming_offline_messages(FreshConfig, UserName) ->
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{UserName, 1}],
       fun(User) ->
               client_receives_nothing(User),
