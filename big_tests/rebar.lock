@@ -26,7 +26,7 @@
   0},
  {<<"escalus">>,
   {git,"https://github.com/esl/escalus.git",
-       {ref,"c761b6068c4cbda18b58deaa87748df24c16c576"}},
+       {ref,"750b872c3ed0bd6259b95cf16bacf6e204ddab4c"}},
   0},
  {<<"esip">>,
   {git,"https://github.com/processone/esip.git",
@@ -117,6 +117,10 @@
  {<<"uuid">>,
   {git,"https://github.com/okeuday/uuid.git",
        {ref,"1e82caca1568ee374ee8610880141a8d058df5ab"}},
+  1},
+ {<<"worker_pool">>,
+  {git,"https://github.com/inaka/worker_pool",
+       {ref,"59e53b1f82e64b7c72e9e7b0382d387ffac32fbc"}},
   1}]}.
 [
 {pkg_hash,[
