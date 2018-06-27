@@ -62,20 +62,9 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-connect_to(mongoose_push) ->
-    PushPort = list_to_integer(getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT)),
-    {ok, Push} = h2_client:start_link(https, "localhost", PushPort),
-    Push.
-
 init_per_suite(Config0) ->
     mongoose_push_mock:start(Config0),
     Port = mongoose_push_mock:port(),
-    %% For mocking with unnamed functions
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    rpc(code, load_binary, [?MODULE, Filename, Binary]),
-
-    application:set_env(chatterbox, ssl_options, []),
-    application:ensure_all_started(chatterbox),
 
     %% Start modules
     Config = dynamic_modules:save_modules(domain(), Config0),
@@ -130,7 +119,7 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"apns">>, EnableOpts),
-            Notification = get_push_logs(DeviceToken),
+            Notification = wait_for_push_request(DeviceToken),
 
             assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID)
 
@@ -176,7 +165,7 @@ pm_msg_notify_on_fcm(Config, EnableOpts) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts),
-            Notification = get_push_logs(DeviceToken),
+            Notification = wait_for_push_request(DeviceToken),
 
             assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
@@ -214,7 +203,7 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
         fun(Alice, Bob, _Kate) ->
             {SenderJID, DeviceToken} =
                 muclight_conversation(Config, Alice, Bob, <<"apns">>, EnableOpts),
-            Notification = get_push_logs(DeviceToken),
+            Notification = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"apns">>,
                                      [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
 
@@ -226,7 +215,7 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
         fun(Alice, Bob, _Kate) ->
             {SenderJID, DeviceToken} =
                 muclight_conversation(Config, Alice, Bob, <<"fcm">>,EnableOpts),
-            Notification = get_push_logs(DeviceToken),
+            Notification = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"fcm">>,
                                      [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
         end).
@@ -294,7 +283,7 @@ enable_push_for_user(User, Service, EnableOpts) ->
     DeviceToken.
 
 
-get_push_logs(DeviceToken) ->
+wait_for_push_request(DeviceToken) ->
     Body = mongoose_push_mock:wait_for_push_request(DeviceToken),
     jiffy:decode(Body, [return_maps]).
 

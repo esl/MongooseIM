@@ -14,7 +14,9 @@ start(Config) ->
     KeyPath = path_helper:canonicalize_path(filename:join(CertDir, "fake_key.pem")),
 
     Dispatch = cowboy_router:compile([{'_', [{<<"/v2/notification/:token">>, ?MODULE, #{}}]}]),
-    {ok, Pid} = cowboy:start_tls(mongoose_push_https_mock, 100,  [{certfile, CertPath}, {keyfile, KeyPath}], #{env => #{dispatch => Dispatch}}),
+    {ok, Pid} = cowboy:start_tls(mongoose_push_https_mock, 100,
+                                 [{certfile, CertPath}, {keyfile, KeyPath}],
+                                 #{env => #{dispatch => Dispatch}}),
     ets:new(mongoose_push_mock_subscribers,
             [public, named_table, {heir, Pid, take_care}]).
 
