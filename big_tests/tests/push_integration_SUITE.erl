@@ -7,10 +7,6 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(MUCHOST,                        <<"muclight.@HOST@">>).
--define(DEFAULT_FCM_MOCK_PORT,          "12991").
--define(DEFAULT_APNS_MOCK_PORT,         "12992").
--define(DEFAULT_MONGOOSE_PUSH_PORT,     "12993").
-
 
 -import(muc_light_helper,
     [
