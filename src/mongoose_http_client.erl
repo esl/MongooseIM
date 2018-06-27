@@ -15,6 +15,17 @@
 %%==============================================================================
 %%%-------------------------------------------------------------------
 %%% @doc
+%% options and defaults:
+%% [
+%%     {selection_strategy, available_worker},
+%%     {server, (required)},
+%%     {path_prefix, ""},
+%%     {request_timeout, 2000},
+%%     {pool_timeout, 5000}, % waiting for worker - not for all selection strategies
+%%     {pool_size, 20},
+%%     {http_opts, []}, % passed to fusco
+%%     {pool_opts, []} % extra options for worker_pool
+%% ]
 %%%
 %%% @end
 %%% Created : 26. Jun 2018 13:07
@@ -133,7 +144,7 @@ make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
           pool_timeout = PoolTimeout,
           selection_strategy = SelectionStrategy} = PoolOpts,
     FullPath = <<PathPrefix/binary, Path/binary>>,
-    Req = {request, FullPath, Method, Headers, Query, 1, RequestTimeout},
+    Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
     case catch wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
         {'EXIT', timeout} ->
             {error, pool_timeout};
