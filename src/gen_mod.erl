@@ -141,16 +141,17 @@ start_module_for_host(Host, Module, Opts0) ->
         end
     catch
         Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
             del_module_mnesia(Host, Module),
             ets:delete(ejabberd_modules, {Module, Host}),
             ErrorText = io_lib:format("Problem starting the module ~p for "
                                       "host ~p~n options: ~p~n ~p: ~p~n~p",
                                       [Module, Host, Opts, Class, Reason,
-                                       erlang:get_stacktrace()]),
+                                       Stacktrace]),
             ?CRITICAL_MSG(ErrorText, []),
-            case ?MODULE:is_app_running(mongooseim) of
+            case raise_error_on_module_start_failure() of
                 true ->
-                    erlang:raise(Class, Reason, erlang:get_stacktrace());
+                    erlang:raise(Class, Reason, Stacktrace);
                 false ->
                     ?CRITICAL_MSG("mongooseim initialization was aborted "
                                   "because a module start failed.~n"
@@ -159,6 +160,18 @@ start_module_for_host(Host, Module, Opts0) ->
                     erlang:halt(string:substr(lists:flatten(ErrorText),
                                               1, 199))
             end
+    end.
+
+raise_error_on_module_start_failure() ->
+    ?MODULE:is_app_running(mongooseim)
+    %% Common tests would be very confused if we kill the whole node
+    orelse is_common_test_running().
+
+is_common_test_running() ->
+    try
+        is_list(ct:get_status())
+    catch _:_ ->
+        false
     end.
 
 -spec start_backend_module(module(), list()) -> any().

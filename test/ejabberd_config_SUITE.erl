@@ -28,7 +28,8 @@ groups() ->
                          reload_a_module]},
      {reload_cluster, [], [cluster_smoke,
                            change_module_option_with_node_param_opts,
-                           change_module_option_with_node_specific_mods]},
+                           change_module_option_with_node_specific_mods,
+                           module_deps_work_correctly_with_reload_cluster]},
      {odbc_pools, [], [odbc_server_no_pools,
                           odbc_server_pools]}
     ].
@@ -45,6 +46,10 @@ end_per_suite(_Config) ->
 init_per_testcase(_TestCase, Config) ->
     Config.
 
+end_per_testcase(module_deps_work_correctly_with_reload_cluster, _Config) ->
+    % cleanup
+    stop_ejabberd(),
+    meck:unload();
 end_per_testcase(_TestCase, _Config) ->
     ok.
 
@@ -220,9 +225,40 @@ change_module_option_with_node_specific_mods(C) ->
     stop_remote_ejabberd(SlaveNode),
     ok.
 
+module_deps_work_correctly_with_reload_cluster(C) ->
+    %% Just to ensure
+    mnesia:clear_table(config),
+    stop_ejabberd(),
+    copy(data(C, "ejabberd.no_listeners.gd.node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
+    mock_gd_modules(),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    ejabberd_config:assert_local_config_reloaded(),
+    %% Cleaning in end_per_testcase
+    ok.
+
 %%
 %% Helpers
 %%
+
+gd_modules() ->
+    [
+        mod_global_distrib,
+        mod_global_distrib_bounce,
+        mod_global_distrib_disco,
+        mod_global_distrib_hosts_refresher,
+        mod_global_distrib_mapping,
+        mod_global_distrib_receiver,
+        mod_global_distrib_sender
+    ].
+
+mock_gd_modules() ->
+    [mock_module(M) || M <- gd_modules()].
+
+mock_module(M) ->
+    meck:new(M, [no_link, unstick, passthrough]),
+    meck:expect(M, start, fun(_Host, _Opts) -> ok end),
+    meck:expect(M, stop, fun(_Host) -> ok end),
+    ok.
 
 is_empty([]) -> true;
 is_empty(_) -> false.

@@ -512,7 +512,8 @@ compact(Opt, Val, [O | Os1], Os2) ->
 -spec parse_terms(term()) -> state().
 parse_terms(Terms) ->
     State = just_parse_terms(Terms),
-    dedup_state_opts(State).
+    State2 = dedup_state_opts(State),
+    add_dep_modules(State2).
 
 just_parse_terms(Terms) ->
     State = lists:foldl(fun search_hosts_and_pools/2, #state{}, Terms),
@@ -1555,3 +1556,16 @@ dedup_state_opts_list([H|List], Removed, Keep, Set) ->
 dedup_state_opts_list([], Removed, Keep, _Set) ->
     {Keep, Removed}.
 
+
+add_dep_modules(State = #state{opts = Opts}) ->
+    Opts2 = add_dep_modules_opts(Opts),
+    State#state{opts = Opts2}.
+
+add_dep_modules_opts(Opts) ->
+    lists:map(fun add_dep_modules_opt/1, Opts).
+
+add_dep_modules_opt({local_config, {modules, Host}, Modules}) ->
+    Modules2 = gen_mod_deps:add_deps(Host, Modules),
+    {local_config, {modules, Host}, Modules2};
+add_dep_modules_opt(Other) ->
+    Other.

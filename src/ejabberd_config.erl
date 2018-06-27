@@ -58,6 +58,9 @@
 
 -export([apply_reloading_change/1]).
 
+%% For debugging
+-export([assert_local_config_reloaded/0]).
+
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
 
@@ -337,7 +340,7 @@ reload_local() ->
     case FailedChecks of
         [] ->
             Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
-            do_reload_cluster(Changes),
+            try_reload_cluster(ReloadStrategy, Changes),
             assert_local_config_reloaded(),
             {ok, io_lib:format("# Reloaded: ~s", [node()])};
         [no_update_required] ->
@@ -358,7 +361,7 @@ reload_cluster() ->
     case FailedChecks of
         [] ->
             Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
-            do_reload_cluster(Changes),
+            try_reload_cluster(ReloadStrategy, Changes),
             assert_config_reloaded(),
             {ok, "done"};
         [no_update_required] ->
@@ -443,6 +446,21 @@ dump_reload_state_filename() ->
     Filename = "reload_state_" ++ DateTime ++ ".dump",
     filename:join(Pwd, Filename).
 
+try_reload_cluster(ReloadStrategy, Changes) ->
+    try
+        do_reload_cluster(Changes)
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?CRITICAL_MSG("issue=try_reload_cluster_failed "
+                           "reason=~p:~p stacktrace=~1000p",
+                          [Class, Reason, Stacktrace]),
+            Filename = dump_reload_state(try_reload_cluster, ReloadStrategy),
+            Reason2 = #{issue => try_reload_cluster_failed,
+                        reason => Reason,
+                        dump_filename => Filename},
+            erlang:raise(Class, Reason2, Stacktrace)
+    end.
 
 do_reload_cluster(Changes) ->
     lists:map(fun(Change) -> apply_reloading_change(Change) end, Changes),
