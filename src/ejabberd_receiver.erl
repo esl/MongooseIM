@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_receiver.erl
+%% File    : ejabberd_receiver.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Socket receiver for C2S and S2S connections
 %%% Created : 10 Nov 2003 by Alexey Shchepin <alexey@process-one.net>
@@ -424,8 +424,13 @@ free_parser(Parser) ->
 gen_server_call_or_noproc(Pid, Message) ->
     try
         gen_server:call(Pid, Message)
-    catch exit:{noproc, Extra} ->
-        {error, {noproc, Extra}}
+    catch
+        exit:{noproc, Extra} ->
+            {error, {noproc, Extra}};
+        exit:{normal, Extra} ->
+            % reciver exited with normal status after the gen_server call was sent
+            % but before it was processed
+            {error, {died, Extra}}
     end.
 
 gen_fsm() -> p1_fsm.
