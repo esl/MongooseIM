@@ -535,7 +535,7 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
-    ejabberd_commands:unregister_commands(commands()),
+    catch ejabberd_commands:unregister_commands(commands()),
     ok.
 
 %%--------------------------------------------------------------------

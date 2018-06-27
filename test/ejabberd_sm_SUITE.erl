@@ -20,7 +20,7 @@ all() -> [{group, mnesia}, {group, redis}].
 
 init_per_suite(C) ->
     ok = stringprep:start(),
-    application:ensure_all_started(exometer),
+    application:ensure_all_started(exometer_core),
     F = fun() ->
         ejabberd_sm_backend_sup:start_link(),
         receive stop -> ok end
@@ -63,18 +63,11 @@ tests() ->
 init_per_group(mnesia, Config) ->
     ok = mnesia:create_schema([node()]),
     ok = mnesia:start(),
-    set_meck({mnesia, []}),
-    ejabberd_sm:start_link(),
-    unload_meck(),
     [{backend, ejabberd_sm_mnesia} | Config];
 init_per_group(redis, Config) ->
     init_redis_group(is_redis_running(), Config).
 
 init_redis_group(true, Config) ->
-    set_meck({redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]}),
-    ejabberd_sm:start_link(),
-    ejabberd_redis:cmd(["FLUSHALL"]),
-    unload_meck(),
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
@@ -88,16 +81,17 @@ end_per_group(_, Config) ->
 
 init_per_testcase(too_much_sessions, Config) ->
     set_test_case_meck(?MAX_USER_SESSIONS),
+    setup_sm(Config),
     Config;
 init_per_testcase(_, Config) ->
     set_test_case_meck(infinity),
+    setup_sm(Config),
     Config.
 
 end_per_testcase(_, Config) ->
     clean_sessions(Config),
-    meck:unload(acl),
-    meck:unload(ejabberd_config),
-    meck:unload(ejabberd_hooks),
+    terminate_sm(),
+    unload_meck(),
     Config.
 
 open_session(C) ->
@@ -309,22 +303,8 @@ unique_count_while_removing_entries(C) ->
     meck:unload(?B(C)),
     true = UniqueCount /= dict:size(USDict) + UniqueCount.
 
-set_meck(SMBackend) ->
-    meck:new(ejabberd_config, []),
-    meck:expect(ejabberd_config, get_global_option,
-                fun(sm_backend) -> SMBackend;
-                    (hosts) -> [<<"localhost">>] end),
-    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
-
-    meck:new(ejabberd_hooks, []),
-    meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
-
-    meck:new(ejabberd_commands, []),
-    meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
-
-    ok.
-
 unload_meck() ->
+    meck:unload(acl),
     meck:unload(ejabberd_config),
     meck:unload(ejabberd_hooks),
     meck:unload(ejabberd_commands).
@@ -376,12 +356,12 @@ do_verify_session_opened(ejabberd_sm_mnesia, Sid, {U, S, R} = USR) ->
     general_session_check(ejabberd_sm_mnesia, Sid, USR, U, S, R);
 do_verify_session_opened(ejabberd_sm_redis, Sid, {U, S, R} = USR) ->
     UHash = iolist_to_binary(hash(U, S, R, Sid)),
-    Hashes = ejabberd_redis:cmd(["SMEMBERS", n(node())]),
+    Hashes = mongoose_redis:cmd(["SMEMBERS", n(node())]),
     true = lists:member(UHash, Hashes),
-    SessionsUSEncoded = ejabberd_redis:cmd(["SMEMBERS", hash(U, S)]),
+    SessionsUSEncoded = mongoose_redis:cmd(["SMEMBERS", hash(U, S)]),
     SessionsUS = [binary_to_term(Entry) || Entry <- SessionsUSEncoded],
     true = lists:keymember(Sid, 2, SessionsUS),
-    [SessionUSREncoded] = ejabberd_redis:cmd(["SMEMBERS", hash(U, S, R)]),
+    [SessionUSREncoded] = mongoose_redis:cmd(["SMEMBERS", hash(U, S, R)]),
     SessionUSR = binary_to_term(SessionUSREncoded),
     #session{sid = Sid} = SessionUSR,
     general_session_check(ejabberd_sm_redis, Sid, USR, U, S, R).
@@ -402,7 +382,7 @@ clean_sessions(C) ->
         ejabberd_sm_mnesia ->
             mnesia:clear_table(session);
         ejabberd_sm_redis ->
-            ejabberd_redis:cmd(["FLUSHALL"])
+            mongoose_redis:cmd(["FLUSHALL"])
     end.
 
 generate_random_user(S) ->
@@ -521,3 +501,28 @@ try_to_reproduce_race_condition(Config) ->
                                    [SID, Other]),
             {error, reproduced}
     end.
+
+setup_sm(Config) ->
+    case proplists:get_value(backend, Config) of
+        ejabberd_sm_redis ->
+            set_meck({redis, [{pool_size, 3}, {worker_config, [{host, "localhost"}, {port, 6379}]}]}),
+            ejabberd_sm:start_link(),
+            mongoose_redis:cmd(["FLUSHALL"]);
+        ejabberd_sm_mnesia ->
+            set_meck({mnesia, []}),
+            ejabberd_sm:start_link()
+    end.
+
+terminate_sm() ->
+    gen_server:stop(ejabberd_sm).
+
+set_meck(SMBackend) ->
+    meck:expect(ejabberd_config, get_global_option,
+        fun(sm_backend) -> SMBackend;
+            (hosts) -> [<<"localhost">>] end),
+    meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
+    meck:new(ejabberd_commands, []),
+    meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
+    ok.
+

@@ -25,7 +25,7 @@
 
 -spec start(list()) -> any().
 start(Opts) ->
-    ejabberd_redis:start_link(Opts),
+    mongoose_redis:start_pool(Opts),
     %% Clean current node's sessions from previous life
     {Elapsed, RetVal} = timer:tc(?MODULE, cleanup, [node()]),
     ?WARNING_MSG("cleanup on start took=~pms~n",
@@ -35,9 +35,9 @@ start(Opts) ->
 
 -spec get_sessions() -> [ejabberd_sm:ses_tuple()].
 get_sessions() ->
-    Keys = ejabberd_redis:cmd(["KEYS", hash(<<"*">>)]),
+    Keys = mongoose_redis:cmd(["KEYS", hash(<<"*">>)]),
     lists:flatmap(fun(K) ->
-                          Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
+                          Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
                           lists:map(fun(S) ->
                                             Session = binary_to_term(S),
                                             { Session#session.usr,
@@ -50,9 +50,9 @@ get_sessions() ->
 
 -spec get_sessions(jid:server()) -> [ejabberd_sm:ses_tuple()].
 get_sessions(Server) ->
-    Keys = ejabberd_redis:cmd(["KEYS", hash(Server)]),
+    Keys = mongoose_redis:cmd(["KEYS", hash(Server)]),
     lists:flatmap(fun(K) ->
-                          Sessions = ejabberd_redis:cmd(["SMEMBERS", K]),
+                          Sessions = mongoose_redis:cmd(["SMEMBERS", K]),
                           lists:map(fun(S) ->
                                             Session = binary_to_term(S),
                                             {Session#session.usr,
@@ -65,14 +65,14 @@ get_sessions(Server) ->
 
 -spec get_sessions(jid:user(), jid:server()) -> [ejabberd_sm:session()].
 get_sessions(User, Server) ->
-    Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server)]),
+    Sessions = mongoose_redis:cmd(["SMEMBERS", hash(User, Server)]),
 
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
 -spec get_sessions(jid:user(), jid:server(), jid:resource()
                   ) -> [ejabberd_sm:session()].
 get_sessions(User, Server, Resource) ->
-    Sessions = ejabberd_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
+    Sessions = mongoose_redis:cmd(["SMEMBERS", hash(User, Server, Resource)]),
 
     lists:map(fun(S) -> binary_to_term(S) end, Sessions).
 
@@ -87,18 +87,16 @@ create_session(User, Server, Resource, Session) ->
             MergedInfoSession = mongoose_session:merge_info(Session, OldSession),
             BOldSession = term_to_binary(OldSession),
             BSession = term_to_binary(MergedInfoSession),
-            error_or_ok(
-              ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
-                                  ["SREM", hash(User, Server), BOldSession],
-                                  ["SREM", hash(User, Server, Resource), BOldSession],
-                                  ["SADD", hash(User, Server), BSession],
-                                  ["SADD", hash(User, Server, Resource), BSession]]));
+            mongoose_redis:cmd(["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)]),
+            mongoose_redis:cmd(["SREM", hash(User, Server), BOldSession]),
+            mongoose_redis:cmd(["SREM", hash(User, Server, Resource), BOldSession]),
+            mongoose_redis:cmd(["SADD", hash(User, Server), BSession]),
+            mongoose_redis:cmd(["SADD", hash(User, Server, Resource), BSession]);
         false ->
             BSession = term_to_binary(Session),
-            error_or_ok(
-              ejabberd_redis:cmd([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
-                                  ["SADD", hash(User, Server), BSession],
-                                  ["SADD", hash(User, Server, Resource), BSession]]))
+            mongoose_redis:cmd(["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)]),
+            mongoose_redis:cmd(["SADD", hash(User, Server), BSession]),
+            mongoose_redis:cmd(["SADD", hash(User, Server, Resource), BSession])
     end.
 
 
@@ -112,9 +110,9 @@ delete_session(SID, User, Server, Resource) ->
         {value, Session} ->
             BSession = term_to_binary(Session),
 
-            ejabberd_redis:cmd([["SREM", hash(User, Server), BSession],
-                                ["SREM", hash(User, Server, Resource), BSession],
-                                ["SREM", n(node()), hash(User, Server, Resource, SID)]]);
+            mongoose_redis:cmd(["SREM", hash(User, Server), BSession]),
+            mongoose_redis:cmd(["SREM", hash(User, Server, Resource), BSession]),
+            mongoose_redis:cmd(["SREM", n(node()), hash(User, Server, Resource, SID)]);
         false ->
             ok
     end.
@@ -122,8 +120,8 @@ delete_session(SID, User, Server, Resource) ->
 
 -spec cleanup(atom()) -> ok.
 cleanup(Node) ->
-    Hashes = ejabberd_redis:cmd(["SMEMBERS", n(Node)]),
-    ejabberd_redis:cmd(["DEL", n(Node)]),
+    Hashes = mongoose_redis:cmd(["SMEMBERS", n(Node)]),
+    mongoose_redis:cmd(["DEL", n(Node)]),
     lists:foreach(fun(H) ->
                           [_, U, S, R | SIDEncoded] = re:split(H, ":"),
                           %% Add possible removed ":" from encoded SID
@@ -142,7 +140,7 @@ total_count() ->
 
 -spec unique_count() -> integer().
 unique_count() ->
-    length(ejabberd_redis:cmd(["KEYS", "s2:*"])).
+    length(mongoose_redis:cmd(["KEYS", "s2:*"])).
 
 %% Internal functions
 
@@ -170,7 +168,4 @@ hash(Val1, Val2, Val3, Val4) ->
 n(Node) ->
     ["n:", atom_to_list(Node)].
 
--spec error_or_ok(any() | {error, term()}) -> ok | {error, term()}.
-error_or_ok({error, _} = Error) -> Error;
-error_or_ok(_) -> ok.
 

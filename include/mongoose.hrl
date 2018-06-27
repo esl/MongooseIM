@@ -34,3 +34,11 @@
 %% ---------------------------------
 %% Logging mechanism
 -include("mongoose_logger.hrl").
+
+%% for worker_pool
+-record(pool, {name :: atom(),
+    selection_strategy :: atom(),
+    path_prefix :: binary(),
+    request_timeout :: pos_integer(),
+    pool_timeout :: pos_integer() }).
+
