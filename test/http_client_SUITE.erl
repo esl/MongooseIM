@@ -21,6 +21,7 @@
 
 all() ->
     [get_test,
+     no_pool_test,
      post_test,
      request_timeout_test,
      pool_timeout_test
@@ -77,9 +78,12 @@ get_test(_Config) ->
     Result = mongoose_http_client:get(Pool, <<"some/path">>, []),
     {ok, {<<"200">>, <<"OK">>}} = Result.
 
+no_pool_test(_Config) ->
+    Result = mongoose_http_client:get(non_existent_pool, <<"some/path">>, []),
+    {error, pool_not_started} = Result.
+
 post_test(_Config) ->
-    Pool = mongoose_http_client:get_pool(tmp_pool),
-    Result = mongoose_http_client:post(Pool, <<"some/path">>, [], <<"test request">>),
+    Result = mongoose_http_client:post(tmp_pool, <<"some/path">>, [], <<"test request">>),
     {ok, {<<"200">>, <<"OK">>}} = Result.
 
 request_timeout_test(_Config) ->

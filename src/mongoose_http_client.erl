@@ -13,32 +13,32 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%==============================================================================
+%%%-------------------------------------------------------------------
+%%% @doc
+%%%
+%%% @end
+%%% Created : 26. Jun 2018 13:07
+%%%-------------------------------------------------------------------
 -module(mongoose_http_client).
+-author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
 
 %% API
--export([start/0, stop/0, start_pool/2, stop_pool/1, get_pool/1, get/3, post/4]).
+-export([start/0, stop/0, start_pool/2, stop_pool/1, get/3, post/4]).
+-export([get_pool/1]). % for backward compatibility
 
 %% Exported for testing
 -export([start/1]).
 
 -record(pool, {name :: atom(),
-               server :: string(),
-               size :: pos_integer(),
-               max_overflow :: pos_integer(),
+               selection_strategy :: atom(),
                path_prefix :: binary(),
-               pool_timeout :: pos_integer(),
-               request_timeout :: pos_integer()}).
+               request_timeout :: pos_integer(),
+               pool_timeout :: pos_integer() }).
 
--opaque pool() :: #pool{}.
-
--export_type([pool/0]).
-
-%%------------------------------------------------------------------------------
-%% API
-
--spec start() -> any().
+-spec start() -> ok.
 start() ->
+    setup_env(),
     case ejabberd_config:get_local_option(http_connections) of
         undefined -> ok;
         Opts -> start(Opts)
@@ -46,103 +46,99 @@ start() ->
 
 -spec stop() -> any().
 stop() ->
-    stop_supervisor(),
-    ets:delete(tab_name()).
+    case ejabberd_config:get_local_option(http_connections) of
+        undefined -> ok;
+        Opts -> lists:map(fun({Name, _}) -> stop_pool(Name) end, Opts)
+    end,
+    ets:delete(pool_settings_tab()).
 
--spec start_pool(atom(), list()) -> ok.
+-spec start_pool(atom(), list()) -> ok | {error, already_started}.
 start_pool(Name, Opts) ->
-    Pool = make_pool(Name, Opts),
-    do_start_pool(Pool),
-    ets:insert(tab_name(), Pool),
-    ok.
+    PoolName = pool_name(Name),
+    case whereis(PoolName) of
+        undefined ->
+            setup_env(),
+            do_start_pool(PoolName, Opts),
+            ok;
+        _ -> {error, already_started}
+    end.
 
 -spec stop_pool(atom()) -> ok.
 stop_pool(Name) ->
-    SupProc = sup_proc_name(),
-    ok = supervisor:terminate_child(SupProc, pool_proc_name(Name)),
-    ok = supervisor:delete_child(SupProc, pool_proc_name(Name)),
-    ets:delete(tab_name(), Name),
+    wpool:stop_pool(pool_name(Name)),
+    ets:delete(pool_settings_tab(), pool_name(Name)),
     ok.
 
--spec get_pool(atom()) -> pool().
-get_pool(Name) ->
-    [Pool] = ets:lookup(tab_name(), Name),
-    Pool.
-
--spec get(pool(), binary(), list()) ->
-                 {ok, {binary(), binary()}} | {error, any()}.
+-spec get(atom(), binary(), list()) ->
+    {ok, {binary(), binary()}} | {error, any()}.
 get(Pool, Path, Headers) ->
     make_request(Pool, Path, <<"GET">>, Headers, <<>>).
 
--spec post(pool(), binary(), list(), binary()) ->
-                 {ok, {binary(), binary()}} | {error, any()}.
+-spec post(atom(), binary(), list(), binary()) ->
+    {ok, {binary(), binary()}} | {error, any()}.
 post(Pool, Path, Headers, Query) ->
     make_request(Pool, Path, <<"POST">>, Headers, Query).
 
-%%------------------------------------------------------------------------------
-%% exported for testing
+get_pool(PoolName) -> PoolName.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 start(Opts) ->
-    {ok, _SupProc} = start_supervisor(),
-    EjdSupPid = whereis(ejabberd_sup),
-    HeirOpt = case self() =:= EjdSupPid of
-                  true -> [];
-                  false -> [{heir, EjdSupPid, self()}] % for dynamic start
-              end,
-    ets:new(tab_name(), [set, public, named_table, {keypos, 2},
-                         {read_concurrency, true} | HeirOpt]),
     [start_pool(Name, PoolOpts) || {Name, PoolOpts} <- Opts],
     ok.
 
-%%------------------------------------------------------------------------------
-%% internal functions
+setup_env() ->
+    wpool:start(),
+    case ets:info(pool_settings_tab()) of
+        undefined ->
+            % we set heir here because the whole thing may be started by an ephemeral process
+            ets:new(pool_settings_tab(), [named_table, public,
+                                          {keypos, 2},
+                                          {heir, whereis(wpool_sup), undefined}]);
+        _ ->
+            ok
+    end.
 
-make_pool(Name, Opts) ->
-    #pool{name = Name,
-          server = gen_mod:get_opt(server, Opts, "http://localhost"),
-          size = gen_mod:get_opt(pool_size, Opts, 20),
-          max_overflow = gen_mod:get_opt(max_overflow, Opts, 5),
-          path_prefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
-          pool_timeout = gen_mod:get_opt(pool_timeout, Opts, 200),
-          request_timeout = gen_mod:get_opt(request_timeout, Opts, 2000)}.
-
-do_start_pool(#pool{name = Name,
-                    server = Server,
-                    size = PoolSize,
-                    max_overflow = MaxOverflow}) ->
-    ProcName = pool_proc_name(Name),
-    PoolOpts = [{name, {local, ProcName}},
-                {size, PoolSize},
-                {max_overflow, MaxOverflow},
-                {worker_module, mongoose_http_client_worker}],
-    {ok, _} = supervisor:start_child(
-                sup_proc_name(),
-                poolboy:child_spec(ProcName, PoolOpts, [Server, []])),
-    ok.
-
-pool_proc_name(PoolName) ->
-    list_to_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
-
-sup_proc_name() ->
-    mongoose_http_client_sup.
-
-tab_name() ->
-    mongoose_http_client_pools.
+do_start_pool(PoolName, Opts) ->
+    SelectionStrategy = gen_mod:get_opt(selection_strategy, Opts, available_worker),
+    PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "")),
+    RequestTimeout = gen_mod:get_opt(request_timeout, Opts, 2000),
+    PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
+    PoolSettings = #pool{name = PoolName,
+                         selection_strategy = SelectionStrategy,
+                         path_prefix = PathPrefix,
+                         request_timeout = RequestTimeout,
+                         pool_timeout = PoolTimeout},
+    ets:insert(pool_settings_tab(), PoolSettings),
+    PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
+    Server = gen_mod:get_opt(server, Opts),
+    HttpOpts = gen_mod:get_opt(http_opts, Opts, []),
+    PoolOpts = [{workers, PoolSize}, {worker, {fusco, {Server, HttpOpts}}}
+                | gen_mod:get_opt(pool_opts, Opts, [])],
+    wpool:start_pool(PoolName, PoolOpts).
 
 make_request(Pool, Path, Method, Headers, Query) ->
+    PoolName = pool_name(Pool),
+    case ets:lookup(pool_settings_tab(), PoolName) of
+        [PoolOpts] ->
+            make_request(PoolName, PoolOpts, Path, Method, Headers, Query);
+        [] ->
+            {error, pool_not_started}
+    end.
+
+make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
     #pool{path_prefix = PathPrefix,
-          name = PoolName,
+          request_timeout = RequestTimeout,
           pool_timeout = PoolTimeout,
-          request_timeout = RequestTimeout} = Pool,
+          selection_strategy = SelectionStrategy} = PoolOpts,
     FullPath = <<PathPrefix/binary, Path/binary>>,
-    case catch poolboy:transaction(
-                 pool_proc_name(PoolName),
-                 fun(WorkerPid) ->
-                         fusco:request(WorkerPid, FullPath, Method, Headers, Query, RequestTimeout)
-                 end,
-                 PoolTimeout) of
-        {'EXIT', {timeout, _}} ->
+    Req = {request, FullPath, Method, Headers, Query, 1, RequestTimeout},
+    case catch wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
+        {'EXIT', timeout} ->
             {error, pool_timeout};
+        {'EXIT', no_workers} ->
+            {error, pool_down};
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
             {ok, {Code, RespBody}};
         {error, timeout} ->
@@ -153,18 +149,8 @@ make_request(Pool, Path, Method, Headers, Query) ->
             {error, Reason}
     end.
 
-start_supervisor() ->
-    Proc = sup_proc_name(),
-    ChildSpec =
-        {Proc,
-         {Proc, start_link, [Proc]},
-         permanent,
-         infinity,
-         supervisor,
-         [Proc]},
-    ejabberd_sup:start_child(ChildSpec).
+pool_name(PoolName) ->
+    list_to_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
 
-stop_supervisor() ->
-    Proc = sup_proc_name(),
-    ejabberd_sup:stop_child(Proc).
-
+pool_settings_tab() ->
+    list_to_atom("mongoose_http_client_pool_settings").
