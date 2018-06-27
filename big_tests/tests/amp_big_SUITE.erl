@@ -14,6 +14,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(muc_light_helper, [lbin/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -328,19 +329,17 @@ notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
 do_notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:fresh_story(
-      FreshConfig, [{bob, 1}],
-      fun(Bob) ->
-              %% given
+      FreshConfig, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+
               privacy_helper:set_and_activate(Bob, <<"deny_all_message">>),
-              privacy_helper:set_default_list(Bob, <<"deny_all_message">>)
-      end),
-    escalus:fresh_story(
-      FreshConfig, [{alice, 1}],
-      fun(Alice) ->
+              privacy_helper:set_default_list(Bob, <<"deny_all_message">>),
+              mongoose_helper:logout_user(Config, Bob),
               %% given
               Rule = {deliver, none, notify},
               Rules = rules(Config, [Rule]),
-              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              BobJid = lbin(escalus_client:short_jid(Bob)),
+
               Msg = amp_message_to(BobJid, Rules, <<"A message in a bottle...">>),
 
               %% when
