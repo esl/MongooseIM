@@ -35,6 +35,9 @@ echo "export TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG"
 echo "export TRAVIS_OTP_RELEASE=$TRAVIS_OTP_RELEASE"
 echo "export TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
 
+# IF we only run small tests, the file is missing
+touch /tmp/ct_markdown
+
 PRESET="${PRESET:-default}"
 TRAVIS_OTP_RELEASE="${TRAVIS_OTP_RELEASE:-unknown}"
 
@@ -109,11 +112,19 @@ if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     REPORTS_URL_BODY="Reports are not uploaded"$'\n'
     remove_ct_log_links
 else
-    rewrite_log_links_to_s3
     REPORTS_URL="$(reports_url)"
     CT_RUN_URL="$(ct_run_url)"
     SMALL_CT_URL="$(ct_small_url)"
-    REPORTS_URL_BODY="Reports [root](${REPORTS_URL}) / [big]($CT_RUN_URL) / [small]($SMALL_CT_URL)"$'\n'
+    REPORTS_BIG_URL_BODY=""
+    REPORTS_SMALL_URL_BODY=""
+    if [ -d big_tests/ct_report ]; then
+        rewrite_log_links_to_s3
+        REPORTS_BIG_URL_BODY="/ [big]($CT_RUN_URL)"
+    fi
+    if [ -d _build/test/logs ]; then
+        REPORTS_SMALL_URL_BODY=" / [small]($SMALL_CT_URL)"
+    fi
+    REPORTS_URL_BODY="Reports [root](${REPORTS_URL})${REPORTS_BIG_URL_BODY}${REPORTS_SMALL_URL_BODY}"$'\n'
 fi
 
 COUNTERS_FILE=/tmp/ct_stats_vars
