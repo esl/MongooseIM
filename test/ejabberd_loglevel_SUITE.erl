@@ -127,7 +127,6 @@ ejabberd_loglevel_running() ->
     application:load(lager),
     BackendName = lager_file_backend,
     File = "log/ejabberd.log",
-    Before = get_log(File),
     Backend = {BackendName, [{file, File},
                              {level, info},
                              {size, 2097152},
@@ -136,7 +135,6 @@ ejabberd_loglevel_running() ->
     application:set_env(lager, handlers, [Backend]),
     ejabberd_loglevel:init(),
     FileBackend = {BackendName, File},
-    true = timeout /= get_at_least_n_log_lines(File, length(Before) + 1, timer:seconds(5)),
     {ok, FileBackend}.
 
 log(_, LevelName, Fmt, Args) ->
