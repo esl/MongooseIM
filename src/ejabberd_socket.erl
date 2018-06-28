@@ -175,8 +175,12 @@ get_tls_socket(#socket_state{receiver = Receiver}) ->
 -spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
     tcp_to_tls(SocketData, TLSOpts),
-    NewSocket = get_tls_socket(SocketData),
-    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
+    case get_tls_socket(SocketData) of
+        invalid_socket ->
+            exit(invalid_socket_after_upgrade_to_tls);
+        NewSocket ->
+            SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}
+    end.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
