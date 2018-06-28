@@ -60,7 +60,16 @@ summaries_dir() {
 }
 
 run_small_tests() {
+  echo "############################"
+  echo "Running small tests (test/)"
+  echo "############################"
+  echo "Advice: "
+  echo "    Add option \"-s false\" to skip embeded common tests"
+  echo "Example: "
+  echo "    ./tools/travis-test.sh -s false"
+  tools/print-dots.sh start
   make ct
+  tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
   SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
   ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
