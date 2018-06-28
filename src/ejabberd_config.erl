@@ -48,7 +48,7 @@
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
-         apply_changes_remote/4,
+         apply_changes_remote/3,
          apply_changes/5]).
 
 -export([compute_config_version/2,
@@ -881,8 +881,7 @@ reload_cluster() ->
         {ok, CurrentNode} ->
             %% apply on other nodes
             {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigDiff,
-                                    ConfigVersion, FileVersion],
+                                   [ConfigFile, ConfigVersion, FileVersion],
                                    30000),
             {S1, F1} = group_nodes_results([{ok, node()} | S], F),
             ResultText = (groups_to_string("# Reloaded:", S1)
@@ -941,17 +940,17 @@ get_config_diff(State) ->
     LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
     {CC, LC, LHC}.
 
--spec apply_changes_remote(file:name(), term(), binary(), binary()) ->
+-spec apply_changes_remote(file:name(), binary(), binary()) ->
                                   {ok, node()}| {error, node(), string()}.
-apply_changes_remote(NewConfigFilePath, ConfigDiff,
+apply_changes_remote(NewConfigFilePath,
                      DesiredConfigVersion, DesiredFileVersion) ->
     ?WARNING_MSG("remote config reload scheduled", []),
     ?DEBUG("~ndesired config version: ~p"
            "~ndesired file version: ~p",
            [DesiredConfigVersion, DesiredFileVersion]),
     Node = node(),
-    {CC, LC, LHC} = ConfigDiff,
     State0 = parse_file(NewConfigFilePath),
+    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
     case compute_config_file_version(State0) of
         DesiredFileVersion ->
             State1 = State0#state{override_global = false,
@@ -1127,12 +1126,70 @@ methods_to_auth_modules(A) when is_atom(A) ->
 
 compute_config_version(LC, LCH) ->
     L0 = lists:filter(mk_node_start_filter(), LC ++ LCH),
-    L1 = sort_config(L0),
-    crypto:hash(sha, term_to_binary(L1)).
+    L1 = filter_out_node_specific_options(L0, compute_config_version),
+    L2 = sort_config(L1),
+    crypto:hash(sha, term_to_binary(L2)).
 
 compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    L = sort_config(Opts ++ Hosts),
+    Opts2 = filter_out_node_specific_options(Opts, compute_config_file_version),
+    L = sort_config(Opts2 ++ Hosts),
     crypto:hash(sha, term_to_binary(L)).
+
+filter_out_node_specific_options(Opts, Label) ->
+    filter_out_node_specific_options(Opts).
+
+filter_out_node_specific_options([]) ->
+    [];
+filter_out_node_specific_options([#local_config{key = {modules, Host}, value = Mods} | Opts]) ->
+    NewMods = lists:foldl(fun(Path, ModList) -> delete_path_in_proplist(ModList, Path) end,
+                          Mods, node_specific_module_options()),
+    [#local_config{key = {modules, Host}, value = NewMods} | filter_out_node_specific_options(Opts)];
+filter_out_node_specific_options([Opt | Opts]) ->
+    [Opt | filter_out_node_specific_options(Opts)].
+
+% @doc The list of options that should not be compared
+% between nodes in cluster. Each option is expressed as
+% a list of keys in proplist that should be deleted (if such
+% path exists). The `root path` for them is a list of modules.
+% It is build this way to include options created dynamically.
+% As they might appear in every module that uses one of them, we exclude them
+% from every module (not in all of them there necessarily exists one of these
+% options).
+node_specific_module_options() ->
+    endpoints_options() ++ redis_options() ++ advertised_endpoints_options().
+
+endpoints_options() ->
+    with_modules([endpoints]) ++ with_modules([connections, endpoints]).
+
+redis_options() ->
+    with_modules([redis, server]).
+
+advertised_endpoints_options() ->
+    with_modules([connections, advertised_endpoints]) ++ with_modules([advertised_endpoints]).
+
+with_modules(Path) ->
+    lists:map(fun(Module) -> [Module | Path] end, gd_modules()).
+
+gd_modules() ->
+    [mod_global_distrib,
+     mod_global_distrib_sender,
+     mod_global_distrib_mapping,
+     mod_global_distrib_receiver,
+     mod_global_distrib_bounce,
+     mod_global_distrib_disco].
+
+
+
+delete_path_in_proplist(Plist, [Step]) ->
+    lists:keydelete(Step, 1, Plist);
+delete_path_in_proplist(Plist, [Step | Path]) ->
+    case lists:keyfind(Step, 1, Plist) of
+        false ->
+            Plist;
+        {Step, Val} ->
+            lists:keyreplace(Step, 1, Plist, {Step, delete_path_in_proplist(Val, Path)})
+    end.
+
 
 -spec check_hosts([jid:server()], [jid:server()]) -> {[jid:server()],
                                                                 [jid:server()]}.
