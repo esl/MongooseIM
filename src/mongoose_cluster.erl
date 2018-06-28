@@ -157,7 +157,6 @@ rmrf(Dir) ->
             ok = file:delete(Dir);
         {ok, Dirs} ->
             [ ok = rmrf(filename:join(Dir, Sub)) || Sub <- Dirs],
-            ok = file:del_dir(Dir),
             ok
     end.
 
