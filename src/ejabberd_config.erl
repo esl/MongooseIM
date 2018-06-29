@@ -44,7 +44,7 @@
          reload_cluster_dryrun/0]).
 
 %% Information commands
--export([print_flatten_config/0]).
+-export([print_flat_config/0]).
 
 -export([get_local_config/0,
          get_host_local_config/0]).
@@ -391,10 +391,10 @@ reload_cluster_dryrun() ->
                     dump_filename => Filename})
     end.
 
-print_flatten_config() ->
+print_flat_config() ->
     %% Without global opts
-    FlatOptsIolist = mongoose_config_helper:get_flatten_opts_iolist(),
-    {ok, io_lib:format("Flatten options:~n~s", [FlatOptsIolist])}.
+    FlatOptsIolist = mongoose_config_helper:get_flat_opts_iolist(),
+    {ok, io_lib:format("Flat options:~n~s", [FlatOptsIolist])}.
 
 assert_config_reloaded() ->
     NodeStates = config_states(),

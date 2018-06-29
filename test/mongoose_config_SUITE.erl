@@ -6,7 +6,7 @@
 
 all() -> [
     does_pattern_match_case,
-    flatten_state_case,
+    flat_state_case,
     parse_config_with_underscore_pattern_case,
     node_specific_options_presents_case,
     node_specific_options_missing_case,
@@ -14,7 +14,7 @@ all() -> [
     auth_method_and_cluster_reload_case,
     no_duplicate_options_case,
     get_config_diff_case,
-    flatten_module_subopts_case,
+    flat_module_subopts_case,
     expand_opts_case,
     expand_module_subopts_case
 ].
@@ -82,24 +82,24 @@ match_cases() ->
     ].
 
 
-flatten_state_case(_C) ->
+flat_state_case(_C) ->
     State = mongoose_config:parse_terms(cool_mod_mam_config()),
-    ?assertEqual(cool_mod_mam_config_flatten(),
-                 mongoose_config:state_to_flatten_local_opts(State)).
+    ?assertEqual(cool_mod_mam_config_flat(),
+                 mongoose_config:state_to_flat_local_opts(State)).
 
 cool_mod_mam_config() ->
     [{hosts, ["localhost"]},
      {modules, [{mod_mam, [{pool, cool_pool}]}]}].
 
-cool_mod_mam_config_flatten() ->
+cool_mod_mam_config_flat() ->
     [{[l,odbc_pools],[]},
-     {[h,<<"localhost">>,modules],'FLATTEN'},
-     {[h,<<"localhost">>,module,mod_mam],'FLATTEN'},
+     {[h,<<"localhost">>,modules],'FLAT'},
+     {[h,<<"localhost">>,module,mod_mam],'FLAT'},
      {[h,<<"localhost">>,module_opt,mod_mam,pool],cool_pool}].
 
-flatten_module_subopts_case(_C) ->
+flat_module_subopts_case(_C) ->
     State = mongoose_config:parse_terms(gd_config()),
-    FlatOpts = mongoose_config:state_to_flatten_local_opts(State),
+    FlatOpts = mongoose_config:state_to_flat_local_opts(State),
     NumConnsKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
                    connections,num_of_connections],
     ConnsKey = [h,<<"localhost">>,module_opt,mod_global_distrib,
@@ -107,13 +107,13 @@ flatten_module_subopts_case(_C) ->
     RedisServerKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
                 redis,server],
     ?assertEqual(22, proplists:get_value(NumConnsKey, FlatOpts)),
-    ?assertEqual('FLATTEN', proplists:get_value(ConnsKey, FlatOpts)),
+    ?assertEqual('FLAT', proplists:get_value(ConnsKey, FlatOpts)),
     ?assertEqual("172.16.0.3", proplists:get_value(RedisServerKey, FlatOpts)),
     ok.
 
 expand_opts_case(_C) ->
     State = mongoose_config:parse_terms(cool_mod_mam_config()),
-    FlatOpts = mongoose_config:state_to_flatten_local_opts(State),
+    FlatOpts = mongoose_config:state_to_flat_local_opts(State),
     ExpandedOpts = mongoose_config:expand_all_opts(FlatOpts),
     CatOpts = mongoose_config:state_to_categorized_options(State),
     ?assertEqual(maps:get(local_config, CatOpts),
@@ -124,7 +124,7 @@ expand_opts_case(_C) ->
 
 expand_module_subopts_case(_C) ->
     State = mongoose_config:parse_terms(gd_config()),
-    FlatOpts = mongoose_config:state_to_flatten_local_opts(State),
+    FlatOpts = mongoose_config:state_to_flat_local_opts(State),
     ExpandedOpts = mongoose_config:expand_all_opts(FlatOpts),
     CatOpts = mongoose_config:state_to_categorized_options(State),
     ?assertEqual(maps:get(local_config, CatOpts),

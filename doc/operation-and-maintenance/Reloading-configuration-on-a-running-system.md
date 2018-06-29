@@ -67,34 +67,34 @@ Example showing where to put `node_specific_options`.
 {modules, [....]}.
 ```
 
-The `node_specific_options` patterns are matched against flatten configuration
-options. To print your config in flatten form, use the command with running
-node `mongooseimctl print_flatten_config`.
+The `node_specific_options` patterns are matched against flat configuration
+options. To print your config in flat form, use the command with running
+node `mongooseimctl print_flat_config`.
 
 Example:
 
 ```erlang
-_build/mim1/rel/mongooseim/bin/mongooseimctl print_flatten_config
-Flatten options:
-{[l,listen],'FLATTEN'}.
-{[l,listener,{5280,{0,0,0,0},tcp},ejabberd_cowboy],'FLATTEN'}.
+_build/mim1/rel/mongooseim/bin/mongooseimctl print_flat_config
+Flat options:
+{[l,listen],'FLAT'}.
+{[l,listener,{5280,{0,0,0,0},tcp},ejabberd_cowboy],'FLAT'}.
 {[l,listener_opt,{5280,{0,0,0,0},tcp},ejabberd_cowboy,num_acceptors],10}.
 {[l,listener_opt,{5280,{0,0,0,0},tcp},ejabberd_cowboy,transport_options],
  [{max_connections,1024}]}.
 ...
 {[h,<<"anonymous.localhost">>,auth_method],anonymous}.
-{[h,<<"localhost.bis">>,modules],'FLATTEN'}.
-{[h,<<"localhost.bis">>,module,mod_carboncopy],'FLATTEN'}.
-{[h,<<"localhost.bis">>,module,mod_stream_management],'FLATTEN'}.
-{[h,<<"localhost.bis">>,module,mod_muc_commands],'FLATTEN'}.
-{[h,<<"localhost.bis">>,module,mod_amp],'FLATTEN'}.
-{[h,<<"localhost.bis">>,module,mod_offline],'FLATTEN'}.
+{[h,<<"localhost.bis">>,modules],'FLAT'}.
+{[h,<<"localhost.bis">>,module,mod_carboncopy],'FLAT'}.
+{[h,<<"localhost.bis">>,module,mod_stream_management],'FLAT'}.
+{[h,<<"localhost.bis">>,module,mod_muc_commands],'FLAT'}.
+{[h,<<"localhost.bis">>,module,mod_amp],'FLAT'}.
+{[h,<<"localhost.bis">>,module,mod_offline],'FLAT'}.
 {[h,<<"localhost.bis">>,module_opt,mod_offline,access_max_user_messages],
  max_user_offline_messages}.
 ...
 ```
 
-[More information about flatten options format](../developers-guide/flatten_options.md)
+[More information about flat options format](../developers-guide/flat_options.md)
 
 ### Node-specific options for Global Distribution
 

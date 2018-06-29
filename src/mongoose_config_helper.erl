@@ -1,12 +1,12 @@
 %% @doc Helper functions to play with options in the shell.
 -module(mongoose_config_helper).
--export([get_flatten_opts/0,
+-export([get_flat_opts/0,
          get_opts/0,
          get_expanded_opts/0,
          diff_expanded/0,
-         get_flatten_opts_iolist/0]).
+         get_flat_opts_iolist/0]).
 
-get_flatten_opts() ->
+get_flat_opts() ->
     LC = ejabberd_config:get_local_config(),
     LCH = ejabberd_config:get_host_local_config(),
     mongoose_config:flatten_opts(LC, LCH).
@@ -18,7 +18,7 @@ get_opts() ->
 
 %% @doc It should be the same as `get_opts', just slower :)
 get_expanded_opts() ->
-    mongoose_config:expand_opts(get_flatten_opts()).
+    mongoose_config:expand_opts(get_flat_opts()).
 
 %% Helps to debug option expansion
 diff_expanded() ->
@@ -29,8 +29,8 @@ diff_expanded() ->
       diff_local_expanded => ELC -- LC,
       diff_local_host_expanded => ELCH -- LCH}.
 
-get_flatten_opts_iolist() ->
-    format_opts(get_flatten_opts()).
+get_flat_opts_iolist() ->
+    format_opts(get_flat_opts()).
 
 format_opts(Opts) ->
     [io_lib:format("~p.~n", [Opt]) || Opt <- Opts].

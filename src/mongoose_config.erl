@@ -27,7 +27,7 @@
          include_config_files/2]).
 
 -export([flatten_opts/2,
-         state_to_flatten_local_opts/1,
+         state_to_flat_local_opts/1,
          expand_opts/1,
          expand_all_opts/1]).
 
@@ -140,8 +140,8 @@
                    | {hosts, _}
                    | {odbc_server, _}.
 
--type flatten_option() :: term().
--type flatten_options() :: list(flatten_option()).
+-type flat_option() :: term().
+-type flat_options() :: list(flat_option()).
 
 -callback stop(host()) -> any().
 
@@ -547,8 +547,8 @@ compute_config_version(LC, LCH) ->
     ShaBin = crypto:hash(sha, term_to_binary(L1)),
     bin_to_hex:bin_to_hex(ShaBin).
 
-flatten_global_opts_version(FlattenOpts) ->
-    Sorted = lists:sort(FlattenOpts),
+flat_global_opts_version(FlatOpts) ->
+    Sorted = lists:sort(FlatOpts),
     ShaBin = crypto:hash(sha, term_to_binary(Sorted)),
     bin_to_hex:bin_to_hex(ShaBin).
 
@@ -837,27 +837,27 @@ flatten_opts(LC, LCH) ->
     flatten_local_config_opts(LC) ++ flatten_local_config_host_opts(LCH).
 
 %% @doc It ignores global options
-state_to_flatten_local_opts(State) ->
+state_to_flat_local_opts(State) ->
     CatOptions = state_to_categorized_options(State),
-    categorize_options_to_flatten_local_config_opts(CatOptions).
+    categorize_options_to_flat_local_config_opts(CatOptions).
 
 %% Be aware, that
-%% categorize_options_to_flatten_local_config_opts
+%% categorize_options_to_flat_local_config_opts
 %% and
-%% categorize_options_to_flatten_local_config_opts
-%% returns different sets of flatten_options
--spec categorize_options_to_flatten_local_config_opts(categorized_options()) ->
-    flatten_options().
-categorize_options_to_flatten_local_config_opts(
+%% categorize_options_to_flat_local_config_opts
+%% returns different sets of flat_options
+-spec categorize_options_to_flat_local_config_opts(categorized_options()) ->
+    flat_options().
+categorize_options_to_flat_local_config_opts(
     #{local_config := Local,
       host_config := HostsLocal}) ->
     Local2 = skip_special_config_opts(Local),
-    mongoose_config:flatten_opts(Local2, HostsLocal).
+    flatten_opts(Local2, HostsLocal).
 
 %% Flat categorize_options for global options only
--spec categorize_options_to_flatten_global_config_opts(categorized_options()) ->
-    flatten_options().
-categorize_options_to_flatten_global_config_opts(#{global_config := GlobalConfig}) ->
+-spec categorize_options_to_flat_global_config_opts(categorized_options()) ->
+    flat_options().
+categorize_options_to_flat_global_config_opts(#{global_config := GlobalConfig}) ->
     flatten_global_config_opts(GlobalConfig).
 
 flatten_all_opts(#{
@@ -913,14 +913,14 @@ flatten_acl_config_opt(K, V) ->
     [{[a, K], V}].
 
 flatten_local_config_opt(listen, V) ->
-    [{[l, listen], 'FLATTEN'}] ++
+    [{[l, listen], 'FLAT'}] ++
     lists:append([flatten_listen(Address, Module, Opts)
                   || {Address, Module, Opts} <- V]);
 flatten_local_config_opt(K, V) ->
     [{[l, K], V}].
 
 flatten_listen(Address, Module, Opts) ->
-    [{[l, listener, Address, Module], 'FLATTEN'}
+    [{[l, listener, Address, Module], 'FLAT'}
      | flatten_listen_opts(Address, Module, Opts)].
 
 flatten_listen_opts(Address, Module, Opts) ->
@@ -931,19 +931,19 @@ flatten_listen_opts(Address, Module, Opts) ->
               end, Opts).
 
 flatten_local_config_host_opt(modules, Host, V) ->
-    [{[h, Host, modules], 'FLATTEN'}] ++
+    [{[h, Host, modules], 'FLAT'}] ++
     lists:append([flatten_module(Host, Module, Opts) || {Module, Opts} <- V]);
 flatten_local_config_host_opt(K, Host, V) ->
     [{[h, Host, K], V}].
 
 flatten_module(H, Module, Opts) ->
-    [{[h, H, module, Module], 'FLATTEN'}|flatten_module_opts(H, Module, Opts)].
+    [{[h, H, module, Module], 'FLAT'}|flatten_module_opts(H, Module, Opts)].
 
 flatten_module_opts(H, Module, Opts) ->
     lists:flatmap(fun({OptName, OptValue}) ->
-                {OptValue2, FlattenOpts} =
+                {OptValue2, FlatOpts} =
                     flatten_module_subopts(H, OptName, OptValue, Module),
-                [ {[h, H, module_opt, Module, OptName], OptValue2} | FlattenOpts ];
+                [ {[h, H, module_opt, Module, OptName], OptValue2} | FlatOpts ];
                   (OptName) -> %% Special case, flag is the same as {flag, true}
                 [ {[h, H, module_opt, Module, OptName], true} ]
         end, Opts).
@@ -953,39 +953,39 @@ flatten_module_subopts(Host, OptName, OptValue, Module) ->
     flatten_subopts(Path, OptValue).
 
 flatten_subopts(Path, OptValue) ->
-    case can_be_flatten_value(OptValue) of
+    case can_be_flattened_value(OptValue) of
         false ->
             {OptValue, []};
         true ->
-            FlattenOpts = lists:flatmap(fun({SubOptName, SubOptValue}) ->
+            FlatOpts = lists:flatmap(fun({SubOptName, SubOptValue}) ->
                                             flatten_subopt(Path, SubOptName, SubOptValue)
                                     end, OptValue),
-            {'FLATTEN', FlattenOpts}
+            {'FLAT', FlatOpts}
     end.
 
 flatten_subopt(Path, SubOptName, SubOptValue) ->
     Path2 = Path ++ [SubOptName],
-    case can_be_flatten_value(SubOptValue) of
+    case can_be_flattened_value(SubOptValue) of
         false ->
             [{Path2, SubOptValue}];
         true ->
-            FlattenOpts = lists:flatmap(fun({SubOptName2, SubOptValue2}) ->
+            FlatOpts = lists:flatmap(fun({SubOptName2, SubOptValue2}) ->
                                             flatten_subopt(Path2, SubOptName2, SubOptValue2)
                                     end, SubOptValue),
-            [{Path2, 'FLATTEN'}|FlattenOpts]
+            [{Path2, 'FLAT'}|FlatOpts]
     end.
 
 
 
-can_be_flatten_value([_|_] = List) ->
+can_be_flattened_value([_|_] = List) ->
     lists:all(fun({_,_}) -> true; (_) -> false end, List);
-can_be_flatten_value(_) ->
+can_be_flattened_value(_) ->
     false.
 
 %% @doc Convert flat list of options back to LocalConfig and HostLocalConfig
 %% Useful, but not used
-expand_opts(FlattenOpts) ->
-    Groups = group_flat_opts(FlattenOpts),
+expand_opts(FlatOpts) ->
+    Groups = group_flat_opts(FlatOpts),
     %% We ignore global options here
     LocalConfigGroup = maps:get(local_config, Groups, []),
     HostConfigGroup = maps:get(host_config, Groups, []),
@@ -994,8 +994,8 @@ expand_opts(FlattenOpts) ->
     {LocalConfig, HostConfig}.
 
 %% Useful, but not used
-expand_all_opts(FlattenOpts) ->
-    Groups = group_flat_opts(FlattenOpts),
+expand_all_opts(FlatOpts) ->
+    Groups = group_flat_opts(FlatOpts),
     GlobalConfigGroup = maps:get(global_config, Groups, []),
     LocalConfigGroup = maps:get(local_config, Groups, []),
     HostConfigGroup = maps:get(host_config, Groups, []),
@@ -1032,7 +1032,7 @@ expand_local_config_group_item(acl, K, V, _Groups) ->
 expand_local_config_group_item(hostname, Host, simple, _Groups) ->
     Host.
 
-expand_local_config_group_item_value(listen, 'FLATTEN', Groups) ->
+expand_local_config_group_item_value(listen, 'FLAT', Groups) ->
     make_listeners_from_groups(Groups);
 expand_local_config_group_item_value(_K, V, _Groups) ->
     V.
@@ -1054,7 +1054,7 @@ expand_host_config_group_item(Host, K, V, Groups) ->
     Value = expand_host_config_group_item_value(Host, K, V, Groups),
     {local_config, {K, Host}, Value}.
 
-expand_host_config_group_item_value(Host, modules, 'FLATTEN', Groups) ->
+expand_host_config_group_item_value(Host, modules, 'FLAT', Groups) ->
     make_modules_for_host_from_groups(Host, Groups);
 expand_host_config_group_item_value(_Host, _K, V, _Groups) ->
     V.
@@ -1070,7 +1070,7 @@ make_module_opts_from_groups(Host, Module, Groups) ->
     ModuleOpts = maps:get(GroupName, Groups, []),
     expand_module_opts(ModuleOpts, Host, Module, Groups).
 
-expand_module_opts([{OptName, 'FLATTEN'} | ModuleOpts], Host, Module, Groups) ->
+expand_module_opts([{OptName, 'FLAT'} | ModuleOpts], Host, Module, Groups) ->
     OptValue = expand_module_subopts(OptName, Host, Module, Groups),
     Opt = {OptName, OptValue},
     [Opt | expand_module_opts(ModuleOpts, Host, Module, Groups)];
@@ -1086,7 +1086,7 @@ expand_module_subopts(OptName, Host, Module, Groups) ->
 expand_module_subopts_path(Path, Host, Module, Groups) ->
     GroupName = {module_subopts, Host, Module, Path},
     SubOpts = maps:get(GroupName, Groups, []),
-    lists:map(fun({SubOptName, 'FLATTEN'}) ->
+    lists:map(fun({SubOptName, 'FLAT'}) ->
                       Path2 = Path ++ [SubOptName],
                       SubOptValue = expand_module_subopts_path(Path2, Host, Module, Groups),
                       {SubOptName, SubOptValue};
@@ -1095,9 +1095,9 @@ expand_module_subopts_path(Path, Host, Module, Groups) ->
               end, SubOpts).
 
 %% @doc group opts for faster lookups in expand_opts
-group_flat_opts(FlattenOpts) ->
-    %% Process FlattenOpts in reverse order
-    lists:foldr(fun group_flat_opt/2, #{}, FlattenOpts).
+group_flat_opts(FlatOpts) ->
+    %% Process FlatOpts in reverse order
+    lists:foldr(fun group_flat_opt/2, #{}, FlatOpts).
 
 group_flat_opt({[g, K], V}, Groups) ->
     GroupName  = local_config,
@@ -1119,7 +1119,7 @@ group_flat_opt({[h, Host, K], V}, Groups) ->
     GroupValue = {Host, K, V},
     add_to_group(GroupName, GroupValue, Groups);
 
-group_flat_opt({[h, Host, module, Module], 'FLATTEN'}, Groups) ->
+group_flat_opt({[h, Host, module, Module], 'FLAT'}, Groups) ->
     GroupName  = {modules, Host},
     GroupValue = Module,
     add_to_group(GroupName, GroupValue, Groups);
@@ -1135,7 +1135,7 @@ group_flat_opt({[h, Host, module_subopt, Module, OptName|Path], OptValue}, Group
     GroupValue = {Last, OptValue},
     add_to_group(GroupName, GroupValue, Groups);
 
-group_flat_opt({[l, listener, Address, Module], 'FLATTEN'}, Groups) ->
+group_flat_opt({[l, listener, Address, Module], 'FLAT'}, Groups) ->
     GroupName  = listeners,
     GroupValue = {Address, Module},
     add_to_group(GroupName, GroupValue, Groups);
@@ -1387,26 +1387,26 @@ extend_node_state(NodeState=#{
     OndiscState = parse_terms(OndiscTerms),
     OndiscCatOptions = state_to_categorized_options(OndiscState),
     NodeSpecificPatterns = mongoose_config:state_to_global_opt(node_specific_options, OndiscState, []),
-    LoadedFlattenGlobalOptions = categorize_options_to_flatten_global_config_opts(LoadedCatOptions),
-    OndiscFlattenGlobalOptions = categorize_options_to_flatten_global_config_opts(OndiscCatOptions),
-    LoadedFlattenLocalOptions = categorize_options_to_flatten_local_config_opts(LoadedCatOptions),
-    OndiscFlattenLocalOptions = categorize_options_to_flatten_local_config_opts(OndiscCatOptions),
-    #{node_specific_options := LoadedFlattenLocalNodeSpecificOptions,
-      common_options := LoadedFlattenLocalCommonOptions,
+    LoadedFlatGlobalOptions = categorize_options_to_flat_global_config_opts(LoadedCatOptions),
+    OndiscFlatGlobalOptions = categorize_options_to_flat_global_config_opts(OndiscCatOptions),
+    LoadedFlatLocalOptions = categorize_options_to_flat_local_config_opts(LoadedCatOptions),
+    OndiscFlatLocalOptions = categorize_options_to_flat_local_config_opts(OndiscCatOptions),
+    #{node_specific_options := LoadedFlatLocalNodeSpecificOptions,
+      common_options := LoadedFlatLocalCommonOptions,
       matched_patterns := LoadedMatchedPatterns,
       node_specific_orphans := LoadedNodeSpecificOrphans} =
-        split_node_specific_options_tree(NodeSpecificPatterns, LoadedFlattenLocalOptions),
-    #{node_specific_options := OndiscFlattenLocalNodeSpecificOptions,
-      common_options := OndiscFlattenLocalCommonOptions,
+        split_node_specific_options_tree(NodeSpecificPatterns, LoadedFlatLocalOptions),
+    #{node_specific_options := OndiscFlatLocalNodeSpecificOptions,
+      common_options := OndiscFlatLocalCommonOptions,
       matched_patterns := OndiscMatchedPatterns,
       node_specific_orphans := OndiscNodeSpecificOrphans} =
-        split_node_specific_options_tree(NodeSpecificPatterns, OndiscFlattenLocalOptions),
-    LoadedGlobalVersion = flatten_global_opts_version(LoadedFlattenGlobalOptions),
-    OndiscGlobalVersion = flatten_global_opts_version(OndiscFlattenGlobalOptions),
-    LoadedLocalVersion = flatten_global_opts_version(LoadedFlattenLocalCommonOptions),
-    OndiscLocalVersion = flatten_global_opts_version(OndiscFlattenLocalCommonOptions),
-    LoadedNodeSpecificVersion = flatten_global_opts_version(LoadedFlattenLocalNodeSpecificOptions),
-    OndiscNodeSpecificVersion = flatten_global_opts_version(OndiscFlattenLocalNodeSpecificOptions),
+        split_node_specific_options_tree(NodeSpecificPatterns, OndiscFlatLocalOptions),
+    LoadedGlobalVersion = flat_global_opts_version(LoadedFlatGlobalOptions),
+    OndiscGlobalVersion = flat_global_opts_version(OndiscFlatGlobalOptions),
+    LoadedLocalVersion = flat_global_opts_version(LoadedFlatLocalCommonOptions),
+    OndiscLocalVersion = flat_global_opts_version(OndiscFlatLocalCommonOptions),
+    LoadedNodeSpecificVersion = flat_global_opts_version(LoadedFlatLocalNodeSpecificOptions),
+    OndiscNodeSpecificVersion = flat_global_opts_version(OndiscFlatLocalNodeSpecificOptions),
     VersionTransitions = [#{type => global,
                             loaded => LoadedGlobalVersion,
                             ondisc => OndiscGlobalVersion},
@@ -1426,8 +1426,8 @@ extend_node_state(NodeState=#{
       version_transitions => NeededVersionTransitions,
       ondisc_config_state => OndiscState,
       ondisc_categorized_options => OndiscCatOptions,
-      loaded_global_flatten_opts => LoadedFlattenGlobalOptions,
-      ondisc_global_flatten_opts => OndiscFlattenGlobalOptions,
+      loaded_global_flat_opts => LoadedFlatGlobalOptions,
+      ondisc_global_flat_opts => OndiscFlatGlobalOptions,
       loaded_global_version => LoadedGlobalVersion,
       ondisc_global_version => OndiscGlobalVersion,
       %% Doest not count node-specific options
@@ -1437,20 +1437,20 @@ extend_node_state(NodeState=#{
       loaded_local_node_specific_version => LoadedNodeSpecificVersion,
       ondisc_local_node_specific_version => OndiscNodeSpecificVersion,
       %% Just node specific options
-      loaded_local_node_specific_options => LoadedFlattenLocalNodeSpecificOptions,
-      ondisc_local_node_specific_options => OndiscFlattenLocalNodeSpecificOptions,
+      loaded_local_node_specific_options => LoadedFlatLocalNodeSpecificOptions,
+      ondisc_local_node_specific_options => OndiscFlatLocalNodeSpecificOptions,
       loaded_node_specific_orphans => LoadedNodeSpecificOrphans,
       ondisc_node_specific_orphans => OndiscNodeSpecificOrphans,
-      loaded_local_common_options => LoadedFlattenLocalCommonOptions,
-      ondisc_local_common_options => OndiscFlattenLocalCommonOptions,
+      loaded_local_common_options => LoadedFlatLocalCommonOptions,
+      ondisc_local_common_options => OndiscFlatLocalCommonOptions,
       loaded_matched_patterns => LoadedMatchedPatterns,
       ondisc_matched_patterns => OndiscMatchedPatterns,
       %% For debugging
-      flatten_diff => #{
-        ondisc_global_only => subtract_lists(OndiscFlattenGlobalOptions, LoadedFlattenGlobalOptions),
-        loaded_global_only => subtract_lists(LoadedFlattenGlobalOptions, OndiscFlattenGlobalOptions),
-        ondisc_local_only => subtract_lists(OndiscFlattenLocalOptions, LoadedFlattenLocalOptions),
-        loaded_local_only => subtract_lists(LoadedFlattenLocalOptions, OndiscFlattenLocalOptions)
+      flat_diff => #{
+        ondisc_global_only => subtract_lists(OndiscFlatGlobalOptions, LoadedFlatGlobalOptions),
+        loaded_global_only => subtract_lists(LoadedFlatGlobalOptions, OndiscFlatGlobalOptions),
+        ondisc_local_only => subtract_lists(OndiscFlatLocalOptions, LoadedFlatLocalOptions),
+        loaded_local_only => subtract_lists(LoadedFlatLocalOptions, OndiscFlatLocalOptions)
        }
      }.
 
@@ -1462,8 +1462,8 @@ subtract_lists(List, Except) ->
 %% split_node_specific_options does not count nested options.
 %% split_node_specific_options_tree works for nested options too.
 %% I.e. options of node specific module would be filtered by this function.
-split_node_specific_options_tree(NodeSpecificPatterns, FlattenOpts) ->
-    Split = split_node_specific_options(NodeSpecificPatterns, FlattenOpts),
+split_node_specific_options_tree(NodeSpecificPatterns, FlatOpts) ->
+    Split = split_node_specific_options(NodeSpecificPatterns, FlatOpts),
     case maps:get(matched_patterns, Split) of
         [] ->
             Split#{node_specific_orphans => []}; %% no node specific stuff
@@ -1478,32 +1478,32 @@ do_split_node_specific_options_tree(Split=#{common_options := CommonOpts}) ->
            node_specific_orphans => Orphans}.
 
 %% node_specific_orphans are for example options of node-specific modules.
-node_specific_orphans(FlattenOpts) ->
-    CatOpts = expand_all_opts(FlattenOpts),
-    ReflattenOpts = flatten_all_opts(CatOpts),
-    subtract_lists(FlattenOpts, ReflattenOpts).
+node_specific_orphans(FlatOpts) ->
+    CatOpts = expand_all_opts(FlatOpts),
+    ReflatOpts = flatten_all_opts(CatOpts),
+    subtract_lists(FlatOpts, ReflatOpts).
 
 %% Split local options to:
 %% - node specific (can be different for different nodes)
 %% - common local options (same for all nodes, but not global)
 %% Collects information about matches for debugging
-split_node_specific_options([], FlattenOpts) ->
+split_node_specific_options([], FlatOpts) ->
     %% No patterns case
     #{node_specific_options => [],
-      common_options => FlattenOpts,
+      common_options => FlatOpts,
       matched_patterns => []};
-split_node_specific_options(NodeSpecificPatterns, FlattenOpts) ->
-    split_node_specific_options(NodeSpecificPatterns, FlattenOpts, [], [], []).
+split_node_specific_options(NodeSpecificPatterns, FlatOpts) ->
+    split_node_specific_options(NodeSpecificPatterns, FlatOpts, [], [], []).
 
 split_node_specific_options(NodeSpecificPatterns,
-                            [{OptKey, Value}=Opt|FlattenOpts],
+                            [{OptKey, Value}=Opt|FlatOpts],
                             NodeSpecificOpts,
                             CommonOpts,
                             MatchedPatterns) ->
     case find_matching_node_specific_pattern(NodeSpecificPatterns, OptKey) of
         nomatch ->
             CommonOpts2 = [Opt|CommonOpts],
-            split_node_specific_options(NodeSpecificPatterns, FlattenOpts,
+            split_node_specific_options(NodeSpecificPatterns, FlatOpts,
                                         NodeSpecificOpts, CommonOpts2,
                                         MatchedPatterns);
         {match, Pattern} ->
@@ -1513,7 +1513,7 @@ split_node_specific_options(NodeSpecificPatterns,
                          option_value => Value,
                          matched_pattern => Pattern},
             MatchedPatterns2 = [MPattern|MatchedPatterns],
-            split_node_specific_options(NodeSpecificPatterns, FlattenOpts,
+            split_node_specific_options(NodeSpecificPatterns, FlatOpts,
                                         NodeSpecificOpts2, CommonOpts,
                                         MatchedPatterns2)
     end;
