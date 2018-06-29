@@ -694,9 +694,14 @@ compute_config_file_version() ->
     State = parse_file(ConfigFile),
     mongoose_config:compute_config_file_version(State).
 
+compute_loaded_config_version() ->
+    LC = get_local_config(),
+    LCH = get_host_local_config(),
+    mongoose_config:compute_config_version(LC, LCH).
+
 config_info() ->
     [{config_file_version, compute_config_file_version()},
-     {config_version, compute_config_file_version()}].
+     {config_version, compute_loaded_config_version()}].
 
 
 -spec other_cluster_nodes() -> [node()].
