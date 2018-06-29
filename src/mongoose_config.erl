@@ -85,7 +85,7 @@
 -type reloading_strategy() :: map().
 
 -type reloading_change() :: #{
-        coordinatior_node => node() | undefined,
+        coordinator_node => node() | undefined,
         mongoose_node => node(),
         state_to_apply => state(),
         config_diff_to_apply => config_diff()
@@ -884,9 +884,9 @@ strategy_to_failed_checks(#{failed_checks := FailedChecks}) ->
     lists:map(fun(#{check := CheckName}) -> CheckName end, FailedChecks).
 
 -spec strategy_to_changes_to_apply(reloading_strategy()) -> [reloading_change()].
-strategy_to_changes_to_apply(#{coordinatior_node := Coordinator,
+strategy_to_changes_to_apply(#{coordinator_node := Coordinator,
                                changes_to_apply := Changes}) ->
-    [Change#{coordinatior_node => Coordinator} || Change <- Changes].
+    [Change#{coordinator_node => Coordinator} || Change <- Changes].
 
 %% Checks what to pass into ejabberd_config:apply_changes/3
 %% for each node
@@ -1007,7 +1007,7 @@ prepare_data_for_cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) 
     %% check that global options are the same everywhere:
     %% - same before
     %% - same after
-    #{coordinatior_node => maps:get(mongoose_node, CoordinatorNodeState),
+    #{coordinator_node => maps:get(mongoose_node, CoordinatorNodeState),
       %% All of these versions should be the same for reload_cluster to continue
       loaded_global_versions => node_values(loaded_global_version, ExtNodeStates),
       %% All of these versions should be the same for reload_cluster to continue

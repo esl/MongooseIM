@@ -1,5 +1,5 @@
 %% @doc Short functions useful for config file manipulations.
-%% This stiff can be pure, but most likely not.
+%% This stuff can be pure, but most likely not.
 %% It's for generic functions.
 -module(mongoose_config_utils).
 -export([exit_or_halt/1]).
@@ -11,7 +11,7 @@
 
 -include_lib("kernel/include/file.hrl").
 
-%% @doc If ejabberd isn't yet running in this node, then halt the node
+%% @doc If MongooseIM isn't yet running in this node, then halt the node
 -spec exit_or_halt(ExitText :: string()) -> none().
 exit_or_halt(ExitText) ->
     case [Vsn || {mongooseim, _Desc, Vsn} <- application:which_applications()] of
