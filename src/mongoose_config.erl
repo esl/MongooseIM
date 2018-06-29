@@ -147,7 +147,7 @@ search_hosts_and_pools({host, Host}, State) ->
 search_hosts_and_pools({hosts, Hosts}, State=#state{hosts = []}) ->
     add_hosts_to_option(Hosts, State);
 search_hosts_and_pools({hosts, Hosts}, #state{hosts = OldHosts}) ->
-    ?ERROR_MSG("issue=\"too many host definitions\" "
+    ?ERROR_MSG("event=\"too many host definitions\" "
                "new_hosts=~1000p old_hosts=~1000p", []),
     exit(#{issue => "too many hosts definitions",
            new_hosts => Hosts,
@@ -179,9 +179,10 @@ normalize_hosts([], PrepHosts) ->
 normalize_hosts([Host | Hosts], PrepHosts) ->
     case jid:nodeprep(host_to_binary(Host)) of
         error ->
-            ?ERROR_MSG("Can't load config file: "
-                       "invalid host name [~p]", [Host]),
-            exit("invalid hostname");
+            ?ERROR_MSG("event=invalid_hostname_in_config "
+                       "hostname=~p", [Host]),
+            erlang:error(#{issue => invalid_hostname,
+                           hostname => Host});
         PrepHost ->
             normalize_hosts(Hosts, [PrepHost | PrepHosts])
     end.
@@ -383,7 +384,8 @@ process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
     end.
 
 check_pools([]) ->
-    ?CRITICAL_MSG("Config file invalid: ODBC defined with no pools", []),
+    ?CRITICAL_MSG("event=invalid_config "
+                  "details=\"no_odbc_pools: ODBC pools are not defined\"", []),
     exit(no_odbc_pools);
 check_pools(Pools) when is_list(Pools) ->
     ok.
@@ -451,9 +453,13 @@ compact_option(Opt, Val, State) ->
     State#state{opts = Opts2}.
 
 compact({OptName, Host} = Opt, Val, [], Os) ->
-    ?WARNING_MSG("The option '~p' is defined for the host ~p using host_config "
-                 "before the global '~p' option. This host_config option may "
-                 "get overwritten.", [OptName, Host, OptName]),
+    %% The option is defined for host using host_config before the global option.
+    %% The host_option can be overwritten.
+    %% TODO or maybe not. We need a test.
+    ?WARNING_MSG("event=host_config_option_can_be_overwritten "
+                 "option_name=~1000p host=~p "
+                 "solution=\"define global options before host options\"",
+                 [OptName, Host]),
     [#local_config{key = Opt, value = Val}] ++ Os;
 %% Traverse the list of the options already parsed
 compact(Opt, Val, [#local_config{key = Opt, value = OldVal} | Os1], Os2) ->
@@ -512,7 +518,8 @@ get_config_diff(State, #{global_config := Config,
     %% global config diff
     CC = compare_terms(Config, NewConfig, 2, 3),
     LC = compare_terms(skip_special_config_opts(Local), NewLocal, 2, 3),
-    LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
+    LHC = compare_terms(group_host_changes(HostsLocal),
+                        group_host_changes(NewHostsLocal), 1, 2),
     #{config_changes => CC,
       local_config_changes => LC,
       local_hosts_changes => LHC}.
@@ -545,8 +552,8 @@ is_special_config_opt(_) -> %% There are also #config{} and acls
 special_local_config_opts() ->
     [node_start].
 
--spec check_hosts([jid:server()], [jid:server()]) -> {[jid:server()],
-                                                                [jid:server()]}.
+-spec check_hosts([jid:server()], [jid:server()]) ->
+    {[jid:server()], [jid:server()]}.
 check_hosts(NewHosts, OldHosts) ->
     Old = sets:from_list(OldHosts),
     New = sets:from_list(NewHosts),
@@ -575,7 +582,7 @@ map_listeners(Listeners) ->
                   {{PortIP, Module}, Opts}
               end, Listeners).
 
-                                                % group values which can be grouped like odbc ones
+% group values which can be grouped like odbc ones
 -spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl(fun(#local_config{key = {Key, Host}, value = Val}, Dict) ->
@@ -615,20 +622,21 @@ state_to_categorized_options(#state{opts = RevOpts}) ->
       LocalConfig :: list(),
       HostsConfig :: list().
 categorize_options(Opts) ->
-    lists:foldl(fun({config, _, _} = El, Acc) ->
-                    as_global(El, Acc);
-                   ({local_config, {Key, Host}, _} = El, Acc)
-                      when is_atom(Key), is_binary(Host) ->
-                    as_hosts(El, Acc);
-                   ({local_config, _, _} = El, Acc) ->
-                    as_local(El, Acc);
-                   ({acl, _, _}, R) ->
-                    %% no need to do extra work here
-                    R;
-                   (R, R2) ->
-                    ?ERROR_MSG("not matched ~p", [R]),
-                    R2
-                end, {[], [], []}, Opts).
+    lists:foldl(fun categorize_option/2, {[], [], []}, Opts).
+
+categorize_option({config, _, _} = El, Acc) ->
+    as_global(El, Acc);
+categorize_option({local_config, {Key, Host}, _} = El, Acc)
+        when is_atom(Key), is_binary(Host) ->
+    as_hosts(El, Acc);
+categorize_option({local_config, _, _} = El, Acc) ->
+    as_local(El, Acc);
+categorize_option({acl, _, _}, Acc) ->
+    %% no need to do extra work here
+    Acc;
+categorize_option(Opt, Acc) ->
+    ?ERROR_MSG("event=uncategorized_option option=~p", [Opt]),
+    Acc.
 
 as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.
 as_local(El, {Config, Local, HostLocal}) -> {Config, [El | Local], HostLocal}.
@@ -751,8 +759,10 @@ include_config_files(Terms, Configs) ->
 include_config_files([], _Configs, Res) ->
     Res;
 include_config_files([{include_config_file, Filename} | Terms], Configs, Res) ->
-    include_config_files([{include_config_file, Filename, []} | Terms], Configs, Res);
-include_config_files([{include_config_file, Filename, Options} | Terms], Configs, Res) ->
+    include_config_files([{include_config_file, Filename, []} | Terms],
+                         Configs, Res);
+include_config_files([{include_config_file, Filename, Options} | Terms],
+                     Configs, Res) ->
     IncludedTerms = find_plain_terms_for_file(Filename, Configs),
     Disallow = proplists:get_value(disallow, Options, []),
     IncludedTerms2 = delete_disallowed(Disallow, IncludedTerms),
@@ -784,12 +794,10 @@ delete_disallowed(Disallowed, Terms) ->
       Terms,
       Disallowed).
 
-
 delete_disallowed2(Disallowed, [H | T]) ->
     case element(1, H) of
         Disallowed ->
-            ?WARNING_MSG("The option '~p' is disallowed, "
-                         "and will not be accepted", [Disallowed]),
+            ?WARNING_MSG("event=ignore_disallowed_option option=~p", [Disallowed]),
             delete_disallowed2(Disallowed, T);
         _ ->
             [H | delete_disallowed2(Disallowed, T)]
@@ -810,8 +818,7 @@ keep_only_allowed(Allowed, Terms) ->
                       lists:member(element(1, Term), Allowed)
                   end,
                   Terms),
-    [?WARNING_MSG("This option is not allowed, "
-                  "and will not be accepted:~n~p", [NA])
+    [?WARNING_MSG("event=ignore_disallowed_option option=~p", [NA])
      || NA <- NAs],
     As.
 
