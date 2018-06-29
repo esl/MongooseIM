@@ -41,7 +41,7 @@ check_case(Case=#{pattern := Pattern, matches := Matches}) ->
     ok.
 
 check_match(Subject, Pattern) ->
-    Match = mongoose_config:does_pattern_match(Subject, Pattern),
+    Match = mongoose_config_flat:does_pattern_match(Subject, Pattern),
     case Match of
         true ->
             ok;
@@ -52,7 +52,7 @@ check_match(Subject, Pattern) ->
     end.
 
 check_nomatch(Subject, Pattern) ->
-    Match = mongoose_config:does_pattern_match(Subject, Pattern),
+    Match = mongoose_config_flat:does_pattern_match(Subject, Pattern),
     case Match of
         false ->
             ok;
@@ -114,7 +114,7 @@ flat_module_subopts_case(_C) ->
 expand_opts_case(_C) ->
     State = mongoose_config:parse_terms(cool_mod_mam_config()),
     FlatOpts = mongoose_config:state_to_flat_local_opts(State),
-    ExpandedOpts = mongoose_config:expand_all_opts(FlatOpts),
+    ExpandedOpts = mongoose_config_flat:expand_all_opts(FlatOpts),
     CatOpts = mongoose_config:state_to_categorized_options(State),
     ?assertEqual(maps:get(local_config, CatOpts),
                  maps:get(local_config, ExpandedOpts)),
@@ -125,7 +125,7 @@ expand_opts_case(_C) ->
 expand_module_subopts_case(_C) ->
     State = mongoose_config:parse_terms(gd_config()),
     FlatOpts = mongoose_config:state_to_flat_local_opts(State),
-    ExpandedOpts = mongoose_config:expand_all_opts(FlatOpts),
+    ExpandedOpts = mongoose_config_flat:expand_all_opts(FlatOpts),
     CatOpts = mongoose_config:state_to_categorized_options(State),
     ?assertEqual(maps:get(local_config, CatOpts),
                  maps:get(local_config, ExpandedOpts)),

@@ -9,7 +9,7 @@
 get_flat_opts() ->
     LC = ejabberd_config:get_local_config(),
     LCH = ejabberd_config:get_host_local_config(),
-    mongoose_config:flatten_opts(LC, LCH).
+    mongoose_config_flat:flatten_opts(LC, LCH).
 
 get_opts() ->
     LC = ejabberd_config:get_local_config(),

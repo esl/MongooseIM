@@ -85,9 +85,6 @@
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config:state().
 
--callback stop(host()) -> any().
-
-
 -spec start() -> ok.
 start() ->
     mnesia:create_table(config,
