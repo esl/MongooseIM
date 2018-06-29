@@ -17,6 +17,7 @@
          allow_override_local_only/1,
          state_to_opts/1,
          state_to_global_opt/3,
+         state_to_required_files/1,
          can_override/2]).
 
 %% for unit tests
@@ -80,7 +81,9 @@
         mongoose_node => node(),
         config_file => string(),
         loaded_categorized_options => categorized_options(),
-        ondisc_config_terms => list()}.
+        ondisc_config_terms => list(),
+        missing_files => list(file:filename()),
+        required_files => list(file:filename())}.
 
 -type reloading_strategy() :: map().
 
@@ -331,21 +334,11 @@ process_term(Term, State) ->
         {s2s_ciphers, Ciphers} ->
             add_option(s2s_ciphers, Ciphers, State);
         {s2s_certfile, CertFile} ->
-            case mongoose_config_utils:is_file_readable(CertFile) of
-                true -> add_option(s2s_certfile, CertFile, State);
-                false ->
-                    ErrorText = "There is a problem in the configuration: "
-                        "the specified file is not readable: ",
-                    throw({error, ErrorText ++ CertFile})
-            end;
+            State2 = compact_option(required_files, CertFile, State),
+            add_option(s2s_certfile, CertFile, State2);
         {domain_certfile, Domain, CertFile} ->
-            case mongoose_config_utils:is_file_readable(CertFile) of
-                true -> add_option({domain_certfile, Domain}, CertFile, State);
-                false ->
-                    ErrorText = "There is a problem in the configuration: "
-                        "the specified file is not readable: ",
-                    throw({error, ErrorText ++ CertFile})
-            end;
+            State2 = compact_option(required_files, CertFile, State),
+            add_option({domain_certfile, Domain}, CertFile, State2);
         {node_type, NodeType} ->
             add_option(node_type, NodeType, State);
         {cluster_nodes, Nodes} ->
@@ -725,6 +718,12 @@ state_to_global_opt(OptName, State, Default) ->
     Opts = state_to_opts(State),
     opts_to_global_opt(Opts, OptName, Default).
 
+%% @doc Files, that are required to be present on disc.
+-spec state_to_required_files(state()) -> list(file:filename()).
+state_to_required_files(State) ->
+    Opts = state_to_opts(State),
+    opts_to_global_opt(Opts, required_files, []).
+
 opts_to_global_opt([{config, OptName, OptValue}|_], OptName, _Default) ->
     OptValue;
 opts_to_global_opt([_|Opts], OptName, Default) ->
@@ -929,6 +928,7 @@ cluster_reload_version_check(Data) ->
     %% run reload_cluster.
     Data#{failed_checks => FailedChecks}.
 
+%% Returns a list of lists failed checks
 cluster_reload_version_checks(Data) ->
     [check(inconsistent_loaded_global_versions,
            "Runtime configuration inconsistency! "
@@ -936,7 +936,8 @@ cluster_reload_version_checks(Data) ->
            "loaded_global_versions contains more than one unique config version. "
            "cluster_reload is not allowed to continue. "
            "How to fix: stop nodes, that run wrong config version.",
-           not all_same(loaded_global_versions, Data)),
+           %% To pass the check it should be ...
+           all_same(loaded_global_versions, Data)),
 
      check(inconsistent_ondisc_global_versions,
            "Ondisc configuration inconsistency. "
@@ -944,7 +945,8 @@ cluster_reload_version_checks(Data) ->
            "ondisc_global_versions contains more than one unique config version. "
            "cluster_reload is not allowed to continue. "
            "How to fix: ensure that ejabberd.cfg-s are the same for all nodes.",
-           not all_same(loaded_global_versions, Data)),
+           %% To pass the check it should be ...
+           all_same(loaded_global_versions, Data)),
 
      check(inconsistent_loaded_local_versions,
            "Runtime configuration inconsistency! "
@@ -955,7 +957,8 @@ cluster_reload_version_checks(Data) ->
            "Compare loaded_local_common_options for all nodes. "
            "Check inconsistent_loaded_local_common_options, it should be empty. "
            "How to fix: stop nodes, that run wrong config version.",
-           not all_same(loaded_local_versions, Data)),
+           %% To pass the check it should be ...
+           all_same(loaded_local_versions, Data)),
 
      check(inconsistent_ondisc_local_versions,
            "Ondisc configuration inconsistency. "
@@ -963,17 +966,26 @@ cluster_reload_version_checks(Data) ->
            "ondisc_local_versions contains more than one unique config version. "
            "cluster_reload is not allowed to continue. "
            "How to fix: ensure that ejabberd.cfg-s are the same for all nodes.",
-           not all_same(ondisc_local_versions, Data)),
+           %% To pass the check it should be ...
+           all_same(ondisc_local_versions, Data)),
 
      check(no_update_required,
            "No nodes need cluster reload.",
-           all_empty(version_transitions_lists, Data))
+           %% To pass the check it should be ...
+           not all_empty(version_transitions_lists, Data)),
+
+     check(some_required_files_are_missing,
+           "Some files are missing on disc. Check missing_files_lists in dump.",
+           %% To pass the check it should be ...
+           all_empty(missing_files_lists, Data))
     ].
 
-check(CheckName, Message, _Triggered=true) ->
-    [#{check => CheckName, message => Message}];
-check(_CheckName, _Message, _Triggered=false) ->
-    [].
+%% Returns failed check
+check(_CheckName, _Message, _CheckPass=true) ->
+    [];
+check(CheckName, Message, _CheckPass=false) ->
+    %% Check failed
+    [#{check => CheckName, message => Message}].
 
 all_empty(Key, Data) ->
     all_equal_to(Key, Data, []).
@@ -984,6 +996,8 @@ all_equal_to(Key, Data, ExpectedValue) ->
     case lists:usort(Values) of
         [ExpectedValue] ->
             true;
+        [] ->
+            true; %% empty node list case
         _ ->
             false
     end.
@@ -1026,6 +1040,9 @@ prepare_data_for_cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) 
       %% If all are empty lists, we don't need to update
       version_transitions_lists =>
             node_values(version_transitions, ExtNodeStates),
+
+      missing_files_lists =>
+            node_values(missing_files, ExtNodeStates),
 
       extended_node_states => ExtNodeStates
       }.

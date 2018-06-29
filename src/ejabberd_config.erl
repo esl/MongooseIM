@@ -127,8 +127,9 @@ get_ejabberd_config_path() ->
 %% This function will crash if finds some error in the configuration file.
 -spec load_file(File :: string()) -> ok.
 load_file(File) ->
-    Res = parse_file(File),
-    set_opts(Res).
+    State = parse_file(File),
+    assert_required_files_exist(State),
+    set_opts(State).
 
 
 %% @doc Read an ejabberd configuration file and return the terms.
@@ -669,10 +670,17 @@ get_categorized_options() ->
 config_state() ->
     ConfigFile = get_ejabberd_config_path(),
     Terms = get_plain_terms_file(ConfigFile),
+    %% Performance optimization hint:
+    %% terms_to_missing_and_required_files/1 actually parses Terms into State.
+    #{missing_files := MissingFiles,
+      required_files := RequiredFiles} =
+        terms_to_missing_and_required_files(Terms),
     #{mongoose_node => node(),
       config_file => ConfigFile,
       loaded_categorized_options => get_categorized_options(),
-      ondisc_config_terms => Terms}.
+      ondisc_config_terms => Terms,
+      missing_files => MissingFiles,
+      required_files => RequiredFiles}.
 
 %% @doc Returns config states from all nodes in cluster
 %% State from the local node comes as head of a list
@@ -712,3 +720,23 @@ other_cluster_nodes() ->
 is_mongooseim_node(Node) ->
     Apps = rpc:call(Node, application, which_applications, []),
     lists:keymember(mongooseim, 1, Apps).
+
+assert_required_files_exist(State) ->
+    RequiredFiles = mongoose_config:state_to_required_files(State),
+    case missing_files(RequiredFiles) of
+        [] ->
+            ok;
+        MissingFiles ->
+            erlang:error(#{issue => missing_files,
+                           filenames => MissingFiles})
+    end.
+
+terms_to_missing_and_required_files(Terms) ->
+    State = mongoose_config:parse_terms(Terms),
+    RequiredFiles = mongoose_config:state_to_required_files(State),
+    MissingFiles = missing_files(RequiredFiles),
+    #{missing_files => MissingFiles, required_files => RequiredFiles}.
+
+missing_files(RequiredFiles) ->
+    [Filename || Filename <- RequiredFiles,
+                 not mongoose_config_utils:is_file_readable(Filename)].

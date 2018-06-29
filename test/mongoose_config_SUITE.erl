@@ -178,7 +178,8 @@ auth_config_node1_config_v1() ->
     #{mongoose_node => mim1,
       config_file => "/etc/ejabberd.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms),
-      ondisc_config_terms => Terms}.
+      ondisc_config_terms => Terms,
+      missing_files => [], required_files => []}.
 
 auth_host_local_config() ->
     Terms = auth_config(),
@@ -255,7 +256,8 @@ config_node1_config_v1() ->
     #{mongoose_node => mim1,
       config_file => "/etc/ejabberd.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms),
-      ondisc_config_terms => Terms}.
+      ondisc_config_terms => Terms,
+      missing_files => [], required_files => []}.
 
 %% node2_config_v1 configuration both in memory and on disc
 config_node2_config_v1() ->
@@ -263,7 +265,8 @@ config_node2_config_v1() ->
     #{mongoose_node => mim2,
       config_file => "/etc/ejabberd.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms),
-      ondisc_config_terms => Terms}.
+      ondisc_config_terms => Terms,
+      missing_files => [], required_files => []}.
 
 %% node1_config_v1 configuration in memory
 %% node1_config_v2 configuration on disc
@@ -273,7 +276,8 @@ config_node1_config_v2() ->
     #{mongoose_node => mim1,
       config_file => "/etc/ejabberd.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms_v1),
-      ondisc_config_terms => Terms_v2}.
+      ondisc_config_terms => Terms_v2,
+      missing_files => [], required_files => []}.
 
 %% node2_config_v1 configuration in memory
 %% node2_config_v2 configuration on disc
@@ -283,7 +287,8 @@ config_node2_config_v2() ->
     #{mongoose_node => mim2,
       config_file => "/etc/ejabberd.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms_v1),
-      ondisc_config_terms => Terms_v2}.
+      ondisc_config_terms => Terms_v2,
+      missing_files => [], required_files => []}.
 
 node1_config_v1() ->
     [
