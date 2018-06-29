@@ -139,34 +139,22 @@
 -spec search_hosts_and_pools({host|hosts, [host()] | host()}
                              | {pool, odbc, atom()}
                              | {pool, odbc, atom(), list()}, state()) -> any().
-search_hosts_and_pools(Term, State) ->
-    case Term of
-        {host, Host} ->
-            case State of
-                #state{hosts = []} ->
-                    add_hosts_to_option([Host], State);
-                _ ->
-                    ?ERROR_MSG("Can't load config file: "
-                               "too many hosts definitions", []),
-                    exit("too many hosts definitions")
-            end;
-        {hosts, Hosts} ->
-            case State of
-                #state{hosts = []} ->
-                    add_hosts_to_option(Hosts, State);
-                _ ->
-                    ?ERROR_MSG("Can't load config file: "
-                               "too many hosts definitions", []),
-                    exit("too many hosts definitions")
-            end;
-        {pool, PoolType, PoolName, _Options} ->
-            search_hosts_and_pools({pool, PoolType, PoolName}, State);
-        {pool, odbc, PoolName} ->
-            add_odbc_pool_to_option(PoolName, State);
-        _ ->
-            State
-    end.
-
+search_hosts_and_pools({host, Host}, State) ->
+    search_hosts_and_pools({hosts, [Host]}, State);
+search_hosts_and_pools({hosts, Hosts}, State=#state{hosts = []}) ->
+    add_hosts_to_option(Hosts, State);
+search_hosts_and_pools({hosts, Hosts}, #state{hosts = OldHosts}) ->
+    ?ERROR_MSG("issue=\"too many host definitions\" "
+               "new_hosts=~1000p old_hosts=~1000p", []),
+    exit(#{issue => "too many hosts definitions",
+           new_hosts => Hosts,
+           old_hosts => OldHosts});
+search_hosts_and_pools({pool, PoolType, PoolName, _Options}, State) ->
+    search_hosts_and_pools({pool, PoolType, PoolName}, State);
+search_hosts_and_pools({pool, odbc, PoolName}, State) ->
+    add_odbc_pool_to_option(PoolName, State);
+search_hosts_and_pools(_Term, State) ->
+    State.
 
 -spec add_hosts_to_option(Hosts :: [host()],
                           State :: state()) -> state().
