@@ -149,7 +149,7 @@ start_module_for_host(Host, Module, Opts0) ->
                                       [Module, Host, Opts, Class, Reason,
                                        Stacktrace]),
             ?CRITICAL_MSG(ErrorText, []),
-            case raise_error_on_module_start_failure() of
+            case is_mim_or_ct_running() of
                 true ->
                     erlang:raise(Class, Reason, Stacktrace);
                 false ->
@@ -162,7 +162,7 @@ start_module_for_host(Host, Module, Opts0) ->
             end
     end.
 
-raise_error_on_module_start_failure() ->
+is_mim_or_ct_running() ->
     ?MODULE:is_app_running(mongooseim)
     %% Common tests would be very confused if we kill the whole node
     orelse is_common_test_running().
