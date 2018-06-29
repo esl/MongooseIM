@@ -13,8 +13,9 @@ This might introduce inconsistencies between different nodes of the cluster.
 It's available as a safety mechanism for the rare case of a cluster-global reload failing.
 
 `reload_cluster` applies the configuration on all nodes of the cluster.
-The prerequisite is that the latest version of config file must be available on
-all nodes.
+The prerequisite is that the same version of config file must be available on
+all nodes. All nodes in a cluster must have the same config loaded into memory
+as well. There is a small exception from this rule, see Node specific options.
 
 `reload_cluster_dryrun` calculates and prints config changes,
 but does not applies them. Useful for debugging.
@@ -96,7 +97,7 @@ Flat options:
 
 [More information about flat options format](../developers-guide/flat_options.md)
 
-### Node-specific options for Global Distribution
+#### Node-specific options for Global Distribution
 
 Node-specific options mechanism was designed to allow `mod_global_distrib`
 to be configured with different parameters for each node.
@@ -147,7 +148,19 @@ Real life configuration example:
 ]}.
 ```
 
-### Node-specific modules
+`'_'` means that any value can be there.
+
+Usually, all modules are configured using just one level of option nesting.
+`module_subopt` means that we are interested in a nested option.
+
+`node_specific_options` can be used with any module, not just
+`mod_global_distrib` (but usually you want all options to be the same on all
+nodes!).
+
+Any flat option can be used in `node_specific_options`.
+
+
+#### Node-specific modules
 
 We don't compare options of node-specific modules for configuration consistency
 check. We also don't check, if all nodes run these modules (it's fine to run
