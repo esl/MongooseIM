@@ -401,16 +401,12 @@ check_pools(Pools) when is_list(Pools) ->
 process_host_term(Term, Host, State) ->
     case Term of
         {acl, ACLName, ACLData} ->
-            State#state{opts =
-                            [acl:to_record(Host, ACLName, ACLData) | State#state.opts]};
+            OptRec = acl:to_record(Host, ACLName, ACLData),
+            append_option(OptRec, State);
         {access, RuleName, Rules} ->
-            State#state{opts = [#config{key   = {access, RuleName, Host},
-                                        value = Rules} |
-                                State#state.opts]};
+            append_global_opt({access, RuleName, Host}, Rules, State);
         {shaper, Name, Data} ->
-            State#state{opts = [#config{key   = {shaper, Name, Host},
-                                        value = Data} |
-                                State#state.opts]};
+            append_global_opt({shaper, Name, Host}, Data, State);
         {host, Host} ->
             State;
         {hosts, _Hosts} ->
@@ -436,33 +432,30 @@ process_db_pool_term({Opt, Val}, Pool, State) when is_atom(Pool) ->
                  Val :: value(),
                  State :: state()) -> state().
 add_option(Opt, Val, State) ->
-    Table = case Opt of
-                hosts ->
-                    config;
-                language ->
-                    config;
-                sm_backend ->
-                    config;
-                node_specific_options ->
-                    config;
-                _ ->
-                    local_config
-            end,
-    case Table of
-        config ->
-            State#state{opts = [#config{key = Opt, value = Val} |
-                                State#state.opts]};
-        local_config ->
-            case Opt of
-                {{add, OptName}, Host} ->
-                    State#state{opts = compact({OptName, Host}, Val,
-                                               State#state.opts, [])};
-                _ ->
-                    State#state{opts = [#local_config{key = Opt, value = Val} |
-                                        State#state.opts]}
-            end
-    end.
+    Table = opt_table(Opt),
+    add_option(Table, Opt, Val, State).
 
+add_option(config, Opt, Val, State) ->
+    append_global_opt(Opt, Val, State);
+add_option(local_config, {{add, OptName}, Host}, Val, State) ->
+    compact_option({OptName, Host}, Val, State);
+add_option(local_config, Opt, Val, State) ->
+    append_local_opt(Opt, Val, State).
+
+append_global_opt(OptName, OptValue, State) ->
+    OptRec = #config{key = OptName, value = OptValue},
+    append_option(OptRec, State).
+
+append_local_opt(OptName, OptValue, State) ->
+    OptRec = #local_config{key = OptName, value = OptValue},
+    append_option(OptRec, State).
+
+append_option(OptRec, State = #state{opts = Opts}) ->
+    State#state{ opts = [OptRec | Opts] }.
+
+compact_option(Opt, Val, State) ->
+    Opts2 = compact(Opt, Val, State#state.opts, []),
+    State#state{opts = Opts2}.
 
 compact({OptName, Host} = Opt, Val, [], Os) ->
     ?WARNING_MSG("The option '~p' is defined for the host ~p using host_config "
@@ -470,17 +463,32 @@ compact({OptName, Host} = Opt, Val, [], Os) ->
                  "get overwritten.", [OptName, Host, OptName]),
     [#local_config{key = Opt, value = Val}] ++ Os;
 %% Traverse the list of the options already parsed
+compact(Opt, Val, [#local_config{key = Opt, value = OldVal} | Os1], Os2) ->
+    %% If the key of a local_config matches the Opt that wants to be added
+    OptRec = #local_config{key = Opt, value = Val ++ OldVal},
+    %% Then prepend the new value to the list of old values
+    Os2 ++ [OptRec] ++ Os1;
 compact(Opt, Val, [O | Os1], Os2) ->
-    case catch O#local_config.key of
-        %% If the key of a local_config matches the Opt that wants to be added
-        Opt ->
-            %% Then prepend the new value to the list of old values
-            Os2 ++ [#local_config{key = Opt,
-                                  value = Val ++ O#local_config.value}
-                   ] ++ Os1;
-        _ ->
-            compact(Opt, Val, Os1, Os2 ++ [O])
+    compact(Opt, Val, Os1, Os2 ++ [O]).
+
+opt_table(Opt) ->
+    case is_global_option(Opt) of
+        true ->
+            config;
+        false ->
+            local_config
     end.
+
+is_global_option(Opt) ->
+    lists:member(Opt, global_options()).
+
+global_options() ->
+    [
+        hosts,
+        language,
+        sm_backend,
+        node_specific_options
+    ].
 
 
 %%--------------------------------------------------------------------
