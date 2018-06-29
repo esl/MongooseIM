@@ -18,11 +18,12 @@
 -include("mongoose.hrl").
 -include_lib("riakc/include/riakc.hrl").
 
+-behaviour(gen_server).
+
 %% API
 -export([start/0]).
+-export([start_pool/1]).
 -export([stop/0]).
-
--export([start_worker/3]).
 
 -export([put/1, put/2]).
 -export([get/2, get/3]).
@@ -31,7 +32,6 @@
 -export([fetch_type/2, fetch_type/3]).
 -export([list_keys/1]).
 -export([list_buckets/1]).
--export([get_worker/0]).
 -export([create_new_map/1]).
 -export([update_map/2]).
 -export([mapred/2]).
@@ -49,33 +49,53 @@
 -type riakc_map_op() :: {{binary(), MapDataType :: atom()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
+%% proxy worker API
+-export([start_link/3]).
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
+
+-define(SERVER, ?MODULE).
+
+-record(state, {conn}).
+
+%%%%
+
 -spec start() -> {ok, pid()} | ignore.
 start() ->
+    mongoose_wpool:setup_env(),
     case ejabberd_config:get_local_option(riak_server) of
         undefined ->
             ignore;
         RiakOpts ->
-            {_, RiakAddr} = get_riak_opt(address, RiakOpts),
-            {_, RiakPort} = get_riak_opt(port, RiakOpts),
-            {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
-            SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
-            SecurityOpts = [get_riak_opt(OptKey, RiakOpts) ||
-                               OptKey <- SecurityOptsKeys],
-            RiakPBOpts = [auto_reconnect, keepalive],
-            RiakPBOptsExceeded =
-                maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
-            mongoose_riak_sup:start(Workers, RiakAddr, RiakPort,
-                                    RiakPBOptsExceeded)
+            start_pool(RiakOpts)
     end.
+
+start_pool(RiakOpts) ->
+    {_, RiakAddr} = get_riak_opt(address, RiakOpts),
+    {_, RiakPort} = get_riak_opt(port, RiakOpts),
+    {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
+    SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
+    SecurityOpts = [get_riak_opt(OptKey, RiakOpts) ||
+        OptKey <- SecurityOptsKeys],
+    RiakPBOpts = [auto_reconnect, keepalive],
+    WorkerArgs =
+        maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
+    Worker = {?MODULE, [RiakAddr, RiakPort, WorkerArgs]},
+    PoolOpts = [{workers, Workers},
+        {worker, Worker}]
+        ++  proplists:get_value(pool_options, RiakOpts, []),
+
+    PoolTimeout = proplists:get_value(pool_timeout, RiakOpts, 5000),
+    mongoose_wpool:save_pool_settings(pool_name(), #pool{pool_timeout = PoolTimeout}),
+    wpool:start_pool(pool_name(), PoolOpts).
 
 -spec stop() -> _.
 stop() ->
-    mongoose_riak_sup:stop().
-
--spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(), proplists:proplist()) ->
-    {ok, pid()} | {error, term()}.
-start_worker(Address, Port, Opts) ->
-    riakc_pb_socket:start_link(Address, Port, Opts).
+    wpool:stop_pool(pool_name()).
 
 -spec put(riakc_obj()) ->
     ok | {ok, riakc_obj()} | {ok, key()} | {error, term()}.
@@ -178,16 +198,6 @@ get_index(BucketType, Index, Value, Opts) ->
 get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
     ?CALL(get_index_range, [Bucket, Index, StartKey, EndKey, Opts]).
 
--spec get_worker() -> pid() | undefined.
-get_worker() ->
-    case catch cuesport:get_worker(pool_name()) of
-        Pid  when is_pid(Pid) ->
-            Pid;
-        _ ->
-            undefined
-    end.
-
-
 -spec pool_name() ->  atom().
 pool_name() -> riak_pool.
 
@@ -195,9 +205,13 @@ update_map_op({Field, Fun}, Map) ->
     riakc_map:update(Field, Fun, Map).
 
 call_riak(F, ArgsIn) ->
-    Worker = get_worker(),
-    Args = [Worker | ArgsIn],
-    apply(riakc_pb_socket, F, Args).
+    PoolName = pool_name(),
+    case mongoose_wpool:get_pool_settings(PoolName) of
+        undefined ->
+            {error, pool_not_started};
+        #pool{pool_timeout = PoolTimeout} ->
+            wpool:call(PoolName, {F, ArgsIn}, available_worker, PoolTimeout)
+    end.
 
 %% @doc Gets a particular option from `Opts`. They're expressed as a list
 %% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
@@ -221,3 +235,44 @@ verify_if_riak_opt_exists(Opt, _) -> Opt.
 maybe_add_additional_opts(Opts, AdditionalOpts) ->
     Opts2 = [verify_if_riak_opt_exists(Opt, []) || Opt <- AdditionalOpts],
     lists:flatten(Opts ++ Opts2).
+
+
+%%%===================================================================
+%%% proxy worker
+%%%===================================================================
+
+%% It is required here because we want to use available_worker strategy, while:
+%%
+%% - worker_pool works by calling gen_server:call(WorkerPid, ...), which means the worker must
+%%   provide all its functionality via handle_call
+%% - riakc_pb_socket has plenty of api methods, there is no way to get straight to handle_call
+%% - we could get a worker from a pool and use it to directly call riakc_pb_socket api
+%% - ...but you can't do it if you want to use available_worker strategy
+
+start_link(RiakAddr, RiakPort, WorkerArgs) ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [RiakAddr, RiakPort, WorkerArgs], []).
+
+init([RiakAddr, RiakPort, WorkerArgs]) ->
+    {ok, Conn} = riakc_pb_socket:start_link(RiakAddr, RiakPort, WorkerArgs),
+    {ok, #state{conn = Conn}}.
+
+handle_call({F, ArgsIn}, _From, #state{conn = Worker} = State) ->
+    Args = [Worker | ArgsIn],
+    Res = apply(riakc_pb_socket, F, Args),
+    {reply, Res, State}.
+
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
