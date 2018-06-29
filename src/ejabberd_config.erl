@@ -331,85 +331,54 @@ parse_file(ConfigFile) ->
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
-    NodeStates = [config_state()],
-    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
-    print_reload_strategy(ReloadStrategy),
-    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
-    case FailedChecks of
-        [] ->
-            Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
-            try_reload_cluster(ReloadStrategy, Changes),
-            assert_local_config_reloaded(),
-            {ok, io_lib:format("# Reloaded: ~s", [node()])};
-        [no_update_required] ->
-            {ok, io_lib:format("# No update required: ~s", [node()])};
-        [_|_] ->
-            Filename = dump_reload_state(reload_local, ReloadStrategy),
-            error(#{reason => reload_local_failed,
-                    failed_checks => FailedChecks,
-                    dump_filename => Filename})
-    end.
+    reload_nodes(reload_local, [node()], false).
 
--spec reload_cluster() -> {ok, string()} | no_return().
+-spec reload_cluster() -> {ok, iolist()} | no_return().
 reload_cluster() ->
-    NodeStates = config_states(),
+    reload_nodes(reload_cluster, all_cluster_nodes(), false).
+
+-spec reload_cluster_dryrun() -> {ok, iolist()} | no_return().
+reload_cluster_dryrun() ->
+    reload_nodes(reload_cluster_dryrun, all_cluster_nodes(), true).
+
+reload_nodes(Command, Nodes, DryRun) ->
+    NodeStates = config_states(Nodes),
     ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
     print_reload_strategy(ReloadStrategy),
     FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
         [] ->
             Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
-            try_reload_cluster(ReloadStrategy, Changes),
-            assert_config_reloaded(),
+            apply_reload_changes(DryRun, Nodes, ReloadStrategy, Changes),
             {ok, "done"};
         [no_update_required] ->
-            {ok, io_lib:format("No update required", [])};
+            {ok, "No update required"};
         [_|_] ->
-            Filename = dump_reload_state(reload_cluster, ReloadStrategy),
-            error(#{reason => reload_cluster_failed,
+            Filename = dump_reload_state(Command, ReloadStrategy),
+            error(#{reason => reload_failed,
+                    nodes => Nodes,
+                    from_command => Command,
                     failed_checks => FailedChecks,
-                    dump_filename => Filename})
+                    dump_filename => Filename,
+                    dry_run => DryRun})
     end.
 
-reload_cluster_dryrun() ->
-    NodeStates = config_states(),
-    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
-    print_reload_strategy(ReloadStrategy),
-    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
-    case FailedChecks of
-        [] ->
-            _Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
-            {ok, "done"};
-        [no_update_required] ->
-            {ok, io_lib:format("No update required", [])};
-        [_|_] ->
-            Filename = dump_reload_state(reload_cluster_dryrun, ReloadStrategy),
-            error(#{reason => reload_cluster_failed,
-                    failed_checks => FailedChecks,
-                    dump_filename => Filename})
-    end.
+apply_reload_changes(_DryRun = false, Nodes, ReloadStrategy, Changes) ->
+    try_reload_cluster(ReloadStrategy, Changes),
+    assert_config_reloaded(Nodes);
+apply_reload_changes(_DryRun = true, _Nodes, _ReloadStrategy, _Changes) ->
+    ok.
 
 print_flat_config() ->
     %% Without global opts
     FlatOptsIolist = mongoose_config_helper:get_flat_opts_iolist(),
     {ok, io_lib:format("Flat options:~n~s", [FlatOptsIolist])}.
 
-assert_config_reloaded() ->
-    NodeStates = config_states(),
-    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
-    case FailedChecks of
-        [no_update_required] ->
-            ok;
-        _ ->
-            Filename = dump_reload_state(assert_config_reloaded, ReloadStrategy),
-            error(#{reason => assert_config_reloaded,
-                    failed_checks => FailedChecks,
-                    dump_filename => Filename})
-    end.
-
 assert_local_config_reloaded() ->
-    NodeStates = [config_state()],
+    assert_config_reloaded([node()]).
+
+assert_config_reloaded(Nodes) ->
+    NodeStates = config_states(Nodes),
     ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
     FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
@@ -418,6 +387,7 @@ assert_local_config_reloaded() ->
         _ ->
             Filename = dump_reload_state(assert_local_config_reloaded, ReloadStrategy),
             error(#{reason => assert_config_reloaded,
+                    nodes => Nodes,
                     failed_checks => FailedChecks,
                     dump_filename => Filename})
     end.
@@ -682,15 +652,16 @@ config_state() ->
       missing_files => MissingFiles,
       required_files => RequiredFiles}.
 
+config_states() ->
+    config_states(all_cluster_nodes()).
+
 %% @doc Returns config states from all nodes in cluster
 %% State from the local node comes as head of a list
-config_states() ->
-    ThisNodeState = config_state(),
-    Nodes = other_cluster_nodes(),
+config_states(Nodes) ->
     {S, F} = rpc:multicall(Nodes, ?MODULE, config_state, [], 30000),
     case F of
         [] ->
-            [ThisNodeState|S];
+            S;
         [_|_] ->
             erlang:error(#{issue => config_state_failed,
                            cluster_nodes => Nodes,
@@ -711,6 +682,9 @@ config_info() ->
     [{config_file_version, compute_config_file_version()},
      {config_version, compute_loaded_config_version()}].
 
+
+all_cluster_nodes() ->
+    [node()|other_cluster_nodes()].
 
 -spec other_cluster_nodes() -> [node()].
 other_cluster_nodes() ->
