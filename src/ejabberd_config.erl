@@ -344,7 +344,6 @@ reload_cluster_dryrun() ->
 reload_nodes(Command, Nodes, DryRun) ->
     NodeStates = config_states(Nodes),
     ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
-    print_reload_strategy(ReloadStrategy),
     FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
         [] ->
@@ -391,10 +390,6 @@ assert_config_reloaded(Nodes) ->
                     failed_checks => FailedChecks,
                     dump_filename => Filename})
     end.
-
-print_reload_strategy(_ReloadStrategy) ->
-    %% TODO
-    ok.
 
 dump_reload_state(From, ReloadStrategy) ->
     Map = ReloadStrategy#{what => From},
