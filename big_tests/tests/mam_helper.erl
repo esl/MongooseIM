@@ -1105,8 +1105,8 @@ is_mam_possible(Host) ->
     is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
 
 is_riak_enabled(_Host) ->
-    case rpc(mim(), mongoose_riak, get_worker, []) of
-        Pid when is_pid(Pid) ->
+    case rpc(mim(), mongoose_riak, list_buckets, [<<"default">>]) of
+        {ok, _} ->
             true;
         _ ->
             false
