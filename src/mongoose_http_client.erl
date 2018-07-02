@@ -125,24 +125,22 @@ make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
                           selection_strategy = SelectionStrategy} = PoolOpts,
     FullPath = <<PathPrefix/binary, Path/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
-    try
-        case wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
-            {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
-                {ok, {Code, RespBody}};
-            {error, timeout} ->
-                {error, request_timeout};
-            {'EXIT', Reason} ->
-                {error, {'EXIT', Reason}};
-            {error, Reason} ->
-                {error, Reason}
-        end
+    try wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
+        {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
+            {ok, {Code, RespBody}};
+        {error, timeout} ->
+            {error, request_timeout};
+        {'EXIT', Reason} ->
+            {error, {'EXIT', Reason}};
+        {error, Reason} ->
+            {error, Reason}
     catch
         exit:timeout ->
             {error, pool_timeout};
         exit:no_workers ->
             {error, pool_down};
-        Type:Reason ->
-            {error, {Type, Reason}}
+        Type:Error ->
+            {error, {Type, Error}}
     end.
 
 pool_name(PoolName) ->
