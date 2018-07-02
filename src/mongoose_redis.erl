@@ -10,7 +10,7 @@
 -define(POOL_NAME, redis_pool).
 
 %% API
--export([start_pool/1, cmd/1, cmd/2]).
+-export([start_pool/1, cmd/1, cmd/2, cmds/1, cmds/2]).
 
 %%%===================================================================
 %%% API
@@ -41,6 +41,14 @@ start_pool(Opts) ->
 cmd(Cmd) ->
     cmd(Cmd, 5000).
 
+-spec cmds([iolist()]) -> undefined
+                          | binary()
+                          | [binary() | [binary() | integer()] | integer() | {'error', _}]
+                          | integer()
+                          | {'error', _}.
+cmds(Cmd) ->
+    cmds(Cmd, 5000).
+
 -spec cmd(iolist(), integer()) -> undefined
                                   | binary()
                                   | [binary() | [binary() | integer()] | integer() | {'error', _}]
@@ -48,6 +56,17 @@ cmd(Cmd) ->
                                   | {'error', _}.
 cmd(Cmd, Timeout) ->
     case eredis:q(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout) of
+        {ok, Value} -> Value;
+        V -> V
+    end.
+
+-spec cmds([iolist()], integer()) -> undefined
+                                     | binary()
+                                     | [binary() | [binary() | integer()] | integer() | {'error', _}]
+                                     | integer()
+                                     | {'error', _}.
+cmds(Cmd, Timeout) ->
+    case eredis:qp(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout) of
         {ok, Value} -> Value;
         V -> V
     end.

@@ -87,16 +87,16 @@ create_session(User, Server, Resource, Session) ->
             MergedInfoSession = mongoose_session:merge_info(Session, OldSession),
             BOldSession = term_to_binary(OldSession),
             BSession = term_to_binary(MergedInfoSession),
-            mongoose_redis:cmd(["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)]),
-            mongoose_redis:cmd(["SREM", hash(User, Server), BOldSession]),
-            mongoose_redis:cmd(["SREM", hash(User, Server, Resource), BOldSession]),
-            mongoose_redis:cmd(["SADD", hash(User, Server), BSession]),
-            mongoose_redis:cmd(["SADD", hash(User, Server, Resource), BSession]);
+            mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
+                                 ["SREM", hash(User, Server), BOldSession],
+                                 ["SREM", hash(User, Server, Resource), BOldSession],
+                                 ["SADD", hash(User, Server), BSession],
+                                 ["SADD", hash(User, Server, Resource), BSession]]);
         false ->
             BSession = term_to_binary(Session),
-            mongoose_redis:cmd(["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)]),
-            mongoose_redis:cmd(["SADD", hash(User, Server), BSession]),
-            mongoose_redis:cmd(["SADD", hash(User, Server, Resource), BSession])
+            mongoose_redis:cmds([["SADD", n(node()), hash(User, Server, Resource, Session#session.sid)],
+                                 ["SADD", hash(User, Server), BSession],
+                                 ["SADD", hash(User, Server, Resource), BSession]])
     end.
 
 
@@ -109,10 +109,9 @@ delete_session(SID, User, Server, Resource) ->
     case lists:keysearch(SID, #session.sid, Sessions) of
         {value, Session} ->
             BSession = term_to_binary(Session),
-
-            mongoose_redis:cmd(["SREM", hash(User, Server), BSession]),
-            mongoose_redis:cmd(["SREM", hash(User, Server, Resource), BSession]),
-            mongoose_redis:cmd(["SREM", n(node()), hash(User, Server, Resource, SID)]);
+            mongoose_redis:cmds([["SREM", hash(User, Server), BSession],
+                                 ["SREM", hash(User, Server, Resource), BSession],
+                                 ["SREM", n(node()), hash(User, Server, Resource, SID)]]);
         false ->
             ok
     end.
