@@ -10,9 +10,9 @@
 -export([state_to_flat_local_opts/1]).
 -export([make_categorized_options/3]).
 -export([state_to_categorized_options/1]).
--export([cluster_reload_strategy/1]).
--export([strategy_to_failed_checks/1]).
--export([strategy_to_changes_to_apply/1]).
+-export([states_to_reloading_context/1]).
+-export([context_to_failed_checks/1]).
+-export([context_to_changes_to_apply/1]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
@@ -44,7 +44,7 @@
         missing_files => list(file:filename()),
         required_files => list(file:filename())}.
 
--type reloading_strategy() :: map().
+-type reloading_context() :: map().
 
 -type reloading_change() :: #{
         coordinator_node => node() | undefined,
@@ -252,9 +252,9 @@ make_categorized_options(GlobalConfig, LocalConfig, HostLocalConfig) ->
       local_config => LocalConfig,
       host_config => HostLocalConfig}.
 
--spec cluster_reload_strategy([node_state()]) -> reloading_strategy().
-cluster_reload_strategy(NodeStates) ->
-    Data = prepare_data_for_cluster_reload_strategy(NodeStates),
+-spec states_to_reloading_context([node_state()]) -> reloading_context().
+states_to_reloading_context(NodeStates) ->
+    Data = prepare_data_for_cluster_reloading_context(NodeStates),
     Data2 = cluster_reload_version_check(Data),
     Data3 = calculate_changes(Data2),
     calculate_inconsistent_opts(Data3).
@@ -278,12 +278,12 @@ inconsistent_node_opts(NodeOpts) ->
 filter_out_empty_value_pairs(KVs) ->
     [KV || {_K,V} = KV <- KVs, V =/= []].
 
--spec strategy_to_failed_checks(reloading_strategy()) -> list().
-strategy_to_failed_checks(#{failed_checks := FailedChecks}) ->
+-spec context_to_failed_checks(reloading_context()) -> list().
+context_to_failed_checks(#{failed_checks := FailedChecks}) ->
     lists:map(fun(#{check := CheckName}) -> CheckName end, FailedChecks).
 
--spec strategy_to_changes_to_apply(reloading_strategy()) -> [reloading_change()].
-strategy_to_changes_to_apply(#{coordinator_node := Coordinator,
+-spec context_to_changes_to_apply(reloading_context()) -> [reloading_change()].
+context_to_changes_to_apply(#{coordinator_node := Coordinator,
                                changes_to_apply := Changes}) ->
     [Change#{coordinator_node => Coordinator} || Change <- Changes].
 
@@ -416,7 +416,7 @@ all_same(Key, Data) ->
             false
     end.
 
-prepare_data_for_cluster_reload_strategy([CoordinatorNodeState|_] = NodeStates) ->
+prepare_data_for_cluster_reloading_context([CoordinatorNodeState|_] = NodeStates) ->
     ExtNodeStates = extend_node_states(NodeStates),
     %% check that global options are the same everywhere:
     %% - same before

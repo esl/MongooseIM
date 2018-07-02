@@ -10,7 +10,7 @@ all() -> [
     parse_config_with_underscore_pattern_case,
     node_specific_options_presents_case,
     node_specific_options_missing_case,
-    cluster_reload_strategy_case,
+    states_to_reloading_context_case,
     auth_method_and_cluster_reload_case,
     no_duplicate_options_case,
     get_config_diff_case,
@@ -217,15 +217,15 @@ terms_to_categorized_options(Terms) ->
     State = mongoose_config_parser:parse_terms(Terms),
     mongoose_config_reload:state_to_categorized_options(State).
 
-cluster_reload_strategy_case(_C) ->
-    Strategy = mongoose_config_reload:cluster_reload_strategy(example_config_states()),
-%   ct:pal("Strategy ~p", [Strategy]),
+states_to_reloading_context_case(_C) ->
+    Context = mongoose_config_reload:states_to_reloading_context(example_config_states()),
+%   ct:pal("Context ~p", [Context]),
     ok.
 
 %% Check that auth_method is treated correctly
 auth_method_and_cluster_reload_case(_C) ->
-    Strategy = mongoose_config_reload:cluster_reload_strategy(auth_config_states()),
-%   ct:pal("Auth strategy ~p", [Strategy]),
+    Context = mongoose_config_reload:states_to_reloading_context(auth_config_states()),
+%   ct:pal("Auth context ~p", [Context]),
     ok.
 
 no_duplicate_options_case(_C) ->

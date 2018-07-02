@@ -331,17 +331,17 @@ reload_cluster_dryrun() ->
 
 reload_nodes(Command, Nodes, DryRun) ->
     NodeStates = config_states(Nodes),
-    ReloadStrategy = mongoose_config_reload:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config_reload:strategy_to_failed_checks(ReloadStrategy),
+    ReloadContext = mongoose_config_reload:states_to_reloading_context(NodeStates),
+    FailedChecks = mongoose_config_reload:context_to_failed_checks(ReloadContext),
     case FailedChecks of
         [] ->
-            Changes = mongoose_config_reload:strategy_to_changes_to_apply(ReloadStrategy),
-            apply_reload_changes(DryRun, Nodes, ReloadStrategy, Changes),
+            Changes = mongoose_config_reload:context_to_changes_to_apply(ReloadContext),
+            apply_reload_changes(DryRun, Nodes, ReloadContext, Changes),
             {ok, "done"};
         [no_update_required] ->
             {ok, "No update required"};
         [_|_] ->
-            Filename = dump_reload_state(Command, ReloadStrategy),
+            Filename = dump_reload_state(Command, ReloadContext),
             error(#{reason => reload_failed,
                     nodes => Nodes,
                     from_command => Command,
@@ -350,10 +350,10 @@ reload_nodes(Command, Nodes, DryRun) ->
                     dry_run => DryRun})
     end.
 
-apply_reload_changes(_DryRun = false, Nodes, ReloadStrategy, Changes) ->
-    try_reload_cluster(ReloadStrategy, Changes),
+apply_reload_changes(_DryRun = false, Nodes, ReloadContext, Changes) ->
+    try_reload_cluster(ReloadContext, Changes),
     assert_config_reloaded(Nodes);
-apply_reload_changes(_DryRun = true, _Nodes, _ReloadStrategy, _Changes) ->
+apply_reload_changes(_DryRun = true, _Nodes, _ReloadContext, _Changes) ->
     ok.
 
 print_flat_config() ->
@@ -366,21 +366,21 @@ assert_local_config_reloaded() ->
 
 assert_config_reloaded(Nodes) ->
     NodeStates = config_states(Nodes),
-    ReloadStrategy = mongoose_config_reload:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config_reload:strategy_to_failed_checks(ReloadStrategy),
+    ReloadContext = mongoose_config_reload:states_to_reloading_context(NodeStates),
+    FailedChecks = mongoose_config_reload:context_to_failed_checks(ReloadContext),
     case FailedChecks of
         [no_update_required] ->
             ok;
         _ ->
-            Filename = dump_reload_state(assert_local_config_reloaded, ReloadStrategy),
+            Filename = dump_reload_state(assert_local_config_reloaded, ReloadContext),
             error(#{reason => assert_config_reloaded,
                     nodes => Nodes,
                     failed_checks => FailedChecks,
                     dump_filename => Filename})
     end.
 
-dump_reload_state(From, ReloadStrategy) ->
-    Map = ReloadStrategy#{what => From},
+dump_reload_state(From, ReloadContext) ->
+    Map = ReloadContext#{what => From},
     Io = io_lib:format("~p.", [Map]),
     Filename = dump_reload_state_filename(),
     %% Wow, so important!
@@ -397,7 +397,7 @@ dump_reload_state_filename() ->
     Filename = "reload_state_" ++ DateTime ++ ".dump",
     filename:join(Pwd, Filename).
 
-try_reload_cluster(ReloadStrategy, Changes) ->
+try_reload_cluster(ReloadContext, Changes) ->
     try
         do_reload_cluster(Changes)
     catch
@@ -406,7 +406,7 @@ try_reload_cluster(ReloadStrategy, Changes) ->
             ?CRITICAL_MSG("issue=try_reload_cluster_failed "
                            "reason=~p:~p stacktrace=~1000p",
                           [Class, Reason, Stacktrace]),
-            Filename = dump_reload_state(try_reload_cluster, ReloadStrategy),
+            Filename = dump_reload_state(try_reload_cluster, ReloadContext),
             Reason2 = #{issue => try_reload_cluster_failed,
                         reason => Reason,
                         dump_filename => Filename},
