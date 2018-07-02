@@ -105,10 +105,6 @@ special_local_config_opts() ->
     [node_start].
 
 
--spec compare_modules(term(), term()) -> compare_result().
-compare_modules(OldMods, NewMods) ->
-    compare_terms(OldMods, NewMods, 1, 2).
-
 -spec compare_listeners(term(), term()) -> compare_result().
 compare_listeners(OldListeners, NewListeners) ->
     compare_terms(map_listeners(OldListeners), map_listeners(NewListeners), 1, 2).
