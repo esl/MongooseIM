@@ -69,7 +69,7 @@ start_pool(Name, Opts) ->
 
 -spec stop_pool(atom()) -> ok.
 stop_pool(Name) ->
-    wpool:stop_pool(pool_name(Name)),
+    wpool:stop_sup_pool(pool_name(Name)),
     mongoose_wpool:delete_pool_settings(pool_name(Name)),
     ok.
 
@@ -94,7 +94,7 @@ start(Opts) ->
 
 do_start_pool(PoolName, Opts) ->
     SelectionStrategy = gen_mod:get_opt(selection_strategy, Opts, available_worker),
-    PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "")),
+    PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, Opts, 2000),
     PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
     PoolSettings = #pool{selection_strategy = SelectionStrategy,
@@ -107,7 +107,7 @@ do_start_pool(PoolName, Opts) ->
     HttpOpts = gen_mod:get_opt(http_opts, Opts, []),
     PoolOpts = [{workers, PoolSize}, {worker, {fusco, {Server, HttpOpts}}}
                 | gen_mod:get_opt(pool_opts, Opts, [])],
-    wpool:start_pool(PoolName, PoolOpts).
+    wpool:start_sup_pool(PoolName, PoolOpts).
 
 make_request(Pool, Path, Method, Headers, Query) ->
     PoolName = pool_name(Pool),

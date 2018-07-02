@@ -25,7 +25,7 @@ start_pool(Opts) ->
     PoolOptions = [{workers, PoolSize},
                    {worker, {eredis_client, makeargs(RedisOpts)}}
                   ] ++ PoolOpts,
-    Res = wpool:start_pool(?POOL_NAME, PoolOptions),
+    Res = wpool:start_sup_pool(?POOL_NAME, PoolOptions),
     case Res of
         {ok, _Pid} -> Res;
         Error ->

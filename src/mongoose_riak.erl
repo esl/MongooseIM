@@ -91,11 +91,11 @@ start_pool(RiakOpts) ->
 
     PoolTimeout = proplists:get_value(pool_timeout, RiakOpts, 5000),
     mongoose_wpool:save_pool_settings(pool_name(), #pool{pool_timeout = PoolTimeout}),
-    wpool:start_pool(pool_name(), PoolOpts).
+    wpool:start_sup_pool(pool_name(), PoolOpts).
 
 -spec stop() -> _.
 stop() ->
-    wpool:stop_pool(pool_name()).
+    wpool:stop_sup_pool(pool_name()).
 
 -spec put(riakc_obj()) ->
     ok | {ok, riakc_obj()} | {ok, key()} | {error, term()}.
