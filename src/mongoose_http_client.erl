@@ -58,7 +58,7 @@ stop() ->
 
 -spec start_pool(atom(), list()) -> ok | {error, already_started}.
 start_pool(Name, Opts) ->
-    PoolName = pool_name(Name),
+    PoolName = pool_name(new, Name),
     case whereis(PoolName) of
         undefined ->
             mongoose_wpool:setup_env(),
@@ -97,10 +97,10 @@ do_start_pool(PoolName, Opts) ->
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, Opts, 2000),
     PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
-    PoolSettings = #pool{selection_strategy = SelectionStrategy,
-                         path_prefix = PathPrefix,
-                         request_timeout = RequestTimeout,
-                         pool_timeout = PoolTimeout},
+    PoolSettings = #mongoose_worker_pool{selection_strategy = SelectionStrategy,
+                                         extra = PathPrefix,
+                                         request_timeout = RequestTimeout,
+                                         pool_timeout = PoolTimeout},
     mongoose_wpool:save_pool_settings(PoolName, PoolSettings),
     PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
     Server = gen_mod:get_opt(server, Opts),
@@ -119,27 +119,34 @@ make_request(Pool, Path, Method, Headers, Query) ->
     end.
 
 make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
-    #pool{path_prefix = PathPrefix,
-          request_timeout = RequestTimeout,
-          pool_timeout = PoolTimeout,
-          selection_strategy = SelectionStrategy} = PoolOpts,
+    #mongoose_worker_pool{extra = PathPrefix,
+                          request_timeout = RequestTimeout,
+                          pool_timeout = PoolTimeout,
+                          selection_strategy = SelectionStrategy} = PoolOpts,
     FullPath = <<PathPrefix/binary, Path/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
-    case catch wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
-        {'EXIT', timeout} ->
+    try
+        case wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
+            {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
+                {ok, {Code, RespBody}};
+            {error, timeout} ->
+                {error, request_timeout};
+            {'EXIT', Reason} ->
+                {error, {'EXIT', Reason}};
+            {error, Reason} ->
+                {error, Reason}
+        end
+    catch
+        exit:timeout ->
             {error, pool_timeout};
-        {'EXIT', no_workers} ->
+        exit:no_workers ->
             {error, pool_down};
-        {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
-            {ok, {Code, RespBody}};
-        {error, timeout} ->
-            {error, request_timeout};
-        {'EXIT', Reason} ->
-            {error, {'EXIT', Reason}};
-        {error, Reason} ->
-            {error, Reason}
+        Type:Reason ->
+            {error, {Type, Reason}}
     end.
 
 pool_name(PoolName) ->
-    list_to_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
+    list_to_existing_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
 
+pool_name(new, PoolName) ->
+    list_to_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).

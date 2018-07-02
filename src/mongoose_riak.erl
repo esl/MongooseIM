@@ -90,7 +90,7 @@ start_pool(RiakOpts) ->
         ++  proplists:get_value(pool_options, RiakOpts, []),
 
     PoolTimeout = proplists:get_value(pool_timeout, RiakOpts, 5000),
-    mongoose_wpool:save_pool_settings(pool_name(), #pool{pool_timeout = PoolTimeout}),
+    mongoose_wpool:save_pool_settings(pool_name(), #mongoose_worker_pool{pool_timeout = PoolTimeout}),
     wpool:start_sup_pool(pool_name(), PoolOpts).
 
 -spec stop() -> _.
@@ -209,7 +209,7 @@ call_riak(F, ArgsIn) ->
     case mongoose_wpool:get_pool_settings(PoolName) of
         undefined ->
             {error, pool_not_started};
-        #pool{pool_timeout = PoolTimeout} ->
+        #mongoose_worker_pool{pool_timeout = PoolTimeout} ->
             wpool:call(PoolName, {F, ArgsIn}, available_worker, PoolTimeout)
     end.
 

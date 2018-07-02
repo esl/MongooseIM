@@ -32,7 +32,7 @@ get_pool_settings(PoolName) ->
     end.
 
 save_pool_settings(PoolName, PoolSettings) ->
-    ets:insert(pool_settings_tab(), PoolSettings#pool{name = PoolName}).
+    ets:insert(pool_settings_tab(), PoolSettings#mongoose_worker_pool{name = PoolName}).
 
 delete_pool_settings(PoolName) ->
     ets:delete(pool_settings_tab(), PoolName).

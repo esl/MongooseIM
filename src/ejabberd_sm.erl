@@ -535,7 +535,11 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(_, state()) -> 'ok'.
 terminate(_Reason, _State) ->
-    catch ejabberd_commands:unregister_commands(commands()),
+    try
+        ejabberd_commands:unregister_commands(commands())
+    catch E:R ->
+        ?ERROR_MSG("Caught error while terminating sm: ~p:~p", [E, R])
+    end,
     ok.
 
 %%--------------------------------------------------------------------

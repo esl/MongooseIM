@@ -36,9 +36,9 @@
 -include("mongoose_logger.hrl").
 
 %% for worker_pool
--record(pool, {name :: atom(),
+-record(mongoose_worker_pool, {name :: atom(),
     selection_strategy :: atom(),
-    path_prefix :: binary(),
+    extra :: term(),
     request_timeout :: pos_integer(),
     pool_timeout :: pos_integer() }).
 
