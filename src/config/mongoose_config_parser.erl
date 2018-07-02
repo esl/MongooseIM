@@ -38,7 +38,7 @@
                | [value()]
                | tuple().
 
--export_type([key/0, value/0]).
+-export_type([state/0, key/0, value/0]).
 
 -record(state, {opts = [] :: list(),
                 hosts = [] :: [host()],

@@ -66,24 +66,12 @@
 
 -define(CONFIG_RELOAD_TIMEOUT, 30000).
 
--type key() :: atom()
-             | {key(), jid:server() | atom() | list()}
-             | {atom(), atom(), atom()}
-             | binary(). % TODO: binary is questionable here
-
--type value() :: atom()
-               | binary()
-               | integer()
-               | string()
-               | [value()]
-               | tuple().
-
--export_type([key/0, value/0]).
-
 -type compare_result() :: mongoose_config_parser:compare_result().
 
 -type host() :: any(). % TODO: specify this
 -type state() :: mongoose_config_parser:state().
+-type key() :: mongoose_config_parser:key().
+-type value() :: mongoose_config_parser:value().
 
 -spec start() -> ok.
 start() ->
