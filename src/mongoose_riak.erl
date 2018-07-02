@@ -49,19 +49,6 @@
 -type riakc_map_op() :: {{binary(), MapDataType :: atom()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
-%% proxy worker API
--export([start_link/3]).
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
-
--define(SERVER, ?MODULE).
-
--record(state, {conn}).
-
 %%%%
 
 -spec start() -> {ok, pid()} | ignore.
@@ -79,18 +66,13 @@ start_pool(RiakOpts) ->
     {_, RiakPort} = get_riak_opt(port, RiakOpts),
     {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
     SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
-    SecurityOpts = [get_riak_opt(OptKey, RiakOpts) ||
-        OptKey <- SecurityOptsKeys],
+    SecurityOpts = [get_riak_opt(OptKey, RiakOpts) || OptKey <- SecurityOptsKeys],
     RiakPBOpts = [auto_reconnect, keepalive],
-    WorkerArgs =
-        maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
-    Worker = {?MODULE, [RiakAddr, RiakPort, WorkerArgs]},
+    WorkerArgs = maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
+    Worker = {riakc_pb_socket, [RiakAddr, RiakPort, WorkerArgs]},
     PoolOpts = [{workers, Workers},
-        {worker, Worker}]
-        ++  proplists:get_value(pool_options, RiakOpts, []),
-
-    PoolTimeout = proplists:get_value(pool_timeout, RiakOpts, 5000),
-    mongoose_wpool:save_pool_settings(pool_name(), #mongoose_worker_pool{pool_timeout = PoolTimeout}),
+                {worker, Worker}]
+                ++  proplists:get_value(pool_options, RiakOpts, []),
     wpool:start_sup_pool(pool_name(), PoolOpts).
 
 -spec stop() -> _.
@@ -206,12 +188,10 @@ update_map_op({Field, Fun}, Map) ->
 
 call_riak(F, ArgsIn) ->
     PoolName = pool_name(),
-    case mongoose_wpool:get_pool_settings(PoolName) of
-        undefined ->
-            {error, pool_not_started};
-        #mongoose_worker_pool{pool_timeout = PoolTimeout} ->
-            wpool:call(PoolName, {F, ArgsIn}, available_worker, PoolTimeout)
-    end.
+    % TODO: improve worker_pool, then use available_worker strategy here
+    Worker = wpool_pool:next_worker(PoolName),
+    Args = [Worker | ArgsIn],
+    apply(riakc_pb_socket, F, Args).
 
 %% @doc Gets a particular option from `Opts`. They're expressed as a list
 %% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
@@ -236,43 +216,3 @@ maybe_add_additional_opts(Opts, AdditionalOpts) ->
     Opts2 = [verify_if_riak_opt_exists(Opt, []) || Opt <- AdditionalOpts],
     lists:flatten(Opts ++ Opts2).
 
-
-%%%===================================================================
-%%% proxy worker
-%%%===================================================================
-
-%% It is required here because we want to use available_worker strategy, while:
-%%
-%% - worker_pool works by calling gen_server:call(WorkerPid, ...), which means the worker must
-%%   provide all its functionality via handle_call
-%% - riakc_pb_socket has plenty of api methods, there is no way to get straight to handle_call
-%% - we could get a worker from a pool and use it to directly call riakc_pb_socket api
-%% - ...but you can't do it if you want to use available_worker strategy
-
-start_link(RiakAddr, RiakPort, WorkerArgs) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [RiakAddr, RiakPort, WorkerArgs], []).
-
-init([RiakAddr, RiakPort, WorkerArgs]) ->
-    {ok, Conn} = riakc_pb_socket:start_link(RiakAddr, RiakPort, WorkerArgs),
-    {ok, #state{conn = Conn}}.
-
-handle_call({F, ArgsIn}, _From, #state{conn = Worker} = State) ->
-    Args = [Worker | ArgsIn],
-    Res = apply(riakc_pb_socket, F, Args),
-    {reply, Res, State}.
-
-handle_cast(_Request, State) ->
-    {noreply, State}.
-
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-terminate(_Reason, _State) ->
-    ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
