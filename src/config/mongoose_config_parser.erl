@@ -2,7 +2,7 @@
 %% No ets table manipulations, no Mnesia, no starting modules, no file reading here.
 %% Everything here is safe, side effect free.
 %% OK, logging is possible, but keep it to minimum.
--module(mongoose_config).
+-module(mongoose_config_parser).
 -export([parse_terms/1]).
 -export([get_config_diff/2]).
 -export([compute_config_version/2]).
@@ -1071,7 +1071,7 @@ extend_node_state(NodeState=#{
                     ondisc_config_terms := OndiscTerms}) ->
     OndiscState = parse_terms(OndiscTerms),
     OndiscCatOptions = state_to_categorized_options(OndiscState),
-    NodeSpecificPatterns = mongoose_config:state_to_global_opt(node_specific_options, OndiscState, []),
+    NodeSpecificPatterns = state_to_global_opt(node_specific_options, OndiscState, []),
     LoadedFlatGlobalOptions = categorize_options_to_flat_global_config_opts(LoadedCatOptions),
     OndiscFlatGlobalOptions = categorize_options_to_flat_global_config_opts(OndiscCatOptions),
     LoadedFlatLocalOptions = categorize_options_to_flat_local_config_opts(LoadedCatOptions),

@@ -80,10 +80,10 @@
 
 -export_type([key/0, value/0]).
 
--type compare_result() :: mongoose_config:compare_result().
+-type compare_result() :: mongoose_config_parser:compare_result().
 
 -type host() :: any(). % TODO: specify this
--type state() :: mongoose_config:state().
+-type state() :: mongoose_config_parser:state().
 
 -spec start() -> ok.
 start() ->
@@ -187,11 +187,11 @@ describe_config_problem(Filename, Reason, LineNumber) ->
 %% @doc Include additional configuration files in the list of terms.
 -spec include_config_files([term()]) -> [term()].
 include_config_files(Terms) ->
-    Filenames = mongoose_config:config_filenames_to_include(Terms),
+    Filenames = mongoose_config_parser:config_filenames_to_include(Terms),
     Configs = lists:map(fun(Filename) ->
             {Filename, get_plain_terms_file(Filename)}
         end, Filenames),
-    mongoose_config:include_config_files(Terms, Configs).
+    mongoose_config_parser:include_config_files(Terms, Configs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
@@ -207,14 +207,14 @@ set_opts(State) ->
 
 -spec do_set_opts(state()) -> 'ok' | none().
 do_set_opts(State) ->
-    Opts = mongoose_config:state_to_opts(State),
+    Opts = mongoose_config_parser:state_to_opts(State),
     maybe_clean_global_opts(State),
     maybe_clean_local_opts(State),
     maybe_clean_acls_opts(State),
     lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
 
 maybe_clean_global_opts(State) ->
-    case mongoose_config:can_override(global, State) of
+    case mongoose_config_parser:can_override(global, State) of
         true ->
             clean_global_opts();
         _ ->
@@ -222,7 +222,7 @@ maybe_clean_global_opts(State) ->
     end.
 
 maybe_clean_local_opts(State) ->
-    case mongoose_config:can_override(local, State) of
+    case mongoose_config_parser:can_override(local, State) of
         true ->
             clean_local_opts();
         _ ->
@@ -230,7 +230,7 @@ maybe_clean_local_opts(State) ->
     end.
 
 maybe_clean_acls_opts(State) ->
-    case mongoose_config:can_override(acls, State) of
+    case mongoose_config_parser:can_override(acls, State) of
         true ->
             clean_acls_opts();
         _ ->
@@ -327,7 +327,7 @@ handle_table_does_not_exist_error(Table) ->
 -spec parse_file(file:name()) -> state().
 parse_file(ConfigFile) ->
     Terms = get_plain_terms_file(ConfigFile),
-    mongoose_config:parse_terms(Terms).
+    mongoose_config_parser:parse_terms(Terms).
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
@@ -343,11 +343,11 @@ reload_cluster_dryrun() ->
 
 reload_nodes(Command, Nodes, DryRun) ->
     NodeStates = config_states(Nodes),
-    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    ReloadStrategy = mongoose_config_parser:cluster_reload_strategy(NodeStates),
+    FailedChecks = mongoose_config_parser:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
         [] ->
-            Changes = mongoose_config:strategy_to_changes_to_apply(ReloadStrategy),
+            Changes = mongoose_config_parser:strategy_to_changes_to_apply(ReloadStrategy),
             apply_reload_changes(DryRun, Nodes, ReloadStrategy, Changes),
             {ok, "done"};
         [no_update_required] ->
@@ -378,8 +378,8 @@ assert_local_config_reloaded() ->
 
 assert_config_reloaded(Nodes) ->
     NodeStates = config_states(Nodes),
-    ReloadStrategy = mongoose_config:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config:strategy_to_failed_checks(ReloadStrategy),
+    ReloadStrategy = mongoose_config_parser:cluster_reload_strategy(NodeStates),
+    FailedChecks = mongoose_config_parser:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
         [no_update_required] ->
             ok;
@@ -479,7 +479,7 @@ handle_config_del(#config{key = hosts, value = Hosts}) ->
 
 %% handle add/remove new hosts
 handle_config_change({hosts, OldHosts, NewHosts}) ->
-    {ToDel, ToAdd} = mongoose_config:check_hosts(NewHosts, OldHosts),
+    {ToDel, ToAdd} = mongoose_config_parser:check_hosts(NewHosts, OldHosts),
     lists:foreach(fun remove_virtual_host/1, ToDel),
     lists:foreach(fun add_virtual_host/1, ToAdd);
 handle_config_change({language, _Old, _New}) ->
@@ -508,7 +508,7 @@ handle_local_config_del(#local_config{key = Key} = El) ->
     ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
 
 handle_local_config_change({listen, Old, New}) ->
-    reload_listeners(mongoose_config:compare_listeners(Old, New));
+    reload_listeners(mongoose_config_parser:compare_listeners(Old, New));
 handle_local_config_change({riak_server, _Old, _New}) ->
     mongoose_riak:stop(),
     mongoose_riak:start(),
@@ -612,7 +612,7 @@ get_host_local_config() ->
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun mongoose_config:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    Keys = lists:filter(fun mongoose_config_parser:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun(Key) ->
                                 mnesia:dirty_read(local_config, Key)
                             end,
@@ -627,7 +627,7 @@ get_categorized_options() ->
     Config = get_global_config(),
     Local = get_local_config(),
     HostsLocal = get_host_local_config(),
-    mongoose_config:make_categorized_options(Config, Local, HostsLocal).
+    mongoose_config_parser:make_categorized_options(Config, Local, HostsLocal).
 
 %% @doc Returns configs on disc and in memory for this node.
 %% This function prepares all state data to pass into pure code part
@@ -666,12 +666,12 @@ config_states(Nodes) ->
 compute_config_file_version() ->
     ConfigFile = get_ejabberd_config_path(),
     State = parse_file(ConfigFile),
-    mongoose_config:compute_config_file_version(State).
+    mongoose_config_parser:compute_config_file_version(State).
 
 compute_loaded_config_version() ->
     LC = get_local_config(),
     LCH = get_host_local_config(),
-    mongoose_config:compute_config_version(LC, LCH).
+    mongoose_config_parser:compute_config_version(LC, LCH).
 
 config_info() ->
     [{config_file_version, compute_config_file_version()},
@@ -691,7 +691,7 @@ is_mongooseim_node(Node) ->
     lists:keymember(mongooseim, 1, Apps).
 
 assert_required_files_exist(State) ->
-    RequiredFiles = mongoose_config:state_to_required_files(State),
+    RequiredFiles = mongoose_config_parser:state_to_required_files(State),
     case missing_files(RequiredFiles) of
         [] ->
             ok;
@@ -701,8 +701,8 @@ assert_required_files_exist(State) ->
     end.
 
 terms_to_missing_and_required_files(Terms) ->
-    State = mongoose_config:parse_terms(Terms),
-    RequiredFiles = mongoose_config:state_to_required_files(State),
+    State = mongoose_config_parser:parse_terms(Terms),
+    RequiredFiles = mongoose_config_parser:state_to_required_files(State),
     MissingFiles = missing_files(RequiredFiles),
     #{missing_files => MissingFiles, required_files => RequiredFiles}.
 
