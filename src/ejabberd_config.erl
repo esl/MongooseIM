@@ -54,7 +54,7 @@
 -export([config_state/0]).
 -export([config_states/0]).
 
--import(mongoose_config, [can_be_ignored/1]).
+-import(mongoose_config_parser, [can_be_ignored/1]).
 
 -export([apply_reloading_change/1]).
 
@@ -343,11 +343,11 @@ reload_cluster_dryrun() ->
 
 reload_nodes(Command, Nodes, DryRun) ->
     NodeStates = config_states(Nodes),
-    ReloadStrategy = mongoose_config_parser:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config_parser:strategy_to_failed_checks(ReloadStrategy),
+    ReloadStrategy = mongoose_config_reload:cluster_reload_strategy(NodeStates),
+    FailedChecks = mongoose_config_reload:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
         [] ->
-            Changes = mongoose_config_parser:strategy_to_changes_to_apply(ReloadStrategy),
+            Changes = mongoose_config_reload:strategy_to_changes_to_apply(ReloadStrategy),
             apply_reload_changes(DryRun, Nodes, ReloadStrategy, Changes),
             {ok, "done"};
         [no_update_required] ->
@@ -378,8 +378,8 @@ assert_local_config_reloaded() ->
 
 assert_config_reloaded(Nodes) ->
     NodeStates = config_states(Nodes),
-    ReloadStrategy = mongoose_config_parser:cluster_reload_strategy(NodeStates),
-    FailedChecks = mongoose_config_parser:strategy_to_failed_checks(ReloadStrategy),
+    ReloadStrategy = mongoose_config_reload:cluster_reload_strategy(NodeStates),
+    FailedChecks = mongoose_config_reload:strategy_to_failed_checks(ReloadStrategy),
     case FailedChecks of
         [no_update_required] ->
             ok;
@@ -508,7 +508,7 @@ handle_local_config_del(#local_config{key = Key} = El) ->
     ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
 
 handle_local_config_change({listen, Old, New}) ->
-    reload_listeners(mongoose_config_parser:compare_listeners(Old, New));
+    reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
 handle_local_config_change({riak_server, _Old, _New}) ->
     mongoose_riak:stop(),
     mongoose_riak:start(),
@@ -627,11 +627,11 @@ get_categorized_options() ->
     Config = get_global_config(),
     Local = get_local_config(),
     HostsLocal = get_host_local_config(),
-    mongoose_config_parser:make_categorized_options(Config, Local, HostsLocal).
+    mongoose_config_reload:make_categorized_options(Config, Local, HostsLocal).
 
 %% @doc Returns configs on disc and in memory for this node.
 %% This function prepares all state data to pass into pure code part
-%% (i.e. mongoose_config).
+%% (i.e. mongoose_config_parser and mongoose_config_reload).
 config_state() ->
     ConfigFile = get_ejabberd_config_path(),
     Terms = get_plain_terms_file(ConfigFile),
@@ -666,12 +666,12 @@ config_states(Nodes) ->
 compute_config_file_version() ->
     ConfigFile = get_ejabberd_config_path(),
     State = parse_file(ConfigFile),
-    mongoose_config_parser:compute_config_file_version(State).
+    mongoose_config_reload:compute_config_file_version(State).
 
 compute_loaded_config_version() ->
     LC = get_local_config(),
     LCH = get_host_local_config(),
-    mongoose_config_parser:compute_config_version(LC, LCH).
+    mongoose_config_reload:compute_config_version(LC, LCH).
 
 config_info() ->
     [{config_file_version, compute_config_file_version()},

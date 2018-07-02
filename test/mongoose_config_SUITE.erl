@@ -85,7 +85,7 @@ match_cases() ->
 flat_state_case(_C) ->
     State = mongoose_config_parser:parse_terms(cool_mod_mam_config()),
     ?assertEqual(cool_mod_mam_config_flat(),
-                 mongoose_config_parser:state_to_flat_local_opts(State)).
+                 mongoose_config_reload:state_to_flat_local_opts(State)).
 
 cool_mod_mam_config() ->
     [{hosts, ["localhost"]},
@@ -99,7 +99,7 @@ cool_mod_mam_config_flat() ->
 
 flat_module_subopts_case(_C) ->
     State = mongoose_config_parser:parse_terms(gd_config()),
-    FlatOpts = mongoose_config_parser:state_to_flat_local_opts(State),
+    FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     NumConnsKey = [h,<<"localhost">>,module_subopt,mod_global_distrib,
                    connections,num_of_connections],
     ConnsKey = [h,<<"localhost">>,module_opt,mod_global_distrib,
@@ -113,9 +113,9 @@ flat_module_subopts_case(_C) ->
 
 expand_opts_case(_C) ->
     State = mongoose_config_parser:parse_terms(cool_mod_mam_config()),
-    FlatOpts = mongoose_config_parser:state_to_flat_local_opts(State),
+    FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     ExpandedOpts = mongoose_config_flat:expand_all_opts(FlatOpts),
-    CatOpts = mongoose_config_parser:state_to_categorized_options(State),
+    CatOpts = mongoose_config_reload:state_to_categorized_options(State),
     ?assertEqual(maps:get(local_config, CatOpts),
                  maps:get(local_config, ExpandedOpts)),
     ?assertEqual(maps:get(host_config, CatOpts),
@@ -124,9 +124,9 @@ expand_opts_case(_C) ->
 
 expand_module_subopts_case(_C) ->
     State = mongoose_config_parser:parse_terms(gd_config()),
-    FlatOpts = mongoose_config_parser:state_to_flat_local_opts(State),
+    FlatOpts = mongoose_config_reload:state_to_flat_local_opts(State),
     ExpandedOpts = mongoose_config_flat:expand_all_opts(FlatOpts),
-    CatOpts = mongoose_config_parser:state_to_categorized_options(State),
+    CatOpts = mongoose_config_reload:state_to_categorized_options(State),
     ?assertEqual(maps:get(local_config, CatOpts),
                  maps:get(local_config, ExpandedOpts)),
     ?assertEqual(maps:get(host_config, CatOpts),
@@ -215,16 +215,16 @@ node_specific_cool_mod_mam_config() ->
 
 terms_to_categorized_options(Terms) ->
     State = mongoose_config_parser:parse_terms(Terms),
-    mongoose_config_parser:state_to_categorized_options(State).
+    mongoose_config_reload:state_to_categorized_options(State).
 
 cluster_reload_strategy_case(_C) ->
-    Strategy = mongoose_config_parser:cluster_reload_strategy(example_config_states()),
+    Strategy = mongoose_config_reload:cluster_reload_strategy(example_config_states()),
 %   ct:pal("Strategy ~p", [Strategy]),
     ok.
 
 %% Check that auth_method is treated correctly
 auth_method_and_cluster_reload_case(_C) ->
-    Strategy = mongoose_config_parser:cluster_reload_strategy(auth_config_states()),
+    Strategy = mongoose_config_reload:cluster_reload_strategy(auth_config_states()),
 %   ct:pal("Auth strategy ~p", [Strategy]),
     ok.
 
@@ -381,7 +381,7 @@ get_config_diff_case(_C) ->
     Terms_v2 = node1_config_v2(),
     CatOptions = terms_to_categorized_options(Terms_v1),
     State = mongoose_config_parser:parse_terms(Terms_v2),
-    Diff = mongoose_config_parser:get_config_diff(State, CatOptions),
+    Diff = mongoose_config_reload:get_config_diff(State, CatOptions),
     #{local_hosts_changes := #{ to_reload := ToReload }} = Diff,
     [{ {modules,<<"localhost">>}, OldModules, NewModules }] = ToReload,
     ?assertEqual(<<"secret">>, get_module_opt(mod_mam, password, OldModules)),
