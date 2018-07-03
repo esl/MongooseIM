@@ -54,13 +54,12 @@ end_per_testcase(_TestCase, _Config) ->
     ok.
 
 init_per_group(reload_cluster, Config) ->
-    start_slave_node(),
-    Config;
+    start_slave_node(Config);
 init_per_group(_GroupName, Config) ->
     Config.
 
-end_per_group(reload_cluster, _Config) ->
-    stop_slave_node(),
+end_per_group(reload_cluster, Config) ->
+    stop_slave_node(Config),
     ok;
 end_per_group(_GroupName, _Config) ->
     ok.
@@ -184,7 +183,7 @@ then_vhost_config_works(_C) ->
     ?eq(false, gen_mod:is_loaded(<<"fake.domain.two">>, mod_ping)).
 
 cluster_smoke(C) ->
-    SlaveNode = slave_node(),
+    SlaveNode = slave_node(C),
     copy(data(C, "ejabberd.no_listeners.cfg"), data(C, "ejabberd.cfg")),
     {ok, _} = start_ejabberd_with_config(C, "ejabberd.cfg"),
     {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd.cfg"),
@@ -196,7 +195,7 @@ cluster_smoke(C) ->
     ok.
 
 change_module_option_with_node_param_opts(C) ->
-    SlaveNode = slave_node(),
+    SlaveNode = slave_node(C),
     copy(data(C, "ejabberd.no_listeners.node_specific_node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
     copy(data(C, "ejabberd.no_listeners.node_specific_node2_v1.cfg"), data(C, "ejabberd_n2.cfg")),
     {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
@@ -211,7 +210,7 @@ change_module_option_with_node_param_opts(C) ->
     ok.
 
 change_module_option_with_node_specific_mods(C) ->
-    SlaveNode = slave_node(),
+    SlaveNode = slave_node(C),
     copy(data(C, "ejabberd.no_listeners.node_specific_module_node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
     copy(data(C, "ejabberd.no_listeners.node_specific_module_node2_v1.cfg"), data(C, "ejabberd_n2.cfg")),
     {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
@@ -298,13 +297,16 @@ times(0, _, Acc) -> Acc;
 times(N, E, Acc) -> times(N-1, E, [E | Acc]).
 
 
-start_slave_node() ->
+start_slave_node(Config) ->
+    SlaveNode = do_start_slave_node(),
+    [{slave_node, SlaveNode}|Config].
+
+do_start_slave_node() ->
     Opts = [{monitor_master, true},
             {boot_timeout, 15}, %% in seconds
             {init_timeout, 10}, %% in seconds
             {startup_timeout, 10}], %% in seconds
-    SlaveNode = slave_node(),
-    {ok, SlaveNode} = ct_slave:start(SlaveNode, Opts),
+    {ok, SlaveNode} = ct_slave:start(slave_name(), Opts),
     {ok, CWD} = file:get_cwd(),
     ok = rpc:call(SlaveNode, file, set_cwd, [CWD]),
     %% Tell the remote node where to find the SUITE code
@@ -313,17 +315,29 @@ start_slave_node() ->
     %% So add_paths is NOT enough here
     ok = rpc:call(SlaveNode, code, add_pathsa, [lists:reverse(code_paths())]),
     check_that_p1_tls_is_correct(SlaveNode),
-    ok.
+    SlaveNode.
 
 check_that_p1_tls_is_correct(SlaveNode) ->
     ?assertEqual(fast_tls:module_info(md5),
                  rpc:call(SlaveNode, fast_tls, module_info, [md5])).
 
-stop_slave_node() ->
+stop_slave_node(Config) ->
+    ct_slave:stop(slave_node(Config)),
     ok.
 
-slave_node() ->
-    'mim_slave@localhost'.
+slave_node(Config) ->
+    get_required_config(slave_node, Config).
+
+get_required_config(Key, Config) ->
+    case proplists:get_value(Key, Config) of
+        undefined ->
+            ct:fail({get_required_config_failed, Key});
+        Value ->
+            Value
+    end.
+
+slave_name() ->
+    'mim_slave'.
 
 start_remote_ejabberd_with_config(RemoteNode, C, ConfigFile) ->
     rpc:call(RemoteNode, ?MODULE, start_ejabberd_with_config, [C, ConfigFile]).
