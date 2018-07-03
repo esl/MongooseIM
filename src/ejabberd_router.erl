@@ -41,6 +41,7 @@
          dirty_get_all_domains/0,
          dirty_get_all_routes/1,
          dirty_get_all_domains/1,
+         dirty_get_route_handler_module/1,
          register_components/2,
          register_components/3,
          register_components/4,
@@ -374,6 +375,15 @@ all_routes(only_public) ->
     ++
     mnesia:dirty_select(external_component_global, [MatchNonHidden]).
 
+-spec dirty_get_route_handler_module(Domain :: binary()) -> {ok, module()} | error.
+dirty_get_route_handler_module(Domain) ->
+    Routes = mnesia:dirty_match_object(#route{domain = Domain, handler = '_'}),
+    case Routes of
+        [#route{handler = {packet_handler, Module, _}}] ->
+            {ok, Module};
+        _ ->
+            error
+    end.
 
 %%====================================================================
 %% gen_server callbacks

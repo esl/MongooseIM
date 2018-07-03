@@ -10,7 +10,7 @@ info:
      This is to ensure integration between the **REST API** users and regular **XMPP** users.
     * All requests requiring a room ID (i.e. most of the requests fired at `/room` endpoint) accept either
      a bare room ID (e.g. `656c6f656c6f`) or a room JID (e.g. `656c6f656c6f@muclight.somedomain.com`).
-     The host part of the room JID must be the host name of a MUC light service running in user's domain.
+     The host part of the room JID must be the host name of a registered MUC light service.
     * All requests require authentication.
     This is to make sure the server can identify who sent the request and if it comes from an authorized user.
     Currently the only supported method is **Basic Auth**.
