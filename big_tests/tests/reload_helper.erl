@@ -27,7 +27,7 @@
 -import(distributed_helper, [rpc/4, rpc/5]).
 
 -define(CTL_RELOAD_OUTPUT_PREFIX,
-        "# Reloaded: " ++ atom_to_list(ct:get_config({hosts, mim, node}))).
+        "done").
 
 backup_ejabberd_config_file(Node, Config) ->
     {ok, _} = rpc(Node, file, copy, [node_cfg(Node, current, Config),
