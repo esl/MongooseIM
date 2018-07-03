@@ -18,7 +18,7 @@ get_opts() ->
 
 %% @doc It should be the same as `get_opts', just slower :)
 get_expanded_opts() ->
-    mongoose_config_reload:expand_opts(get_flat_opts()).
+    mongoose_config_flat:expand_opts(get_flat_opts()).
 
 %% Helps to debug option expansion
 diff_expanded() ->
