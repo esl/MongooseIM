@@ -8,6 +8,7 @@
 -module(mongoose_wpool).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
+-include("mongoose_wpool.hrl").
 %% API
 -export([ensure_started/0, get_pool_settings/1, delete_pool_settings/1, save_pool_settings/2]).
 

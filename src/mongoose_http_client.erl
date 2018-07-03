@@ -33,6 +33,7 @@
 -module(mongoose_http_client).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
+-include("mongoose_wpool.hrl").
 
 %% API
 -export([start/0, stop/0, start_pool/2, stop_pool/1, get/3, post/4]).
