@@ -288,10 +288,10 @@ process_term(Term, State) ->
         {s2s_ciphers, Ciphers} ->
             add_option(s2s_ciphers, Ciphers, State);
         {s2s_certfile, CertFile} ->
-            State2 = compact_option(required_files, CertFile, State),
+            State2 = compact_global_option(required_files, [CertFile], State),
             add_option(s2s_certfile, CertFile, State2);
         {domain_certfile, Domain, CertFile} ->
-            State2 = compact_option(required_files, CertFile, State),
+            State2 = compact_global_option(required_files, [CertFile], State),
             add_option({domain_certfile, Domain}, CertFile, State2);
         {node_type, NodeType} ->
             add_option(node_type, NodeType, State);
@@ -401,6 +401,7 @@ append_local_opt(OptName, OptValue, State) ->
 append_option(OptRec, State = #state{opts = Opts}) ->
     State#state{ opts = [OptRec | Opts] }.
 
+%% Merges two values of a local option
 compact_option(Opt, Val, State) ->
     Opts2 = compact(Opt, Val, State#state.opts, []),
     State#state{opts = Opts2}.
@@ -422,6 +423,24 @@ compact(Opt, Val, [#local_config{key = Opt, value = OldVal} | Os1], Os2) ->
     Os2 ++ [OptRec] ++ Os1;
 compact(Opt, Val, [O | Os1], Os2) ->
     compact(Opt, Val, Os1, Os2 ++ [O]).
+
+
+%% Merges two values of a global option
+compact_global_option(Opt, Val, State) when is_list(Val) ->
+    Opts2 = compact_global(Opt, Val, State#state.opts, []),
+    State#state{opts = Opts2}.
+
+compact_global(Opt, Val, [], Os) ->
+    [#config{key = Opt, value = Val}] ++ Os;
+%% Traverse the list of the options already parsed
+compact_global(Opt, Val, [#config{key = Opt, value = OldVal} | Os1], Os2) ->
+    %% If the key of a local_config matches the Opt that wants to be added
+    OptRec = #config{key = Opt, value = Val ++ OldVal},
+    %% Then prepend the new value to the list of old values
+    Os2 ++ [OptRec] ++ Os1;
+compact_global(Opt, Val, [O | Os1], Os2) ->
+    compact_global(Opt, Val, Os1, Os2 ++ [O]).
+
 
 opt_table(Opt) ->
     case is_global_option(Opt) of

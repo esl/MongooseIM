@@ -16,7 +16,8 @@ all() -> [
     get_config_diff_case,
     flat_module_subopts_case,
     expand_opts_case,
-    expand_module_subopts_case
+    expand_module_subopts_case,
+    parse_config_with_required_files_case
 ].
 
 init_per_suite(C) ->
@@ -391,3 +392,18 @@ get_config_diff_case(_C) ->
 get_module_opt(Module, Key, Modules) ->
     {Module, Opts} = lists:keyfind(Module, 1, Modules),
     proplists:get_value(Key, Opts).
+
+
+config_with_required_files() ->
+    [
+        {hosts, ["localhost"]},
+        {s2s_certfile, "priv/ssl/fake_server.pem"},
+        {domain_certfile, "localhost", "priv/ssl/localhost_server.pem"}
+    ].
+
+parse_config_with_required_files_case(_C) ->
+    State = mongoose_config_parser:parse_terms(config_with_required_files()),
+    ?assertEqual(["priv/ssl/localhost_server.pem",
+                  "priv/ssl/fake_server.pem"],
+                 mongoose_config_parser:state_to_required_files(State)),
+    ok.
