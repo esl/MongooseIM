@@ -1104,8 +1104,9 @@ is_mam_possible(Host) ->
     mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse
     is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
 
+%% TODO create mongoose_riak:get_status() for cleaner checks, same for cassandra and elasticsearch
 is_riak_enabled(_Host) ->
-    case rpc(mim(), mongoose_riak, list_buckets, [<<"default">>]) of
+    case catch rpc(mim(), mongoose_riak, list_buckets, [<<"default">>]) of
         {ok, _} ->
             true;
         _ ->

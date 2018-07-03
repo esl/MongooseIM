@@ -39,7 +39,7 @@ app_opts() ->
      {"mysql",         ["mysql"],           include_driver("mysql")},
      {"odbc",          ["eodbc"],           "include alternative version of ODBC driver"},
      {"pgsql",         ["epgsql"],          include_driver("pgsql")},
-     {"redis",         ["redo"],            include_driver("redis")},
+     {"redis",         ["eredis"],            include_driver("redis")},
      {"riak",          ["riakc"],           include_driver("riak")},
      {"jingle-sip",    ["nksip"],           include_driver("nksip")},
      {"cassandra",     ["cqerl"],           include_driver("cassandra")},

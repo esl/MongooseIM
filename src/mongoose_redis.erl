@@ -18,7 +18,7 @@
 
 -spec start_pool(list()) -> {ok, pid()} | {error, {already_started, pid()}}.
 start_pool(Opts) ->
-    mongoose_wpool:setup_env(),
+    mongoose_wpool:ensure_started(),
     PoolSize = proplists:get_value(pool_size, Opts, 10),
     RedisOpts = proplists:get_value(worker_config, Opts, []),
     PoolOpts = proplists:get_value(pool_opts, Opts, []),
@@ -49,10 +49,7 @@ cmd(Cmd) ->
 cmds(Cmd) ->
     cmds(Cmd, 5000).
 
--spec cmd(iolist(), integer()) -> undefined
-                                  | binary()
-                                  | [binary() | [binary() | integer()] | integer() | {'error', _}]
-                                  | integer()
+-spec cmd(iolist(), integer()) -> eredis:return_value()
                                   | {'error', _}.
 cmd(Cmd, Timeout) ->
     case eredis:q(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout) of
@@ -60,16 +57,10 @@ cmd(Cmd, Timeout) ->
         V -> V
     end.
 
--spec cmds([iolist()], integer()) -> undefined
-                                     | binary()
-                                     | [binary() | [binary() | integer()] | integer() | {'error', _}]
-                                     | integer()
+-spec cmds([iolist()], integer()) -> [eredis:return_value()]
                                      | {'error', _}.
 cmds(Cmd, Timeout) ->
-    case eredis:qp(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout) of
-        {ok, Value} -> Value;
-        V -> V
-    end.
+    eredis:qp(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout).
 
 %%%===================================================================
 %%% Internal functions

@@ -18,8 +18,6 @@
 -include("mongoose.hrl").
 -include_lib("riakc/include/riakc.hrl").
 
--behaviour(gen_server).
-
 %% API
 -export([start/0]).
 -export([start_pool/1]).
@@ -39,6 +37,7 @@
 -export([search/3]).
 -export([get_index/4]).
 -export([get_index_range/5]).
+-export([get_worker/0]).
 
 -export([pool_name/0]).
 
@@ -53,7 +52,7 @@
 
 -spec start() -> {ok, pid()} | ignore.
 start() ->
-    mongoose_wpool:setup_env(),
+    mongoose_wpool:ensure_started(),
     case ejabberd_config:get_local_option(riak_server) of
         undefined ->
             ignore;
@@ -187,11 +186,14 @@ update_map_op({Field, Fun}, Map) ->
     riakc_map:update(Field, Fun, Map).
 
 call_riak(F, ArgsIn) ->
-    PoolName = pool_name(),
-    % TODO: improve worker_pool, then use available_worker strategy here
-    Worker = wpool_pool:next_worker(PoolName),
+    Worker = get_worker(),
     Args = [Worker | ArgsIn],
     apply(riakc_pb_socket, F, Args).
+
+get_worker() ->
+    PoolName = pool_name(),
+    % TODO: improve worker_pool, then use available_worker strategy here
+    wpool_pool:next_worker(PoolName).
 
 %% @doc Gets a particular option from `Opts`. They're expressed as a list
 %% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't

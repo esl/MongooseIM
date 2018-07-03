@@ -43,7 +43,7 @@
 
 -spec start() -> ok.
 start() ->
-    mongoose_wpool:setup_env(),
+    mongoose_wpool:ensure_started(),
     case ejabberd_config:get_local_option(http_connections) of
         undefined -> ok;
         Opts -> start(Opts)
@@ -58,10 +58,10 @@ stop() ->
 
 -spec start_pool(atom(), list()) -> ok | {error, already_started}.
 start_pool(Name, Opts) ->
-    PoolName = pool_name(new, Name),
+    PoolName = make_pool_name(Name),
     case whereis(PoolName) of
         undefined ->
-            mongoose_wpool:setup_env(),
+            mongoose_wpool:ensure_started(),
             do_start_pool(PoolName, Opts),
             ok;
         _ -> {error, already_started}
@@ -110,12 +110,16 @@ do_start_pool(PoolName, Opts) ->
     wpool:start_sup_pool(PoolName, PoolOpts).
 
 make_request(Pool, Path, Method, Headers, Query) ->
-    PoolName = pool_name(Pool),
-    case mongoose_wpool:get_pool_settings(PoolName) of
-        undefined ->
+    case catch pool_name(Pool) of
+        {'EXIT', badarg, _} ->
             {error, pool_not_started};
-        PoolOpts ->
-            make_request(PoolName, PoolOpts, Path, Method, Headers, Query)
+        PoolName ->
+            case mongoose_wpool:get_pool_settings(PoolName) of
+                undefined ->
+                    {error, pool_not_started};
+                PoolOpts ->
+                    make_request(PoolName, PoolOpts, Path, Method, Headers, Query)
+            end
     end.
 
 make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
@@ -146,5 +150,5 @@ make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
 pool_name(PoolName) ->
     list_to_existing_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
 
-pool_name(new, PoolName) ->
+make_pool_name(PoolName) ->
     list_to_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).

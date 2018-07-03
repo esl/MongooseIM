@@ -9,9 +9,9 @@
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
 %% API
--export([setup_env/0, get_pool_settings/1, delete_pool_settings/1, save_pool_settings/2]).
+-export([ensure_started/0, get_pool_settings/1, delete_pool_settings/1, save_pool_settings/2]).
 
-setup_env() ->
+ensure_started() ->
     wpool:start(),
     case ets:info(pool_settings_tab()) of
         undefined ->
@@ -38,5 +38,5 @@ delete_pool_settings(PoolName) ->
     ets:delete(pool_settings_tab(), PoolName).
 
 pool_settings_tab() ->
-    list_to_atom("mongoose_worker_pool_settings").
+    mongoose_worker_pool_settings.
 

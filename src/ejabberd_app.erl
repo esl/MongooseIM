@@ -49,6 +49,7 @@ start(normal, _Args) ->
     acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
+    mongoose_wpool:ensure_started(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_subhosts:init(),
