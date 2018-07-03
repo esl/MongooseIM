@@ -300,9 +300,9 @@ times(N, E, Acc) -> times(N-1, E, [E | Acc]).
 
 start_slave_node() ->
     Opts = [{monitor_master, true},
-            {boot_timeout, timer:seconds(15)},
-            {init_timeout, timer:seconds(10)},
-            {startup_timeout, timer:seconds(10)}],
+            {boot_timeout, 15}, %% in seconds
+            {init_timeout, 10}, %% in seconds
+            {startup_timeout, 10}], %% in seconds
     SlaveNode = slave_node(),
     {ok, SlaveNode} = ct_slave:start(SlaveNode, Opts),
     {ok, CWD} = file:get_cwd(),
