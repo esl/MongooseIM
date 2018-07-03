@@ -203,8 +203,10 @@ elif [ $PRESET == "pkg" ]; then
   build_pkg $pkg_PLATFORM
 elif [ $PRESET == "small_tests" ]; then
   time run_small_tests
+  RESULT=$?
   time erl -noinput -pa _build/test/lib/mongooseim/test -pa _build/test/lib/mongooseim/ebin -pa _build/default/lib/*/ebin \
        -s codecov_helper analyze _build/test/cover/ct.coverdata codecov.json
+  exit ${RESULT}
 else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
