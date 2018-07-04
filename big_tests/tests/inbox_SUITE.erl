@@ -987,13 +987,15 @@ reload_inbox_option(Config, KeyValueList) ->
     Args2 = lists:foldl(fun({K, V}, AccIn) ->
         lists:keyreplace(K, 1, AccIn, {K, V})
                 end, Args, KeyValueList),
-    dynamic_modules:restart(Host, mod_inbox, Args2).
+    dynamic_modules:restart(Host, mod_inbox, Args2),
+    lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args2}).
 
 reload_inbox_option(Config, Key, Value) ->
   Host = domain(),
   Args = proplists:get_value(inbox_opts, Config),
   Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
-  dynamic_modules:restart(Host, mod_inbox, Args1).
+  dynamic_modules:restart(Host, mod_inbox, Args1),
+  lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
 
 restore_inbox_option(Config) ->
   Host = domain(),
