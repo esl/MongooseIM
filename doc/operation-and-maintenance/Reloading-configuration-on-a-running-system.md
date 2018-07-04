@@ -9,16 +9,19 @@
 `mongooseimctl reload_cluster_dryrun`
 
 `reload_local` is unsafe as it reloads the configuration only on the local node.
-This might introduce inconsistencies between different nodes of the cluster.
+This might introduce inconsistencies between different nodes in the cluster.
 It's available as a safety mechanism for the rare case of a cluster-global reload failing.
 
-`reload_cluster` applies the configuration on all nodes of the cluster.
-The prerequisite is that the same version of config file must be available on
+`reload_cluster` applies the configuration on all nodes in the cluster.
+The prerequisite is that the same version of a config file must be available on
 all nodes. All nodes in a cluster must have the same config loaded into memory
-as well. There is a small exception from this rule, see Node specific options.
+as well. There is a small exception from this rule, see "Node-specific options"
+below on this page.
 
 `reload_cluster_dryrun` calculates and prints config changes,
-but does not applies them. Useful for debugging.
+but does not apply them.
+Useful for debugging.
+
 
 ### Non-reloadable options
 Some options require restarting the server in order to be reloaded.
@@ -31,9 +34,12 @@ The following options' changes will be ignored when using `mongooseimctl` tool:
 
 ### Node-specific options
 
-Very rarely we want different configs for each node in cluster.
-Than `reload_cluster` would detect configuration inconsistency and would not
-allow configuration updates.
+Usually all nodes in cluster share the same configuration.
+
+But sometimes we want different configs for each node in a cluster.
+
+By default in such cases `reload_cluster` would detect a configuration
+inconsistency and would not allow configuration updates.
 
 To tell `reload_cluster` to ignore such options, extra information should be
 provided in `ejabberd.cfg`.
@@ -42,7 +48,7 @@ It's called `node_specific_options`.
 
 They are defined on top level of the configuration file using
 `node_specific_options` tuple. This tuple should be the same for all configs
-in cluster.
+in a cluster.
 
 `node_specific_options` contains a list of match patterns. If you are familiar
 with ETS tables or Mnesia tuple matching - it's the same thing.
@@ -69,7 +75,7 @@ Example showing where to put `node_specific_options`.
 ```
 
 The `node_specific_options` patterns are matched against flat configuration
-options. To print your config in flat form, use the command with running
+options. To print your config in a flat form, use the command with a running
 node `mongooseimctl print_flat_config`.
 
 Example:
