@@ -23,6 +23,7 @@
 -type gen_mod_map() :: #{module() => gen_mod_params()}.
 
 -export([start_modules/2, replace_modules/3]).
+-export([add_deps/2]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -32,6 +33,11 @@
 start_modules(Host, Modules) ->
     replace_modules(Host, [], Modules).
 
+%% @doc Adds deps into module list.
+%% Side-effect free.
+-spec add_deps(Host :: jid:server(), Modules :: gen_mod_list()) -> gen_mod_list().
+add_deps(Host, Modules) ->
+    sort_deps(Host, resolve_deps(Host, Modules)).
 
 %% @doc
 %% Replaces OldModules (along with dependencies) with NewModules (along with

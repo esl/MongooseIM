@@ -17,6 +17,7 @@
 all() ->
     [smoke,
      {group, reload_local},
+     {group, reload_cluster},
      {group, odbc_pools},
      split_config].
 
@@ -25,11 +26,16 @@ groups() ->
                          add_a_module,
                          delete_a_module,
                          reload_a_module]},
+     {reload_cluster, [], [cluster_smoke,
+                           change_module_option_with_node_param_opts,
+                           change_module_option_with_node_specific_mods,
+                           module_deps_work_correctly_with_reload_cluster]},
      {odbc_pools, [], [odbc_server_no_pools,
                           odbc_server_pools]}
     ].
 
 init_per_suite(Config) ->
+    stringprep:start(),
     Config.
 
 end_per_suite(_Config) ->
@@ -40,7 +46,22 @@ end_per_suite(_Config) ->
 init_per_testcase(_TestCase, Config) ->
     Config.
 
+end_per_testcase(module_deps_work_correctly_with_reload_cluster, _Config) ->
+    % cleanup
+    stop_ejabberd(),
+    meck:unload();
 end_per_testcase(_TestCase, _Config) ->
+    ok.
+
+init_per_group(reload_cluster, Config) ->
+    start_slave_node(Config);
+init_per_group(_GroupName, Config) ->
+    Config.
+
+end_per_group(reload_cluster, Config) ->
+    stop_slave_node(Config),
+    ok;
+end_per_group(_GroupName, _Config) ->
     ok.
 
 %%
@@ -74,7 +95,7 @@ smoke(Config) ->
     ok = stop_ejabberd().
 
 coalesce_multiple_local_config_options(_Config) ->
-    F = fun ejabberd_config:group_host_changes/1,
+    F = fun mongoose_config_parser:group_host_changes/1,
     ?eq(coalesced_modules_section(), F(multiple_modules_sections())).
 
 add_a_module(C) ->
@@ -161,12 +182,85 @@ then_vhost_config_works(_C) ->
     ?eq(false, gen_mod:is_loaded(<<"fake.domain.one">>, mod_offline)),
     ?eq(false, gen_mod:is_loaded(<<"fake.domain.two">>, mod_ping)).
 
-is_empty([]) -> true;
-is_empty(_) -> false.
+cluster_smoke(C) ->
+    SlaveNode = slave_node(C),
+    copy(data(C, "ejabberd.no_listeners.cfg"), data(C, "ejabberd.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd.cfg"),
+    maybe_join_cluster(SlaveNode),
+    [_,_] = ejabberd_config:config_states(),
+    % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
+
+change_module_option_with_node_param_opts(C) ->
+    SlaveNode = slave_node(C),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node2_v1.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd_n2.cfg"),
+    maybe_join_cluster(SlaveNode),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node1_v2.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.node_specific_node2_v2.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok,_} = ejabberd_config:reload_cluster(),
+    % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
+
+change_module_option_with_node_specific_mods(C) ->
+    SlaveNode = slave_node(C),
+    copy(data(C, "ejabberd.no_listeners.node_specific_module_node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.node_specific_module_node2_v1.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd_n2.cfg"),
+    maybe_join_cluster(SlaveNode),
+%   copy(data(C, "ejabberd.no_listeners.node_specific_module_node1_v2.cfg"), data(C, "ejabberd_n1.cfg")),
+%   copy(data(C, "ejabberd.no_listeners.node_specific_module_node2_v2.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok,_} = ejabberd_config:reload_cluster(),
+    % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
+
+module_deps_work_correctly_with_reload_cluster(C) ->
+    %% Just to ensure
+    mnesia:clear_table(config),
+    stop_ejabberd(),
+    copy(data(C, "ejabberd.no_listeners.gd.node1_v1.cfg"), data(C, "ejabberd_n1.cfg")),
+    mock_gd_modules(),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    ejabberd_config:assert_local_config_reloaded(),
+    %% Cleaning in end_per_testcase
+    ok.
 
 %%
 %% Helpers
 %%
+
+gd_modules() ->
+    [
+        mod_global_distrib,
+        mod_global_distrib_bounce,
+        mod_global_distrib_disco,
+        mod_global_distrib_hosts_refresher,
+        mod_global_distrib_mapping,
+        mod_global_distrib_receiver,
+        mod_global_distrib_sender
+    ].
+
+mock_gd_modules() ->
+    [mock_module(M) || M <- gd_modules()].
+
+mock_module(M) ->
+    meck:new(M, [no_link, unstick, passthrough]),
+    meck:expect(M, start, fun(_Host, _Opts) -> ok end),
+    meck:expect(M, stop, fun(_Host) -> ok end),
+    ok.
+
+is_empty([]) -> true;
+is_empty(_) -> false.
 
 get_ejabberd_cfg(Config, Name) ->
     DataDir = proplists:get_value(data_dir, Config),
@@ -201,3 +295,65 @@ times(N, E) -> times(N, E, []).
 
 times(0, _, Acc) -> Acc;
 times(N, E, Acc) -> times(N-1, E, [E | Acc]).
+
+
+start_slave_node(Config) ->
+    SlaveNode = do_start_slave_node(),
+    [{slave_node, SlaveNode}|Config].
+
+do_start_slave_node() ->
+    Opts = [{monitor_master, true},
+            {boot_timeout, 15}, %% in seconds
+            {init_timeout, 10}, %% in seconds
+            {startup_timeout, 10}], %% in seconds
+    {ok, SlaveNode} = ct_slave:start(slave_name(), Opts),
+    {ok, CWD} = file:get_cwd(),
+    ok = rpc:call(SlaveNode, file, set_cwd, [CWD]),
+    %% Tell the remote node where to find the SUITE code
+    %% Be aware, that P1 likes to put there stuff into
+    %% /usr/lib/erlang/lib/
+    %% So add_paths is NOT enough here
+    ok = rpc:call(SlaveNode, code, add_pathsa, [lists:reverse(code_paths())]),
+    check_that_p1_tls_is_correct(SlaveNode),
+    SlaveNode.
+
+check_that_p1_tls_is_correct(SlaveNode) ->
+    ?assertEqual(fast_tls:module_info(md5),
+                 rpc:call(SlaveNode, fast_tls, module_info, [md5])).
+
+stop_slave_node(Config) ->
+    ct_slave:stop(slave_node(Config)),
+    ok.
+
+slave_node(Config) ->
+    get_required_config(slave_node, Config).
+
+get_required_config(Key, Config) ->
+    case proplists:get_value(Key, Config) of
+        undefined ->
+            ct:fail({get_required_config_failed, Key});
+        Value ->
+            Value
+    end.
+
+slave_name() ->
+    'mim_slave'.
+
+start_remote_ejabberd_with_config(RemoteNode, C, ConfigFile) ->
+    rpc:call(RemoteNode, ?MODULE, start_ejabberd_with_config, [C, ConfigFile]).
+
+stop_remote_ejabberd(SlaveNode) ->
+    rpc:call(SlaveNode, ejabberd_helper, stop_ejabberd, []).
+
+code_paths() ->
+    [filename:absname(Path) || Path <- code:get_path()].
+
+maybe_join_cluster(SlaveNode) ->
+    Result = rpc:call(SlaveNode, ejabberd_admin, join_cluster,
+                      [atom_to_list(node())]),
+    case Result of
+        {ok, _} ->
+            ok;
+        {already_joined, _} ->
+            ok
+    end.

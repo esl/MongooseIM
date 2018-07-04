@@ -37,104 +37,41 @@
          del_local_option/1,
          get_local_option_or_default/2]).
 -export([get_vh_by_auth_method/1]).
--export([is_file_readable/1]).
-
-%% for unit tests
--export([check_hosts/2,
-         compare_modules/2,
-         compare_listeners/2,
-         group_host_changes/1]).
 
 %% conf reload
 -export([reload_local/0,
          reload_cluster/0,
-         apply_changes_remote/4,
-         apply_changes/5]).
+         reload_cluster_dryrun/0]).
 
--export([compute_config_version/2,
-         get_local_config/0,
+%% Information commands
+-export([print_flat_config/0]).
+
+-export([get_local_config/0,
          get_host_local_config/0]).
+
+%% Introspection
+-export([config_info/0]).
+-export([config_state/0]).
+-export([config_states/0]).
+
+-import(mongoose_config_parser, [can_be_ignored/1]).
+
+-export([apply_reloading_change/1]).
+
+%% For debugging
+-export([assert_local_config_reloaded/0]).
 
 -include("mongoose.hrl").
 -include("ejabberd_config.hrl").
--include_lib("kernel/include/file.hrl").
 
 -define(CONFIG_RELOAD_TIMEOUT, 30000).
 
--type key() :: atom()
-             | {key(), jid:server() | atom() | list()}
-             | {atom(), atom(), atom()}
-             | binary(). % TODO: binary is questionable here
-
--type value() :: atom()
-               | binary()
-               | integer()
-               | string()
-               | [value()]
-               | tuple().
-
--export_type([key/0, value/0]).
-
--record(state, {opts = [] :: list(),
-                hosts = [] :: [host()],
-                odbc_pools = [] :: [atom()],
-                override_local = false :: boolean(),
-                override_global = false :: boolean(),
-                override_acls = false :: boolean()}).
-
--record(compare_result, {to_start = [] :: list(),
-                         to_stop = [] :: list(),
-                         to_reload = [] :: list()}).
-
--type compare_result() :: #compare_result{}.
+-type compare_result() :: mongoose_config_parser:compare_result().
 
 -type host() :: any(). % TODO: specify this
--type state() :: #state{}.
--type macro() :: {macro_key(), macro_value()}.
-
-%% The atom must have all characters in uppercase.
--type macro_key() :: atom().
-
--type macro_value() :: term().
-
--type known_term() :: override_global
-                    | override_local
-                    | override_acls
-                    | {acl, _, _}
-                    | {alarms, _}
-                    | {access, _, _}
-                    | {shaper, _, _}
-                    | {host, _}
-                    | {hosts, _}
-                    | {host_config, _, _}
-                    | {listen, _}
-                    | {language, _}
-                    | {sm_backend, _}
-                    | {outgoing_s2s_port, integer()}
-                    | {outgoing_s2s_options, _, integer()}
-                    | {{s2s_addr, _}, _}
-                    | {s2s_dns_options, [tuple()]}
-                    | {s2s_use_starttls, integer()}
-                    | {s2s_certfile, _}
-                    | {domain_certfile, _, _}
-                    | {node_type, _}
-                    | {cluster_nodes, _}
-                    | {registration_timeout, integer()}
-                    | {mongooseimctl_access_commands, list()}
-                    | {loglevel, _}
-                    | {max_fsm_queue, _}
-                    | {sasl_mechanisms, _}
-                    | host_term().
-
--type host_term() :: {acl, _, _}
-                   | {access, _, _}
-                   | {shaper, _, _}
-                   | {host, _}
-                   | {hosts, _}
-                   | {odbc_server, _}.
-
--callback stop(host()) -> any().
-
+-type state() :: mongoose_config_parser:state().
+-type key() :: mongoose_config_parser:key().
+-type value() :: mongoose_config_parser:value().
 
 -spec start() -> ok.
 start() ->
@@ -178,8 +115,9 @@ get_ejabberd_config_path() ->
 %% This function will crash if finds some error in the configuration file.
 -spec load_file(File :: string()) -> ok.
 load_file(File) ->
-    Res = parse_file(File),
-    set_opts(Res).
+    State = parse_file(File),
+    assert_required_files_exist(State),
+    set_opts(State).
 
 
 %% @doc Read an ejabberd configuration file and return the terms.
@@ -189,102 +127,24 @@ load_file(File) ->
 %% and the terms in those files were included.
 -spec get_plain_terms_file(string()) -> [term()].
 get_plain_terms_file(File1) ->
-    File = get_absolute_path(File1),
+    File = mongoose_config_utils:get_absolute_path(File1),
     case file:consult(File) of
         {ok, Terms} ->
             include_config_files(Terms);
         {error, {LineNumber, erl_parse, _ParseMessage} = Reason} ->
             ExitText = describe_config_problem(File, Reason, LineNumber),
             ?ERROR_MSG(ExitText, []),
-            exit_or_halt(ExitText);
+            mongoose_config_utils:exit_or_halt(ExitText);
         {error, Reason} ->
             ExitText = describe_config_problem(File, Reason),
             ?ERROR_MSG(ExitText, []),
-            exit_or_halt(ExitText)
+            mongoose_config_utils:exit_or_halt(ExitText)
     end.
-
-
-%% @doc Convert configuration filename to absolute path.
-%% Input is an absolute or relative path to an ejabberd configuration file.
-%% And returns an absolute path to the configuration file.
--spec get_absolute_path(string()) -> string().
-get_absolute_path(File) ->
-    case filename:pathtype(File) of
-        absolute ->
-            File;
-        relative ->
-            {ok, Cwd} = file:get_cwd(),
-            filename:absname_join(Cwd, File)
-    end.
-
-
--spec search_hosts_and_pools({host|hosts, [host()] | host()}
-                             | {pool, odbc, atom()}
-                             | {pool, odbc, atom(), list()}, state()) -> any().
-search_hosts_and_pools(Term, State) ->
-    case Term of
-        {host, Host} ->
-            case State of
-                #state{hosts = []} ->
-                    add_hosts_to_option([Host], State);
-                _ ->
-                    ?ERROR_MSG("Can't load config file: "
-                               "too many hosts definitions", []),
-                    exit("too many hosts definitions")
-            end;
-        {hosts, Hosts} ->
-            case State of
-                #state{hosts = []} ->
-                    add_hosts_to_option(Hosts, State);
-                _ ->
-                    ?ERROR_MSG("Can't load config file: "
-                               "too many hosts definitions", []),
-                    exit("too many hosts definitions")
-            end;
-        {pool, PoolType, PoolName, _Options} ->
-            search_hosts_and_pools({pool, PoolType, PoolName}, State);
-        {pool, odbc, PoolName} ->
-            add_odbc_pool_to_option(PoolName, State);
-        _ ->
-            State
-    end.
-
-
--spec add_hosts_to_option(Hosts :: [host()],
-                          State :: state()) -> state().
-add_hosts_to_option(Hosts, State) ->
-    PrepHosts = normalize_hosts(Hosts),
-    add_option(hosts, PrepHosts, State#state{hosts = PrepHosts}).
-
-add_odbc_pool_to_option(PoolName, State) ->
-    Pools = State#state.odbc_pools,
-    State#state{odbc_pools = [PoolName | Pools]}.
-
--spec normalize_hosts([host()]) -> [binary() | tuple()].
-normalize_hosts(Hosts) ->
-    normalize_hosts(Hosts, []).
-
-
-normalize_hosts([], PrepHosts) ->
-    lists:reverse(PrepHosts);
-normalize_hosts([Host | Hosts], PrepHosts) ->
-    case jid:nodeprep(host_to_binary(Host)) of
-        error ->
-            ?ERROR_MSG("Can't load config file: "
-                       "invalid host name [~p]", [Host]),
-            exit("invalid hostname");
-        PrepHost ->
-            normalize_hosts(Hosts, [PrepHost | PrepHosts])
-    end.
-
-host_to_binary(Host) ->
-    unicode:characters_to_binary(Host).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Errors reading the config file
 
 -type config_problem() :: atom() | {integer(), atom() | tuple(), _}. % spec me better
--type config_line() :: [[any()] | non_neg_integer(), ...]. % spec me better
 
 -spec describe_config_problem(Filename :: string(),
                               Reason :: config_problem()) -> string().
@@ -303,50 +163,11 @@ describe_config_problem(Filename, Reason, LineNumber) ->
     Text2 = lists:flatten(" approximately in the line "
                           ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
-    Lines = get_config_lines(Filename, LineNumber, 10, 3),
+    Lines = mongoose_config_utils:get_config_lines(Filename, LineNumber, 10, 3),
     ?ERROR_MSG("The following lines from your configuration file might be"
                " relevant to the error: ~n~s", [Lines]),
     ExitText.
 
-
--spec get_config_lines(Filename :: string(),
-                       TargetNumber :: integer(),
-                       PreContext :: 10,
-                       PostContext :: 3) -> [config_line()].
-get_config_lines(Filename, TargetNumber, PreContext, PostContext) ->
-    {ok, Fd} = file:open(Filename, [read]),
-    LNumbers = lists:seq(TargetNumber - PreContext, TargetNumber + PostContext),
-    NextL = io:get_line(Fd, no_prompt),
-    R = get_config_lines2(Fd, NextL, 1, LNumbers, []),
-    file:close(Fd),
-    R.
-
-
-get_config_lines2(_Fd, eof, _CurrLine, _LNumbers, R) ->
-    lists:reverse(R);
-get_config_lines2(_Fd, _NewLine, _CurrLine, [], R) ->
-    lists:reverse(R);
-get_config_lines2(Fd, Data, CurrLine, [NextWanted | LNumbers], R) when is_list(Data) ->
-    NextL = io:get_line(Fd, no_prompt),
-    case CurrLine >= NextWanted of
-        true ->
-            Line2 = [integer_to_list(CurrLine), ": " | Data],
-            get_config_lines2(Fd, NextL, CurrLine + 1, LNumbers, [Line2 | R]);
-        false ->
-            get_config_lines2(Fd, NextL, CurrLine + 1, [NextWanted | LNumbers], R)
-    end.
-
-
-%% @doc If ejabberd isn't yet running in this node, then halt the node
--spec exit_or_halt(ExitText :: string()) -> none().
-exit_or_halt(ExitText) ->
-    case [Vsn || {mongooseim, _Desc, Vsn} <- application:which_applications()] of
-        [] ->
-            timer:sleep(1000),
-            halt(string:substr(ExitText, 1, 199));
-        [_] ->
-            exit(ExitText)
-    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Support for 'include_config_file'
@@ -354,349 +175,14 @@ exit_or_halt(ExitText) ->
 %% @doc Include additional configuration files in the list of terms.
 -spec include_config_files([term()]) -> [term()].
 include_config_files(Terms) ->
-    include_config_files(Terms, []).
-
-
-include_config_files([], Res) ->
-    Res;
-include_config_files([{include_config_file, Filename} | Terms], Res) ->
-    include_config_files([{include_config_file, Filename, []} | Terms], Res);
-include_config_files([{include_config_file, Filename, Options} | Terms], Res) ->
-    IncludedTerms = get_plain_terms_file(Filename),
-    Disallow = proplists:get_value(disallow, Options, []),
-    IncludedTerms2 = delete_disallowed(Disallow, IncludedTerms),
-    AllowOnly = proplists:get_value(allow_only, Options, all),
-    IncludedTerms3 = keep_only_allowed(AllowOnly, IncludedTerms2),
-    include_config_files(Terms, Res ++ IncludedTerms3);
-include_config_files([Term | Terms], Res) ->
-    include_config_files(Terms, Res ++ [Term]).
-
-
-%% @doc Filter from the list of terms the disallowed.
-%% Returns a sublist of Terms without the ones which first element is
-%% included in Disallowed.
--spec delete_disallowed(Disallowed :: [atom()],
-                        Terms :: [term()]) -> [term()].
-delete_disallowed(Disallowed, Terms) ->
-    lists:foldl(
-      fun(Dis, Ldis) ->
-          delete_disallowed2(Dis, Ldis)
-      end,
-      Terms,
-      Disallowed).
-
-
-delete_disallowed2(Disallowed, [H | T]) ->
-    case element(1, H) of
-        Disallowed ->
-            ?WARNING_MSG("The option '~p' is disallowed, "
-                         "and will not be accepted", [Disallowed]),
-            delete_disallowed2(Disallowed, T);
-        _ ->
-            [H | delete_disallowed2(Disallowed, T)]
-    end;
-delete_disallowed2(_, []) ->
-    [].
-
-
-%% @doc Keep from the list only the allowed terms.
-%% Returns a sublist of Terms with only the ones which first element is
-%% included in Allowed.
--spec keep_only_allowed(Allowed :: [atom()],
-                        Terms :: [term()]) -> [term()].
-keep_only_allowed(all, Terms) ->
-    Terms;
-keep_only_allowed(Allowed, Terms) ->
-    {As, NAs} = lists:partition(
-                  fun(Term) ->
-                      lists:member(element(1, Term), Allowed)
-                  end,
-                  Terms),
-    [?WARNING_MSG("This option is not allowed, "
-                  "and will not be accepted:~n~p", [NA])
-     || NA <- NAs],
-    As.
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Support for Macro
-
-%% @doc Replace the macros with their defined values.
--spec replace_macros(Terms :: [term()]) -> [term()].
-replace_macros(Terms) ->
-    {TermsOthers, Macros} = split_terms_macros(Terms),
-    replace(TermsOthers, Macros).
-
-
-%% @doc Split Terms into normal terms and macro definitions.
--spec split_terms_macros(Terms :: [term()]) -> {[term()], [macro()]}.
-split_terms_macros(Terms) ->
-    lists:foldl(fun split_terms_macros_fold/2, {[], []}, Terms).
-
--spec split_terms_macros_fold(any(), Acc) -> Acc when
-      Acc :: {[term()], [{Key :: any(), Value :: any()}]}.
-split_terms_macros_fold({define_macro, Key, Value} = Term, {TOs, Ms}) ->
-    case is_atom(Key) and is_all_uppercase(Key) of
-        true ->
-            {TOs, Ms ++ [{Key, Value}]};
-        false ->
-            exit({macro_not_properly_defined, Term})
-    end;
-split_terms_macros_fold(Term, {TOs, Ms}) ->
-    {TOs ++ [Term], Ms}.
-
-
-%% @doc Recursively replace in Terms macro usages with the defined value.
--spec replace(Terms :: [term()],
-              Macros :: [macro()]) -> [term()].
-replace([], _) ->
-    [];
-replace([Term | Terms], Macros) ->
-    [replace_term(Term, Macros) | replace(Terms, Macros)].
-
-
-replace_term(Key, Macros) when is_atom(Key) ->
-    case is_all_uppercase(Key) of
-        true ->
-            case proplists:get_value(Key, Macros) of
-                undefined -> exit({undefined_macro, Key});
-                Value -> Value
-            end;
-        false ->
-            Key
-    end;
-replace_term({use_macro, Key, Value}, Macros) ->
-    proplists:get_value(Key, Macros, Value);
-replace_term(Term, Macros) when is_list(Term) ->
-    replace(Term, Macros);
-replace_term(Term, Macros) when is_tuple(Term) ->
-    List = tuple_to_list(Term),
-    List2 = replace(List, Macros),
-    list_to_tuple(List2);
-replace_term(Term, _) ->
-    Term.
-
-
--spec is_all_uppercase(atom()) -> boolean().
-is_all_uppercase(Atom) ->
-    String = erlang:atom_to_list(Atom),
-    lists:all(fun(C) when C >= $a, C =< $z -> false;
-                 (_) -> true
-              end, String).
+    Filenames = mongoose_config_parser:config_filenames_to_include(Terms),
+    Configs = lists:map(fun(Filename) ->
+            {Filename, get_plain_terms_file(Filename)}
+        end, Filenames),
+    mongoose_config_parser:include_config_files(Terms, Configs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Process terms
-
--spec process_term(Term :: known_term(),
-                   State :: state()) -> state().
-process_term(Term, State) ->
-    case Term of
-        override_global ->
-            State#state{override_global = true};
-        override_local ->
-            State#state{override_local = true};
-        override_acls ->
-            State#state{override_acls = true};
-        {acl, _ACLName, _ACLData} ->
-            process_host_term(Term, global, State);
-        {alarms, Env} ->
-            add_option(alarms, Env, State);
-        {access, _RuleName, _Rules} ->
-            process_host_term(Term, global, State);
-        {shaper, _Name, _Data} ->
-            %%lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
-            %%          State, State#state.hosts);
-            process_host_term(Term, global, State);
-        {host, _Host} ->
-            State;
-        {hosts, _Hosts} ->
-            State;
-        {host_config, Host, Terms} ->
-            lists:foldl(fun(T, S) ->
-                            process_host_term(T, list_to_binary(Host), S) end,
-                        State, Terms);
-        {pool, odbc, _PoolName} ->
-            State;
-        {pool, odbc, PoolName, Options} ->
-            lists:foldl(fun(T, S) ->
-                            process_db_pool_term(T, PoolName, S)
-                        end,
-                        State, Options);
-        {listen, Listeners} ->
-            Listeners2 =
-                lists:map(
-                  fun({PortIP, Module, Opts}) ->
-                      {Port, IPT, _, _, Proto, OptsClean} =
-                          ejabberd_listener:parse_listener_portip(PortIP, Opts),
-                      {{Port, IPT, Proto}, Module, OptsClean}
-                  end,
-                  Listeners),
-            add_option(listen, Listeners2, State);
-        {language, Val} ->
-            add_option(language, list_to_binary(Val), State);
-        {sm_backend, Val} ->
-            add_option(sm_backend, Val, State);
-        {outgoing_s2s_port, Port} ->
-            add_option(outgoing_s2s_port, Port, State);
-        {outgoing_s2s_options, Methods, Timeout} ->
-            add_option(outgoing_s2s_options, {Methods, Timeout}, State);
-        {{s2s_addr, Host}, Addr} ->
-            add_option({s2s_addr, list_to_binary(Host)}, Addr, State);
-        {{global_distrib_addr, Host}, Addr} ->
-            add_option({global_distrib_addr, list_to_binary(Host)}, Addr, State);
-        {s2s_dns_options, PropList} ->
-            add_option(s2s_dns_options, PropList, State);
-        {s2s_use_starttls, Port} ->
-            add_option(s2s_use_starttls, Port, State);
-        {s2s_ciphers, Ciphers} ->
-            add_option(s2s_ciphers, Ciphers, State);
-        {s2s_certfile, CertFile} ->
-            case ejabberd_config:is_file_readable(CertFile) of
-                true -> add_option(s2s_certfile, CertFile, State);
-                false ->
-                    ErrorText = "There is a problem in the configuration: "
-                        "the specified file is not readable: ",
-                    throw({error, ErrorText ++ CertFile})
-            end;
-        {domain_certfile, Domain, CertFile} ->
-            case ejabberd_config:is_file_readable(CertFile) of
-                true -> add_option({domain_certfile, Domain}, CertFile, State);
-                false ->
-                    ErrorText = "There is a problem in the configuration: "
-                        "the specified file is not readable: ",
-                    throw({error, ErrorText ++ CertFile})
-            end;
-        {node_type, NodeType} ->
-            add_option(node_type, NodeType, State);
-        {cluster_nodes, Nodes} ->
-            add_option(cluster_nodes, Nodes, State);
-        {watchdog_admins, Admins} ->
-            add_option(watchdog_admins, Admins, State);
-        {watchdog_large_heap, LH} ->
-            add_option(watchdog_large_heap, LH, State);
-        {registration_timeout, Timeout} ->
-            add_option(registration_timeout, Timeout, State);
-        {mongooseimctl_access_commands, ACs} ->
-            add_option(mongooseimctl_access_commands, ACs, State);
-        {routing_modules, Mods} ->
-            add_option(routing_modules, Mods, State);
-        {loglevel, Loglevel} ->
-            ejabberd_loglevel:set(Loglevel),
-            State;
-        {max_fsm_queue, N} ->
-            add_option(max_fsm_queue, N, State);
-        {sasl_mechanisms, Mechanisms} ->
-            add_option(sasl_mechanisms, Mechanisms, State);
-        {http_connections, HttpConnections} ->
-            add_option(http_connections, HttpConnections, State);
-        {all_metrics_are_global, Value} ->
-            add_option(all_metrics_are_global, Value, State);
-        {services, Value} ->
-            add_option(services, Value, State);
-        {_Opt, _Val} ->
-            process_term_for_hosts_and_pools(Term, State)
-    end.
-
-process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
-    BKey = atom_to_binary(Key, utf8),
-    case get_key_group(BKey, Key) of
-        odbc ->
-            ok = check_pools(State#state.odbc_pools),
-            lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
-                        State, State#state.odbc_pools);
-        _ ->
-            lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
-                        State, State#state.hosts)
-    end.
-
-check_pools([]) ->
-    ?CRITICAL_MSG("Config file invalid: ODBC defined with no pools", []),
-    exit(no_odbc_pools);
-check_pools(Pools) when is_list(Pools) ->
-    ok.
-
--spec process_host_term(Term :: host_term(),
-                        Host :: acl:host(),
-                        State :: state()) -> state().
-process_host_term(Term, Host, State) ->
-    case Term of
-        {acl, ACLName, ACLData} ->
-            State#state{opts =
-                            [acl:to_record(Host, ACLName, ACLData) | State#state.opts]};
-        {access, RuleName, Rules} ->
-            State#state{opts = [#config{key   = {access, RuleName, Host},
-                                        value = Rules} |
-                                State#state.opts]};
-        {shaper, Name, Data} ->
-            State#state{opts = [#config{key   = {shaper, Name, Host},
-                                        value = Data} |
-                                State#state.opts]};
-        {host, Host} ->
-            State;
-        {hosts, _Hosts} ->
-            State;
-        {odbc_pool, Pool} when is_atom(Pool) ->
-            add_option({odbc_pool, Host}, Pool, State);
-        {riak_server, RiakConfig} ->
-            add_option(riak_server, RiakConfig, State);
-        {cassandra_servers, CassandraConfig} ->
-            add_option(cassandra_servers, CassandraConfig, State);
-        {elasticsearch_server, ESConfig} ->
-            add_option(elasticsearch_server, ESConfig, State);
-        {Opt, Val} ->
-            add_option({Opt, Host}, Val, State)
-    end.
-
-process_db_pool_term({Opt, Val}, Pool, State) when is_atom(Pool) ->
-    add_option({Opt, odbc_pool, Pool}, Val, State).
-
--spec add_option(Opt :: key(),
-                 Val :: value(),
-                 State :: state()) -> state().
-add_option(Opt, Val, State) ->
-    Table = case Opt of
-                hosts ->
-                    config;
-                language ->
-                    config;
-                sm_backend ->
-                    config;
-                _ ->
-                    local_config
-            end,
-    case Table of
-        config ->
-            State#state{opts = [#config{key = Opt, value = Val} |
-                                State#state.opts]};
-        local_config ->
-            case Opt of
-                {{add, OptName}, Host} ->
-                    State#state{opts = compact({OptName, Host}, Val,
-                                               State#state.opts, [])};
-                _ ->
-                    State#state{opts = [#local_config{key = Opt, value = Val} |
-                                        State#state.opts]}
-            end
-    end.
-
-
-compact({OptName, Host} = Opt, Val, [], Os) ->
-    ?WARNING_MSG("The option '~p' is defined for the host ~p using host_config "
-                 "before the global '~p' option. This host_config option may "
-                 "get overwritten.", [OptName, Host, OptName]),
-    [#local_config{key = Opt, value = Val}] ++ Os;
-%% Traverse the list of the options already parsed
-compact(Opt, Val, [O | Os1], Os2) ->
-    case catch O#local_config.key of
-        %% If the key of a local_config matches the Opt that wants to be added
-        Opt ->
-            %% Then prepend the new value to the list of old values
-            Os2 ++ [#local_config{key = Opt,
-                                  value = Val ++ O#local_config.value}
-                   ] ++ Os1;
-        _ ->
-            compact(Opt, Val, Os1, Os2 ++ [O])
-    end.
 
 
 -spec set_opts(state()) -> 'ok' | none().
@@ -704,45 +190,53 @@ set_opts(State) ->
     case mnesia:transaction(fun() -> do_set_opts(State) end) of
         {atomic, _} -> ok;
         {aborted, {no_exists, Table}} ->
-            MnesiaDirectory = mnesia:system_info(directory),
-            ?ERROR_MSG("Error reading Mnesia database spool files:~n"
-                       "The Mnesia database couldn't read the spool file for the table '~p'.~n"
-                       "ejabberd needs read and write access in the directory:~n   ~s~n"
-                       "Maybe the problem is a change in the computer hostname, ~n"
-                       "or a change in the Erlang node name, which is currently:~n   ~p~n"
-                       "Check the ejabberd guide for details about changing the~n"
-                       "computer hostname or Erlang node name.~n",
-                       [Table, MnesiaDirectory, node()]),
-            exit("Error reading Mnesia database")
+            handle_table_does_not_exist_error(Table)
     end.
 
 -spec do_set_opts(state()) -> 'ok' | none().
 do_set_opts(State) ->
-    Opts = lists:reverse(State#state.opts),
-    case State of
-        #state{override_global = true} ->
-            Ksg = mnesia:all_keys(config),
-            lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg);
-        _ ->
-            ok
-    end,
-    case State of
-        #state{override_local = true} ->
-            Ksl = mnesia:all_keys(local_config),
-            lists:foreach(fun(K) -> mnesia:delete({local_config, K}) end,
-                          lists:delete(node_start, Ksl));
-        _ ->
-            ok
-    end,
-    case State of
-        #state{override_acls = true} ->
-            Ksa = mnesia:all_keys(acl),
-            lists:foreach(fun(K) -> mnesia:delete({acl, K}) end, Ksa);
-        _ ->
-            ok
-    end,
+    Opts = mongoose_config_parser:state_to_opts(State),
+    maybe_clean_global_opts(State),
+    maybe_clean_local_opts(State),
+    maybe_clean_acls_opts(State),
     lists:foreach(fun(R) -> mnesia:write(R) end, Opts).
 
+maybe_clean_global_opts(State) ->
+    case mongoose_config_parser:can_override(global, State) of
+        true ->
+            clean_global_opts();
+        _ ->
+            ok
+    end.
+
+maybe_clean_local_opts(State) ->
+    case mongoose_config_parser:can_override(local, State) of
+        true ->
+            clean_local_opts();
+        _ ->
+            ok
+    end.
+
+maybe_clean_acls_opts(State) ->
+    case mongoose_config_parser:can_override(acls, State) of
+        true ->
+            clean_acls_opts();
+        _ ->
+            ok
+    end.
+
+clean_global_opts() ->
+    Ksg = mnesia:all_keys(config),
+    lists:foreach(fun(K) -> mnesia:delete({config, K}) end, Ksg).
+
+clean_local_opts() ->
+    Ksl = mnesia:all_keys(local_config),
+    Ksl2 = lists:delete(node_start, Ksl),
+    lists:foreach(fun(K) -> mnesia:delete({local_config, K}) end, Ksl2).
+
+clean_acls_opts() ->
+    Ksa = mnesia:all_keys(acl),
+    lists:foreach(fun(K) -> mnesia:delete({acl, K}) end, Ksa).
 
 -spec add_global_option(Opt :: key(), Val :: value()) -> {atomic|aborted, _}.
 add_global_option(Opt, Val) ->
@@ -771,7 +265,6 @@ get_global_option(Opt) ->
         _ ->
             undefined
     end.
-
 
 -spec get_local_option(key()) -> value() | undefined.
 get_local_option(Opt) ->
@@ -804,19 +297,17 @@ get_vh_by_auth_method(AuthMethod) ->
                         [{#local_config{key   = {auth_method, '$1'},
                                         value = AuthMethod}, [], ['$1']}]).
 
-
--spec is_file_readable(Path :: string()) -> boolean().
-is_file_readable(Path) ->
-    case file:read_file_info(Path) of
-        {ok, FileInfo} ->
-            case {FileInfo#file_info.type, FileInfo#file_info.access} of
-                {regular, read} -> true;
-                {regular, read_write} -> true;
-                _ -> false
-            end;
-        {error, _Reason} ->
-            false
-    end.
+handle_table_does_not_exist_error(Table) ->
+    MnesiaDirectory = mnesia:system_info(directory),
+    ?ERROR_MSG("Error reading Mnesia database spool files:~n"
+               "The Mnesia database couldn't read the spool file for the table '~p'.~n"
+               "ejabberd needs read and write access in the directory:~n   ~s~n"
+               "Maybe the problem is a change in the computer hostname, ~n"
+               "or a change in the Erlang node name, which is currently:~n   ~p~n"
+               "Check the ejabberd guide for details about changing the~n"
+               "computer hostname or Erlang node name.~n",
+               [Table, MnesiaDirectory, node()]),
+    exit("Error reading Mnesia database").
 
 %%--------------------------------------------------------------------
 %% Configuration reload
@@ -824,192 +315,143 @@ is_file_readable(Path) ->
 -spec parse_file(file:name()) -> state().
 parse_file(ConfigFile) ->
     Terms = get_plain_terms_file(ConfigFile),
-    State = lists:foldl(fun search_hosts_and_pools/2, #state{}, Terms),
-    TermsWExpandedMacros = replace_macros(Terms),
-    lists:foldl(fun process_term/2,
-                add_option(odbc_pools, State#state.odbc_pools, State),
-                TermsWExpandedMacros).
+    mongoose_config_parser:parse_terms(Terms).
 
 -spec reload_local() -> {ok, iolist()} | no_return().
 reload_local() ->
-    ConfigFile = get_ejabberd_config_path(),
-    State0 = parse_file(ConfigFile),
-    {CC, LC, LHC} = get_config_diff(State0),
-    ConfigVersion = compute_config_version(get_local_config(),
-                                           get_host_local_config()),
-    State1 = State0#state{override_global = true,
-                          override_local  = true,
-                          override_acls   = true},
-    try
-        {ok, _} = apply_changes(CC, LC, LHC, State1, ConfigVersion),
-        ?WARNING_MSG("node config reloaded from ~s", [ConfigFile]),
-        {ok, io_lib:format("# Reloaded: ~s", [node()])}
-    catch
-        Error:Reason ->
-            Msg = msg("failed to apply config on node: ~p~nreason: ~p",
-                      [node(), {Error, Reason}]),
-            ?WARNING_MSG("node config reload failed!~n"
-                         "current config version: ~p~n"
-                         "config file: ~s~n"
-                         "reason: ~p~n"
-                         "stacktrace: ~ts",
-                         [ConfigVersion, ConfigFile, Msg,
-                          msg("~p", [erlang:get_stacktrace()])]),
-            error(Msg)
-    end.
+    reload_nodes(reload_local, [node()], false).
 
-%% Won't be unnecessarily evaluated if used as an argument
-%% to lager parse transform.
-msg(Fmt, Args) ->
-    lists:flatten(io_lib:format(Fmt, Args)).
-
--spec reload_cluster() -> {ok, string()} | no_return().
+-spec reload_cluster() -> {ok, iolist()} | no_return().
 reload_cluster() ->
-    CurrentNode = node(),
-    ConfigFile = get_ejabberd_config_path(),
-    State0 = parse_file(ConfigFile),
-    ConfigDiff = {CC, LC, LHC} = get_config_diff(State0),
+    reload_nodes(reload_cluster, all_cluster_nodes(), false).
 
-    ConfigVersion = compute_config_version(get_local_config(),
-                                           get_host_local_config()),
-    FileVersion = compute_config_file_version(State0),
-    ?WARNING_MSG("cluster config reload from ~s scheduled", [ConfigFile]),
-    %% first apply on local
-    State1 = State0#state{override_global = true,
-                          override_local  = true, override_acls = true},
-    case catch apply_changes(CC, LC, LHC, State1, ConfigVersion) of
-        {ok, CurrentNode} ->
-            %% apply on other nodes
-            {S, F} = rpc:multicall(nodes(), ?MODULE, apply_changes_remote,
-                                   [ConfigFile, ConfigDiff,
-                                    ConfigVersion, FileVersion],
-                                   30000),
-            {S1, F1} = group_nodes_results([{ok, node()} | S], F),
-            ResultText = (groups_to_string("# Reloaded:", S1)
-                          ++ groups_to_string("\n# Failed:", F1)),
-            case F1 of
-                [] -> ?WARNING_MSG("cluster config reloaded successfully", []);
-                [_ | _] ->
-                    FailedUpdateOrRPC = F ++ [Node || {error, Node, _} <- S],
-                    ?WARNING_MSG("cluster config reload failed on nodes: ~p",
-                                 [FailedUpdateOrRPC])
-            end,
-            {ok, ResultText};
-        Error ->
-            Reason = msg("failed to apply config on node: ~p~nreason: ~p",
-                         [CurrentNode, Error]),
-            ?WARNING_MSG("cluster config reload failed!~n"
-                         "config file: ~s~n"
-                         "reason: ~ts", [ConfigFile, Reason]),
-            exit(Reason)
+-spec reload_cluster_dryrun() -> {ok, iolist()} | no_return().
+reload_cluster_dryrun() ->
+    reload_nodes(reload_cluster_dryrun, all_cluster_nodes(), true).
+
+reload_nodes(Command, Nodes, DryRun) ->
+    NodeStates = config_states(Nodes),
+    ReloadContext = mongoose_config_reload:states_to_reloading_context(NodeStates),
+    FailedChecks = mongoose_config_reload:context_to_failed_checks(ReloadContext),
+    case FailedChecks of
+        [] ->
+            Changes = mongoose_config_reload:context_to_changes_to_apply(ReloadContext),
+            apply_reload_changes(DryRun, Nodes, ReloadContext, Changes),
+            {ok, "done"};
+        [no_update_required] ->
+            {ok, "No update required"};
+        [_|_] ->
+            Filename = dump_reload_state(Command, ReloadContext),
+            error(#{reason => reload_failed,
+                    nodes => Nodes,
+                    from_command => Command,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename,
+                    dry_run => DryRun})
     end.
 
--spec groups_to_string(string(), [string()]) -> string().
-groups_to_string(_Header, []) ->
-    "";
-groups_to_string(Header, S) ->
-    Header ++ "\n" ++ string:join(S, "\n").
+apply_reload_changes(_DryRun = false, Nodes, ReloadContext, Changes) ->
+    try_reload_cluster(ReloadContext, Changes),
+    assert_config_reloaded(Nodes);
+apply_reload_changes(_DryRun = true, _Nodes, _ReloadContext, _Changes) ->
+    ok.
 
--spec group_nodes_results(list(), [atom]) -> {[string()], [string()]}.
-group_nodes_results(SuccessfullRPC, FailedRPC) ->
-    {S, F} = lists:foldl(fun(El, {SN, FN}) ->
-                             case El of
-                                 {ok, Node} ->
-                                     {[atom_to_list(Node) | SN], FN};
-                                 {error, Node, Reason} ->
-                                     {SN, [atom_to_list(Node) ++ " " ++ Reason | FN]}
-                             end
-                         end, {[], []}, SuccessfullRPC),
-    {S, F ++ lists:map(fun(E) -> {atom_to_list(E) ++ " " ++ "RPC failed"} end, FailedRPC)}.
+print_flat_config() ->
+    %% Without global opts
+    FlatOptsIolist = mongoose_config_helper:get_flat_opts_iolist(),
+    {ok, io_lib:format("Flat options:~n~s", [FlatOptsIolist])}.
 
--spec get_config_diff(state()) -> {ConfigChanges,
-                                   LocalConfigChanges,
-                                   LocalHostsChanges} when
-      ConfigChanges :: compare_result(),
-      LocalConfigChanges :: compare_result(),
-      LocalHostsChanges :: compare_result().
-get_config_diff(State) ->
-                                                % New Options
-    {NewConfig, NewLocal, NewHostsLocal} = categorize_options(State#state.opts),
-                                                % Current Options
-    Config = get_global_config(),
-    Local = get_local_config(),
-    HostsLocal = get_host_local_config(),
-    %% global config diff
-    CC = compare_terms(Config, NewConfig, 2, 3),
-    LC = compare_terms(Local, NewLocal, 2, 3),
-    LHC = compare_terms(group_host_changes(HostsLocal), group_host_changes(NewHostsLocal), 1, 2),
-    {CC, LC, LHC}.
+assert_local_config_reloaded() ->
+    assert_config_reloaded([node()]).
 
--spec apply_changes_remote(file:name(), term(), binary(), binary()) ->
-                                  {ok, node()}| {error, node(), string()}.
-apply_changes_remote(NewConfigFilePath, ConfigDiff,
-                     DesiredConfigVersion, DesiredFileVersion) ->
-    ?WARNING_MSG("remote config reload scheduled", []),
-    ?DEBUG("~ndesired config version: ~p"
-           "~ndesired file version: ~p",
-           [DesiredConfigVersion, DesiredFileVersion]),
-    Node = node(),
-    {CC, LC, LHC} = ConfigDiff,
-    State0 = parse_file(NewConfigFilePath),
-    case compute_config_file_version(State0) of
-        DesiredFileVersion ->
-            State1 = State0#state{override_global = false,
-                                  override_local  = true,
-                                  override_acls   = false},
-            case catch apply_changes(CC, LC, LHC, State1,
-                                     DesiredConfigVersion) of
-                {ok, Node} = R ->
-                    ?WARNING_MSG("remote config reload succeeded", []),
-                    R;
-                UnknownResult ->
-                    ?WARNING_MSG("remote config reload failed! "
-                                 "can't apply desired config", []),
-                    {error, Node,
-                     lists:flatten(io_lib:format("~p", [UnknownResult]))}
-            end;
-        _ ->
-            ?WARNING_MSG("remote config reload failed! "
-                         "can't compute current config version", []),
-            {error, Node, io_lib:format("Mismatching config file", [])}
-    end.
-
--spec apply_changes(term(), term(), term(), state(), binary()) ->
-                           {ok, node()} | {error, node(), string()}.
-apply_changes(ConfigChanges, LocalConfigChanges, LocalHostsChanges,
-              State, DesiredConfigVersion) ->
-    ConfigVersion = compute_config_version(get_local_config(),
-                                           get_host_local_config()),
-    ?DEBUG("config version: ~p", [ConfigVersion]),
-    case ConfigVersion of
-        DesiredConfigVersion ->
+assert_config_reloaded(Nodes) ->
+    NodeStates = config_states(Nodes),
+    ReloadContext = mongoose_config_reload:states_to_reloading_context(NodeStates),
+    FailedChecks = mongoose_config_reload:context_to_failed_checks(ReloadContext),
+    case FailedChecks of
+        [no_update_required] ->
             ok;
         _ ->
-            exit("Outdated configuration on node; cannot apply new one")
-    end,
-    %% apply config
-    set_opts(State),
+            Filename = dump_reload_state(assert_local_config_reloaded, ReloadContext),
+            error(#{reason => assert_config_reloaded,
+                    nodes => Nodes,
+                    failed_checks => FailedChecks,
+                    dump_filename => Filename})
+    end.
 
+dump_reload_state(From, ReloadContext) ->
+    Map = ReloadContext#{what => From},
+    Io = io_lib:format("~p.", [Map]),
+    Filename = dump_reload_state_filename(),
+    %% Wow, so important!
+    ?CRITICAL_MSG("issue=dump_reload_state from=~p filename=~p",
+                  [From, Filename]),
+    io:format("issue=dump_reload_state from=~p filename=~p",
+                  [From, Filename]),
+    file:write_file(Filename, Io),
+    Filename.
+
+dump_reload_state_filename() ->
+    {ok, Pwd} = file:get_cwd(),
+    DateTime = jlib:now_to_utc_string(os:timestamp()),
+    Filename = "reload_state_" ++ DateTime ++ ".dump",
+    filename:join(Pwd, Filename).
+
+try_reload_cluster(ReloadContext, Changes) ->
+    try
+        do_reload_cluster(Changes)
+    catch
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?CRITICAL_MSG("issue=try_reload_cluster_failed "
+                           "reason=~p:~p stacktrace=~1000p",
+                          [Class, Reason, Stacktrace]),
+            Filename = dump_reload_state(try_reload_cluster, ReloadContext),
+            Reason2 = #{issue => try_reload_cluster_failed,
+                        reason => Reason,
+                        dump_filename => Filename},
+            erlang:raise(Class, Reason2, Stacktrace)
+    end.
+
+do_reload_cluster(Changes) ->
+    lists:map(fun(Change) -> apply_reloading_change(Change) end, Changes),
+    ok.
+
+apply_reloading_change(#{
+              mongoose_node := Node,
+              state_to_apply := State,
+              config_diff_to_apply := ConfigDiff}) when node() =:= Node ->
+    #{config_changes := ConfigChanges,
+      local_config_changes := LocalConfigChanges,
+      local_hosts_changes := LocalHostsChanges} = ConfigDiff,
+    set_opts(State),
     reload_config(ConfigChanges),
     reload_local_config(LocalConfigChanges),
     reload_local_hosts_config(LocalHostsChanges),
+    {ok, node()};
+apply_reloading_change(Change=#{mongoose_node := Node}) ->
+    rpc:call(Node, ?MODULE, apply_reloading_change, [Change]).
 
-    {ok, node()}.
-
-reload_config(#compare_result{to_start  = CAdd, to_stop = CDel,
-                              to_reload = CChange}) ->
+-spec reload_config(compare_result()) -> ok.
+reload_config(#{to_start := CAdd,
+                to_stop := CDel,
+                to_reload := CChange}) ->
     lists:foreach(fun handle_config_change/1, CChange),
     lists:foreach(fun handle_config_add/1, CAdd),
     lists:foreach(fun handle_config_del/1, CDel).
 
-reload_local_config(#compare_result{to_start  = LCAdd, to_stop = LCDel,
-                                    to_reload = LCChange}) ->
+-spec reload_local_config(compare_result()) -> ok.
+reload_local_config(#{to_start := LCAdd,
+                      to_stop := LCDel,
+                      to_reload := LCChange}) ->
     lists:foreach(fun handle_local_config_change/1, LCChange),
     lists:foreach(fun handle_local_config_add/1, LCAdd),
     lists:foreach(fun handle_local_config_del/1, LCDel).
 
-reload_local_hosts_config(#compare_result{to_start  = LCHAdd, to_stop = LCHDel,
-                                          to_reload = LCHChange}) ->
+-spec reload_local_hosts_config(compare_result()) -> ok.
+reload_local_hosts_config(#{to_start := LCHAdd,
+                            to_stop := LCHDel,
+                            to_reload := LCHChange}) ->
     lists:foreach(fun handle_local_hosts_config_change/1, LCHChange),
     lists:foreach(fun handle_local_hosts_config_add/1, LCHAdd),
     lists:foreach(fun handle_local_hosts_config_del/1, LCHDel).
@@ -1025,7 +467,7 @@ handle_config_del(#config{key = hosts, value = Hosts}) ->
 
 %% handle add/remove new hosts
 handle_config_change({hosts, OldHosts, NewHosts}) ->
-    {ToDel, ToAdd} = check_hosts(NewHosts, OldHosts),
+    {ToDel, ToAdd} = mongoose_config_parser:check_hosts(NewHosts, OldHosts),
     lists:foreach(fun remove_virtual_host/1, ToDel),
     lists:foreach(fun add_virtual_host/1, ToAdd);
 handle_config_change({language, _Old, _New}) ->
@@ -1054,7 +496,7 @@ handle_local_config_del(#local_config{key = Key} = El) ->
     ?WARNING_MSG_IF(not can_be_ignored(Key), "local config change: ~p unhandled", [El]).
 
 handle_local_config_change({listen, Old, New}) ->
-    reload_listeners(compare_listeners(Old, New));
+    reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
 handle_local_config_change({riak_server, _Old, _New}) ->
     mongoose_riak:stop(),
     mongoose_riak:start(),
@@ -1125,34 +567,10 @@ methods_to_auth_modules(A) when is_atom(A) ->
     methods_to_auth_modules([A]).
 
 
-compute_config_version(LC, LCH) ->
-    L0 = lists:filter(mk_node_start_filter(), LC ++ LCH),
-    L1 = sort_config(L0),
-    crypto:hash(sha, term_to_binary(L1)).
-
-compute_config_file_version(#state{opts = Opts, hosts = Hosts}) ->
-    L = sort_config(Opts ++ Hosts),
-    crypto:hash(sha, term_to_binary(L)).
-
--spec check_hosts([jid:server()], [jid:server()]) -> {[jid:server()],
-                                                                [jid:server()]}.
-check_hosts(NewHosts, OldHosts) ->
-    Old = sets:from_list(OldHosts),
-    New = sets:from_list(NewHosts),
-    ListToAdd = sets:to_list(sets:subtract(New, Old)),
-    ListToDel = sets:to_list(sets:subtract(Old, New)),
-    {ListToDel, ListToAdd}.
-
 -spec add_virtual_host(Host :: jid:server()) -> any().
 add_virtual_host(Host) ->
     ?DEBUG("Register host:~p", [Host]),
     ejabberd_local:register_host(Host).
-
--spec can_be_ignored(Key :: atom() | tuple()) -> boolean().
-can_be_ignored(Key) when is_atom(Key);
-                         is_tuple(Key) ->
-    L = [domain_certfile, s2s, all_metrics_are_global, odbc],
-    lists:member(Key, L).
 
 -spec remove_virtual_host(jid:server()) -> any().
 remove_virtual_host(Host) ->
@@ -1160,8 +578,9 @@ remove_virtual_host(Host) ->
     ejabberd_local:unregister_host(Host).
 
 -spec reload_listeners(ChangedListeners :: compare_result()) -> 'ok'.
-reload_listeners(#compare_result{to_start  = Add, to_stop = Del,
-                                 to_reload = Change} = ChangedListeners) ->
+reload_listeners(#{to_start := Add,
+                   to_stop := Del,
+                   to_reload := Change} = ChangedListeners) ->
     ?DEBUG("reload listeners: ~p", [lager:pr(ChangedListeners, ?MODULE)]),
     lists:foreach(fun({{PortIP, Module}, Opts}) ->
                       ejabberd_listener:delete_listener(PortIP, Module, Opts)
@@ -1174,34 +593,6 @@ reload_listeners(#compare_result{to_start  = Add, to_stop = Del,
                       ejabberd_listener:add_listener(PortIP, Module, NewOpts)
                   end, Change).
 
--spec compare_modules(term(), term()) -> compare_result().
-compare_modules(OldMods, NewMods) ->
-    compare_terms(OldMods, NewMods, 1, 2).
-
--spec compare_listeners(term(), term()) -> compare_result().
-compare_listeners(OldListeners, NewListeners) ->
-    compare_terms(map_listeners(OldListeners), map_listeners(NewListeners), 1, 2).
-
-map_listeners(Listeners) ->
-    lists:map(fun({PortIP, Module, Opts}) ->
-                  {{PortIP, Module}, Opts}
-              end, Listeners).
-
-                                                % group values which can be grouped like odbc ones
--spec group_host_changes([term()]) -> [{atom(), [term()]}].
-group_host_changes(Changes) when is_list(Changes) ->
-    D = lists:foldl(fun(#local_config{key = {Key, Host}, value = Val}, Dict) ->
-                        BKey = atom_to_binary(Key, utf8),
-                        case get_key_group(BKey, Key) of
-                            Key ->
-                                dict:append({Key, Host}, Val, Dict);
-                            NewKey ->
-                                dict:append({NewKey, Host}, {Key, Val}, Dict)
-                        end
-                    end, dict:new(), Changes),
-    [{Group, lists:sort(lists:flatten(MaybeDeepList))}
-     || {Group, MaybeDeepList} <- dict:to_list(D)].
-
 %% match all hosts
 -spec get_host_local_config() -> [{local_config, {term(), jid:server()}, term()}].
 get_host_local_config() ->
@@ -1209,7 +600,7 @@ get_host_local_config() ->
 
 -spec get_local_config() -> [{local_config, term(), term()}].
 get_local_config() ->
-    Keys = lists:filter(fun is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
+    Keys = lists:filter(fun mongoose_config_parser:is_not_host_specific/1, mnesia:dirty_all_keys(local_config)),
     lists:flatten(lists:map(fun(Key) ->
                                 mnesia:dirty_read(local_config, Key)
                             end,
@@ -1219,109 +610,90 @@ get_local_config() ->
 get_global_config() ->
     mnesia:dirty_match_object(config, {config, '_', '_'}).
 
--spec is_not_host_specific(atom()
-                           | {atom(), jid:server()}
-                           | {atom(), atom(), atom()}) -> boolean().
-is_not_host_specific(Key) when is_atom(Key) ->
-    true;
-is_not_host_specific({Key, Host}) when is_atom(Key), is_binary(Host) ->
-    false;
-is_not_host_specific({Key, PoolType, PoolName})
-  when is_atom(Key), is_atom(PoolType), is_atom(PoolName) ->
-    true.
+%% @doc Returns current all options in memory, grouped by category.
+get_categorized_options() ->
+    Config = get_global_config(),
+    Local = get_local_config(),
+    HostsLocal = get_host_local_config(),
+    mongoose_config_reload:make_categorized_options(Config, Local, HostsLocal).
 
--spec categorize_options([term()]) -> {GlobalConfig, LocalConfig, HostsConfig} when
-      GlobalConfig :: list(),
-      LocalConfig :: list(),
-      HostsConfig :: list().
-categorize_options(Opts) ->
-    lists:foldl(fun({config, _, _} = El, Acc) ->
-                    as_global(El, Acc);
-                   ({local_config, {Key, Host}, _} = El, Acc)
-                      when is_atom(Key), is_binary(Host) ->
-                    as_hosts(El, Acc);
-                   ({local_config, _, _} = El, Acc) ->
-                    as_local(El, Acc);
-                   ({acl, _, _}, R) ->
-                    %% no need to do extra work here
-                    R;
-                   (R, R2) ->
-                    ?ERROR_MSG("not matched ~p", [R]),
-                    R2
-                end, {[], [], []}, Opts).
+%% @doc Returns configs on disc and in memory for this node.
+%% This function prepares all state data to pass into pure code part
+%% (i.e. mongoose_config_parser and mongoose_config_reload).
+config_state() ->
+    ConfigFile = get_ejabberd_config_path(),
+    Terms = get_plain_terms_file(ConfigFile),
+    %% Performance optimization hint:
+    %% terms_to_missing_and_required_files/1 actually parses Terms into State.
+    #{missing_files := MissingFiles,
+      required_files := RequiredFiles} =
+        terms_to_missing_and_required_files(Terms),
+    #{mongoose_node => node(),
+      config_file => ConfigFile,
+      loaded_categorized_options => get_categorized_options(),
+      ondisc_config_terms => Terms,
+      missing_files => MissingFiles,
+      required_files => RequiredFiles}.
 
-as_global(El, {Config, Local, HostLocal}) -> {[El | Config], Local, HostLocal}.
-as_local(El, {Config, Local, HostLocal}) -> {Config, [El | Local], HostLocal}.
-as_hosts(El, {Config, Local, HostLocal}) -> {Config, Local, [El | HostLocal]}.
+config_states() ->
+    config_states(all_cluster_nodes()).
 
--spec get_key_group(binary(), atom()) -> atom().
-get_key_group(<<"ldap_", _/binary>>, _) ->
-    ldap;
-get_key_group(<<"odbc_", _/binary>>, _) ->
-    odbc;
-get_key_group(<<"pgsql_", _/binary>>, _) ->
-    odbc;
-get_key_group(<<"auth_", _/binary>>, _) ->
-    auth;
-get_key_group(<<"ext_auth_", _/binary>>, _) ->
-    auth;
-get_key_group(<<"s2s_", _/binary>>, _) ->
-    s2s;
-get_key_group(_, Key) when is_atom(Key) ->
-    Key.
-
--spec compare_terms(OldTerms :: [tuple()],
-                    NewTerms :: [tuple()],
-                    KeyPos :: non_neg_integer(),
-                    ValuePos :: non_neg_integer()) -> compare_result().
-compare_terms(OldTerms, NewTerms, KeyPos, ValuePos)
-  when is_integer(KeyPos), is_integer(ValuePos) ->
-    {ToStop, ToReload} = lists:foldl(pa:bind(fun find_modules_to_change/5,
-                                             KeyPos, NewTerms, ValuePos),
-                                     {[], []}, OldTerms),
-    ToStart = lists:foldl(pa:bind(fun find_modules_to_start/4,
-                                  KeyPos, OldTerms), [], NewTerms),
-    #compare_result{to_start  = ToStart,
-                    to_stop   = ToStop,
-                    to_reload = ToReload}.
-
-find_modules_to_start(KeyPos, OldTerms, Element, ToStart) ->
-    case lists:keyfind(element(KeyPos, Element), KeyPos, OldTerms) of
-        false -> [Element | ToStart];
-        _ -> ToStart
+%% @doc Returns config states from all nodes in cluster
+%% State from the local node comes as head of a list
+config_states(Nodes) ->
+    {S, F} = rpc:multicall(Nodes, ?MODULE, config_state, [], 30000),
+    case F of
+        [] ->
+            S;
+        [_|_] ->
+            erlang:error(#{issue => config_state_failed,
+                           cluster_nodes => Nodes,
+                           failed_nodes => F})
     end.
 
-find_modules_to_change(KeyPos, NewTerms, ValuePos,
-                       Element, {ToStop, ToReload}) ->
-    case lists:keyfind(element(KeyPos, Element), KeyPos, NewTerms) of
-        false ->
-            {[Element | ToStop], ToReload};
-        NewElement ->
-            OldVal = element(ValuePos, Element),
-            NewVal = element(ValuePos, NewElement),
-            case OldVal == NewVal of
-                true ->
-                    {ToStop, ToReload};
-                false ->
-                    %% add also old value
-                    {ToStop,
-                     [{element(KeyPos, Element), OldVal, NewVal} | ToReload]}
-            end
+compute_config_file_version() ->
+    ConfigFile = get_ejabberd_config_path(),
+    State = parse_file(ConfigFile),
+    mongoose_config_reload:compute_config_file_version(State).
+
+compute_loaded_config_version() ->
+    LC = get_local_config(),
+    LCH = get_host_local_config(),
+    mongoose_config_reload:compute_config_version(LC, LCH).
+
+config_info() ->
+    [{config_file_version, compute_config_file_version()},
+     {config_version, compute_loaded_config_version()}].
+
+
+all_cluster_nodes() ->
+    [node()|other_cluster_nodes()].
+
+-spec other_cluster_nodes() -> [node()].
+other_cluster_nodes() ->
+    lists:filter(fun is_mongooseim_node/1, nodes()).
+
+-spec is_mongooseim_node(node()) -> boolean().
+is_mongooseim_node(Node) ->
+    Apps = rpc:call(Node, application, which_applications, []),
+    lists:keymember(mongooseim, 1, Apps).
+
+assert_required_files_exist(State) ->
+    RequiredFiles = mongoose_config_parser:state_to_required_files(State),
+    case missing_files(RequiredFiles) of
+        [] ->
+            ok;
+        MissingFiles ->
+            erlang:error(#{issue => missing_files,
+                           filenames => MissingFiles})
     end.
 
-mk_node_start_filter() ->
-    fun(#local_config{key = node_start}) ->
-        false;
-       (_) ->
-        true
-    end.
+terms_to_missing_and_required_files(Terms) ->
+    State = mongoose_config_parser:parse_terms(Terms),
+    RequiredFiles = mongoose_config_parser:state_to_required_files(State),
+    MissingFiles = missing_files(RequiredFiles),
+    #{missing_files => MissingFiles, required_files => RequiredFiles}.
 
-sort_config(Config) when is_list(Config) ->
-    L = lists:map(fun(ConfigItem) when is_list(ConfigItem) ->
-                      sort_config(ConfigItem);
-                     (ConfigItem) when is_tuple(ConfigItem) ->
-                      sort_config(tuple_to_list(ConfigItem));
-                     (ConfigItem) ->
-                      ConfigItem
-                  end, Config),
-    lists:sort(L).
+missing_files(RequiredFiles) ->
+    [Filename || Filename <- RequiredFiles,
+                 not mongoose_config_utils:is_file_readable(Filename)].
