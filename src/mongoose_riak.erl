@@ -20,9 +20,8 @@
 
 %% API
 -export([start/0]).
+-export([start_pool/1]).
 -export([stop/0]).
-
--export([start_worker/3]).
 
 -export([put/1, put/2]).
 -export([get/2, get/3]).
@@ -31,7 +30,6 @@
 -export([fetch_type/2, fetch_type/3]).
 -export([list_keys/1]).
 -export([list_buckets/1]).
--export([get_worker/0]).
 -export([create_new_map/1]).
 -export([update_map/2]).
 -export([mapred/2]).
@@ -39,6 +37,7 @@
 -export([search/3]).
 -export([get_index/4]).
 -export([get_index_range/5]).
+-export([get_worker/0]).
 
 -export([pool_name/0]).
 
@@ -49,33 +48,35 @@
 -type riakc_map_op() :: {{binary(), MapDataType :: atom()},
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
+%%%%
+
 -spec start() -> {ok, pid()} | ignore.
 start() ->
+    mongoose_wpool:ensure_started(),
     case ejabberd_config:get_local_option(riak_server) of
         undefined ->
             ignore;
         RiakOpts ->
-            {_, RiakAddr} = get_riak_opt(address, RiakOpts),
-            {_, RiakPort} = get_riak_opt(port, RiakOpts),
-            {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
-            SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
-            SecurityOpts = [get_riak_opt(OptKey, RiakOpts) ||
-                               OptKey <- SecurityOptsKeys],
-            RiakPBOpts = [auto_reconnect, keepalive],
-            RiakPBOptsExceeded =
-                maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
-            mongoose_riak_sup:start(Workers, RiakAddr, RiakPort,
-                                    RiakPBOptsExceeded)
+            start_pool(RiakOpts)
     end.
+
+start_pool(RiakOpts) ->
+    {_, RiakAddr} = get_riak_opt(address, RiakOpts),
+    {_, RiakPort} = get_riak_opt(port, RiakOpts),
+    {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
+    SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
+    SecurityOpts = [get_riak_opt(OptKey, RiakOpts) || OptKey <- SecurityOptsKeys],
+    RiakPBOpts = [auto_reconnect, keepalive],
+    WorkerArgs = maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
+    Worker = {riakc_pb_socket, [RiakAddr, RiakPort, WorkerArgs]},
+    PoolOpts = [{workers, Workers},
+                {worker, Worker}]
+                ++  proplists:get_value(pool_options, RiakOpts, []),
+    wpool:start_sup_pool(pool_name(), PoolOpts).
 
 -spec stop() -> _.
 stop() ->
-    mongoose_riak_sup:stop().
-
--spec start_worker(riakc_pb_socket:address(), riakc_pb_socket:portnum(), proplists:proplist()) ->
-    {ok, pid()} | {error, term()}.
-start_worker(Address, Port, Opts) ->
-    riakc_pb_socket:start_link(Address, Port, Opts).
+    wpool:stop_sup_pool(pool_name()).
 
 -spec put(riakc_obj()) ->
     ok | {ok, riakc_obj()} | {ok, key()} | {error, term()}.
@@ -178,16 +179,6 @@ get_index(BucketType, Index, Value, Opts) ->
 get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
     ?CALL(get_index_range, [Bucket, Index, StartKey, EndKey, Opts]).
 
--spec get_worker() -> pid() | undefined.
-get_worker() ->
-    case catch cuesport:get_worker(pool_name()) of
-        Pid  when is_pid(Pid) ->
-            Pid;
-        _ ->
-            undefined
-    end.
-
-
 -spec pool_name() ->  atom().
 pool_name() -> riak_pool.
 
@@ -198,6 +189,11 @@ call_riak(F, ArgsIn) ->
     Worker = get_worker(),
     Args = [Worker | ArgsIn],
     apply(riakc_pb_socket, F, Args).
+
+get_worker() ->
+    PoolName = pool_name(),
+    % TODO: improve worker_pool, then use available_worker strategy here
+    wpool_pool:next_worker(PoolName).
 
 %% @doc Gets a particular option from `Opts`. They're expressed as a list
 %% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
@@ -221,3 +217,4 @@ verify_if_riak_opt_exists(Opt, _) -> Opt.
 maybe_add_additional_opts(Opts, AdditionalOpts) ->
     Opts2 = [verify_if_riak_opt_exists(Opt, []) || Opt <- AdditionalOpts],
     lists:flatten(Opts ++ Opts2).
+

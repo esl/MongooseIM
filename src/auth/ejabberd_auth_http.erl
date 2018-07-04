@@ -43,17 +43,13 @@
 
 -spec start(binary()) -> ok.
 start(Host) ->
-    AuthHost = ejabberd_auth:get_opt(Host, host),
-    PoolSize = ejabberd_auth:get_opt(Host, connection_pool_size, 10),
-    Opts = ejabberd_auth:get_opt(Host, connection_opts, []),
-    ChildMods = [fusco],
-    ChildMF = {fusco, start_link},
-    ChildArgs = {for_all, [AuthHost, Opts]},
-    ChildSpec = {{ejabberd_auth_http_sup, Host},
-                  {cuesport, start_link,
-                   [pool_name(Host), PoolSize, ChildMods, ChildMF, ChildArgs]},
-                  transient, 2000, supervisor, [cuesport | ChildMods]},
-    ejabberd_sup:start_child(ChildSpec),
+    Opts = [{selection_strategy, ejabberd_auth:get_opt(Host, selection_strategy, random_worker)},
+            {server, ejabberd_auth:get_opt(Host, host)},
+            {path_prefix, ejabberd_auth:get_opt(Host, path_prefix, "")},
+            {pool_size, ejabberd_auth:get_opt(Host, connection_pool_size, 20)},
+            {http_opts, ejabberd_auth:get_opt(Host, connection_opts, [])}
+           ],
+    mongoose_http_client:start_pool(pool_name(Host), Opts),
     ok.
 
 
@@ -220,12 +216,6 @@ remove_user_req(LUser, LServer, Password, Method) ->
 make_req(_, _, LUser, LServer, _) when LUser == error orelse LServer == error ->
     {error, invalid_jid};
 make_req(Method, Path, LUser, LServer, Password) ->
-    PathPrefix = case ejabberd_auth:get_opt(LServer, path_prefix) of
-                     undefined ->
-                         <<"/">>;
-                     Prefix ->
-                         ejabberd_binary:string_to_binary(Prefix)
-                 end,
     LUserE = list_to_binary(http_uri:encode(binary_to_list(LUser))),
     LServerE = list_to_binary(http_uri:encode(binary_to_list(LServer))),
     PasswordE = list_to_binary(http_uri:encode(binary_to_list(Password))),
@@ -237,14 +227,11 @@ make_req(Method, Path, LUser, LServer, Password) ->
                       BasicAuth64 = base64:encode(BasicAuth),
                       [{<<"Authorization">>, <<"Basic ", BasicAuth64/binary>>}]
               end,
-    Connection = cuesport:get_worker(existing_pool_name(LServer)),
 
     ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
-    {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} = case Method of
-        get -> fusco:request(Connection, <<PathPrefix/binary, Path/binary, "?", Query/binary>>,
-                             "GET", Header, "", 2, 5000);
-        post -> fusco:request(Connection, <<PathPrefix/binary, Path/binary>>,
-                              "POST", Header, Query, 2, 5000)
+    {ok, {Code, RespBody}} = case Method of
+        get -> mongoose_http_client:get(pool_name(LServer), <<Path/binary, "?", Query/binary>>, Header);
+        post -> mongoose_http_client:post(pool_name(LServer), Path, Header, Query)
     end,
 
     ?DEBUG("Request result: ~s: ~p", [Code, RespBody]),
@@ -265,10 +252,6 @@ make_req(Method, Path, LUser, LServer, Password) ->
 -spec pool_name(binary()) -> atom().
 pool_name(Host) ->
     list_to_atom("ejabberd_auth_http_" ++ binary_to_list(Host)).
-
--spec existing_pool_name(binary()) -> atom().
-existing_pool_name(Host) ->
-    list_to_existing_atom("ejabberd_auth_http_" ++ binary_to_list(Host)).
 
 -spec verify_scram_password(binary(), binary(), binary()) ->
     {ok, boolean()} | {error, bad_request | not_exists}.
