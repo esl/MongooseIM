@@ -292,8 +292,8 @@ try_to_terminate_the_session(FromLUS, ToLUS, Session) ->
 
 try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     SDP = prepare_initial_sdp(Server, Jingle),
-    %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
-    case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
+    LocalHost = gen_mod:get_module_opt(Server, ?MODULE, local_host, "localhost"),
+    case nksip_request_reply({ok, [{body, SDP}, {local_host, LocalHost}]}, ReqID) of
         ok ->
            ok = mod_jingle_sip_backend:set_incoming_accepted(SID),
            terminate_session_on_other_devices(SID, Acc),
