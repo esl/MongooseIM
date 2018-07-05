@@ -35,7 +35,9 @@
          groupchat_markers_one_reset_room_created/1,
          groupchat_markers_all_reset_room_created/1,
          no_aff_stored_and_remove_on_kicked/1,
-         no_stored_and_remain_after_kicked/1]).
+         no_stored_and_remain_after_kicked/1,
+         simple_groupchat_stored_in_all_inbox_muc/1
+        ]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
 -import(muc_light_helper, [bin_aff_users/1, aff_msg_verify_fun/1, gc_message_verify_fun/3, ver/1,
@@ -49,6 +51,8 @@
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
 -define(ROOM_MARKERS, <<"room_markers">>).
+-define(MUC_ROOM, <<"some_muc_room">>).
+-define(MUC_DOMAIN, <<"muc.localhost">>).
 -record(conv, {unread, from, to, content = <<>>, verify = fun(C, Stanza) -> ok end}).
 -record(inbox, {total, convs = []}).
 %%--------------------------------------------------------------------
@@ -66,7 +70,8 @@ all() ->
 tests() ->
   [
       {group, one_to_one},
-      {group, muclight}
+      {group, muclight},
+      {group, muc}
   ].
 
 groups() ->
@@ -95,9 +100,13 @@ groups() ->
            no_stored_and_remain_after_kicked,
            groupchat_markers_one_reset_room_created,
            groupchat_markers_all_reset_room_created
+          ]},
+         {muc, [sequence],
+          [
+           simple_groupchat_stored_in_all_inbox_muc
           ]}
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+        ].
+    %ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
   escalus:suite().
@@ -150,12 +159,19 @@ init_per_group(one_to_one, Config) ->
 init_per_group(muclight, Config) ->
   reload_inbox_option(Config, groupchat, [muclight]),
   create_room(?ROOM, muclight_domain(), alice, [bob, kate], Config, ver(1));
+init_per_group(muc, Config) ->
+  muc_helper:load_muc(?MUC_DOMAIN),
+  reload_inbox_option(Config, groupchat, [muc]),
+  [User | _] = ?config(escalus_users, Config),
+  muc_helper:start_room(Config, User, ?MUC_ROOM, <<"some_friendly_name">>, default);
 init_per_group(_GroupName, Config) ->
   Config.
 
 end_per_group(muclight, Config) ->
   muc_light_helper:clear_db(),
   Config;
+end_per_group(muc, Config) ->
+    muc_helper:destroy_room(Config);
 end_per_group(_GroupName, Config) ->
   Config.
 
@@ -761,8 +777,68 @@ groupchat_markers_all_reset_room_created(Config) ->
     foreach_check_inbox([Bob, Kate, Alice], 1, 0, AliceRoomJid, Msg)
                                                            end).
 
+%% ++++
+
+simple_groupchat_stored_in_all_inbox_muc(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Users = [Alice, Bob, Kate],
+    Msg = <<"Hi Room!">>,
+    Id = <<"MyID">>,
+    Room = ?config(room, Config),
+    RoomAddr = muc_room_address(Room),
+    lists:foreach(fun(User) ->
+                          escalus:send(User, stanza_muc_enter_room(Room, nick(User))) end,
+                  Users),
+    lists:foreach(fun(User) ->
+                          escalus:wait_for_stanzas(User, 4) end,
+                  Users),
+    Stanza = escalus_stanza:set_id(
+      escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
+    escalus:send(Bob, Stanza),
+    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
+              Users),
+    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
+                  Resps),
+    [AliceJid, BobJid, KateJid] = lists:map(fun(User) -> escalus_client:full_jid(User) end, Users),
+    AliceRoomJid = muc_room_address(Room, nick(Alice)),
+    %% Alice has 0 unread messages
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, 
+                     content = <<"Msg">>}]}),
+    %% Bob and Kate have one conv with 1 unread message
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]})
+    end).
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
+
+
+nick(User) -> escalus_utils:get_username(User).
+
+stanza_muc_enter_room(Room, Nick) ->
+    stanza_to_room(
+        escalus_stanza:presence(<<"available">>,
+                                [#xmlel{name = <<"x">>,
+                                        attrs=[{<<"xmlns">>, <<"http://jabber.org/protocol/muc">>}]}
+                                ]),
+        Room, Nick).
+
+stanza_to_room(Stanza, Room, Nick) ->
+    escalus_stanza:to(Stanza, muc_room_address(Room, Nick)).
+
+
+muc_room_address(Room) ->
+    RoomJid = <<?MUC_ROOM/binary, $@, ?MUC_DOMAIN/binary>>.
+
+muc_room_address(Room, Nick) ->
+    RoomJid = <<Room/binary, $@, ?MUC_DOMAIN/binary, $/, Nick/binary>>.
 
 create_room_and_check_inbox(Owner, MemberList, RoomName) ->
   InitOccupants = [{M, member} || M <- MemberList],
