@@ -144,12 +144,10 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
     AcceptableMessage = should_be_stored_in_inbox(Msg),
     if AcceptableMessage ->
         Type = get_message_type(Msg),
-        GroupchatsEnabled = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
-        MuclightEnabled = lists:member(muclight, GroupchatsEnabled),
         Type == one2one andalso
-            process_message(Host, From, To, Msg, Dir, one2one),
-        (Type == groupchat andalso MuclightEnabled) andalso
-            process_message(Host, From, To, Msg, Dir, groupchat);
+        process_message(Host, From, To, Msg, Dir, one2one),
+        (Type == groupchat andalso groupchats_enabled(Host)) andalso
+        process_message(Host, From, To, Msg, Dir, groupchat);
         true ->
             ok
     end.
@@ -165,9 +163,11 @@ process_message(Host, From, To, Message, outgoing, one2one) ->
 process_message(Host, From, To, Message, incoming, one2one) ->
     mod_inbox_one2one:handle_incoming_message(Host, From, To, Message);
 process_message(Host, From, To, Message, outgoing, groupchat) ->
-    mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message);
+    MucMod = muc_module(Host),
+    MucMod:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, groupchat) ->
-    mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
+    MucMod = muc_module(Host),
+    MucMod:handle_incoming_message(Host, From, To, Message);
 process_message(_, _, _, Message, _, _) ->
     ?WARNING_MSG("unknown messasge not written in inbox='~p'", [Message]),
     ok.
@@ -201,6 +201,25 @@ build_forward_el(Content) ->
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
 %%
+
+-spec muc_type(Host :: binary()) :: muclight | muc.
+muc_type(Host) ->
+    [Type] = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
+    Type.
+
+-spec muc_module(Host :: binary()) :: mod_inbox_muclight | mod_inbox_muc.
+muc_module(Host) ->
+    muc_module_from_type(muc_type(Host)).
+
+muc_module_from_type(muclight) -> mod_inbox_muclight;
+muc_module_from_type(muc) -> mod_inbox_muc.
+
+-spec muc_type(Host :: binary()) :: boolean().
+groupchats_enabled(Host) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]) of
+        [] -> false;
+        [_] -> true
+    end.
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->
