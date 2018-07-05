@@ -14,7 +14,7 @@ if [ x"$VERSION" = x"" ]; then
     VERSION=$(../../tools/generate_vsn.sh tag)
 fi
 
-#REVISION=${3:-$(($(../../tools/generate_vsn.sh commits) + 1))}
+REVISION=${3:-$(($(../../tools/generate_vsn.sh commits) + 1))}
 
 echo "Building package for"
 echo "    platform: $PLATFORM"

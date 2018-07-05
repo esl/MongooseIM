@@ -27,8 +27,8 @@ echo_git_vsn() {
 }
 
 echo_file_vsn() {
-	FILE_VSN=`cat ${DIR}/../VERSION`
-    
+    FILE_VSN=`cat ${DIR}/../VERSION`
+
     if [ "$VSN_TYPE" == "tag" ]; then
         echo $FILE_VSN
     elif [ "$VSN_TYPE" == "commits" ]; then
