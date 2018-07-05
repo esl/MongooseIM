@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/3, wait_until/4]).
+-export([wait_until/2, wait_until/3]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -266,45 +266,38 @@ logout_user(Config, User) ->
             end
     end.
 
-% @doc Waits `LeftTime` for `Fun` to return `Expected Value`, then returns `ExpectedValue`
+% @doc Waits `TimeLeft` for `Fun` to return `Expected Value`, then returns `ExpectedValue`
 % If no value is returned or the result doesn't match  `ExpetedValue` error is raised 
 
-wait_until(Fun, ExpectedValue, LeftTime) ->
-    wait_until(Fun, ExpectedValue, LeftTime, 1000).
+wait_until(Fun, ExpectedValue) ->
+    wait_until(Fun, ExpectedValue, #{}).
 
-wait_until(Fun, ExpectedValue, LeftTime, SleepTime) ->
-    do_wait_until(Fun, ExpectedValue, #{
-                                        left_time => LeftTime,
-                                        sleep_time => SleepTime,
-                                        history => []
-                                       }).
+%% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
+wait_until(Fun, ExpectedValue, Opts) ->
+    Defaults = #{time_left => timer:seconds(5),
+                 sleep_time => 100,
+                 history => []},
+    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
 
 do_wait_until(_Fun, _ExpectedValue, #{
-                                      left_time := LeftTime,
+                                      time_left := TimeLeft,
                                       history := History
-                                     }) when (LeftTime =< 0)->
+                                     }) when TimeLeft =< 0 ->
     error({badmatch, History});
 
-do_wait_until(Fun, ExpectedValue, #{
-                                    left_time := LeftTime,
-                                    sleep_time := SleepTime,
-                                    history := History
-                                   } = State) ->
+do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of
         ExpectedValue ->
             {ok, ExpectedValue};
         OtherValue ->
-            wait_and_continue(Fun, ExpectedValue, OtherValue, State)
+            wait_and_continue(Fun, ExpectedValue, OtherValue, Opts)
     catch Error:Reason ->
-            wait_and_continue(Fun, ExpectedValue, {Error, Reason}, State)
+            wait_and_continue(Fun, ExpectedValue, {Error, Reason}, Opts)
     end.
 
-wait_and_continue(Fun, ExpectedValue, FunResult, #{left_time := LeftTime,
+wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
                                                    sleep_time := SleepTime,
-                                                   history := History} = State) ->
+                                                   history := History} = Opts) ->
     timer:sleep(SleepTime),
-    do_wait_until(Fun,
-                  ExpectedValue,
-                  #{left_time => LeftTime - SleepTime,
-                    sleep_time => SleepTime,
-                    history => [FunResult | History]}).
+    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
+                                            history => [FunResult | History]}).
