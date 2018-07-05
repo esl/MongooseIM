@@ -90,24 +90,27 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 register(Config) ->
-    {value, Registarations} = get_counter_value(modRegisterCount),
+    {value, Registrations} = get_counter_value(modRegisterCount),
 
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:create_user(Config, Alice),
-    mongoose_helper:wait_until(fun() -> assert_counter(Registarations + 1, modRegisterCount) end,
-                   {value, Registarations + 1},
-                   1000,
-                   100
-                  ).
-
+    wait_for_registrations(Registrations + 1).
 
 unregister(Config) ->
-    {value, Deregistarations} = get_counter_value(modUnregisterCount),
+    {value, Deregistrations} = get_counter_value(modUnregisterCount),
 
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:delete_user(Config, Alice),
-    mongoose_helper:wait_until(fun() ->
-                                       assert_counter(Deregistarations + 1, modUnregisterCount) end,
-                               {value, Deregistarations + 1},
-                               1000,
-                               100).
+    wait_for_deregistrations(Deregistrations + 1).
+
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+wait_for_registrations(Count) ->
+    mongoose_helper:wait_until(fun() -> assert_counter(Count, modRegisterCount) end,
+                               {value, Count}).
+
+wait_for_deregistrations(Count) ->
+    mongoose_helper:wait_until(fun() -> assert_counter(Count, modUnregisterCount) end,
+                               {value, Count}).
