@@ -1,17 +1,17 @@
 ### Module Description
 
-This module enabled Jingle to SIP and SIP to Jingle translator.
-When this module is enalbed, MongooseIM will intercept any iq set jingle stanza with action:
+This module enables Jingle to SIP and SIP to Jingle translation.
+When this module is enabled, MongooseIM will intercept any Jingle IQ set stanza with action:
 * session-initiate
 * session-terminate
 * session-accept
 * transport-info
 
-and translate it to SIP messages with approprite SDP content based on the details in the Jingle stanza.
+and translates it to SIP messages with appropriate SDP content based on the details in the Jingle stanza.
 
 The translation back from SIP to Jingle is done for following SIP messages:
 
-* `INVITE` - with additionall callback for following response codes:
+* `INVITE` - with additional callback for following response codes:
    * `200`
    * `180` and `183`
    * `486` when the call's recipient rejects it
