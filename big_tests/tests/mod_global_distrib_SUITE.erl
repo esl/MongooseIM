@@ -313,13 +313,19 @@ test_advertised_endpoints_override_endpoints(Config) ->
 %% Also actually verifies that refresher properly reads host list
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
-    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, 2, ?HOSTS_REFRESH_INTERVAL),
+    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, 
+                               true,
+                               1000, 
+                               ?HOSTS_REFRESH_INTERVAL),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
     {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
     erlang:exit(EuropePid, kill), % it's ok to kill temporary process
-    mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 2, ?HOSTS_REFRESH_INTERVAL).
+    mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 
+                               true,
+                               400, 
+                               ?HOSTS_REFRESH_INTERVAL).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -737,7 +743,7 @@ test_update_senders_host(Config) ->
               = fun() ->
                         rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])
                 end,
-              mongoose_helper:wait_until(GetCachesFun, error, 10, 1000),
+              mongoose_helper:wait_until(GetCachesFun, error, 10000, 1000),
 
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
@@ -772,7 +778,7 @@ test_update_senders_host_by_ejd_service(Config) ->
                          rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
                         }
                 end,
-              mongoose_helper:wait_until(GetCachesFun, {error, error}, 10, 1000),
+              mongoose_helper:wait_until(GetCachesFun, {error, error}, 10000, 1000),
 
               %% Component is connected to europe_node1
               %% but we force asia_node to connect to europe_node2 by hiding europe_node1
@@ -873,7 +879,9 @@ closed_connection_is_removed_from_disabled(_Config) ->
     restart_receiver(asia_node, [listen_endpoint(10001)]),
 
     mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
-               {[], [], []}, 5, 1000).
+                               {[], [], []}, 
+                               5000, 
+                               1000).
 
 %%--------------------------------------------------------------------
 %% Test helpers

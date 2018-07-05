@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/3, wait_until/4, factor_backoff/3]).
+-export([wait_until/3, wait_until/4]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -266,58 +266,45 @@ logout_user(Config, User) ->
             end
     end.
 
-% @doc Waits for `Fun` to return `ExpectedValue`.
-% Each time Different value is returned or
-% functions throws an error, we sleep.
-% Sleep time is 2x longer each try
-% but not longer than `max_time`
-factor_backoff(Fun, ExpectedValue, #{attempts := Attempts,
-                                     min_time := Mintime,
-                                     max_time := Maxtime}) ->
-    do_wait_until(Fun, ExpectedValue, #{attempts => Attempts,
-                                        sleep_time => Mintime,
-                                        history => [],
-                                        next_sleep_time_fun => fun(E) ->
-                                                                  min(E * 2, Maxtime)
-                                                          end}).
+% @doc Waits `LeftTime` for `Fun` to return `Expected Value`, then returns `ExpectedValue`
+% If no value is returned or the result doesn't match  `ExpetedValue` error is raised 
 
-wait_until(Predicate, Attempts, Sleeptime) ->
-    wait_until(Predicate, true, Attempts, Sleeptime).
+wait_until(Fun, ExpectedValue, LeftTime) ->
+    wait_until(Fun, ExpectedValue, LeftTime, 1000).
 
-wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
-    do_wait_until(Fun, ExpectedValue, #{attempts => Attempts,
+wait_until(Fun, ExpectedValue, LeftTime, SleepTime) ->
+    do_wait_until(Fun, ExpectedValue, #{
+                                        left_time => LeftTime,
                                         sleep_time => SleepTime,
-                                        history => [],
-                                        next_sleep_time_fun => fun(E) -> E end}).
+                                        history => []
+                                       }).
 
-
-do_wait_until(_Fun, _ExpectedValue, #{attempts := 0, history := History}) ->
+do_wait_until(_Fun, _ExpectedValue, #{
+                                      left_time := LeftTime,
+                                      history := History
+                                     }) when (LeftTime =< 0)->
     error({badmatch, History});
-do_wait_until(Fun, ExpectedValue, #{attempts := AttemptsLeft,
+
+do_wait_until(Fun, ExpectedValue, #{
+                                    left_time := LeftTime,
                                     sleep_time := SleepTime,
-                                    history := History,
-                                    next_sleep_time_fun := NextSleepTimeFun} = State) ->
+                                    history := History
+                                   } = State) ->
     try Fun() of
         ExpectedValue ->
-            ok;
+            {ok, ExpectedValue};
         OtherValue ->
             wait_and_continue(Fun, ExpectedValue, OtherValue, State)
     catch Error:Reason ->
-              wait_and_continue(Fun, ExpectedValue, {Error, Reason}, State)
+            wait_and_continue(Fun, ExpectedValue, {Error, Reason}, State)
     end.
 
-wait_and_continue(Fun, ExpectedValue, FunResult, #{attempts := AttemptsLeft,
+wait_and_continue(Fun, ExpectedValue, FunResult, #{left_time := LeftTime,
                                                    sleep_time := SleepTime,
-                                                   next_sleep_time_fun := NextSleepTimeFun,
                                                    history := History} = State) ->
     timer:sleep(SleepTime),
     do_wait_until(Fun,
                   ExpectedValue,
-                  State#{attempts => dec_attempts(AttemptsLeft),
-                         sleep_time => NextSleepTimeFun(SleepTime),
-                         history => [FunResult | History]}).
-
-
-
-dec_attempts(infinity) -> infinity;
-dec_attempts(Attempts) -> Attempts - 1.
+                  #{left_time => LeftTime - SleepTime,
+                    sleep_time => SleepTime,
+                    history => [FunResult | History]}).
