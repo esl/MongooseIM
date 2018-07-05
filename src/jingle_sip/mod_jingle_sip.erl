@@ -50,15 +50,26 @@
 
 -spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
+    start_nksip_service_or_error(Opts),
+    mod_jingle_sip_backend:init(Host, Opts),
+    ejabberd_hooks:add(hooks(Host)),
+    ok.
+
+start_nksip_service_or_error(Opts) ->
+    application:ensure_all_started(nksip),
     ListenPort = gen_mod:get_opt(listen_port, Opts, 5600),
     NkSipBasicOpts = #{sip_listen => "sip:all:" ++ integer_to_list(ListenPort),
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
-    {ok, _SrvID} = nksip:start(?SERVICE, NkSipOpts),
-    mod_jingle_sip_backend:init(Host, Opts),
-    ejabberd_hooks:add(hooks(Host)),
-    ok.
+    case nksip:start(?SERVICE, NkSipOpts) of
+        {ok, _SrvID} ->
+            ok;
+        {error, already_started} ->
+            ok;
+        Other ->
+            erlang:error(Other)
+    end.
 
 maybe_add_udp_max_size(NkSipOpts, Opts) ->
     case gen_mod:get_opt(udp_max_size, Opts, undefined) of
@@ -71,7 +82,6 @@ maybe_add_udp_max_size(NkSipOpts, Opts) ->
 -spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
-    nksip:stop(?SERVICE),
     ok.
 
 hooks(Host) ->
