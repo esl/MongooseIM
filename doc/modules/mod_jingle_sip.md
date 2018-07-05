@@ -42,3 +42,13 @@ MongooseIM 2.2.x packages are built with OTP 19.3, so they include Jingle/SIP su
 * `listen_port` (default: 5600) the port on which MongooseIM will listen for incomming SIP messages
 * `local_host` (default: "localhost") value used to create SIP URIs (including VIA headers)
 * `sdp_origin` (default: "127.0.0.1") value of the `c=` SDP attribute
+
+The simplest configuration is the following:
+
+```erlang
+{mod_jingle_sip, []}
+```
+
+With this configuration MongooseIM will try sending any SIP message to a SIP proxy
+listening on `localhost` and port `5060`.
+
