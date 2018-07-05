@@ -3,7 +3,7 @@
 set -e
 
 VER=$1
-REVISION=${2:-1}
+REVISION=$2
 
 if [ x"$VER" == x"" ]; then
     echo "$0: which version to build?"
@@ -11,5 +11,5 @@ if [ x"$VER" == x"" ]; then
 fi
 
 cd /buildfiles
-bash ./script.sh ${VER} ${REVISION}
+bash -x ./script.sh ${VER} ${REVISION}
 cp -i mongooseim*.??? /packages/
