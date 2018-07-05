@@ -202,19 +202,19 @@ build_forward_el(Content) ->
 %% Helpers
 %%
 
--spec muc_type(Host :: binary()) :: muclight | muc.
+-spec muc_type(Host :: binary()) -> muclight | muc.
 muc_type(Host) ->
     [Type] = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
     Type.
 
--spec muc_module(Host :: binary()) :: mod_inbox_muclight | mod_inbox_muc.
+-spec muc_module(Host :: binary()) -> mod_inbox_muclight | mod_inbox_muc.
 muc_module(Host) ->
     muc_module_from_type(muc_type(Host)).
 
 muc_module_from_type(muclight) -> mod_inbox_muclight;
 muc_module_from_type(muc) -> mod_inbox_muc.
 
--spec muc_type(Host :: binary()) :: boolean().
+-spec groupchats_enabled(Host :: binary()) -> boolean().
 groupchats_enabled(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]) of
         [] -> false;
