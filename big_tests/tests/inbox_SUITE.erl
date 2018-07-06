@@ -56,18 +56,12 @@
 %%--------------------------------------------------------------------
 
 all() ->
-  case is_odbc_enabled(domain()) of
-    true ->
-      %% TODO remove when supported
-      case is_mssql_enabled(domain()) of
-        true ->
-          {skip, mssql_not_supported};
-        _ ->
-          tests()
-      end;
-    false ->
-      {skip, require_odbc}
-  end.
+    case is_odbc_enabled(domain()) of
+      true ->
+          tests();
+      false ->
+          {skip, require_odbc}
+    end.
 
 tests() ->
   [
