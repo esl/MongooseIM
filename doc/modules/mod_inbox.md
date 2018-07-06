@@ -22,7 +22,7 @@ If true, the inbox conversation is removed for a user when they are removed from
 ### Note about supported RDBMS
 
 `mod_inbox` executes upsert queries, which have different syntax in every supported RDBMS.
-Inbox currently supports following DBs:
+Inbox currently supports the following DBs:
 
 * MySQL via native driver
 * PgSQL via native driver
