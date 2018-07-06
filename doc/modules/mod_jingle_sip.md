@@ -68,7 +68,10 @@ With the `mod_jingle_sip` enabled all Jingle IQ set stanzas listed above are int
 translated to SIP packets and sent to a SIP Proxy.
 This means that current implementation will also translate stanzas addressed to a user
 in the same domain.
-Below there are sequence diagrams showing the communication between XMPP users, MongooseIM and SIP Proxy.
+This gives the SIP entity a control how the call between XMPP users can be established.
+Below there are sequence diagrams showing the communication between XMPP users, MongooseIM and SIP Proxy as in our tests.
+It's possible that the SIP Proxy or other SIP entity decides that the call needs to be forked
+and delivered to the user's phone number instead of generating a corresponding call back to MongooseIM.
 
 
 ##### 1.1 Signaling session-initiate to other XMPP user via SIP Proxy
@@ -200,4 +203,13 @@ Then MongooseIM translates this to SIP `CANCEL` request which is sent to the SIP
 
 When invitee wants to terminate the call, on XMPP level this is also Jingle `session-terminate` stanza
 with reason `decline`. MongooseIM translates this to SIP `486 Busy Here` **Response** (because this is a response to the invite request)
+
+#### 2. Establishing a session with a SIP user
+
+When it comes to establishing a session with a SIP user (or a SIP entity) it works
+in the same for the XMPP user as in previous section.
+The only difference is that the SIP Proxy will not generate a corresponding call back to MongooseIM
+(as it may happen for call to other XMPP user).
+Instead the SIP message send by MongooseIM to SIP Proxy will be delivered directly to the SIP user's device.
+
 
