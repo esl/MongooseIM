@@ -19,6 +19,15 @@ Only changes that affect the user directly will be stored in their inbox.
 If true, the inbox conversation is removed for a user when they are removed from the groupchat.
 * **iqdisc** (atom, default: `no_queue`)
 
+### Note about supported RDBMS
+
+`mod_inbox` executes upsert queries, which have different syntax in every supported RDBMS.
+Inbox currently supports following DBs:
+
+* MySQL via native driver
+* PgSQL via native driver
+* MSSQL via ODBC driver
+
 ### Example Request
 
 ```
