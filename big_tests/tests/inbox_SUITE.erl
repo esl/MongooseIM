@@ -56,18 +56,12 @@
 %%--------------------------------------------------------------------
 
 all() ->
-  case is_odbc_enabled(domain()) of
-    true ->
-      %% TODO remove when supported
-      case is_mssql_enabled(domain()) of
-        true ->
-          {skip, mssql_not_supported};
-        _ ->
-          tests()
-      end;
-    false ->
-      {skip, require_odbc}
-  end.
+    case is_odbc_enabled(domain()) of
+      true ->
+          tests();
+      false ->
+          {skip, require_odbc}
+    end.
 
 tests() ->
   [
@@ -1006,7 +1000,3 @@ restore_inbox_option(Config) ->
   Args = proplists:get_value(inbox_opts, Config),
   dynamic_modules:restart(Host, mod_inbox, Args).
 
-is_mssql_enabled(Host) ->
-  Engine = rpc(mongoose_rdbms,db_engine,[Host]),
-  %% According to the code, it will return "odbc" if there is mssql string configuration applied to 'odbc_server' tuple
-  Engine =:= odbc.

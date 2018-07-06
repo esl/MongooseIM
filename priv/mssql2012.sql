@@ -453,6 +453,23 @@ GO
 CREATE INDEX i_muc_light_blocking ON muc_light_blocking(luser, lserver);
 GO
 
+-- luser, lserver and remote_bare_jid have 250 characters in MySQL
+-- but here we are limited by index size (900 bytes)
+CREATE TABLE dbo.inbox(
+    luser NVARCHAR(150) NOT NULL,
+    lserver NVARCHAR(150) NOT NULL,
+    remote_bare_jid NVARCHAR(150) NOT NULL,
+    content VARBINARY(max) NOT NULL,
+    unread_count INT NOT NULL,
+    msg_id NVARCHAR(250) NOT NULL,
+    CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
+        luser ASC,
+        lserver ASC,
+        remote_bare_jid ASC
+    )
+)
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]

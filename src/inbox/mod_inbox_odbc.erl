@@ -21,8 +21,16 @@
          remove_inbox/3,
          clear_inbox/2]).
 
--define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
-init(_VHost, _Options) ->
+%% For specific backends
+-export([esc_string/1]).
+
+%% ----------------------------------------------------------------------
+%% API
+%% ----------------------------------------------------------------------
+
+init(VHost, _Options) ->
+    %% To verify if current ODBC backend is supported
+    odbc_specific_backend(VHost),
     ok.
 
 -spec get_inbox(LUsername :: jid:luser(),
@@ -41,7 +49,7 @@ get_inbox_rdbms(LUser, Server) ->
     mongoose_rdbms:sql_query(
         Server,
         ["select remote_bare_jid, content, unread_count from inbox "
-        "where luser=", ?ESC(LUser), " and lserver=", ?ESC(Server), ";"]).
+        "where luser=", esc_string(LUser), " and lserver=", esc_string(Server), ";"]).
 
 -spec set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_write_res() when
                 Username :: jid:luser(),
@@ -73,9 +81,9 @@ remove_inbox(Username, Server, ToBareJid) ->
                          ToBareJid :: binary()) -> query_result().
 remove_inbox_rdbms(Username, Server, ToBareJid) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
-        ?ESC(Username), " and lserver=", ?ESC(Server),
+        esc_string(Username), " and lserver=", esc_string(Server),
         " and remote_bare_jid=",
-        ?ESC(ToBareJid), ";"]).
+        esc_string(ToBareJid), ";"]).
 
 -spec set_inbox_incr_unread(Username :: binary(),
                             Server :: binary(),
@@ -108,8 +116,8 @@ reset_unread(Username, Server, ToBareJid, MsgId) ->
                                MsgId :: binary()) -> query_result().
 reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
     mongoose_rdbms:sql_query(Server, ["update inbox set unread_count=0 where luser=",
-        ?ESC(Username), " and lserver=", ?ESC(Server), " and remote_bare_jid=",
-        ?ESC(ToBareJid), " and msg_id=", ?ESC(MsgId), ";"]).
+        esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
+        esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).
 
 -spec clear_inbox(Username :: binary(), Server :: binary()) -> ok.
 clear_inbox(Username, Server) ->
@@ -118,10 +126,18 @@ clear_inbox(Username, Server) ->
     Res = clear_inbox_rdbms(LUsername, LServer),
     check_result(Res).
 
+-spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
+esc_string(String) ->
+    mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
+
+%% ----------------------------------------------------------------------
+%% Internal functions
+%% ----------------------------------------------------------------------
+
 -spec clear_inbox_rdbms(Username :: jid:luser(), Server :: jid:lserver()) -> query_result().
 clear_inbox_rdbms(Username, Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
-        ?ESC(Username), " and lserver=", ?ESC(Server), ";"]).
+        esc_string(Username), " and lserver=", esc_string(Server), ";"]).
 
 -spec decode_row(host(), {username(), binary(), count()}) -> inbox_res().
 decode_row(LServer, {Username, Content, Count}) ->
@@ -132,15 +148,12 @@ decode_row(LServer, {Username, Content, Count}) ->
 
 
 odbc_specific_backend(Host) ->
-    Type = mongoose_rdbms:db_engine(Host),
-    try
-        list_to_existing_atom("mod_inbox_odbc_" ++ atom_to_list(Type))
-    catch Err:Type ->
-        ?ERROR_MSG(
-            "Error when creating inbox backend module ~p, err:~p:~p",
-            [Type, Err, Type])
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
+        {mysql, _} -> mod_inbox_odbc_mysql;
+        {pgsql, _} -> mod_inbox_odbc_pgsql;
+        {odbc, mssql} -> mod_inbox_odbc_mssql;
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
-
 
 count_to_bin(Count) when is_integer(Count) -> integer_to_binary(Count);
 count_to_bin(Count) when is_binary(Count) -> Count.
