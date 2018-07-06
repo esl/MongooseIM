@@ -47,3 +47,39 @@ helper_loop() ->
         stop -> exit(stop_and_kill_linked_processes);
         _    -> helper_loop()
     end.
+
+% @doc Waits `TimeLeft` for `Fun` to return `Expected Value`, then returns `ExpectedValue`
+% If no value is returned or the result doesn't match  `ExpetedValue` error is raised
+
+wait_until(Fun, ExpectedValue) ->
+    wait_until(Fun, ExpectedValue, #{}).
+
+%% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
+wait_until(Fun, ExpectedValue, Opts) ->
+    Defaults = #{time_left => timer:seconds(5),
+                 sleep_time => 100,
+                 history => []},
+    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
+
+do_wait_until(_Fun, _ExpectedValue, #{
+                                      time_left := TimeLeft,
+                                      history := History
+                                     }) when TimeLeft =< 0 ->
+    error({badmatch, History});
+
+do_wait_until(Fun, ExpectedValue, Opts) ->
+    try Fun() of
+        ExpectedValue ->
+            {ok, ExpectedValue};
+        OtherValue ->
+            wait_and_continue(Fun, ExpectedValue, OtherValue, Opts)
+    catch Error:Reason ->
+            wait_and_continue(Fun, ExpectedValue, {Error, Reason}, Opts)
+    end.
+
+wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
+                                                   sleep_time := SleepTime,
+                                                   history := History} = Opts) ->
+    timer:sleep(SleepTime),
+    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
+                                            history => [FunResult | History]}).
