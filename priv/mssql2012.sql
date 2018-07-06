@@ -358,7 +358,7 @@ CREATE TABLE [dbo].[vcard_search](
 	[server] [nvarchar](150) NOT NULL,
 	[fn] [nvarchar](max) NOT NULL,
 	[lfn] [nvarchar](250) NOT NULL,
-[family] [nvarchar](max) NOT NULL,
+	[family] [nvarchar](max) NOT NULL,
 	[lfamily] [nvarchar](250) NOT NULL,
 	[given] [nvarchar](max) NOT NULL,
 	[lgiven] [nvarchar](250) NOT NULL,
