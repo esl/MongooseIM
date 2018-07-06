@@ -132,15 +132,12 @@ decode_row(LServer, {Username, Content, Count}) ->
 
 
 odbc_specific_backend(Host) ->
-    Type = mongoose_rdbms:db_engine(Host),
-    try
-        list_to_existing_atom("mod_inbox_odbc_" ++ atom_to_list(Type))
-    catch Err:Type ->
-        ?ERROR_MSG(
-            "Error when creating inbox backend module ~p, err:~p:~p",
-            [Type, Err, Type])
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
+        {mysql, _} -> mod_inbox_odbc_mysql;
+        {pgsql, _} -> mod_inbox_odbc_pgsql;
+        {odbc, mssql} -> mod_inbox_odbc_mssql;
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
-
 
 count_to_bin(Count) when is_integer(Count) -> integer_to_binary(Count);
 count_to_bin(Count) when is_binary(Count) -> Count.

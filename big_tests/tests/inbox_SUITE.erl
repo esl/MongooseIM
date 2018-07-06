@@ -1000,7 +1000,3 @@ restore_inbox_option(Config) ->
   Args = proplists:get_value(inbox_opts, Config),
   dynamic_modules:restart(Host, mod_inbox, Args).
 
-is_mssql_enabled(Host) ->
-  Engine = rpc(mongoose_rdbms,db_engine,[Host]),
-  %% According to the code, it will return "odbc" if there is mssql string configuration applied to 'odbc_server' tuple
-  Engine =:= odbc.
