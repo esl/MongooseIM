@@ -57,6 +57,11 @@ listening on `localhost` and port `5060`.
 Currently to test the functionality we use a SIP Proxy mock written in Erlang.
 The following scenarios are covered by our tests in `big_tests/tests/jingle_SUITE.erl`
 
+
+All the sequence diagrams where generated with [textart.io/sequence](https://textart.io/sequence).
+The source code is embedded in the markdown file below every diagram inside a comment `<!--- --->`
+
+
 #### 1. Establishing a session with other XMPP user
 
 With the `mod_jingle_sip` enabled all Jingle IQ set stanzas listed above are intercepted,
@@ -65,10 +70,6 @@ This means that current implementation will also translate stanzas addressed to 
 in the same domain.
 Below there are sequence diagrams showing the communication between XMPP users, MongooseIM and SIP Proxy.
 
-<!---
-All the diagrams where generated with https://textart.io/sequence
-The source code is embedded here below every diagram
--->
 
 ##### 1.1 Signaling session-initiate to other XMPP user via SIP Proxy
 
