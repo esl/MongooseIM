@@ -124,3 +124,54 @@ note left of SIPProxy: from:UserA\nto:UserB\nsid:456
 note left of MongooseIM: yes, new SID: 456
 MongooseIM->UserB: session-initiate to UserB
 -->
+
+##### 1.2 Signaling session-accept to other XMPP user via SIP Proxy
+
+When the other user accepts the call invite sent by the first the following sequence happens.
+This is continuation of [previous example](#11-signaling-session-initiate-to-other-xmpp-user-via-sip-proxy)
+
+```
++-------+                       +-------------+        +-----------+                   +-------+
+| UserA |                       | MongooseIM  |        | SIPProxy  |                   | UserB |
++-------+                       +-------------+        +-----------+                   +-------+
+    |                                  |                     |                             |
+    |                                  |                     |     session-accpet to UserA |
+    |                                  |<--------------------------------------------------|
+    |                                  |                     |   ------------------------\ |
+    |                                  |                     |   | Jingle stanza         |-|
+    |                                  |                     |   | action:session-accept | |
+    |                                  |                     |   | sid: 456              | |
+    |                                  | 200 OK              |   |-----------------------| |
+    |                                  |-------------------->|                             |
+    |                                  | --------------\     |                             |
+    |                                  |-| from: UserA |     |                             |
+    |                                  | | to: UserB   |     |                             |
+    |                                  | | sid: 456    |     |                             |
+    |                                  | |-------------|     | find corresponding call     |
+    |                                  |                     |------------------------     |
+    |                                  |                     |                       |     |
+    |                                  |                     |<-----------------------     |
+    |                                  |                     |                             |
+    |                                  |              200 OK |                             |
+    |                                  |<--------------------|                             |
+    |                                  |     --------------\ |                             |
+    |                                  |     | from: UserA |-|                             |
+    |                                  |     | to: UserB   | |                             |
+    |                                  |     | sid: 123    | |                             |
+    |        session-accept from UserB |     |-------------| |                             |
+    |<---------------------------------|                     |                             |
+    |                                  |                     |                             |
+```
+
+<!---
+object UserA MongooseIM SIPProxy UserB
+UserB->MongooseIM: session-accpet to UserA
+note left of UserB: Jingle stanza \n action:session-accept\nsid: 456
+MongooseIM->SIPProxy: 200 OK
+note right of MongooseIM:from: UserA\nto: UserB\nsid: 456
+SIPProxy->SIPProxy: find corresponding call
+SIPProxy->MongooseIM: 200 OK
+note left of SIPProxy: from: UserA\nto: UserB\nsid: 123
+MongooseIM->UserA: session-accept from UserB
+-->
+
