@@ -14,7 +14,7 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, wait_for/2, become_unavailable/1]).
+-import(push_helper, [enable_stanza/3, become_unavailable/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
