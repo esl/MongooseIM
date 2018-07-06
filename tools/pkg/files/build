@@ -11,5 +11,5 @@ if [ x"$VER" == x"" ]; then
 fi
 
 cd /buildfiles
-bash -x ./script.sh ${VER} ${REVISION}
+bash ./script.sh ${VER} ${REVISION}
 cp -i mongooseim*.??? /packages/
