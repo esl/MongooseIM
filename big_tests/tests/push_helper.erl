@@ -9,7 +9,6 @@
          disable_stanza/1, disable_stanza/2]).
 
 -export([become_unavailable/1]).
--export([wait_for/2]).
 
 -export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
@@ -64,11 +63,7 @@ make_form_field(Name, Value) ->
 
 become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    true = wait_for(timer:seconds(20), fun() ->
-        is_offline(escalus_utils:jid_to_lower(escalus_client:username(Client)),
-                   escalus_utils:jid_to_lower(escalus_client:server(Client)),
-                   escalus_utils:jid_to_lower(escalus_client:resource(Client)))
-    end). %% There is no ACK for unavailable status
+    {ok, _} = wait_for_user_offline(Client).
 
 is_offline(LUser, LServer, LRes) ->
     PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),
@@ -79,18 +74,11 @@ is_offline(LUser, LServer, LRes) ->
             false
     end.
 
-wait_for(TimeLeft, Fun) when TimeLeft < 0 ->
-    Fun();
-wait_for(TimeLeft, Fun) ->
-    Step = 500,
-    try
-        case Fun() of
-            ok -> ok;
-            true -> true;
-            {ok, _} = R -> R
-        end
-    catch
-        _:_ ->
-            timer:sleep(Step),
-            wait_for(TimeLeft - Step, Fun)
-    end.
+wait_for_user_offline(Client) ->
+    mongoose_helper:wait_until(fun() ->
+                                       is_offline(escalus_utils:jid_to_lower(escalus_client:username(Client)),
+                                                  escalus_utils:jid_to_lower(escalus_client:server(Client)),
+                                                  escalus_utils:jid_to_lower(escalus_client:resource(Client)))
+                               end,
+                              true,
+                              #{time_left => timer:seconds(20)}).
