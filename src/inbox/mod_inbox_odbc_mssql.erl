@@ -56,7 +56,7 @@ build_query(Username, Server, ToBareJid, Content, MsgId, CountInsert, CountUpdat
     ELUser = ?ESC(Username),
     ELServer = ?ESC(Server),
     EToBareJid = ?ESC(ToBareJid),
-    EContent = ?ESC(Content),
+    EContent = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(Server, Content)),
     EMsgId = ?ESC(MsgId),
 
     ["MERGE INTO inbox WITH (SERIALIZABLE) AS target"
