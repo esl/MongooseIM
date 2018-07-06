@@ -146,6 +146,10 @@ muclight_domain() ->
   Domain = domain(),
   <<"muclight.", Domain/binary>>.
 
+muc_domain() ->
+    Domain = domain(),
+    <<"muc.", Domain/binary>>.
+
 end_per_suite(Config) ->
   Host = ct:get_config({hosts, mim, domain}),
   Config1 = escalus:delete_users(Config, escalus:get_users([alice, bob, kate, mike])),
@@ -160,7 +164,7 @@ init_per_group(muclight, Config) ->
   reload_inbox_option(Config, groupchat, [muclight]),
   create_room(?ROOM, muclight_domain(), alice, [bob, kate], Config, ver(1));
 init_per_group(muc, Config) ->
-  muc_helper:load_muc(?MUC_DOMAIN),
+  muc_helper:load_muc(muc_domain()),
   reload_inbox_option(Config, groupchat, [muc]),
   [User | _] = ?config(escalus_users, Config),
   muc_helper:start_room(Config, User, ?MUC_ROOM, <<"some_friendly_name">>, default);
@@ -804,7 +808,7 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
     %% Alice has 0 unread messages
     check_inbox(Alice, #inbox{
       total = 1,
-      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid, 
+      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid,
                      content = <<"Msg">>}]}),
     %% Bob and Kate have one conv with 1 unread message
     check_inbox(Bob, #inbox{
