@@ -14,8 +14,7 @@
 
 -export([set_inbox/6, set_inbox_incr_unread/5]).
 
-%% TODO: Deduplicate
--define(ESC(T), mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(T))).
+-import(mod_inbox_odbc, [esc_string/1]).
 
 %% -----------------------------------------------------------
 %% API
@@ -47,17 +46,17 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) ->
 
 build_query(Username, Server, ToBareJid, Content, increment, MsgId) ->
     CountUpdate = "target.unread_count + 1",
-    build_query(Username, Server, ToBareJid, Content, MsgId, ?ESC("1"), CountUpdate);
+    build_query(Username, Server, ToBareJid, Content, MsgId, esc_string("1"), CountUpdate);
 build_query(Username, Server, ToBareJid, Content, CountValue, MsgId) ->
-    ECount = ?ESC(CountValue),
+    ECount = esc_string(CountValue),
     build_query(Username, Server, ToBareJid, Content, MsgId, ECount, ECount).
 
 build_query(Username, Server, ToBareJid, Content, MsgId, CountInsert, CountUpdate) ->
-    ELUser = ?ESC(Username),
-    ELServer = ?ESC(Server),
-    EToBareJid = ?ESC(ToBareJid),
+    ELUser = esc_string(Username),
+    ELServer = esc_string(Server),
+    EToBareJid = esc_string(ToBareJid),
     EContent = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(Server, Content)),
-    EMsgId = ?ESC(MsgId),
+    EMsgId = esc_string(MsgId),
 
     ["MERGE INTO inbox WITH (SERIALIZABLE) AS target"
       " USING (SELECT ",
