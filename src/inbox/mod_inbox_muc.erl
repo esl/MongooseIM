@@ -15,46 +15,64 @@
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 
--export([handle_outgoing_message/4, handle_incoming_message/4, update_inbox/4]).
+-export([update_inbox/5]).
 -type packet() :: exml:element().
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
 -type r_owner() :: binary().
 -type r_none() :: binary().
 
-update_inbox(Acc, From, Affs, Packet) ->
-    ?WARNING_MSG("Update inbox hook: ~p, ~p, ~p, ~p", [Acc, From, Affs, Packet]),
+update_inbox(Acc, Room, From, AffsDict, Packet) ->
+    Affs = dict:to_list(AffsDict),
+    Users = affs_to_allowed_users(Affs),
+    FromBare = jid:to_bare(From),
+    ?WARNING_MSG("Update inbox hook:~n From: ~p~nUsers: ~p,~n Acc: ~p", 
+                 [FromBare, Users, Acc]),
+    lists:foreach(fun(User) -> update_inbox(Room, FromBare, User, Packet) end,
+                  Users),
     Acc.
+
+affs_to_allowed_users(Users) ->
+    AllowedUsers = lists:filter(fun({_User, outcast}) -> false;
+                    (_) -> true end, Users),
+    lists:map(fun({{User, Domain, Res}, _Aff}) -> jid:make(User, Domain, Res) end,
+              AllowedUsers).
+
+update_inbox(Room, From, From, Packet) ->
+    Host = From#jid.server,
+    mod_inbox_utils:write_to_sender_inbox(Host, From, Room, Packet);
+update_inbox(Room, _From, To, Packet) ->
+    Host = To#jid.server,
+    mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet).
+
 
 -spec handle_outgoing_message(Host :: jid:server(),
                               User :: jid:jid(),
                               Room :: jid:jid(),
                               Packet :: packet()) -> any().
 handle_outgoing_message(Host, User, Room, Packet) ->
-    ok.
-%    Markers = mod_inbox_utils:get_reset_markers(Host),
-%    case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
-%        undefined ->
-%            %% we store in inbox only on incoming messages
-%            ok;
-%        Id ->
-%            mod_inbox_utils:reset_unread_count(User, Room, Id)
-%    end.
+    Markers = mod_inbox_utils:get_reset_markers(Host),
+    case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
+        undefined ->
+            %% we store in inbox only on incoming messages
+            ok;
+        Id ->
+            mod_inbox_utils:reset_unread_count(User, Room, Id)
+    end.
 
 -spec handle_incoming_message(Host :: jid:server(),
                               RoomUser :: jid:jid(),
                               Remote :: jid:jid(),
                               Packet :: packet()) -> any().
 handle_incoming_message(Host, RoomUser, Remote, Packet) ->
-    ok.
-%    Markers = mod_inbox_utils:get_reset_markers(Host),
-%    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
-%        true ->
-%            %% don't store chat markers in inbox
-%            ok;
-%        false ->
-%            maybe_handle_system_message(Host, RoomUser, Remote, Packet)
-%    end.
+    Markers = mod_inbox_utils:get_reset_markers(Host),
+    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
+        true ->
+            %% don't store chat markers in inbox
+            ok;
+        false ->
+            maybe_handle_system_message(Host, RoomUser, Remote, Packet)
+    end.
 
 -spec maybe_handle_system_message(Host :: host(),
                                   RoomUser :: jid:jid(),
@@ -81,7 +99,7 @@ handle_system_message(Host, Room, Remote, Packet) ->
         invite->
             handle_invitation_message(Host, Room, Remote, Packet);
         other ->
-            ?WARNING_MSG("unknown system messasge for mod_inbox_muclight='~p' with error ~p", [Packet]),
+            ?WARNING_MSG("muc) unknown system messasge for mod_inbox_muclight='~p' with error ~p", [Packet]),
             ok
     end.
 

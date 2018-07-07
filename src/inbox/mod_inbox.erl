@@ -65,11 +65,14 @@ start(Host, Opts) ->
     {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    MUCHost = gen_mod:get_module_opt(Host, mod_muc, host, undefined),
-    muc_host_defined(MUCHost) andalso % change the way we check it mod_muc is turned on
-    ejabberd_hooks:add(update_inbox, Host, mod_inbox_muc, update_inbox, 90),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    [MucType] = gen_mod:get_opt(groupchat, Opts),
+    case MucType of % change the way we check it mod_muc is turned on
+        muc ->
+            ejabberd_hooks:add(update_inbox, Host, mod_inbox_muc, update_inbox, 90);
+        muclight ->
+            ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+            ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90)
+    end,
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
@@ -80,10 +83,9 @@ muc_host_defined(_) -> true.
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
-    MUCHost = gen_mod:get_module_opt(Host, mod_muc, host, undefined),
     ejabberd_hooks:delete(update_inbox, Host, mod_inbox_muc, update_inbox, 90),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_local_packet, 90),
+    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 
@@ -171,11 +173,9 @@ process_message(Host, From, To, Message, outgoing, one2one) ->
 process_message(Host, From, To, Message, incoming, one2one) ->
     mod_inbox_one2one:handle_incoming_message(Host, From, To, Message);
 process_message(Host, From, To, Message, outgoing, groupchat) ->
-    MucMod = muc_module(Host),
-    MucMod:handle_outgoing_message(Host, From, To, Message);
+    mod_inbox_muclight:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, groupchat) ->
-    MucMod = muc_module(Host),
-    MucMod:handle_incoming_message(Host, From, To, Message);
+    mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
 process_message(_, _, _, Message, _, _) ->
     ?WARNING_MSG("unknown messasge not written in inbox='~p'", [Message]),
     ok.
