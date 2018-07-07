@@ -28,7 +28,7 @@ update_inbox(Acc, Room, From, AffsDict, Packet) ->
     FromBare = jid:to_bare(From),
     ?WARNING_MSG("Update inbox hook:~n From: ~p~nUsers: ~p,~n Acc: ~p", 
                  [FromBare, Users, Acc]),
-    lists:foreach(fun(User) -> update_inbox(Room, FromBare, User, Packet) end,
+    lists:foreach(fun(User) -> ?WARNING_MSG("~p:~p", [FromBare, User]), update_inbox(Room, FromBare, User, Packet) end,
                   Users),
     Acc.
 
@@ -38,12 +38,14 @@ affs_to_allowed_users(Users) ->
     lists:map(fun({{User, Domain, Res}, _Aff}) -> jid:make(User, Domain, Res) end,
               AllowedUsers).
 
-update_inbox(Room, From, From, Packet) ->
-    Host = From#jid.server,
-    mod_inbox_utils:write_to_sender_inbox(Host, From, Room, Packet);
-update_inbox(Room, _From, To, Packet) ->
+update_inbox(Room, From, To, Packet) ->
     Host = To#jid.server,
-    mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet).
+    case jid:are_equal(From, To) of
+        true ->
+            mod_inbox_utils:write_to_sender_inbox(Host, From, Room, Packet);
+        false ->
+            mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet)
+    end.
 
 
 -spec handle_outgoing_message(Host :: jid:server(),

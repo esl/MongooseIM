@@ -786,6 +786,7 @@ groupchat_markers_all_reset_room_created(Config) ->
 
 simple_groupchat_stored_in_all_inbox_muc(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    ct:pal("Bob: ~p", [Bob]),
     Users = [Alice, Bob, Kate],
     Msg = <<"Hi Room!">>,
     Id = <<"MyID">>,
@@ -807,19 +808,19 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
 %                  Resps),
     {ok, [X]} = io:fread("input number: ", "~d"),
     [AliceJid, BobJid, KateJid] = lists:map(fun(User) -> escalus_client:full_jid(User) end, Users),
-    AliceRoomJid = muc_room_address(Room, nick(Alice)),
-    %% Alice has 0 unread messages
-    check_inbox(Alice, #inbox{
-      total = 1,
-      convs = [#conv{unread = 0, from = AliceRoomJid, to = AliceJid,
-                     content = <<"Msg">>}]}),
-    %% Bob and Kate have one conv with 1 unread message
+    BobRoomJid = muc_room_address(Room, nick(Bob)),
+    %% Bob has 0 unread messages
     check_inbox(Bob, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = AliceRoomJid, to = BobJid, content = Msg}]}),
+      convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
+                     content = Msg}]}),
+    %% Alice and Kate have one conv with 1 unread message
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}),
     check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = AliceRoomJid, to = KateJid, content = Msg}]})
+      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]})
     end).
 
 
