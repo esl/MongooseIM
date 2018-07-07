@@ -65,9 +65,9 @@ start(Host, Opts) ->
     {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    MUCHost = gen_mod:get_module_opt(Host, mod_muc, host, undefined), %% Abstract to another funciton or even to module `mod_inbox_muc`
-    muc_host_defined(MUCHost) andalso
-    ejabberd_hooks:add(update_inbox, MUCHost, mod_inbox_muc, update_inbox, 90),
+    MUCHost = gen_mod:get_module_opt(Host, mod_muc, host, undefined),
+    muc_host_defined(MUCHost) andalso % change the way we check it mod_muc is turned on
+    ejabberd_hooks:add(update_inbox, Host, mod_inbox_muc, update_inbox, 90),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     store_bin_reset_markers(Host, Opts),
@@ -81,7 +81,7 @@ muc_host_defined(_) -> true.
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
     MUCHost = gen_mod:get_module_opt(Host, mod_muc, host, undefined),
-    ejabberd_hooks:delete(update_inbox, MUCHost, mod_inbox_muc, update_inbox, 90),
+    ejabberd_hooks:delete(update_inbox, Host, mod_inbox_muc, update_inbox, 90),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_local_packet, 90),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).

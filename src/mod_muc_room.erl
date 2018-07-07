@@ -880,7 +880,7 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
             next_normal_state(StateData);
         FilteredPacket ->
             ejabberd_hooks:run(room_send_packet, StateData#state.host, [FilteredPacket, EventData]),
-            ejabberd_hooks:run(update_inbox, binary_to_list(StateData#state.host), % why it's string here and binary at registering handler????
+            ejabberd_hooks:run(update_inbox, StateData#state.server_host,
                                [From, StateData#state.affiliations, Packet]),
             RouteFrom = jid:replace_resource(StateData#state.jid,
                                              FromNick),
