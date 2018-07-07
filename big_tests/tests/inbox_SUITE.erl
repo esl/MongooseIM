@@ -790,6 +790,7 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
     Id = <<"MyID">>,
     Room = ?config(room, Config),
     RoomAddr = muc_room_address(Room),
+    make_members(Room, Alice, Users -- [Alice]),
     lists:foreach(fun(User) ->
                           escalus:send(User, stanza_muc_enter_room(Room, nick(User))) end,
                   Users),
@@ -822,6 +823,26 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
+
+make_members(Room, Admin, Users) ->
+    Items = lists:map(fun(User) -> {escalus_utils:get_short_jid(User),<<"member">>} end,
+                      Users),
+    escalus:send(Admin, stanza_set_affiliations(Room, Items)).
+
+
+stanza_set_affiliations(Room, List) ->
+    Payload = lists:map(fun({JID, Affiliation}) ->
+        #xmlel{name = <<"item">>,
+        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}]};
+    ({JID, Affiliation, Reason}) ->
+        #xmlel{name = <<"item">>,
+        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}],
+        children = [#xmlel{
+            name = <<"reason">>,
+            children = [#xmlcdata{content = Reason}]}
+        ]}
+    end, List),
+    muc_helper:stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
 
 
 nick(User) -> escalus_utils:get_username(User).
