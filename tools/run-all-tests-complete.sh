@@ -64,6 +64,7 @@ _run_all_tests() {
     fi
 
     SUGGESTIONS=$(./tools/test_runner/complete-test-name.sh "$cur")
+    SUITES=$(./tools/test_runner/list_suites.sh $LIST_SUITES_ARGS)
 
     COMPREPLY=( $( compgen -W '--db --preset --dev-nodes --test-hosts \
                           --no-big-tests \
@@ -73,7 +74,7 @@ _run_all_tests() {
                           --no-cover \
                           --verbose \
                           '"$SUGGESTIONS"' \
-                          '"$(./tools/list_suites.sh $LIST_SUITES_ARGS)"' \
+                          '"$SUITES"' \
                            --' -- $cur ) );;
 #   Generate the completion matches and load them into $COMPREPLY array.
 #   xx) May add more cases here.
