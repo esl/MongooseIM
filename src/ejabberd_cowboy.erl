@@ -130,8 +130,9 @@ do_start_cowboy(Ref, Opts) ->
     TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
     Modules = gen_mod:get_opt(modules, Opts),
     Dispatch = cowboy_router:compile(get_routes(Modules)),
-    ProtocolOpts = [{env, [{dispatch, Dispatch}]} |
-                    gen_mod:get_opt(protocol_options, Opts, [])],
+    {MetricsEnv, MetricsProtoOpts} = maybe_init_metrics(Opts),
+    ProtocolOpts = [{env, [{dispatch, Dispatch} | MetricsEnv]} |
+                    gen_mod:get_opt(protocol_options, Opts, [])] ++ MetricsProtoOpts,
     case catch start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
@@ -180,7 +181,9 @@ get_routes([], Routes) ->
     Routes;
 get_routes([{Host, BasePath, Module} | Tail], Routes) ->
     get_routes([{Host, BasePath, Module, []} | Tail], Routes);
-get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
+get_routes([{Host, BasePath, Module, HandlerOpts} | Tail], Routes) ->
+    get_routes([{Host, BasePath, Module, HandlerOpts, []} | Tail], Routes);
+get_routes([{Host, BasePath, Module, HandlerOpts, _Opts} | Tail], Routes) ->
     %% ejabberd_config tries to expand the atom '_' as a Macro, which fails.
     %% To work around that, use "_" instead and translate it to '_' here.
     CowboyHost = case Host of
@@ -190,8 +193,8 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
     {module, Module} = code:ensure_loaded(Module),
     Paths = proplists:get_value(CowboyHost, Routes, []) ++
     case erlang:function_exported(Module, cowboy_router_paths, 2) of
-        true -> Module:cowboy_router_paths(BasePath, Opts);
-        _ -> [{BasePath, Module, Opts}]
+        true -> Module:cowboy_router_paths(BasePath, HandlerOpts);
+        _ -> [{BasePath, Module, HandlerOpts}]
     end,
     get_routes(Tail, lists:keystore(CowboyHost, 1, Routes, {CowboyHost, Paths})).
 
@@ -224,3 +227,68 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
             NewTuple = {Key, Value},
             lists:keystore(Key, 1, TransportOpts, NewTuple)
     end.
+
+-spec measured_methods() -> [mongoose_cowboy_metrics:method()].
+measured_methods() ->
+    [<<"GET">>,
+     <<"HEAD">>,
+     <<"POST">>,
+     <<"PUT">>,
+     <<"DELETE">>,
+     <<"OPTIONS">>,
+     <<"PATCH">>].
+
+-spec measured_classes() -> [mongoose_cowboy_metrics:status_class()].
+measured_classes() ->
+    [<<"1XX">>, <<"2XX">>, <<"3XX">>, <<"4XX">>, <<"5XX">>].
+
+base_metrics_prefix() ->
+    [http].
+
+middlewares_with_metrics() ->
+    [mongoose_cowboy_metrics_mw_before,
+     cowboy_router,
+     mongoose_cowboy_metrics_mw_after,
+     cowboy_handler].
+
+-spec maybe_init_metrics(list()) -> {MetricsEnv :: list(), MetricsProtocolOpts :: list()}.
+maybe_init_metrics(Opts) ->
+    case proplists:get_value(metrics, Opts, false) of
+        true ->
+            BasePrefix = base_metrics_prefix(),
+            HandlerToPrefixMappings = build_metric_prefixes(
+                                          BasePrefix, proplists:get_value(modules, Opts, []), #{}),
+            [create_metrics(Prefix) || Prefix <- maps:values(HandlerToPrefixMappings)],
+            {[{record_metrics, true}, {handler_to_metric_prefix, HandlerToPrefixMappings}],
+             [{middlewares, middlewares_with_metrics()}]};
+        false ->
+            {[], []}
+    end.
+
+-spec build_metric_prefixes(BasePrefix :: list(), Modules :: [tuple()], Acc) -> Acc
+    when Acc :: #{module() => mongoose_cowboy_metrics:prefix()}.
+build_metric_prefixes(_BasePrefix, [], Acc) ->
+    Acc;
+build_metric_prefixes(BasePrefix, [{_Host, _Path, Handler, _HandlerOpts, Opts} | Tail], Acc) ->
+    case proplists:get_value(metrics, Opts, []) of
+        MetricsOpts when is_list(MetricsOpts) ->
+            HandlerPrefix = proplists:get_value(prefix, MetricsOpts, Handler),
+            Prefix = BasePrefix ++ lists:flatten([HandlerPrefix]),
+            build_metric_prefixes(BasePrefix, Tail, maps:put(Handler, Prefix, Acc));
+        false ->
+            build_metric_prefixes(BasePrefix, Tail, Acc)
+    end;
+build_metric_prefixes(BasePrefix, [{Host, Path, Handler, HandlerOpts} | Tail], Acc) ->
+    build_metric_prefixes(BasePrefix, [{Host, Path, Handler, HandlerOpts, []} | Tail], Acc);
+build_metric_prefixes(BasePrefix, [{Host, Path, Handler} | Tail], Acc) ->
+    build_metric_prefixes(BasePrefix, [{Host, Path, Handler, [], []} | Tail], Acc).
+
+-spec create_metrics(mongoose_cowboy_metrics:prefix()) -> any().
+create_metrics(Prefix) ->
+    CountMetrics = [mongoose_cowboy_metrics:request_count_metric(Prefix, M) || M <- measured_methods()] ++
+                   [mongoose_cowboy_metrics:response_count_metric(Prefix, M, C)
+                    || M <- measured_methods(), C <- measured_classes()],
+    LatencyMetrics = [mongoose_cowboy_metrics:response_latency_metric(Prefix, M, C)
+                      || M <- measured_methods(), C <- measured_classes()],
+    [mongoose_metrics:ensure_metric(global, M, spiral) || M <- CountMetrics],
+    [mongoose_metrics:ensure_metric(global, M, histogram) || M <- LatencyMetrics].
