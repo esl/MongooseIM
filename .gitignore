@@ -118,3 +118,6 @@ big_tests/src/mim_ct_sup.erl
 test_preset.log
 
 codecov.json
+
+auto_small_tests.spec
+big_tests/auto_big_tests.spec
