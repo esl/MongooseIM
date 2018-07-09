@@ -2,6 +2,7 @@
 
 This module enables Jingle to SIP and SIP to Jingle translation.
 When this module is enabled, MongooseIM will intercept any Jingle IQ set stanza with action:
+
 * session-initiate
 * session-terminate
 * session-accept
@@ -9,17 +10,35 @@ When this module is enabled, MongooseIM will intercept any Jingle IQ set stanza 
 
 and translate it to SIP messages with appropriate SDP content based on the details in the Jingle stanza.
 
-The translation back from SIP to Jingle is done for following SIP messages:
+The translation back from SIP to Jingle is done for following SIP requests:
 
-* `INVITE` - with additional callback for the following response codes:
-   * `200`
-   * `180` and `183`
-   * `486` when the call's recipient rejects it
-   * from `400` to `600` - other error codes indicating session termination
-* `re-INVITE` - `INVITE` message sent for an established session
+* `INVITE`
+* `re-INVITE` - `INVITE` message sent for an accepted session
 * `CANCEL`
 * `BYE`
 * `INFO`
+
+and following responses to the INVITE request:
+
+* `200` when the call invite was accepted
+* `180` and `183` to indicate that the invitation was sent to the device
+* `486` when the call's recipient rejects it
+* from `400` to `600` - other error codes indicating session termination
+
+#### Jingle to SIP translation
+
+The table below summarises the translation both ways for standard Jingle and SIP messages:
+
+| Jingle action | SIP message | comment |
+| ------------- | ----------- | ------- |
+| `session-initiate` | `INVITE` request | |
+| `session-accept` | `200 OK` response | |
+| `session-terminate` with reason `success` | `BYE` request | Only for accepted session |
+| `session-terminate` with reason `decline` | `CANCEL` request | When sent by call's initiator |
+| `session-terminate` with reason `decline` | `486 Busy Here` response | When sent by the invite user |
+| `transport-info` | `INFO` request | |
+
+
 
 ### Prerequisites
 
