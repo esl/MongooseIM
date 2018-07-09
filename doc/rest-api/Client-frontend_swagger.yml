@@ -204,6 +204,8 @@ paths:
           description: Message was sent, ID returned in the body.
           schema:
             $ref: "#/definitions/ResourceID"
+        400:
+          description: When the request body is in wrong format.
         404:
           description: When there is no room with a given ID.
         403:

@@ -51,10 +51,10 @@ from_json(Req, #{user := User,
                                               UserToInvite, <<"member">>),
     {true, Req2, State};
 from_json(Req, State) ->
-    mongoose_client_api_rooms:forbidden_request(Req, State).
+    mongoose_client_api:forbidden_request(Req, State).
 
 delete_resource(Req, #{role_in_room := none} = State) ->
-    mongoose_client_api_rooms:forbidden_request(Req, State);
+    mongoose_client_api:forbidden_request(Req, State);
 delete_resource(Req, #{role_in_room := owner,
                        user := User} = State) ->
     {UserToRemove, Req2} = cowboy_req:binding(user, Req),
@@ -65,7 +65,7 @@ delete_resource(Req, #{user := User} = State) ->
         User ->
             remove_user_from_room(User, User, Req, State);
         _ ->
-            mongoose_client_api_rooms:forbidden_request(Req2, State)
+            mongoose_client_api:forbidden_request(Req2, State)
     end.
 
 remove_user_from_room(Remover, Target, Req,
