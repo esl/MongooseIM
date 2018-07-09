@@ -128,8 +128,8 @@ MongooseIM->UserB: session-initiate to UserB
 
 ##### 1.2 Signaling session-accept to other XMPP user via SIP Proxy
 
-When the other user accepts the call invite sent by the first the following sequence happens.
-This is continuation of [previous example](#11-signaling-session-initiate-to-other-xmpp-user-via-sip-proxy)
+When the other user accepts the call invite sent by the first, the following sequence is executed.
+This is a continuation of the [previous example](#11-signaling-session-initiate-to-other-xmpp-user-via-sip-proxy)
 
 ```
 +-------+                       +-------------+        +-----------+                   +-------+
@@ -178,19 +178,19 @@ MongooseIM->UserA: session-accept from UserB
 
 ##### 1.3 Terminating a call
 
-Any Jingle session (accepted or not) can be terminated by sending Jingle stanza
-with action `session-terminate` and a reason.
-In SIP world it's more complex, see the following examples for more information
+Any Jingle session (accepted or not) can be terminated by sending a Jingle stanza with action `session-terminate` and a reason.
+In the SIP world it's more complex.
+See the following examples for more information.
 
 ###### 1.3.1 Terminating an accepted call
 
-The easiest situation is when the call was accepted as in [1.2](#12-signaling-session-accept-to-other-xmpp-user-via-sip-proxy).
-In this case one of the users sends `session-terminate` Jingle action with reason `success`.
-This is translated to SIP's `BYE` request with `to` and `from` headers set appropriately -
+The easiest scenario is when the call was accepted as in [1.2](#12-signaling-session-accept-to-other-xmpp-user-via-sip-proxy).
+In this case one of the users sends a `session-terminate` Jingle action with reason `success`.
+This is translated to a SIP `BYE` request with `to` and `from` headers set appropriately -
 `from` is the user who wants to terminate the call and `to` is the user on the other end of the session.
-The `BYE` request is sent to SIP Proxy and then to the other user in a similar way to session acceptance.
+The `BYE` request is sent to the SIP Proxy and then to the other user in a similar way to session acceptance.
 
-###### 1.3.2 Terminating not answered call by initiator
+###### 1.3.2 Terminating an unanswered call by initiator
 
 To terminate the call before it's accepted, the initiator sends a Jingle `session-terminate` stanza with a reason `decline`.
 Then MongooseIM translates this to a SIP `CANCEL` request which is sent to the SIP Proxy.
