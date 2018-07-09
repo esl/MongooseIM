@@ -309,6 +309,7 @@ CREATE TABLE inbox (
     content bytea                    NOT NULL,
     unread_count int                 NOT NULL,
     msg_id varchar(250),
+    timestamp BIGINT                 NOT NULL,
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
 CREATE INDEX i_inbox
