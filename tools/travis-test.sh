@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
+#
+# Env variables:
+# - SMALL_TESTS
+# - START_SERVICES
+# - COVER_ENABLED
 set -o pipefail
 IFS=$'\n\t'
 
 DEFAULT_PRESET=internal_mnesia
 PRESET=${PRESET:-$DEFAULT_PRESET}
-SMALL_TESTS="true"
-START_SERVICES="true"
-COVER_ENABLED="true"
+SMALL_TESTS="${SMALL_TESTS:-true}"
+START_SERVICES="${START_SERVICES:-true}"
+COVER_ENABLED="${COVER_ENABLED:-true}"
 
 while getopts ":p::s::e::c:" opt; do
   case $opt in
