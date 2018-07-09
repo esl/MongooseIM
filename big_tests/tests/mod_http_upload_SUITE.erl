@@ -1,4 +1,5 @@
 -module(mod_http_upload_SUITE).
+
 -compile(export_all).
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").

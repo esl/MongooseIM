@@ -276,14 +276,16 @@ wait_until(Fun, ExpectedValue) ->
 wait_until(Fun, ExpectedValue, Opts) ->
     Defaults = #{time_left => timer:seconds(5),
                  sleep_time => 100,
-                 history => []},
+                 history => [],
+                 name => badmatch},
     do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
 
 do_wait_until(_Fun, _ExpectedValue, #{
                                       time_left := TimeLeft,
-                                      history := History
+                                      history := History,
+                                      name := Name
                                      }) when TimeLeft =< 0 ->
-    error({badmatch, History});
+    error({Name, History});
 
 do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of

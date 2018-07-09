@@ -17,8 +17,6 @@
 
 -compile(export_all).
 
--export([wait_for_complete_archive_response/3]).
-
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -764,8 +762,8 @@ clean_archives(Config) ->
     %% It is not the best place to delete these messages.
     [ok = delete_offline_messages(S, U) || {S, U} <- SUs],
     [ok = delete_archive(S, U) || {S, U} <- SUs],
-    %% Retry 10 times if not empty
-    [assert_empty_archive(S, U, 10) || {S, U} <- SUs],
+    %% Wait for archive to be empty
+    [wait_for_archive_size(S, U, 0) || {S, U} <- SUs],
     Config.
 
 destroy_room(Config) ->
@@ -776,7 +774,7 @@ clean_room_archive(Config) ->
     Room = ?config(room, Config),
     delete_room_archive(muc_host(), Room),
     %% Retry 10 times if not empty
-    assert_empty_room_archive(muc_host(), Room, 10),
+    wait_for_room_archive_size(muc_host(), Room, 0),
     Config.
 
 serv_users(Config) ->
@@ -787,63 +785,39 @@ serv_user(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     {Server, Username}.
 
-%% @doc Check, that the archive is empty.
-assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) ->
-    %% Wait for zero messages in archive
-    case wait_for_archive_size(Server, Username, RetryTimes, 0) of
-       0 -> ok;
-       X -> ct:fail({not_empty, Server, Username, {actual_size, X}})
-    end.
-
 wait_for_archive_size(User, ExpectedSize) ->
-    Server = escalus_utils:get_server(User),
-    Username = escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
-    case wait_for_archive_size(Server, Username, 100, ExpectedSize) of
-		ExpectedSize ->
-			ok;
-		ArchiveSize ->
-			ct:fail({expected_archive_size, Username, Server, ExpectedSize,
-					 {actual_size, ArchiveSize}})
-	end.
+    wait_for_archive_size(
+      escalus_utils:get_server(User),
+      escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
+      ExpectedSize).
 
-wait_for_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
-    archive_size(Server, Username);
-wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
-    case archive_size(Server, Username) of
-        ExpectedSize ->
-            ExpectedSize;
-        _ActualSize ->
-            %% Wait and retry
-            timer:sleep(100),
-            wait_for_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
+wait_for_archive_size(Server, Username, ExpectedSize) ->
+    mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
+                               ExpectedSize,
+                               #{time_left => timer:seconds(20)}).
+
+wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
+    try mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
+                                       ExpectedSize,
+                                       #{time_left => timer:seconds(20)}) of
+        {ok, ExpectedSize} ->
+            ok
+    catch
+        Error:Reason ->
+            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, log=~p",
+                   [ExpectedSize, Reason])
     end.
 
-wait_for_archive_size_or_warning(Server, Username, RetryTimes, ExpectedSize) ->
-    case wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) of
-        ExpectedSize -> ok;
-        ActualSize ->
-            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, actual_size=~p",
-                   [ExpectedSize, ActualSize])
-    end.
-
-%% @doc Check, that the archive is empty.
-assert_empty_room_archive(Server, Username, RetryTimes) ->
-    %% Wait for zero messages in archive
-    case wait_for_room_archive_size(Server, Username, RetryTimes, 0) of
-       0 -> ok;
-       X -> ct:fail({room_not_empty, Server, Username, {actual_size, X}})
-    end.
-
-wait_for_room_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
-    room_archive_size(Server, Username);
-wait_for_room_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
-    case room_archive_size(Server, Username) of
-        ExpectedSize ->
-            ExpectedSize;
-        _ActualSize ->
-            %% Wait and retry
-            timer:sleep(100),
-            wait_for_room_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
+wait_for_room_archive_size(Server, Username, ExpectedSize) ->
+    try mongoose_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
+                                   ExpectedSize,
+                                   #{time_left => timer:seconds(20)}) of
+        {ok, ExpectedSize} ->
+            ExpectedSize
+    catch
+        Error:Reason ->
+            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, log=~p",
+                   [ExpectedSize, Reason])
     end.
 
 
@@ -943,7 +917,7 @@ bootstrap_archive(Config) ->
 %% Wait for messages to be written
 wait_for_msgs(Msgs, Users) ->
     UsersCnt = [{S, U, count_msgs(Msgs, S, U)} || {S, U} <- Users],
-    [wait_for_archive_size_or_warning(S, U, 20, C) || {S, U, C} <- UsersCnt],
+    [wait_for_archive_size_or_warning(S, U, C) || {S, U, C} <- UsersCnt],
     ok.
 
 count_msgs(Msgs, S, U) ->
@@ -1039,7 +1013,7 @@ muc_bootstrap_archive(Config) ->
 
     maybe_wait_for_archive(Config),
     ?assert_equal(length(Msgs),
-                  wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
+                  wait_for_room_archive_size(Domain, Room, length(Msgs))),
 
     [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
 
