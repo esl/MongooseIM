@@ -72,8 +72,8 @@ start(normal, _Args) ->
     %%ejabberd_debug:fprof_start(),
     start_services(),
     start_modules(),
-    mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
+    mongoose_metrics:init(),
     ejabberd_admin:start(),
     ?INFO_MSG("ejabberd ~s is started in the node ~p", [?MONGOOSE_VERSION, node()]),
     Sup;
