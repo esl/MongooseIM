@@ -1,6 +1,9 @@
 -module(ct_helper).
 -compile([export_all]).
 
+is_ct_running() ->
+    is_list(ct:get_status()).
+
 %% @doc See repeat_all_until_all_ok/2
 repeat_all_until_all_ok(GroupDefs) ->
     repeat_all_until_all_ok(GroupDefs, 3).

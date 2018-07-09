@@ -213,6 +213,21 @@
 
 
 configurations() ->
+    case ct_helper:is_ct_running() of
+        true ->
+            configurations_for_running_ct();
+        false ->
+            all_configurations()
+    end.
+
+%% Called by test-runner for autocompletion
+all_configurations() ->
+    cassandra_configs(true)
+    ++ odbc_configs(true)
+    ++ riak_configs(true)
+    ++ elasticsearch_configs(true).
+
+configurations_for_running_ct() ->
     cassandra_configs(is_cassandra_enabled(host()))
     ++ odbc_configs(mongoose_helper:is_odbc_enabled(host()))
     ++ riak_configs(is_riak_enabled(host()))
@@ -259,9 +274,14 @@ basic_group_names() ->
 
 all() ->
     Reasons =
-    case is_mam_possible(host())  of
-        false -> [require_odbc];
-        true  -> []
+    case ct_helper:is_ct_running() of
+        true ->
+            case is_mam_possible(host())  of
+                false -> [require_odbc];
+                true  -> []
+            end;
+        false ->
+            []
     end,
     case Reasons of
         [] ->
