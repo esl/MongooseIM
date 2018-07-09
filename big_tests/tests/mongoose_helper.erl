@@ -266,8 +266,11 @@ logout_user(Config, User) ->
             end
     end.
 
-% @doc Waits `TimeLeft` for `Fun` to return `Expected Value`, then returns `ExpectedValue`
-% If no value is returned or the result doesn't match  `ExpetedValue` error is raised 
+%% @doc Waits `TimeLeft` for `Fun` to return `ExpectedValue`
+%% If the result of `Fun` matches `ExpectedValue`, returns {ok, ExpectedValue}
+%% If no value is returned or the result doesn't match `ExpectedValue`, returns one of the following:
+%% {Name, History}, if Opts as #{name => Name} is passed
+%% {timeout, History}, otherwise
 
 wait_until(Fun, ExpectedValue) ->
     wait_until(Fun, ExpectedValue, #{}).
@@ -277,7 +280,7 @@ wait_until(Fun, ExpectedValue, Opts) ->
     Defaults = #{time_left => timer:seconds(5),
                  sleep_time => 100,
                  history => [],
-                 name => badmatch},
+                 name => timeout},
     do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
 
 do_wait_until(_Fun, _ExpectedValue, #{
@@ -285,7 +288,7 @@ do_wait_until(_Fun, _ExpectedValue, #{
                                       history := History,
                                       name := Name
                                      }) when TimeLeft =< 0 ->
-    error({Name, History});
+    error({Name, lists:reverse(History)});
 
 do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of
