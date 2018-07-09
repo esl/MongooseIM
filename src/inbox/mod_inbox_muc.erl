@@ -22,13 +22,16 @@
 -type r_owner() :: binary().
 -type r_none() :: binary().
 
-update_inbox(Acc, Room, From, AffsDict, Packet) ->
+update_inbox(Acc, Room, {From, FromRoomJid}, AffsDict, Packet) ->
     Affs = dict:to_list(AffsDict),
     Users = affs_to_allowed_users(Affs),
     FromBare = jid:to_bare(From),
     ?WARNING_MSG("Update inbox hook:~n From: ~p~nUsers: ~p,~n Acc: ~p", 
                  [FromBare, Users, Acc]),
-    lists:foreach(fun(User) -> ?WARNING_MSG("~p:~p", [FromBare, User]), update_inbox(Room, FromBare, User, Packet) end,
+    lists:foreach(fun(User) -> update_inbox(Room, 
+                                            {FromBare, FromRoomJid}, 
+                                            User, 
+                                            Packet) end,
                   Users),
     Acc.
 
@@ -38,14 +41,40 @@ affs_to_allowed_users(Users) ->
     lists:map(fun({{User, Domain, Res}, _Aff}) -> jid:make(User, Domain, Res) end,
               AllowedUsers).
 
-update_inbox(Room, From, To, Packet) ->
+
+update_inbox(Room, {From, FromRoomJid}, To, Packet) ->
     Host = To#jid.server,
     case jid:are_equal(From, To) of
         true ->
-            mod_inbox_utils:write_to_sender_inbox(Host, From, Room, Packet);
+            mod_inbox_utils:write_to_sender_inbox(Host, From, Room, 
+                                                  alter_senders_packet(Packet, FromRoomJid, To));
         false ->
-            mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet)
+            mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, 
+                                                    alter_receivers_packet(Packet, FromRoomJid, To))
     end.
+
+% TODO this logic probably should be in mod_muc_room before routing
+% and put into the routing function.
+alter_senders_packet(Packet, FromRoomJid, To) ->
+    P2 = change_from_el(Packet, FromRoomJid),
+    change_to_el(P2, To).
+
+alter_receivers_packet(Packet, Room, To) ->
+    Packet2 = change_from_el(Packet, Room),
+    change_to_el(Packet2, To).
+
+% TODO refactor
+change_from_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewFrom) ->
+    Attrs2 = lists:keydelete(<<"from">>, 1, Attrs),
+    Attrs3 = [{<<"from">>, jid:to_binary(NewFrom)} | Attrs2],
+    Packet#xmlel{attrs = Attrs3}.
+
+change_to_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewTo) ->
+    Attrs2 = lists:keydelete(<<"to">>, 1, Attrs),
+    Attrs3 = [{<<"to">>, jid:to_binary(NewTo)} | Attrs2],
+    Packet#xmlel{attrs = Attrs3}.
+
+
 
 
 -spec handle_outgoing_message(Host :: jid:server(),

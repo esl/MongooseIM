@@ -786,30 +786,25 @@ groupchat_markers_all_reset_room_created(Config) ->
 
 simple_groupchat_stored_in_all_inbox_muc(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-    ct:pal("Bob: ~p", [Bob]),
     Users = [Alice, Bob, Kate],
     Msg = <<"Hi Room!">>,
     Id = <<"MyID">>,
     Room = ?config(room, Config),
     RoomAddr = muc_room_address(Room),
+
+    enter_room(Room, Users),
     make_members(Room, Alice, Users -- [Alice]),
-    lists:foreach(fun(User) ->
-                          escalus:send(User, stanza_muc_enter_room(Room, nick(User))) end,
-                  Users),
-    lists:foreach(fun(User) ->
-                          escalus:wait_for_stanzas(User, 4) end,
-                  Users),
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
-%    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-%              Users),
-%    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-%                  Resps),
-    {ok, [X]} = io:fread("input number: ", "~d"),
-    [AliceJid, BobJid, KateJid] = lists:map(fun(User) -> escalus_client:full_jid(User) end, Users),
-    BobRoomJid = muc_room_address(Room, nick(Bob)),
+    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
+              Users),
+    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
+                  Resps),
+    [AliceJid, BobJid, KateJid] = lists:map(fun(User) -> lbin(escalus_client:short_jid(User)) end, Users),
+    BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
     %% Bob has 0 unread messages
+    ct:pal("BobRoomJid: ~p, BobJid: ~p", [BobRoomJid, BobJid]),
     check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
@@ -830,7 +825,20 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
 make_members(Room, Admin, Users) ->
     Items = lists:map(fun(User) -> {escalus_utils:get_short_jid(User),<<"member">>} end,
                       Users),
-    escalus:send(Admin, stanza_set_affiliations(Room, Items)).
+    escalus:send(Admin, stanza_set_affiliations(Room, Items)),
+    SuccesResp = escalus:wait_for_stanzas(Admin, 1 + length(Users)), % gets iq result and affs changes from all users
+    ct:pal("SuccessResp: ~p", [SuccesResp]),
+    lists:foreach(fun(User) -> escalus:wait_for_stanzas(User, length(Users)) end, Users). % Everybody gets aff changes of everybody
+
+enter_room(Room, Users) ->
+    lists:foreach(fun(User) ->
+                          escalus:send(User, stanza_muc_enter_room(Room, nick(User))) end,
+                  Users),
+    lists:foreach(fun(User) ->
+                          A = escalus:wait_for_stanzas(User, length(Users) + 1), % everybody gets presence from everybody + a subject message
+                          ct:pal("For ~p: ~p", [escalus_client:short_jid(User), A])
+                  end,
+                  Users).
 
 
 stanza_set_affiliations(Room, List) ->
@@ -849,6 +857,8 @@ stanza_set_affiliations(Room, List) ->
 
 
 nick(User) -> escalus_utils:get_username(User).
+
+
 
 stanza_muc_enter_room(Room, Nick) ->
     stanza_to_room(
@@ -1007,6 +1017,7 @@ process_inbox_messages(Client, [], UnmatchedConvs, UnmatchedItems) ->
                unmatched_convs => UnmatchedConvs,
                unmatched_result_items => UnmatchedItems });
 process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems) ->
+    ct:pal("Stanza: ~p", [Stanza]),
     Pred = fun(Conv) -> (catch process_inbox_message(Client, Stanza, Conv)) == ok end,
     case lists:partition(Pred, MsgCheckList) of
         {[], _NoConvSatisfiedPred} ->
@@ -1018,14 +1029,24 @@ process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems
 process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
                                              to = ToJid, content = Content, verify = Fun}) ->
   Unread = get_unread_count(Message),
+  ct:pal("~p", [Unread]),
   escalus:assert(is_message, Message),
+  ct:pal("assert message", []),
   Unread = get_unread_count(Message),
   [InnerMsg] = get_inner_msg(Message),
+  ct:pal("Innermsg: ~p", [InnerMsg]),
+  ct:pal("FromJid before: ~p", [lbin(exml_query:attr(InnerMsg, <<"from">>))]),
+  ct:pal("FromJid before should be: ~p", [FromJid]),
   FromJid = lbin(exml_query:attr(InnerMsg, <<"from">>)),
+  ct:pal("FromJid: ~p", [FromJid]),
   ToJid = lbin(exml_query:attr(InnerMsg, <<"to">>)),
+  ct:pal("ToJid: ~p", [ToJid]),
   InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
+  ct:pal("InnerContent: ~p", [InnerContent]),
+  ct:pal("Content: ~p", [Content]),
   Content = InnerContent,
-  Fun(Client, InnerMsg),
+  Res = Fun(Client, InnerMsg),
+  ct:pal("Fun Res: ~p", [Res]),
   ok.
 
 verify_is_owner_aff_change(Client, Msg) ->
@@ -1067,6 +1088,7 @@ get_unread_count(Msg) ->
   binary_to_integer(Val).
 
 get_inbox_count(Packet) ->
+    ct:pal("Packet: ~p", [Packet]),
   [Val] = exml_query:paths(Packet, [{element_with_ns, ?NS_ESL_INBOX}, cdata]),
   case Val of
     <<>> ->
