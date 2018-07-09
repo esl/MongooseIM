@@ -5,11 +5,11 @@
 %% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
 %%
 %% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
-%% DEV_NAMES variable contains release names from profiles in rebar.config.
+%% DEV_NODES variable contains release names from profiles in rebar.config.
 %% Release names are also used to name directories in the _build directory.
 %%
 %% Valid TEST_HOSTS are mim, mim2, mim3, fed, reg.
-%% Valid DEV_NAMES are mim1, mim2, mim3, fed1, reg1.
+%% Valid DEV_NODES are mim1, mim2, mim3, fed1, reg1.
 %%
 %% Example with two nodes:
 %% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
@@ -101,8 +101,12 @@ args_to_opts(Args) ->
 
 raw_to_arg(RawArg) ->
     ArgVal = atom_to_list(RawArg),
-    [Arg, Val] = string:tokens(ArgVal, "="),
-    {list_to_atom(Arg), Val}.
+    case string:tokens(ArgVal, "=") of
+        [Arg, Val] ->
+            {list_to_atom(Arg), Val};
+        [Arg] ->
+            {list_to_atom(Arg), ""}
+    end.
 
 set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
     Value = Sanitizer(proplists:get_value(Opt, Args)),

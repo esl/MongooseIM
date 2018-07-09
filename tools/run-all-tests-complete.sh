@@ -7,7 +7,6 @@ if [ ! -z "$ZSH_NAME" ]; then
     bashcompinit
 fi
 
-
 _run_all_tests() {
   local cur pos opt
   # Pointer to current completion word.
@@ -44,8 +43,8 @@ _run_all_tests() {
     ARRAY=( $(./tools/run-all-tests.sh --list-presets) )
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
-    --dev-names*)
-    ARRAY=( $(./tools/run-all-tests.sh --list-dev-names) )
+    --dev-nodes*)
+    ARRAY=( $(./tools/run-all-tests.sh --list-dev-nodes) )
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     --test-hosts*)
@@ -53,10 +52,28 @@ _run_all_tests() {
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     *)
-    COMPREPLY=( $( compgen -W '--db --preset --dev-names --test-hosts \
+
+    LIST_SUITES_ARGS=""
+    if [[ " ${COMP_WORDS[@]} " =~ " --no-small-tests " ]]; then
+         # if --no-small-tests is a previous option, do not show small-tests
+         LIST_SUITES_ARGS+=" --no-small-tests "
+    fi
+    if [[ " ${COMP_WORDS[@]} " =~ " --no-big-tests " ]]; then
+         # if --no-big-tests is a previous option, do not show big-tests
+         LIST_SUITES_ARGS+=" --no-big-tests "
+    fi
+
+    SUGGESTIONS=$(./tools/test_runner/complete-test-name.sh "$cur")
+
+    COMPREPLY=( $( compgen -W '--db --preset --dev-nodes --test-hosts \
+                          --no-big-tests \
                           --no-small-tests \
+                          --no-build-tests \
                           --no-services \
                           --no-cover \
+                          --verbose \
+                          '"$SUGGESTIONS"' \
+                          '"$(./tools/list_suites.sh $LIST_SUITES_ARGS)"' \
                            --' -- $cur ) );;
 #   Generate the completion matches and load them into $COMPREPLY array.
 #   xx) May add more cases here.

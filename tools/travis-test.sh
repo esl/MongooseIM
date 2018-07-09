@@ -8,7 +8,7 @@ set -o pipefail
 IFS=$'\n\t'
 
 DEFAULT_PRESET=internal_mnesia
-PRESET=${PRESET:-$DEFAULT_PRESET}
+PRESET="${PRESET-$DEFAULT_PRESET}"
 SMALL_TESTS="${SMALL_TESTS:-true}"
 START_SERVICES="${START_SERVICES:-true}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
@@ -199,15 +199,15 @@ build_pkg () {
   set +e
 }
 
-if [ $PRESET == "dialyzer_only" ]; then
+if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh start
   ./rebar3 dialyzer
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
-elif [ $PRESET == "pkg" ]; then
+elif [ "$PRESET" == "pkg" ]; then
   build_pkg $pkg_PLATFORM
-elif [ $PRESET == "small_tests" ]; then
+elif [ "$PRESET" == "small_tests" ]; then
   time run_small_tests
   RESULT=$?
   time erl -noinput -pa _build/test/lib/mongooseim/test -pa _build/test/lib/mongooseim/ebin -pa _build/default/lib/*/ebin \

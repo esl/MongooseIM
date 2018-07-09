@@ -16,10 +16,11 @@ clean:
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
 
+# REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
 	@(if [ "$(SUITE)" ]; \
 		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) ; \
-		else $(RUN) $(REBAR) ct ; fi)
+		else $(RUN) $(REBAR) ct $(REBAR_CT_EXTRA_ARGS); fi)
 
 rel: certs configure.out rel/vars.config
 	. ./configure.out && $(REBAR) as prod release

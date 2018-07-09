@@ -5,9 +5,12 @@
 # - START_SERVICES
 # - PRESET
 # - DB
-# - DEV_NAMES
+# - DEV_NODES
 # - TEST_HOSTS
 # - VERBOSE
+
+# Just compile big tests example (not really):
+# /tools/run-all-tests.sh --no-small-tests --db --preset --dev-nodes --test-hosts --no-cover
 
 PRESETS_ARRAY=(
     internal_mnesia
@@ -32,7 +35,7 @@ DBS_ARRAY=(
     ldap
 )
 
-DEV_NAMES_ARRAY=(
+DEV_NODES_ARRAY=(
     mim1
     mim2
     mim3
@@ -51,6 +54,11 @@ TEST_HOSTS_ARRAY=(
 SMALL_TESTS_DEFAULT=true
 START_SERVICES_DEFAULT=false # we don't use them anyway
 COVER_ENABLED_DEFAULT=true
+
+BIG_TESTS=true
+BUILD_TESTS=true
+
+SELECTED_TESTS=()
 
 # Parse command line arguments
 # Prefer arguments to env variables
@@ -98,16 +106,16 @@ case $key in
         done
     ;;
 
-    --dev-names)
+    --dev-nodes)
         shift # past argument
-        unset DEV_NAMES
-        DEV_NAMES_ARRAY=()
+        unset DEV_NODES
+        DEV_NODES_ARRAY=()
         while [[ $# -gt 0 ]]
         do
             key="$1"
             if [[ "$key" != --* ]]; then
                 echo "Dev-name argument parsed $key"
-                DEV_NAMES_ARRAY+=("$key")
+                DEV_NODES_ARRAY+=("$key")
                 shift # past value
             else
                 echo "No more dev names"
@@ -149,6 +157,20 @@ case $key in
         SMALL_TESTS=false
     ;;
 
+    --no-big-tests)
+        shift # past argument
+        BIG_TESTS=false
+    ;;
+
+    --no-build-tests)
+        shift # past argument
+        BUILD_TESTS=false
+    ;;
+    --verbose)
+        export VERBOSE=1
+        shift # skip placeholder
+    ;;
+
     --list-dbs)
         ( IFS=$'\n'; echo "${DBS_ARRAY[*]}" )
         exit 0
@@ -157,17 +179,24 @@ case $key in
         ( IFS=$'\n'; echo "${PRESETS_ARRAY[*]}" )
         exit 0
     ;;
-    --list-dev-names)
-        ( IFS=$'\n'; echo "${DEV_NAMES_ARRAY[*]}" )
+    --list-dev-nodes)
+        ( IFS=$'\n'; echo "${DEV_NODES_ARRAY[*]}" )
         exit 0
     ;;
     --list-test-hosts)
         ( IFS=$'\n'; echo "${TEST_HOSTS_ARRAY[*]}" )
         exit 0
     ;;
-    *)
+    --)
+        shift # skip placeholder
+    ;;
+    --*)
         echo "Unknown argument $key"
         exit 1
+    ;;
+    *)
+        SELECTED_TESTS+=( "$key" )
+        shift
 esac
 done
 echo "No more arguments"
@@ -181,6 +210,15 @@ if [ -z "$RUN_ALL_TESTS_COMPLETE" ]; then
     echo ""
 fi
 
+if [ "$BIG_TESTS" = false ]; then
+    echo "Unset PRESET, DB, DEV_NODES because --no-big-tests option is passed"
+    PRESET="small_tests"
+    DB=""
+    DEV_NODES=""
+    BUILD_TESTS=false
+fi
+
+./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
 
 # Use env variable or default
 export SMALL_TESTS="${SMALL_TESTS:-$SMALL_TESTS_DEFAULT}"
@@ -190,7 +228,7 @@ export COVER_ENABLED="${COVER_ENABLED:-$COVER_ENABLED_DEFAULT}"
 # Join array to string
 PRESETS_DEFAULT="${PRESETS_ARRAY[@]}"
 DBS_DEFAULT="${DBS_ARRAY[@]}"
-DEV_NAMES_DEFAULT="${DEV_NAMES_ARRAY[@]}"
+DEV_NODES_DEFAULT="${DEV_NODES_ARRAY[@]}"
 TEST_HOSTS_DEFAULT="${TEST_HOSTS_ARRAY[@]}"
 
 ./tools/configure with-all
@@ -203,29 +241,32 @@ TEST_HOSTS_DEFAULT="${TEST_HOSTS_ARRAY[@]}"
 # - if parameter is unset - use word
 #
 # Use empty DB (DB="") to skip database setup
-# Use empty DEV_NAMES (DEV_NAMES="") to skip node compilation and restart
+# Use empty DEV_NODES (DEV_NODES="") to skip node compilation and restart
 export PRESET="${PRESET-$PRESETS_DEFAULT}"
 export DB="${DB-$DBS_DEFAULT}"
-export DEV_NAMES="${DEV_NAMES-$DEV_NAMES_DEFAULT}"
+export DEV_NODES="${DEV_NODES-$DEV_NODES_DEFAULT}"
 export TEST_HOSTS="${TEST_HOSTS-$TEST_HOSTS_DEFAULT}"
+export BUILD_TESTS="$BUILD_TESTS"
+# Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
+# to rebar3 in Makefile
+export REBAR_CT_EXTRA_ARGS=" --spec auto_small_tests.spec "
+export TESTSPEC="auto_big_tests.spec"
 
 # Debug printing
 echo "Variables:"
 echo "    PRESET=\"$PRESET\""
 echo "    DB=\"$DB\""
-echo "    DEV_NAMES=\"$DEV_NAMES\""
+echo "    DEV_NODES=\"$DEV_NODES\""
 echo "    TEST_HOSTS=\"$TEST_HOSTS\""
 echo "    SMALL_TESTS=$SMALL_TESTS"
 echo "    START_SERVICES=$START_SERVICES"
 echo "    COVER_ENABLED=$COVER_ENABLED"
+echo "    BUILD_TESTS=$BUILD_TESTS"
+echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
+echo "    TESTSPEC=$TESTSPEC"
 echo ""
 
-# "make devrel", but for a list of dev nodes
-if [ -z "$DEV_NAMES" ]; then
-    echo "Skip make devrel"
-else
-    make $DEV_NAMES
-fi
+./tools/build-releases.sh
 
 ./tools/travis-build-tests.sh
 
