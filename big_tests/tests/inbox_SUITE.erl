@@ -36,7 +36,8 @@
          groupchat_markers_all_reset_room_created/1,
          no_aff_stored_and_remove_on_kicked/1,
          no_stored_and_remain_after_kicked/1,
-         simple_groupchat_stored_in_all_inbox_muc/1
+         simple_groupchat_stored_in_all_inbox_muc/1,
+        simple_groupchat_stored_in_offline_users_inbox_muc/1
         ]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
@@ -52,6 +53,7 @@
 -define(ROOM4, <<"testroom4">>).
 -define(ROOM_MARKERS, <<"room_markers">>).
 -define(MUC_ROOM, <<"some_muc_room">>).
+-define(MUC_ROOM2, <<"some_muc_room2">>).
 -define(MUC_DOMAIN, <<"muc.localhost">>).
 -record(conv, {unread, from, to, content = <<>>, verify = fun(C, Stanza) -> ok end}).
 -record(inbox, {total, convs = []}).
@@ -103,7 +105,8 @@ groups() ->
           ]},
          {muc, [sequence],
           [
-           simple_groupchat_stored_in_all_inbox_muc
+           simple_groupchat_stored_in_all_inbox_muc,
+           simple_groupchat_stored_in_offline_users_inbox_muc
           ]}
         ].
     %ct_helper:repeat_all_until_all_ok(G).
@@ -165,9 +168,7 @@ init_per_group(muclight, Config) ->
   create_room(?ROOM, muclight_domain(), alice, [bob, kate], Config, ver(1));
 init_per_group(muc, Config) ->
   muc_helper:load_muc(muc_domain()),
-  reload_inbox_option(Config, groupchat, [muc]),
-  [User | _] = ?config(escalus_users, Config),
-  muc_helper:start_room(Config, User, ?MUC_ROOM, <<"some_friendly_name">>, default);
+  reload_inbox_option(Config, groupchat, [muc]);
 init_per_group(_GroupName, Config) ->
   Config.
 
@@ -206,6 +207,16 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
   create_room(?ROOM4, muclight_domain(), alice, [bob, kate], Config, ver(1)),
   reload_inbox_option(Config, [{remove_on_kicked, false}, {aff_changes, true}]),
   escalus:init_per_testcase(no_stored_and_remain_after_kicked, Config);
+init_per_testcase(simple_groupchat_stored_in_all_inbox_muc = TC, Config) ->
+  clear_inbox_all(),
+  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
+  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM, <<"some_friendly_name">>, default),
+  escalus:init_per_testcase(TC, Config2);
+init_per_testcase(simple_groupchat_stored_in_offline_users_inbox_muc = TC, Config) ->
+  clear_inbox_all(),
+  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
+  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM2, <<"some_friendly_name">>, default),
+  escalus:init_per_testcase(TC, Config2);
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:init_per_testcase(CaseName, Config).
@@ -446,7 +457,6 @@ simple_groupchat_stored_in_all_inbox(Config) ->
     escalus:assert(is_groupchat_message, R0),
     escalus:assert(is_groupchat_message, R1),
     escalus:assert(is_groupchat_message, R2),
-    {ok, [X]} = io:fread("input number: ", "~d"),
     %% Alice has 0 unread messages
     check_inbox(Alice, #inbox{
       total = 1,
@@ -782,7 +792,7 @@ groupchat_markers_all_reset_room_created(Config) ->
     foreach_check_inbox([Bob, Kate, Alice], 1, 0, AliceRoomJid, Msg)
                                                            end).
 
-%% ++++
+%% legacy MUC tests
 
 simple_groupchat_stored_in_all_inbox_muc(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
@@ -801,10 +811,43 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
               Users),
     lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
                   Resps),
-    [AliceJid, BobJid, KateJid] = lists:map(fun(User) -> lbin(escalus_client:short_jid(User)) end, Users),
+    [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
     %% Bob has 0 unread messages
-    ct:pal("BobRoomJid: ~p, BobJid: ~p", [BobRoomJid, BobJid]),
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
+                     content = Msg}]}),
+    %% Alice and Kate have one conv with 1 unread message
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}),
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]})
+    end).
+
+simple_groupchat_stored_in_offline_users_inbox_muc(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Users = [Alice, Bob, Kate],
+    Msg = <<"Hi Room!">>,
+    Id = <<"MyID">>,
+    Room = ?config(room, Config),
+    RoomAddr = muc_room_address(Room),
+
+    enter_room(Room, Users),
+    make_members(Room, Alice, Users -- [Alice]),
+    go_offline(Kate, Room, Users),
+    Stanza = escalus_stanza:set_id(
+      escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
+    escalus:send(Bob, Stanza),
+    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
+              Users -- [Kate]),
+    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
+                  Resps),
+    [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
+    BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
+    %% Bob has 0 unread messages
     check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
@@ -821,6 +864,17 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
+
+go_offline(User, Room, Occupants) ->
+    UnavailavbleStanza = escalus_stanza:presence(<<"unavailable">>),
+    Stanza = muc_helper:stanza_to_room(UnavailavbleStanza, Room, nick(User)),
+    escalus:send(User, Stanza),
+    lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User), ct:pal("A: ~p", [A]) end,
+                  Occupants).
+
+
+to_bare_lower(User) ->
+    lbin(escalus_client:short_jid(User)).
 
 make_members(Room, Admin, Users) ->
     Items = lists:map(fun(User) -> {escalus_utils:get_short_jid(User),<<"member">>} end,
@@ -873,7 +927,7 @@ stanza_to_room(Stanza, Room, Nick) ->
 
 
 muc_room_address(Room) ->
-    RoomJid = <<?MUC_ROOM/binary, $@, ?MUC_DOMAIN/binary>>.
+    RoomJid = <<Room/binary, $@, ?MUC_DOMAIN/binary>>.
 
 muc_room_address(Room, Nick) ->
     RoomJid = <<Room/binary, $@, ?MUC_DOMAIN/binary, $/, Nick/binary>>.
@@ -1017,7 +1071,6 @@ process_inbox_messages(Client, [], UnmatchedConvs, UnmatchedItems) ->
                unmatched_convs => UnmatchedConvs,
                unmatched_result_items => UnmatchedItems });
 process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems) ->
-    ct:pal("Stanza: ~p", [Stanza]),
     Pred = fun(Conv) -> (catch process_inbox_message(Client, Stanza, Conv)) == ok end,
     case lists:partition(Pred, MsgCheckList) of
         {[], _NoConvSatisfiedPred} ->
@@ -1029,24 +1082,14 @@ process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems
 process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
                                              to = ToJid, content = Content, verify = Fun}) ->
   Unread = get_unread_count(Message),
-  ct:pal("~p", [Unread]),
   escalus:assert(is_message, Message),
-  ct:pal("assert message", []),
   Unread = get_unread_count(Message),
   [InnerMsg] = get_inner_msg(Message),
-  ct:pal("Innermsg: ~p", [InnerMsg]),
-  ct:pal("FromJid before: ~p", [lbin(exml_query:attr(InnerMsg, <<"from">>))]),
-  ct:pal("FromJid before should be: ~p", [FromJid]),
   FromJid = lbin(exml_query:attr(InnerMsg, <<"from">>)),
-  ct:pal("FromJid: ~p", [FromJid]),
   ToJid = lbin(exml_query:attr(InnerMsg, <<"to">>)),
-  ct:pal("ToJid: ~p", [ToJid]),
   InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
-  ct:pal("InnerContent: ~p", [InnerContent]),
-  ct:pal("Content: ~p", [Content]),
   Content = InnerContent,
-  Res = Fun(Client, InnerMsg),
-  ct:pal("Fun Res: ~p", [Res]),
+  Fun(Client, InnerMsg),
   ok.
 
 verify_is_owner_aff_change(Client, Msg) ->
@@ -1088,7 +1131,6 @@ get_unread_count(Msg) ->
   binary_to_integer(Val).
 
 get_inbox_count(Packet) ->
-    ct:pal("Packet: ~p", [Packet]),
   [Val] = exml_query:paths(Packet, [{element_with_ns, ?NS_ESL_INBOX}, cdata]),
   case Val of
     <<>> ->
