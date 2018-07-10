@@ -37,6 +37,8 @@ Test specifications:
 -- [SUITE:TESTCASE]
 
 Commands:
+--show-small-reports  -- show small test reports
+--show-big-reports    -- show big test reports
 --list-dbs            -- get a list of supported databases
 --list-presets        -- get a list of supported presets
 --list-dev-nodes      -- get a list of dev names
@@ -366,6 +368,14 @@ case $key in
     --examples-complete)
         print_complete_examples
         exit 0
+    ;;
+    --show-small-reports)
+        ./tools/test_runner/show_reports.sh big
+        exit
+    ;;
+    --show-big-reports)
+        ./tools/test_runner/show_reports.sh big
+        exit
     ;;
     --)
         shift # skip placeholder

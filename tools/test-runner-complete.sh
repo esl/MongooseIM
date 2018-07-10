@@ -77,6 +77,8 @@ _run_all_tests() {
                           --help \
                           --examples \
                           --examples-complete \
+                          --show-small-reports \
+                          --show-big-reports \
                           '"$SUGGESTIONS"' \
                           '"$SUITES"' \
                            --' -- $cur ) );;

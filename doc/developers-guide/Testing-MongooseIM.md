@@ -1,3 +1,54 @@
+# Test runner
+
+Test runner script is used to compile MongooseIM and run tests.
+
+Help command prints a list of supported options.
+
+```bash
+./tools/test-runner.sh --help
+```
+
+## Test runner examples
+
+Usage example:
+
+```bash
+./tools/test-runner.sh --db redis --preset internal_mnesia
+```
+
+The command runs both big feature and small unit tests.
+
+To view more examples, run:
+
+```bash
+./tools/test-runner.sh --examples
+```
+
+## Test runner competion
+
+Test runner supports shell TAB completion.
+
+To enable completion in bash or zsh, run:
+
+```bash
+source tools/test-runner-complete.sh
+```
+
+To view completion examples, run:
+
+```bash
+./tools/test-runner.sh --examples-complete
+```
+
+## Viewing test reports
+
+To view test execution results, run:
+
+```bash
+./tools/test-runner.sh --show-big-reports
+./tools/test-runner.sh --show-small-reports
+```
+
 # Unit tests (a.k.a. "small tests")
 
 These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
