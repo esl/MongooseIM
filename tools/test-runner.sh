@@ -402,7 +402,7 @@ case $key in
         shift # consume argument, continue execution
     ;;
     --show-small-reports)
-        ./tools/test_runner/show_reports.sh big
+        ./tools/test_runner/show_reports.sh small
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
