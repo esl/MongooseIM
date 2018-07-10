@@ -86,7 +86,7 @@ Unit test running example using test runner:
 
 Most important options are preset and database:
 
-```erlang
+```bash
 # Runs privacy_SUITE and private_SUITE with MySQL
 ./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia -- privacy private
 
