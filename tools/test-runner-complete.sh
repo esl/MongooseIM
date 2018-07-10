@@ -95,3 +95,16 @@ complete -F _run_all_tests test-runner.sh
 
 # Say to the main script, that completion was enabled
 export RUN_ALL_TESTS_COMPLETE=true
+
+echo "Completion has been enabled for the current shell"
+
+# Show advice
+EXAMPLES_ADVICE=$(cat <<-END
+-----------------------------------
+Run with --examples-complete argument to show the completion examples:
+  ./tools/test-runner.sh --examples-complete
+-----------------------------------
+
+END
+)
+echo "$EXAMPLES_ADVICE"
