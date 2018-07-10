@@ -72,7 +72,11 @@ _run_all_tests() {
                           --no-build-tests \
                           --no-services \
                           --no-cover \
+                          --tls-dist \
                           --verbose \
+                          --help \
+                          --examples \
+                          --examples-complete \
                           '"$SUGGESTIONS"' \
                           '"$SUITES"' \
                            --' -- $cur ) );;

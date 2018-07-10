@@ -12,6 +12,172 @@
 # Just compile big tests example (not really):
 # /tools/run-all-tests.sh --no-small-tests --db --preset --dev-nodes --test-hosts --no-cover
 
+
+USAGE=$(cat <<-END
+This script runs small and big tests for MongooseIM
+
+Options:
+--db [DB]             -- a list of databases to setup for big tests
+--preset [PRESET]     -- a list of presets to run during big tests
+--dev-nodes [NODE]    -- a list of release nodes to build and start
+--test-hosts [HOST]   -- a list of test hosts to apply preset to
+--no-cover            -- disable coverage reports
+--no-services         -- DELETE ME
+--no-small-tests      -- disable small tests
+--no-big-tests        -- disable big tests
+--no-build-tests      -- disable big test compilation
+--tls-dist            -- enable encryption between nodes in big tests
+--verbose             -- print script output
+
+Test specifications:
+-- [SUITE]
+-- [SUITE:GROUP]
+-- [SUITE:GROUP1:...:GROUPN]
+-- [SUITE:GROUP:TESTCASE]
+-- [SUITE:TESTCASE]
+
+Commands:
+--list-dbs            -- get a list of supported databases
+--list-presets        -- get a list of supported presets
+--list-dev-nodes      -- get a list of dev names
+--list-test-hosts     -- get a list of test hosts
+--help                -- show this information
+--examples            -- print the command examples
+--examples-complete   -- print the command autocompletion examples
+END
+)
+
+
+EXAMPLES=$(cat <<-END
+./tools/run-all-tests.sh --db redis mysql -- rdbms mam
+    Setups Redis and MySQL databases
+    Runs mam_SUITE and rdbms_SUITE
+    -- is used to separate test suites from databases
+
+./tools/run-all-tests.sh muc:register
+    Runs register group in muc_SUITE
+
+./tools/run-all-tests.sh --db -- muc
+    Skips database setup step and runs muc_SUITE
+    Running databases would still be running
+
+./tools/run-all-tests.sh --no-big-tests --no-cover ejabberd_config:smoke
+    Runs smoke testcase in ejabberd_config_SUITE
+    Disables big tests and cover
+
+./tools/run-all-tests.sh --no-big-tests
+    Travis build job 1
+
+./tools/run-all-tests.sh --no-small-tests --db redis --tls-dist --preset internal_mnesia
+    Travis build job 2
+
+./tools/run-all-tests.sh --no-small-tests --db redis mysql --preset mysql_redis
+    Travis build job 3
+
+./tools/run-all-tests.sh --no-small-tests --db redis mssql --preset odbc_mssql_mnesia
+    Travis build job 4
+
+./tools/run-all-tests.sh --no-small-tests --db redis ldap --preset ldap_mnesia
+    Travis build job 5
+
+./tools/run-all-tests.sh --no-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
+    Travis build job 6
+    Separator -- between presets and suites
+
+./tools/run-all-tests.sh --db redis pgsql --preset pgsql_mnesia
+    Travis build job 8
+
+./tools/run-all-tests.sh --db redis riak --preset riak_mnesia
+    Travis build job 9
+
+END
+)
+
+COMPLETE_EXAMPLES=$(cat <<-END
+./tools/run-all-tests.sh TAB
+    Show both small and big suites
+
+./tools/run-all-tests.sh --no-big-tests TAB
+    Show only small suites
+
+./tools/run-all-tests.sh --no-small-tests TAB
+    Show only big suites
+
+./tools/run-all-tests.sh muc:TAB
+    Complete argument with groups and test cases from muc_SUITE
+    There should not be a whitespace after ":"
+
+./tools/run-all-tests.sh --db TAB
+    Complete with database names
+
+./tools/run-all-tests.sh --db mysql TAB
+    Complete with database names
+
+./tools/run-all-tests.sh --db mysql -- TAB
+    Separate db from arguments
+    Complete with arguments
+
+END
+)
+
+#
+
+COMPLETE_ADVICE=$(cat <<-END
+-----------------------------------
+Bash tab completion is disabled!
+Run the command to enable completion in Bash and zsh:
+    source tools/run-all-tests-complete.sh
+-----------------------------------
+
+END
+)
+
+HELP_ADVICE=$(cat <<-END
+-----------------------------------
+Run with --help argument to show the script docs:
+    ./tools/run-all-tests.sh --help
+-----------------------------------
+END
+)
+
+
+function print_help
+{
+    local bold=$(tput bold)
+    local normal=$(tput sgr0)
+    # Print options using bold font
+    echo "$USAGE" \
+        | sed -e "s/^--/$bold--/g" | sed "s/ --/$normal--/g"
+}
+
+function print_examples
+{
+    local bold=$(tput bold)
+    local normal=$(tput sgr0)
+    # Make each line, that has "run-all-tests", bold
+    # & is the whole match
+    echo "$EXAMPLES" \
+        | sed -e 's/.*run-all-tests.*/'"$bold&$normal"'/g'
+}
+
+function print_complete_examples
+{
+    local bold=$(tput bold)
+    local normal=$(tput sgr0)
+    # Make each line, that has "run-all-tests", bold
+    # & is the whole match
+    echo "$COMPLETE_EXAMPLES" \
+        | sed -e 's/.*run-all-tests.*/'"$bold&$normal"'/g'
+}
+
+# Usage: print_help "advice text"
+function print_advice
+{
+    local gray=$(tput setaf 7) # dim white text
+    local normal=$(tput sgr0)
+    echo "$gray$1$normal"
+}
+
 PRESETS_ARRAY=(
     internal_mnesia
     internal_redis
@@ -57,6 +223,7 @@ COVER_ENABLED_DEFAULT=true
 
 BIG_TESTS=true
 BUILD_TESTS=true
+TLS_DIST=no
 
 SELECTED_TESTS=()
 
@@ -166,9 +333,15 @@ case $key in
         shift # past argument
         BUILD_TESTS=false
     ;;
+
+    --tls-dist)
+        shift # past argument
+        TLS_DIST=yes
+    ;;
+
     --verbose)
         export VERBOSE=1
-        shift # skip placeholder
+        shift # past argument
     ;;
 
     --list-dbs)
@@ -187,6 +360,18 @@ case $key in
         ( IFS=$'\n'; echo "${TEST_HOSTS_ARRAY[*]}" )
         exit 0
     ;;
+    --help)
+        print_help
+        exit 0
+    ;;
+    --examples)
+        print_examples
+        exit 0
+    ;;
+    --examples-complete)
+        print_complete_examples
+        exit 0
+    ;;
     --)
         shift # skip placeholder
     ;;
@@ -201,17 +386,14 @@ esac
 done
 echo "No more arguments"
 
+print_advice "$HELP_ADVICE"
+
 if [ -z "$RUN_ALL_TESTS_COMPLETE" ]; then
-    echo "-----------------------------------"
-    echo "Bash tab completion is disabled!"
-    echo "Run the command to enable completion in Bash and zsh: "
-    echo "    source tools/run-all-tests-complete.sh"
-    echo "-----------------------------------"
-    echo ""
+    print_advice "$COMPLETE_ADVICE"
 fi
 
 if [ "$BIG_TESTS" = false ]; then
-    echo "Unset PRESET, DB, DEV_NODES because --no-big-tests option is passed"
+    echo "Unset PRESET, DB, DEV_NODES because --no-big-tests option has been passed"
     PRESET="small_tests"
     DB=""
     DEV_NODES=""
@@ -247,6 +429,7 @@ export DB="${DB-$DBS_DEFAULT}"
 export DEV_NODES="${DEV_NODES-$DEV_NODES_DEFAULT}"
 export TEST_HOSTS="${TEST_HOSTS-$TEST_HOSTS_DEFAULT}"
 export BUILD_TESTS="$BUILD_TESTS"
+export TLS_DIST="$TLS_DIST"
 # Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
 # to rebar3 in Makefile
 export REBAR_CT_EXTRA_ARGS=" --spec auto_small_tests.spec "
@@ -264,6 +447,7 @@ echo "    COVER_ENABLED=$COVER_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
 echo "    TESTSPEC=$TESTSPEC"
+echo "    TLS_DIST=$TLS_DIST"
 echo ""
 
 ./tools/build-releases.sh

@@ -199,6 +199,14 @@ build_pkg () {
   set +e
 }
 
+function run_small_tests_cover_report
+{
+  if [ "$COVER_ENABLED" = "true" ]; then
+    time erl -noinput -pa _build/test/lib/mongooseim/test -pa _build/test/lib/mongooseim/ebin -pa _build/default/lib/*/ebin \
+         -s codecov_helper analyze _build/test/cover/ct.coverdata codecov.json
+  fi
+}
+
 if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh start
   ./rebar3 dialyzer
@@ -210,8 +218,7 @@ elif [ "$PRESET" == "pkg" ]; then
 elif [ "$PRESET" == "small_tests" ]; then
   time run_small_tests
   RESULT=$?
-  time erl -noinput -pa _build/test/lib/mongooseim/test -pa _build/test/lib/mongooseim/ebin -pa _build/default/lib/*/ebin \
-       -s codecov_helper analyze _build/test/cover/ct.coverdata codecov.json
+  run_small_tests_cover_report
   exit ${RESULT}
 else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
