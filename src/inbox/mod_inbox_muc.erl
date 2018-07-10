@@ -15,12 +15,20 @@
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
 
--export([update_inbox/5]).
+-export([update_inbox/5, start/1, stop/1]).
 -type packet() :: exml:element().
 -type role() :: r_member() | r_owner() | r_none().
 -type r_member() :: binary().
 -type r_owner() :: binary().
 -type r_none() :: binary().
+
+start(Host) ->
+    ejabberd_hooks:add(update_inbox, Host, ?MODULE, update_inbox, 90),
+    ok.
+
+stop(Host) ->
+    ejabberd_hooks:delete(update_inbox, Host, ?MODULE, update_inbox, 90),
+    ok.
 
 update_inbox(Acc, Room, {From, FromRoomJid}, AffsDict, Packet) ->
     Affs = dict:to_list(AffsDict),
@@ -119,6 +127,7 @@ maybe_handle_system_message(Host, RoomUser, Receiver, Packet) ->
                             Remote :: jid:jid(),
                             Packet :: exml:element()) -> ok.
 handle_system_message(Host, Room, Remote, Packet) ->
+    % SYSTEM MESSAGES DON'T GO TO update_inbox HOOK!
     case system_message_type(Remote, Packet) of
         kick ->
             handle_kicked_message(Host, Room, Remote, Packet);
@@ -224,6 +233,7 @@ system_message_type(User, Packet) ->
             end.
 
 is_subject_msg(Packet) ->
+    %% IN update_inbox HOOK THERE WON'T BE SUBJECT MESSAGES
     case exml_query:subelement(Packet, <<"body">>, undefined) of
         undefined -> true;
         #xmlel{children = []} -> true;
