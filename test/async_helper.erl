@@ -65,7 +65,7 @@ do_wait_until(_Fun, _ExpectedValue, #{
                                       time_left := TimeLeft,
                                       history := History
                                      }) when TimeLeft =< 0 ->
-    error({badmatch, History});
+    error({badmatch, lists:reverse(History)});
 
 do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of
@@ -83,3 +83,4 @@ wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
     timer:sleep(SleepTime),
     do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
                                             history => [FunResult | History]}).
+
