@@ -131,7 +131,9 @@ maybe_jingle_get_stanza_to_self(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = 
             mongoose_acc:put(result, drop, Acc);
         _ ->
             Acc
-    end.
+    end;
+maybe_jingle_get_stanza_to_self(_, Acc) ->
+    Acc.
 
 maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
   when JingleAction =:= <<"session-initiate">>;
