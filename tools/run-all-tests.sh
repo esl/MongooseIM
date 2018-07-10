@@ -178,16 +178,11 @@ function print_advice
     echo "$gray$1$normal"
 }
 
+# Preset names are internal_mnesia, internal_redis ...
+# Run the command to see the list:
+# ./tools/run-all-tests.sh --list-presets
 PRESETS_ARRAY=(
-    internal_mnesia
-    internal_redis
-    pgsql_mnesia
-    odbc_mssql_mnesia
-    mysql_mnesia
-    ldap_mnesia
-    riak_mnesia
-    cassandra_mnesia
-    elasticsearch_mnesia
+    $( ./tools/test_runner/list_presets.sh )
 )
 
 DBS_ARRAY=(
