@@ -25,3 +25,9 @@ erl -noinput \
     -pa big_tests/tests/ \
     -s selected_tests_to_test_spec main $@
 fi
+
+# Rebar3 does not copy spec file on macosx
+# This is a workaround
+mkdir -p _build/test/lib/mongooseim
+rm -f _build/test/lib/mongooseim/auto_small_tests.spec
+ln -s "$(pwd)/auto_small_tests.spec" _build/test/lib/mongooseim/auto_small_tests.spec
