@@ -51,6 +51,8 @@ END
 
 
 EXAMPLES=$(cat <<-END
+Script examples:
+
 ./tools/test-runner.sh --db redis mysql -- rdbms mam
     Setups Redis and MySQL databases
     Runs mam_SUITE and rdbms_SUITE
@@ -91,11 +93,12 @@ EXAMPLES=$(cat <<-END
 
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
     Travis build job 9
-
 END
 )
 
 COMPLETE_EXAMPLES=$(cat <<-END
+Script completion examples:
+
 ./tools/test-runner.sh TAB
     Show both small and big suites
 
@@ -118,7 +121,6 @@ COMPLETE_EXAMPLES=$(cat <<-END
 ./tools/test-runner.sh --db mysql -- TAB
     Separate db from arguments
     Complete with arguments
-
 END
 )
 
@@ -138,6 +140,7 @@ HELP_ADVICE=$(cat <<-END
 -----------------------------------
 Run with --help argument to show the script docs:
     ./tools/test-runner.sh --help
+    ./tools/test-runner.sh --help --examples --examples-complete
 -----------------------------------
 END
 )
@@ -178,6 +181,28 @@ function print_advice
     local gray=$(tput setaf 7) # dim white text
     local normal=$(tput sgr0)
     echo "$gray$1$normal"
+}
+
+# If we execute the script with several commands, we want to separate the command
+# output
+# I.e. in case of:
+# ./tools/test-runner.sh --help --examples --examples-complete
+# We want two separators. One between help and examples.
+# And another between examples and completion examples.
+# i.e.:
+#
+# HELP
+# -----
+# EXAMPLES
+# -----
+# COMPLETE EXAMPLES
+DELIMETER_ADDED=false
+function print_command_delimeter
+{
+    if [ "$DELIMETER_ADDED" = true ]; then
+        echo -e "\n--------------------------------------------\n"
+    fi
+    DELIMETER_ADDED=true
 }
 
 # Preset names are internal_mnesia, internal_redis ...
@@ -223,6 +248,7 @@ BUILD_TESTS=true
 TLS_DIST=no
 
 SELECTED_TESTS=()
+STOP_SCRIPT=false
 
 # Parse command line arguments
 # Prefer arguments to env variables
@@ -358,24 +384,32 @@ case $key in
         exit 0
     ;;
     --help)
+        print_command_delimeter
         print_help
-        exit 0
+        STOP_SCRIPT=true
+        shift # consume argument, continue execution
     ;;
     --examples)
+        print_command_delimeter
         print_examples
-        exit 0
+        STOP_SCRIPT=true
+        shift # consume argument, continue execution
     ;;
     --examples-complete)
+        print_command_delimeter
         print_complete_examples
-        exit 0
+        STOP_SCRIPT=true
+        shift # consume argument, continue execution
     ;;
     --show-small-reports)
         ./tools/test_runner/show_reports.sh big
-        exit
+        STOP_SCRIPT=true
+        shift # consume argument, continue execution
     ;;
     --show-big-reports)
         ./tools/test_runner/show_reports.sh big
-        exit
+        STOP_SCRIPT=true
+        shift # consume argument, continue execution
     ;;
     --)
         shift # skip placeholder
@@ -389,7 +423,12 @@ case $key in
         shift
 esac
 done
-echo "No more arguments"
+
+
+if [ "$STOP_SCRIPT" = true ]; then
+    # Skipping test execution
+    exit 0
+fi
 
 print_advice "$HELP_ADVICE"
 
