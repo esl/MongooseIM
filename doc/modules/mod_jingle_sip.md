@@ -58,6 +58,30 @@ When MongooseIM receives any error code to the INVITE request from range `400` t
 it will send Jingle `session-terminate` stanza to the call's initiator.
 The stanza has reason `general-error` with the SIP error code in the `sip-error` sub element.
 
+##### Non-standard Jingle stanzas used by jingle.js
+
+The following non-standard Jingle stanzas were integrated with https://github.com/softwarehutpl/jingle.js
+
+* `source-remove`
+* `source-add`
+* `source-update`
+
+When MongooseIM observes the above Jingle stanzas it will translate them to a SIP in-dialog INVITE request.
+In the SDP content of the request, there will be a custom attribute `a=jingle-action`.
+The value of the custom attribute is one of the three presented above.
+
+Similarly when MongooseIM gets SIP in-dialog `INVITE` request it will check if there is the custom attribute
+and use as the `action` attribute of the Jingle stanza sent to the user.
+If there is no such attribute, the action will be set to regular Jingle `transport-info`.
+
+##### Non-stadard Jingle existing-session-initiate stanza
+
+MongooseIM allows a user to ask for an unanswered `session-initiate` request.
+This may be useful in web applications when there is a need to handle the call in a new browser window.
+
+In order to get the `session-initiate`, which was not answered yet, the user can send a `get` Jingle stanza to self with action set to `existing-session-initiate`.
+In result, MongooseIM will resent the original `session-initiate` request to the device which sent the query.
+
 
 ### Prerequisites
 
