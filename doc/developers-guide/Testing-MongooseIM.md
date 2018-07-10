@@ -66,7 +66,39 @@ Detailed test results in a nice HTML format are saved in
 _build/test/logs/ct_run.[something][datetime]/
 ```
 
+Unit test running example using test runner:
+
+```bash
+# Run all small tests, show progress
+./tools/test-runner.sh --no-big-tests --verbose
+
+# Run sha_SUITE without cover
+./tools/test-runner.sh --no-big-tests sha --no-cover
+
+# Run reload_cluster group in ejabberd_config_SUITE, show progress
+./tools/test-runner.sh --no-big-tests ejabberd_config:reload_cluster --verbose
+```
+
+
 # End-to-end tests (a.k.a. "big tests")
+
+## Using test runner
+
+Most important options are preset and database:
+
+```erlang
+# Runs privacy_SUITE and private_SUITE with MySQL
+./tools/test-runner.sh --no-small-tests --db mysql --preset mysql_mnesia -- privacy private
+
+
+# Runs MAM tests for MUC light with MySQL and Postgres
+./tools/test-runner.sh --no-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:odbc_muc_light
+
+# Runs rdbms_SUITE with MSSQL
+# Inits single MongooseIM node (works for some tests only)
+# Disables cover
+./tools/test-runner.sh --no-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --no-cover
+```
 
 ## TL;DR
 
