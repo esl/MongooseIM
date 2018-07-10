@@ -831,10 +831,7 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
-    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-              Users),
-    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-                  Resps),
+    wait_for_groupchat_msg(Users),
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
     %% Bob has 0 unread messages
@@ -865,10 +862,8 @@ simple_groupchat_stored_in_offline_users_inbox_muc(Config) ->
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
-    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-              Users -- [Kate]),
-    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-                  Resps),
+    wait_for_groupchat_msg(Users -- [Kate]),
+
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
     %% Bob has 0 unread messages
@@ -900,10 +895,7 @@ unread_count_is_the_same_after_going_online_again(Config) ->
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
-    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-              Users -- [Kate]),
-    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-                  Resps),
+    wait_for_groupchat_msg(Users -- [Kate]),
     enter_room(Room, Kate, Users -- [Kate], 1),
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
@@ -934,14 +926,11 @@ unread_count_is_reset_after_sending_chatmarker(Config) ->
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
-    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
-              Users -- [Kate]),
-    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
-                  Resps),
-
+    wait_for_groupchat_msg(Users),
     ChatMarker = set_type(escalus_stanza:chat_marker(RoomAddr, <<"displayed">>, Id), <<"groupchat">>),
     %% User marks last message
     escalus:send(Kate, ChatMarker),
+    wait_for_groupchat_msg(Users),
 
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
@@ -979,6 +968,12 @@ go_online(User, Room, Occupants) ->
     escalus:send(User, Stanza),
     lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User), ct:pal("A: ~p", [A]) end,
                   Occupants).
+
+wait_for_groupchat_msg(Users) ->
+    Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
+              Users),
+    lists:foreach(fun(Resp) -> escalus:assert(is_groupchat_message, Resp) end,
+                  Resps).
 
 
 to_bare_lower(User) ->

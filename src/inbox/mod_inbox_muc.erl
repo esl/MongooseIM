@@ -26,8 +26,6 @@ update_inbox(Acc, Room, {From, FromRoomJid}, AffsDict, Packet) ->
     Affs = dict:to_list(AffsDict),
     Users = affs_to_allowed_users(Affs),
     FromBare = jid:to_bare(From),
-    ?WARNING_MSG("Update inbox hook:~n From: ~p~nUsers: ~p,~n Acc: ~p", 
-                 [FromBare, Users, Acc]),
     lists:foreach(fun(User) -> update_inbox(Room, 
                                             {FromBare, FromRoomJid}, 
                                             User, 
@@ -44,14 +42,21 @@ affs_to_allowed_users(Users) ->
 
 update_inbox(Room, {From, FromRoomJid}, To, Packet) ->
     Host = To#jid.server,
-    case jid:are_equal(From, To) of
-        true ->
-            mod_inbox_utils:write_to_sender_inbox(Host, From, Room, 
-                                                  alter_senders_packet(Packet, FromRoomJid, To));
-        false ->
-            mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, 
-                                                    alter_receivers_packet(Packet, FromRoomJid, To))
+    case direction(From, To) of
+        outgoing ->
+            NewPacket = alter_senders_packet(Packet, FromRoomJid, To),
+            handle_outgoing_message(Host, From, Room, NewPacket);
+        incoming ->
+            NewPacket = alter_receivers_packet(Packet, FromRoomJid, To),
+            handle_incoming_message(Host, Room, To, NewPacket)
     end.
+
+direction(From, To) ->
+    case jid:are_equal(From, To) of
+        true -> outgoing;
+        false -> incoming
+    end.
+
 
 % TODO this logic probably should be in mod_muc_room before routing
 % and put into the routing function.
@@ -75,34 +80,24 @@ change_to_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewTo) ->
     Packet#xmlel{attrs = Attrs3}.
 
 
-
-
--spec handle_outgoing_message(Host :: jid:server(),
-                              User :: jid:jid(),
-                              Room :: jid:jid(),
-                              Packet :: packet()) -> any().
 handle_outgoing_message(Host, User, Room, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
         undefined ->
-            %% we store in inbox only on incoming messages
-            ok;
+            mod_inbox_utils:write_to_sender_inbox(Host, User, Room, Packet);
         Id ->
             mod_inbox_utils:reset_unread_count(User, Room, Id)
     end.
 
--spec handle_incoming_message(Host :: jid:server(),
-                              RoomUser :: jid:jid(),
-                              Remote :: jid:jid(),
-                              Packet :: packet()) -> any().
-handle_incoming_message(Host, RoomUser, Remote, Packet) ->
+handle_incoming_message(Host, Room, To, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:has_chat_marker(Packet, Markers) of
         true ->
             %% don't store chat markers in inbox
             ok;
         false ->
-            maybe_handle_system_message(Host, RoomUser, Remote, Packet)
+            %maybe_handle_system_message(Host, RoomUser, Remote, Packet)
+            mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet)
     end.
 
 -spec maybe_handle_system_message(Host :: host(),
