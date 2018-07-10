@@ -38,6 +38,25 @@ The table below summarises the translation both ways for standard Jingle and SIP
 | `session-terminate` with reason `decline` | `486 Busy Here` response | When sent by the invite user |
 | `transport-info` | `INFO` request | |
 
+##### Ringing notification
+
+Both Jingle and SIP has the `ringing` notification.
+It's generated as a response code `180 Ringing` by a SIP entity when the INVITE is sent to the device.
+In SIP world there is also `183 Session Progress` response code generated in some cases.
+Both the codes `180` and `183` are translated as `session-info` Jingle stanza with `ringing` sub element.
+MongooseIM generates only `180 Ringing` response code the `INVITE` request, if the recipient's online.
+
+##### Recipient unavailable
+
+When MongooseIM receives and SIP `INVITE` request to a user who is offline,
+it will reply with `480 Temporarily Unavailable` code.
+The same code is expected from the SIP Proxy when MongooseIM sends the `INVITE` request.
+
+##### Other error codes
+
+When MongooseIM receives any error code to the INVITE request from range `400` to `699` but other then `486`,
+it will send Jingle `session-terminate` stanza to the call's initiator.
+The stanza has reason `general-error` with the SIP error code in the `sip-error` sub element.
 
 
 ### Prerequisites
