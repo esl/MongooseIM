@@ -118,14 +118,11 @@ assert_open(PortNo) ->
     end .
 
 assert_closed(PortNo) ->
-    case gen_tcp:connect("localhost", PortNo, [{active, false}, {packet, 2}]) of
-        {ok, _Socket} ->
-            ct:fail("Failed: port ~p is open, should be closed", [PortNo]);
-        {error, econnrefused} ->
-            ok;
-        E ->
-            ct:fail("Error trying port ~p: ~p", [PortNo, E])
-    end .
+    F = fun() ->
+              gen_tcp:connect("localhost", PortNo, [{active, false}, {packet, 2}])
+        end,
+    async_helper:wait_until(F, {error, econnrefused}).
+
 
 assert_connected(Sock, Port) ->
     case gen_tcp:recv(Sock, 0, 500) of
