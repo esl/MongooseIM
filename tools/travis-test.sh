@@ -4,6 +4,7 @@
 # - SMALL_TESTS
 # - START_SERVICES
 # - COVER_ENABLED
+# - STOP_NODES (default false)
 set -o pipefail
 IFS=$'\n\t'
 
@@ -176,6 +177,10 @@ run_tests() {
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
     print_running_nodes
+  fi
+
+  if [ "$STOP_NODES" = true ]; then
+  ./tools/stop-nodes.sh
   fi
 
   exit ${RESULT}

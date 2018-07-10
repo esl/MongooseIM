@@ -72,6 +72,7 @@ _run_all_tests() {
                           --no-build-tests \
                           --no-services \
                           --no-cover \
+                          --no-stop-nodes \
                           --tls-dist \
                           --verbose \
                           --help \

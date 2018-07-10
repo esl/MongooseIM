@@ -8,6 +8,7 @@
 # - DEV_NODES
 # - TEST_HOSTS
 # - VERBOSE
+# - STOP_NODES
 
 # Just compile big tests example (not really):
 # /tools/test-runner.sh --no-small-tests --db --preset --dev-nodes --test-hosts --no-cover
@@ -26,6 +27,7 @@ Options:
 --no-small-tests      -- disable small tests
 --no-big-tests        -- disable big tests
 --no-build-tests      -- disable big test compilation
+--no-stop-nodes       -- do not stop nodes after big tests
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 
@@ -245,6 +247,7 @@ COVER_ENABLED_DEFAULT=true
 
 BIG_TESTS=true
 BUILD_TESTS=true
+STOP_NODES=true
 TLS_DIST=no
 
 SELECTED_TESTS=()
@@ -355,6 +358,11 @@ case $key in
     --no-build-tests)
         shift # past argument
         BUILD_TESTS=false
+    ;;
+
+    --no-stop-nodes)
+        shift # past argument
+        STOP_NODES=false
     ;;
 
     --tls-dist)
@@ -478,6 +486,7 @@ export TLS_DIST="$TLS_DIST"
 # to rebar3 in Makefile
 export REBAR_CT_EXTRA_ARGS=" --spec auto_small_tests.spec "
 export TESTSPEC="auto_big_tests.spec"
+export STOP_NODES="$STOP_NODES"
 
 # Debug printing
 echo "Variables:"
@@ -492,6 +501,7 @@ echo "    BUILD_TESTS=$BUILD_TESTS"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
 echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
+echo "    STOP_NODES=$STOP_NODES"
 echo ""
 
 ./tools/build-releases.sh
