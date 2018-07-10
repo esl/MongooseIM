@@ -54,25 +54,25 @@ _run_all_tests() {
     *)
 
     LIST_SUITES_ARGS=""
-    if [[ " ${COMP_WORDS[@]} " =~ " --no-small-tests " ]]; then
-         # if --no-small-tests is a previous option, do not show small-tests
-         LIST_SUITES_ARGS+=" --no-small-tests "
+    if [[ " ${COMP_WORDS[@]} " =~ " --skip-small-tests " ]]; then
+         # if --skip-small-tests is a previous option, do not show small-tests
+         LIST_SUITES_ARGS+=" --skip-small-tests "
     fi
-    if [[ " ${COMP_WORDS[@]} " =~ " --no-big-tests " ]]; then
-         # if --no-big-tests is a previous option, do not show big-tests
-         LIST_SUITES_ARGS+=" --no-big-tests "
+    if [[ " ${COMP_WORDS[@]} " =~ " --skip-big-tests " ]]; then
+         # if --skip-big-tests is a previous option, do not show big-tests
+         LIST_SUITES_ARGS+=" --skip-big-tests "
     fi
 
     SUGGESTIONS=$(./tools/test_runner/complete-test-name.sh "$cur")
     SUITES=$(./tools/test_runner/list_suites.sh $LIST_SUITES_ARGS)
 
     COMPREPLY=( $( compgen -W '--db --preset --dev-nodes --test-hosts \
-                          --no-big-tests \
-                          --no-small-tests \
-                          --no-build-tests \
-                          --no-services \
-                          --no-cover \
-                          --no-stop-nodes \
+                          --skip-big-tests \
+                          --skip-small-tests \
+                          --skip-build-tests \
+                          --skip-services \
+                          --skip-cover \
+                          --skip-stop-nodes \
                           --tls-dist \
                           --verbose \
                           --help \

@@ -11,7 +11,7 @@
 # - STOP_NODES
 
 # Just compile big tests example (not really):
-# /tools/test-runner.sh --no-small-tests --db --preset --dev-nodes --test-hosts --no-cover
+# /tools/test-runner.sh --skip-small-tests --db --preset --dev-nodes --test-hosts --skip-cover
 
 
 USAGE=$(cat <<-END
@@ -22,12 +22,12 @@ Options:
 --preset [PRESET]     -- a list of presets to run during big tests
 --dev-nodes [NODE]    -- a list of release nodes to build and start
 --test-hosts [HOST]   -- a list of test hosts to apply preset to
---no-cover            -- disable coverage reports
---no-services         -- DELETE ME
---no-small-tests      -- disable small tests
---no-big-tests        -- disable big tests
---no-build-tests      -- disable big test compilation
---no-stop-nodes       -- do not stop nodes after big tests
+--skip-cover          -- disable coverage reports
+--skip-services       -- DELETE ME
+--skip-small-tests    -- disable small tests
+--skip-big-tests      -- disable big tests
+--skip-build-tests    -- disable big test compilation
+--skip-stop-nodes     -- do not stop nodes after big tests
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 
@@ -67,26 +67,26 @@ Script examples:
     Skips database setup step and runs muc_SUITE
     Running databases would still be running
 
-./tools/test-runner.sh --no-big-tests --no-cover ejabberd_config:smoke
+./tools/test-runner.sh --skip-big-tests --skip-cover ejabberd_config:smoke
     Runs smoke testcase in ejabberd_config_SUITE
     Disables big tests and cover
 
-./tools/test-runner.sh --no-big-tests
+./tools/test-runner.sh --skip-big-tests
     Travis build job 1
 
-./tools/test-runner.sh --no-small-tests --db redis --tls-dist --preset internal_mnesia
+./tools/test-runner.sh --skip-small-tests --db redis --tls-dist --preset internal_mnesia
     Travis build job 2
 
-./tools/test-runner.sh --no-small-tests --db redis mysql --preset mysql_redis
+./tools/test-runner.sh --skip-small-tests --db redis mysql --preset mysql_redis
     Travis build job 3
 
-./tools/test-runner.sh --no-small-tests --db redis mssql --preset odbc_mssql_mnesia
+./tools/test-runner.sh --skip-small-tests --db redis mssql --preset odbc_mssql_mnesia
     Travis build job 4
 
-./tools/test-runner.sh --no-small-tests --db redis ldap --preset ldap_mnesia
+./tools/test-runner.sh --skip-small-tests --db redis ldap --preset ldap_mnesia
     Travis build job 5
 
-./tools/test-runner.sh --no-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
+./tools/test-runner.sh --skip-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
     Travis build job 6
     Separator -- between presets and suites
 
@@ -104,10 +104,10 @@ Script completion examples:
 ./tools/test-runner.sh TAB
     Show both small and big suites
 
-./tools/test-runner.sh --no-big-tests TAB
+./tools/test-runner.sh --skip-big-tests TAB
     Show only small suites
 
-./tools/test-runner.sh --no-small-tests TAB
+./tools/test-runner.sh --skip-small-tests TAB
     Show only big suites
 
 ./tools/test-runner.sh muc:TAB
@@ -335,32 +335,32 @@ case $key in
         done
     ;;
 
-    --no-cover)
+    --skip-cover)
         shift # past argument
         COVER_ENABLED=false
     ;;
 
-    --no-services)
+    --skip-services)
         shift # past argument
         START_SERVICES=false
     ;;
 
-    --no-small-tests)
+    --skip-small-tests)
         shift # past argument
         SMALL_TESTS=false
     ;;
 
-    --no-big-tests)
+    --skip-big-tests)
         shift # past argument
         BIG_TESTS=false
     ;;
 
-    --no-build-tests)
+    --skip-build-tests)
         shift # past argument
         BUILD_TESTS=false
     ;;
 
-    --no-stop-nodes)
+    --skip-stop-nodes)
         shift # past argument
         STOP_NODES=false
     ;;
@@ -445,7 +445,7 @@ if [ -z "$RUN_ALL_TESTS_COMPLETE" ]; then
 fi
 
 if [ "$BIG_TESTS" = false ]; then
-    echo "Unset PRESET, DB, DEV_NODES because --no-big-tests option has been passed"
+    echo "Unset PRESET, DB, DEV_NODES because --skip-big-tests option has been passed"
     PRESET="small_tests"
     DB=""
     DEV_NODES=""

@@ -2,9 +2,9 @@
 # Prints a list of SUITES one per line, withouts _SUITE prefix.
 #
 # Arguments:
-# --prefix          -- add "small:" and "big:" prefixes to the output
-# --no-big-tests    -- do not return big suites
-# --no-small-tests  -- do not return small suites
+# --prefix            -- add "small:" and "big:" prefixes to the output
+# --skip-big-tests    -- do not return big suites
+# --skip-small-tests  -- do not return small suites
 
 TOOLS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
@@ -18,11 +18,11 @@ do
 key="$1"
 
 case $key in
-    --no-big-tests)
+    --skip-big-tests)
     BIG=false
     shift
     ;;
-    --no-small-tests)
+    --skip-small-tests)
     SMALL=false
     shift
     ;;

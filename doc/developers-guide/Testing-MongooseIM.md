@@ -70,13 +70,13 @@ Unit test running example using test runner:
 
 ```bash
 # Run all small tests, show progress
-./tools/test-runner.sh --no-big-tests --verbose
+./tools/test-runner.sh --skip-big-tests --verbose
 
 # Run sha_SUITE without cover
-./tools/test-runner.sh --no-big-tests sha --no-cover
+./tools/test-runner.sh --skip-big-tests sha --skip-cover
 
 # Run reload_cluster group in ejabberd_config_SUITE, show progress
-./tools/test-runner.sh --no-big-tests ejabberd_config:reload_cluster --verbose
+./tools/test-runner.sh --skip-big-tests ejabberd_config:reload_cluster --verbose
 ```
 
 
@@ -88,16 +88,16 @@ Most important options are preset and database:
 
 ```erlang
 # Runs privacy_SUITE and private_SUITE with MySQL
-./tools/test-runner.sh --no-small-tests --db mysql --preset mysql_mnesia -- privacy private
+./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia -- privacy private
 
 
 # Runs MAM tests for MUC light with MySQL and Postgres
-./tools/test-runner.sh --no-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:odbc_muc_light
+./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:odbc_muc_light
 
 # Runs rdbms_SUITE with MSSQL
 # Inits single MongooseIM node (works for some tests only)
 # Disables cover
-./tools/test-runner.sh --no-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --no-cover
+./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
 ```
 
 ## TL;DR
