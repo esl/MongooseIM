@@ -1,5 +1,5 @@
 # To enable autocompletion:
-# source tools/run-all-tests-complete.sh
+# source tools/test-runner-complete.sh
 if [ ! -z "$ZSH_NAME" ]; then
     # zsh sets $ZSH_NAME variable so it can be used to detect zsh
     # following enables using bash-completion under zsh
@@ -35,20 +35,20 @@ _run_all_tests() {
     # -- is to start typing another parameter
     # Read command output into array
     # Each element is a line
-    ARRAY=( $(./tools/run-all-tests.sh --list-dbs) )
+    ARRAY=( $(./tools/test-runner.sh --list-dbs) )
     # Concat array using whitespaces
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     --preset*)
-    ARRAY=( $(./tools/run-all-tests.sh --list-presets) )
+    ARRAY=( $(./tools/test-runner.sh --list-presets) )
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     --dev-nodes*)
-    ARRAY=( $(./tools/run-all-tests.sh --list-dev-nodes) )
+    ARRAY=( $(./tools/test-runner.sh --list-dev-nodes) )
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     --test-hosts*)
-    ARRAY=( $(./tools/run-all-tests.sh --list-test-hosts) )
+    ARRAY=( $(./tools/test-runner.sh --list-test-hosts) )
     COMPREPLY=( $( compgen -W "${ARRAY[*]} --" -- $cur ) );;
 
     *)
@@ -90,8 +90,8 @@ _run_all_tests() {
 }
 
 # you can use complete builtin in both bash and zsh now
-alias run-all-tests.sh="$(pwd)/tools/run-all-tests.sh"
-complete -F _run_all_tests run-all-tests.sh
+alias test-runner.sh="$(pwd)/tools/test-runner.sh"
+complete -F _run_all_tests test-runner.sh
 
 # Say to the main script, that completion was enabled
 export RUN_ALL_TESTS_COMPLETE=true

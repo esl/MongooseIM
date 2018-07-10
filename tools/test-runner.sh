@@ -10,7 +10,7 @@
 # - VERBOSE
 
 # Just compile big tests example (not really):
-# /tools/run-all-tests.sh --no-small-tests --db --preset --dev-nodes --test-hosts --no-cover
+# /tools/test-runner.sh --no-small-tests --db --preset --dev-nodes --test-hosts --no-cover
 
 
 USAGE=$(cat <<-END
@@ -49,71 +49,71 @@ END
 
 
 EXAMPLES=$(cat <<-END
-./tools/run-all-tests.sh --db redis mysql -- rdbms mam
+./tools/test-runner.sh --db redis mysql -- rdbms mam
     Setups Redis and MySQL databases
     Runs mam_SUITE and rdbms_SUITE
     -- is used to separate test suites from databases
 
-./tools/run-all-tests.sh muc:register
+./tools/test-runner.sh muc:register
     Runs register group in muc_SUITE
 
-./tools/run-all-tests.sh --db -- muc
+./tools/test-runner.sh --db -- muc
     Skips database setup step and runs muc_SUITE
     Running databases would still be running
 
-./tools/run-all-tests.sh --no-big-tests --no-cover ejabberd_config:smoke
+./tools/test-runner.sh --no-big-tests --no-cover ejabberd_config:smoke
     Runs smoke testcase in ejabberd_config_SUITE
     Disables big tests and cover
 
-./tools/run-all-tests.sh --no-big-tests
+./tools/test-runner.sh --no-big-tests
     Travis build job 1
 
-./tools/run-all-tests.sh --no-small-tests --db redis --tls-dist --preset internal_mnesia
+./tools/test-runner.sh --no-small-tests --db redis --tls-dist --preset internal_mnesia
     Travis build job 2
 
-./tools/run-all-tests.sh --no-small-tests --db redis mysql --preset mysql_redis
+./tools/test-runner.sh --no-small-tests --db redis mysql --preset mysql_redis
     Travis build job 3
 
-./tools/run-all-tests.sh --no-small-tests --db redis mssql --preset odbc_mssql_mnesia
+./tools/test-runner.sh --no-small-tests --db redis mssql --preset odbc_mssql_mnesia
     Travis build job 4
 
-./tools/run-all-tests.sh --no-small-tests --db redis ldap --preset ldap_mnesia
+./tools/test-runner.sh --no-small-tests --db redis ldap --preset ldap_mnesia
     Travis build job 5
 
-./tools/run-all-tests.sh --no-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
+./tools/test-runner.sh --no-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
     Travis build job 6
     Separator -- between presets and suites
 
-./tools/run-all-tests.sh --db redis pgsql --preset pgsql_mnesia
+./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
     Travis build job 8
 
-./tools/run-all-tests.sh --db redis riak --preset riak_mnesia
+./tools/test-runner.sh --db redis riak --preset riak_mnesia
     Travis build job 9
 
 END
 )
 
 COMPLETE_EXAMPLES=$(cat <<-END
-./tools/run-all-tests.sh TAB
+./tools/test-runner.sh TAB
     Show both small and big suites
 
-./tools/run-all-tests.sh --no-big-tests TAB
+./tools/test-runner.sh --no-big-tests TAB
     Show only small suites
 
-./tools/run-all-tests.sh --no-small-tests TAB
+./tools/test-runner.sh --no-small-tests TAB
     Show only big suites
 
-./tools/run-all-tests.sh muc:TAB
+./tools/test-runner.sh muc:TAB
     Complete argument with groups and test cases from muc_SUITE
     There should not be a whitespace after ":"
 
-./tools/run-all-tests.sh --db TAB
+./tools/test-runner.sh --db TAB
     Complete with database names
 
-./tools/run-all-tests.sh --db mysql TAB
+./tools/test-runner.sh --db mysql TAB
     Complete with database names
 
-./tools/run-all-tests.sh --db mysql -- TAB
+./tools/test-runner.sh --db mysql -- TAB
     Separate db from arguments
     Complete with arguments
 
@@ -126,7 +126,7 @@ COMPLETE_ADVICE=$(cat <<-END
 -----------------------------------
 Bash tab completion is disabled!
 Run the command to enable completion in Bash and zsh:
-    source tools/run-all-tests-complete.sh
+    source tools/test-runner-complete.sh
 -----------------------------------
 
 END
@@ -135,7 +135,7 @@ END
 HELP_ADVICE=$(cat <<-END
 -----------------------------------
 Run with --help argument to show the script docs:
-    ./tools/run-all-tests.sh --help
+    ./tools/test-runner.sh --help
 -----------------------------------
 END
 )
@@ -154,20 +154,20 @@ function print_examples
 {
     local bold=$(tput bold)
     local normal=$(tput sgr0)
-    # Make each line, that has "run-all-tests", bold
+    # Make each line, that has "test-runner", bold
     # & is the whole match
     echo "$EXAMPLES" \
-        | sed -e 's/.*run-all-tests.*/'"$bold&$normal"'/g'
+        | sed -e 's/.*test-runner.*/'"$bold&$normal"'/g'
 }
 
 function print_complete_examples
 {
     local bold=$(tput bold)
     local normal=$(tput sgr0)
-    # Make each line, that has "run-all-tests", bold
+    # Make each line, that has "test-runner", bold
     # & is the whole match
     echo "$COMPLETE_EXAMPLES" \
-        | sed -e 's/.*run-all-tests.*/'"$bold&$normal"'/g'
+        | sed -e 's/.*test-runner.*/'"$bold&$normal"'/g'
 }
 
 # Usage: print_help "advice text"
@@ -180,7 +180,7 @@ function print_advice
 
 # Preset names are internal_mnesia, internal_redis ...
 # Run the command to see the list:
-# ./tools/run-all-tests.sh --list-presets
+# ./tools/test-runner.sh --list-presets
 PRESETS_ARRAY=(
     $( ./tools/test_runner/list_presets.sh )
 )
