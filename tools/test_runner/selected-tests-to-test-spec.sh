@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # This file creates two spec files:
 # - auto_big_tests.spec
-# - auto_small_tests.spec
+# - auto_small_tests.spec (if needed)
 
 set -e
 
@@ -11,9 +11,10 @@ cd "$( dirname "${BASH_SOURCE[0]}" )"/../..
 echo "Selected tests: $@"
 
 rm -f auto_small_tests.spec big_tests/auto_big_tests.spec
+# Remove the link, if exist
+rm -f _build/test/lib/mongooseim/auto_small_tests.spec
 
 # Fill default specs
-echo "" > auto_small_tests.spec
 cp big_tests/default.spec big_tests/auto_big_tests.spec
 
 # If there are arguments
@@ -28,6 +29,7 @@ fi
 
 # Rebar3 does not copy spec file on macosx
 # This is a workaround
-mkdir -p _build/test/lib/mongooseim
-rm -f _build/test/lib/mongooseim/auto_small_tests.spec
-ln -s "$(pwd)/auto_small_tests.spec" _build/test/lib/mongooseim/auto_small_tests.spec
+if [[ -f auto_small_tests.spec ]]; then
+    mkdir -p _build/test/lib/mongooseim
+    cp auto_small_tests.spec _build/test/lib/mongooseim/auto_small_tests.spec
+fi

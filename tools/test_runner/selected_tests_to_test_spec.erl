@@ -1,6 +1,14 @@
 -module(selected_tests_to_test_spec).
+-export([main/0]).
 -export([main/1]).
 
+main() ->
+    main([]).
+
+%% If there are only big tests in arguments, small tests would be disabled
+%% If there are only small tests in arguments, big tests would be disabled
+main([]) ->
+    erlang:halt();
 main(AtomArgs) ->
     io:format("AtomArgs ~p~n", [AtomArgs]),
     SmallSpecs = small_specs(AtomArgs),
@@ -31,6 +39,7 @@ does_file_exist(Filename) ->
     end.
 
 
+%% We should write some file (even an empty one), if there are any AtomArgs
 write_small_tests_spec(SmallSpecs) ->
     Specs = make_small_tests_spec(SmallSpecs),
     write_terms("auto_small_tests.spec", Specs),

@@ -475,7 +475,11 @@ export BUILD_TESTS="$BUILD_TESTS"
 export TLS_DIST="$TLS_DIST"
 # Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
 # to rebar3 in Makefile
-export REBAR_CT_EXTRA_ARGS=" --spec \"$(pwd)/auto_small_tests.spec\" "
+if [[ -f "auto_small_tests.spec" ]]; then
+    export REBAR_CT_EXTRA_ARGS=" --spec \"$(pwd)/auto_small_tests.spec\" "
+else
+    export REBAR_CT_EXTRA_ARGS=""
+fi
 export TESTSPEC="auto_big_tests.spec"
 export STOP_NODES="$STOP_NODES"
 
