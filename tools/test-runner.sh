@@ -53,15 +53,15 @@ END
 EXAMPLES=$(cat <<-END
 Script examples:
 
-./tools/test-runner.sh --db redis mysql -- rdbms mam
+./tools/test-runner.sh --db redis mysql --preset mysql_redis -- rdbms mam
     Setups Redis and MySQL databases
     Runs mam_SUITE and rdbms_SUITE
     -- is used to separate test suites from databases
 
-./tools/test-runner.sh muc:register
+./tools/test-runner.sh --preset internal_mnesia -- muc:register
     Runs register group in muc_SUITE
 
-./tools/test-runner.sh --db -- muc
+./tools/test-runner.sh --db --preset internal_mnesia -- muc
     Skips database setup step and runs muc_SUITE
     Running databases would still be running
 
