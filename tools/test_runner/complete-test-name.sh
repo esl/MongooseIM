@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# This script returns a list of groups and suites, one per line.
+#
+# Format of the output:
+# - "SUITE:GROUP"
+# - "SUITE:GROUP:TESTCASE"
+# - "SUITE:GROUP1:GROUP2:...:GROUP_N:TESTCASE"
+# - "SUITE:TESTCASE"
+#
 # Example:
 # ./tools/test_runner/complete-test-name.sh "mam"
 # ./tools/test_runner/complete-test-name.sh "mam:"

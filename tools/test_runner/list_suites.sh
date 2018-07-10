@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Prints a list of SUITES one per line, withouts _SUITE prefix.
+#
+# Arguments:
+# --prefix          -- add "small:" and "big:" prefixes to the output
+# --no-big-tests    -- do not return big suites
+# --no-small-tests  -- do not return small suites
 
 TOOLS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
