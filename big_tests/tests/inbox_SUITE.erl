@@ -39,7 +39,8 @@
          simple_groupchat_stored_in_all_inbox_muc/1,
          simple_groupchat_stored_in_offline_users_inbox_muc/1,
          unread_count_is_the_same_after_going_online_again/1,
-         unread_count_is_reset_after_sending_chatmarker/1
+         unread_count_is_reset_after_sending_chatmarker/1,
+         private_messages_are_/1
         ]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
@@ -58,6 +59,7 @@
 -define(MUC_ROOM2, <<"some_muc_room2">>).
 -define(MUC_ROOM3, <<"some_muc_room3">>).
 -define(MUC_ROOM4, <<"some_muc_room4">>).
+-define(MUC_ROOM5, <<"some_muc_room5">>).
 -define(MUC_DOMAIN, <<"muc.localhost">>).
 -record(conv, {unread, from, to, content = <<>>, verify = fun(C, Stanza) -> ok end}).
 -record(inbox, {total, convs = []}).
@@ -112,7 +114,8 @@ groups() ->
            simple_groupchat_stored_in_all_inbox_muc,
            simple_groupchat_stored_in_offline_users_inbox_muc,
            unread_count_is_the_same_after_going_online_again,
-           unread_count_is_reset_after_sending_chatmarker
+           unread_count_is_reset_after_sending_chatmarker,
+           private_messages_are_
           ]}
         ].
     %ct_helper:repeat_all_until_all_ok(G).
@@ -233,6 +236,11 @@ init_per_testcase(unread_count_is_reset_after_sending_chatmarker = TC, Config) -
   [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
   Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM4, <<"some_friendly_name">>, default),
   escalus:init_per_testcase(TC, Config2);
+init_per_testcase(private_messages_are_ = TC, Config) ->
+  clear_inbox_all(),
+  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
+  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM5, <<"some_friendly_name">>, default),
+  escalus:init_per_testcase(TC, Config2);
 
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
@@ -269,7 +277,8 @@ end_per_testcase(msg_sent_to_not_existing_user, Config) ->
 end_per_testcase(TC, Config) when TC =:= simple_groupchat_stored_in_all_inbox_muc,
                                   TC =:= simple_groupchat_stored_in_offline_users_inbox_muc,
                                   TC =:= unread_count_is_the_same_after_going_online_again,
-                                  TC =:= unread_count_is_reset_after_sending_chatmarker ->
+                                  TC =:= unread_count_is_reset_after_sending_chatmarker,
+                                  TC =:= private_messages_are_ ->
     muc_helper:destroy_room(Config);
 end_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
@@ -833,7 +842,7 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
     escalus:send(Bob, Stanza),
     wait_for_groupchat_msg(Users),
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
-    BobRoomJid = muc_room_address(Room, lbin(nick(Bob))),
+    BobRoomJid = muc_room_address(Room, lbin(nick(Bob))), % removed lbin !!!
     %% Bob has 0 unread messages
     check_inbox(Bob, #inbox{
       total = 1,
@@ -949,6 +958,38 @@ unread_count_is_reset_after_sending_chatmarker(Config) ->
       convs = [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}]})
     end).
 
+private_messages_are_(Config) ->
+  escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    Users = [Alice, Bob, Kate],
+    Msg = <<"Hi Room!">>,
+    Id = <<"MyID">>,
+    Room = ?config(room, Config),
+    RoomAddr = muc_room_address(Room),
+    BobRoomJid = muc_room_address(Room, nick(Bob)),
+    KateRoomJid = muc_room_address(Room, nick(Kate)),
+
+    enter_room(Room, Users),
+    make_members(Room, Alice, Users -- [Alice]),
+    Stanza = escalus_stanza:set_id(
+      escalus_stanza:chat_to(BobRoomJid, Msg), Id),
+    escalus:send(Kate, Stanza),
+    BobsPrivMsg = escalus:wait_for_stanza(Bob),
+
+    [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
+    %% Bob has 1 unread message
+    check_inbox(Bob, #inbox{
+      total = 1,
+      convs = [#conv{unread = 1, from = KateRoomJid, to = BobRoomJid,
+                     content = Msg}]}),
+    %% Alice gets nothing
+    check_inbox(Alice, #inbox{
+      total = 1,
+      convs = []}),
+    %% Kate has 1 conv with 0 unread messages
+    check_inbox(Kate, #inbox{
+      total = 1,
+      convs = [#conv{unread = 0, from = KateRoomJid, to = BobRoomJid, content = Msg}]})
+    end).
 
 
 

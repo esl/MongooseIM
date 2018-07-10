@@ -504,7 +504,6 @@ route_to_room(Room, Routed, #state{host=Host} = State) ->
     end.
 
 route_to_online_room(Pid, {From, To, Acc, Packet}) ->
-    ?DEBUG("MUC: send to process ~p~n", [Pid]),
     {_, _, Nick} = jid:to_lower(To),
     ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 

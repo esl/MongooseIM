@@ -24,6 +24,8 @@
 
 start(Host) ->
     ejabberd_hooks:add(update_inbox, Host, ?MODULE, update_inbox, 90),
+    % TODO check ooptions: if system messages stored -> 
+    % add hook handler for system messages on hook ie. invitation_sent
     ok.
 
 stop(Host) ->

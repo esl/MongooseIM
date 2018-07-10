@@ -65,14 +65,13 @@ start(Host, Opts) ->
     {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    [MucType] = gen_mod:get_opt(groupchat, Opts),
-    case MucType of % change the way we check it mod_muc is turned on
-        muc ->
-            mod_inbox_muc:start(Host);
-        muclight ->
-            ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-            ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90)
+    MucTypes = gen_mod:get_opt(groupchat, Opts),
+    case MucTypes of
+        [muc] -> mod_inbox_muc:start(Host);
+        _ -> ok
     end,
+    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
+    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
@@ -156,7 +155,7 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
         Type = get_message_type(Msg),
         Type == one2one andalso
         process_message(Host, From, To, Msg, Dir, one2one),
-        (Type == groupchat andalso groupchats_enabled(Host)) andalso
+        (Type == groupchat andalso muclight_enabled(Host)) andalso % legacy MUC is handled in seperate module
         process_message(Host, From, To, Msg, Dir, groupchat);
         true ->
             ok
@@ -222,12 +221,10 @@ muc_module(Host) ->
 muc_module_from_type(muclight) -> mod_inbox_muclight;
 muc_module_from_type(muc) -> mod_inbox_muc.
 
--spec groupchats_enabled(Host :: binary()) -> boolean().
-groupchats_enabled(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]) of
-        [] -> false;
-        [_] -> true
-    end.
+-spec muclight_enabled(Host :: binary()) -> boolean().
+muclight_enabled(Host) ->
+    Groupchats = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
+    lists:member(muclight, Groupchats).
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->
