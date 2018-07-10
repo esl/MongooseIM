@@ -70,7 +70,6 @@ _run_all_tests() {
                           --skip-big-tests \
                           --skip-small-tests \
                           --skip-build-tests \
-                          --skip-services \
                           --skip-cover \
                           --skip-stop-nodes \
                           --tls-dist \

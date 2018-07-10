@@ -2,7 +2,6 @@
 #
 # Env variables:
 # - SMALL_TESTS
-# - START_SERVICES
 # - COVER_ENABLED
 # - STOP_NODES (default false)
 set -o pipefail
@@ -11,7 +10,6 @@ IFS=$'\n\t'
 DEFAULT_PRESET=internal_mnesia
 PRESET="${PRESET-$DEFAULT_PRESET}"
 SMALL_TESTS="${SMALL_TESTS:-true}"
-START_SERVICES="${START_SERVICES:-true}"
 COVER_ENABLED="${COVER_ENABLED:-true}"
 
 while getopts ":p::s::e::c:" opt; do
@@ -24,9 +22,6 @@ while getopts ":p::s::e::c:" opt; do
       ;;
     c)
       COVER_ENABLED=$OPTARG
-      ;;
-    e)
-      START_SERVICES=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -92,24 +87,6 @@ maybe_run_small_tests() {
   fi
 }
 
-maybe_start_services() {
-  if [ "$START_SERVICES" = "true" ]; then
-    start_services
-  else
-    echo "Skip start_services"
-  fi
-}
-
-start_services() {
-    for env in ${BASE}/big_tests/services/*-compose.yml; do
-        echo "Stating service" $(basename "${env}") "..."
-        time ${BASE}/tools/docker-compose.sh -f "${env}" pull --parallel
-        time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
-        echo "docker-compose execution time reported above"
-        echo ""
-    done
-}
-
 run_test_preset() {
   tools/print-dots.sh start
   cd ${BASE}/big_tests
@@ -145,9 +122,6 @@ run_tests() {
   echo "############################"
 
   time ${TOOLS}/start-nodes.sh
-
-  # Start all additional services
-  maybe_start_services
 
   run_test_preset
   BIG_STATUS=$?

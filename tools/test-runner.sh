@@ -2,7 +2,6 @@
 # Allowed env variables:
 # - SMALL_TESTS
 # - COVER_ENABLED
-# - START_SERVICES
 # - PRESET
 # - DB
 # - DEV_NODES
@@ -23,7 +22,6 @@ Options:
 --dev-nodes [NODE]    -- a list of release nodes to build and start
 --test-hosts [HOST]   -- a list of test hosts to apply preset to
 --skip-cover          -- disable coverage reports
---skip-services       -- DELETE ME
 --skip-small-tests    -- disable small tests
 --skip-big-tests      -- disable big tests
 --skip-build-tests    -- disable big test compilation
@@ -242,7 +240,6 @@ TEST_HOSTS_ARRAY=(
 )
 
 SMALL_TESTS_DEFAULT=true
-START_SERVICES_DEFAULT=false # we don't use them anyway
 COVER_ENABLED_DEFAULT=true
 
 BIG_TESTS=true
@@ -338,11 +335,6 @@ case $key in
     --skip-cover)
         shift # past argument
         COVER_ENABLED=false
-    ;;
-
-    --skip-services)
-        shift # past argument
-        START_SERVICES=false
     ;;
 
     --skip-small-tests)
@@ -456,7 +448,6 @@ fi
 
 # Use env variable or default
 export SMALL_TESTS="${SMALL_TESTS:-$SMALL_TESTS_DEFAULT}"
-export START_SERVICES="${START_SERVICES:-$START_SERVICES_DEFAULT}"
 export COVER_ENABLED="${COVER_ENABLED:-$COVER_ENABLED_DEFAULT}"
 
 # Join array to string
@@ -495,7 +486,6 @@ echo "    DB=\"$DB\""
 echo "    DEV_NODES=\"$DEV_NODES\""
 echo "    TEST_HOSTS=\"$TEST_HOSTS\""
 echo "    SMALL_TESTS=$SMALL_TESTS"
-echo "    START_SERVICES=$START_SERVICES"
 echo "    COVER_ENABLED=$COVER_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"

@@ -1,8 +1,8 @@
 %% During dev you would use something similar to:
-%% TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim1" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% If you also want to start just mim1 node use:
-%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
 %% DEV_NODES variable contains release names from profiles in rebar.config.
@@ -12,7 +12,7 @@
 %% Valid DEV_NODES are mim1, mim2, mim3, fed1, reg1.
 %%
 %% Example with two nodes:
-%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 -module(run_common_test).
 
 -export([main/1, analyze/2]).
