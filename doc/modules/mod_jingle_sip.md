@@ -10,7 +10,7 @@ When this module is enabled, MongooseIM will intercept any Jingle IQ set stanza 
 
 and translate it to SIP messages with appropriate SDP content based on the details in the Jingle stanza.
 
-The translation back from SIP to Jingle is done for following SIP requests:
+The translation back from SIP to Jingle is done for the following SIP requests:
 
 * `INVITE`
 * `re-INVITE` - `INVITE` message sent for an accepted session
@@ -27,7 +27,7 @@ and following responses to the INVITE request:
 
 #### Jingle to SIP translation
 
-The table below summarises the translation both ways for standard Jingle and SIP messages:
+The table below summarises the bilateral translation for standard Jingle and SIP messages:
 
 | Jingle action | SIP message | comment |
 | ------------- | ----------- | ------- |
@@ -40,22 +40,23 @@ The table below summarises the translation both ways for standard Jingle and SIP
 
 ##### Ringing notification
 
-Both Jingle and SIP has the `ringing` notification.
+Both Jingle and SIP have the `ringing` notification.
 It's generated as a response code `180 Ringing` by a SIP entity when the INVITE is sent to the device.
-In SIP world there is also `183 Session Progress` response code generated in some cases.
-Both the codes `180` and `183` are translated as `session-info` Jingle stanza with `ringing` sub element.
+In SIP world a `183 Session Progress` response code is also generated in some cases.
+Both `180` and `183` codes are translated as `session-info` Jingle stanza with `ringing` sub element.
 MongooseIM generates only `180 Ringing` response code the `INVITE` request, if the recipient's online.
+If the recipient is online, MongooseIM generates the `180 Ringing` response code to the `INVITE` request.
 
 ##### Recipient unavailable
 
-When MongooseIM receives and SIP `INVITE` request to a user who is offline,
-it will reply with `480 Temporarily Unavailable` code.
+When MongooseIM receives a SIP `INVITE` request addressed to an offline user,
+it replies with a `480 Temporarily Unavailable` code.
 The same code is expected from the SIP Proxy when MongooseIM sends the `INVITE` request.
 
 ##### Other error codes
 
-When MongooseIM receives any error code to the INVITE request from range `400` to `699` but other then `486`,
-it will send Jingle `session-terminate` stanza to the call's initiator.
+When an error response to the `INVITE` request is from the range `400` to `699` but not `486`,
+MongooseIM will send a Jingle `session-terminate` stanza to the call's initiator.
 The stanza has reason `general-error` with the SIP error code in the `sip-error` sub element.
 
 ##### Non-standard Jingle stanzas used by jingle.js
@@ -66,12 +67,12 @@ The following non-standard Jingle stanzas were integrated with https://github.co
 * `source-add`
 * `source-update`
 
-When MongooseIM observes the above Jingle stanzas it will translate them to a SIP in-dialog INVITE request.
+When MongooseIM observes the above Jingle stanzas, it will translate them to a SIP in-dialog `INVITE` request.
 In the SDP content of the request, there will be a custom attribute `a=jingle-action`.
 The value of the custom attribute is one of the three presented above.
 
-Similarly when MongooseIM gets SIP in-dialog `INVITE` request it will check if there is the custom attribute
-and use as the `action` attribute of the Jingle stanza sent to the user.
+Similarly when MongooseIM gets a SIP in-dialog `INVITE` request,
+it will check if there is a custom attribute and use it as the `action` attribute of the Jingle stanza sent to the user.
 If there is no such attribute, the action will be set to regular Jingle `transport-info`.
 
 ##### Non-stadard Jingle existing-session-initiate stanza
@@ -80,7 +81,7 @@ MongooseIM allows a user to ask for an unanswered `session-initiate` request.
 This may be useful in web applications when there is a need to handle the call in a new browser window.
 
 In order to get the `session-initiate`, which was not answered yet, the user can send a `get` Jingle stanza to self with action set to `existing-session-initiate`.
-In result, MongooseIM will resent the original `session-initiate` request to the device which sent the query.
+As a result, MongooseIM will resend the original `session-initiate` request to the device which sent the query.
 
 
 ### Prerequisites
@@ -123,10 +124,10 @@ All the sequence diagrams where generated with [textart.io/sequence](https://tex
 The source code is embedded in the markdown file below every diagram inside a comment `<!--- --->`
 
 
-#### 1. Establishing a session with other XMPP user
+#### 1. Establishing a session with another XMPP user
 
 With the mod_jingle_sip enabled, all Jingle IQ set stanzas listed above are intercepted, translated to SIP packets and sent to a SIP Proxy.
-This means that current implementation will also translate stanzas addressed to a user in the same domain.
+This means that the current implementation will also translate stanzas addressed to a user in the same domain.
 This allows the SIP entity to control how the call between XMPP users is established.
 Below there are sequence diagrams showing the communication between XMPP users, MongooseIM and SIP Proxy as in our tests.
 It's possible that the SIP Proxy or other SIP entity decides that the call needs to be forked
@@ -247,7 +248,7 @@ See the following examples for more information.
 ###### 1.3.1 Terminating an accepted call
 
 The easiest scenario is when the call was accepted as in [1.2](#12-signaling-session-accept-to-other-xmpp-user-via-sip-proxy).
-In this case one of the users sends a `session-terminate` Jingle action with reason `success`.
+In this case one of the users sends a `session-terminate` Jingle action with a reason `success`.
 This is translated to a SIP `BYE` request with `to` and `from` headers set appropriately -
 `from` is the user who wants to terminate the call and `to` is the user on the other end of the session.
 The `BYE` request is sent to the SIP Proxy and then to the other user in a similar way to session acceptance.
@@ -266,6 +267,6 @@ MongooseIM translates this to SIP `486 Busy Here` **Response** (because this is 
 
 Establishing a session with a SIP user (or a SIP entity) works the same as in the previous section.
 The only difference is that the SIP Proxy will not call MongooseIM back (as it may happen for call to other XMPP user).
-Instead the SIP message send by MongooseIM to SIP Proxy will be delivered directly to the SIP user's device.
+Instead the SIP message sent by MongooseIM to SIP Proxy will be delivered directly to the SIP user's device.
 
 
