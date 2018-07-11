@@ -2,7 +2,7 @@
 -compile([export_all]).
 
 is_ct_running() ->
-    is_list(ct:get_status()).
+    ct:get_status() =/= no_tests_running.
 
 %% @doc See repeat_all_until_all_ok/2
 repeat_all_until_all_ok(GroupDefs) ->
