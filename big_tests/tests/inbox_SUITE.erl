@@ -40,7 +40,7 @@
          simple_groupchat_stored_in_offline_users_inbox_muc/1,
          unread_count_is_the_same_after_going_online_again/1,
          unread_count_is_reset_after_sending_chatmarker/1,
-         private_messages_are_/1
+         private_messages_are_handled_as_one2one/1
         ]).
 
 -import(muc_helper, [foreach_occupant/3, foreach_recipient/2]).
@@ -115,7 +115,7 @@ groups() ->
            simple_groupchat_stored_in_offline_users_inbox_muc,
            unread_count_is_the_same_after_going_online_again,
            unread_count_is_reset_after_sending_chatmarker,
-           private_messages_are_
+           private_messages_are_handled_as_one2one
           ]}
         ].
     %ct_helper:repeat_all_until_all_ok(G).
@@ -236,7 +236,7 @@ init_per_testcase(unread_count_is_reset_after_sending_chatmarker = TC, Config) -
   [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
   Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM4, <<"some_friendly_name">>, default),
   escalus:init_per_testcase(TC, Config2);
-init_per_testcase(private_messages_are_ = TC, Config) ->
+init_per_testcase(private_messages_are_handled_as_one2one = TC, Config) ->
   clear_inbox_all(),
   [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
   Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM5, <<"some_friendly_name">>, default),
@@ -278,7 +278,7 @@ end_per_testcase(TC, Config) when TC =:= simple_groupchat_stored_in_all_inbox_mu
                                   TC =:= simple_groupchat_stored_in_offline_users_inbox_muc,
                                   TC =:= unread_count_is_the_same_after_going_online_again,
                                   TC =:= unread_count_is_reset_after_sending_chatmarker,
-                                  TC =:= private_messages_are_ ->
+                                  TC =:= private_messages_are_handled_as_one2one ->
     muc_helper:destroy_room(Config);
 end_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
@@ -958,7 +958,7 @@ unread_count_is_reset_after_sending_chatmarker(Config) ->
       convs = [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}]}, #{case_sensitive => true})
     end).
 
-private_messages_are_(Config) ->
+private_messages_are_handled_as_one2one(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     Users = [Alice, Bob, Kate],
     Msg = <<"Hi Room!">>,
