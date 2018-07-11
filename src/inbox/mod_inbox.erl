@@ -75,9 +75,6 @@ start(Host, Opts) ->
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
-muc_host_defined(undefined) -> false;
-muc_host_defined(_) -> true.
-
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
