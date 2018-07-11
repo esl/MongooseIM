@@ -5,6 +5,10 @@
 # By default all releases are built
 # When DEV_NODES is empty, no releases are built
 
+# Use bash "strict mode"
+# Based on http://redsymbol.net/articles/unofficial-bash-strict-mode/
+set -eu
+
 DEV_NODES="${DEV_NODES-devrel}"
 
 # "make devrel", but for a list of dev nodes
