@@ -1762,8 +1762,6 @@ is_nick_exists(Nick, StateData) ->
 
 -spec find_jids_by_nick(mod_muc:nick(), state()) -> [jid:jid()].
 find_jids_by_nick(Nick, StateData) ->
-    ?WARNING_MSG("Nick: ~p", [Nick]),
-    ?WARNING_MSG("Sesions: ~p", [dict:to_list(StateData#state.sessions)]),
     case dict:find(Nick, StateData#state.sessions) of
         error -> [];
         {ok, JIDs} -> JIDs
@@ -4668,7 +4666,6 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
     StateData;
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From, jid = ToJID}, StateData) ->
-    ?WARNING_MSG("OK, jid: ~p", [ToJID]),
     {ok, #user{nick = FromNick}} = dict:find(jid:to_lower(From),
         StateData#state.users),
     ejabberd_router:route(

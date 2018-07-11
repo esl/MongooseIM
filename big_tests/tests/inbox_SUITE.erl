@@ -844,17 +844,17 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, nick(Bob)), % removed lbin !!!
     %% Bob has 0 unread messages
-    check_inbox_casesensitive(Bob, #inbox{
+    check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
-                     content = Msg}]}),
+                     content = Msg}]}, #{case_sensitive => true}),
     %% Alice and Kate have one conv with 1 unread message
-    check_inbox_casesensitive(Alice, #inbox{
+    check_inbox(Alice, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}),
-    check_inbox_casesensitive(Kate, #inbox{
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}, #{case_sensitive => true}),
+    check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]})
+      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]}, #{case_sensitive => true})
     end).
 
 simple_groupchat_stored_in_offline_users_inbox_muc(Config) ->
@@ -876,17 +876,17 @@ simple_groupchat_stored_in_offline_users_inbox_muc(Config) ->
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, nick(Bob)),
     %% Bob has 0 unread messages
-    check_inbox_casesensitive(Bob, #inbox{
+    check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
-                     content = Msg}]}),
+                     content = Msg}]}, #{case_sensitive => true}),
     %% Alice and Kate have one conv with 1 unread message
-    check_inbox_casesensitive(Alice, #inbox{
+    check_inbox(Alice, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}),
-    check_inbox_casesensitive(Kate, #inbox{
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}, #{case_sensitive => true}),
+    check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]})
+      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]}, #{case_sensitive => true})
     end).
 
 
@@ -909,17 +909,17 @@ unread_count_is_the_same_after_going_online_again(Config) ->
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, nick(Bob)),
     %% Bob has 0 unread messages
-    check_inbox_casesensitive(Bob, #inbox{
+    check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
-                     content = Msg}]}),
+                     content = Msg}]}, #{case_sensitive => true}),
     %% Alice and Kate have one conv with 1 unread message
-    check_inbox_casesensitive(Alice, #inbox{
+    check_inbox(Alice, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}),
-    check_inbox_casesensitive(Kate, #inbox{
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}, #{case_sensitive => true}),
+    check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]})
+      convs = [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}]}, #{case_sensitive => true})
     end).
 
 unread_count_is_reset_after_sending_chatmarker(Config) ->
@@ -944,18 +944,18 @@ unread_count_is_reset_after_sending_chatmarker(Config) ->
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     BobRoomJid = muc_room_address(Room, nick(Bob)),
     %% Bob has 0 unread messages
-    check_inbox_casesensitive(Bob, #inbox{
+    check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 0, from = BobRoomJid, to = BobJid,
-                     content = Msg}]}),
+                     content = Msg}]}, #{case_sensitive => true}),
     %% Alice have one conv with 1 unread message
-    check_inbox_casesensitive(Alice, #inbox{
+    check_inbox(Alice, #inbox{
       total = 1,
-      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}),
+      convs = [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}]}, #{case_sensitive => true}),
     %% Kate has 0 unread messages
-    check_inbox_casesensitive(Kate, #inbox{
+    check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}]})
+      convs = [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}]}, #{case_sensitive => true})
     end).
 
 private_messages_are_(Config) ->
@@ -977,18 +977,18 @@ private_messages_are_(Config) ->
 
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     %% Bob has 1 unread message
-    check_inbox_casesensitive(Bob, #inbox{
+    check_inbox(Bob, #inbox{
       total = 1,
       convs = [#conv{unread = 1, from = KateRoomJid, to = BobRoomJid,
-                     content = Msg}]}),
+                     content = Msg}]}, #{case_sensitive => true}),
     %% Alice gets nothing
-    check_inbox_casesensitive(Alice, #inbox{
+    check_inbox(Alice, #inbox{
       total = 0,
-      convs = []}),
+      convs = []}, #{case_sensitive => true}),
     %% Kate has 1 conv with 0 unread messages
-    check_inbox_casesensitive(Kate, #inbox{
+    check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 0, from = KateJid, to = BobRoomJid, content = Msg}]})
+      convs = [#conv{unread = 0, from = KateJid, to = BobRoomJid, content = Msg}]}, #{case_sensitive => true})
     end).
 
 
@@ -1200,23 +1200,32 @@ create_room_send_msg_check_inbox(Owner, MemberList, RoomName, Msg, Id) ->
 foreach_check_inbox(Users, Total, Unread, SenderJid, Msg) ->
   [begin
      UserJid = lbin(escalus_client:short_jid(U)),
-     check_inbox(U, Total, [#conv{unread = Unread, from = SenderJid,  to = UserJid, content = Msg}], false)
+     check_inbox(U, #inbox{total = Total, convs = [#conv{unread = Unread, from = SenderJid, to = UserJid, content = Msg}]})
     end || U <- Users].
 
-check_inbox_casesensitive(Client, Inbox) ->
-    check_inbox(Client, Inbox, true).
-
 check_inbox(Client, Inbox) ->
-    check_inbox(Client, Inbox, false).
+    check_inbox(Client, Inbox, #{}).
 
-check_inbox(Client, #inbox{total = Total, convs = Convs}, IsCaseSensitive) ->
-  check_inbox(Client, integer_to_binary(Total), Convs, IsCaseSensitive).
+% @doc Opts are:
+%       * case_sensitive - should resource be checked case
+%                          sensitively
+%       * check_resource - should resource 
+check_inbox(Client, #inbox{total = Total, convs = Convs}, Opts0) -> 
+  Opts = fill_options(Opts0),
+  check_inbox(Client, integer_to_binary(Total), Convs, Opts).
+
+
+fill_options(Opts) ->
+    #{case_sensitive => maps:get(case_sensitive, Opts, false),
+      check_resource => maps:get(check_resource, Opts, true)}.
 
 
 
-check_inbox(Client, ExpectedCount, MsgCheckList, IsCaseSensitive) when is_binary(ExpectedCount) ->
-  check_inbox(Client, binary_to_integer(ExpectedCount), MsgCheckList, IsCaseSensitive);
-check_inbox(Client, ExpectedCount, MsgCheckList, IsCaseSensitive) ->
+% This should be only called by some wrapper
+%
+check_inbox(Client, ExpectedCount, MsgCheckList, Opts) when is_binary(ExpectedCount) ->
+  check_inbox(Client, binary_to_integer(ExpectedCount), MsgCheckList, Opts);
+check_inbox(Client, ExpectedCount, MsgCheckList, Opts) ->
   GetInbox = get_inbox_stanza(),
   escalus:send(Client, GetInbox),
   Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
@@ -1225,57 +1234,56 @@ check_inbox(Client, ExpectedCount, MsgCheckList, IsCaseSensitive) ->
   %% TODO: Replace with commented code when inbox starts sorting by timestamp by default
   %% Merged = lists:zip(Stanzas, MsgCheckList),
   %% [process_inbox_message(Client, M, ConvCheck) || {M, ConvCheck} <- Merged].
-  process_inbox_messages(Client, Stanzas, MsgCheckList, [], IsCaseSensitive).
+  process_inbox_messages(Client, Stanzas, MsgCheckList, [], Opts).
 
 process_inbox_messages(Client, [], [], [], _) ->
     ok;
-process_inbox_messages(Client, [], UnmatchedConvs, UnmatchedItems, IsCaseSensitive) ->
+process_inbox_messages(Client, [], UnmatchedConvs, UnmatchedItems, #{case_sensitive := IsCaseSensitive, check_resource := CheckResource}) ->
     ct:fail(#{ reason => inbox_mismatch,
                unmatched_convs => UnmatchedConvs,
                unmatched_result_items => UnmatchedItems,
+               resources_match_checked => CheckResource,
                jids_checked_casesesitive => IsCaseSensitive});
-process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems, IsCaseSensitive) ->
-    Pred = fun(Conv) -> (catch process_inbox_message(Client, Stanza, Conv, IsCaseSensitive)) == ok end,
+process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems, Opts) ->
+    Pred = fun(Conv) -> (catch process_inbox_message(Client, Stanza, Conv, Opts)) == ok end,
     case lists:partition(Pred, MsgCheckList) of
         {[], _NoConvSatisfiedPred} ->
-            process_inbox_messages(Client, RStanzas, MsgCheckList, [Stanza | UnmatchedItems], IsCaseSensitive);
+            process_inbox_messages(Client, RStanzas, MsgCheckList, [Stanza | UnmatchedItems], Opts);
         {[_MatchedConv], RConvs} ->
-            process_inbox_messages(Client, RStanzas, RConvs, UnmatchedItems, IsCaseSensitive)
+            process_inbox_messages(Client, RStanzas, RConvs, UnmatchedItems, Opts)
     end.
 
-process_inbox_message(Client, Stanza, Conv, IsCaseSensitive) ->
-    case IsCaseSensitive of
-        true -> process_inbox_message_casesensitive(Client, Stanza, Conv);
-        false -> process_inbox_message(Client, Stanza, Conv)
-    end.
+process_inbox_message(Client, Stanza, Conv, 
+                      #{case_sensitive := IsCaseSensitive, check_resource := CheckResource}) ->
+    do_process_inbox_message(Client, Stanza, Conv, check_jid_fun(IsCaseSensitive, CheckResource)).
 
-process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
-                                             to = ToJid, content = Content, verify = Fun}) ->
+check_jid_fun(true, true) ->
+    fun(InnerMsg, Expected, El) -> Expected = exml_query:attr(InnerMsg, El) end;
+check_jid_fun(false, true) ->
+    fun(InnerMsg, Expected, El) -> Expected = lbin(exml_query:attr(InnerMsg, El)) end;
+check_jid_fun(true, false) ->
+    fun(InnerMsg, Expected, El) ->
+            NoResExpected = escalus_client:short_jid(Expected),
+            NoResExpected = exml_query:attr(InnerMsg, El) end;
+check_jid_fun(false, false) ->
+    fun(InnerMsg, Expected, El) ->
+            NoResExpected = escalus_client:short_jid(Expected),
+            NoResExpected = lbin(exml_query:attr(InnerMsg, El)) end.
+
+
+
+do_process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
+                                             to = ToJid, content = Content, verify = Fun}, CheckJidFun) ->
   Unread = get_unread_count(Message),
   escalus:assert(is_message, Message),
   Unread = get_unread_count(Message),
   [InnerMsg] = get_inner_msg(Message),
-  FromJid = lbin(exml_query:attr(InnerMsg, <<"from">>)),
-  ToJid = lbin(exml_query:attr(InnerMsg, <<"to">>)),
+  CheckJidFun(InnerMsg, FromJid, <<"from">>),
+  CheckJidFun(InnerMsg, ToJid, <<"to">>),
   InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
   Content = InnerContent,
   Fun(Client, InnerMsg),
   ok.
-
-% TODO refactor
-process_inbox_message_casesensitive(Client, Message, #conv{unread = Unread, from = FromJid,
-                                             to = ToJid, content = Content, verify = Fun}) ->
-  Unread = get_unread_count(Message),
-  escalus:assert(is_message, Message),
-  Unread = get_unread_count(Message),
-  [InnerMsg] = get_inner_msg(Message),
-  FromJid = exml_query:attr(InnerMsg, <<"from">>),
-  ToJid = exml_query:attr(InnerMsg, <<"to">>),
-  InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
-  Content = InnerContent,
-  Fun(Client, InnerMsg),
-  ok.
-
 
 
 verify_is_owner_aff_change(Client, Msg) ->
