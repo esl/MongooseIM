@@ -16,7 +16,7 @@ Usage example:
 ./tools/test-runner.sh --db redis --preset internal_mnesia
 ```
 
-The command runs both big feature and small unit tests.
+The command runs both big (feature) and small (unit) tests.
 
 To view more examples, run:
 
@@ -24,7 +24,7 @@ To view more examples, run:
 ./tools/test-runner.sh --examples
 ```
 
-## Test runner competion
+## Test runner completion
 
 Test runner supports shell TAB completion.
 
