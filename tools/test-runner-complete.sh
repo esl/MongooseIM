@@ -3,11 +3,41 @@
 if [ ! -z "$ZSH_NAME" ]; then
     # zsh sets $ZSH_NAME variable so it can be used to detect zsh
     # following enables using bash-completion under zsh
+    echo "Loading zsh completion system"
+    autoload compinit
+    compinit
+    echo "Loading bash complete for zsh"
     autoload bashcompinit
     bashcompinit
 fi
 
+
+# If brew command exists
+# Load bash completion for _get_comp_words_by_ref on Mac
+if [ -x "$(command -v brew)" ] && [ -z "$ZSH_NAME" ]; then
+    echo "Load bash_completion"
+    INCLUDE_BASH_COMPLETION="$(brew --prefix)/etc/bash_completion"
+    if ! [ -f "$INCLUDE_BASH_COMPLETION" ]; then
+      echo "Install bash-completion packet"
+      echo 'Running "brew install bash-completion"'
+      brew install bash-completion
+    fi
+    . "$INCLUDE_BASH_COMPLETION"
+fi
+
+function_exists() {
+    declare -f -F $1 > /dev/null
+    return $?
+}
+
 _run_all_tests() {
+  printf "%s\n" "${COMP_WORDS[@]}" > /tmp/test-runner-last-competion
+  # Make COMP_WORDS, without using colon as a breaker
+  # To see all breakes, check COMP_WORDBREAKS variable
+  # It's needed for bash only, not zsh
+  if [ -z "$ZSH_NAME" ]; then
+    _get_comp_words_by_ref -n : cur
+  fi
   local cur pos opt
   # Pointer to current completion word.
   # By convention, it's named "cur" but this isn't strictly necessary.
@@ -89,8 +119,14 @@ _run_all_tests() {
 #   xx) May add more cases here.
 #   yy)
 #   zz)
-  esac
+  esac 
 
+  # When completing CT group, remove "SUITE:" prefix from  suggestions
+  # This call modifies COMPREPLY
+  # The function is not declared or supported in zsh
+  if function_exists __ltrim_colon_completions && [ -z "$ZSH_NAME" ]; then
+    __ltrim_colon_completions "$cur"
+  fi
   return 0
 }
 
@@ -112,4 +148,14 @@ Run with --examples-complete argument to show the completion examples:
 
 END
 )
+
+function run_all_tests_complete() {
+  # Copy arguments into COMP_WORDS
+  COMP_WORDS=(test-runner.sh "$@")
+  # Count array elements, minus one
+  COMP_CWORD=$(expr ${#COMP_WORDS[@]} - 1)
+  _run_all_tests
+  # print array one element per line
+  printf '%s\n' "${COMPREPLY[@]}"
+}
 echo "$EXAMPLES_ADVICE"
