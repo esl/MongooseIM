@@ -4098,7 +4098,7 @@ hibernated_room_can_be_queried_for_archive(Config) ->
                                                               [{membersonly, false}], Bob),
         {Msg, {ok, _, Pid}} = Result,
         wait_for_mam_result(RoomName, Bob, Msg),
-        true = wait_for_hibernation(Pid, 10)
+        wait_for_hibernation(Pid)
 
     end),
 
@@ -4256,7 +4256,7 @@ get_spiral_metric_count(Host, MetricName) ->
 
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
-    true = wait_for_hibernation(RoomPid, 10),
+    wait_for_hibernation(RoomPid),
     Result.
 
 given_fresh_room_for_user(Owner, RoomName, Opts) ->
@@ -4311,7 +4311,7 @@ given_fresh_room_with_participants_is_hibernated(Owner, RoomName, Opts, Particip
     escalus:send(Participant, JoinRoom),
     escalus:wait_for_stanzas(Participant, 3),
     escalus:wait_for_stanza(Owner),
-    true = wait_for_hibernation(Pid, 10),
+    wait_for_hibernation(Pid),
     Result.
 
 given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant) ->
@@ -4323,7 +4323,7 @@ given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant)
     escalus:send(Owner, Message),
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Participant)),
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Owner)),
-    true = wait_for_hibernation(Pid, 10),
+    wait_for_hibernation(Pid),
     {MessageBin, Result}.
 
 forget_room(ServerHost, MUCHost, RoomName) ->
@@ -4338,16 +4338,8 @@ wait_for_room_to_be_stopped(Pid, Timeout) ->
               false
     end.
 
-wait_for_hibernation(Pid, 0) ->
-    is_hibernated(Pid);
-wait_for_hibernation(Pid, N) ->
-    case is_hibernated(Pid) of
-        true ->
-            true;
-        _ ->
-            timer:sleep(500),
-            wait_for_hibernation(Pid, N-1)
-    end.
+wait_for_hibernation(Pid) ->
+    mongoose_helper:wait_until(fun() -> is_hibernated(Pid) end, true).
 
 is_hibernated(Pid) ->
     CurrentFunction = rpc(mim(), erlang, process_info, [Pid, current_function]),
