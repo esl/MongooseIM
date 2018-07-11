@@ -21,6 +21,7 @@ Options:
 --preset [PRESET]     -- a list of presets to run during big tests
 --dev-nodes [NODE]    -- a list of release nodes to build and start
 --test-hosts [HOST]   -- a list of test hosts to apply preset to
+--one-node            -- the same as "--dev-nodes mim1 --test-hosts mim --"
 --skip-cover          -- disable coverage reports
 --skip-small-tests    -- disable small tests
 --skip-big-tests      -- disable big tests
@@ -331,6 +332,14 @@ case $key in
             fi
         done
     ;;
+
+    --one-node)
+        shift # past argument
+        unset TEST_HOSTS
+        unset DEV_NODES
+        TEST_HOSTS_ARRAY=( mim )
+        DEV_NODES_ARRAY=( mim1 )
+        ;;
 
     --skip-cover)
         shift # past argument

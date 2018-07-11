@@ -66,7 +66,10 @@ _run_all_tests() {
     SUGGESTIONS=$(./tools/test_runner/complete-test-name.sh "$cur")
     SUITES=$(./tools/test_runner/list_suites.sh $LIST_SUITES_ARGS)
 
-    COMPREPLY=( $( compgen -W '--db --preset --dev-nodes --test-hosts \
+    COMPREPLY=( $( compgen -W '--db --preset \
+                          --dev-nodes \
+                          --test-hosts \
+                          --one-node \
                           --skip-big-tests \
                           --skip-small-tests \
                           --skip-build-tests \
