@@ -842,7 +842,7 @@ simple_groupchat_stored_in_all_inbox_muc(Config) ->
     escalus:send(Bob, Stanza),
     wait_for_groupchat_msg(Users),
     [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
-    BobRoomJid = muc_room_address(Room, nick(Bob)), % removed lbin !!!
+    BobRoomJid = muc_room_address(Room, nick(Bob)),
     %% Bob has 0 unread messages
     check_inbox(Bob, #inbox{
       total = 1,
@@ -975,7 +975,7 @@ private_messages_are_(Config) ->
     escalus:send(Kate, Stanza),
     BobsPrivMsg = escalus:wait_for_stanza(Bob),
 
-    [AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
+    [_AliceJid, BobJid, KateJid] = lists:map(fun to_bare_lower/1, Users),
     %% Bob has 1 unread message
     check_inbox(Bob, #inbox{
       total = 1,
@@ -984,11 +984,12 @@ private_messages_are_(Config) ->
     %% Alice gets nothing
     check_inbox(Alice, #inbox{
       total = 0,
-      convs = []}, #{case_sensitive => true}),
+      convs = []}),
     %% Kate has 1 conv with 0 unread messages
     check_inbox(Kate, #inbox{
       total = 1,
-      convs = [#conv{unread = 0, from = KateJid, to = BobRoomJid, content = Msg}]}, #{case_sensitive => true})
+      convs = [#conv{unread = 0, from = KateJid, to = BobRoomJid, content = Msg}]},
+                #{case_sensitive => true, check_resource => false})
     end).
 
 
@@ -1207,7 +1208,7 @@ check_inbox(Client, Inbox) ->
     check_inbox(Client, Inbox, #{}).
 
 % @doc Opts are:
-%       * case_sensitive - should resource be checked case
+%       * case_sensitive - should jids be checked case
 %                          sensitively
 %       * check_resource - should resource 
 check_inbox(Client, #inbox{total = Total, convs = Convs}, Opts0) -> 
@@ -1253,24 +1254,33 @@ process_inbox_messages(Client, [Stanza | RStanzas], MsgCheckList, UnmatchedItems
             process_inbox_messages(Client, RStanzas, RConvs, UnmatchedItems, Opts)
     end.
 
-process_inbox_message(Client, Stanza, Conv, 
-                      #{case_sensitive := IsCaseSensitive, check_resource := CheckResource}) ->
+process_inbox_message(Client, Stanza, Conv,
+                      #{case_sensitive := IsCaseSensitive, check_resource := CheckResource} = Opts) ->
     do_process_inbox_message(Client, Stanza, Conv, check_jid_fun(IsCaseSensitive, CheckResource)).
 
 check_jid_fun(true, true) ->
     fun(InnerMsg, Expected, El) -> Expected = exml_query:attr(InnerMsg, El) end;
 check_jid_fun(false, true) ->
-    fun(InnerMsg, Expected, El) -> Expected = lbin(exml_query:attr(InnerMsg, El)) end;
+    fun(InnerMsg, Expected0, El) ->
+            Expected = lbin(Expected0),
+            Expected = lbin(exml_query:attr(InnerMsg, El)) end;
 check_jid_fun(true, false) ->
     fun(InnerMsg, Expected, El) ->
-            NoResExpected = escalus_client:short_jid(Expected),
-            NoResExpected = exml_query:attr(InnerMsg, El) end;
+            NoResExpected = bin_to_bare(Expected),
+            NoResExpected = bin_to_bare(exml_query:attr(InnerMsg, El))
+    end;
 check_jid_fun(false, false) ->
     fun(InnerMsg, Expected, El) ->
-            NoResExpected = escalus_client:short_jid(Expected),
+            NoResExpected0 = escalus_client:short_jid(Expected),
+            NoResExpected = lbin(NoResExpected0),
             NoResExpected = lbin(exml_query:attr(InnerMsg, El)) end.
 
 
+bin_to_bare(Jid) ->
+    case binary:split(Jid, <<"/">>) of
+        [Bare, _Res] -> Bare;
+        [Bare] -> Bare
+    end.
 
 do_process_inbox_message(Client, Message, #conv{unread = Unread, from = FromJid,
                                              to = ToJid, content = Content, verify = Fun}, CheckJidFun) ->
