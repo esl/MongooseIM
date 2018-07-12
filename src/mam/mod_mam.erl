@@ -52,6 +52,9 @@
          determine_amp_strategy/5,
          sm_filter_offline_message/4]).
 
+%% Called from mod_mam_utils
+-export([uid_module/0]).
+
 %%private
 -export([archive_message/8]).
 -export([lookup_messages/2]).
@@ -184,6 +187,7 @@ start(Host, Opts) ->
        " Please check the mod_mam documentation for more details.", []),
 
     ejabberd_users:start(Host),
+    compile_params_module(Opts),
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(Host, ?NS_MAM_03),
@@ -325,6 +329,33 @@ sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% ... than drop the message
 sm_filter_offline_message(Other, _From, _To, _Packet) ->
     Other.
+
+%% ----------------------------------------------------------------------
+%% Dynamic params module
+
+%% compile_params_module([
+%%      {db_message_format, module()}
+%%      ])
+compile_params_module(Params) ->
+    CodeStr = params_helper(Params),
+    {Mod, Code} = dynamic_compile:from_string(CodeStr),
+    code:load_binary(Mod, "mod_mam_dynamic_compile_params.erl", Code).
+
+params_helper(Params) ->
+    binary_to_list(iolist_to_binary(io_lib:format(
+                                      "-module(mod_mam_dynamic_compile_params).~n"
+                                      "-compile(export_all).~n"
+                                      "uid_module() -> ~p.~n",
+                                      [proplists:get_value(uid_module, Params,
+                                                           mam_uid_nodetime)
+                                      ]))).
+
+%% ----------------------------------------------------------------------
+%% Other exports
+uid_module() ->
+    try mod_mam_dynamic_compile_params:uid_module()
+    catch _:_ -> mam_uid_nodetime % make tests work
+    end.
 
 %% ----------------------------------------------------------------------
 %% Internal functions

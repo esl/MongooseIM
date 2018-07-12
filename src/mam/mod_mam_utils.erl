@@ -190,40 +190,33 @@ microseconds_to_datetime(MicroSeconds) when is_integer(MicroSeconds) ->
 %% -----------------------------------------------------------------------
 %% UID
 
--spec generate_message_id() -> integer().
+-spec generate_message_id() -> any().
 generate_message_id() ->
-    {ok, NodeId} = ejabberd_node_id:node_id(),
-    CandidateStamp = p1_time_compat:os_system_time(micro_seconds),
-    UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
-    encode_compact_uuid(UniqueStamp, NodeId).
-
+    M = mod_mam:uid_module(),
+    M:generate_message_id().
 
 %% @doc Create a message ID (UID).
-%%
-%% It removes a leading 0 from 64-bit binary representation.
-%% It puts node id as a last byte.
-%% The maximum date, that can be encoded is `{{4253, 5, 31}, {22, 20, 37}}'.
--spec encode_compact_uuid(integer(), integer()) -> integer().
-encode_compact_uuid(Microseconds, NodeId)
-    when is_integer(Microseconds), is_integer(NodeId) ->
-    (Microseconds bsl 8) + NodeId.
+-spec encode_compact_uuid(integer(), integer()) -> any().
+encode_compact_uuid(Microseconds, NodeId) ->
+    M = mod_mam:uid_module(),
+    M:encode_compact_uuid(Microseconds, NodeId).
 
 
 %% @doc Extract date and node id from a message id.
--spec decode_compact_uuid(integer()) -> {integer(), byte()}.
+-spec decode_compact_uuid(any()) -> {integer(), byte()}.
 decode_compact_uuid(Id) ->
-    Microseconds = Id bsr 8,
-    NodeId = Id band 255,
-    {Microseconds, NodeId}.
+    M = mod_mam:uid_module(),
+    M:decode_compact_uuid(Id).
 
 
 %% @doc Encode a message ID to pass it to the user.
--spec mess_id_to_external_binary(integer()) -> binary().
-mess_id_to_external_binary(MessID) when is_integer(MessID) ->
-    list_to_binary(integer_to_list(MessID, 32)).
+-spec mess_id_to_external_binary(any()) -> binary().
+mess_id_to_external_binary(MessID) ->
+    M = mod_mam:uid_module(),
+    M:mess_id_to_external_binary(MessID).
 
 
--spec maybe_external_binary_to_mess_id(binary()) -> undefined | integer().
+-spec maybe_external_binary_to_mess_id(binary()) -> any().
 maybe_external_binary_to_mess_id(<<>>) ->
     undefined;
 maybe_external_binary_to_mess_id(BExtMessID) ->
@@ -231,9 +224,10 @@ maybe_external_binary_to_mess_id(BExtMessID) ->
 
 
 %% @doc Decode a message ID received from the user.
--spec external_binary_to_mess_id(binary()) -> integer().
+-spec external_binary_to_mess_id(binary()) -> any().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
-    binary_to_integer(BExtMessID, 32).
+    M = mod_mam:uid_module(),
+    M:external_binary_to_mess_id(BExtMessID).
 
 %% -----------------------------------------------------------------------
 %% XML
