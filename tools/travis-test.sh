@@ -94,13 +94,19 @@ maybe_start_services() {
 }
 
 start_services() {
-    for env in ${BASE}/big_tests/services/*-compose.yml; do
-        echo "Stating service" $(basename "${env}") "..."
-        time ${BASE}/tools/docker-compose.sh -f "${env}" pull --parallel
-        time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
-        echo "docker-compose execution time reported above"
-        echo ""
-    done
+    local SERVICES_DIR="${BASE}/big_tests/services"
+    local SERVICES_FILES="$SERVICES_DIR/*-compose.yml"
+    if [ -d $SERVICES_DIR ] && [ "$(ls $SERVICES_FILES)" ]; then
+        for env in $SERVICES_FILES; do
+            echo "Stating service" $(basename "${env}") "..."
+            time ${BASE}/tools/docker-compose.sh -f "${env}" pull --parallel
+            time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
+            echo "docker-compose execution time reported above"
+            echo ""
+        done
+    else
+        echo "No services found."
+    fi
 }
 
 run_test_preset() {
