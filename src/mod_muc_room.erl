@@ -4654,7 +4654,6 @@ route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = t
 route_nick_message(#routed_nick_message{decide = continue_delivery, allow_pm = true,
     online = true, packet = Packet, from = From,
     lang = Lang, nick = ToNick, jid = false}, StateData) ->
-    ?WARNING_MSG("Recipient not in the room", []),
     ErrText = <<"Recipient is not in the conference room">>,
     Err = jlib:make_error_reply(
         Packet, mongoose_xmpp_errors:item_not_found(Lang, ErrText)),

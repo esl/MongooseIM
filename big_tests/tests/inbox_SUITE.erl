@@ -112,8 +112,8 @@ groups() ->
            unread_count_is_reset_after_sending_chatmarker,
            private_messages_are_handled_as_one2one
           ]}
-        ].
-    %ct_helper:repeat_all_until_all_ok(G).
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
   escalus:suite().
