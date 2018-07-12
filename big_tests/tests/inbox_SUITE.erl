@@ -179,8 +179,6 @@ init_per_group(_GroupName, Config) ->
 end_per_group(muclight, Config) ->
   muc_light_helper:clear_db(),
   Config;
-end_per_group(muc, Config) ->
-    Config;
 end_per_group(_GroupName, Config) ->
   Config.
 
