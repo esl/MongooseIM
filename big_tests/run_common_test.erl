@@ -13,6 +13,10 @@
 %%
 %% Example with two nodes:
 %% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%%
+%% Environment variable PRESET_ENABLED is true by default.
+%% PRESET_ENABLED=false disables preset application and forces to run
+%% one preset.
 -module(run_common_test).
 
 -export([main/1, analyze/2]).
@@ -47,7 +51,7 @@ opts() ->
 %% "=" is an invalid character in option name or value.
 main(RawArgs) ->
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
-    Opts = args_to_opts(Args),
+    Opts = apply_preset_enabled(args_to_opts(Args)),
     try
         Results = run(Opts),
         %% Waiting for messages to be flushed
@@ -82,6 +86,16 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
                                      _ when is_list(Preset) -> Preset;
                                      _   -> [Preset]
                                  end, Cover).
+
+apply_preset_enabled(#opts{} = Opts) ->
+    case os:getenv("PRESET_ENABLED") of
+        "false" ->
+            io:format("PRESET_ENABLED is set to false, enabling quick mode~n"),
+            Opts#opts{test = quick};
+        _ ->
+            Opts
+    end.
+
 
 %%
 %% Helpers

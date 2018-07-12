@@ -49,6 +49,32 @@ To view test execution results, run:
 ./tools/test-runner.sh --show-small-reports
 ```
 
+## Rerun big tests
+
+Very often we want to restart a specific suite when some test failed.
+
+For example, some test has failed in `mam_SUITE`. The command was used to
+execute tests:
+
+```bash
+./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes
+```
+
+We can just execute the same command, but it would rebuild nodes and start
+them.
+
+The command can be used instead:
+
+```bash
+./tools/test-runner.sh --rerun-big-tests -- mam
+```
+
+`--rerun-big-tests` expands into
+`--skip-small-tests --skip-setup-db --dev-nodes --test-hosts --skip-cover --skip-preset`.
+
+And `mam` is used to run `mam_SUITE` suite only.
+
+
 # Unit tests (a.k.a. "small tests")
 
 These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.

@@ -22,12 +22,13 @@ Options:
 --dev-nodes [NODE]    -- a list of release nodes to build and start
 --test-hosts [HOST]   -- a list of test hosts to apply preset to and collect cover info from
 --one-node            -- the same as "--dev-nodes mim1 --test-hosts mim --"
+--skip-preset         -- skip preset application, ignores --preset. Also known as quick mode
 --skip-cover          -- disable coverage reports
 --skip-small-tests    -- disable small tests
 --skip-big-tests      -- disable big tests
 --skip-build-tests    -- disable big test compilation
 --skip-stop-nodes     -- do not stop nodes after big tests
---skip-db-setup       -- do not start any databases, the same as "--db --" option
+--skip-setup-db       -- do not start any databases, the same as "--db --" option
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 
@@ -95,6 +96,16 @@ Script examples:
 
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
     Travis build job 9
+
+./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes -- mam
+    Runs mam_SUITE with MySQL
+
+./tools/test-runner.sh --skip-small-tests --skip-setup-db --dev-nodes --test-hosts --skip-cover --skip-preset -- mam
+    Sets dev-nodes and test-hosts to empty lists
+    Reruns mam_SUITE
+
+./tools/test-runner.sh --rerun-big-tests -- mam
+    The same command as above
 END
 )
 
@@ -243,6 +254,7 @@ TEST_HOSTS_ARRAY=(
 
 SMALL_TESTS_DEFAULT=true
 COVER_ENABLED_DEFAULT=true
+PRESET_ENABLED_DEFAULT=true
 
 BIG_TESTS=true
 BUILD_TESTS=true
@@ -280,7 +292,7 @@ case $key in
         done
     ;;
 
-    --skip-db-setup)
+    --skip-setup-db)
         shift # past argument
         SKIP_DB_SETUP=true
     ;;
@@ -351,6 +363,12 @@ case $key in
     --skip-cover)
         shift # past argument
         COVER_ENABLED=false
+    ;;
+
+    --skip-preset)
+        shift # past argument
+        # Disable preset application
+        PRESET_ENABLED=false
     ;;
 
     --skip-small-tests)
@@ -427,6 +445,13 @@ case $key in
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
+
+    --rerun-big-tests)
+        shift # consume argument, continue execution
+        # Appends "--skip-small-tests ... --skip-preset" arguments to the current positional parameters
+        set -- --skip-small-tests --skip-setup-db --dev-nodes --test-hosts --skip-cover --skip-preset "$@"
+    ;;
+
     --)
         shift # skip placeholder
     ;;
@@ -448,7 +473,7 @@ fi
 
 
 if [ "$SKIP_DB_SETUP" = true ]; then
-    echo "--skip-db-setup always overrides --db argument"
+    echo "--skip-setup-db always overrides --db argument"
     unset DB # We ignore env variable value
     DBS_ARRAY=() # No dbs
 fi
@@ -472,6 +497,7 @@ fi
 # Use env variable or default
 export SMALL_TESTS="${SMALL_TESTS:-$SMALL_TESTS_DEFAULT}"
 export COVER_ENABLED="${COVER_ENABLED:-$COVER_ENABLED_DEFAULT}"
+export PRESET_ENABLED="${PRESET_ENABLED:-$PRESET_ENABLED_DEFAULT}"
 
 # Join array to string
 PRESETS_DEFAULT="${PRESETS_ARRAY[@]}"
@@ -514,6 +540,7 @@ echo "    DEV_NODES=\"$DEV_NODES\""
 echo "    TEST_HOSTS=\"$TEST_HOSTS\""
 echo "    SMALL_TESTS=$SMALL_TESTS"
 echo "    COVER_ENABLED=$COVER_ENABLED"
+echo "    PRESET_ENABLED=$PRESET_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
 echo "    TESTSPEC=$TESTSPEC"
