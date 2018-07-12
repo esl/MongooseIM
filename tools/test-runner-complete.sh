@@ -105,6 +105,7 @@ _run_all_tests() {
                           --skip-build-tests \
                           --skip-cover \
                           --skip-stop-nodes \
+                          --skip-db-setup \
                           --tls-dist \
                           --verbose \
                           --help \

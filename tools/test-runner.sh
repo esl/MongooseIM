@@ -27,6 +27,7 @@ Options:
 --skip-big-tests      -- disable big tests
 --skip-build-tests    -- disable big test compilation
 --skip-stop-nodes     -- do not stop nodes after big tests
+--skip-db-setup       -- do not start any databases, the same as "--db --" option
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 
@@ -250,6 +251,7 @@ TLS_DIST=no
 
 SELECTED_TESTS=()
 STOP_SCRIPT=false
+SKIP_DB_SETUP=false
 
 # Parse command line arguments
 # Prefer arguments to env variables
@@ -276,6 +278,11 @@ case $key in
                 break
             fi
         done
+    ;;
+
+    --skip-db-setup)
+        shift # past argument
+        SKIP_DB_SETUP=true
     ;;
 
     # Similar how we parse --db option
@@ -437,6 +444,13 @@ done
 if [ "$STOP_SCRIPT" = true ]; then
     # Skipping test execution
     exit 0
+fi
+
+
+if [ "$SKIP_DB_SETUP" = true ]; then
+    echo "--skip-db-setup always overrides --db argument"
+    unset DB # We ignore env variable value
+    DBS_ARRAY=() # No dbs
 fi
 
 print_advice "$HELP_ADVICE"
