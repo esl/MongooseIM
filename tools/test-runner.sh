@@ -264,6 +264,7 @@ TLS_DIST=no
 SELECTED_TESTS=()
 STOP_SCRIPT=false
 SKIP_DB_SETUP=false
+DB_FROM_PRESETS=true
 
 # Parse command line arguments
 # Prefer arguments to env variables
@@ -290,11 +291,13 @@ case $key in
                 break
             fi
         done
+        DB_FROM_PRESETS=false
     ;;
 
     --skip-setup-db)
         shift # past argument
         SKIP_DB_SETUP=true
+        DB_FROM_PRESETS=false
     ;;
 
     # Similar how we parse --db option
@@ -490,6 +493,18 @@ if [ "$BIG_TESTS" = false ]; then
     DB=""
     DEV_NODES=""
     BUILD_TESTS=false
+fi
+
+if [ "$DB_FROM_PRESETS" = true ]; then
+    # Get a final preset list
+    # Be aware, that actual PRESET var would be set below
+    # We just need to know it NOW to call presets_to_dbs
+    FINAL_PRESETS_DEFAULT="${PRESETS_ARRAY[@]}"
+    FINAL_PRESET="${PRESET-$FINAL_PRESETS_DEFAULT}"
+
+    echo "Choose databases based on presets $FINAL_PRESET"
+    # We DON'T ignore DB variable, it's still a priority
+    DBS_ARRAY=( $(./tools/test_runner/presets_to_dbs.sh $FINAL_PRESET ))
 fi
 
 ./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
