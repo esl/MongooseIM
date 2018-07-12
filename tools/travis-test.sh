@@ -154,8 +154,12 @@ run_tests() {
     print_running_nodes
   fi
 
-  if [ "$STOP_NODES" = true ]; then
-  ./tools/stop-nodes.sh
+  # Do not stop nodes if big tests failed
+  if [ "$STOP_NODES" = true ] && [ $BIG_STATUS -eq 0 ] && [ $BIG_STATUS_BY_SUMMARY -eq 0 ]; then
+      echo "Stopping MongooseIM nodes"
+      ./tools/stop-nodes.sh
+  else
+      echo "Keep MongooseIM nodes running"
   fi
 
   exit ${RESULT}

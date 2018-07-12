@@ -60,6 +60,9 @@ execute tests:
 ./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes
 ```
 
+`--skip-stop-nodes` is optional here, because if any big test fails, then nodes
+would be still running.
+
 We can just execute the same command, but it would rebuild nodes and start
 them.
 
