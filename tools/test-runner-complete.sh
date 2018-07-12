@@ -33,7 +33,7 @@ function_exists() {
 _run_all_tests() {
   printf "%s\n" "${COMP_WORDS[@]}" > /tmp/test-runner-last-competion
   # Make COMP_WORDS, without using colon as a breaker
-  # To see all breakes, check COMP_WORDBREAKS variable
+  # To see all breakers, check COMP_WORDBREAKS variable
   # It's needed for bash only, not zsh
   if [ -z "$ZSH_NAME" ]; then
     _get_comp_words_by_ref -n : cur
@@ -53,7 +53,7 @@ _run_all_tests() {
   cur=${COMP_WORDS[$COMP_CWORD]}
   opt=${COMP_WORDS[$pos]}
 
-  # If current is option - we don't care about option expantion
+  # If current is an option - we don't care about option expansion
   case "$cur" in
     --*)
       opt=""

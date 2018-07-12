@@ -9,9 +9,6 @@
 # - VERBOSE
 # - STOP_NODES
 
-# Just compile big tests example (not really):
-# /tools/test-runner.sh --skip-small-tests --db --preset --dev-nodes --test-hosts --skip-cover
-
 
 USAGE=$(cat <<-END
 This script runs small and big tests for MongooseIM

@@ -1,8 +1,8 @@
 # Test runner
 
-Test runner script is used to compile MongooseIM and run tests.
+The test runner script is used to compile MongooseIM and run tests.
 
-Help command prints a list of supported options.
+The help command prints a list of supported options.
 
 ```bash
 ./tools/test-runner.sh --help
@@ -124,7 +124,7 @@ Most important options are preset and database:
 ./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:odbc_muc_light
 
 # Runs rdbms_SUITE with MSSQL
-# Inits single MongooseIM node (works for some tests only)
+# Inits a single MongooseIM node (works for some tests only)
 # Disables cover
 ./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
 ```
