@@ -1,5 +1,5 @@
 %% During dev you would use something similar to:
-%% TEST_HOSTS="mim1" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% If you also want to start just mim1 node use:
 %% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
