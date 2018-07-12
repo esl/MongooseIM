@@ -379,7 +379,7 @@ get_hosts(Test) ->
     dict:fetch(mim, group_by(fun host_cluster/1, Hosts)).
 
 get_ejabberd_nodes(Test) ->
-    [ host_node(H) || H <- get_hosts(Test) ].
+    [ host_node(H) || H <- get_hosts(Test), is_test_host_enabled(host_name(H)) ].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
