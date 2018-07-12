@@ -68,17 +68,11 @@ alter_receivers_packet(Packet, Room, To) ->
     Packet2 = change_from_el(Packet, Room),
     change_to_el(Packet2, To).
 
-% TODO refactor
 change_from_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewFrom) ->
-    Attrs2 = lists:keydelete(<<"from">>, 1, Attrs),
-    Attrs3 = [{<<"from">>, jid:to_binary(NewFrom)} | Attrs2],
-    Packet#xmlel{attrs = Attrs3}.
+    xml:replace_tag_attr(<<"from">>, jid:to_binary(NewFrom), Packet).
 
 change_to_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewTo) ->
-    Attrs2 = lists:keydelete(<<"to">>, 1, Attrs),
-    Attrs3 = [{<<"to">>, jid:to_binary(NewTo)} | Attrs2],
-    Packet#xmlel{attrs = Attrs3}.
-
+    xml:replace_tag_attr(<<"to">>, jid:to_binary(NewTo), Packet).
 
 handle_outgoing_message(Host, User, Room, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
