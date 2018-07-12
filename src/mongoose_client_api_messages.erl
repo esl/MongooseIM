@@ -106,12 +106,39 @@ make_json_msg(Msg, MAMId) ->
 
 -spec encode(exml:item(), integer()) -> map().
 encode(Msg, Timestamp) ->
+
+    %Smack library specific query for properties.
+    RawMsgProps = exml_query:subelement_with_name_and_ns(
+                                        Msg,
+                                        <<"properties">>,
+                                        <<"http://www.jivesoftware.com/xmlns/xmpp/properties">>),
+
     BodyTag = exml_query:path(Msg, [{element, <<"body">>}]),
-    #{from => exml_query:attr(Msg, <<"from">>),
-      to => exml_query:attr(Msg, <<"to">>),
-      id => exml_query:attr(Msg, <<"id">>),
-      body => exml_query:cdata(BodyTag),
-      timestamp => Timestamp}.
+
+    ExtensionList =
+      case RawMsgProps of
+           #xmlel{name = _,
+                  attrs = _,
+                  children = Children} ->
+                                        Props = [convert_prop_child(Child) || Child <- Children],
+                                        [{<<"properties">>, maps:from_list(Props)}];
+                                     _ ->
+                                        []
+      end,
+
+    L = [{<<"from">>, exml_query:attr(Msg, <<"from">>)},
+         {<<"to">>, exml_query:attr(Msg, <<"to">>)},
+         {<<"id">>, exml_query:attr(Msg, <<"id">>)},
+         {<<"body">>, exml_query:cdata(BodyTag)},
+         {<<"timestamp">>, Timestamp} | ExtensionList],
+
+
+    maps:from_list(L).
+
+convert_prop_child(Child)->
+    Name = exml_query:path(Child, [{element,<<"name">>}, cdata]),
+    Value = exml_query:path(Child, [{element,<<"value">>}, cdata]),
+    {Name, Value}.
 
 maybe_jid(undefined) ->
     undefined;

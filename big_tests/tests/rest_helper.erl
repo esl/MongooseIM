@@ -21,7 +21,9 @@
     fill_archive/2,
     fill_room_archive/2,
     make_timestamp/2,
-    change_admin_creds/1
+    change_admin_creds/1,
+    make_msg_stanza_with_props/2,
+    make_malformed_msg_stanza_with_props/2
 ]).
 
 -import(distributed_helper, [mim/0,
@@ -369,3 +371,36 @@ make_room_arc_id({_, RoomJID, _}, Client) ->
     JIDBin = mam_helper:rpc_apply(jid, to_binary, [JID]),
     {JIDBin, JID, undefined}.
 
+%%Make sample message with property for Smack lib.
+make_msg_stanza_with_props(ToJID,MsgID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with properties</body>
+            <properties xmlns='http://www.jivesoftware.com/xmlns/xmpp/properties'>
+                <property>
+                    <name>some_string</name>
+                    <value type='string'>abcdefghijklmnopqrstuvwxyz</value>
+                </property>
+                <property>
+                    <name>some_number</name>
+                    <value type='long'>1234567890</value>
+                </property>
+            </properties>
+        </message>">>).
+
+%%Make sample message with general property, malformed i.e. not for Smack lib.
+make_malformed_msg_stanza_with_props(ToJID,MsgID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with malformed properties</body>
+            <properties>
+                <property1>
+                    <name>some_string</name>
+                    <value type='string'>abcdefghijklmnopqrstuvwxyz</value>
+                </property1>
+                <property2>
+                    <name>some_number</name>
+                    <value type='long'>1234567890</value>
+                </property2>
+            </properties>
+        </message>">>).
