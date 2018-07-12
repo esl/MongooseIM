@@ -189,7 +189,7 @@ do_not_accept_0_hold_value(Config) ->
 send_specific_hold(Config, HoldValue) ->
     {Server, Path, Client} = get_fusco_connection(Config),
 
-    Rid = random:uniform(1000000),
+    Rid = rand:uniform(1000000),
     Body0 = escalus_bosh:session_creation_body(2, <<"1.0">>, <<"en">>, Rid, Server, nil),
     #xmlel{attrs = Attrs0} = Body0,
     Attrs = lists:keyreplace(<<"hold">>, 1, Attrs0, {<<"hold">>, HoldValue}),
@@ -878,13 +878,15 @@ wait_for_session_close(Sid) ->
     mongoose_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
                                #{
                                  time_left => timer:seconds(10),
-                                 time_sleep => timer:seconds(1)
+                                 time_sleep => timer:seconds(1),
+                                 name => is_session_alive
                                 }).
 
 wait_for_handler(Pid) ->
     mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, 1, #{
                                                                             time_left => timer:seconds(10),
-                                                                            time_sleep => timer:seconds(1)
+                                                                            time_sleep => timer:seconds(1),
+                                                                            name => get_handlers
                                                                            }).
 
 domain() ->

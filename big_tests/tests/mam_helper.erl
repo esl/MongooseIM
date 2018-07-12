@@ -794,16 +794,22 @@ wait_for_archive_size(User, ExpectedSize) ->
 wait_for_archive_size(Server, Username, ExpectedSize) ->
     mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
                                ExpectedSize,
-                               #{time_left => timer:seconds(20)}).
+                               #{
+                                 time_left => timer:seconds(20),
+                                 name => archive_size
+                                }).
 
 wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
     try mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
-                                       ExpectedSize,
-                                       #{time_left => timer:seconds(20)}) of
+                                   ExpectedSize,
+                                   #{
+                                     time_left => timer:seconds(20),
+                                     name => archive_size
+                                    }) of
         {ok, ExpectedSize} ->
             ok
     catch
-        Error:Reason ->
+        _Error:Reason ->
             ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, log=~p",
                    [ExpectedSize, Reason])
     end.
@@ -811,12 +817,15 @@ wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
 wait_for_room_archive_size(Server, Username, ExpectedSize) ->
     try mongoose_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
                                    ExpectedSize,
-                                   #{time_left => timer:seconds(20)}) of
+                                   #{
+                                     time_left => timer:seconds(20),
+                                     name => room_archive_size
+                                    }) of
         {ok, ExpectedSize} ->
             ExpectedSize
     catch
-        Error:Reason ->
-            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, log=~p",
+        _Error:Reason ->
+            ct:pal("issue=wait_for_room_archive_size, expected_size=~p, log=~p",
                    [ExpectedSize, Reason])
     end.
 

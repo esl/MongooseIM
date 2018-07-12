@@ -80,5 +80,5 @@ wait_for_user_offline(Client) ->
                                                   escalus_utils:jid_to_lower(escalus_client:server(Client)),
                                                   escalus_utils:jid_to_lower(escalus_client:resource(Client)))
                                end,
-                              true,
-                              #{time_left => timer:seconds(20)}).
+                               true,
+                               #{time_left => timer:seconds(20), name => is_offline}).

@@ -103,6 +103,12 @@ wait_for_user_removal(false) ->
     ok;
 wait_for_user_removal(_) ->
     Domain = ct:get_config({hosts, mim, domain}),
-    mongoose_helper:wait_until(fun() -> rpc(mim(), ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) end,
-                              0,
-			      #{ time_sleep => 500, time_left => 5000}).
+    try mongoose_helper:wait_until(fun() -> rpc(mim(), ejabberd_auth_riak, get_vh_registered_users_number, [Domain]) end, 0,
+                               #{ time_sleep => 500, time_left => 5000, name => rpc}) of
+	    {ok, 0} ->
+		    ok
+    catch	
+	_Error:Reason ->
+		ct:pal("~p", [Reason]),
+		ok
+    end.

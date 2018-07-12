@@ -4339,7 +4339,7 @@ wait_for_room_to_be_stopped(Pid, Timeout) ->
     end.
 
 wait_for_hibernation(Pid) ->
-    mongoose_helper:wait_until(fun() -> is_hibernated(Pid) end, true).
+    mongoose_helper:wait_until(fun() -> is_hibernated(Pid) end, true, #{name => is_hibernated}).
 
 is_hibernated(Pid) ->
     CurrentFunction = rpc(mim(), erlang, process_info, [Pid, current_function]),

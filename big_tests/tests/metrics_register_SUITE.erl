@@ -109,8 +109,10 @@ unregister(Config) ->
 
 wait_for_registrations(Count) ->
     mongoose_helper:wait_until(fun() -> assert_counter(Count, modRegisterCount) end,
-                               {value, Count}).
+                               {value, Count},
+                               #{name => assert_counter}).
 
 wait_for_deregistrations(Count) ->
     mongoose_helper:wait_until(fun() -> assert_counter(Count, modUnregisterCount) end,
-                               {value, Count}).
+                               {value, Count},
+                               #{name => assert_counter}).
