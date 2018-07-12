@@ -55,11 +55,6 @@
 -define(ROOM3, <<"testroom3">>).
 -define(ROOM4, <<"testroom4">>).
 -define(ROOM_MARKERS, <<"room_markers">>).
--define(MUC_ROOM, <<"some_muc_room">>).
--define(MUC_ROOM2, <<"some_muc_room2">>).
--define(MUC_ROOM3, <<"some_muc_room3">>).
--define(MUC_ROOM4, <<"some_muc_room4">>).
--define(MUC_ROOM5, <<"some_muc_room5">>).
 -define(MUC_DOMAIN, <<"muc.localhost">>).
 -record(conv, {unread, from, to, content = <<>>, verify = fun(C, Stanza) -> ok end}).
 -record(inbox, {total, convs = []}).
@@ -216,32 +211,17 @@ init_per_testcase(no_stored_and_remain_after_kicked, Config) ->
   create_room(?ROOM4, muclight_domain(), alice, [bob, kate], Config, ver(1)),
   reload_inbox_option(Config, [{remove_on_kicked, false}, {aff_changes, true}]),
   escalus:init_per_testcase(no_stored_and_remain_after_kicked, Config);
-init_per_testcase(simple_groupchat_stored_in_all_inbox_muc = TC, Config) ->
-  clear_inbox_all(),
-  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
-  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM, <<"some_friendly_name">>, default),
-  escalus:init_per_testcase(TC, Config2);
-init_per_testcase(simple_groupchat_stored_in_offline_users_inbox_muc = TC, Config) ->
-  clear_inbox_all(),
-  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
-  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM2, <<"some_friendly_name">>, default),
-  escalus:init_per_testcase(TC, Config2);
-init_per_testcase(unread_count_is_the_same_after_going_online_again = TC, Config) ->
-  clear_inbox_all(),
-  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
-  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM3, <<"some_friendly_name">>, default),
-  escalus:init_per_testcase(TC, Config2);
-init_per_testcase(unread_count_is_reset_after_sending_chatmarker = TC, Config) ->
-  clear_inbox_all(),
-  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
-  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM4, <<"some_friendly_name">>, default),
-  escalus:init_per_testcase(TC, Config2);
-init_per_testcase(private_messages_are_handled_as_one2one = TC, Config) ->
-  clear_inbox_all(),
-  [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
-  Config2 = muc_helper:start_room(Config, User, ?MUC_ROOM5, <<"some_friendly_name">>, default),
-  escalus:init_per_testcase(TC, Config2);
-
+init_per_testcase(TC, Config)
+  when TC =:= simple_groupchat_stored_in_all_inbox_muc;
+       TC =:= simple_groupchat_stored_in_offline_users_inbox_muc;
+       TC =:= unread_count_is_the_same_after_going_online_again;
+       TC =:= unread_count_is_reset_after_sending_chatmarker;
+       TC =:= private_messages_are_handled_as_one2one ->
+    ct:pal("In !!!", []),
+    clear_inbox_all(),
+    [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
+    Config2 = muc_helper:start_room(Config, User, muc_helper:fresh_room_name(), <<"some_friendly_name">>, default),
+    escalus:init_per_testcase(TC, Config2);
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
   escalus:init_per_testcase(CaseName, Config).
@@ -274,10 +254,10 @@ end_per_testcase(msg_sent_to_not_existing_user, Config) ->
   Host = ct:get_config({hosts, mim, domain}),
   escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [<<"not_existing_user@localhost">>,Host]),
   escalus:end_per_testcase(msg_sent_to_not_existing_user, Config);
-end_per_testcase(TC, Config) when TC =:= simple_groupchat_stored_in_all_inbox_muc,
-                                  TC =:= simple_groupchat_stored_in_offline_users_inbox_muc,
-                                  TC =:= unread_count_is_the_same_after_going_online_again,
-                                  TC =:= unread_count_is_reset_after_sending_chatmarker,
+end_per_testcase(TC, Config) when TC =:= simple_groupchat_stored_in_all_inbox_muc;
+                                  TC =:= simple_groupchat_stored_in_offline_users_inbox_muc;
+                                  TC =:= unread_count_is_the_same_after_going_online_again;
+                                  TC =:= unread_count_is_reset_after_sending_chatmarker;
                                   TC =:= private_messages_are_handled_as_one2one ->
     muc_helper:destroy_room(Config);
 end_per_testcase(CaseName, Config) ->
