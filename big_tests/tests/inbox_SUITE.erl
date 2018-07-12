@@ -216,8 +216,10 @@ init_per_testcase(TC, Config)
        TC =:= unread_count_is_reset_after_sending_chatmarker;
        TC =:= private_messages_are_handled_as_one2one ->
     clear_inbox_all(),
-    [User | _] = ?config(escalus_users, Config), % probably change this line as it should always take Alice to create the room
-    Config2 = muc_helper:start_room(Config, User, muc_helper:fresh_room_name(), <<"some_friendly_name">>, default),
+    Users = ?config(escalus_users, Config),
+    Alice = lists:keyfind(alice, 1, Users),
+    Config2 = muc_helper:start_room(Config, Alice, 
+                                    muc_helper:fresh_room_name(), <<"some_friendly_name">>, default),
     escalus:init_per_testcase(TC, Config2);
 init_per_testcase(CaseName, Config) ->
   clear_inbox_all(),
