@@ -21,4 +21,7 @@ stop)
 loop)
     loop
     ;;
+monitor)
+    PID_TO_MONITOR=$2
+    ./tools/kill_processes_on_exit.sh "$PID_TO_MONITOR" "$(cat $PIDFILE)" &
 esac

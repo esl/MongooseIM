@@ -46,10 +46,9 @@ fi
 # Print ct_progress_hook output
 echo "" > /tmp/progress
 tail -f /tmp/progress &
-
-# Kill children on exit, but do not kill self on normal exit
-trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM
-trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
+PRINT_PROGRESS_PID=$!
+CURRENT_SCRIPT_PID=$$
+./tools/kill_processes_on_exit.sh $CURRENT_SCRIPT_PID $PRINT_PROGRESS_PID &
 
 echo ${BASE}
 
@@ -63,6 +62,7 @@ summaries_dir() {
 
 run_small_tests() {
   tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   make ct
   tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
@@ -89,6 +89,7 @@ maybe_run_small_tests() {
 
 run_test_preset() {
   tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   cd ${BASE}/big_tests
   local MAKE_RESULT=0
   TESTSPEC=${TESTSPEC:-default.spec}
@@ -188,6 +189,7 @@ function run_small_tests_cover_report
 
 if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   ./rebar3 dialyzer
   RESULT=$?
   tools/print-dots.sh stop
