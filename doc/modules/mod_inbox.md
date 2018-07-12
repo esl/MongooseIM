@@ -10,8 +10,7 @@ To use it, enable mod_inbox in the config file.
 This works when [Chat Markers](https://xmpp.org/extensions/xep-0333.html) are enabled on the client side.
 Possible values are from the set: `displayed`, `received`, `acknowledged`. Setting as empty list (not recommended) means that no chat marker can decrease the counter value.
 * **groupchat** (list, default: `[muclight]`) - The list indicating which groupchats will be included in inbox.
-Possible value is `muclight` [Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html).
-Soon the classic [Multi-User Chat](https://xmpp.org/extensions/xep-0045.html) will be supported.
+Possible values are `muclight` [Multi-User Chat Light](https://xmpp.org/extensions/inbox/muc-light.html) or `muc` [Multi-User Chat](https://xmpp.org/extensions/xep-0045.html).
 * **aff_changes** (boolean, default: `true`) - use this option when `muclight` is enabled.
 Indicates if MUC Light affiliation change messages should be included in the conversation inbox.
 Only changes that affect the user directly will be stored in their inbox.
