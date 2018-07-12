@@ -1200,8 +1200,6 @@ fill_options(Opts) ->
 
 
 
-% This should be only called by some wrapper
-%
 check_inbox(Client, ExpectedCount, MsgCheckList, Opts) when is_binary(ExpectedCount) ->
   check_inbox(Client, binary_to_integer(ExpectedCount), MsgCheckList, Opts);
 check_inbox(Client, ExpectedCount, MsgCheckList, Opts) ->
