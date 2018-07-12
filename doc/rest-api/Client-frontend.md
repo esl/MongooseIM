@@ -56,7 +56,7 @@ For more details about possible `ejabberd_cowboy` configuration parameters pleas
 see the relevant documentation in the [Listener modules](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy).
 
 
-##Smack library support
+## Smack library support
 REST API can fetch messages for [Smack](https://github.com/igniterealtime/Smack/blob/master/documentation/extensions/properties.md#stanza-properties) Stanza Properties.
 
 For example if we have properties in the stanza like:
