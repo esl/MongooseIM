@@ -20,7 +20,7 @@ Options:
 --db [DB]             -- a list of databases to setup for big tests
 --preset [PRESET]     -- a list of presets to run during big tests
 --dev-nodes [NODE]    -- a list of release nodes to build and start
---test-hosts [HOST]   -- a list of test hosts to apply preset to
+--test-hosts [HOST]   -- a list of test hosts to apply preset to and collect cover info from
 --one-node            -- the same as "--dev-nodes mim1 --test-hosts mim --"
 --skip-cover          -- disable coverage reports
 --skip-small-tests    -- disable small tests
