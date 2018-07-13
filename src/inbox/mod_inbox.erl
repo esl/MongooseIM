@@ -65,11 +65,8 @@ start(Host, Opts) ->
     {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
-    MucTypes = gen_mod:get_opt(groupchat, Opts),
-    case MucTypes of
-        [muc] -> mod_inbox_muc:start(Host);
-        _ -> ok
-    end,
+    MucTypes = get_groupchat_types(Host),
+    lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     store_bin_reset_markers(Host, Opts),
@@ -205,10 +202,13 @@ build_forward_el(Content) ->
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
 
+get_groupchat_types(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
+
 
 -spec muclight_enabled(Host :: binary()) -> boolean().
 muclight_enabled(Host) ->
-    Groupchats = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
+    Groupchats = get_groupchat_types(Host),
     lists:member(muclight, Groupchats).
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
@@ -217,7 +217,7 @@ store_bin_reset_markers(Host, Opts) ->
     ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
     gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
 
--spec get_message_type(Msg :: exml:element()) ->groupchat | one2one.
+-spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.
 get_message_type(Msg) ->
     case exml_query:attr(Msg, <<"type">>, undefined) of
         <<"groupchat">> ->
