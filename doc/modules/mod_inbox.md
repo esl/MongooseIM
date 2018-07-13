@@ -29,7 +29,7 @@ Inbox currently supports the following DBs:
 
 
 ### Legacy MUC support
-Inbox comes with support for legacy MUC as well. It stores all groupchat messages sent to
+Inbox comes with support for the legacy MUC as well. It stores all groupchat messages sent to
 room in each sender's and recipient's inboxes and private messages. Currently it is not possible to
 configure it to store system messages like [subject](https://xmpp.org/extensions/xep-0045.html#enter-subject) 
 or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
