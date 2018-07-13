@@ -8,7 +8,7 @@ extra_javascript: []
 
 pages:
   - Home: 'index.md'
-  - User guide:
+  - 'User guide':
       - 'ABCs of MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
@@ -19,6 +19,7 @@ pages:
       - 'How to Set up MongoosePush': 'user-guide/Push-notifications.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
+      - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'

@@ -5,13 +5,13 @@ In this document I'm going to describe how to configure MongooseIM, Routr (a SIP
 ### Prerequisites
 
 We are going to use the following open source software:
+
 * MongooseIM - https://github.com/esl/MongooseIM
-    * see [How-to-build][How-to-build.md] for details on building.
-      It's important to remember to run configure script with `with-jingle-sip` flag set, like below
-      ```bash
-      tools/configure with-jingle-sip
-      ```
+    * see [How-to-build](How-to-build.md) for details on building.
+      It's important to remember to run configure script with `with-jingle-sip` flag set:
+      `tools/configure with-jingle-sip`.
       Without this, 3rd party deps required by Jingle/SIP translator will not be included in the release.
+
 * Routr (SIP server) - https://routr.io
     * I recommend downloading binaries for your system from https://routr.io/docs/getting-started-installation.html
 * Jitsi (XMPP and SIP client application) - https://desktop.jitsi.org/
@@ -97,25 +97,77 @@ Now we are registering both users in MongooseIM by calling following commands:
     bin/mongooseimctl register sip.user sip.example test_pass
 
 Yes, we need to have the `sip.user@sip.example` registered in MongooseIM.
-This is needed because Jingle call by regular XMPP client can be initiate only when the other user is online.
-In order to know the other user is online we need to get a presence from it.
-The easiest way to achieve this is to have 2 xmpp users added to each other's roster.
+This is needed because Jingle call by regular XMPP client can be initiate only when the app knows the other user's full JID.
+The easiest way to achieve that is to exchange presence information between these 2 users.
+This can happen automatically if 2 xmpp users have each other in the roster.
 
 The roster can be set by us with the following commands:
 
     bin/mongooseimctl add_rosteritem sip.user sip.example xmpp.user xmpp.example xmpp.user none both
     bin/mongooseimctl add_rosteritem xmpp.user xmpp.example sip.user sip.example sip.user none both
 
-Now describe how to add sip user (for SIP and XMPP) to Jitsi
+### Adding users to Jitsi
 
-Then describe how to start otalk
+Now the `sip.user@sip.example` has to be added to Jitsi app.
+When the app is opened for the first time it will display a window to configure the user.
+Later users can be configured from the `Preferences` page.
 
-* Remember that Jingle needs a full JID to work with so we need to hack on SIP user.
+#### Adding SIP user
 
-wss://localhost:5285/ws-xmpp
+In order to add a user who connect to the SIP server we need choose the `SIP` protocol from
+available `networks` in Jitsi.
+In the `SIP id` field we put `sip.user@sip.example` and in the `Password` filed we put `1234` as in the `agents.yml` file.
+Now we need to switch to `Advanced` options and go to `Connection` tab.
+Here we need to unselect the `Configure proxy automatically` and put the IP of our `Routr` server, port number `5060` and `TCP` as the preferred transport.
 
+![SIP setup in Jitsi](jingle-sip/jitsi-sip-config.png)
 
-SIP INVITE from MongooseIM to SIP Proxy:
+#### Adding XMPP user
+
+Now we have to add `sip.user@sip.example` to Jitsi's XMPP network in order to connect this user to MongooseIM over XMPP.
+It's very similar to adding a user to Jitsi's SIP network.
+Here we also need to go to the `Advanced` window and the `Connection` tab in order to put IP addres (the same as before) in the `Connect Server`.
+And please select the checkbox `Override server default options`.
+
+Connecting `sip.user@sip.exmple` to MongooseIM over XMPP is to cheat Jingle a bit so that the client app for user `sip.xmpp@xmpp.example` can start the Jingle call.
+
+When Jitsi connects this user, most probably it will display a working about the server's certificate.
+This is because by default MongooseIM is configured with freshly generated, self-signed certificate.
+We can click `Continue anyway` button in order to proceed.
+
+### Adding user to Otalk
+
+Please follow the instruction on https://github.com/otalk/otalk-im-client#installing in order to compile and run the app.
+If all goes well in the console you should see a message like this:
+
+    demo.stanza.io running at: http://localhost:8000
+
+This means that the app is hosted on `http://localhost:8000`.
+
+> At this point I also recommend opening [https://localhost:5285/ws-xmpp](wss://localhost:5285/ws-xmpp) in the same browser.
+> This endpoint works correctly only for WebSocket connection but most probably you will be prompted about the certificate.
+> This is again due to the self-signed certificate.
+> We need to add an exception for this certificate in order to successfully connect from Otalk.
+
+Now let's open [http://localhost:8000](http://localhost:8000) where the Otalk app is hosted.
+In the `Log in` section put `xmpp.user@xmpp.example.com` in the `JID` field and `test_pass` in the `Password` filed.
+The default WebSocket endpoint in `WebSocket or BOSH URL` field needs to be changed to:
+
+    wss://localhost:5285/ws-xmpp
+
+![Otalk login page](jingle-sip/otalk-log-in.png)
+
+Now we can hit the `Go!` button and the `xmpp.user@xmpp.example` will connect to MongooseIM.
+
+### Making a call
+
+On the left side we can see that the user already have `sip.user@sip.example` in the roster and there should be a green dot indicating that the user is online.
+We we click on the contact the `Call` button should appear and we can initiate the call.
+
+In Jitsi, the following window should pop up:
+![Jitsi call window](jingle-sip/jitsi-call.png)
+
+Behind the scene the following SIP request was send from MongooseIM to Routr.
 
 ```
 INVITE sip:sip.user@sip.example:5060 SIP/2.0
@@ -196,7 +248,7 @@ a=ssrc:823938224 cname:{ce7fa171-069e-db4f-ba41-cfa4455c1033}
 a=ssrc:823938224 msid:{788b64bb-c4fc-b644-89b0-89f69c78f8b0} {a7f87c8d-6002-fd4c-badb-13383c759e48}
 ```
 
-SIP RINGING from SIP Proxy to MongooseIM
+And Routr sent the `Ringing` response code to MongooseIM as soon as the Jitsi app displayed the incoming call window:
 
 ```
 SIP/2.0 180 Ringing
@@ -210,3 +262,19 @@ User-Agent: Jitsi2.10.5550Mac OS X
 Content-Length: 0
 
 ```
+
+### Summary
+
+That's all I wanted and was able to showcase using available open source software.
+Current Jingle/SIP implementation was done for one of our customer who agreed to open source it.
+In this use case not every pieces from Jingle and SIP were required and also following assumptions has been made:
+
+* The peer-to-peer stream is always encrypted.
+  This means that MongooseIM expects element `<fingerprint>` as described in [XEP-0320](https://xmpp.org/extensions/xep-0320.html) to be in the content description.
+  Not every open source XMPP client supporting Jingle supports this encryption as well.
+* MongooseIM also expects that the `200 OK` response contains at least one ICE candidate to setup the peer-to-peer connection.
+
+This make current implementation a bit limited, on the other hand the base integration between XMPP and SIP world is already there.
+Based on the current state it can be improved and extended if needed.
+
+
