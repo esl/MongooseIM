@@ -834,9 +834,8 @@ extract_state_name(SysStatus) ->
     proplists:get_value("StateName", FSMData).
 
 wait_until_disconnected(UserSpec) ->
-    mongoose_helper:wait_until(fun() ->
-                                       get_user_resources(UserSpec) =:= [] end,
-                               5, 200).
+    mongoose_helper:wait_until(fun() -> get_user_resources(UserSpec) =:= [] end, true,
+                               #{name => get_user_resources}).
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),

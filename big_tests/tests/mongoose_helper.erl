@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/3, wait_until/4, factor_backoff/3]).
+-export([wait_until/2, wait_until/3]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -266,58 +266,43 @@ logout_user(Config, User) ->
             end
     end.
 
-% @doc Waits for `Fun` to return `ExpectedValue`.
-% Each time Different value is returned or
-% functions throws an error, we sleep.
-% Sleep time is 2x longer each try
-% but not longer than `max_time`
-factor_backoff(Fun, ExpectedValue, #{attempts := Attempts,
-                                     min_time := Mintime,
-                                     max_time := Maxtime}) ->
-    do_wait_until(Fun, ExpectedValue, #{attempts => Attempts,
-                                        sleep_time => Mintime,
-                                        history => [],
-                                        next_sleep_time_fun => fun(E) ->
-                                                                  min(E * 2, Maxtime)
-                                                          end}).
+%% @doc Waits `TimeLeft` for `Fun` to return `ExpectedValue`
+%% If the result of `Fun` matches `ExpectedValue`, returns {ok, ExpectedValue}
+%% If no value is returned or the result doesn't match `ExpectedValue`, returns one of the following:
+%% {Name, History}, if Opts as #{name => Name} is passed
+%% {timeout, History}, otherwise
 
-wait_until(Predicate, Attempts, Sleeptime) ->
-    wait_until(Predicate, true, Attempts, Sleeptime).
+wait_until(Fun, ExpectedValue) ->
+    wait_until(Fun, ExpectedValue, #{}).
 
-wait_until(Fun, ExpectedValue, Attempts, SleepTime) ->
-    do_wait_until(Fun, ExpectedValue, #{attempts => Attempts,
-                                        sleep_time => SleepTime,
-                                        history => [],
-                                        next_sleep_time_fun => fun(E) -> E end}).
+%% Example: wait_until(fun () -> ... end, SomeVal, #{time_left => timer:seconds(2)})
+wait_until(Fun, ExpectedValue, Opts) ->
+    Defaults = #{time_left => timer:seconds(5),
+                 sleep_time => 100,
+                 history => [],
+                 name => timeout},
+    do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
 
+do_wait_until(_Fun, _ExpectedValue, #{
+                                      time_left := TimeLeft,
+                                      history := History,
+                                      name := Name
+                                     }) when TimeLeft =< 0 ->
+    error({Name, lists:reverse(History)});
 
-do_wait_until(_Fun, _ExpectedValue, #{attempts := 0, history := History}) ->
-    error({badmatch, History});
-do_wait_until(Fun, ExpectedValue, #{attempts := AttemptsLeft,
-                                    sleep_time := SleepTime,
-                                    history := History,
-                                    next_sleep_time_fun := NextSleepTimeFun} = State) ->
+do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of
         ExpectedValue ->
-            ok;
+            {ok, ExpectedValue};
         OtherValue ->
-            wait_and_continue(Fun, ExpectedValue, OtherValue, State)
+            wait_and_continue(Fun, ExpectedValue, OtherValue, Opts)
     catch Error:Reason ->
-              wait_and_continue(Fun, ExpectedValue, {Error, Reason}, State)
+            wait_and_continue(Fun, ExpectedValue, {Error, Reason}, Opts)
     end.
 
-wait_and_continue(Fun, ExpectedValue, FunResult, #{attempts := AttemptsLeft,
+wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
                                                    sleep_time := SleepTime,
-                                                   next_sleep_time_fun := NextSleepTimeFun,
-                                                   history := History} = State) ->
+                                                   history := History} = Opts) ->
     timer:sleep(SleepTime),
-    do_wait_until(Fun,
-                  ExpectedValue,
-                  State#{attempts => dec_attempts(AttemptsLeft),
-                         sleep_time => NextSleepTimeFun(SleepTime),
-                         history => [FunResult | History]}).
-
-
-
-dec_attempts(infinity) -> infinity;
-dec_attempts(Attempts) -> Attempts - 1.
+    do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
+                                            history => [FunResult | History]}).
