@@ -85,14 +85,25 @@ mam_type_to_core_mod(muc) -> mod_mam_muc.
 
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
-    [no_stanzaid_element,
+    [
+     no_stanzaid_element,
      is_archivable_message,
      archive_chat_markers,
      extra_lookup_params,
      full_text_search,
-     archive_groupchats];
+     archive_groupchats,
+     default_result_limit,
+     max_result_limit
+    ];
 valid_core_mod_opts(mod_mam_muc) ->
-    [is_archivable_message, host, extra_lookup_params, full_text_search].
+    [
+     is_archivable_message,
+     host,
+     extra_lookup_params,
+     full_text_search,
+     default_result_limit,
+     max_result_limit
+    ].
 
 -spec parse_backend_opts(odbc | cassandra | riak | elasticsearch, Type :: pm | muc,
                          Opts :: proplists:proplist(), deps()) -> deps().
