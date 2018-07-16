@@ -465,7 +465,7 @@ msg_with_props_can_be_parsed(Config) ->
         Data = maps:from_list(MsgWithProps),
 
         #{<<"properties">> := {Props}} = Data,
-        #{<<"id">>:={ReceivedMsgID}} = Data,
+        #{<<"id">> := {ReceivedMsgID}} = Data,
 
         %we are expecting two properties:"some_string" and "some_number" for this test message
         %test message defined in rest_helper:make_msg_stanza_with_props
