@@ -84,7 +84,7 @@ message_with_props_test_cases() ->
     [
      msg_with_props_is_sent_and_delivered_over_xmpp,
      msg_with_props_can_be_parsed,
-     msg_with_malformed_props_can_be_parsed
+     msg_with_malformed_props_can_be_parsed,
      msg_with_malformed_props_is_sent_and_delivered_over_xmpp
      ].
 
