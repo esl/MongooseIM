@@ -117,9 +117,7 @@ encode(Msg, Timestamp) ->
 
     ExtensionList =
       case RawMsgProps of
-           #xmlel{name = _,
-                  attrs = _,
-                  children = Children} ->
+           #xmlel{children = Children} ->
                                         Props = [convert_prop_child(Child) || Child <- Children],
                                         [{<<"properties">>, maps:from_list(Props)}];
                                      _ ->
@@ -136,8 +134,8 @@ encode(Msg, Timestamp) ->
     maps:from_list(L).
 
 convert_prop_child(Child)->
-    Name = exml_query:path(Child, [{element,<<"name">>}, cdata]),
-    Value = exml_query:path(Child, [{element,<<"value">>}, cdata]),
+    Name = exml_query:path(Child, [{element, <<"name">>}, cdata]),
+    Value = exml_query:path(Child, [{element, <<"value">>}, cdata]),
     {Name, Value}.
 
 maybe_jid(undefined) ->

@@ -30,7 +30,7 @@
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
 
 all() ->
-    [{group, messages}, {group, muc}, {group, roster},{group, messages_with_props}].
+    [{group, messages}, {group, muc}, {group, roster}, {group, messages_with_props}].
 
 groups() ->
     G = [{messages_with_props, [parallel], message_with_props_test_cases()},
@@ -460,11 +460,11 @@ msg_with_props_can_be_parsed(Config) ->
         % recent msgs with a limit
         M2 = get_messages_with_props(AliceCreds, BobJID, 1),
 
-        [{MsgWithProps}|_] = M2,
+        [{MsgWithProps} | _] = M2,
 
         Data = maps:from_list(MsgWithProps),
 
-        #{<<"properties">>:={Props}} = Data,
+        #{<<"properties">> := {Props}} = Data,
         #{<<"id">>:={ReceivedMsgID}} = Data,
 
         %we are expecting two properties:"some_string" and "some_number" for this test message
@@ -479,7 +479,7 @@ msg_with_malformed_props_is_sent_and_delivered_over_xmpp(Config) ->
         BobJID = user_jid(Bob),
         MsgID = base16:encode(crypto:strong_rand_bytes(5)),
 
-        M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID,MsgID),
+        M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID, MsgID),
 
         escalus:send(Alice, M1),
 
