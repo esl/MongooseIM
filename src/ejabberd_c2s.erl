@@ -1319,10 +1319,10 @@ process_incoming_stanza_with_conflict_check(Name, From, To, Acc, StateName, Stat
         conflict -> %% A race condition detected
             %% Same jid, but different sids
             OriginSID = mongoose_acc:get_prop(origin_sid, Acc),
-            ?ERROR_MSG("event=conflict_check_failed "
-                        "jid=~ts c2s_sid=~p origin_sid=~p acc=~1000p",
-                       [jid:to_binary(StateData#state.jid), StateData#state.sid,
-                        OriginSID, Acc]),
+            ?WARNING_MSG("event=conflict_check_failed "
+                          "jid=~ts c2s_sid=~p origin_sid=~p acc=~1000p",
+                         [jid:to_binary(StateData#state.jid), StateData#state.sid,
+                          OriginSID, Acc]),
             finish_state(ok, StateName, StateData);
         _ -> %% Continue processing
             process_incoming_stanza(Name, From, To, Acc, StateName, StateData)
