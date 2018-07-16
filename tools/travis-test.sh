@@ -52,11 +52,18 @@ CURRENT_SCRIPT_PID=$$
 
 echo ${BASE}
 
-summaries_dir() {
+# Example: choose_newest_directory dir1 dir2 dir3
+# Returns: a directory, that was modified last
+choose_newest_directory() {
+  if [ "$#" -eq 0 ]; then
+      echo "No arguments passed"
+      exit 1
+  fi
+
   if [ `uname` = "Darwin" ]; then
-    echo `ls -dt ${1} | head -n 1`
+    ls -dt "@" | head -n 1
   else
-    echo `eval ls -d ${1} --sort time | head -n 1`
+    ls -d "$@" --sort time | head -n 1
   fi
 }
 
@@ -66,7 +73,7 @@ run_small_tests() {
   make ct
   tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
-  SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
+  SMALL_SUMMARIES_DIR=$(choose_newest_directory ${SMALL_SUMMARIES_DIRS})
   ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
@@ -127,8 +134,9 @@ run_tests() {
   run_test_preset
   BIG_STATUS=$?
 
-  SUMMARIES_DIRS=${BASE}'/big_tests/ct_report/ct_run*'
-  SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
+  SUMMARIES_DIRS=${BASE}/big_tests/ct_report/ct_run*
+  SUMMARIES_DIR=$(choose_newest_directory ${SUMMARIES_DIRS})
+  echo "SUMMARIES_DIR=$SUMMARIES_DIR"
   ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
   BIG_STATUS_BY_SUMMARY=$?
 
