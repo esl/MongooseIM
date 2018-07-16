@@ -114,6 +114,7 @@ _run_all_tests() {
                           --examples-complete \
                           --show-small-reports \
                           --show-big-reports \
+                          --rerun-big-tests \
                           '"$SUGGESTIONS"' \
                           '"$SUITES"' \
                            --' -- $cur ) );;
