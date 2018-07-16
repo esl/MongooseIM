@@ -155,11 +155,24 @@ Run with --help argument to show the script docs:
 END
 )
 
+# We only use colors if they are supported by the terminal application
+bold=""
+normal=""
+white=""
+
+# if stdout is terminal
+if test -t 1; then
+    # see if it supports colors...
+    ncolors=$(tput colors)
+    if test -n "$ncolors" && test $ncolors -ge 8; then
+        bold="$(tput bold)"
+        normal="$(tput sgr0)"
+        white="$(tput setaf 7)" # dim white
+    fi
+fi
 
 function print_help
 {
-    local bold=$(tput bold)
-    local normal=$(tput sgr0)
     # Print options using bold font
     echo "$USAGE" \
         | sed -e "s/^--/$bold--/g" | sed "s/ --/$normal--/g"
@@ -167,8 +180,6 @@ function print_help
 
 function print_examples
 {
-    local bold=$(tput bold)
-    local normal=$(tput sgr0)
     # Make each line, that has "test-runner", bold
     # & is the whole match
     echo "$EXAMPLES" \
@@ -177,8 +188,6 @@ function print_examples
 
 function print_complete_examples
 {
-    local bold=$(tput bold)
-    local normal=$(tput sgr0)
     # Make each line, that has "test-runner", bold
     # & is the whole match
     echo "$COMPLETE_EXAMPLES" \
@@ -188,9 +197,7 @@ function print_complete_examples
 # Usage: print_help "advice text"
 function print_advice
 {
-    local gray=$(tput setaf 7) # dim white text
-    local normal=$(tput sgr0)
-    echo "$gray$1$normal"
+    echo "$white$1$normal"
 }
 
 # If we execute the script with several commands, we want to separate the command
