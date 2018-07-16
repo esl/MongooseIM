@@ -119,7 +119,11 @@ init_per_testcase(TC, Config) ->
                     messages_are_archived_in_room,
                     only_room_participant_can_read_messages,
                     messages_can_be_paginated_in_room,
-                    messages_can_be_sent_and_fetched_by_room_jid
+                    messages_can_be_sent_and_fetched_by_room_jid,
+                    msg_with_props_is_sent_and_delivered_over_xmpp,
+                    msg_with_props_can_be_parsed,
+                    msg_with_malformed_props_can_be_parsed,
+                    msg_with_malformed_props_is_sent_and_delivered_over_xmpp
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
@@ -453,7 +457,10 @@ msg_with_props_can_be_parsed(Config) ->
         M1 = rest_helper:make_msg_stanza_with_props(BobJID,MsgID),
 
         escalus:send(Alice, M1),
-        mam_helper:maybe_wait_for_archive(Config),
+        
+        escalus:wait_for_stanza(Bob),
+        mam_helper:wait_for_archive_size(Bob, 1),
+        mam_helper:wait_for_archive_size(Alice, 1),
         
         AliceCreds = {AliceJID, user_password(alice)},
 
@@ -464,8 +471,8 @@ msg_with_props_can_be_parsed(Config) ->
 
         Data = maps:from_list(MsgWithProps),
 
-        #{<<"properties">> := {Props}} = Data,
-        #{<<"id">> := {ReceivedMsgID}} = Data,
+        #{<<"properties">> := {Props},
+          <<"id">> := ReceivedMsgID} = Data,
 
         %we are expecting two properties:"some_string" and "some_number" for this test message
         %test message defined in rest_helper:make_msg_stanza_with_props
@@ -497,7 +504,9 @@ msg_with_malformed_props_can_be_parsed(Config) ->
         M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID,MsgID),
         escalus:send(Alice, M1),
         
-        mam_helper:maybe_wait_for_archive(Config),
+        escalus:wait_for_stanza(Bob),
+        mam_helper:wait_for_archive_size(Bob, 1),
+        mam_helper:wait_for_archive_size(Alice, 1),
         
         % recent msgs with a limit
         M2 = get_messages_with_props(AliceCreds, BobJID, 1),
