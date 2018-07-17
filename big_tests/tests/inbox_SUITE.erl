@@ -1005,7 +1005,6 @@ make_members(Room, Admin, Users) ->
                       Users),
     escalus:send(Admin, stanza_set_affiliations(Room, Items)),
     SuccesResp = escalus:wait_for_stanzas(Admin, 1 + length(Users)), % gets iq result and affs changes from all users
-    ct:pal("SuccessResp: ~p", [SuccesResp]),
     lists:foreach(fun(User) -> escalus:wait_for_stanzas(User, length(Users)) end, Users). % Everybody gets aff changes of everybody
 
 % All users enter the room
