@@ -66,6 +66,18 @@ If all goes well we'll see the following output:
 
 It is important to remember the IP address as it'll be used in next point.
 
+#### A side not
+
+In Routr's logs you may see messages like
+
+    [WARN ] Unable to register with Gateway -> sip.provider.net. (Verify your network status)
+
+or
+
+    [ERROR] java.lang.RuntimeException: javax.sip.header.TooManyHopsException: has already reached 0!
+
+They can be ignored for the purpose of the tutorial.
+
 ### Configuring /etc/hosts
 
 In my case the IP reported by Routr was `10.152.1.27`.
@@ -77,21 +89,26 @@ Now we need to use this to update `/etc/hosts` file like below:
 
 At this point I assume that MongooseIM was built with `make rel`, that it is running and the CWD is `_build/prod/rel/mongooseim`.
 Similar to Routr, MongooseIM also needs to know which hosts to server.
-Please replace the default host defined in line
+Please replace the default host defined in file `etc/ejabberd.cfg` in line
 
 ```erlang
 {hosts, ["localhost"] }.
 ```
 
+to:
+
 ```erlang
 {hosts, ["xmpp.example", "sip.example"] }.
 ```
 
-Now we need to enable `mod_jingle_sip`, please add the following line in modules list (somewhere around line 740)
+Now we need to enable `mod_jingle_sip`, please add the following line in modules list (somewhere around line 740 in the same file)
 
 ```erlang
 {mod_jingle_sip, [{proxy_host, "sip.example"}]},
 ```
+
+More details on MongooseIM configuration you can find in [Basic Configuration](../Basic-configuration.md)
+and in [Modules configuration](../advanced-configuration/Modules.md)
 
 Now we are registering both users in MongooseIM by calling the following commands:
 
@@ -126,7 +143,8 @@ Here we need to unselect the `Configure proxy automatically` and put the IP of o
 #### Adding an XMPP user
 
 Now we have to add `sip.user@sip.example` to Jitsi's XMPP network in order to connect this user to MongooseIM over XMPP.
-It's very similar to adding a user to Jitsi's SIP network.
+It's very similar to adding a user to Jitsi's SIP network, the only difference is the password,
+for the XMPP conection it's `test_pass` as set when registering the user in MongooseIM.
 Here we also need to go to the `Advanced` window and the `Connection` tab in order to put the IP addres (the same as before) in the `Connect Server` field.
 Remember to check the `Override server default options` box.
 
@@ -137,7 +155,7 @@ We can click `Continue anyway` button in order to proceed.
 
 ### Adding user to Otalk
 
-Please follow the instructiond on https://github.com/otalk/otalk-im-client#installing in order to compile and run the app.
+Please follow the instructiond on [https://github.com/otalk/otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) in order to compile and run the app.
 If all goes well, you should see the following message printed in the console:
 
     demo.stanza.io running at: http://localhost:8000
@@ -150,10 +168,12 @@ This means that the app is hosted on `http://localhost:8000`.
 > We need to add an exception for this certificate in order to successfully connect from Otalk.
 
 Now let's open [http://localhost:8000](http://localhost:8000) where the Otalk app is hosted.
-In the `Log in` section put `xmpp.user@xmpp.example.com` in the `JID` field and `test_pass` in the `Password` filed.
+In the `Log in` section put `xmpp.user@xmpp.example` in the `JID` field and `test_pass` in the `Password` filed.
 The default WebSocket endpoint in the `WebSocket or BOSH URL` field needs to be changed to:
 
     wss://localhost:5285/ws-xmpp
+
+Mind the `wss` protocol, Otalk will not connect the user over WebSockets if for example `https` is put in the field.
 
 ![Otalk login page](jingle-sip/otalk-log-in.png)
 
