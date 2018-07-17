@@ -1,18 +1,22 @@
 %% During dev you would use something similar to:
-%% TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% If you also want to start just mim1 node use:
-%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
-%% DEV_NAMES variable contains release names from profiles in rebar.config.
+%% DEV_NODES variable contains release names from profiles in rebar.config.
 %% Release names are also used to name directories in the _build directory.
 %%
 %% Valid TEST_HOSTS are mim, mim2, mim3, fed, reg.
-%% Valid DEV_NAMES are mim1, mim2, mim3, fed1, reg1.
+%% Valid DEV_NODES are mim1, mim2, mim3, fed1, reg1.
 %%
 %% Example with two nodes:
-%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%%
+%% Environment variable PRESET_ENABLED is true by default.
+%% PRESET_ENABLED=false disables preset application and forces to run
+%% one preset.
 -module(run_common_test).
 
 -export([main/1, analyze/2]).
@@ -47,7 +51,7 @@ opts() ->
 %% "=" is an invalid character in option name or value.
 main(RawArgs) ->
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
-    Opts = args_to_opts(Args),
+    Opts = apply_preset_enabled(args_to_opts(Args)),
     try
         Results = run(Opts),
         %% Waiting for messages to be flushed
@@ -79,8 +83,19 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
     run_test(tests_to_run(Spec), case Preset of
                                      all -> all;
                                      undefined -> all;
+                                     _ when is_list(Preset) -> Preset;
                                      _   -> [Preset]
                                  end, Cover).
+
+apply_preset_enabled(#opts{} = Opts) ->
+    case os:getenv("PRESET_ENABLED") of
+        "false" ->
+            io:format("PRESET_ENABLED is set to false, enabling quick mode~n"),
+            Opts#opts{test = quick};
+        _ ->
+            Opts
+    end.
+
 
 %%
 %% Helpers
@@ -100,8 +115,12 @@ args_to_opts(Args) ->
 
 raw_to_arg(RawArg) ->
     ArgVal = atom_to_list(RawArg),
-    [Arg, Val] = string:tokens(ArgVal, "="),
-    {list_to_atom(Arg), Val}.
+    case string:tokens(ArgVal, "=") of
+        [Arg, Val] ->
+            {list_to_atom(Arg), Val};
+        [Arg] ->
+            {list_to_atom(Arg), ""}
+    end.
 
 set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
     Value = Sanitizer(proplists:get_value(Opt, Args)),
@@ -111,7 +130,8 @@ quick_or_full("quick") -> quick;
 quick_or_full("full")  -> full.
 
 preset(undefined) -> undefined;
-preset(Preset) -> list_to_atom(Preset).
+preset(PresetList) ->
+    [list_to_atom(Preset) || Preset <- string:tokens(PresetList, " ")].
 
 read_file(ConfigFile) when is_list(ConfigFile) ->
     {ok, CWD} = file:get_cwd(),
@@ -373,7 +393,7 @@ get_hosts(Test) ->
     dict:fetch(mim, group_by(fun host_cluster/1, Hosts)).
 
 get_ejabberd_nodes(Test) ->
-    [ host_node(H) || H <- get_hosts(Test) ].
+    [ host_node(H) || H <- get_hosts(Test), is_test_host_enabled(host_name(H)) ].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);

@@ -81,6 +81,7 @@ env:
   global:
     - RUN_SMALL_TESTS=false
   matrix:
+      # When changing jobs, update EXAMPLES in tools/test-runner.sh
     - PRESET=small_tests RUN_SMALL_TESTS=true SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
     - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
     - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis"

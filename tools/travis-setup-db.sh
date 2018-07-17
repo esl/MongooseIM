@@ -343,6 +343,12 @@ elif [ "$db" = 'mssql' ]; then
 
     install_odbc_ini
 
+elif [ "$db" = 'redis' ]; then
+    tools/setup-redis.sh
+
+elif [ "$db" = 'ldap' ]; then
+    tools/travis-setup-ldap.sh
+
 else
     echo "Skip setting up database"
 fi
