@@ -983,13 +983,6 @@ leave_room(User, Room, Occupants) ->
     lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User) end,
                   Occupants).
 
-go_online(User, Room, Occupants) ->
-    UnavailavbleStanza = escalus_stanza:presence(<<"unavailable">>),
-    Stanza = muc_helper:stanza_to_room(UnavailavbleStanza, Room, nick(User)),
-    escalus:send(User, Stanza),
-    lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User) end,
-                  Occupants).
-
 wait_for_groupchat_msg(Users) ->
     Resps = lists:map(fun(User) -> escalus:wait_for_stanza(User) end,
               Users),
