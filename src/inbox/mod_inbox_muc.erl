@@ -13,13 +13,13 @@
 -export([update_inbox/5, start/1, stop/1]).
 
 start(Host) ->
-    ejabberd_hooks:add(update_inbox, Host, ?MODULE, update_inbox, 90),
+    ejabberd_hooks:add(update_inbox_for_muc, Host, ?MODULE, update_inbox, 90),
     % TODO check ooptions: if system messages stored -> 
     % add hook handler for system messages on hook ie. invitation_sent
     ok.
 
 stop(Host) ->
-    ejabberd_hooks:delete(update_inbox, Host, ?MODULE, update_inbox, 90),
+    ejabberd_hooks:delete(update_inbox_for_muc, Host, ?MODULE, update_inbox, 90),
     ok.
 
 update_inbox(Acc, Room, {From, FromRoomJid}, AffsDict, Packet) ->

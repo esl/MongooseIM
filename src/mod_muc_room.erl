@@ -882,10 +882,10 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
             ejabberd_hooks:run(room_send_packet, StateData#state.host, [FilteredPacket, EventData]),
             RouteFrom = jid:replace_resource(StateData#state.jid,
                                              FromNick),
-            RoomName = StateData#state.jid,
+            RoomJid = StateData#state.jid,
 
-            ejabberd_hooks:run(update_inbox, StateData#state.server_host,
-                               [RoomName, {From, RouteFrom}, StateData#state.affiliations, FilteredPacket]),
+            ejabberd_hooks:run(update_inbox_for_muc, StateData#state.server_host,
+                               [RoomJid, {From, RouteFrom}, StateData#state.affiliations, FilteredPacket]),
 
             lists:foreach(fun({_LJID, Info}) ->
                                   ejabberd_router:route(RouteFrom,
