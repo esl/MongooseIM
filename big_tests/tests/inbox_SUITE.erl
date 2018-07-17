@@ -1025,14 +1025,7 @@ stanza_set_affiliations(Room, List) ->
 
 aff_to_iq_item({JID, Affiliation}) ->
     #xmlel{name = <<"item">>,
-        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}]};
-aff_to_iq_item({JID, Affiliation, Reason}) ->
-    #xmlel{name = <<"item">>,
-        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}],
-        children = [#xmlel{
-            name = <<"reason">>,
-            children = [#xmlcdata{content = Reason}]}
-        ]}.
+        attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}]}.
 
 nick(User) -> escalus_utils:get_username(User).
 
