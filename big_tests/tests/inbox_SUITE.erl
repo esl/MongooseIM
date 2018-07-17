@@ -846,7 +846,7 @@ simple_groupchat_stored_in_offline_users_inbox_muc(Config) ->
 
     enter_room(Room, Users),
     make_members(Room, Alice, Users -- [Alice]),
-    go_offline(Kate, Room, Users),
+    leave_room(Kate, Room, Users),
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
@@ -879,7 +879,7 @@ unread_count_is_the_same_after_going_online_again(Config) ->
 
     enter_room(Room, Users),
     make_members(Room, Alice, Users -- [Alice]),
-    go_offline(Kate, Room, Users),
+    leave_room(Kate, Room, Users),
     Stanza = escalus_stanza:set_id(
       escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
     escalus:send(Bob, Stanza),
@@ -976,7 +976,7 @@ private_messages_are_handled_as_one2one(Config) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
 
-go_offline(User, Room, Occupants) ->
+leave_room(User, Room, Occupants) ->
     UnavailavbleStanza = escalus_stanza:presence(<<"unavailable">>),
     Stanza = muc_helper:stanza_to_room(UnavailavbleStanza, Room, nick(User)),
     escalus:send(User, Stanza),
