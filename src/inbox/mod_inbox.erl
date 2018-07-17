@@ -65,6 +65,8 @@ start(Host, Opts) ->
     {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+    MucTypes = get_groupchat_types(Host),
+    lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     store_bin_reset_markers(Host, Opts),
@@ -74,8 +76,9 @@ start(Host, Opts) ->
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
+    mod_inbox_muc:stop(Host),
     ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_local_packet, 90),
+    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 
@@ -144,12 +147,10 @@ maybe_process_message(Host, From, To, Msg, Dir) ->
     AcceptableMessage = should_be_stored_in_inbox(Msg),
     if AcceptableMessage ->
         Type = get_message_type(Msg),
-        GroupchatsEnabled = gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]),
-        MuclightEnabled = lists:member(muclight, GroupchatsEnabled),
         Type == one2one andalso
-            process_message(Host, From, To, Msg, Dir, one2one),
-        (Type == groupchat andalso MuclightEnabled) andalso
-            process_message(Host, From, To, Msg, Dir, groupchat);
+        process_message(Host, From, To, Msg, Dir, one2one),
+        (Type == groupchat andalso muclight_enabled(Host)) andalso % legacy MUC is handled in seperate module
+        process_message(Host, From, To, Msg, Dir, groupchat);
         true ->
             ok
     end.
@@ -200,7 +201,15 @@ build_forward_el(Content) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
-%%
+
+get_groupchat_types(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
+
+
+-spec muclight_enabled(Host :: binary()) -> boolean().
+muclight_enabled(Host) ->
+    Groupchats = get_groupchat_types(Host),
+    lists:member(muclight, Groupchats).
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->
@@ -208,7 +217,7 @@ store_bin_reset_markers(Host, Opts) ->
     ResetMarkersBin = [mod_inbox_utils:reset_marker_to_bin(Marker) || Marker <- ResetMarkers ],
     gen_mod:set_module_opt(Host, ?MODULE, reset_markers, ResetMarkersBin).
 
--spec get_message_type(Msg :: exml:element()) ->groupchat | one2one.
+-spec get_message_type(Msg :: exml:element()) -> groupchat | one2one.
 get_message_type(Msg) ->
     case exml_query:attr(Msg, <<"type">>, undefined) of
         <<"groupchat">> ->

@@ -75,7 +75,7 @@ handle_system_message(Host, Room, Remote, Packet) ->
         invite->
             handle_invitation_message(Host, Room, Remote, Packet);
         other ->
-            ?WARNING_MSG("unknown system messasge for mod_inbox_muclight='~p' with error ~p", [Packet]),
+            ?WARNING_MSG("unknown system messasge for mod_inbox_muclight='~p'", [Packet]),
             ok
     end.
 
