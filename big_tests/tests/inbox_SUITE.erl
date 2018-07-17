@@ -980,14 +980,14 @@ go_offline(User, Room, Occupants) ->
     UnavailavbleStanza = escalus_stanza:presence(<<"unavailable">>),
     Stanza = muc_helper:stanza_to_room(UnavailavbleStanza, Room, nick(User)),
     escalus:send(User, Stanza),
-    lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User), ct:pal("A: ~p", [A]) end,
+    lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User) end,
                   Occupants).
 
 go_online(User, Room, Occupants) ->
     UnavailavbleStanza = escalus_stanza:presence(<<"unavailable">>),
     Stanza = muc_helper:stanza_to_room(UnavailavbleStanza, Room, nick(User)),
     escalus:send(User, Stanza),
-    lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User), ct:pal("A: ~p", [A]) end,
+    lists:foreach(fun(User) -> A = escalus:wait_for_stanza(User) end,
                   Occupants).
 
 wait_for_groupchat_msg(Users) ->
@@ -1013,8 +1013,7 @@ enter_room(Room, Users) ->
                           escalus:send(User, stanza_muc_enter_room(Room, nick(User))) end,
                   Users),
     lists:foreach(fun(User) ->
-                          A = escalus:wait_for_stanzas(User, length(Users) + 1), % everybody gets presence from everybody + a subject message
-                          ct:pal("For ~p: ~p", [escalus_client:short_jid(User), A])
+                          escalus:wait_for_stanzas(User, length(Users) + 1) % everybody gets presence from everybody + a subject message
                   end,
                   Users).
 
@@ -1022,10 +1021,9 @@ enter_room(Room, Users) ->
 enter_room(Room, User, Users, DelayedMessagesCount) ->
     escalus:send(User, stanza_muc_enter_room(Room, nick(User))),
     lists:foreach(fun(User) ->
-                          A = escalus:wait_for_stanza(User), ct:pal("~p: Got presence from user: ~p", [escalus_client:short_jid(User), A]) end,
+                          A = escalus:wait_for_stanza(User) end,
                   Users),
-    Subj = escalus:wait_for_stanzas(User, length(Users) + 1 + 1 + DelayedMessagesCount), % User gets subject message and presences from everybody including himself
-    ct:pal("Subj and presence messages: ~p", [Subj]).
+    escalus:wait_for_stanzas(User, length(Users) + 1 + 1 + DelayedMessagesCount). % User gets subject message and presences from everybody including himself
 
 
 stanza_set_affiliations(Room, List) ->
