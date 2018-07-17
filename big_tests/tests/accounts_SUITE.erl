@@ -227,11 +227,10 @@ not_allowed_registration_cancelation(Config) ->
     end).
 
 registration_timeout(Config) ->
-    timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT)),
     [Alice, Bob] = escalus_users:get_users([alice, bob]),
-
-    %% The first user should be created successfully
-    escalus_users:verify_creation(escalus_users:create_user(Config, Alice)),
+		
+		%% The first user should be created successfully
+		wait_for_user(Config, Alice, ?REGISTRATION_TIMEOUT),
 
     %% Creation of the second one should err because of not timing out yet
     {error, failed_to_register, Stanza} = escalus_users:create_user(Config, Bob),
@@ -244,9 +243,8 @@ registration_timeout(Config) ->
     escalus:assert(is_error, [<<"wait">>, <<"resource-constraint">>], Stanza),
 
     %% After timeout, the user should be registered successfully
-    timer:sleep(erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)),
-    escalus_users:verify_creation(escalus_users:create_user(Config, Bob)).
-
+    wait_for_user(Config, Alice, erlang:round(?REGISTRATION_TIMEOUT * 1.5 * 1000)).
+			
 registration_failure_timeout(Config) ->
     timer:sleep(timer:seconds(?REGISTRATION_TIMEOUT + 1)),
     [Alice] = escalus_users:get_users([alice]),
@@ -387,3 +385,13 @@ watcher(Watcher) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
+wait_for_user(Config, User, LeftTime) ->
+    mongoose_helper:wait_until(fun() -> 
+                                escalus_users:verify_creation(escalus_users:create_user(Config, User)) 
+                               end, ok,
+							   #{
+                                 sleep_time => 400, 
+                                 left_time => LeftTime, 
+                                 name => 'escalus_users:create_user'
+                                }).
+			
