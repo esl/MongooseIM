@@ -1159,7 +1159,7 @@ create_room_send_msg_check_inbox(Owner, MemberList, RoomName, Msg, Id) ->
   foreach_check_inbox(MemberList, 1, 1, OwnerRoomJid, Msg).
 
 
-% Checks case insesitive
+% Checks case insensitive
 foreach_check_inbox(Users, Total, Unread, SenderJid, Msg) ->
   [begin
      UserJid = lbin(escalus_client:short_jid(U)),
