@@ -44,10 +44,10 @@ update_inbox(Room, {From, FromRoomJid}, To, Packet) ->
     Host = To#jid.server,
     case direction(From, To) of
         outgoing ->
-            NewPacket = alter_senders_packet(Packet, FromRoomJid, To),
+            NewPacket = jlib:replace_from_to(FromRoomJid, To, Packet),
             handle_outgoing_message(Host, From, Room, NewPacket);
         incoming ->
-            NewPacket = alter_receivers_packet(Packet, FromRoomJid, To),
+            NewPacket = jlib:replace_from_to(FromRoomJid, To, Packet),
             handle_incoming_message(Host, Room, To, NewPacket)
     end.
 
@@ -56,23 +56,6 @@ direction(From, To) ->
         true -> outgoing;
         false -> incoming
     end.
-
-
-% TODO this logic probably should be in mod_muc_room before routing
-% and put into the routing function.
-alter_senders_packet(Packet, FromRoomJid, To) ->
-    P2 = change_from_el(Packet, FromRoomJid),
-    change_to_el(P2, To).
-
-alter_receivers_packet(Packet, Room, To) ->
-    Packet2 = change_from_el(Packet, Room),
-    change_to_el(Packet2, To).
-
-change_from_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewFrom) ->
-    xml:replace_tag_attr(<<"from">>, jid:to_binary(NewFrom), Packet).
-
-change_to_el(#xmlel{name = <<"message">>, attrs = Attrs} = Packet, NewTo) ->
-    xml:replace_tag_attr(<<"to">>, jid:to_binary(NewTo), Packet).
 
 handle_outgoing_message(Host, User, Room, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
