@@ -18,7 +18,7 @@
                   <<"OPTIONS">>,
                   <<"PATCH">>]).
 -define(DEFAULT_PREFIX, [?HANDLER]).
--define(CLASSES, [<<"1XX">>, <<"2XX">>, <<"3XX">>, <<"4XX">>, <<"5XX">>]).
+-define(CLASSES, [<<"2XX">>, <<"3XX">>, <<"4XX">>, <<"5XX">>]).
 
 
 
@@ -39,12 +39,10 @@ all() ->
 %%-------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    application:ensure_all_started(gun),
     ejabberd_helper:start_ejabberd_with_config(Config, "ejabberd.cfg"),
     Config.
 
 end_per_suite(_Config) ->
-    application:stop(gun),
     ejabberd_helper:stop_ejabberd(),
     ok.
 
@@ -71,8 +69,8 @@ metrics_are_not_recorded_when_record_metrics_is_false(_Config) ->
     destroy_metrics().
 
 metrics_are_not_recorded() ->
-    run_requests([get, head, post, put, delete, options, patch],
-                 [<<"100">>, <<"200">>, <<"300">>, <<"400">>, <<"500">>]),
+   run_requests([get, head, post, put, delete, options, patch],
+                 [<<"200">>, <<"300">>, <<"400">>, <<"500">>]),
     [ensure_metric_value(M, 0)
      || M <- count_metrics(?DEFAULT_PREFIX) ++ latency_metrics(?DEFAULT_PREFIX)].
 
@@ -81,10 +79,11 @@ metrics_are_recorded(_Config) ->
     start_listener([{'_', ?HANDLER, []}], [{record_metrics, true}]),
 
     timer:sleep(1000),
+    Statuses = [<<"200">>, <<"300">>, <<"400">>, <<"500">>],
     run_requests([get, head, post, put, delete, options, patch],
-                 [<<"100">>, <<"200">>, <<"300">>, <<"400">>, <<"500">>]),
+                 Statuses),
 
-    [ensure_metric_value(request_count_metric(?DEFAULT_PREFIX, M), 5) || M <- ?METHODS],
+    [ensure_metric_value(request_count_metric(?DEFAULT_PREFIX, M), length(Statuses)) || M <- ?METHODS],
     [ensure_metric_value(response_count_metric(?DEFAULT_PREFIX, M, C), 1) || M <- ?METHODS, C <- ?CLASSES],
     [ensure_metric_bumped(response_latency_metric(?DEFAULT_PREFIX, M, C)) || M <- ?METHODS, C <- ?CLASSES],
 
@@ -98,10 +97,11 @@ metrics_are_recorded_with_configured_prefix(_Config) ->
     start_listener([{'_', ?HANDLER, []}], [{record_metrics, true},
                                            {handler_to_metric_prefix, #{?HANDLER => Prefix}}]),
 
+    Statuses = [<<"200">>, <<"300">>, <<"400">>, <<"500">>],
     run_requests([get, head, post, put, delete, options, patch],
-                 [<<"100">>, <<"200">>, <<"300">>, <<"400">>, <<"500">>]),
+                 Statuses),
 
-    [ensure_metric_value(request_count_metric(Prefix, M), 5) || M <- ?METHODS],
+    [ensure_metric_value(request_count_metric(Prefix, M), length(Statuses)) || M <- ?METHODS],
     [ensure_metric_value(response_count_metric(Prefix, M, C), 1) || M <- ?METHODS, C <- ?CLASSES],
     [ensure_metric_bumped(response_latency_metric(Prefix, M, C)) || M <- ?METHODS, C <- ?CLASSES],
 
@@ -112,12 +112,13 @@ unsent_responses_generate_metrics(_Config) ->
     create_metrics(),
     start_listener([{'_', ?HANDLER, [{action, none}]}], [{record_metrics, true}]),
 
+    Statuses = [<<"200">>, <<"300">>, <<"400">>, <<"500">>],
     run_requests([get, head, post, put, delete, options, patch],
-                 [<<"100">>, <<"200">>, <<"300">>, <<"400">>, <<"500">>]),
+                 Statuses),
 
     %% when response is not sent Cowboy returns 204
-    [ensure_metric_value(request_count_metric(?DEFAULT_PREFIX, M), 5) || M <- ?METHODS],
-    [ensure_metric_value(response_count_metric(?DEFAULT_PREFIX, M, <<"2XX">>), 5) || M <- ?METHODS],
+    [ensure_metric_value(request_count_metric(?DEFAULT_PREFIX, M), length(Statuses)) || M <- ?METHODS],
+    [ensure_metric_value(response_count_metric(?DEFAULT_PREFIX, M, <<"2XX">>), length(Statuses)) || M <- ?METHODS],
     [ensure_metric_value(response_count_metric(?DEFAULT_PREFIX, M, C), 0) || M <- ?METHODS, C <- ?CLASSES -- [<<"2XX">>]],
     [ensure_metric_bumped(response_latency_metric(?DEFAULT_PREFIX, M, <<"2XX">>)) || M <- ?METHODS],
     [ensure_metric_value(response_latency_metric(?DEFAULT_PREFIX, M, C), 0) || M <- ?METHODS, C <- ?CLASSES -- [<<"2XX">>]],
@@ -135,12 +136,12 @@ init(_Type, Req, Opts) ->
 handle(Req, echo_status = State) ->
     {BinStatus, Req1} = cowboy_req:qs_val(<<"status">>, Req),
     Status = binary_to_integer(BinStatus),
-    {ok, RespReq} = cowboy_req:reply(Status, [], <<>>, Req1),
+    {ok, RespReq} = cowboy_req:reply(Status, Req1),
     {ok, RespReq, State};
 handle(Req, none = State) ->
     {ok, Req, State}.
 
-terminate(_Reason, _Req, _State) ->
+terminate(Reason, _Req, _State) ->
     ok.
 
 %%-------------------------------------------------------------------
@@ -192,10 +193,19 @@ ensure_metric_bumped(Metric) ->
     ?assertNotEqual(0, proplists:get_value(value, DataPoints)).
 
 run_requests(Methods, Statuses) ->
-    {ok, Conn} = gun:open("localhost", ranch:get_port(?LISTENER)),
-    {ok, _} = gun:await_up(Conn),
-    [begin
-        StreamRef = gun:M(Conn, <<"/?status=", S/binary>>, []),
-        {response, fin, _, _} = gun:await(Conn, StreamRef)
-     end || M <- Methods, S <- Statuses].
+    Port = ranch:get_port(?LISTENER),
+    {ok, Conn} = fusco:start_link({"localhost", Port, false}, []),
+    Res = [{ok, _Result} = fusco:request(Conn, <<"/?status=", S/binary>>, method_to_upper_bin(M), [], [], 5000)
+           || M <- Methods, S <- Statuses],
+    fusco:disconnect(Conn),
+    Res.
 
+method_to_upper_bin(Method) when is_binary(Method) ->
+    Method;
+method_to_upper_bin(Method) when is_atom(Method) ->
+    MethodBin = atom_to_binary(Method, utf8),
+    list_to_binary(
+      string:to_upper(
+        binary_to_list(MethodBin)
+       )
+     ).
