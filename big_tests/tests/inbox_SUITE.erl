@@ -1020,19 +1020,19 @@ enter_room(Room, User, Users, DelayedMessagesCount) ->
 
 
 stanza_set_affiliations(Room, List) ->
-    Payload = lists:map(fun({JID, Affiliation}) ->
-        #xmlel{name = <<"item">>,
+    Payload = lists:map(fun aff_to_iq_item/1, List),
+    muc_helper:stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
+
+aff_to_iq_item({JID, Affiliation}) ->
+    #xmlel{name = <<"item">>,
         attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}]};
-    ({JID, Affiliation, Reason}) ->
-        #xmlel{name = <<"item">>,
+aff_to_iq_item({JID, Affiliation, Reason}) ->
+    #xmlel{name = <<"item">>,
         attrs = [{<<"jid">>, JID}, {<<"affiliation">>, Affiliation}],
         children = [#xmlel{
             name = <<"reason">>,
             children = [#xmlcdata{content = Reason}]}
-        ]}
-    end, List),
-    muc_helper:stanza_to_room(escalus_stanza:iq_set(?NS_MUC_ADMIN, Payload), Room).
-
+        ]}.
 
 nick(User) -> escalus_utils:get_username(User).
 
