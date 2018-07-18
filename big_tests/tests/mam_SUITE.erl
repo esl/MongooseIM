@@ -1038,11 +1038,9 @@ end_per_testcase(C=muc_message_with_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_no_elements, Config) ->
-    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_only_stanzaid, Config) ->
-    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
@@ -1313,11 +1311,7 @@ long_text_search_request(Config) ->
     F = fun(Alice, Bob) ->
         Msgs = text_search_messages(),
 
-        lists:foreach(
-            fun(Msg) ->
-                escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg)),
-                timer:sleep(50)
-            end, Msgs),
+        [ escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg)) || Msg <- Msgs ],
 
         %% Just check that Bob receives the messages.
         %% It should help, when the CI server is overloaded.
