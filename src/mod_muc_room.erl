@@ -58,6 +58,11 @@
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 
+%% Dialyzer has a false warning:
+%% Guard test is_function(Fun::fun((_,_) -> map()),1) can never succeed
+%% While is_function(Fun, 1) cannot succeed, is_function(Fun, 2) would
+-dialyzer({nowarn_function, pairs_foreach/2}).
+
 -record(routed_message, {allowed,
                          type,
                          from,
@@ -558,8 +563,8 @@ handle_event({service_message, Msg}, _StateName, StateData) ->
                         attrs = [{<<"type">>, <<"groupchat">>}],
                         children = [#xmlel{name = <<"body">>,
                                            children = [#xmlcdata{content = Msg}]}]},
-    maps:fold(
-      fun(_LJID, Info, _) ->
+    maps_foreach(
+      fun(_LJID, Info) ->
           ejabberd_router:route(
         StateData#state.jid,
         Info#user.jid,
@@ -4785,7 +4790,13 @@ maps_foreach(Fun, Map) when is_function(Fun, 2) ->
                       Fun(Key, Value), Acc
               end, ok, Map).
 
--spec pairs_foreach(fun(), [{term(), term()}]) -> ok.
+%% Disable dialyzer for the function. See dialyzer attribute.
+-spec pairs_foreach(Fun, [{Key, Value}]) -> ok
+    when
+      Fun :: fun((Key, Value) -> term())
+           | fun(({Key, Value}) -> term()),
+      Key :: term(),
+      Value :: term().
 pairs_foreach(Fun, List) when is_function(Fun, 1) ->
     lists:foreach(Fun, List);
 pairs_foreach(Fun, List) when is_function(Fun, 2) ->
