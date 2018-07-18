@@ -54,14 +54,14 @@
          terminate/3,
          code_change/4]).
 
+-import(mongoose_maps, [maps_append/3,
+                        maps_foreach/2,
+                        pairs_foreach/2,
+                        maps_or_pairs_foreach/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
-
-%% Dialyzer has a false warning:
-%% Guard test is_function(Fun::fun((_,_) -> map()),1) can never succeed
-%% While is_function(Fun, 1) cannot succeed, is_function(Fun, 2) would
--dialyzer({nowarn_function, pairs_foreach/2}).
 
 -record(routed_message, {allowed,
                          type,
@@ -4770,34 +4770,3 @@ notify_users_modified(#state{server_host = Host, jid = JID, users = Users} = Sta
     mod_muc_log:set_room_occupants(Host, self(), JID, maps:values(Users)),
     State.
 
-%% Appends a new Value to the current list of values associated with Key.
-maps_append(Key, Value, Map) ->
-    Values = maps:get(Key, Map, []),
-    maps:put(Key, Values ++ [Value], Map).
-
--spec maps_foreach(fun(), map()) -> ok.
-maps_foreach(Fun, Map) when is_function(Fun, 1) ->
-    maps:fold(fun(Key, Value, Acc) ->
-                      Fun({Key, Value}), Acc
-              end, ok, Map);
-maps_foreach(Fun, Map) when is_function(Fun, 2) ->
-    maps:fold(fun(Key, Value, Acc) ->
-                      Fun(Key, Value), Acc
-              end, ok, Map).
-
-%% Disable dialyzer for the function. See dialyzer attribute.
--spec pairs_foreach(Fun, [{Key, Value}]) -> ok
-    when
-      Fun :: fun((Key, Value) -> term())
-           | fun(({Key, Value}) -> term()),
-      Key :: term(),
-      Value :: term().
-pairs_foreach(Fun, List) when is_function(Fun, 1) ->
-    lists:foreach(Fun, List);
-pairs_foreach(Fun, List) when is_function(Fun, 2) ->
-    lists:foreach(fun({K,V}) -> Fun(K,V) end, List).
-
-maps_or_pairs_foreach(Fun, Map) when is_map(Map) ->
-    maps_foreach(Fun, Map);
-maps_or_pairs_foreach(Fun, List) when is_list(List) ->
-    pairs_foreach(Fun, List).

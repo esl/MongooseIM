@@ -38,7 +38,7 @@ update_inbox_for_muc(
       from_room_jid := FromRoomJid,
       packet := Packet,
       affiliations_map := AffsMap} = Acc) ->
-    F = fun(AffLJID, Affiliation, _) ->
+    F = fun(AffLJID, Affiliation) ->
             case is_allowed_affiliation(Affiliation) of
                 true ->
                     To = jid:to_bare(jid:make(AffLJID)),
@@ -51,7 +51,7 @@ update_inbox_for_muc(
                     ok
             end
         end,
-    maps:fold(F, ok, AffsMap),
+    mongoose_maps:maps_foreach(F, AffsMap),
     Acc.
 
 -spec is_allowed_affiliation(mod_muc:affiliation()) -> boolean().
