@@ -30,10 +30,11 @@
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
 
 all() ->
-    [{group, messages}, {group, muc}, {group, roster}].
+    [{group, messages}, {group, muc}, {group, roster}, {group, messages_with_props}].
 
 groups() ->
-    G = [{messages, [parallel], message_test_cases()},
+    G = [{messages_with_props, [parallel], message_with_props_test_cases()},
+         {messages, [parallel], message_test_cases()},
          {muc, [parallel], muc_test_cases()},
          {roster, [parallel], roster_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
@@ -79,6 +80,14 @@ roster_test_cases() ->
      add_and_remove_some_contacts_with_nonexisting,
      break_stuff].
 
+message_with_props_test_cases() ->
+    [
+     msg_with_props_is_sent_and_delivered_over_xmpp,
+     msg_with_props_can_be_parsed,
+     msg_with_malformed_props_can_be_parsed,
+     msg_with_malformed_props_is_sent_and_delivered_over_xmpp
+     ].
+
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
     Host = ct:get_config({hosts, mim, domain}),
@@ -110,7 +119,11 @@ init_per_testcase(TC, Config) ->
                     messages_are_archived_in_room,
                     only_room_participant_can_read_messages,
                     messages_can_be_paginated_in_room,
-                    messages_can_be_sent_and_fetched_by_room_jid
+                    messages_can_be_sent_and_fetched_by_room_jid,
+                    msg_with_props_is_sent_and_delivered_over_xmpp,
+                    msg_with_props_can_be_parsed,
+                    msg_with_malformed_props_can_be_parsed,
+                    msg_with_malformed_props_is_sent_and_delivered_over_xmpp
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
@@ -424,6 +437,86 @@ user_can_be_added_and_removed_by_room_jid(Config) ->
         ?assertEqual(<<"204">>, Status)
     end).
 
+msg_with_props_is_sent_and_delivered_over_xmpp(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJID = user_jid(Bob),
+        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+        M1 = rest_helper:make_msg_stanza_with_props(BobJID,MsgID),
+
+        escalus:send(Alice, M1),
+
+        M2 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, M2)
+    end).
+
+msg_with_props_can_be_parsed(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+        M1 = rest_helper:make_msg_stanza_with_props(BobJID,MsgID),
+
+        escalus:send(Alice, M1),
+        
+        escalus:wait_for_stanza(Bob),
+        mam_helper:wait_for_archive_size(Bob, 1),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        
+        AliceCreds = {AliceJID, user_password(alice)},
+
+        % recent msgs with a limit
+        M2 = get_messages_with_props(AliceCreds, BobJID, 1),
+
+        [{MsgWithProps} | _] = M2,
+
+        Data = maps:from_list(MsgWithProps),
+
+        #{<<"properties">> := {Props},
+          <<"id">> := ReceivedMsgID} = Data,
+
+        %we are expecting two properties:"some_string" and "some_number" for this test message
+        %test message defined in rest_helper:make_msg_stanza_with_props
+        2 = length(Props),
+        ReceivedMsgID = MsgID
+
+    end).
+
+msg_with_malformed_props_is_sent_and_delivered_over_xmpp(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        BobJID = user_jid(Bob),
+        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+
+        M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID, MsgID),
+
+        escalus:send(Alice, M1),
+
+        M2 = escalus:wait_for_stanza(Bob),
+        escalus:assert(is_message, M2)
+    end).
+
+msg_with_malformed_props_can_be_parsed(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Alice)),
+        AliceCreds = {AliceJID, user_password(alice)},
+        BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
+        MsgID = base16:encode(crypto:strong_rand_bytes(5)),
+
+        M1 = rest_helper:make_malformed_msg_stanza_with_props(BobJID,MsgID),
+        escalus:send(Alice, M1),
+        
+        escalus:wait_for_stanza(Bob),
+        mam_helper:wait_for_archive_size(Bob, 1),
+        mam_helper:wait_for_archive_size(Alice, 1),
+        
+        % recent msgs with a limit
+        M2 = get_messages_with_props(AliceCreds, BobJID, 1),
+        Recv = [_Msg] = rest_helper:decode_maplist(M2),
+
+        MsgID = maps:get(id, _Msg)
+
+    end).
+
+
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
@@ -543,6 +636,22 @@ get_messages(MeCreds, Other, Before, Count) ->
                              "&limit=", integer_to_list(Count)]),
     get_messages(GetPath, MeCreds).
 
+get_messages_with_props(MeCreds, Other, Count) ->
+    GetPath = lists:flatten(["/messages/",
+                             binary_to_list(Other),
+                             "?limit=", integer_to_list(Count)]),
+    get_messages_with_props(GetPath, MeCreds).
+
+get_messages_with_props(Path, Creds) ->
+    {{<<"200">>, <<"OK">>}, Msgs} = rest_helper:gett(client, Path, Creds),
+    Msgs.
+
+get_messages_with_props(MeCreds, Other, Before, Count) ->
+    GetPath = lists:flatten(["/messages/",
+                             binary_to_list(Other),
+                             "?before=", integer_to_list(Before),
+                             "&limit=", integer_to_list(Count)]),
+    get_messages_with_props(GetPath, MeCreds).
 
 get_room_messages(Client, RoomID, Count) ->
     get_room_messages(Client, RoomID, Count, undefined).
