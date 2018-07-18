@@ -26,13 +26,13 @@ generate_message_id() ->
 %% It removes a leading 0 from 64-bit binary representation.
 %% It puts node id as a last byte.
 %% The maximum date, that can be encoded is `{{4253,5,31},{22,20,37}}'.
--spec encode_compact_uuid(integer(), integer()) -> binary().
+-spec encode_compact_uuid(integer(), byte()) -> integer().
 encode_compact_uuid(Microseconds, NodeId)
   when is_integer(Microseconds), is_integer(NodeId) ->
     (Microseconds bsl 8) + NodeId.
 
 %% @doc Extract date and node id from a message id.
--spec decode_compact_uuid(binary()) -> {integer(),byte()}.
+-spec decode_compact_uuid(binary()) -> {integer(), byte()}.
 decode_compact_uuid(UUID) ->
     <<TimeLow:32, TimeMid:16, 1:4, TimeHi:12, _ClockID:16, NodeId:48>> = uuid:string_to_uuid(
                                                                            binary_to_list(UUID)),

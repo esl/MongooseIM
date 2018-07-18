@@ -196,7 +196,7 @@ generate_message_id() ->
     M:generate_message_id().
 
 %% @doc Create a message ID (UID).
--spec encode_compact_uuid(integer(), integer()) -> any().
+-spec encode_compact_uuid(integer(), byte()) -> any().
 encode_compact_uuid(Microseconds, NodeId) ->
     M = mod_mam:uid_module(),
     M:encode_compact_uuid(Microseconds, NodeId).
@@ -923,8 +923,8 @@ calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, E
 calculate_msg_id_borders(_, Borders, Start, End) ->
     mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
 
--spec maybe_encode_compact_uuid(mod_mam:unix_timestamp() | undefined, integer()) ->
-    undefined | integer().
+-spec maybe_encode_compact_uuid(mod_mam:unix_timestamp() | undefined, byte()) ->
+    undefined | any().
 maybe_encode_compact_uuid(undefined, _) ->
     undefined;
 maybe_encode_compact_uuid(Microseconds, NodeID) ->
