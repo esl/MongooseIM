@@ -835,11 +835,13 @@ wait_for_connection(Config) ->
     set_endpoints(asia_node, []),
     %% Because of hosts refresher, a pool of connections to asia_node
     %% may already be present here
-    wait_for(rebalance,
-             fun () ->
-                 try trigger_rebalance(europe_node1, <<"reg1">>), true
-                 catch _:_ -> false end
-             end),
+    mongoose_helper:wait_until(
+                                fun () ->
+                                    try trigger_rebalance(europe_node1, <<"reg1">>), true
+                                    catch _:_ -> false end
+                                end,
+                                true,
+                                #{name => rebalance, time_left => timer:seconds(5)}),
 
     spawn_connection_getter(europe_node1),
 
@@ -1093,16 +1095,3 @@ refresh_mappings(NodeName, Config) ->
 trigger_rebalance(NodeName, DestinationDomain) ->
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
-
-wait_for(Label, Pred) ->
-    wait_for(Label, Pred, timer:seconds(5)).
-
-wait_for(Label, _Pred, RemainingTime) when RemainingTime =< 0 ->
-    error({timeout, Label});
-wait_for(Label, Pred, RemainingTime) ->
-    case Pred() of
-        true -> ok;
-        false ->
-            timer:sleep(100),
-            wait_for(Label, Pred, RemainingTime - 100)
-    end.
