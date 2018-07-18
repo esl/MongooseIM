@@ -6,17 +6,17 @@ This tutorial will show you how to configure MongooseIM, Routr (a SIP server) an
 
 We are going to use the following open source software:
 
-* MongooseIM - https://github.com/esl/MongooseIM
+* MongooseIM - [https://github.com/esl/MongooseIM](https://github.com/esl/MongooseIM)
     * see [How-to-build](How-to-build.md) for details on building.
       It's important to remember to run the configuration script with `with-jingle-sip` flag set:
       `tools/configure with-jingle-sip`.
       Without this, third party dependencies required by the Jingle/SIP translator will not be included in the release.
 
-* Routr (SIP server) - https://routr.io
-    * I recommend downloading binaries for your system from https://routr.io/docs/getting-started-installation.html
-* Jitsi (XMPP and SIP client application) - https://desktop.jitsi.org/
-* Otalk - web based XMPP client - https://github.com/otalk/otalk-im-client
-    * Folow the instructions on https://github.com/otalk/otalk-im-client#installing to run it
+* Routr (SIP server) - [https://routr.io](https://routr.io)
+    * I recommend downloading binaries for your system from [https://routr.io/docs/getting-started-installation.html](https://routr.io/docs/getting-started-installation.html)
+* Jitsi (XMPP and SIP client application) - [https://desktop.jitsi.org](https://desktop.jitsi.org/)
+* Otalk - web based XMPP client - [https://github.com/otalk/otalk-im-client](https://github.com/otalk/otalk-im-client)
+    * Folow the instructions on [otalk-im-client#installing](https://github.com/otalk/otalk-im-client#installing) to run it
 
 We will use 2 users `xmpp.user@xmpp.example` and `sip.user@sip.example`.
 
@@ -87,7 +87,7 @@ Now we need to use this to update `/etc/hosts` file like below:
 
 ### Configuring MongooseIM
 
-At this point I assume that MongooseIM was built with `make rel`, that it is running and the CWD is `_build/prod/rel/mongooseim`.
+At this point I assume that MongooseIM was built with `make rel`, that it is running and the current working directory is `_build/prod/rel/mongooseim`.
 Similar to Routr, MongooseIM also needs to know which hosts to server.
 Please replace the default host defined in file `etc/ejabberd.cfg` in line
 
