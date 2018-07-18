@@ -1,6 +1,6 @@
 ## Jingle/SIP setup proof of concept
 
-This tutorial will show you how to configure MongooseIM, Routr (a SIP server) and client applications to demostrate how the Jingle/SIP integration works.
+This tutorial will show you how to configure MongooseIM, Routr (a SIP server) and client applications to demonstrate how the Jingle/SIP integration works.
 
 ### Prerequisites
 
@@ -10,7 +10,7 @@ We are going to use the following open source software:
     * see [How-to-build](How-to-build.md) for details on building.
       It's important to remember to run the configuration script with `with-jingle-sip` flag set:
       `tools/configure with-jingle-sip`.
-      Without this, 3rd party deps required by the Jingle/SIP translator will not be included in the release.
+      Without this, third party dependencies required by the Jingle/SIP translator will not be included in the release.
 
 * Routr (SIP server) - https://routr.io
     * I recommend downloading binaries for your system from https://routr.io/docs/getting-started-installation.html
@@ -22,7 +22,7 @@ We will use 2 users `xmpp.user@xmpp.example` and `sip.user@sip.example`.
 
 ### Configuring Routr
 
-First the domain `sip.example` needs to added to domains served by Routr.
+First the domain `sip.example` needs to be added to domains served by Routr.
 To do it, paste the following content to config/domains.yml in the directory where Routr was:
 
 ```yml
@@ -66,7 +66,7 @@ If all goes well we'll see the following output:
 
 It is important to remember the IP address as it'll be used in next point.
 
-#### A side not
+#### A side note
 
 In Routr's logs you may see messages like
 
