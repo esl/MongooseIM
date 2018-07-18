@@ -563,14 +563,7 @@ handle_event({service_message, Msg}, _StateName, StateData) ->
                         attrs = [{<<"type">>, <<"groupchat">>}],
                         children = [#xmlel{name = <<"body">>,
                                            children = [#xmlcdata{content = Msg}]}]},
-    maps_foreach(
-      fun(_LJID, Info) ->
-          ejabberd_router:route(
-        StateData#state.jid,
-        Info#user.jid,
-        MessagePkt)
-      end,
-      StateData#state.users),
+    send_to_all_users(MessagePkt, StateData),
     NSD = add_message_to_history(<<>>,
                  StateData#state.jid,
                  MessagePkt,
@@ -745,8 +738,8 @@ terminate(Reason, _StateName, StateData) ->
           end,
     ItemAttrs = [{<<"affiliation">>, <<"none">>}, {<<"role">>, <<"none">>}],
     Packet = unavailable_presence(ItemAttrs, ReasonT),
-    maps:fold(
-      fun(LJID, Info, _) ->
+    maps_foreach(
+      fun(LJID, Info) ->
               Nick = Info#user.nick,
               case Reason of
                   shutdown ->
@@ -757,7 +750,7 @@ terminate(Reason, _StateName, StateData) ->
                   _ -> ok
               end,
               tab_remove_online_user(LJID, StateData)
-      end, [], StateData#state.users),
+      end, StateData#state.users),
     add_to_log(room_existence, stopped, StateData),
     mod_muc:room_destroyed(StateData#state.host, StateData#state.room, self()),
     ok.
@@ -897,11 +890,11 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                          affiliations_map => StateData#state.affiliations},
             ejabberd_hooks:run_fold(update_inbox_for_muc,
                                     StateData#state.server_host, HookInfo, []),
-            maps:fold(fun(_LJID, Info, _) ->
+            maps_foreach(fun(_LJID, Info) ->
                                   ejabberd_router:route(RouteFrom,
                                                         Info#user.jid,
                                                         FilteredPacket)
-                          end, ok, StateData#state.users),
+                          end, StateData#state.users),
             NewStateData2 = add_message_to_history(FromNick,
                                                    From,
                                                    FilteredPacket,
@@ -1479,8 +1472,8 @@ is_empty_map(Map) ->
 
 
 -spec map_foreach_value(fun((_) -> ok), users_map()) -> any().
-map_foreach_value(F, Users) ->
-    maps:fold(fun(_LJID, User, _) -> F(User) end, ok, Users).
+map_foreach_value(F, Map) ->
+    maps:fold(fun(_Key, Value, _) -> F(Value) end, ok, Map).
 
 
 -spec count_users(state()) -> non_neg_integer().
@@ -2389,12 +2382,7 @@ send_config_update(Type, StateData) ->
             semianonymous       -> <<"173">>
         end,
     Message = jlib:make_config_change_message(Status),
-    maps_foreach(fun(_LJID, Info) ->
-        ejabberd_router:route(
-            StateData#state.jid,
-            Info#user.jid,
-            Message)
-        end, StateData#state.users).
+    send_to_all_users(Message, StateData).
 
 
 -spec send_invitation(jid:jid(), jid:jid(), binary(), state()) -> mongoose_acc:t().
@@ -2769,7 +2757,7 @@ user_to_item(#user{role = Role,
                     {<<"jid">>, jid:to_binary(JID)}]}.
 
 
--spec search_role(mod_muc:role(), state()) -> [{_, _}].
+-spec search_role(mod_muc:role(), state()) -> users_pairs().
 search_role(Role, StateData) ->
     F = fun(_, #user{role = R}) -> Role == R end,
     maps:to_list(maps:filter(F, StateData#state.users)).
@@ -3206,7 +3194,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
     maps:find(jid:to_lower(UJID), StateData#state.users),
     BAffiliation = affiliation_to_binary(Affiliation),
     BannedJIDString = jid:to_binary(RealJID),
-    F = fun(_LJID, Info) ->
+    F = fun(Info) ->
           JidAttrList = case (Info#user.role == moderator) orelse
                 ((StateData#state.config)#config.anonymous
                  == false) of
@@ -3235,7 +3223,7 @@ send_kickban_presence1(UJID, Reason, Code, Affiliation, StateData) ->
         Info#user.jid,
         Packet)
       end,
-    maps_foreach(F, StateData#state.users).
+    foreach_user(F, StateData).
 
 
 
@@ -3905,6 +3893,13 @@ send_to_occupants(Packet, StateData=#state{jid=RoomJID}) ->
     F = fun(User=#user{jid=UserJID}) ->
         ejabberd_router:route(occupant_jid(User, RoomJID), UserJID, Packet)
         end,
+    foreach_user(F, StateData).
+
+-spec send_to_all_users(exml:element(), state()) -> any().
+send_to_all_users(Packet, StateData=#state{jid=RoomJID}) ->
+    F = fun(#user{jid = UserJID}) ->
+          ejabberd_router:route(RoomJID, UserJID, Packet)
+      end,
     foreach_user(F, StateData).
 
 
