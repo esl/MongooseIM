@@ -13,6 +13,12 @@
 
 -export([update_inbox_for_muc/1, start/1, stop/1]).
 
+%% Receiver's host in lowercase
+-type receiver_host() :: jid:server().
+-type receiver_bare_user_jid() :: jid:jid().
+-type room_bare_jid() :: jid:jid().
+-type packet() :: exml:element().
+
 start(Host) ->
     ejabberd_hooks:add(update_inbox_for_muc, Host, ?MODULE, update_inbox_for_muc, 90),
     % TODO check ooptions: if system messages stored ->
@@ -24,6 +30,8 @@ stop(Host) ->
     ok.
 
 
+-spec update_inbox_for_muc(Acc) -> Acc when
+      Acc :: map().
 update_inbox_for_muc(
     #{room_jid := Room,
       from_jid := From,
@@ -33,14 +41,12 @@ update_inbox_for_muc(
     F = fun(AffLJID, Affiliation, _) ->
             case is_allowed_affiliation(Affiliation) of
                 true ->
-                    %% To - receiver's bare user jid (not muc jid)
-                    To = jid:make(AffLJID),
+                    To = jid:to_bare(jid:make(AffLJID)),
                     %% Guess direction based on user JIDs
                     Direction = direction(From, To),
-                    %% Host - domain of the receiver
                     Host = To#jid.lserver,
                     Packet2 = jlib:replace_from_to(FromRoomJid, To, Packet),
-                    update_inbox_for_user(Direction, Host, From, To, Room, Packet2);
+                    update_inbox_for_user(Direction, Host, Room, To, Packet2);
                 false ->
                     ok
             end
@@ -48,18 +54,21 @@ update_inbox_for_muc(
     maps:fold(F, ok, AffsMap),
     Acc.
 
+-spec is_allowed_affiliation(mod_muc:affiliation()) -> boolean().
 is_allowed_affiliation(outcast) -> false;
 is_allowed_affiliation(_)       -> true.
 
-%% Host - domain of the receiver and sender
-%% From - sender's bare user jid (not muc jid)
-%% To - receiver's bare user jid (not muc jid)
-%% Room - room's bare jid
-update_inbox_for_user(Direction, Host, From, To, Room, Packet) ->
+-spec update_inbox_for_user(Direction, Host, Room, To, Packet) -> term() when
+      Direction :: incoming | outgoing,
+      Host :: receiver_host(),
+      Room :: room_bare_jid(),
+      To :: receiver_bare_user_jid(),
+      Packet :: packet().
+update_inbox_for_user(Direction, Host, Room, To, Packet) ->
     %% Check that Host is a local served domain (not s2s)
     case {is_local_host(Host), Direction} of
         {true, outgoing} ->
-            handle_outgoing_message(Host, From, Room, Packet);
+            handle_outgoing_message(Host, Room, To, Packet);
         {true, incoming} ->
             handle_incoming_message(Host, Room, To, Packet);
         _ ->
@@ -74,22 +83,25 @@ direction(From, To) ->
     end.
 
 %% Sender and receiver is the same user
-%%
-%% Host - domain of the receiver and sender
-%% From - sender's bare user jid (not muc jid)
-%% Room - room's bare jid
-handle_outgoing_message(Host, From, Room, Packet) ->
+-spec handle_outgoing_message(Host, Room, To, Packet) -> term() when
+      Host :: receiver_host(),
+      Room :: room_bare_jid(),
+      To :: receiver_bare_user_jid(),
+      Packet :: packet().
+handle_outgoing_message(Host, Room, To, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
         undefined ->
-            mod_inbox_utils:write_to_sender_inbox(Host, From, Room, Packet);
+            mod_inbox_utils:write_to_sender_inbox(Host, To, Room, Packet);
         Id ->
-            mod_inbox_utils:reset_unread_count(From, Room, Id)
+            mod_inbox_utils:reset_unread_count(To, Room, Id)
     end.
 
-%% Host - domain of the receiver
-%% Room - room's bare jid
-%% To - receiver's bare user jid (not muc jid)
+-spec handle_incoming_message(Host, Room, To, Packet) -> term() when
+      Host :: receiver_host(),
+      Room :: room_bare_jid(),
+      To :: receiver_bare_user_jid(),
+      Packet :: packet().
 handle_incoming_message(Host, Room, To, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:has_chat_marker(Packet, Markers) of
