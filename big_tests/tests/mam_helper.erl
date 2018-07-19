@@ -722,25 +722,22 @@ send_muc_rsm_messages(Config) ->
 
 send_rsm_messages(Config) ->
     Pid = self(),
-%%    Room = ?config(room, Config),
+    %%    Room = ?config(room, Config),
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
-        %% Alice sends messages to Bob.
-        lists:foreach(fun(N) ->
-                              escalus:send(Alice,
-                                           escalus_stanza:chat_to(Bob, generate_message_text(N))),
-                              timer:sleep(5)
-                      end, lists:seq(1, 15)),
-        %% Bob is waiting for 15 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 15, 5000),
-        maybe_wait_for_archive(Config),
-        %% Get whole history.
-        rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
-        AllMessages =
-            respond_messages(assert_respond_size(15, wait_archive_respond(P, Alice))),
-        ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
-        Pid ! {parsed_messages, ParsedMessages},
-        ok
+                %% Alice sends messages to Bob.
+                [escalus:send(Alice,
+                              escalus_stanza:chat_to(Bob, generate_message_text(N))) || N <- lists:seq(1, 15)],
+                %% Bob is waiting for 15 messages for 5 seconds.
+                escalus:wait_for_stanzas(Bob, 15, 5000),
+                maybe_wait_for_archive(Config),
+                %% Get whole history.
+                rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
+                AllMessages =
+                respond_messages(assert_respond_size(15, wait_archive_respond(P, Alice))),
+                ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
+                Pid ! {parsed_messages, ParsedMessages},
+                ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
     escalus:story(Config1, [{alice, 1}, {bob, 1}], F),
