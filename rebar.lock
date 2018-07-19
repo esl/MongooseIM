@@ -102,7 +102,7 @@
   0},
  {<<"lasse">>,
   {git,"https://github.com/inaka/lasse.git",
-       {ref,"692eaec1a226a6247f8450fc23b86b8afc1cee7a"}},
+       {ref,"21436fac0e713930c47d24b6576cb9e4ed75ecf1"}},
   0},
  {<<"lhttpc">>,{pkg,<<"lhttpc">>,<<"1.5.1">>},1},
  {<<"luerl">>,
