@@ -108,7 +108,7 @@ stream_management(_Config) ->
 local(_Config) ->
     ejabberd_local:start_link(),
     Self = self(),
-    SelfNotify = fun(Arg) -> Self ! Arg end,
+    SelfNotify = fun(_, _, _, Arg) -> Self ! Arg end,
     ID = <<"abc123">>,
 
     ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 50),

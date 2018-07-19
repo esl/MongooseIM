@@ -45,7 +45,7 @@
          remove_user/2,
          remove_user/3,
          determine_amp_strategy/5,
-         amp_failed_event/2]).
+         amp_failed_event/3]).
 
 %% Internal exports
 -export([start_link/3]).
@@ -166,8 +166,8 @@ stop(Host) ->
 %% Server side functions
 %% ------------------------------------------------------------------
 
-amp_failed_event(Packet, From) ->
-    mod_amp:check_packet(Packet, From, offline_failed).
+amp_failed_event(Acc, From, _Packet) ->
+    mod_amp:check_packet(Acc, From, offline_failed).
 
 handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
@@ -555,7 +555,7 @@ discard_warn_sender(Acc, Msgs) ->
               ErrText = <<"Your contact offline message queue is full."
                           " The message has been discarded.">>,
               Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-              amp_failed_event(Packet, From),
+              amp_failed_event(Acc, From, Packet),
               {Acc1, Err} = jlib:make_error_reply(
                       Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
               ejabberd_router:route(To, From, Acc1, Err)

@@ -219,7 +219,7 @@ process_iq(From, To, Acc, IQ) ->
         true ->
             process_local_iq(From, To, Acc, IQ);
         _ ->
-            IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:item_not_found()]}
+            {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:item_not_found()]}}
     end.
 
 process_local_iq(From, To, Acc, #iq{type = Type} = IQ) ->

@@ -241,24 +241,23 @@ archive_room_packet(Packet, FromNick, FromJID=#jid{}, RoomJID=#jid{}, Role, Affi
 %% while a MUC service might allow MAM queries to be sent to the room's bare JID
 %% (i.e `To.luser').
 -spec room_process_mam_iq(From :: jid:jid(), To :: jid:jid(), Acc :: mongoose_acc:t(),
-                          IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | 'ignore'}.
+                          IQ :: jlib:iq()) -> {mongoose_acc:t(), jlib:iq() | ignore}.
 room_process_mam_iq(From = #jid{lserver = Host}, To, Acc, IQ) ->
     mod_mam_utils:maybe_log_deprecation(IQ),
     Action = mam_iq:action(IQ),
-    Res = case is_action_allowed(Action, From, To) of
+    case is_action_allowed(Action, From, To) of
         true ->
             case mod_mam_utils:wait_shaper(Host, Action, From) of
                 ok ->
-                    handle_error_iq(Host, To, Action,
+                    handle_error_iq(Acc, Host, To, Action,
                                     handle_mam_iq(Action, From, To, IQ));
                 {error, max_delay_reached} ->
-                    ejabberd_hooks:run(mam_muc_drop_iq, Host,
-                                       [Host, To, IQ, Action, max_delay_reached]),
-                    return_max_delay_reached_error_iq(IQ)
+                    Acc1 = ejabberd_hooks:run_fold(mam_muc_drop_iq, Host, Acc,
+                                                   [Host, To, IQ, Action, max_delay_reached]),
+                    {Acc1, return_max_delay_reached_error_iq(IQ)}
             end;
-        false -> return_action_not_allowed_error_iq(IQ)
-    end,
-    {Acc, Res}.
+        false -> {Acc, return_action_not_allowed_error_iq(IQ)}
+    end.
 
 
 %% #rh
@@ -315,9 +314,8 @@ is_user_identity_hidden(User, Room) ->
 can_access_room(User, Room) ->
     ejabberd_hooks:run_fold(can_access_room, Room#jid.lserver, false, [Room, User]).
 
--spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(),
-                    jlib:iq()) ->
-                           jlib:iq() | {error, any(), jlib:iq()}.
+-spec handle_mam_iq(mam_iq:action(), From :: jid:jid(), jid:jid(), jlib:iq()) ->
+                           jlib:iq() | {error, any(), jlib:iq()} | ignore.
 handle_mam_iq(Action, From, To, IQ) ->
     case Action of
         mam_get_prefs ->
@@ -564,12 +562,14 @@ replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
 message_row_to_ext_id({MessID, _, _}) ->
     mess_id_to_external_binary(MessID).
 
-handle_error_iq(Host, To, Action, {error, Reason, IQ}) ->
-    ejabberd_hooks:run(mam_muc_drop_iq, Host,
+-spec handle_error_iq(mongoose_acc:t(), jid:lserver(), jid:jid(), atom(),
+    {error, term(), jlib:iq()} | jlib:iq() | ignore) -> {mongoose_acc:t(), jlib:iq() | ignore}.
+handle_error_iq(Acc, Host, To, Action, {error, Reason, IQ}) ->
+    Acc1 = ejabberd_hooks:run_fold(mam_muc_drop_iq, Host, Acc,
                        [Host, To, IQ, Action, Reason]),
-    IQ;
-handle_error_iq(_Host, _To, _Action, IQ) ->
-    IQ.
+    {Acc1, IQ};
+handle_error_iq(Acc, _Host, _To, _Action, IQ) ->
+    {Acc, IQ}.
 
 return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);

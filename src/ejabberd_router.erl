@@ -114,14 +114,22 @@ start_link() ->
     Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
+    Acc0 = mongoose_acc:from_element(Packet, From, To),
+    Acc1 = mongoose_acc:update(Acc0,
+                               #{user => From#jid.luser,
+                                 server => From#jid.lserver}),
     % (called by broadcasting)
-    route(From, To, mongoose_acc:from_element(Packet, From, To));
+    route(From, To, Acc1);
 route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Acc]),
     El = mongoose_acc:get(element, Acc),
     route(From, To, Acc, El, routing_modules_list()).
 
+-spec route(From   :: jid:jid(),
+            To     :: jid:jid(),
+            Acc :: mongoose_acc:t(),
+            El :: exml:element() | {error, term()}) -> mongoose_acc:t().
 route(From, To, Acc, {error, Reason}) ->
     ?INFO_MSG("event=cannot_route_stanza,from=~p,to=~p,reason=~p,acc=~p", [From, To, Reason, Acc]),
     mongoose_acc:append(errors, Reason, Acc);

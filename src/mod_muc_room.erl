@@ -4588,10 +4588,10 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
          #state{host = Host, jid = RoomJID} = StateData) ->
     %% Custom IQ, addressed to this room's JID.
     case mod_muc_iq:process_iq(Host, From, RoomJID, Acc, IQ) of
-        ignore -> ok;
-        error ->
-            {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:feature_not_implemented()),
-            ejabberd_router:route(RoomJID, From, Acc1, Err)
+        {Acc1, error} ->
+            {Acc2, Err} = jlib:make_error_reply(Acc1, Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            ejabberd_router:route(RoomJID, From, Acc2, Err);
+        _ -> ok
     end,
     {ok, StateData};
 route_iq(_Acc, #routed_iq{iq = reply}, StateData) ->
