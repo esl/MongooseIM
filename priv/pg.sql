@@ -314,5 +314,5 @@ CREATE TABLE inbox (
 
 CREATE INDEX i_inbox
     ON inbox
-    USING BTREE(luser, lserver);
+    USING BTREE(luser, lserver, timestamp);
 

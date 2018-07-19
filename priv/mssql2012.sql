@@ -471,6 +471,9 @@ CREATE TABLE dbo.inbox(
 )
 GO
 
+CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]

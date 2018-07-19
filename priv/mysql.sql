@@ -351,5 +351,5 @@ CREATE TABLE inbox (
     timestamp BIGINT UNSIGNED        NOT NULL,
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
-CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver);
+CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver, timestamp);
 
