@@ -13,9 +13,11 @@
 
 -export([update_inbox_for_muc/1, start/1, stop/1]).
 
+%% User jid example is "alice@localhost"
+-type user_jid() :: jid:jid().
 %% Receiver's host in lowercase
 -type receiver_host() :: jid:server().
--type receiver_bare_user_jid() :: jid:jid().
+-type receiver_bare_user_jid() :: user_jid().
 -type room_bare_jid() :: jid:jid().
 -type packet() :: exml:element().
 
@@ -31,7 +33,7 @@ stop(Host) ->
 
 
 -spec update_inbox_for_muc(Acc) -> Acc when
-      Acc :: map().
+      Acc :: mod_muc_room:update_inbox_for_muc_payload().
 update_inbox_for_muc(
     #{room_jid := Room,
       from_jid := From,
@@ -72,10 +74,11 @@ update_inbox_for_user(Direction, Host, Room, To, Packet) ->
         {true, incoming} ->
             handle_incoming_message(Host, Room, To, Packet);
         _ ->
+            %% We ignore inbox for users on the remote (s2s) hosts
             ok
     end.
 
-%% From and To are user JIDs (not room JIDs)
+-spec direction(From :: user_jid(), To :: user_jid()) -> incoming | outgoing.
 direction(From, To) ->
     case jid:are_bare_equal(From, To) of
         true -> outgoing;

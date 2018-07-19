@@ -131,6 +131,16 @@
 -type sessions_map() :: #{mod_muc:nick() => jid:jid()}.
 -type affiliations_map() :: #{jid:simple_jid() => mod_muc:affiliation()}.
 
+
+-type update_inbox_for_muc_payload() :: #{
+        room_jid := jid:jid(),
+        from_jid := jid:jid(),
+        from_room_jid := jid:jid(),
+        packet := exml:element(),
+        affiliations_map := affiliations_map()
+       }.
+-export_type([update_inbox_for_muc_payload/0]).
+
 -define(MAX_USERS_DEFAULT_LIST,
         [5, 10, 20, 30, 50, 100, 200, 500, 1000, 2000, 5000]).
 
@@ -888,8 +898,7 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                          from_room_jid => RouteFrom,
                          packet => FilteredPacket,
                          affiliations_map => StateData#state.affiliations},
-            ejabberd_hooks:run_fold(update_inbox_for_muc,
-                                    StateData#state.server_host, HookInfo, []),
+            run_update_inbox_for_muc_hook(StateData#state.server_host, HookInfo),
             maps_foreach(fun(_LJID, Info) ->
                                   ejabberd_router:route(RouteFrom,
                                                         Info#user.jid,
@@ -901,6 +910,13 @@ broadcast_room_packet(From, FromNick, Role, Packet, StateData) ->
                                                    StateData),
             next_normal_state(NewStateData2)
     end.
+
+-spec run_update_inbox_for_muc_hook(jid:server(),
+                                    update_inbox_for_muc_payload()) -> ok.
+run_update_inbox_for_muc_hook(ServerHost, HookInfo) ->
+    ejabberd_hooks:run_fold(update_inbox_for_muc,
+                            ServerHost, HookInfo, []),
+    ok.
 
 change_subject_error(From, FromNick, Packet, Lang, StateData) ->
     Err = case (StateData#state.config)#config.allow_change_subj of
