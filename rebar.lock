@@ -87,7 +87,7 @@
  {<<"hut">>,{pkg,<<"hut">>,<<"1.2.0">>},1},
  {<<"idna">>,
   {git,"https://github.com/benoitc/erlang-idna.git",
-       {ref,"40c682fef283b7c3871c4b59aa0469304c6613ef"}},
+       {ref,"b4b5415cf747ec9d52019f0716355afdeb371428"}},
   0},
  {<<"jiffy">>,{pkg,<<"jiffy">>,<<"0.15.2">>},0},
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.8.0">>},1},
@@ -200,6 +200,7 @@
   {git,"https://github.com/inaka/tirerl.git",
        {ref,"123e935f80fd7ae98b1381e2ed4d12dfb32989ce"}},
   0},
+ {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.3.1">>},1},
  {<<"usec">>,
   {git,"https://github.com/esl/usec.git",
        {ref,"f85ffd8350d7000c26392c18bdfcdbb30f3b5ee8"}},
@@ -234,5 +235,6 @@
  {<<"p1_utils">>, <<"A6D6927114BAC79CF6468A10824125492034AF7071ADC6ED5EBC4DDB443845D4">>},
  {<<"parse_trans">>, <<"1BAD3B959941CC53FFD6F4769A5D2666F9CDF179B2D62826636497D3FBAD9EC0">>},
  {<<"pooler">>, <<"898CD1FA301FC42D4A8ED598CE139B71CA85B54C16AB161152B5CC5FBDCFA1A8">>},
- {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>}]}
+ {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>},
+ {<<"unicode_util_compat">>, <<"A1F612A7B512638634A603C8F401892AFBF99B8CE93A45041F8AACA99CADB85E">>}]}
 ].
