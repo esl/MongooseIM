@@ -67,7 +67,6 @@ is_allowed_affiliation(_)       -> true.
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 update_inbox_for_user(Direction, Host, Room, To, Packet) ->
-    %% Check that Host is a local served domain (not s2s)
     case {is_local_host(Host), Direction} of
         {true, outgoing} ->
             handle_outgoing_message(Host, Room, To, Packet);
@@ -75,6 +74,7 @@ update_inbox_for_user(Direction, Host, Room, To, Packet) ->
             handle_incoming_message(Host, Room, To, Packet);
         _ ->
             %% We ignore inbox for users on the remote (s2s) hosts
+            %% We ignore inbox for components (also known as services or bots)
             ok
     end.
 
@@ -115,6 +115,7 @@ handle_incoming_message(Host, Room, To, Packet) ->
             mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet)
     end.
 
-%% Returns false, if host is s2s host
+%% Returns true, if host is defined in hosts in the config file.
+%% Returns false, if host is s2s host.
 is_local_host(LServer) ->
     lists:member(LServer, ?MYHOSTS).
