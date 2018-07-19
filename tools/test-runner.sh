@@ -28,6 +28,7 @@ Options:
 --skip-setup-db       -- do not start any databases, the same as "--db --" option
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
+--colors              -- force colors in help and examples commands
 
 Test specifications:
 -- [SUITE]
@@ -103,6 +104,9 @@ Script examples:
 
 ./tools/test-runner.sh --rerun-big-tests -- mam
     The same command as above
+
+./tools/test-runner.sh --help --examples --colors | more
+    Display help using "more" command
 END
 )
 
@@ -161,7 +165,8 @@ normal=""
 white=""
 
 # if stdout is terminal
-if test -t 1; then
+function init_colors
+{
     # see if it supports colors...
     ncolors=$(tput colors)
     if test -n "$ncolors" && test $ncolors -ge 8; then
@@ -169,6 +174,10 @@ if test -t 1; then
         normal="$(tput sgr0)"
         white="$(tput setaf 7)" # dim white
     fi
+}
+
+if test -t 1; then
+    init_colors
 fi
 
 function print_help
@@ -220,6 +229,18 @@ function print_command_delimeter
         echo -e "\n--------------------------------------------\n"
     fi
     DELIMETER_ADDED=true
+}
+
+DELAYED_ARRAY=()
+function delay_exec
+{
+    local flat_args="$@"
+    DELAYED_ARRAY+=("$flat_args")
+}
+
+function run_delayed
+{
+    for i in "${!DELAYED_ARRAY[@]}"; do ${DELAYED_ARRAY[$i]}; done
 }
 
 # Preset names are internal_mnesia, internal_redis ...
@@ -424,31 +445,35 @@ case $key in
         ( IFS=$'\n'; echo "${TEST_HOSTS_ARRAY[*]}" )
         exit 0
     ;;
+    --colors)
+        init_colors
+        shift # consume argument
+    ;;
     --help)
-        print_command_delimeter
-        print_help
+        delay_exec print_command_delimeter
+        delay_exec print_help
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
     --examples)
-        print_command_delimeter
-        print_examples
+        delay_exec print_command_delimeter
+        delay_exec print_examples
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
     --examples-complete)
-        print_command_delimeter
-        print_complete_examples
+        delay_exec print_command_delimeter
+        delay_exec print_complete_examples
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
     --show-small-reports)
-        ./tools/test_runner/show_reports.sh small
+        delay_exec ./tools/test_runner/show_reports.sh small
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
     --show-big-reports)
-        ./tools/test_runner/show_reports.sh big
+        delay_exec ./tools/test_runner/show_reports.sh big
         STOP_SCRIPT=true
         shift # consume argument, continue execution
     ;;
@@ -471,6 +496,8 @@ case $key in
         shift
 esac
 done
+
+run_delayed
 
 
 if [ "$STOP_SCRIPT" = true ]; then
