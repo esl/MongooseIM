@@ -19,7 +19,6 @@ maps_foreach(Fun, Map) when is_function(Fun, 2) ->
                       Fun(Key, Value), Acc
               end, ok, Map).
 
-%% Disable dialyzer for the function. See dialyzer attribute.
 -spec pairs_foreach(Fun, [{Key, Value}]) -> ok
     when
       Fun :: fun((Key, Value) -> term())
