@@ -173,9 +173,8 @@ create_and_terminate_session(Config) ->
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = bosh_send_raw(Conn, Terminate),
 
-    timer:sleep(100),
     %% Assert the session was terminated.
-    [] = get_bosh_sessions().
+    wait_for_zero_bosh_sessions().
 
 accept_higher_hold_value(Config) ->
     #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"2">>),
@@ -897,3 +896,10 @@ wait_until_user_has_no_stanzas(User) ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+wait_for_zero_bosh_sessions() ->
+    mongoose_helper:wait_until(fun() ->
+                                       length(get_bosh_sessions())
+                               end,
+                               0,
+                               #{name => get_bosh_sessions}).
