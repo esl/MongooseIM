@@ -63,7 +63,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    case is_odbc_enabled(domain()) of
+    case (not ct_helper:is_ct_running()) orelse is_odbc_enabled(domain()) of
       true ->
           tests();
       false ->
