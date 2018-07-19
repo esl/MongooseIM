@@ -115,6 +115,7 @@ _run_all_tests() {
                           --show-small-reports \
                           --show-big-reports \
                           --rerun-big-tests \
+                          --colors \
                           '"$SUGGESTIONS"' \
                           '"$SUITES"' \
                            --' -- $cur ) );;
