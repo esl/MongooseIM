@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/2, wait_until/3]).
+-export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -290,3 +290,14 @@ wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
     timer:sleep(SleepTime),
     do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
                                             history => [FunResult | History]}).
+
+wait_for_user(Config, User, LeftTime) ->
+    mongoose_helper:wait_until(fun() -> 
+                                escalus_users:verify_creation(escalus_users:create_user(Config, User)) 
+                               end, ok,
+							   #{
+                                 sleep_time => 400, 
+                                 left_time => LeftTime, 
+                                 name => 'escalus_users:create_user'
+                                }).
+

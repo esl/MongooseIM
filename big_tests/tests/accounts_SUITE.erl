@@ -13,6 +13,7 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(mongoose_helper, [wait_for_user/3]).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -229,8 +230,8 @@ not_allowed_registration_cancelation(Config) ->
 registration_timeout(Config) ->
     [Alice, Bob] = escalus_users:get_users([alice, bob]),
 		
-		%% The first user should be created successfully
-		wait_for_user(Config, Alice, ?REGISTRATION_TIMEOUT),
+	%% The first user should be created successfully
+	wait_for_user(Config, Alice, ?REGISTRATION_TIMEOUT),
 
     %% Creation of the second one should err because of not timing out yet
     {error, failed_to_register, Stanza} = escalus_users:create_user(Config, Bob),
@@ -385,13 +386,4 @@ watcher(Watcher) ->
 domain() ->
     ct:get_config({hosts, mim, domain}).
 
-wait_for_user(Config, User, LeftTime) ->
-    mongoose_helper:wait_until(fun() -> 
-                                escalus_users:verify_creation(escalus_users:create_user(Config, User)) 
-                               end, ok,
-							   #{
-                                 sleep_time => 400, 
-                                 left_time => LeftTime, 
-                                 name => 'escalus_users:create_user'
-                                }).
 			
