@@ -36,7 +36,7 @@ or [affiliation](https://xmpp.org/extensions/xep-0045.html#affil) change.
 ### Filtering and ordering
 
 Inbox query results may be filtered by time range and sorted by timestamp.
-By default, `mod_inbox` returns all conversations, most recently updated first.
+By default, `mod_inbox` returns all conversations, listing the ones updated most recently first.
 
 A client may specify three parameters:
 
@@ -44,9 +44,9 @@ A client may specify three parameters:
 * End date for the result set (variable `end`, value: ISO timestamp)
 * Order by timestamp (variable `order`, values: `asc`, `desc`)
 
-They are encoded inside standard XMPP [Data Forms](https://xmpp.org/extensions/xep-0004.html) format.
+They are encoded inside a standard XMPP [Data Forms](https://xmpp.org/extensions/xep-0004.html) format.
 Dates must be formatted according to [XMPP Date and Time Profiles](https://xmpp.org/extensions/xep-0082.html).
-See example below.
+See the example below.
 
 Your client application may request the currently supported form with IQ get:
 
