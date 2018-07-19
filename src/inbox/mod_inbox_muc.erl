@@ -16,7 +16,7 @@
 %% User jid example is "alice@localhost"
 -type user_jid() :: jid:jid().
 %% Receiver's host in lowercase
--type receiver_host() :: jid:server().
+-type receiver_host() :: jid:lserver().
 -type receiver_bare_user_jid() :: user_jid().
 -type room_bare_jid() :: jid:jid().
 -type packet() :: exml:element().
@@ -67,7 +67,7 @@ is_allowed_affiliation(_)       -> true.
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 update_inbox_for_user(Direction, Host, Room, To, Packet) ->
-    case {is_local_host(Host), Direction} of
+    case {is_local_xmpp_host(Host), Direction} of
         {true, outgoing} ->
             handle_outgoing_message(Host, Room, To, Packet);
         {true, incoming} ->
@@ -115,7 +115,8 @@ handle_incoming_message(Host, Room, To, Packet) ->
             mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet)
     end.
 
-%% Returns true, if host is defined in hosts in the config file.
-%% Returns false, if host is s2s host.
-is_local_host(LServer) ->
+%% @doc Check, that the host is served by MongooseIM.
+%% A local host can be used to fire hooks or write into database on this node.
+-spec is_local_xmpp_host(jid:lserver()) -> boolean().
+is_local_xmpp_host(LServer) ->
     lists:member(LServer, ?MYHOSTS).
