@@ -113,8 +113,8 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
 
 check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
   Merged = lists:zip(ResultStanzas, MsgCheckList),
-  JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts),
-                               maps:get(check_resource, CheckOpts)),
+  JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts, false),
+                               maps:get(check_resource, CheckOpts, true)),
   lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
                         process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
                 end, Merged).
@@ -170,8 +170,7 @@ timestamp_from_item(Item) ->
     escalus_ejabberd:rpc(jlib, datetime_binary_to_timestamp, [ISOTStamp]).
 
 clear_inbox_all() ->
-  Host = ct:get_config(domain()),
-  clear_inboxes([alice, bob, kate, mike], Host).
+  clear_inboxes([alice, bob, kate, mike], domain()).
 
 clear_inboxes(UserList, Host) ->
   JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],

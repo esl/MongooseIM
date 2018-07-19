@@ -467,7 +467,7 @@ simple_groupchat_stored_in_all_inbox(Config) ->
     Id = <<"MyID">>,
     AliceJid = inbox_helper:to_bare_lower(Alice),
     KateJid = inbox_helper:to_bare_lower(Kate),
-    BobJid = inbox_hlper:to_bare_lower(Bob),
+    BobJid = inbox_helper:to_bare_lower(Bob),
     RoomJid = room_bin_jid(?ROOM),
     AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
     Stanza = escalus_stanza:set_id(
@@ -757,7 +757,7 @@ groupchat_markers_one_reset_room_created(Config) ->
 groupchat_markers_all_reset_room_created(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     RoomName = <<"markers_room2">>,
-    AliceJid = inbox_helper:to_bare_lowe(Alice),
+    AliceJid = inbox_helper:to_bare_lower(Alice),
     RoomJid = room_bin_jid(RoomName),
     AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
     Msg = <<"Mark me!">>,
