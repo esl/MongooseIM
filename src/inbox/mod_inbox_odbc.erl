@@ -13,16 +13,16 @@
 -include("mod_inbox.hrl").
 
 %% API
--export([get_inbox/2,
+-export([get_inbox/3,
          init/2,
-         set_inbox/6,
-         set_inbox_incr_unread/5,
+         set_inbox/7,
+         set_inbox_incr_unread/6,
          reset_unread/4,
          remove_inbox/3,
          clear_inbox/2]).
 
 %% For specific backends
--export([esc_string/1]).
+-export([esc_string/1, esc_int/1]).
 
 %% ----------------------------------------------------------------------
 %% API
@@ -34,9 +34,10 @@ init(VHost, _Options) ->
     ok.
 
 -spec get_inbox(LUsername :: jid:luser(),
-                LServer :: jid:lserver()) -> get_inbox_res().
-get_inbox(LUsername, LServer) ->
-    case get_inbox_rdbms(LUsername, LServer) of
+                LServer :: jid:lserver(),
+                Params :: mod_inbox:get_inbox_params()) -> get_inbox_res().
+get_inbox(LUsername, LServer, Params) ->
+    case get_inbox_rdbms(LUsername, LServer, Params) of
         {selected, []} ->
             [];
         {selected, Res} ->
@@ -44,26 +45,38 @@ get_inbox(LUsername, LServer) ->
     end.
 
 
--spec get_inbox_rdbms(LUser :: jid:luser(), Server :: jid:lserver()) -> query_result().
-get_inbox_rdbms(LUser, Server) ->
-    mongoose_rdbms:sql_query(
-        Server,
-        ["select remote_bare_jid, content, unread_count from inbox "
-        "where luser=", esc_string(LUser), " and lserver=", esc_string(Server), ";"]).
+-spec get_inbox_rdbms(LUser :: jid:luser(),
+                      LServer :: jid:lserver(),
+                      Params :: mod_inbox:get_inbox_params()) ->
+    query_result().
+get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
+    OrderSQL = order_to_sql(Order),
+    BeginSQL = sql_and_where_timestamp(">=", maps:get(start, Params, undefined)),
+    EndSQL = sql_and_where_timestamp("<=", maps:get('end', Params, undefined)),
+    Query = ["SELECT remote_bare_jid, content, unread_count, timestamp FROM inbox "
+                 "WHERE luser=", esc_string(LUser),
+                 " AND lserver=", esc_string(LServer),
+                 BeginSQL, EndSQL,
+                 " ORDER BY timestamp ", OrderSQL, ";"],
+    mongoose_rdbms:sql_query(LServer, Query).
 
--spec set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_write_res() when
+-spec set_inbox(Username, Server, ToBareJid, Content,
+                Count, MsgId, Timestamp) -> inbox_write_res() when
                 Username :: jid:luser(),
                 Server :: jid:lserver(),
                 ToBareJid :: binary(),
                 Content :: binary(),
                 Count :: binary(),
-                MsgId :: binary().
-set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) ->
+                MsgId :: binary(),
+                Timestamp :: erlang:timestamp().
+set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
     BackendModule = odbc_specific_backend(Server),
-    Res = BackendModule:set_inbox(LUsername, LServer, LToBareJid, Content, Count, MsgId),
+    NumericTimestamp = usec:from_now(Timestamp),
+    Res = BackendModule:set_inbox(LUsername, LServer, LToBareJid,
+                                  Content, Count, MsgId, NumericTimestamp),
     ok = check_result(Res, 1).
 
 -spec remove_inbox(User :: binary(),
@@ -89,14 +102,18 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
                             Server :: binary(),
                             ToBareJid :: binary(),
                             Content :: binary(),
-                            MsgId :: binary()) -> ok.
-set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) ->
+                            MsgId :: binary(),
+                            Timestamp :: erlang:timestamp()) -> ok.
+set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
     BackendModule = odbc_specific_backend(Server),
-    Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid, Content, MsgId),
-    %% psql will always return {updated, 1} but mysql will return {updated, 2} if it overwrites the row
+    NumericTimestamp = usec:from_now(Timestamp),
+    Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
+                                              Content, MsgId, NumericTimestamp),
+    %% psql will always return {updated, 1}
+    %% but mysql will return {updated, 2} if it overwrites the row
     check_result(Res,[1,2]).
 
 -spec reset_unread(User :: binary(),
@@ -130,21 +147,39 @@ clear_inbox(Username, Server) ->
 esc_string(String) ->
     mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
 
+-spec esc_int(integer()) -> mongoose_rdbms:sql_query_part().
+esc_int(Integer) ->
+    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Integer)).
+
+
 %% ----------------------------------------------------------------------
 %% Internal functions
 %% ----------------------------------------------------------------------
+
+-spec order_to_sql(Order :: asc | desc) -> binary().
+order_to_sql(asc) -> <<"ASC">>;
+order_to_sql(desc) -> <<"DESC">>.
+
+-spec sql_and_where_timestamp(Operator :: string(), Timestamp :: erlang:timestamp()) -> iolist().
+sql_and_where_timestamp(_Operator, undefined) ->
+    [];
+sql_and_where_timestamp(Operator, Timestamp) ->
+    NumericTimestamp = usec:from_now(Timestamp),
+    [" AND timestamp ", Operator, esc_int(NumericTimestamp)].
 
 -spec clear_inbox_rdbms(Username :: jid:luser(), Server :: jid:lserver()) -> query_result().
 clear_inbox_rdbms(Username, Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
         esc_string(Username), " and lserver=", esc_string(Server), ";"]).
 
--spec decode_row(host(), {username(), binary(), count()}) -> inbox_res().
-decode_row(LServer, {Username, Content, Count}) ->
+-spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary()}) ->
+    inbox_res().
+decode_row(LServer, {Username, Content, Count, Timestamp}) ->
     Pool = mongoose_rdbms_sup:pool(LServer),
     Data = mongoose_rdbms:unescape_binary(Pool, Content),
     BCount = count_to_bin(Count),
-    {Username, Data, BCount}.
+    NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
+    {Username, Data, BCount, usec:to_now(NumericTimestamp)}.
 
 
 odbc_specific_backend(Host) ->

@@ -462,12 +462,16 @@ CREATE TABLE dbo.inbox(
     content VARBINARY(max) NOT NULL,
     unread_count INT NOT NULL,
     msg_id NVARCHAR(250) NOT NULL,
+    timestamp BIGINT NOT NULL,
     CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
         luser ASC,
         lserver ASC,
         remote_bare_jid ASC
     )
 )
+GO
+
+CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
 GO
 
 SET ANSI_PADDING OFF

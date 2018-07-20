@@ -22,29 +22,34 @@
                Host :: jid:lserver(),
                Opts :: list().
 
--callback get_inbox(LUsername, LServer) -> get_inbox_res() when
+-callback get_inbox(LUsername, LServer, Params) -> get_inbox_res() when
                     LUsername :: jid:luser(),
-                    LServer :: jid:lserver().
+                    LServer :: jid:lserver(),
+                    Params :: get_inbox_params().
 
--callback set_inbox(Username, Server, ToBareJid, Content, Count, MsgId) -> inbox_write_res() when
+-callback set_inbox(Username, Server, ToBareJid,
+                    Content, Count, MsgId, Timestamp) -> inbox_write_res() when
                     Username :: jid:luser(),
                     Server :: jid:lserver(),
                     ToBareJid :: binary(),
                     Content :: binary(),
                     Count :: binary(),
-                    MsgId :: binary().
+                    MsgId :: binary(),
+                    Timestamp :: erlang:timestamp().
 
 -callback remove_inbox(Username, Server, ToBareJid) -> inbox_write_res() when
                        Username :: jid:luser(),
                        Server :: jid:lserver(),
                        ToBareJid :: binary().
 
--callback set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId) -> inbox_write_res() when
+-callback set_inbox_incr_unread(Username, Server, ToBareJid,
+                                Content, MsgId, Timestamp) -> inbox_write_res() when
                                 Username :: jid:luser(),
                                 Server :: jid:lserver(),
                                 ToBareJid :: binary(),
                                 Content :: binary(),
-                                MsgId :: binary().
+                                MsgId :: binary(),
+                                Timestamp :: erlang:timestamp().
 
 -callback reset_unread(Username, Server, BareJid, MsgId) -> inbox_write_res() when
                        Username :: jid:luser(),
@@ -55,6 +60,14 @@
 -callback clear_inbox(Username, Server) -> inbox_write_res() when
                       Username :: jid:luser(),
                       Server :: jid:lserver().
+
+-type get_inbox_params() :: #{
+        start => erlang:timestamp(),
+        'end' => erlang:timestamp(),
+        order => asc | desc
+       }.
+
+-export_type([get_inbox_params/0]).
 
 -spec deps(jid:lserver(), list()) -> list().
 deps(_Host, Opts) ->
@@ -88,17 +101,23 @@ stop(Host) ->
                  To :: jid:jid(),
                  Acc :: mongoose_acc:t(),
                  IQ :: jlib:iq()) -> {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
-process_iq(_From, _To, Acc, #iq{type = set, sub_el = SubEl} = IQ) ->
-    {Acc, IQ#iq{type = error, sub_el = [SubEl, mongoose_xmpp_errors:not_allowed()]}};
-process_iq(From, To, Acc, #iq{type = get, sub_el = QueryEl} = IQ) ->
+process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
+    Form = build_inbox_form(),
+    SubElWithForm = SubEl#xmlel{ children = [Form] },
+    {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
+process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
     Username = From#jid.luser,
     Host = From#jid.lserver,
-    List = mod_inbox_backend:get_inbox(Username, Host),
-    QueryId = exml_query:attr(QueryEl, <<"queryid">>, <<>>),
-    forward_messages(List, QueryId, To),
-    BinCount = integer_to_binary(length(List)),
-    Res = IQ#iq{type = result, sub_el = [build_result_iq(BinCount)]},
-    {Acc, Res}.
+    case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
+        {error, bad_request} ->
+            {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request() ] }};
+        Params ->
+            List = mod_inbox_backend:get_inbox(Username, Host, Params),
+            forward_messages(List, QueryId, To),
+            BinCount = integer_to_binary(length(List)),
+            Res = IQ#iq{type = result, sub_el = [build_result_iq(BinCount)]},
+            {Acc, Res}
+    end.
 
 -spec forward_messages(List :: list(inbox_res()),
                        QueryId :: id(),
@@ -170,7 +189,7 @@ process_message(Host, From, To, Message, outgoing, groupchat) ->
 process_message(Host, From, To, Message, incoming, groupchat) ->
     mod_inbox_muclight:handle_incoming_message(Host, From, To, Message);
 process_message(_, _, _, Message, _, _) ->
-    ?WARNING_MSG("unknown messasge not written in inbox='~p'", [Message]),
+    ?WARNING_MSG("event=unknown_message_not_written_in_inbox,packet='~p'", [Message]),
     ok.
 
 
@@ -178,26 +197,77 @@ process_message(_, _, _, Message, _, _) ->
 %% Stanza builders
 
 -spec build_inbox_message(inbox_res(), id()) -> exml:element().
-build_inbox_message({_Username, Content, Count}, QueryId) ->
+build_inbox_message({_Username, Content, Count, Timestamp}, QueryId) ->
     #xmlel{name = <<"message">>, attrs = [{<<"id">>, mod_inbox_utils:wrapper_id()}],
-        children = [build_result_el(Content, QueryId, Count)]}.
+        children = [build_result_el(Content, QueryId, Count, Timestamp)]}.
 
--spec build_result_el(content(), id(), count()) -> exml:element().
-build_result_el(Msg, QueryId, BinUnread) ->
-    Forwarded = build_forward_el(Msg),
+-spec build_result_el(content(), id(), count_bin(), erlang:timestamp()) -> exml:element().
+build_result_el(Msg, QueryId, BinUnread, Timestamp) ->
+    Forwarded = build_forward_el(Msg, Timestamp),
     QueryAttr = [{<<"queryid">>, QueryId} || QueryId =/= undefined, QueryId =/= <<>>],
     #xmlel{name = <<"result">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++
     QueryAttr, children = [Forwarded]}.
 
--spec build_result_iq(count()) -> exml:element().
+-spec build_result_iq(count_bin()) -> exml:element().
 build_result_iq(CountBin) ->
     #xmlel{name = <<"count">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
         children = [#xmlcdata{content = CountBin}]}.
 
--spec build_forward_el(content()) -> exml:element().
-build_forward_el(Content) ->
+-spec build_forward_el(content(), erlang:timestamp()) -> exml:element().
+build_forward_el(Content, Timestamp) ->
     {ok, Parsed} = exml:parse(Content),
-    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}], children = [Parsed]}.
+    Delay = build_delay_el(Timestamp),
+    #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
+           children = [Delay, Parsed]}.
+
+-spec build_delay_el(Timestamp :: erlang:timestamp()) -> exml:element().
+build_delay_el({_, _, Micro} = Timestamp) ->
+    {Day, {H, M, S}} = calendar:now_to_datetime(Timestamp),
+    DateTimeMicro = {Day, {H, M, S, Micro}},
+    jlib:timestamp_to_xml(DateTimeMicro, utc, undefined, undefined).
+
+-spec build_inbox_form() -> exml:element().
+build_inbox_form() ->
+    OrderOptions = [
+                    {<<"Ascending by timestamp">>, <<"asc">>},
+                    {<<"Descending by timestamp">>, <<"desc">>}
+                   ],
+    FormFields = [
+                  jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}),
+                  text_single_form_field(<<"start">>),
+                  text_single_form_field(<<"end">>),
+                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions)
+                 ],
+    #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
+            children = FormFields }.
+
+-spec text_single_form_field(Var :: binary()) -> exml:element().
+text_single_form_field(Var) ->
+    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}]}.
+
+-spec list_single_form_field(Var :: binary(),
+                             Default :: binary(),
+                             Options :: [{Label :: binary(), Value :: binary()}]) ->
+    exml:element().
+list_single_form_field(Var, Default, Options) ->
+    Value = form_field_value(Default),
+    #xmlel{
+       name = <<"field">>,
+       attrs = [{<<"var">>, Var}, {<<"type">>, <<"list-single">>}],
+       children = [Value | [ form_field_option(Label, OptValue) || {Label, OptValue} <- Options ]]
+      }.
+
+-spec form_field_option(Label :: binary(), Value :: binary()) -> exml:element().
+form_field_option(Label, Value) ->
+    #xmlel{
+       name = <<"option">>,
+       attrs = [{<<"label">>, Label}],
+       children = [form_field_value(Value)]
+      }.
+
+-spec form_field_value(Value :: binary()) -> exml:element().
+form_field_value(Value) ->
+    #xmlel{ name = <<"value">>, children = [#xmlcdata{ content = Value }] }.
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
@@ -210,6 +280,54 @@ get_groupchat_types(Host) ->
 muclight_enabled(Host) ->
     Groupchats = get_groupchat_types(Host),
     lists:member(muclight, Groupchats).
+
+-spec form_to_params(FormEl :: exml:element() | undefined) ->
+    get_inbox_params() | {error, bad_request}.
+form_to_params(undefined) ->
+    #{ order => desc };
+form_to_params(FormEl) ->
+    ParsedFields = jlib:parse_xdata_fields(exml_query:subelements(FormEl, <<"field">>)),
+    ?DEBUG("event=parsed_form_fields,parsed=~p", [ParsedFields]),
+    fields_to_params(ParsedFields, #{ order => desc }).
+
+-spec fields_to_params([{Var :: binary(), Values :: [binary()]}], Acc :: get_inbox_params()) ->
+    get_inbox_params() | {error, bad_request}.
+fields_to_params([], Acc) ->
+    Acc;
+fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
+    case jlib:datetime_binary_to_timestamp(StartISO) of
+        undefined ->
+            ?DEBUG("event=invalid_inbox_form_field,field=start,value=~s", [StartISO]),
+            {error, bad_request};
+        StartStamp ->
+            fields_to_params(RFields, Acc#{ start => StartStamp })
+    end;
+fields_to_params([{<<"end">>, [EndISO]} | RFields], Acc) ->
+    case jlib:datetime_binary_to_timestamp(EndISO) of
+        undefined ->
+            ?DEBUG("event=invalid_inbox_form_field,field=end,value=~s", [EndISO]),
+            {error, bad_request};
+        EndStamp ->
+            fields_to_params(RFields, Acc#{ 'end' => EndStamp })
+    end;
+fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
+    case binary_to_order(OrderBin) of
+        error ->
+            ?DEBUG("event=invalid_inbox_form_field,field=order,value=~s", [OrderBin]),
+            {error, bad_request};
+        Order ->
+            fields_to_params(RFields, Acc#{ order => Order })
+    end;
+fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
+    fields_to_params(RFields, Acc);
+fields_to_params([Invalid | _], _) ->
+    ?DEBUG("event=invalid_inbox_form_field,parsed=~p", [Invalid]),
+    {error, bad_request}.
+
+-spec binary_to_order(binary()) -> asc | desc | error.
+binary_to_order(<<"desc">>) -> desc;
+binary_to_order(<<"asc">>) -> asc;
+binary_to_order(_) -> error.
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->
