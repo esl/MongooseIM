@@ -46,7 +46,8 @@ A client may specify three parameters:
 
 They are encoded inside a standard XMPP [Data Forms](https://xmpp.org/extensions/xep-0004.html) format.
 Dates must be formatted according to [XMPP Date and Time Profiles](https://xmpp.org/extensions/xep-0082.html).
-See the example below.
+It is not mandatory to add an empty data form if a client prefers to use default values (`<query/>` element may be empty).
+However, the IQ type must be "set", even when data form is missing.
 
 Your client application may request the currently supported form with IQ get:
 
@@ -117,7 +118,7 @@ Alice receives:
   </result>
 </message>
 
-<iq from="alicE@localhost" to="alicE@localhost/res1" id="10bca" type="result">
+<iq from="alicE@localhost" to="alicE@localhost/res1" id="b6" type="result">
   <count xmlns='erlang-solutions.com:xmpp:inbox:0'>1</count>
 </iq>
 
