@@ -195,18 +195,19 @@ generate_message_id() ->
     M = mod_mam:uid_module(),
     M:generate_message_id().
 
-%% @doc Create a message ID (UID).
--spec encode_compact_uuid(integer(), byte()) -> any().
-encode_compact_uuid(Microseconds, NodeId) ->
+
+%% @doc Transform a message ID to a timestamp
+-spec message_id_to_timestamp(any()) -> mod_mam:unix_timestamp().
+message_id_to_timestamp(ID) ->
     M = mod_mam:uid_module(),
-    M:encode_compact_uuid(Microseconds, NodeId).
+    M:message_id_to_timestamp(ID).
 
 
-%% @doc Extract date and node id from a message id.
--spec decode_compact_uuid(any()) -> {integer(), byte()}.
-decode_compact_uuid(Id) ->
+%% @doc Transform a timestamp to a message ID
+-spec timestamp_to_message_id(mod_mam:unix_timestamp()) -> any().
+timestamp_to_message_id(TS) ->
     M = mod_mam:uid_module(),
-    M:decode_compact_uuid(Id).
+    M:timestamp_to_message_id(TS).
 
 
 %% @doc Encode a message ID to pass it to the user.
@@ -882,28 +883,30 @@ maybe_integer(Bin, _Def) when is_binary(Bin) ->
 
 -spec apply_start_border('undefined' | mod_mam:borders(), undefined | integer()) ->
                                 undefined | integer().
-apply_start_border(undefined, StartID) ->
-    StartID;
-apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, StartID) ->
-    maybe_max(maybe_next_id(AfterID), maybe_max(FromID, StartID)).
+apply_start_border(undefined, Start) ->
+    maybe_timestamp_to_message_id(Start);
+apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, Start) ->
+    After = maybe_message_id_to_timestamp(AfterID),
+    From = maybe_message_id_to_timestamp(FromID),
+    maybe_max(maybe_incr_timestamp(After), maybe_max(From, Start)),
 
 
 -spec apply_end_border('undefined' | mod_mam:borders(), undefined | integer()) ->
                               undefined | integer().
-apply_end_border(undefined, EndID) ->
-    EndID;
-apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, EndID) ->
-    maybe_min(maybe_previous_id(BeforeID), maybe_min(ToID, EndID)).
+apply_end_border(undefined, End) ->
+    maybe_timestamp_to_message_id(End);
+apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, End) ->
+    Before = maybe_message_id_to_timestamp(BeforeID),
+    To = maybe_message_id_to_timestamp(ToID),
+    maybe_min(maybe_decr_timestamp(Before), maybe_min(To, End)),
 
--spec calculate_msg_id_borders(mod_mam:borders() | undefined,
-                               mod_mam:unix_timestamp() | undefined,
-                               mod_mam:unix_timestamp() | undefined) -> R when
+-spec calculate_timestamp_borders(mod_mam:borders() | undefined,
+                                  mod_mam:unix_timestamp() | undefined,
+                                  mod_mam:unix_timestamp() | undefined) -> R when
       R :: {integer() | undefined, integer() | undefined}.
-calculate_msg_id_borders(Borders, Start, End) ->
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID = maybe_encode_compact_uuid(End, 255),
-    {apply_start_border(Borders, StartID),
-     apply_end_border(Borders, EndID)}.
+calculate_timestamp_borders(Borders, Start, End) ->
+    {apply_start_border(Borders, Start),
+     apply_end_border(Borders, End)}.
 
 -spec calculate_msg_id_borders(jlib:rsm_in() | undefined,
                                mod_mam:borders() | undefined,
@@ -911,24 +914,18 @@ calculate_msg_id_borders(Borders, Start, End) ->
                                mod_mam:unix_timestamp() | undefined) -> R when
       R :: {integer() | undefined, integer() | undefined}.
 calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
-    calculate_msg_id_borders(undefined, Borders, Start, End);
+    {Start, End} = calculate_timestamp_borders(Borders, Start, End),
+    {maybe_timestamp_to_message_id(Start), maybe_timestamp_to_message_id(End)};
 calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
-    NextId = Id + 1,
-    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
+    {Start1, End1} = calculate_timestamp_borders(Borders, Start, End),
+    Next = message_id_to_timestamp(Id) + 1,
+    Max = maybe_max(Start1, Next),
+    {maybe_timestamp_to_message_id(Max), maybe_timestamp_to_message_id(End1)};
 calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
-    PrevId = Id - 1,
-    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders(_, Borders, Start, End) ->
-    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
-
--spec maybe_encode_compact_uuid(mod_mam:unix_timestamp() | undefined, byte()) ->
-    undefined | any().
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    mod_mam_utils:encode_compact_uuid(Microseconds, NodeID).
+    {Start1, End1} = calculate_timestamp_borders(Borders, Start, End),
+    Prev = message_id_to_timestamp(Id) - 1,
+    Min = maybe_min(End1, Prev),
+    {maybe_timestamp_to_message_id(Start1), maybe_timestamp_to_message_id(Min)}.
 
 
 -spec maybe_min('undefined' | integer(), undefined | integer()) -> integer().
@@ -949,17 +946,32 @@ maybe_max(X, Y) ->
     max(X, Y).
 
 
--spec maybe_next_id('undefined' | non_neg_integer()) -> 'undefined' | pos_integer().
-maybe_next_id(undefined) ->
+-spec maybe_incr_timestamp('undefined' | non_neg_integer()) -> 'undefined' | pos_integer().
+maybe_incr_timestamp(undefined) ->
     undefined;
-maybe_next_id(X) ->
+maybe_incr_timestamp(X) ->
     X + 1.
 
--spec maybe_previous_id('undefined' | non_neg_integer()) -> 'undefined' | integer().
-maybe_previous_id(undefined) ->
+-spec maybe_decr_timestamp('undefined' | non_neg_integer()) -> 'undefined' | integer().
+maybe_decr_timestamp(undefined) ->
     undefined;
-maybe_previous_id(X) ->
+maybe_decr_timestamp(X) ->
     X - 1.
+
+
+-spec maybe_timestamp_to_message_id(mod_mam:unix_timestamp() | undefined) ->
+    undefined | any().
+maybe_timestamp_to_message_id(undefined) ->
+    undefined;
+maybe_timestamp_to_message_id(Microseconds) ->
+    timestamp_to_message_id(Microseconds).
+
+
+-spec maybe_message_id_to_timestamp(any()) -> undefined | mod_mam:unix_timestamp().
+maybe_message_id_to_timestamp(undefined) ->
+    undefined;
+maybe_message_id_to_timestamp(Microseconds) ->
+    message_id_to_timestamp(Microseconds).
 
 
 %% @doc Returns true, if the current page is the final one in the result set.
