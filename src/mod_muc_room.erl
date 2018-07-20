@@ -54,10 +54,10 @@
          terminate/3,
          code_change/4]).
 
--import(mongoose_maps, [maps_append/3,
-                        maps_foreach/2,
-                        pairs_foreach/2,
-                        maps_or_pairs_foreach/2]).
+-import(mongoose_lib, [maps_append/3,
+                       maps_foreach/2,
+                       pairs_foreach/2,
+                       maps_or_pairs_foreach/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").

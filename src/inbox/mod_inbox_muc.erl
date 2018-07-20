@@ -53,7 +53,7 @@ update_inbox_for_muc(
                     ok
             end
         end,
-    mongoose_maps:maps_foreach(F, AffsMap),
+    mongoose_lib:maps_foreach(F, AffsMap),
     Acc.
 
 -spec is_allowed_affiliation(mod_muc:affiliation()) -> boolean().
