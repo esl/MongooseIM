@@ -35,7 +35,7 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) -> BExtMessID.
 %% @doc Extract the date from a message ID.
 -spec message_id_to_timestamp(binary()) -> mod_mam:unix_timestamp().
 message_id_to_timestamp(Id) ->
-    uuid:get_v1_time(Id).
+    uuid:get_v1_time(uuid:string_to_uuid(binary_to_list(Id))).
 
 
 %% @doc Transform a timestamp to a message ID
