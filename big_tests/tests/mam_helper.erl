@@ -980,8 +980,8 @@ generate_msg_for_date_user(Owner, {RemoteBin, _, _} = Remote, DateTime, Content)
     MicrosecDateTime = datetime_to_microseconds(DateTime),
     NowMicro = rpc_apply(mod_mam_utils, now_to_microseconds, [rpc_apply(erlang, now, [])]),
     Microsec = min(NowMicro, MicrosecDateTime),
-    MsgIdOwner = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec, random:uniform(20)]),
-    MsgIdRemote = rpc_apply(mod_mam_utils, encode_compact_uuid, [Microsec+1, random:uniform(20)]),
+    MsgIdOwner = rpc_apply(mod_mam_utils, maybe_timestamp_to_message_id, [Microsec]),
+    MsgIdRemote = rpc_apply(mod_mam_utils, maybe_timestamp_to_message_id, [Microsec+1]),
     Packet = escalus_stanza:chat_to(RemoteBin, Content),
     {{MsgIdOwner, MsgIdRemote}, Owner, Remote, Owner, Packet}.
 
