@@ -14,8 +14,8 @@
 
 %% UID
 -export([generate_message_id/0,
-         message_id_to_timestamp/1,
-         timestamp_to_message_id/1,
+         maybe_message_id_to_timestamp/1,
+         maybe_timestamp_to_message_id/1,
          mess_id_to_external_binary/1,
          external_binary_to_mess_id/1,
          wrapper_id/0]).

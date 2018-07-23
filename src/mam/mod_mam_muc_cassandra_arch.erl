@@ -27,7 +27,7 @@
 
 %% UID
 -import(mod_mam_utils,
-        [encode_compact_uuid/2]).
+        [maybe_timestamp_to_message_id/1]).
 
 %% Other
 -import(mod_mam_utils,
@@ -693,8 +693,8 @@ insert_offset_hint_query_cql() ->
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID = maybe_encode_compact_uuid(End, 255),
+    StartID = maybe_timestamp_to_message_id(Start),
+    EndID = maybe_timestamp_to_message_id(End),
     StartID2 = apply_start_border(Borders, StartID),
     EndID2 = apply_end_border(Borders, EndID),
     BWithNick = maybe_nick(WithNick),
@@ -775,11 +775,6 @@ calc_offset(PoolName, RoomJID, Host, F, _PS, _TC, #rsm_in{direction = aft, id = 
     calc_index(PoolName, RoomJID, Host, F, ID);
 calc_offset(_W, _RoomJID, _LS, _F, _PS, _TC, _RSM) ->
     0.
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
 
 maybe_nick(undefined) ->
     <<>>;
