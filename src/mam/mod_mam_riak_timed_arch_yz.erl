@@ -169,7 +169,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
 -spec bucket(calendar:date() | yearweeknum() | integer()) ->
                     {binary(), binary()} | undefined.
 bucket(MsgId) when is_integer(MsgId) ->
-    {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
+    MicroSec = mod_mam_utils:maybe_message_id_to_timestamp(MsgId),
     MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
     {MsgDate, _} = calendar:now_to_datetime(MsgNow),
     bucket(MsgDate);

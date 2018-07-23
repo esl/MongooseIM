@@ -69,7 +69,7 @@
 %% UID
 -import(mod_mam_utils,
         [generate_message_id/0,
-         decode_compact_uuid/1]).
+         maybe_message_id_to_timestamp/1]).
 
 %% XML
 -import(mod_mam_utils,
@@ -655,7 +655,7 @@ archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
 -spec message_row_to_xml(binary(), messid_jid_packet(), QueryId :: binary(), boolean()) ->
     exml:element().
 message_row_to_xml(MamNs, {MessID, SrcJID, Packet}, QueryID, SetClientNs)  ->
-    {Microseconds, _NodeMessID} = decode_compact_uuid(MessID),
+    Microseconds = maybe_message_id_to_timestamp(MessID),
     DateTime = calendar:now_to_universal_time(microseconds_to_now(Microseconds)),
     BExtMessID = mess_id_to_external_binary(MessID),
     Packet1 = mod_mam_utils:maybe_set_client_xmlns(SetClientNs, Packet),
