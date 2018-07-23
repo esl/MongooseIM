@@ -20,13 +20,13 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--define(WAIT_TIME, 500).
--define(GLOBAL_WAIT_TIME, 3000).  % milliseconds
 -define(RT_WINDOW, 3).  % seconds
 
 -import(metrics_helper, [assert_counter/2,
                          assert_counter/3,
-                         get_counter_value/1]).
+                         get_counter_value/1,
+                         wait_for_counter/2,
+                         wait_for_counter/3]).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -122,12 +122,3 @@ session_unique(Config) ->
         wait_for_counter(global, 2, totalSessionCount)
 
         end).
-
-
-wait_for_counter(ExpectedValue, Counter) ->
-    wait_for_counter(ct:get_config({hosts, mim, domain}), ExpectedValue, Counter).
-
-wait_for_counter(Host, ExpectedValue, Counter) ->
-    mongoose_helper:wait_until(fun() -> assert_counter(Host, ExpectedValue, Counter) end, {value, ExpectedValue},
-                                #{name => Counter, time_left => ?WAIT_TIME, sleep_time => 20}).
-

@@ -23,7 +23,8 @@
 -define(WAIT_TIME, 100).
 
 -import(metrics_helper, [assert_counter/2,
-                         get_counter_value/1]).
+                         get_counter_value/1,
+                         wait_for_counter/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -266,7 +267,3 @@ error_iq(Config) ->
     Alice = escalus_users:get_user_by_name(alice, Users),
     escalus_users:create_user(Config, Alice),
     wait_for_counter(Errors + 1, xmppErrorIq).
-
-wait_for_counter(ExpectedValue, Counter) ->
-    mongoose_helper:wait_until(fun() -> assert_counter(ExpectedValue, Counter) end, {value, ExpectedValue}, 
-                                #{name => Counter, time_left => ?WAIT_TIME, sleep_time => 20}). 

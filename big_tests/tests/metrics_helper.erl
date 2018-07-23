@@ -9,6 +9,7 @@
 
 %% We introduce a convention, where metrics-related suites use only 2 accounts
 %% but it depends on `all_metrics_are_global` flag, which duet it will be.
+-define(WAIT_TIME, 500).
 -define(METRICS_GROUP_USERS, [alice, bob]).
 -define(ONLY_GLOBAL_METRICS_GROUP_USERS, [clusterguy, clusterbuddy]).
 
@@ -87,3 +88,10 @@ user_ids(Config) ->
         true -> ?ONLY_GLOBAL_METRICS_GROUP_USERS;
         _ -> ?METRICS_GROUP_USERS
     end.
+
+wait_for_counter(ExpectedValue, Counter) ->
+        wait_for_counter(ct:get_config({hosts, mim, domain}), ExpectedValue, Counter).
+
+wait_for_counter(Host, ExpectedValue, Counter) ->
+        mongoose_helper:wait_until(fun() -> assert_counter(Host, ExpectedValue, Counter) end, {value, ExpectedValue},
+                                                                   #{name => Counter, time_left => ?WAIT_TIME, sleep_time => 20}).
