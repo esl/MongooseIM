@@ -35,10 +35,15 @@ external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) -> BExtMessID.
 %% @doc Extract the date from a message ID.
 -spec message_id_to_timestamp(binary()) -> mod_mam:unix_timestamp().
 message_id_to_timestamp(Id) ->
-    Id bsr 8.
+    uuid:get_v1_time(Id).
 
 
 %% @doc Transform a timestamp to a message ID
 -spec timestamp_to_message_id(mod_mam:posix_timestamp()) -> binary().
 timestamp_to_message_id(Microseconds) ->
-    (Microseconds bsl 8) + 255.
+    BinNanoSecs = integer_to_binary((Microseconds * 10) + 16#01b21dd213814000),
+    Time = <<0:(60-bit_size(BinNanoSecs)), BinNanoSecs/binary>>,
+    <<TimeHigh:12, TimeMid:16, TimeLow:32>> = Time,
+    %% generate a usual message ID and replace the timestamp part of it
+    <<_:32, _:16, VersionBits:4, _:12, Suffix:64>> = generate_message_id(),
+    <<TimeLow:32, TimeMid:16, VersionBits:4, TimeHigh:12, Suffix:64>>.
