@@ -77,7 +77,9 @@ set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
     NumericTimestamp = usec:from_now(Timestamp),
     Res = BackendModule:set_inbox(LUsername, LServer, LToBareJid,
                                   Content, Count, MsgId, NumericTimestamp),
-    ok = check_result(Res, 1).
+    %% MySQL returns 1 when an upsert is an insert
+    %% and 2, when an upsert acts as update
+    ok = check_result(Res, [1, 2]).
 
 -spec remove_inbox(User :: binary(),
     Server :: binary(),
