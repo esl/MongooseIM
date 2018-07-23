@@ -21,7 +21,7 @@
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3]).
 -export([logout_user/2]).
--export([wait_until/2, wait_until/3]).
+-export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -181,26 +181,10 @@ count_riak(BucketType) ->
 
 kick_everyone() ->
     [rpc(mim(), ejabberd_c2s, stop, [Pid]) || Pid <- get_session_pids()],
-    asset_session_count(0, 50).
+    wait_for_session_count(0).
 
-asset_session_count(Expected, Retries) ->
-    case wait_for_session_count(Expected, Retries) of
-        Expected ->
-            ok;
-        Other ->
-            ct:fail({asset_session_count, {expected, Expected}, {value, Other}})
-    end.
-
-wait_for_session_count(Expected, Retries) ->
-    case length(get_session_specs()) of
-        Expected ->
-            Expected;
-        _Other when Retries > 0 ->
-            timer:sleep(100),
-            wait_for_session_count(Expected, Retries-1);
-        Other ->
-            Other
-    end.
+wait_for_session_count(Expected) ->
+    wait_until(fun() -> length(get_session_specs()) end, Expected, #{name => session_count}).
 
 get_session_specs() ->
     rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup]).
@@ -306,3 +290,14 @@ wait_and_continue(Fun, ExpectedValue, FunResult, #{time_left := TimeLeft,
     timer:sleep(SleepTime),
     do_wait_until(Fun, ExpectedValue, Opts#{time_left => TimeLeft - SleepTime,
                                             history => [FunResult | History]}).
+
+wait_for_user(Config, User, LeftTime) ->
+    mongoose_helper:wait_until(fun() -> 
+                                escalus_users:verify_creation(escalus_users:create_user(Config, User)) 
+                               end, ok,
+							   #{
+                                 sleep_time => 400, 
+                                 left_time => LeftTime, 
+                                 name => 'escalus_users:create_user'
+                                }).
+

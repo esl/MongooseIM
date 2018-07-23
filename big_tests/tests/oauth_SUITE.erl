@@ -311,7 +311,6 @@ token_removed_on_user_removal(Config) ->
     S = fun (Bob) ->
                 IQ = escalus_stanza:remove_account(),
                 escalus:send(Bob, IQ),
-                timer:sleep(500),
                 escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Bob))
         end,
     escalus:story(Config, [{bob, 1}], S),

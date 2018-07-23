@@ -334,10 +334,10 @@ resend_more_offline_messages_than_buffer_size(Config) ->
     % confirm messages + presence
     escalus_connection:send(Alice, escalus_stanza:sm_ack(4)),
     % wait for check constraint message on server side
-    ct:sleep(?CONSTRAINT_CHECK_TIMEOUT+1000),
 
-    % should not receive anything especially any stream errors
+    ct:sleep(?CONSTRAINT_CHECK_TIMEOUT + 1000),
     false = escalus_client:has_stanzas(Alice),
+    % should not receive anything especially any stream errors
 
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob).
@@ -591,7 +591,7 @@ wait_for_resumption(Config) ->
     {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
     %% Ensure the c2s process is waiting for resumption.
     assert_no_offline_msgs(AliceSpec),
-    wait_for_c2s_state_change(C2SPid, session_established, resume_session).
+    wait_for_c2s_state_change(C2SPid, resume_session).
 
 resume_session(Config) ->
     AliceSpec = [{manual_ack, true}
@@ -807,19 +807,9 @@ assert_no_offline_msgs(Spec) ->
 assert_no_offline_msgs() ->
     0 = mongoose_helper:total_offline_messages().
 
-wait_for_c2s_state_change(C2SPid, StateName, NewStateName) ->
-    wait_for_c2s_state_change(C2SPid, StateName, NewStateName, 5000).
-
-wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft) when TimeLeft =< 0 ->
-    error({c2s_state_change_timeout, C2SPid, StateName, NewStateName});
-wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft) ->
-    case get_c2s_state(C2SPid) of
-        StateName ->
-            timer:sleep(100),
-            wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft - 100);
-        NewStateName ->
-            ok
-    end.
+wait_for_c2s_state_change(C2SPid, NewStateName) ->
+    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName, 
+                                #{name => get_c2s_state, time_left => timer:seconds(5)}).
 
 assert_c2s_state(C2SPid, StateName) ->
     StateName = get_c2s_state(C2SPid).

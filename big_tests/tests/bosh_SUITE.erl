@@ -173,9 +173,8 @@ create_and_terminate_session(Config) ->
     Terminate = escalus_bosh:session_termination_body(get_bosh_rid(Conn), Sid),
     ok = bosh_send_raw(Conn, Terminate),
 
-    timer:sleep(100),
     %% Assert the session was terminated.
-    [] = get_bosh_sessions().
+    wait_for_zero_bosh_sessions().
 
 accept_higher_hold_value(Config) ->
     #xmlel{attrs = RespAttrs} = send_specific_hold(Config, <<"2">>),
@@ -461,11 +460,8 @@ disconnect_inactive(Config) ->
         [] = get_handlers(CarolSessionPid),
 
         %% Wait for disconnection because of inactivity timeout.
-        timer:sleep(2 * timer:seconds(?INACTIVITY)),
-
         %% Assert Carol has been disconnected due to inactivity.
-        false = is_session_alive(Sid),
-
+        wait_for_session_close(Sid),
         %% We don't need to close the session in escalus_bosh:stop/1
         escalus_client:kill_connection(Config, Carol)
 
@@ -492,11 +488,8 @@ connection_interrupted(Config) ->
         %% Keep in mind this only works due to the max_wait also being lowered.
         %% In other words, wait timeout must happen, so that there are
         %% no requests held by the server for inactivity to cause disconnection.
-        timer:sleep(timer:seconds(?INACTIVITY) + timer:seconds(?MAX_WAIT)),
-
         %% Assert Carol has been disconnected due to inactivity.
-        false = is_session_alive(Sid)
-
+        wait_for_session_close(Sid, timer:seconds(?INACTIVITY) + timer:seconds(?MAX_WAIT))
         end).
 
 %% Ensure that a new request replacing an existing long-poll does not start the
@@ -510,7 +503,7 @@ interrupt_long_poll_is_activity(ConfigIn) ->
         %% to Carol and one handler for Carol.
         Sid = get_bosh_sid(Carol),
         {_, _, CarolSessionPid} = get_bosh_session(Sid),
-        {ok, 1} = wait_for_handler(CarolSessionPid),
+        {ok, 1} = wait_for_handler(CarolSessionPid, 1),
 
         %% Send a message.  A new connection should be established, and
         %% the existing long-poll connection should be closed.
@@ -520,11 +513,11 @@ interrupt_long_poll_is_activity(ConfigIn) ->
         %% Wait until after the inactivity timeout (which should be less than
         %% the BOSH wait timeout).
         timer:sleep(2 * timer:seconds(?INACTIVITY)),
-
+              
         %% No disconnection should have occurred.
         escalus_assert:has_no_stanzas(Carol),
         true = is_session_alive(Sid),
-        {ok, 1} = wait_for_handler(CarolSessionPid)
+        {ok, 1} = wait_for_handler(CarolSessionPid, 1)
 
         end).
 
@@ -536,7 +529,7 @@ reply_on_pause(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        {ok, 1} = wait_for_handler(CarolSessionPid),
+        {ok, 1} = wait_for_handler(CarolSessionPid, 1),
 
         pause(Carol, 10),
 
@@ -556,7 +549,7 @@ cant_pause_for_too_long(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        {ok, 1} = wait_for_handler(CarolSessionPid),
+        {ok, 1} = wait_for_handler(CarolSessionPid, 1),
 
         pause(Carol, 10000),
 
@@ -575,17 +568,14 @@ pause_request_is_activity(Config) ->
         set_keepalive(Carol, false),
 
         %% Sanity check - there should be one handler for Carol.
-        {ok, 1} = wait_for_handler(CarolSessionPid),
+        {ok, 1} = wait_for_handler(CarolSessionPid, 1),
 
         %% Wait most of the allowed inactivity interval.
         timer:sleep(timer:seconds(?INACTIVITY - 1)),
 
         %% This should cancel the inactivity timer.
         pause(Carol, 10),
-
-        %% Wait a bit past the inactivity interval.
         timer:sleep(timer:seconds(?INACTIVITY - 1)),
-
         %% No disconnection should've occured.
         escalus_assert:has_no_stanzas(Carol),
         true = is_session_alive(Sid)
@@ -618,13 +608,10 @@ reply_in_time(ConfigIn) ->
         Empty = escalus_bosh:empty_body(Rid, Sid),
         bosh_send_raw(Carol, Empty),
         timer:sleep(100),
-        {ok, 1} = wait_for_handler(CarolSessionPid),
-
-        timer:sleep(timer:seconds(Wait) + 100),
+        {ok, 1} = wait_for_handler(CarolSessionPid, 1),
 
         %% Assert the server has responded to that request.
-        0 = length(get_handlers(CarolSessionPid))
-
+        wait_for_handler(CarolSessionPid, 0, timer:seconds(Wait) + 100)
         end).
 
 server_acks(Config) ->
@@ -875,19 +862,44 @@ is_session_alive(Sid) ->
     lists:keymember(Sid, 2, BoshSessions).
 
 wait_for_session_close(Sid) ->
+    wait_for_session_close(Sid, ?INACTIVITY).
+
+wait_for_session_close(Sid, LeftTime) ->
     mongoose_helper:wait_until(fun() -> is_session_alive(Sid) end, false,
                                #{
                                  time_left => timer:seconds(10),
-                                 time_sleep => timer:seconds(1),
+                                 time_sleep => LeftTime, 
                                  name => is_session_alive
                                 }).
 
-wait_for_handler(Pid) ->
-    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, 1, #{
-                                                                            time_left => timer:seconds(10),
-                                                                            time_sleep => timer:seconds(1),
-                                                                            name => get_handlers
-                                                                           }).
+wait_for_handler(Pid, Count) ->
+    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count,
+                                #{   
+                                 time_left => timer:seconds(10),
+                                 time_sleep => timer:seconds(1),
+                                 name => get_handlers
+                                }).
+
+
+wait_for_handler(Pid, Count, LeftTime) ->
+    mongoose_helper:wait_until(fun() -> length(get_handlers(Pid)) end, Count, 
+                               #{   
+                                 time_left => LeftTime,
+                                 time_sleep => timer:seconds(1),
+                                 name => get_handlers
+                                }).
+
+wait_until_user_has_no_stanzas(User) ->
+        mongoose_helper:wait_until(fun() -> 
+                                       escalus_assert:has_no_stanzas(User) 
+                                   end, ok, #{left_time => 2 * timer:seconds(?INACTIVITY)}).
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
+
+wait_for_zero_bosh_sessions() ->
+    mongoose_helper:wait_until(fun() ->
+                                       length(get_bosh_sessions())
+                               end,
+                               0,
+                               #{name => get_bosh_sessions}).
