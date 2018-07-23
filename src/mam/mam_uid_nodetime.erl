@@ -8,10 +8,10 @@
 
 %% UID
 -export([generate_message_id/0,
-         encode_compact_uuid/2,
-         decode_compact_uuid/1,
          mess_id_to_external_binary/1,
-         external_binary_to_mess_id/1]).
+         external_binary_to_mess_id/1,
+         message_id_to_timestamp/1,
+         timestamp_to_message_id/1]).
 
 %% -----------------------------------------------------------------------
 %% UID
@@ -20,26 +20,8 @@
 generate_message_id() ->
     {ok, NodeId} = ejabberd_node_id:node_id(),
     CandidateStamp = p1_time_compat:os_system_time(micro_seconds),
-    UniqueStamp = mongoose_mam_id:next_unique(CandidateStamp),
-    encode_compact_uuid(UniqueStamp, NodeId).
-
-
-%% @doc Create a message ID (UID).
-%%
-%% It removes a leading 0 from 64-bit binary representation.
-%% It puts node id as a last byte.
-%% The maximum date, that can be encoded is `{{4253,5,31},{22,20,37}}'.
--spec encode_compact_uuid(integer(), byte()) -> integer().
-encode_compact_uuid(Microseconds, NodeId)
-    when is_integer(Microseconds), is_integer(NodeId) ->
+    Microseconds = mongoose_mam_id:next_unique(CandidateStamp),
     (Microseconds bsl 8) + NodeId.
-
-%% @doc Extract date and node id from a message id.
--spec decode_compact_uuid(integer()) -> {integer(), byte()}.
-decode_compact_uuid(Id) ->
-    Microseconds = Id bsr 8,
-    NodeId = Id band 255,
-    {Microseconds, NodeId}.
 
 
 %% @doc Encode a message ID to pass it to the user.
@@ -52,3 +34,15 @@ mess_id_to_external_binary(MessID) when is_integer(MessID) ->
 -spec external_binary_to_mess_id(binary()) -> integer().
 external_binary_to_mess_id(BExtMessID) when is_binary(BExtMessID) ->
     binary_to_integer(BExtMessID, 32).
+
+
+%% @doc Extract the date from a message ID.
+-spec message_id_to_timestamp(integer()) -> mod_mam:unix_timestamp().
+message_id_to_timestamp(MessID) ->
+    MessID bsr 8.
+
+
+%% @doc Transform a timestamp to a message ID
+-spec timestamp_to_message_id(mod_mam:posix_timestamp()) -> integer().
+timestamp_to_message_id(Microseconds) ->
+    Microseconds bsl 8.

@@ -14,8 +14,8 @@
 
 %% UID
 -export([generate_message_id/0,
-         encode_compact_uuid/2,
-         decode_compact_uuid/1,
+         message_id_to_timestamp/1,
+         timestamp_to_message_id/1,
          mess_id_to_external_binary/1,
          external_binary_to_mess_id/1,
          wrapper_id/0]).
@@ -78,9 +78,8 @@
          apply_end_border/2,
          bare_jid/1,
          full_jid/1,
-         calculate_msg_id_borders/3,
+         calculate_timestamp_borders/3,
          calculate_msg_id_borders/4,
-         maybe_encode_compact_uuid/2,
          is_complete_result_page/4,
          wait_shaper/3]).
 
@@ -104,7 +103,6 @@
                    is_valid_message/3,
                    is_valid_message_type/3,
                    is_valid_message_children/3,
-                   encode_compact_uuid/2,
                    get_one_of_path/3,
                    delay/2,
                    forwarded/3,
@@ -888,7 +886,7 @@ apply_start_border(undefined, Start) ->
 apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, Start) ->
     After = maybe_message_id_to_timestamp(AfterID),
     From = maybe_message_id_to_timestamp(FromID),
-    maybe_max(maybe_incr_timestamp(After), maybe_max(From, Start)),
+    maybe_max(maybe_incr_timestamp(After), maybe_max(From, Start)).
 
 
 -spec apply_end_border('undefined' | mod_mam:borders(), undefined | integer()) ->
@@ -898,7 +896,7 @@ apply_end_border(undefined, End) ->
 apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, End) ->
     Before = maybe_message_id_to_timestamp(BeforeID),
     To = maybe_message_id_to_timestamp(ToID),
-    maybe_min(maybe_decr_timestamp(Before), maybe_min(To, End)),
+    maybe_min(maybe_decr_timestamp(Before), maybe_min(To, End)).
 
 -spec calculate_timestamp_borders(mod_mam:borders() | undefined,
                                   mod_mam:unix_timestamp() | undefined,
