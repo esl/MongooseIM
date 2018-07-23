@@ -516,12 +516,11 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
     case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
         {'EXIT', Reason} ->
-            ?DEBUG("Filtering error", []),
-            ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-                       "packet=~ts~n~nstack_trace=~p~n",
-                       [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                        M, Reason, mongoose_acc:to_binary(OrigPacket),
-                        erlang:get_stacktrace()]),
+            ?WARNING_MSG("event=filtering_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
+                         "packet=~ts~n~nstack_trace=~p~n",
+                         [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                          M, Reason, mongoose_acc:to_binary(OrigPacket),
+                          erlang:get_stacktrace()]),
             mongoose_acc:record_sending(Acc, OrigFrom, OrigTo, OrigPacket, M, Reason);
         drop ->
             ?DEBUG("filter dropped packet", []),
@@ -530,12 +529,11 @@ route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
             ?DEBUG("filter passed", []),
             case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
                 {'EXIT', Reason} ->
-                    ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-                               "packet=~ts~n~nstack_trace=~p~n",
-                               [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                                M, Reason, mongoose_acc:to_binary(OrigPacketFiltered),
-                                erlang:get_stacktrace()]),
-                    ?DEBUG("routing error", []),
+                    ?WARNING_MSG("event=routing_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
+                                 "packet=~ts~n~nstack_trace=~p~n",
+                                 [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                                  M, Reason, mongoose_acc:to_binary(OrigPacketFiltered),
+                                  erlang:get_stacktrace()]),
                     mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered,
                                                 M, Reason);
                 done ->

@@ -142,7 +142,8 @@ handle(Host, Module, Function, Opts, From, To, Acc, IQ) ->
 process_iq(_Host, Module, Function, From, To, Acc, IQ) ->
     case catch Module:Function(From, To, Acc, IQ) of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("~p", [Reason]),
+            ?WARNING_MSG("event=process_iq_error,reason=~p,stack_trace=~p",
+                         [Reason, erlang:get_stacktrace()]),
             Acc;
         {Acc1, ignore} ->
             Acc1;
