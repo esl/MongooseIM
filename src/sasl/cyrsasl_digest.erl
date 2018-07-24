@@ -66,7 +66,7 @@ mech_new(Host, Creds) ->
          | cyrsasl:error().
 mech_step(#state{step = 1, nonce = Nonce} = State, _) ->
     {continue,
-     <<"nonce=\"", Nonce/binary, "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess">>),
+     <<"nonce=\"", Nonce/binary, "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess">>,
      State#state{step = 3}};
 mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
     case parse(ClientIn) of
