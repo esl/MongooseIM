@@ -96,7 +96,7 @@ Alice sends:
 <iq type="set" id="10bca">
   <inbox xmlns=”erlang-solutions.com:xmpp:inbox:0” queryid="b6">
     <x xmlns='jabber:x:data' type='form'>
-      <field type='hidden' var='FORM_TYPE'><value>urn:xmpp:mam:2</value></field>
+      <field type='hidden' var='FORM_TYPE'><value>erlang-solutions.com:xmpp:inbox:0</value></field>
       <field type='text-single' var='start'><value>2018-07-10T12:00:00Z</value></field>
       <field type='text-single' var='end'><value>2018-07-11T12:00:00Z</value></field>
       <field type='list-single' var='order'><value>asc</value></field>
