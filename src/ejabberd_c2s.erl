@@ -47,7 +47,6 @@
 %% gen_fsm callbacks
 -export([init/1,
          wait_for_stream/2,
-         wait_for_auth/2,
          wait_for_feature_before_auth/2,
          wait_for_feature_after_auth/2,
          wait_for_session_or_sm/2,
@@ -300,14 +299,8 @@ c2s_stream_error(Error, StateData) ->
 %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
 stream_start_by_protocol_version(<<"1.0">>, #state{} = S) ->
     stream_start_negotiate_features(S);
-stream_start_by_protocol_version(_Pre10, #state{lang = Lang, server = Server} = S) ->
-    send_header(S, Server, <<"">>, default_language()),
-    case is_tls_required_but_unavailable(S) of
-        false ->
-            wait_for_legacy_auth(S);
-        true ->
-            c2s_stream_error(mongoose_xmpp_errors:policy_violation(Lang, <<"Use of STARTTLS required">>), S)
-    end.
+stream_start_by_protocol_version(_Pre10, S) ->
+    c2s_stream_error(mongoose_xmpp_errors:unsupported_version(), S).
 
 stream_start_negotiate_features(#state{} = S) ->
     send_header(S, S#state.server, <<"1.0">>, default_language()),
@@ -320,16 +313,6 @@ stream_start_negotiate_features(#state{} = S) ->
             send_element(S, #xmlel{name = <<"stream:features">>}),
             fsm_next_state(wait_for_session_or_sm, S)
     end.
-
-is_tls_required_but_unavailable(#state{} = S) ->
-    (not S#state.tls_enabled) and S#state.tls_required.
-
-%% TODO: Consider making this a completely different path (different FSM states!)
-%%       than SASL auth negotiation - once wait_for_auth is targeted by refactoring.
-%% For legacy auth see XEP-0078: Non-SASL Authentication
-%% (http://xmpp.org/extensions/xep-0078.html).
-wait_for_legacy_auth(#state{} = S) ->
-    fsm_next_state(wait_for_auth, S).
 
 stream_start_features_before_auth(#state{server = Server} = S) ->
     Creds = maybe_add_cert(mongoose_credentials:new(Server), S),
@@ -455,75 +438,6 @@ default_language() ->
         DL -> DL
     end.
 
--spec wait_for_auth(Item :: ejabberd:xml_stream_item(),
-                    State :: state()) -> fsm_return().
-wait_for_auth({xmlstreamelement,
-               #xmlel{name = <<"enable">>} = El}, StateData) ->
-    maybe_unexpected_sm_request(wait_for_auth, El, StateData);
-wait_for_auth({xmlstreamelement, El}, StateData) ->
-    Acc0 = element_to_origin_accum(El, StateData),
-    User = StateData#state.user,
-    Server = StateData#state.server,
-    Acc = mongoose_acc:update(Acc0, #{user => User, server => Server}),
-    case is_auth_packet(El) of
-        {auth, _ID, get, {U, _, _, _}} ->
-            XE = jlib:make_result_iq_reply(El),
-            UCdata = case U of
-                         <<>> ->
-                             [];
-                         _ ->
-                             [#xmlcdata{content = U}]
-                     end,
-            Res = case ejabberd_auth:plain_password_required(StateData#state.server) of
-                      false ->
-                          XE#xmlel{children = [#xmlel{name = <<"query">>,
-                                                      attrs = [{<<"xmlns">>,
-                                                                ?NS_AUTH}],
-                                                      children = [#xmlel{name = <<"username">>,
-                                                                         children = UCdata},
-                                                                  #xmlel{name = <<"password">>},
-                                                                  #xmlel{name = <<"digest">>},
-                                                                  #xmlel{name = <<"resource">>}]}]};
-                      true ->
-                          XE#xmlel{children = [#xmlel{name = <<"query">>,
-                                                      attrs = [{<<"xmlns">>,
-                                                                ?NS_AUTH}],
-                                                      children = [#xmlel{name = <<"username">>,
-                                                                         children = UCdata},
-                                                                  #xmlel{name = <<"password">>},
-                                                                  #xmlel{name = <<"resource">>}]}]}
-                  end,
-            _Acc1 = send_element(Acc, Res, StateData),
-            fsm_next_state(wait_for_auth, StateData);
-        {auth, _ID, set, {_U, _P, _D, <<>>}} ->
-            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:auth_no_resource_provided(StateData#state.lang)),
-            _Acc1 = send_element(Acc, Err, StateData),
-            fsm_next_state(wait_for_auth, StateData);
-        {auth, _ID, set, {U, P, D, R}} ->
-            JID = jid:make(U, StateData#state.server, R),
-            case maybe_legacy_auth(JID, Acc, El, StateData, U, P, D, R) of
-                {established, _Acc1, NState} ->
-                    fsm_next_state(session_established, NState);
-                {wait, _Acc1, NState} ->
-                    fsm_next_state(wait_for_auth, NState)
-            end;
-        _ ->
-            process_unauthenticated_stanza(StateData, El),
-            fsm_next_state(wait_for_auth, StateData)
-    end;
-wait_for_auth(timeout, StateData) ->
-    {stop, normal, StateData};
-wait_for_auth({xmlstreamend, _Name}, StateData) ->
-    send_trailer(StateData),
-    {stop, normal, StateData};
-wait_for_auth({xmlstreamerror, _}, StateData) ->
-    send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
-    send_trailer(StateData),
-    {stop, normal, StateData};
-wait_for_auth(closed, StateData) ->
-    {stop, normal, StateData}.
-
-
 verify_opts(verify_none) -> [verify_none];
 verify_opts(verify_peer) -> [].
 
@@ -542,66 +456,6 @@ maybe_add_cert(Creds, S) ->
         error -> Creds;
         Cert -> mongoose_credentials:set(Creds, client_cert, Cert)
     end.
-
-maybe_legacy_auth(error, Acc, El, StateData, U, _P, _D, R) ->
-    ?INFO_MSG("(~w) Forbidden legacy authentication for "
-              "username '~s' with resource '~s'",
-              [StateData#state.socket, U, R]),
-    Err = jlib:make_error_reply(El, mongoose_xmpp_errors:jid_malformed()),
-    Acc1 = send_element(Acc, Err, StateData),
-    {wait, Acc1, StateData};
-maybe_legacy_auth(JID, Acc, El, StateData, U, P, D, R) ->
-    case user_allowed(JID, StateData) of
-        true ->
-            do_legacy_auth(JID, Acc, El, StateData, U, P, D, R);
-        _ ->
-            ?INFO_MSG("(~w) Forbidden legacy authentication for ~s",
-                      [StateData#state.socket, jid:to_binary(JID)]),
-            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_allowed()),
-            send_element(StateData, Err),
-            Acc1 = send_element(Acc, Err, StateData),
-            {wait, Acc1, StateData}
-    end.
-
-do_legacy_auth(JID, Acc, El, StateData, U, P, D, R) ->
-    case check_password_with_auth_module(U, StateData, P, D) of
-        {true, AuthModule} ->
-            do_open_legacy_session(Acc, El, StateData, U, R, JID,
-                                   AuthModule);
-        _ ->
-            IP = peerip(StateData#state.sockmod, StateData#state.socket),
-            ?INFO_MSG("(~w) Failed legacy authentication for ~s from IP ~s (~w)",
-                      [StateData#state.socket,
-                       jid:to_binary(JID), jlib:ip_to_list(IP), IP]),
-            Err = jlib:make_error_reply(El, mongoose_xmpp_errors:not_authorized()),
-            Acc1 = ejabberd_hooks:run_fold(auth_failed, StateData#state.server, Acc,
-                                           [U, StateData#state.server]),
-            Acc2 = send_element(Acc1, Err, StateData),
-            {wait, Acc2, StateData}
-    end.
-
-check_password_with_auth_module(User, #state{server = Server}, Password, <<>>) ->
-    ejabberd_auth:check_password_with_authmodule(User, Server, Password);
-check_password_with_auth_module(User, StateData, _, Digest) ->
-    DGen = fun(PW) ->
-                   Sid = StateData#state.streamid,
-                   sha:sha1_hex(<<Sid/binary,
-                                  PW/binary>>)
-           end,
-    ejabberd_auth:check_password_with_authmodule(User, StateData#state.server,
-                                                 <<>>, Digest, DGen).
-
-do_open_legacy_session(Acc, El, StateData, U, R, JID, AuthModule) ->
-    ?INFO_MSG("(~w) Accepted legacy authentication for ~s by ~p",
-              [StateData#state.socket, jid:to_binary(JID), AuthModule]),
-    Res1 = jlib:make_result_iq_reply(El),
-    Res = Res1#xmlel{children = []},
-    Acc1 = send_element(Acc, Res, StateData),
-    NewStateData = StateData#state{ user = U,
-                                    resource = R,
-                                    jid = JID,
-                                    auth_module = AuthModule },
-    do_open_session_common(Acc1, JID, NewStateData).
 
 -spec wait_for_feature_before_auth(Item :: ejabberd:xml_stream_item(),
                                State :: state()) -> fsm_return().
@@ -984,8 +838,8 @@ session_established({xmlstreamelement, El}, StateData) ->
                     end,
             Acc = mongoose_acc:update(Acc0, #{user => User,
                                               server => Server,
-                                              from_jid => FromJID,
-                                              from => jid:to_binary(FromJID),
+                                              from_jid => UserJID,
+                                              from => jid:to_binary(UserJID),
                                               to_jid => ToJID,
                                               to => To}),
             Acc1 = ejabberd_hooks:run_fold(c2s_preprocessing_hook, Server, Acc, [NewState]),
@@ -1870,40 +1724,6 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
 -spec new_id() -> binary().
 new_id() ->
     iolist_to_binary(randoms:get_string()).
-
-
--spec is_auth_packet(El :: exml:element()) -> boolean().
-is_auth_packet(El) ->
-    case jlib:iq_query_info(El) of
-        #iq{id = ID, type = Type, xmlns = ?NS_AUTH, sub_el = SubEl} ->
-            #xmlel{children = Els} = SubEl,
-            {auth, ID, Type,
-             get_auth_tags(Els, <<>>, <<>>, <<>>, <<>>)};
-        _ ->
-            false
-    end.
-
-
--spec get_auth_tags(Els :: [exml:element()], _, _, _, _) -> {_, _, _, _}.
-get_auth_tags([#xmlel{name = Name, children = Els}| L], U, P, D, R) ->
-    CData = xml:get_cdata(Els),
-    case Name of
-        <<"username">> ->
-            get_auth_tags(L, CData, P, D, R);
-        <<"password">> ->
-            get_auth_tags(L, U, CData, D, R);
-        <<"digest">> ->
-            get_auth_tags(L, U, P, CData, R);
-        <<"resource">> ->
-            get_auth_tags(L, U, P, D, CData);
-        _ ->
-            get_auth_tags(L, U, P, D, R)
-    end;
-get_auth_tags([_ | L], U, P, D, R) ->
-    get_auth_tags(L, U, P, D, R);
-get_auth_tags([], U, P, D, R) ->
-    {U, P, D, R}.
-
 
 %% Copied from ejabberd_socket.erl
 -record(socket_state, {sockmod, socket, receiver}).
