@@ -1385,7 +1385,7 @@ handle_broadcast_result(_Acc, {new_state, NewState}, StateName, _StateData) ->
 
 privacy_list_push_iq(PrivListName) ->
     #iq{type = set, xmlns = ?NS_PRIVACY,
-        id = list_to_binary("push" ++ randoms:get_string()),
+        id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
         sub_el = [#xmlel{name = <<"query">>,
                          attrs = [{<<"xmlns">>, ?NS_PRIVACY}],
                          children = [#xmlel{name = <<"list">>,
@@ -1588,9 +1588,7 @@ should_close_session(_) -> false.
 
 -spec generate_random_resource() -> jid:lresource().
 generate_random_resource() ->
-    list_to_binary(
-      lists:concat(
-        [randoms:get_string() | tuple_to_list(p1_time_compat:timestamp())])).
+    <<(mongoose_bin:gen_from_crypto())/binary, (mongoose_bin:gen_from_timestamp())/binary>>.
 
 -spec change_shaper(state(), jid:jid()) -> any().
 change_shaper(StateData, JID) ->
@@ -1723,7 +1721,7 @@ send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
 
 -spec new_id() -> binary().
 new_id() ->
-    iolist_to_binary(randoms:get_string()).
+    mongoose_bin:gen_from_crypto().
 
 %% Copied from ejabberd_socket.erl
 -record(socket_state, {sockmod, socket, receiver}).

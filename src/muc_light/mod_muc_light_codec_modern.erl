@@ -108,7 +108,7 @@ decode_message_by_type(_, _, _) ->
     {error, bad_request}.
 
 -spec ensure_id(Id :: {binary(), binary()} | false) -> binary().
-ensure_id(false) -> mod_muc_light_utils:bin_ts();
+ensure_id(false) -> mongoose_bin:gen_from_timestamp();
 ensure_id({_, Id}) -> Id.
 
 %%====================================================================

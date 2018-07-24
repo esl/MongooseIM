@@ -134,8 +134,7 @@ read_caps([#xmlel{name = <<"c">>, attrs = Attrs}
             Node = xml:get_attr_s(<<"node">>, Attrs),
             Version = xml:get_attr_s(<<"ver">>, Attrs),
             Hash = xml:get_attr_s(<<"hash">>, Attrs),
-            Exts = str:tokens(xml:get_attr_s(<<"ext">>, Attrs),
-                              <<" ">>),
+            Exts = mongoose_bin:tokens(xml:get_attr_s(<<"ext">>, Attrs), <<" ">>),
             read_caps(Tail,
                       #caps{node = Node, hash = Hash, version = Version,
                             exts = Exts});
@@ -632,7 +631,7 @@ now_ts() ->
     MS * 1000000 + S.
 
 is_valid_node(Node) ->
-    case str:tokens(Node, <<"#">>) of
+    case mongoose_bin:tokens(Node, <<"#">>) of
         [?MONGOOSE_URI|_] ->
             true;
         _ ->

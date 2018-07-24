@@ -161,7 +161,7 @@ process_config_set(ConfigReq, {_, RoomS} = RoomUS, _UserAff, AffUsers, _AllCanCo
     case mod_muc_light_utils:process_raw_config(
            ConfigReq#config.raw_config, [], mod_muc_light:config_schema(RoomS)) of
         {ok, Config} ->
-            NewVersion = mod_muc_light_utils:bin_ts(),
+            NewVersion = mongoose_bin:gen_from_timestamp(),
             {ok, PrevVersion} = mod_muc_light_db_backend:set_config(RoomUS, Config, NewVersion),
             {set, ConfigReq#config{ prev_version = PrevVersion, version = NewVersion }, AffUsers};
         Error ->
@@ -202,7 +202,7 @@ validate_aff_changes_by_member(_AffUsersChanges, _Acc, _UserUS, _OwnerUS, _RoomU
 process_aff_set(AffReq, _RoomUS, {ok, []}) -> % It seems that all users blocked this request
     {set, AffReq, [], []}; % Just return result to the user, don't change or broadcast anything
 process_aff_set(AffReq, RoomUS, {ok, FilteredAffUsers}) ->
-    NewVersion = mod_muc_light_utils:bin_ts(),
+    NewVersion = mongoose_bin:gen_from_timestamp(),
     case mod_muc_light_db_backend:modify_aff_users(RoomUS, FilteredAffUsers,
                                    fun ?MODULE:participant_limit_check/2, NewVersion) of
         {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->

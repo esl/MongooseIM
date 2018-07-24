@@ -289,7 +289,7 @@ build_random_password(Reason) ->
              lists:flatten(
                io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0wZ",
                              [Year, Month, Day, Hour, Minute, Second]))),
-    RandomString = list_to_binary(randoms:get_string()),
+    RandomString = mongoose_bin:gen_from_crypto(),
     <<"BANNED_ACCOUNT--", Date/binary, "--", RandomString/binary, "--", Reason/binary>>.
 
 

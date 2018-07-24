@@ -170,7 +170,7 @@ get_item_name(Host, Node, Id) ->
 
 %% @doc <p>Return the path of the node.</p>
 node_to_path(Node) ->
-    str:tokens(Node, <<"/">>).
+    mongoose_bin:tokens(Node, <<"/">>).
 
 path_to_node([]) -> <<>>;
-path_to_node(Path) -> iolist_to_binary(str:join([<<"">> | Path], <<"/">>)).
+path_to_node(Path) -> mongoose_bin:join([<<"">> | Path], <<"/">>).

@@ -582,7 +582,7 @@ change_shaper(StateData, Host, JID) ->
 
 -spec new_id() -> binary().
 new_id() ->
-    list_to_binary(randoms:get_string()).
+    mongoose_bin:gen_from_crypto().
 
 
 -spec cancel_timer(reference()) -> 'ok'.
