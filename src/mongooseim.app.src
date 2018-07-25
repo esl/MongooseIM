@@ -32,7 +32,6 @@
                   lager_syslog,
                   lasse,
                   mnesia,
-                  mochijson2,
                   observer_cli,
                   pa,
                   public_key,

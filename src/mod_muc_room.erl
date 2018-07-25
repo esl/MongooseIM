@@ -1945,9 +1945,9 @@ decode_http_auth_response(Body) ->
     end.
 
 decode_json_auth_response(Body) ->
-    {struct, Elements} = mochijson2:decode(Body),
-    Code = proplists:get_value(<<"code">>, Elements),
-    Msg = proplists:get_value(<<"msg">>, Elements),
+    Elements = jiffy:decode(Body, [return_maps]),
+    Code = maps:get(<<"code">>, Elements, undefined),
+    Msg = maps:get(<<"msg">>, Elements, undefined),
     {Code, Msg}.
 
 reply_not_authorized(From, Nick, Packet, StateData, ErrText) ->
