@@ -173,7 +173,7 @@ case "$1" in
             -- ${1+"$@"}
         ;;
 
-    debug)
+    debug|iex_debug)
         echo "--------------------------------------------------------------------"
         echo ""
         echo "IMPORTANT: we will attempt to attach an INTERACTIVE shell"
@@ -198,11 +198,18 @@ case "$1" in
         BINDIR="$ROOTDIR/erts-$ERTS_VSN/bin"
         PROGNAME=`echo $0 | sed 's/.*\\///'`
 
+        EXOPTIONS=""
+        case "$1" in
+            iex_debug)
+                EXOPTIONS="-noshell -eval 'Elixir.IEx':start()."
+                ;;
+        esac
+
         # Log the startup
         logger -t "$SCRIPT[$$]" "Starting up"
 
         # Start the VM
-        exec_echo "$BINDIR/erl" "$NAME" "debug-$TTY-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
+        exec_echo "$BINDIR/erl" "$NAME" "debug-$TTY-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args" $EXOPTIONS
         ;;
 
     version)
