@@ -548,11 +548,11 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
                 {minify_and_escape_bare_jid(Host, UserJID, WithJID),
                  mongoose_rdbms:escape_string(WithLResource)}
         end,
-    StartID = maybe_timestamp_to_message_id(Start),
-    EndID   = maybe_timestamp_to_message_id(End),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource, SearchText).
+    Start1 = apply_start_border(Borders, Start),
+    End1   = apply_end_border(Borders, End),
+    StartID = maybe_timestamp_to_message_id(Start1),
+    EndID   = maybe_timestamp_to_message_id(End1),
+    prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText).
 
 
 -spec prepare_filter_sql(UserID :: non_neg_integer(),

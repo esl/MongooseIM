@@ -503,11 +503,11 @@ calc_count(Host, Filter) ->
                      WithJID :: jid:jid() | undefined, SearchText :: binary() | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
-    StartID = maybe_timestamp_to_message_id(Start),
-    EndID   = maybe_timestamp_to_message_id(End),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2   = apply_end_border(Borders, EndID),
-    make_filter(RoomID, StartID2, EndID2, SWithNick, SearchText).
+    Start1 = apply_start_border(Borders, Start),
+    End1   = apply_end_border(Borders, End),
+    StartID = maybe_timestamp_to_message_id(Start1),
+    EndID   = maybe_timestamp_to_message_id(End1),
+    make_filter(RoomID, StartID, EndID, SWithNick, SearchText).
 
 
 -spec make_filter(RoomID  :: non_neg_integer(),

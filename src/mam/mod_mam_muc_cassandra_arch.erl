@@ -693,12 +693,12 @@ insert_offset_hint_query_cql() ->
 
 prepare_filter(RoomJID, Borders, Start, End, WithNick) ->
     BRoomJID = mod_mam_utils:bare_jid(RoomJID),
-    StartID = maybe_timestamp_to_message_id(Start),
-    EndID = maybe_timestamp_to_message_id(End),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2 = apply_end_border(Borders, EndID),
+    Start1 = apply_start_border(Borders, Start),
+    End1 = apply_end_border(Borders, End),
+    StartID = maybe_timestamp_to_message_id(Start1),
+    EndID = maybe_timestamp_to_message_id(End1),
     BWithNick = maybe_nick(WithNick),
-    prepare_filter_params(BRoomJID, BWithNick, StartID2, EndID2).
+    prepare_filter_params(BRoomJID, BWithNick, StartID, EndID).
 
 prepare_filter_params(BRoomJID, BWithNick, StartID, EndID) ->
     #mam_muc_ca_filter{

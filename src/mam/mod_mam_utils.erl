@@ -879,8 +879,9 @@ maybe_integer(<<>>, Def) -> Def;
 maybe_integer(Bin, _Def) when is_binary(Bin) ->
     binary_to_integer(Bin).
 
--spec apply_start_border('undefined' | mod_mam:borders(), undefined | integer()) ->
-                                undefined | integer().
+-spec apply_start_border(undefined | mod_mam:borders(),
+                         undefined | mod_mam:unix_timestamp()) ->
+                         undefined | mod_mam:unix_timestamp().
 apply_start_border(undefined, Start) ->
     maybe_timestamp_to_message_id(Start);
 apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, Start) ->
