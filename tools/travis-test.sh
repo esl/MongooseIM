@@ -61,7 +61,7 @@ choose_newest_directory() {
   fi
 
   if [ `uname` = "Darwin" ]; then
-    ls -dt "@" | head -n 1
+    ls -dt "$@" | head -n 1
   else
     ls -d "$@" --sort time | head -n 1
   fi
