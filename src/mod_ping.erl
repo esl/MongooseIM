@@ -169,6 +169,11 @@ handle_cast({iq_pong, JID, timeout}, State) ->
             #jid{user = User, server = Server, resource = Resource} = JID,
             case ejabberd_sm:get_session_pid(User, Server, Resource) of
                 Pid when is_pid(Pid) ->
+                    Presence = #xmlel{name = <<"presence">>,
+                                      attrs = [{<<"type">>, <<"unavailable">>},
+                                               {<<"from">>, jid:to_binary(JID)}],
+                                      children = []},
+                    ejabberd_router:route(JID, jid:make(<<>>, Server, <<>>), Presence),
                     ejabberd_c2s:stop(Pid);
                 _ ->
                     ok
