@@ -15,7 +15,7 @@
 %% UID
 -export([generate_message_id/0,
          maybe_message_id_to_timestamp/1,
-         maybe_timestamp_to_message_id/1,
+         maybe_timestamp_to_message_id/2,
          mess_id_to_external_binary/1,
          external_binary_to_mess_id/1,
          wrapper_id/0]).
@@ -202,10 +202,10 @@ message_id_to_timestamp(ID) ->
 
 
 %% @doc Transform a timestamp to a message ID
--spec timestamp_to_message_id(mod_mam:unix_timestamp()) -> any().
-timestamp_to_message_id(TS) ->
+-spec timestamp_to_message_id(mod_mam:unix_timestamp(), atom()) -> any().
+timestamp_to_message_id(TS, Opt) ->
     M = mod_mam:uid_module(),
-    M:timestamp_to_message_id(TS).
+    M:timestamp_to_message_id(TS, Opt).
 
 
 %% @doc Encode a message ID to pass it to the user.
@@ -883,17 +883,18 @@ maybe_integer(Bin, _Def) when is_binary(Bin) ->
                          undefined | mod_mam:unix_timestamp()) ->
                          undefined | mod_mam:unix_timestamp().
 apply_start_border(undefined, Start) ->
-    maybe_timestamp_to_message_id(Start);
+    Start;
 apply_start_border(#mam_borders{after_id=AfterID, from_id=FromID}, Start) ->
     After = maybe_message_id_to_timestamp(AfterID),
     From = maybe_message_id_to_timestamp(FromID),
     maybe_max(maybe_incr_timestamp(After), maybe_max(From, Start)).
 
 
--spec apply_end_border('undefined' | mod_mam:borders(), undefined | integer()) ->
-                              undefined | integer().
+-spec apply_end_border(undefined | mod_mam:borders(),
+                       undefined | mod_mam:unix_timestamp()) ->
+                       undefined | mod_mam:unix_timestamp().
 apply_end_border(undefined, End) ->
-    maybe_timestamp_to_message_id(End);
+    End;
 apply_end_border(#mam_borders{before_id=BeforeID, to_id=ToID}, End) ->
     Before = maybe_message_id_to_timestamp(BeforeID),
     To = maybe_message_id_to_timestamp(ToID),
@@ -913,18 +914,18 @@ calculate_timestamp_borders(Borders, Start, End) ->
                                mod_mam:unix_timestamp() | undefined) -> R when
       R :: {integer() | undefined, integer() | undefined}.
 calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
-    {Start, End} = calculate_timestamp_borders(Borders, Start, End),
-    {maybe_timestamp_to_message_id(Start), maybe_timestamp_to_message_id(End)};
+    {Start1, End1} = calculate_timestamp_borders(Borders, Start, End),
+    {maybe_timestamp_to_message_id(Start1, min), maybe_timestamp_to_message_id(End1, max)};
 calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
     {Start1, End1} = calculate_timestamp_borders(Borders, Start, End),
     Next = message_id_to_timestamp(Id) + 1,
     Max = maybe_max(Start1, Next),
-    {maybe_timestamp_to_message_id(Max), maybe_timestamp_to_message_id(End1)};
+    {maybe_timestamp_to_message_id(Max, min), maybe_timestamp_to_message_id(End1, max)};
 calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
     {Start1, End1} = calculate_timestamp_borders(Borders, Start, End),
     Prev = message_id_to_timestamp(Id) - 1,
     Min = maybe_min(End1, Prev),
-    {maybe_timestamp_to_message_id(Start1), maybe_timestamp_to_message_id(Min)}.
+    {maybe_timestamp_to_message_id(Start1, min), maybe_timestamp_to_message_id(Min, max)}.
 
 
 -spec maybe_min('undefined' | integer(), undefined | integer()) -> integer().
@@ -958,12 +959,12 @@ maybe_decr_timestamp(X) ->
     X - 1.
 
 
--spec maybe_timestamp_to_message_id(mod_mam:unix_timestamp() | undefined) ->
+-spec maybe_timestamp_to_message_id(mod_mam:unix_timestamp() | undefined, atom()) ->
     undefined | any().
-maybe_timestamp_to_message_id(undefined) ->
+maybe_timestamp_to_message_id(undefined, _) ->
     undefined;
-maybe_timestamp_to_message_id(Microseconds) ->
-    timestamp_to_message_id(Microseconds).
+maybe_timestamp_to_message_id(Microseconds, Opt) ->
+    timestamp_to_message_id(Microseconds, Opt).
 
 
 -spec maybe_message_id_to_timestamp(any()) -> undefined | mod_mam:unix_timestamp().

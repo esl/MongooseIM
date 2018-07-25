@@ -11,4 +11,4 @@
 -callback mess_id_to_external_binary(any()) -> binary().
 -callback external_binary_to_mess_id(binary()) -> any().
 -callback message_id_to_timestamp(any()) -> integer().
--callback timestamp_to_message_id(integer()) -> any().
+-callback timestamp_to_message_id(integer(), atom()) -> any().

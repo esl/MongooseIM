@@ -9,7 +9,7 @@
          mess_id_to_external_binary/1,
          external_binary_to_mess_id/1,
          message_id_to_timestamp/1,
-         timestamp_to_message_id/1]).
+         timestamp_to_message_id/2]).
 
 %% -----------------------------------------------------------------------
 %% UID
@@ -39,8 +39,8 @@ message_id_to_timestamp(Id) ->
 
 
 %% @doc Transform a timestamp to a message ID
--spec timestamp_to_message_id(mod_mam:posix_timestamp()) -> binary().
-timestamp_to_message_id(Microseconds) ->
+-spec timestamp_to_message_id(mod_mam:posix_timestamp(), atom()) -> binary().
+timestamp_to_message_id(Microseconds, _) ->
     BinNanoSecs = integer_to_binary((Microseconds * 10) + 16#01b21dd213814000),
     Time = <<0:(60-bit_size(BinNanoSecs)), BinNanoSecs/binary>>,
     <<TimeHigh:12, TimeMid:16, TimeLow:32>> = Time,

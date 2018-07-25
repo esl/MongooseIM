@@ -34,7 +34,7 @@
 
 %% UMessID
 -import(mod_mam_utils,
-        [maybe_timestamp_to_message_id/1]).
+        [maybe_timestamp_to_message_id/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -505,8 +505,8 @@ prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
     Start1 = apply_start_border(Borders, Start),
     End1   = apply_end_border(Borders, End),
-    StartID = maybe_timestamp_to_message_id(Start1),
-    EndID   = maybe_timestamp_to_message_id(End1),
+    StartID = maybe_timestamp_to_message_id(Start1, min),
+    EndID   = maybe_timestamp_to_message_id(End1, max),
     make_filter(RoomID, StartID, EndID, SWithNick, SearchText).
 
 

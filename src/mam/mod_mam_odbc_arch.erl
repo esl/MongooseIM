@@ -31,7 +31,7 @@
 
 %% UID
 -import(mod_mam_utils,
-        [maybe_timestamp_to_message_id/1]).
+        [maybe_timestamp_to_message_id/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -550,8 +550,8 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
         end,
     Start1 = apply_start_border(Borders, Start),
     End1   = apply_end_border(Borders, End),
-    StartID = maybe_timestamp_to_message_id(Start1),
-    EndID   = maybe_timestamp_to_message_id(End1),
+    StartID = maybe_timestamp_to_message_id(Start1, min),
+    EndID   = maybe_timestamp_to_message_id(End1, max),
     prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText).
 
 

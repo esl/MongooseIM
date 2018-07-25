@@ -11,7 +11,7 @@
          mess_id_to_external_binary/1,
          external_binary_to_mess_id/1,
          message_id_to_timestamp/1,
-         timestamp_to_message_id/1]).
+         timestamp_to_message_id/2]).
 
 %% -----------------------------------------------------------------------
 %% UID
@@ -43,6 +43,8 @@ message_id_to_timestamp(MessID) ->
 
 
 %% @doc Transform a timestamp to a message ID
--spec timestamp_to_message_id(mod_mam:posix_timestamp()) -> integer().
-timestamp_to_message_id(Microseconds) ->
-    Microseconds bsl 8.
+-spec timestamp_to_message_id(mod_mam:posix_timestamp(), atom()) -> integer().
+timestamp_to_message_id(Microseconds, min) ->
+    Microseconds bsl 8;
+timestamp_to_message_id(Microseconds, max) ->
+    (Microseconds bsl 8) + 255.
