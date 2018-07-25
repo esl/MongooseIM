@@ -103,7 +103,7 @@ DisablePlugin = fun(Config, DisabledPluginName) ->
 end,
 
 %% If tools/configure has added elixir application, we keep config as-is
-%% Otherwise, we can remove rebar3_elixir_compile and it's hooks
+%% Otherwise, we can remove rebar3_elixir_compile and its hooks
 MaybeDisableElixirSupport = fun(Config) ->
     case lists:member(elixir, EnvAppsToInclude) of
         true ->
