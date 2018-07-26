@@ -7,6 +7,7 @@
 -module(mongoose_redis).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
+-dialyzer({no_match, start_pool/1}).
 -define(POOL_NAME, redis_pool).
 
 %% API
