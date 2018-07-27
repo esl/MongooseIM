@@ -25,7 +25,7 @@
  {<<"eini">>,{pkg,<<"eini">>,<<"1.2.4">>},1},
  {<<"eodbc">>,
   {git,"https://github.com/arcusfelis/eodbc.git",
-       {ref,"528e5e9a51263e6938b7140970893b8128553abc"}},
+       {ref,"748d613846731c3d776c8f22600d8b6d89c26435"}},
   0},
  {<<"eper">>,{pkg,<<"eper">>,<<"0.94.0">>},1},
  {<<"epgsql">>,{pkg,<<"epgsql">>,<<"4.1.0">>},0},
