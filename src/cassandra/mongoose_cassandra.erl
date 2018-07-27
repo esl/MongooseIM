@@ -94,7 +94,8 @@ init_pool({PoolName, PoolConfig}) ->
 init_pool({PoolName, PoolSize, PoolConfig}) ->
     ExtConfig = extend_config(PoolConfig),
     application:set_env(cqerl, num_clients, PoolSize),
-    ok = cqerl_cluster:add_nodes(PoolName, proplists:get_value(servers, ExtConfig), ExtConfig),
+    Res = cqerl_cluster:add_nodes(PoolName, proplists:get_value(servers, ExtConfig), ExtConfig),
+    false = lists:keyfind(error, 1, Res),
     {ok, _} = mongoose_cassandra_sup:start(PoolName, PoolSize * 4),
     ok.
 

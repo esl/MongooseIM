@@ -16,7 +16,7 @@
  {<<"cpool">>,{pkg,<<"cpool">>,<<"0.1.0">>},0},
  {<<"cqerl">>,
   {git,"https://github.com/esl/cqerl.git",
-       {ref,"08067aebffaaa147ff4928885b6003ebc7aa0e7d"}},
+       {ref,"f2bb146a20eeed791b3cf2422adf3b8703cdf3ea"}},
   0},
  {<<"csv">>,
   {git,"https://github.com/bszaf/csv.git",
