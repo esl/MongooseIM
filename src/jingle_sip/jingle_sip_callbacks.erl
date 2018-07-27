@@ -47,20 +47,18 @@
 sip_invite(Req, Call) ->
     try
         sip_invite_unsafe(Req, Call)
-    catch Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+    catch ?EXCEPTION(Class, Reason, Stacktrace) ->
             ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
-                         [Class, Reason, StackTrace]),
+                         [Class, Reason, ?GET_STACK(Stacktrace)]),
             {error, request_not_parsable}
     end.
 
 sip_reinvite(Req, Call) ->
     try
         sip_reinvite_unsafe(Req, Call)
-    catch Class:Reason ->
-            StackTrace = erlang:get_stacktrace(),
+    catch ?EXCEPTION(Class, Reason, Stacktrace) ->
             ?WARNING_MSG("Error parsing sip invite, class=~p, reason=~p, stacktrace=~p",
-                         [Class, Reason, StackTrace]),
+                         [Class, Reason, ?GET_STACK(Stacktrace)]),
             {error, request_not_parsable}
     end.
 
@@ -301,4 +299,3 @@ maybe_route_to_all_sessions(From, To, Acc, Packet) ->
       fun({_, R}) ->
               ejabberd_router:route(From, jid:replace_resource(To, R), Acc, Packet)
       end, PResources).
-

@@ -146,10 +146,10 @@ archive_message(_Result, Host, MessID, RoomID,
                 _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
     try
         archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet)
-    catch _Type:Reason ->
+    catch ?EXCEPTION(_Type, Reason, Stacktrace) ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p room_id=~p "
                        "from_nick=~p reason='~p' stacktrace=~p",
-                       [MessID, RoomID, FromNick, Reason, erlang:get_stacktrace()]),
+                       [MessID, RoomID, FromNick, Reason, ?GET_STACK(Stacktrace)]),
             {error, Reason}
     end.
 
@@ -196,9 +196,8 @@ lookup_messages(_Result, Host,
                         Start, End, Now, WithJID,
                         mod_mam_utils:normalize_search_text(SearchText),
                         PageSize, IsSimple)
-    catch _Type:Reason ->
-        S = erlang:get_stacktrace(),
-        {error, {Reason, {stacktrace, S}}}
+    catch ?EXCEPTION(_Type, Reason, Stacktrace) ->
+        {error, {Reason, {stacktrace, ?GET_STACK(Stacktrace)}}}
     end.
 
 -spec lookup_messages(Host :: jid:server(),

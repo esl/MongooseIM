@@ -285,9 +285,8 @@ lookup_messages(_Result, Host,
                          RoomJID, RSM, Borders,
                          Start, End, WithNick,
                          PageSize, IsSimple)
-    catch _Type:Reason ->
-            S = erlang:get_stacktrace(),
-            {error, {Reason, {stacktrace, S}}}
+    catch ?EXCEPTION(_Type, Reason, Stacktrace) ->
+            {error, {Reason, {stacktrace, ?GET_STACK(Stacktrace)}}}
     end.
 
 maybe_jid_to_nick(#jid{lresource = BNick}) -> BNick;

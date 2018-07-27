@@ -544,22 +544,21 @@ outer_transaction(F, NRestarts, _Reason, State) ->
     Result = try
                  F()
              catch
-                 throw:ThrowResult ->
-                     ThrowResult;
-                 Class:Other ->
-                     Stacktrace = erlang:get_stacktrace(),
+                 ?EXCEPTION(throw, ThrowResult, Stacktrace) ->
+                     {ThrowResult, ?GET_STACK(Stacktrace)};
+                 ?EXCEPTION(Class, Other, Stacktrace) ->
                      ?ERROR_MSG("issue=outer_transaction_failed "
                                 "reason=~p:~p stacktrace=~1000p",
-                                [Class, Other, Stacktrace]),
+                                [Class, Other, ?GET_STACK(Stacktrace)]),
                      {'EXIT', Other}
           end,
     erase(?STATE_KEY), % Explicitly ignore state changed inside transaction
     case Result of
-        {aborted, Reason} when NRestarts > 0 ->
+        {{aborted, Reason}, _Stacktrace} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
             sql_query_internal([<<"rollback;">>], State),
             outer_transaction(F, NRestarts - 1, Reason, State);
-        {aborted, #{reason := Reason, sql_query := SqlQuery}}
+        {{aborted, #{reason := Reason, sql_query := SqlQuery}}, NStacktrace}
             when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
             ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
@@ -570,10 +569,10 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         iolist_to_binary(SqlQuery),
-                        erlang:get_stacktrace(), State]),
+                        NStacktrace, State]),
             sql_query_internal([<<"rollback;">>], State),
             {{aborted, Reason}, State};
-        {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
+        {{aborted, Reason}, NStacktrace} when NRestarts =:= 0 -> %% old format for abort
             %% Too many retries of outer transaction.
             ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
                        "restarts=~p "
@@ -581,7 +580,7 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "stacktrace=~1000p "
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
-                        erlang:get_stacktrace(), State]),
+                        NStacktrace, State]),
             sql_query_internal([<<"rollback;">>], State),
             {{aborted, Reason}, State};
         {'EXIT', Reason} ->
@@ -606,13 +605,12 @@ sql_query_internal(Query, #state{db_ref = DBRef}) ->
 sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
     {StatementRef, NewState} = prepare_statement(Name, State),
     Res = try mongoose_rdbms_backend:execute(DBRef, StatementRef, Params, ?QUERY_TIMEOUT)
-          catch Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+          catch ?EXCEPTION(Class, Reason, Stacktrace) ->
             ?ERROR_MSG("event=sql_execute_failed "
                         "statement_name=~p reason=~p:~p "
                         "params=~1000p stacktrace=~1000p",
-                       [Name, Class, Reason, Params, Stacktrace]),
-            erlang:raise(Class, Reason, Stacktrace)
+                       [Name, Class, Reason, Params, ?GET_STACK(Stacktrace)]),
+            erlang:raise(Class, Reason, ?GET_STACK(Stacktrace))
           end,
     {Res, NewState}.
 

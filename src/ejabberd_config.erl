@@ -401,8 +401,8 @@ try_reload_cluster(ReloadContext, Changes) ->
     try
         do_reload_cluster(Changes)
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        ?EXCEPTION(Class, Reason, Stacktrace) ->
+            Stacktrace = ?GET_STACK(Stacktrace),
             ?CRITICAL_MSG("issue=try_reload_cluster_failed "
                            "reason=~p:~p stacktrace=~1000p",
                           [Class, Reason, Stacktrace]),

@@ -128,11 +128,10 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
                        "reason=~p user=~ts", [Error, LUser]),
             false %% Typical error is that table doesn't exist
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        ?EXCEPTION(Class, Reason, Stacktrace) ->
             ?ERROR_MSG("event=check_password_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
+                       [Class, Reason, LUser, ?GET_STACK(Stacktrace)]),
             false %% Typical error is database not accessible
     end.
 
@@ -161,11 +160,10 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
                        [Error, LUser]),
             false %% Typical error is that table doesn't exist
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        ?EXCEPTION(Class, Reason, Stacktrace) ->
             ?ERROR_MSG("event=check_password_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
+                       [Class, Reason, LUser, ?GET_STACK(Stacktrace)]),
             false %% Typical error is database not accessible
     end.
 
@@ -221,12 +219,11 @@ get_vh_registered_users(LServer) ->
             ?ERROR_MSG("event=get_vh_registered_users_failed "
                        "reason=~1000p", [Other]),
             []
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch ?EXCEPTION(Class, Reason, Stacktrace) ->
         ?ERROR_MSG("event=get_vh_registered_users_failed "
                    "reason=~p:~p "
                    "stacktrace=~1000p",
-                   [Class, Reason, Stacktrace]),
+                   [Class, Reason, ?GET_STACK(Stacktrace)]),
         []
     end.
 
@@ -241,11 +238,10 @@ get_vh_registered_users(LServer, Opts) ->
             ?ERROR_MSG("event=get_vh_registered_users_failed "
                        "reason=~1000p opts=~1000p ", [Other, Opts]),
             []
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch ?EXCEPTION(Class, Reason, Stacktrace) ->
         ?ERROR_MSG("event=get_vh_registered_users_failed "
                    "reason=~p:~p opts=~1000p stacktrace=~1000p",
-                   [Class, Reason, Opts, Stacktrace]),
+                   [Class, Reason, Opts, ?GET_STACK(Stacktrace)]),
         []
     end.
 
@@ -262,11 +258,10 @@ get_vh_registered_users_number(LServer) ->
             ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
                        "reason=~1000p", [Other]),
             0
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch ?EXCEPTION(Class, Reason, Stacktrace) ->
         ?ERROR_MSG("event=get_vh_registered_users_numbers_failed "
                    "reason=~p:~p stacktrace=~1000p",
-                   [Class, Reason, Stacktrace]),
+                   [Class, Reason, ?GET_STACK(Stacktrace)]),
         0
     end.
 
@@ -337,11 +332,10 @@ does_user_exist(LUser, LServer) ->
                        "reason=~1000p user=~ts", [Error, LUser]),
             {error, Error} %% Typical error is that table doesn't exist
     catch
-        Class:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
+        ?EXCEPTION(Class, Reason, Stacktrace) ->
             ?ERROR_MSG("event=does_user_exist_failed "
                        "reason=~p:~p user=~ts stacktrace=~1000p",
-                       [Class, Reason, LUser, Stacktrace]),
+                       [Class, Reason, LUser, ?GET_STACK(Stacktrace)]),
             {error, Reason} %% Typical error is database not accessible
     end.
 
@@ -354,11 +348,10 @@ does_user_exist(LUser, LServer) ->
 remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
     try rdbms_queries:del_user(LServer, Username)
-    catch Class:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
+    catch ?EXCEPTION(Class, Reason, Stacktrace) ->
         ?ERROR_MSG("event=remove_user_failed "
                    "reason=~p:~p user=~ts stacktrace=~1000p",
-                   [Class, Reason, LUser, Stacktrace]),
+                   [Class, Reason, LUser, ?GET_STACK(Stacktrace)]),
         ok
     end,
     ok.

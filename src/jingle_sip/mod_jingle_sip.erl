@@ -147,10 +147,10 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
     try
       Result = translate_to_sip(JingleAction, Jingle, Acc),
       route_result(Result, From, To, IQ)
-    catch Class:Error ->
+    catch ?EXCEPTION(Class, Error, Stacktrace) ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:internal_server_error()),
             ?ERROR_MSG("error=~p, while translating to sip, class=~p, stack_trace=~p",
-                       [Class, Error, erlang:get_stacktrace()])
+                       [Class, Error, ?GET_STACK(Stacktrace)])
     end,
     mongoose_acc:put(result, drop, Acc);
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
@@ -564,4 +564,3 @@ nksip_uac_bye(Node, DialogHandle, Args) ->
         _ ->
             rpc:call(Node, nksip_uac, bye, [DialogHandle, Args], timer:seconds(5))
     end.
-
