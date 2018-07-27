@@ -1,0 +1,68 @@
+defaults: &defaults
+  shell: /bin/sh
+  working_directory: /home/circleci/audit_mongoose
+  docker:
+    - image: erlang:20.3.6
+
+version: 2
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Compile
+          command: rebar3 ct --compile_only
+      - persist_to_workspace:
+          root: .
+          paths:
+            - _build
+            - deps
+
+  ct:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/audit_mongoose
+      - run:
+          name: Common Test
+          command: rebar3 ct --cover
+      - store_artifacts:
+          path: /home/circleci/audit_mongoose/_build/test/logs/
+          destination: /home/circleci/logs/
+
+  dialyzer:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/audit_mongoose
+      - run:
+          name: Dialyzer
+          command: rebar3 dialyzer
+
+  lint:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/audit_mongoose
+      - run:
+          name: Lint
+          command: rebar3 as lint lint || true
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build
+      - ct:
+          requires:
+            - build
+      - dialyzer:
+          requires:
+            - build
+      - lint:
+          requires:
+            - build
