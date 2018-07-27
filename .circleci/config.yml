@@ -1,0 +1,199 @@
+defaults: &defaults
+  working_directory: /home/circleci/pki_mongoose
+  docker:
+    - image: erlang:20.3.8.3
+
+mysql_defaults: &mysql_defaults
+  working_directory: /home/circleci/pki_mongoose
+  docker:
+    - image: erlang:20.3.8.3
+    - image: mysql:5.7
+      env:
+        SQL_TEMP_DIR=/tmp/sql
+        MYSQL_ROOT_PASSWORD=secret
+        MYSQL_DATABASE=ejabberd
+        MYSQL_USER=ejabberd
+        MYSQL_PASSWORD=mongooseim_secret
+    - image: openfrontier/openldap-server
+      env:
+        SLAPD_DOMAIN=esl.com
+        SLAPD_PASSWORD=mongooseim_secret
+        SLAPD_ORGANIZATION=Erlang Solutions
+        LDAP_ROOTPASS=mongoose
+
+mariadb_defaults: &mariadb_defaults
+  working_directory: /home/circleci/pki_mongoose
+  docker:
+    - image: erlang:20.3.8.3
+    - image: mariadb:10.2
+      env:
+        SQL_TEMP_DIR=/tmp/sql
+        MYSQL_ROOT_PASSWORD=secret
+        MYSQL_DATABASE=ejabberd
+        MYSQL_USER=ejabberd
+        MYSQL_PASSWORD=mongooseim_secret
+    - image: openfrontier/openldap-server
+      env:
+        SLAPD_DOMAIN=esl.com
+        SLAPD_PASSWORD=mongooseim_secret
+        SLAPD_ORGANIZATION=Erlang Solutions
+
+version: 2
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Compile
+          command: |
+            set -eux
+            apt-get update
+            apt-get install -y unixodbc-dev tdsodbc
+            pushd tools/ssl/
+            make all
+            popd
+            rebar3 ct --compile_only
+      - persist_to_workspace:
+          root: .
+          paths:
+            - _build
+            - deps
+            - tools
+
+  dialyzer:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/pki_mongoose
+      - run:
+          name: Dialyzer
+          command: rebar3 dialyzer
+
+  lint:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/pki_mongoose
+      - run:
+          name: Lint
+          command: rebar3 as lint lint || true
+
+  ct:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/pki_mongoose
+      - run:
+          name: Common Test
+          command: |
+           apt-get update
+           apt-get install -y redis-server
+           ./tools/redis start
+           rebar3 ct --cover
+           rebar3 cover
+           ./tools/redis stop
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/test/logs/
+          destination: /home/circleci/logs/
+
+  integration_tests_mysql:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/pki_mongoose
+      - run:
+          name: Integration Test MySQL
+          command: |
+            ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
+      - run:
+          name: Collect Logs
+          command: |
+            mkdir /tmp/logs/
+            cp *.log /tmp/logs/
+            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/
+            cp  /tmp/logs/
+      - store_artifacts:
+          path: /tmp/logs
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/big_tests/ct_report
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim1/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim2/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim3/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/fed1/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/reg1/rel/mongooseim/log
+
+  integration_tests_mariadb:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /home/circleci/pki_mongoose
+      - run:
+          name: Integration Test MariaDB
+          command:
+            ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
+      - run:
+          name: Collect Logs
+          command: |
+            mkdir /tmp/logs/
+            cp *.log /tmp/logs/
+            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/
+      - store_artifacts:
+          path: /tmp/logs
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/big_tests/ct_report
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim1/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim2/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim3/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/fed1/rel/mongooseim/log
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/reg1/rel/mongooseim/log
+
+  docs:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Build Docs
+          command: |
+            apt-get update
+            apt-get install -y mkdocs
+            mkdocs build
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/site
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build
+      - docs
+      - ct:
+          requires:
+            - build
+      - dialyzer:
+          requires:
+            - build
+      - lint:
+          requires:
+            - build
+      - integration_tests_mysql:
+          requires:
+            - build
+      - integration_tests_mariadb:
+          requires:
+            - build
