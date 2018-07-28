@@ -38,6 +38,11 @@ mariadb_defaults: &mariadb_defaults
         SLAPD_PASSWORD=mongooseim_secret
         SLAPD_ORGANIZATION=Erlang Solutions
 
+docs_defaults: &docs_defaults
+  working_directory: /home/circleci/pki_mongoose
+  docker:
+    - image: alpine
+
 version: 2
 jobs:
   build:
@@ -108,8 +113,7 @@ jobs:
           at: /home/circleci/pki_mongoose
       - run:
           name: Integration Test MySQL
-          command: |
-            ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
+          command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
       - run:
           name: Collect Logs
           command: |
@@ -132,6 +136,9 @@ jobs:
       - store_artifacts:
           path: /home/circleci/pki_mongoose/_build/reg1/rel/mongooseim/log
 
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/_build/mim1/rel/
+
   integration_tests_mariadb:
     <<: *defaults
     steps:
@@ -140,8 +147,7 @@ jobs:
           at: /home/circleci/pki_mongoose
       - run:
           name: Integration Test MariaDB
-          command:
-            ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
+          command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
       - run:
           name: Collect Logs
           command: |
@@ -164,17 +170,33 @@ jobs:
           path: /home/circleci/pki_mongoose/_build/reg1/rel/mongooseim/log
 
   docs:
-    <<: *defaults
+    <<: *docs_defaults
     steps:
       - checkout
       - run:
+          name: Install pre-reqs
+          command: |
+            apk upgrade
+            apk add --update ruby ruby-json python py-pip
+            gem install --no-document mdl
+            pip install mkdocs
+      - run:
+          name: Lint  Docs
+          command: |
+            mdl --rules ~MD013,~MD029 doc/ || true
+      - run:
           name: Build Docs
           command: |
-            apt-get update
-            apt-get install -y mkdocs
+            echo "use_directory_urls: false" >> mkdocs.yml
             mkdocs build
+            mv site mongooseim_docs
+            mkdir -p packaged_docs
+            cd packaged_docs
+            tar -zcvf mongooseim-docs-$(git describe --tags).tar.gz ../mongooseim_docs
       - store_artifacts:
-          path: /home/circleci/pki_mongoose/site
+          path: /home/circleci/pki_mongoose/mongooseim_docs
+      - store_artifacts:
+          path: /home/circleci/pki_mongoose/packaged_docs
 
 workflows:
   version: 2
