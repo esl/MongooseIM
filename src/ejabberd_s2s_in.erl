@@ -26,7 +26,7 @@
 
 -module(ejabberd_s2s_in).
 -author('alexey@process-one.net').
--behaviour(gen_fsm).
+-behaviour(gen_fsm_compat).
 
 %% External exports
 -export([start/2,
@@ -80,7 +80,7 @@
 
 %% Module start with or without supervisor:
 -ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START, gen_fsm:start(ejabberd_s2s_in, [SockData, Opts],
+-define(SUPERVISOR_START, gen_fsm_compat:start(ejabberd_s2s_in, [SockData, Opts],
                                         ?FSMOPTS)).
 -else.
 -define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_in_sup,
@@ -108,7 +108,7 @@ start(SockData, Opts) ->
 
 -spec start_link(_, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(SockData, Opts) ->
-    gen_fsm:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
+    gen_fsm_compat:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
 
 
 socket_type() ->

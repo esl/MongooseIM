@@ -103,7 +103,7 @@ compile: get-deps deps
 	$(RUN) $(REBAR) compile
 
 get-deps:
-	$(RUN) $(REBAR) get-deps
+	$(RUN) $(REBAR) deps
 
 clean:
 	-@rm -rf _build

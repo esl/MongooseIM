@@ -26,7 +26,7 @@
 
 -module(mod_muc_room).
 -author('alexey@process-one.net').
--behaviour(gen_fsm).
+-behaviour(gen_fsm_compat).
 
 
 %% External exports
@@ -138,7 +138,7 @@
 %% Module start with or without supervisor:
 -ifdef(NO_TRANSIENT_SUPERVISORS).
 -define(SUPERVISOR_START,
-        gen_fsm:start(?MODULE,
+        gen_fsm_compat:start(?MODULE,
                       [Host, ServerHost, Access, Room, HistorySize,
                        RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
                       ?FSMOPTS)).
@@ -180,27 +180,27 @@ start(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opt
 start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool,
        Creator, Nick, DefRoomOpts)
     when is_list(DefRoomOpts) ->
-    gen_fsm:start_link(?MODULE,
+    gen_fsm_compat:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Creator, Nick, DefRoomOpts],
                        ?FSMOPTS).
 
 start_link(Host, ServerHost, Access, Room, HistorySize, RoomShaper, HttpAuthPool, Opts)
     when is_list(Opts) ->
-    gen_fsm:start_link(?MODULE,
+    gen_fsm_compat:start_link(?MODULE,
                        [Host, ServerHost, Access, Room, HistorySize,
                         RoomShaper, HttpAuthPool, Opts],
                        ?FSMOPTS).
 
 stop(Pid) ->
-    gen_fsm:stop(Pid).
+    gen_fsm_compat:stop(Pid).
 
 -spec get_room_users(RoomJID :: jid:jid()) -> {ok, [user()]}
                                              | {error, not_found}.
 get_room_users(RoomJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
-            gen_fsm:sync_send_all_state_event(Pid, get_room_users);
+            gen_fsm_compat:sync_send_all_state_event(Pid, get_room_users);
         {error, Reason} ->
             {error, Reason}
     end.
@@ -210,7 +210,7 @@ get_room_users(RoomJID) ->
 is_room_owner(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
-            gen_fsm:sync_send_all_state_event(Pid, {is_room_owner, UserJID});
+            gen_fsm_compat:sync_send_all_state_event(Pid, {is_room_owner, UserJID});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -221,7 +221,7 @@ is_room_owner(RoomJID, UserJID) ->
 can_access_room(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
-            gen_fsm:sync_send_all_state_event(Pid, {can_access_room, UserJID});
+            gen_fsm_compat:sync_send_all_state_event(Pid, {can_access_room, UserJID});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -232,7 +232,7 @@ can_access_room(RoomJID, UserJID) ->
 can_access_identity(RoomJID, UserJID) ->
     case mod_muc:room_jid_to_pid(RoomJID) of
         {ok, Pid} ->
-            gen_fsm:sync_send_all_state_event(Pid, {can_access_identity, UserJID});
+            gen_fsm_compat:sync_send_all_state_event(Pid, {can_access_identity, UserJID});
         {error, Reason} ->
             {error, Reason}
     end.
@@ -782,7 +782,7 @@ occupant_jid(#user{nick=Nick}, RoomJID) ->
     From :: jid:jid(), To :: mod_muc:nick(), Acc :: mongoose_acc:t(),
     Pkt :: exml:element()) -> 'ok'.
 route(Pid, From, ToNick, Acc, Packet) ->
-    gen_fsm:send_event(Pid, {route, From, ToNick, Acc, Packet}).
+    gen_fsm_compat:send_event(Pid, {route, From, ToNick, Acc, Packet}).
 
 
 -spec process_groupchat_message(jid:simple_jid() | jid:jid(),
@@ -1905,7 +1905,7 @@ perform_http_auth(From, Nick, Packet, Role, Password, StateData) ->
             Pid = spawn_link(
                     fun() ->
                             Result = make_http_auth_request(From, RoomJid, Password, Pool),
-                            gen_fsm:send_event(RoomPid, {http_auth, self(), Result,
+                            gen_fsm_compat:send_event(RoomPid, {http_auth, self(), Result,
                                                          From, Nick, Packet, Role})
                     end),
             AuthPids = StateData#state.http_auth_pids,

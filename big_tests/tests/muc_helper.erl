@@ -94,7 +94,7 @@ destroy_room(Config) ->
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
     Room1 = rpc(mim(), jid, nodeprep, [Room]),
     case rpc(mim(), ets, lookup, [muc_online_room, {Room1, Host}]) of
-        [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
+        [{_,_,Pid}|_] -> gen_fsm_compat:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
 
