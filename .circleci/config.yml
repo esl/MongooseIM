@@ -93,7 +93,7 @@ jobs:
           command: |
             set -e
             apt-get update
-            apt-get install mysql-client
+            apt-get install -y mysql-client
             mysql -h 127.0.0.1 -u ejabberd -p mongooseim_secret < mysql.sql
       - run:
           name: Integration Test MySQL
