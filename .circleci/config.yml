@@ -92,7 +92,7 @@ jobs:
           command: |
             apt-get update
             apt-get install -y mysql-client
-            mysql --host=127.0.0.1 --user=ejabberd --password=mongooseim_secret < priv/mysql.sql
+            mysql --host=127.0.0.1 --user=ejabberd --database=ejabberd--password=mongooseim_secret < priv/mysql.sql
       - run:
           name: Integration Test MySQL
           command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
