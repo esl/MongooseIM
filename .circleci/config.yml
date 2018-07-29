@@ -9,17 +9,10 @@ mysql_defaults: &mysql_defaults
     - image: erlang:20.3.8.3
     - image: mysql:5.7
       env:
-        SQL_TEMP_DIR=/tmp/sql
         MYSQL_ROOT_PASSWORD=secret
         MYSQL_DATABASE=ejabberd
         MYSQL_USER=ejabberd
         MYSQL_PASSWORD=mongooseim_secret
-    - image: openfrontier/openldap-server
-      env:
-        SLAPD_DOMAIN=esl.com
-        SLAPD_PASSWORD=mongooseim_secret
-        SLAPD_ORGANIZATION=Erlang Solutions
-        LDAP_ROOTPASS=mongoose
 
 mariadb_defaults: &mariadb_defaults
   working_directory: /home/circleci/pki_mongoose
@@ -27,16 +20,10 @@ mariadb_defaults: &mariadb_defaults
     - image: erlang:20.3.8.3
     - image: mariadb:10.2
       env:
-        SQL_TEMP_DIR=/tmp/sql
         MYSQL_ROOT_PASSWORD=secret
         MYSQL_DATABASE=ejabberd
         MYSQL_USER=ejabberd
         MYSQL_PASSWORD=mongooseim_secret
-    - image: openfrontier/openldap-server
-      env:
-        SLAPD_DOMAIN=esl.com
-        SLAPD_PASSWORD=mongooseim_secret
-        SLAPD_ORGANIZATION=Erlang Solutions
 
 docs_defaults: &docs_defaults
   working_directory: /home/circleci/pki_mongoose
@@ -106,7 +93,7 @@ jobs:
           destination: /home/circleci/logs/
 
   integration_tests_mysql:
-    <<: *defaults
+    <<: *mysql_defaults
     steps:
       - checkout
       - attach_workspace:
@@ -140,7 +127,7 @@ jobs:
           path: /home/circleci/pki_mongoose/_build/mim1/rel/
 
   integration_tests_mariadb:
-    <<: *defaults
+    <<: *mariadb_defaults
     steps:
       - checkout
       - attach_workspace:
