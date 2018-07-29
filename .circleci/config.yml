@@ -1,4 +1,3 @@
-            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/bigtest/
 defaults: &defaults
   working_directory: /home/circleci/pki_mongoose
   docker:
