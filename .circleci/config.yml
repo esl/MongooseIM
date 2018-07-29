@@ -1,3 +1,4 @@
+            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/bigtest/
 defaults: &defaults
   working_directory: /home/circleci/pki_mongoose
   docker:
@@ -9,10 +10,10 @@ mysql_defaults: &mysql_defaults
     - image: erlang:20.3.8.3
     - image: mysql:5.7
       env:
-        MYSQL_ROOT_PASSWORD=secret
-        MYSQL_DATABASE=ejabberd
-        MYSQL_USER=ejabberd
-        MYSQL_PASSWORD=mongooseim_secret
+        - MYSQL_ROOT_PASSWORD=secret
+        - MYSQL_DATABASE=ejabberd
+        - MYSQL_USER=ejabberd
+        - MYSQL_PASSWORD=mongooseim_secret
 
 mariadb_defaults: &mariadb_defaults
   working_directory: /home/circleci/pki_mongoose
@@ -20,10 +21,10 @@ mariadb_defaults: &mariadb_defaults
     - image: erlang:20.3.8.3
     - image: mariadb:10.2
       env:
-        MYSQL_ROOT_PASSWORD=secret
-        MYSQL_DATABASE=ejabberd
-        MYSQL_USER=ejabberd
-        MYSQL_PASSWORD=mongooseim_secret
+        - MYSQL_ROOT_PASSWORD=secret
+        - MYSQL_DATABASE=ejabberd
+        - MYSQL_USER=ejabberd
+        - MYSQL_PASSWORD=mongooseim_secret
 
 docs_defaults: &docs_defaults
   working_directory: /home/circleci/pki_mongoose
@@ -104,9 +105,10 @@ jobs:
       - run:
           name: Collect Logs
           command: |
-            mkdir /tmp/logs/
+            mkdir -p /tmp/logs/bigtest
+            mkdir -p /tmp/logs/releases
             cp *.log /tmp/logs/
-            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/
+            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/bigtest/
             cp  /tmp/logs/
       - store_artifacts:
           path: /tmp/logs
