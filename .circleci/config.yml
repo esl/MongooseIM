@@ -94,7 +94,7 @@ jobs:
             set -e
             apt-get update
             apt-get install -y mysql-client
-            mysql -h 127.0.0.1 -u ejabberd -p mongooseim_secret < mysql.sql
+            mysql -h 127.0.0.1 -u ejabberd -p mongooseim_secret < priv/mysql.sql
       - run:
           name: Integration Test MySQL
           command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
