@@ -7,18 +7,7 @@ mysql_defaults: &mysql_defaults
   working_directory: /home/circleci/pki_mongoose
   docker:
     - image: erlang:20.3.8.3
-    - image: mysql:5.7
-      env:
-        - MYSQL_ROOT_PASSWORD=secret
-        - MYSQL_DATABASE=ejabberd
-        - MYSQL_USER=ejabberd
-        - MYSQL_PASSWORD=mongooseim_secret
-
-mariadb_defaults: &mariadb_defaults
-  working_directory: /home/circleci/pki_mongoose
-  docker:
-    - image: erlang:20.3.8.3
-    - image: mariadb:10.2
+    - image: circleci/mysql-ram:5.7
       env:
         - MYSQL_ROOT_PASSWORD=secret
         - MYSQL_DATABASE=ejabberd
@@ -82,6 +71,7 @@ jobs:
       - run:
           name: Common Test
           command: |
+           set -e
            apt-get update
            apt-get install -y redis-server
            ./tools/redis start
@@ -99,11 +89,19 @@ jobs:
       - attach_workspace:
           at: /home/circleci/pki_mongoose
       - run:
+          name: Load SQL into MySQL
+          command: |
+            set -e
+            apt-get update
+            apt-get install mysql-client
+            mysql -h 127.0.0.1 -u ejabberd -p mongooseim_secret < mysql.sql
+      - run:
           name: Integration Test MySQL
           command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
       - run:
           name: Collect Logs
           command: |
+            set -e
             mkdir -p /tmp/logs/bigtest
             mkdir -p /tmp/logs/releases
             cp *.log /tmp/logs/
@@ -126,37 +124,6 @@ jobs:
 
       - store_artifacts:
           path: /home/circleci/pki_mongoose/_build/mim1/rel/
-
-  integration_tests_mariadb:
-    <<: *mariadb_defaults
-    steps:
-      - checkout
-      - attach_workspace:
-          at: /home/circleci/pki_mongoose
-      - run:
-          name: Integration Test MariaDB
-          command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
-      - run:
-          name: Collect Logs
-          command: |
-            mkdir /tmp/logs/
-            cp *.log /tmp/logs/
-            cp /home/circleci/pki_mongoose/big_tests/*.log /tmp/logs/
-      - store_artifacts:
-          path: /tmp/logs
-      - store_artifacts:
-          path: /home/circleci/pki_mongoose/big_tests/ct_report
-      - store_artifacts:
-          path: /home/circleci/pki_mongoose/_build/mim1/rel/mongooseim/log
-      - store_artifacts:
-          path: /home/circleci/pki_mongoose/_build/mim2/rel/mongooseim/log
-      - store_artifacts:
-          path: /home/circleci/pki_mongoose/_build/mim3/rel/mongooseim/log
-      - store_artifacts:
-          path: /home/circleci/pki_mongoose/_build/fed1/rel/mongooseim/log
-      - store_artifacts:
-          path: /home/circleci/pki_mongoose/_build/reg1/rel/mongooseim/log
-
   docs:
     <<: *docs_defaults
     steps:
@@ -202,8 +169,5 @@ workflows:
           requires:
             - build
       - integration_tests_mysql:
-          requires:
-            - build
-      - integration_tests_mariadb:
           requires:
             - build
