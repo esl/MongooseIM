@@ -95,7 +95,7 @@ jobs:
             mysql --host=127.0.0.1 --user=ejabberd --database=ejabberd --password=mongooseim_secret < priv/mysql.sql
       - run:
           name: Integration Test MySQL
-          command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db
+          command: ./tools/test-runner.sh --preset mysql_mnesia --skip-small-tests --skip-setup-db --skip-cover
       - run:
           name: Collect Logs
           command: |
