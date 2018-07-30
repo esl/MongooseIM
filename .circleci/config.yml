@@ -28,7 +28,6 @@ jobs:
       - run:
           name: Compile
           command: |
-            set -eux
             apt-get update
             apt-get install -y unixodbc-dev tdsodbc
             pushd tools/ssl/
