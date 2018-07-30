@@ -83,6 +83,7 @@ jobs:
 
   integration_tests_mysql:
     <<: *mysql_defaults
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace:
