@@ -30,17 +30,13 @@ jobs:
           command: |
             apt-get update
             apt-get install -y unixodbc-dev tdsodbc
-            pushd tools/ssl/
-            make all
-            popd
-            rebar3 ct --compile_only
             make devrel
       - persist_to_workspace:
           root: .
           paths:
             - _build
             - deps
-            - tools/ssl/
+            - tools
 
   dialyzer:
     <<: *defaults
