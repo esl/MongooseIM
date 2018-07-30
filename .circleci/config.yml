@@ -9,11 +9,11 @@ mysql_defaults: &mysql_defaults
     - image: erlang:20.3.8.3
     - image: mysql:5.7
       command: "--max_allowed_packet=16m"
-      env:
-        - MYSQL_ROOT_PASSWORD=secret
-        - MYSQL_DATABASE=ejabberd
-        - MYSQL_USER=ejabberd
-        - MYSQL_PASSWORD=mongooseim_secret
+      environment:
+        MYSQL_ROOT_PASSWORD: secret
+        MYSQL_DATABASE: ejabberd
+        MYSQL_USER: ejabberd
+        MYSQL_PASSWORD: mongooseim_secret
 
 docs_defaults: &docs_defaults
   working_directory: /home/circleci/pki_mongoose
