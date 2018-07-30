@@ -7,7 +7,7 @@ mysql_defaults: &mysql_defaults
   working_directory: /home/circleci/pki_mongoose
   docker:
     - image: erlang:20.3.8.3
-    - image: circleci/mysql:5.7-ram
+    - image: mysql:5.7
       command: "--max_allowed_packet=16m"
       env:
         - MYSQL_ROOT_PASSWORD=secret
