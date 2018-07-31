@@ -2511,7 +2511,7 @@ resend_offline_message(A, StateData, From, To, Packet, in) ->
     #xmlel{name = Name} = Packet,
     Type = exml_query:attr(Packet, <<"type">>),
     M = #{name => Name, type => Type, element => Packet, from_jid => From,
-        from => jid:to_binary(From), to_jid => To, to => jid:to_binary(To)},
+          from => jid:to_binary(From), to_jid => To, to => jid:to_binary(To)},
     Acc = mongoose_acc:update(A, M),
     check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, in).
 
@@ -3282,6 +3282,7 @@ maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Time
         <<"headline">> ->
             PacketTuple;
         _ ->
+            %% TODO: ?MYNAME (or server taken from c2s state) not <<"localhost">>
             {F, T, add_timestamp(Timestamp, <<"localhost">>, Packet)}
     end;
 maybe_add_timestamp(Packet, _Timestamp) ->
