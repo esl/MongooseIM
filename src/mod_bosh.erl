@@ -5,7 +5,7 @@
 %%%===================================================================
 -module(mod_bosh).
 -behaviour(gen_mod).
--behaviour(cowboy_loop_handler).
+-behaviour(cowboy_loop).
 -xep([{xep, 206}, {version, "1.4"}]).
 -xep([{xep, 124}, {version, "1.11"}]).
 %% API
@@ -21,7 +21,7 @@
          stop/1]).
 
 %% cowboy_loop_handler callbacks
--export([init/3,
+-export([init/2,
          info/3,
          terminate/3]).
 
@@ -59,6 +59,9 @@
                     | normal
                     | pause
                     | streamend.
+
+-type headers_list() :: [{binary(), binary()}].
+-type peer() :: {inet:ip_address(), inet:port_number()}.
 
 %% Request State
 -record(rstate, {}).
@@ -152,21 +155,21 @@ node_cleanup(Acc, Node) ->
 %%--------------------------------------------------------------------
 
 -type option() :: {atom(), any()}.
--spec init(_Transport, req(), _Opts :: [option()]) -> {loop, req(), rstate()}.
-init(_Transport, Req, _Opts) ->
+-spec init(req(), _Opts :: [option()]) -> {ok, req(), rstate()}.
+init(Req, _Opts) ->
     ?DEBUG("New request~n", []),
     {Msg, NewReq} = try
-        {Method, Req2} = cowboy_req:method(Req),
+        Method = cowboy_req:method(Req),
         case Method of
             <<"OPTIONS">> ->
-                {accept_options, Req2};
+                {accept_options, Req};
             <<"POST">> ->
-                {has_body, true} = {has_body, cowboy_req:has_body(Req2)},
-                {forward_body, Req2};
+                {has_body, true} = {has_body, cowboy_req:has_body(Req)},
+                {forward_body, Req};
             <<"GET">> ->
-                {accept_get, Req2};
+                {accept_get, Req};
             _ ->
-                error({badmatch, {Method, Req2}})
+                error({badmatch, {Method, Req}})
         end
     catch
         %% In order to issue a reply, init() must accept the request for processing.
@@ -177,22 +180,22 @@ init(_Transport, Req, _Opts) ->
             {{wrong_method, WrongMethod}, NReq}
     end,
     self() ! Msg,
-    {loop, NewReq, #rstate{}}.
+    {ok, NewReq, #rstate{}}.
 
 
--spec info(info(), req(), rstate()) -> {'ok', req(), _}.
+-spec info(info(), req(), rstate()) -> {'ok', req(), _} | {stop, req(), _}.
 info(accept_options, Req, State) ->
-    {Origin, Req2} = cowboy_req:header(<<"origin">>, Req),
+    Origin = cowboy_req:header(<<"origin">>, Req),
     Headers = ac_all(Origin),
     ?DEBUG("OPTIONS response: ~p~n", [Headers]),
-    {ok, strip_ok(cowboy_req:reply(200, Headers, <<>>, Req2)), State};
+    {ok, cowboy_reply(200, Headers, <<>>, Req), State};
 info(accept_get, Req, State) ->
     Headers = [content_type(),
                ac_allow_methods(),
                ac_allow_headers(),
                ac_max_age()],
     {ok,
-     strip_ok(cowboy_req:reply(200, Headers, <<"MongooseIM bosh endpoint">>, Req)),
+     cowboy_reply(200, Headers, <<"MongooseIM bosh endpoint">>, Req),
      State};
 info(no_body, Req, State) ->
     ?DEBUG("Missing request body: ~p~n", [Req]),
@@ -201,7 +204,7 @@ info({wrong_method, Method}, Req, State) ->
     ?DEBUG("Wrong request method: ~p~n", [Method]),
     {ok, method_not_allowed_error(Req), State};
 info(forward_body, Req, S) ->
-    {ok, Body, Req1} = cowboy_req:body(Req),
+    {ok, Body, Req1} = cowboy_req:read_body(Req),
     %% TODO: the parser should be stored per session,
     %%       but the session is identified inside the to-be-parsed element
     {ok, BodyElem} = exml:parse(Body),
@@ -210,20 +213,21 @@ info(forward_body, Req, S) ->
 info({bosh_reply, El}, Req, S) ->
     BEl = exml:to_binary(El),
     ?DEBUG("Sending (binary) to ~p: ~p~n", [exml_query:attr(El, <<"sid">>), BEl]),
-    {ok, Req1} = cowboy_req:reply(200, [content_type(),
-                                        ac_allow_origin(?DEFAULT_ALLOW_ORIGIN),
-                                        ac_allow_methods(),
-                                        ac_allow_headers(),
-                                        ac_max_age()], BEl, Req),
+    Headers = [content_type(),
+               ac_allow_origin(?DEFAULT_ALLOW_ORIGIN),
+               ac_allow_methods(),
+               ac_allow_headers(),
+               ac_max_age()],
+    Req1 = cowboy_reply(200, Headers, BEl, Req),
     {ok, Req1, S};
 info({close, Sid}, Req, S) ->
     ?DEBUG("Closing handler for ~p~n", [Sid]),
-    {ok, Req1} = cowboy_req:reply(200, [], [], Req),
+    Req1 = cowboy_reply(200, [], <<>>, Req),
     {ok, Req1, S};
 info(item_not_found, Req, S) ->
-    {ok, terminal_condition(<<"item-not-found">>, Req), S};
+    {stop, terminal_condition(<<"item-not-found">>, Req), S};
 info(policy_violation, Req, S) ->
-    {ok, terminal_condition(<<"policy-violation">>, Req), S}.
+    {stop, terminal_condition(<<"policy-violation">>, Req), S}.
 
 
 terminate(_Reason, _Req, _State) ->
@@ -272,26 +276,26 @@ event_type(Body) ->
 
 
 -spec forward_body(req(), exml:element(), rstate())
-            -> {'loop', _, rstate()} | {'ok', req(), rstate()}.
+            -> {ok, req(), rstate()} | {stop, req(), rstate()}.
 forward_body(Req, #xmlel{} = Body, S) ->
     try
         case Type = event_type(Body) of
             streamstart ->
                 case maybe_start_session(Req, Body) of
                     {true, Req1} ->
-                        {loop, Req1, S};
+                        {ok, Req1, S};
                     {false, Req1} ->
-                        {ok, Req1, S}
+                        {stop, Req1, S}
                 end;
             _ ->
                 Socket = get_session_socket(exml_query:attr(Body, <<"sid">>)),
                 handle_request(Socket, {Type, Body}),
-                {loop, Req, S}
+                {ok, Req, S}
         end
     catch
         error:item_not_found ->
             ?WARNING_MSG("session not found!~n~p~n", [Body]),
-            {ok, terminal_condition(<<"item-not-found">>, Req), S}
+            {stop, terminal_condition(<<"item-not-found">>, Req), S}
     end.
 
 
@@ -320,9 +324,9 @@ maybe_start_session(Req, Body) ->
         %% Version isn't checked as it would be meaningless when supporting
         %% only a subset of the specification.
         {ok, NewBody} = set_max_hold(Body),
-        {Peer, Req1} = cowboy_req:peer(Req),
+        Peer = cowboy_req:peer(Req),
         start_session(Peer, NewBody),
-        {true, Req1}
+        {true, Req}
     catch
         error:{badmatch, {<<"to">>, _}} ->
             {false, terminal_condition(<<"host-unknown">>, Req)};
@@ -332,7 +336,7 @@ maybe_start_session(Req, Body) ->
     end.
 
 
--spec start_session(_, exml:element()) -> any().
+-spec start_session(peer(), exml:element()) -> any().
 start_session(Peer, Body) ->
     Sid = make_sid(),
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer),
@@ -354,18 +358,14 @@ make_sid() ->
 
 -spec no_body_error(cowboy_req:req()) -> cowboy_req:req().
 no_body_error(Req) ->
-    strip_ok(cowboy_req:reply(400, ac_all(?DEFAULT_ALLOW_ORIGIN),
-                              <<"Missing request body">>, Req)).
+    cowboy_reply(400, ac_all(?DEFAULT_ALLOW_ORIGIN),
+                 <<"Missing request body">>, Req).
 
 
 -spec method_not_allowed_error(cowboy_req:req()) -> cowboy_req:req().
 method_not_allowed_error(Req) ->
-    strip_ok(cowboy_req:reply(405, ac_all(?DEFAULT_ALLOW_ORIGIN),
-                              <<"Use POST request method">>, Req)).
-
--spec strip_ok({'ok', cowboy_req:req()}) -> cowboy_req:req().
-strip_ok({ok, Req}) ->
-    Req.
+    cowboy_reply(405, ac_all(?DEFAULT_ALLOW_ORIGIN),
+                 <<"Use POST request method">>, Req).
 
 %%--------------------------------------------------------------------
 %% BOSH Terminal Binding Error Conditions
@@ -381,7 +381,7 @@ terminal_condition(Condition, Req) ->
 terminal_condition(Condition, Details, Req) ->
     Body = terminal_condition_body(Condition, Details),
     Headers = [content_type()] ++ ac_all(?DEFAULT_ALLOW_ORIGIN),
-    strip_ok(cowboy_req:reply(200, Headers, Body, Req)).
+    cowboy_reply(200, Headers, Body, Req).
 
 
 -spec terminal_condition_body(binary(), [exml:element()]) -> binary().
@@ -412,7 +412,7 @@ ac_max_age() ->
     {<<"Access-Control-Max-Age">>, integer_to_binary(?DEFAULT_MAX_AGE)}.
 
 
--spec ac_all('undefined' | binary()) -> [{binary(), _}, ...].
+-spec ac_all('undefined' | binary()) -> headers_list().
 ac_all(Origin) ->
     [ac_allow_origin(Origin),
      ac_allow_methods(),
@@ -433,3 +433,6 @@ maybe_set_max_hold(ClientHold, #xmlel{attrs = Attrs} = Body) when ClientHold > 1
 maybe_set_max_hold(_, _) ->
     {error, invalid_hold}.
 
+-spec cowboy_reply(non_neg_integer(), headers_list(), binary(), req()) -> req().
+cowboy_reply(Code, Headers, Body, Req) ->
+    cowboy_req:reply(Code, maps:from_list(Headers), Body, Req).

@@ -10,7 +10,7 @@
 -behaviour(cowboy_http_handler).
 
 % cowboy_http_handler exports
--export([init/3, handle/2, terminate/3]).
+-export([init/2, terminate/3]).
 
 -define(BASIC_AUTH, <<"softkitty:purrpurrpurr">>).
 
@@ -18,25 +18,27 @@
 %%% Cowboy callbacks
 %%% -------------------------------------------
 
-init(_Type, Req, _Opts) ->
-    {Path, Req2} = cowboy_req:path(Req),
-    {Method, Req3} = cowboy_req:method(Req2),
-    {RestMethod, Req4} = cowboy_req:binding(method, Req3),
-    {<<"Basic ", AuthHeader/binary>>, Req5} = cowboy_req:header(<<"authorization">>,
-                                                                Req4, <<"Basic ">>),
+init(Req, _Opts) ->
+    Path = cowboy_req:path(Req),
+    Method = cowboy_req:method(Req),
+    RestMethod = cowboy_req:binding(method, Req),
+    <<"Basic ", AuthHeader/binary>> = cowboy_req:header(<<"authorization">>,
+                                                                Req, <<"Basic ">>),
     IsAuthorized = base64:decode(AuthHeader) == ?BASIC_AUTH,
     {KV, ReqFinal} = case Method of
                           <<"GET">> ->
-                              cowboy_req:qs_vals(Req5);
+                              QS = cowboy_req:parse_qs(Req),
+                              {QS, Req};
                           <<"POST">> ->
-                              {ok, BodyKV, Req6} = cowboy_req:body_qs(Req5),
-                              {BodyKV, Req6}
+                              {ok, BodyKV, Req2} = cowboy_req:read_urlencoded_body(Req),
+                              {BodyKV, Req2}
                       end,
     {_, User} = lists:keyfind(<<"user">>, 1, KV),
     {_, Server} = lists:keyfind(<<"server">>, 1, KV),
     {_, Pass} = lists:keyfind(<<"pass">>, 1, KV),
     USP = {User, Server, Pass},
-    {ok, ReqFinal, {Method, Path, RestMethod, USP, mim_ct_rest:consume_fail(), IsAuthorized}}.
+    State = {Method, Path, RestMethod, USP, mim_ct_rest:consume_fail(), IsAuthorized},
+    handle(ReqFinal, State).
 
 handle(Req, {_, _, _, _, _, false} = State) ->
     Req1 = cowboy_req:set_resp_header(<<"www-authenticate">>, <<"Basic realm=\"MIM\"">>, Req),
@@ -73,8 +75,8 @@ handle(Req, {<<"POST">>, <<"/auth/", _/binary>>, <<"register">>, {U, S, P}, _, _
     reply(Req, State, Code, <<>>);
 handle(Req, State) ->
     mim_ct_rest:op({invalid_request, State}),
-    {ok, Req2} = cowboy_req:reply(404, [{<<"content-type">>, <<"text/plain">>}],
-                                  io_lib:format("Unknown request: ~p", [State]), Req),
+    Req2 = cowboy_req:reply(404, #{<<"content-type">> => <<"text/plain">>},
+                            io_lib:format("Unknown request: ~p", [State]), Req),
     {ok, Req2, State}.
 
 terminate(_Reason, _Req, _State) ->
@@ -85,7 +87,7 @@ terminate(_Reason, _Req, _State) ->
 %%% -------------------------------------------
 
 reply(Req, State, Code, Payload) ->
-    {ok, Req2} = cowboy_req:reply(Code, [], Payload, Req),
+    Req2 = cowboy_req:reply(Code, #{}, Payload, Req),
     {ok, Req2, State}.
 
 remove_to_code(not_found) -> 404;

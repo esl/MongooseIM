@@ -1,7 +1,8 @@
 -module(mongoose_client_api_rooms_users).
+-behaviour(cowboy_handler).
+-behaviour(cowboy_rest).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -16,11 +17,8 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, HandlerOpts) ->
-    mongoose_client_api:rest_init(Req, HandlerOpts).
+init(Req, Opts) ->
+    mongoose_client_api:init(Req, Opts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -44,7 +42,7 @@ from_json(Req, #{user := User,
                  role_in_room := owner,
                  jid := #jid{lserver = Server},
                  room_id := RoomID} = State) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
     #{<<"user">> := UserToInvite} = JSONData,
     mod_muc_light_commands:change_affiliation(Server, RoomID, User,

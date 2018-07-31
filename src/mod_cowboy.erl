@@ -1,150 +1,205 @@
 %%%===================================================================
 %%% @copyright (C) 2014, Erlang Solutions Ltd.
 %%% @doc HTTP routing layer for MongooseIM's Cowboy listener
+%%%
+%%% Allows to set more than one handler for an endpoint:
+%%% - one handler for http
+%%% - one handler for each WS protocol
+%%%
+%%% It's a proxy between cowboy and actual handlers.
+%%%
+%%% So, this module handles calls from cowboy, and forwards the calls to the
+%%% handler modules.
+%%%
+%%% I.e. it both implements and uses the cowboy_handler and cowboy_websocket
+%%% behaviours.
 %%% @end
 %%%===================================================================
 -module(mod_cowboy).
 
--behaviour(cowboy_http_handler).
--behaviour(cowboy_websocket_handler).
+-behaviour(cowboy_handler).
+-behaviour(cowboy_websocket).
 
 %% common callbacks
--export([init/3]).
+-export([init/2,
+     terminate/3]).
 
-%% cowboy_http_handler callbacks
--export([handle/2,
-         terminate/3]).
+%% cowboy_websocket callbacks
+-export([websocket_init/1,
+     websocket_handle/2,
+     websocket_info/2]).
 
-%% cowboy_websocket_handler callbacks
--export([websocket_init/3,
-         websocket_handle/3,
-         websocket_info/3,
-         websocket_terminate/3]).
+-record(state, {handler,
+                handler_state,
+                handler_opts,
+                protocol :: ws | http,
+                ws_protocol}).
 
--record(state, {handler, handler_state, handler_opts}).
-
--type option() :: {atom(), any()}.
+-type option() :: {http, module()} | {ws, atom(), module()}.
 -type state() :: #state{}.
 
+-include("mongoose_logger.hrl").
+
 %%--------------------------------------------------------------------
-%% common callback
+%% common callbacks
 %%--------------------------------------------------------------------
--spec init({atom(), http}, cowboy_req:req(), [option()])
-    -> {ok, cowboy_req:req(), state()} |
-       {shutdown, cowboy_req:req(), state()} |
-       {upgrade, protocol, cowboy_websocket, cowboy_req:req(), state()}.
-init(Transport, Req, Opts) ->
-    case protocol(Req) of
-        {ws, Req1} ->
-            {upgrade, protocol, cowboy_websocket, Req1, Opts};
-        {http, Req1} ->
-            handle_http_init(Transport, Req1, Opts);
-        _ ->
-            {ok, Req1} = cowboy_req:reply(404, Req),
-            {shutdown, Req1, #state{}}
+
+-spec init(cowboy_req:req(), [option()])
+-> {ok, cowboy_req:req(), state() | no_state} |
+   % upgrade protocol:
+   {cowboy_websocket, cowboy_req:req(), state()}.
+init(Req, Opts) ->
+    try
+        init_unsafe(Req, Opts)
+    catch
+        Class:Reason ->
+              %% Because cowboy ignores stacktraces
+              %% and we can get a cryptic error like {crash,error,undef}
+              Stacktrace = erlang:get_stacktrace(),
+              ?ERROR_MSG("issue=init_failed "
+                          "reason=~p:~p stacktrace=~1000p",
+                         [Class, Reason, Stacktrace]),
+              erlang:raise(Class, Reason, Stacktrace)
     end.
 
-%%--------------------------------------------------------------------
-%% cowboy_http_handler callbacks
-%%--------------------------------------------------------------------
--spec handle(cowboy_req:req(), state()) -> {ok, cowboy_req:req(), state()}.
-handle(Req, #state{handler=Handler, handler_state=HandlerState}=State) ->
-    {ok, Req1, HandlerState1} = Handler:handle(Req, HandlerState),
-    {ok, Req1, update_handler_state(State, HandlerState1)}.
+init_unsafe(Req, Opts) ->
+    case protocol(Req) of
+        ws ->
+            handle_ws_init(Req, Opts);
+        http ->
+            handle_http_init(Req, Opts);
+        _ ->
+            Req = cowboy_req:reply(404, Req),
+            {ok, Req, no_state}
+    end.
 
--spec terminate(any(), cowboy_req:req(), state()) -> ok.
+-spec terminate(any(), cowboy_req:req(), state() | no_state) -> ok.
 terminate(_Reason, _Req, #state{handler=undefined}) ->
     ok;
-terminate(Reason, Req, #state{handler=Handler, handler_state=HandlerState}) ->
-    Handler:terminate(Reason, Req, HandlerState).
+terminate(_Reason, _Req, no_state) -> %% failed to init
+    ok;
+terminate(Reason, Req, #state{handler=Handler, handler_state=HandlerState, protocol=Protocol}) ->
+    case Protocol of
+        ws ->
+            Handler:websocket_terminate(Reason, Req, HandlerState);
+        http ->
+            Handler:terminate(Reason, Req, HandlerState)
+    end.
 
 %%--------------------------------------------------------------------
 %% cowboy_websocket_handler callbacks
 %%--------------------------------------------------------------------
-websocket_init(Transport, Req, Opts) ->
-    handle_ws_init(Transport, Req, Opts).
+websocket_init(State) ->
+    handle_websocket_init(State).
 
-websocket_handle(InFrame, Req,
+websocket_handle(InFrame, State) ->
+    try
+        websocket_handle_unsafe(InFrame, State)
+    catch
+        Class:Reason ->
+              %% Because cowboy ignores stacktraces
+              %% and we can get a cryptic error like {crash,error,undef}
+              Stacktrace = erlang:get_stacktrace(),
+              ?ERROR_MSG("issue=websocket_handle_failed "
+                          "reason=~p:~p stacktrace=~1000p",
+                         [Class, Reason, Stacktrace]),
+              erlang:raise(Class, Reason, Stacktrace)
+    end.
+
+websocket_handle_unsafe(InFrame,
                  #state{handler=Handler, handler_state=HandlerState}=State) ->
-    case Handler:websocket_handle(InFrame, Req, HandlerState) of
-        {ok, Req1, HandlerState1} ->
-            {ok, Req1, update_handler_state(State, HandlerState1)};
-        {ok, Req1, HandlerState1, hibernate} ->
-            {ok, Req1, update_handler_state(State, HandlerState1), hibernate};
-        {reply, OutFrame, Req1, HandlerState1} ->
-            {reply, OutFrame, Req1, update_handler_state(State, HandlerState1)};
-        {reply, OutFrame, Req1, HandlerState1, hibernate} ->
-            {reply, OutFrame, Req1, update_handler_state(State, HandlerState1),
+    case Handler:websocket_handle(InFrame, HandlerState) of
+        {ok, HandlerState1} ->
+            {ok, update_handler_state(State, HandlerState1)};
+        {ok, HandlerState1, hibernate} ->
+            {ok, update_handler_state(State, HandlerState1), hibernate};
+        {reply, OutFrame, HandlerState1} ->
+            {reply, OutFrame, update_handler_state(State, HandlerState1)};
+        {reply, OutFrame, HandlerState1, hibernate} ->
+            {reply, OutFrame, update_handler_state(State, HandlerState1),
              hibernate};
-        {shutdown, Req1, HandlerState1} ->
-            {shutdown, Req1, update_handler_state(State, HandlerState1)}
+        {stop, HandlerState1} ->
+            {stop, update_handler_state(State, HandlerState1)}
     end.
 
-websocket_info(Info, Req,
-               #state{handler=Handler, handler_state=HandlerState}=State) ->
-    case Handler:websocket_info(Info, Req, HandlerState) of
-        {ok, Req1, HandlerState1} ->
-            {ok, Req1, update_handler_state(State, HandlerState1)};
-        {ok, Req1, HandlerState1, hibernate} ->
-            {ok, Req1, update_handler_state(State, HandlerState1), hibernate};
-        {reply, OutFrame, Req1, HandlerState1} ->
-            {reply, OutFrame, Req1, update_handler_state(State, HandlerState1)};
-        {reply, OutFrame, Req1, HandlerState1, hibernate} ->
-            {reply, OutFrame, Req1, update_handler_state(State, HandlerState1),
-             hibernate};
-        {shutdown, Req1, HandlerState1} ->
-            {shutdown, Req1, update_handler_state(State, HandlerState1)}
+websocket_info(Info, State) ->
+    try
+        websocket_info_unsafe(Info, State)
+    catch
+        Class:Reason ->
+              %% Because cowboy ignores stacktraces
+              %% and we can get a cryptic error like {crash,error,undef}
+              Stacktrace = erlang:get_stacktrace(),
+              ?ERROR_MSG("issue=websocket_info_failed "
+                          "reason=~p:~p stacktrace=~1000p",
+                         [Class, Reason, Stacktrace]),
+              erlang:raise(Class, Reason, Stacktrace)
     end.
 
-websocket_terminate(_Reason, _Req, #state{handler=undefined}) ->
-    ok;
-websocket_terminate(Reason, Req,
-                    #state{handler=Handler, handler_state=HandlerState}) ->
-    Handler:websocket_terminate(Reason, Req, HandlerState).
+websocket_info_unsafe(Info,
+                      #state{handler=Handler, handler_state=HandlerState}=State) ->
+    case Handler:websocket_info(Info, HandlerState) of
+        {ok, HandlerState1} ->
+            {ok, update_handler_state(State, HandlerState1)};
+        {ok, HandlerState1, hibernate} ->
+            {ok, update_handler_state(State, HandlerState1), hibernate};
+        {reply, OutFrame, HandlerState1} ->
+            {reply, OutFrame, update_handler_state(State, HandlerState1)};
+        {reply, OutFrame, HandlerState1, hibernate} ->
+            {reply, OutFrame, update_handler_state(State, HandlerState1),
+             hibernate};
+        {stop, HandlerState1} ->
+            {stop, update_handler_state(State, HandlerState1)}
+    end.
 
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
-handle_http_init(Transport, Req, Opts) ->
+handle_http_init(Req, Opts) ->
     case http_handler(Opts) of
         {Handler, HandlerOpts} ->
-            init_http_handler(Handler, Transport, Req, HandlerOpts);
+            init_http_handler(Handler, Req, HandlerOpts);
         _ ->
-            {ok, Req1} = cowboy_req:reply(404, Req),
-            {shutdown, Req1, #state{}}
+             Req1 = cowboy_req:reply(404, Req),
+            {stop, Req1, no_state}
     end.
 
-handle_ws_init(Transport, Req, Opts) ->
-    {Protocol, Req1} = ws_protocol(Req),
+handle_ws_init(Req, Opts) ->
+    %% Make the same check as in websocket_init
+    %% We should return 404, if ws subprotocol is not supported
+    Protocol = ws_protocol(Req),
     case ws_handler(Protocol, Opts) of
         {Handler, HandlerOpts} ->
-            init_ws_handler(Handler, Transport, Req1, HandlerOpts);
+            init_ws_handler(Handler, Req, HandlerOpts, Protocol);
         _ ->
-            {ok, Req2} = cowboy_req:reply(404, Req1),
-            {shutdown, Req2}
+            Req2 = cowboy_req:reply(404, Req),
+            {stop, Req2, no_state}
     end.
 
-init_http_handler(Handler, Transport, Req, Opts) ->
-    case Handler:init(Transport, Req, Opts) of
+init_http_handler(Handler, Req, Opts) ->
+    case Handler:init(Req, Opts) of
         {ok, Req1, HandlerState} ->
-            {ok, Req1, init_state(Handler, Opts, HandlerState)};
-        {shutdown, Req1, HandlerState} ->
-            {shutdown, Req1, init_state(Handler, Opts, HandlerState)}
+            {ok, Req1, init_state(Handler, Opts, HandlerState, http)};
+        {stop, Req1, HandlerState} ->
+            {stop, Req1, init_state(Handler, Opts, HandlerState, http)}
     end.
 
-init_ws_handler(Handler, Transport, Req, Opts) ->
-    case Handler:websocket_init(Transport, Req, Opts) of
-        {ok, Req1, HandlerState} ->
-            {ok, Req1, init_state(Handler, Opts, HandlerState)};
-        {ok, Req1, HandlerState, hibernate} ->
-            {ok, Req1, init_state(Handler, Opts, HandlerState), hibernate};
-        {ok, Req1, HandlerState, Timeout} ->
-            {ok, Req1, init_state(Handler, Opts, HandlerState), Timeout};
-        {ok, Req1, HandlerState, Timeout, hibernate} ->
-            {ok, Req1, init_state(Handler, Opts, HandlerState),
-             Timeout, hibernate};
-        {shutdown, Req1} ->
-            {shutdown, Req1}
+init_ws_handler(Handler, Req, Opts, Protocol) ->
+    case Handler:init(Req, Opts) of
+        {cowboy_websocket, Req1, HandlerState} ->
+            State = init_state(Handler, Opts, HandlerState, ws, Protocol),
+            %% Ask cowboy to call websocket_init/1 next
+            {cowboy_websocket, Req1, State}
+    end.
+
+handle_websocket_init(State=#state{handler=Handler, handler_state=HandlerState}) ->
+    case Handler:websocket_init(HandlerState) of
+        {ok, HandlerState1} ->
+            {ok, update_handler_state(State, HandlerState1)};
+        {ok, HandlerState1, hibernate} ->
+            {ok, update_handler_state(State, HandlerState1), hibernate};
+        {stop, HandlerState1} ->
+            {stop, HandlerState1}
     end.
 
 http_handler(Handlers) ->
@@ -176,21 +231,26 @@ ws_handler(Protocol, [_|Tail]) ->
 
 protocol(Req) ->
     case cowboy_req:header(<<"upgrade">>, Req) of
-        {<<"websocket">>, Req1} ->
-            {ws, Req1};
-        {undefined, Req1} ->
-            {http, Req1};
-        {_, Req1} ->
-            {undefined, Req1}
+        <<"websocket">> ->
+            ws;
+        undefined ->
+            http;
+        _ ->
+            undefined
     end.
 
 ws_protocol(Req) ->
     cowboy_req:header(<<"sec-websocket-protocol">>, Req).
 
-init_state(Handler, Opts, State) ->
+init_state(Handler, Opts, State, Protocol) ->
+    init_state(Handler, Opts, State, Protocol, undefined).
+
+init_state(Handler, Opts, State, Protocol, WsProto) ->
     #state{handler = Handler,
            handler_opts = Opts,
-           handler_state = State}.
+           handler_state = State,
+           protocol = Protocol,
+           ws_protocol = WsProto}.
 
 update_handler_state(State, HandlerState) ->
     State#state{handler_state = HandlerState}.

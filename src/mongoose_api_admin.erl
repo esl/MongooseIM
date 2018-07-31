@@ -12,6 +12,7 @@
 
 -module(mongoose_api_admin).
 -author("ludwikbukowski").
+-behaviour(cowboy_rest).
 
 %% ejabberd_cowboy exports
 -export([cowboy_router_paths/2]).
@@ -19,9 +20,8 @@
 %% cowboy_rest exports
 -export([allowed_methods/2,
          content_types_provided/2,
-         rest_terminate/2,
-         init/3,
-         rest_init/2,
+         terminate/3,
+         init/2,
          options/2,
          content_types_accepted/2,
          delete_resource/2,
@@ -66,11 +66,8 @@ cowboy_router_paths(Base, Opts) ->
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
 
-init({_Transport, _}, Req, Opts) ->
-    {upgrade, protocol, cowboy_rest, Req, Opts}.
-
-rest_init(Req, Opts) ->
-    {Bindings, Req1} = cowboy_req:bindings(Req),
+init(Req, Opts) ->
+    Bindings = maps:to_list(cowboy_req:bindings(Req)),
     CommandCategory = proplists:get_value(command_category, Opts),
     CommandSubCategory = proplists:get_value(command_subcategory, Opts),
     Auth = proplists:get_value(auth, Opts, any),
@@ -79,7 +76,7 @@ rest_init(Req, Opts) ->
                             command_category = CommandCategory,
                             command_subcategory = CommandSubCategory,
                             auth = Auth},
-    options(Req1, State).
+    options(Req, State).
 
 options(Req, State) ->
     Req1 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Methods">>,
@@ -88,7 +85,7 @@ options(Req, State) ->
                                       <<"*">>, Req1),
     Req3 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Headers">>,
                                       <<"Content-Type">>, Req2),
-    {ok, Req3, State}.
+    {cowboy_rest, Req3, State}.
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
@@ -104,7 +101,7 @@ content_types_accepted(Req, State) ->
     CTA = [{{<<"application">>, <<"json">>, '*'}, from_json}],
     {CTA, Req, State}.
 
-rest_terminate(_Req, _State) ->
+terminate(_Reason, _Req, _State) ->
     ok.
 
 %% @doc Called for a method of type "DELETE"
@@ -122,12 +119,12 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
 % @doc Cowboy callback
 is_authorized(Req, State) ->
     ControlCreds = get_control_creds(State),
-    {ok, AuthDetails, Req2} = mongoose_api_common:get_auth_details(Req),
+    AuthDetails = mongoose_api_common:get_auth_details(Req),
     case authorize(ControlCreds, AuthDetails) of
         true ->
-            {true, Req2, State};
+            {true, Req, State};
         false ->
-            mongoose_api_common:make_unauthorized_response(Req2, State)
+            mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
 -spec authorize(credentials(), {credentials(), binary()}) -> boolean().
@@ -168,9 +165,9 @@ from_json(Req, #http_api_state{command_category = Category,
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED, Req, State);
         {Params, _} ->
-            {Method, _} = cowboy_req:method(Req),
+            Method = cowboy_req:method(Req),
             Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
-            {QVals, _} = cowboy_req:qs_vals(Req),
+            QVals = cowboy_req:parse_qs(Req),
             Arity = length(B) + length(Params) + length(QVals),
             case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
                 [Command] ->

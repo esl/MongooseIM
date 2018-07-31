@@ -109,13 +109,13 @@ create_user_url_path(Command) ->
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity} = State)
     when ((Method == <<"POST">>) or (Method == <<"PUT">>)) ->
     {Params, Req2} = Req,
-    {QVals, _} = cowboy_req:qs_vals(Req2),
+    QVals = cowboy_req:parse_qs(Req2),
     QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
     Params2 = Binds ++ Params ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, Params2, Req2, State);
 process_request(Method, Command, Req, #http_api_state{bindings = Binds, entity = Entity}=State)
     when ((Method == <<"GET">>) or (Method == <<"DELETE">>)) ->
-    {QVals, _} = cowboy_req:qs_vals(Req),
+    QVals = cowboy_req:parse_qs(Req),
     QV = [{binary_to_existing_atom(K, utf8), V} || {K, V} <- QVals],
     BindsAndVars = Binds ++ QV ++ maybe_add_caller(Entity),
     handle_request(Method, Command, BindsAndVars, Req, State).
@@ -146,24 +146,24 @@ handle_result(Verb, ok, Req, State) ->
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, nocontent}, Req, State) ->
-    {Path, Req2} = cowboy_req:url(Req),
-    Req3 = maybe_add_location_header(nocontent, binary_to_list(Path), Req2),
-    {halt, Req3, State};
+    Path = iolist_to_binary(cowboy_req:uri(Req)),
+    Req2 = maybe_add_location_header(nocontent, binary_to_list(Path), Req),
+    {halt, Req2, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
-    {Path, Req2} = cowboy_req:url(Req),
-    Req3 = cowboy_req:set_resp_body(Res, Req2),
-    Req4 = maybe_add_location_header(Res, binary_to_list(Path), Req3),
-    {halt, Req4, State};
+    Path = iolist_to_binary(cowboy_req:uri(Req)),
+    Req2 = cowboy_req:set_resp_body(Res, Req),
+    Req3 = maybe_add_location_header(Res, binary_to_list(Path), Req2),
+    {halt, Req3, State};
 %% Ignore the returned value from a command for DELETE methods
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(204, Req),
+    Req2 = cowboy_req:reply(204, Req),
     {halt, Req2, State};
 handle_result(<<"PUT">>, {ok, nocontent}, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(204, Req),
+    Req2 = cowboy_req:reply(204, Req),
     {halt, Req2, State};
 handle_result(<<"PUT">>, {ok, Res}, Req, State) ->
     Req2 = cowboy_req:set_resp_body(Res, Req),
-    {ok, Req3} = cowboy_req:reply(201, Req2),
+    Req3 = cowboy_req:reply(201, Req2),
     {halt, Req3, State};
 handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
@@ -177,7 +177,7 @@ handle_result(no_call, _, Req, State) ->
 
 -spec parse_request_body(any()) -> {args_applied(), cowboy_req:req()} | {error, any()}.
 parse_request_body(Req) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
     {Data} = jiffy:decode(Body),
     try
         Params = create_params_proplist(Data),
@@ -227,20 +227,18 @@ maybe_add_caller(JID) ->
     [{caller, JID}].
 
 -spec maybe_add_location_header(binary() | list() | nocontent, list(), any())
-    -> any().
+    -> cowboy_req:req().
 maybe_add_location_header(Result, ResourcePath, Req) when is_binary(Result) ->
     add_location_header(binary_to_list(Result), ResourcePath, Req);
 maybe_add_location_header(Result, ResourcePath, Req) when is_list(Result) ->
     add_location_header(Result, ResourcePath, Req);
 maybe_add_location_header(_, _Path, Req) ->
-    {ok, Req2} = cowboy_req:reply(204, [], Req),
-    Req2.
+    cowboy_req:reply(204, #{}, Req).
 
 add_location_header(Result, ResourcePath, Req) ->
     Path = [ResourcePath, "/", Result],
-    Header = {<<"location">>, Path},
-    {ok, Req2} = cowboy_req:reply(201, [Header], Req),
-    Req2.
+    Headers = #{<<"location">> => Path},
+    cowboy_req:reply(201, Headers, Req).
 
 -spec convert_arg(atom(), any()) -> integer() | float() | binary() | string() | {error, bad_type}.
 convert_arg(binary, Binary) when is_binary(Binary) ->
@@ -324,14 +322,14 @@ to_atom(Atom) when is_atom(Atom) ->
 -spec error_response(integer() | atom(), any(), http_api_state()) ->
                      {halt, any(), http_api_state()}.
 error_response(Code, Req, State) when is_integer(Code) ->
-    {ok, Req1} = cowboy_req:reply(Code, Req),
+    Req1 = cowboy_req:reply(Code, Req),
     {halt, Req1, State};
 error_response(ErrorType, Req, State) ->
     error_response(error_code(ErrorType), Req, State).
 
 -spec error_response(any(), any(), any(), http_api_state()) -> {halt, any(), http_api_state()}.
 error_response(Code, Reason, Req, State) when is_integer(Code) ->
-    {ok, Req1} = cowboy_req:reply(Code, [], Reason, Req),
+    Req1 = cowboy_req:reply(Code, #{}, Reason, Req),
     {halt, Req1, State};
 error_response(ErrorType, Reason, Req, State) ->
     error_response(error_code(ErrorType), Reason, Req, State).

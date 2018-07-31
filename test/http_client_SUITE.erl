@@ -43,13 +43,12 @@ init_per_suite(Config) ->
     Config.
 
 process_request(Req) ->
-    {Sleep, Req1} = cowboy_req:qs_val(<<"sleep">>, Req),
-    case Sleep of
+    QS = cowboy_req:parse_qs(Req),
+    case proplists:get_value(<<"sleep">>, QS) of
         <<"true">> -> timer:sleep(100);
         _ -> ok
     end,
-    {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], <<"OK">>, Req1),
-    Req2.
+    cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, <<"OK">>, Req).
 
 end_per_suite(_Config) ->
     http_helper:stop(),

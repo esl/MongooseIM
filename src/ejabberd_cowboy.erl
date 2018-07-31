@@ -142,11 +142,24 @@ do_start_cowboy(Ref, Opts) ->
     end.
 
 start_http_or_https(undefined, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
-    cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
+    cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
 start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
     FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
     TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
-    cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
+    cowboy_start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
+
+cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
+    TransOpts = [{num_acceptors, NumAcceptors}|TransportOpts],
+    cowboy:start_clear(Ref, TransOpts, ProtoOpts).
+
+cowboy_start_https(Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
+    TransOpts = [{num_acceptors, NumAcceptors}|TransportOpts],
+    cowboy:start_tls(Ref, TransOpts, ProtoOpts).
+
+make_env_map(Map = #{env := Env}) ->
+    Map#{env => maps:from_list(Env)}.
 
 reload_dispatch(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),

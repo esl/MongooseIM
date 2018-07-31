@@ -95,13 +95,20 @@ http_requests(_Config) ->
     %% When
     Codes = [begin
                 Response = execute_request(Host, Path, Method, Headers, Body),
-                is_status_code(Response, 200)
+                to_status_code(Response)
             end || _ <- lists:seq(1, 50)],
 
     %% Then
-    Codes = lists:duplicate(50, true),
+    ExpectedCodes = lists:duplicate(50, 200), %% 50 times code 200
+    case Codes of
+        ExpectedCodes ->
+            ok;
+        _ ->
+            ct:fail(#{reason => bad_codes,
+                      codes => Codes,
+                      expected_codes => ExpectedCodes})
+    end,
     50 = meck:num_calls(dummy_http_handler, init, '_'),
-    50 = meck:num_calls(dummy_http_handler, handle, '_'),
     50 = meck:num_calls(dummy_http_handler, terminate, '_').
 
 ws_request_bad_protocol(_Config) ->
@@ -116,7 +123,7 @@ ws_request_bad_protocol(_Config) ->
     Response = execute_request(Host, Path, Method, Headers, Body),
 
     %% Then
-    true = is_status_code(Response, 404).
+    assert_status_code(Response, 404).
 
 ws_requests_xmpp(_Config) ->
     %% Given
@@ -135,7 +142,7 @@ ws_requests_xmpp(_Config) ->
     ok = gen_tcp:close(Socket),
 
     %% Then
-    %% dummy_ws1_handler:init/3 is not called since mod_cowboy takes over
+    %% dummy_ws1_handler:init/2 is not called since mod_cowboy takes over
     Responses = lists:duplicate(50, BinaryPong),
     1 = meck:num_calls(dummy_ws1_handler, websocket_init, '_'),
     50 = meck:num_calls(dummy_ws1_handler, websocket_handle, '_'),
@@ -231,8 +238,8 @@ conf_reload(Config) ->
     Response2 = execute_request(HTTPHost, Path, Method, Headers2, Body),
 
     %% Then http returns 200 and ws returns 404
-    true = is_status_code(Response1, 200),
-    true = is_status_code(Response2, 404),
+    assert_status_code(Response1, 200),
+    assert_status_code(Response2, 404),
 
     %% Given new configuration
     copy(data(Config, "ejabberd.onlyws.cfg"), data(Config, "ejabberd.cfg")),
@@ -242,7 +249,7 @@ conf_reload(Config) ->
     Response3 = execute_request(HTTPHost, Path, Method, Headers1, Body),
 
     %% Then http returns 404 and ws works fine
-    true = is_status_code(Response3, 404),
+    assert_status_code(Response3, 404),
 
     ok = stop_ejabberd().
 
@@ -265,8 +272,9 @@ start_cowboy() ->
                     {ws, other, dummy_ws2_handler}
                    ]}]
                 }]),
-    {ok, _Pid} = cowboy:start_http(http_listener, 20, [{port, 8080}],
-                                   [{env, [{dispatch, Dispatch}]}]).
+    {ok, _Pid} = cowboy:start_clear(http_listener,
+                                    [{num_acceptors, 20}, {port, 8080}],
+                                    #{env => #{dispatch => Dispatch}}).
 
 stop_cowboy() ->
     ok = cowboy:stop_listener(http_listener).
@@ -277,11 +285,24 @@ execute_request(Host, Path, Method, Headers, Body) ->
     fusco:disconnect(Pid),
     Response.
 
-is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
-    case binary_to_integer(CodeBin) of
+assert_status_code(Response, Code) ->
+    case is_status_code(Response, Code) of
+        true ->
+            ok;
+        false ->
+            ct:fail(#{reason => assert_status_code,
+                      response => Response,
+                      expected_code => Code})
+    end.
+
+is_status_code(Response, Code) ->
+    case to_status_code(Response) of
         Code -> true;
         _    -> false
     end.
+
+to_status_code({ok, {{CodeBin, _}, _, _, _, _}}) ->
+    binary_to_integer(CodeBin).
 
 ws_send(Socket, Frame) ->
     ok = gen_tcp:send(Socket, Frame).
@@ -344,13 +365,12 @@ create_handlers() ->
     end.
 
 handlers() ->
-    WSFuns = [{init, fun ws_init/3},
-              {websocket_init, fun ws_websocket_init/3},
-              {websocket_handle, fun ws_websocket_handle/3},
-              {websocket_info, fun ws_websocket_info/3},
+    WSFuns = [{init, fun ws_init/2},
+              {websocket_init, fun ws_websocket_init/1},
+              {websocket_handle, fun ws_websocket_handle/2},
+              {websocket_info, fun ws_websocket_info/2},
               {websocket_terminate, fun ws_websocket_terminate/3}],
-    [{dummy_http_handler, [{init, fun handler_init/3},
-                           {handle, fun handler_handle/2},
+    [{dummy_http_handler, [{init, fun handler_init/2},
                            {terminate, fun handler_terminate/3}]},
      {dummy_ws1_handler, WSFuns},
      {dummy_ws2_handler, WSFuns}].
@@ -367,32 +387,29 @@ reset_history() ->
     [ok = meck:reset(Handler) || {Handler, _} <- handlers()].
 
 %% cowboy_http_handler
-handler_init(_Type, Req, _Opts) ->
-    {ok, Req, no_state}.
-
-handler_handle(Req, State) ->
-    {ok, Req1} = cowboy_req:reply(200, Req),
-    {ok, Req1, State}.
+handler_init(Req, _Opts) ->
+    Req1 = cowboy_req:reply(200, Req),
+    {ok, Req1, no_state}.
 
 handler_terminate(_Reason, _Req, _State) ->
     ok.
 
 %% cowboy_websocket_handler
-ws_init(_Type, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_websocket}.
+ws_init(Req, _Opts) ->
+    {cowboy_websocket, Req, no_ws_state}.
 
-ws_websocket_init(_Transport, Req, _Opts) ->
-    {ok, Req, no_state}.
+ws_websocket_init(no_ws_state) ->
+    {ok, no_ws_state}.
 
-ws_websocket_handle({text,<<"ping">>}, Req, State) ->
-    {reply, {text, <<"pong">>}, Req, State};
-ws_websocket_handle({binary, <<"ping">>}, Req, State) ->
-    {reply, {binary, <<"pong">>}, Req, State};
-ws_websocket_handle(_Other, Req, State) ->
-    {ok, Req, State}.
+ws_websocket_handle({text,<<"ping">>}, no_ws_state) ->
+    {reply, {text, <<"pong">>}, no_ws_state};
+ws_websocket_handle({binary, <<"ping">>}, no_ws_state) ->
+    {reply, {binary, <<"pong">>}, no_ws_state};
+ws_websocket_handle(_Other, no_ws_state) ->
+    {ok, no_ws_state}.
 
-ws_websocket_info(_Info, Req, State) ->
-    {ok, Req, State}.
+ws_websocket_info(_Info, no_ws_state) ->
+    {ok, no_ws_state}.
 
-ws_websocket_terminate(_Reason, _Req, _State) ->
+ws_websocket_terminate(_Reason, _Req, no_ws_state) ->
     ok.
