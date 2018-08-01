@@ -1,5 +1,4 @@
 -module(mongoose_client_api_rooms_messages).
--behaviour(cowboy_handler).
 -behaviour(cowboy_rest).
 
 -export([init/2]).

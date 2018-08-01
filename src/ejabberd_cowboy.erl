@@ -200,13 +200,23 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
         "_" -> '_';
         _ -> Host
     end,
-    {module, Module} = code:ensure_loaded(Module),
+    ensure_loaded_module(Module),
     Paths = proplists:get_value(CowboyHost, Routes, []) ++
     case erlang:function_exported(Module, cowboy_router_paths, 2) of
         true -> Module:cowboy_router_paths(BasePath, Opts);
         _ -> [{BasePath, Module, Opts}]
     end,
     get_routes(Tail, lists:keystore(CowboyHost, 1, Routes, {CowboyHost, Paths})).
+
+ensure_loaded_module(Module) ->
+    case code:ensure_loaded(Module) of
+        {module, Module} ->
+            ok;
+        Other ->
+            erlang:error(#{issue => ensure_loaded_module_failed,
+                           modue => Module,
+                           reason => Other})
+    end.
 
 ignored_ssl_options() ->
     %% these options are specified in the listener section

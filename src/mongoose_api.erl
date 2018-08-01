@@ -71,7 +71,7 @@ init(Req, Opts) ->
         {value, {handler, Handler}, Opts1} ->
             Bindings = maps:to_list(cowboy_req:bindings(Req)),
             State = #state{handler=Handler, opts=Opts1, bindings=Bindings},
-            {cowboy_rest, Req, Opts}; % upgrade protocol
+            {cowboy_rest, Req, State}; % upgrade protocol
         false ->
             erlang:throw(no_handler_defined)
     end.
@@ -198,7 +198,7 @@ call(Function, Args, #state{handler=Handler}) ->
 %%--------------------------------------------------------------------
 error_response(Code, Req, State) when is_integer(Code) ->
     Req1 = cowboy_req:reply(Code, Req),
-    {halt, Req1, State};
+    {stop, Req1, State};
 error_response(Reason, Req, State) ->
     error_response(error_code(Reason), Req, State).
 

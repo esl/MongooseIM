@@ -1,5 +1,4 @@
 -module(mongoose_client_api_contacts).
--behaviour(cowboy_handler).
 -behaviour(cowboy_rest).
 
 -export([init/2]).
@@ -39,8 +38,8 @@ allowed_methods(Req, State) ->
      Req, State}.
 
 forbidden_request(Req, State) ->
-    cowboy_req:reply(403, Req),
-    {halt, Req, State}.
+    Req1 = cowboy_req:reply(403, Req),
+    {stop, Req1, State}.
 
 to_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
@@ -52,7 +51,7 @@ to_json(Req, #{jid := Caller} = State) ->
             {jiffy:encode(lists:flatten([Res])), Req, State};
         _ ->
             Req2 = cowboy_req:reply(404, Req),
-            {halt, Req2, State}
+            {stop, Req2, State}
     end.
 
 
@@ -63,8 +62,7 @@ from_json(Req, #{jid := Caller} = State) ->
     JSONData = jiffy:decode(Body, [return_maps]),
     Jid = case maps:get(<<"jid">>, JSONData, undefined) of
               undefined ->
-                  J = cowboy_req:binding(jid, Req1),
-                  J;
+                  cowboy_req:binding(jid, Req1);
               J -> J
           end,
     Action = maps:get(<<"action">>, JSONData, undefined),
@@ -106,22 +104,22 @@ handle_request_and_respond(Method, Jid, Action, CJid, Req, State) ->
             {true, Req, State};
         not_implemented ->
             Req2 = cowboy_req:reply(501, Req),
-            {halt, Req2, State};
+            {stop, Req2, State};
         not_found ->
             Req2 = cowboy_req:reply(404, Req),
-            {halt, Req2, State}
+            {stop, Req2, State}
     end.
 
 serve_failure(not_implemented, Req, State) ->
     Req2 = cowboy_req:reply(501, Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 serve_failure(not_found, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 serve_failure({error, ErrorType, Msg}, Req, State) ->
     ?ERROR_MSG("Error while serving http request: ~p: ~s", [ErrorType, Msg]),
     Req2 = cowboy_req:reply(500, Req),
-    {halt, Req2, State}.
+    {stop, Req2, State}.
 
 get_requested_contacts(Req) ->
     Body = get_whole_body(Req, <<"">>),

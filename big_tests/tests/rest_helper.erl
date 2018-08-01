@@ -145,7 +145,7 @@ decode(RespBody) ->
 
 %% a request specyfying credentials is directed to client http listener
 fusco_request(Role, {Method, {User, Password}}, Path, Body) ->
-    Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
+    Basic = list_to_binary("Basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers, get_port(Role), get_ssl_status(Role));
 %% without them it is for admin (secure) interface

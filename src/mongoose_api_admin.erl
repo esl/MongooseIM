@@ -76,16 +76,19 @@ init(Req, Opts) ->
                             command_category = CommandCategory,
                             command_subcategory = CommandSubCategory,
                             auth = Auth},
-    options(Req, State).
+    {cowboy_rest, Req, State}.
 
 options(Req, State) ->
+    Req1 = set_cors_headers(Req),
+    {ok, Req1, State}.
+
+set_cors_headers(Req) ->
     Req1 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Methods">>,
                                       <<"GET, OPTIONS, PUT, POST, DELETE">>, Req),
     Req2 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Origin">>,
                                       <<"*">>, Req1),
-    Req3 = cowboy_req:set_resp_header(<<"Access-Control-Allow-Headers">>,
-                                      <<"Content-Type">>, Req2),
-    {cowboy_rest, Req3, State}.
+    cowboy_req:set_resp_header(<<"Access-Control-Allow-Headers">>,
+                               <<"Content-Type">>, Req2).
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(admin, Name),
@@ -127,7 +130,7 @@ is_authorized(Req, State) ->
             mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
--spec authorize(credentials(), {credentials(), binary()}) -> boolean().
+-spec authorize(credentials(), {AuthMethod :: binary(), credentials()}) -> boolean().
 authorize(any, _) -> true;
 authorize(_, undefined) -> false;
 authorize(ControlCreds, {AuthMethod, Creds}) ->
@@ -137,10 +140,7 @@ authorize(ControlCreds, {AuthMethod, Creds}) ->
 % @doc Checks if credentials are the same (if control creds are 'any'
 % it is equal to everything).
 -spec compare_creds(credentials(), credentials() | undefined) -> boolean().
-compare_creds({UserControl, PassControl}, {User, Pass}) ->
-    UserControl == User andalso
-    PassControl == Pass;
-compare_creds(any, undefined) -> true;
+compare_creds({User, Pass}, {User, Pass}) -> true;
 compare_creds(_, _) -> false.
 
 get_control_creds(#http_api_state{auth = Creds}) ->

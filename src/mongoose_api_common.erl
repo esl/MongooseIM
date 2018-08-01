@@ -141,30 +141,28 @@ handle_request(Method, Command, Args, Req, #http_api_state{entity = Entity} = St
       Return :: {any(), cowboy_req:req(), http_api_state()}.
 handle_result(Verb, ok, Req, State) ->
     handle_result(Verb, {ok, nocontent}, Req, State);
-%%    {ok, Req2} = cowboy_req:reply(200, Req),
-%%    {halt, Req2, State};
 handle_result(<<"GET">>, {ok, Result}, Req, State) ->
     {jiffy:encode(Result), Req, State};
 handle_result(<<"POST">>, {ok, nocontent}, Req, State) ->
     Path = iolist_to_binary(cowboy_req:uri(Req)),
     Req2 = maybe_add_location_header(nocontent, binary_to_list(Path), Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 handle_result(<<"POST">>, {ok, Res}, Req, State) ->
     Path = iolist_to_binary(cowboy_req:uri(Req)),
     Req2 = cowboy_req:set_resp_body(Res, Req),
     Req3 = maybe_add_location_header(Res, binary_to_list(Path), Req2),
-    {halt, Req3, State};
+    {stop, Req3, State};
 %% Ignore the returned value from a command for DELETE methods
 handle_result(<<"DELETE">>, {ok, _Res}, Req, State) ->
     Req2 = cowboy_req:reply(204, Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 handle_result(<<"PUT">>, {ok, nocontent}, Req, State) ->
     Req2 = cowboy_req:reply(204, Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 handle_result(<<"PUT">>, {ok, Res}, Req, State) ->
     Req2 = cowboy_req:set_resp_body(Res, Req),
     Req3 = cowboy_req:reply(201, Req2),
-    {halt, Req3, State};
+    {stop, Req3, State};
 handle_result(_, {error, Error, Reason}, Req, State) when is_binary(Reason) ->
     error_response(Error, Reason, Req, State);
 handle_result(_, {error, Error, _R}, Req, State) ->
@@ -320,17 +318,18 @@ to_atom(Atom) when is_atom(Atom) ->
 %% HTTP utils
 %%--------------------------------------------------------------------
 -spec error_response(integer() | atom(), any(), http_api_state()) ->
-                     {halt, any(), http_api_state()}.
+                     {stop, any(), http_api_state()}.
 error_response(Code, Req, State) when is_integer(Code) ->
     Req1 = cowboy_req:reply(Code, Req),
-    {halt, Req1, State};
+    {stop, Req1, State};
 error_response(ErrorType, Req, State) ->
     error_response(error_code(ErrorType), Req, State).
 
--spec error_response(any(), any(), any(), http_api_state()) -> {halt, any(), http_api_state()}.
+-spec error_response(any(), any(), any(), http_api_state()) ->
+    {stop, any(), http_api_state()}.
 error_response(Code, Reason, Req, State) when is_integer(Code) ->
     Req1 = cowboy_req:reply(Code, #{}, Reason, Req),
-    {halt, Req1, State};
+    {stop, Req1, State};
 error_response(ErrorType, Reason, Req, State) ->
     error_response(error_code(ErrorType), Reason, Req, State).
 
@@ -358,8 +357,15 @@ method_to_action(<<"DELETE">>) -> delete.
 %% Authorization
 %%--------------------------------------------------------------------
 
+-spec get_auth_details(cowboy_req:req()) ->
+    {binary(), {binary(), binary()}} | undefined.
 get_auth_details(Req) ->
-    cowboy_req:parse_header(<<"authorization">>, Req).
+    case cowboy_req:parse_header(<<"authorization">>, Req) of
+        {basic, User, Password} ->
+            {<<"basic">>, {User, Password}}; %% The cowboy 1 format of auth details
+        _ ->
+            undefined
+    end.
 
 is_known_auth_method(<<"basic">>) -> true;
 is_known_auth_method(_) -> false.

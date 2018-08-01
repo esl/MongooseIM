@@ -7,12 +7,14 @@
 -export([allowed_methods/2]).
 -export([to_json/2]).
 -export([bad_request/2]).
+-export([bad_request/3]).
 -export([forbidden_request/2]).
+-export([forbidden_request/3]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
-init(Req, Opts) ->
+init(Req, _Opts) ->
     State = #{},
     case cowboy_req:header(<<"origin">>, Req) of
         undefined ->
@@ -49,16 +51,31 @@ options(Req, State) ->
 to_json(Req, User) ->
     {<<"{}">>, Req, User}.
 
-
 bad_request(Req, State) ->
-    reply(400, Req, State).
+    bad_request(Req, <<>>, State).
+
+bad_request(Req, Reason, State) ->
+    reply(400, Req, Reason, State).
 
 forbidden_request(Req, State) ->
-    reply(403, Req, State).
+    forbidden_request(Req, <<>>, State).
 
-reply(StatusCode, Req, State) ->
-    cowboy_req:reply(StatusCode, Req),
-    {halt, Req, State}.
+forbidden_request(Req, Reason, State) ->
+    reply(403, Req, Reason, State).
+
+reply(StatusCode, Req, Body, State) ->
+    Req1 = set_resp_body_if_missing(Body, Req),
+    Req2 = cowboy_req:reply(StatusCode, Req1),
+    {stop, Req2, State#{was_replied => true}}.
+
+set_resp_body_if_missing(Body, Req) ->
+    case cowboy_req:has_resp_body(Req) of
+        true ->
+            Req;
+        false ->
+            cowboy_req:set_resp_body(Body, Req)
+    end.
+
 %%--------------------------------------------------------------------
 %% Authorization
 %%--------------------------------------------------------------------
@@ -94,7 +111,6 @@ do_authorize({AuthMethod, Creds}, HTTPMethod) ->
             mongoose_api_common:is_known_auth_method(AuthMethod)
     end.
 
-check_password(undefined) -> false;
 check_password({User, Password}) ->
     #jid{luser = RawUser, lserver = Server} = jid:from_binary(User),
     Creds0 = mongoose_credentials:new(Server),

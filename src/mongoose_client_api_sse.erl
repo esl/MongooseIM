@@ -24,19 +24,21 @@ maybe_init(true, Req, #{jid := JID} = State) ->
 
     ejabberd_sm:open_session(SID, User, Server, Resource, 1, []),
 
-    {cowboy_rest, Req, State#{sid => SID, jid => jid:replace_resource(JID, Resource)}};
+    {ok, Req, State#{sid => SID, jid => jid:replace_resource(JID, Resource)}};
 maybe_init(true, Req, State) ->
     %% This is for OPTIONS method
-    {shutdown, 200, [], <<>>, Req, State};
+    {shutdown, 200, #{}, <<>>, Req, State};
 maybe_init({false, Value}, Req, State) ->
-    Headers = [{<<"www-authenticate">>, Value}],
+    Headers = #{<<"www-authenticate">> => Value},
     {shutdown, 401, Headers, <<>>, Req, State}.
 
 handle_notify(_Msg, State) ->
     {nosend, State}.
 
 handle_info({route, _From, _To, Acc}, State) ->
-    handle_msg(mongoose_acc:get(name, Acc), Acc, mongoose_acc:get(element, Acc), State);
+    TagName = mongoose_acc:get(name, Acc),
+    El = mongoose_acc:get(element, Acc),
+    handle_msg(TagName, Acc, El, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 

@@ -1,5 +1,4 @@
 -module(mongoose_client_api_messages).
--behaviour(cowboy_handler).
 -behaviour(cowboy_rest).
 
 -export([init/2]).
@@ -47,7 +46,7 @@ to_json(Req, #{jid := JID} = State) ->
 
 maybe_to_json_with_jid(error, _, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
     Now = p1_time_compat:os_system_time(micro_seconds),
     ArchiveID = mod_mam:archive_id_int(Server, JID),

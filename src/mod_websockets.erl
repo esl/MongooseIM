@@ -5,19 +5,15 @@
 %%%===================================================================
 -module(mod_websockets).
 
--behaviour(cowboy_handler).
 -behaviour(cowboy_websocket).
 -behaviour(mongoose_transport).
 
-%% cowboy_http_handler callbacks
--export([init/2,
-         terminate/3]).
-
 %% cowboy_http_websocket_handler callbacks
--export([websocket_init/1,
+-export([init/2,
+         websocket_init/1,
          websocket_handle/2,
-         websocket_info/2]).
-         %% terminate/3
+         websocket_info/2,
+         terminate/3]).
 
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
@@ -57,7 +53,7 @@
 -type socket() :: #websocket{}.
 
 %%--------------------------------------------------------------------
-%% cowboy_http_handler callbacks
+%% Common callbacks for all cowboy behaviours
 %%--------------------------------------------------------------------
 
 init(Req, Opts) ->
