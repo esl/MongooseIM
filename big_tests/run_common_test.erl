@@ -301,9 +301,15 @@ analyze_coverage(_, _) ->
     ok.
 
 prepare(Test) ->
-    Apps = get_apps(),
     Nodes = get_ejabberd_nodes(Test),
+    maybe_compile_cover(Nodes).
+
+maybe_compile_cover([]) ->
+    io:format("cover: skip cover compilation~n", []),
+    ok;
+maybe_compile_cover(Nodes) ->
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
+    Apps = get_apps(),
     import_code_paths(hd(Nodes)),
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
