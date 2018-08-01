@@ -97,7 +97,7 @@ get_room_details({RoomID, _} = RoomUS) ->
 
 
 from_json(Req, State = #{was_replied := true}) ->
-    {false, Req, State};
+    {true, Req, State};
 from_json(Req, State) ->
     Method = cowboy_req:method(Req),
     {ok, Body, Req2} = cowboy_req:read_body(Req),

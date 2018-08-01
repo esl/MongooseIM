@@ -11,6 +11,7 @@
 -export([terminate/3]).
 
 init(_InitArgs, _LastEvtId, Req) ->
+    ?DEBUG("issue=mongoose_client_api_sse:init", []),
     {cowboy_rest, Req1, State0} = mongoose_client_api:init(Req, []),
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
     maybe_init(Authorization, Req2, State#{id => 1}).

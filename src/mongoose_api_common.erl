@@ -181,8 +181,13 @@ parse_request_body(Req) ->
         Params = create_params_proplist(Data),
         {Params, Req2}
     catch
-        error:Err ->
-            {error, Err}
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("issue=parse_request_body_failed "
+                       "reason=~p:~p "
+                       "stacktrace=~1000p",
+                       [Class, Reason, Stacktrace]),
+            {error, Reason}
     end.
 
 %% @doc Checks if the arguments are correct. Return the arguments that can be applied to the
@@ -196,8 +201,13 @@ check_and_extract_args(ReqArgs, OptArgs, RequestArgList) ->
         ConvArgs = [{N, convert_arg(T, V)} || {N, T, V} <- AllArgVals, V =/= undefined],
         maps:from_list(ConvArgs)
     catch
-        _:R ->
-            {error, bad_request, R}
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("issue=check_and_extract_args_failed "
+                       "reason=~p:~p "
+                       "stacktrace=~1000p",
+                       [Class, Reason, Stacktrace]),
+            {error, bad_request, Reason}
     end.
 
 
@@ -210,8 +220,13 @@ execute_command(ArgMap, Command, Entity) ->
     try
         do_execute_command(ArgMap, Command, Entity)
     catch
-        _:R ->
-            {error, bad_request, R}
+        Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("issue=execute_command_failed "
+                       "reason=~p:~p "
+                       "stacktrace=~1000p",
+                       [Class, Reason, Stacktrace]),
+            {error, bad_request, Reason}
     end.
 
 -spec do_execute_command(map(), mongoose_commands:t(), admin|binary()) -> ok | {ok, any()}.
