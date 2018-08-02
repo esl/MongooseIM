@@ -292,7 +292,7 @@ returns_valid_form(Config) ->
         escalus:send(Alice, inbox_helper:get_inbox_form_stanza()),
         ResIQ = escalus:wait_for_stanza(Alice),
         InboxNS = inbox_helper:inbox_ns(),
-        #{ field_count := 4 } = Form = parse_form_iq(ResIQ),
+        #{ field_count := 5 } = Form = parse_form_iq(ResIQ),
         #{ <<"FORM_TYPE">> := #{ type := <<"hidden">>,
                                  value := InboxNS } } = Form,
         #{ <<"start">> := #{ type := <<"text-single">> } } = Form,
@@ -300,7 +300,8 @@ returns_valid_form(Config) ->
         #{ <<"order">> := #{ type := <<"list-single">>,
                              value := <<"desc">>,
                              options := OrderOptions } } = Form,
-        [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions)
+        [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions),
+        #{ <<"hidden_read">> := #{ type := <<"text-single">> } } = Form
       end).
 
 parse_form_iq(IQ) ->
