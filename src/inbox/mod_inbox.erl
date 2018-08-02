@@ -236,7 +236,8 @@ build_inbox_form() ->
                   jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}),
                   text_single_form_field(<<"start">>),
                   text_single_form_field(<<"end">>),
-                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions)
+                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
+                  text_single_form_field(<<"hidden_read">>, <<"false">>)
                  ],
     #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
             children = FormFields }.
@@ -244,6 +245,10 @@ build_inbox_form() ->
 -spec text_single_form_field(Var :: binary()) -> exml:element().
 text_single_form_field(Var) ->
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}]}.
+
+-spec text_single_form_field(Var :: binary(), DefaultValue :: binary()) -> exml:element().
+text_single_form_field(Var, DefaultValue) ->
+    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
 
 -spec list_single_form_field(Var :: binary(),
                              Default :: binary(),
