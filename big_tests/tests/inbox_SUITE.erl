@@ -25,7 +25,8 @@
          user_has_two_conversations/1,
          msg_sent_to_offline_user/1,
          msg_sent_to_not_existing_user/1,
-         user_has_no_unread_messages/1
+         user_has_only_unread_messages_or_only_read/1,
+         reset_unread_counter_and_show_only_unread/1
         ]).
 -export([simple_groupchat_stored_in_all_inbox/1,
          advanced_groupchat_stored_in_all_inbox/1,
@@ -100,7 +101,8 @@ groups() ->
            user_has_two_unread_messages,
            reset_unread_counter,
            try_to_reset_unread_counter_with_bad_marker,
-           user_has_no_unread_messages
+           user_has_only_unread_messages_or_only_read,
+           reset_unread_counter_and_show_only_unread
           ]},
          {muclight, [sequence],
           [
@@ -369,20 +371,15 @@ user_has_two_conversations(Config) ->
       check_inbox(Bob, BobConvs)
     end).
 
-user_has_no_unread_messages(Config) ->
+user_has_only_unread_messages_or_only_read(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-%    Msg1 = escalus_stanza:chat_to(Bob, <<"test">>),
-%    escalus:send(Alice, Msg1),
-     #{ Alice := AliceConvs, Bob := BobConvs, Kate := KateConvs } =
-      given_conversations_between(Alice, [Bob, Kate]),
-%    check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<"Msg2">>}]),
-%    check_inbox(Bob, [#conv{unread = 1, from = Alice, to = Bob, content = <<"test">>}]),
-
-%    escalus:wait_for_stanza(Bob, 1),
+    % given
+    given_conversations_between(Alice, [Bob, Kate]),
+    % Alice has no unread messages, but requests all conversations
     inbox_helper:get_inbox(Alice, #{ hidden_read => false }, 2),
-
+    % Requests only conversations with unread messages
     inbox_helper:get_inbox(Alice, #{ hidden_read => true }, 0),
-
+    % Bob has only one, unread message
     inbox_helper:get_inbox(Bob, #{ hidden_read => true }, 1)
         end).
 
@@ -459,6 +456,36 @@ reset_unread_counter(Config) ->
     escalus:send(Mike, ChatMarker),
     %% Now Mike asks for inbox second time. He has 0 unread messages now
     check_inbox(Mike, [#conv{unread = 0, from = Kate, to = Mike, content = <<"Hi mike">>}])
+                                                end).
+
+reset_unread_counter_and_show_only_unread(Config) ->
+  escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
+    % Kate sends message to Mike
+    MsgId =  <<"123123">>,
+    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
+    escalus:send(Kate, Msg1),
+    M1 = escalus:wait_for_stanza(Mike),
+    escalus:assert(is_chat_message, M1),
+    %% Mike has one unread message
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
+
+    ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
+    %% Mike sends "displayed" chat marker to Kate
+    escalus:send(Mike, ChatMarker),
+
+    %% Mike asks only for unread messages
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 0),
+
+    % Kate sends another message to Mike
+    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi again">>),
+
+    escalus:send(Kate, Msg2),
+    _M2= escalus:wait_for_stanza(Mike),
+
+    % Now Mike has one unread message (and one unread)
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1)
+%    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
+
                                                 end).
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
