@@ -64,7 +64,8 @@
 -type get_inbox_params() :: #{
         start => erlang:timestamp(),
         'end' => erlang:timestamp(),
-        order => asc | desc
+        order => asc | desc,
+        hidden_read => true | false
        }.
 
 -export_type([get_inbox_params/0]).
@@ -323,6 +324,16 @@ fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
         Order ->
             fields_to_params(RFields, Acc#{ order => Order })
     end;
+
+fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
+    case binary_to_bool(HiddenRead) of
+        error ->
+            ?DEBUG("event=invalid_inbox_form_field,field=hidden_read,value=~s", [HiddenRead]),
+            {error, bad_request};
+        Hidden ->
+            fields_to_params(RFields, Acc#{ hidden_read => Hidden })
+    end;
+
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(RFields, Acc);
 fields_to_params([Invalid | _], _) ->
@@ -333,6 +344,11 @@ fields_to_params([Invalid | _], _) ->
 binary_to_order(<<"desc">>) -> desc;
 binary_to_order(<<"asc">>) -> asc;
 binary_to_order(_) -> error.
+
+-spec binary_to_bool(binary()) -> true | false | error.
+binary_to_bool(<<"true">>) -> true;
+binary_to_bool(<<"false">>) -> false;
+binary_to_bool(_) -> error.
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->
