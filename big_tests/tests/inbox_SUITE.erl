@@ -459,7 +459,7 @@ reset_unread_counter(Config) ->
                                                 end).
 
 reset_unread_counter_and_show_only_unread(Config) ->
-  escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
+  escalus:story(Config, [{kate, 1}, {mike, 1}, {alice, 1}], fun(Kate, Mike, Alice) ->
     % Kate sends message to Mike
     MsgId =  <<"123123">>,
     Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
@@ -476,16 +476,15 @@ reset_unread_counter_and_show_only_unread(Config) ->
     %% Mike asks only for unread messages
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 0),
 
-    % Kate sends another message to Mike
-    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi again">>),
+    % Alice sends message to Mike
+    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
 
-    escalus:send(Kate, Msg2),
+    escalus:send(Alice, Msg2),
     _M2= escalus:wait_for_stanza(Mike),
 
     % Now Mike has one unread message (and one unread)
-    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1)
-%    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
-
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
                                                 end).
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
