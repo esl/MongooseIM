@@ -78,13 +78,10 @@ terminate(_Reason, _Req, #state{handler=undefined}) ->
     ok;
 terminate(_Reason, _Req, no_state) -> %% failed to init
     ok;
-terminate(Reason, Req, #state{handler=Handler, handler_state=HandlerState, protocol=Protocol}) ->
-    case Protocol of
-        ws ->
-            Handler:websocket_terminate(Reason, Req, HandlerState);
-        http ->
-            Handler:terminate(Reason, Req, HandlerState)
-    end.
+terminate(Reason, Req, #state{handler = Handler, handler_state = HandlerState, protocol = ws}) ->
+    Handler:websocket_terminate(Reason, Req, HandlerState);
+terminate(Reason, Req, #state{handler = Handler, handler_state = HandlerState, protocol = http}) ->
+    Handler:terminate(Reason, Req, HandlerState).
 
 %%--------------------------------------------------------------------
 %% cowboy_websocket_handler callbacks

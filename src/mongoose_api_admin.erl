@@ -130,11 +130,13 @@ is_authorized(Req, State) ->
             mongoose_api_common:make_unauthorized_response(Req, State)
     end.
 
--spec authorize(credentials(), {AuthMethod :: binary(), credentials()}) -> boolean().
+-spec authorize(credentials(), {AuthMethod :: atom(),
+                                Username :: binary(),
+                                Password :: binary()}) -> boolean().
 authorize(any, _) -> true;
 authorize(_, undefined) -> false;
-authorize(ControlCreds, {AuthMethod, Creds}) ->
-    compare_creds(ControlCreds, Creds) andalso
+authorize(ControlCreds, {AuthMethod, User, Password}) ->
+    compare_creds(ControlCreds, {User, Password}) andalso
         mongoose_api_common:is_known_auth_method(AuthMethod).
 
 % @doc Checks if credentials are the same (if control creds are 'any'

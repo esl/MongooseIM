@@ -373,16 +373,17 @@ method_to_action(<<"DELETE">>) -> delete.
 %%--------------------------------------------------------------------
 
 -spec get_auth_details(cowboy_req:req()) ->
-    {binary(), {binary(), binary()}} | undefined.
+    {basic, User :: binary(), Password :: binary()} | undefined.
 get_auth_details(Req) ->
     case cowboy_req:parse_header(<<"authorization">>, Req) of
-        {basic, User, Password} ->
-            {<<"basic">>, {User, Password}}; %% The cowboy 1 format of auth details
+        {basic, _User, _Password} = Details ->
+            Details;
         _ ->
             undefined
     end.
 
-is_known_auth_method(<<"basic">>) -> true;
+-spec is_known_auth_method(atom()) -> boolean().
+is_known_auth_method(basic) -> true;
 is_known_auth_method(_) -> false.
 
 make_unauthorized_response(Req, State) ->
