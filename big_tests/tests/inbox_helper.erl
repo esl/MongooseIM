@@ -271,7 +271,8 @@ order_to_bin(asc) -> <<"asc">>;
 order_to_bin(desc) -> <<"desc">>.
 
 bool_to_bin(true) -> <<"true">>;
-bool_to_bin(_) -> <<"false">>.
+bool_to_bin(false) -> <<"false">>;
+bool_to_bin(_) -> error.
 
 -spec given_conversations_between(From :: escalus:client(), ToList :: [escalus:client()]) ->
     #{ escalus:client() => [#conv{}] }.

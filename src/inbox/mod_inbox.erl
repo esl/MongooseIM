@@ -249,7 +249,8 @@ text_single_form_field(Var) ->
 
 -spec text_single_form_field(Var :: binary(), DefaultValue :: binary()) -> exml:element().
 text_single_form_field(Var, DefaultValue) ->
-    #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
+    #xmlel{name = <<"field">>, 
+           attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
 
 -spec list_single_form_field(Var :: binary(),
                              Default :: binary(),
