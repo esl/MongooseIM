@@ -110,8 +110,9 @@ init([BasicAuth]) ->
             {'_', [{"/auth/:method/", mim_ct_rest_handler, []}]}
         ]),
 
-    {ok, _} = cowboy:start_http(tests_listener, 5, [{port, 12000}],
-                                [{env, [{dispatch, DispatchEJD}]}]),
+    {ok, _} = cowboy:start_clear(tests_listener,
+                                 [{port, 12000}, {num_acceptors, 5}],
+                                 #{env => #{dispatch => DispatchEJD}}),
 
     {ok, #state{ basic_auth = list_to_binary(BasicAuth) }}.
 

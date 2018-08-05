@@ -213,8 +213,18 @@ fusco_request(Client, Method, Path, Body) ->
 
 fusco_request(Client, Method, Path, Body, HeadersIn) ->
     Headers = [{<<"Content-Type">>, <<"text/xml; charset=utf-8">>} | HeadersIn],
-    {ok, Result} = fusco_cp:request(Client, Path, Method, Headers, Body, 2, 5000),
-    Result.
+    case fusco_cp:request(Client, Path, Method, Headers, Body, 2, 5000) of
+        {ok, Result} ->
+            Result;
+        Other ->
+            ct:fail(#{issue => http_request_failed,
+                      reason => Other,
+                      client => Client,
+                      method => Method,
+                      path => Path,
+                      body => Body,
+                      headers => HeadersIn})
+    end.
 
 
 options_request(Config) ->

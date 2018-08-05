@@ -215,9 +215,8 @@ http_upstream(_Config) ->
                                Body,
                                QS),
 
-    true = does_contain_header(Response, <<"custom-header-1">>, <<"value">>),
-    true = does_contain_header(Response, <<"custom-header-2">>,
-                               <<"some other value">>).
+    assert_contain_header(Response, <<"custom-header-1">>, <<"value">>),
+    assert_contain_header(Response, <<"custom-header-2">>, <<"some other value">>).
 
 nomatch_upstream(_Config) ->
     %% Given
@@ -245,7 +244,7 @@ https_upstream(_Config) ->
     Response = execute_request(Host, Path, Method, Headers, Body),
 
     %% Then
-    true = is_status_code(Response, 200),
+    assert_status_code(Response, 200),
     true = does_response_match(Response,
                                <<"otherdomain.com">>,
                                <<"secret_admin/otherdomain/index.html">>,
@@ -585,8 +584,9 @@ start_revproxy() ->
                  [{"/[...]", mod_revproxy, [{custom_headers, CustomHeaders}]}]}
                 ]),
     mod_revproxy:start(nvm, [Routes]),
-    cowboy:start_http(revproxy_listener, 20, [{port, 8080}],
-                      [{env, [{dispatch, Dispatch}]}]).
+    cowboy:start_clear(revproxy_listener,
+                       [{port, 8080}, {num_acceptors, 20}],
+                       #{env => #{dispatch => Dispatch}}).
 
 stop_revproxy() ->
     ok = cowboy:stop_listener(revproxy_listener).
@@ -595,8 +595,9 @@ start_http_upstream() ->
     Dispatch = cowboy_router:compile([
                 {'_', [{"/[...]", revproxy_handler, []}]}
                 ]),
-    cowboy:start_http(http_listener, 20, [{port, 1234}],
-                      [{env, [{dispatch, Dispatch}]}]).
+    cowboy:start_clear(http_listener,
+                       [{port, 1234}, {num_acceptors, 20}],
+                       #{env => #{dispatch => Dispatch}}).
 
 start_https_upstream(Config) ->
     Dispatch = cowboy_router:compile([
@@ -604,18 +605,37 @@ start_https_upstream(Config) ->
                 ]),
     Opts = [{port, 5678},
             {keyfile, data("server.key", Config)},
-            {certfile, data("server.crt", Config)}],
-    cowboy:start_https(https_listener, 20, Opts,
-                       [{env, [{dispatch, Dispatch}]}]).
+            {certfile, data("server.crt", Config)},
+            {num_acceptors, 20}],
+    cowboy:start_tls(https_listener,
+                     Opts,
+                     #{env => #{dispatch => Dispatch}}).
 
 stop_upstream(Upstream) ->
-    ok = cowboy:stop_listener(Upstream).
+    case cowboy:stop_listener(Upstream) of
+        ok ->
+            ok;
+        Other ->
+            ct:fail(#{issue => stop_listener_failed,
+                      ref => Upstream,
+                      reason => Other})
+    end.
 
 execute_request(Host, Path, Method, Headers, Body) ->
     {ok, Pid} = fusco:start_link(Host, []),
     Response = fusco:request(Pid, Path, Method, Headers, Body, 5000),
     fusco:disconnect(Pid),
     Response.
+
+assert_status_code(Result, Code) ->
+    case is_status_code(Result, Code) of
+        true ->
+            ok;
+        false ->
+            ct:fail(#{issue => assert_status_code,
+                      result => Result,
+                      expected_code => Code})
+    end.
 
 is_status_code({ok, {{CodeBin, _}, _, _, _, _}}, Code) ->
     case binary_to_integer(CodeBin) of
@@ -638,6 +658,17 @@ does_response_match({ok, {{_, _}, _, Response, _, _}},
 to_formatted_binary(Subject) ->
     iolist_to_binary(io_lib:format("~p", [Subject])).
 
+assert_contain_header(Result, Header, Value) ->
+    case does_contain_header(Result, Header, Value) of
+        true ->
+            ok;
+        false ->
+            ct:fail(#{reason => assert_contain_header,
+                      req => Result,
+                      header => Header,
+                      expected_value => Value})
+    end.
+
 does_contain_header({ok, {{_, _}, _, Response, _, _}}, Header, Value) ->
     HeaderL = cowboy_bstr:to_lower(Header),
     ValueL = cowboy_bstr:to_lower(Value),
@@ -654,8 +685,7 @@ create_handler() ->
     Owner = self(),
     F = fun() ->
             ok = meck:new(revproxy_handler, [non_strict]),
-            ok = meck:expect(revproxy_handler, init, fun handler_init/3),
-            ok = meck:expect(revproxy_handler, handle, fun handler_handle/2),
+            ok = meck:expect(revproxy_handler, init, fun handler_init/2),
             ok = meck:expect(revproxy_handler, terminate, fun handler_terminate/3),
             Owner ! ok,
             timer:sleep(infinity)
@@ -672,27 +702,27 @@ remove_handler(Config) ->
     meck:unload(revproxy_handler),
     exit(?config(meck_pid, Config), kill).
 
-handler_init(_Type, Req, _Opts) ->
-    {ok, Req, no_state}.
+handler_init(Req, _Opts) ->
+    handler_handle(Req, no_state).
 
 handler_handle(Req, State) ->
-    {Host, Req2} = cowboy_req:host(Req),
-    {PathInfo, Req3} = cowboy_req:path_info(Req2),
-    {Method, Req4} = cowboy_req:method(Req3),
-    {Headers, Req5} = cowboy_req:headers(Req4),
+    Host = cowboy_req:host(Req),
+    PathInfo = cowboy_req:path_info(Req),
+    Method = cowboy_req:method(Req),
+    Headers = maps:to_list(cowboy_req:headers(Req)),
     ContentType = [{<<"content-type">>, <<"text/plain">>}],
-    {Body, Req7} = case cowboy_req:has_body(Req5) of
+    QS = cowboy_req:qs(Req),
+    {Body, Req2} = case cowboy_req:has_body(Req) of
         false ->
-            {<<>>, Req5};
+            {<<>>, Req};
         true ->
-            {ok, Body1, Req6} = cowboy_req:body(Req5),
-            {Body1, Req6}
+            {ok, Body1, Req1} = cowboy_req:read_body(Req),
+            {Body1, Req1}
     end,
-    {QS, Req8} = cowboy_req:qs(Req7),
     Response = io_lib:format("~p~n~p~n~p~n~p~n~p~n~p",
                              [Host, Method, PathInfo, Body, QS, Headers]),
-    {ok, Req9} = cowboy_req:reply(200, ContentType, Response, Req8),
-    {ok, Req9, State}.
+    Req3 = cowboy_req:reply(200, maps:from_list(ContentType), Response, Req2),
+    {ok, Req3, State}.
 
 handler_terminate(_Reason, _Req, _State) ->
     ok.

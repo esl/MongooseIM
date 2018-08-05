@@ -88,7 +88,7 @@ exec_limited_number_of_times(F, State=#state{limit=Limit}) ->
 old_truncated_counter_value(TrFile) ->
     case file:read_file(TrFile) of
         {ok, Bin} ->
-            binary_to_integer(TrFile);
+            binary_to_integer(Bin);
         _ ->
             0
     end.

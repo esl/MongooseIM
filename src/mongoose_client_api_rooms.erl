@@ -1,7 +1,7 @@
 -module(mongoose_client_api_rooms).
+-behaviour(cowboy_rest).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -15,11 +15,8 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, HandlerOpts) ->
-    mongoose_client_api:rest_init(Req, HandlerOpts).
+init(Req, Opts) ->
+    mongoose_client_api:init(Req, Opts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -38,28 +35,31 @@ allowed_methods(Req, State) ->
     {[<<"OPTIONS">>, <<"GET">>, <<"POST">>, <<"PUT">>], Req, State}.
 
 resource_exists(Req, #{jid := #jid{lserver = Server}} = State) ->
-    {RoomIDOrJID, Req2} = cowboy_req:binding(id, Req),
+    RoomIDOrJID = cowboy_req:binding(id, Req),
     MUCLightDomain = muc_light_domain(Server),
     case RoomIDOrJID of
         undefined ->
-            {Method, Req3} = cowboy_req:method(Req2),
+            Method = cowboy_req:method(Req),
             case Method of
                 <<"GET">> ->
-                    {true, Req3, State};
+                    {true, Req, State};
                 _ ->
-                    {false, Req3, State}
+                    {false, Req, State}
             end;
         _ ->
             case validate_room_id(RoomIDOrJID, Server) of
                 {ok, RoomID} ->
-                    does_room_exist(RoomID, MUCLightDomain, Req2, State);
+                    State2 = set_room_id(RoomID, State),
+                    does_room_exist(MUCLightDomain, Req, State2);
                 _ ->
-                    mongoose_client_api:bad_request(Req2, State)
+                    mongoose_client_api:bad_request(Req, <<"invalid_room_id">>, State)
             end
     end.
 
-does_room_exist(RoomU, RoomS, Req, #{jid := JID} = State) ->
-    NewState = State#{room_id => RoomU},
+set_room_id(RoomID, State = #{}) ->
+    State#{room_id => RoomID}.
+
+does_room_exist(RoomS, Req, #{room_id := RoomU, jid := JID} = State) ->
     case mod_muc_light_db_backend:get_info({RoomU, RoomS}) of
         {ok, Config, Users, Version} ->
             Room = #{config => Config,
@@ -67,9 +67,9 @@ does_room_exist(RoomU, RoomS, Req, #{jid := JID} = State) ->
                      version => Version,
                      jid => jid:make_noprep(RoomU, RoomS, <<>>)},
             CallerRole = determine_role(jid:to_lus(JID), Users),
-            {true, Req, NewState#{room => Room, role_in_room => CallerRole}};
+            {true, Req, State#{room => Room, role_in_room => CallerRole}};
         _ ->
-            {false, Req, NewState}
+            {false, Req, State}
     end.
 
 to_json(Req, #{room := Room} = State) ->
@@ -95,14 +95,17 @@ get_room_details({RoomID, _} = RoomUS) ->
             []
     end.
 
+
+from_json(Req, State = #{was_replied := true}) ->
+    {true, Req, State};
 from_json(Req, State) ->
-    {Method, Req2} = cowboy_req:method(Req),
-    {ok, Body, Req3} = cowboy_req:body(Req2),
+    Method = cowboy_req:method(Req),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
-    handle_request(Method, JSONData, Req3, State).
+    handle_request(Method, JSONData, Req2, State).
 
 handle_request(Method, JSONData, Req, State) ->
-    case handle_request_by_method(Method, JSONData, State) of
+    case handle_request_by_method(Method, JSONData, Req, State) of
         {error, _} ->
             {false, Req, State};
         Room ->
@@ -112,19 +115,23 @@ handle_request(Method, JSONData, Req, State) ->
             {true, RespReq, State}
     end.
 
-handle_request_by_method(<<"POST">>, JSONData,
+handle_request_by_method(<<"POST">>, JSONData, _Req,
                          #{user := User, jid := #jid{lserver = Server}}) ->
-    #{<<"name">>    := RoomName,
-      <<"subject">> := Subject} = JSONData,
+    #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
     mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject);
-handle_request_by_method(<<"PUT">>, JSONData, State) ->
+
+handle_request_by_method(<<"PUT">>, JSONData, Req, State) ->
+    assert_room_id_set(Req, State),
     #{user := User, jid := #jid{lserver = Server}, room_id := RoomID} = State,
-    #{<<"name">>    := RoomName, <<"subject">> := Subject} = JSONData,
+    #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
     mod_muc_light_commands:create_identifiable_room(Server,
                                                     RoomID,
                                                     RoomName,
                                                     User,
                                                     Subject).
+
+assert_room_id_set(_Req, #{room_id := _} = _State) ->
+    ok.
 
 user_to_json({UserServer, Role}) ->
     #{user => jid:to_binary(UserServer),
@@ -150,5 +157,7 @@ validate_room_id(RoomIDOrJID, Server) ->
         #jid{luser = RoomID, lserver = MUCLightDomain, lresource = <<>>} ->
             {ok, RoomID};
         _ ->
+            ?WARNING_MSG("issue=invalid_room_id id=~p muclight_domain=~p",
+                         [RoomIDOrJID, MUCLightDomain]),
             error
     end.

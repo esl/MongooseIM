@@ -139,11 +139,11 @@ bosh(_Config) ->
     mod_bosh:start(?HOST, []),
     SID = <<"sid">>,
     Self = self(),
-    {'EXIT', _} = (catch mod_bosh:get_session_socket(SID)),
+    {error, _} = mod_bosh:get_session_socket(SID),
     mod_bosh:store_session(SID, Self),
-    Self = mod_bosh:get_session_socket(SID),
+    {ok, Self} = mod_bosh:get_session_socket(SID),
     ejabberd_hooks:run(node_cleanup, [node()]),
-    {'EXIT', _} = (catch mod_bosh:get_session_socket(SID)),
+    {error, _} = mod_bosh:get_session_socket(SID),
     ok.
 
 %% -----------------------------------------------------

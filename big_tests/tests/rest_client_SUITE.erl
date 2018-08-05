@@ -670,9 +670,18 @@ create_room({_AliceJID, _} = Creds, RoomName, Subject) ->
     proplists:get_value(<<"id">>, Result).
 
 create_room_with_id({_AliceJID, _} = Creds, RoomName, Subject, RoomID) ->
-    {{<<"201">>, <<"Created">>}, {Result}} =
-        create_room_with_id_request(Creds, RoomName, Subject, RoomID),
-    proplists:get_value(<<"id">>, Result).
+    Res = create_room_with_id_request(Creds, RoomName, Subject, RoomID),
+    case Res of
+        {{<<"201">>, <<"Created">>}, {Result}} ->
+            proplists:get_value(<<"id">>, Result);
+        _ ->
+            ct:fail(#{issue => create_room_with_id_failed,
+                      result => Res,
+                      creds => Creds,
+                      room_name => RoomName,
+                      subject => Subject,
+                      room_id => RoomID})
+    end.
 
 create_room_with_id_request(Creds, RoomName, Subject, RoomID) ->
     Room = #{name => RoomName,
@@ -736,7 +745,15 @@ is_participant(User, Role, RoomInfo) ->
     lists:any(Fun, Participants).
 
 connect_to_sse(User) ->
-    {ok, Conn} = shotgun:open("localhost", 8089, https),
+    %% By default, gun prefers http2 protocol.
+    %%
+    %% The error occures with HTTP/2 enabled both on the client and the server:
+    %% "{error,{stream_error,protocol_error, 'Stream reset by server.'}}"
+    %%
+    %% Disable HTTP/2 on the client side:
+    GunOpts = #{protocols => [http]},
+    ShotGunOpts = #{gun_opts => GunOpts},
+    {ok, Conn} = shotgun:open("localhost", 8089, https, ShotGunOpts),
     Me = self(),
     EventFun = fun(State, Ref, Bin) ->
         Me ! {sse, State, Ref, Bin}
@@ -745,8 +762,15 @@ connect_to_sse(User) ->
     {U, P} = credentials(User),
     Options = #{async => true, async_mode => sse, handle_event => EventFun},
     Headers = #{basic_auth => {binary_to_list(U), binary_to_list(P)}},
-    {ok, Ref} = shotgun:get(Conn, "/api/sse", Headers, Options),
-    {Conn, Ref}.
+    case shotgun:get(Conn, "/api/sse", Headers, Options) of
+        {ok, Ref} ->
+            {Conn, Ref};
+        Other ->
+            ct:fail(#{issue => connect_to_sse_failed,
+                      headers => Headers,
+                      reason => Other,
+                      url => "https://localhost:8089/api/sse"})
+    end.
 
 wait_for_event({_Conn, Ref}) ->
     receive

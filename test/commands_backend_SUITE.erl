@@ -632,7 +632,7 @@ accepted_headers() ->
     [{<<"Content-Type">>, <<"application/json">>}, {<<"Accept">>, <<"application/json">>}].
 
 maybe_add_auth_header({User, Password}) ->
-    Basic = list_to_binary("basic " ++ base64:encode_to_string(User ++ ":"++ Password)),
+    Basic = list_to_binary("Basic " ++ base64:encode_to_string(User ++ ":"++ Password)),
     [{<<"authorization">>, Basic}];
 maybe_add_auth_header(admin) ->
     [].

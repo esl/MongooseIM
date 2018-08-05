@@ -1,7 +1,7 @@
 -module(mongoose_client_api_messages).
+-behaviour(cowboy_rest).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -12,7 +12,7 @@
 
 -export([encode/2]).
 
--export([maybe_integer_qs_val/1]).
+-export([maybe_integer/1]).
 -export([maybe_before_to_us/2]).
 
 -include("mongoose.hrl").
@@ -20,11 +20,8 @@
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, HandlerOpts) ->
-    mongoose_client_api:rest_init(Req, HandlerOpts).
+init(Req, Opts) ->
+    mongoose_client_api:init(Req, Opts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -43,18 +40,19 @@ allowed_methods(Req, State) ->
     {[<<"OPTIONS">>, <<"GET">>, <<"POST">>], Req, State}.
 
 to_json(Req, #{jid := JID} = State) ->
-    {With, Req2} = cowboy_req:binding(with, Req),
+    With = cowboy_req:binding(with, Req),
     WithJID = maybe_jid(With),
-    maybe_to_json_with_jid(WithJID, JID, Req2, State).
+    maybe_to_json_with_jid(WithJID, JID, Req, State).
 
 maybe_to_json_with_jid(error, _, Req, State) ->
     Req2 = cowboy_req:reply(404, Req),
-    {halt, Req2, State};
+    {stop, Req2, State};
 maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
     Now = p1_time_compat:os_system_time(micro_seconds),
     ArchiveID = mod_mam:archive_id_int(Server, JID),
-    {PageSize, Req2} = maybe_integer_qs_val(cowboy_req:qs_val(<<"limit">>, Req, <<"50">>)),
-    {Before, Req3} = maybe_integer_qs_val(cowboy_req:qs_val(<<"before">>, Req2)),
+    QS = cowboy_req:parse_qs(Req),
+    PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),
+    Before = maybe_integer(proplists:get_value(<<"before">>, QS)),
     End = maybe_before_to_us(Before, Now),
     RSM = #rsm_in{direction = before, id = undefined},
     R = mod_mam:lookup_messages(Server,
@@ -73,10 +71,10 @@ maybe_to_json_with_jid(WithJID, #jid{lserver = Server} = JID, Req, State) ->
                                   is_simple => true}),
     {ok, {_, _, Msgs}} = R,
     Resp = [make_json_msg(Msg, MAMId) || {MAMId, _, Msg} <- Msgs],
-    {jiffy:encode(Resp), Req3, State}.
+    {jiffy:encode(Resp), Req, State}.
 
 send_message(Req, #{user := RawUser, jid := FromJID} = State) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
     #{<<"to">> := To, <<"body">> := MsgBody} = jiffy:decode(Body, [return_maps]),
     ToJID = jid:from_binary(To),
     UUID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
@@ -143,10 +141,10 @@ maybe_jid(undefined) ->
 maybe_jid(JID) ->
     jid:from_binary(JID).
 
-maybe_integer_qs_val({undefined, _Req} = R) ->
-    R;
-maybe_integer_qs_val({Val, Req}) ->
-    {binary_to_integer(Val), Req}.
+maybe_integer(undefined) ->
+    undefined;
+maybe_integer(Val) ->
+    binary_to_integer(Val).
 
 maybe_before_to_us(undefined, Now) ->
     Now;

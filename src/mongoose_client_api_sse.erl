@@ -1,5 +1,4 @@
 -module(mongoose_client_api_sse).
-
 -behaviour(lasse_handler).
 
 -include("mongoose.hrl").
@@ -12,7 +11,8 @@
 -export([terminate/3]).
 
 init(_InitArgs, _LastEvtId, Req) ->
-    {ok, Req1, State0} = mongoose_client_api:rest_init(Req, []),
+    ?DEBUG("issue=mongoose_client_api_sse:init", []),
+    {cowboy_rest, Req1, State0} = mongoose_client_api:init(Req, []),
     {Authorization, Req2, State} = mongoose_client_api:is_authorized(Req1, State0),
     maybe_init(Authorization, Req2, State#{id => 1}).
 
@@ -28,16 +28,18 @@ maybe_init(true, Req, #{jid := JID} = State) ->
     {ok, Req, State#{sid => SID, jid => jid:replace_resource(JID, Resource)}};
 maybe_init(true, Req, State) ->
     %% This is for OPTIONS method
-    {shutdown, 200, [], <<>>, Req, State};
+    {shutdown, 200, #{}, <<>>, Req, State};
 maybe_init({false, Value}, Req, State) ->
-    Headers = [{<<"www-authenticate">>, Value}],
+    Headers = #{<<"www-authenticate">> => Value},
     {shutdown, 401, Headers, <<>>, Req, State}.
 
 handle_notify(_Msg, State) ->
     {nosend, State}.
 
 handle_info({route, _From, _To, Acc}, State) ->
-    handle_msg(mongoose_acc:get(name, Acc), Acc, mongoose_acc:get(element, Acc), State);
+    TagName = mongoose_acc:get(name, Acc),
+    El = mongoose_acc:get(element, Acc),
+    handle_msg(TagName, Acc, El, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 

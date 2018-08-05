@@ -1,7 +1,7 @@
 -module(mongoose_client_api_rooms_messages).
+-behaviour(cowboy_rest).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -13,16 +13,15 @@
 -export([from_json/2]).
 -export([encode/2]).
 
+-import(mongoose_client_api_messages, [maybe_integer/1, maybe_before_to_us/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 -include_lib("exml/include/exml.hrl").
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, HandlerOpts) ->
-    mongoose_client_api:rest_init(Req, HandlerOpts).
+init(Req, Opts) ->
+    mongoose_client_api:init(Req, Opts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -49,11 +48,10 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
     Server = UserJID#jid.server,
     Now = p1_time_compat:os_system_time(micro_seconds),
     ArchiveID = mod_mam_muc:archive_id_int(Server, RoomJID),
-    LimitQSVal = cowboy_req:qs_val(<<"limit">>, Req, <<"50">>),
-    {PageSize, Req2} = mongoose_client_api_messages:maybe_integer_qs_val(LimitQSVal),
-    BeforeQSVal = cowboy_req:qs_val(<<"before">>, Req2),
-    {Before, Req3} = mongoose_client_api_messages:maybe_integer_qs_val(BeforeQSVal),
-    End = mongoose_client_api_messages:maybe_before_to_us(Before, Now),
+    QS = cowboy_req:parse_qs(Req),
+    PageSize = maybe_integer(proplists:get_value(<<"limit">>, QS, <<"50">>)),
+    Before = maybe_integer(proplists:get_value(<<"before">>, QS)),
+    End = maybe_before_to_us(Before, Now),
     RSM = #rsm_in{direction = before, id = undefined},
     R = mod_mam_muc:lookup_messages(Server,
                                     #{archive_id => ArchiveID,
@@ -71,12 +69,12 @@ to_json(Req, #{jid := UserJID, room := Room} = State) ->
                                       is_simple => true}),
     {ok, {undefined, undefined, Msgs}} = R,
     JSONData = [make_json_item(Msg) || Msg <- Msgs],
-    {jiffy:encode(JSONData), Req3, State}.
+    {jiffy:encode(JSONData), Req, State}.
 
 from_json(Req, #{role_in_room := none} = State) ->
     mongoose_client_api:forbidden_request(Req, State);
 from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
     try
         JSONData = jiffy:decode(Body, [return_maps]),
         prepare_message_and_route_to_room(User, JID, Room, State, Req2, JSONData)

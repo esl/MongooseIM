@@ -138,7 +138,7 @@ ws_rx_frame(Payload, Opcode) ->
 get_websocket() ->
     %% Assumption: there's only one ranch protocol process running and
     %% it's the one which started due to our gen_tcp:connect in ws_handshake/2.
-    [{cowboy_protocol, Pid}] = get_ranch_connections(),
+    [{cowboy_clear, Pid}] = get_ranch_connections(),
     %% This is a record! See mod_websockets: #websocket{}.
     {websocket, Pid, fake_peername}.
 

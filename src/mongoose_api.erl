@@ -15,15 +15,15 @@
 %%==============================================================================
 -module(mongoose_api).
 
+-behaviour(cowboy_rest).
+
 %% ejabberd_cowboy callbacks
 -export([cowboy_router_paths/2]).
 
 %% cowboy_rest callbacks
--export([init/3,
-         rest_init/2,
-         rest_terminate/2]).
-
--export([allowed_methods/2,
+-export([init/2,
+         terminate/3,
+         allowed_methods/2,
          content_types_provided/2,
          content_types_accepted/2,
          delete_resource/2]).
@@ -66,20 +66,17 @@ register_handler(Base, Handler) ->
 %%--------------------------------------------------------------------
 %% cowboy_rest callbacks
 %%--------------------------------------------------------------------
-init({_Transport, http}, Req, Opts) ->
-    {upgrade, protocol, cowboy_rest, Req, Opts}.
-
-rest_init(Req, Opts) ->
+init(Req, Opts) ->
     case lists:keytake(handler, 1, Opts) of
         {value, {handler, Handler}, Opts1} ->
-            {Bindings, Req1} = cowboy_req:bindings(Req),
+            Bindings = maps:to_list(cowboy_req:bindings(Req)),
             State = #state{handler=Handler, opts=Opts1, bindings=Bindings},
-            {ok, Req1, State};
+            {cowboy_rest, Req, State}; % upgrade protocol
         false ->
             erlang:throw(no_handler_defined)
     end.
 
-rest_terminate(_Req, _State) ->
+terminate(_Reason, _Req, _State) ->
     ok.
 
 allowed_methods(Req, #state{bindings=Bindings, opts=Opts}=State) ->
@@ -125,13 +122,13 @@ handle_get(Serializer, Req, #state{opts=Opts, bindings=Bindings}=State) ->
     handle_result(Result, Serializer, Req, State).
 
 handle_unsafe(Deserializer, Req, State) ->
-    {Method, Req1} = cowboy_req:method(Req),
-    {ok, Body, Req2} = cowboy_req:body(Req1),
+    Method = cowboy_req:method(Req),
+    {ok, Body, Req1} = cowboy_req:read_body(Req),
     case Deserializer:deserialize(Body) of
         {ok, Data} ->
-            handle_unsafe(Method, Data, Req2, State);
+            handle_unsafe(Method, Data, Req1, State);
         {error, _Reason} ->
-            error_response(bad_request, Req2, State)
+            error_response(bad_request, Req1, State)
     end.
 
 handle_unsafe(Method, Data, Req, #state{opts=Opts, bindings=Bindings}=State) ->
@@ -200,8 +197,8 @@ call(Function, Args, #state{handler=Handler}) ->
 %% Error responses
 %%--------------------------------------------------------------------
 error_response(Code, Req, State) when is_integer(Code) ->
-    {ok, Req1} = cowboy_req:reply(Code, Req),
-    {halt, Req1, State};
+    Req1 = cowboy_req:reply(Code, Req),
+    {stop, Req1, State};
 error_response(Reason, Req, State) ->
     error_response(error_code(Reason), Req, State).
 

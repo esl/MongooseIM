@@ -5,20 +5,15 @@
 %%%===================================================================
 -module(mod_websockets).
 
--behaviour(cowboy_http_handler).
--behaviour(cowboy_websocket_handler).
+-behaviour(cowboy_websocket).
 -behaviour(mongoose_transport).
 
-%% cowboy_http_handler callbacks
--export([init/3,
-         handle/2,
-         terminate/3]).
-
 %% cowboy_http_websocket_handler callbacks
--export([websocket_init/3,
-         websocket_handle/3,
-         websocket_info/3,
-         websocket_terminate/3]).
+-export([init/2,
+         websocket_init/1,
+         websocket_handle/2,
+         websocket_info/2,
+         terminate/3]).
 
 %% ejabberd_socket compatibility
 -export([starttls/2, starttls/3,
@@ -46,6 +41,7 @@
           peername :: {inet:ip_address(), inet:port_number()}
          }).
 -record(ws_state, {
+          peer :: {inet:ip_address(), inet:port_number()} | undefined,
           fsm_pid :: pid() | undefined,
           open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,
@@ -57,123 +53,124 @@
 -type socket() :: #websocket{}.
 
 %%--------------------------------------------------------------------
-%% cowboy_http_handler callbacks
+%% Common callbacks for all cowboy behaviours
 %%--------------------------------------------------------------------
 
-init(Transport, Req, Opts) ->
-    ?DEBUG("cowboy init: ~p~n", [{Transport, Req, Opts}]),
-    {upgrade, protocol, cowboy_websocket}.
-
-handle(Req, State) ->
-        {ok, Req, State}.
+init(Req, Opts) ->
+    Peer = cowboy_req:peer(Req),
+    Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
+    ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
+    %% upgrade protocol
+    {cowboy_websocket, Req1, [{peer,Peer}|Opts]}.
 
 terminate(_Reason, _Req, _State) ->
-        ok.
+    ok.
 
 %%--------------------------------------------------------------------
 %% cowboy_http_websocket_handler callbacks
 %%--------------------------------------------------------------------
 
 % Called for every new websocket connection.
-websocket_init(Transport, Req, Opts) ->
-    ?DEBUG("websocket_init: ~p~n", [{Transport, Req, Opts}]),
-    Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
-            Timeout = gen_mod:get_opt(timeout, Opts, infinity),
-            PingRate = gen_mod:get_opt(ping_rate, Opts, none),
-            MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
-            ?DEBUG("ping rate is ~p", [PingRate]),
-            maybe_send_ping_request(PingRate),
-    State = #ws_state{opts = Opts, ping_rate = PingRate, max_stanza_size = MaxStanzaSize},
-    {ok, Req1, State, Timeout}.
+websocket_init(Opts) ->
+    ?DEBUG("websocket_init: ~p~n", [Opts]),
+    %% TODO Enable timeout, was disabled for cowboy 2
+    Timeout = gen_mod:get_opt(timeout, Opts, infinity),
+    PingRate = gen_mod:get_opt(ping_rate, Opts, none),
+    MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
+    Peer = gen_mod:get_opt(peer, Opts),
+    ?DEBUG("ping rate is ~p", [PingRate]),
+    maybe_send_ping_request(PingRate),
+    State = #ws_state{opts = Opts,
+                      ping_rate = PingRate,
+                      max_stanza_size = MaxStanzaSize,
+                      peer = Peer},
+    {ok, State}.
 
 % Called when a text message arrives.
-websocket_handle({text, Msg}, Req, State) ->
+websocket_handle({text, Msg}, State) ->
     ?DEBUG("Received: ~p", [Msg]),
-    handle_text(Msg, Req, State);
+    handle_text(Msg, State);
 
-websocket_handle({binary, Msg}, Req, State) ->
+websocket_handle({binary, Msg}, State) ->
     ?DEBUG("Received binary: ~p", [Msg]),
-    handle_text(Msg, Req, State);
+    handle_text(Msg, State);
 
-websocket_handle({pong, Payload}, Req, State) ->
+websocket_handle({pong, Payload}, State) ->
     ?DEBUG("Received pong frame: ~p", [Payload]),
-    {ok, Req, State};
+    {ok, State};
 
 % With this callback we can handle other kind of
 % messages, like binary.
-websocket_handle(Any, Req, State) ->
+websocket_handle(Any, State) ->
     ?DEBUG("Received non-text: ~p", [Any]),
-    {ok, Req, State}.
+    {ok, State}.
 
 % Other messages from the system are handled here.
-websocket_info({send, Text}, Req, State) ->
+websocket_info({send, Text}, State) ->
     ?DEBUG("Sent text: ~s", [Text]),
-    {reply, {text, Text}, Req, State};
-websocket_info({send_xml, XML}, Req, State) ->
+    {reply, {text, Text}, State};
+websocket_info({send_xml, XML}, State) ->
     XML1 = process_server_stream_root(replace_stream_ns(XML, State), State),
     Text = exml:to_iolist(XML1),
     ?DEBUG("Sent XML: ~s", [Text]),
-    {reply, {text, Text}, Req, State};
-websocket_info({set_ping, Value}, Req, State = #ws_state{ping_rate = none})
+    {reply, {text, Text}, State};
+websocket_info({set_ping, Value}, State = #ws_state{ping_rate = none})
   when is_integer(Value) and (Value > 0)->
     send_ping_request(Value),
-    {ok, Req, State#ws_state{ping_rate = Value}};
-websocket_info({set_ping, Value}, Req, State) when is_integer(Value) and (Value > 0)->
-    {ok, Req, State#ws_state{ping_rate = Value}};
-websocket_info(disable_ping, Req, State)->
-    {ok, Req, State#ws_state{ping_rate = none}};
-websocket_info(do_ping, Req, State = #ws_state{ping_rate = none}) ->
+    {ok, State#ws_state{ping_rate = Value}};
+websocket_info({set_ping, Value}, State) when is_integer(Value) and (Value > 0)->
+    {ok, State#ws_state{ping_rate = Value}};
+websocket_info(disable_ping, State)->
+    {ok, State#ws_state{ping_rate = none}};
+websocket_info(do_ping, State = #ws_state{ping_rate = none}) ->
     %% probalby someone disabled pings
-    {ok, Req, State};
-websocket_info(do_ping, Req, State) ->
+    {ok, State};
+websocket_info(do_ping, State) ->
     %% send ping frame to the client
     send_ping_request(State#ws_state.ping_rate),
-    {reply, ping, Req, State};
-websocket_info(stop, Req, #ws_state{parser = undefined} = State) ->
-    {shutdown, Req, State};
-websocket_info(stop, Req, #ws_state{parser = Parser} = State) ->
+    {reply, ping, State};
+websocket_info(stop, #ws_state{parser = undefined} = State) ->
+    {stop, State};
+websocket_info(stop, #ws_state{parser = Parser} = State) ->
     exml_stream:free_parser(Parser),
-    {shutdown, Req, State};
-websocket_info(Info, Req, State) ->
+    {stop, State};
+websocket_info(Info, State) ->
     ?DEBUG("unknown info: ~p", [Info]),
-    {ok, Req, State}.
-
-websocket_terminate(_Reason, _Req, _State) ->
-    ok.
+    {ok, State}.
 
 %%--------------------------------------------------------------------
 %% Callbacks implementation
 %%--------------------------------------------------------------------
 
-handle_text(Text, Req, #ws_state{ parser = undefined } = State) ->
+handle_text(Text, #ws_state{ parser = undefined } = State) ->
     ParserOpts = get_parser_opts(Text, State),
     {ok, Parser} = exml_stream:new_parser(ParserOpts),
-    handle_text(Text, Req, State#ws_state{ parser = Parser });
-handle_text(Text, Req, #ws_state{parser = Parser} = State) ->
+    handle_text(Text, State#ws_state{ parser = Parser });
+handle_text(Text, #ws_state{parser = Parser} = State) ->
     case exml_stream:parse(Parser, Text) of
     {ok, NewParser, Elements} ->
         State1 = State#ws_state{ parser = NewParser },
-        case maybe_start_fsm(Elements, Req, State1) of
-            {ok, Req1, State2} ->
-                process_client_elements(Elements, Req1, State2);
-            {shutdown, _, _} = Shutdown ->
+        case maybe_start_fsm(Elements, State1) of
+            {ok, State2} ->
+                process_client_elements(Elements, State2);
+            {stop, _} = Shutdown ->
                 Shutdown
         end;
     {error, Reason} ->
-        process_parse_error(Reason, Req, State)
+        process_parse_error(Reason, State)
     end.
 
-process_client_elements(Elements, Req, #ws_state{fsm_pid = FSM} = State) ->
+process_client_elements(Elements, #ws_state{fsm_pid = FSM} = State) ->
     {Elements1, State1} = process_client_stream_start(Elements, State),
     [send_to_fsm(FSM, process_client_stream_end(
                 replace_stream_ns(Elem, State1), State1)) || Elem <- Elements1],
-    {ok, Req, State1}.
+    {ok, State1}.
 
-process_parse_error(Reason, Req, #ws_state{fsm_pid = undefined} = State) ->
-    {shutdown, Req, State};
-process_parse_error(Reason, Req, #ws_state{fsm_pid = FSM} = State) ->
+process_parse_error(_Reason, #ws_state{fsm_pid = undefined} = State) ->
+    {stop, State};
+process_parse_error(Reason, #ws_state{fsm_pid = FSM} = State) ->
     send_to_fsm(FSM, {xmlstreamerror, Reason}),
-    {ok, Req, State}.
+    {ok, State}.
 
 send_to_fsm(FSM, #xmlel{} = Element) ->
     send_to_fsm(FSM, {xmlstreamelement, Element});
@@ -181,23 +178,22 @@ send_to_fsm(FSM, StreamElement) ->
     p1_fsm:send_event(FSM, StreamElement).
 
 maybe_start_fsm([#xmlstreamstart{ name = <<"stream", _/binary>>, attrs = Attrs}
-                 | _], Req,
+                 | _],
                 #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
     case lists:keyfind(<<"xmlns">>, 1, Attrs) of
         {<<"xmlns">>, ?NS_COMPONENT} ->
             ServiceOpts = gen_mod:get_opt(ejabberd_service, Opts, []),
-            do_start_fsm(ejabberd_service, ServiceOpts, Req, State);
+            do_start_fsm(ejabberd_service, ServiceOpts, State);
         _ ->
-            {shutdown, Req, State}
+            {stop, State}
     end;
 maybe_start_fsm([#xmlel{ name = <<"open">> }],
-                Req, #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
-    do_start_fsm(ejabberd_c2s, Opts, Req, State);
-maybe_start_fsm(_Els, Req, State) ->
-    {ok, Req, State}.
+                #ws_state{fsm_pid = undefined, opts = Opts}=State) ->
+    do_start_fsm(ejabberd_c2s, Opts, State);
+maybe_start_fsm(_Els, State) ->
+    {ok, State}.
 
-do_start_fsm(FSMModule, Opts, Req, State) ->
-    {Peer, NewReq} = cowboy_req:peer(Req),
+do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer}) ->
     SocketData = #websocket{pid = self(),
                             peername = Peer},
     Opts1 = [{xml_socket, true} | Opts],
@@ -205,10 +201,10 @@ do_start_fsm(FSMModule, Opts, Req, State) ->
         {ok, Pid} ->
             ?DEBUG("started ~p via websockets: ~p", [FSMModule, Pid]),
             NewState = State#ws_state{fsm_pid = Pid},
-            {ok, NewReq, NewState};
+            {ok, NewState};
         {error, Reason} ->
             ?WARNING_MSG("~p start failed: ~p", [FSMModule, Reason]),
-            {shutdown, NewReq, State}
+            {stop, State}
     end.
 
 call_fsm_start(ejabberd_c2s, SocketData, Opts) ->
@@ -321,9 +317,9 @@ replace_stream_ns(Element, #ws_state{ open_tag = open }) ->
 replace_stream_ns(Element, _State) ->
     Element.
 
-get_parser_opts(Text, #ws_state{ max_stanza_size = infinity } = State) ->
+get_parser_opts(Text, #ws_state{ max_stanza_size = infinity }) ->
     [{max_child_size, 0} | get_parser_opts(Text)];
-get_parser_opts(Text, #ws_state{ max_stanza_size = MaxStanzaSize } = State) ->
+get_parser_opts(Text, #ws_state{ max_stanza_size = MaxStanzaSize }) ->
     [{max_child_size, MaxStanzaSize} | get_parser_opts(Text)].
 
 get_parser_opts(<<"<open", _/binary>>) ->

@@ -1,7 +1,7 @@
 -module(mongoose_client_api_rooms_users).
+-behaviour(cowboy_rest).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -16,11 +16,8 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, HandlerOpts) ->
-    mongoose_client_api:rest_init(Req, HandlerOpts).
+init(Req, Opts) ->
+    mongoose_client_api:init(Req, Opts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -44,7 +41,7 @@ from_json(Req, #{user := User,
                  role_in_room := owner,
                  jid := #jid{lserver = Server},
                  room_id := RoomID} = State) ->
-    {ok, Body, Req2} = cowboy_req:body(Req),
+    {ok, Body, Req2} = cowboy_req:read_body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
     #{<<"user">> := UserToInvite} = JSONData,
     mod_muc_light_commands:change_affiliation(Server, RoomID, User,
@@ -57,15 +54,15 @@ delete_resource(Req, #{role_in_room := none} = State) ->
     mongoose_client_api:forbidden_request(Req, State);
 delete_resource(Req, #{role_in_room := owner,
                        user := User} = State) ->
-    {UserToRemove, Req2} = cowboy_req:binding(user, Req),
-    remove_user_from_room(User, UserToRemove, Req2, State);
+    UserToRemove = cowboy_req:binding(user, Req),
+    remove_user_from_room(User, UserToRemove, Req, State);
 delete_resource(Req, #{user := User} = State) ->
-    {UserToRemove, Req2} = cowboy_req:binding(user, Req),
+    UserToRemove = cowboy_req:binding(user, Req),
     case UserToRemove of
         User ->
             remove_user_from_room(User, User, Req, State);
         _ ->
-            mongoose_client_api:forbidden_request(Req2, State)
+            mongoose_client_api:forbidden_request(Req, State)
     end.
 
 remove_user_from_room(Remover, Target, Req,
