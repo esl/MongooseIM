@@ -1,17 +1,18 @@
-## Basic IQ Handler
+# Basic IQ Handler
+
 This tutorial will show you how to add & test a simple module with an IQ
 handler to MongooseIM.
 `gen_iq_handler` module provides functionality for registering IQ
 handlers for specific namespaces.
 
 
-### Clone & build
+## Clone & build
 
 See [How-to-build](../../user-guide/How-to-build) for details on building MongooseIM
 from source code.
 
 
-### Create module & add basic IQ handler
+## Create module & add basic IQ handler
 
 * Go to `src` and create a basic module implementing `gen_mod` behaviour
 * In `start/2` register the IQ handler with specified namespace, type
@@ -53,7 +54,7 @@ process_iq(_From, _To, Acc, IQ) ->
 ```
 
 
-#### Processing IQ policies
+### Processing IQ policies
 
 The server may use one of the following strategies to handle incoming stanzas:
 
@@ -65,7 +66,7 @@ The server may use one of the following strategies to handle incoming stanzas:
 * `pararell` registers the handler without spawning a new process, a new process will be spawned
   for each incoming stanza
 
-### Test your handler
+## Test your handler
 
 * Go to `big_tests/tests` and create a test suite for your handler
 * Implement the test case for success and failure. Our IQ handler is
@@ -183,7 +184,7 @@ should_return_error(Config) ->
 ```
 
 
-### Run
+## Run
 
 Compile & generate releases for testing purposes according to
 [How-to-build](../../user-guide/How-to-build/#building-the-testing-target-and-running-tests).
