@@ -373,7 +373,6 @@ user_has_two_conversations(Config) ->
 
 user_has_only_unread_messages_or_only_read(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-    % given
     given_conversations_between(Alice, [Bob, Kate]),
     % Alice has no unread messages, but requests all conversations
     inbox_helper:get_inbox(Alice, #{ hidden_read => false }, 2),
@@ -466,23 +465,20 @@ reset_unread_counter_and_show_only_unread(Config) ->
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
-    %% Mike has one unread message
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
 
     ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
-    %% Mike sends "displayed" chat marker to Kate
     escalus:send(Mike, ChatMarker),
 
-    %% Mike asks only for unread messages
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 0),
 
     % Alice sends message to Mike
     Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
 
     escalus:send(Alice, Msg2),
-    _M2= escalus:wait_for_stanza(Mike),
+    escalus:wait_for_stanza(Mike),
 
-    % Now Mike has one unread message (and one unread)
+    % Mike has two conversations, one with unread messages 
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
     inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
                                                 end).
