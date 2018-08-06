@@ -31,7 +31,7 @@
 
 %% UID
 -import(mod_mam_utils,
-        [encode_compact_uuid/2]).
+        [maybe_timestamp_to_message_id/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -548,11 +548,11 @@ prepare_filter(Host, UserID, UserJID, Borders, Start, End, WithJID, SearchText) 
                 {minify_and_escape_bare_jid(Host, UserJID, WithJID),
                  mongoose_rdbms:escape_string(WithLResource)}
         end,
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID   = maybe_encode_compact_uuid(End, 255),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2   = apply_end_border(Borders, EndID),
-    prepare_filter_sql(UserID, StartID2, EndID2, SWithJID, SWithResource, SearchText).
+    Start1 = apply_start_border(Borders, Start),
+    End1   = apply_end_border(Borders, End),
+    StartID = maybe_timestamp_to_message_id(Start1, min),
+    EndID   = maybe_timestamp_to_message_id(End1, max),
+    prepare_filter_sql(UserID, StartID, EndID, SWithJID, SWithResource, SearchText).
 
 
 -spec prepare_filter_sql(UserID :: non_neg_integer(),
@@ -632,11 +632,6 @@ escape_user_id(UserID) when is_integer(UserID) ->
 %% @doc Strip resource, minify and escape JID.
 minify_and_escape_bare_jid(Host, LocJID, JID) ->
     escape_string(jid_to_stored_binary(Host, LocJID, jid:to_bare(JID))).
-
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
 
 %% ----------------------------------------------------------------------
 %% Optimizations

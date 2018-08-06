@@ -34,7 +34,7 @@
 
 %% UMessID
 -import(mod_mam_utils,
-        [encode_compact_uuid/2]).
+        [maybe_timestamp_to_message_id/2]).
 
 %% Other
 -import(mod_mam_utils,
@@ -503,11 +503,11 @@ calc_count(Host, Filter) ->
                      WithJID :: jid:jid() | undefined, SearchText :: binary() | undefined) -> filter().
 prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText) ->
     SWithNick = maybe_jid_to_escaped_resource(WithJID),
-    StartID = maybe_encode_compact_uuid(Start, 0),
-    EndID   = maybe_encode_compact_uuid(End, 255),
-    StartID2 = apply_start_border(Borders, StartID),
-    EndID2   = apply_end_border(Borders, EndID),
-    make_filter(RoomID, StartID2, EndID2, SWithNick, SearchText).
+    Start1 = apply_start_border(Borders, Start),
+    End1   = apply_end_border(Borders, End),
+    StartID = maybe_timestamp_to_message_id(Start1, min),
+    EndID   = maybe_timestamp_to_message_id(End1, max),
+    make_filter(RoomID, StartID, EndID, SWithNick, SearchText).
 
 
 -spec make_filter(RoomID  :: non_neg_integer(),
@@ -592,14 +592,6 @@ maybe_jid_to_escaped_resource(#jid{lresource = <<>>}) ->
     undefined;
 maybe_jid_to_escaped_resource(#jid{lresource = WithLResource}) ->
     mongoose_rdbms:escape_string(WithLResource).
-
-
--spec maybe_encode_compact_uuid('undefined' | integer(), 0 | 255)
-                               -> 'undefined' | integer().
-maybe_encode_compact_uuid(undefined, _) ->
-    undefined;
-maybe_encode_compact_uuid(Microseconds, NodeID) ->
-    encode_compact_uuid(Microseconds, NodeID).
 
 
 %% ----------------------------------------------------------------------

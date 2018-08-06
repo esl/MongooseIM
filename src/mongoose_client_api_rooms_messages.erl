@@ -137,7 +137,7 @@ encode(Packet, Timestamp) ->
     Msg#{room => FromJID#jid.luser}.
 
 make_json_item({MAMID, JID, Msg}) ->
-    {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMID),
+    Microsec = mod_mam_utils:maybe_message_id_to_timestamp(MAMID),
     make_json_item(Msg, JID, Microsec div 1000).
 
 make_json_item(Msg, JID, Timestamp) ->

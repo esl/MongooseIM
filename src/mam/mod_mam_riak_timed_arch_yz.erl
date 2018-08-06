@@ -157,7 +157,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-    mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined, undefined),
+    mod_mam_utils:calculate_msg_id_borders(#rsm_in{}, undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
     {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
@@ -169,7 +169,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
 -spec bucket(calendar:date() | yearweeknum() | integer()) ->
                     {binary(), binary()} | undefined.
 bucket(MsgId) when is_integer(MsgId) ->
-    {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
+    MicroSec = mod_mam_utils:maybe_message_id_to_timestamp(MsgId),
     MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
     {MsgDate, _} = calendar:now_to_datetime(MsgNow),
     bucket(MsgDate);
@@ -253,7 +253,7 @@ lookup_messages(Host, Params) ->
             {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-            mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
+            mod_mam_utils:calculate_msg_id_borders(#rsm_in{}, Borders, Start, End),
             {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),

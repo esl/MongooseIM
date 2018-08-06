@@ -586,7 +586,7 @@ insert_offset_hint_query_cql() ->
 
 prepare_filter(UserJID, Borders, Start, End, WithJID) ->
     BUserJID = bare_jid(UserJID),
-    {StartID, EndID} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
+    {StartID, EndID} = mod_mam_utils:calculate_msg_id_borders(#rsm_in{}, Borders, Start, End),
     BWithJID = maybe_full_jid(WithJID), %% it's NOT optional field
     prepare_filter_params(BUserJID, BWithJID, StartID, EndID).
 

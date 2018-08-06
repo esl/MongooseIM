@@ -99,7 +99,7 @@ build_message(From, To, Id, Body) ->
                               children = [#xmlcdata{content = Body}]}]}.
 
 make_json_msg(Msg, MAMId) ->
-    {Microsec, _} = mod_mam_utils:decode_compact_uuid(MAMId),
+    Microsec = mod_mam_utils:maybe_message_id_to_timestamp(MAMId),
     encode(Msg, Microsec div 1000).
 
 -spec encode(exml:item(), integer()) -> map().

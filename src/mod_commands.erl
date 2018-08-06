@@ -344,7 +344,7 @@ change_user_password(Host, User, Password) ->
 
 record_to_map({Id, From, Msg}) ->
     Jbin = jid:to_binary(From),
-    {Msec, _} = mod_mam_utils:decode_compact_uuid(Id),
+    Msec = mod_mam_utils:maybe_message_id_to_timestamp(Id),
     MsgId = case xml:get_tag_attr(<<"id">>, Msg) of
                 {value, MId} -> MId;
                 false -> <<"">>

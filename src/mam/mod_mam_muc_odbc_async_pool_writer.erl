@@ -232,7 +232,7 @@ remove_archive(Acc, Host, ArcID, _ArcJID) ->
                            Now :: mod_mam:unix_timestamp()) ->
                                   ejabberd_gen_mam_archive:purge_single_message_result().
 purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
-    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
+    Microseconds = mod_mam_utils:maybe_message_id_to_timestamp(MessID),
     Result.
 
 

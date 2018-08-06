@@ -2066,8 +2066,8 @@ range_archive_request_not_empty(Config) ->
         [_, _, StartMsg, StopMsg | _] = Msgs,
         {{StartMsgId, _}, _, _, _, _StartMsgPacket} = StartMsg,
         {{StopMsgId, _}, _, _, _, _StopMsgPacket} = StopMsg,
-        {StartMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StartMsgId]),
-        {StopMicro, _} = rpc_apply(mod_mam_utils, decode_compact_uuid, [StopMsgId]),
+        StartMicro = rpc_apply(mod_mam_utils, maybe_message_id_to_timestamp, [StartMsgId]),
+        StopMicro = rpc_apply(mod_mam_utils, maybe_message_id_to_timestamp, [StopMsgId]),
         StartTime = make_iso_time(StartMicro),
         StopTime = make_iso_time(StopMicro),
         %% Send
