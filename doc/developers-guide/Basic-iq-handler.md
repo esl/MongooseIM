@@ -1,6 +1,13 @@
 # Basic IQ Handler
 
-This tutorial will show you how to add & test a simple module with an IQ
+XMPP stands for Extensible Messaging and Presence Protocol.
+One way the protocol can be extended is by defining new types of queries,
+or _IQs_, that XMPP entities should be able to handle.
+It's usual that a XEP defining some XMPP extension contains at least one new type of IQ.
+IQs can also be used to implement custom features - required in a
+particular problem domain - but not defined by any official XEP.
+
+This tutorial will show you how to add and test a simple module with an IQ
 handler to MongooseIM.
 `gen_iq_handler` module provides functionality for registering IQ
 handlers for specific namespaces.
