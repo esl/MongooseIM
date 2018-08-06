@@ -3,9 +3,9 @@
 XMPP stands for Extensible Messaging and Presence Protocol.
 One way the protocol can be extended is by defining new types of queries,
 or _IQs_, that XMPP entities should be able to handle.
-It's usual that a XEP defining some XMPP extension contains at least one new type of IQ.
-IQs can also be used to implement custom features - required in a
-particular problem domain - but not defined by any official XEP.
+It's usual that a XEP defining some XMPP extension contains some new type of IQ.
+IQs can also be used to implement custom features - required
+in a particular problem domain - but not defined by any official XEP.
 
 This tutorial will show you how to add and test a simple module with an IQ
 handler to MongooseIM.
@@ -19,17 +19,19 @@ See [How-to-build](../../user-guide/How-to-build) for details on building Mongoo
 from source code.
 
 
-## Create module & add basic IQ handler
+## Create a module & add a basic IQ handler
 
-* Go to `src` and create a basic module implementing `gen_mod` behaviour
-* In `start/2` register the IQ handler with specified namespace, type
-  (processing iq policy) and function which will handle the incoming IQ stanza
-* In `stop/1` remove the registered handler
-* Implement the function for handler:
-    * If the incoming IQ stanza is of type `get` or `set` it will be
-      returned with the type set to `result`
-    * If the server doesn't recognise the hostname, the returning stanza
-      will be of type `error`
+Go to `src/` and create a basic module implementing the `gen_mod` behaviour.
+In `start/2` register the IQ handler with a specified namespace, type
+(IQ processing policy), and function which will handle the incoming IQ stanza.
+In `stop/1` remove the registered handler.
+Implement the function for handler:
+
+* If the incoming IQ stanza is of type `get` or `set` it will be
+  returned with the type set to `result`.
+
+* If the server doesn't recognise the hostname, the returning stanza
+  will be of type `error`.
 
 See [Server Rules for Processing XML Stanzas](https://tools.ietf.org/html/rfc6120#section-10) for more
 detailed information on the topic.
@@ -73,12 +75,13 @@ The server may use one of the following strategies to handle incoming stanzas:
 * `pararell` registers the handler without spawning a new process, a new process will be spawned
   for each incoming stanza
 
+
 ## Test your handler
 
-* Go to `big_tests/tests` and create a test suite for your handler
-* Implement the test case for success and failure. Our IQ handler is
-  enabled only for one domain, which is `localhost`. We will register two
-users, which are predefined in `$REPO/big_tests/test.config`:
+Go to `big_tests/tests` and create a test suite for your handler.
+Implement the test case for success and failure.
+Our IQ handler is enabled only for one domain, which is `localhost`.
+We will register two users, which are predefined in `$REPO/big_tests/test.config`:
 
 ```erlang
 {alice, [
@@ -91,12 +94,12 @@ users, which are predefined in `$REPO/big_tests/test.config`:
     {host, <<"localhost">>},
     {password, <<"matygrysa">>}]},
 ```
-After sending IQ stanza to `alice` we should get a result, but our IQ
-handler is not enabled for `localhost.bis` domain, so we should get an
-error.
+
+After sending an IQ stanza to `alice` we should get a result, but our IQ
+handler is not enabled for `localhost.bis` domain, so we should get an error.
 
 ```erlang
--modul(mod_iq_example_SUITE).
+-module(mod_iq_example_SUITE).
 
 -export([all/0,
          groups/0,
@@ -191,7 +194,7 @@ should_return_error(Config) ->
 ```
 
 
-## Run
+## Run it
 
 Compile & generate releases for testing purposes according to
 [How-to-build](../../user-guide/How-to-build/#building-the-testing-target-and-running-tests).
@@ -217,8 +220,8 @@ false
 true
 ```
 
-Open up a new terminal window, go to `$REPO` and use [Test runner](Testing-MongooseIM).
-Run single suite with already started mim1 node.
+Open up a new terminal window, go to `$REPO` and use the [test runner](Testing-MongooseIM).
+Run single suite with the already started `mim1` node.
 
 ```bash
 source tools/test-runner-complete.sh
