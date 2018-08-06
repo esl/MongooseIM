@@ -43,6 +43,8 @@ A client may specify three parameters:
 * Start date for the result set (variable `start`, value: ISO timestamp)
 * End date for the result set (variable `end`, value: ISO timestamp)
 * Order by timestamp (variable `order`, values: `asc`, `desc`)
+* Show only conversations with unread messages (variable `hidden_read`,
+  values: `true`, `false`)
 
 They are encoded inside a standard XMPP [Data Forms](https://xmpp.org/extensions/xep-0004.html) format.
 Dates must be formatted according to [XMPP Date and Time Profiles](https://xmpp.org/extensions/xep-0082.html).
@@ -71,6 +73,7 @@ Server:
         <option label='Ascending by timestamp'><value>asc</value></option>
         <option label='Descending by timestamp'><value>desc</value></option>
       </field>
+      <field var='hidden_read' type='text-single' value='false'/>
     </x>
   </query>
 </iq>
@@ -100,6 +103,7 @@ Alice sends:
       <field type='text-single' var='start'><value>2018-07-10T12:00:00Z</value></field>
       <field type='text-single' var='end'><value>2018-07-11T12:00:00Z</value></field>
       <field type='list-single' var='order'><value>asc</value></field>
+      <field type='text-single' var='hidden_read'><value>true</value></field>
     </x>
   </inbox>
 </iq>
