@@ -47,7 +47,8 @@
                   usec,
                   uuid,
                   xmerl,
-                  worker_pool
+                  worker_pool,
+                  gen_fsm_compat
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.

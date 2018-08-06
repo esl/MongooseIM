@@ -815,7 +815,7 @@ iq_disco_info(Lang) ->
         Rsm :: none | jlib:rsm_in()) -> any().
 iq_disco_items(Host, From, Lang, none) ->
     lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm:sync_send_all_state_event(
+                     case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
                          {item, Desc} ->
                              flush(),
@@ -831,7 +831,7 @@ iq_disco_items(Host, From, Lang, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
     lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm:sync_send_all_state_event(
+                     case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
                          {item, Desc} ->
                              flush(),
@@ -1057,7 +1057,7 @@ iq_get_vcard(Lang) ->
 broadcast_service_message(Host, Msg) ->
     lists:foreach(
       fun(#muc_online_room{pid = Pid}) ->
-              gen_fsm:send_all_state_event(
+              gen_fsm_compat:send_all_state_event(
                 Pid, {service_message, Msg})
       end, get_vh_rooms(Host)).
 

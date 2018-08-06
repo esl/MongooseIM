@@ -6,7 +6,8 @@
   {applications, [
                   kernel,
                   stdlib,
-                  cowboy
+                  cowboy,
+                  gen_fsm_compat
                  ]},
   {env, []}
  ]}.
