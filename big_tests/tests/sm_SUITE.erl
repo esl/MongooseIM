@@ -355,11 +355,12 @@ resend_unacked_on_reconnection(Config) ->
     [escalus:assert(is_chat_message, [Msg], Stanza)
      || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
     %% Alice disconnects without acking the messages.
-    {ok, C2SRef} = monitor_terminating_process(AliceSpec0),
+    C2SRef = monitor_session(Alice),
     escalus_connection:stop(Alice),
+    %% TODO There's a race condition between the C2S process and mod_offline,
+    %% so we have to wait for C2S termination.
+    %% For details please see https://github.com/esl/MongooseIM/pull/2007
     ok = wait_for_process_termination(C2SRef),
-    %% TODO although the test is fixed, there's still race condition beetween the C2S process and mod_offline
-    %% for details please see #2007
     escalus_connection:stop(Bob),
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
@@ -829,13 +830,11 @@ wait_until_disconnected(UserSpec) ->
     mongoose_helper:wait_until(fun() -> get_user_resources(UserSpec) =:= [] end, true,
                                #{name => get_user_resources}).
 
-monitor_terminating_process(UserSpec) ->
-    U = proplists:get_value(username, UserSpec),
-    S = proplists:get_value(server, UserSpec),
-    [Res] = rpc(mim(), ejabberd_sm, get_user_resources, [U, S]),
+monitor_session(Client) ->
+    UserSpec = Client#client.props,
+    {resource, Res} = lists:keyfind(resource, 1, UserSpec),
     {ok, C2SPid} = get_session_pid(UserSpec, Res),
-    erlang:monitor(process, C2SPid),
-    {ok, C2SPid}.
+    erlang:monitor(process, C2SPid).
 
 wait_for_process_termination(C2SRef) ->
     receive
