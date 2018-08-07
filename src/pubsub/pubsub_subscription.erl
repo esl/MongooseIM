@@ -73,35 +73,39 @@
 init() -> ok = create_table().
 
 subscribe_node(JID, NodeId, Options) ->
-    case catch mnesia:sync_dirty(fun add_subscription/3, [JID, NodeId, Options])
+    try
+        mnesia:sync_dirty(fun add_subscription/3, [JID, NodeId, Options])
     of
-        {'EXIT', {aborted, Error}} -> Error;
         {error, Error} -> {error, Error};
         Result -> {result, Result}
+    catch _:{aborted, Error} -> Error
     end.
 
 unsubscribe_node(JID, NodeId, SubID) ->
-    case catch mnesia:sync_dirty(fun delete_subscription/3, [JID, NodeId, SubID])
+    try
+        mnesia:sync_dirty(fun delete_subscription/3, [JID, NodeId, SubID])
     of
-        {'EXIT', {aborted, Error}} -> Error;
         {error, Error} -> {error, Error};
         Result -> {result, Result}
+    catch _:{aborted, Error} -> Error
     end.
 
 get_subscription(JID, NodeId, SubID) ->
-    case catch mnesia:sync_dirty(fun read_subscription/3, [JID, NodeId, SubID])
+    try
+        mnesia:sync_dirty(fun read_subscription/3, [JID, NodeId, SubID])
     of
-        {'EXIT', {aborted, Error}} -> Error;
         {error, Error} -> {error, Error};
         Result -> {result, Result}
+    catch _:{aborted, Error} -> Error
     end.
 
 set_subscription(JID, NodeId, SubID, Options) ->
-    case catch mnesia:sync_dirty(fun write_subscription/4, [JID, NodeId, SubID, Options])
+    try
+        mnesia:sync_dirty(fun write_subscription/4, [JID, NodeId, SubID, Options])
     of
-        {'EXIT', {aborted, Error}} -> Error;
         {error, Error} -> {error, Error};
         Result -> {result, Result}
+    catch _:{aborted, Error} -> Error
     end.
 
 
@@ -229,9 +233,8 @@ var_xfield(_) -> {error, badarg}.
 val_xfield(deliver, [Val]) -> xopt_to_bool(Val);
 val_xfield(digest, [Val]) -> xopt_to_bool(Val);
 val_xfield(digest_frequency, [Val]) ->
-    case catch binary_to_integer(Val) of
-        N when is_integer(N) -> N;
-        _ -> {error, mongoose_xmpp_errors:not_acceptable()}
+    try binary_to_integer(Val)
+        catch _:_ -> {error, mongoose_xmpp_errors:not_acceptable()}
     end;
 val_xfield(expire, [Val]) -> jlib:datetime_binary_to_timestamp(Val);
 val_xfield(include_body, [Val]) -> xopt_to_bool(Val);
@@ -240,9 +243,8 @@ val_xfield(subscription_type, [<<"items">>]) -> items;
 val_xfield(subscription_type, [<<"nodes">>]) -> nodes;
 val_xfield(subscription_depth, [<<"all">>]) -> all;
 val_xfield(subscription_depth, [Depth]) ->
-    case catch binary_to_integer(Depth) of
-        N when is_integer(N) -> N;
-        _ -> {error, mongoose_xmpp_errors:not_acceptable()}
+    try binary_to_integer(Depth)
+        catch _:_ -> {error, mongoose_xmpp_errors:not_acceptable()}
     end.
 
 %% Convert XForm booleans to Erlang booleans.

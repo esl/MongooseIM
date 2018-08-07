@@ -76,15 +76,19 @@ get_node(Host, Node, _From) ->
     get_node(Host, Node).
 
 get_node(Host, Node) ->
-    case catch mnesia:read({pubsub_node, {Host, Node}}) of
+    try mnesia:read({pubsub_node, {Host, Node}}) of
         [Record] when is_record(Record, pubsub_node) -> Record;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
+    catch _:_ ->
+        {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_node(Nidx) ->
-    case catch mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
+    try mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
         [Record] when is_record(Record, pubsub_node) -> Record;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
+    catch _:_ ->
+        {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_nodes(Host, _From) ->
@@ -99,9 +103,10 @@ get_parentnodes(_Host, _Node, _From) ->
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
 get_parentnodes_tree(Host, Node, _From) ->
-    case catch mnesia:read({pubsub_node, {Host, Node}}) of
+    try mnesia:read({pubsub_node, {Host, Node}}) of
         [Record] when is_record(Record, pubsub_node) -> [{0, [Record]}];
         _ -> []
+    catch _:_ -> []
     end.
 
 get_subnodes(Host, Node, _From) ->
@@ -148,7 +153,7 @@ get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
 
 create_node(Host, Node, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mnesia:read({pubsub_node, {Host, Node}}) of
+    try mnesia:read({pubsub_node, {Host, Node}}) of
         [] ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
@@ -163,6 +168,9 @@ create_node(Host, Node, Type, Owner, Options, Parents) ->
             end;
         _ ->
             {error, mongoose_xmpp_errors:conflict()}
+    catch
+        _:_ ->
+            {error, mongoose_xmpp_errors:conflict()}
     end.
 
 check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
@@ -172,12 +180,15 @@ check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
 check_parent_and_its_owner_list(_Host, [], _BJID) ->
     true;
 check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
-    case catch mnesia:read({pubsub_node, {Host, Parent}}) of
+    try mnesia:read({pubsub_node, {Host, Parent}}) of
         [#pubsub_node{owners = [{[], Host, []}]}] ->
             true;
         [#pubsub_node{owners = Owners}] ->
             lists:member(BJID, Owners);
         _ ->
+            false
+    catch
+        _:_ ->
             false
     end;
 check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->

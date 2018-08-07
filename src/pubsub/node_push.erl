@@ -106,7 +106,7 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
 
 do_publish_item(ServerHost, PublishOptions,
                 [#xmlel{name = <<"notification">>} | _] = Notifications) ->
-    case catch parse_form(PublishOptions) of
+    try parse_form(PublishOptions) of
         #{<<"device_id">> := _, <<"service">> := _} = OptionMap ->
             NotificationRawForms = [exml_query:subelement(El, <<"x">>) || El <- Notifications],
             NotificationForms = [parse_form(Form) || Form <- NotificationRawForms],
@@ -114,6 +114,8 @@ do_publish_item(ServerHost, PublishOptions,
                                [ServerHost, NotificationForms, OptionMap]),
             {result, default};
         _ ->
+            {error, mod_pubsub:extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
+    catch _:_ ->
             {error, mod_pubsub:extended_error(mongoose_xmpp_errors:conflict(), <<"precondition-not-met">>)}
     end;
 do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
