@@ -118,7 +118,7 @@
  {<<"p1_utils">>,{pkg,<<"p1_utils">>,<<"1.0.12">>},1},
  {<<"pa">>,
   {git,"https://github.com/erszcz/pa.git",
-       {ref,"e53c540005f4114a854cfa414b00cbc7e9e65ecb"}},
+       {ref,"48762a4bdd958334324b48985b30d8bb82c1b5e2"}},
   0},
  {<<"parse_trans">>,{pkg,<<"parse_trans">>,<<"3.1.0">>},1},
  {<<"pooler">>,{pkg,<<"pooler">>,<<"1.5.3">>},1},
