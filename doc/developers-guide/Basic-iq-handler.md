@@ -63,11 +63,12 @@ process_iq(_From, _To, Acc, IQ) ->
 ```
 
 
-### Processing IQ policies
+### IQ processing policies
 
 The server may use one of the following strategies to handle incoming stanzas:
 
-* `no_queue` registers the handler without spawning a new process
+* `no_queue` registers a new IQ  handler, which will be called in the
+  context of a process serving the connection on which the IQ arrives 
 * `one_queue` spawns a new process by which the incoming IQ stanzas will
   be handled
 * `{queues, N}` spawns **N** processes. Every incoming stanza will be then
