@@ -53,6 +53,18 @@ process_iq(_From, _To, Acc, IQ) ->
 ```
 
 
+#### Processing IQ policies
+
+The server may use one of the following strategies to handle incoming stanzas:
+
+* `no_queue` registers the handler without spawning a new process
+* `one_queue` spawns a new process by which the incoming IQ stanzas will
+  be handled
+* `{queues, N}` spawns **N** processes. Every incoming stanza will be then
+  handled by one of those processes
+* `pararell` registers the handler without spawning a new process, a new process will be spawned
+  for each incoming stanza
+
 ### Test your handler
 
 * Go to `big_tests/tests` and create a test suite for your handler
