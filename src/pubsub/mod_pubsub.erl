@@ -192,6 +192,9 @@
           }
         ).
 
+-type maybe_elems() ::
+    {result, [exml:element()]} | {error, exml:element()}.
+
 -record(state,
         {
           server_host,
@@ -1118,7 +1121,7 @@ iq_disco_info(Host, SNode, From, Lang) ->
           Node   :: <<>> | mod_pubsub:nodeId(),
           From   ::jid:jid(),
           Rsm    :: none | jlib:rsm_in())
-        -> {result, [exml:element()]} | {error, term()}.
+        -> maybe_elems().
 iq_disco_items(Host, <<>>, From, _RSM) ->
     SubNodes = tree_action(Host, get_subnodes, [Host, <<>>, From]),
     Nodes = encode_nodes(Host, SubNodes),
@@ -1186,7 +1189,7 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
                 From ::jid:jid(),
                 IQType :: get | set,
                 QueryEl :: exml:element(),
-                Lang :: binary()) -> {result, [exml:element()]} | {error, exml:element()}.
+                Lang :: binary()) -> maybe_elems().
 iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
     iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang, all, plugins(ServerHost)).
 
@@ -1197,7 +1200,7 @@ iq_pubsub(Host, ServerHost, From, IQType, QueryEl, Lang) ->
                 QueryEl :: exml:element(),
                 Lang :: binary(),
                 Access :: atom(),
-                Plugins :: [binary(), ...]) -> {result, [exml:element()]} | {error, exml:element()}.
+                Plugins :: [binary(), ...]) -> maybe_elems().
 iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
           Lang, Access, Plugins) ->
     case xml:remove_cdata(SubEls) of
@@ -1587,9 +1590,7 @@ update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
           Type          :: binary(),
           Access        :: atom(),
           Configuration :: [exml:element()])
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> maybe_elems().
 create_node(Host, ServerHost, Node, Owner, Type) ->
     create_node(Host, ServerHost, Node, Owner, Type, all, []).
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
@@ -1703,9 +1704,7 @@ create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions)
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
           Owner :: jid:jid())
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> maybe_elems().
 delete_node(_Host, <<>>, _Owner) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 delete_node(Host, Node, Owner) ->
@@ -1793,9 +1792,7 @@ delete_node_transaction(Host, Owner, Node, NodeRec = #pubsub_node{type = Type}) 
           From          ::jid:jid(),
           JID           :: binary(),
           Configuration :: [exml:element()])
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> maybe_elems().
 subscribe_node(Host, Node, From, JID, Configuration) ->
     SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
                   {result, GoodSubOpts} -> GoodSubOpts;
@@ -1942,9 +1939,7 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
           Publisher  ::jid:jid(),
           ItemId     :: <<>> | mod_pubsub:itemId(),
           Payload    :: mod_pubsub:payload())
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> maybe_elems().
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
@@ -2332,9 +2327,7 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
           Node    :: mod_pubsub:nodeId(),
           JID     ::jid:jid(),
           Plugins :: [binary()])
-        -> {result, [exml:element(), ...]}
-%%%
-               | {error, exml:element()}.
+        -> maybe_elems().
 get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     Result = lists:foldl(
                fun(Type, {Status, Acc}) ->
@@ -2354,7 +2347,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     make_get_affiliations_result2(Node, Result).
 
 -spec get_affiliations(Host :: mod_pubsub:host(), Node :: mod_pubsub:nodeId(), JID :: jid:jid()) ->
-    {result, [exml:element(), ...]} | {error, exml:element()}.
+    maybe_elems().
 get_affiliations(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
     Result = transaction(Host, Node, Action, sync_dirty),
