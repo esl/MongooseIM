@@ -49,7 +49,7 @@ parallel_test_cases() ->
      h_ok_after_session_enabled_before_session,
      h_ok_after_session_enabled_after_session,
      h_ok_after_a_chat,
-%    resend_unacked_on_reconnection, % TODO fix it #1638
+     resend_unacked_on_reconnection,
      session_established,
      wait_for_resumption,
      resume_session,
@@ -346,19 +346,22 @@ resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     {Bob, _} = given_fresh_user(Config, bob),
     {Alice, AliceSpec0} = given_fresh_user(Config, alice),
-        discard_vcard_update(Alice),
-        %% Bob sends some messages to Alice.
-        [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
-         || Msg <- Messages],
-        %% Alice receives the messages.
-        Stanzas = escalus:wait_for_stanzas(Alice, length(Messages)),
-        [escalus:assert(is_chat_message, [Msg], Stanza)
-         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
-        %% Alice disconnects without acking the messages.
+    discard_vcard_update(Alice),
+    %% Bob sends some messages to Alice.
+    [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
+     || Msg <- Messages],
+    %% Alice receives the messages.
+    Stanzas = escalus:wait_for_stanzas(Alice, length(Messages)),
+    [escalus:assert(is_chat_message, [Msg], Stanza)
+     || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+    %% Alice disconnects without acking the messages.
+    C2SRef = monitor_session(Alice),
     escalus_connection:stop(Alice),
+    %% TODO There's a race condition between the C2S process and mod_offline,
+    %% so we have to wait for C2S termination.
+    %% For details please see https://github.com/esl/MongooseIM/pull/2007
+    ok = wait_for_process_termination(C2SRef),
     escalus_connection:stop(Bob),
-    wait_until_disconnected(AliceSpec0),
-
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     AliceSpec = [{manual_ack, true} | AliceSpec0],
@@ -826,6 +829,21 @@ extract_state_name(SysStatus) ->
 wait_until_disconnected(UserSpec) ->
     mongoose_helper:wait_until(fun() -> get_user_resources(UserSpec) =:= [] end, true,
                                #{name => get_user_resources}).
+
+monitor_session(Client) ->
+    UserSpec = Client#client.props,
+    {resource, Res} = lists:keyfind(resource, 1, UserSpec),
+    {ok, C2SPid} = get_session_pid(UserSpec, Res),
+    erlang:monitor(process, C2SPid).
+
+wait_for_process_termination(C2SRef) ->
+    receive
+        {'DOWN', _MRef, _Type, C2SRef, _Info} ->
+            ok
+    after timer:seconds(1) ->
+              ok
+    end,
+    ok.
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),
