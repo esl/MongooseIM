@@ -1245,8 +1245,7 @@ iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, CreateEl, Qu
     Type = exml_query:attr(CreateEl, <<"type">>, hd(Plugins)),
     case lists:member(Type, Plugins) of
         false ->
-            {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"create-nodes">>)};
+            unsupported_feature_error(<<"create-nodes">>);
         true ->
             create_node(Host, ServerHost, Node, From, Type, Access, Config)
     end.
@@ -1834,7 +1833,7 @@ subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode) ->
 subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case lists:member(<<"subscribe">>, Features) of
         false ->
-            {error, extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscribe">>)};
+            unsupported_feature_error(<<"subscribe">>);
         true ->
             subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features)
     end.
@@ -1842,7 +1841,7 @@ subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Fe
 subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case get_option(PubSubNode#pubsub_node.options, subscribe) of
         false ->
-            {error, extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscribe">>)};
+            unsupported_feature_error(<<"subscribe">>);
         true ->
             subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features)
     end.
@@ -1850,8 +1849,7 @@ subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Fe
 subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
     case {SubOpts /= [], lists:member(<<"subscription-options">>, Features)} of
         {true, false} ->
-           {error,
-            extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)};
+            unsupported_feature_error(<<"subscription-options">>);
         _ ->
             subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber, PubSubNode)
     end.
@@ -2338,10 +2336,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                                             [Host, JID]),
                                {Status, [Affs | Acc]};
                            false ->
-                               {{error,
-                                 extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                                                unsupported, <<"retrieve-affiliations">>)},
-                                Acc}
+                               {unsupported_feature_error(<<"retrieve-affiliations">>), Acc}
                        end
                end, {ok, []}, Plugins),
     make_get_affiliations_result2(Node, Result).
@@ -2536,11 +2531,7 @@ get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
                                                                       [Host, Subscriber]),
                                          {Status, [Subs | Acc]};
                                      false ->
-                                         {{error,
-                                           extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                                                          unsupported,
-                                                          <<"retrieve-subscriptions">>)},
-                                          Acc}
+                                         {unsupported_feature_error(<<"retrieve-subscriptions">>), Acc}
                                  end
                          end,
                          {ok, []}, Plugins),
@@ -3586,9 +3577,7 @@ check_feature(Host, NodeRec, Feature) ->
         true ->
             ok;
         false ->
-            {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                            unsupported, Feature)}
+            unsupported_feature_error(Feature)
     end.
 
 %% Like check_feature, but accepts a list of features
@@ -3602,9 +3591,7 @@ do_check_features([Feature|Features], NodeFeatures) ->
         true ->
             do_check_features(Features, NodeFeatures);
         false ->
-            {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                            unsupported, Feature)}
+            unsupported_feature_error(Feature)
     end;
 do_check_features([], _NodeFeatures) ->
     ok.
@@ -3612,9 +3599,7 @@ do_check_features([], _NodeFeatures) ->
 check_option(#pubsub_node{options = Options}, OptName, Feature) ->
     case get_option(Options, OptName) of
         false ->
-            {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
-                            unsupported, Feature)};
+            unsupported_feature_error(Feature);
         _ ->
             ok
     end.
@@ -3622,6 +3607,11 @@ check_option(#pubsub_node{options = Options}, OptName, Feature) ->
 both_ok(ok, ok) -> ok;
 both_ok(ok, Other) -> Other;
 both_ok(Other, _) -> Other.
+
+unsupported_feature_error(Feature) ->
+    {error,
+     extended_error(mongoose_xmpp_errors:feature_not_implemented(),
+                    unsupported, Feature)}.
 
 
 %% ------------------------------------------------------------------
