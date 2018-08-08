@@ -2855,8 +2855,8 @@ get_node_subs_by_depth(Host, Node, From) ->
     ParentTree = tree_call(Host, get_parentnodes_tree, [Host, Node, From]),
     [{Depth, [{N, get_node_subs(Host, N)} || N <- Nodes]} || {Depth, Nodes} <- ParentTree].
 
-get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
-    case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
+get_node_subs(Host, NodeRec = #pubsub_node{id = Nidx}) ->
+    case call_get_node_subscriptions(Host, NodeRec) of
         {result, Subs} -> get_options_for_subs(Nidx, Subs);
         Other -> Other
     end.
