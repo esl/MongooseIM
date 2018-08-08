@@ -48,9 +48,9 @@ For more information see: [WombatOAM](https://www.erlang-solutions.com/products/
 
 To monitor MongooseIM during load testing, we recommend the following open source applications:
 
-- [Graphite](http://graphite.wikidot.com/) is used for data presentation.
+- [Grafana](https://grafana.com/) is used for data presentation.
+- [Graphite](http://graphiteapp.org/) is a server used for metrics storage.
 - [collectd](http://collectd.org/) is a daemon running on the monitored nodes capturing data related to CPU and Memory usage, IO etc.
-
 
 ### Plug-in Exometer reporters
 
@@ -84,60 +84,48 @@ By default, the resolution is set to 60 seconds.
 ...
 ```
 
-### Run graphite in Docker - quick start
+### Run Graphite & Grafana in Docker - quick start
 
-If you don't have a default docker machine created yet:
+The following commands will download the latest version of `kamon/grafana_graphite` docker image that contains both Grafana and Graphite, and start them while mounting local directory `./docker-grafana-graphite-master/data` for metrics persistance:
 
-    docker-machine create --driver=virtualbox default
+    $ curl -SL https://github.com/kamon-io/docker-grafana-graphite/archive/master.tar.gz | tar -xzf -
+    $ make -C docker-grafana-graphite-master up
 
-Start a docker machine:
+Go to http://localhost to view Grafana dashboard that's already set up to use metrics from Graphite.
 
-    docker-machine start
+### Add metrics to Grafana dashboard
 
-Make sure it is running:
+We recommend the following metrics as a baseling for tracking your MongooseIM installation.
+For time-based metrics, you can choose to display multiple calculated values for a reporting period - we recommend tracking at least `max`, `median` and `mean`.
 
-    $ docker-machine status
-    Running
+```
+Session count:                   <prefix>.global.totalSessionCount.value
+XMPP messages received:          <prefix>.<domain>.xmppMessageReceived.one
+XMPP messages sent:              <prefix>.<domain>.xmppMessageSent.one
+Successful logins:               <prefix>.<domain>.sessionSuccessfulLogins.one
+Logouts:                         <prefix>.<domain>.sessionLogouts.one
+Authorization time:              <prefix>.<domain>.backends.auth.authorize.<value-type>
+RDBMS "simple" query time:       <prefix>.<domain>.backends.mongoose_rdbms.query.<value-type>
+RDBMS prepared query time:       <prefix>.<domain>.backends.mongoose_rdbms.execute.<value-type>
+MAM lookups:                     <prefix>.<domain>.mam_lookup_messages.one
+MAM archivization time:          <prefix>.<domain>.backends.mod_mam.archive.<value-type>
+MAM lookup time:                 <prefix>.<domain>.backends.mod_mam.lookup.<value-type>
+MAM private messages flush time: <prefix>.<domain>.mod_mam_odbc_async_pool_writer.flush_time.<value-type>
+MAM MUC messages flush time:     <prefix>.<domain>.mod_mam_muc_odbc_async_pool_writer.flush_time.<value-type>
+```
 
-Run the following command:
+Note that RDBMS metrics are only relevant if MongooseIM is [configured with an RDBMS backend](../advanced-configuration/database-backends-configuration.md), MAM metrics when [mod_mam is enabled](../modules/mod_mam.md) and MAM flush times when MAM is configured with an RDBMS backend with `async_writer` option (default).
 
-    $ docker run -d --name graphite --restart=always hopsoft/graphite-statsd
+#### Example graph in Grafana
 
-Get the "local" IP address of the container:
+![An example graph in Grafana](example-grafana-graph.png)
 
-    $ docker inspect graphite | grep IPAdd | grep -v Secon | cut -d '"' -f 4 | head -n 1
-    172.17.0.2
+This screenshot shows a graph plotting the RDBMS simple query time metric mentioned above.
+The graph is plotted for three nodes with each node having a different prefix: `mongoose.node1`, `mongoose.node2` and `mongoose.node3`.
 
-Get IP address of the machine:
+The queries take metrics for all nodes and all domains (`**` is a wildcard for multiple parts of the metric name) and group them *per-node* and *per-value-type* (respectively `1`st and `-1`st part of the metric's name).
+Parts of the names are indexed from `0`.
 
-    $ docker-machine ip
-    192.168.99.100
+Time-based metrics in MongooseIM are given in **microseconds**, so to display human-readable values in graph's legend, the Y-axis unit has to be edited on the `Axes` tab.
 
-Route subnet:
-
-    $ sudo route add -net 172.17.0.0 192.168.99.100
-
-#### Verification
-
-And now http://172.17.0.2 should show a graphite page.
-
-Check if the data collection works - run:
-
-    $ while true; do echo -n "example:$((RANDOM % 100))|c" | nc -w 1 -u 172.17.0.2 8125; done
-
-Wait a while, then open:
-
-    http://172.17.0.2/render?from=-10mins&until=now&target=stats.example
-
-Then, if you configure your MongooseIM to send Exometer reports to that IP address and run it for a while, you should be able to see some interesting charts.
-
-### Run graphite in Docker - alternative method
-
-If one of these steps doesn't work for you (e.g. they may be incompatible with your Docker on Mac), please try a less advanced alternative.
-It doesn't require a docker machine and will expose Graphite ports on localhost, instead of using a new route.
-
-Start a container with Graphite:
-
-    $ docker run -d --name graphite --restart=always -p 80:80 -p 2003-2004:2003-2004 -p 2023-2024:2023-2024 -p 8125:8125/udp -p 8126:8126 hopsoft/graphite-statsd
-
-Now do the "Verification" part from previous subsection. There is one difference: you need to replace every occurrence of `172.17.0.2` with `localhost`.
+[MAM]: ../modules/mod_mam.md
