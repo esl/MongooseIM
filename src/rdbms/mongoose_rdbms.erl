@@ -428,7 +428,7 @@ to_bool(_) -> false.
 -spec init(pool()) -> {ok, state()}.
 init(Pool) ->
     process_flag(trap_exit, true),
-    backend_module:create(?MODULE, db_engine(Pool), [query]),
+    backend_module:create(?MODULE, db_engine(Pool), [query, execute]),
     Settings = mongoose_rdbms_sup:get_option(Pool, odbc_server),
     MaxStartInterval = get_start_interval(Pool),
     case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
