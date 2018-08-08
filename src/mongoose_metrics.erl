@@ -174,7 +174,9 @@ pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
 
 -spec name_by_all_metrics_are_global(Host :: jid:lserver() | global,
                                      Name :: list()) -> FinalName :: list().
-name_by_all_metrics_are_global(Host, Name) ->
+name_by_all_metrics_are_global(global, Name) -> [global | Name];
+name_by_all_metrics_are_global(Host0, Name) ->
+    Host = binary:replace(Host0, <<$.>>, <<$_>>, [global]),
     pick_by_all_metrics_are_global([global | Name], [Host | Name]).
 
 get_report_interval() ->
