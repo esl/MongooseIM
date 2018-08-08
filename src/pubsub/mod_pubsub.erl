@@ -1120,20 +1120,9 @@ iq_disco_info(Host, SNode, From, Lang) ->
           Rsm    :: none | jlib:rsm_in())
         -> {result, [exml:element()]} | {error, term()}.
 iq_disco_items(Host, <<>>, From, _RSM) ->
-    {result,
-     lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = Options}) ->
-                       Attrs = case get_option(Options, title) of
-                                   false ->
-                                       [{<<"jid">>, Host}
-                                        | node_attr(SubNode)];
-                                   [Title] ->
-                                       [{<<"jid">>, Host},
-                                        {<<"name">>, Title}
-                                        | node_attr(SubNode)]
-                               end,
-                       #xmlel{name = <<"item">>, attrs = Attrs}
-               end,
-               tree_action(Host, get_subnodes, [Host, <<>>, From]))};
+    SubNodes = tree_action(Host, get_subnodes, [Host, <<>>, From]),
+    Nodes = encode_nodes(Host, SubNodes),
+    {result, Nodes};
 iq_disco_items(Host, ?NS_COMMANDS, _From, _RSM) ->
     {result, [#xmlel{name = <<"item">>,
                      attrs = [{<<"jid">>, Host},
