@@ -1085,19 +1085,8 @@ node_disco_info(Host, Node, From) ->
 
 node_disco_info(Host, Node, _From, _Identity, _Features) ->
     Action = fun (#pubsub_node{type = Type, options = Options}) ->
-                     NodeType = case get_option(Options, node_type) of
-                                    collection -> <<"collection">>;
-                                    _ -> <<"leaf">>
-                                end,
-                     I = #xmlel{name = <<"identity">>,
-                                attrs = [{<<"category">>, <<"pubsub">>},
-                                         {<<"type">>, NodeType}]},
-                     F = [#xmlel{name = <<"feature">>,
-                                 attrs = [{<<"var">>, ?NS_PUBSUB}]}
-                          | [#xmlel{name = <<"feature">>,
-                                    attrs = [{<<"var">>, feature(F)}]}
-                             || F <- plugin_features(Host, Type)]],
-                     {result, [I | F]}
+                     PluginFeatures = plugin_features(Host, Type),
+                     make_node_disco_info_result(Options, PluginFeatures)
              end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, Result}} -> {result, Result};
@@ -1169,33 +1158,20 @@ iq_disco_items(Host, Item, From, RSM) ->
 iq_disco_items_transaction(Host, From, Node, RSM,
                            #pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
     Owners = node_owners_call(Host, Type, Nidx, O),
-    {NodeItems, RsmOut} = case get_allowed_items_call(Host, Nidx,
-                                                      From, Type, Options, Owners, RSM)
-                          of
-                              {result, R} -> R;
-                              _ -> {[], none}
-                          end,
-    Nodes = lists:map(fun (#pubsub_node{nodeid = {_, SubNode}, options = SubOptions}) ->
-                              Attrs = case get_option(SubOptions, title) of
-                                          false ->
-                                              [{<<"jid">>, Host}
-                                               | node_attr(SubNode)];
-                                          [Title] ->
-                                              [{<<"jid">>, Host},
-                                               {<<"name">>, Title}
-                                               | node_attr(SubNode)]
-                                      end,
-                              #xmlel{name = <<"item">>, attrs = Attrs}
-                      end,
-                      tree_call(Host, get_subnodes, [Host, Node, From])),
-    Items = lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
-                              {result, Name} = node_call(Host, Type, get_item_name,
-                                                         [Host, Node, RN]),
-                              #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
-                      end,
-                      NodeItems),
+    {NodeItems, RsmOut} = safe_get_allowed_items_call(Host, Nidx,
+                                                      From, Type, Options, Owners, RSM),
+    Names = node_items_to_names(Host, Node, Type, NodeItems),
+    SubNodes = tree_call(Host, get_subnodes, [Host, Node, From]),
+    Nodes = encode_nodes(Host, SubNodes),
+    Items = encode_names(Host, Names),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
+
+node_items_to_names(Host,  Node, Type, NodeItems) ->
+    lists:map(fun (#pubsub_item{itemid = {RN, _}}) ->
+                      {result, Name} = node_call(Host, Type, get_item_name,
+                                                 [Host, Node, RN]),
+                      Name
+              end, NodeItems).
 
 -spec iq_sm(From ::jid:jid(),
             To   ::jid:jid(),
@@ -2279,6 +2255,14 @@ get_item(Host, Node, ItemId) ->
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {_, Items}} -> Items;
         Error -> Error
+    end.
+
+safe_get_allowed_items_call(Host, Nidx,
+                            From, Type, Options, Owners, RSM) ->
+    case get_allowed_items_call(Host, Nidx,
+                                From, Type, Options, Owners, RSM) of
+        {result, R} -> R;
+        _ -> {[], none}
     end.
 
 get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) ->
@@ -4596,3 +4580,40 @@ payload_by_option(Type, NodeOptions, Lang) ->
         false ->
             []
     end.
+
+make_node_disco_info_result(Options, PluginFeatures) ->
+    NodeType = case get_option(Options, node_type) of
+                   collection -> <<"collection">>;
+                   _ -> <<"leaf">>
+               end,
+    I = #xmlel{name = <<"identity">>,
+               attrs = [{<<"category">>, <<"pubsub">>},
+                        {<<"type">>, NodeType}]},
+    F = [#xmlel{name = <<"feature">>,
+                attrs = [{<<"var">>, ?NS_PUBSUB}]}
+         | [#xmlel{name = <<"feature">>,
+                   attrs = [{<<"var">>, feature(F)}]}
+            || F <- PluginFeatures]],
+    {result, [I | F]}.
+
+encode_nodes(Host, Nodes) ->
+    lists:map(fun(Node) -> encode_node(Host, Node) end, Nodes).
+
+encode_node(Host, #pubsub_node{nodeid = {_, SubNode}, options = SubOptions}) ->
+    Attrs = case get_option(SubOptions, title) of
+                false ->
+                    [{<<"jid">>, Host}
+                     | node_attr(SubNode)];
+                [Title] ->
+                    [{<<"jid">>, Host},
+                     {<<"name">>, Title}
+                     | node_attr(SubNode)]
+            end,
+    #xmlel{name = <<"item">>, attrs = Attrs}.
+
+encode_names(Host, Names) ->
+    lists:map(fun (Name) ->
+                      #xmlel{name = <<"item">>,
+                             attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
+              end,
+              Names).
