@@ -3496,16 +3496,19 @@ purge_offline(LJID) ->
              end, [], Plugins),
     lists:foreach(
       fun ({Node, Affiliation}) ->
-              Options = Node#pubsub_node.options,
-              IsPublisherOrOwner = lists:member(Affiliation, [owner, publisher, publish_only]),
-              OpenNode = get_option(Options, publish_model) == open,
-              ShouldPurge = get_option(Options, purge_offline)
-              andalso get_option(Options, persist_items),
-              case (IsPublisherOrOwner or OpenNode) and ShouldPurge of
+              case can_purge(Node, Affiliation) of
                   true -> purge_offline(Host, LJID, Node);
                   false -> ok
               end
       end, lists:usort(lists:flatten(Affs))).
+
+can_purge(Node, Affiliation) ->
+    Options = Node#pubsub_node.options,
+    IsPublisherOrOwner = lists:member(Affiliation, [owner, publisher, publish_only]),
+    OpenNode = get_option(Options, publish_model) == open,
+    ShouldPurge = get_option(Options, purge_offline)
+    andalso get_option(Options, persist_items),
+    (IsPublisherOrOwner or OpenNode) and ShouldPurge.
 
 check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
     Features = plugin_features(Host, PluginType),
