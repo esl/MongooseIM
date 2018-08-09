@@ -64,7 +64,8 @@
 -type get_inbox_params() :: #{
         start => erlang:timestamp(),
         'end' => erlang:timestamp(),
-        order => asc | desc
+        order => asc | desc,
+        hidden_read => true | false
        }.
 
 -export_type([get_inbox_params/0]).
@@ -236,7 +237,8 @@ build_inbox_form() ->
                   jlib:form_field({<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX}),
                   text_single_form_field(<<"start">>),
                   text_single_form_field(<<"end">>),
-                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions)
+                  list_single_form_field(<<"order">>, <<"desc">>, OrderOptions),
+                  text_single_form_field(<<"hidden_read">>, <<"false">>)
                  ],
     #xmlel{ name = <<"x">>, attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
             children = FormFields }.
@@ -244,6 +246,11 @@ build_inbox_form() ->
 -spec text_single_form_field(Var :: binary()) -> exml:element().
 text_single_form_field(Var) ->
     #xmlel{name = <<"field">>, attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}]}.
+
+-spec text_single_form_field(Var :: binary(), DefaultValue :: binary()) -> exml:element().
+text_single_form_field(Var, DefaultValue) ->
+    #xmlel{name = <<"field">>, 
+           attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
 
 -spec list_single_form_field(Var :: binary(),
                              Default :: binary(),
@@ -318,6 +325,16 @@ fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
         Order ->
             fields_to_params(RFields, Acc#{ order => Order })
     end;
+
+fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
+    case binary_to_bool(HiddenRead) of
+        error ->
+            ?DEBUG("event=invalid_inbox_form_field,field=hidden_read,value=~s", [HiddenRead]),
+            {error, bad_request};
+        Hidden ->
+            fields_to_params(RFields, Acc#{ hidden_read => Hidden })
+    end;
+
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(RFields, Acc);
 fields_to_params([Invalid | _], _) ->
@@ -328,6 +345,11 @@ fields_to_params([Invalid | _], _) ->
 binary_to_order(<<"desc">>) -> desc;
 binary_to_order(<<"asc">>) -> asc;
 binary_to_order(_) -> error.
+
+-spec binary_to_bool(binary()) -> true | false | error.
+binary_to_bool(<<"true">>) -> true;
+binary_to_bool(<<"false">>) -> false;
+binary_to_bool(_) -> error.
 
 -spec store_bin_reset_markers(Host :: host(), Opts :: list()) -> boolean().
 store_bin_reset_markers(Host, Opts) ->

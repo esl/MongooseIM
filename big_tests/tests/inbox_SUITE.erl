@@ -24,7 +24,10 @@
          try_to_reset_unread_counter_with_bad_marker/1,
          user_has_two_conversations/1,
          msg_sent_to_offline_user/1,
-         msg_sent_to_not_existing_user/1]).
+         msg_sent_to_not_existing_user/1,
+         user_has_only_unread_messages_or_only_read/1,
+         reset_unread_counter_and_show_only_unread/1
+        ]).
 -export([simple_groupchat_stored_in_all_inbox/1,
          advanced_groupchat_stored_in_all_inbox/1,
          groupchat_markers_one_reset/1,
@@ -97,7 +100,9 @@ groups() ->
            msg_sent_to_not_existing_user,
            user_has_two_unread_messages,
            reset_unread_counter,
-           try_to_reset_unread_counter_with_bad_marker
+           try_to_reset_unread_counter_with_bad_marker,
+           user_has_only_unread_messages_or_only_read,
+           reset_unread_counter_and_show_only_unread
           ]},
          {muclight, [sequence],
           [
@@ -237,7 +242,7 @@ init_per_testcase(TC, Config)
     clear_inbox_all(),
     Users = ?config(escalus_users, Config),
     Alice = lists:keyfind(alice, 1, Users),
-    Config2 = muc_helper:start_room(Config, Alice, 
+    Config2 = muc_helper:start_room(Config, Alice,
                                     muc_helper:fresh_room_name(), <<"some_friendly_name">>, default),
     escalus:init_per_testcase(TC, Config2);
 init_per_testcase(CaseName, Config) ->
@@ -292,7 +297,7 @@ returns_valid_form(Config) ->
         escalus:send(Alice, inbox_helper:get_inbox_form_stanza()),
         ResIQ = escalus:wait_for_stanza(Alice),
         InboxNS = inbox_helper:inbox_ns(),
-        #{ field_count := 4 } = Form = parse_form_iq(ResIQ),
+        #{ field_count := 5 } = Form = parse_form_iq(ResIQ),
         #{ <<"FORM_TYPE">> := #{ type := <<"hidden">>,
                                  value := InboxNS } } = Form,
         #{ <<"start">> := #{ type := <<"text-single">> } } = Form,
@@ -300,7 +305,8 @@ returns_valid_form(Config) ->
         #{ <<"order">> := #{ type := <<"list-single">>,
                              value := <<"desc">>,
                              options := OrderOptions } } = Form,
-        [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions)
+        [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions),
+        #{ <<"hidden_read">> := #{ type := <<"text-single">> } } = Form
       end).
 
 parse_form_iq(IQ) ->
@@ -314,7 +320,7 @@ parse_form_field(FieldEl, Acc0) ->
     Type = exml_query:attr(FieldEl, <<"type">>),
     Value = exml_query:path(FieldEl, [{element, <<"value">>}, cdata]),
     Info0 = #{ type => Type, value => Value },
-    Info1 = 
+    Info1 =
     case Type of
         <<"list-single">> ->
             Info0#{ options => exml_query:paths(FieldEl, [{element, <<"option">>},
@@ -357,35 +363,46 @@ user_has_two_conversations(Config) ->
 
       %% Alice has two conversations in her inbox (no unread messages)
       check_inbox(Alice, AliceConvs),
-      
+
       %% Kate has one conversation with one unread
       check_inbox(Kate, KateConvs),
-      
+
       %% Bob has one conversation with one unread
       check_inbox(Bob, BobConvs)
     end).
+
+user_has_only_unread_messages_or_only_read(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+    given_conversations_between(Alice, [Bob, Kate]),
+    % Alice has no unread messages, but requests all conversations
+    inbox_helper:get_inbox(Alice, #{ hidden_read => false }, 2),
+    % Requests only conversations with unread messages
+    inbox_helper:get_inbox(Alice, #{ hidden_read => true }, 0),
+    % Bob has only one, unread message
+    inbox_helper:get_inbox(Bob, #{ hidden_read => true }, 1)
+        end).
 
 msg_sent_to_offline_user(Config) ->
   escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
     %% Bob goes offline
     mongoose_helper:logout_user(Config, Bob),
-    
+
     %% Alice sends a message to Bob
     Msg1 = escalus_stanza:chat_to(Bob, <<"test">>),
     escalus:send(Alice, Msg1),
-    
+
     %% Bob goes online again
     {ok, NewBob} = escalus_client:start(Config, bob, <<"new-session">>),
     escalus:send(NewBob, escalus_stanza:presence(<<"available">>)),
     Stanzas = escalus:wait_for_stanzas(NewBob, 2),
-    
+
     escalus_new_assert:mix_match
     ([is_presence, fun(Stanza) -> escalus_pred:is_chat_message(<<"test">>, Stanza) end],
       Stanzas),
-    
+
     %% Alice has conversation
     check_inbox(Alice, [#conv{unread = 0, from = Alice, to = Bob, content = <<"test">>}]),
-    
+
     %% Both check inbox and has a conversation
     check_inbox(NewBob, [#conv{unread = 1, from = Alice, to = Bob, content = <<"test">>}])
                                                 end).
@@ -438,6 +455,32 @@ reset_unread_counter(Config) ->
     escalus:send(Mike, ChatMarker),
     %% Now Mike asks for inbox second time. He has 0 unread messages now
     check_inbox(Mike, [#conv{unread = 0, from = Kate, to = Mike, content = <<"Hi mike">>}])
+                                                end).
+
+reset_unread_counter_and_show_only_unread(Config) ->
+  escalus:story(Config, [{kate, 1}, {mike, 1}, {alice, 1}], fun(Kate, Mike, Alice) ->
+    % Kate sends message to Mike
+    MsgId =  <<"123123">>,
+    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
+    escalus:send(Kate, Msg1),
+    M1 = escalus:wait_for_stanza(Mike),
+    escalus:assert(is_chat_message, M1),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
+
+    ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
+    escalus:send(Mike, ChatMarker),
+
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 0),
+
+    % Alice sends message to Mike
+    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
+
+    escalus:send(Alice, Msg2),
+    escalus:wait_for_stanza(Mike),
+
+    % Mike has two conversations, one with unread messages 
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
                                                 end).
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->

@@ -11,7 +11,7 @@
          clear_inbox_all/0,
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
-         get_inbox/2,
+         get_inbox/2, get_inbox/3,
          get_inbox_count/1,
          get_inbox_form_stanza/0,
          get_inbox_stanza/0,
@@ -142,6 +142,7 @@ get_inbox(Client, ExpectedCount) ->
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
                 ExpectedCount :: non_neg_integer()) -> [exml:element()].
+
 get_inbox(Client, GetParams, ExpectedCount) ->
   GetInbox = get_inbox_stanza(GetParams),
   escalus:send(Client, GetInbox),
@@ -258,15 +259,19 @@ make_inbox_form(GetParams) ->
     End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
   end,
   FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
-  Fields = FormTypeL ++ OrderL ++ StartL ++ EndL,
+  HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,  
+                                         bool_to_bin(maps:get(hidden_read, GetParams, false)))],
+  Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL,
   escalus_stanza:x_data_form(<<"submit">>, Fields).
-
-order_to_bin(asc) -> <<"asc">>;
-order_to_bin(desc) -> <<"desc">>.
 
 %% ---------------------------------------------------------
 %% 1-1 helpers
 %% ---------------------------------------------------------
+order_to_bin(asc) -> <<"asc">>;
+order_to_bin(desc) -> <<"desc">>.
+
+bool_to_bin(true) -> <<"true">>;
+bool_to_bin(false) -> <<"false">>.
 
 -spec given_conversations_between(From :: escalus:client(), ToList :: [escalus:client()]) ->
     #{ escalus:client() => [#conv{}] }.
