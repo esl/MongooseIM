@@ -60,6 +60,7 @@
 %% For Administration API
 -export([try_to_create_room/3, 
          change_room_config/3,
+         room_exists/1,
          delete_room/1]).
 
 %% gen_mod callbacks
@@ -151,6 +152,10 @@ change_room_config(_UserUS, RoomJID, Config) ->
         Other ->
             Other
     end.
+-spec room_exists(RoomJID :: jid:jid()) -> boolean().
+room_exists(RoomJID) ->
+    {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
+    mod_muc_light_db_backend:room_exists(RoomUS).
 
 -spec delete_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists}.
 delete_room(RoomUS) ->
