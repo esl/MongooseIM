@@ -29,7 +29,7 @@
 -export([change_affiliation/5]).
 -export([delete_room/3]).
 -export([change_room_config/4]).
-
+-export([room_exists/2]).
 
 -include("mod_muc_light.hrl").
 -include("mongoose.hrl").
@@ -103,6 +103,21 @@ commands() ->
         {subject, binary}
        ]},
       {result, {id, binary}}],
+
+ [{name, check_room},
+      {category, <<"muc-lights">>},
+      {desc, <<"Check if room with given ID exists.">>},
+      {module, ?MODULE},
+      {function, room_exists},
+      {action, update},
+      {identifiers, [domain]},
+      {args,
+       [
+        {domain, binary},
+        {id, binary}
+       ]},
+      {result, {id, binary}}],
+
 
      [{name, invite_to_room},
       {category, <<"muc-lights">>},
@@ -189,6 +204,11 @@ change_room_config(Domain, RoomID, RoomName, Subject) ->
     mod_muc_light:change_room_config(x, RoomUS, [{<<"roomname">>, RoomName}]),
     jid:to_binary(RoomUS).
 
+room_exists(Domain, RoomID) ->
+    MUCLightDomain = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
+                                                    mod_muc_light:default_host()),
+    R = jid:make(RoomID, MUCLightDomain, <<>>),
+    mod_muc_light:room_exists(R).
 
 send_message(Domain, RoomName, Sender, Message) ->
     Body = #xmlel{name = <<"body">>,
