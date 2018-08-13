@@ -90,7 +90,7 @@
          host/1, serverhost/1]).
 
 %% API and gen_server callbacks
--export([start_link/2, start/2, stop/1, init/1,
+-export([start_link/2, start/2, stop/1, deps/2, init/1,
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 -export([default_host/0]).
@@ -230,6 +230,9 @@
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
+
+deps(Host, Opts) ->
+    [{mod_caps, optional}].
 
 start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
