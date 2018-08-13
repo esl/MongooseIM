@@ -141,7 +141,8 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
 
 -spec change_room_config(UserUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(), 
                          Config :: config()) ->
-    {ok, jid:simple_bare_jid(), config_req_props()}.
+    {ok, jid:simple_bare_jid(), config_req_props()}
+    | {error, validation_error() | bad_request}.
 change_room_config(_UserUS, RoomJID, Config) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
     Version = mod_muc_light_utils:bin_ts(),
@@ -149,9 +150,10 @@ change_room_config(_UserUS, RoomJID, Config) ->
         {ok, PrevVersion} ->
             {ok, RoomUS, #config{
                            prev_version = PrevVersion, version = Version, raw_config = Config}};
-        Other ->
-            Other
+        _ ->
+            {error, bad_request}
     end.
+
 -spec room_exists(RoomJID :: jid:jid()) -> boolean().
 room_exists(RoomJID) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
