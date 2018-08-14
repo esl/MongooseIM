@@ -59,7 +59,7 @@
 
 %% For Administration API
 -export([try_to_create_room/3, 
-         change_room_config/3,
+         change_room_config/2,
          room_exists/1,
          delete_room/1]).
 
@@ -139,11 +139,10 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
             {error, bad_request}
     end.
 
--spec change_room_config(UserUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(), 
-                         Config :: config()) ->
+-spec change_room_config(RoomJID :: jid:jid(), Config :: config()) ->
     {ok, jid:simple_bare_jid(), config_req_props()}
     | {error, validation_error() | bad_request}.
-change_room_config(_UserUS, RoomJID, Config) ->
+change_room_config(RoomJID, Config) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
     Version = mod_muc_light_utils:bin_ts(),
     case mod_muc_light_db_backend:set_config(RoomUS, Config, Version) of
