@@ -95,7 +95,6 @@ get_room_details({RoomID, _} = RoomUS) ->
             []
     end.
 
-
 from_json(Req, State = #{was_replied := true}) ->
     {true, Req, State};
 from_json(Req, State) ->
@@ -106,6 +105,8 @@ from_json(Req, State) ->
 
 handle_request(Method, JSONData, Req, State) ->
     case handle_request_by_method(Method, JSONData, Req, State) of
+        {error, not_permitted} ->
+            mongoose_client_api:forbidden_request(Req, State);
         {error, _} ->
             {false, Req, State};
         Room ->
@@ -120,15 +121,33 @@ handle_request_by_method(<<"POST">>, JSONData, _Req,
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
     mod_muc_light_commands:create_unique_room(Server, RoomName, User, Subject);
 
-handle_request_by_method(<<"PUT">>, JSONData, Req, State) ->
+
+handle_request_by_method(<<"PUT">>,
+                        #{<<"name">> := Name, <<"subject">> := Subject} = JSONData,
+                       Req, State) ->
     assert_room_id_set(Req, State),
     #{user := User, jid := #jid{lserver = Server}, room_id := RoomID} = State,
     #{<<"name">> := RoomName, <<"subject">> := Subject} = JSONData,
-    mod_muc_light_commands:create_identifiable_room(Server,
-                                                    RoomID,
-                                                    RoomName,
-                                                    User,
-                                                    Subject).
+    case mod_muc_light_commands:room_exists(Server, RoomID) of
+        false ->
+            mod_muc_light_commands:create_identifiable_room(Server,
+                                                            RoomID,
+                                                            RoomName,
+                                                            User,
+                                                            Subject);
+        true ->
+            #{role_in_room := Role} = State,
+            case Role of
+                owner ->
+                    mod_muc_light_commands:change_room_config(Server,
+                                                      RoomID,
+                                                      Name,
+                                                      Subject);
+                _ ->
+                    {error, not_permitted}
+            end
+    end.
+
 
 assert_room_id_set(_Req, #{room_id := _} = _State) ->
     ok.

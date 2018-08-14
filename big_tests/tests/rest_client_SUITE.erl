@@ -21,6 +21,8 @@
          delete/4]
          ).
 
+-import(escalus_ejabberd, [rpc/3]).
+
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
@@ -36,8 +38,8 @@ groups() ->
     G = [{messages_with_props, [parallel], message_with_props_test_cases()},
          {messages, [parallel], message_test_cases()},
          {muc, [parallel], muc_test_cases()},
-         {roster, [parallel], roster_test_cases()}],
-    ct_helper:repeat_all_until_all_ok(G).
+         {roster, [parallel], roster_test_cases()}].
+%%    ct_helper:repeat_all_until_all_ok(G).
 
 message_test_cases() ->
     [msg_is_sent_and_delivered_over_xmpp,
@@ -49,6 +51,9 @@ message_test_cases() ->
 muc_test_cases() ->
      [room_is_created,
       room_is_created_with_given_identifier,
+      config_can_be_changed_by_owner,
+      config_cannot_be_changed,
+      config_can_be_changed_by_all,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
       rooms_can_be_listed,
@@ -63,8 +68,8 @@ muc_test_cases() ->
       messages_are_archived_in_room,
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
-      room_msg_is_sent_and_delivered_over_sse,
-      aff_change_msg_is_delivered_over_sse,
+%%      room_msg_is_sent_and_delivered_over_sse,
+%%      aff_change_msg_is_delivered_over_sse,
       room_is_created_with_given_jid,
       room_is_not_created_with_jid_not_matching_hostname,
       room_can_be_fetched_by_jid,
@@ -112,6 +117,16 @@ init_per_group(_GN, C) ->
 end_per_group(_GN, C) ->
     C.
 
+init_per_testcase(config_can_be_changed_by_alli = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    MUCLightHost = <<"muclight.", Host/binary>>,
+    C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, Config),
+    dynamic_modules:restart(Host, mod_muc_light,
+                          [{host, binary_to_list(MUCLightHost)},
+                           {rooms_in_rosters, true},
+                           {all_can_configure, true}]),
+    [{muc_light_host, MUCLightHost} | escalus:init_per_testcase(CaseName, C1)];
+
 init_per_testcase(TC, Config) ->
     MAMTestCases = [all_messages_are_archived,
                     messages_with_user_are_archived,
@@ -126,6 +141,15 @@ init_per_testcase(TC, Config) ->
                     msg_with_malformed_props_is_sent_and_delivered_over_xmpp
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
+
+end_per_testcase(config_can_be_changed_by_alli = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    MUCLightHost = <<"muclight.", Host/binary>>,
+    dynamic_modules:restart(Host, mod_muc_light,
+                          [{host, binary_to_list(MUCLightHost)},
+                           {rooms_in_rosters, true},
+                           {all_can_configure, false}]),
+    [{muc_light_host, MUCLightHost} | escalus:end_per_testcase(CaseName, Config)];
 
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
@@ -249,6 +273,42 @@ room_is_created_with_given_identifier(Config) ->
         GivenRoomID = given_new_room({alice, Alice}, GivenRoomID),
         RoomInfo = get_room_info({alice, Alice}, GivenRoomID),
         assert_room_info(Alice, RoomInfo)
+    end).
+
+config_can_be_changed_by_owner(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        RoomID = <<"som_othere_id">>,
+        RoomJID = room_jid(RoomID, Config),
+        RoomID = given_new_room({alice, Alice}, RoomJID, <<"old_name">>),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_property_value(<<"name">>,<<"old_name">>,RoomInfo),
+
+        {{<<"200">>, <<"OK">>}, {_}} =
+            given_config_change({alice, Alice}, RoomJID, <<"new_name">>, <<"new_subject">>),
+        NewRoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_property_value(<<"name">>, <<"new_name">>, NewRoomInfo)
+    end).
+
+config_cannot_be_changed(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        RoomJID = room_jid(RoomID, Config),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+%%        assert_property_value(<<"name">>,<<"old_name">>,RoomInfo),
+        {{<<"403">>,<<"Forbidden">>},<<>>} = 
+            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>)
+%%        NewRoomInfo = get_room_info({bob, Bob}, RoomID),
+
+    end).
+
+config_can_be_changed_by_all(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        RoomJID = room_jid(RoomID, Config),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+%%        assert_property_value(<<"name">>,<<"old_name">>,RoomInfo),
+        {{<<"200">>, <<"OK">>}, {_}} =
+            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>)
     end).
 
 rooms_can_be_listed(Config) ->
@@ -573,11 +633,21 @@ given_new_room(Owner, RoomID) ->
     RoomName = <<"new_room_name">>,
     create_room_with_id(Creds, RoomName, <<"This room subject">>, RoomID).
 
+given_new_room(Owner, RoomID, RoomName) ->
+    Creds = credentials(Owner),
+    create_room_with_id(Creds, RoomName, <<"This room subject">>, RoomID). 
+
 given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     JID = user_jid(Invitee),
     {{<<"204">>, <<"No Content">>}, _} = invite_to_room(Owner, RoomID, JID),
     maybe_wait_for_aff_stanza(Invitee, Invitee),
     maybe_wait_for_aff_stanza(Inviter, Invitee).
+
+given_config_change(User, RoomID, NewName, NewSubject) ->
+    Creds = credentials(User),
+    Config = #{name => NewName, subject => NewSubject},
+    Path = <<"/rooms/", RoomID/binary>>,
+    rest_helper:putt(client, Path, Config, Creds).
 
 maybe_wait_for_aff_stanza(#client{} = Client, Invitee) ->
     Stanza = escalus:wait_for_stanza(Client),
@@ -733,6 +803,10 @@ assert_room_info(Owner, RoomInfo) ->
 is_property_present(Name, Proplist) ->
     Val = proplists:get_value(Name, Proplist),
     Val /= undefined.
+
+assert_property_value(Name, Value, Proplist) ->
+    Val = proplists:get_value(Name, Proplist),
+    Val == Value.
 
 is_participant(User, Role, RoomInfo) ->
     Participants = proplists:get_value(<<"participants">>, RoomInfo),
