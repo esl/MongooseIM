@@ -284,7 +284,8 @@ config_can_be_changed_by_owner(Config) ->
         {{<<"200">>, <<"OK">>}, {_}} =
             given_config_change({alice, Alice}, RoomJID, <<"new_name">>, <<"new_subject">>),
         NewRoomInfo = get_room_info({alice, Alice}, RoomID),
-        assert_property_value(<<"name">>, <<"new_name">>, NewRoomInfo)
+        assert_property_value(<<"name">>, <<"new_name">>, NewRoomInfo),
+        assert_property_value(<<"subject">>, <<"new_subject">>, NewRoomInfo)
     end).
 
 config_cannot_be_changed(Config) ->
@@ -805,7 +806,12 @@ is_property_present(Name, Proplist) ->
 
 assert_property_value(Name, Value, Proplist) ->
     Val = proplists:get_value(Name, Proplist),
-    Val == Value.
+    case Val of
+        Value ->
+            true;
+        _ ->
+            ct:fail(#{issue => config_change_failed})
+    end.
 
 is_participant(User, Role, RoomInfo) ->
     Participants = proplists:get_value(<<"participants">>, RoomInfo),
