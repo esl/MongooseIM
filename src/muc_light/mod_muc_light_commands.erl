@@ -201,7 +201,7 @@ change_room_config(Domain, RoomID, RoomName, Subject) ->
     MUCLightDomain = gen_mod:get_module_opt_subhost(Domain, mod_muc_light,
                                                     mod_muc_light:default_host()),
     RoomUS = jid:make(RoomID, MUCLightDomain, <<>>),
-    mod_muc_light:change_room_config(x, RoomUS, [{<<"roomname">>, RoomName}]),
+    mod_muc_light:change_room_config(RoomUS, [{<<"roomname">>, RoomName}]),
     jid:to_binary(RoomUS).
 
 room_exists(Domain, RoomID) ->
