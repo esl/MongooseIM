@@ -51,6 +51,7 @@ muc_test_cases() ->
       room_is_created_with_given_identifier,
       config_can_be_changed_by_owner,
       config_cannot_be_changed,
+      config_can_be_changed_by_all,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
       rooms_can_be_listed,
@@ -114,6 +115,16 @@ init_per_group(_GN, C) ->
 end_per_group(_GN, C) ->
     C.
 
+init_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    MUCLightHost = <<"muclight.", Host/binary>>,
+    C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, Config),
+    dynamic_modules:restart(Host, mod_muc_light,
+                          [{host, binary_to_list(MUCLightHost)},
+                           {rooms_in_rosters, true},
+                           {all_can_configure, true}]),
+    [{muc_light_host, MUCLightHost} | escalus:init_per_testcase(CaseName, C1)];
+
 init_per_testcase(TC, Config) ->
     MAMTestCases = [all_messages_are_archived,
                     messages_with_user_are_archived,
@@ -128,6 +139,15 @@ init_per_testcase(TC, Config) ->
                     msg_with_malformed_props_is_sent_and_delivered_over_xmpp
                    ],
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
+
+end_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    MUCLightHost = <<"muclight.", Host/binary>>,
+    dynamic_modules:restart(Host, mod_muc_light,
+                          [{host, binary_to_list(MUCLightHost)},
+                           {rooms_in_rosters, true},
+                           {all_can_configure, false}]),
+    [{muc_light_host, MUCLightHost} | escalus:end_per_testcase(CaseName, Config)];
 
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
@@ -272,12 +292,24 @@ config_cannot_be_changed(Config) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         RoomJID = room_jid(RoomID, Config),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
-%%        assert_property_value(<<"name">>,<<"old_name">>,RoomInfo),
-        {{<<"403">>,<<"Forbidden">>},<<>>} = 
-            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>)
-%%        NewRoomInfo = get_room_info({bob, Bob}, RoomID),
-
+        {{<<"403">>,<<"Forbidden">>},<<>>} =
+            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
+        NewRoomInfo = get_room_info({bob, Bob}, RoomID),
+        assert_property_value(<<"name">>,<<"new_room_name">>, NewRoomInfo)
     end).
+
+config_can_be_changed_by_all(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        RoomJID = room_jid(RoomID, Config),
+        RoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_property_value(<<"name">>,<<"new_room_name">>,RoomInfo),
+        {{<<"200">>, <<"OK">>}, {_}} =
+            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
+        NewRoomInfo = get_room_info({alice, Alice}, RoomID),
+        assert_property_value(<<"name">>,<<"other_name">>,NewRoomInfo)
+    end).
+
 rooms_can_be_listed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         [] = get_my_rooms({alice, Alice}),
