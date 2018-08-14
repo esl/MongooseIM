@@ -59,7 +59,7 @@
 
 %% For Administration API
 -export([try_to_create_room/3, 
-         change_room_config/3,
+         change_room_config/4,
          delete_room/1]).
 
 %% gen_mod callbacks
@@ -138,19 +138,21 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
             {error, bad_request}
     end.
 
--spec change_room_config(UserUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(), 
-                         Config :: config()) ->
+-spec change_room_config(UserUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(),
+                         MUCLightDomain :: binary(), ConfigReq :: config_req_props()) ->
     {ok, jid:simple_bare_jid(), config_req_props()}
     | {error, validation_error() | bad_request}.
-change_room_config(_UserUS, RoomJID, Config) ->
-    {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
-    Version = mod_muc_light_utils:bin_ts(),
-    case mod_muc_light_db_backend:set_config(RoomUS, Config, Version) of
-        {ok, PrevVersion} ->
-            {ok, RoomUS, #config{
-                           prev_version = PrevVersion, version = Version, raw_config = Config}};
-        _ ->
-            {error, bad_request}
+change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) ->
+    R = {RoomID, MUCLightDomain},
+    RoomJID = jid:make(RoomID, MUCLightDomain, <<>>),
+    RoomUS = jid:to_lus(RoomJID),
+    AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
+
+    case mod_muc_light_room:process_request(UserUS, R, ConfigReq, AffUsersRes) of
+        {set, ConfigResp, _} ->
+            {ok, RoomJID, ConfigResp};
+        {error, _Reason} = E ->
+            E
     end.
 
 -spec delete_room(RoomUS :: jid:simple_bare_jid()) -> ok | {error, not_exists}.
