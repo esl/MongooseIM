@@ -192,8 +192,4 @@ generate_token(Alg, NbfDelta, Key) ->
              exp => Now + 60,
              nbf => Now + NbfDelta,
              iat => Now},
-    jwerl:sign(Data, #{alg => alg_to_bin(Alg), key => Key}).
-
-alg_to_bin(hs256) -> <<"HS256">>;
-alg_to_bin(rs256) -> <<"RS256">>.
-
+    jwerl:sign(Data, Alg, Key).

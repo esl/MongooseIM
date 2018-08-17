@@ -88,8 +88,9 @@ check_password(LUser, LServer, Password) ->
               Key1 when is_binary(Key1) -> Key1;
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
-    Options = #{key => Key, alg => ejabberd_auth:get_opt(LServer, jwt_algorithm)},
-    case jwerl:verify(Password, Options) of
+    BinAlg = ejabberd_auth:get_opt(LServer, jwt_algorithm),
+    Alg = binary_to_atom(stringprep:tolower(BinAlg), latin1),
+    case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->
             UserKey = ejabberd_auth:get_opt(LServer, jwt_username_key),
             case maps:find(UserKey, TokenData) of
@@ -223,5 +224,3 @@ get_jwt_secret(Host) ->
            {ok, JWTSecretBin} = file:read_file(JWTSecretPath),
            JWTSecretBin
    end.
-
-

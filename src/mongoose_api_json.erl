@@ -25,7 +25,7 @@
 %% mongoose_api_format callbacks
 %%--------------------------------------------------------------------
 deserialize(Json) ->
-    try mochijson2:decode(Json) of
+    try jiffy:decode(Json, [return_maps]) of
         Data ->
             {ok, do_deserialize(Data)}
     catch _:_ ->
@@ -38,39 +38,50 @@ serialize(Data) ->
 %%--------------------------------------------------------------------
 %% internal functions
 %%--------------------------------------------------------------------
-do_deserialize({ElementName, {struct, [{_Key, _Value}|_Rest]=Proplist}}) ->
-    {ElementName, do_deserialize(Proplist)};
-do_deserialize({struct, Proplist}) ->
-    [do_deserialize(Element) || Element <- Proplist];
-do_deserialize(List) when is_list(List) ->
-    [do_deserialize(Element) || Element <- List];
-do_deserialize(Other) ->
-    Other.
+do_deserialize(#{} = Map) ->
+    maps:to_list(maps:map(fun(_K, V) -> do_deserialize(V) end, Map));
+do_deserialize(NotAMap) ->
+    NotAMap.
 
 do_serialize(Data) ->
-    mochijson2:encode(prepare_struct(Data)).
+    jiffy:encode(prepare_struct(Data)).
 
 prepare_struct({Key, Value}) ->
-    {struct, [{Key, prepare_struct(Value)}]};
+    #{prepare_key(Key) => prepare_struct(Value)};
 prepare_struct([]) ->
     [];
 prepare_struct(List) when is_list(List) ->
     case is_proplist(List) of
         true  ->
-            Fields = [{K, prepare_struct(V)} || {K, V} <- List],
-            {struct, Fields};
+            maps:from_list([{prepare_key(K), prepare_struct(V)} || {K, V} <- List]);
         false ->
             [prepare_struct(Element) || Element <- List]
     end;
+prepare_struct(List) when is_list(List) ->
+    try unicode:characters_to_binary(List) of
+        Bin when is_binary(Bin) -> Bin;
+        _ -> List %% Items in List are not valid unicode codepoints
+    catch
+        error:badarg -> List %% List is not a list of characters
+    end;
 prepare_struct(Other) ->
     Other.
+
+prepare_key(Key) when is_integer(Key) ->
+    integer_to_binary(Key);
+prepare_key(Key) when is_list(Key); is_binary(Key) ->
+    case unicode:characters_to_binary(Key) of
+        Bin when is_binary(Bin) -> Bin
+    end;
+prepare_key(Key) ->
+    Key.
 
 is_proplist(List) ->
     is_proplist(List, sets:new()).
 
 is_proplist([], _Keys) ->
     true;
-is_proplist([{Key, _}|Tail], Keys) ->
+is_proplist([{Key, _} | Tail], Keys) ->
     case sets:is_element(Key, Keys) of
         true ->
             false;

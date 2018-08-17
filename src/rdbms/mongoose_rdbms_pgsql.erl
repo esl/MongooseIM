@@ -63,7 +63,7 @@ query(Connection, Query, _Timeout) ->
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, term()} | {error, any()}.
 prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
-    BinName = atom_to_binary(Name, latin1),
+    BinName = [atom_to_binary(Name, latin1)],
     ReplacedStatement = replace_question_marks(Statement),
     case epgsql:parse(Connection, BinName, ReplacedStatement, []) of
         {ok, _} -> {ok, BinName};
@@ -95,7 +95,9 @@ get_db_basic_opts({Server, Port, DB, User, Pass}) ->
      {port, Port},
      {database, DB},
      {username, User},
-     {password, Pass}
+     {password, Pass},
+     %% Encode 0 and 1 as booleans, as well as true and false
+     {codecs, [{mongoose_rdbms_pgsql_codec_boolean, []}]}
     ].
 
 -spec extend_db_opts_with_ssl(Opts :: [term()], SSLConnOpts :: [term()]) -> [term()].
