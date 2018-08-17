@@ -279,8 +279,14 @@ clients_can_connect_with_advertised_ciphers(Config) ->
 
 'clients_can_connect_with_DHE-RSA-AES256-SHA_only'(Config) ->
     Port = case ?config(tls_module, Config) of
-               just_tls -> 5263; %mim3 secondary_c2s port
-               fast_tls -> 5233  %mim2 secondary_c2s port
+               just_tls ->
+                   assert_node_running(distributed_helper:mim3()),
+                   5263; %mim3 secondary_c2s port
+               fast_tls ->
+                   assert_node_running(distributed_helper:mim2()),
+                   5233;  %mim2 secondary_c2s port
+               _ ->
+                   ct:fail({missing_config, tls_module})
            end,
     Config1 = [{c2s_port, Port} | Config],
     CiphersStr = os:cmd("openssl ciphers 'DHE-RSA-AES256-SHA'"),
@@ -661,3 +667,9 @@ pipeline_connect(UserSpec) ->
 
     escalus_connection:send(Conn, [Stream, Auth, AuthStream, Bind, Session]),
     Conn.
+
+assert_node_running(Node) ->
+    case net_adm:ping(Node) of
+        pong -> ok;
+        pang -> ct:fail({assert_node_running, Node})
+    end.
