@@ -35,7 +35,8 @@ all() ->
 groups() ->
     G = [{messages_with_props, [parallel], message_with_props_test_cases()},
          {messages, [parallel], message_test_cases()},
-         {muc, [parallel], muc_test_cases()},
+         {muc,[pararell] , muc_test_cases()},
+         {muc_config, [], muc_config_cases()},
          {roster, [parallel], roster_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -49,9 +50,6 @@ message_test_cases() ->
 muc_test_cases() ->
      [room_is_created,
       room_is_created_with_given_identifier,
-      config_can_be_changed_by_owner,
-      config_cannot_be_changed,
-      config_can_be_changed_by_all,
       user_is_invited_to_a_room,
       user_is_removed_from_a_room,
       rooms_can_be_listed,
@@ -74,6 +72,13 @@ muc_test_cases() ->
       messages_can_be_sent_and_fetched_by_room_jid,
       user_can_be_added_and_removed_by_room_jid
      ].
+
+muc_config_cases() ->
+    [
+      config_can_be_changed_by_owner,
+      config_cannot_be_changed,
+      config_can_be_changed_by_all
+    ].
 
 roster_test_cases() ->
     [add_contact_and_invite,
@@ -292,7 +297,6 @@ config_cannot_be_changed(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         RoomJID = room_jid(RoomID, Config),
-        RoomInfo = get_room_info({alice, Alice}, RoomID),
         {{<<"403">>,<<"Forbidden">>},<<>>} =
             given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
         NewRoomInfo = get_room_info({bob, Bob}, RoomID),
@@ -308,7 +312,9 @@ config_can_be_changed_by_all(Config) ->
         {{<<"200">>, <<"OK">>}, {_}} =
             given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
         NewRoomInfo = get_room_info({alice, Alice}, RoomID),
-        assert_property_value(<<"name">>,<<"other_name">>,NewRoomInfo)
+        assert_property_value(<<"name">>,<<"other_name">>,NewRoomInfo),
+        {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Bob),
+        escalus:wait_for_stanza(Bob)
     end).
 
 rooms_can_be_listed(Config) ->
