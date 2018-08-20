@@ -21,6 +21,8 @@
          delete/4]
          ).
 
+-import(escalus_ejabberd, [rpc/3]).
+
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
 -define(CREATED, {<<"201">>, <<"Created">>}).
@@ -30,12 +32,16 @@
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
 
 all() ->
-    [{group, messages}, {group, muc}, {group, roster}, {group, messages_with_props}].
+    [{group, messages},
+     {group, muc},
+     {group, muc_config},
+     {group, roster},
+     {group, messages_with_props}].
 
 groups() ->
     G = [{messages_with_props, [parallel], message_with_props_test_cases()},
          {messages, [parallel], message_test_cases()},
-         {muc,[pararell] , muc_test_cases()},
+         {muc, [pararell], muc_test_cases()},
          {muc_config, [], muc_config_cases()},
          {roster, [parallel], roster_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
@@ -76,7 +82,7 @@ muc_test_cases() ->
 muc_config_cases() ->
     [
       config_can_be_changed_by_owner,
-      config_cannot_be_changed,
+      config_cannot_be_changed_by_member,
       config_can_be_changed_by_all
     ].
 
@@ -121,14 +127,9 @@ end_per_group(_GN, C) ->
     C.
 
 init_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    MUCLightHost = <<"muclight.", Host/binary>>,
-    C1 = rest_helper:maybe_enable_mam(mam_helper:backend(), Host, Config),
-    dynamic_modules:restart(Host, mod_muc_light,
-                          [{host, binary_to_list(MUCLightHost)},
-                           {rooms_in_rosters, true},
-                           {all_can_configure, true}]),
-    [{muc_light_host, MUCLightHost} | escalus:init_per_testcase(CaseName, C1)];
+    DefaultConfig = dynamic_modules:save_modules(domain(Config), Config),
+    set_mod_config(all_can_configure, true, DefaultConfig),
+    escalus:init_per_testcase(config_can_be_changed_by_all, DefaultConfig);
 
 init_per_testcase(TC, Config) ->
     MAMTestCases = [all_messages_are_archived,
@@ -146,13 +147,9 @@ init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    MUCLightHost = <<"muclight.", Host/binary>>,
-    dynamic_modules:restart(Host, mod_muc_light,
-                          [{host, binary_to_list(MUCLightHost)},
-                           {rooms_in_rosters, true},
-                           {all_can_configure, false}]),
-    [{muc_light_host, MUCLightHost} | escalus:end_per_testcase(CaseName, Config)];
+    set_mod_config(all_can_configure, false, Config),
+    dynamic_modules:restore_modules(domain(Config), Config),
+    escalus:end_per_testcase(config_can_be_changed_by_all, Config);
 
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
@@ -284,7 +281,7 @@ config_can_be_changed_by_owner(Config) ->
         RoomJID = room_jid(RoomID, Config),
         RoomID = given_new_room({alice, Alice}, RoomJID, <<"old_name">>),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
-        assert_property_value(<<"name">>,<<"old_name">>,RoomInfo),
+        assert_property_value(<<"name">>, <<"old_name">>, RoomInfo),
 
         {{<<"200">>, <<"OK">>}, {_}} =
             given_config_change({alice, Alice}, RoomJID, <<"new_name">>, <<"new_subject">>),
@@ -293,7 +290,7 @@ config_can_be_changed_by_owner(Config) ->
         assert_property_value(<<"subject">>, <<"new_subject">>, NewRoomInfo)
     end).
 
-config_cannot_be_changed(Config) ->
+config_cannot_be_changed_by_member(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         RoomJID = room_jid(RoomID, Config),
@@ -812,12 +809,7 @@ is_property_present(Name, Proplist) ->
 
 assert_property_value(Name, Value, Proplist) ->
     Val = proplists:get_value(Name, Proplist),
-    case Val of
-        Value ->
-            true;
-        _ ->
-            ct:fail(#{issue => config_change_failed})
-    end.
+    ?assertEqual(Value, Val).
 
 is_participant(User, Role, RoomInfo) ->
     Participants = proplists:get_value(<<"participants">>, RoomInfo),
@@ -1166,3 +1158,10 @@ break_stuff(Config) ->
 room_jid(RoomID, Config) ->
     MUCLightHost = ?config(muc_light_host, Config),
     <<RoomID/binary, "@", MUCLightHost/binary>>.
+
+set_mod_config(K, V, Config) ->
+    MUCLightHost = ?config(muc_light_host, Config),
+    true = rpc(gen_mod, set_module_opt_by_subhost, [MUCLightHost, mod_muc_light, K, V]).
+
+domain(Config) ->
+    ?config(muc_light_host, Config).
