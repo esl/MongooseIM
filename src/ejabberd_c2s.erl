@@ -533,7 +533,9 @@ get_peer_cert(#state{ tls_enabled = true,
                       sockmod     = ejabberd_socket }) ->
     case ejabberd_socket:get_peer_certificate(Socket) of
         {ok, Cert} -> Cert;
-        _ -> error
+        Other ->
+            ?WARNING_MSG("issue=get_peer_certificate_failed reason=~p", [Other]),
+            error
     end;
 get_peer_cert(_) -> error.
 

@@ -60,6 +60,8 @@ groups() ->
           {verify_peer, [], [connect_using_client_certificate,
                              connect_without_client_certificate,
                              connect_using_self_signed_client_certificate]},
+          {pki_auth, [], [pki_auth_using_client_certificate,
+                          pki_auth_using_self_signed_client_certificate]},
           {tls, [parallel], [auth_bind_pipelined_session,
                              auth_bind_pipelined_auth_failure |
                              generate_tls_vsn_tests() ++ cipher_test_cases()]},
@@ -82,6 +84,7 @@ all_groups()->
     [{group, c2s_noproc},
      {group, starttls},
      {group, verify_peer},
+     {group, pki_auth},
      {group, feature_order},
      {group, tls}].
 
@@ -135,6 +138,16 @@ init_per_group(verify_peer, Config) ->
                              fun mk_value_for_starttls_required_verify_peer_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
+
+init_per_group(pki_auth, Config) ->
+    Extra = [{auth_method, "[pki]"},
+             {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
+    config_ejabberd_node_tls(Config,
+                             fun mk_value_for_starttls_required_verify_peer_config_pattern/0,
+                             Extra),
+    ejabberd_node_utils:restart_application(mongooseim),
+    %% Used in set_client_auth_method
+    [{auth_method, pki}|Config];
 init_per_group(tls, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_tls_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
@@ -580,6 +593,13 @@ connect_without_client_certificate(Config) ->
 connect_using_self_signed_client_certificate(Config)->
     check_connect_and_starttls(self_signed, Config).
 
+%% Checks, that doc/authentication-methods/client-certificate.md works
+pki_auth_using_client_certificate(Config) ->
+    check_connect_starttls_and_auth(ca_signed, Config).
+
+pki_auth_using_self_signed_client_certificate(Config) ->
+    check_connect_starttls_and_auth(self_signed, Config).
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -617,6 +637,16 @@ verify_peer_result(TlsModule, VerifyFun, ClientCertType) ->
      Map = verify_peer_result_map(),
      maps:get({TlsModule, VerifyFun, ClientCertType}, Map).
 
+%% TODO
+pki_auth_result(_TlsModule, _VerifyFun, ca_signed) ->
+    succeeds;
+pki_auth_result(_TlsModule, _VerifyFun, self_signed) ->
+    fails;
+pki_auth_result(_TlsModule, _VerifyFun, no_cert) ->
+    fails.
+
+%% --------------------------------------------------------------------------------
+
 verify_peer_result_map() ->
      List = [{{TlsModule, maps:get(verify_fun, Case, undefined), ClientCertType}, Result}
              || #{tls_module := TlsModule,
@@ -640,7 +670,8 @@ connect_and_starttls_succeeds(ClientCertType, Config) ->
     ct:comment("Check that starttls SUCCEEDS with client_cert_type=~p, verify_fun=~p",
                [ClientCertType, ?config(verify_fun, Config)]),
     UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    UserSpec = set_client_ssl_opts_with_type(ClientCertType, UserSpec0, Config),
+    UserSpec1 = set_client_ssl_opts_with_type(ClientCertType, UserSpec0, Config),
+    UserSpec = set_client_auth_method(UserSpec1, Config),
     Result = escalus_connection:start(UserSpec, steps_to_connect_over_ssl()),
     ct:log("Result ~p", [Result]),
     {_, FeaturesAfterStartStream} = receive_backuped_stream_features(after_start_stream),
@@ -654,9 +685,33 @@ connect_and_starttls_fails(ClientCertType, Config) ->
     ct:comment("Check that starttls FAILS with client_cert_type=~p, verify_fun=~p",
                [ClientCertType, ?config(verify_fun, Config)]),
     UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    UserSpec = set_client_ssl_opts_with_type(ClientCertType, UserSpec0, Config),
-    ?assertError({tls_alert,"bad certificate"},
-        escalus_connection:start(UserSpec, steps_to_connect_over_ssl())).
+    UserSpec1 = set_client_ssl_opts_with_type(ClientCertType, UserSpec0, Config),
+    UserSpec = set_client_auth_method(UserSpec1, Config),
+    try
+        escalus_connection:start(UserSpec, steps_to_connect_over_ssl())
+    of
+        {ok, Conn, Props} ->
+           ct:pal("Unexpected Result~n Conn=~p ~nProps=~p", [Conn, Props]),
+           ct:fail(was_expected_to_fail);
+        Other ->
+            ct:log("Expected failure ~p", [Other])
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ct:log("Stacktrace ~p", [Stacktrace]),
+        ct:comment("Check that starttls FAILS with client_cert_type=~p, verify_fun=~p "
+                   "reason=~1000p:~1000p",
+                   [ClientCertType, ?config(verify_fun, Config), Class, Reason])
+    end.
+
+%% --------------------------------------------------------------------------------
+
+check_connect_starttls_and_auth(ClientCertType, Config) ->
+    TlsModule = ?config(tls_module, Config),
+    VerifyFun = ?config(verify_fun, Config),
+    Result = pki_auth_result(TlsModule, VerifyFun, ClientCertType),
+    check_connect_and_starttls(Result, ClientCertType, Config).
+
+%% --------------------------------------------------------------------------------
 
 c2s_port(Config) ->
     case ?config(c2s_port, Config) of
@@ -690,9 +745,12 @@ assert_cert_file_exists() ->
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
 config_ejabberd_node_tls(Config, Fun) ->
+    config_ejabberd_node_tls(Config, Fun, []).
+
+config_ejabberd_node_tls(Config, Fun, Extra) ->
     TLSModConf = "{tls_module," ++ atom_to_list(?config(tls_module, Config)) ++ "},"
                ++ maybe_add_verify_fun_opt(Config),
-    ejabberd_node_utils:modify_config_file([Fun(), {tls_module, TLSModConf}], Config).
+    ejabberd_node_utils:modify_config_file([Fun(), {tls_module, TLSModConf}] ++ Extra, Config).
 
 maybe_add_verify_fun_opt(Config) ->
     case ?config(verify_fun, Config) of
@@ -739,6 +797,18 @@ set_client_ssl_opts_with_type(self_signed, UserSpec, Config) ->
     set_client_ssl_opts(UserSpec, ClientKeyFile, CertFileName);
 set_client_ssl_opts_with_type(no_cert, UserSpec, _Config) ->
     UserSpec.
+
+set_client_auth_method(UserSpec, Config) ->
+    case ?config(auth_method, Config) of
+        pki ->
+            set_pki_client_auth_method(UserSpec);
+        _ ->
+            UserSpec
+    end.
+
+set_pki_client_auth_method(UserSpec) ->
+    [{auth, {escalus_auth, auth_sasl_external}},
+     {endpoint, {server, <<"-">>}}|UserSpec].
 
 set_client_ssl_opts(UserSpec, ClientKeyFile, ClientCertFile) ->
     assert_file_readable(ClientCertFile, certfile),

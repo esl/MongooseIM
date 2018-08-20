@@ -40,6 +40,8 @@ clean:
 	-rm -f ca/*
 	-rm fake_cert.csr fake_cert.pem fake_key.pem fake_server.pem
 	-rm alice_key.pem alice_csr.pem alice_cert.pem
+	-rm bob_key.pem bob_csr.pem bob_cert.pem
+	-rm fake_dh_server.pem fake_privkey.pem fake_pubkey.pem
 
 
 # Based on article
