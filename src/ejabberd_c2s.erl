@@ -248,21 +248,26 @@ get_subscribed(FsmRef) ->
 wait_for_stream({xmlstreamstart, _Name, _} = StreamStart, StateData) ->
     handle_stream_start(StreamStart, StateData);
 wait_for_stream(timeout, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream timeout", [StateData#state.ip, StateData#state.user]),
     {stop, normal, StateData};
 %% TODO: this clause is most likely dead code - can't be triggered
 %%       with XMPP level tests;
 %%       see github.com/esl/ejabberd_tests/tree/element-before-stream-start
-wait_for_stream({xmlstreamelement, _}, StateData) ->
+wait_for_stream({xmlstreamelement, Element}, StateData) ->
+    ?ERROR_MSG("[~p, ~p] XML received prior to stream start: ~p", [StateData#state.ip, StateData#state.user, Element]),
     c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream({xmlstreamend, _}, StateData) ->
+    ?ERROR_MSG("[~p, ~p] XML stream end received prior to stream start", [StateData#state.ip, StateData#state.user]),
     c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
-wait_for_stream({xmlstreamerror, _}, StateData) ->
+wait_for_stream({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("[~p, ~p] XML stream error: ~p", [StateData#state.ip, StateData#state.user, StreamError]),
     send_header(StateData, ?MYNAME, << "1.0">>, <<"">>),
     c2s_stream_error(mongoose_xmpp_errors:xml_not_well_formed(), StateData);
 wait_for_stream(closed, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream closed", [StateData#state.ip, StateData#state.user]),
     {stop, normal, StateData}.
 
-handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
+handle_stream_start({xmlstreamstart, Name, Attrs}, #state{} = S0) ->
     Server = jid:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
     Lang = get_xml_lang(Attrs),
     S = S0#state{server = Server, lang = Lang},
@@ -273,8 +278,10 @@ handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
             Version = xml:get_attr_s(<<"version">>, Attrs),
             stream_start_by_protocol_version(Version, S);
         {?NS_STREAM, false} ->
+            ?ERROR_MSG("[~p, ~p] Invalid host in XML stream start: ~p (XML element ~p with Attrs ~p)", [S0#state.ip, S0#state.user, Server, Name, Attrs]),
             stream_start_error(mongoose_xmpp_errors:host_unknown(), S);
         {_InvalidNS, _} ->
+            ?ERROR_MSG("[~p, ~p] Invalid namespace in XML stream start: ~p (XML element ~p with Attrs ~p)", [S0#state.ip, S0#state.user, InvalidNS, Name, Attrs]),
             stream_start_error(mongoose_xmpp_errors:invalid_namespace(), S)
     end.
 
@@ -306,6 +313,7 @@ stream_start_by_protocol_version(_Pre10, #state{lang = Lang, server = Server} = 
         false ->
             wait_for_legacy_auth(S);
         true ->
+            ?ERROR_MSG("[~p] TLS required but not available", [S#state.ip]),
             c2s_stream_error(mongoose_xmpp_errors:policy_violation(Lang, <<"Use of STARTTLS required">>), S)
     end.
 
@@ -496,6 +504,7 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             _Acc1 = send_element(Acc, Res, StateData),
             fsm_next_state(wait_for_auth, StateData);
         {auth, _ID, set, {_U, _P, _D, <<>>}} ->
+            ?ERROR_MSG("[~p] Auth set without resource: ~p", [StateData#state.ip, El]),
             Err = jlib:make_error_reply(El, mongoose_xmpp_errors:auth_no_resource_provided(StateData#state.lang)),
             _Acc1 = send_element(Acc, Err, StateData),
             fsm_next_state(wait_for_auth, StateData);
@@ -512,15 +521,19 @@ wait_for_auth({xmlstreamelement, El}, StateData) ->
             fsm_next_state(wait_for_auth, StateData)
     end;
 wait_for_auth(timeout, StateData) ->
+    ?WARNING_MSG("[~p] Timeout while waiting for auth", [StateData#state.ip]),
     {stop, normal, StateData};
 wait_for_auth({xmlstreamend, _Name}, StateData) ->
+    ?WARNING_MSG("[~p] XML stream end while waiting for auth", [StateData#state.ip]),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_auth({xmlstreamerror, _}, StateData) ->
+    ?ERROR_MSG("[~p] XML stream error while waiting for auth: ~p", [StateData#state.ip, StreamError]),
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_auth(closed, StateData) ->
+    ?WARNING_MSG("[~p] XML stream closed while waiting for auth", [StateData#state.ip]),
     {stop, normal, StateData}.
 
 
@@ -652,15 +665,19 @@ wait_for_feature_before_auth({xmlstreamelement, El}, StateData) ->
                                                       StateData, El)
     end;
 wait_for_feature_before_auth(timeout, StateData) ->
+    ?WARNING_MSG("[~p] XML stream timeout while waiting for feature before auth", [StateData#state.ip]),
     {stop, normal, StateData};
 wait_for_feature_before_auth({xmlstreamend, _Name}, StateData) ->
+    ?WARNING_MSG("[~p] XML stream end while waiting for feature before auth", [StateData#state.ip]),
     send_trailer(StateData),
     {stop, normal, StateData};
-wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
+wait_for_feature_before_auth({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("[~p] XML stream error while waiting for feature before auth: ~p", [StateData#state.ip, StreamError]),
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth(closed, StateData) ->
+    ?WARNING_MSG("[~p] XML stream closed while waiting for feature before auth", [StateData#state.ip]),
     {stop, normal, StateData}.
 
 compressed() ->
@@ -699,15 +716,19 @@ wait_for_sasl_response({xmlstreamelement, El}, StateData) ->
             fsm_next_state(wait_for_feature_before_auth, StateData)
     end;
 wait_for_sasl_response(timeout, StateData) ->
+    ?WARNING_MSG("[~p] XML stream timeout while waiting for SASL", [StateData#state.ip]),
     {stop, normal, StateData};
 wait_for_sasl_response({xmlstreamend, _Name}, StateData) ->
+    ?WARNING_MSG("[~p] XML stream end while waiting for SASL", [StateData#state.ip]),
     send_trailer(StateData),
     {stop, normal, StateData};
-wait_for_sasl_response({xmlstreamerror, _}, StateData) ->
+wait_for_sasl_response({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("[~p] XML stream error while waiting for SASL: ~p", [StateData#state.ip, StreamError]),
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_sasl_response(closed, StateData) ->
+    ?WARNING_MSG("[~p] XML stream closed while waiting for SASL", [StateData#state.ip]),
     {stop, normal, StateData}.
 
 -spec wait_for_feature_after_auth(Item :: ejabberd:xml_stream_item(),
@@ -730,6 +751,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                 end,
             case R of
                 error ->
+                    ?ERROR_MSG("[~p, ~p] Error in iq: ~p", [StateData#state.ip, StateData#state.user, El]),
                     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
                     send_element(StateData, Err),
                     fsm_next_state(wait_for_feature_after_auth, StateData);
@@ -751,18 +773,22 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
     end;
 
 wait_for_feature_after_auth(timeout, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream timeout while waiting for feature after auth", [StateData#state.ip, StateData#state.user]),
     {stop, normal, StateData};
 
 wait_for_feature_after_auth({xmlstreamend, _Name}, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream end while waiting for feature after auth", [StateData#state.ip, StateData#state.user]),
     send_trailer(StateData),
     {stop, normal, StateData};
 
-wait_for_feature_after_auth({xmlstreamerror, _}, StateData) ->
+wait_for_feature_after_auth({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("[~p, ~p] XML stream error while waiting for feature after auth: ~p", [StateData#state.ip, StateData#state.user, StreamError]),
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 
 wait_for_feature_after_auth(closed, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream end while waiting for feature after auth", [StateData#state.ip, StateData#state.user]),
     {stop, normal, StateData}.
 
 -spec wait_for_session_or_sm(Item :: ejabberd:xml_stream_item(),
@@ -798,18 +824,22 @@ wait_for_session_or_sm({xmlstreamelement, El}, StateData0) ->
     end;
 
 wait_for_session_or_sm(timeout, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream timeout while waiting for session or sm", [StateData#state.ip, StateData#state.user]),
     {stop, normal, StateData};
 
 wait_for_session_or_sm({xmlstreamend, _Name}, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream end while waiting for session or sm", [StateData#state.ip, StateData#state.user]),
     send_trailer(StateData),
     {stop, normal, StateData};
 
-wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
+wait_for_session_or_sm({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("[~p, ~p] XML stream error while waiting for session or sm: ~p", [StateData#state.ip, StateData#state.user, StreamError]),
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 
 wait_for_session_or_sm(closed, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream closed while waiting for session or sm", [StateData#state.ip, StateData#state.user]),
     {stop, normal, StateData}.
 
 maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData) ->
@@ -998,6 +1028,7 @@ session_established({xmlstreamelement, El}, StateData) ->
 %% We hibernate the process to reduce memory consumption after a
 %% configurable activity timeout
 session_established(timeout, StateData) ->
+    ?WARNING_MSG("[~p, ~p] XML stream timeout", [StateData#state.ip, StateData#state.user]),
     {next_state, session_established, StateData, hibernate()};
 session_established({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
@@ -1007,7 +1038,8 @@ session_established({xmlstreamerror, <<"child element too big">> = E}, StateData
     send_element(StateData, mongoose_xmpp_errors:policy_violation(StateData#state.lang, E)),
     send_trailer(StateData),
     {stop, normal, StateData};
-session_established({xmlstreamerror, _}, StateData) ->
+session_established({xmlstreamerror, StreamError}, StateData) ->
+    ?ERROR_MSG("[~p, ~p] XML stream error: ~p", [StateData#state.ip, StateData#state.user, StreamError]),
     send_element(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
@@ -2962,9 +2994,11 @@ make_smid() ->
 maybe_unexpected_sm_request(NextState, El, StateData) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
         ?NS_STREAM_MGNT_3 ->
+            ?ERROR_MSG("[~p, ~p] Unexpected SM request: ~p", [StateData#state.ip, StateData#state.user, El]),
             send_element(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
             fsm_next_state(NextState, StateData);
         _ ->
+            ?ERROR_MSG("[~p, ~p] Unexpected SM request, invalid namespace: ~p", [StateData#state.ip, StateData#state.user, El]),
             send_element(StateData, mongoose_xmpp_errors:invalid_namespace()),
             send_trailer(StateData),
             {stop, normal, StateData}
@@ -3368,6 +3402,7 @@ handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
             send_element(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State};
         {error, Error} ->
+            ?ERROR_MSG("Failed authentication: ~p", Error),
             ejabberd_hooks:run(auth_failed, Server, [unknown, Server]),
             send_element(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State}
