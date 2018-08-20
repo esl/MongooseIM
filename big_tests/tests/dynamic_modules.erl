@@ -2,7 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([save_modules/2, ensure_modules/2, restore_modules/2]).
+-export([save_modules/2, ensure_modules/1, ensure_modules/2, restore_modules/2]).
 -export([stop/2, stop/3, start/3, start/4, restart/3, stop_running/2, start_running/1]).
 
 -import(distributed_helper, [mim/0,
@@ -10,6 +10,13 @@
 
 save_modules(Domain, Config) ->
     [{saved_modules, get_current_modules(Domain)} | Config].
+
+%extract a list of supported domains 
+%and apply ensure_modules/2 for each of them
+ensure_modules(RequiredModules) ->
+    Hosts = rpc(mim(), ejabberd_config, get_global_option, [hosts]),
+    [ok = ensure_modules(Host, RequiredModules) || Host <- Hosts],
+    ok.
 
 ensure_modules(Domain, RequiredModules) ->
     CurrentModules = get_current_modules(Domain),
@@ -113,3 +120,4 @@ stop_running(Mod, Config) ->
             stop(Domain, Module),
             [{running, [Head]} | Config]
     end.
+    
