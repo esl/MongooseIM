@@ -138,8 +138,8 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
             {error, bad_request}
     end.
 
--spec change_room_config(UserUS :: jid:simple_bare_jid(), RoomJID :: jid:jid(),
-                         MUCLightDomain :: binary(), ConfigReq :: config_req_props()) ->
+-spec change_room_config(UserUS :: jid:jid(), RoomID :: jid:resource(),
+                         MUCLightDomain :: jid:server(), ConfigReq :: config_req_props()) ->
     {ok, jid:simple_bare_jid(), config_req_props()}
     | {error, validation_error() | bad_request}.
 change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) ->
@@ -148,7 +148,7 @@ change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) ->
     RoomUS = jid:to_lus(RoomJID),
     AffUsersRes = mod_muc_light_db_backend:get_aff_users(RoomUS),
 
-    case mod_muc_light_room:process_request(UserUS, R, ConfigReq, AffUsersRes) of
+    case mod_muc_light_room:process_request(UserUS, R, {set, ConfigReq}, AffUsersRes) of
         {set, ConfigResp, _} ->
             {ok, RoomJID, ConfigResp};
         {error, _Reason} = E ->
