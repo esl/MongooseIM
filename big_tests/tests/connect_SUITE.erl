@@ -44,6 +44,8 @@
 all() ->
     [ {group, fast_tls}
      ,{group, just_tls}
+     ,{group, just_tls_verify_peer}
+     ,{group, just_tls_verify_selfsigned_peer}
     ].
 
 groups() ->
@@ -56,8 +58,8 @@ groups() ->
                             pre_xmpp_1_0_stream]},
           {starttls, [], test_cases()},
           {verify_peer, [], [connect_using_client_certificate,
-                             connect_without_client_certificate_fails,
-                             connect_using_self_signed_client_certificate_fails]},
+                             connect_without_client_certificate,
+                             connect_using_self_signed_client_certificate]},
           {tls, [parallel], [auth_bind_pipelined_session,
                              auth_bind_pipelined_auth_failure |
                              generate_tls_vsn_tests() ++ cipher_test_cases()]},
@@ -70,11 +72,11 @@ groups() ->
                                        auth_bind_compression_session,
                                        bind_server_generated_resource]},
           {just_tls,all_groups()},
+          {just_tls_verify_peer, [{group, verify_peer}]},
+          {just_tls_verify_selfsigned_peer, [{group, verify_peer}]},
           {fast_tls,all_groups()}
         ],
-% TODO
-%   ct_helper:repeat_all_until_all_ok(G).
-    G.
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_groups()->
     [{group, c2s_noproc},
@@ -146,6 +148,10 @@ init_per_group(feature_order, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
+init_per_group(just_tls_verify_peer,Config)->
+    init_per_group(just_tls, [{verify_fun, peer}|Config]);
+init_per_group(just_tls_verify_selfsigned_peer,Config)->
+    init_per_group(just_tls, [{verify_fun, selfsigned_peer}|Config]);
 init_per_group(just_tls,Config)->
     case catch list_to_integer(erlang:system_info(otp_release)) of
         I when is_integer(I) andalso I>=19 ->
@@ -566,13 +572,77 @@ bind_server_generated_resource(Config) ->
 
 %% Checks, that verify_peer server option works
 connect_using_client_certificate(Config)->
-    CertFileName = filename:join(path_helper:repo_dir(Config), "tools/ssl/alice_cert.pem"),
-    ClientKeyFile = filename:join(path_helper:repo_dir(Config), "tools/ssl/alice_key.pem"),
+    check_connect_and_starttls(ca_signed, Config).
+
+connect_without_client_certificate(Config) ->
+    check_connect_and_starttls(no_cert, Config).
+
+connect_using_self_signed_client_certificate(Config)->
+    check_connect_and_starttls(self_signed, Config).
+
+%%--------------------------------------------------------------------
+%% Internal functions
+%%--------------------------------------------------------------------
+
+%% This matrix represents the current behaviour,
+%% not the best possible or the most predictable one.
+%% Corresponds to "SSL behaviour matrix" in the docs.
+verify_peer_results_matrix() ->
+    [#{tls_module => just_tls, client_cert_type => ca_signed, result => succeeds},
+     #{tls_module => fast_tls, client_cert_type => ca_signed, result => succeeds},
+
+     #{tls_module => just_tls, client_cert_type => self_signed, result => fails},
+     #{tls_module => fast_tls, client_cert_type => self_signed, result => succeeds},
+
+     #{tls_module => just_tls, client_cert_type => no_cert, result => succeeds},
+     #{tls_module => fast_tls, client_cert_type => no_cert, result => succeeds},
+
+     #{tls_module => just_tls, verify_fun => selfsigned_peer,
+       client_cert_type => ca_signed, result => succeeds},
+     #{tls_module => just_tls, verify_fun => selfsigned_peer,
+       client_cert_type => self_signed, result => succeeds},
+     #{tls_module => just_tls, verify_fun => selfsigned_peer,
+       client_cert_type => no_cert, result => succeeds},
+
+     #{tls_module => just_tls, verify_fun => peer,
+       client_cert_type => ca_signed, result => succeeds},
+     #{tls_module => just_tls, verify_fun => peer,
+       client_cert_type => self_signed, result => fails},
+     #{tls_module => just_tls, verify_fun => peer,
+       client_cert_type => no_cert, result => succeeds}
+    ].
+
+%% Returns fails or succeeds
+verify_peer_result(TlsModule, VerifyFun, ClientCertType) ->
+     Map = verify_peer_result_map(),
+     maps:get({TlsModule, VerifyFun, ClientCertType}, Map).
+
+verify_peer_result_map() ->
+     List = [{{TlsModule, maps:get(verify_fun, Case, undefined), ClientCertType}, Result}
+             || #{tls_module := TlsModule,
+                  client_cert_type := ClientCertType,
+                  result := Result} = Case
+                  <- verify_peer_results_matrix()],
+     maps:from_list(List).
+
+check_connect_and_starttls(ClientCertType, Config) ->
+    TlsModule = ?config(tls_module, Config),
+    VerifyFun = ?config(verify_fun, Config),
+    Result = verify_peer_result(TlsModule, VerifyFun, ClientCertType),
+    check_connect_and_starttls(Result, ClientCertType, Config).
+
+check_connect_and_starttls(fails, ClientCertType, Config) ->
+    connect_and_starttls_fails(ClientCertType, Config);
+check_connect_and_starttls(succeeds, ClientCertType, Config) ->
+    connect_and_starttls_succeeds(ClientCertType, Config).
+
+connect_and_starttls_succeeds(ClientCertType, Config) ->
+    ct:comment("Check that starttls SUCCEEDS with client_cert_type=~p, verify_fun=~p",
+               [ClientCertType, ?config(verify_fun, Config)]),
     UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    %% Alice provides her certfile to escalus
-    UserSpec = set_client_ssl_opts(UserSpec0, ClientKeyFile, CertFileName),
+    UserSpec = set_client_ssl_opts_with_type(ClientCertType, UserSpec0, Config),
     Result = escalus_connection:start(UserSpec, steps_to_connect_over_ssl()),
-    ct:pal("Result ~p", [Result]),
+    ct:log("Result ~p", [Result]),
     {_, FeaturesAfterStartStream} = receive_backuped_stream_features(after_start_stream),
     {_, FeaturesAfterStartTls}    = receive_backuped_stream_features(after_starttls),
     ?assertMatch({ok, _, _}, Result),
@@ -580,26 +650,13 @@ connect_using_client_certificate(Config)->
     %% starttls cannot be started twice
     ?assertEqual(false, proplists:get_value(starttls, FeaturesAfterStartTls)).
 
-connect_without_client_certificate_fails(Config) ->
-    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    %% Client does not provide any certificate
-    ?assertThrow({timeout,proceed},
-        escalus_connection:start(UserSpec, steps_to_connect_over_ssl())).
-
-
-%% Checks, that verify_peer server option works
-connect_using_self_signed_client_certificate_fails(Config)->
-    CertFileName = filename:join(path_helper:repo_dir(Config), "tools/ssl/bob_cert.pem"),
-    ClientKeyFile = filename:join(path_helper:repo_dir(Config), "tools/ssl/bob_key.pem"),
+connect_and_starttls_fails(ClientCertType, Config) ->
+    ct:comment("Check that starttls FAILS with client_cert_type=~p, verify_fun=~p",
+               [ClientCertType, ?config(verify_fun, Config)]),
     UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
-    %% Alice provides her certfile to escalus
-    UserSpec = set_client_ssl_opts(UserSpec0, ClientKeyFile, CertFileName),
+    UserSpec = set_client_ssl_opts_with_type(ClientCertType, UserSpec0, Config),
     ?assertError({tls_alert,"bad certificate"},
         escalus_connection:start(UserSpec, steps_to_connect_over_ssl())).
-
-%%--------------------------------------------------------------------
-%% Internal functions
-%%--------------------------------------------------------------------
 
 c2s_port(Config) ->
     case ?config(c2s_port, Config) of
@@ -633,8 +690,17 @@ assert_cert_file_exists() ->
         ct:fail("cert file ~s not exists", [?CERT_FILE]).
 
 config_ejabberd_node_tls(Config, Fun) ->
-    TLSModConf = "{tls_module," ++ atom_to_list(?config(tls_module, Config)) ++ "},",
+    TLSModConf = "{tls_module," ++ atom_to_list(?config(tls_module, Config)) ++ "},"
+               ++ maybe_add_verify_fun_opt(Config),
     ejabberd_node_utils:modify_config_file([Fun(), {tls_module, TLSModConf}], Config).
+
+maybe_add_verify_fun_opt(Config) ->
+    case ?config(verify_fun, Config) of
+        undefined ->
+            "";
+        Other when is_atom(Other) ->
+            " {ssl_options, [{verify_fun, {" ++ atom_to_list(Other) ++ ", true}}]},"
+    end.
 
 mk_value_for_starttls_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, starttls,"}.
@@ -660,6 +726,19 @@ mk_value_for_starttls_required_verify_peer_config_pattern() ->
 
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].
+
+set_client_ssl_opts_with_type(ca_signed, UserSpec, Config) ->
+    %% Alice uses CA-signed certfile
+    CertFileName = filename:join(path_helper:repo_dir(Config), "tools/ssl/alice_cert.pem"),
+    ClientKeyFile = filename:join(path_helper:repo_dir(Config), "tools/ssl/alice_key.pem"),
+    set_client_ssl_opts(UserSpec, ClientKeyFile, CertFileName);
+set_client_ssl_opts_with_type(self_signed, UserSpec, Config) ->
+    %% Bob uses self-signed certfile
+    CertFileName = filename:join(path_helper:repo_dir(Config), "tools/ssl/bob_cert.pem"),
+    ClientKeyFile = filename:join(path_helper:repo_dir(Config), "tools/ssl/bob_key.pem"),
+    set_client_ssl_opts(UserSpec, ClientKeyFile, CertFileName);
+set_client_ssl_opts_with_type(no_cert, UserSpec, _Config) ->
+    UserSpec.
 
 set_client_ssl_opts(UserSpec, ClientKeyFile, ClientCertFile) ->
     assert_file_readable(ClientCertFile, certfile),

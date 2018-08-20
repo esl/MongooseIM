@@ -20,6 +20,8 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients. Won't have any effect if `verify_peer` is not enabled.
 * `crlfiles` (list of strings, default: []) - A list of paths to Certificate Revocation Lists. Not supported by `fast_tls` TLS module.
 * `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires valid `cafile`.
+* `{ssl_options, [{verify_fun, {peer, true}]}` - enables TLS peer verification against CA, only for `just_tls`.
+* `{ssl_options, [{verify_fun, {self_signed, true}]}` - enables TLS peer verification, only for `just_tls`.
 * `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
 * `starttls_required` (default: disabled) - enforces StartTLS usage.
 * `tls_module` (atom, default: `fast_tls`) - Provides a TLS library to use. `fast_tls` uses OpenSSL-based NIFs, while `just_tls` uses Erlang TLS implementation provided by OTP. They are fully interchangeable, with some exceptions (`ejabberd_c2s` options supported by only one of them are explicitly described, e.g. `crlfiles`).
@@ -39,6 +41,42 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
   Hibernation greatly reduces memory consumption of client processes, but *may* result in increased CPU consumption if a client is used *very* frequently.
   The default, recommended value of 0 means that the client processes will hibernate at every opportunity.
 * `acceptors_num` (integer, default: 100) - For TCP-based listeners: the number of processes accepting new connections on the listening socket.
+
+
+## SSL behaviour matrix
+
+This table descibes the behaviour of `starttls`, with different client certificate
+types.
+
+`tls_module`, `verify_peer` are the listener configuration options.
+`client certificate type` is the behaviour of the client.
+
+When the result is `success`, the client is allowed to proceed.
+When the result is `failure`, the client would be disconnected.
+
+`ca_signed` means that the client provides a trusted certificate.
+
+`self_signed` means that the client still provides a certificate, which would
+fail CA check.
+
+`no_cert` means that the client does not provide any certificate.
+
+
+| tls_module | verify_peer     | client certificate type | result  |
+|------------|-----------------|-------------------------|---------|
+| just_tls   |                 | ca_signed               | success |
+| fast_tls   |                 | ca_signed               | success |
+| just_tls   |                 | self_signed             | failure |
+| fast_tls   |                 | self_signed             | success |
+| just_tls   |                 | no_cert                 | success |
+| fast_tls   |                 | no_cert                 | success |
+| just_tls   | selfsigned_peer | ca_signed               | success |
+| just_tls   | selfsigned_peer | self_signed             | success |
+| just_tls   | selfsigned_peer | no_cert                 | success |
+| just_tls   | peer            | ca_signed               | success |
+| just_tls   | peer            | self_signed             | failure |
+| just_tls   | peer            | no_cert                 | success |
+
 
 ## HTTP-based services (BOSH, WebSocket, REST): `ejabberd_cowboy`
 
