@@ -30,6 +30,7 @@
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
+-define(CACERT_FILE, "priv/ssl/cacert.pem").
 -define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
 
 -import(distributed_helper, [mim/0,
@@ -54,6 +55,9 @@ groups() ->
                             invalid_stream_namespace,
                             pre_xmpp_1_0_stream]},
           {starttls, [], test_cases()},
+          {verify_peer, [], [connect_using_client_certificate,
+                             connect_without_client_certificate_fails,
+                             connect_using_self_signed_client_certificate_fails]},
           {tls, [parallel], [auth_bind_pipelined_session,
                              auth_bind_pipelined_auth_failure |
                              generate_tls_vsn_tests() ++ cipher_test_cases()]},
@@ -68,11 +72,14 @@ groups() ->
           {just_tls,all_groups()},
           {fast_tls,all_groups()}
         ],
-    ct_helper:repeat_all_until_all_ok(G).
+% TODO
+%   ct_helper:repeat_all_until_all_ok(G).
+    G.
 
 all_groups()->
     [{group, c2s_noproc},
      {group, starttls},
+     {group, verify_peer},
      {group, feature_order},
      {group, tls}].
 
@@ -119,6 +126,11 @@ init_per_group(c2s_noproc, Config) ->
 init_per_group(starttls, Config) ->
     config_ejabberd_node_tls(Config,
                              fun mk_value_for_starttls_required_config_pattern/0),
+    ejabberd_node_utils:restart_application(mongooseim),
+    Config;
+init_per_group(verify_peer, Config) ->
+    config_ejabberd_node_tls(Config,
+                             fun mk_value_for_starttls_required_verify_peer_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
     Config;
 init_per_group(tls, Config) ->
@@ -552,6 +564,39 @@ bind_server_generated_resource(Config) ->
     ?assert(is_binary(Resource)),
     ?assert(byte_size(Resource) > 0).
 
+%% Checks, that verify_peer server option works
+connect_using_client_certificate(Config)->
+    CertFileName = filename:join(path_helper:repo_dir(Config), "tools/ssl/alice_cert.pem"),
+    ClientKeyFile = filename:join(path_helper:repo_dir(Config), "tools/ssl/alice_key.pem"),
+    UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
+    %% Alice provides her certfile to escalus
+    UserSpec = set_client_ssl_opts(UserSpec0, ClientKeyFile, CertFileName),
+    Result = escalus_connection:start(UserSpec, steps_to_connect_over_ssl()),
+    ct:pal("Result ~p", [Result]),
+    {_, FeaturesAfterStartStream} = receive_backuped_stream_features(after_start_stream),
+    {_, FeaturesAfterStartTls}    = receive_backuped_stream_features(after_starttls),
+    ?assertMatch({ok, _, _}, Result),
+    ?assertEqual(true, proplists:get_value(starttls, FeaturesAfterStartStream)),
+    %% starttls cannot be started twice
+    ?assertEqual(false, proplists:get_value(starttls, FeaturesAfterStartTls)).
+
+connect_without_client_certificate_fails(Config) ->
+    UserSpec = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
+    %% Client does not provide any certificate
+    ?assertThrow({timeout,proceed},
+        escalus_connection:start(UserSpec, steps_to_connect_over_ssl())).
+
+
+%% Checks, that verify_peer server option works
+connect_using_self_signed_client_certificate_fails(Config)->
+    CertFileName = filename:join(path_helper:repo_dir(Config), "tools/ssl/bob_cert.pem"),
+    ClientKeyFile = filename:join(path_helper:repo_dir(Config), "tools/ssl/bob_key.pem"),
+    UserSpec0 = escalus_fresh:create_fresh_user(Config, ?SECURE_USER),
+    %% Alice provides her certfile to escalus
+    UserSpec = set_client_ssl_opts(UserSpec0, ClientKeyFile, CertFileName),
+    ?assertError({tls_alert,"bad certificate"},
+        escalus_connection:start(UserSpec, steps_to_connect_over_ssl())).
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
@@ -605,8 +650,22 @@ mk_value_for_starttls_required_config_pattern() ->
     {tls_config, "{certfile, \"" ++ ?CERT_FILE ++ "\"}, " ++
                  "starttls_required, {dhfile, \"" ++ ?DH_FILE ++ "\"},"}.
 
+mk_value_for_starttls_required_verify_peer_config_pattern() ->
+    {tls_config, "starttls, starttls_required, verify_peer, " ++
+                 "{certfile, \"" ++ ?CERT_FILE ++ "\"}, " ++
+                 % root CA cert file (or a chain),
+                 % required for client's certificate validation
+                 "{cafile, \"" ++ ?CACERT_FILE ++ "\"}, " ++
+                 "{dhfile, \"" ++ ?DH_FILE ++ "\"},"}.
+
 set_secure_connection_protocol(UserSpec, Version) ->
     [{ssl_opts, [{versions, [Version]}]} | UserSpec].
+
+set_client_ssl_opts(UserSpec, ClientKeyFile, ClientCertFile) ->
+    assert_file_readable(ClientCertFile, certfile),
+    assert_file_readable(ClientKeyFile, keyfile),
+    [{ssl_opts, [{certfile, ClientCertFile},
+                 {keyfile, ClientKeyFile}]} | UserSpec].
 
 start_stream_with_compression(UserSpec) ->
     ConnectionSteps = [start_stream, stream_features, maybe_use_compression],
@@ -672,4 +731,51 @@ assert_node_running(Node) ->
     case net_adm:ping(Node) of
         pong -> ok;
         pang -> ct:fail({assert_node_running, Node})
+    end.
+
+assert_file_readable(Filename, Info) ->
+    case file:read_file(Filename) of
+        {ok, _} ->
+            ok;
+        Other ->
+            ct:fail(#{error => assert_file_readable,
+                      filename => Filename,
+                      reason => Other,
+                      extra_info => Info})
+    end.
+
+try_starttls(Client) ->
+    try
+        escalus_session:starttls(Client)
+    catch Class:Reason ->
+        Stacktrace = erlang:get_stacktrace(),
+        ct:pal("Stacktrace ~p", [Stacktrace]),
+        ct:pal("Client ~p", [Client]),
+        ct:fail({startls_failed, Class, Reason})
+    end.
+
+steps_to_connect_over_ssl() ->
+    [start_stream,
+     stream_features,
+     backup_stream_features_hof(after_start_stream),
+     %% This step can override supported features
+     maybe_use_ssl,
+     backup_stream_features_hof(after_starttls),
+     authenticate].
+
+%% Produces a higher-order function
+backup_stream_features_hof(Tag) ->
+    ReportToPid = self(), %% The test case process
+    fun(Conn, Features) -> backup_stream_features(Conn, Features, Tag, ReportToPid) end.
+
+backup_stream_features(Conn, Features, Tag, ReportToPid) ->
+    ReportToPid ! {backup_stream_features, Tag, Conn, Features},
+    {Conn, Features}.
+
+receive_backuped_stream_features(Tag) ->
+    receive
+        {backup_stream_features, Tag, Conn, Features} ->
+            {Conn, Features}
+    after 0 ->
+        ct:fail(no_backuped_stream_features)
     end.

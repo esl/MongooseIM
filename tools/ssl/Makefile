@@ -1,7 +1,7 @@
 CA_SUB  = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Fake CA
 SRV_SUB = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Server
 
-all: ca/cacert.pem fake_cert.pem fake_pubkey.pem fake_privkey.pem fake_server.pem fake_dh_server.pem
+all: ca/cacert.pem fake_cert.pem fake_pubkey.pem fake_privkey.pem fake_server.pem fake_dh_server.pem alice_cert.pem bob_cert.pem
 
 ca/cacert.pem ca/cakey.pem: openssl-ca.cnf
 	mkdir -p ca
@@ -39,3 +39,34 @@ ca/serial.txt:
 clean:
 	-rm -f ca/*
 	-rm fake_cert.csr fake_cert.pem fake_key.pem fake_server.pem
+	-rm alice_key.pem alice_csr.pem alice_cert.pem
+
+
+# Based on article
+# https://medium.com/@sevcsik/authentication-using-https-client-certificates-3c9d270e8326
+# Alice has valid cert.
+# Bob has self-signed cert (invalid).
+
+
+# Create a key and a Certificate Signing Request for Alice
+alice_key.pem:
+	openssl req -newkey rsa:4096 -keyout alice_key.pem \
+		-out alice_csr.pem -nodes -days 365 -subj "/CN=Alice"
+
+# We sign Alice’s CSR with our key and save it as a certificate.
+# Here, we act as a Certificate Authority,
+# so we supply our certificate and key via the -CA parameters
+alice_cert.pem: alice_key.pem ca/cacert.pem
+	openssl x509 -req -in alice_csr.pem -CA ca/cacert.pem -CAkey ca/cakey.pem \
+		-out alice_cert.pem -set_serial 01 -days 365
+
+
+# Create a key and a Certificate Signing Request for Bob
+bob_key.pem:
+	openssl req -newkey rsa:4096 -keyout bob_key.pem \
+		-out bob_csr.pem -nodes -days 365 -subj "/CN=Bob"
+
+# Bob just signs his certificate on his own, without CA:
+bob_cert.pem: bob_key.pem ca/cacert.pem
+	openssl x509 -req -in bob_csr.pem -signkey bob_key.pem \
+		-out bob_cert.pem -days 365
