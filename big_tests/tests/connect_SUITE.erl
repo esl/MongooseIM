@@ -679,7 +679,12 @@ connect_and_starttls_succeeds(ClientCertType, Config) ->
     ?assertMatch({ok, _, _}, Result),
     ?assertEqual(true, proplists:get_value(starttls, FeaturesAfterStartStream)),
     %% starttls cannot be started twice
-    ?assertEqual(false, proplists:get_value(starttls, FeaturesAfterStartTls)).
+    ?assertEqual(false, proplists:get_value(starttls, FeaturesAfterStartTls)),
+    %% Jid should be "Alice@localhost" in case of pki (from certificate)
+    ct:log("Full session list ~p", [rpc(mim(), ejabberd_sm, get_full_session_list, [])]),
+%   {ok, Client, _} = Result,
+%   ?assertEqual(<<"Alice@localhost">>, escalus_client:short_jid(Client)),
+    ok.
 
 connect_and_starttls_fails(ClientCertType, Config) ->
     ct:comment("Check that starttls FAILS with client_cert_type=~p, verify_fun=~p",
@@ -798,6 +803,12 @@ set_client_ssl_opts_with_type(self_signed, UserSpec, Config) ->
 set_client_ssl_opts_with_type(no_cert, UserSpec, _Config) ->
     UserSpec.
 
+set_client_ssl_opts(UserSpec, ClientKeyFile, ClientCertFile) ->
+    assert_file_readable(ClientCertFile, certfile),
+    assert_file_readable(ClientKeyFile, keyfile),
+    [{ssl_opts, [{certfile, ClientCertFile},
+                 {keyfile, ClientKeyFile}]} | UserSpec].
+
 set_client_auth_method(UserSpec, Config) ->
     case ?config(auth_method, Config) of
         pki ->
@@ -809,12 +820,6 @@ set_client_auth_method(UserSpec, Config) ->
 set_pki_client_auth_method(UserSpec) ->
     [{auth, {escalus_auth, auth_sasl_external}},
      {endpoint, {server, <<"-">>}}|UserSpec].
-
-set_client_ssl_opts(UserSpec, ClientKeyFile, ClientCertFile) ->
-    assert_file_readable(ClientCertFile, certfile),
-    assert_file_readable(ClientKeyFile, keyfile),
-    [{ssl_opts, [{certfile, ClientCertFile},
-                 {keyfile, ClientKeyFile}]} | UserSpec].
 
 start_stream_with_compression(UserSpec) ->
     ConnectionSteps = [start_stream, stream_features, maybe_use_compression],
@@ -910,7 +915,9 @@ steps_to_connect_over_ssl() ->
      %% This step can override supported features
      maybe_use_ssl,
      backup_stream_features_hof(after_starttls),
-     authenticate].
+     authenticate,
+     bind,
+     session].
 
 %% Produces a higher-order function
 backup_stream_features_hof(Tag) ->
