@@ -61,6 +61,7 @@ groups() ->
                              connect_without_client_certificate,
                              connect_using_self_signed_client_certificate]},
           {pki_auth, [], [pki_auth_using_client_certificate,
+                          pki_auth_without_client_certificate,
                           pki_auth_using_self_signed_client_certificate]},
           {tls, [parallel], [auth_bind_pipelined_session,
                              auth_bind_pipelined_auth_failure |
@@ -596,6 +597,9 @@ connect_using_self_signed_client_certificate(Config)->
 %% Checks, that doc/authentication-methods/client-certificate.md works
 pki_auth_using_client_certificate(Config) ->
     check_connect_starttls_and_auth(ca_signed, Config).
+
+pki_auth_without_client_certificate(Config) ->
+    check_connect_starttls_and_auth(no_cert, Config).
 
 pki_auth_using_self_signed_client_certificate(Config) ->
     check_connect_starttls_and_auth(self_signed, Config).
