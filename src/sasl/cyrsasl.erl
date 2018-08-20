@@ -68,7 +68,8 @@
               error/0]).
 
 -callback mech_new(Host :: jid:server(),
-                   Creds :: mongoose_credentials:t()) -> {ok, tuple()}.
+                   Creds :: mongoose_credentials:t()) -> {ok, tuple()}
+                                                         | {error, binary()}.
 
 -callback mech_step(State :: tuple(),
                     ClientIn :: binary()) -> {ok, mongoose_credentials:t()}
@@ -156,16 +157,26 @@ server_start(State, Mech, ClientIn) ->
         true ->
             case lookup_mech(Mech) of
                 [#sasl_mechanism{module = Module}] ->
-                    {ok, MechState} = Module:mech_new(State#sasl_state.myname,
-                                                      State#sasl_state.creds),
-                    server_step(State#sasl_state{mech_mod = Module,
-                                                 mech_state = MechState},
-                                ClientIn);
+                    start_new_mech(State, Module, ClientIn);
                 _ ->
                     {error, <<"no-mechanism">>}
             end;
         false ->
             {error, <<"no-mechanism">>}
+    end.
+
+start_new_mech(State, Module, ClientIn) ->
+    case Module:mech_new(State#sasl_state.myname,
+                         State#sasl_state.creds) of
+        {ok, MechState} ->
+            server_step(State#sasl_state{mech_mod = Module,
+                                         mech_state = MechState},
+                        ClientIn);
+        {error, Reason} when is_binary(Reason) ->
+            ?WARNING_MSG("issue=start_new_mech_failed "
+                         "module=~p "
+                         "reason=~p", [Module, Reason]),
+            {error, Reason}
     end.
 
 -spec lookup_mech(Mech :: mechanism()) -> [sasl_mechanism()].

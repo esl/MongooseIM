@@ -43,9 +43,15 @@ stop() ->
     ok.
 
 -spec mech_new(Host :: ejabberd:server(),
-               Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}.
-mech_new(_Host, Creds) ->
-    Cert = mongoose_credentials:get(Creds, client_cert),
+               Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}
+                                                     | {error, binary()}.
+mech_new(Host, Creds) ->
+    Cert = mongoose_credentials:get(Creds, client_cert, undefined),
+    mech_new(Host, Creds, Cert).
+
+mech_new(_Host, _Creds, undefined) ->
+    {error, <<"client-certificate-missing">>};
+mech_new(_Host, Creds, Cert) ->
     DerCert = public_key:pkix_encode('Certificate', Cert, plain),
     PemCert = public_key:pem_encode([{'Certificate', DerCert, not_encrypted}]),
     CertFields = get_common_name(Cert) ++ get_xmpp_addresses(Cert),
