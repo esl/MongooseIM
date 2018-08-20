@@ -238,6 +238,19 @@ create_room(Domain, Identifier, RoomName, Creator, Subject) ->
             E
     end.
 
+change_room_config(Domain, User, RoomID, RoomName, Subject) ->
+    MUCLightDomain = gen_mod:get_module_opt_subhost(
+                       Domain, mod_muc_light, mod_muc_light:default_host()),
+    UserUS = jid:binary_to_bare(User),
+    ConfigReq = #config{ raw_config =
+                               [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
+    case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) of
+        {ok, RoomJID, _}  ->
+            jid:to_binary(RoomJID);
+        {error, _Reason} = E ->
+            E
+    end.
+
 make_room_config(Name, Subject) ->
     #create{raw_config = [{<<"roomname">>, Name},
                           {<<"subject">>, Subject}]
