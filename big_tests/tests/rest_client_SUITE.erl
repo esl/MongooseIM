@@ -284,7 +284,7 @@ config_can_be_changed_by_owner(Config) ->
         assert_property_value(<<"name">>, <<"old_name">>, RoomInfo),
 
         {{<<"200">>, <<"OK">>}, {_}} =
-            given_config_change({alice, Alice}, RoomJID, <<"new_name">>, <<"new_subject">>),
+            when_config_change({alice, Alice}, RoomJID, <<"new_name">>, <<"new_subject">>),
         NewRoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_property_value(<<"name">>, <<"new_name">>, NewRoomInfo),
         assert_property_value(<<"subject">>, <<"new_subject">>, NewRoomInfo)
@@ -295,7 +295,7 @@ config_cannot_be_changed_by_member(Config) ->
         RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
         RoomJID = room_jid(RoomID, Config),
         {{<<"403">>,<<"Forbidden">>},<<>>} =
-            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
+            when_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
         NewRoomInfo = get_room_info({bob, Bob}, RoomID),
         assert_property_value(<<"name">>,<<"new_room_name">>, NewRoomInfo)
     end).
@@ -307,7 +307,7 @@ config_can_be_changed_by_all(Config) ->
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_property_value(<<"name">>,<<"new_room_name">>,RoomInfo),
         {{<<"200">>, <<"OK">>}, {_}} =
-            given_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
+            when_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
         NewRoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_property_value(<<"name">>,<<"other_name">>,NewRoomInfo),
         {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Bob),
@@ -646,7 +646,7 @@ given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
     maybe_wait_for_aff_stanza(Invitee, Invitee),
     maybe_wait_for_aff_stanza(Inviter, Invitee).
 
-given_config_change(User, RoomID, NewName, NewSubject) ->
+when_config_change(User, RoomID, NewName, NewSubject) ->
     Creds = credentials(User),
     Config = #{name => NewName, subject => NewSubject},
     Path = <<"/rooms/", RoomID/binary>>,
