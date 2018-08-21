@@ -21,6 +21,9 @@
          delete/4]
          ).
 
+-import(muc_light_helper,
+        [set_mod_config/3]).
+
 -import(escalus_ejabberd, [rpc/3]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
@@ -30,6 +33,7 @@
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
+-define(MUCHOST, <<"muclight.localhost">>).
 
 all() ->
     [{group, messages},
@@ -128,7 +132,7 @@ end_per_group(_GN, C) ->
 
 init_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
     DefaultConfig = dynamic_modules:save_modules(domain(Config), Config),
-    set_mod_config(all_can_configure, true, DefaultConfig),
+    set_mod_config(all_can_configure, true, ?MUCHOST),
     escalus:init_per_testcase(config_can_be_changed_by_all, DefaultConfig);
 
 init_per_testcase(TC, Config) ->
@@ -147,7 +151,7 @@ init_per_testcase(TC, Config) ->
     rest_helper:maybe_skip_mam_test_cases(TC, MAMTestCases, Config).
 
 end_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
-    set_mod_config(all_can_configure, false, Config),
+    set_mod_config(all_can_configure, false, ?MUCHOST),
     dynamic_modules:restore_modules(domain(Config), Config),
     escalus:end_per_testcase(config_can_be_changed_by_all, Config);
 
@@ -1158,10 +1162,6 @@ break_stuff(Config) ->
 room_jid(RoomID, Config) ->
     MUCLightHost = ?config(muc_light_host, Config),
     <<RoomID/binary, "@", MUCLightHost/binary>>.
-
-set_mod_config(K, V, Config) ->
-    MUCLightHost = ?config(muc_light_host, Config),
-    true = rpc(gen_mod, set_module_opt_by_subhost, [MUCLightHost, mod_muc_light, K, V]).
 
 domain(Config) ->
     ?config(muc_light_host, Config).

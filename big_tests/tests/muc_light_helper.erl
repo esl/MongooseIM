@@ -7,6 +7,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
@@ -235,3 +236,6 @@ clear_db() ->
 ver(Int) ->
   <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 
+-spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
+set_mod_config(K, V, Host) ->
+        true = rpc(gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
