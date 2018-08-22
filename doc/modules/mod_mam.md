@@ -218,6 +218,8 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
 | `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
 | `[Host, mod_mam_odbc_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
+| `[Host, mod_mam_odbc_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
+| `[Host, mod_mam_muc_odbc_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
+| `[Host, mod_mam_muc_odbc_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
 | `[Host, backends, mod_mam, lookup]` | histogram | Time it took to perform a lookup in an archive. |
 | `[Host, backends, mod_mam, archive]` | histogram | Time it took to save one message in an archive. |
-
