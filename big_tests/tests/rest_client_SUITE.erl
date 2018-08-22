@@ -287,7 +287,7 @@ config_can_be_changed_by_owner(Config) ->
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_property_value(<<"name">>, <<"old_name">>, RoomInfo),
 
-        {{<<"200">>, <<"OK">>}, {_}} =
+        {{<<"204">>,<<"No Content">>},<<>>} =
             when_config_change({alice, Alice}, RoomJID, <<"new_name">>, <<"new_subject">>),
         NewRoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_property_value(<<"name">>, <<"new_name">>, NewRoomInfo),
@@ -310,12 +310,10 @@ config_can_be_changed_by_all(Config) ->
         RoomJID = room_jid(RoomID, Config),
         RoomInfo = get_room_info({alice, Alice}, RoomID),
         assert_property_value(<<"name">>,<<"new_room_name">>,RoomInfo),
-        {{<<"200">>, <<"OK">>}, {_}} =
+        {{<<"204">>,<<"No Content">>},<<>>} =
             when_config_change({bob, Bob}, RoomJID, <<"other_name">>, <<"other_subject">>),
         NewRoomInfo = get_room_info({alice, Alice}, RoomID),
-        assert_property_value(<<"name">>,<<"other_name">>,NewRoomInfo),
-        {{<<"204">>, _}, _} = remove_user_from_a_room({alice, Alice}, RoomID, Bob),
-        escalus:wait_for_stanza(Bob)
+        assert_property_value(<<"name">>,<<"other_name">>,NewRoomInfo)
     end).
 
 rooms_can_be_listed(Config) ->
@@ -653,7 +651,7 @@ given_user_invited({_, Inviter} = Owner, RoomID, Invitee) ->
 when_config_change(User, RoomID, NewName, NewSubject) ->
     Creds = credentials(User),
     Config = #{name => NewName, subject => NewSubject},
-    Path = <<"/rooms/", RoomID/binary>>,
+    Path = <<"/rooms/", RoomID/binary, "/config">>,
     rest_helper:putt(client, Path, Config, Creds).
 
 maybe_wait_for_aff_stanza(#client{} = Client, Invitee) ->
