@@ -74,29 +74,41 @@ expand_group(GroupName, Groups) ->
                       [GroupName]),
             [];
         GroupSpec ->
-            expand_group_spec(GroupSpec)
+            %% Remove this group from all groups list to avoid infinite loops
+            Groups2 = remove_group(GroupName, Groups),
+            expand_group_spec(GroupSpec, Groups2)
     end.
 
 
-expand_group_spec({GroupName, _Opts, Tests}) when is_atom(GroupName) ->
-    expand_group_path(atom_to_list(GroupName), Tests);
-expand_group_spec(GroupSpec) ->
+expand_group_spec({GroupName, _Opts, Tests}, Groups) when is_atom(GroupName) ->
+    expand_group_path(atom_to_list(GroupName), Tests, Groups);
+expand_group_spec(GroupSpec, _Groups) ->
     io:format(standard_error,
               "expand_group_spec:unknown_group_spec_format group_spec=~p",
               [GroupSpec]),
     [].
 
 
-expand_group_path(Path, Tests) ->
-    lists:flatmap(fun(Test) -> expand_group_test(Path, Test) end, Tests).
+expand_group_path(Path, Tests, Groups) ->
+    lists:flatmap(fun(Test) -> expand_group_test(Path, Test, Groups) end, Tests).
 
-expand_group_test(Path, Test) when is_atom(Test) ->
+expand_group_test(Path, Test, _Groups) when is_atom(Test) ->
     [Path ++ ":" ++ atom_to_list(Test)];
-expand_group_test(Path, {GroupName, _Opts, Tests}) when is_atom(GroupName) ->
+expand_group_test(Path, {GroupName, _Opts, Tests}, Groups) when is_atom(GroupName) ->
     Path2 = Path ++ ":" ++ atom_to_list(GroupName),
-    expand_group_path(Path2, Tests);
-expand_group_test(_Path, GroupSpec) ->
+    expand_group_path(Path2, Tests, Groups);
+expand_group_test(Path, {group, GroupName}, Groups) when is_atom(GroupName) ->
+    Path2 = Path ++ ":" ++ atom_to_list(GroupName),
+    Paths = expand_group(GroupName, Groups),
+    [Path2|prepend_path(Path, Paths)];
+expand_group_test(_Path, GroupSpec, _Groups) ->
     io:format(standard_error,
               "expand_group_spec:unknown_group_spec_format group_spec=~p",
               [GroupSpec]),
     [].
+
+prepend_path(PrefixPath, Paths) ->
+    lists:map(fun(Path) -> PrefixPath ++ ":" ++ Path end, Paths).
+
+remove_group(GroupName, Groups) ->
+    lists:keydelete(GroupName, 1, Groups).
