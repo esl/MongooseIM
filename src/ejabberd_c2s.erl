@@ -300,7 +300,7 @@ c2s_stream_error(Error, StateData) ->
 stream_start_by_protocol_version(<<"1.0">>, #state{} = S) ->
     stream_start_negotiate_features(S);
 stream_start_by_protocol_version(_Pre10, S) ->
-    c2s_stream_error(mongoose_xmpp_errors:unsupported_version(), S).
+    stream_start_error(mongoose_xmpp_errors:unsupported_version(), S).
 
 stream_start_negotiate_features(#state{} = S) ->
     send_header(S, S#state.server, <<"1.0">>, default_language()),
