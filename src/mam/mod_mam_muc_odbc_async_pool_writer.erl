@@ -30,6 +30,7 @@
          terminate/2, code_change/3]).
 
 -define(PER_MESSAGE_FLUSH_TIME, [?MODULE, per_message_flush_time]).
+-define(FLUSH_TIME, [?MODULE, flush_time]).
 -define(DEFAULT_POOL_SIZE, 32).
 
 -include("mongoose.hrl").
@@ -87,6 +88,8 @@ worker_number(Host, ArcID) ->
 
 -spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
+    mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
+    mongoose_metrics:ensure_metric(Host, ?FLUSH_TIME, histogram),
     PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
     mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_message, 1),
@@ -256,6 +259,7 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
     {FlushTime, NewState} = timer:tc(fun do_run_flush/2, [MessageCount, State]),
     mongoose_metrics:update(Host, ?PER_MESSAGE_FLUSH_TIME, round(FlushTime / MessageCount)),
+    mongoose_metrics:update(Host, ?FLUSH_TIME, FlushTime),
     NewState.
 
 do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
