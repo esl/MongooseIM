@@ -116,7 +116,7 @@ process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) 
             List = mod_inbox_backend:get_inbox(Username, Host, Params),
             forward_messages(List, QueryId, To),
             BinCount = integer_to_binary(length(List)),
-            Res = IQ#iq{type = result, sub_el = [build_result_iq(BinCount)]},
+            Res = IQ#iq{type = result, sub_el = [build_result_iq(BinCount, BinCount, BinCount)]},
             {Acc, Res}
     end.
 
@@ -209,10 +209,16 @@ build_result_el(Msg, QueryId, BinUnread, Timestamp) ->
     #xmlel{name = <<"result">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}, {<<"unread">>, BinUnread}] ++
     QueryAttr, children = [Forwarded]}.
 
--spec build_result_iq(count_bin()) -> exml:element().
-build_result_iq(CountBin) ->
-    #xmlel{name = <<"count">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-        children = [#xmlcdata{content = CountBin}]}.
+-spec build_result_iq(count_bin(), unread_bin(), active_bin()) -> exml:element().
+build_result_iq(CountBin, UnreadBin, ActiveBin) ->
+    #xmlel{name = <<"fin">>, attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+        children = [build_result_el(<<"count">>, CountBin),
+                    build_result_el(<<"unread-messages">>, UnreadBin),
+                    build_result_el(<<"active-conversations">>, ActiveBin)]}.
+
+-spec build_result_el(name_bin(), count_bin()) -> exml:element().
+build_result_el(Name, CountBin) ->
+    #xmlel{name = Name, children = [#xmlcdata{content = CountBin}]}.
 
 -spec build_forward_el(content(), erlang:timestamp()) -> exml:element().
 build_forward_el(Content, Timestamp) ->
