@@ -54,9 +54,6 @@ handle_request(Method, JSONData, Req, State) ->
 handle_request_by_method(<<"PUT">>,
                          #{<<"name">> := Name, <<"subject">> := Subject} = JSONData,
                          Req, State) ->
-    assert_room_id_set(Req, State),
+    mongoose_client_api_rooms:assert_room_id_set(Req, State),
     #{user := User, jid := #jid{lserver = Server}, room_id := RoomID} = State,
     mod_muc_light_commands:change_room_config(Server, RoomID, Name, User, Subject).
-
-assert_room_id_set(_Req, #{room_id := _} = _State) ->
-        ok.
