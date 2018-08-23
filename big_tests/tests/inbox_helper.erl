@@ -156,7 +156,7 @@ get_unread_count(Msg) ->
   binary_to_integer(Val).
 
 get_inbox_count(Packet) ->
-  [Val] = exml_query:paths(Packet, [{element_with_ns, ?NS_ESL_INBOX}, cdata]),
+  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"count">>}, cdata]),
   case Val of
     <<>> ->
       ct:fail(#{ error => no_unread_count,
