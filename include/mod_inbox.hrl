@@ -8,6 +8,12 @@
 
 -type count_bin() :: binary().
 
+-type unread_bin() :: binary().
+
+-type active_bin() :: binary().
+
+-type name_bin() :: binary().
+
 -type id() :: binary().
 
 -type get_inbox_res() :: list(inbox_res()).
