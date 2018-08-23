@@ -28,6 +28,8 @@
 -export([invite_to_room/4]).
 -export([change_affiliation/5]).
 -export([delete_room/3]).
+-export([change_room_config/5]).
+
 
 -include("mod_muc_light.hrl").
 -include("mongoose.hrl").
@@ -85,6 +87,24 @@ commands() ->
         {subject, binary}
        ]},
       {result, {id, binary}}],
+
+     [{name, change_muc_light_room_configuration},
+      {category, <<"muc-lights">>},
+      {subcategory, <<"config">>},
+      {desc, <<"Change configuration of MUC Light room.">>},
+      {module, ?MODULE},
+      {function, change_room_config},
+      {action, update},
+      {identifiers, [domain]},
+      {args,
+       [
+        {domain, binary},
+        {id, binary},
+        {name, binary},
+        {user, binary},
+        {subject, binary}
+       ]},
+      {result, ok}],
 
      [{name, invite_to_room},
       {category, <<"muc-lights">>},
@@ -163,6 +183,19 @@ change_affiliation(Domain, RoomID, Sender, Recipient0, Affiliation) ->
                     [affiliate(jid:to_binary(Recipient1), Affiliation)]),
     ejabberd_router:route(S, R, iq(jid:to_binary(S), jid:to_binary(R),
                                    <<"set">>, [Changes])).
+
+change_room_config(Domain, RoomID, RoomName, User, Subject) ->
+    MUCLightDomain = gen_mod:get_module_opt_subhost(
+                       Domain, mod_muc_light, mod_muc_light:default_host()),
+    UserUS = jid:binary_to_bare(User),
+    ConfigReq = #config{ raw_config =
+                         [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
+    case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) of
+        {ok, RoomJID, _}  ->
+            ok;
+        {error, _Reason} = E ->
+            E
+    end.
 
 send_message(Domain, RoomName, Sender, Message) ->
     Body = #xmlel{name = <<"body">>,

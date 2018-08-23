@@ -7,6 +7,7 @@
 -export([is_authorized/2]).
 -export([allowed_methods/2]).
 -export([resource_exists/2]).
+-export([assert_room_id_set/2]).
 
 -export([to_json/2]).
 -export([from_json/2]).

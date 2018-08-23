@@ -25,7 +25,7 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 %% API
--export([handle_request/4, maybe_forget/2]).
+-export([handle_request/4, maybe_forget/2, process_request/4]).
 
 %% Callbacks
 -export([participant_limit_check/2]).
