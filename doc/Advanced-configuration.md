@@ -290,7 +290,7 @@ SSL configuration options for MySQL:
 
 An example configuration can look as follows:
 
-`{odbc_server, {mysql, "localhost", "username", "database", "pass",
+`{odbc_server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
                [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}`
 
 #### PostgreSQL
@@ -316,7 +316,7 @@ SSL configuration options for PGSQL:
 
 An example configuration can look as follows:
 
-`{odbc_server, {pgsql, "localhost", "username", "database", "pass",
+`{odbc_server, {pgsql, "localhost", 5432, "mydb", "mim", "mimpass",
                [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
 
 ### ODBC SSL connection setup

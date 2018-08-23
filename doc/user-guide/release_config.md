@@ -79,11 +79,11 @@ Generated build configs:
 ```sh
 $ cat configure.out rel/configure.vars.config
 export MONGOOSEIM_CONFIGURED="yes"
-export APPS="seestar mysql odbc pgsql redo riakc riak_pb protobuffs"
+export APPS="mysql eodbc epgsql eredis riakc nksip cqerl tirerl erlcloud"
 export PREFIX="/tmp/mim-sandbox-system"
 export RELTOOL_VARS="rel/configure.vars.config"
-export RUNNER_USER="erszcz"
 export SYSTEM="yes"
+export RUNNER_USER="erszcz"
 export BIN_DIR="$PREFIX/usr/bin"
 export ETC_DIR="$PREFIX/etc/mongooseim"
 export LIB_DIR="$PREFIX/usr/lib/mongooseim"
