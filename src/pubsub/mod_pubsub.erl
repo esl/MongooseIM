@@ -996,37 +996,10 @@ do_route(ServerHost, Access, Plugins, Host, From,
          #jid{luser = <<>>, lresource = <<>>} = To,
          #xmlel{ name = <<"iq">> } = Packet) ->
     case jlib:iq_query_info(Packet) of
-        #iq{type = get, xmlns = ?NS_DISCO_INFO, sub_el = SubEl, lang = Lang} = IQ ->
-            #xmlel{attrs = QAttrs} = SubEl,
-            Node = xml:get_attr_s(<<"node">>, QAttrs),
-            Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                           [],
-                                           [ServerHost, ?MODULE, <<>>, <<>>]),
-            Res = case iq_disco_info(Host, Node, From, Lang) of
-                      {result, IQRes} ->
-                          jlib:iq_to_xml(IQ#iq{type = result,
-                                               sub_el =
-                                               [#xmlel{name = <<"query">>,
-                                                       attrs = QAttrs,
-                                                       children = IQRes ++ Info}]});
-                      {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
-                  end,
-            ejabberd_router:route(To, From, Res);
-        #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
-            #xmlel{attrs = QAttrs} = SubEl,
-            Node = xml:get_attr_s(<<"node">>, QAttrs),
-            Res = case iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)) of
-                      {result, IQRes} ->
-                          jlib:iq_to_xml(IQ#iq{type = result,
-                                               sub_el =
-                                               [#xmlel{name = <<"query">>,
-                                                       attrs = QAttrs,
-                                                       children = IQRes}]});
-                      {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
-                  end,
-            ejabberd_router:route(To, From, Res);
+        #iq{type = get, xmlns = ?NS_DISCO_INFO} = IQ ->
+            route_disco_info(ServerHost, Host, From, To, Packet, IQ);
+        #iq{type = get, xmlns = ?NS_DISCO_ITEMS} = IQ ->
+            route_disco_items(Host, From, To, Packet, IQ);
         #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
             Res = case iq_pubsub(Host, ServerHost, From, IQType,
                                  SubEl, Lang, Access, Plugins)
@@ -1096,6 +1069,47 @@ do_route(_ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
         _ ->
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
             ejabberd_router:route(To, From, Err)
+    end.
+
+route_disco_info(ServerHost, Host, From, To, Packet, IQ) ->
+    Stanza = route_disco_info_stanza(ServerHost, Host, From, Packet, IQ),
+    ejabberd_router:route(To, From, Stanza).
+
+route_disco_info_stanza(ServerHost, Host, From, Packet,
+                        IQ = #iq{sub_el = SubEl, lang = Lang}) ->
+    #xmlel{attrs = QAttrs} = SubEl,
+    Node = xml:get_attr_s(<<"node">>, QAttrs),
+    Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
+                                   [],
+                                   [ServerHost, ?MODULE, <<>>, <<>>]),
+    case iq_disco_info(Host, Node, From, Lang) of
+        {result, IQRes} ->
+            jlib:iq_to_xml(IQ#iq{type = result,
+                                 sub_el =
+                                 [#xmlel{name = <<"query">>,
+                                         attrs = QAttrs,
+                                         children = IQRes ++ Info}]});
+        {error, Error} ->
+            jlib:make_error_reply(Packet, Error)
+    end.
+
+route_disco_items(Host, From, To, Packet, IQ) ->
+    Stanza = route_disco_items_stanza(Host, From, Packet, IQ),
+    ejabberd_router:route(To, From, Stanza).
+
+route_disco_items_stanza(Host, From, Packet,
+                         IQ = #iq{sub_el = SubEl}) ->
+    #xmlel{attrs = QAttrs} = SubEl,
+    Node = xml:get_attr_s(<<"node">>, QAttrs),
+    case iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)) of
+        {result, IQRes} ->
+            jlib:iq_to_xml(IQ#iq{type = result,
+                                 sub_el =
+                                 [#xmlel{name = <<"query">>,
+                                         attrs = QAttrs,
+                                         children = IQRes}]});
+        {error, Error} ->
+            jlib:make_error_reply(Packet, Error)
     end.
 
 node_disco_info(Host, Node, From) ->
