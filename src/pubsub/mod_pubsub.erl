@@ -1733,9 +1733,7 @@ delete_node(Host, Node, Owner) ->
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   broadcast_removed_node(RNode, SubsByDepth),
-                                  ejabberd_hooks:run(pubsub_delete_node,
-                                                     ServerHost,
-                                                     [ServerHost, RH, RN, RNidx])
+                                  run_pubsub_delete_node_hook(ServerHost, RNode)
                           end,
                           Removed),
             case Result of
@@ -1744,11 +1742,7 @@ delete_node(Host, Node, Owner) ->
             end;
         {result, {_, {_, {Result, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
-                                  {RH, RN} = RNode#pubsub_node.nodeid,
-                                  RNidx = RNode#pubsub_node.id,
-                                  ejabberd_hooks:run(pubsub_delete_node,
-                                                     ServerHost,
-                                                     [ServerHost, RH, RN, RNidx])
+                                  run_pubsub_delete_node_hook(ServerHost, RNode)
                           end,
                           Removed),
             case Result of
@@ -1756,9 +1750,7 @@ delete_node(Host, Node, Owner) ->
                 _ -> {result, Result}
             end;
         {result, {TNode, {_, Result}}} ->
-            Nidx = TNode#pubsub_node.id,
-            ejabberd_hooks:run(pubsub_delete_node, ServerHost,
-                               [ServerHost, Host, Node, Nidx]),
+            run_pubsub_delete_node_hook(ServerHost, TNode),
             case Result of
                 default -> {result, []};
                 _ -> {result, Result}
@@ -2010,8 +2002,6 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
-            Type = TNode#pubsub_node.type,
-            Options = TNode#pubsub_node.options,
             BrPayload = case Broadcast of
                             broadcast -> Payload;
                             PluginPayload -> PluginPayload
@@ -2019,13 +2009,8 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
             ejabberd_hooks:run(pubsub_publish_item, ServerHost,
                                [ServerHost, Node, Publisher, service_jid(Host), ItemId, BrPayload]),
             set_cached_item(Host, Nidx, ItemId, Publisher, BrPayload),
-            case get_option(Options, deliver_notifications) of
-                true ->
-                    broadcast_publish_item(Host, Node, Nidx, Type, Options, ItemId,
-                                           Publisher, BrPayload, Removed, ItemPublisher);
-                false ->
-                    ok
-            end,
+            maybe_broadcast_publish_item(Host, TNode, ItemId,
+                                         Publisher, BrPayload, Removed, ItemPublisher),
             case Result of
                 default -> {result, Reply};
                 _ -> {result, Result}
@@ -2153,9 +2138,7 @@ purge_node(Host, Node, Owner) ->
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
-            Type = TNode#pubsub_node.type,
-            Options = TNode#pubsub_node.options,
-            broadcast_purge_node(Host, Node, Nidx, Type, Options),
+            broadcast_purge_node(Host, TNode),
             unset_cached_item(Host, Nidx),
             case Result of
                 default -> {result, []};
@@ -2749,31 +2732,39 @@ get_resource_state({U, S, R}, ShowValues, JIDs) ->
 
 %%%%%% broadcast functions
 
-broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
-                       ItemId, From, Payload, Removed, ItemPublisher) ->
+maybe_broadcast_publish_item(Host, TNode, ItemId,
+                             Publisher, BrPayload, Removed, ItemPublisher) ->
+    case match_option(TNode, deliver_notifications, true) of
+        true ->
+            broadcast_publish_item(Host, TNode, ItemId,
+                                   Publisher, BrPayload, Removed, ItemPublisher);
+        false ->
+            ok
+    end.
+
+broadcast_publish_item(Host, NodeRec, ItemId, From, Payload, Removed, ItemPublisher) ->
+    Node = pubsub_node_to_node_id(NodeRec),
     case get_collection_subscriptions(Host, Node) of
         SubsByDepth when is_list(SubsByDepth) ->
+            NodeOptions = pubsub_node_to_options(NodeRec),
             Stanza = make_publish_item_stanza(Node, From,
                                               NodeOptions, Payload,
                                               ItemId, ItemPublisher),
-            broadcast_stanza(Host, From, Node, Nidx, Type,
-                             NodeOptions, SubsByDepth, items, Stanza, true),
-            broadcast_auto_retract_notification(Host, Node, Nidx, Type,
-                                                NodeOptions, SubsByDepth, Removed),
+            broadcast_item_stanza_from(NodeRec, SubsByDepth, Stanza, From),
+            broadcast_auto_retract_notification(NodeRec, SubsByDepth, Removed),
             {result, true};
         _ ->
             {result, false}
     end.
 
-broadcast_auto_retract_notification(_Host, _Node, _Nidx, _Type, _NodeOptions, _SubsByDepth, []) ->
+broadcast_auto_retract_notification(_NodeRec, _SubsByDepth, []) ->
     ok;
-broadcast_auto_retract_notification(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, Removed) ->
-    case get_option(NodeOptions, notify_retract) of
+broadcast_auto_retract_notification(NodeRec, SubsByDepth, Removed) ->
+    case match_option(NodeRec, notify_retract, true) of
         true ->
+            Node = pubsub_node_to_node_id(NodeRec),
             RetractStanza = event_stanza(make_retract_elems(Node, Removed)),
-            broadcast_stanza(Host, Node, Nidx, Type,
-                             NodeOptions, SubsByDepth,
-                             items, RetractStanza, true);
+            broadcast_item_stanza(NodeRec, SubsByDepth, RetractStanza);
         _ ->
             ok
     end.
@@ -2798,14 +2789,14 @@ broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotif
             {result, false}
     end.
 
-broadcast_purge_node(Host, Node, Nidx, Type, NodeOptions) ->
-    case get_option(NodeOptions, notify_retract) of
+broadcast_purge_node(Host, NodeRec) ->
+    case match_option(NodeRec, notify_retract, true) of
         true ->
+            Node = pubsub_node_to_node_id(NodeRec),
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
                     Stanza = make_purge_stanza(Node),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_node_stanza(NodeRec, SubsByDepth, Stanza),
                     {result, true};
                 _ ->
                     {result, false}
@@ -2814,27 +2805,59 @@ broadcast_purge_node(Host, Node, Nidx, Type, NodeOptions) ->
             {result, false}
     end.
 
-broadcast_removed_node(#pubsub_node{nodeid = {Host, Node},
-                                    id = RNidx,
-                                    type = RType,
-                                    options = ROptions}, SubsByDepth) ->
-    broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth).
-
-broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
-    case get_option(NodeOptions, notify_delete) of
+broadcast_removed_node(NodeRec, SubsByDepth) ->
+    case can_notify(NodeRec, SubsByDepth, notify_delete) of
         true ->
-            case SubsByDepth of
-                [] ->
-                    {result, false};
-                _ ->
-                    Stanza = make_delete_stanza(Node),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
-                    {result, true}
-            end;
+            Node = pubsub_node_to_node_id(NodeRec),
+            Stanza = make_delete_stanza(Node),
+            broadcast_node_stanza(NodeRec, SubsByDepth, Stanza),
+            {result, true};
         _ ->
             {result, false}
     end.
+
+can_notify(NodeRec, SubsByDepth, NotifyType) ->
+    Notify = match_option(NodeRec, NotifyType, true),
+    case {Notify, SubsByDepth} of
+        {true, [_|_]} ->
+            true;
+        _ ->
+            false
+    end.
+
+broadcast_node_stanza(#pubsub_node{nodeid = {Host, Node},
+                                   id = Nidx,
+                                   type = Type,
+                                   options = NodeOptions},
+                      SubsByDepth,
+                      BaseStanza) ->
+    NotifyType = nodes,
+    SHIM = false,
+    broadcast_stanza(Host, Node, Nidx, Type, NodeOptions,
+                     SubsByDepth, NotifyType, BaseStanza, SHIM).
+
+broadcast_item_stanza(#pubsub_node{nodeid = {Host, Node},
+                                   id = Nidx,
+                                   type = Type,
+                                   options = NodeOptions},
+                      SubsByDepth,
+                      BaseStanza) ->
+    NotifyType = items,
+    SHIM = true,
+    broadcast_stanza(Host, Node, Nidx, Type, NodeOptions,
+                     SubsByDepth, NotifyType, BaseStanza, SHIM).
+
+broadcast_item_stanza_from(#pubsub_node{nodeid = {Host, Node},
+                                         id = Nidx,
+                                         type = Type,
+                                         options = NodeOptions},
+                            SubsByDepth,
+                            BaseStanza,
+                            From) ->
+    NotifyType = items,
+    SHIM = true,
+    broadcast_stanza(Host, From, Node, Nidx, Type, NodeOptions,
+                     SubsByDepth, NotifyType, BaseStanza, SHIM).
 
 broadcast_created_node(_, _, _, _, _, []) ->
     {result, false};
@@ -3410,6 +3433,13 @@ act_get_entity_subscriptions(Host, PType, Entity) ->
 
 act_unsubscribe_node(Host, PType, #pubsub_node{id = Nidx}, Entity, JID) ->
     node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]).
+
+run_pubsub_delete_node_hook(ServerHost, NodeRec) ->
+    {Host, Node} = NodeRec#pubsub_node.nodeid,
+    Nidx = NodeRec#pubsub_node.id,
+    ejabberd_hooks:run(pubsub_delete_node,
+                       ServerHost,
+                       [ServerHost, Host, Node, Nidx]).
 
 
 %% @doc <p>node plugin call.</p>
