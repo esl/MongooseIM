@@ -497,6 +497,9 @@ handle_local_config_del(#local_config{key = Key} = El) ->
 
 handle_local_config_change({listen, Old, New}) ->
     reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
+handle_local_config_change({loglevel, _Old, Loglevel}) ->
+    ejabberd_loglevel:set(Loglevel),
+    ok;
 handle_local_config_change({riak_server, _Old, _New}) ->
     mongoose_riak:stop(),
     mongoose_riak:start(),

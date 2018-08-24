@@ -29,7 +29,8 @@ groups() ->
      {reload_cluster, [], [cluster_smoke,
                            change_module_option_with_node_param_opts,
                            change_module_option_with_node_specific_mods,
-                           module_deps_work_correctly_with_reload_cluster]},
+                           module_deps_work_correctly_with_reload_cluster,
+                           try_to_reload_with_different_options_on_nodes]},
      {odbc_pools, [], [odbc_server_no_pools,
                           odbc_server_pools]}
     ].
@@ -190,6 +191,19 @@ cluster_smoke(C) ->
     maybe_join_cluster(SlaveNode),
     [_,_] = ejabberd_config:config_states(),
     % cleanup
+    ok = stop_ejabberd(),
+    stop_remote_ejabberd(SlaveNode),
+    ok.
+
+try_to_reload_with_different_options_on_nodes(C) ->
+    SlaveNode = slave_node(C),
+    copy(data(C, "ejabberd.no_listeners.cfg"), data(C, "ejabberd_n1.cfg")),
+    copy(data(C, "ejabberd.no_listeners.cfg"), data(C, "ejabberd_n2.cfg")),
+    {ok, _} = start_ejabberd_with_config(C, "ejabberd_n1.cfg"),
+    {ok, _} = start_remote_ejabberd_with_config(SlaveNode, C, "ejabberd_n2.cfg"),
+    maybe_join_cluster(SlaveNode),
+    copy(data(C, "ejabberd.no_listeners.loglevel_err.cfg"), data(C, "ejabberd_n2.cfg")),
+    ?assertError(#{failed_checks := [inconsistent_ondisc_local_versions]}, ejabberd_config:reload_cluster()),
     ok = stop_ejabberd(),
     stop_remote_ejabberd(SlaveNode),
     ok.

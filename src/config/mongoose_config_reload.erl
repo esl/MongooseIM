@@ -425,14 +425,14 @@ prepare_data_for_cluster_reloading_context([CoordinatorNodeState|_] = NodeStates
       %% All of these versions should be the same for reload_cluster to continue
       loaded_global_versions => node_values(loaded_global_version, ExtNodeStates),
       %% All of these versions should be the same for reload_cluster to continue
-      ondisc_global_versions => node_values(loaded_global_version, ExtNodeStates),
+      ondisc_global_versions => node_values(ondisc_global_version, ExtNodeStates),
 
       %% All of these versions should be the same for reload_cluster to continue
       %% Doest not count node-specific options
       loaded_local_versions => node_values(loaded_local_version, ExtNodeStates),
       %% All of these versions should be the same for reload_cluster to continue
       %% Doest not count node-specific options
-      ondisc_local_versions => node_values(loaded_local_version, ExtNodeStates),
+      ondisc_local_versions => node_values(ondisc_local_version, ExtNodeStates),
 
       %% These versions can be different
       loaded_local_node_specific_versions =>
