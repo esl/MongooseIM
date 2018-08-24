@@ -1142,10 +1142,7 @@ iq_disco_items(Host, <<>>, From, _RSM) ->
     Nodes = encode_nodes(Host, SubNodes),
     {result, Nodes};
 iq_disco_items(Host, ?NS_COMMANDS, _From, _RSM) ->
-    {result, [#xmlel{name = <<"item">>,
-                     attrs = [{<<"jid">>, Host},
-                              {<<"node">>, ?NS_PUBSUB_GET_PENDING},
-                              {<<"name">>, <<"Get Pending">>}]}]};
+    {result, [make_get_pending_item_elem(Host)]};
 iq_disco_items(_Host, ?NS_PUBSUB_GET_PENDING, _From, _RSM) ->
     {result, []};
 iq_disco_items(Host, Item, From, RSM) ->
@@ -1429,7 +1426,7 @@ send_pending_node_form(Request, Host, Owner, Plugins) ->
             {error, mongoose_xmpp_errors:feature_not_implemented()};
         Ps ->
             PendingNodes = get_pending_nodes(Host, Owner, Ps),
-            XForm = make_pending_node_firm(PendingNodes),
+            XForm = make_pending_node_form(PendingNodes),
             adhoc:produce_response(Request, executing, <<"execute">>, [XForm])
     end.
 
@@ -1460,6 +1457,7 @@ adhoc_get_pending_parse_options(_Host, XData) ->
     ?INFO_MSG("Bad XForm: ~p", [XData]),
     {error, mongoose_xmpp_errors:bad_request()}.
 
+
 %% @doc <p>Send a subscription approval form to Owner for all pending
 %% subscriptions on Host and Node.</p>
 send_pending_auth_events(Request, Host, Node, Owner) ->
@@ -1468,18 +1466,27 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
     Action = fun(PubSubNode) ->
                      get_node_subscriptions_transaction(Host, Owner, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_send_pending_auth_events_result(Request, TransResult).
+
+handle_send_pending_auth_events_result(Request, TransResult) ->
+    case TransResult of
         {result, {N, Subs}} ->
-            lists:foreach(fun
-                              ({J, pending, _SubId}) -> send_authorization_request(N, jid:make(J));
-                              ({J, pending}) -> send_authorization_request(N, jid:make(J));
-                              (_) -> ok
-                         end,
-                          Subs),
+            send_authorization_requests(N, Subs),
             adhoc:produce_response(Request, undefined);
         Err ->
             Err
     end.
+
+send_authorization_requests(N, Subs) ->
+    F = fun
+              ({J, pending, _SubId}) ->
+                send_authorization_request(N, jid:make(J));
+              ({J, pending}) ->
+                send_authorization_request(N, jid:make(J));
+              (_) -> ok
+        end,
+    lists:foreach(F, Subs).
 
 get_node_subscriptions_transaction(Host, JID, NodeRec) ->
     case check_access(Host, NodeRec, JID, owner, <<"get-pending">>) of
@@ -1500,46 +1507,34 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id =
 
 %% @doc Send a message to JID with the supplied Subscription
 send_authorization_approval(Host, JID, SNode, Subscription) ->
-    SubAttrs = case Subscription of
-                   %{S, SID} ->
-                   %    [{<<"subscription">>, subscription_to_string(S)},
-                   %     {<<"subid">>, SID}];
-                   S ->
-                       [{<<"subscription">>, subscription_to_string(S)}]
-               end,
-    Stanza = event_stanza(<<"subscription">>,
-                          [{<<"jid">>, jid:to_binary(JID)}
-                           | node_attr(SNode)]
-                          ++ SubAttrs),
+    Stanza = make_send_authorization_approval_stanza(JID, SNode, Subscription),
     ejabberd_router:route(service_jid(Host), JID, Stanza).
 
 handle_authorization_response(Host, From, To, Packet, XFields) ->
-    case {lists:keysearch(<<"pubsub#node">>, 1, XFields),
-          lists:keysearch(<<"pubsub#subscriber_jid">>, 1, XFields),
-          lists:keysearch(<<"pubsub#allow">>, 1, XFields)} of
-        {{value, {_, [Node]}},
-         {value, {_, [SSubscriber]}},
-         {value, {_, [SAllow]}}} ->
+    case get_authorization_response_fields(XFields) of
+        {Node, Subscriber, Allow} ->
             FromLJID = jid:to_lower(jid:to_bare(From)),
-            Subscriber = jid:from_binary(SSubscriber),
-            Allow = string_allow_to_boolean(SAllow),
             Action = fun (PubSubNode) ->
                              handle_authorization_response_transaction(Host, FromLJID, Subscriber,
                                                                        Allow, Node, PubSubNode)
                      end,
-            case transaction(Host, Node, Action, sync_dirty) of
-                {error, Error} ->
-                    Err = jlib:make_error_reply(Packet, Error),
-                    ejabberd_router:route(To, From, Err);
-                {result, {_, _NewSubscription}} ->
-                    %% XXX: notify about subscription state change, section 12.11
-                    ok;
-                _ ->
-                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
-                    ejabberd_router:route(To, From, Err)
-            end;
-        _ ->
+            TransResult = transaction(Host, Node, Action, sync_dirty),
+            handle_authorization_response_result(From, To, Packet, TransResult);
+        error ->
             Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
+            ejabberd_router:route(To, From, Err)
+    end.
+
+handle_authorization_response_result(From, To, Packet, TransResult) ->
+    case TransResult of
+        {error, Error} ->
+            Err = jlib:make_error_reply(Packet, Error),
+            ejabberd_router:route(To, From, Err);
+        {result, {_, _NewSubscription}} ->
+            %% XXX: notify about subscription state change, section 12.11
+            ok;
+        _ ->
+            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -1835,53 +1830,56 @@ handle_subscribe_node_result(Host, Node, Subscriber, TransResult) ->
         Error -> Error
     end.
 
-subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode) ->
+subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode =
+                           #pubsub_node{options = Options, type = Type,
+                                        id = Nidx, owners = O} = NodeRec) ->
     Features = plugin_features(Host, PubSubNode#pubsub_node.type),
-    subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features).
+    case check_subscribe_node_transaction(Host, SubOpts, PubSubNode, Features) of
+        ok ->
+            AccessModel = get_option(Options, access_model),
+            AllowedGroups = get_option(Options, roster_groups_allowed, []),
+            Owners = node_owners_call(Host, Type, Nidx, O),
+            {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
+                                                           Owners, AccessModel, AllowedGroups),
+            call_subscribe_node(Host, From, Subscriber, AccessModel,
+                                PS, RG, SubOpts, NodeRec);
+        Error ->
+            Error
+    end.
 
-subscribe_node_transaction_step1(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
+check_subscribe_node_transaction(Host, SubOpts, PubSubNode, Features) ->
     case lists:member(<<"subscribe">>, Features) of
         false ->
             unsupported_feature_error(<<"subscribe">>);
         true ->
-            subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features)
+            check_subscribe_node_transaction_step2(Host, SubOpts, PubSubNode, Features)
     end.
 
-subscribe_node_transaction_step2(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
+check_subscribe_node_transaction_step2(Host, SubOpts, PubSubNode, Features) ->
     case get_option(PubSubNode#pubsub_node.options, subscribe) of
         false ->
             unsupported_feature_error(<<"subscribe">>);
         true ->
-            subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features)
+            check_subscribe_node_transaction_step3(Host, SubOpts, PubSubNode, Features)
     end.
 
-subscribe_node_transaction_step3(Host, SubOpts, From, Subscriber, PubSubNode, Features) ->
+check_subscribe_node_transaction_step3(Host, SubOpts, PubSubNode, Features) ->
     case {SubOpts /= [], lists:member(<<"subscription-options">>, Features)} of
         {true, false} ->
             unsupported_feature_error(<<"subscription-options">>);
         _ ->
-            subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber, PubSubNode)
+            check_subscribe_node_transaction_step4(Host, SubOpts, PubSubNode)
     end.
 
-subscribe_node_transaction_step4(_Host, invalid, _From, _Subscriber, _PubSubNode) ->
+check_subscribe_node_transaction_step4(_Host, invalid, _PubSubNode) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
-subscribe_node_transaction_step4(Host, SubOpts, From, Subscriber,
-                                 #pubsub_node{options = Options, type = Type,
-                                              id = Nidx, owners = O}) ->
+check_subscribe_node_transaction_step4(Host, _SubOpts,
+                                 #pubsub_node{type = Type, id = Nidx}) ->
     case check_subs_limit(Host, Type, Nidx) of
         true ->
            {error, extended_error(mongoose_xmpp_errors:not_allowed(), <<"closed-node">>)};
         false ->
-            AccessModel = get_option(Options, access_model),
-            SendLast = get_option(Options, send_last_published_item),
-            AllowedGroups = get_option(Options, roster_groups_allowed, []),
-
-            Owners = node_owners_call(Host, Type, Nidx, O),
-            {PS, RG} = get_presence_and_roster_permissions(Host, Subscriber,
-                                                           Owners, AccessModel, AllowedGroups),
-            node_call(Host, Type, subscribe_node,
-                      [Nidx, From, Subscriber, AccessModel,
-                       SendLast, PS, RG, SubOpts])
+            ok
     end.
 
 check_subs_limit(Host, Type, Nidx) ->
@@ -3165,7 +3163,11 @@ set_configure_submit(Host, Node, User, XEl, Lang) ->
     Action = fun(NodeRec) ->
                      set_configure_transaction(Host, User, XEl, NodeRec)
              end,
-    case transaction(Host, Node, Action, transaction) of
+    TransResult = transaction(Host, Node, Action, transaction),
+    handle_set_configure_submit_result(Host, Node, Lang, TransResult).
+
+handle_set_configure_submit_result(Host, Node, Lang, TransResult) ->
+    case TransResult of
         {result, {_OldNode, TNode}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -3248,17 +3250,22 @@ get_cached_item({_, ServerHost, _}, Nidx) ->
 get_cached_item(Host, Nidx) ->
     case is_last_item_cache_enabled(Host) of
         true ->
-            case mnesia:dirty_read({pubsub_last_item, Nidx}) of
-                [#pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}] ->
-                    #pubsub_item{itemid = {ItemId, Nidx},
-                                 payload = Payload, creation = Creation,
-                                 modification = Creation};
-                _ ->
-                    undefined
-            end;
+            MaybeLast = mnesia:dirty_read({pubsub_last_item, Nidx}),
+            maybe_last_item_to_item(Nidx, MaybeLast);
         _ ->
             undefined
     end.
+
+maybe_last_item_to_item(Nidx,
+                        [#pubsub_last_item{itemid = ItemId,
+                                           payload = Payload,
+                                           creation = Creation}]) ->
+    #pubsub_item{itemid = {ItemId, Nidx},
+                 payload = Payload,
+                 creation = Creation,
+                 modification = Creation};
+maybe_last_item_to_item(_, _) ->
+    undefined.
 
 %%%% plugin handling
 
@@ -3426,6 +3433,13 @@ call_delete_item(Host, Publisher, ItemId,
                  #pubsub_node{options = Options, type = Type, id = Nidx}) ->
     PublishModel = get_option(Options, publish_model),
     node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]).
+
+call_subscribe_node(Host, From, Subscriber, AccessModel, PS, RG, SubOpts,
+                    #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    SendLast = get_option(Options, send_last_published_item),
+    node_call(Host, Type, subscribe_node,
+              [Nidx, From, Subscriber, AccessModel,
+               SendLast, PS, RG, SubOpts]).
 
 
 -spec act_get_entity_subscriptions(host(), plugin_type(), jid:jid()) ->
@@ -4529,7 +4543,7 @@ payload_xmlelements([#xmlel{} | Tail], Count) ->
 payload_xmlelements([_ | Tail], Count) ->
     payload_xmlelements(Tail, Count).
 
-make_pending_node_firm(PendingNodes) ->
+make_pending_node_form(PendingNodes) ->
     XOpts = make_node_options(PendingNodes),
     #xmlel{name = <<"x">>,
            attrs = [{<<"xmlns">>, ?NS_XDATA},
@@ -4545,6 +4559,37 @@ make_node_options(Nodes) ->
                                attrs = [],
                                children = [{xmlcdata, Node}]}]}
      || Node <- Nodes].
+
+make_get_pending_item_elem(Jid) ->
+    #xmlel{name = <<"item">>,
+           attrs = [{<<"jid">>, Jid},
+                    {<<"node">>, ?NS_PUBSUB_GET_PENDING},
+                    {<<"name">>, <<"Get Pending">>}]}.
+
+make_send_authorization_approval_stanza(JID, SNode, Subscription) ->
+    SubAttrs = case Subscription of
+                   %{S, SID} ->
+                   %    [{<<"subscription">>, subscription_to_string(S)},
+                   %     {<<"subid">>, SID}];
+                   S ->
+                       [{<<"subscription">>, subscription_to_string(S)}]
+               end,
+    Attrs =[{<<"jid">>, jid:to_binary(JID)} | node_attr(SNode)] ++ SubAttrs,
+    event_stanza(<<"subscription">>, Attrs).
+
+get_authorization_response_fields(XFields) ->
+    case {lists:keysearch(<<"pubsub#node">>, 1, XFields),
+          lists:keysearch(<<"pubsub#subscriber_jid">>, 1, XFields),
+          lists:keysearch(<<"pubsub#allow">>, 1, XFields)} of
+        {{value, {_, [Node]}},
+         {value, {_, [SSubscriber]}},
+         {value, {_, [SAllow]}}} ->
+            Subscriber = jid:from_binary(SSubscriber),
+            Allow = string_allow_to_boolean(SAllow),
+            {Node, Subscriber, Allow};
+        _ ->
+            error
+    end.
 
 
 decode_affiliations(EntitiesEls) ->
