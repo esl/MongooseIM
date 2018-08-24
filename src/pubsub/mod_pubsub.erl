@@ -2071,20 +2071,27 @@ autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
 %%</ul>
 -spec delete_item(
         Host      :: mod_pubsub:host(),
-          Node      :: mod_pubsub:nodeId(),
-          Publisher ::jid:jid(),
-          ItemId    :: mod_pubsub:itemId())
-        -> {result, []}
-%%%
-               | {error, exml:element()}.
+        Node      :: mod_pubsub:nodeId(),
+        Publisher ::jid:jid(),
+        ItemId    :: mod_pubsub:itemId()) -> maybe_elems().
 delete_item(Host, Node, Publisher, ItemId) ->
     delete_item(Host, Node, Publisher, ItemId, false).
 delete_item(_, <<>>, _, _, _) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
-    Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
+    Action = fun(PubSubNode) ->
+                     delete_item_transaction(Host, Publisher, ItemId, PubSubNode)
+             end,
     TransResult = transaction(Host, Node, Action, sync_dirty),
     handle_delete_item_result(Host, ItemId, ForceNotify, TransResult).
+
+delete_item_transaction(Host, Publisher, ItemId, NodeRec) ->
+    case check_features(Host, NodeRec, [<<"persistent-items">>, <<"delete-items">>]) of
+        ok ->
+            call_delete_item(Host, Publisher, ItemId, NodeRec);
+        Other ->
+            Other
+    end.
 
 handle_delete_item_result(Host, ItemId, ForceNotify, TransResult) ->
     case TransResult of
@@ -2103,16 +2110,6 @@ handle_delete_item_result(Host, ItemId, ForceNotify, TransResult) ->
             Error
     end.
 
-delete_item_transaction(Host, Publisher, ItemId,
-                        NodeRec=#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-    case check_features(Host, NodeRec, [<<"persistent-items">>, <<"delete-items">>]) of
-        ok ->
-            PublishModel = get_option(Options, publish_model),
-            node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]);
-        Other ->
-            Other
-    end.
-
 %% @doc <p>Delete all items of specified node owned by JID.</p>
 %%<p>There are several reasons why the node purge request might fail:</p>
 %%<ul>
@@ -2123,26 +2120,22 @@ delete_item_transaction(Host, Publisher, ItemId,
 %%</ul>
 -spec purge_node(
         Host  :: mod_pubsub:host(),
-          Node  :: mod_pubsub:nodeId(),
-          Owner :: jid:jid())
-        -> {result, []}
-%%%
-               | {error, exml:element()}.
+        Node  :: mod_pubsub:nodeId(),
+        Owner :: jid:jid()) -> maybe_elems().
 purge_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_purge_node_result(Host, TransResult).
+
+handle_purge_node_result(Host, TransResult) ->
+    case TransResult of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
             broadcast_purge_node(Host, TNode),
             unset_cached_item(Host, Nidx),
-            case Result of
-                default -> {result, []};
-                _ -> {result, Result}
-            end;
-        {result, {_, default}} ->
-            {result, []};
+            return_result(Result, []);
         {result, {_, Result}} ->
-            {result, Result};
+            return_result(Result, []);
         Error ->
             Error
     end.
@@ -3426,6 +3419,11 @@ call_publish_item(Host, ServerHost, Publisher,
     node_call(Host, Type, publish_item,
               [ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId,
                ItemPublisher, Payload, PublishOptions]).
+
+call_delete_item(Host, Publisher, ItemId,
+                 #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    PublishModel = get_option(Options, publish_model),
+    node_call(Host, Type, delete_item, [Nidx, Publisher, PublishModel, ItemId]).
 
 
 -spec act_get_entity_subscriptions(host(), plugin_type(), jid:jid()) ->
