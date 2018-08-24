@@ -596,10 +596,8 @@ disco_identity(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_disco_result(TransResult).
 
 -spec disco_sm_features(
         Acc  :: empty | {result, Features::[Feature::binary()]},
@@ -628,10 +626,8 @@ disco_features(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_disco_result(TransResult).
 
 make_disco_features(Host) ->
     Features = [feature(F) || F <- plugin_features(Host, <<"pep">>)],
@@ -665,10 +661,8 @@ disco_items(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
-        {result, {_, Result}} -> Result;
-        _ -> []
-    end.
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_disco_result(TransResult).
 
 disco_items_all(Host, From) ->
     Action = fun (NodeRec, Acc) ->
@@ -683,10 +677,11 @@ disco_items_all(Host, From) ->
                        AllNodes = call_get_all_nodes(Host),
                        {result, lists:foldl(Action, [], AllNodes)}
                end,
-    case transaction(Host, NodeBloc, sync_dirty) of
-        {result, Items} -> Items;
-        _ -> []
-    end.
+    TransResult = transaction(Host, NodeBloc, sync_dirty),
+    handle_disco_result(TransResult).
+
+handle_disco_result({result, {_, Result}}) -> Result;
+handle_disco_result(_) -> [].
 
 %% Checks, that the call_get_allowed_items call does not fail
 test_get_allowed_items(Host, NodeRec, From) ->
