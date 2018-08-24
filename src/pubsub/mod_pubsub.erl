@@ -42,6 +42,13 @@
 %%% subscription-options and mulit-subscribe see XEP-0060 sections 6.1.6,
 %%% 6.2.3.1, 6.2.3.5, and 6.3. For information on subscription leases see
 %%% XEP-0060 section 12.18.
+%%%
+%%%
+%%% Variable naming rules:
+%%%
+%%% - Node - nodeId() - node id
+%%% - NodeRec - pubsubNode() - #pubsub_node{} record
+%%% - Type, PType - plugin_type() - plugin name
 
 -module(mod_pubsub).
 -behaviour(gen_mod).
@@ -494,8 +501,8 @@ send_last_items_from_owner(Host, NodeOwner, _Recipient = {U, S, Resources}) ->
     ok.
 
 get_nodes_for_sending_last_item(Host, NodeOwnerJID) ->
-    lists:filter(fun(#pubsub_node{options = Options}) ->
-                         match_option(Options, send_last_published_item, on_sub_and_presence)
+    lists:filter(fun(NodeRec) ->
+                         match_option(NodeRec, send_last_published_item, on_sub_and_presence)
                  end,
                  get_nodes_owned_by(Host, NodeOwnerJID)).
 
@@ -649,29 +656,10 @@ disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
           From :: jid:jid())
         -> [exml:element()].
 disco_items(Host, <<>>, From) ->
-    Action = fun (#pubsub_node{nodeid = {_, Node},
-                               options = Options, type = Type, id = Nidx, owners = O},
-                  Acc) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
-                             [disco_item_elem(Node, Host, Options) | Acc];
-                         _ ->
-                             Acc
-                     end
-             end,
-    NodeBloc = fun() ->
-                       {result,
-                        lists:foldl(Action, [], tree_call(Host, get_nodes, [Host]))}
-               end,
-    case transaction(Host, NodeBloc, sync_dirty) of
-        {result, Items} -> Items;
-        _ -> []
-    end;
+    disco_items_all(Host, From);
 disco_items(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
+    Action = fun (NodeRec) ->
+                     case call_get_allowed_items(Host, NodeRec, From) of
                          {result, Items} ->
                              {result, make_disco_items(Host, Items)};
                          _ ->
@@ -682,6 +670,35 @@ disco_items(Host, Node, From) ->
         {result, {_, Result}} -> Result;
         _ -> []
     end.
+
+disco_items_all(Host, From) ->
+    Action = fun (NodeRec, Acc) ->
+                     case test_get_allowed_items(Host, NodeRec, From) of
+                         true ->
+                             [make_disco_item(Host, NodeRec) | Acc];
+                         false ->
+                             Acc
+                     end
+             end,
+    NodeBloc = fun() ->
+                       AllNodes = call_get_all_nodes(Host),
+                       {result, lists:foldl(Action, [], AllNodes)}
+               end,
+    case transaction(Host, NodeBloc, sync_dirty) of
+        {result, Items} -> Items;
+        _ -> []
+    end.
+
+%% Checks, that the call_get_allowed_items call does not fail
+test_get_allowed_items(Host, NodeRec, From) ->
+    case call_get_allowed_items(Host, NodeRec, From) of
+        {result, _} -> true;
+        _ -> false
+    end.
+
+call_get_allowed_items(Host, #pubsub_node{id = Nidx, type = Type, options = Options, owners = O}, From) ->
+    Owners = node_owners_call(Host, Type, Nidx, O),
+    get_allowed_items_call(Host, Nidx, From, Type, Options, Owners).
 
 %% -------
 %% callback that prevents routing subscribe authorizations back to the sender
@@ -3381,6 +3398,9 @@ call_get_node_affiliations(Host, #pubsub_node{type = Type, id = Nidx}) ->
 call_purge_node(Host, #pubsub_node{type = Type, id = Nidx}, Owner) ->
     node_call(Host, Type, purge_node, [Nidx, Owner]).
 
+call_get_all_nodes(Host) ->
+    tree_call(Host, get_nodes, [Host]).
+
 
 -spec act_get_entity_subscriptions(jid:lserver(), plugin_type(), jid:jid()) ->
     [entity_subscription()].
@@ -3419,7 +3439,11 @@ node_action(Host, Type, Function, Args) ->
                       end,
                 sync_dirty).
 
-%% @doc <p>plugin transaction handling.</p>
+%% @doc Extract node record by id and apply function to it.
+%%
+%% <p>plugin transaction handling.</p>
+%% Trans is mnesia function name
+-spec transaction(jid:lserver(), nodeId(), fun((pubsubNode()) -> term()), atom()) -> term().
 transaction(Host, Node, Action, Trans) ->
     transaction(Host, fun () ->
                               case tree_call(Host, get_node, [Host, Node]) of
@@ -3761,6 +3785,11 @@ make_disco_identity_result_elems(Options) ->
             attrs = [{<<"category">>, <<"pubsub">>},
                      {<<"type">>, <<"leaf">>}
                      | options_to_name_attrs(Options)]}].
+
+make_disco_item(Host, NodeRec) ->
+    Node = pubsub_node_to_node_id(NodeRec),
+    Options = pubsub_node_to_options(NodeRec),
+    disco_item_elem(Node, Host, Options).
 
 disco_item_elem(Node, Host, Options) ->
     #xmlel{name = <<"item">>,
@@ -4629,3 +4658,6 @@ prepend_disco_plugin_identities(Plugins, Acc) ->
             ({false, _}, AccIn) ->
                 AccIn
         end, Acc, PluginsList).
+
+pubsub_node_to_node_id(#pubsub_node{nodeid = {_, Node}}) -> Node.
+pubsub_node_to_options(#pubsub_node{options = Options}) -> Options.
