@@ -11,8 +11,7 @@
 -include("jlib.hrl").
 -include("jid.hrl").
 -include("mongoose.hrl").
--export([start/2,stop/1,
-         filter_packet/1]).
+-export([start/2, stop/1, filter_packet/1]).
 
 start(Host, _Opts) ->
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90).
@@ -20,54 +19,35 @@ start(Host, _Opts) ->
 stop(Host) ->
     ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90).
 
--type fpacket() :: {From :: jid:jid(),
-                    To :: jid:jid(),
-                    Acc :: mongoose_acc:t(),
-                    Packet :: exml:element()}.
--spec filter_packet(Value :: fpacket() | drop) -> fpacket() | drop.
-filter_packet(drop) ->   
-    drop;
-filter_packet({From, To, Acc, Packet} = Input) ->
-    X = case check_stanza(Input) of
-        drop -> 
-            drop;
-        _ -> Input
-    end,
-    X.
-
-check_stanza({From,To,Acc,#xmlel{name = StanzaType}} = Input) ->
+filter_packet({_From, _To, _Acc, #xmlel{name = StanzaType}} = Input) ->
     AccessRule = case StanzaType of
 		     <<"presence">> -> mod_filter_presence;
 		     <<"message">> -> mod_filter_message;
 		     <<"iq">> -> mod_filter_iq
 		 end,
-    check_stanza_type(AccessRule, Input).
+    check_stanza_type(<<"from">>, AccessRule, Input).
 
-check_stanza_type(AccessRule, {From = #jid{lserver = HostFrom}, To = #jid{lserver = HostTo}, Acc, Packet} = Input) ->
-    FromAccess = acl:match_rule(HostFrom, AccessRule, From),
-    case FromAccess of
-        allow -> check_access(Input);
-        deny -> 
-            drop;
-        ToAccessRule -> 
-            ToAccess = acl:match_rule(HostTo, ToAccessRule, To),
-            case ToAccess of
-                allow -> check_access(Input);
-                deny -> drop
-            end
-    end.
+check_stanza_type(Direction, AccessRule, {From = #jid{lserver = HostFrom}, 
+                                          To = #jid{lserver = HostTo},
+                                          _Acc,
+                                          _Packet} = Input) ->
+    Access = case Direction of
+                <<"from">> -> acl:match_rule(HostFrom, AccessRule, From);
+                <<"to">> -> acl:match_rule(HostTo, AccessRule, To)
+            end,
+    check_access(Direction, AccessRule, Access, Input).
 
-check_access({From = #jid{lserver = HostFrom}, To = #jid{lserver = HostTo}, Acc, Packet} = Input) ->
-    FromAccess = acl:match_rule(HostFrom, mod_filter, From),
-    %% If the rule results in 'allow' or 'deny', treat that as the
-    %% result.  Else it is a rule to be applied to the receiver.
-    case FromAccess of
-        allow -> Input;
-        deny -> drop;
-        ToAccessRule ->
-            ToAccess = acl:match_rule(HostTo, ToAccessRule, To),
-            case ToAccess of
-                allow -> Input;
-                deny -> drop
-            end
+%% If the access results in 'allow' or 'deny', treat that as the
+%% result. Else it is a rule to be applied to the receiver.
+check_access(Direction, AccessRule, Access, Input) when Access =:= allow ->
+    case AccessRule of 
+        mod_filter -> Input;
+        _ -> check_stanza_type(Direction, mod_filter, Input)   
+    end;
+check_access(_Direction, _AccessRule, Access, _Input) when Access =:= deny ->
+    drop;
+check_access(_Direction, AccessRule, Access, Input) ->
+    case AccessRule of 
+        mod_filter -> Input;
+        _ -> check_stanza_type(<<"to">>, Access, Input)   
     end.

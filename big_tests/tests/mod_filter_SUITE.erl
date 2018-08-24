@@ -11,6 +11,8 @@
 %% Suite configuration
 %%--------------------------------------------------------------------
 
+-define(WAITING_TIMEOUT, 500).
+
 all() ->
     [{group, messages}].
 
@@ -28,7 +30,7 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    ok = dynamic_modules:ensure_modules(required_modules()),
+    dynamic_modules:ensure_modules(required_modules()),
     update_rules(),
     escalus:init_per_suite(Config).
 
@@ -44,7 +46,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(CaseName, Config0) ->
     NewUsers = proplists:get_value(escalus_users, Config0) ++ escalus_ct:get_config(escalus_anon_users),
-    Config = [{escalus_users, NewUsers}] ++ Config0,
+    Config = [{escalus_users, NewUsers} | Config0],
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
@@ -55,102 +57,89 @@ end_per_testcase(CaseName, Config) ->
 required_modules() ->
   [{mod_filter, []}].
 
+update_acl(ACLName, ACLRule) ->
+    {atomic, ok} = rpc(mim(), acl, add, [global, ACLName, ACLRule]),
+    ok.
+
+update_access(AccessName, AccessRule) ->
+    {atomic, ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, AccessName, global}, AccessRule]),
+    ok.
+
 % The configuration of rules is done using mim ACL and ACCESS.
 % mod_filter allows  limit traffic between domains or users based on their type.
 %
 % On this `update_rules` example, next rules are applied:
-%    1. the users of a private vhosts (localhost and sogndal)
-%       can only chat with themselves. so that particular host
+%    1. The users of a private vhosts (localhost and sogndal)
+%       can only chat with themselves. So that particular host
 %       will have no connection to the exterior.
-%    2. anonymous users of some host (anonymous.localhost)
+%    2. Anonymous users of some host (anonymous.localhost)
 %       can only chat with shared single chat user(some bot, i.e kate@localhost), 
 %       so that particular host will have no connection
-%       to the other hosts (localhost, sogndal) listed in hosts 
-update_rules()->
-    {atomic,ok} = rpc(mim(), acl, add, [global, domain1, {server_glob, <<"localhost">>}]),
-    {atomic,ok} = rpc(mim(), acl, add, [global, domain2, {server_glob, <<"sogndal">>}]),
-    {atomic,ok} = rpc(mim(), acl, add, [global, bot, {user, <<"kate">>, <<"localhost">>}]),
-    {atomic,ok} = rpc(mim(), acl, add, [global, anon_user, {server_glob, <<"anonymous.localhost">>}]),
+%       to the other hosts (localhost, sogndal) listed in hosts.
+update_rules() ->
+    [ok = update_acl(ACLName, ACLRule) || {ACLName, ACLRule} <- acl_list()],
+    [ok = update_access(AccessName, AccessRule) || {AccessName, AccessRule} <- access_list()].
 
-
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, mod_filter, global}, [
-                                                                                        {allow, all}]]),
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, mod_filter_presence, global},
-                                                                                        [{allow, all}]]),
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, mod_filter_message, global}, [
-                                                                                        {local, bot},
-                                                                                        {restrict_bot, anon_user},
-                                                                                        {restrict_dom1, domain1},
-                                                                                        {restrict_dom2, domain2}
-                                                                                        ]]),
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, mod_filter_iq, global}, 
-                                                                                        [{allow, all}]]),
-
-    %restriction for localhost
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, restrict_dom1, global}, 
-                                                                  [{allow, domain1}, {deny, all}]]),
-    %restriction for sogndal
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, restrict_dom2, global},
-                                                                  [{allow, domain2}, {deny, all}]]),
-    %restriction for bot
-    {atomic,ok} = rpc(mim(), ejabberd_config, add_global_option, [{access, restrict_bot, global}, 
-                                                                  [{allow, bot}, {deny, all}]]).
+%%sample acl list
+acl_list()->
+    [{domain1, {server_glob, <<"localhost">>}},
+     {domain2, {server_glob, <<"sogndal">>}},
+     {bot, {user, <<"kate">>, <<"localhost">>}},
+     {anon_user, {server_glob, <<"anonymous.localhost">>}}].
+%%sample access rules
+access_list()->
+    [{mod_filter, [{allow, all}]},
+     {mod_filter_presence, [{allow, all}]},
+     {mod_filter_iq, [{allow, all}]},
+     {mod_filter_message, [
+               {local, bot},
+               {restrict_bot, anon_user},
+               {restrict_dom1, domain1},
+               {restrict_dom2, domain2}
+     ]},
+     {restrict_dom1, [{allow, domain1}, {deny, all}]},
+     {restrict_dom2, [{allow, domain2}, {deny, all}]},
+     {restrict_bot, [{allow, bot}, {deny, all}]}].
 %%--------------------------------------------------------------------
 %% Message tests
 %%--------------------------------------------------------------------
 
+user_can_send_to(Sender, Receiver) ->
+    escalus_client:send(Sender, escalus_stanza:chat_to(Receiver, <<"Hi!">>)),
+    escalus:assert(is_chat_message, [<<"Hi!">>], escalus:wait_for_stanza(Receiver)).
+
+user_cannot_send_to(Sender, Receiver) ->
+    escalus_client:send(Sender, escalus_stanza:chat_to(Receiver, <<"Hi!">>)),
+    receiver_gets_nothing(Receiver).
+
+receiver_gets_nothing(Receiver) ->
+    ct:sleep(?WAITING_TIMEOUT),
+    escalus_assert:has_no_stanzas(Receiver).
+
 allowed_messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {jon, 1}], fun(Alice, Bob, Kate, Jon) ->
+        erlang:put(anon_user, escalus_utils:get_jid(Jon)),
         %according to update_rules() example, anonymous can send message to bot.
-        erlang:put(anon_user, escalus_utils:get_jid(Jon)),
-        escalus_client:send(Jon, escalus_stanza:chat_to(Kate, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>],
-                       escalus:wait_for_stanza(Kate)),
-
+        user_can_send_to(Jon, Kate),
         %according to update_rules() example, bot can send message to anonymous.
-        erlang:put(anon_user, escalus_utils:get_jid(Jon)),
-        escalus_client:send(Kate, escalus_stanza:chat_to(Jon, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>],
-                       escalus:wait_for_stanza(Jon)),
-
+        user_can_send_to(Kate, Jon),
         %according to update_rules() example, user can send message to
         %other user within one host.
-        escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>],
-                       escalus:wait_for_stanza(Bob)),
-
+        user_can_send_to(Alice, Bob),
         %according to update_rules() example, user can send message to bot.
-        escalus_client:send(Alice, escalus_stanza:chat_to(Kate, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>],
-                       escalus:wait_for_stanza(Kate)),
-    
+        user_can_send_to(Alice, Kate),
         %according to update_rules() example, bot can send message to user.
-        escalus_client:send(Kate, escalus_stanza:chat_to(Alice, <<"Hi!">>)),
-        escalus:assert(is_chat_message, [<<"Hi!">>],
-                       escalus:wait_for_stanza(Alice))
+        user_can_send_to(Kate, Alice)
     end).
 
 denied_messages_story(Config) ->
     escalus:story(Config, [{alice, 1}, {astrid, 1}, {bob, 1}, {jon, 1}], fun(Alice, Astrid, Bob, Jon) ->
         erlang:put(anon_user, escalus_utils:get_jid(Jon)),
-
         %according to update_rules() example, anonymous can't send message to user.
-        escalus_client:send(Jon, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        client_gets_nothing(Bob),
-        
+        user_cannot_send_to(Jon, Bob),
         %according to update_rules() example, user can't send message to anonymous.
-        escalus_client:send(Alice, escalus_stanza:chat_to(Jon, <<"Hi!">>)),
-        client_gets_nothing(Jon),
-
+        user_cannot_send_to(Alice, Jon),
         %according to update_rules() example, user 
         %can't send message to other user with different host.
-        escalus_client:send(Astrid, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        client_gets_nothing(Bob)
+        user_cannot_send_to(Astrid, Bob)
     end).
-
-
-client_gets_nothing(Client) ->
-    ct:sleep(500),
-    escalus_assert:has_no_stanzas(Client).
-
-
