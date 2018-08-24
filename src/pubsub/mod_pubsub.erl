@@ -542,8 +542,8 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
           Lang   :: binary())
         -> [exml:element()].
 disco_local_identity(Acc, _From, To, Node, Lang) ->
-    LServer = To#jid.lserver,
-    disco_local_identity(Acc, LServer, Node, Lang).
+    Host = jid_to_lserver(To),
+    disco_local_identity(Acc, Host, Node, Lang).
 
 disco_local_identity(Acc, Host, <<>>, _Lang) ->
     Plugins = plugins(Host),
@@ -559,7 +559,7 @@ disco_local_identity(Acc, _Host, _Node, _Lang) ->
           Lang   :: binary())
         -> [binary(), ...].
 disco_local_features(Acc, _From, To, <<>>, _Lang) ->
-    Host = To#jid.lserver,
+    Host = jid_to_lserver(To),
     Feats = case Acc of
                 {result, I} -> I;
                 _ -> []
@@ -581,20 +581,18 @@ disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 disco_sm_identity(empty, From, To, Node, Lang) ->
     disco_sm_identity([], From, To, Node, Lang);
 disco_sm_identity(Acc, From, To, Node, _Lang) ->
-    disco_identity(jid:to_lower(jid:to_bare(To)), Node, From)
-        ++ Acc.
+    Host = jid_to_lserver(To),
+    disco_identity(Host, Node, From) ++ Acc.
 
-disco_identity(error, _Node, _From) ->
-    [];
 disco_identity(_Host, <<>>, _From) ->
     [make_disco_identity_result_pep_elem()];
 disco_identity(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
+    Action = fun (NodeRec) ->
+                     case test_get_allowed_items(Host, NodeRec, From) of
+                         true ->
+                             Options = pubsub_node_to_options(NodeRec),
                              {result, make_disco_identity_result_elems(Options)};
-                         _ ->
+                         false ->
                              {result, []}
                      end
              end,
@@ -612,14 +610,12 @@ disco_identity(Host, Node, From) ->
         -> {result, Features::[Feature::binary()]}.
 disco_sm_features(empty, From, To, Node, Lang) ->
     disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features({result, OtherFeatures} = _Acc, From=#{lserver=Host}, To, Node, _Lang) ->
-    BareLToJid = jid:to_lower(jid:to_bare(To)),
+disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
+    Host = jid_to_lserver(To),
     PubsubFeatures = disco_features(Host, Node, From),
     {result, OtherFeatures ++ PubsubFeatures};
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
-disco_features(error, _Node, _From) ->
-    [];
 disco_features(Host, <<>>, _From) ->
     make_disco_features(Host);
 disco_features(Host, Node, From) ->
@@ -649,8 +645,8 @@ make_disco_features(Host) ->
 disco_sm_items(empty, From, To, Node, Lang) ->
     disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
-    BareLToJid = jid:to_lower(jid:to_bare(To)),
-    {result, lists:usort(OtherItems ++ disco_items(BareLToJid, Node, From))};
+    Host = jid_to_lserver(To),
+    {result, lists:usort(OtherItems ++ disco_items(Host, Node, From))};
 disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_items(
@@ -4664,3 +4660,5 @@ prepend_disco_plugin_identities(Plugins, Acc) ->
 
 pubsub_node_to_node_id(#pubsub_node{nodeid = {_, Node}}) -> Node.
 pubsub_node_to_options(#pubsub_node{options = Options}) -> Options.
+
+jid_to_lserver(#jid{lserver=Host}) -> Host.
