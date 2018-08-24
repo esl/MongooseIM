@@ -1949,21 +1949,20 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, all).
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access) ->
     publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, undefined).
+
 publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access, PublishOptions) ->
     publish_item(Host, ServerHost, Node, Publisher, uniqid(), Payload, Access, PublishOptions);
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, PublishOptions) ->
     ItemPublisher = config(serverhost(Host), item_publisher, false),
     Action =
-        fun (NodeRec = #pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                PublishModel = get_option(Options, publish_model),
-                MaxItems = max_items(Host, Options),
+        fun (NodeRec) ->
                 case check_publish_item(Host, Payload, PublishOptions, NodeRec) of
                     {error, Reason} ->
                         {error, Reason};
                     ok ->
-                        node_call(Host, Type, publish_item,
-                                  [ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId,
-                                   ItemPublisher, Payload, PublishOptions])
+                        call_publish_item(Host, ServerHost, Publisher,
+                                          ItemId, ItemPublisher,
+                                          Payload, PublishOptions, NodeRec)
                 end
         end,
     Result = transaction(Host, Node, Action, sync_dirty),
@@ -3418,6 +3417,16 @@ call_purge_node(Host, #pubsub_node{type = Type, id = Nidx}, Owner) ->
 
 call_get_all_nodes(Host) ->
     tree_call(Host, get_nodes, [Host]).
+
+call_publish_item(Host, ServerHost, Publisher,
+                  ItemId, ItemPublisher,
+                  Payload, PublishOptions,
+                  #pubsub_node{options = Options, type = Type, id = Nidx}) ->
+    PublishModel = get_option(Options, publish_model),
+    MaxItems = max_items(Host, Options),
+    node_call(Host, Type, publish_item,
+              [ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId,
+               ItemPublisher, Payload, PublishOptions]).
 
 
 -spec act_get_entity_subscriptions(host(), plugin_type(), jid:jid()) ->
