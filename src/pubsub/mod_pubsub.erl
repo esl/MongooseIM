@@ -1721,40 +1721,36 @@ create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions)
 %%</ul>
 -spec delete_node(
         Host  :: mod_pubsub:host(),
-          Node  :: mod_pubsub:nodeId(),
-          Owner :: jid:jid())
-        -> maybe_elems().
+        Node  :: mod_pubsub:nodeId(),
+        Owner :: jid:jid()) -> maybe_elems().
 delete_node(_Host, <<>>, _Owner) ->
     {error, mongoose_xmpp_errors:not_allowed()};
 delete_node(Host, Node, Owner) ->
-    Action = fun (PubSubNode) -> delete_node_transaction(Host, Owner, Node, PubSubNode) end,
+    Action = fun (PubSubNode) ->
+                     delete_node_transaction(Host, Owner, Node, PubSubNode)
+             end,
+    TransResult = transaction(Host, Node, Action, transaction),
+    handle_delete_node_result(Host, TransResult).
+
+handle_delete_node_result(Host, TransResult) ->
     ServerHost = serverhost(Host),
-    case transaction(Host, Node, Action, transaction) of
+    case TransResult of
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   broadcast_removed_node(RNode, SubsByDepth),
                                   run_pubsub_delete_node_hook(ServerHost, RNode)
                           end,
                           Removed),
-            case Result of
-                default -> {result, []};
-                _ -> {result, Result}
-            end;
+            return_result(Result, []);
         {result, {_, {_, {Result, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   run_pubsub_delete_node_hook(ServerHost, RNode)
                           end,
                           Removed),
-            case Result of
-                default -> {result, []};
-                _ -> {result, Result}
-            end;
+            return_result(Result, []);
         {result, {TNode, {_, Result}}} ->
             run_pubsub_delete_node_hook(ServerHost, TNode),
-            case Result of
-                default -> {result, []};
-                _ -> {result, Result}
-            end;
+            return_result(Result, []);
         Error ->
             Error
     end.
