@@ -1732,12 +1732,7 @@ delete_node(Host, Node, Owner) ->
     case transaction(Host, Node, Action, transaction) of
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
-                                  {RH, RN} = RNode#pubsub_node.nodeid,
-                                  RNidx = RNode#pubsub_node.id,
-                                  RType = RNode#pubsub_node.type,
-                                  ROptions = RNode#pubsub_node.options,
-                                  broadcast_removed_node(RH, RN, RNidx,
-                                                         RType, ROptions, SubsByDepth),
+                                  broadcast_removed_node(RNode, SubsByDepth),
                                   ejabberd_hooks:run(pubsub_delete_node,
                                                      ServerHost,
                                                      [ServerHost, RH, RN, RNidx])
@@ -2818,6 +2813,12 @@ broadcast_purge_node(Host, Node, Nidx, Type, NodeOptions) ->
         _ ->
             {result, false}
     end.
+
+broadcast_removed_node(#pubsub_node{nodeid = {Host, Node},
+                                    id = RNidx,
+                                    type = RType,
+                                    options = ROptions}, SubsByDepth) ->
+    broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth).
 
 broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
     case get_option(NodeOptions, notify_delete) of
