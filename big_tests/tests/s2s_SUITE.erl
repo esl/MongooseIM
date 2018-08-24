@@ -55,7 +55,7 @@ essentials() ->
     [simple_message].
 
 all_tests() ->
-    essentials() ++ [nonexistent_user, unknown_domain].
+    essentials() ++ [nonexistent_user, unknown_domain, malformed_jid].
 
 negative() ->
     [timeout_waiting_for_message].
@@ -145,6 +145,20 @@ unknown_domain(Config) ->
         %% Alice@localhost1 sends message to Xyz@localhost3
         escalus:send(Alice1, escalus_stanza:chat_to(
             <<"xyz@somebogushost">>,
+            <<"Hello, unreachable!">>)),
+
+        %% Alice@localhost1 receives stanza error: remote-server-not-found
+        Stanza = escalus:wait_for_stanza(Alice1, 10000),
+        escalus:assert(is_error, [<<"cancel">>, <<"remote-server-not-found">>], Stanza)
+
+    end).
+
+malformed_jid(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice1) ->
+
+        %% Alice@localhost1 sends message to Xyz@localhost3
+        escalus:send(Alice1, escalus_stanza:chat_to(
+            <<"not a jid">>,
             <<"Hello, unreachable!">>)),
 
         %% Alice@localhost1 receives stanza error: remote-server-not-found

@@ -105,10 +105,10 @@ drop_deliver_test_cases() ->
      drop_deliver_to_stranger_test].
 
 init_per_suite(C) ->
-    rpc(mim(), ejabberd_config, add_local_option, [outgoing_s2s_options, {[ipv4, ipv6], 1000}]),
+    rpc(mim(), ejabberd_config, add_local_option, [{{s2s_host, <<"not a jid">>}, domain()}, deny]),
     escalus:init_per_suite(C).
 end_per_suite(C) ->
-    rpc(mim(), ejabberd_config, del_local_option, [outgoing_s2s_options]),
+    rpc(mim(), ejabberd_config, del_local_option, [{{s2s_host, <<"not a jid">>}, domain()}]),
     escalus_fresh:clean(),
     escalus:end_per_suite(C).
 
@@ -394,8 +394,8 @@ notify_deliver_to_malformed_jid_test(Config) ->
                   true -> client_receives_notification(Alice, StrangerJid, Rule);
                   false -> ok
               end,
-              % Error codes may vary because of s2s config - accept any code
-              client_receives_generic_error(Alice, any, <<"cancel">>),
+              % s2s does not allow routing to 'not a jid', so error 503 is expected
+              client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
               client_receives_nothing(Alice)
       end).
 
