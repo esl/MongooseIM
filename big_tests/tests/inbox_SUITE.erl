@@ -26,7 +26,8 @@
          msg_sent_to_offline_user/1,
          msg_sent_to_not_existing_user/1,
          user_has_only_unread_messages_or_only_read/1,
-         reset_unread_counter_and_show_only_unread/1
+         reset_unread_counter_and_show_only_unread/1,
+         check_total_unread_count_and_active_conv_count/1
         ]).
 -export([simple_groupchat_stored_in_all_inbox/1,
          advanced_groupchat_stored_in_all_inbox/1,
@@ -102,7 +103,8 @@ groups() ->
            reset_unread_counter,
            try_to_reset_unread_counter_with_bad_marker,
            user_has_only_unread_messages_or_only_read,
-           reset_unread_counter_and_show_only_unread
+           reset_unread_counter_and_show_only_unread,
+           check_total_unread_count_and_active_conv_count
           ]},
          {muclight, [sequence],
           [
@@ -482,6 +484,28 @@ reset_unread_counter_and_show_only_unread(Config) ->
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
     inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
                                                 end).
+check_total_unread_count_and_active_conv_count(Config) ->
+  escalus:story(Config, [{kate, 1}, {mike, 1}, {alice, 1}], fun(Kate, Mike, Alice) ->
+    % Kate sends message to Mike
+    MsgId =  <<"123123">>,
+    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
+    escalus:send(Kate, Msg1),
+    M1 = escalus:wait_for_stanza(Mike),
+    escalus:assert(is_chat_message, M1),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
+
+    ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
+    escalus:send(Mike, ChatMarker),
+
+    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
+
+    escalus:send(Alice, Msg2),
+    escalus:wait_for_stanza(Mike),
+
+    % Mike has two conversations, one unread msg and one active conversation 
+    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2, 1, 1)
+                                                end).
+
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
