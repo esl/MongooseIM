@@ -3401,7 +3401,7 @@ call_get_all_nodes(Host) ->
     tree_call(Host, get_nodes, [Host]).
 
 
--spec act_get_entity_subscriptions(jid:lserver(), plugin_type(), jid:jid()) ->
+-spec act_get_entity_subscriptions(host(), plugin_type(), jid:jid()) ->
     [entity_subscription()].
 act_get_entity_subscriptions(Host, PType, Entity) ->
     {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
@@ -3442,7 +3442,7 @@ node_action(Host, Type, Function, Args) ->
 %%
 %% <p>plugin transaction handling.</p>
 %% Trans is mnesia function name
--spec transaction(jid:lserver(), nodeId(), fun((pubsubNode()) -> term()), atom()) -> term().
+-spec transaction(host(), nodeId(), fun((pubsubNode()) -> term()), atom()) -> term().
 transaction(Host, Node, Action, Trans) ->
     transaction(Host, fun () ->
                               case tree_call(Host, get_node, [Host, Node]) of
