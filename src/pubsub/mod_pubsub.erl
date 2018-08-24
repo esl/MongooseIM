@@ -612,24 +612,23 @@ disco_identity(Host, Node, From) ->
         -> {result, Features::[Feature::binary()]}.
 disco_sm_features(empty, From, To, Node, Lang) ->
     disco_sm_features({result, []}, From, To, Node, Lang);
-disco_sm_features({result, OtherFeatures} = _Acc, From, To, Node, _Lang) ->
-    {result,
-     OtherFeatures ++
-         disco_features(jid:to_lower(jid:to_bare(To)), Node, From)};
+disco_sm_features({result, OtherFeatures} = _Acc, From=#{lserver=Host}, To, Node, _Lang) ->
+    BareLToJid = jid:to_lower(jid:to_bare(To)),
+    PubsubFeatures = disco_features(Host, Node, From),
+    {result, OtherFeatures ++ PubsubFeatures};
 disco_sm_features(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 disco_features(error, _Node, _From) ->
     [];
 disco_features(Host, <<>>, _From) ->
-    [?NS_PUBSUB | [feature(F) || F <- plugin_features(Host, <<"pep">>)]];
+    make_disco_features(Host);
 disco_features(Host, Node, From) ->
-    Action = fun (#pubsub_node{id = Nidx, type = Type, options = Options, owners = O}) ->
-                     Owners = node_owners_call(Host, Type, Nidx, O),
-                     case get_allowed_items_call(Host, Nidx, From, Type, Options, Owners) of
-                         {result, _} ->
-                             {result, [?NS_PUBSUB | [feature(F)
-                                                     || F <- plugin_features(Host, <<"pep">>)]]};
-                         _ ->
+    Action = fun (NodeRec) ->
+                     case test_get_allowed_items(Host, NodeRec, From) of
+                         true ->
+                             Features = make_disco_features(Host),
+                             {result, Features};
+                         false ->
                              {result, []}
                      end
              end,
@@ -637,6 +636,10 @@ disco_features(Host, Node, From) ->
         {result, {_, Result}} -> Result;
         _ -> []
     end.
+
+make_disco_features(Host) ->
+    Features = [feature(F) || F <- plugin_features(Host, <<"pep">>)],
+    [?NS_PUBSUB | Features].
 
 -spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
                      From ::jid:jid(),
@@ -646,8 +649,8 @@ disco_features(Host, Node, From) ->
 disco_sm_items(empty, From, To, Node, Lang) ->
     disco_sm_items({result, []}, From, To, Node, Lang);
 disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
-    {result, lists:usort(OtherItems ++
-                             disco_items(jid:to_lower(jid:to_bare(To)), Node, From))};
+    BareLToJid = jid:to_lower(jid:to_bare(To)),
+    {result, lists:usort(OtherItems ++ disco_items(BareLToJid, Node, From))};
 disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_items(
