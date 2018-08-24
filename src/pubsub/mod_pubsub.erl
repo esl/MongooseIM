@@ -1627,39 +1627,46 @@ create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     end;
 create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
     Type = select_type(ServerHost, Host, Node, GivenType),
-    ConfigXEl = case xml:remove_cdata(Configuration) of
-                    [] ->
-                        {result, node_options(Host, Type)};
-                    [#xmlel{name = <<"x">>} = XEl] ->
-                        XEl;
-                    _ ->
-                        ?INFO_MSG("Node ~p; bad configuration: ~p", [Node, Configuration]),
-                        {error, mongoose_xmpp_errors:bad_request()}
-                end,
+    ConfigXEl = make_create_node_config_elem(Configuration, Host, Node, Type),
     case parse_create_node_options_if_possible(Host, Type, ConfigXEl) of
         {result, NodeOptions} ->
             CreateNode = fun () ->
                                  create_node_transaction(Host, ServerHost, Node, Owner,
                                                          Type, Access, NodeOptions)
                          end,
-            case transaction(Host, CreateNode, transaction) of
-                {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
-                    broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
-                    ejabberd_hooks:run(pubsub_create_node, ServerHost,
-                                       [ServerHost, Host, Node, Nidx, NodeOptions]),
-                    create_node_reply(Node, Result);
-                {result, {Nidx, _SubsByDepth, Result}} ->
-                    ejabberd_hooks:run(pubsub_create_node, ServerHost,
-                                       [ServerHost, Host, Node, Nidx, NodeOptions]),
-                    create_node_reply(Node, Result);
-                Error ->
-                    %% in case we change transaction to sync_dirty...
-                    %%  node_call(Host, Type, delete_node, [Host, Node]),
-                    %%  tree_call(Host, delete_node, [Host, Node]),
-                    Error
-            end;
+            TransResult = transaction(Host, CreateNode, transaction),
+            handle_create_node_result(Host, ServerHost, Node,
+                                      Type, NodeOptions, TransResult);
         Error ->
             Error
+    end.
+
+handle_create_node_result(Host, ServerHost, Node,
+                          Type, NodeOptions, TransResult) ->
+    case TransResult of
+        {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
+            broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
+            run_pubsub_create_node_hook(ServerHost, Host, Node, Nidx, NodeOptions),
+            create_node_reply(Node, Result);
+        {result, {Nidx, _SubsByDepth, Result}} ->
+            run_pubsub_create_node_hook(ServerHost, Host, Node, Nidx, NodeOptions),
+            create_node_reply(Node, Result);
+        Error ->
+            %% in case we change transaction to sync_dirty...
+            %%  node_call(Host, Type, delete_node, [Host, Node]),
+            %%  tree_call(Host, delete_node, [Host, Node]),
+            Error
+    end.
+
+make_create_node_config_elem(Configuration, Host, Node, Type) ->
+    case xml:remove_cdata(Configuration) of
+        [] ->
+            {result, node_options(Host, Type)};
+        [#xmlel{name = <<"x">>} = XEl] ->
+            XEl;
+        _ ->
+            ?INFO_MSG("Node ~p; bad configuration: ~p", [Node, Configuration]),
+            {error, mongoose_xmpp_errors:bad_request()}
     end.
 
 parse_create_node_options_if_possible(Host, Type, #xmlel{} = ConfigXEl) ->
@@ -3441,6 +3448,10 @@ run_pubsub_delete_node_hook(ServerHost, NodeRec) ->
 run_pubsub_publish_item_hook(ServerHost, Node, Publisher, Host, ItemId, BrPayload) ->
     ejabberd_hooks:run(pubsub_publish_item, ServerHost,
                        [ServerHost, Node, Publisher, service_jid(Host), ItemId, BrPayload]).
+
+run_pubsub_create_node_hook(ServerHost, Host, Node, Nidx, NodeOptions) ->
+    ejabberd_hooks:run(pubsub_create_node, ServerHost,
+                       [ServerHost, Host, Node, Nidx, NodeOptions]).
 
 
 %% @doc <p>node plugin call.</p>
