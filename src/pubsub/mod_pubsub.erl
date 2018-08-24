@@ -1965,15 +1965,15 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                                           Payload, PublishOptions, NodeRec)
                 end
         end,
-    Result = transaction(Host, Node, Action, sync_dirty),
+    TransResult = transaction(Host, Node, Action, sync_dirty),
     handle_publish_item_result(Host, ServerHost, Node, Publisher, ItemId, Payload,
-                               Access, ItemPublisher, Result).
+                               Access, ItemPublisher, TransResult).
 
 handle_publish_item_result(Host, ServerHost, Node, Publisher, ItemId, Payload,
-                           Access, ItemPublisher, Result) ->
+                           Access, ItemPublisher, TransResult) ->
     Reply = [make_pubsub_item(Node, ItemId)],
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
-    case Result of
+    case TransResult of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             BrPayload = case Broadcast of
@@ -2083,7 +2083,11 @@ delete_item(_, <<>>, _, _, _) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
     Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_delete_item_result(Host, ItemId, ForceNotify, TransResult).
+
+handle_delete_item_result(Host, ItemId, ForceNotify, TransResult) ->
+    case TransResult of
         {result, {TNode, {Result, broadcast}}} ->
             Removed = [ItemId],
             broadcast_retract_items(Host, TNode, Removed, ForceNotify),
@@ -2092,14 +2096,9 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
             end,
-            case Result of
-                default -> {result, []};
-                _ -> {result, Result}
-            end;
-        {result, {_, default}} ->
-            {result, []};
+            return_result(Result, []);
         {result, {_, Result}} ->
-            {result, Result};
+            return_result(Result, []);
         Error ->
             Error
     end.
