@@ -1190,7 +1190,8 @@ process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData)
 %% "Incoming" means that stanza is coming from ejabberd_router.
 -spec check_incoming_accum_for_conflicts(mongoose_acc:t(), state()) ->
     unknown_origin | different_origin | same_device | conflict.
-check_incoming_accum_for_conflicts(Acc, #state{sid = SID, jid = JID}) ->
+check_incoming_accum_for_conflicts(Acc, #state{sid = SID, jid = JID,
+                                               stream_mgmt_resumed_from = OldSID}) ->
     OriginSID = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
     OriginJID = mongoose_acc:get(c2s, origin_jid, undefined, Acc),
     AreDefined = OriginJID =/= undefined andalso OriginSID =/= undefined,
@@ -1200,7 +1201,10 @@ check_incoming_accum_for_conflicts(Acc, #state{sid = SID, jid = JID}) ->
         true ->
             SameJID = jid:are_equal(OriginJID, JID),
             SameSID = OriginSID =:= SID,
-            case {SameJID, SameSID} of
+            % It's possible to receive a response addressed to a process
+            % which we resumed from - still valid!
+            SameOldSession = OriginSID =:= OldSID,
+            case {SameJID, SameSID or SameOldSession} of
                 {false, _} ->
                     different_origin;
                 {_, true} ->
@@ -2333,7 +2337,8 @@ resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateD
                          A1 = send_element(A, XMLPacket, State),
                          {value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
                          {value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
-                         BufferedStateData = buffer_out_stanza({From, To, XMLPacket}, State),
+                         PacketTuple = {jid:from_binary(From), jid:from_binary(To), XMLPacket},
+                         BufferedStateData = buffer_out_stanza(PacketTuple, State),
                          % this one will be next to tackle
                          A2 = maybe_send_ack_request(A1, BufferedStateData),
                          {A2, BufferedStateData}
@@ -2492,13 +2497,16 @@ bounce_messages() ->
     end.
 
 %% Return the messages in reverse order than they were received in!
+-spec flush_messages() -> {N :: non_neg_integer(), Msgs :: [packet()]}.
 flush_messages() ->
     flush_messages(0, []).
 
+-spec flush_messages(N :: non_neg_integer(), Msgs :: [packet()]) ->
+    {N :: non_neg_integer(), Msgs :: [packet()]}.
 flush_messages(N, Acc) ->
     receive
-        {route, _, _, _} = Msg ->
-            flush_messages(N+1, [Msg | Acc])
+        {route, From, To, Packet} ->
+            flush_messages(N+1, [{From, To, Packet} | Acc])
     after 0 ->
               {N, Acc}
     end.
@@ -2851,6 +2859,7 @@ stream_mgmt_ack(NIncoming) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
                     {<<"h">>, integer_to_binary(NIncoming)}]}.
 
+-spec buffer_out_stanza(packet(), state()) -> state().
 buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
     S;
 buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
@@ -3001,7 +3010,9 @@ do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) -
 
                     NSD2 = flush_csi_buffer(NSD),
 
-                    fsm_next_state(session_established, NSD2)
+                    NSD3 = NSD2#state{ stream_mgmt_resumed_from = OldState#state.sid },
+
+                    fsm_next_state(session_established, NSD3)
                 catch
                     %% errors from send_element
                     _:_ ->
