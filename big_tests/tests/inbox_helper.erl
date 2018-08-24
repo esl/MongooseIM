@@ -11,7 +11,7 @@
          clear_inbox_all/0,
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
-         get_inbox/2, get_inbox/3,
+         get_inbox/2, get_inbox/3, get_inbox/5,
          get_inbox_count/1,
          get_inbox_form_stanza/0,
          get_inbox_stanza/0,
@@ -151,12 +151,42 @@ get_inbox(Client, GetParams, ExpectedCount) ->
   ExpectedCount = get_inbox_count(ResIQ),
   Stanzas.
 
+get_inbox(Client, GetParams, ExpectedCount, UnreadCount, ActiveCount) ->
+  GetInbox = get_inbox_stanza(GetParams),
+  escalus:send(Client, GetInbox),
+  Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
+  ResIQ = escalus:wait_for_stanza(Client),
+  ExpectedCount = get_inbox_count(ResIQ),
+  UnreadCount = get_inbox_unread(ResIQ),
+  ActiveCount = get_inbox_active(ResIQ),
+  Stanzas.
+
 get_unread_count(Msg) ->
   [Val] = exml_query:paths(Msg, [{element, <<"result">>}, {attr, <<"unread">>}]),
   binary_to_integer(Val).
 
 get_inbox_count(Packet) ->
   Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"count">>}, cdata]),
+  case Val of
+    <<>> ->
+      ct:fail(#{ error => no_unread_count,
+                 stanza => Packet });
+    _ ->
+      binary_to_integer(Val)
+  end.
+
+get_inbox_unread(Packet) ->
+  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"unread-messages">>}, cdata]),
+  case Val of
+    <<>> ->
+      ct:fail(#{ error => no_unread_count,
+                 stanza => Packet });
+    _ ->
+      binary_to_integer(Val)
+  end.
+
+get_inbox_active(Packet) ->
+  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"active-conversations">>}, cdata]),
   case Val of
     <<>> ->
       ct:fail(#{ error => no_unread_count,
