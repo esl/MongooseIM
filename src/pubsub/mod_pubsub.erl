@@ -195,6 +195,14 @@
 -type maybe_elems() ::
     {result, [exml:element()]} | {error, exml:element()}.
 
+-type plugin_type() :: atom().
+
+-type entity_subscription() ::
+    {Node :: pubsubNode(),
+     Sub :: subscription(),
+     SubId :: mod_pubsub:subId(),
+     SubJid :: jid:jid()}.
+
 -record(state,
         {
           server_host,
@@ -531,24 +539,8 @@ disco_local_identity(Acc, _From, To, Node, Lang) ->
     disco_local_identity(Acc, LServer, Node, Lang).
 
 disco_local_identity(Acc, Host, <<>>, _Lang) ->
-    PepIdentity =
-    #xmlel{name = <<"identity">>,
-           attrs = [{<<"category">>, <<"pubsub">>},
-                    {<<"type">>, ?PEPNODE}]},
-    PushIdentity =
-    #xmlel{name = <<"identity">>,
-           attrs = [{<<"category">>, <<"pubsub">>},
-                    {<<"type">>, ?PUSHNODE}]},
-    HasPep = lists:member(?PEPNODE, plugins(Host)),
-    HasPush = lists:member(?PUSHNODE, plugins(Host)),
-    Plugins = [{HasPep, PepIdentity}, {HasPush, PushIdentity}],
-    lists:foldl(
-        fun
-            ({true, El}, AccIn) ->
-                [El | AccIn];
-            ({false, _}, AccIn) ->
-                AccIn
-        end, Acc, Plugins);
+    Plugins = plugins(Host),
+    prepend_disco_plugin_identities(Plugins, Acc);
 disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
@@ -757,6 +749,7 @@ out_subscription(Acc, User, Server, JID, subscribed) ->
 out_subscription(Acc, _, _, _, _) ->
     Acc.
 
+%% Process incoming roster subscription request from Owner to User
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
@@ -764,6 +757,7 @@ out_subscription(Acc, _, _, _, _) ->
                       Type :: mod_roster:sub_presence(),
                       _:: any()) ->
     mongoose_acc:t().
+%% Args are: Acc, To#jid.user, To#jid.server, From, Type, Reason
 in_subscription(Acc, User, Server, Owner, unsubscribed, _) ->
     unsubscribe_user(jid:make(User, Server, <<>>), Owner),
     Acc;
@@ -771,14 +765,17 @@ in_subscription(Acc, _, _, _, _, _) ->
     Acc.
 
 unsubscribe_user(Entity, Owner) ->
-    ServerHosts = lists:usort(lists:foldl(
-                                fun(UserHost, Acc) ->
-                                        case gen_mod:is_loaded(UserHost, mod_pubsub) of
-                                            true -> [UserHost|Acc];
-                                            false -> Acc
-                                        end
-                                end, [], [Entity#jid.lserver, Owner#jid.lserver])),
-    spawn(fun() -> [unsubscribe_user(ServerHost, Entity, Owner) || ServerHost <- ServerHosts] end).
+    ServerHosts = [Entity#jid.lserver, Owner#jid.lserver],
+    PubsubServerHosts = server_hosts_with_pubsub(ServerHosts),
+    async_unsubscribe_user_at_hosts(PubsubServerHosts, Entity, Owner).
+
+async_unsubscribe_user_at_hosts(PubsubServerHosts, Entity, Owner) ->
+    spawn(fun() ->
+            unsubscribe_user_at_hosts(PubsubServerHosts, Entity, Owner)
+          end).
+
+unsubscribe_user_at_hosts(PubsubServerHosts, Entity, Owner) ->
+    [unsubscribe_user(ServerHost, Entity, Owner) || ServerHost <- PubsubServerHosts].
 
 unsubscribe_user(Host, Entity, Owner) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
@@ -787,21 +784,28 @@ unsubscribe_user(Host, Entity, Owner) ->
                   end, plugins(Host)).
 
 unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
-    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{options = Options, owners = O, id = Nidx},
-                       subscribed, _, JID}) ->
-                          Unsubscribe = match_option(Options, access_model, presence)
-                          andalso lists:member(BJID, node_owners_action(Host, PType, Nidx, O)),
-                          case Unsubscribe of
-                              true ->
-                                  node_action(Host, PType,
-                                              unsubscribe_node, [Nidx, Entity, JID, all]);
-                              false ->
-                                  ok
-                          end;
+    Subs = act_get_entity_subscriptions(Host, PType, Entity),
+    unsubscribe_user_per_plugin(Host, Entity, BJID, PType, Subs).
+
+unsubscribe_user_per_plugin(Host, Entity, BJID, PType, Subs) ->
+    lists:foreach(fun({NodeRec = #pubsub_node{}, subscribed, _, JID}) ->
+                          do_unsubscribe_node(Host, PType, BJID, NodeRec, Entity, JID);
                      (_) ->
                           ok
                   end, Subs).
+
+do_unsubscribe_node(Host, PType, BJID, NodeRec, Entity, JID) ->
+    Unsubscribe = can_unsubscribe(Host, PType, BJID, NodeRec),
+    case Unsubscribe of
+        true ->
+            act_unsubscribe_node(Host, PType, NodeRec, Entity, JID);
+        false ->
+            ok
+    end.
+
+can_unsubscribe(Host, PType, BJID, NodeRec) ->
+    match_option(NodeRec, access_model, presence)
+        andalso is_node_owner(Host, PType, BJID, NodeRec).
 
 %% -------
 %% user remove hook handling function
@@ -834,7 +838,7 @@ safe_remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
     end.
 
 remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
-    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
+    Subs = act_get_entity_subscriptions(Host, PType, Entity),
     lists:foreach(fun({#pubsub_node{id = Nidx}, _, _, JID}) ->
                           node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]);
                      (_) ->
@@ -2521,14 +2525,12 @@ write_sub(Nidx, Subscriber, SubId, Options) ->
 %%         Response = [pubsubIQResponse()]
 %% @doc <p>Return the list of subscriptions as an XMPP response.</p>
 get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
-    Result = lists:foldl(fun (Type, {Status, Acc}) ->
-                                 Features = plugin_features(Host, Type),
+    Result = lists:foldl(fun (PType, {Status, Acc}) ->
+                                 Features = plugin_features(Host, PType),
                                  case lists:member(<<"retrieve-subscriptions">>, Features) of
                                      true ->
                                          Subscriber = jid:to_bare(JID),
-                                         {result, Subs} = node_action(Host, Type,
-                                                                      get_entity_subscriptions,
-                                                                      [Host, Subscriber]),
+                                         Subs = act_get_entity_subscriptions(Host, PType, Subscriber),
                                          {Status, [Subs | Acc]};
                                      false ->
                                          {unsupported_feature_error(<<"retrieve-subscriptions">>), Acc}
@@ -2560,9 +2562,7 @@ get_subscriptions_transaction(Host, JID, NodeRec) ->
     end.
 
 get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
-    {result, Subs} = node_action(Host, PType,
-                                 get_entity_subscriptions,
-                                 [Host, JID]),
+    Subs = act_get_entity_subscriptions(Host, PType, JID),
     [{Node, Sub, SubId, SubJID}
      || {Node, Sub, SubId, SubJID} <- Subs,
         Sub =:= subscribed, (SubJID == LJID) or (SubJID == BJID),
@@ -3075,6 +3075,9 @@ filter_node_options(Options) ->
                         [{Key, DefaultValue}|Acc]
                 end, [], node_flat:options()).
 
+is_node_owner(Host, PType, BJID, #pubsub_node{owners = Owners, id = Nidx}) ->
+    lists:member(BJID, node_owners_action(Host, PType, Nidx, Owners)).
+
 node_owners_action(_Host, _Type, _Nidx, Owners) ->
     Owners.
 
@@ -3379,6 +3382,16 @@ call_purge_node(Host, #pubsub_node{type = Type, id = Nidx}, Owner) ->
     node_call(Host, Type, purge_node, [Nidx, Owner]).
 
 
+-spec act_get_entity_subscriptions(jid:lserver(), plugin_type(), jid:jid()) ->
+    [entity_subscription()].
+act_get_entity_subscriptions(Host, PType, Entity) ->
+    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
+    Subs.
+
+act_unsubscribe_node(Host, PType, #pubsub_node{id = Nidx}, Entity, JID) ->
+    node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]).
+
+
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
@@ -3612,6 +3625,10 @@ unsupported_feature_error(Feature) ->
     {error,
      extended_error(mongoose_xmpp_errors:feature_not_implemented(),
                     unsupported, Feature)}.
+
+server_hosts_with_pubsub(Hosts) ->
+    F = fun(UserHost) -> gen_mod:is_loaded(UserHost, mod_pubsub) end,
+    lists:usort(lists:filter(F, Hosts)).
 
 
 %% ------------------------------------------------------------------
@@ -4592,3 +4609,23 @@ encode_names(Host, Names) ->
                              attrs = [{<<"jid">>, Host}, {<<"name">>, Name}]}
               end,
               Names).
+
+prepend_disco_plugin_identities(Plugins, Acc) ->
+    PepIdentity =
+    #xmlel{name = <<"identity">>,
+           attrs = [{<<"category">>, <<"pubsub">>},
+                    {<<"type">>, ?PEPNODE}]},
+    PushIdentity =
+    #xmlel{name = <<"identity">>,
+           attrs = [{<<"category">>, <<"pubsub">>},
+                    {<<"type">>, ?PUSHNODE}]},
+    HasPep = lists:member(?PEPNODE, Plugins),
+    HasPush = lists:member(?PUSHNODE, Plugins),
+    PluginsList = [{HasPep, PepIdentity}, {HasPush, PushIdentity}],
+    lists:foldl(
+        fun
+            ({true, El}, AccIn) ->
+                [El | AccIn];
+            ({false, _}, AccIn) ->
+                AccIn
+        end, Acc, PluginsList).
