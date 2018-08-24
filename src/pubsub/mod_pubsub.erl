@@ -1797,10 +1797,10 @@ delete_node_transaction(Host, Owner, Node, NodeRec = #pubsub_node{type = Type}) 
 %%</ul>
 -spec subscribe_node(
         Host          :: mod_pubsub:host(),
-          Node          :: mod_pubsub:nodeId(),
-          From          ::jid:jid(),
-          JID           :: binary(),
-          Configuration :: [exml:element()])
+        Node          :: mod_pubsub:nodeId(),
+        From          :: jid:jid(),
+        JID           :: binary(),
+        Configuration :: [exml:element()])
         -> maybe_elems().
 subscribe_node(Host, Node, From, JID, Configuration) ->
     SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
@@ -1811,7 +1811,11 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
     Action = fun (PubSubNode) ->
                      subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    TransResult = transaction(Host, Node, Action, sync_dirty),
+    handle_subscribe_node_result(Host, Node, Subscriber, TransResult).
+
+handle_subscribe_node_result(Host, Node, Subscriber, TransResult) ->
+    case TransResult of
         {result, {TNode, {Result, subscribed, SubId, send_last}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
