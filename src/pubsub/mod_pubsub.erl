@@ -1954,48 +1954,27 @@ publish_item(Host, ServerHost, Node, Publisher, <<>>, Payload, Access, PublishOp
 publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, PublishOptions) ->
     ItemPublisher = config(serverhost(Host), item_publisher, false),
     Action =
-        fun (#pubsub_node{options = Options, type = Type, id = Nidx}) ->
-                Features = plugin_features(Host, Type),
-                PublishFeature = lists:member(<<"publish">>, Features),
-                PubOptsFeature = lists:member(<<"publish-options">>, Features),
+        fun (NodeRec = #pubsub_node{options = Options, type = Type, id = Nidx}) ->
                 PublishModel = get_option(Options, publish_model),
-                DeliverPayloads = get_option(Options, deliver_payloads),
-                PersistItems = get_option(Options, persist_items),
                 MaxItems = max_items(Host, Options),
-                PayloadCount = payload_xmlelements(Payload),
-                PayloadSize = byte_size(term_to_binary(Payload)) - 2,
-                PayloadMaxSize = get_option(Options, max_payload_size),
-
-                Errors = [ %% [{Condition :: boolean(), Reason :: term()}]
-                    {not PublishFeature,
-                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"publish">>)},
-                    {not PubOptsFeature andalso PublishOptions /= undefined,
-                     extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported,
-                                    <<"publish-options">>)},
-                    {PayloadSize > PayloadMaxSize,
-                     extended_error(mongoose_xmpp_errors:not_acceptable(), <<"payload-too-big">>)},
-                    {(PayloadCount == 0) and (Payload == []),
-                     extended_error(mongoose_xmpp_errors:bad_request(), <<"payload-required">>)},
-                    {(PayloadCount > 1) or (PayloadCount == 0),
-                     extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-payload">>)},
-                    {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
-                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-forbidden">>)},
-                    {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
-                     extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
-                ],
-
-                case lists:keyfind(true, 1, Errors) of
-                    {true, Reason} ->
+                case check_publish_item(Host, Payload, PublishOptions, NodeRec) of
+                    {error, Reason} ->
                         {error, Reason};
-                    false ->
+                    ok ->
                         node_call(Host, Type, publish_item,
                                   [ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId,
                                    ItemPublisher, Payload, PublishOptions])
                 end
         end,
+    Result = transaction(Host, Node, Action, sync_dirty),
+    handle_publish_item_result(Host, ServerHost, Node, Publisher, ItemId, Payload,
+                               Access, ItemPublisher, Result).
+
+handle_publish_item_result(Host, ServerHost, Node, Publisher, ItemId, Payload,
+                           Access, ItemPublisher, Result) ->
     Reply = [make_pubsub_item(Node, ItemId)],
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
-    case transaction(Host, Node, Action, sync_dirty) of
+    case Result of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             BrPayload = case Broadcast of
@@ -2024,6 +2003,41 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
 
 return_result(default, Reply) -> {result, Reply};
 return_result(Result, _Reply) -> {result, Result}.
+
+check_publish_item(Host, Payload, PublishOptions, #pubsub_node{options = Options, type = Type}) ->
+    Features = plugin_features(Host, Type),
+    PublishFeature = lists:member(<<"publish">>, Features),
+    PubOptsFeature = lists:member(<<"publish-options">>, Features),
+    DeliverPayloads = get_option(Options, deliver_payloads),
+    PersistItems = get_option(Options, persist_items),
+    PayloadCount = payload_xmlelements(Payload),
+    PayloadSize = byte_size(term_to_binary(Payload)) - 2,
+    PayloadMaxSize = get_option(Options, max_payload_size),
+
+    Errors = [ %% [{Condition :: boolean(), Reason :: term()}]
+        {not PublishFeature,
+         extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"publish">>)},
+        {not PubOptsFeature andalso PublishOptions /= undefined,
+         extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported,
+                        <<"publish-options">>)},
+        {PayloadSize > PayloadMaxSize,
+         extended_error(mongoose_xmpp_errors:not_acceptable(), <<"payload-too-big">>)},
+        {(PayloadCount == 0) and (Payload == []),
+         extended_error(mongoose_xmpp_errors:bad_request(), <<"payload-required">>)},
+        {(PayloadCount > 1) or (PayloadCount == 0),
+         extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-payload">>)},
+        {(DeliverPayloads == false) and (PersistItems == false) and (PayloadSize > 0),
+         extended_error(mongoose_xmpp_errors:bad_request(), <<"item-forbidden">>)},
+        {((DeliverPayloads == true) or (PersistItems == true)) and (PayloadSize == 0),
+         extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
+    ],
+
+    case lists:keyfind(true, 1, Errors) of
+        {true, Reason} ->
+            {error, Reason};
+        false ->
+            ok
+    end.
 
 autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
                                     Type, Access, ItemId, Payload) ->
