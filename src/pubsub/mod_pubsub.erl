@@ -1993,11 +1993,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                                    ItemPublisher, Payload, PublishOptions])
                 end
         end,
-    Reply = [#xmlel{name = <<"pubsub">>,
-                    attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
-                    children = [#xmlel{name = <<"publish">>, attrs = node_attr(Node),
-                                       children = [#xmlel{name = <<"item">>,
-                                                          attrs = item_attr(ItemId)}]}]}],
+    Reply = [make_pubsub_item(Node, ItemId)],
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
@@ -2006,33 +2002,18 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                             broadcast -> Payload;
                             PluginPayload -> PluginPayload
                         end,
-            ejabberd_hooks:run(pubsub_publish_item, ServerHost,
-                               [ServerHost, Node, Publisher, service_jid(Host), ItemId, BrPayload]),
+            run_pubsub_publish_item_hook(ServerHost, Node, Publisher, Host, ItemId, BrPayload),
             set_cached_item(Host, Nidx, ItemId, Publisher, BrPayload),
             maybe_broadcast_publish_item(Host, TNode, ItemId,
                                          Publisher, BrPayload, Removed, ItemPublisher),
-            case Result of
-                default -> {result, Reply};
-                _ -> {result, Result}
-            end;
-        {result, {TNode, {default, Removed}}} ->
-            Nidx = TNode#pubsub_node.id,
-            Type = TNode#pubsub_node.type,
-            Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, Removed),
-            set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
-            {result, Reply};
+            return_result(Result, Reply);
         {result, {TNode, {Result, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
-            Type = TNode#pubsub_node.type,
-            Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, Removed),
+            broadcast_retract_items(Host, TNode, Removed, _ForceNotify = false),
             set_cached_item(Host, Nidx, ItemId, Publisher, Payload),
-            {result, Result};
-        {result, {_, default}} ->
-            {result, Reply};
+            return_result(Result, Reply);
         {result, {_, Result}} ->
-            {result, Result};
+            return_result(Result, Reply);
         {error, ErrorItemNotFound} ->
             Type = select_type(ServerHost, Host, Node),
             autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
@@ -2040,6 +2021,9 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
         Error ->
             Error
     end.
+
+return_result(default, Reply) -> {result, Reply};
+return_result(Result, _Reply) -> {result, Result}.
 
 autocreate_if_supported_and_publish(Host, ServerHost, Node, Publisher,
                                     Type, Access, ItemId, Payload) ->
@@ -2088,10 +2072,9 @@ delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
     Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
     case transaction(Host, Node, Action, sync_dirty) of
         {result, {TNode, {Result, broadcast}}} ->
+            Removed = [ItemId],
+            broadcast_retract_items(Host, TNode, Removed, ForceNotify),
             Nidx = TNode#pubsub_node.id,
-            Type = TNode#pubsub_node.type,
-            Options = TNode#pubsub_node.options,
-            broadcast_retract_items(Host, Node, Nidx, Type, Options, [ItemId], ForceNotify),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
@@ -2769,18 +2752,16 @@ broadcast_auto_retract_notification(NodeRec, SubsByDepth, Removed) ->
             ok
     end.
 
-broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds) ->
-    broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, false).
-broadcast_retract_items(_Host, _Node, _Nidx, _Type, _NodeOptions, [], _ForceNotify) ->
+broadcast_retract_items(_Host, _NodeRec, _RemovedItemIds = [], _ForceNotify) ->
     {result, false};
-broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotify) ->
-    case (get_option(NodeOptions, notify_retract) or ForceNotify) of
+broadcast_retract_items(Host, NodeRec, RemovedItemIds, ForceNotify) ->
+    case (match_option(NodeRec, notify_retract, true) or ForceNotify) of
         true ->
+            Node = pubsub_node_to_node_id(NodeRec),
             case get_collection_subscriptions(Host, Node) of
                 SubsByDepth when is_list(SubsByDepth) ->
-                    Stanza = event_stanza(make_retract_elems(Node, ItemIds)),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, items, Stanza, true),
+                    Stanza = event_stanza(make_retract_elems(Node, RemovedItemIds)),
+                    broadcast_item_stanza(NodeRec, SubsByDepth, Stanza),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3441,6 +3422,10 @@ run_pubsub_delete_node_hook(ServerHost, NodeRec) ->
                        ServerHost,
                        [ServerHost, Host, Node, Nidx]).
 
+run_pubsub_publish_item_hook(ServerHost, Node, Publisher, Host, ItemId, BrPayload) ->
+    ejabberd_hooks:run(pubsub_publish_item, ServerHost,
+                       [ServerHost, Node, Publisher, service_jid(Host), ItemId, BrPayload]).
+
 
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
@@ -3597,13 +3582,13 @@ purge_offline(Host, {User, Server, _} = _LJID, #pubsub_node{ id = Nidx, type = T
             Error
     end.
 
-purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
-                                               options = Options, type = Type }, ItemId, U, S) ->
+purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, options = Options, type = Type } = NodeRec, ItemId, U, S) ->
     PublishModel = get_option(Options, publish_model),
     ForceNotify = get_option(Options, notify_retract),
     case node_action(Host, Type, delete_item, [Nidx, {U, S, <<>>}, PublishModel, ItemId]) of
         {result, {_, broadcast}} ->
-            broadcast_retract_items(Host, NodeId, Nidx, Type, Options, [ItemId], ForceNotify),
+            Removed = [ItemId],
+            broadcast_retract_items(Host, NodeRec, Removed, ForceNotify),
             case get_cached_item(Host, Nidx) of
                 #pubsub_item{itemid = {ItemId, Nidx}} -> unset_cached_item(Host, Nidx);
                 _ -> ok
@@ -4617,6 +4602,13 @@ make_delete_stanza(Node) ->
 
 make_purge_stanza(Node) ->
     event_stanza([#xmlel{name = <<"purge">>, attrs = node_attr(Node)}]).
+
+make_pubsub_item(Node, ItemId) ->
+    #xmlel{name = <<"pubsub">>,
+           attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+           children = [#xmlel{name = <<"publish">>, attrs = node_attr(Node),
+                              children = [#xmlel{name = <<"item">>,
+                                                 attrs = item_attr(ItemId)}]}]}.
 
 make_configuration_stanza(Node, Type, NodeOptions, Lang) ->
     Content = payload_by_option(Type, NodeOptions, Lang),
