@@ -45,7 +45,6 @@
 |0068|[Field Standardization for Data Forms](http://xmpp.org/extensions/xep-0068.html)||
 |0073|[Basic IM Protocol Suite](http://xmpp.org/extensions/xep-0073.html)||
 |0077|[In-Band Registration](http://xmpp.org/extensions/xep-0077.html)|`mod_register`|
-|0078|[Non-SASL Authentication](http://xmpp.org/extensions/xep-0078.html)||
 |0079|[Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html)|`mod_amp` (partial support)|
 |0082|[XMPP Date and Time Profiles](http://xmpp.org/extensions/xep-0082.html)||
 |0085|[Chat State Notifications](http://xmpp.org/extensions/xep-0085.html)||

@@ -40,7 +40,6 @@ all() ->
      {group, login},
      {group, login_scram},
      {group, login_scram_store_plain},
-     {group, legacy_auth},
      {group, messages}
     ].
 
@@ -48,10 +47,6 @@ groups() ->
     G = [{login, [parallel], all_tests()},
          {login_scram, [parallel], scram_tests()},
          {login_scram_store_plain, [parallel], scram_tests()},
-         {legacy_auth, [parallel], [legacy_successful_plain,
-                                    legacy_unsuccessful_plain,
-                                    legacy_successful_digest,
-                                    legacy_blocked_user]},
          {messages, [sequence], [messages_story, message_zlib_limit]}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -103,8 +98,7 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(DigestOrScram, Config) when
       DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
-      DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram;
-      DigestOrScram =:= legacy_successful_digest ->
+      DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram ->
     case get_store_type() of
         external ->
             {skip, "external store type requires plain password"};
@@ -207,57 +201,6 @@ message_zlib_limit(Config) ->
         escalus:assert(is_stream_end, escalus:wait_for_stanza(Hacker))
 
     end).
-
-legacy_successful_digest(Config) ->
-    legacy_auth(Config, legacy_auth_digest).
-
-legacy_successful_plain(Config) ->
-    legacy_auth(Config, legacy_auth_plain).
-
-legacy_unsuccessful_plain(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
-    Spec = escalus_users:get_userspec(Config, alice),
-    NewSpec = lists:keyreplace(password, 1, Spec, {password, <<"wrong_pass">>}),
-    try
-        do_legacy_auth(NewSpec, legacy_auth_plain),
-        ct:fail("Authenticated but shouldn't")
-    catch
-        error:{assertion_failed, assert, is_iq_result, _, _, _} ->
-            ok
-    end.
-
-legacy_auth(ConfigIn, Function) ->
-    %% given
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
-    Spec = escalus_users:get_userspec(Config, alice),
-    do_legacy_auth(Spec, Function).
-
-do_legacy_auth(Spec, Function) ->
-    Steps = [
-             %% when
-             {legacy_stream_helper, start_stream_pre_xmpp_1_0},
-             {legacy_stream_helper, Function}
-            ],
-    %% ok, now do the plan from above
-    {ok, Conn, _} = escalus_connection:start(Spec, Steps),
-    escalus_connection:stop(Conn).
-
-
-legacy_blocked_user(ConfigIn) ->
-    Config = escalus_fresh:create_users(ConfigIn, [{alice, 1}]),
-    Spec = escalus_users:get_userspec(Config, alice),
-    set_acl_for_blocking(Spec),
-    try
-        do_legacy_auth(Spec, legacy_auth_plain),
-        ct:fail("alice authenticated but shouldn't")
-    catch
-        error:{assertion_failed, assert, is_iq_result, _, Stanza, _Bin} ->
-            <<"cancel">> = exml_query:path(Stanza,
-                                           [{element, <<"error">>},
-                                            {attr, <<"type">>}])
-    after
-        unset_acl_for_blocking(Spec)
-    end.
 
 %%--------------------------------------------------------------------
 %% Helpers

@@ -37,8 +37,6 @@
          set_password/3,
          check_password/3,
          check_password/5,
-         check_password_with_authmodule/3,
-         check_password_with_authmodule/5,
          try_register/3,
          dirty_get_registered_users/0,
          get_vh_registered_users/1,
@@ -52,7 +50,6 @@
          is_user_exists_in_other_modules/3,
          remove_user/2,
          remove_user/3,
-         plain_password_required/1,
          store_type/1,
          entropy/1
         ]).
@@ -95,14 +92,6 @@ stop(Host) ->
       fun(M) ->
               M:stop(Host)
       end, auth_modules(Host)).
-
-%% This is only executed by ejabberd_c2s for non-SASL auth client
--spec plain_password_required(Server :: jid:server()) -> boolean().
-plain_password_required(Server) ->
-    lists:any(
-      fun(M) ->
-              M:plain_password_required()
-      end, auth_modules(Server)).
 
 -spec set_opts(Host :: jid:server(),
                KVs :: [tuple()]) ->  {atomic|aborted, _}.
