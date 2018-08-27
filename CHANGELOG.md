@@ -1,3 +1,9 @@
+# [MongooseIM 3.0.1](https://github.com/esl/MongooseIM/releases/tag/3.0.1) - 2018-08-28
+
+### Changed
+
+- Updated `exml` to `3.0.2`, featuring an important security fix
+
 # [MongooseIM 3.0.0](https://github.com/esl/MongooseIM/releases/tag/3.0.0) - 2018-05-22
 
 ## Highlights
