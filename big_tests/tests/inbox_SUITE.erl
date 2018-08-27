@@ -27,7 +27,8 @@
          msg_sent_to_not_existing_user/1,
          user_has_only_unread_messages_or_only_read/1,
          reset_unread_counter_and_show_only_unread/1,
-         check_total_unread_count_and_active_conv_count/1
+         check_total_unread_count_and_active_conv_count/1,
+         check_total_unread_count_when_there_are_no_active_conversations/1
         ]).
 -export([simple_groupchat_stored_in_all_inbox/1,
          advanced_groupchat_stored_in_all_inbox/1,
@@ -104,7 +105,8 @@ groups() ->
            try_to_reset_unread_counter_with_bad_marker,
            user_has_only_unread_messages_or_only_read,
            reset_unread_counter_and_show_only_unread,
-           check_total_unread_count_and_active_conv_count
+           check_total_unread_count_and_active_conv_count,
+           check_total_unread_count_when_there_are_no_active_conversations
           ]},
          {muclight, [sequence],
           [
@@ -504,6 +506,19 @@ check_total_unread_count_and_active_conv_count(Config) ->
     inbox_helper:get_inbox(Mike, #{count => 2, unread_messages => 1, active_conversations => 1})
                                                 end).
 
+check_total_unread_count_when_there_are_no_active_conversations(Config) ->
+  escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
+    MsgId =  <<"123123">>,
+    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
+    escalus:send(Kate, Msg1),
+    M1 = escalus:wait_for_stanza(Mike),
+    escalus:assert(is_chat_message, M1),
+
+    ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
+    escalus:send(Mike, ChatMarker),
+
+    inbox_helper:get_inbox(Mike, #{count => 1, unread_messages => 0, active_conversations => 0})
+                                                end).
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
