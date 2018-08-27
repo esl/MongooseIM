@@ -345,7 +345,7 @@ user_has_empty_inbox(Config) ->
     [ResIQ] = escalus:wait_for_stanzas(Kate, 1),
     true = escalus_pred:is_iq_result(ResIQ),
     %% Inbox is empty
-    TotalCount = inbox_helper:get_inbox_count(ResIQ),
+    TotalCount = inbox_helper:get_result_el(ResIQ, <<"count">>),
     0 = TotalCount
                                      end).
 
@@ -377,11 +377,12 @@ user_has_only_unread_messages_or_only_read(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
     given_conversations_between(Alice, [Bob, Kate]),
     % Alice has no unread messages, but requests all conversations
-    inbox_helper:get_inbox(Alice, #{ hidden_read => false }, 2),
+    inbox_helper:get_inbox(Alice, #{ hidden_read => false }, #{count => 2}),
+
     % Requests only conversations with unread messages
-    inbox_helper:get_inbox(Alice, #{ hidden_read => true }, 0),
+    inbox_helper:get_inbox(Alice, #{ hidden_read => true }, #{count => 0}),
     % Bob has only one, unread message
-    inbox_helper:get_inbox(Bob, #{ hidden_read => true }, 1)
+    inbox_helper:get_inbox(Bob, #{ hidden_read => true }, #{count => 1})
         end).
 
 msg_sent_to_offline_user(Config) ->
@@ -467,12 +468,12 @@ reset_unread_counter_and_show_only_unread(Config) ->
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
-    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, #{count => 1}),
 
     ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
     escalus:send(Mike, ChatMarker),
 
-    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 0),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, #{count => 0}),
 
     % Alice sends message to Mike
     Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
@@ -481,18 +482,16 @@ reset_unread_counter_and_show_only_unread(Config) ->
     escalus:wait_for_stanza(Mike),
 
     % Mike has two conversations, one with unread messages 
-    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
-    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2)
+    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, #{count => 1}),
+    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, #{count => 2})
                                                 end).
 check_total_unread_count_and_active_conv_count(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}, {alice, 1}], fun(Kate, Mike, Alice) ->
-    % Kate sends message to Mike
     MsgId =  <<"123123">>,
     Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
     escalus:send(Kate, Msg1),
     M1 = escalus:wait_for_stanza(Mike),
     escalus:assert(is_chat_message, M1),
-    inbox_helper:get_inbox(Mike, #{ hidden_read => true }, 1),
 
     ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
     escalus:send(Mike, ChatMarker),
@@ -502,8 +501,7 @@ check_total_unread_count_and_active_conv_count(Config) ->
     escalus:send(Alice, Msg2),
     escalus:wait_for_stanza(Mike),
 
-    % Mike has two conversations, one unread msg and one active conversation 
-    inbox_helper:get_inbox(Mike, #{ hidden_read => false }, 2, 1, 1)
+    inbox_helper:get_inbox(Mike, #{count => 2, unread_messages => 1, active_conversations => 1})
                                                 end).
 
 
@@ -993,14 +991,15 @@ timestamp_is_updated_on_new_message(Config) ->
     _M1 = escalus:wait_for_stanza(Bob),
 
     %% We capture a timestamp after first message
-    [Item1] = inbox_helper:get_inbox(Alice, 1),
+    [Item1] = inbox_helper:get_inbox(Alice, #{count => 1}),
     TStamp1 = inbox_helper:timestamp_from_item(Item1),
 
     escalus:send(Alice, Msg2),
     _M2 = escalus:wait_for_stanza(Bob),
     
     %% Timestamp after second message must be higher
-    [Item2] = inbox_helper:get_inbox(Alice, 1),
+    [Item2] = inbox_helper:get_inbox(Alice, #{count => 1}),
+
     TStamp2 = inbox_helper:timestamp_from_item(Item2),
 
     case timer:now_diff(TStamp2, TStamp1) > 0 of

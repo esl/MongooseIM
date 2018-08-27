@@ -11,8 +11,8 @@
          clear_inbox_all/0,
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
-         get_inbox/2, get_inbox/3, get_inbox/5,
-         get_inbox_count/1,
+         get_inbox/2, get_inbox/3,
+         get_result_el/2,
          get_inbox_form_stanza/0,
          get_inbox_stanza/0,
          inbox_ns/0,
@@ -64,6 +64,12 @@
         check_resource => boolean() % should resource be verified
        }.
 
+-type inbox_result_params() :: #{
+        count => integer(),
+        unread_messages => integer(),
+        active_conversations => integer()
+       }.
+
 -type jid_verify_fun() :: fun((InnerMsg :: exml:element(),
                                Expected :: binary(),
                                AttrName :: binary()) -> any() | no_return()).
@@ -97,7 +103,7 @@ check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
                           asc -> lists:reverse(Convs);
                           _ -> Convs
                         end,
-  ResultStanzas = get_inbox(Client, QueryOpts, length(ExpectedSortedConvs)),
+  ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
   try
     check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
   catch
@@ -135,65 +141,41 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
   ok.
 
 -spec get_inbox(Client :: escalus:client(),
-                ExpectedCount :: non_neg_integer()) -> [exml:element()].
-get_inbox(Client, ExpectedCount) ->
-  get_inbox(Client, #{}, ExpectedCount).
+                ExpectedResult :: inbox_result_params()) -> [exml:element()].
+get_inbox(Client, ExpectedResult) ->
+  get_inbox(Client, #{}, ExpectedResult).
 
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
-                ExpectedCount :: non_neg_integer()) -> [exml:element()].
+                ExpectedResult :: inbox_result_params()) -> [exml:element()].
 
-get_inbox(Client, GetParams, ExpectedCount) ->
+get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
   GetInbox = get_inbox_stanza(GetParams),
   escalus:send(Client, GetInbox),
   Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
   ResIQ = escalus:wait_for_stanza(Client),
-  ExpectedCount = get_inbox_count(ResIQ),
-  Stanzas.
-
-get_inbox(Client, GetParams, ExpectedCount, UnreadCount, ActiveCount) ->
-  GetInbox = get_inbox_stanza(GetParams),
-  escalus:send(Client, GetInbox),
-  Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
-  ResIQ = escalus:wait_for_stanza(Client),
-  ExpectedCount = get_inbox_count(ResIQ),
-  UnreadCount = get_inbox_unread(ResIQ),
-  ActiveCount = get_inbox_active(ResIQ),
+  check_result(ResIQ, ExpectedResult),
   Stanzas.
 
 get_unread_count(Msg) ->
   [Val] = exml_query:paths(Msg, [{element, <<"result">>}, {attr, <<"unread">>}]),
   binary_to_integer(Val).
 
-get_inbox_count(Packet) ->
-  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"count">>}, cdata]),
+get_result_el(Packet, Element) ->
+  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, Element}, cdata]),
   case Val of
     <<>> ->
-      ct:fail(#{ error => no_unread_count,
+      ct:fail(#{ error => Element,
                  stanza => Packet });
     _ ->
       binary_to_integer(Val)
   end.
 
-get_inbox_unread(Packet) ->
-  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"unread-messages">>}, cdata]),
-  case Val of
-    <<>> ->
-      ct:fail(#{ error => no_unread_count,
-                 stanza => Packet });
-    _ ->
-      binary_to_integer(Val)
-  end.
-
-get_inbox_active(Packet) ->
-  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, <<"active-conversations">>}, cdata]),
-  case Val of
-    <<>> ->
-      ct:fail(#{ error => no_unread_count,
-                 stanza => Packet });
-    _ ->
-      binary_to_integer(Val)
-  end.
+check_result(Packet, ExpectedResult) ->
+    maps:filter(fun(K, V) ->
+                        V == get_result_el(Packet, key_to_binary(K))
+                end,
+                ExpectedResult).
 
 timestamp_from_item(Item) ->
     ISOTStamp = exml_query:path(Item, [{element, <<"result">>}, {element, <<"forwarded">>},
@@ -433,7 +415,7 @@ mark_last_muclight_message(User, AllUsers, MarkerType) ->
   escalus:send(User, GetInbox),
   Stanza = escalus:wait_for_stanza(User),
   ResIQ = escalus:wait_for_stanza(User),
-  1 = get_inbox_count(ResIQ),
+  1 = get_result_el(ResIQ, <<"count">>),
   [InnerMsg] = get_inner_msg(Stanza),
   MsgId = exml_query:attr(InnerMsg, <<"id">>),
   From = exml_query:attr(InnerMsg, <<"from">>),
@@ -455,7 +437,7 @@ mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
   escalus:send(User, GetInbox),
   Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
   ResIQ = escalus:wait_for_stanza(User),
-  ExpectedCount = get_inbox_count(ResIQ),
+  ExpectedCount = get_result_el(ResIQ, <<"count">>),
   LastMsg = lists:last(Stanzas),
   [InnerMsg] = get_inner_msg(LastMsg),
   MsgId = exml_query:attr(InnerMsg, <<"id">>),
@@ -537,3 +519,9 @@ ensure_conv_binary_jid(BinJid) when is_binary(BinJid) ->
 ensure_conv_binary_jid(Client) ->
   lbin(escalus_client:full_jid(Client)).
 
+key_to_binary(unread_messages) ->
+    <<"unread-messages">>;
+key_to_binary(active_conversations) ->
+    <<"active-conversations">>;
+key_to_binary(count) ->
+    <<"count">>.
