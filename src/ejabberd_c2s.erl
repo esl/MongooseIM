@@ -299,7 +299,7 @@ c2s_stream_error(Error, StateData) ->
 %% (http://xmpp.org/rfcs/rfc6120.html#streams-negotiation-features)
 stream_start_by_protocol_version(<<"1.0">>, #state{} = S) ->
     stream_start_negotiate_features(S);
-stream_start_by_protocol_version(_Pre10, S) ->
+stream_start_by_protocol_version(_Pre1_0, S) ->
     stream_start_error(mongoose_xmpp_errors:unsupported_version(), S).
 
 stream_start_negotiate_features(#state{} = S) ->
