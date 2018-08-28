@@ -235,7 +235,7 @@
 {"Period: ","Periyot:"}.
 {"Persist items to storage","Öğeleri depoda kalıcı hale getir"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Bu seçeneklerin sadece gömülü Mnesia veritabanını yedekleyeceğine dikkat edin. Eğer ODBC modülünü kullanıyorsanız, SQL veritabanınızı da ayrıca yedeklemeniz gerekiyor."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Bu seçeneklerin sadece gömülü Mnesia veritabanını yedekleyeceğine dikkat edin. Eğer RDBMS modülünü kullanıyorsanız, SQL veritabanınızı da ayrıca yedeklemeniz gerekiyor."}.
 {"Pong","Pong"}.
 {"Port ~b","Kapı (Port) ~b"}.
 {"Port","Kapı (Port)"}.

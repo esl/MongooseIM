@@ -66,7 +66,7 @@ init_per_suite(Config) ->
 
     MongooseMetrics = [{[global, data, xmpp, received, xml_stanza_size], changed},
                        {[global, data, xmpp, sent, xml_stanza_size], changed},
-                       {fun roster_odbc_precondition/0, [global, data, odbc, default],
+                       {fun roster_rdbms_precondition/0, [global, data, rdbms, default],
                         [{recv_oct, '>'}, {send_oct, '>'}]},
                        {[global, backends, mod_roster, get_subscription_lists], changed}
                        ],
@@ -296,7 +296,7 @@ add_sample_contact(Alice, Bob, Groups, Name) ->
 
 remove_roster(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
-    rpc(mim(), mod_roster_odbc, remove_user, [Username, Server]),
+    rpc(mim(), mod_roster_rdbms, remove_user, [Username, Server]),
     rpc(mim(), mod_roster, remove_user, [Username, Server]).
 
 mongoose_metrics(ConfigIn, Metrics) ->
@@ -304,5 +304,5 @@ mongoose_metrics(ConfigIn, Metrics) ->
     MongooseMetrics = Predefined ++ Metrics,
     [{mongoose_metrics, MongooseMetrics} | ConfigIn].
 
-roster_odbc_precondition() ->
-    mod_roster_odbc == rpc(mim(), mod_roster_backend, backend, []).
+roster_rdbms_precondition() ->
+    mod_roster_rdbms == rpc(mim(), mod_roster_backend, backend, []).

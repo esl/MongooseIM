@@ -192,7 +192,7 @@ unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc,
 
 -spec server_type(mongoose_rdbms:pool()) -> atom().
 server_type(Pool) ->
-    mongoose_rdbms_sup:get_option(Pool, odbc_server_type).
+    mongoose_rdbms_sup:get_option(Pool, rdbms_server_type).
 
 -spec escape_binary(mongoose_rdbms:pool(), ServerType :: atom(), binary()) -> iodata().
 escape_binary(Pool, pgsql, Bin) ->

@@ -361,10 +361,10 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
     ConfigWithModules;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
-        odbc ->
-    dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
-    dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
-    dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
+        rdbms ->
+    dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc, simple]),
+    dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
+    dynamic_modules:start(domain(), mod_mam_rdbms_user, [muc]),
             dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
         _ ->
             ok
@@ -426,10 +426,10 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
-        odbc ->
-    dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
-    dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
-    dynamic_modules:stop(domain(), mod_mam_odbc_user),
+        rdbms ->
+    dynamic_modules:stop(domain(), mod_mam_muc_rdbms_arch),
+    dynamic_modules:stop(domain(), mod_mam_rdbms_prefs),
+    dynamic_modules:stop(domain(), mod_mam_rdbms_user),
             dynamic_modules:stop(domain(), mod_mam_muc);
         _ ->
             ok
@@ -504,10 +504,10 @@ init_per_testcase(CN, Config)
   when CN =:= hibernated_room_can_be_queried_for_archive orelse
        CN =:= stopped_rooms_history_is_available ->
     case mam_helper:backend() of
-        odbc ->
+        rdbms ->
             escalus:init_per_testcase(CN, Config);
         _ ->
-            {skip, "MAM works only for ODBC as of now"}
+            {skip, "MAM works only for RDBMS as of now"}
     end;
 init_per_testcase(CaseName, ConfigIn) ->
     Config = maybe_create_unique_room(ConfigIn),

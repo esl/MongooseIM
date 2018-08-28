@@ -20,7 +20,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in the `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `pool` and the RDBMS options can be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -180,13 +180,13 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 * **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
-    * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
+    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
     * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
-    * **Examples:** `odbc`, `[internal, anonymous]`
+    * **Examples:** `rdbms`, `[internal, anonymous]`
 
 * **auth_opts** (local)
     * **Description:** Provides different parameters that will be applied to a choosen authentication method.
-                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `odbc`, `internal` and `riak`.
+                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `rdbms`, `internal` and `riak`.
 
         * **auth_password_format**
              * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
@@ -222,9 +222,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 The following options can be used to configure RDMBS connection pools.
 To set the options for all connection pools, put them on the top level of the configuration file.
 To set them for an individual pool, put them inside the `Options` list in a pool specification.
-Setting `odbc_server` is mandatory if connection details are not provided in pool tuples directly.
-
-*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of RDBMS connections, not only pure ODBC.
+Setting `rdbms_server` is mandatory if connection details are not provided in pool tuples directly.
 
 Please remember that SQL databases require creating a schema.
 See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
@@ -232,22 +230,22 @@ See [Database backends configuration](./advanced-configuration/database-backends
 * **pool** (multi, local)
     * **Description:** Declares a named pool of connections to the database.
     At least one pool is required to connect to an SQL database.
-    * **Syntax:** `{pool, odbc, PoolName}.` or `{pool, odbc, PoolName, Options}.`
-    * **Examples:** `{pool, odbc, default}.`
+    * **Syntax:** `{pool, rdbms, PoolName}.` or `{pool, rdbms, PoolName, Options}.`
+    * **Examples:** `{pool, rdbms, default}.`
 
-* **odbc_pool** (local)
+* **rdbms_pool** (local)
     * **Description:** Name of the default connection pool used to connect to the database.
-    * **Syntax:** `{odbc_pool, PoolName}`
+    * **Syntax:** `{rdbms_pool, PoolName}`
     * **Default:** `default`
 
-* **odbc_pool_size** (local)
+* **rdbms_pool_size** (local)
     * **Description:** How many DB client workers should be started per each domain.
-    * **Syntax:** `{odbc_pool_size, Size}`.
+    * **Syntax:** `{rdbms_pool_size, Size}`.
     * **Default:** 10
 
-* **odbc_server** (local)
+* **rdbms_server** (local)
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
-    * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{odbc_server, "<ODBC connection string>"}`
+    * **Syntax:** `{rdbms_server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{rdbms_server, "<ODBC connection string>"}`
     * **Default:** `undefined`
 
 * **pgsql_users_number_estimate** (local)
@@ -256,26 +254,26 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Syntax:** `{pgsql_users_number_estimate, false | true}`
     * **Default:** `false`
 
-* **odbc_keepalive_interval** (local)
+* **rdbms_keepalive_interval** (local)
     * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
     This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
     Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
-    * **Syntax:** `{odbc_keepalive_interval, IntervalSeconds}.`
-    * **Example:** `{odbc_keepalive_interval, 30}.`
+    * **Syntax:** `{rdbms_keepalive_interval, IntervalSeconds}.`
+    * **Example:** `{rdbms_keepalive_interval, 30}.`
     * **Default:** `undefined`
 
-* **odbc_server_type** (local)
-    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_odbc_user` uses different query for `mssql`).
-    * **Syntax:** `{odbc_server_type, Type}`
+* **rdbms_server_type** (local)
+    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_rdbms_user` uses different query for `mssql`).
+    * **Syntax:** `{rdbms_server_type, Type}`
     * **Supported values:** `mssql`, `pgsql` or `undefined`
     * **Default:** `undefined`
 
 ### MySQL and PostgreSQL SSL connection setup
 
-In order to establish a secure connection with a database additional options must be passed in aforementioned `odbc_server` tuple.
+In order to establish a secure connection with a database additional options must be passed in aforementioned `rdbms_server` tuple.
 Here is the proper syntax:
 
-`{odbc_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
+`{rdbms_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
 
 #### MySQL
 
@@ -290,7 +288,7 @@ SSL configuration options for MySQL:
 
 An example configuration can look as follows:
 
-`{odbc_server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
+`{rdbms_server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
                [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}`
 
 #### PostgreSQL
@@ -316,15 +314,15 @@ SSL configuration options for PGSQL:
 
 An example configuration can look as follows:
 
-`{odbc_server, {pgsql, "localhost", 5432, "mydb", "mim", "mimpass",
+`{rdbms_server, {pgsql, "localhost", 5432, "mydb", "mim", "mimpass",
                [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
 
 ### ODBC SSL connection setup
 
-If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string to `odbc_server` option, e.g.
+If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string to `rdbms_server` option, e.g.
 
 ```erlang
-{odbc_server, "DSN=mydb"}.
+{rdbms_server, "DSN=mydb"}.
 ```
 
 then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.

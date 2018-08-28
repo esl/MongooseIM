@@ -32,7 +32,7 @@ Below you may find a list of backends that are safe to use with `cyrsasl_externa
 * `anonymous`
 * `http` **without** `{is_external, true}` option
 * `internal`
-* `odbc`
+* `rdbms`
 * `riak`
 
 ### Examples
@@ -71,7 +71,7 @@ Authentication with a client certificate (validated with provided CA chain) or p
          ]}.
 
 
-{auth_method, [odbc, pki]}.
+{auth_method, [rdbms, pki]}.
 
 {sasl_mechanisms, [cyrsasl_scram, cyrsasl_external]}.
 ```

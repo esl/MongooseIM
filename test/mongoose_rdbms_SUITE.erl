@@ -135,9 +135,9 @@ meck_config(Server, KeepaliveInterval, MaxInterval) ->
                 end),
     meck:new(mongoose_rdbms_sup, [no_link, passthrough]),
     meck:expect(mongoose_rdbms_sup, get_option,
-                fun(default, odbc_keepalive_interval) -> KeepaliveInterval;
-                   (default, odbc_start_interval) -> MaxInterval;
-                   (default, odbc_server) -> server(Server)
+                fun(default, rdbms_keepalive_interval) -> KeepaliveInterval;
+                   (default, rdbms_start_interval) -> MaxInterval;
+                   (default, rdbms_server) -> server(Server)
                 end).
 
 meck_db(odbc) ->

@@ -41,14 +41,14 @@ All source files can be found in `src/`.
   A Mnesia backend for this extension.
   Uses transactions for room metadata updates (configuration and affiliation list) and dirty reads whenever possible.
 
-* `mod_muc_light_db_odbc.erl`
+* `mod_muc_light_db_rdbms.erl`
   An SQL backend for `mod_muc_light`.
   `create_room`, `destroy_room`, `remove_user`, `set_config`, `modify_aff_users` execute at least one query in a single transaction.
   `room_exists`, `get_user_rooms`, `get_user_rooms_count`, `get_config`, `get_blocking`, `set_blocking`, `get_aff_users` execute only one query per function call.
   `get_info` executes 3 `SELECT` queries, not protected by a transaction.
 
-* `mod_muc_light_db_odbc_sql.erl`
-  SQL queries for `mod_muc_light_db_odbc.erl`.
+* `mod_muc_light_db_rdbms_sql.erl`
+  SQL queries for `mod_muc_light_db_rdbms.erl`.
 
 * `mod_muc_light_room.erl`
   This module handles everything that occurs inside the room: access checks, metadata changes, message broadcasting etc.

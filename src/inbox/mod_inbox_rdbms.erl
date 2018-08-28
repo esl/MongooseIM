@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 30. Jan 2018 16:59
 %%%-------------------------------------------------------------------
--module(mod_inbox_odbc).
+-module(mod_inbox_rdbms).
 -author("ludwikbukowski").
 -include("jlib.hrl").
 -include("mongoose.hrl").
@@ -29,8 +29,8 @@
 %% ----------------------------------------------------------------------
 
 init(VHost, _Options) ->
-    %% To verify if current ODBC backend is supported
-    odbc_specific_backend(VHost),
+    %% To verify if current RDBMS backend is supported
+    rdbms_specific_backend(VHost),
     ok.
 
 -spec get_inbox(LUsername :: jid:luser(),
@@ -74,7 +74,7 @@ set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
-    BackendModule = odbc_specific_backend(Server),
+    BackendModule = rdbms_specific_backend(Server),
     NumericTimestamp = usec:from_now(Timestamp),
     Res = BackendModule:set_inbox(LUsername, LServer, LToBareJid,
                                   Content, Count, MsgId, NumericTimestamp),
@@ -111,7 +111,7 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
-    BackendModule = odbc_specific_backend(Server),
+    BackendModule = rdbms_specific_backend(Server),
     NumericTimestamp = usec:from_now(Timestamp),
     Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
                                               Content, MsgId, NumericTimestamp),
@@ -191,11 +191,11 @@ decode_row(LServer, {Username, Content, Count, Timestamp}) ->
     {Username, Data, BCount, usec:to_now(NumericTimestamp)}.
 
 
-odbc_specific_backend(Host) ->
+rdbms_specific_backend(Host) ->
     case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
-        {mysql, _} -> mod_inbox_odbc_mysql;
-        {pgsql, _} -> mod_inbox_odbc_pgsql;
-        {odbc, mssql} -> mod_inbox_odbc_mssql;
+        {mysql, _} -> mod_inbox_rdbms_mysql;
+        {pgsql, _} -> mod_inbox_rdbms_pgsql;
+        {odbc, mssql} -> mod_inbox_rdbms_mssql;
         NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
     end.
 

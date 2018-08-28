@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_auth_odbc.erl
+%%% File    : ejabberd_auth_rdbms.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : Authentification via ODBC
+%%% Purpose : Authentification via RDBMS
 %%% Created : 12 Dec 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
@@ -24,7 +24,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(ejabberd_auth_odbc).
+-module(ejabberd_auth_rdbms).
 -author('alexey@process-one.net').
 
 %% External exports
@@ -205,7 +205,7 @@ try_register(LUser, LServer, Password) ->
 
 -spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
 dirty_get_registered_users() ->
-    Servers = ejabberd_config:get_vh_by_auth_method(odbc),
+    Servers = ejabberd_config:get_vh_by_auth_method(rdbms),
     lists:flatmap(
       fun(Server) ->
               get_vh_registered_users(Server)

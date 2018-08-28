@@ -91,7 +91,7 @@ stop(Domain) ->
     ok.
 
 default_opts(Opts) ->
-    [{backend, odbc} || not proplists:is_defined(backend, Opts)] ++ Opts.
+    [{backend, rdbms} || not proplists:is_defined(backend, Opts)] ++ Opts.
 
 hook_handlers() ->
     [{remove_user, clean_tokens, 50}].

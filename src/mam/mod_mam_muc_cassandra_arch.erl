@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc ODBC backend for Message Archive Management.
+%%% @doc RDBMS backend for Message Archive Management.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_mam_muc_cassandra_arch).
@@ -306,7 +306,7 @@ lookup_messages2(PoolName, Host,
                  Start, End, WithNick,
                  PageSize, _IsSimple) ->
     %% Query with offset calculation
-    %% We cannot just use ODBC code because "LIMIT X, Y" is not supported by cassandra
+    %% We cannot just use RDBMS code because "LIMIT X, Y" is not supported by cassandra
     %% Not all queries are optimal. You would like to disable something for production
     %% once you know how you will call bd
     Strategy = rsm_to_strategy(RSM),

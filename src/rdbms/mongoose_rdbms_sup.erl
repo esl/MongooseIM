@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mongoose_rdbms_sup.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : ODBC connections supervisor
+%%% Purpose : RDBMS connections supervisor
 %%% Created : 22 Dec 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
@@ -92,20 +92,20 @@ pool_proc(Pool) when is_atom(Pool) ->
 
 -spec pool(mongoose_rdbms:server()) -> mongoose_rdbms:pool().
 pool(Host) when is_binary(Host) ->
-    ejabberd_config:get_local_option_or_default({odbc_pool, Host}, ?DEFAULT_POOL_NAME);
+    ejabberd_config:get_local_option_or_default({rdbms_pool, Host}, ?DEFAULT_POOL_NAME);
 pool(Pool) when is_atom(Pool) ->
     Pool.
 
 -spec pool_size(mongoose_rdbms:pool()) -> integer().
 pool_size(Pool) ->
-    case get_option(Pool, odbc_pool_size) of
+    case get_option(Pool, rdbms_pool_size) of
         undefined ->
             ?DEFAULT_POOL_SIZE;
         Size when is_integer(Size) ->
             Size;
         InvalidSize ->
             Size = ?DEFAULT_POOL_SIZE,
-            ?ERROR_MSG("Wrong odbc_pool_size definition '~p' "
+            ?ERROR_MSG("Wrong rdbms_pool_size definition '~p' "
                        "for pool ~p, default to ~p~n",
                        [InvalidSize, Pool, Size]),
             Size
@@ -116,4 +116,4 @@ get_option(Pool, Option) ->
     ejabberd_config:get_local_option(config_key(Pool, Option)).
 
 config_key(Pool, Option) ->
-    {Option, odbc_pool, Pool}.
+    {Option, rdbms_pool, Pool}.

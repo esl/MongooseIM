@@ -57,7 +57,7 @@ init_per_testcase(Test, Config)
     Config1 = async_helper:start(Config, [{ejabberd_hooks, start_link, []},
                                           {gen_mod, start, []}]),
     mock_keystore(),
-    mock_odbc_backend(),
+    mock_rdbms_backend(),
     Config1;
 
 init_per_testcase(validity_period_test, Config) ->
@@ -83,7 +83,7 @@ end_per_testcase(Test, C)
              Test =:= validation_property;
              Test =:= choose_key_by_token_type ->
     meck:unload(mongoose_metrics),
-    meck:unload(mod_auth_token_odbc),
+    meck:unload(mod_auth_token_rdbms),
     async_helper:stop_all(C),
     C;
 
@@ -96,7 +96,7 @@ end_per_testcase(validity_period_test, C) ->
 
 end_per_testcase(revoked_token_is_not_valid, C) ->
     meck:unload(mongoose_metrics),
-    meck:unload(mod_auth_token_odbc),
+    meck:unload(mod_auth_token_rdbms),
     async_helper:stop_all(C),
     C;
 
@@ -240,10 +240,10 @@ mock_mongoose_metrics() ->
     meck:expect(mongoose_metrics, increment_generic_hook_metric, fun (_, _) -> ok end),
     ok.
 
-mock_odbc_backend() ->
-    gen_mod:start_backend_module(?TESTED, [{backend, odbc}]),
-    meck:new(mod_auth_token_odbc, []),
-    meck:expect(mod_auth_token_odbc, get_valid_sequence_number,
+mock_rdbms_backend() ->
+    gen_mod:start_backend_module(?TESTED, [{backend, rdbms}]),
+    meck:new(mod_auth_token_rdbms, []),
+    meck:expect(mod_auth_token_rdbms, get_valid_sequence_number,
                 fun (_) -> valid_seq_no_threshold() end).
 
 mock_keystore() ->
@@ -260,8 +260,8 @@ mod_keystore_get_key(_, {KeyName, _} = KeyID) ->
     end.
 
 mock_tested_backend() ->
-    meck:new(mod_auth_token_odbc, []),
-    meck:expect(mod_auth_token_odbc, get_valid_sequence_number,
+    meck:new(mod_auth_token_rdbms, []),
+    meck:expect(mod_auth_token_rdbms, get_valid_sequence_number,
                 fun (_) ->
                         receive {valid_seq_no, SeqNo} -> SeqNo end
                 end).

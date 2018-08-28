@@ -29,7 +29,7 @@ The following options' changes will be ignored when using `mongooseimctl` tool:
 * domain_certfile
 * s2s_*
 * all_metrics_are_global
-* odbc_*
+* rdbms_*
 
 
 ### Node-specific options

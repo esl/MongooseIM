@@ -23,7 +23,7 @@ all() -> [{group, Group} || Group <- enabled_group_names()].
 
 enabled_group_names() ->
     [basic, offline] ++
-    case mongoose_helper:is_odbc_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(domain()) of
         true -> [mam];
         false -> []
     end.
@@ -120,7 +120,7 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, ConfigWithRules).
 
 setup_meck(mam_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_mam_odbc_arch, archive_message, 9, {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 9, {error, simulated}]);
 setup_meck(offline_failure) ->
     ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 3, {error, simulated}]);
 setup_meck(_) -> ok.
@@ -931,9 +931,9 @@ required_modules(_) ->
     [].
 
 mam_modules(on) ->
-    [{mod_mam_odbc_user, [pm]},
-     {mod_mam_odbc_prefs, [pm]},
-     {mod_mam_odbc_arch, [pm]},
+    [{mod_mam_rdbms_user, [pm]},
+     {mod_mam_rdbms_prefs, [pm]},
+     {mod_mam_rdbms_arch, [pm]},
      {mod_mam, []}];
 mam_modules(off) ->
     [{mod_mam, stopped}].

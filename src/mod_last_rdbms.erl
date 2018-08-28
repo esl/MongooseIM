@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_last.erl
 %%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_last odbc backend (XEP-0012)
+%%% Purpose : mod_last rdbms backend (XEP-0012)
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -10,7 +10,7 @@
 %%%----------------------------------------------------------------------
 
 
--module(mod_last_odbc).
+-module(mod_last_rdbms).
 
 -behaviour(mod_last).
 
@@ -63,14 +63,14 @@ set_last_info(LUser, LServer, TimeStamp, Status) ->
     Username = mongoose_rdbms:escape_string(LUser),
     Seconds = mongoose_rdbms:escape_integer(TimeStamp),
     State = mongoose_rdbms:escape_string(Status),
-    wrap_odbc_result(rdbms_queries:set_last_t(LServer, Username, Seconds, State)).
+    wrap_rdbms_result(rdbms_queries:set_last_t(LServer, Username, Seconds, State)).
 
 -spec remove_user(jid:luser(), jid:lserver()) -> ok | {error, term()}.
 remove_user(LUser, LServer) ->
     Username = mongoose_rdbms:escape_string(LUser),
-    wrap_odbc_result(rdbms_queries:del_last(LServer, Username)).
+    wrap_rdbms_result(rdbms_queries:del_last(LServer, Username)).
 
--spec wrap_odbc_result({error, term()} | any()) -> ok | {error, term()}.
-wrap_odbc_result({error, _} = Error) -> Error;
-wrap_odbc_result(_) -> ok.
+-spec wrap_rdbms_result({error, term()} | any()) -> ok | {error, term()}.
+wrap_rdbms_result({error, _} = Error) -> Error;
+wrap_rdbms_result(_) -> ok.
 

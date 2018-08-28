@@ -239,13 +239,13 @@ to_list(V) when is_binary(V) ->
 to_list(V) when is_list(V) ->
     V.
 
-maybe_enable_mam(odbc, Host, Config) ->
-    init_module(Host, mod_mam_odbc_arch, [muc, pm, simple]),
-    init_module(Host, mod_mam_odbc_prefs, [muc, pm]),
-    init_module(Host, mod_mam_odbc_user, [muc, pm]),
+maybe_enable_mam(rdbms, Host, Config) ->
+    init_module(Host, mod_mam_rdbms_arch, [muc, pm, simple]),
+    init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
+    init_module(Host, mod_mam_rdbms_user, [muc, pm]),
     init_module(Host, mod_mam, []),
     init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
-    [{mam_backend, odbc} | Config];
+    [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
@@ -258,10 +258,10 @@ maybe_enable_mam(_, _, C) ->
 init_module(Host, Mod, Opts) ->
     dynamic_modules:start(Host, Mod, Opts).
 
-maybe_disable_mam(odbc, Host) ->
-    stop_module(Host, mod_mam_odbc_arch),
-    stop_module(Host, mod_mam_odbc_prefs),
-    stop_module(Host, mod_mam_odbc_user),
+maybe_disable_mam(rdbms, Host) ->
+    stop_module(Host, mod_mam_rdbms_arch),
+    stop_module(Host, mod_mam_rdbms_prefs),
+    stop_module(Host, mod_mam_rdbms_user),
     stop_module(Host, mod_mam),
     stop_module(Host, mod_mam_muc);
 maybe_disable_mam(riak, Host) ->

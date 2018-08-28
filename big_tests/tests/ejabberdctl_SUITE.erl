@@ -169,14 +169,14 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config)
-  % these cases are incompatible with domainless odbc schema
+  % these cases are incompatible with domainless rdbms schema
   when CaseName == delete_old_users_vhost
        orelse CaseName == stats_global
        orelse CaseName == stats_host ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
-    case lists:member(ejabberd_auth_odbc, AuthMods) orelse
+    case lists:member(ejabberd_auth_rdbms, AuthMods) orelse
          lists:member(ejabberd_auth_ldap, AuthMods) of
-        true -> {skip, vhost_odbc_incompatible};
+        true -> {skip, vhost_rdbms_incompatible};
         false -> escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(CaseName, Config)

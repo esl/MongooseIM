@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc A backend for storing MAM preferencies using ODBC.
+%%% @doc A backend for storing MAM preferencies using RDBMS.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_odbc_prefs).
+-module(mod_mam_rdbms_prefs).
 
 %% ----------------------------------------------------------------------
 %% Exports

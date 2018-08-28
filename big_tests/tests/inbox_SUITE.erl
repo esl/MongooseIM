@@ -81,11 +81,11 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    case (not ct_helper:is_ct_running()) orelse is_odbc_enabled(inbox_helper:domain()) of
+    case (not ct_helper:is_ct_running()) orelse is_rdbms_enabled(inbox_helper:domain()) of
         true ->
             tests();
         false ->
-            {skip, require_odbc}
+            {skip, require_rdbms}
     end.
 
 tests() ->
@@ -172,18 +172,18 @@ init_per_suite(Config) ->
     Config2 = [{inbox_opts, InboxOptions} | Config1],
     escalus:create_users(Config2, escalus:get_users([alice, bob, kate, mike])).
 
-is_odbc_enabled(Host) ->
-    mongoose_helper:is_odbc_enabled(Host).
+is_rdbms_enabled(Host) ->
+    mongoose_helper:is_rdbms_enabled(Host).
 
 required_modules() ->
     [
      {mod_muc_light, [{host, binary_to_list(muclight_domain())},
-                      {backend, odbc}]},
+                      {backend, rdbms}]},
      {mod_inbox, inbox_opts()}
     ].
 
 inbox_opts() ->
-    [{backend, odbc},
+    [{backend, rdbms},
      {aff_changes, true},
      {remove_on_kicked, true},
      {groupchat, [muclight]},
@@ -1109,4 +1109,3 @@ get_with_end_timestamp(Config) ->
         %% TODO: Improve this test to store 3+ conversations in Alice's inbox
         check_inbox(Alice, [ConvWithBob], #{ 'end' => TimeAfterBob }, #{})
     end).
-

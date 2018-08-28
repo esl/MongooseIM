@@ -73,7 +73,7 @@
 commands() ->
     [
         #ejabberd_commands{name = add_rosteritem, tags = [roster],
-                           desc = "Add an item to a user's roster (supports ODBC)",
+                           desc = "Add an item to a user's roster (supports RDBMS)",
                            module = ?MODULE, function = add_rosteritem,
                            args = [{localuser, binary}, {localserver, binary},
                                    {user, binary}, {server, binary},
@@ -84,7 +84,7 @@ commands() ->
         %%{"", "example: add-roster peter localhost mike server.com MiKe Employees both"},
         %%{"", "will add mike@server.com to peter@localhost roster"},
         #ejabberd_commands{name = delete_rosteritem, tags = [roster],
-                           desc = "Delete an item from a user's roster (supports ODBC)",
+                           desc = "Delete an item from a user's roster (supports RDBMS)",
                            module = ?MODULE, function = delete_rosteritem,
                            args = [{localuser, binary}, {localserver, binary},
                                    {user, binary}, {server, binary}],
@@ -191,7 +191,7 @@ do_add_rosteritem(LocalUser, LocalServer, User, Server, Nick, Group, Subs) ->
     end.
 
 
-%% @doc returns result of mnesia or odbc transaction
+%% @doc returns result of mnesia or rdbms transaction
 -spec subscribe(LocalUser :: jid:user(),
                 LocalServer :: jid:server(),
                 User :: jid:user(),
@@ -231,7 +231,7 @@ delete_rosteritem(LocalUser, LocalServer, User, Server) ->
     end.
 
 
-%% @doc returns result of mnesia or odbc transaction
+%% @doc returns result of mnesia or rdbms transaction
 -spec unsubscribe(LocalUser :: jid:user(),
                   LocalServer :: jid:server(),
                   User :: jid:user(),

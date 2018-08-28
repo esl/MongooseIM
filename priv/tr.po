@@ -352,8 +352,8 @@ msgstr "Erişim kuralları"
 #: mod_configure.erl:1200 mod_configure.erl:1222 mod_configure.erl:1234
 #: mod_configure.erl:1246 mod_configure.erl:1258 mod_configure.erl:1275
 #: mod_configure.erl:1287 mod_configure.erl:1652 mod_configure.erl:1702
-#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_odbc.erl:1048
-#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_odbc.erl:442
+#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_rdbms.erl:1048
+#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_rdbms.erl:442
 msgid "Jabber ID"
 msgstr "Jabber ID"
 
@@ -560,9 +560,9 @@ msgstr "Takma İsim Kaydı : "
 msgid "Enter nickname you want to register"
 msgstr "Kaydettirmek istediğiniz takma ismi giriniz"
 
-#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_odbc.erl:1049
-#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:447
+#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_rdbms.erl:1049
+#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:447
 msgid "Nickname"
 msgstr "Takma isim"
 
@@ -964,17 +964,17 @@ msgstr "~s sizi ~s odasına davet ediyor"
 msgid "the password is"
 msgstr "parola :"
 
-#: mod_offline.erl:510 mod_offline_odbc.erl:352
+#: mod_offline.erl:510 mod_offline_rdbms.erl:352
 msgid ""
 "Your contact offline message queue is full. The message has been discarded."
 msgstr "Çevirim-dışı mesaj kuyruğunuz dolu. Mesajını dikkate alınmadı."
 
-#: mod_offline.erl:560 mod_offline_odbc.erl:408
+#: mod_offline.erl:560 mod_offline_rdbms.erl:408
 msgid "~s's Offline Messages Queue"
 msgstr "~s Kullanıcısının Mesaj Kuyruğu"
 
-#: mod_offline.erl:563 mod_offline_odbc.erl:411 mod_roster.erl:987
-#: mod_roster_odbc.erl:1092 mod_shared_roster.erl:896
+#: mod_offline.erl:563 mod_offline_rdbms.erl:411 mod_roster.erl:987
+#: mod_roster_rdbms.erl:1092 mod_shared_roster.erl:896
 #: mod_shared_roster.erl:1005 web/ejabberd_web_admin.erl:833
 #: web/ejabberd_web_admin.erl:874 web/ejabberd_web_admin.erl:942
 #: web/ejabberd_web_admin.erl:978 web/ejabberd_web_admin.erl:1019
@@ -997,20 +997,20 @@ msgstr "Kimden"
 msgid "To"
 msgstr "Kime"
 
-#: mod_offline.erl:574 mod_offline_odbc.erl:419
+#: mod_offline.erl:574 mod_offline_rdbms.erl:419
 msgid "Packet"
 msgstr "Paket"
 
-#: mod_offline.erl:587 mod_offline_odbc.erl:432 mod_shared_roster.erl:903
+#: mod_offline.erl:587 mod_offline_rdbms.erl:432 mod_shared_roster.erl:903
 #: web/ejabberd_web_admin.erl:882 web/ejabberd_web_admin.erl:986
 msgid "Delete Selected"
 msgstr "Seçilenleri Sil"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Offline Messages:"
 msgstr "Çevirim-dışı Mesajlar:"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Remove All Offline Messages"
 msgstr "Tüm Çevirim-dışı Mesajları Kaldır"
 
@@ -1018,104 +1018,104 @@ msgstr "Tüm Çevirim-dışı Mesajları Kaldır"
 msgid "ejabberd SOCKS5 Bytestreams module"
 msgstr "ejabberd SOCKS5 Bytestreams modülü"
 
-#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_odbc.erl:928
+#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_rdbms.erl:928
 msgid "Publish-Subscribe"
 msgstr "Yayınla-Üye Ol"
 
-#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_odbc.erl:1024
+#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_rdbms.erl:1024
 msgid "ejabberd Publish-Subscribe module"
 msgstr "ejabberd Publish-Subscribe modülü"
 
-#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_odbc.erl:1311
+#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_rdbms.erl:1311
 msgid "PubSub subscriber request"
 msgstr "PubSub üye isteği"
 
-#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_odbc.erl:1313
+#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_rdbms.erl:1313
 msgid "Choose whether to approve this entity's subscription."
 msgstr "Bu varlığın üyeliğini onaylayıp onaylamamayı seçiniz."
 
-#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_odbc.erl:1319
+#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_rdbms.erl:1319
 msgid "Node ID"
 msgstr "Düğüm ID"
 
-#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_odbc.erl:1324
+#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_rdbms.erl:1324
 msgid "Subscriber Address"
 msgstr "Üye Olanın Adresi"
 
-#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_odbc.erl:1330
+#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_rdbms.erl:1330
 msgid "Allow this Jabber ID to subscribe to this pubsub node?"
 msgstr "Bu Jabber ID bu pubsub düğümüne üye olmasına izin verilsin mi?"
 
-#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_odbc.erl:3229
+#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_rdbms.erl:3229
 msgid "Deliver payloads with event notifications"
 msgstr "Yükleri (payload) olay uyarıları ile beraber gönder"
 
-#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_odbc.erl:3230
+#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_rdbms.erl:3230
 msgid "Deliver event notifications"
 msgstr "Olay uyarıları gönderilsin"
 
-#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_odbc.erl:3231
+#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_rdbms.erl:3231
 msgid "Notify subscribers when the node configuration changes"
 msgstr "Düğüm ayarları değiştiğinde üyeleri uyar"
 
-#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_odbc.erl:3232
+#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_rdbms.erl:3232
 msgid "Notify subscribers when the node is deleted"
 msgstr "Bir düğüm silindiğinde üyeleri uyar"
 
-#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_odbc.erl:3233
+#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_rdbms.erl:3233
 msgid "Notify subscribers when items are removed from the node"
 msgstr "Düğümden öğeler kaldırıldığında üyeleri uyar"
 
-#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_odbc.erl:3234
+#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_rdbms.erl:3234
 msgid "Persist items to storage"
 msgstr "Öğeleri depoda kalıcı hale getir"
 
-#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_odbc.erl:3235
+#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_rdbms.erl:3235
 msgid "A friendly name for the node"
 msgstr "Düğüm için dostane bir isim"
 
-#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_odbc.erl:3236
+#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_rdbms.erl:3236
 msgid "Max # of items to persist"
 msgstr "Kalıcı hale getirilecek en fazla öğe sayısı"
 
-#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_odbc.erl:3237
+#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_rdbms.erl:3237
 msgid "Whether to allow subscriptions"
 msgstr "Üyeliklere izin verilsin mi"
 
-#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_odbc.erl:3238
+#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_rdbms.erl:3238
 msgid "Specify the access model"
 msgstr "Erişim modelini belirtiniz"
 
-#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_odbc.erl:3241
+#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_rdbms.erl:3241
 msgid "Roster groups allowed to subscribe"
 msgstr "Üye olunmasına izin verilen kontak listesi grupları"
 
-#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_odbc.erl:3242
+#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_rdbms.erl:3242
 msgid "Specify the publisher model"
 msgstr "Yayıncı modelini belirtiniz"
 
-#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_odbc.erl:3244
+#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_rdbms.erl:3244
 msgid "Purge all items when the relevant publisher goes offline"
 msgstr ""
 
-#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_odbc.erl:3245
+#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_rdbms.erl:3245
 #, fuzzy
 msgid "Specify the event message type"
 msgstr "Erişim modelini belirtiniz"
 
-#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_odbc.erl:3247
+#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_rdbms.erl:3247
 msgid "Max payload size in bytes"
 msgstr "En fazla yük (payload) boyutu (bayt olarak)"
 
-#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_odbc.erl:3248
+#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_rdbms.erl:3248
 msgid "When to send the last published item"
 msgstr "Son yayınlanan öğe ne zaman gönderilsin"
 
-#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_odbc.erl:3250
+#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_rdbms.erl:3250
 msgid "Only deliver notifications to available users"
 msgstr "Uyarıları sadece durumu uygun kullanıcılara ulaştır"
 
-#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_odbc.erl:3251
+#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_rdbms.erl:3251
 msgid "The collections with which a node is affiliated"
 msgstr "Bir düğüm ile bağlantılı koleksiyonlar"
 
@@ -1123,7 +1123,7 @@ msgstr "Bir düğüm ile bağlantılı koleksiyonlar"
 msgid "Choose a username and password to register with this server"
 msgstr "Bu sunucuya kayıt olmak için bir kullanıcı ismi ve parola seçiniz"
 
-#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 #: web/ejabberd_web_admin.erl:1516 web/ejabberd_web_admin.erl:1573
 msgid "User"
 msgstr "Kullanıcı"
@@ -1137,37 +1137,37 @@ msgstr "parola :"
 msgid "Users are not allowed to register accounts so quickly"
 msgstr "Kullanıcıların bu kadar hızlı hesap açmalarına izin verilmiyor"
 
-#: mod_roster.erl:938 mod_roster_odbc.erl:1043 web/ejabberd_web_admin.erl:1699
+#: mod_roster.erl:938 mod_roster_rdbms.erl:1043 web/ejabberd_web_admin.erl:1699
 #: web/ejabberd_web_admin.erl:1884 web/ejabberd_web_admin.erl:1895
 #: web/ejabberd_web_admin.erl:2218
 msgid "None"
 msgstr "Hiçbiri"
 
-#: mod_roster.erl:945 mod_roster_odbc.erl:1050
+#: mod_roster.erl:945 mod_roster_rdbms.erl:1050
 msgid "Subscription"
 msgstr "Üyelik"
 
-#: mod_roster.erl:946 mod_roster_odbc.erl:1051
+#: mod_roster.erl:946 mod_roster_rdbms.erl:1051
 msgid "Pending"
 msgstr "Sıra Bekleyen"
 
-#: mod_roster.erl:947 mod_roster_odbc.erl:1052
+#: mod_roster.erl:947 mod_roster_rdbms.erl:1052
 msgid "Groups"
 msgstr "Gruplar"
 
-#: mod_roster.erl:974 mod_roster_odbc.erl:1079
+#: mod_roster.erl:974 mod_roster_rdbms.erl:1079
 msgid "Validate"
 msgstr "Geçerli"
 
-#: mod_roster.erl:982 mod_roster_odbc.erl:1087
+#: mod_roster.erl:982 mod_roster_rdbms.erl:1087
 msgid "Remove"
 msgstr "Kaldır"
 
-#: mod_roster.erl:985 mod_roster_odbc.erl:1090
+#: mod_roster.erl:985 mod_roster_rdbms.erl:1090
 msgid "Roster of "
 msgstr "Kontak Listesi : "
 
-#: mod_roster.erl:988 mod_roster_odbc.erl:1093 mod_shared_roster.erl:897
+#: mod_roster.erl:988 mod_roster_rdbms.erl:1093 mod_shared_roster.erl:897
 #: mod_shared_roster.erl:1006 web/ejabberd_web_admin.erl:834
 #: web/ejabberd_web_admin.erl:875 web/ejabberd_web_admin.erl:943
 #: web/ejabberd_web_admin.erl:979 web/ejabberd_web_admin.erl:1020
@@ -1177,11 +1177,11 @@ msgstr "Kontak Listesi : "
 msgid "Bad format"
 msgstr "Kötü biçem"
 
-#: mod_roster.erl:995 mod_roster_odbc.erl:1100
+#: mod_roster.erl:995 mod_roster_rdbms.erl:1100
 msgid "Add Jabber ID"
 msgstr "Jabber ID'si Ekle"
 
-#: mod_roster.erl:1094 mod_roster_odbc.erl:1199
+#: mod_roster.erl:1094 mod_roster_rdbms.erl:1199
 msgid "Roster"
 msgstr "Kontak Listesi"
 
@@ -1221,36 +1221,36 @@ msgstr "Group "
 msgid "Submit"
 msgstr "Gönder"
 
-#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_odbc.erl:129
+#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_rdbms.erl:129
 msgid "Erlang Jabber Server"
 msgstr "Erlang Jabber Sunucusu"
 
-#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:448
+#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:448
 msgid "Birthday"
 msgstr "Doğumgünü"
 
-#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:450
+#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:450
 msgid "City"
 msgstr "İl"
 
-#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:449
+#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:449
 msgid "Country"
 msgstr "Ülke"
 
-#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:451
+#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:451
 msgid "Email"
 msgstr "E-posta"
 
-#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:446
+#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:446
 msgid "Family Name"
 msgstr "Soyisim"
 
-#: mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 msgid ""
 "Fill in the form to search for any matching Jabber User (Add * to the end of "
 "field to match substring)"
@@ -1258,49 +1258,49 @@ msgstr ""
 "Eşleşen jabber kullanıcılarını aramak için formu doldurunuz (Alt dizgi "
 "eşlemek için alanın sonuna * ekleyin)"
 
-#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:443
+#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:443
 msgid "Full Name"
 msgstr "Tam İsim"
 
-#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:445
+#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:445
 msgid "Middle Name"
 msgstr "Ortanca İsim"
 
-#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:444 web/ejabberd_web_admin.erl:2004
+#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:444 web/ejabberd_web_admin.erl:2004
 msgid "Name"
 msgstr "İsim"
 
-#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:452
+#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:452
 msgid "Organization Name"
 msgstr "Kurum İsmi"
 
-#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:453
+#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:453
 msgid "Organization Unit"
 msgstr "Kurumun İlgili Birimi"
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "Search users in "
 msgstr "Kullanıcılarda arama yap : "
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "You need an x:data capable client to search"
 msgstr ""
 "Arama yapabilmek için x:data becerisine sahip bir istemciye gereksinimiz var"
 
-#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_odbc.erl:361
+#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_rdbms.erl:361
 msgid "vCard User Search"
 msgstr "vCard Kullanıcı Araması"
 
-#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_odbc.erl:415
+#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_rdbms.erl:415
 msgid "ejabberd vCard module"
 msgstr "ejabberd vCard modülü"
 
-#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_odbc.erl:439
+#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_rdbms.erl:439
 msgid "Search Results for "
 msgstr "Arama sonuçları : "
 
@@ -1489,11 +1489,11 @@ msgstr "Yedek : "
 #: web/ejabberd_web_admin.erl:2035
 msgid ""
 "Please note that these options will only backup the builtin Mnesia database. "
-"If you are using the ODBC module, you also need to backup your SQL database "
+"If you are using the RDBMS module, you also need to backup your SQL database "
 "separately."
 msgstr ""
 "Bu seçeneklerin sadece gömülü Mnesia veritabanını yedekleyeceğine dikkat "
-"edin. Eğer ODBC modülünü kullanıyorsanız, SQL veritabanınızı da ayrıca "
+"edin. Eğer RDBMS modülünü kullanıyorsanız, SQL veritabanınızı da ayrıca "
 "yedeklemeniz gerekiyor."
 
 #: web/ejabberd_web_admin.erl:2040

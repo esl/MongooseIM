@@ -223,27 +223,27 @@ configurations() ->
 %% Called by test-runner for autocompletion
 all_configurations() ->
     cassandra_configs(true)
-    ++ odbc_configs(true)
+    ++ rdbms_configs(true)
     ++ riak_configs(true)
     ++ elasticsearch_configs(true).
 
 configurations_for_running_ct() ->
     cassandra_configs(is_cassandra_enabled(host()))
-    ++ odbc_configs(mongoose_helper:is_odbc_enabled(host()))
+    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host()))
     ++ riak_configs(is_riak_enabled(host()))
     ++ elasticsearch_configs(is_elasticsearch_enabled(host())).
 
-odbc_configs(true) ->
-    [odbc,
-     odbc_simple,
-     odbc_async_pool,
-     odbc_mnesia,
-     odbc_async_cache,
-     odbc_cache,
-     odbc_mnesia_cache,
-     odbc_mnesia_muc_cache
+rdbms_configs(true) ->
+    [rdbms,
+     rdbms_simple,
+     rdbms_async_pool,
+     rdbms_mnesia,
+     rdbms_async_cache,
+     rdbms_cache,
+     rdbms_mnesia_cache,
+     rdbms_mnesia_muc_cache
     ];
-odbc_configs(_) ->
+rdbms_configs(_) ->
     [].
 
 riak_configs(true) ->
@@ -277,7 +277,7 @@ all() ->
     case ct_helper:is_ct_running() of
         true ->
             case is_mam_possible(host())  of
-                false -> [require_odbc];
+                false -> [require_rdbms];
                 true  -> []
             end;
         false ->
@@ -657,10 +657,10 @@ end_per_group(Group, Config) ->
     escalus_fresh:clean(),
     delete_users(Config2).
 
-init_modules(odbc, muc_light, Config) ->
-    Config1 = init_modules_for_muc_light(odbc, Config),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
+init_modules(rdbms, muc_light, Config) ->
+    Config1 = init_modules_for_muc_light(rdbms, Config),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host(), mod_mam_rdbms_arch, [muc, pm]),
     Config1;
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
@@ -677,77 +677,77 @@ init_modules(elasticsearch, muc_all, Config) ->
     init_module(host(), mod_mam_muc_elasticsearch_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc, muc_all, Config) ->
-    init_module(host(), mod_mam_odbc_arch, [muc]),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms, muc_all, Config) ->
+    init_module(host(), mod_mam_rdbms_arch, [muc]),
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_simple, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_simple, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, [muc, simple]),
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_async_pool, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_async_pool, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_mnesia, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
+init_modules(rdbms_mnesia, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_async_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_async_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
+init_modules(rdbms_mnesia_muc_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_mnesia_muc_cache, _, _Config) ->
+init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
     skip;
-init_modules(odbc_mnesia_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
+init_modules(rdbms_mnesia_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(BackendType, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(BackendType, Config),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     Config1;
-init_modules(odbc, C, Config) ->
+init_modules(rdbms, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
-init_modules(odbc_simple, C, Config) ->
+init_modules(rdbms_simple, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, simple]),
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(riak_timed_yz_buckets, C, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
@@ -767,46 +767,46 @@ init_modules(elasticsearch, C, Config) ->
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
     Config;
-init_modules(odbc_async, C, Config) ->
+init_modules(rdbms_async, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm, {flush_interval, 1}]), % 1ms
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
-init_modules(odbc_async_pool, C, Config) ->
+init_modules(rdbms_async_pool, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
-init_modules(odbc_mnesia, C, Config) ->
+init_modules(rdbms_mnesia, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
-init_modules(odbc_cache, C, Config) ->
+init_modules(rdbms_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_async_cache, C, Config) ->
+init_modules(rdbms_async_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_mnesia_cache, C, Config) ->
+init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config.
 
@@ -844,13 +844,13 @@ mam_modules() ->
      mod_mam_cassandra_prefs,
      mod_mam_elasticsearch_arch,
      mod_mam_muc_elasticsearch_arch,
-     mod_mam_odbc_arch,
-     mod_mam_muc_odbc_arch,
-     mod_mam_odbc_async_pool_writer,
-     mod_mam_muc_odbc_async_pool_writer,
-     mod_mam_odbc_prefs,
+     mod_mam_rdbms_arch,
+     mod_mam_muc_rdbms_arch,
+     mod_mam_rdbms_async_pool_writer,
+     mod_mam_muc_rdbms_async_pool_writer,
+     mod_mam_rdbms_prefs,
      mod_mam_mnesia_prefs,
-     mod_mam_odbc_user,
+     mod_mam_rdbms_user,
      mod_mam_cache_user,
      mod_mam_muc_cache_user,
      mod_mam_riak_timed_arch_yz].
@@ -873,9 +873,9 @@ end_state(_, _, Config) ->
 
 init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
-                 odbc_async_pool ->
+                 rdbms_async_pool ->
                      MongooseMetrics = [
-                                        {[global, data, odbc, default],
+                                        {[global, data, rdbms, default],
                                          [{recv_oct, '>'}, {send_oct, '>'}]}
                                        ],
                      [{mongoose_metrics, MongooseMetrics} | ConfigIn];
@@ -1088,8 +1088,8 @@ configuration(Group) ->
 %% will be tested.
 %%
 %% Example:
-%% `make_greedy(odbc_mnesia_muc, [odbc, odbc_mnesia]) -> odbc'
-%% `make_greedy(odbc_mnesia_muc, match_longer_first([odbc, odbc_mnesia])) -> odbc_mnesia'
+%% `make_greedy(rdbms_mnesia_muc, [rdbms, rdbms_mnesia]) -> rdbms'
+%% `make_greedy(rdbms_mnesia_muc, match_longer_first([rdbms, rdbms_mnesia])) -> rdbms_mnesia'
 %% @end
 make_greedy(List) ->
     lists:reverse(lists:usort(List)).

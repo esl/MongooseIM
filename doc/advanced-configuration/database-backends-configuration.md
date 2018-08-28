@@ -36,7 +36,7 @@ Transient data:
 
 Persistent Data:
 
-* RDBMS/ODBC - MongooseIM has a strong backend support for relational databases.
+* RDBMS - MongooseIM has a strong backend support for relational databases.
  Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Never loose your data.
 
@@ -45,7 +45,7 @@ Persistent Data:
  Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Erlang Solutions commercially supports Riak KV.
 
-# RDBMS/ODBC
+# RDBMS
 
 ## MySQL
 
@@ -162,7 +162,7 @@ For more details please refer to the [freetds.conf documentation](http://www.fre
 
 **Deadlocks notice**
 
-If muc_light's backend is set to odbc and in your system there is many rooms created in parallel,
+If muc_light's backend is set to ODBC and in your system there is many rooms created in parallel,
 there may be some deadlocks due to the `READ_COMMITTED_SNAPSHOT` set to `OFF` by default.
 In this case we recommend to set this database property to `ON`, this will enable row level locking which significantly reduces
 deadlock chances around muc_light operations.
@@ -186,8 +186,8 @@ isql mongoose-mssql username password -b
 The final step is to configure ``ejabberd.cfg`` appropriately.
 Configure the database section as follows:
 ```erlang
-{odbc_server, "DSN=mongoose-mssql;UID=username;PWD=password"}.
-{odbc_server_type, mssql}.
+{RDBMS_server, "DSN=mongoose-mssql;UID=username;PWD=password"}.
+{RDBMS_server_type, mssql}.
 ```
 
 # NOSQL

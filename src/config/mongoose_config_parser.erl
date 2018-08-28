@@ -42,7 +42,7 @@
 
 -record(state, {opts = [] :: list(),
                 hosts = [] :: [host()],
-                odbc_pools = [] :: [atom()],
+                rdbms_pools = [] :: [atom()],
                 override_local = false :: boolean(),
                 override_global = false :: boolean(),
                 override_acls = false :: boolean()}).
@@ -90,11 +90,11 @@
                    | {shaper, _, _}
                    | {host, _}
                    | {hosts, _}
-                   | {odbc_server, _}.
+                   | {rdbms_server, _}.
 
 -spec search_hosts_and_pools({host|hosts, [host()] | host()}
-                             | {pool, odbc, atom()}
-                             | {pool, odbc, atom(), list()}, state()) -> any().
+                             | {pool, rdbms, atom()}
+                             | {pool, rdbms, atom(), list()}, state()) -> any().
 search_hosts_and_pools({host, Host}, State) ->
     search_hosts_and_pools({hosts, [Host]}, State);
 search_hosts_and_pools({hosts, Hosts}, State=#state{hosts = []}) ->
@@ -107,8 +107,8 @@ search_hosts_and_pools({hosts, Hosts}, #state{hosts = OldHosts}) ->
            old_hosts => OldHosts});
 search_hosts_and_pools({pool, PoolType, PoolName, _Options}, State) ->
     search_hosts_and_pools({pool, PoolType, PoolName}, State);
-search_hosts_and_pools({pool, odbc, PoolName}, State) ->
-    add_odbc_pool_to_option(PoolName, State);
+search_hosts_and_pools({pool, rdbms, PoolName}, State) ->
+    add_rdbms_pool_to_option(PoolName, State);
 search_hosts_and_pools(_Term, State) ->
     State.
 
@@ -118,9 +118,9 @@ add_hosts_to_option(Hosts, State) ->
     PrepHosts = normalize_hosts(Hosts),
     add_option(hosts, PrepHosts, State#state{hosts = PrepHosts}).
 
-add_odbc_pool_to_option(PoolName, State) ->
-    Pools = State#state.odbc_pools,
-    State#state{odbc_pools = [PoolName | Pools]}.
+add_rdbms_pool_to_option(PoolName, State) ->
+    Pools = State#state.rdbms_pools,
+    State#state{rdbms_pools = [PoolName | Pools]}.
 
 -spec normalize_hosts([host()]) -> [binary() | tuple()].
 normalize_hosts(Hosts) ->
@@ -252,9 +252,9 @@ process_term(Term, State) ->
             lists:foldl(fun(T, S) ->
                             process_host_term(T, list_to_binary(Host), S) end,
                         State, Terms);
-        {pool, odbc, _PoolName} ->
+        {pool, rdbms, _PoolName} ->
             State;
-        {pool, odbc, PoolName, Options} ->
+        {pool, rdbms, PoolName, Options} ->
             lists:foldl(fun(T, S) ->
                             process_db_pool_term(T, PoolName, S)
                         end,
@@ -326,10 +326,10 @@ process_term(Term, State) ->
 process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
     BKey = atom_to_binary(Key, utf8),
     case get_key_group(BKey, Key) of
-        odbc ->
-            ok = check_pools(State#state.odbc_pools),
+        rdbms ->
+            ok = check_pools(State#state.rdbms_pools),
             lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
-                        State, State#state.odbc_pools);
+                        State, State#state.rdbms_pools);
         _ ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)
@@ -337,8 +337,8 @@ process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
 
 check_pools([]) ->
     ?CRITICAL_MSG("event=invalid_config "
-                  "details=\"no_odbc_pools: ODBC pools are not defined\"", []),
-    exit(no_odbc_pools);
+                  "details=\"no_rdbms_pools: RDBMS pools are not defined\"", []),
+    exit(no_rdbms_pools);
 check_pools(Pools) when is_list(Pools) ->
     ok.
 
@@ -358,8 +358,8 @@ process_host_term(Term, Host, State) ->
             State;
         {hosts, _Hosts} ->
             State;
-        {odbc_pool, Pool} when is_atom(Pool) ->
-            add_option({odbc_pool, Host}, Pool, State);
+        {rdbms_pool, Pool} when is_atom(Pool) ->
+            add_option({rdbms_pool, Host}, Pool, State);
         {riak_server, RiakConfig} ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
@@ -373,7 +373,7 @@ process_host_term(Term, Host, State) ->
     end.
 
 process_db_pool_term({Opt, Val}, Pool, State) when is_atom(Pool) ->
-    add_option({Opt, odbc_pool, Pool}, Val, State).
+    add_option({Opt, rdbms_pool, Pool}, Val, State).
 
 -spec add_option(Opt :: key(),
                  Val :: value(),
@@ -475,7 +475,7 @@ just_parse_terms(Terms) ->
     State = lists:foldl(fun search_hosts_and_pools/2, #state{}, Terms),
     TermsWExpandedMacros = replace_macros(Terms),
     lists:foldl(fun process_term/2,
-                add_option(odbc_pools, State#state.odbc_pools, State),
+                add_option(rdbms_pools, State#state.rdbms_pools, State),
                 TermsWExpandedMacros).
 
 -spec check_hosts([jid:server()], [jid:server()]) ->
@@ -491,10 +491,10 @@ check_hosts(NewHosts, OldHosts) ->
 -spec can_be_ignored(Key :: atom() | tuple()) -> boolean().
 can_be_ignored(Key) when is_atom(Key);
                          is_tuple(Key) ->
-    L = [domain_certfile, s2s, all_metrics_are_global, odbc],
+    L = [domain_certfile, s2s, all_metrics_are_global, rdbms],
     lists:member(Key, L).
 
-% group values which can be grouped like odbc ones
+% group values which can be grouped like rdbms ones
 -spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl(fun(#local_config{key = {Key, Host}, value = Val}, Dict) ->
@@ -524,10 +524,10 @@ is_not_host_specific({Key, PoolType, PoolName})
 -spec get_key_group(binary(), atom()) -> atom().
 get_key_group(<<"ldap_", _/binary>>, _) ->
     ldap;
-get_key_group(<<"odbc_", _/binary>>, _) ->
-    odbc;
+get_key_group(<<"rdbms_", _/binary>>, _) ->
+    rdbms;
 get_key_group(<<"pgsql_", _/binary>>, _) ->
-    odbc;
+    rdbms;
 get_key_group(<<"auth_", _/binary>>, _) ->
     auth;
 get_key_group(<<"ext_auth_", _/binary>>, _) ->

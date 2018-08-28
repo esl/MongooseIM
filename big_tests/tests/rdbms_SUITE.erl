@@ -29,7 +29,7 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    case not ct_helper:is_ct_running() orelse mongoose_helper:is_odbc_enabled(host()) of
+    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(host()) of
         false -> [];
         true  -> [{group, rdbms_queries}]
     end.

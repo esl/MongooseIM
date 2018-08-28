@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mod_vcard.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : vCard support via ODBC
+%%% Purpose : vCard support via RDBMS
 %%% Created :  2 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
@@ -24,7 +24,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(mod_vcard_odbc).
+-module(mod_vcard_rdbms).
 
 -behaviour(mod_vcard).
 

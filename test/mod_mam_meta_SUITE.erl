@@ -6,7 +6,7 @@
 
 all() -> [
           overrides_general_options,
-          sets_odbc_as_default_backend,
+          sets_rdbms_as_default_backend,
           assumes_pm_by_default,
           handles_disabled_pm,
           disables_sync_writer_on_async_writer,
@@ -21,16 +21,16 @@ all() -> [
 %% Tests
 
 overrides_general_options(_Config) ->
-    Deps = deps([{backend, odbc}, {pm, [{backend, cassandra}]}, {muc, []}]),
+    Deps = deps([{backend, rdbms}, {pm, [{backend, cassandra}]}, {muc, []}]),
 
     ?assert(lists:keymember(mod_mam_cassandra_arch, 1, Deps)),
-    ?assert(lists:keymember(mod_mam_muc_odbc_arch, 1, Deps)),
-    ?assertNot(lists:keymember(mod_mam_odbc_arch, 1, Deps)).
+    ?assert(lists:keymember(mod_mam_muc_rdbms_arch, 1, Deps)),
+    ?assertNot(lists:keymember(mod_mam_rdbms_arch, 1, Deps)).
 
 
-sets_odbc_as_default_backend(_Config) ->
+sets_rdbms_as_default_backend(_Config) ->
     Deps = deps([{pm, []}]),
-    ?assert(lists:keymember(mod_mam_odbc_arch, 1, Deps)).
+    ?assert(lists:keymember(mod_mam_rdbms_arch, 1, Deps)).
 
 
 assumes_pm_by_default(_Config) ->
@@ -45,25 +45,25 @@ handles_disabled_pm(_Config) ->
 
 disables_sync_writer_on_async_writer(_Config) ->
     Deps = deps([{pm, [async_writer]}]),
-    {_, Args, _} = lists:keyfind(mod_mam_odbc_arch, 1, Deps),
+    {_, Args, _} = lists:keyfind(mod_mam_rdbms_arch, 1, Deps),
     ?assert(lists:member(no_writer, Args)).
 
 
 disables_sync_muc_writer_on_async_writer(_Config) ->
     Deps = deps([{pm, false}, {muc, [async_writer]}]),
-    {_, Args, _} = lists:keyfind(mod_mam_muc_odbc_arch, 1, Deps),
+    {_, Args, _} = lists:keyfind(mod_mam_muc_rdbms_arch, 1, Deps),
     ?assert(lists:member(no_writer, Args)).
 
 
 produces_valid_configurations(_Config) ->
     Deps = deps([
-                 {backend, odbc},
+                 {backend, rdbms},
                  cache_users,
 
-                 {pm, [{user_prefs_store, odbc}, archive_groupchats, {async_writer, false}]},
+                 {pm, [{user_prefs_store, rdbms}, archive_groupchats, {async_writer, false}]},
                  {muc, [
                         {host, <<"host">>},
-                        {odbc_message_format, simple},
+                        {rdbms_message_format, simple},
                         {user_prefs_store, mnesia}
                        ]}
                 ]),
@@ -72,18 +72,18 @@ produces_valid_configurations(_Config) ->
 
     check_has_args(mod_mam, [{archive_groupchats, true}], Deps),
     check_has_args(mod_mam_muc, [{host, <<"host">>}], Deps),
-    check_has_args(mod_mam_odbc_arch, [pm], Deps),
-    check_has_args(mod_mam_muc_odbc_arch, [no_writer | ExpandedSimpleOpts], Deps),
-    check_has_args(mod_mam_odbc_user, [pm, muc], Deps),
+    check_has_args(mod_mam_rdbms_arch, [pm], Deps),
+    check_has_args(mod_mam_muc_rdbms_arch, [no_writer | ExpandedSimpleOpts], Deps),
+    check_has_args(mod_mam_rdbms_user, [pm, muc], Deps),
     check_has_args(mod_mam_cache_user, [pm, muc], Deps),
     check_has_args(mod_mam_mnesia_prefs, [muc], Deps),
-    check_has_args(mod_mam_odbc_prefs, [pm], Deps),
-    check_has_args(mod_mam_muc_odbc_async_pool_writer, [], Deps),
+    check_has_args(mod_mam_rdbms_prefs, [pm], Deps),
+    check_has_args(mod_mam_muc_rdbms_async_pool_writer, [], Deps),
 
-    check_has_no_args(mod_mam_odbc_arch, [muc, no_writer | ExpandedSimpleOpts], Deps),
+    check_has_no_args(mod_mam_rdbms_arch, [muc, no_writer | ExpandedSimpleOpts], Deps),
     check_has_no_args(mod_mam_mnesia_prefs, [pm], Deps),
-    check_has_no_args(mod_mam_odbc_prefs, [muc], Deps),
-    ?assertNot(lists:keymember(mod_mam_odbc_async_pool_writer, 1, Deps)).
+    check_has_no_args(mod_mam_rdbms_prefs, [muc], Deps),
+    ?assertNot(lists:keymember(mod_mam_rdbms_async_pool_writer, 1, Deps)).
 
 
 handles_riak_config(_Config) ->
@@ -118,12 +118,12 @@ example_muc_only_no_pref_good_performance(_Config) ->
                 ]),
 
     check_equal_deps([
-                      {mod_mam_odbc_user, [muc]},
+                      {mod_mam_rdbms_user, [muc]},
                       {mod_mam_cache_user, [muc]},
                       %% 'muc' argument is ignored by the module
-                      {mod_mam_muc_odbc_arch, [muc, no_writer]},
+                      {mod_mam_muc_rdbms_arch, [muc, no_writer]},
                       %% 'muc' argument is ignored by the module
-                      {mod_mam_muc_odbc_async_pool_writer, [muc]},
+                      {mod_mam_muc_rdbms_async_pool_writer, [muc]},
                       {mod_mam_muc, [{host, "muc.@HOST@"}]}
                      ], Deps).
 
@@ -136,11 +136,11 @@ example_pm_only_good_performance(_Config) ->
                 ]),
 
     check_equal_deps([
-                      {mod_mam_odbc_user, [pm]},
+                      {mod_mam_rdbms_user, [pm]},
                       {mod_mam_cache_user, [pm]},
                       {mod_mam_mnesia_prefs, [pm]},
-                      {mod_mam_odbc_arch, [pm, no_writer]},
-                      {mod_mam_odbc_async_pool_writer, [pm]},
+                      {mod_mam_rdbms_arch, [pm, no_writer]},
+                      {mod_mam_rdbms_async_pool_writer, [pm]},
                       {mod_mam, []}
                      ], Deps).
 

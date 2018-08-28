@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : mongoose_rdbms.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
-%%% Purpose : Serve ODBC connection
+%%% Purpose : Serve RDBMS connection
 %%% Created :  8 Dec 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
@@ -150,7 +150,7 @@
 -define(CONNECT_RETRIES, 5).
 
 -type server() :: binary() | pool().
--type odbc_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
+-type rdbms_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
                                {aborted, Reason :: term()} |
@@ -197,7 +197,7 @@ sql_transaction(HostOrPool, F) when is_function(F) ->
     sql_call(HostOrPool, {sql_transaction, F}).
 
 %% TODO: Better spec for RPC calls
--spec sql_call(HostOrPool :: server(), Msg :: odbc_msg()) -> any().
+-spec sql_call(HostOrPool :: server(), Msg :: rdbms_msg()) -> any().
 sql_call(HostOrPool, Msg) ->
     case get(?STATE_KEY) of
         undefined -> sql_call0(HostOrPool, Msg);
@@ -208,11 +208,11 @@ sql_call(HostOrPool, Msg) ->
     end.
 
 
--spec sql_call0(HostOrPool :: server(), Msg :: odbc_msg()) -> any().
+-spec sql_call0(HostOrPool :: server(), Msg :: rdbms_msg()) -> any().
 sql_call0(HostOrPool, Msg) ->
     PoolProc = mongoose_rdbms_sup:pool_proc(HostOrPool),
     case whereis(PoolProc) of
-        undefined -> {error, {no_odbc_pool, PoolProc}};
+        undefined -> {error, {no_rdbms_pool, PoolProc}};
         _ ->
             Timestamp = p1_time_compat:monotonic_time(milli_seconds),
             wpool:call(PoolProc, {sql_cmd, Msg, Timestamp}, best_worker, ?TRANSACTION_TIMEOUT)
@@ -226,7 +226,7 @@ get_db_info(Pid) when is_pid(Pid) ->
 get_db_info(HostOrPool) ->
     PoolProc = mongoose_rdbms_sup:pool_proc(HostOrPool),
     case whereis(PoolProc) of
-        undefined -> {error, {no_odbc_pool, PoolProc}};
+        undefined -> {error, {no_rdbms_pool, PoolProc}};
         _ -> wpool:call(PoolProc, get_db_info)
     end.
 
@@ -254,7 +254,7 @@ sql_query_t(Query, State) ->
 %% @doc Escape character that will confuse an SQL engine
 %% Percent and underscore only need to be escaped for
 %% pattern matching like statement
-%% INFO: Used in mod_vcard_odbc.
+%% INFO: Used in mod_vcard_rdbms.
 %% Searches in the middle of text, non-efficient
 -spec escape_like(binary() | string()) -> escaped_like().
 escape_like(S) ->
@@ -429,7 +429,7 @@ to_bool(_) -> false.
 init(Pool) ->
     process_flag(trap_exit, true),
     backend_module:create(?MODULE, db_engine(Pool), [query, execute]),
-    Settings = mongoose_rdbms_sup:get_option(Pool, odbc_server),
+    Settings = mongoose_rdbms_sup:get_option(Pool, rdbms_server),
     MaxStartInterval = get_start_interval(Pool),
     case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
@@ -499,7 +499,7 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op(odbc_msg(), state()) -> query_result() | transaction_result().
+-spec outer_op(rdbms_msg(), state()) -> query_result() | transaction_result().
 outer_op({sql_query, Query}, State) ->
     {sql_query_internal(Query, State), State};
 outer_op({sql_transaction, F}, State) ->
@@ -509,7 +509,7 @@ outer_op({sql_execute, Name, Params}, State) ->
 
 %% @doc Called via sql_query/transaction/bloc from client code when inside a
 %% nested operation
--spec nested_op(odbc_msg(), state()) -> any().
+-spec nested_op(rdbms_msg(), state()) -> any().
 nested_op({sql_query, Query}, State) ->
     %% XXX - use sql_query_t here insted? Most likely would break
     %% callers who expect {error, _} tuples (sql_query_t turns
@@ -644,7 +644,7 @@ abort_on_driver_error({Reply, State}) ->
 -spec db_engine(server()) -> ejabberd_config:value().
 db_engine(HostOrPool) ->
     Pool = mongoose_rdbms_sup:pool(HostOrPool),
-    case mongoose_rdbms_sup:get_option(Pool, odbc_server) of
+    case mongoose_rdbms_sup:get_option(Pool, rdbms_server) of
         SQLServer when is_list(SQLServer) ->
             odbc;
         Other when is_tuple(Other) ->
@@ -672,13 +672,13 @@ connect(Settings, Retry, RetryAfter, MaxRetryDelay) ->
 
 -spec schedule_keepalive(pool()) -> any().
 schedule_keepalive(Pool) ->
-    case mongoose_rdbms_sup:get_option(Pool, odbc_keepalive_interval) of
+    case mongoose_rdbms_sup:get_option(Pool, rdbms_keepalive_interval) of
         KeepaliveInterval when is_integer(KeepaliveInterval) ->
             erlang:send_after(timer:seconds(KeepaliveInterval), self(), keepalive);
         undefined ->
             ok;
         _Other ->
-            ?ERROR_MSG("Wrong odbc_keepalive_interval definition '~p'"
+            ?ERROR_MSG("Wrong rdbms_keepalive_interval definition '~p'"
                        " for pool ~p.~n", [_Other, Pool]),
             ok
     end.
@@ -687,13 +687,13 @@ schedule_keepalive(Pool) ->
 -spec get_start_interval(pool()) -> any().
 get_start_interval(Pool) ->
     DefaultInterval = 30,
-    case mongoose_rdbms_sup:get_option(Pool, odbc_start_interval) of
+    case mongoose_rdbms_sup:get_option(Pool, rdbms_start_interval) of
         StartInterval when is_integer(StartInterval) ->
             StartInterval;
         undefined ->
             DefaultInterval;
         _Other ->
-            ?ERROR_MSG("Wrong odbc_start_interval definition '~p'"
+            ?ERROR_MSG("Wrong rdbms_start_interval definition '~p'"
                        " for pool ~p, defaulting to ~p seconds.~n",
                        [_Other, Pool, DefaultInterval]),
             DefaultInterval

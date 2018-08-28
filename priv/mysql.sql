@@ -216,7 +216,7 @@ CREATE TABLE roster_version (
 -- Differences between old and simple format:
 -- - message is stored as XML
 -- - remote_bare_jid is not "minified"
--- To enable simple format pass {simple, true} as an option for mod_mam_odbc_arch
+-- To enable simple format pass {simple, true} as an option for mod_mam_rdbms_arch
 CREATE TABLE mam_message(
   -- Message UID (64 bits)
   -- A server-assigned UID that MUST be unique within the archive.

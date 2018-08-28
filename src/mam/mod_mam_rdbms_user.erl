@@ -8,7 +8,7 @@
 %%% Archive id is assigned based on user_name and host.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_odbc_user).
+-module(mod_mam_rdbms_user).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).

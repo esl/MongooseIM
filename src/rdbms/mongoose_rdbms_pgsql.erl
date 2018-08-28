@@ -56,7 +56,7 @@ disconnect(Connection) ->
 -spec query(Connection :: term(), Query :: any(),
             Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 query(Connection, Query, _Timeout) ->
-    pgsql_to_odbc(epgsql:squery(Connection, Query)).
+    pgsql_to_rdbms(epgsql:squery(Connection, Query)).
 
 -spec prepare(Pool :: mongoose_rdbms:pool(),
               Connection :: term(), Name :: atom(), Table :: binary(),
@@ -73,7 +73,7 @@ prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
               Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 execute(Connection, StatementRef, Params, _Timeout) ->
-    pgsql_to_odbc(epgsql:prepared_query(Connection, StatementRef, Params)).
+    pgsql_to_rdbms(epgsql:prepared_query(Connection, StatementRef, Params)).
 
 %% Helpers
 
@@ -104,16 +104,16 @@ get_db_basic_opts({Server, Port, DB, User, Pass}) ->
 extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
     Opts ++ SSLConnOpts.
 
--spec pgsql_to_odbc(epgsql:reply(term())) -> mongoose_rdbms:query_result().
-pgsql_to_odbc(Items) when is_list(Items) ->
-    lists:reverse([pgsql_to_odbc(Item) || Item <- Items]);
-pgsql_to_odbc({error, #error{codename = unique_violation}}) ->
+-spec pgsql_to_rdbms(epgsql:reply(term())) -> mongoose_rdbms:query_result().
+pgsql_to_rdbms(Items) when is_list(Items) ->
+    lists:reverse([pgsql_to_rdbms(Item) || Item <- Items]);
+pgsql_to_rdbms({error, #error{codename = unique_violation}}) ->
     {error, duplicate_key};
-pgsql_to_odbc({error, #error{message = Message}}) ->
+pgsql_to_rdbms({error, #error{message = Message}}) ->
     {error, unicode:characters_to_list(Message)};
-pgsql_to_odbc({ok, Count}) ->
+pgsql_to_rdbms({ok, Count}) ->
     {updated, Count};
-pgsql_to_odbc({ok, _Columns, Rows}) ->
+pgsql_to_rdbms({ok, _Columns, Rows}) ->
     {selected, Rows}.
 
 -spec replace_question_marks(Statement :: iodata()) -> iodata().

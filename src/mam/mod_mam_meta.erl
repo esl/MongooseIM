@@ -75,7 +75,7 @@ parse_opts(Type, Opts, Deps) ->
           end, valid_core_mod_opts(CoreMod)),
 
     WithCoreDeps = add_dep(CoreMod, CoreModOpts, Deps),
-    Backend = proplists:get_value(backend, Opts, odbc),
+    Backend = proplists:get_value(backend, Opts, rdbms),
 
     parse_backend_opts(Backend, Type, Opts, WithCoreDeps).
 
@@ -105,7 +105,7 @@ valid_core_mod_opts(mod_mam_muc) ->
      max_result_limit
     ].
 
--spec parse_backend_opts(odbc | cassandra | riak | elasticsearch, Type :: pm | muc,
+-spec parse_backend_opts(rdbms | cassandra | riak | elasticsearch, Type :: pm | muc,
                          Opts :: proplists:proplist(), deps()) -> deps().
 parse_backend_opts(cassandra, Type, Opts, Deps0) ->
     ModArch =
@@ -130,20 +130,20 @@ parse_backend_opts(riak, Type, Opts, Deps0) ->
         _ -> Deps
     end;
 
-parse_backend_opts(odbc, Type, Opts0, Deps0) ->
-    Opts = add_default_odbc_opts(Opts0),
+parse_backend_opts(rdbms, Type, Opts0, Deps0) ->
+    Opts = add_default_rdbms_opts(Opts0),
 
-    {ModODBCArch, ModAsyncWriter} =
+    {ModRDBMSArch, ModAsyncWriter} =
         case Type of
-            pm -> {mod_mam_odbc_arch, mod_mam_odbc_async_pool_writer};
-            muc -> {mod_mam_muc_odbc_arch, mod_mam_muc_odbc_async_pool_writer}
+            pm -> {mod_mam_rdbms_arch, mod_mam_rdbms_async_pool_writer};
+            muc -> {mod_mam_muc_rdbms_arch, mod_mam_muc_rdbms_async_pool_writer}
         end,
 
-    Deps1 = add_dep(ModODBCArch, [Type], Deps0),
-    Deps = add_dep(mod_mam_odbc_user, [Type], Deps1),
+    Deps1 = add_dep(ModRDBMSArch, [Type], Deps0),
+    Deps = add_dep(mod_mam_rdbms_user, [Type], Deps1),
 
     lists:foldl(
-      pa:bind(fun parse_backend_opt/5, Type, ModODBCArch, ModAsyncWriter),
+      pa:bind(fun parse_backend_opt/5, Type, ModRDBMSArch, ModAsyncWriter),
       Deps, Opts);
 
 parse_backend_opts(elasticsearch, Type, Opts, Deps0) ->
@@ -185,8 +185,8 @@ add_dep(Dep, Args, Deps) ->
     maps:put(Dep, NewArgs, Deps).
 
 
--spec add_default_odbc_opts(Opts :: proplists:proplist()) -> proplists:proplist().
-add_default_odbc_opts(Opts) ->
+-spec add_default_rdbms_opts(Opts :: proplists:proplist()) -> proplists:proplist().
+add_default_rdbms_opts(Opts) ->
     lists:foldl(
       fun({Key, _} = DefaultOpt, Acc) ->
               case proplists:lookup(Key, Opts) of
@@ -200,23 +200,23 @@ add_default_odbc_opts(Opts) ->
 
 -spec parse_backend_opt(Type :: pm | muc, module(), module(),
                         Option :: {module(), term()}, deps()) -> deps().
-parse_backend_opt(Type, ModODBCArch, ModAsyncWriter, Option, Deps) ->
+parse_backend_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
     case Option of
         {cache_users, true} ->
             add_dep(mod_mam_cache_user, [Type], Deps);
-        {user_prefs_store, odbc} ->
-            add_dep(mod_mam_odbc_prefs, [Type], Deps);
+        {user_prefs_store, rdbms} ->
+            add_dep(mod_mam_rdbms_prefs, [Type], Deps);
         {user_prefs_store, mnesia} ->
             add_dep(mod_mam_mnesia_prefs, [Type], Deps);
-        {odbc_message_format, simple} ->
-            add_dep(ModODBCArch, odbc_simple_opts(), Deps);
+        {rdbms_message_format, simple} ->
+            add_dep(ModRDBMSArch, rdbms_simple_opts(), Deps);
         {async_writer, true} ->
-            DepsWithNoWriter = add_dep(ModODBCArch, [no_writer], Deps),
+            DepsWithNoWriter = add_dep(ModRDBMSArch, [no_writer], Deps),
             add_dep(ModAsyncWriter, [Type], DepsWithNoWriter);
-        {async_writer_odbc_pool, PoolName} ->
-            add_dep(ModAsyncWriter, [{odbc_pool, PoolName}], Deps);
+        {async_writer_rdbms_pool, PoolName} ->
+            add_dep(ModAsyncWriter, [{rdbms_pool, PoolName}], Deps);
         _ -> Deps
     end.
 
--spec odbc_simple_opts() -> list().
-odbc_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
+-spec rdbms_simple_opts() -> list().
+rdbms_simple_opts() -> [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].

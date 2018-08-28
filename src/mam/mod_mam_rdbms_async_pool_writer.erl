@@ -2,9 +2,20 @@
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
 %%% @doc Collect messages and flush them into the database.
+%%%
+%%% Some backends allow ArcID can be not set (riak?).
+%%% This means, that there are no "jid => integer" mapping.
+%%%
+%%% But this module requires ArcID to be an integer.
+%%% ArcID is set by mod_mam_rdbms_user.
+%%% If ArcID is undefined, it means that there can be issues
+%%% in mod_mam_rdbms_user.
+%%%
+%%% We have `is_integer(ArcID)' check on each hook handler, so cases when
+%%% `ArcID' is undefined would fail at the module entrance.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_muc_odbc_async_pool_writer).
+-module(mod_mam_rdbms_async_pool_writer).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -17,9 +28,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/4,
-         purge_single_message/6,
-         purge_multiple_messages/9]).
+         remove_archive/4]).
 
 %% Helpers for debugging
 -export([queue_length/1,
@@ -36,22 +45,20 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--type packet() :: any().
--record(state, {flush_interval      :: non_neg_integer(), %% milliseconds
-                max_batch_size     :: non_neg_integer(),
-                host                :: jid:server(),
-                connection_pool     :: atom(),
-                acc=[]              :: list(),
-                flush_interval_tref :: reference() | undefined
-              }).
--type state() :: #state{}.
+-record(state, {
+    flush_interval, %% milliseconds
+    max_batch_size,
+    host,
+    connection_pool :: atom(),
+    number,
+    acc = [],
+    flush_interval_tref}).
 
 worker_prefix() ->
-    "ejabberd_mod_mam_muc_writer".
+    "ejabberd_mod_mam_writer".
 
-
-%% @doc Ensure, that:
-%% `worker_count(_) = Int * mod_mam_muc_odbc_arch:partition_count()'
+%% Ensure, that:
+%% `worker_count(_) = Int * mod_mam_rdbms_arch:partition_count()'
 %%
 %% For example,
 %% `worker_count(_) = 32, partition_count() = 16'.
@@ -60,111 +67,120 @@ worker_prefix() ->
 worker_count(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, pool_size, ?DEFAULT_POOL_SIZE).
 
-
--spec worker_names(jid:server()) -> [{integer(), atom()}].
 worker_names(Host) ->
     [{N, worker_name(Host, N)} || N <- lists:seq(0, worker_count(Host) - 1)].
 
-
--spec worker_name(jid:server(), integer()) -> atom().
 worker_name(Host, N) ->
     list_to_atom(worker_prefix() ++ "_" ++ binary_to_list(Host) ++ "_" ++ integer_to_list(N)).
 
-
--spec select_worker(jid:server(), integer()) -> atom().
 select_worker(Host, ArcID) ->
     N = worker_number(Host, ArcID),
     worker_name(Host, N).
 
-
--spec worker_number(jid:server(), mod_mam:archive_id()) -> integer().
-worker_number(Host, ArcID) ->
+worker_number(Host, ArcID) when is_integer(ArcID) ->
     ArcID rem worker_count(Host).
-
 
 %% ----------------------------------------------------------------------
 %% gen_mod callbacks
 %% Starting and stopping functions for users' archives
 
--spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
     mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
     mongoose_metrics:ensure_metric(Host, ?FLUSH_TIME, histogram),
-    PoolName = gen_mod:get_opt(odbc_pool, Opts, mongoose_rdbms_sup:pool(Host)),
+    PoolName = gen_mod:get_opt(rdbms_pool, Opts, mongoose_rdbms_sup:pool(Host)),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
-    mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_message, 1),
-    mod_mam_muc_odbc_arch:prepare_insert(insert_mam_muc_messages, MaxSize),
+    mod_mam_rdbms_arch:prepare_insert(insert_mam_message, 1),
+    mod_mam_rdbms_arch:prepare_insert(insert_mam_messages, MaxSize),
+
     start_workers(Host, PoolName, MaxSize),
-    start_muc(Host, Opts).
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            start_pm(Host, Opts);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            start_muc(Host, Opts);
+        false ->
+            ok
+    end.
 
-
--spec stop(jid:server()) -> any().
 stop(Host) ->
-    stop_muc(Host),
+    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
+        true ->
+            stop_pm(Host);
+        false ->
+            ok
+    end,
+    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
+        true ->
+            stop_muc(Host);
+        false ->
+            ok
+    end,
     stop_workers(Host).
+
+%% ----------------------------------------------------------------------
+%% Add hooks for mod_mam
+
+start_pm(Host, _Opts) ->
+    ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
+    ok.
+
+stop_pm(Host) ->
+    ejabberd_hooks:delete(mam_archive_message, Host, ?MODULE, archive_message, 50),
+    ok.
+
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam_muc
 
--spec start_muc(jid:server(), _) -> 'ok'.
 start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ok.
 
-
--spec stop_muc(jid:server()) -> 'ok'.
 stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50),
     ok.
+
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec start_workers(jid:server(), Pool :: atom(), MaxSize :: pos_integer()) -> [{'error', _}
-                                        | {'ok', 'undefined' | pid()}
-                                        | {'ok', 'undefined' | pid(), _}].
 start_workers(Host, Pool, MaxSize) ->
     [start_worker(WriterProc, N, Host, Pool, MaxSize)
      || {N, WriterProc} <- worker_names(Host)].
 
-
--spec stop_workers(jid:server()) -> ['ok'
-    | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}].
 stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
-
--spec start_worker(atom(), integer(), jid:server(), Pool :: atom(), MaxSize :: pos_integer())
-      -> {'error', _}
-         | {'ok', 'undefined' | pid()}
-         | {'ok', 'undefined' | pid(), _}.
-start_worker(WriterProc, _N, Host, Pool, MaxSize) ->
+start_worker(WriterProc, N, Host, Pool, MaxSize) ->
     WriterChildSpec =
     {WriterProc,
-     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [Host, Pool, MaxSize], []]},
+     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [Host, N, Pool, MaxSize], []]},
      permanent,
      5000,
      worker,
-     [mod_mam_muc_odbc_async_pool_writer]},
+     [mod_mam_rdbms_async_writer]},
     supervisor:start_child(mod_mam_sup, WriterChildSpec).
 
-
--spec stop_worker(atom()) -> 'ok'
-        | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
 
 
--spec archive_message(_, Host :: jid:server(), MessID :: mod_mam:message_id(),
-                      ArcID :: mod_mam:archive_id(), LocJID :: jid:jid(),
+-spec archive_message(_Result, jid:server(), MessID :: mod_mam:message_id(),
+                      ArchiveID :: mod_mam:archive_id(), LocJID :: jid:jid(),
                       RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: atom(),
-                      Packet :: packet()) -> ok | {error, timeout}.
+                      Packet :: any()) -> ok.
 archive_message(_Result, Host,
-                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    Row = mod_mam_muc_odbc_arch:prepare_message(Host,
-                                                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
+                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet)
+        when is_integer(ArcID) ->
+    Row = mod_mam_rdbms_arch:prepare_message(Host, MessID, ArcID, LocJID,
+                                            RemJID, SrcJID, Dir, Packet),
+
     Worker = select_worker(Host, ArcID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
@@ -183,26 +199,18 @@ archive_message(_Result, Host,
             end
     end.
 
-
--spec is_overloaded(pid()) -> boolean().
 is_overloaded(Pid) ->
     {message_queue_len, Len} = erlang:process_info(Pid, message_queue_len),
     Len > 500.
 
-
-%% @doc For metrics.
--spec queue_length(jid:server()) -> {'ok', number()}.
+%% For metrics.
 queue_length(Host) ->
     Len = lists:sum(queue_lengths(Host)),
     {ok, Len}.
 
-
--spec queue_lengths(jid:server()) -> [non_neg_integer()].
 queue_lengths(Host) ->
     [worker_queue_length(SrvName) || {_, SrvName} <- worker_names(Host)].
 
-
--spec worker_queue_length(atom()) -> non_neg_integer().
 worker_queue_length(SrvName) ->
     case whereis(SrvName) of
         undefined ->
@@ -213,47 +221,30 @@ worker_queue_length(SrvName) ->
     end.
 
 
--spec archive_size(integer(), jid:server(), mod_mam:archive_id(),
-                   jid:jid()) -> integer().
-archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size) ->
+-spec archive_size(Size :: integer(), Host :: jid:server(),
+                   ArchiveID :: mod_mam:archive_id(), ArcJID :: jid:jid()) -> integer().
+archive_size(Size, Host, ArcID, _ArcJID) when is_integer(Size), is_integer(ArcID) ->
     Size.
-
 
 -spec lookup_messages(Result :: any(), Host :: jid:server(), Params :: map()) ->
     {ok, mod_mam:lookup_result()}.
-lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now}) ->
+lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
+    when is_integer(ArcID) ->
     Result.
 
 %% #rh
--spec remove_archive(map(), jid:server(), mod_mam:archive_id(), jid:jid()) -> map().
-remove_archive(Acc, Host, ArcID, _ArcJID) ->
+-spec remove_archive(Acc :: map(), Host :: jid:server(),
+                     RoomId :: mod_mam:archive_id(),
+                     RoomJID :: jid:jid()) -> map().
+remove_archive(Acc, Host, ArcID, _ArcJID)
+    when is_integer(ArcID) ->
     Acc.
-
--spec purge_single_message(ejabberd_gen_mam_archive:purge_single_message_result(),
-                           jid:server(), MessId :: mod_mam:message_id(),
-                           ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
-                           Now :: mod_mam:unix_timestamp()) ->
-                                  ejabberd_gen_mam_archive:purge_single_message_result().
-purge_single_message(Result, Host, MessID, ArcID, _ArcJID, Now) ->
-    {Microseconds, _NodeMessID} = mod_mam_utils:decode_compact_uuid(MessID),
-    Result.
-
-
--spec purge_multiple_messages(Result :: any(), Host :: jid:server(),
-                              ArcID :: mod_mam:archive_id(), _ArcJID :: jid:jid(),
-                              _Borders :: mod_mam:borders(), _Start :: mod_mam:unix_timestamp(),
-                              End :: mod_mam:unix_timestamp(), Now :: mod_mam:unix_timestamp(),
-                              _WithJID :: jid:jid()) -> ok.
-purge_multiple_messages(Result, Host, ArcID, _ArcJID, _Borders,
-                        _Start, End, Now, _WithJID) ->
-    Result.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
--spec run_flush(state()) -> state().
-run_flush(State = #state{acc=[]}) ->
+run_flush(State = #state{acc = []}) ->
     State;
 run_flush(State = #state{host = Host, acc = Acc}) ->
     MessageCount = length(Acc),
@@ -271,9 +262,9 @@ do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
     InsertResult =
         case MessageCount of
             MaxSize ->
-                mongoose_rdbms:execute(Pool, insert_mam_muc_messages, lists:append(Acc));
+                mongoose_rdbms:execute(Pool, insert_mam_messages, lists:append(Acc));
             OtherSize ->
-                Results = [mongoose_rdbms:execute(Pool, insert_mam_muc_message, Row) || Row <- Acc],
+                Results = [mongoose_rdbms:execute(Pool, insert_mam_message, Row) || Row <- Acc],
                 case lists:keyfind(error, 1, Results) of
                     false -> {updated, OtherSize};
                     Error -> Error
@@ -288,14 +279,11 @@ do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
             ok
     end,
     spawn_link(fun() ->
-                       ejabberd_hooks:run(mam_muc_flush_messages, Host,
-                                          [Host, MessageCount])
+                       ejabberd_hooks:run(mam_flush_messages, Host, [Host, MessageCount])
                end),
     erlang:garbage_collect(),
     State#state{acc=[], flush_interval_tref=undefined}.
 
-
--spec cancel_and_flush_timer('undefined' | reference()) -> 'ok'.
 cancel_and_flush_timer(undefined) ->
     ok;
 cancel_and_flush_timer(TRef) ->
@@ -319,13 +307,22 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Pool, MaxSize]) ->
-    %% Use a private ODBC-connection.
+init([Host, N, Pool, MaxSize]) ->
+    %% Use a private RDBMS-connection.
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
-    {ok, #state{host=Host, connection_pool=Pool,
+    {ok, #state{host=Host, connection_pool=Pool, number=N,
                 flush_interval = Int,
                 max_batch_size = MaxSize}}.
 
+%%--------------------------------------------------------------------
+%% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
+%%                                      {reply, Reply, State, Timeout} |
+%%                                      {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, Reply, State} |
+%%                                      {stop, Reason, State}
+%% Description: Handling call messages
+%%--------------------------------------------------------------------
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |
@@ -357,7 +354,6 @@ handle_cast(Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 
--spec handle_info('flush', state()) -> {'noreply', state()}.
 handle_info(flush, State) ->
     {noreply, run_flush(State#state{flush_interval_tref=undefined})}.
 

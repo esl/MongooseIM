@@ -116,7 +116,7 @@ Affected files:
 - `Makefile`
 - `elvis.config`
 - `src/amp_strategy.erl`
-- `src/mod_mam_odbc_arch.erl`
+- `src/mod_mam_rdbms_arch.erl`
 - `big_tests/Makefile`
 - `big_tests/run_common_test.erl`
 - `big_tests/tests/vcard_SUITE.erl`
