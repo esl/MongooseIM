@@ -22,7 +22,10 @@
         ]).
 % 1-1 helpers
 -export([
-         given_conversations_between/2
+         given_conversations_between/2,
+         send_msg/2,
+         send_msg/3,
+         send_and_mark_msg/2
         ]).
 % MUC + MUC Light helpers
 -export([
@@ -525,3 +528,22 @@ key_to_binary(active_conversations) ->
     <<"active-conversations">>;
 key_to_binary(count) ->
     <<"count">>.
+
+send_msg(From, To) ->
+    send_msg(From, To, "Test").
+
+send_msg(From, To, Body) ->
+    MsgId = escalus_stanza:id(),
+    Msg = escalus_stanza:set_id(escalus_stanza:chat_to(To, Body), MsgId),
+    escalus:send(From, Msg),
+    MsgSent = escalus:wait_for_stanza(To),
+    escalus:assert(is_chat_message, MsgSent),
+    MsgSent.
+
+
+send_and_mark_msg(From, To) ->
+    Msg = send_msg(From, To),
+    MsgId = exml_query:attr(Msg, <<"id">>),
+    ChatMarker = escalus_stanza:chat_marker(From, <<"displayed">>, MsgId),
+    escalus:send(To, ChatMarker),
+    Msg.
