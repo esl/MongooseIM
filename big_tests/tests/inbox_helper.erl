@@ -15,6 +15,9 @@
          get_result_el/2,
          get_inbox_form_stanza/0,
          get_inbox_stanza/0,
+         get_inbox_stanza/1,
+         get_inbox_stanza/2,
+         get_error_message/1,
          inbox_ns/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
@@ -217,6 +220,9 @@ get_inner_msg(Msg) ->
   exml_query:paths(Msg, [{element, <<"result">>}, {element, <<"forwarded">>},
     {element, <<"message">>}]).
 
+get_error_message(Stanza) ->
+  exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"text">>}, cdata]).
+
 get_inbox_form_stanza() ->
   escalus_stanza:iq_get(?NS_ESL_INBOX, []).
 
@@ -231,6 +237,15 @@ get_inbox_stanza(GetParams) ->
                     attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
                     children = [make_inbox_form(GetParams)]},
   GetIQ#xmlel{children = [QueryTag]}.
+
+-spec get_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
+get_inbox_stanza(GetParams, Verify) ->
+  GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+  QueryTag = #xmlel{name = <<"inbox">>,
+                    attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                    children = [make_inbox_form(GetParams, Verify)]},
+  GetIQ#xmlel{children = [QueryTag]}.
+
 
 -spec check_jid_fun(IsCaseSensitive :: boolean(), CheckResource :: boolean()) -> jid_verify_fun().
 check_jid_fun(true, true) ->
@@ -258,7 +273,11 @@ bin_to_bare(Jid) ->
 
 -spec make_inbox_form(GetParams :: inbox_query_params()) -> exml:element().
 make_inbox_form(GetParams) ->
-  OrderL =
+    make_inbox_form(GetParams, true).
+
+-spec make_inbox_form(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
+make_inbox_form(GetParams, true) ->
+   OrderL =
   case maps:get(order, GetParams, undefined) of
     undefined -> [];
     Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
@@ -274,11 +293,17 @@ make_inbox_form(GetParams) ->
     End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
   end,
   FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
-  HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,  
+  HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
                                          bool_to_bin(maps:get(hidden_read, GetParams, false)))],
   Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL,
-  escalus_stanza:x_data_form(<<"submit">>, Fields).
+  escalus_stanza:x_data_form(<<"submit">>, Fields);
 
+make_inbox_form(GetParams, false) ->
+  Map = maps:map(fun (K, V) ->
+                    escalus_stanza:field_el(K, <<"text-single">>, V) end,
+                 GetParams),
+  Fields = maps:values(Map),
+  escalus_stanza:x_data_form(<<"submit">>, Fields).
 %% ---------------------------------------------------------
 %% 1-1 helpers
 %% ---------------------------------------------------------
