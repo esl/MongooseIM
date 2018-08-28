@@ -431,14 +431,8 @@ msg_sent_to_not_existing_user(Config) ->
 
 user_has_two_unread_messages(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
-    Msg1 = escalus_stanza:chat_to(Mike, <<"Hello">>),
-    Msg2 = escalus_stanza:chat_to(Mike, <<"How are you">>),
-    %% Kate sends 2 messages to Mike
-    escalus:send(Kate, Msg1),
-    escalus:send(Kate, Msg2),
-    [M1, M2] = escalus:wait_for_stanzas(Mike, 2),
-    escalus:assert(is_chat_message, M1),
-    escalus:assert(is_chat_message, M2),
+    inbox_helper:send_msg(Kate, Mike, "Hello"),
+    inbox_helper:send_msg(Kate, Mike, "How are you"),
     %% Mike has two unread messages in conversation with Kate
     check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
     %% Kate has one conv in her inbox (no unread messages)
@@ -447,12 +441,9 @@ user_has_two_unread_messages(Config) ->
 
 reset_unread_counter(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
-    MsgId =  <<"123123">>,
-    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
-    %% Kate sends message to Mike
-    escalus:send(Kate, Msg1),
-    M1 = escalus:wait_for_stanza(Mike),
-    escalus:assert(is_chat_message, M1),
+    Msg = inbox_helper:send_msg(Kate, Mike, <<"Hi mike">>),
+    MsgId = exml_query:attr(Msg, <<"id">>),
+
     %% Mike has one unread message
     check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = <<"Hi mike">>}]),
     ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
@@ -464,12 +455,8 @@ reset_unread_counter(Config) ->
 
 reset_unread_counter_and_show_only_unread(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}, {alice, 1}], fun(Kate, Mike, Alice) ->
-    % Kate sends message to Mike
-    MsgId =  <<"123123">>,
-    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
-    escalus:send(Kate, Msg1),
-    M1 = escalus:wait_for_stanza(Mike),
-    escalus:assert(is_chat_message, M1),
+    Msg = inbox_helper:send_msg(Kate, Mike),
+    MsgId = exml_query:attr(Msg, <<"id">>),
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, #{count => 1}),
 
     ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
@@ -477,45 +464,24 @@ reset_unread_counter_and_show_only_unread(Config) ->
 
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, #{count => 0}),
 
-    % Alice sends message to Mike
-    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
-
-    escalus:send(Alice, Msg2),
-    escalus:wait_for_stanza(Mike),
-
-    % Mike has two conversations, one with unread messages 
+    inbox_helper:send_msg(Alice, Mike),
+    % Mike has two conversations, one with unread messages
     inbox_helper:get_inbox(Mike, #{ hidden_read => true }, #{count => 1}),
     inbox_helper:get_inbox(Mike, #{ hidden_read => false }, #{count => 2})
                                                 end).
+
 check_total_unread_count_and_active_conv_count(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}, {alice, 1}], fun(Kate, Mike, Alice) ->
-    MsgId =  <<"123123">>,
-    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
-    escalus:send(Kate, Msg1),
-    M1 = escalus:wait_for_stanza(Mike),
-    escalus:assert(is_chat_message, M1),
-
-    ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
-    escalus:send(Mike, ChatMarker),
-
-    Msg2 = escalus_stanza:chat_to(Mike, <<"Hi from Alice">>),
-
-    escalus:send(Alice, Msg2),
-    escalus:wait_for_stanza(Mike),
-
-    inbox_helper:get_inbox(Mike, #{count => 2, unread_messages => 1, active_conversations => 1})
+    inbox_helper:send_and_mark_msg(Kate, Mike),
+    inbox_helper:send_msg(Alice, Mike),
+    inbox_helper:send_msg(Alice, Mike),
+    inbox_helper:send_msg(Kate, Mike),
+    inbox_helper:get_inbox(Mike, #{count => 2, unread_messages => 3, active_conversations => 2})
                                                 end).
 
 check_total_unread_count_when_there_are_no_active_conversations(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
-    MsgId =  <<"123123">>,
-    Msg1 = escalus_stanza:set_id(escalus_stanza:chat_to(Mike, <<"Hi mike">>), MsgId),
-    escalus:send(Kate, Msg1),
-    M1 = escalus:wait_for_stanza(Mike),
-    escalus:assert(is_chat_message, M1),
-
-    ChatMarker = escalus_stanza:chat_marker(Kate, <<"displayed">>, MsgId),
-    escalus:send(Mike, ChatMarker),
+    inbox_helper:send_and_mark_msg(Kate, Mike),
 
     inbox_helper:get_inbox(Mike, #{count => 1, unread_messages => 0, active_conversations => 0})
                                                 end).
