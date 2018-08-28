@@ -28,7 +28,8 @@
          user_has_only_unread_messages_or_only_read/1,
          reset_unread_counter_and_show_only_unread/1,
          check_total_unread_count_and_active_conv_count/1,
-         check_total_unread_count_when_there_are_no_active_conversations/1
+         check_total_unread_count_when_there_are_no_active_conversations/1,
+         total_unread_count_and_active_convs_are_zero_at_no_activity/1
         ]).
 -export([simple_groupchat_stored_in_all_inbox/1,
          advanced_groupchat_stored_in_all_inbox/1,
@@ -106,7 +107,8 @@ groups() ->
            user_has_only_unread_messages_or_only_read,
            reset_unread_counter_and_show_only_unread,
            check_total_unread_count_and_active_conv_count,
-           check_total_unread_count_when_there_are_no_active_conversations
+           check_total_unread_count_when_there_are_no_active_conversations,
+           total_unread_count_and_active_convs_are_zero_at_no_activity
           ]},
          {muclight, [sequence],
           [
@@ -485,6 +487,13 @@ check_total_unread_count_when_there_are_no_active_conversations(Config) ->
 
     inbox_helper:get_inbox(Mike, #{count => 1, unread_messages => 0, active_conversations => 0})
                                                 end).
+
+total_unread_count_and_active_convs_are_zero_at_no_activity(Config) ->
+    escalus:story(Config, [{kate, 1}], fun(Kate) ->
+        inbox_helper:get_inbox(Kate, #{count => 0, unread_messages => 0, active_conversations => 0})
+                                                end).
+
+
 
 try_to_reset_unread_counter_with_bad_marker(Config) ->
   escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
