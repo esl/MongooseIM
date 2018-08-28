@@ -5,6 +5,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("inbox.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([all/0,
          groups/0,
@@ -16,7 +17,14 @@
          init_per_testcase/2,
          end_per_testcase/2]).
 %% tests
--export([returns_valid_form/1]).
+-export([returns_valid_form/1,
+         returns_error_when_first_bad_form_field_encountered/1,
+         returns_error_when_bad_form_field_start_sent/1,
+         returns_error_when_bad_form_field_end_sent/1,
+         returns_error_when_bad_form_field_order_sent/1,
+         returns_error_when_bad_form_field_hidden_read_sent/1,
+         returns_error_when_unknown_field_sent/1
+        ]).
 -export([msg_sent_stored_in_inbox/1,
          user_has_empty_inbox/1,
          user_has_two_unread_messages/1,
@@ -58,7 +66,8 @@
 -import(inbox_helper, [
                        check_inbox/2, check_inbox/4,
                        clear_inbox_all/0,
-                       given_conversations_between/2
+                       given_conversations_between/2,
+                       assert_invalid_inbox_form_value_error/3
                       ]).
 
 -define(ROOM, <<"testroom1">>).
@@ -91,9 +100,15 @@ tests() ->
 groups() ->
     G = [
          {generic, [sequence],
-          [
-           returns_valid_form
-          ]},
+         [
+          returns_valid_form,
+          returns_error_when_first_bad_form_field_encountered,
+          returns_error_when_bad_form_field_start_sent,
+          returns_error_when_bad_form_field_end_sent,
+          returns_error_when_bad_form_field_order_sent,
+          returns_error_when_bad_form_field_hidden_read_sent,
+          returns_error_when_unknown_field_sent
+         ]},
          {one_to_one, [sequence],
           [
            user_has_empty_inbox,
@@ -299,21 +314,62 @@ end_per_testcase(CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 returns_valid_form(Config) ->
-    escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        escalus:send(Alice, inbox_helper:get_inbox_form_stanza()),
-        ResIQ = escalus:wait_for_stanza(Alice),
-        InboxNS = inbox_helper:inbox_ns(),
-        #{ field_count := 5 } = Form = parse_form_iq(ResIQ),
-        #{ <<"FORM_TYPE">> := #{ type := <<"hidden">>,
-                                 value := InboxNS } } = Form,
-        #{ <<"start">> := #{ type := <<"text-single">> } } = Form,
-        #{ <<"end">> := #{ type := <<"text-single">> } } = Form,
-        #{ <<"order">> := #{ type := <<"list-single">>,
-                             value := <<"desc">>,
-                             options := OrderOptions } } = Form,
-        [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions),
-        #{ <<"hidden_read">> := #{ type := <<"text-single">> } } = Form
-      end).
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      escalus:send(Alice, inbox_helper:get_inbox_form_stanza()),
+      ResIQ = escalus:wait_for_stanza(Alice),
+      InboxNS = inbox_helper:inbox_ns(),
+      #{ field_count := 5 } = Form = parse_form_iq(ResIQ),
+      #{ <<"FORM_TYPE">> := #{ type := <<"hidden">>,
+                               value := InboxNS } } = Form,
+      #{ <<"start">> := #{ type := <<"text-single">> } } = Form,
+      #{ <<"end">> := #{ type := <<"text-single">> } } = Form,
+      #{ <<"order">> := #{ type := <<"list-single">>,
+                           value := <<"desc">>,
+                           options := OrderOptions } } = Form,
+      [<<"asc">>, <<"desc">>] = lists:sort(OrderOptions),
+      #{ <<"hidden_read">> := #{ type := <<"text-single">> } } = Form
+    end).
+
+returns_error_when_bad_form_field_order_sent(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      assert_invalid_inbox_form_value_error(Alice, <<"order">>, <<"invalid">>)
+    end).
+
+returns_error_when_bad_form_field_start_sent(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      assert_invalid_inbox_form_value_error(Alice, <<"start">>, <<"invalid">>)
+    end).
+
+returns_error_when_bad_form_field_end_sent(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      assert_invalid_inbox_form_value_error(Alice, <<"end">>, <<"invalid">>)
+    end).
+
+returns_error_when_bad_form_field_hidden_read_sent(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      assert_invalid_inbox_form_value_error(Alice, <<"hidden_read">>, <<"invalid">>)
+    end).
+
+returns_error_when_first_bad_form_field_encountered(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      Stanza = inbox_helper:get_inbox_stanza( #{ <<"start">> => <<"invalid">>,
+                                                 <<"end">> => <<"invalid">>}, false),
+      escalus:send(Alice, Stanza),
+      [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
+      escalus_pred:is_iq_error(ResIQ),
+      <<"Invalid inbox form field value, field=end, value=invalid">> = inbox_helper:get_error_message(ResIQ)
+    end).
+
+returns_error_when_unknown_field_sent(Config) ->
+  escalus:story(Config, [{alice, 1}], fun(Alice) ->
+      Stanza = inbox_helper:get_inbox_stanza( #{ <<"unknown_field">> => <<"unknown_field_value">> }, false),
+      escalus:send(Alice, Stanza),
+      [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
+      escalus_pred:is_iq_error(ResIQ),
+      ?assertEqual(<<"Unknown inbox form field=unknown_field, value=unknown_field_value">>,
+                    inbox_helper:get_error_message(ResIQ))
+    end).
+
 
 parse_form_iq(IQ) ->
     FieldsEls = exml_query:paths(IQ, [{element, <<"query">>},
