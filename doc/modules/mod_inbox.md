@@ -123,7 +123,11 @@ Alice receives:
 </message>
 
 <iq from="alicE@localhost" to="alicE@localhost/res1" id="b6" type="result">
-  <count xmlns='erlang-solutions.com:xmpp:inbox:0'>1</count>
+  <fin xmlns='erlang-solutions.com:xmpp:inbox:0'>
+    <count>1</count>
+    <unread-messages>0</unread-messages>
+    <active-conversations>0</active-conversations>
+  </fin>
 </iq>
 
 ```
