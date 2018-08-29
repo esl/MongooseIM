@@ -27,7 +27,8 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
 
 * **pool** - feature
-    * **Description:** A named pool of connections to an SQL DB. To enable the connection, remove '%%' prefix from value and configure it with the `rdbms_server` option (see below).
+    * **Description:** A named pool of connections to an SQL DB.
+        To enable the connection, remove '%%' prefix from the value and configure it with the `rdbms_server` option (see below).
     * **Syntax:** `"{pool, rdbms, PoolName}."` or `"{pool, rdbms, PoolName, Options}."`
     * **Examples:** `"{pool, rdbms, default}."`
 

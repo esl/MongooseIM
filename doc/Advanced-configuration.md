@@ -270,7 +270,7 @@ See [Database backends configuration](./advanced-configuration/database-backends
 
 ### MySQL and PostgreSQL SSL connection setup
 
-In order to establish a secure connection with a database additional options must be passed in aforementioned `rdbms_server` tuple.
+In order to establish a secure connection with a database, additional options must be passed in the aforementioned `rdbms_server` tuple.
 Here is the proper syntax:
 
 `{rdbms_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
