@@ -48,8 +48,7 @@ init_per_suite(Config) ->
     application:ensure_all_started(cowboy),
 
     %% For mocking with unnamed functions
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    rpc(code, load_binary, [?MODULE, Filename, Binary]),
+    mongoose_helper:inject_module(?MODULE),
 
     %% Start modules
     Config2 = dynamic_modules:save_modules(domain(), Config),

@@ -50,7 +50,7 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(_, Config) ->
-    load_suite_module_on_the_default_node(),
+    mongoose_helper:inject_module(?MODULE),
     start_delayiq_handler(),
     Config.
 
@@ -161,12 +161,6 @@ delayiq_iq() ->
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
-
-%% Copy this module into MongoseIM.
-load_suite_module_on_the_default_node() ->
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    Args = [?MODULE, Filename, Binary],
-    mongoose_helper:successful_rpc(code, load_binary, Args).
 
 %% This function is executed by MongooseIM
 handle_delayiq_iq(_From, _To, Acc, IQ) ->

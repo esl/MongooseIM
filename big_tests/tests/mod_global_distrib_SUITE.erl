@@ -145,7 +145,10 @@ init_per_group(rebalancing, Config) ->
     init_per_group(rebalancing_generic, [{extra_config, ExtraConfig},
                                          {redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(advertised_endpoints, Config) ->
-    load_suite_module_on_nodes(),
+    lists:foreach(fun({NodeName, _, _}) ->
+                          Node = ct:get_config(NodeName),
+                          mongoose_helper:inject_module(Node, ?MODULE, reload)
+                  end, get_hosts()),
     mock_inet_on_each_node(),
     init_per_group(advertised_endpoints_generic,
                [{add_advertised_endpoints,
@@ -999,10 +1002,6 @@ maybe_add_advertised_endpoints(NodeName, Opts, Config) ->
             NewConnections = {connections, [{advertised_endpoints, E} | Connections]},
             [NewConnections | Opts]
     end.
-
-load_suite_module_on_nodes() ->
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    execute_on_each_node(code, load_binary, [?MODULE, Filename, Binary]).
 
 mock_inet_on_each_node() ->
     Nodes = lists:map(fun({NodeName, _, _}) -> ct:get_config(NodeName) end, get_hosts()),

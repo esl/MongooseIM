@@ -75,8 +75,7 @@ suite() ->
 
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    rpc(code, load_binary, [?MODULE, Filename, Binary]),
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(Config).
 end_per_suite(Config) ->
     escalus_fresh:clean(),

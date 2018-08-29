@@ -41,8 +41,11 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [ {group, fast_tls}
-     ,{group, just_tls}
+    [
+     {group, session_replacement},
+     %% these groups must be last, as they really... complicate configuration
+     {group, fast_tls},
+     {group, just_tls}
     ].
 
 groups() ->
@@ -65,12 +68,17 @@ groups() ->
                                        auth_compression_bind_session,
                                        auth_bind_compression_session,
                                        bind_server_generated_resource]},
-          {just_tls,all_groups()},
-          {fast_tls,all_groups()}
+          {just_tls, tls_groups()},
+          {fast_tls, tls_groups()},
+          {session_replacement, [], [
+                                     same_resource_replaces_session,
+                                     clean_close_of_replaced_session,
+                                     replaced_session_cannot_terminate
+                                    ]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
-all_groups()->
+tls_groups()->
     [{group, c2s_noproc},
      {group, starttls},
      {group, feature_order},
@@ -84,11 +92,13 @@ test_cases() ->
      auth_bind_pipelined_starttls_skipped_error].
 
 cipher_test_cases() ->
-    [clients_can_connect_with_advertised_ciphers,
+    [
+     clients_can_connect_with_advertised_ciphers,
      'clients_can_connect_with_DHE-RSA-AES256-SHA',
      'clients_can_connect_with_DHE-RSA-AES128-SHA',
      %% node2 accepts DHE-RSA-AES256-SHA exclusively (see mongooseim.cfg)
-     'clients_can_connect_with_DHE-RSA-AES256-SHA_only'].
+     'clients_can_connect_with_DHE-RSA-AES256-SHA_only'
+    ].
 
 
 suite() ->
@@ -142,15 +152,30 @@ init_per_group(just_tls,Config)->
     end;
 init_per_group(fast_tls,Config)->
     [{tls_module, fast_tls} | Config];
+init_per_group(session_replacement, Config) ->
+    lager_ct_backend:start(),
+    Config;
 init_per_group(_, Config) ->
     Config.
 
+end_per_group(session_replacement, Config) ->
+    lager_ct_backend:stop(),
+    Config;
 end_per_group(_, Config) ->
     Config.
 
+init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
+    S = escalus_users:get_server(Config, alice),
+    OptKey = {replaced_wait_timeout, S},
+    {atomic, _} = rpc(mim(), ejabberd_config, add_local_option, [OptKey, 1]),
+    escalus:init_per_testcase(CN, [{opt_to_del, OptKey} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
+    {_, OptKey} = lists:keyfind(opt_to_del, 1, Config),
+    {atomic, _} = rpc(mim(), ejabberd_config, del_local_option, [OptKey]),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -545,6 +570,52 @@ bind_server_generated_resource(Config) ->
     {resource, Resource} = lists:keyfind(resource, 1, NewSpec),
     ?assert(is_binary(Resource)),
     ?assert(byte_size(Resource) > 0).
+
+same_resource_replaces_session(Config) ->
+    UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
+    {ok, Alice1, _} = escalus_connection:start(UserSpec),
+
+    {ok, Alice2, _} = escalus_connection:start(UserSpec),
+
+    ConflictError = escalus:wait_for_stanza(Alice1),
+    escalus:assert(is_stream_error, [<<"conflict">>, <<>>], ConflictError),
+
+    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false),
+
+    escalus_connection:stop(Alice2).
+
+clean_close_of_replaced_session(Config) ->
+    lager_ct_backend:capture(warning),
+
+    same_resource_replaces_session(Config),
+
+    lager_ct_backend:stop_capture(),
+    FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "replaced_wait_timeout") /= nomatch
+                end,
+    [] = lager_ct_backend:recv(FilterFun).
+
+replaced_session_cannot_terminate(Config) ->
+    % GIVEN a session that is frozen and cannot terminate
+    lager_ct_backend:capture(warning),
+    UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
+    {ok, _Alice1, _} = escalus_connection:start(UserSpec),
+    [C2SPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
+    ok = rpc(mim(), sys, suspend, [C2SPid]),
+
+    % WHEN a session gets replaced ...
+    {ok, Alice2, _} = escalus_connection:start(UserSpec),
+
+    % THEN a timeout warning is logged
+    FilterFun = fun(_, Msg) ->
+                        re:run(Msg, "replaced_wait_timeout") /= nomatch
+                end,
+    mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
+
+    rpc(mim(), sys, resume, [C2SPid]),
+    lager_ct_backend:stop_capture(),
+
+    escalus_connection:stop(Alice2).
 
 %%--------------------------------------------------------------------
 %% Internal functions
