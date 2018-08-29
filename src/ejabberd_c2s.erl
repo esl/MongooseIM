@@ -762,7 +762,7 @@ do_open_session_common(Acc, JID, #state{user = U, resource = R} = NewStateData0)
         fun({MonitorRef, PID}) ->
             receive
                 {'DOWN', MonitorRef, _, _, _} -> ok
-            after 100 ->
+            after 2000 ->
                 ?WARNING_MSG("C2S process ~p for ~s replaced by ~p has not stopped before timeout",
                              [PID, jid:to_binary(NewStateData0#state.jid), self()])
             end
