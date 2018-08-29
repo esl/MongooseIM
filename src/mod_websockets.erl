@@ -58,7 +58,13 @@
 
 init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
-    Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
+    % Only respond with xmpp protocol in websocket when client requests it
+    Req1 = case cowboy_req:header(<<"sec-websocket-protocol">>, Req) of
+    <<"xmpp">> ->
+        cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req);
+    _ ->
+        Req
+    end,
     ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
     %% upgrade protocol
     {cowboy_websocket, Req1, [{peer,Peer}|Opts]}.
