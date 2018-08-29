@@ -157,9 +157,9 @@ pop_msg(Key, LUser, LServer, To) ->
                      packet = Packet}
 
     catch
-        Error:Reason ->
+        ?EXCEPTION(Error, Reason, Stacktrace) ->
             ?WARNING_MSG("issue=~p, action=reading_key, host=~s, reason=~p, stack_trace=~p",
-                         [Error, LServer, Reason, erlang:get_stacktrace()]),
+                         [Error, LServer, Reason, ?GET_STACK(Stacktrace)]),
             []
     end.
 

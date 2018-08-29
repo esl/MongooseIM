@@ -292,9 +292,8 @@ try_call_command(Args, Auth, AccessCommands) ->
         Res ->
             Res
     catch
-        A:Why ->
-            Stack = erlang:get_stacktrace(),
-            {io_lib:format("Problem '~p ~p' occurred executing the command.~nStacktrace: ~p", [A, Why, Stack]), ?STATUS_ERROR}
+        ?EXCEPTION(A, Why, Stacktrace) ->
+            {io_lib:format("Problem '~p ~p' occurred executing the command.~nStacktrace: ~p", [A, Why, ?GET_STACK(Stacktrace)]), ?STATUS_ERROR}
     end.
 
 

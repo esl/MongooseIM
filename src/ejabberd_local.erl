@@ -136,14 +136,15 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
                      Extra :: any()) ->
     ok | {error, lager_not_running}.
 process_packet(Acc, From, To, El, _Extra) ->
-    case (catch do_route(Acc, From, To, El)) of
-        {'EXIT', Reason} ->
+    try case do_route(Acc, From, To, El) of
+            _ -> ok
+        end
+    catch ?EXCEPTION(exit, Reason, Stacktrace) ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p "
                        "reason=~p packet=~ts stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, mongoose_acc:to_binary(Acc),
-                        erlang:get_stacktrace()]);
-        _ -> ok
+                        ?GET_STACK(Stacktrace)])
     end.
 
 -spec route_iq(From :: jid:jid(),
@@ -483,4 +484,3 @@ do_unregister_host(Host) ->
     ejabberd_router:unregister_route(Host),
     ejabberd_hooks:delete(local_send_to_resource_hook, Host,
                           ?MODULE, bounce_resource_packet, 100).
-

@@ -137,7 +137,7 @@ try_publish(Host, TopicARN, Content, _Attributes, Retry) when Retry < 0 ->
 try_publish(Host, TopicARN, Content, Attributes, Retry) ->
     try publish(Host, TopicARN, Content, Attributes)
     catch
-        Type:Error ->
+        ?EXCEPTION(Type, Error, Stacktrace) ->
             BackoffTime = calc_backoff_time(Host, Retry),
             timer:apply_after(BackoffTime, wpool, cast,
                               [pool_name(Host),
@@ -146,7 +146,7 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
                                available_worker]),
             ?WARNING_MSG("Retrying SNS notification ~p after ~p ms due to ~p~n~p",
                          [{Host, TopicARN, Content}, BackoffTime,
-                          {Type, Error}, erlang:get_stacktrace()]),
+                          {Type, Error}, ?GET_STACK(Stacktrace)]),
             scheduled
     end.
 

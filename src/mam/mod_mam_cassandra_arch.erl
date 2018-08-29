@@ -235,9 +235,8 @@ lookup_messages(_Result, Host,
                          UserJID, RSM, Borders,
                          Start, End, WithJID,
                          PageSize, IsSimple)
-    catch _Type:Reason ->
-            S = erlang:get_stacktrace(),
-            {error, {Reason, S}}
+    catch ?EXCEPTION(_Type, Reason, Stacktrace) ->
+            {error, {Reason, ?GET_STACK(Stacktrace)}}
     end.
 
 lookup_messages2(PoolName, Host,

@@ -19,6 +19,7 @@
 -include_lib("public_key/include/public_key.hrl").
 -include("XmppAddr.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
 
 -type certificate() :: #'Certificate'{}.
 
@@ -31,8 +32,8 @@ get_common_name(Cert) ->
             #'AttributeTypeAndValue'{type = ?'id-at-commonName', value = V} <- AtributesList],
         CN
     catch
-        Class:Exception ->
-            log_exception(Class,Exception),
+        ?EXCEPTION(Class, Exception, Stacktrace) ->
+            log_exception(Class,Exception, ?GET_STACK(Stacktrace)),
             error
     end.
 
@@ -55,8 +56,8 @@ get_xmpp_addresses(Cert) ->
              end || {otherName, #'AnotherName'{'type-id' = ?'id-on-xmppAddr', value = V}} <- SANs],
         [Addr || Addr <- XmppAddresses, is_binary(Addr)]
     catch
-        Class:Exception ->
-            log_exception(Class, Exception),
+        ?EXCEPTION(Class, Exception, Stacktrace) ->
+            log_exception(Class, Exception, ?GET_STACK(Stacktrace)),
             []
     end.
 
@@ -70,8 +71,8 @@ get_dns_addresses(Cert) ->
         {ok, SANs} = 'OTP-PUB-KEY':decode('SubjectAltName', BinVal),
         [DNS || {dNSName, DNS} <- SANs]
     catch
-        Class:Exception ->
-            log_exception(Class,Exception),
+        ?EXCEPTION(Class, Exception, Stacktrace) ->
+            log_exception(Class,Exception, ?GET_STACK(Stacktrace)),
             []
     end.
 
@@ -106,7 +107,6 @@ get_lserver_from_addr(V, UTF8) when is_binary(V); is_list(V) ->
 get_lserver_from_addr(_, _) -> [].
 
 
-log_exception(Class,Exception) ->
-    StackTrace = erlang:get_stacktrace(),
+log_exception(Class,Exception, StackTrace) ->
     ?DEBUG("failed to parse certificate with ~p:~p~n\t~p~n",
            [Class,Exception,StackTrace]).

@@ -147,24 +147,28 @@ route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:get(element, Acc)).
 
 route(From, To, Acc, {broadcast, Payload}) ->
-    case (catch do_route(Acc, From, To, {broadcast, Payload})) of
-        {'EXIT', Reason} ->
+    try case do_route(Acc, From, To, {broadcast, Payload}) of
+            Acc1 -> Acc1
+        end
+    catch
+        ?EXCEPTION(exit, Reason, Stacktrace) ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-            "packet=~ts~n~nstack_trace=~p~n",
-                [jid:to_binary(From), jid:to_binary(To),
-                    ?MODULE, Reason, mongoose_acc:to_binary(Payload),
-                    erlang:get_stacktrace()]);
-        Acc1 -> Acc1
+                       "packet=~ts~n~nstack_trace=~p~n",
+                       [jid:to_binary(From), jid:to_binary(To),
+                        ?MODULE, Reason, mongoose_acc:to_binary(Payload),
+                        ?GET_STACK(Stacktrace)])
     end;
 route(From, To, Acc, El) ->
-    case (catch do_route(Acc, From, To, El)) of
-        {'EXIT', Reason} ->
+    try case do_route(Acc, From, To, El) of
+            Acc1 -> Acc1
+        end
+    catch
+        ?EXCEPTION(exit, Reason, Stacktrace) ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
                        "packet=~ts~n~nstack_trace=~p~n",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, mongoose_acc:to_binary(Acc),
-                        erlang:get_stacktrace()]);
-        Acc1 -> Acc1
+                        ?GET_STACK(Stacktrace)])
     end.
 
 -spec open_session(SID, User, Server, Resource, Info) -> ReplacedPids when
@@ -546,8 +550,8 @@ handle_info(_Info, State) ->
 terminate(_Reason, _State) ->
     try
         ejabberd_commands:unregister_commands(commands())
-    catch E:R ->
-        ?ERROR_MSG("Caught error while terminating sm: ~p:~p~n~p", [E, R, erlang:get_stacktrace()])
+    catch ?EXCEPTION(E, R, Stacktrace) ->
+        ?ERROR_MSG("Caught error while terminating sm: ~p:~p~n~p", [E, R, ?GET_STACK(Stacktrace)])
     end,
     ok.
 
