@@ -21,7 +21,8 @@
          inbox_ns/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
-         timestamp_from_item/1
+         timestamp_from_item/1,
+         assert_invalid_inbox_form_value_error/3
         ]).
 % 1-1 helpers
 -export([
@@ -572,3 +573,12 @@ send_and_mark_msg(From, To) ->
     ChatMarker = escalus_stanza:chat_marker(From, <<"displayed">>, MsgId),
     escalus:send(To, ChatMarker),
     Msg.
+
+assert_invalid_inbox_form_value_error(User, Field, Value) ->
+    Stanza = inbox_helper:get_inbox_stanza( #{ Field => Value }, false),
+    escalus:send(User, Stanza),
+    [ResIQ] = escalus:wait_for_stanzas(User, 1),
+    escalus_pred:is_iq_error(ResIQ),
+    L = byte_size(Field),
+    <<"Invalid inbox form field value, field=", Field:L/binary, ", value=", Value/binary>> 
+    = get_error_message(ResIQ).
