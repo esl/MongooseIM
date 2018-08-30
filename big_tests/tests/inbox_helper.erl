@@ -92,10 +92,10 @@ inbox_ns() ->
     ?NS_ESL_INBOX.
 
 foreach_check_inbox(Users, Unread, SenderJid, Msg) ->
-  [begin
-     UserJid = to_bare_lower(U),
-     check_inbox(U, [#conv{unread = Unread, from = SenderJid, to = UserJid, content = Msg}])
-    end || U <- Users].
+    [begin
+         UserJid = to_bare_lower(U),
+         check_inbox(U, [#conv{unread = Unread, from = SenderJid, to = UserJid, content = Msg}])
+     end || U <- Users].
 
 -spec check_inbox(Client :: escalus:client(), Convs :: [conv()]) -> ok | no_return().
 check_inbox(Client, Convs) ->
@@ -106,77 +106,77 @@ check_inbox(Client, Convs) ->
                   QueryOpts :: inbox_query_params(),
                   CheckOpts :: inbox_check_params()) -> ok | no_return().
 check_inbox(Client, Convs, QueryOpts, CheckOpts) ->
-  ExpectedSortedConvs = case maps:get(order, QueryOpts, undefined) of
-                          asc -> lists:reverse(Convs);
-                          _ -> Convs
-                        end,
-  ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
-  try
-    check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
-  catch
-    _:Reason ->
-      ct:fail(#{ reason => inbox_mismatch,
-                 inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
-                 expected_items => lists:map(fun pretty_conv/1, ExpectedSortedConvs),
-                 query_params => QueryOpts,
-                 check_params => CheckOpts,
-                 error => Reason,
-                 stacktrace => erlang:get_stacktrace() })
-  end.
+    ExpectedSortedConvs = case maps:get(order, QueryOpts, undefined) of
+                              asc -> lists:reverse(Convs);
+                              _ -> Convs
+                          end,
+    ResultStanzas = get_inbox(Client, QueryOpts, #{count => length(ExpectedSortedConvs)}),
+    try
+        check_inbox_result(Client, CheckOpts, ResultStanzas, ExpectedSortedConvs)
+    catch
+        _:Reason ->
+            ct:fail(#{ reason => inbox_mismatch,
+                       inbox_items => lists:map(fun exml:to_binary/1, ResultStanzas),
+                       expected_items => lists:map(fun pretty_conv/1, ExpectedSortedConvs),
+                       query_params => QueryOpts,
+                       check_params => CheckOpts,
+                       error => Reason,
+                       stacktrace => erlang:get_stacktrace() })
+    end.
 
 check_inbox_result(Client, CheckOpts, ResultStanzas, MsgCheckList) ->
-  Merged = lists:zip(ResultStanzas, MsgCheckList),
-  JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts, false),
-                               maps:get(check_resource, CheckOpts, true)),
-  lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
-                        process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
-                end, Merged).
+    Merged = lists:zip(ResultStanzas, MsgCheckList),
+    JIDVerifyFun = check_jid_fun(maps:get(case_sensitive, CheckOpts, false),
+                                 maps:get(check_resource, CheckOpts, true)),
+    lists:foreach(fun({ResultConvStanza, ExpectedConv}) ->
+                          process_inbox_message(Client, ResultConvStanza, ExpectedConv, JIDVerifyFun)
+                  end, Merged).
 
 process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = To,
                                              content = Content, verify = Fun}, JIDVerifyFun) ->
-  FromJid = ensure_conv_binary_jid(From),
-  ToJid = ensure_conv_binary_jid(To),
-  Unread = get_unread_count(Message),
-  escalus:assert(is_message, Message),
-  Unread = get_unread_count(Message),
-  [InnerMsg] = get_inner_msg(Message),
-  JIDVerifyFun(InnerMsg, FromJid, <<"from">>),
-  JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
-  InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
-  Content = InnerContent,
-  Fun(Client, InnerMsg),
-  ok.
+    FromJid = ensure_conv_binary_jid(From),
+    ToJid = ensure_conv_binary_jid(To),
+    Unread = get_unread_count(Message),
+    escalus:assert(is_message, Message),
+    Unread = get_unread_count(Message),
+    [InnerMsg] = get_inner_msg(Message),
+    JIDVerifyFun(InnerMsg, FromJid, <<"from">>),
+    JIDVerifyFun(InnerMsg, ToJid, <<"to">>),
+    InnerContent = exml_query:path(InnerMsg, [{element, <<"body">>}, cdata], []),
+    Content = InnerContent,
+    Fun(Client, InnerMsg),
+    ok.
 
 -spec get_inbox(Client :: escalus:client(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 get_inbox(Client, ExpectedResult) ->
-  get_inbox(Client, #{}, ExpectedResult).
+    get_inbox(Client, #{}, ExpectedResult).
 
 -spec get_inbox(Client :: escalus:client(),
                 GetParams :: inbox_query_params(),
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
-  GetInbox = get_inbox_stanza(GetParams),
-  escalus:send(Client, GetInbox),
-  Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
-  ResIQ = escalus:wait_for_stanza(Client),
-  check_result(ResIQ, ExpectedResult),
-  Stanzas.
+    GetInbox = get_inbox_stanza(GetParams),
+    escalus:send(Client, GetInbox),
+    Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
+    ResIQ = escalus:wait_for_stanza(Client),
+    check_result(ResIQ, ExpectedResult),
+    Stanzas.
 
 get_unread_count(Msg) ->
-  [Val] = exml_query:paths(Msg, [{element, <<"result">>}, {attr, <<"unread">>}]),
-  binary_to_integer(Val).
+    [Val] = exml_query:paths(Msg, [{element, <<"result">>}, {attr, <<"unread">>}]),
+    binary_to_integer(Val).
 
 get_result_el(Packet, Element) ->
-  Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, Element}, cdata]),
-  case Val of
-    <<>> ->
-      ct:fail(#{ error => Element,
-                 stanza => Packet });
-    _ ->
-      binary_to_integer(Val)
-  end.
+    Val = exml_query:path(Packet, [{element, <<"fin">>}, {element, Element}, cdata]),
+    case Val of
+        <<>> ->
+            ct:fail(#{ error => Element,
+                       stanza => Packet });
+        _ ->
+            binary_to_integer(Val)
+    end.
 
 check_result(Packet, ExpectedResult) ->
     maps:filter(fun(K, V) ->
@@ -190,11 +190,11 @@ timestamp_from_item(Item) ->
     escalus_ejabberd:rpc(jlib, datetime_binary_to_timestamp, [ISOTStamp]).
 
 clear_inbox_all() ->
-  clear_inboxes([alice, bob, kate, mike], domain()).
+    clear_inboxes([alice, bob, kate, mike], domain()).
 
 clear_inboxes(UserList, Host) ->
-  JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],
-  [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [JID,Host]) || JID <- JIDs].
+    JIDs = [escalus_users:get_jid(escalus_users:get_users(UserList),U) || U <- UserList],
+    [escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [JID,Host]) || JID <- JIDs].
 
 reload_inbox_option(Config, KeyValueList) ->
     Host = domain(),
@@ -206,46 +206,46 @@ reload_inbox_option(Config, KeyValueList) ->
     lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args2}).
 
 reload_inbox_option(Config, Key, Value) ->
-  Host = domain(),
-  Args = proplists:get_value(inbox_opts, Config),
-  Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
-  dynamic_modules:restart(Host, mod_inbox, Args1),
-  lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
+    Host = domain(),
+    Args = proplists:get_value(inbox_opts, Config),
+    Args1 = lists:keyreplace(Key, 1, Args, {Key, Value}),
+    dynamic_modules:restart(Host, mod_inbox, Args1),
+    lists:keyreplace(inbox_opts, 1, Config, {inbox_opts, Args1}).
 
 restore_inbox_option(Config) ->
-  Host = domain(),
-  Args = proplists:get_value(inbox_opts, Config),
-  dynamic_modules:restart(Host, mod_inbox, Args).
+    Host = domain(),
+    Args = proplists:get_value(inbox_opts, Config),
+    dynamic_modules:restart(Host, mod_inbox, Args).
 
 get_inner_msg(Msg) ->
-  exml_query:paths(Msg, [{element, <<"result">>}, {element, <<"forwarded">>},
-    {element, <<"message">>}]).
+    exml_query:paths(Msg, [{element, <<"result">>}, {element, <<"forwarded">>},
+                           {element, <<"message">>}]).
 
 get_error_message(Stanza) ->
-  exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"text">>}, cdata]).
+    exml_query:path(Stanza, [{element, <<"error">>}, {element, <<"text">>}, cdata]).
 
 get_inbox_form_stanza() ->
-  escalus_stanza:iq_get(?NS_ESL_INBOX, []).
+    escalus_stanza:iq_get(?NS_ESL_INBOX, []).
 
 -spec get_inbox_stanza() -> exml:element().
 get_inbox_stanza() ->
-  get_inbox_stanza(#{}).
+    get_inbox_stanza(#{}).
 
 -spec get_inbox_stanza(GetParams :: inbox_query_params()) -> exml:element().
 get_inbox_stanza(GetParams) ->
-  GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
-  QueryTag = #xmlel{name = <<"inbox">>,
-                    attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                    children = [make_inbox_form(GetParams)]},
-  GetIQ#xmlel{children = [QueryTag]}.
+    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    QueryTag = #xmlel{name = <<"inbox">>,
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      children = [make_inbox_form(GetParams)]},
+    GetIQ#xmlel{children = [QueryTag]}.
 
 -spec get_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 get_inbox_stanza(GetParams, Verify) ->
-  GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
-  QueryTag = #xmlel{name = <<"inbox">>,
-                    attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
-                    children = [make_inbox_form(GetParams, Verify)]},
-  GetIQ#xmlel{children = [QueryTag]}.
+    GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
+    QueryTag = #xmlel{name = <<"inbox">>,
+                      attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
+                      children = [make_inbox_form(GetParams, Verify)]},
+    GetIQ#xmlel{children = [QueryTag]}.
 
 
 -spec check_jid_fun(IsCaseSensitive :: boolean(), CheckResource :: boolean()) -> jid_verify_fun().
@@ -317,7 +317,7 @@ bool_to_bin(false) -> <<"false">>.
 -spec given_conversations_between(From :: escalus:client(), ToList :: [escalus:client()]) ->
     #{ escalus:client() => [#conv{}] }.
 given_conversations_between(From, ToList) ->
-  lists:foldl(fun(N, #{ From := FromConvs } = Convs) ->
+    lists:foldl(fun(N, #{ From := FromConvs } = Convs) ->
                         Ord = integer_to_binary(N),
                         ToClient = lists:nth(N, ToList),
                         Body = <<"Msg ", Ord/binary>>,
@@ -332,7 +332,7 @@ given_conversations_between(From, ToList) ->
                           ToClient => [NewConv#conv{ unread = 1 }]
                          }
                 end, #{ From => [], time_before => server_side_time() },
-              lists:seq(1, length(ToList))).
+                lists:seq(1, length(ToList))).
 
 %% ---------------------------------------------------------
 %% MUC + MUC Light helpers
@@ -397,117 +397,117 @@ stanza_to_room(Stanza, Room, Nick) ->
     escalus_stanza:to(Stanza, muc_helper:room_address(Room, Nick)).
 
 create_room_and_check_inbox(Owner, MemberList, RoomName) ->
-  InitOccupants = [{M, member} || M <- MemberList],
-  FinalOccupants = [{Owner, owner} | InitOccupants],
-  InitConfig = [{<<"roomname">>, <<"Just room name">>}],
-  OwnerJid = lbin(escalus_client:short_jid(Owner)),
-  MembersJids = [lbin(escalus_client:short_jid(M)) || M <- MemberList],
-  MemberAndJids = lists:zip(MemberList, MembersJids),
-  MembersAndOwner = [Owner | MemberList],
-  %% Owner creates room
-  escalus:send(Owner, muc_light_helper:stanza_create_room(RoomName, InitConfig, InitOccupants)),
-  muc_light_helper:verify_aff_bcast(FinalOccupants, FinalOccupants),
-  escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)),
-  %% check for the owner. Unread from owner is affiliation change to owner
-  check_inbox(Owner,[#conv{unread = 1,
-                           from = muc_light_helper:room_bin_jid(RoomName),
-                           to = OwnerJid,
-                           verify = fun verify_is_owner_aff_change/2}]),
-  %% check for the members. Every member has affiliation change to member
-  [check_inbox(Member, [#conv{unread = 1,
+    InitOccupants = [{M, member} || M <- MemberList],
+    FinalOccupants = [{Owner, owner} | InitOccupants],
+    InitConfig = [{<<"roomname">>, <<"Just room name">>}],
+    OwnerJid = lbin(escalus_client:short_jid(Owner)),
+    MembersJids = [lbin(escalus_client:short_jid(M)) || M <- MemberList],
+    MemberAndJids = lists:zip(MemberList, MembersJids),
+    MembersAndOwner = [Owner | MemberList],
+    %% Owner creates room
+    escalus:send(Owner, muc_light_helper:stanza_create_room(RoomName, InitConfig, InitOccupants)),
+    muc_light_helper:verify_aff_bcast(FinalOccupants, FinalOccupants),
+    escalus:assert(is_iq_result, escalus:wait_for_stanza(Owner)),
+    %% check for the owner. Unread from owner is affiliation change to owner
+    check_inbox(Owner,[#conv{unread = 1,
+                             from = muc_light_helper:room_bin_jid(RoomName),
+                             to = OwnerJid,
+                             verify = fun verify_is_owner_aff_change/2}]),
+    %% check for the members. Every member has affiliation change to member
+    [check_inbox(Member, [#conv{unread = 1,
+                                from = muc_light_helper:room_bin_jid(RoomName),
+                                to = Jid,
+                                verify = fun verify_is_member_aff_change/2}])
+     || {Member, Jid} <- MemberAndJids],
+    %% Each room participant send chat marker
+    [begin mark_last_muclight_system_message(U, 1),
+           foreach_recipient(MembersAndOwner, fun(_Stanza) -> ok end) end || U <- MembersAndOwner],
+    %% counter is reset for owner
+    check_inbox(Owner, [#conv{unread = 0,
                               from = muc_light_helper:room_bin_jid(RoomName),
-                              to = Jid,
-                              verify = fun verify_is_member_aff_change/2}])
-   || {Member, Jid} <- MemberAndJids],
-  %% Each room participant send chat marker
-  [begin mark_last_muclight_system_message(U, 1),
-         foreach_recipient(MembersAndOwner, fun(_Stanza) -> ok end) end || U <- MembersAndOwner],
-  %% counter is reset for owner
-  check_inbox(Owner, [#conv{unread = 0,
-                            from = muc_light_helper:room_bin_jid(RoomName),
-                            to = OwnerJid,
-                            verify = fun verify_is_owner_aff_change/2}]),
-  %% counter is reset for members
-  [check_inbox(Member, [#conv{unread = 0,
-                              from = muc_light_helper:room_bin_jid(RoomName),
-                              to = Jid,
-                              verify = fun verify_is_member_aff_change/2}])
-    || {Member, Jid} <- MemberAndJids].
+                              to = OwnerJid,
+                              verify = fun verify_is_owner_aff_change/2}]),
+    %% counter is reset for members
+    [check_inbox(Member, [#conv{unread = 0,
+                                from = muc_light_helper:room_bin_jid(RoomName),
+                                to = Jid,
+                                verify = fun verify_is_member_aff_change/2}])
+     || {Member, Jid} <- MemberAndJids].
 
 %% assume there is only one conversation
 mark_last_muclight_message(User, AllUsers) ->
-  mark_last_muclight_message(User, AllUsers, <<"displayed">>).
+    mark_last_muclight_message(User, AllUsers, <<"displayed">>).
 
 mark_last_muclight_message(User, AllUsers, MarkerType) ->
-  %% User ask for inbox in order to get id of last message
-  GetInbox = get_inbox_stanza(),
-  escalus:send(User, GetInbox),
-  Stanza = escalus:wait_for_stanza(User),
-  ResIQ = escalus:wait_for_stanza(User),
-  1 = get_result_el(ResIQ, <<"count">>),
-  [InnerMsg] = get_inner_msg(Stanza),
-  MsgId = exml_query:attr(InnerMsg, <<"id">>),
-  From = exml_query:attr(InnerMsg, <<"from">>),
-  FromBare = escalus_utils:get_short_jid(From),
-  ChatMarkerWOType = escalus_stanza:chat_marker(FromBare, MarkerType, MsgId),
-  ChatMarker = escalus_stanza:setattr(ChatMarkerWOType, <<"type">>, <<"groupchat">>),
-  %% User marks last message
-  escalus:send(User, ChatMarker),
-  %% participants receive marker
-  foreach_recipient(AllUsers, fun(Marker) ->
-    true = escalus_pred:is_chat_marker(MarkerType, MsgId, Marker)
-                              end).
+    %% User ask for inbox in order to get id of last message
+    GetInbox = get_inbox_stanza(),
+    escalus:send(User, GetInbox),
+    Stanza = escalus:wait_for_stanza(User),
+    ResIQ = escalus:wait_for_stanza(User),
+    1 = get_result_el(ResIQ, <<"count">>),
+    [InnerMsg] = get_inner_msg(Stanza),
+    MsgId = exml_query:attr(InnerMsg, <<"id">>),
+    From = exml_query:attr(InnerMsg, <<"from">>),
+    FromBare = escalus_utils:get_short_jid(From),
+    ChatMarkerWOType = escalus_stanza:chat_marker(FromBare, MarkerType, MsgId),
+    ChatMarker = escalus_stanza:setattr(ChatMarkerWOType, <<"type">>, <<"groupchat">>),
+    %% User marks last message
+    escalus:send(User, ChatMarker),
+    %% participants receive marker
+    foreach_recipient(AllUsers, fun(Marker) ->
+                                        true = escalus_pred:is_chat_marker(MarkerType, MsgId, Marker)
+                                end).
 
 mark_last_muclight_system_message(User, ExpectedCount) ->
-  mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
+    mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
 
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
-  GetInbox = get_inbox_stanza(),
-  escalus:send(User, GetInbox),
-  Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
-  ResIQ = escalus:wait_for_stanza(User),
-  ExpectedCount = get_result_el(ResIQ, <<"count">>),
-  LastMsg = lists:last(Stanzas),
-  [InnerMsg] = get_inner_msg(LastMsg),
-  MsgId = exml_query:attr(InnerMsg, <<"id">>),
-  From = exml_query:attr(InnerMsg, <<"from">>),
-  ChatMarkerWOType = escalus_stanza:chat_marker(From, MarkerType, MsgId),
-  ChatMarker = escalus_stanza:setattr(ChatMarkerWOType, <<"type">>, <<"groupchat">>),
-  escalus:send(User, ChatMarker).
+    GetInbox = get_inbox_stanza(),
+    escalus:send(User, GetInbox),
+    Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
+    ResIQ = escalus:wait_for_stanza(User),
+    ExpectedCount = get_result_el(ResIQ, <<"count">>),
+    LastMsg = lists:last(Stanzas),
+    [InnerMsg] = get_inner_msg(LastMsg),
+    MsgId = exml_query:attr(InnerMsg, <<"id">>),
+    From = exml_query:attr(InnerMsg, <<"from">>),
+    ChatMarkerWOType = escalus_stanza:chat_marker(From, MarkerType, MsgId),
+    ChatMarker = escalus_stanza:setattr(ChatMarkerWOType, <<"type">>, <<"groupchat">>),
+    escalus:send(User, ChatMarker).
 
 create_room_send_msg_check_inbox(Owner, MemberList, RoomName, Msg, Id) ->
-  RoomJid = muc_light_helper:room_bin_jid(RoomName),
-  OwnerJid = lbin(escalus_client:short_jid(Owner)),
-  create_room_and_check_inbox(Owner, MemberList, RoomName),
-  Stanza = escalus_stanza:set_id(
-    escalus_stanza:groupchat_to(RoomJid, Msg), Id),
-  escalus:send(Owner, Stanza),
-  foreach_recipient([Owner | MemberList],
-    fun(ReceivedStanza) ->
-    escalus:assert(is_groupchat_message, ReceivedStanza)
-    end),
-  %% send chat marker per each
-  OwnerRoomJid = <<RoomJid/binary,"/", OwnerJid/binary>>,
-  %% Owner sent the message so he has unread set to 0
-  check_inbox(Owner, [#conv{unread = 0, from = OwnerRoomJid, to = OwnerJid, content = Msg}]),
-  foreach_check_inbox(MemberList, 1, OwnerRoomJid, Msg).
+    RoomJid = muc_light_helper:room_bin_jid(RoomName),
+    OwnerJid = lbin(escalus_client:short_jid(Owner)),
+    create_room_and_check_inbox(Owner, MemberList, RoomName),
+    Stanza = escalus_stanza:set_id(
+               escalus_stanza:groupchat_to(RoomJid, Msg), Id),
+    escalus:send(Owner, Stanza),
+    foreach_recipient([Owner | MemberList],
+                      fun(ReceivedStanza) ->
+                              escalus:assert(is_groupchat_message, ReceivedStanza)
+                      end),
+    %% send chat marker per each
+    OwnerRoomJid = <<RoomJid/binary,"/", OwnerJid/binary>>,
+    %% Owner sent the message so he has unread set to 0
+    check_inbox(Owner, [#conv{unread = 0, from = OwnerRoomJid, to = OwnerJid, content = Msg}]),
+    foreach_check_inbox(MemberList, 1, OwnerRoomJid, Msg).
 
 verify_is_owner_aff_change(Client, Msg) ->
-  verify_muc_light_aff_msg(Msg, [{Client,  owner}]).
+    verify_muc_light_aff_msg(Msg, [{Client,  owner}]).
 
 verify_is_member_aff_change(Client, Msg) ->
-  verify_muc_light_aff_msg(Msg, [{Client, member}]).
+    verify_muc_light_aff_msg(Msg, [{Client, member}]).
 
 verify_is_none_aff_change(Client, Msg) ->
-  verify_muc_light_aff_msg(Msg, [{Client, none}]).
+    verify_muc_light_aff_msg(Msg, [{Client, none}]).
 
 verify_muc_light_aff_msg(Msg, AffUsersChanges) ->
-  BinAffUsersChanges = muc_light_helper:bin_aff_users(AffUsersChanges),
-  ProperNS = muc_light_helper:ns_muc_light_affiliations(),
-  SubEl = exml_query:path(Msg, [{element_with_ns, ProperNS}]),
-  undefined = exml_query:subelement(Msg, <<"prev-version">>),
-  Items = exml_query:subelements(SubEl, <<"user">>),
-  muc_light_helper:verify_aff_users(Items, BinAffUsersChanges).
+    BinAffUsersChanges = muc_light_helper:bin_aff_users(AffUsersChanges),
+    ProperNS = muc_light_helper:ns_muc_light_affiliations(),
+    SubEl = exml_query:path(Msg, [{element_with_ns, ProperNS}]),
+    undefined = exml_query:subelement(Msg, <<"prev-version">>),
+    Items = exml_query:subelements(SubEl, <<"user">>),
+    muc_light_helper:verify_aff_users(Items, BinAffUsersChanges).
 
 %% ---------------------------------------------------------
 %% Misc
@@ -515,20 +515,20 @@ verify_muc_light_aff_msg(Msg, AffUsersChanges) ->
 
 -spec domain() -> binary().
 domain() ->
-  ct:get_config({hosts, mim, domain}).
+    ct:get_config({hosts, mim, domain}).
 
 -spec to_bare_lower(User :: escalus:client()) -> binary().
 to_bare_lower(User) ->
-  lbin(escalus_client:short_jid(User)).
+    lbin(escalus_client:short_jid(User)).
 
 %% Returns mim1-side time in ISO format
 -spec server_side_time() -> binary().
 server_side_time() ->
-  {_, _, Micro} = Timestamp = escalus_ejabberd:rpc(erlang, timestamp, []),
-  {Day, {H, M, S}} = calendar:now_to_datetime(Timestamp),
-  DateTimeMicro = {Day, {H, M, S, Micro}},
-  {String, TZ} = escalus_ejabberd:rpc(jlib, timestamp_to_iso, [DateTimeMicro, utc]),
-  list_to_binary(String ++ TZ).
+    {_, _, Micro} = Timestamp = escalus_ejabberd:rpc(erlang, timestamp, []),
+    {Day, {H, M, S}} = calendar:now_to_datetime(Timestamp),
+    DateTimeMicro = {Day, {H, M, S, Micro}},
+    {String, TZ} = escalus_ejabberd:rpc(jlib, timestamp_to_iso, [DateTimeMicro, utc]),
+    list_to_binary(String ++ TZ).
 
 %% ---------------------------------------------------------
 %% Error reporting
@@ -544,9 +544,9 @@ pretty_conv(#conv{ unread = Unread, from = From, to = To, content = Content, ver
     }.
 
 ensure_conv_binary_jid(BinJid) when is_binary(BinJid) ->
-  BinJid;
+    BinJid;
 ensure_conv_binary_jid(Client) ->
-  lbin(escalus_client:full_jid(Client)).
+    lbin(escalus_client:full_jid(Client)).
 
 key_to_binary(unread_messages) ->
     <<"unread-messages">>;
