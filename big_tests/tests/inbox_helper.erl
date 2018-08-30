@@ -15,9 +15,9 @@
          get_inbox/2, get_inbox/3,
          get_result_el/2,
          get_inbox_form_stanza/0,
-         get_inbox_stanza/0,
-         get_inbox_stanza/1,
-         get_inbox_stanza/2,
+         make_inbox_stanza/0,
+         make_inbox_stanza/1,
+         make_inbox_stanza/2,
          get_error_message/1,
          inbox_ns/0,
          reload_inbox_option/2, reload_inbox_option/3,
@@ -158,7 +158,7 @@ get_inbox(Client, ExpectedResult) ->
                 ExpectedResult :: inbox_result_params()) -> [exml:element()].
 
 get_inbox(Client, GetParams, #{count := ExpectedCount} = ExpectedResult) ->
-    GetInbox = get_inbox_stanza(GetParams),
+    GetInbox = make_inbox_stanza(GetParams),
     escalus:send(Client, GetInbox),
     Stanzas = escalus:wait_for_stanzas(Client, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(Client),
@@ -228,20 +228,20 @@ get_error_message(Stanza) ->
 get_inbox_form_stanza() ->
     escalus_stanza:iq_get(?NS_ESL_INBOX, []).
 
--spec get_inbox_stanza() -> exml:element().
-get_inbox_stanza() ->
-    get_inbox_stanza(#{}).
+-spec make_inbox_stanza() -> exml:element().
+make_inbox_stanza() ->
+    make_inbox_stanza(#{}).
 
--spec get_inbox_stanza(GetParams :: inbox_query_params()) -> exml:element().
-get_inbox_stanza(GetParams) ->
+-spec make_inbox_stanza(GetParams :: inbox_query_params()) -> exml:element().
+make_inbox_stanza(GetParams) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
                       children = [make_inbox_form(GetParams)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
--spec get_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
-get_inbox_stanza(GetParams, Verify) ->
+-spec make_inbox_stanza(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
+make_inbox_stanza(GetParams, Verify) ->
     GetIQ = escalus_stanza:iq_set(?NS_ESL_INBOX, []),
     QueryTag = #xmlel{name = <<"inbox">>,
                       attrs = [{<<"xmlns">>, ?NS_ESL_INBOX}],
@@ -279,21 +279,18 @@ make_inbox_form(GetParams) ->
 
 -spec make_inbox_form(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 make_inbox_form(GetParams, true) ->
-    OrderL =
-    case maps:get(order, GetParams, undefined) of
-        undefined -> [];
-        Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
-    end,
-    StartL =
-    case maps:get(start, GetParams, undefined) of
-        undefined -> [];
-        Start -> [escalus_stanza:field_el(<<"start">>, <<"text-single">>, Start)]
-    end,
-    EndL =
-    case maps:get('end', GetParams, undefined) of
-        undefined -> [];
-    End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
-    end,
+    OrderL = case maps:get(order, GetParams, undefined) of
+                 undefined -> [];
+                 Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
+             end,
+    StartL = case maps:get(start, GetParams, undefined) of
+                 undefined -> [];
+                 Start -> [escalus_stanza:field_el(<<"start">>, <<"text-single">>, Start)]
+             end,
+    EndL = case maps:get('end', GetParams, undefined) of
+               undefined -> [];
+               End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
+           end,
     FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
     HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
                                            bool_to_bin(maps:get(hidden_read, GetParams, false)))],
@@ -441,7 +438,7 @@ mark_last_muclight_message(User, AllUsers) ->
 
 mark_last_muclight_message(User, AllUsers, MarkerType) ->
     %% User ask for inbox in order to get id of last message
-    GetInbox = get_inbox_stanza(),
+    GetInbox = make_inbox_stanza(),
     escalus:send(User, GetInbox),
     Stanza = escalus:wait_for_stanza(User),
     ResIQ = escalus:wait_for_stanza(User),
@@ -463,7 +460,7 @@ mark_last_muclight_system_message(User, ExpectedCount) ->
     mark_last_muclight_system_message(User, ExpectedCount, <<"displayed">>).
 
 mark_last_muclight_system_message(User, ExpectedCount, MarkerType) ->
-    GetInbox = get_inbox_stanza(),
+    GetInbox = make_inbox_stanza(),
     escalus:send(User, GetInbox),
     Stanzas = escalus:wait_for_stanzas(User, ExpectedCount),
     ResIQ = escalus:wait_for_stanza(User),
@@ -576,7 +573,7 @@ send_and_mark_msg(From, To) ->
     Msg.
 
 assert_invalid_inbox_form_value_error(User, Field, Value) ->
-    Stanza = inbox_helper:get_inbox_stanza( #{ Field => Value }, false),
+    Stanza = inbox_helper:make_inbox_stanza( #{ Field => Value }, false),
     escalus:send(User, Stanza),
     [ResIQ] = escalus:wait_for_stanzas(User, 1),
     escalus_pred:is_iq_error(ResIQ),

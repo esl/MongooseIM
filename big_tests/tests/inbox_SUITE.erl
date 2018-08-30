@@ -352,7 +352,7 @@ returns_error_when_bad_form_field_hidden_read_sent(Config) ->
 
 returns_error_when_first_bad_form_field_encountered(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:get_inbox_stanza( #{ <<"start">> => <<"invalid">>,
+        Stanza = inbox_helper:make_inbox_stanza( #{ <<"start">> => <<"invalid">>,
                                                    <<"end">> => <<"invalid">>}, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
@@ -369,7 +369,7 @@ returns_error_when_first_bad_form_field_encountered(Config) ->
 
 returns_error_when_unknown_field_sent(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = inbox_helper:get_inbox_stanza( #{ <<"unknown_field">> => <<"unknown_field_value">> }, false),
+        Stanza = inbox_helper:make_inbox_stanza( #{ <<"unknown_field">> => <<"unknown_field_value">> }, false),
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
@@ -412,7 +412,7 @@ parse_form_field(FieldEl, Acc0) ->
 
 user_has_empty_inbox(Config) ->
     escalus:story(Config, [{kate, 1}], fun(Kate) ->
-        Stanza = inbox_helper:get_inbox_stanza(),
+        Stanza = inbox_helper:make_inbox_stanza(),
         %% Kate logs in for first time and ask for inbox
         escalus:send(Kate, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Kate, 1),
