@@ -133,6 +133,16 @@ Alice receives:
 ```
 
 
+Inbox query result IQ stanza returns the following values:
+
+* `count`: the number of all conversations (if `hidden_unread` value was set
+  to true, this value will be equal to `active_conversations`)
+* `unread-messages`: total number of unread messages from all
+  conversations
+* `active-conversations`: the number of conversations with unread
+  message(s)
+
+
 ### Example Configuration
 
 ```
