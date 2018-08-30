@@ -133,7 +133,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
 
 #### Redis session storage options
 
-* **server** (string, default: `"127.0.0.1"`): Address of the Redis listener.
+* **server** (string, default: `"127.0.0.1"`): Address of the Redis listener. For Unix domain sockets use `{local, "/path/to/listener.sock"}`.
 * **port** (integer, default: `8102`): Port of the Redis listener.
 * **password** (string, default: `""`): Password to the Redis instance.
 * **pool_size** (integer, default: `1`): Number of persistent connections to the Redis instance.
