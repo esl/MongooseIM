@@ -5,6 +5,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("inbox.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 % Generic inbox
 -export([
@@ -579,6 +580,13 @@ assert_invalid_inbox_form_value_error(User, Field, Value) ->
     escalus:send(User, Stanza),
     [ResIQ] = escalus:wait_for_stanzas(User, 1),
     escalus_pred:is_iq_error(ResIQ),
-    L = byte_size(Field),
-    <<"Invalid inbox form field value, field=", Field:L/binary, ", value=", Value/binary>> 
-    = get_error_message(ResIQ).
+    FieldRes = <<"field=",Field/binary>>,
+    ValueRes = <<"value=", Value/binary>>,
+    ErrorMsg = get_error_message(ResIQ),
+    case binary:match(ErrorMsg, [FieldRes, ValueRes]) of
+        nomatch ->
+            ct:fail(#{ error => bad_match,
+                       stanza => ResIQ });
+        {_, _} ->
+            true
+    end.

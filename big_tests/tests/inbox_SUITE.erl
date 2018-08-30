@@ -357,7 +357,14 @@ returns_error_when_first_bad_form_field_encountered(Config) ->
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
-        <<"Invalid inbox form field value, field=end, value=invalid">> = inbox_helper:get_error_message(ResIQ)
+        ErrorMsg = inbox_helper:get_error_message(ResIQ),
+        case binary:match(ErrorMsg, [<<"field=end">>, <<"value=invalid">>]) of
+            nomatch ->
+                ct:fail(#{ error => bad_match,
+                           stanza => ResIQ });
+            {_, _} ->
+                true
+        end
       end).
 
 returns_error_when_unknown_field_sent(Config) ->
@@ -366,8 +373,14 @@ returns_error_when_unknown_field_sent(Config) ->
         escalus:send(Alice, Stanza),
         [ResIQ] = escalus:wait_for_stanzas(Alice, 1),
         escalus_pred:is_iq_error(ResIQ),
-        ?assertEqual(<<"Unknown inbox form field=unknown_field, value=unknown_field_value">>,
-                      inbox_helper:get_error_message(ResIQ))
+        ErrorMsg = inbox_helper:get_error_message(ResIQ),
+        case binary:match(ErrorMsg, [<<"field=unknown_field">>, <<"value=unknown_field_value">>]) of
+            nomatch ->
+                ct:fail(#{ error => bad_match,
+                           stanza => ResIQ });
+            {_, _} ->
+                true
+        end
       end).
 
 
