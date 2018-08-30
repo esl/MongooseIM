@@ -278,33 +278,33 @@ make_inbox_form(GetParams) ->
 
 -spec make_inbox_form(GetParams :: inbox_query_params(), Verify :: boolean()) -> exml:element().
 make_inbox_form(GetParams, true) ->
-   OrderL =
-  case maps:get(order, GetParams, undefined) of
-    undefined -> [];
-    Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
-  end,
-  StartL =
-  case maps:get(start, GetParams, undefined) of
-    undefined -> [];
-    Start -> [escalus_stanza:field_el(<<"start">>, <<"text-single">>, Start)]
-  end,
-  EndL =
-  case maps:get('end', GetParams, undefined) of
-    undefined -> [];
+    OrderL =
+    case maps:get(order, GetParams, undefined) of
+        undefined -> [];
+        Order -> [escalus_stanza:field_el(<<"order">>, <<"list-single">>, order_to_bin(Order))]
+    end,
+    StartL =
+    case maps:get(start, GetParams, undefined) of
+        undefined -> [];
+        Start -> [escalus_stanza:field_el(<<"start">>, <<"text-single">>, Start)]
+    end,
+    EndL =
+    case maps:get('end', GetParams, undefined) of
+        undefined -> [];
     End -> [escalus_stanza:field_el(<<"end">>, <<"text-single">>, End)]
-  end,
-  FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
-  HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
-                                         bool_to_bin(maps:get(hidden_read, GetParams, false)))],
-  Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL,
-  escalus_stanza:x_data_form(<<"submit">>, Fields);
+    end,
+    FormTypeL = [escalus_stanza:field_el(<<"FORM_TYPE">>, <<"hidden">>, ?NS_ESL_INBOX)],
+    HiddenReadL = [escalus_stanza:field_el(<<"hidden_read">>, <<"text-single">>,
+                                           bool_to_bin(maps:get(hidden_read, GetParams, false)))],
+    Fields = FormTypeL ++ OrderL ++ StartL ++ EndL ++ HiddenReadL,
+    escalus_stanza:x_data_form(<<"submit">>, Fields);
 
 make_inbox_form(GetParams, false) ->
-  Map = maps:map(fun (K, V) ->
-                    escalus_stanza:field_el(K, <<"text-single">>, V) end,
-                 GetParams),
-  Fields = maps:values(Map),
-  escalus_stanza:x_data_form(<<"submit">>, Fields).
+    Map = maps:map(fun (K, V) ->
+                           escalus_stanza:field_el(K, <<"text-single">>, V) end,
+                   GetParams),
+    Fields = maps:values(Map),
+    escalus_stanza:x_data_form(<<"submit">>, Fields).
 %% ---------------------------------------------------------
 %% 1-1 helpers
 %% ---------------------------------------------------------
