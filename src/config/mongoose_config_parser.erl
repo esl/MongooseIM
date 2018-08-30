@@ -308,8 +308,7 @@ process_term(Term, State) ->
         {routing_modules, Mods} ->
             add_option(routing_modules, Mods, State);
         {loglevel, Loglevel} ->
-            ejabberd_loglevel:set(Loglevel),
-            State;
+            add_option(loglevel, Loglevel, State);
         {max_fsm_queue, N} ->
             add_option(max_fsm_queue, N, State);
         {sasl_mechanisms, Mechanisms} ->
