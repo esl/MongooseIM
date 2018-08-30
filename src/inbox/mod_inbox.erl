@@ -316,7 +316,7 @@ fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
     case jlib:datetime_binary_to_timestamp(StartISO) of
         undefined ->
             ?DEBUG("event=invalid_inbox_form_field,field=start,value=~s", [StartISO]),
-            {error, bad_request, <<"Invalid inbox form field, field=start, value=", StartISO/binary>>};
+            {error, bad_request, invalid_field_value(<<"start">>, StartISO)};
         StartStamp ->
             fields_to_params(RFields, Acc#{ start => StartStamp })
     end;
@@ -324,7 +324,7 @@ fields_to_params([{<<"end">>, [EndISO]} | RFields], Acc) ->
     case jlib:datetime_binary_to_timestamp(EndISO) of
         undefined ->
             ?DEBUG("event=invalid_inbox_form_field,field=end,value=~s", [EndISO]),
-            {error, bad_request, <<"Invalid inbox form field, field=end, value=", EndISO/binary>>};
+            {error, bad_request, invalid_field_value(<<"end">>, EndISO)};
         EndStamp ->
             fields_to_params(RFields, Acc#{ 'end' => EndStamp })
     end;
@@ -332,7 +332,7 @@ fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
     case binary_to_order(OrderBin) of
         error ->
             ?DEBUG("event=invalid_inbox_form_field,field=order,value=~s", [OrderBin]),
-            {error, bad_request, <<"Invalid inbox form field, field=order, value=", OrderBin/binary>>};
+            {error, bad_request, invalid_field_value(<<"order">>, OrderBin)};
         Order ->
             fields_to_params(RFields, Acc#{ order => Order })
     end;
@@ -341,7 +341,7 @@ fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
     case binary_to_bool(HiddenRead) of
         error ->
             ?DEBUG("event=invalid_inbox_form_field,field=hidden_read,value=~s", [HiddenRead]),
-            {error, bad_request, <<"Invalid inbox form field, field=hidden_read, value=", HiddenRead/binary>>};
+            {error, bad_request, invalid_field_value(<<"hidden_read">>, HiddenRead)};
         Hidden ->
             fields_to_params(RFields, Acc#{ hidden_read => Hidden })
     end;
@@ -404,6 +404,9 @@ muc_dep(List) ->
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
         reset_unread, remove_inbox, clear_inbox].
+
+invalid_field_value(Field, Value) ->
+    <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
