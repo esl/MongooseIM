@@ -43,9 +43,8 @@ setup() ->
                 fun default_global_option/1),
     meck:expect(acl, match_rule, fun(_, _, _) -> allow end),
 
-    meck:new(randoms),
-    meck:expect(randoms, get_string,
-                fun() -> "57" end),
+    meck:new(mongoose_bin, [passthrough]),
+    meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"57">> end),
 
     meck:new(mongoose_metrics),
     meck:expect(mongoose_metrics, update, fun (_, _, _) -> ok end).

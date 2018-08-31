@@ -1821,7 +1821,7 @@ create_node(Host, ServerHost, Node, Owner, Type) ->
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     case lists:member(<<"instant-nodes">>, plugin_features(Host, Type)) of
         true ->
-            Node = mongoose_bin:get_from_crypto(),
+            Node = mongoose_bin:gen_from_crypto(),
             case create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) of
                 {result, _} ->
                     {result, [#xmlel{name = <<"pubsub">>,
