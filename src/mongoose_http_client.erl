@@ -33,7 +33,6 @@
 -module(mongoose_http_client).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
--include("mongoose_wpool.hrl").
 
 %% API
 -export([start/0, stop/0, start_pool/2, stop_pool/1, get/3, post/4]).
@@ -44,6 +43,13 @@
 
 -spec start() -> ok.
 start() ->
+    case ets:info(?MODULE) of
+        undefined ->
+            Heir = case whereis(ejabberd_sup) of undefined -> []; Pid -> [{heir, Pid, undefined}] end,
+            ets:new(?MODULE, [named_table, public, {read_concurrency, true} | Heir]);
+        _ ->
+            ok
+    end,
     mongoose_wpool:ensure_started(),
     case ejabberd_config:get_local_option(http_connections) of
         undefined -> ok;
@@ -58,20 +64,20 @@ stop() ->
     end.
 
 -spec start_pool(atom(), list()) -> ok | {error, already_started}.
-start_pool(Name, Opts) ->
-    PoolName = make_pool_name(Name),
-    case whereis(PoolName) of
-        undefined ->
+start_pool(PoolName, Opts) ->
+    case ets:lookup(?MODULE, PoolName) of
+        [] ->
             mongoose_wpool:ensure_started(),
             do_start_pool(PoolName, Opts),
             ok;
-        _ -> {error, already_started}
+        _ ->
+            {error, already_started}
     end.
 
 -spec stop_pool(atom()) -> ok.
 stop_pool(Name) ->
-    wpool:stop_sup_pool(pool_name(Name)),
-    mongoose_wpool:delete_pool_settings(pool_name(Name)),
+    ets:delete(?MODULE, Name),
+    mongoose_wpool:stop(?MODULE, global, Name),
     ok.
 
 -spec get(atom(), binary(), list()) ->
@@ -98,39 +104,28 @@ do_start_pool(PoolName, Opts) ->
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, Opts, 2000),
     PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
-    PoolSettings = #mongoose_worker_pool{selection_strategy = SelectionStrategy,
-                                         extra = PathPrefix,
-                                         request_timeout = RequestTimeout,
-                                         pool_timeout = PoolTimeout},
-    mongoose_wpool:save_pool_settings(PoolName, PoolSettings),
+    ets:insert(?MODULE, {PoolName, PathPrefix, RequestTimeout}),
     PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
     Server = gen_mod:get_opt(server, Opts),
     HttpOpts = gen_mod:get_opt(http_opts, Opts, []),
-    PoolOpts = [{workers, PoolSize}, {worker, {fusco, {Server, HttpOpts}}}
-                | gen_mod:get_opt(pool_opts, Opts, [])],
-    wpool:start_sup_pool(PoolName, PoolOpts).
+    PoolSettings = [{strategy, SelectionStrategy}, {call_timeout, PoolTimeout},
+                    {workers, PoolSize}, {worker, {fusco, {Server, HttpOpts}}}
+                    | gen_mod:get_opt(pool_opts, Opts, [])],
+    mongoose_wpool:start(?MODULE, global, PoolName, PoolSettings).
 
-make_request(Pool, Path, Method, Headers, Query) ->
-    case catch pool_name(Pool) of
-        {'EXIT', badarg, _} ->
+make_request(PoolName, Path, Method, Headers, Query) ->
+    case ets:lookup(?MODULE, PoolName) of
+        [] ->
             {error, pool_not_started};
-        PoolName ->
-            case mongoose_wpool:get_pool_settings(PoolName) of
-                undefined ->
-                    {error, pool_not_started};
-                PoolOpts ->
-                    make_request(PoolName, PoolOpts, Path, Method, Headers, Query)
-            end
+        [{_, PathPrefix, RequestTimeout}] ->
+            make_request(PoolName, PathPrefix, RequestTimeout, Path,
+                         Method, Headers, Query)
     end.
 
-make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
-    #mongoose_worker_pool{extra = PathPrefix,
-                          request_timeout = RequestTimeout,
-                          pool_timeout = PoolTimeout,
-                          selection_strategy = SelectionStrategy} = PoolOpts,
+make_request(PoolName, PathPrefix, RequestTimeout, Path, Method, Headers, Query) ->
     FullPath = <<PathPrefix/binary, Path/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
-    try wpool:call(PoolName, Req, SelectionStrategy, PoolTimeout) of
+    try mongoose_wpool:call(?MODULE, global, PoolName, Req) of
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
             {ok, {Code, RespBody}};
         {error, timeout} ->
@@ -147,9 +142,3 @@ make_request(PoolName, PoolOpts, Path, Method, Headers, Query) ->
         Type:Error ->
             {error, {Type, Error}}
     end.
-
-pool_name(PoolName) ->
-    list_to_existing_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
-
-make_pool_name(PoolName) ->
-    list_to_atom("mongoose_http_client_pool_" ++ atom_to_list(PoolName)).
