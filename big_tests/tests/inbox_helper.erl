@@ -23,7 +23,8 @@
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
-         assert_invalid_inbox_form_value_error/3
+         assert_invalid_inbox_form_value_error/3,
+         assert_message_content/3
         ]).
 % 1-1 helpers
 -export([
@@ -580,10 +581,8 @@ assert_invalid_inbox_form_value_error(User, Field, Value) ->
     FieldRes = <<"field=",Field/binary>>,
     ValueRes = <<"value=", Value/binary>>,
     ErrorMsg = get_error_message(ResIQ),
-    case binary:match(ErrorMsg, [FieldRes, ValueRes]) of
-        nomatch ->
-            ct:fail(#{ error => bad_match,
-                       stanza => ResIQ });
-        {_, _} ->
-            true
-    end.
+    assert_message_content(ErrorMsg, Field, Value).
+
+assert_message_content(Msg, Field, Value) ->
+    ?assertNotEqual(nomatch, binary:match(Msg, Field)),
+    ?assertNotEqual(nomatch, binary:match(Msg, Value)).
