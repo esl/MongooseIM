@@ -309,7 +309,7 @@ form_to_params(FormEl) ->
     fields_to_params(ParsedFields, #{ order => desc }).
 
 -spec fields_to_params([{Var :: binary(), Values :: [binary()]}], Acc :: get_inbox_params()) ->
-    get_inbox_params() | {error, bad_request}.
+    get_inbox_params() | {error, bad_request, Msg :: binary()}.
 fields_to_params([], Acc) ->
     Acc;
 fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
