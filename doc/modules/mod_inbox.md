@@ -142,6 +142,34 @@ Inbox query result IQ stanza returns the following values:
 * `active-conversations`: the number of conversations with unread
   message(s)
 
+### Example error response
+
+```
+Alice sends request with invalid value of start field:
+
+<iq type='set' id='a78478f20103ff8354d7834d0ba2fdb2'>
+  <inbox xmlns='erlang-solutions.com:xmpp:inbox:0'>
+    <x xmlns='jabber:x:data' type='submit'>
+      <field type='text-single' var='start'>
+        <value>invalid</value>
+      </field>
+    </x>
+  </inbox>
+</iq>
+
+Alice receives an error with description of the first encountered invalid
+value: 
+
+<iq from='alicE@localhost' to='alicE@localhost/res1'
+    id='a78478f20103ff8354d7834d0ba2fdb2' type='error'>
+  <error code='400' type='modify'>
+    <bad-rquest xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>
+    <text xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'>
+      Invalid inbox form field value, field=start, value=invalid
+    </text>
+  </error>
+</iq>
+```
 
 ### Example Configuration
 

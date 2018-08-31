@@ -110,8 +110,8 @@ process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) 
     Username = From#jid.luser,
     Host = From#jid.lserver,
     case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
-        {error, bad_request} ->
-            {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request() ] }};
+        {error, bad_request, Msg} ->
+            {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
         Params ->
             List = mod_inbox_backend:get_inbox(Username, Host, Params),
             forward_messages(List, QueryId, To),
@@ -300,7 +300,7 @@ muclight_enabled(Host) ->
     lists:member(muclight, Groupchats).
 
 -spec form_to_params(FormEl :: exml:element() | undefined) ->
-    get_inbox_params() | {error, bad_request}.
+    get_inbox_params() | {error, bad_request, Msg :: binary()}.
 form_to_params(undefined) ->
     #{ order => desc };
 form_to_params(FormEl) ->
@@ -309,14 +309,14 @@ form_to_params(FormEl) ->
     fields_to_params(ParsedFields, #{ order => desc }).
 
 -spec fields_to_params([{Var :: binary(), Values :: [binary()]}], Acc :: get_inbox_params()) ->
-    get_inbox_params() | {error, bad_request}.
+    get_inbox_params() | {error, bad_request, Msg :: binary()}.
 fields_to_params([], Acc) ->
     Acc;
 fields_to_params([{<<"start">>, [StartISO]} | RFields], Acc) ->
     case jlib:datetime_binary_to_timestamp(StartISO) of
         undefined ->
             ?DEBUG("event=invalid_inbox_form_field,field=start,value=~s", [StartISO]),
-            {error, bad_request};
+            {error, bad_request, invalid_field_value(<<"start">>, StartISO)};
         StartStamp ->
             fields_to_params(RFields, Acc#{ start => StartStamp })
     end;
@@ -324,7 +324,7 @@ fields_to_params([{<<"end">>, [EndISO]} | RFields], Acc) ->
     case jlib:datetime_binary_to_timestamp(EndISO) of
         undefined ->
             ?DEBUG("event=invalid_inbox_form_field,field=end,value=~s", [EndISO]),
-            {error, bad_request};
+            {error, bad_request, invalid_field_value(<<"end">>, EndISO)};
         EndStamp ->
             fields_to_params(RFields, Acc#{ 'end' => EndStamp })
     end;
@@ -332,7 +332,7 @@ fields_to_params([{<<"order">>, [OrderBin]} | RFields], Acc) ->
     case binary_to_order(OrderBin) of
         error ->
             ?DEBUG("event=invalid_inbox_form_field,field=order,value=~s", [OrderBin]),
-            {error, bad_request};
+            {error, bad_request, invalid_field_value(<<"order">>, OrderBin)};
         Order ->
             fields_to_params(RFields, Acc#{ order => Order })
     end;
@@ -341,16 +341,16 @@ fields_to_params([{<<"hidden_read">>, [HiddenRead]} | RFields], Acc) ->
     case binary_to_bool(HiddenRead) of
         error ->
             ?DEBUG("event=invalid_inbox_form_field,field=hidden_read,value=~s", [HiddenRead]),
-            {error, bad_request};
+            {error, bad_request, invalid_field_value(<<"hidden_read">>, HiddenRead)};
         Hidden ->
             fields_to_params(RFields, Acc#{ hidden_read => Hidden })
     end;
 
 fields_to_params([{<<"FORM_TYPE">>, _} | RFields], Acc) ->
     fields_to_params(RFields, Acc);
-fields_to_params([Invalid | _], _) ->
+fields_to_params([{Invalid, [InvalidFieldVal]} | _], _) ->
     ?DEBUG("event=invalid_inbox_form_field,parsed=~p", [Invalid]),
-    {error, bad_request}.
+    {error, bad_request, <<"Unknown inbox form field=", Invalid/binary, ", value=", InvalidFieldVal/binary>>}.
 
 -spec binary_to_order(binary()) -> asc | desc | error.
 binary_to_order(<<"desc">>) -> desc;
@@ -404,6 +404,9 @@ muc_dep(List) ->
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
         reset_unread, remove_inbox, clear_inbox].
+
+invalid_field_value(Field, Value) ->
+    <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.
 
 %%%%%%%%%%%%%%%%%%%
 %% Message Predicates
