@@ -165,9 +165,13 @@ ws_requests_other(_Config) ->
     ok = gen_tcp:close(Socket),
 
     %% Then
+
     Responses = lists:duplicate(50, TextPong),
     1 = meck:num_calls(dummy_ws2_handler, websocket_init, '_'),
-    50 = meck:num_calls(dummy_ws2_handler, websocket_handle, '_'),
+    F = fun() ->
+                meck:num_calls(dummy_ws2_handler, websocket_handle, '_')
+        end,
+    async_helper:wait_until(F, 50),
     ok = meck:wait(dummy_ws2_handler, websocket_terminate, '_', 1000).
 
 mixed_requests(_Config) ->
