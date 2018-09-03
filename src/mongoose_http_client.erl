@@ -45,7 +45,10 @@
 start() ->
     case ets:info(?MODULE) of
         undefined ->
-            Heir = case whereis(ejabberd_sup) of undefined -> []; Pid -> [{heir, Pid, undefined}] end,
+            Heir = case whereis(ejabberd_sup) of
+                       undefined -> [];
+                       Pid -> [{heir, Pid, undefined}]
+                   end,
             ets:new(?MODULE, [named_table, public, {read_concurrency, true} | Heir]);
         _ ->
             ok

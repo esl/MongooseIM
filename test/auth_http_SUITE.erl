@@ -180,7 +180,9 @@ meck_config(Config) ->
                          {path_prefix, "/auth/"},
                          {basic_auth, ?BASIC_AUTH}
                         ] ++ ScramOpts
-                end).
+                end),
+    meck:expect(ejabberd_config, get_local_option,
+                fun(http_connections) -> undefined end).
 
 meck_cleanup() ->
     meck:validate(ejabberd_config),
@@ -193,4 +195,3 @@ do_scram(Pass, Config) ->
         _ ->
             Pass
     end.
-

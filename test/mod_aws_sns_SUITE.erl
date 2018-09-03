@@ -128,10 +128,10 @@ end_per_suite(_) ->
     ok.
 
 init_per_testcase(_, Config) ->
-    meck:new([gen_mod, erlcloud_sns, wpool], [non_strict, passthrough]),
+    meck:new([gen_mod, erlcloud_sns, mongoose_wpool], [non_strict, passthrough]),
     meck:expect(erlcloud_sns, new, fun(_, _, _) -> mod_aws_sns_SUITE_erlcloud_sns_new end),
-    meck:expect(wpool, cast, fun(_, {M, F, A}, _) -> erlang:apply(M, F, A) end),
     set_sns_config(#{}),
+    meck:expect(mongoose_wpool, cast, fun(_, _, {M, F, A}) -> erlang:apply(M, F, A) end),
     [{sender, jid:from_binary(<<"sender@localhost">>)},
      {recipient, jid:from_binary(<<"recipient@localhost">>)} |
      Config].

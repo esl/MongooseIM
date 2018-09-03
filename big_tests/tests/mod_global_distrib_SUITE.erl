@@ -970,7 +970,7 @@ jids(Client) ->
     {FullJid, BareJid}.
 
 redis_query(Node, Query) ->
-    RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
+    {ok, RedisWorker} = rpc(Node, mongoose_wpool, get_worker, [mod_global_distrib_mapping_redis]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
 
 %% A fake address we don't try to connect to.

@@ -43,6 +43,7 @@
 
 -spec start(binary()) -> ok.
 start(Host) ->
+    mongoose_http_client:start(),
     Opts = [{selection_strategy, ejabberd_auth:get_opt(Host, selection_strategy, random_worker)},
             {server, ejabberd_auth:get_opt(Host, host)},
             {path_prefix, ejabberd_auth:get_opt(Host, path_prefix, "")},
