@@ -108,8 +108,8 @@ http_requests(_Config) ->
                       codes => Codes,
                       expected_codes => ExpectedCodes})
     end,
-    50 = meck:num_calls(dummy_http_handler, init, '_'),
-    50 = meck:num_calls(dummy_http_handler, terminate, '_').
+    assert_cowboy_handler_calls(dummy_http_handler, init, 50),
+    assert_cowboy_handler_calls(dummy_http_handler, terminate, 50).
 
 ws_request_bad_protocol(_Config) ->
     %% Given
@@ -144,8 +144,8 @@ ws_requests_xmpp(_Config) ->
     %% Then
     %% dummy_ws1_handler:init/2 is not called since mod_cowboy takes over
     Responses = lists:duplicate(50, BinaryPong),
-    1 = meck:num_calls(dummy_ws1_handler, websocket_init, '_'),
-    50 = meck:num_calls(dummy_ws1_handler, websocket_handle, '_'),
+    assert_cowboy_handler_calls(dummy_ws1_handler, websocket_init, 1),
+    assert_cowboy_handler_calls(dummy_ws1_handler, websocket_handle, 50),
     ok = meck:wait(dummy_ws1_handler, websocket_terminate, '_', 1000).
 
 ws_requests_other(_Config) ->
@@ -167,11 +167,8 @@ ws_requests_other(_Config) ->
     %% Then
 
     Responses = lists:duplicate(50, TextPong),
-    1 = meck:num_calls(dummy_ws2_handler, websocket_init, '_'),
-    F = fun() ->
-                meck:num_calls(dummy_ws2_handler, websocket_handle, '_')
-        end,
-    async_helper:wait_until(F, 50),
+    assert_cowboy_handler_calls(dummy_ws2_handler, websocket_init, 1),
+    assert_cowboy_handler_calls(dummy_ws2_handler, websocket_handle, 50),
     ok = meck:wait(dummy_ws2_handler, websocket_terminate, '_', 1000).
 
 mixed_requests(_Config) ->
@@ -417,3 +414,8 @@ ws_websocket_info(_Info, no_ws_state) ->
 
 ws_websocket_terminate(_Reason, _Req, no_ws_state) ->
     ok.
+
+assert_cowboy_handler_calls(M, F, Num) ->
+    Fun = fun() -> meck:num_calls(M, F, '_') end,
+    async_helper:wait_until(Fun, Num).
+
