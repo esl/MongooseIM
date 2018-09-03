@@ -17,6 +17,8 @@ all() ->
      succeeds_on_adding_soft_dependency_cycle_edge,
      forces_dependency_args,
      appends_dependencies_args,
+     optional_dependencies_are_not_started_by_themselves,
+     optional_dependencies_add_arguments,
      overrides_dependency_args,
      merges_dependency_args,
      replaces_modules,
@@ -103,6 +105,18 @@ appends_dependencies_args(_Config) ->
     check_started({mod_c, [arg1, arg2]}).
 
 
+optional_dependencies_are_not_started_by_themselves(_Config) ->
+    set_deps(#{mod_a => [{mod_b, optional}]}),
+    gen_mod_deps:start_modules(<<"host">>, [{mod_a, []}]),
+    ?assertNot(started(mod_b)).
+
+
+optional_dependencies_add_arguments(_Config) ->
+    set_deps(#{mod_a => [{mod_b, [arg1], optional}], mod_c => [{mod_b, hard}]}),
+    gen_mod_deps:start_modules(<<"host">>, [{mod_a, []}, {mod_c, []}]),
+    check_started({mod_b, [arg1]}).
+
+
 overrides_dependency_args(_Config) ->
     set_deps(#{mod_a => [{mod_b, hard}, {mod_c, [{arg, a}], hard}],
                mod_b => [{mod_c, [{arg, b}], hard}]}),
@@ -147,15 +161,16 @@ set_deps(DepsMap) ->
 
 
 check_started([]) -> ok;
-check_started([{Mod, Args} | Mods]) ->
-    ?assert(meck:called(gen_mod, start_module, ['_', Mod, Args])),
-    check_started(Mods);
-check_started([Mod | Mods]) ->
-    ?assert(meck:called(gen_mod, start_module, ['_', Mod, '_'])),
+check_started([ModNArgs | Mods]) ->
+    ?assert(started(ModNArgs)),
     check_started(Mods);
 check_started(Mod) ->
     check_started([Mod]).
 
+started({Mod, Args}) ->
+    meck:called(gen_mod, start_module, ['_', Mod, Args]);
+started(Mod) ->
+    meck:called(gen_mod, start_module, ['_', Mod, '_']).
 
 check_stopped([]) -> ok;
 check_stopped([Mod | Mods]) ->

@@ -28,10 +28,9 @@
 -author('alexey@process-one.net').
 
 -type dep_arguments() :: proplists:proplist().
--type dep_hardness() :: soft | hard.
 -type deps_list() :: [
-                      {module(), dep_arguments(), dep_hardness()} |
-                      {module(), dep_hardness()} |
+                      {module(), dep_arguments(), gen_mod_deps:hardness()} |
+                      {module(), gen_mod_deps:hardness()} |
                       {service, mongoose_service:service()}
                      ].
 
