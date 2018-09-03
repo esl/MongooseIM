@@ -54,18 +54,22 @@ mech_step(Creds, ClientIn) ->
                                                   [{username, User},
                                                    {password, Password},
                                                    {authzid, AuthzId}]),
-            case ejabberd_auth:authorize(Request) of
-                {ok, Result} ->
-                    {ok, Result};
-                {error, not_authorized} ->
-                    {error, <<"not-authorized">>, User};
-                {error, {no_auth_modules, _}} ->
-                    {error, <<"not-authorized">>, User};
-                {error, _} ->
-                    {error, <<"internal-error">>}
-            end;
+            authorize(Request, User);
         _ ->
             {error, <<"bad-protocol">>}
+    end.
+
+authorize(Request, User) ->
+    case ejabberd_auth:authorize(Request) of
+        {ok, Result} ->
+            {ok, Result};
+        {error, not_authorized} ->
+            {error, <<"not-authorized">>, User};
+        {error, {no_auth_modules, _}} ->
+            {error, <<"not-authorized">>, User};
+        {error, R} ->
+            ?DEBUG("authorize error: ~p", [R]),
+            {error, <<"internal-error">>}
     end.
 
 -spec prepare(binary()) -> 'error' | [binary(), ...].
