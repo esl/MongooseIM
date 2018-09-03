@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
 %%% File    : rdbms_queries.erl
 %%% Author  : Mickael Remond <mremond@process-one.net>
-%%% Purpose : ODBC queries dependind on back-end
+%%% Purpose : RDBMS queries dependind on back-end
 %%% Created : by Mickael Remond <mremond@process-one.net>
 %%%
 %%%
@@ -110,7 +110,7 @@
 -define(generic, true).
 -endif.
 
--define(ODBC_TYPE, (mongoose_rdbms_type:get())).
+-define(RDBMS_TYPE, (mongoose_rdbms_type:get())).
 
 -include("mongoose.hrl").
 
@@ -127,7 +127,7 @@ join([H|T], Sep) ->
 %% Generic queries
 
 get_db_type() ->
-    ?ODBC_TYPE.
+    ?RDBMS_TYPE.
 
 
 %% Safe atomic update.
@@ -215,7 +215,7 @@ sql_transaction(LServer, F) ->
     mongoose_rdbms:sql_transaction(LServer, F).
 
 begin_trans() ->
-    begin_trans(?ODBC_TYPE).
+    begin_trans(?RDBMS_TYPE).
 
 begin_trans(mssql) ->
     rdbms_queries_mssql:begin_trans();
@@ -625,7 +625,7 @@ get_vcard(LServer, Username, SLServer) ->
 
 
 search_vcard(LServer, RestrictionSQL, Limit) ->
-    Type = ?ODBC_TYPE,
+    Type = ?RDBMS_TYPE,
     search_vcard(Type, LServer, RestrictionSQL, Limit).
 
 search_vcard(mssql, LServer, RestrictionSQL, Limit) ->
@@ -852,7 +852,7 @@ push_offline_messages(LServer, Rows) ->
 
 
 count_offline_messages(LServer, SUser, SServer, Limit) ->
-    count_offline_messages(?ODBC_TYPE, LServer, SUser, SServer, Limit).
+    count_offline_messages(?RDBMS_TYPE, LServer, SUser, SServer, Limit).
 
 count_offline_messages(mssql, LServer, SUser, SServer, Limit) ->
     rdbms_queries_mssql:count_offline_messages(LServer, SUser, SServer, Limit);
@@ -884,11 +884,11 @@ create_bulk_insert_query(Table, Fields, RowsNum) when RowsNum > 0 ->
         -> {SQL :: nonempty_string(), []} | {[], MSSQL::nonempty_string()}.
 get_db_specific_limits(Limit) ->
     LimitStr = integer_to_list(Limit),
-    do_get_db_specific_limits(?ODBC_TYPE, LimitStr).
+    do_get_db_specific_limits(?RDBMS_TYPE, LimitStr).
 
 -spec get_db_specific_offset(integer(), integer()) -> iolist().
 get_db_specific_offset(Offset, Limit) ->
-    do_get_db_specific_offset(?ODBC_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
+    do_get_db_specific_offset(?RDBMS_TYPE, integer_to_list(Offset), integer_to_list(Limit)).
 
 
 do_get_db_specific_limits(mssql, LimitStr) ->

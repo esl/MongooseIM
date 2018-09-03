@@ -26,7 +26,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(mod_privacy_odbc).
+-module(mod_privacy_rdbms).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
 -behaviour(mod_privacy).

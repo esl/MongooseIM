@@ -110,8 +110,8 @@ RDBMS prepared query time:       <prefix>.<domain>.backends.mongoose_rdbms.execu
 MAM lookups:                     <prefix>.<domain>.mam_lookup_messages.one
 MAM archivization time:          <prefix>.<domain>.backends.mod_mam.archive.<value-type>
 MAM lookup time:                 <prefix>.<domain>.backends.mod_mam.lookup.<value-type>
-MAM private messages flush time: <prefix>.<domain>.mod_mam_odbc_async_pool_writer.flush_time.<value-type>
-MAM MUC messages flush time:     <prefix>.<domain>.mod_mam_muc_odbc_async_pool_writer.flush_time.<value-type>
+MAM private messages flush time: <prefix>.<domain>.mod_mam_rdbms_async_pool_writer.flush_time.<value-type>
+MAM MUC messages flush time:     <prefix>.<domain>.mod_mam_muc_rdbms_async_pool_writer.flush_time.<value-type>
 ```
 
 Note that RDBMS metrics are only relevant if MongooseIM is [configured with an RDBMS backend](../advanced-configuration/database-backends-configuration.md), MAM metrics when [mod_mam is enabled](../modules/mod_mam.md) and MAM flush times when MAM is configured with an RDBMS backend with `async_writer` option (default).

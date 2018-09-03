@@ -246,7 +246,7 @@
 {"Period: ","期間: "}.
 {"Persist items to storage","アイテムをストレージに保存する"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","これらのオプションは組み込みの Mnesia データーベースのバックアップのみを行うことに注意してください。もし ODBC モジュールを使用している場合は、SQL データーベースのバックアップを別に行う必要があります。"}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","これらのオプションは組み込みの Mnesia データーベースのバックアップのみを行うことに注意してください。もし RDBMS モジュールを使用している場合は、SQL データーベースのバックアップを別に行う必要があります。"}.
 {"Pong","Pong"}.
 {"Port","ポート"}.
 {"Port ~b","ポート ~b"}.

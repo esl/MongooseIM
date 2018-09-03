@@ -4,7 +4,7 @@
 %% Test the mod_vcard* modules.
 %% mod_vcard uses mnesia
 %% mod_vcard_ldap uses ldap
-%% mod_vcard_odbc uses odbc
+%% mod_vcard_rdbms uses rdbms
 %%
 %% They share many comonalities but sometimes behave differently or have
 %% some extra or missing features. They also need different config depending

@@ -5,7 +5,7 @@
 #Used by:
 #Go-CD, Linux.
 #Note:
-#Script performs in-place sed injections to set-odbc-params.sh script which is run to
+#Script performs in-place sed injections to set-rdbms-params.sh script which is run to
 #modify test spec file. Because target files are small this should do the job. Otherwise
 #consider using Awk or Perl to do the job.
 

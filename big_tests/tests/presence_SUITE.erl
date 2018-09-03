@@ -694,9 +694,9 @@ remove_roster(Config, UserSpec) ->
         true ->
             rpc(mim(), mod_roster, remove_user, [Username, Server]);
         false ->
-            case lists:member(mod_roster_odbc, Mods) of
+            case lists:member(mod_roster_rdbms, Mods) of
                 true ->
-                    rpc(mim(), mod_roster_odbc, remove_user, [Username, Server]);
+                    rpc(mim(), mod_roster_rdbms, remove_user, [Username, Server]);
                 false ->
                     throw(roster_not_loaded)
             end

@@ -396,13 +396,13 @@ get_last_info(User, Server) ->
     end.
 
 -spec get_mod_last_configured(Server :: jid:server()
-                             ) -> mod_last | mod_last_odbc | no_mod_last.
+                             ) -> mod_last | mod_last_rdbms | no_mod_last.
 get_mod_last_configured(Server) ->
     ML = is_configured(Server, mod_last),
-    MLO = is_configured(Server, mod_last_odbc),
+    MLO = is_configured(Server, mod_last_rdbms),
     case {ML, MLO} of
         {true, _} -> mod_last;
-        {false, true} -> mod_last_odbc;
+        {false, true} -> mod_last_rdbms;
         {false, false} -> no_mod_last
     end.
 

@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc A backend for storing messages from MUC rooms using ODBC.
+%%% @doc A backend for storing messages from MUC rooms using RDBMS.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_muc_odbc_arch).
+-module(mod_mam_muc_rdbms_arch).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -25,7 +25,7 @@
          purge_single_message/6,
          purge_multiple_messages/9]).
 
-%% Called from mod_mam_odbc_async_writer
+%% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
 
 
@@ -73,7 +73,7 @@ start(Host, Opts) ->
     case lists:keyfind(hand_made_partitions, 1, Opts) of
         false -> ok;
         _ ->
-            ?ERROR_MSG("hand_made_partitions option for mod_mam_muc_odbc_arch "
+            ?ERROR_MSG("hand_made_partitions option for mod_mam_muc_rdbms_arch "
                        "is no longer supported", []),
             error(hand_made_partitions_not_supported)
     end,

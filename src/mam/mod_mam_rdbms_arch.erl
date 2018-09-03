@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
-%%% @doc ODBC backend for Message Archive Management.
+%%% @doc RDBMS backend for Message Archive Management.
 %%% @end
 %%%-------------------------------------------------------------------
--module(mod_mam_odbc_arch).
+-module(mod_mam_rdbms_arch).
 
 %% ----------------------------------------------------------------------
 %% Exports
@@ -23,7 +23,7 @@
          lookup_messages/3,
          remove_archive/4]).
 
-%% Called from mod_mam_odbc_async_writer
+%% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
 
 %% ----------------------------------------------------------------------
@@ -67,7 +67,7 @@ start(Host, Opts) ->
     case lists:keyfind(hand_made_partitions, 1, Opts) of
         false -> ok;
         _ ->
-            ?ERROR_MSG("hand_made_partitions option for mod_mam_odbc_arch is "
+            ?ERROR_MSG("hand_made_partitions option for mod_mam_rdbms_arch is "
                        "no longer supported", []),
             error(hand_made_partitions_not_supported)
     end,

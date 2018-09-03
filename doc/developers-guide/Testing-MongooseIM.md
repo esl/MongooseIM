@@ -121,12 +121,12 @@ Most important options are preset and database:
 
 
 # Runs MAM tests for MUC light with MySQL and Postgres
-./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:odbc_muc_light
+./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:rdbms_muc_light
 
 # Runs rdbms_SUITE with MSSQL
 # Inits a single MongooseIM node (works for some tests only)
 # Disables cover
-./tools/test-runner.sh --skip-small-tests --db mssql --preset odbc_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
+./tools/test-runner.sh --skip-small-tests --db mssql --preset rdbms_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
 ```
 
 ## TL;DR

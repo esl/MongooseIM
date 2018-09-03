@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_muc_light_db_odbc_sql.erl
+%%% File    : mod_muc_light_db_rdbms_sql.erl
 %%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
-%%% Purpose : ODBC backend queries for mod_muc_light
+%%% Purpose : RDBMS backend queries for mod_muc_light
 %%% Created : 29 Nov 2016 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%
 %%% This program is free software; you can redistribute it and/or
@@ -21,7 +21,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(mod_muc_light_db_odbc_sql).
+-module(mod_muc_light_db_rdbms_sql).
 -author('piotr.nosek@erlang-solutions.com').
 
 -include("mod_muc_light.hrl").
@@ -104,12 +104,12 @@ select_affs(RoomID) ->
 insert_aff(RoomID, UserU, UserS, Aff) ->
     ["INSERT INTO muc_light_occupants (room_id, luser, lserver, aff)"
      " VALUES(", bin(RoomID), ", ", ?ESC(UserU), ", ", ?ESC(UserS), ", ",
-              mod_muc_light_db_odbc:aff_atom2db(Aff), ")"].
+              mod_muc_light_db_rdbms:aff_atom2db(Aff), ")"].
 
 -spec update_aff(RoomID :: integer() | binary(), UserU :: jid:luser(),
                  UserS :: jid:lserver(), Aff :: aff()) -> iolist().
 update_aff(RoomID, UserU, UserS, Aff) ->
-    ["UPDATE muc_light_occupants SET aff = ", mod_muc_light_db_odbc:aff_atom2db(Aff),
+    ["UPDATE muc_light_occupants SET aff = ", mod_muc_light_db_rdbms:aff_atom2db(Aff),
      " WHERE room_id = ", bin(RoomID), " AND luser = ", ?ESC(UserU),
        " AND lserver = ", ?ESC(UserS)].
 
@@ -172,7 +172,7 @@ select_blocking(LUser, LServer) ->
 select_blocking_cnt(LUser, LServer, WhatWhos) ->
     [ _ | WhatWhosWhere ] = lists:flatmap(
                               fun({What, Who}) ->
-                                      [" OR ", "(what = ", mod_muc_light_db_odbc:what_atom2db(What),
+                                      [" OR ", "(what = ", mod_muc_light_db_rdbms:what_atom2db(What),
                                            " AND who = ", ?ESC(jid:to_binary(Who)), ")"] end,
                               WhatWhos),
     ["SELECT COUNT(*) FROM muc_light_blocking WHERE luser = ", ?ESC(LUser),
@@ -184,14 +184,14 @@ select_blocking_cnt(LUser, LServer, WhatWhos) ->
 insert_blocking(LUser, LServer, What, Who) ->
     ["INSERT INTO muc_light_blocking (luser, lserver, what, who)"
      " VALUES (", ?ESC(LUser), ", ", ?ESC(LServer), ", ",
-               mod_muc_light_db_odbc:what_atom2db(What), ", ", ?ESC(jid:to_binary(Who)), ")"].
+               mod_muc_light_db_rdbms:what_atom2db(What), ", ", ?ESC(jid:to_binary(Who)), ")"].
 
 -spec delete_blocking(LUser :: jid:luser(), LServer :: jid:lserver(),
                          What :: blocking_what(), Who :: blocking_who()) -> iolist().
 delete_blocking(LUser, LServer, What, Who) ->
     ["DELETE FROM muc_light_blocking WHERE luser = ", ?ESC(LUser),
                                      " AND lserver = ", ?ESC(LServer),
-                                     " AND what = ", mod_muc_light_db_odbc:what_atom2db(What),
+                                     " AND what = ", mod_muc_light_db_rdbms:what_atom2db(What),
                                      " AND who = ", ?ESC(jid:to_binary(Who))].
 
 -spec delete_blocking(UserU :: jid:luser(), UserS :: jid:lserver()) -> iolist().

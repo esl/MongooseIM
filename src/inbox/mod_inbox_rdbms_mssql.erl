@@ -7,14 +7,14 @@
 %%% Created : 5. Jul 2018
 %%%-------------------------------------------------------------------
 
--module(mod_inbox_odbc_mssql).
+-module(mod_inbox_rdbms_mssql).
 -author("piotr.nosek@erlang-solutions.com").
 
 -include("mod_inbox.hrl").
 
 -export([set_inbox/7, set_inbox_incr_unread/6]).
 
--import(mod_inbox_odbc, [esc_string/1, esc_int/1]).
+-import(mod_inbox_rdbms, [esc_string/1, esc_int/1]).
 
 %% -----------------------------------------------------------
 %% API

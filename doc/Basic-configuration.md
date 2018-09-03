@@ -9,7 +9,7 @@ The file contains erlang tuples terminated with period ('.'). For users not fami
 * The first element of each tuple is the name (Erlang atom). The file contains all possible keys so you will never have to change the first element or add new tuple.
 * The second element is a string (in quotes: "").  Remeber to escape quote with backslash ('\') if you ever use one inside a string.
 * A value can be a list. Erlang lists are other Erlang terms separated with commas and enclosed in square brackets ([]).
-* If a value is terminated with a period (e.g. `odbc_server`) or a comma (e.g. `mod_privacy`), don't change it.
+* If a value is terminated with a period (e.g. `rdbms_server`) or a comma (e.g. `mod_privacy`), don't change it.
 * Config options that are "features", can be disabled by using empty string as the value or prepending the actual value with  '%' ('%' starts one-line comment in Erlang, like '//' in C or Java).
 
 ### Options
@@ -27,13 +27,14 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
 
 * **pool** - feature
-    * **Description:** A named pool of connections to an SQL DB. To enable the connection, remove '%%' prefix from value and configure it with the `odbc_server` option (see below).
-    * **Syntax:** `"{pool, odbc, PoolName}."` or `"{pool, odbc, PoolName, Options}."`
-    * **Examples:** `"{pool, odbc, default}."`
+    * **Description:** A named pool of connections to an SQL DB.
+        To enable the connection, remove '%%' prefix from the value and configure it with the `rdbms_server` option (see below).
+    * **Syntax:** `"{pool, rdbms, PoolName}."` or `"{pool, rdbms, PoolName, Options}."`
+    * **Examples:** `"{pool, rdbms, default}."`
 
-* **odbc_server** - feature
+* **rdbms_server** - feature
     * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`. To enable the connection, remove '%%' prefix from value.
-    * **Syntax:** `"{odbc_server, {Type, Host, Port, DBName, Username, Password}}."`
+    * **Syntax:** `"{rdbms_server, {Type, Host, Port, DBName, Username, Password}}."`
 
 * **riak_server** - feature
     * **Description:** Riak connection pool configuration. Currently only one endpoint can be specified, to connect to more riak nodes you have to use load balancing techniques, for more details see:
@@ -78,9 +79,9 @@ There are 2 types of options: params and features. Unlike params, features can b
 
 * **auth_method** - param
     * **Description:** Chooses authentication modules. Can be either a single module or a list of modules to be tried in sequence until one of them succeeds.
-    * **Valid values:** `internal`, `odbc`, `external`, `anonymous`, `ldap`, `riak`
+    * **Valid values:** `internal`, `rdbms`, `external`, `anonymous`, `ldap`, `riak`
     * `internal` means Mnesia-based
-    * **Examples:** `"odbc"`, `"[internal, anonymous]"`
+    * **Examples:** `"rdbms"`, `"[internal, anonymous]"`
 
 * **ext_auth_script** - feature
     * **Description:** Path to the authentication script used by `external` auth module. Script API specification can be found in [[External authentication script]].

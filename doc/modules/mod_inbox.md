@@ -5,7 +5,7 @@ To use it, enable mod_inbox in the config file.
 
 ### Options
 
-* **backend** (atom, default: `odbc`) - Database backend to use. For now, only `odbc` is supported.
+* **backend** (atom, default: `rdbms`) - Database backend to use. For now, only `rdbms` is supported.
 * **reset_markers** (list, default: `[displayed]`) - List of atom chat markers that when sent, will reset the unread message counter for a conversation.
 This works when [Chat Markers](https://xmpp.org/extensions/xep-0333.html) are enabled on the client side.
 Possible values are from the set: `displayed`, `received`, `acknowledged`. Setting as empty list (not recommended) means that no chat marker can decrease the counter value.
@@ -174,7 +174,7 @@ value:
 ### Example Configuration
 
 ```
-{mod_inbox, [{backend, odbc},
+{mod_inbox, [{backend, rdbms},
              {reset_markers, [displayed]},
              {aff_changes, true},
              {remove_on_kicked, true},

@@ -239,7 +239,7 @@
 {"Period: ","Periode: "}.
 {"Persist items to storage","Items in het geheugen bewaren"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Merk op dat volgende opties enkel backups maken van de ingebouwde database Mnesia. Als U de ODBC module gebruikt dan moeten daarvan afzonderlijke backups gemaakt worden."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Merk op dat volgende opties enkel backups maken van de ingebouwde database Mnesia. Als U de RDBMS module gebruikt dan moeten daarvan afzonderlijke backups gemaakt worden."}.
 {"Pong","Pong"}.
 {"Port ~b","Poort ~b"}.
 {"Port","Poort"}.

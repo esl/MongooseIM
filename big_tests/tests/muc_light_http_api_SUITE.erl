@@ -62,8 +62,8 @@ negative_response() ->
 
 init_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    Backend = case mongoose_helper:is_odbc_enabled(Host) of
-              true -> odbc;
+    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
+              true -> rdbms;
               false -> mnesia
             end,
 

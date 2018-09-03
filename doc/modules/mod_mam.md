@@ -6,7 +6,7 @@ It is a highly customizable module, that requires some skill and knowledge to op
 
 Configure MAM with different storage backends:
 
-* ODBC (RDBMS, like MySQL, PostgreSQL, MS SQL Server)
+* RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
 * Riak KV (NOSQL)
 * Cassandra (NOSQL)
 * ElasticSearch (NOSQL)
@@ -19,10 +19,10 @@ This means that an XMPP client, while requesting messages from the archive may n
 If this happens, the client will receive only messages that contain words specified in the request.
 
 The exact behaviour, like whether word ordering matters, may depend on the storage backend in use.
-For now `odbc` backend has very limited support for this feature, while `cassandra` does not support it at all.
+For now `rdbms` backend has very limited support for this feature, while `cassandra` does not support it at all.
 `riak` and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
 
-`mod_mam_odbc_arch` returns all messages that contain all search words, order
+`mod_mam_rdbms_arch` returns all messages that contain all search words, order
 of words does not matter. Messages are sorted by timestamp (not by relevance).
 
 ##### Note on full text search with ElasticSearch backend
@@ -33,7 +33,7 @@ Also note that the default separator for the search query is `AND` (which roughl
 
 ### Options
 
-* **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak`, `cassandra` and `elasticsearch` are supported.
+* **backend** (atom, default: `rdbms`) - Database backend to use. `rdbms`, `riak`, `cassandra` and `elasticsearch` are supported.
 * **no_stanzaid_element** (boolean, default: `false`) - Do not add a `<stanza-id/>` element from MAM v0.6.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
@@ -62,20 +62,20 @@ The example below presents how to override common option for `muc` module specif
 
 ```erlang
 {mod_mam_meta, [
-  {backend, odbc},
-  {async_writer, true}, %% this option enables async writer for ODBC backend
+  {backend, rdbms},
+  {async_writer, true}, %% this option enables async writer for RDBMS backend
   {muc, [
     {async_writer, false} %% disable async writer for MUC archive only
   ]}
 ]}
 ```
 
-#### ODBC backend options
+#### RDBMS backend options
 
-These options will only have effect when the `odbc` backend is used:
+These options will only have effect when the `rdbms` backend is used:
 
 * **cache_users** (boolean, default: `true`) - Enables Archive ID to integer mappings cache.
-* **odbc_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs.
+* **rdbms_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs.
  When set to `internal`, stores messages and JIDs in internal format.
  **Warning**: Archive MUST be empty to change this option.
 * **async_writer** (boolean, default: `true`) - Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
@@ -87,10 +87,10 @@ These options will only have effect when the `odbc` backend is used:
 #### Common backend options
 
 * **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-  * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used for simplicity (keeping everything in ODBC).
+  * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
   * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
   * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
-* **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `odbc` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
+* **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `rdbms` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
 
@@ -177,14 +177,14 @@ For more information on how to configure the connection pool, please refer to [a
 
 ```erlang
 {mod_mam_meta, [
-        {backend, odbc},
+        {backend, rdbms},
 
         {no_stanzaid_element, true},
 
-        {pm, [{user_prefs_store, odbc}]},
+        {pm, [{user_prefs_store, rdbms}]},
         {muc, [
                {host, "muc.example.com"},
-               {odbc_message_format, simple},
+               {rdbms_message_format, simple},
                {async_writer, false},
                {user_prefs_store, mnesia}
               ]}
@@ -217,9 +217,9 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, modMucMamMultiplePurges]` | spiral | A bulk purge request for MUC room is processed by MAM. |
 | `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
 | `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
-| `[Host, mod_mam_odbc_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
-| `[Host, mod_mam_odbc_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
-| `[Host, mod_mam_muc_odbc_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
-| `[Host, mod_mam_muc_odbc_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
+| `[Host, mod_mam_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
+| `[Host, mod_mam_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
+| `[Host, mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
+| `[Host, mod_mam_muc_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
 | `[Host, backends, mod_mam, lookup]` | histogram | Time it took to perform a lookup in an archive. |
 | `[Host, backends, mod_mam, archive]` | histogram | Time it took to save one message in an archive. |

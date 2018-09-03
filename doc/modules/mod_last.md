@@ -7,7 +7,7 @@ Use with caution, as it was observed that a user disconnect spike might result i
 ### Options
 
 * **iqdisc** (default: `one_queue`)
-* **backend** (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `odbc` and `riak` are supported.
+* **backend** (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported.
 
 ### Example Configuration
 

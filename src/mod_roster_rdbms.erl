@@ -1,7 +1,7 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_roster_odbc.erl
+%%% File    : mod_roster_rdbms.erl
 %%% Author  : Michał Piotrowski <michal.piotrowski@erlang-solutions.com>
-%%% Purpose : mod_roster_odbc odbc backend
+%%% Purpose : mod_roster_rdbms rdbms backend
 %%%
 %%%
 %%% ejabberd, Copyright (C) 2002-2014   ProcessOne
@@ -9,7 +9,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(mod_roster_odbc).
+-module(mod_roster_rdbms).
 -include("mod_roster.hrl").
 -include("jlib.hrl").
 -include("mongoose.hrl").

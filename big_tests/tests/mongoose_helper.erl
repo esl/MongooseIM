@@ -2,7 +2,7 @@
 
 %% API
 
--export([is_odbc_enabled/1]).
+-export([is_rdbms_enabled/1]).
 
 -export([auth_modules/0]).
 
@@ -27,8 +27,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
--spec is_odbc_enabled(Host :: binary()) -> boolean().
-is_odbc_enabled(Host) ->
+-spec is_rdbms_enabled(Host :: binary()) -> boolean().
+is_rdbms_enabled(Host) ->
     case rpc(mim(), mongoose_rdbms, sql_transaction, [Host, fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
@@ -123,20 +123,20 @@ generic_count(Module) ->
     end.
 
 generic_count_backend(mod_offline_mnesia) -> count_wildpattern(offline_msg);
-generic_count_backend(mod_offline_odbc) -> count_odbc(<<"offline_message">>);
+generic_count_backend(mod_offline_rdbms) -> count_rdbms(<<"offline_message">>);
 generic_count_backend(mod_offline_riak) -> count_riak(<<"offline">>);
 generic_count_backend(mod_last_mnesia) -> count_wildpattern(last_activity);
-generic_count_backend(mod_last_odbc) -> count_odbc(<<"last">>);
+generic_count_backend(mod_last_rdbms) -> count_rdbms(<<"last">>);
 generic_count_backend(mod_last_riak) -> count_riak(<<"last">>);
 generic_count_backend(mod_privacy_mnesia) -> count_wildpattern(privacy);
-generic_count_backend(mod_privacy_odbc) -> count_odbc(<<"privacy_list">>);
+generic_count_backend(mod_privacy_rdbms) -> count_rdbms(<<"privacy_list">>);
 generic_count_backend(mod_privacy_riak) -> count_riak(<<"privacy_lists">>);
 generic_count_backend(mod_private_mnesia) -> count_wildpattern(private_storage);
-generic_count_backend(mod_private_odbc) -> count_odbc(<<"private_storage">>);
-generic_count_backend(mod_private_mysql) -> count_odbc(<<"private_storage">>);
+generic_count_backend(mod_private_rdbms) -> count_rdbms(<<"private_storage">>);
+generic_count_backend(mod_private_mysql) -> count_rdbms(<<"private_storage">>);
 generic_count_backend(mod_private_riak) -> count_riak(<<"private">>);
 generic_count_backend(mod_vcard_mnesia) -> count_wildpattern(vcard);
-generic_count_backend(mod_vcard_odbc) -> count_odbc(<<"vcard">>);
+generic_count_backend(mod_vcard_rdbms) -> count_rdbms(<<"vcard">>);
 generic_count_backend(mod_vcard_riak) -> count_riak(<<"vcard">>);
 generic_count_backend(mod_vcard_ldap) ->
     D = ct:get_config({hosts, mim, domain}),
@@ -146,14 +146,14 @@ generic_count_backend(mod_roster_mnesia) -> count_wildpattern(roster);
 generic_count_backend(mod_roster_riak) ->
     count_riak(<<"rosters">>),
     count_riak(<<"roster_versions">>);
-generic_count_backend(mod_roster_odbc) -> count_odbc(<<"rosterusers">>).
+generic_count_backend(mod_roster_rdbms) -> count_rdbms(<<"rosterusers">>).
 
 count_wildpattern(Table) ->
     Pattern = rpc(mim(), mnesia, table_info, [Table, wild_pattern]),
     length(rpc(mim(), mnesia, dirty_match_object, [Pattern])).
 
 
-count_odbc(Table) ->
+count_rdbms(Table) ->
     {selected, [{N}]} =
         rpc(mim(), mongoose_rdbms, sql_query,
             [<<"localhost">>, [<<"select count(*) from ", Table/binary, " ;">>]]),

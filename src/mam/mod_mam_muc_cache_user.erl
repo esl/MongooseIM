@@ -2,12 +2,12 @@
 %%% @author Uvarov Michael <arcusfelis@gmail.com>
 %%% @copyright (C) 2013, Uvarov Michael
 %%% @doc Stores cache using ETS-table (special version for MUC).
-%%% This module is a proxy for `mod_mam_odbc_user' (it should be started).
+%%% This module is a proxy for `mod_mam_rdbms_user' (it should be started).
 %%%
 %%% There are 2 hooks for `mam_archive_id':
 %%% `cached_archive_id/3' and `store_archive_id/3'.
 %%%
-%%% The differencies from `mod_mam_odbc_user' are:
+%%% The differencies from `mod_mam_rdbms_user' are:
 %%%
 %%% - This module deletes cached data after room deletion.
 %%%

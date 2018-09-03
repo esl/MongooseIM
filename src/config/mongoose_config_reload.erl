@@ -114,7 +114,7 @@ map_listeners(Listeners) ->
                   {{PortIP, Module}, Opts}
               end, Listeners).
 
-% group values which can be grouped like odbc ones
+% group values which can be grouped like rdbms ones
 -spec group_host_changes([term()]) -> [{atom(), [term()]}].
 group_host_changes(Changes) when is_list(Changes) ->
     D = lists:foldl(fun(#local_config{key = {Key, Host}, value = Val}, Dict) ->
@@ -167,10 +167,10 @@ as_hosts(El, {Config, Local, HostLocal}) -> {Config, Local, [El | HostLocal]}.
 -spec get_key_group(binary(), atom()) -> atom().
 get_key_group(<<"ldap_", _/binary>>, _) ->
     ldap;
-get_key_group(<<"odbc_", _/binary>>, _) ->
-    odbc;
+get_key_group(<<"rdbms_", _/binary>>, _) ->
+    rdbms;
 get_key_group(<<"pgsql_", _/binary>>, _) ->
-    odbc;
+    rdbms;
 get_key_group(<<"auth_", _/binary>>, _) ->
     auth;
 get_key_group(<<"ext_auth_", _/binary>>, _) ->

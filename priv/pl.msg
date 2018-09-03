@@ -246,7 +246,7 @@
 {"Period: ","Przedział czasu: "}.
 {"Persist items to storage","Przechowuj na stałe dane PubSub"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Te opcje kopii zapasowych dotyczą tylko wbudowanej bazy danych typu Mnesia. Jeśli korzystasz z modułu ODBC, musisz wykonać kopie bazy we własnym zakresie."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Te opcje kopii zapasowych dotyczą tylko wbudowanej bazy danych typu Mnesia. Jeśli korzystasz z modułu RDBMS, musisz wykonać kopie bazy we własnym zakresie."}.
 {"Pong","Pong"}.
 {"Port ~b","Port ~b"}.
 {"Port","Port"}.

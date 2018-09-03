@@ -1,4 +1,4 @@
--module(mod_auth_token_odbc).
+-module(mod_auth_token_rdbms).
 -behaviour(mod_auth_token).
 
 -export([get_valid_sequence_number/1,

@@ -346,8 +346,8 @@ msgstr "Pravidla přístupů"
 #: mod_configure.erl:1200 mod_configure.erl:1222 mod_configure.erl:1234
 #: mod_configure.erl:1246 mod_configure.erl:1258 mod_configure.erl:1275
 #: mod_configure.erl:1287 mod_configure.erl:1652 mod_configure.erl:1702
-#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_odbc.erl:1048
-#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_odbc.erl:442
+#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_rdbms.erl:1048
+#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_rdbms.erl:442
 msgid "Jabber ID"
 msgstr "Jabber ID"
 
@@ -548,9 +548,9 @@ msgstr "Registrace přezdívky na "
 msgid "Enter nickname you want to register"
 msgstr "Zadejte přezdívku, kterou chcete zaregistrovat"
 
-#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_odbc.erl:1049
-#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:447
+#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_rdbms.erl:1049
+#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:447
 msgid "Nickname"
 msgstr "Přezdívka"
 
@@ -942,17 +942,17 @@ msgstr "~s vás zve do místnosti ~s"
 msgid "the password is"
 msgstr "heslo je"
 
-#: mod_offline.erl:510 mod_offline_odbc.erl:352
+#: mod_offline.erl:510 mod_offline_rdbms.erl:352
 msgid ""
 "Your contact offline message queue is full. The message has been discarded."
 msgstr "Fronta offline zpráv pro váš kontakt je plná. Zpráva byla zahozena."
 
-#: mod_offline.erl:560 mod_offline_odbc.erl:408
+#: mod_offline.erl:560 mod_offline_rdbms.erl:408
 msgid "~s's Offline Messages Queue"
 msgstr "Fronta offline zpráv uživatele ~s"
 
-#: mod_offline.erl:563 mod_offline_odbc.erl:411 mod_roster.erl:987
-#: mod_roster_odbc.erl:1092 mod_shared_roster.erl:896
+#: mod_offline.erl:563 mod_offline_rdbms.erl:411 mod_roster.erl:987
+#: mod_roster_rdbms.erl:1092 mod_shared_roster.erl:896
 #: mod_shared_roster.erl:1005 web/ejabberd_web_admin.erl:833
 #: web/ejabberd_web_admin.erl:874 web/ejabberd_web_admin.erl:942
 #: web/ejabberd_web_admin.erl:978 web/ejabberd_web_admin.erl:1019
@@ -975,20 +975,20 @@ msgstr "Od"
 msgid "To"
 msgstr "Pro"
 
-#: mod_offline.erl:574 mod_offline_odbc.erl:419
+#: mod_offline.erl:574 mod_offline_rdbms.erl:419
 msgid "Packet"
 msgstr "Paket"
 
-#: mod_offline.erl:587 mod_offline_odbc.erl:432 mod_shared_roster.erl:903
+#: mod_offline.erl:587 mod_offline_rdbms.erl:432 mod_shared_roster.erl:903
 #: web/ejabberd_web_admin.erl:882 web/ejabberd_web_admin.erl:986
 msgid "Delete Selected"
 msgstr "Smazat vybrané"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Offline Messages:"
 msgstr "Offline zprávy:"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Remove All Offline Messages"
 msgstr "Odstranit všechny offline zprávy"
 
@@ -996,103 +996,103 @@ msgstr "Odstranit všechny offline zprávy"
 msgid "ejabberd SOCKS5 Bytestreams module"
 msgstr "ejabberd SOCKS5 Bytestreams modul"
 
-#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_odbc.erl:928
+#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_rdbms.erl:928
 msgid "Publish-Subscribe"
 msgstr "Publish-Subscribe"
 
-#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_odbc.erl:1024
+#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_rdbms.erl:1024
 msgid "ejabberd Publish-Subscribe module"
 msgstr "ejabberd Publish-Subscribe modul"
 
-#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_odbc.erl:1311
+#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_rdbms.erl:1311
 msgid "PubSub subscriber request"
 msgstr "Žádost odběratele PubSub"
 
-#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_odbc.erl:1313
+#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_rdbms.erl:1313
 msgid "Choose whether to approve this entity's subscription."
 msgstr "Zvolte, zda chcete schválit odebírání touto entitou"
 
-#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_odbc.erl:1319
+#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_rdbms.erl:1319
 msgid "Node ID"
 msgstr "ID uzlu"
 
-#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_odbc.erl:1324
+#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_rdbms.erl:1324
 msgid "Subscriber Address"
 msgstr "Adresa odběratele"
 
-#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_odbc.erl:1330
+#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_rdbms.erl:1330
 msgid "Allow this Jabber ID to subscribe to this pubsub node?"
 msgstr "Povolit tomuto Jabber ID odebírat tento pubsub uzel?"
 
-#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_odbc.erl:3229
+#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_rdbms.erl:3229
 msgid "Deliver payloads with event notifications"
 msgstr "Doručovat náklad s upozorněním na událost"
 
-#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_odbc.erl:3230
+#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_rdbms.erl:3230
 msgid "Deliver event notifications"
 msgstr "Doručovat upozornění na události"
 
-#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_odbc.erl:3231
+#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_rdbms.erl:3231
 msgid "Notify subscribers when the node configuration changes"
 msgstr "Upozornit odběratele na změnu nastavení uzlu"
 
-#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_odbc.erl:3232
+#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_rdbms.erl:3232
 msgid "Notify subscribers when the node is deleted"
 msgstr "Upozornit odběratele na smazání uzlu"
 
-#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_odbc.erl:3233
+#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_rdbms.erl:3233
 msgid "Notify subscribers when items are removed from the node"
 msgstr "Upozornit odběratele na odstranění položek z uzlu"
 
-#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_odbc.erl:3234
+#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_rdbms.erl:3234
 msgid "Persist items to storage"
 msgstr "Uložit položky natrvalo do úložiště"
 
-#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_odbc.erl:3235
+#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_rdbms.erl:3235
 msgid "A friendly name for the node"
 msgstr "Přívětivé jméno pro uzel"
 
-#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_odbc.erl:3236
+#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_rdbms.erl:3236
 msgid "Max # of items to persist"
 msgstr "Maximální počet položek, které je možné natrvalo uložit"
 
-#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_odbc.erl:3237
+#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_rdbms.erl:3237
 msgid "Whether to allow subscriptions"
 msgstr "Povolit odebírání"
 
-#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_odbc.erl:3238
+#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_rdbms.erl:3238
 msgid "Specify the access model"
 msgstr "Uveďte přístupový model"
 
-#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_odbc.erl:3241
+#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_rdbms.erl:3241
 msgid "Roster groups allowed to subscribe"
 msgstr "Skupiny kontaktů, které mohou odebírat"
 
-#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_odbc.erl:3242
+#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_rdbms.erl:3242
 msgid "Specify the publisher model"
 msgstr "Specifikovat model pro publikování"
 
-#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_odbc.erl:3244
+#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_rdbms.erl:3244
 msgid "Purge all items when the relevant publisher goes offline"
 msgstr "Smazat všechny položky, pokud se příslušný poskytovatel odpojí"
 
-#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_odbc.erl:3245
+#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_rdbms.erl:3245
 msgid "Specify the event message type"
 msgstr "Zvolte typ zpráv pro události"
 
-#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_odbc.erl:3247
+#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_rdbms.erl:3247
 msgid "Max payload size in bytes"
 msgstr "Maximální náklad v bajtech"
 
-#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_odbc.erl:3248
+#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_rdbms.erl:3248
 msgid "When to send the last published item"
 msgstr "Kdy odeslat poslední publikovanou položku"
 
-#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_odbc.erl:3250
+#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_rdbms.erl:3250
 msgid "Only deliver notifications to available users"
 msgstr "Doručovat upozornění jen právě přihlášeným uživatelům"
 
-#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_odbc.erl:3251
+#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_rdbms.erl:3251
 msgid "The collections with which a node is affiliated"
 msgstr "Kolekce, se kterými je uzel spřízněn"
 
@@ -1100,7 +1100,7 @@ msgstr "Kolekce, se kterými je uzel spřízněn"
 msgid "Choose a username and password to register with this server"
 msgstr "Zadejte jméno uživatele a heslo pro registraci na tomto serveru"
 
-#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 #: web/ejabberd_web_admin.erl:1516 web/ejabberd_web_admin.erl:1573
 msgid "User"
 msgstr "Uživatel"
@@ -1113,37 +1113,37 @@ msgstr "Heslo je příliš slabé"
 msgid "Users are not allowed to register accounts so quickly"
 msgstr "Je zakázáno registrovat účty v tak rychlém sledu"
 
-#: mod_roster.erl:938 mod_roster_odbc.erl:1043 web/ejabberd_web_admin.erl:1699
+#: mod_roster.erl:938 mod_roster_rdbms.erl:1043 web/ejabberd_web_admin.erl:1699
 #: web/ejabberd_web_admin.erl:1884 web/ejabberd_web_admin.erl:1895
 #: web/ejabberd_web_admin.erl:2218
 msgid "None"
 msgstr "Nic"
 
-#: mod_roster.erl:945 mod_roster_odbc.erl:1050
+#: mod_roster.erl:945 mod_roster_rdbms.erl:1050
 msgid "Subscription"
 msgstr "Přihlášení"
 
-#: mod_roster.erl:946 mod_roster_odbc.erl:1051
+#: mod_roster.erl:946 mod_roster_rdbms.erl:1051
 msgid "Pending"
 msgstr "Čekající"
 
-#: mod_roster.erl:947 mod_roster_odbc.erl:1052
+#: mod_roster.erl:947 mod_roster_rdbms.erl:1052
 msgid "Groups"
 msgstr "Skupiny"
 
-#: mod_roster.erl:974 mod_roster_odbc.erl:1079
+#: mod_roster.erl:974 mod_roster_rdbms.erl:1079
 msgid "Validate"
 msgstr "Ověřit"
 
-#: mod_roster.erl:982 mod_roster_odbc.erl:1087
+#: mod_roster.erl:982 mod_roster_rdbms.erl:1087
 msgid "Remove"
 msgstr "Odstranit"
 
-#: mod_roster.erl:985 mod_roster_odbc.erl:1090
+#: mod_roster.erl:985 mod_roster_rdbms.erl:1090
 msgid "Roster of "
 msgstr "Seznam kontaktů "
 
-#: mod_roster.erl:988 mod_roster_odbc.erl:1093 mod_shared_roster.erl:897
+#: mod_roster.erl:988 mod_roster_rdbms.erl:1093 mod_shared_roster.erl:897
 #: mod_shared_roster.erl:1006 web/ejabberd_web_admin.erl:834
 #: web/ejabberd_web_admin.erl:875 web/ejabberd_web_admin.erl:943
 #: web/ejabberd_web_admin.erl:979 web/ejabberd_web_admin.erl:1020
@@ -1153,11 +1153,11 @@ msgstr "Seznam kontaktů "
 msgid "Bad format"
 msgstr "Nesprávný formát"
 
-#: mod_roster.erl:995 mod_roster_odbc.erl:1100
+#: mod_roster.erl:995 mod_roster_rdbms.erl:1100
 msgid "Add Jabber ID"
 msgstr "Přidat Jabber ID"
 
-#: mod_roster.erl:1094 mod_roster_odbc.erl:1199
+#: mod_roster.erl:1094 mod_roster_rdbms.erl:1199
 msgid "Roster"
 msgstr "Seznam kontaktů"
 
@@ -1197,36 +1197,36 @@ msgstr "Skupina "
 msgid "Submit"
 msgstr "Odeslat"
 
-#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_odbc.erl:129
+#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_rdbms.erl:129
 msgid "Erlang Jabber Server"
 msgstr "Erlang Jabber Server"
 
-#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:448
+#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:448
 msgid "Birthday"
 msgstr "Datum narození"
 
-#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:450
+#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:450
 msgid "City"
 msgstr "Město"
 
-#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:449
+#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:449
 msgid "Country"
 msgstr "Země"
 
-#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:451
+#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:451
 msgid "Email"
 msgstr "E-mail"
 
-#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:446
+#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:446
 msgid "Family Name"
 msgstr "Příjmení"
 
-#: mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 msgid ""
 "Fill in the form to search for any matching Jabber User (Add * to the end of "
 "field to match substring)"
@@ -1234,48 +1234,48 @@ msgstr ""
 "Pro vyhledání uživatele Jabberu vyplňte formulář (na konec přidejte znak * "
 "pro vyhledání podřetězce)"
 
-#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:443
+#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:443
 msgid "Full Name"
 msgstr "Celé jméno"
 
-#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:445
+#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:445
 msgid "Middle Name"
 msgstr "Druhé jméno"
 
-#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:444 web/ejabberd_web_admin.erl:2004
+#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:444 web/ejabberd_web_admin.erl:2004
 msgid "Name"
 msgstr "Jméno"
 
-#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:452
+#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:452
 msgid "Organization Name"
 msgstr "Název firmy"
 
-#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:453
+#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:453
 msgid "Organization Unit"
 msgstr "Oddělení"
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "Search users in "
 msgstr "Hledat uživatele v "
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "You need an x:data capable client to search"
 msgstr "K vyhledávání potřebujete klienta podporujícího x:data"
 
-#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_odbc.erl:361
+#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_rdbms.erl:361
 msgid "vCard User Search"
 msgstr "Hledání uživatelů podle vizitek"
 
-#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_odbc.erl:415
+#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_rdbms.erl:415
 msgid "ejabberd vCard module"
 msgstr "ejabberd vCard modul"
 
-#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_odbc.erl:439
+#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_rdbms.erl:439
 msgid "Search Results for "
 msgstr "Výsledky hledání pro "
 
@@ -1464,11 +1464,11 @@ msgstr "Záloha na "
 #: web/ejabberd_web_admin.erl:2035
 msgid ""
 "Please note that these options will only backup the builtin Mnesia database. "
-"If you are using the ODBC module, you also need to backup your SQL database "
+"If you are using the RDBMS module, you also need to backup your SQL database "
 "separately."
 msgstr ""
 "Podotýkáme, že tato nastavení budou zálohována do zabudované databáze "
-"Mnesia. Pokud používáte ODBC modul, musíte zálohovat svoji SQL databázi "
+"Mnesia. Pokud používáte RDBMS modul, musíte zálohovat svoji SQL databázi "
 "samostatně."
 
 #: web/ejabberd_web_admin.erl:2040

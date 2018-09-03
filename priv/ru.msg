@@ -246,7 +246,7 @@
 {"Period: ","Период"}.
 {"Persist items to storage","Сохранять публикации в хранилище"}.
 {"Ping","Пинг"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Заметьте, что здесь производится резервное копирование только встроенной базы данных Mnesia. Если Вы также используете другое хранилище данных (например с помощью модуля ODBC), то его резервное копирование следует осуществлять отдельно."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Заметьте, что здесь производится резервное копирование только встроенной базы данных Mnesia. Если Вы также используете другое хранилище данных (например с помощью модуля RDBMS), то его резервное копирование следует осуществлять отдельно."}.
 {"Pong","Понг"}.
 {"Port ~b","Порт ~b"}.
 {"Port","Порт"}.

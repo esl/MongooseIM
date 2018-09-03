@@ -232,7 +232,7 @@
 {"Period: ","Period: "}.
 {"Persist items to storage","Spara dataposter permanent"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Kom ihåg att dessa inställningar endast tar backup pa builtin Mnesias databas. Om du använder ODBC modul så måste du ta backup på SQLs databas enskilt"}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Kom ihåg att dessa inställningar endast tar backup pa builtin Mnesias databas. Om du använder RDBMS modul så måste du ta backup på SQLs databas enskilt"}.
 {"Pong","Pong"}.
 {"Port ~b","Port ~b"}.
 {"Port","Port"}.

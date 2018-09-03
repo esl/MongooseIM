@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 16. May 2018 12:51
 %%%-------------------------------------------------------------------
--module(mod_inbox_odbc_mysql).
+-module(mod_inbox_rdbms_mysql).
 
 -author("ludwikbukowski").
 
@@ -14,7 +14,7 @@
 
 -export([set_inbox/7, set_inbox_incr_unread/6]).
 
--import(mod_inbox_odbc, [esc_string/1, esc_int/1]).
+-import(mod_inbox_rdbms, [esc_string/1, esc_int/1]).
 
 %% --------------------------------------------------------
 %% API

@@ -88,13 +88,13 @@ get_missing_modules(Modules) ->
 get_db_used() ->
     %% Retrieve domains with a database configured:
     Domains =
-        ets:match(local_config, #local_config{key={odbc_server, '$1'},
+        ets:match(local_config, #local_config{key={rdbms_server, '$1'},
                                               value='$2'}),
-    %% Check that odbc is the auth method used for those domains:
+    %% Check that rdbms is the auth method used for those domains:
     %% and return the database name
     DBs = lists:foldr(
             fun([Domain, DB], Acc) ->
-                    case check_odbc_option(
+                    case check_rdbms_option(
                            ejabberd_config:get_local_option(
                              {auth_method, Domain})) of
                         true -> [get_db_type(DB)|Acc];
@@ -114,11 +114,11 @@ get_db_type(DB) when is_list(DB) ->
     odbc.
 
 
-%% @doc Return true if odbc option is used
--spec check_odbc_option(_) -> boolean().
-check_odbc_option(odbc) ->
+%% @doc Return true if rdbms option is used
+-spec check_rdbms_option(_) -> boolean().
+check_rdbms_option(rdbms) ->
     true;
-check_odbc_option(AuthMethods) when is_list(AuthMethods) ->
-    lists:member(odbc, AuthMethods);
-check_odbc_option(_) ->
+check_rdbms_option(AuthMethods) when is_list(AuthMethods) ->
+    lists:member(rdbms, AuthMethods);
+check_rdbms_option(_) ->
     false.

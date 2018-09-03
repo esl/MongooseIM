@@ -1041,9 +1041,9 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
--spec backend() -> odbc | riak | cassandra | false.
+-spec backend() -> rdbms | riak | cassandra | false.
 backend() ->
-    Funs = [fun maybe_odbc/1, fun maybe_riak/1, fun maybe_cassandra/1],
+    Funs = [fun maybe_rdbms/1, fun maybe_riak/1, fun maybe_cassandra/1],
     determine_backend(host(), Funs).
 
 determine_backend(_, []) ->
@@ -1056,10 +1056,10 @@ determine_backend(Host, [F | Rest]) ->
             Result
     end.
 
-maybe_odbc(Host) ->
-    case mongoose_helper:is_odbc_enabled(Host) of
+maybe_rdbms(Host) ->
+    case mongoose_helper:is_rdbms_enabled(Host) of
         true ->
-            odbc;
+            rdbms;
         _ ->
             false
     end.
@@ -1081,7 +1081,7 @@ maybe_cassandra(Host) ->
     end.
 
 is_mam_possible(Host) ->
-    mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse
+    mongoose_helper:is_rdbms_enabled(Host) orelse is_riak_enabled(Host) orelse
     is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
 
 %% TODO create mongoose_riak:get_status() for cleaner checks, same for cassandra and elasticsearch

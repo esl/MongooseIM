@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : mod_private_odbc.erl
+%%% File    : mod_private_rdbms.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Private storage support
 %%% Created :  5 Oct 2006 by Alexey Shchepin <alexey@process-one.net>
@@ -26,7 +26,7 @@
 
 %%% NS is namespace or key.
 %%% XML is #xmlel{} or value.
--module(mod_private_odbc).
+-module(mod_private_rdbms).
 -author('alexey@process-one.net').
 -author('arcusfelis@gmail.com').
 -behaviour(mod_private).

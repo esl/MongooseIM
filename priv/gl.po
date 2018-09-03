@@ -346,8 +346,8 @@ msgstr "Regras de acceso"
 #: mod_configure.erl:1200 mod_configure.erl:1222 mod_configure.erl:1234
 #: mod_configure.erl:1246 mod_configure.erl:1258 mod_configure.erl:1275
 #: mod_configure.erl:1287 mod_configure.erl:1652 mod_configure.erl:1702
-#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_odbc.erl:1048
-#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_odbc.erl:442
+#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_rdbms.erl:1048
+#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_rdbms.erl:442
 msgid "Jabber ID"
 msgstr "Jabber ID"
 
@@ -555,9 +555,9 @@ msgstr "Rexistro do alcume en "
 msgid "Enter nickname you want to register"
 msgstr "Introduce o alcume que queiras rexistrar"
 
-#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_odbc.erl:1049
-#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:447
+#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_rdbms.erl:1049
+#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:447
 msgid "Nickname"
 msgstr "Alcume"
 
@@ -958,19 +958,19 @@ msgstr "~s invítache á sala ~s"
 msgid "the password is"
 msgstr "a contrasinal é"
 
-#: mod_offline.erl:510 mod_offline_odbc.erl:352
+#: mod_offline.erl:510 mod_offline_rdbms.erl:352
 msgid ""
 "Your contact offline message queue is full. The message has been discarded."
 msgstr ""
 "A túa cola de mensaxes diferidas de contactos está chea. A mensaxe "
 "descartouse."
 
-#: mod_offline.erl:560 mod_offline_odbc.erl:408
+#: mod_offline.erl:560 mod_offline_rdbms.erl:408
 msgid "~s's Offline Messages Queue"
 msgstr "Cola de mensaxes diferidas de ~s"
 
-#: mod_offline.erl:563 mod_offline_odbc.erl:411 mod_roster.erl:987
-#: mod_roster_odbc.erl:1092 mod_shared_roster.erl:896
+#: mod_offline.erl:563 mod_offline_rdbms.erl:411 mod_roster.erl:987
+#: mod_roster_rdbms.erl:1092 mod_shared_roster.erl:896
 #: mod_shared_roster.erl:1005 web/ejabberd_web_admin.erl:833
 #: web/ejabberd_web_admin.erl:874 web/ejabberd_web_admin.erl:942
 #: web/ejabberd_web_admin.erl:978 web/ejabberd_web_admin.erl:1019
@@ -993,20 +993,20 @@ msgstr "De"
 msgid "To"
 msgstr "Para"
 
-#: mod_offline.erl:574 mod_offline_odbc.erl:419
+#: mod_offline.erl:574 mod_offline_rdbms.erl:419
 msgid "Packet"
 msgstr "Paquete"
 
-#: mod_offline.erl:587 mod_offline_odbc.erl:432 mod_shared_roster.erl:903
+#: mod_offline.erl:587 mod_offline_rdbms.erl:432 mod_shared_roster.erl:903
 #: web/ejabberd_web_admin.erl:882 web/ejabberd_web_admin.erl:986
 msgid "Delete Selected"
 msgstr "Eliminar os seleccionados"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Offline Messages:"
 msgstr "Mensaxes sen conexión:"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Remove All Offline Messages"
 msgstr "Borrar Todas as Mensaxes Sen conexión"
 
@@ -1014,104 +1014,104 @@ msgstr "Borrar Todas as Mensaxes Sen conexión"
 msgid "ejabberd SOCKS5 Bytestreams module"
 msgstr "ejabberd SOCKS5 Bytestreams module"
 
-#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_odbc.erl:928
+#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_rdbms.erl:928
 msgid "Publish-Subscribe"
 msgstr "Publicar-Subscribir"
 
-#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_odbc.erl:1024
+#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_rdbms.erl:1024
 msgid "ejabberd Publish-Subscribe module"
 msgstr "Módulo de Publicar-Subscribir de ejabberd"
 
-#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_odbc.erl:1311
+#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_rdbms.erl:1311
 msgid "PubSub subscriber request"
 msgstr "Petición de subscriptor de PubSub"
 
-#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_odbc.erl:1313
+#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_rdbms.erl:1313
 msgid "Choose whether to approve this entity's subscription."
 msgstr "Decidir se aprobar a subscripción desta entidade."
 
-#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_odbc.erl:1319
+#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_rdbms.erl:1319
 msgid "Node ID"
 msgstr "Nodo IDE"
 
-#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_odbc.erl:1324
+#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_rdbms.erl:1324
 msgid "Subscriber Address"
 msgstr "Dirección do subscriptor"
 
-#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_odbc.erl:1330
+#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_rdbms.erl:1330
 msgid "Allow this Jabber ID to subscribe to this pubsub node?"
 msgstr "Desexas permitir a este JabberID que se subscriba a este nodo PubSub?"
 
-#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_odbc.erl:3229
+#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_rdbms.erl:3229
 msgid "Deliver payloads with event notifications"
 msgstr "Enviar payloads xunto coas notificacións de eventos"
 
-#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_odbc.erl:3230
+#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_rdbms.erl:3230
 msgid "Deliver event notifications"
 msgstr "Entregar notificacións de eventos"
 
-#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_odbc.erl:3231
+#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_rdbms.erl:3231
 msgid "Notify subscribers when the node configuration changes"
 msgstr "Notificar subscriptores cando cambia a configuración do nodo"
 
-#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_odbc.erl:3232
+#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_rdbms.erl:3232
 msgid "Notify subscribers when the node is deleted"
 msgstr "Notificar subscriptores cando o nodo bórrase"
 
-#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_odbc.erl:3233
+#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_rdbms.erl:3233
 msgid "Notify subscribers when items are removed from the node"
 msgstr "Notificar subscriptores cando os elementos bórranse do nodo"
 
-#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_odbc.erl:3234
+#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_rdbms.erl:3234
 msgid "Persist items to storage"
 msgstr "Persistir elementos ao almacenar"
 
-#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_odbc.erl:3235
+#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_rdbms.erl:3235
 msgid "A friendly name for the node"
 msgstr "Un nome para o nodo"
 
-#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_odbc.erl:3236
+#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_rdbms.erl:3236
 msgid "Max # of items to persist"
 msgstr "Máximo # de elementos que persisten"
 
-#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_odbc.erl:3237
+#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_rdbms.erl:3237
 msgid "Whether to allow subscriptions"
 msgstr "Permitir subscripciones"
 
-#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_odbc.erl:3238
+#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_rdbms.erl:3238
 msgid "Specify the access model"
 msgstr "Especifica o modelo de acceso"
 
-#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_odbc.erl:3241
+#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_rdbms.erl:3241
 msgid "Roster groups allowed to subscribe"
 msgstr "Lista de grupos autorizados a subscribir"
 
-#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_odbc.erl:3242
+#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_rdbms.erl:3242
 msgid "Specify the publisher model"
 msgstr "Especificar o modelo do publicante"
 
-#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_odbc.erl:3244
+#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_rdbms.erl:3244
 msgid "Purge all items when the relevant publisher goes offline"
 msgstr ""
 
-#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_odbc.erl:3245
+#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_rdbms.erl:3245
 #, fuzzy
 msgid "Specify the event message type"
 msgstr "Especifica o modelo de acceso"
 
-#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_odbc.erl:3247
+#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_rdbms.erl:3247
 msgid "Max payload size in bytes"
 msgstr "Máximo tamaño do payload en bytes"
 
-#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_odbc.erl:3248
+#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_rdbms.erl:3248
 msgid "When to send the last published item"
 msgstr "Cando enviar o último elemento publicado"
 
-#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_odbc.erl:3250
+#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_rdbms.erl:3250
 msgid "Only deliver notifications to available users"
 msgstr "Só enviar notificacións aos usuarios dispoñibles"
 
-#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_odbc.erl:3251
+#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_rdbms.erl:3251
 msgid "The collections with which a node is affiliated"
 msgstr "As coleccións coas que un nodo está afiliado"
 
@@ -1120,7 +1120,7 @@ msgid "Choose a username and password to register with this server"
 msgstr ""
 "Escolle un nome de usuario e contrasinal para rexistrarche neste servidor"
 
-#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 #: web/ejabberd_web_admin.erl:1516 web/ejabberd_web_admin.erl:1573
 msgid "User"
 msgstr "Usuario"
@@ -1134,37 +1134,37 @@ msgstr "a contrasinal é"
 msgid "Users are not allowed to register accounts so quickly"
 msgstr "Os usuarios non están autorizados a rexistrar contas con tanta rapidez"
 
-#: mod_roster.erl:938 mod_roster_odbc.erl:1043 web/ejabberd_web_admin.erl:1699
+#: mod_roster.erl:938 mod_roster_rdbms.erl:1043 web/ejabberd_web_admin.erl:1699
 #: web/ejabberd_web_admin.erl:1884 web/ejabberd_web_admin.erl:1895
 #: web/ejabberd_web_admin.erl:2218
 msgid "None"
 msgstr "Ningún"
 
-#: mod_roster.erl:945 mod_roster_odbc.erl:1050
+#: mod_roster.erl:945 mod_roster_rdbms.erl:1050
 msgid "Subscription"
 msgstr "Subscripción"
 
-#: mod_roster.erl:946 mod_roster_odbc.erl:1051
+#: mod_roster.erl:946 mod_roster_rdbms.erl:1051
 msgid "Pending"
 msgstr "Pendente"
 
-#: mod_roster.erl:947 mod_roster_odbc.erl:1052
+#: mod_roster.erl:947 mod_roster_rdbms.erl:1052
 msgid "Groups"
 msgstr "Grupos"
 
-#: mod_roster.erl:974 mod_roster_odbc.erl:1079
+#: mod_roster.erl:974 mod_roster_rdbms.erl:1079
 msgid "Validate"
 msgstr "Validar"
 
-#: mod_roster.erl:982 mod_roster_odbc.erl:1087
+#: mod_roster.erl:982 mod_roster_rdbms.erl:1087
 msgid "Remove"
 msgstr "Borrar"
 
-#: mod_roster.erl:985 mod_roster_odbc.erl:1090
+#: mod_roster.erl:985 mod_roster_rdbms.erl:1090
 msgid "Roster of "
 msgstr "Lista de contactos de "
 
-#: mod_roster.erl:988 mod_roster_odbc.erl:1093 mod_shared_roster.erl:897
+#: mod_roster.erl:988 mod_roster_rdbms.erl:1093 mod_shared_roster.erl:897
 #: mod_shared_roster.erl:1006 web/ejabberd_web_admin.erl:834
 #: web/ejabberd_web_admin.erl:875 web/ejabberd_web_admin.erl:943
 #: web/ejabberd_web_admin.erl:979 web/ejabberd_web_admin.erl:1020
@@ -1174,11 +1174,11 @@ msgstr "Lista de contactos de "
 msgid "Bad format"
 msgstr "Mal formato"
 
-#: mod_roster.erl:995 mod_roster_odbc.erl:1100
+#: mod_roster.erl:995 mod_roster_rdbms.erl:1100
 msgid "Add Jabber ID"
 msgstr "Engadir ID Jabber"
 
-#: mod_roster.erl:1094 mod_roster_odbc.erl:1199
+#: mod_roster.erl:1094 mod_roster_rdbms.erl:1199
 msgid "Roster"
 msgstr "Lista de contactos"
 
@@ -1218,36 +1218,36 @@ msgstr "Grupo "
 msgid "Submit"
 msgstr "Enviar"
 
-#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_odbc.erl:129
+#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_rdbms.erl:129
 msgid "Erlang Jabber Server"
 msgstr "Servidor Jabber en Erlang"
 
-#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:448
+#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:448
 msgid "Birthday"
 msgstr "Aniversario"
 
-#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:450
+#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:450
 msgid "City"
 msgstr "Cidade"
 
-#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:449
+#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:449
 msgid "Country"
 msgstr "País"
 
-#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:451
+#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:451
 msgid "Email"
 msgstr "Email"
 
-#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:446
+#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:446
 msgid "Family Name"
 msgstr "Apelido"
 
-#: mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 msgid ""
 "Fill in the form to search for any matching Jabber User (Add * to the end of "
 "field to match substring)"
@@ -1255,48 +1255,48 @@ msgstr ""
 "Enche o formulario para buscar usuarios Jabber. Engade * ao final dun campo "
 "para buscar subcadenas."
 
-#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:443
+#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:443
 msgid "Full Name"
 msgstr "Nome completo"
 
-#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:445
+#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:445
 msgid "Middle Name"
 msgstr "Segundo nome"
 
-#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:444 web/ejabberd_web_admin.erl:2004
+#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:444 web/ejabberd_web_admin.erl:2004
 msgid "Name"
 msgstr "Nome"
 
-#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:452
+#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:452
 msgid "Organization Name"
 msgstr "Nome da organización"
 
-#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:453
+#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:453
 msgid "Organization Unit"
 msgstr "Unidade da organización"
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "Search users in "
 msgstr "Buscar usuarios en "
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "You need an x:data capable client to search"
 msgstr "Necesitas un cliente con soporte de x:data para poder buscar"
 
-#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_odbc.erl:361
+#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_rdbms.erl:361
 msgid "vCard User Search"
 msgstr "Procura de usuario en vCard"
 
-#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_odbc.erl:415
+#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_rdbms.erl:415
 msgid "ejabberd vCard module"
 msgstr "Módulo vCard para ejabberd"
 
-#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_odbc.erl:439
+#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_rdbms.erl:439
 msgid "Search Results for "
 msgstr "Buscar resultados por "
 
@@ -1485,11 +1485,11 @@ msgstr "Copia de seguridade de "
 #: web/ejabberd_web_admin.erl:2035
 msgid ""
 "Please note that these options will only backup the builtin Mnesia database. "
-"If you are using the ODBC module, you also need to backup your SQL database "
+"If you are using the RDBMS module, you also need to backup your SQL database "
 "separately."
 msgstr ""
 "Ten en conta que estas opcións só farán copia de seguridade da base de datos "
-"Mnesia. Se está a utilizar o módulo de ODBC, tamén necesita unha copia de "
+"Mnesia. Se está a utilizar o módulo de RDBMS, tamén necesita unha copia de "
 "seguridade da súa base de datos SQL por separado."
 
 #: web/ejabberd_web_admin.erl:2040

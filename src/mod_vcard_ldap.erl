@@ -24,7 +24,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
-%%TODO LDAP layer should be separated like odbc one.
+%%TODO LDAP layer should be separated like rdbms one.
 %%     Now every ldap module creates its own ldap pool per vhost
 %%TODO gen_server is created only to store the state
 %%     and create/destroy pool, should it be replaced ?
