@@ -801,7 +801,7 @@ path_to_node(Path) ->
         [Node] -> iolist_to_binary(Node);
         % handle old possible entries, used when migrating database content to new format
         [Node | _] when is_binary(Node) ->
-            iolist_to_binary(str:join([<<"">> | Path], <<"/">>));
+            mongoose_bin:join([<<"">> | Path], <<"/">>);
         % default case (used by PEP for example)
         _ -> iolist_to_binary(Path)
     end.

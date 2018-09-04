@@ -288,7 +288,7 @@ create_table(Name, TabDef) ->
                               Version :: binary()) ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room_transaction({<<>>, Domain}, Config, AffUsers, Version) ->
-    NodeCandidate = mod_muc_light_utils:bin_ts(),
+    NodeCandidate = mongoose_bin:gen_from_timestamp(),
     NewNode = case mnesia:wread({muc_light_room, {NodeCandidate, Domain}}) of
                   [_] -> <<>>;
                   [] -> NodeCandidate

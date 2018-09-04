@@ -885,7 +885,7 @@ bounce_queue(Q, Error) ->
 
 -spec new_id() -> binary().
 new_id() ->
-    list_to_binary(randoms:get_string()).
+    mongoose_bin:gen_from_crypto().
 
 
 -spec cancel_timer(reference()) -> 'ok'.
@@ -987,7 +987,6 @@ get_addr_port(Server) ->
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weigths are overvalued)
-            random:seed(randoms:good_seed()),
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [{Server, outgoing_s2s_port()}];
@@ -1296,7 +1295,7 @@ get_tls_opts_with_ciphers(TLSOpts) ->
 calc_addr_index({Priority, Weight, Port, Host}) ->
     N = case Weight of
             0 -> 0;
-            _ -> (Weight + 1) * random:uniform()
+            _ -> (Weight + 1) * rand:uniform()
         end,
     {Priority * 65536 - N, Host, Port}.
 

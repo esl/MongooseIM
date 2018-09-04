@@ -37,7 +37,7 @@
 -behaviour(cyrsasl).
 
 -record(state, {step :: integer(),
-                nonce,
+                nonce :: binary(),
                 username :: jid:user() | undefined,
                 authzid,
                 auth_module :: ejabberd_auth:authmodule(),
@@ -57,7 +57,7 @@ stop() ->
                Creds :: mongoose_credentials:t()) -> {ok, state()}.
 mech_new(Host, Creds) ->
     {ok, #state{step = 1,
-                nonce = randoms:get_string(),
+                nonce = mongoose_bin:gen_from_crypto(),
                 host = Host,
                 creds = Creds}}.
 
@@ -66,8 +66,7 @@ mech_new(Host, Creds) ->
          | cyrsasl:error().
 mech_step(#state{step = 1, nonce = Nonce} = State, _) ->
     {continue,
-     list_to_binary("nonce=\"" ++ Nonce ++
-     "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess"),
+     <<"nonce=\"", Nonce/binary, "\",qop=\"auth\",charset=utf-8,algorithm=md5-sess">>,
      State#state{step = 3}};
 mech_step(#state{step = 3, nonce = Nonce} = State, ClientIn) ->
     case parse(ClientIn) of

@@ -123,7 +123,7 @@ try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = Creatio
             RawConfig, default_config(RoomS), config_schema(RoomS)),
           process_create_aff_users_if_valid(RoomS, CreatorUS, InitialAffUsers)} of
         {{ok, Config0}, {ok, FinalAffUsers}} when length(FinalAffUsers) =< MaxOccupants ->
-            Version = mod_muc_light_utils:bin_ts(),
+            Version = mongoose_bin:gen_from_timestamp(),
             case mod_muc_light_db_backend:create_room(
                    RoomUS, lists:sort(Config0), FinalAffUsers, Version) of
                 {ok, FinalRoomUS} ->
@@ -331,7 +331,7 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     UserUS = {LUser, LServer},
-    Version = mod_muc_light_utils:bin_ts(),
+    Version = mongoose_bin:gen_from_timestamp(),
     case mod_muc_light_db_backend:remove_user(UserUS, Version) of
         {error, _} = Err ->
             ?ERROR_MSG("hook=remove_user, error=~p", [Err]);
@@ -621,7 +621,7 @@ handle_blocking(From, To, {set, #blocking{ items = Items }} = BlockingReq) ->
                          Version :: binary()) -> ok.
 bcast_removed_user({UserU, UserS}, AffectedRooms, Version) ->
     bcast_removed_user(jid:make_noprep(UserU, UserS, <<>>), AffectedRooms,
-                       Version, mod_muc_light_utils:bin_ts()).
+                       Version, mongoose_bin:gen_from_timestamp()).
 
 -spec bcast_removed_user(UserJID :: jid:jid(),
                          AffectedRooms :: mod_muc_light_db:remove_user_return(),

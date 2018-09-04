@@ -336,7 +336,7 @@ force_clear() ->
     {ok, FinalRoomUS :: jid:simple_bare_jid()} | {error, exists}.
 create_room_transaction({NodeCandidate, RoomS}, Config, AffUsers, Version) ->
     RoomU = case NodeCandidate of
-                <<>> -> mod_muc_light_utils:bin_ts();
+                <<>> -> mongoose_bin:gen_from_timestamp();
                 _ -> NodeCandidate
             end,
     case catch mongoose_rdbms:sql_query_t(

@@ -1122,7 +1122,7 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
 iq_disco_info(Host, SNode, From, Lang) ->
     [Node | _] = case SNode of
                      <<>> -> [<<>>];
-                     _ -> str:tokens(SNode, <<"!">>)
+                     _ -> mongoose_bin:tokens(SNode, <<"!">>)
                  end,
                                                 %   Node = string_to_node(RealSNode),
     case Node of
@@ -1185,7 +1185,7 @@ iq_disco_items(Host, ?NS_COMMANDS, _From, _RSM) ->
 iq_disco_items(_Host, ?NS_PUBSUB_GET_PENDING, _From, _RSM) ->
     {result, []};
 iq_disco_items(Host, Item, From, RSM) ->
-    case str:tokens(Item, <<"!">>) of
+    case mongoose_bin:tokens(Item, <<"!">>) of
         [_Node, _ItemId] ->
             {result, []};
         [Node] ->
@@ -1618,7 +1618,7 @@ send_authorization_request(#pubsub_node{nodeid = {Host, Node}, type = Type, id =
                                               attrs = [],
                                               children = [#xmlcdata{content = <<"false">>}]}]}],
     Stanza = #xmlel{name = <<"message">>,
-                    attrs = [{<<"id">>, list_to_binary(randoms:get_string())}],
+                    attrs = [{<<"id">>, mongoose_bin:gen_from_crypto()}],
                     children = [#xmlel{name = <<"x">>,
                                        attrs = [{<<"xmlns">>, ?NS_XDATA}, {<<"type">>, <<"form">>}],
                                        children = FormChildren}]},
@@ -1824,7 +1824,7 @@ create_node(Host, ServerHost, Node, Owner, Type) ->
 create_node(Host, ServerHost, <<>>, Owner, Type, Access, Configuration) ->
     case lists:member(<<"instant-nodes">>, plugin_features(Host, Type)) of
         true ->
-            Node = list_to_binary(randoms:get_string()),
+            Node = mongoose_bin:gen_from_crypto(),
             case create_node(Host, ServerHost, Node, Owner, Type, Access, Configuration) of
                 {result, _} ->
                     {result, [#xmlel{name = <<"pubsub">>,

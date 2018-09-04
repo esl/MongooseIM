@@ -932,7 +932,7 @@ xfield(Type, Label, Var, Val, Lang) ->
 -spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
         #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
-                                                         randoms:get_string()]))}.
+                                                         mongoose_bin:gen_from_crypto()]))}.
 
 
 -spec iq_get_register_info(jid:server(), jid:server(),

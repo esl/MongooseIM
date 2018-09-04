@@ -164,7 +164,7 @@ route_iq(From, To, Acc, IQ, F) ->
 route_iq(From, To, Acc, #iq{type = Type} = IQ, F, Timeout) when is_function(F) ->
     Packet = case Type == set orelse Type == get of
                 true ->
-                     ID = list_to_binary(randoms:get_string()),
+                     ID = mongoose_bin:gen_from_crypto(),
                      Host = From#jid.lserver,
                      register_iq_response_handler(Host, ID, undefined, F, Timeout),
                      jlib:iq_to_xml(IQ#iq{id = ID});

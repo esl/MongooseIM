@@ -29,7 +29,6 @@
 -export([process_raw_config/3, config_to_raw/2]).
 -export([change_aff_users/2]).
 -export([b2aff/1, aff2b/1]).
--export([bin_ts/0]).
 -export([room_limit_reached/2]).
 -export([filter_out_prevented/3]).
 
@@ -127,14 +126,6 @@ aff2b(none) -> <<"none">>.
 b2aff(<<"owner">>) -> owner;
 b2aff(<<"member">>) -> member;
 b2aff(<<"none">>) -> none.
-
--spec bin_ts() -> binary().
-bin_ts() ->
-    {Mega, Secs, Micro} = os:timestamp(),
-    MegaB = integer_to_binary(Mega),
-    SecsB = integer_to_binary(Secs),
-    MicroB = integer_to_binary(Micro),
-    <<MegaB/binary, $-, SecsB/binary, $-, MicroB/binary>>.
 
 -spec room_limit_reached(UserUS :: jid:simple_bare_jid(), RoomS :: jid:lserver()) ->
     boolean().

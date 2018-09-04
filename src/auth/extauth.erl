@@ -134,8 +134,7 @@ call_port(Server, Msg) ->
 
 -spec random_instance(pos_integer()) -> non_neg_integer().
 random_instance(MaxNum) ->
-    random:seed(randoms:good_seed()),
-    random:uniform(MaxNum) - 1.
+    rand:uniform(MaxNum) - 1.
 
 
 -spec get_instances(atom() | binary()) -> integer().

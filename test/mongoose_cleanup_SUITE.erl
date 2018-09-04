@@ -51,7 +51,7 @@ end_per_testcase(T, Config) ->
     Config.
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket, ejabberd_config];
-meck_mods(s2s) -> [exometer, ejabberd_commands, randoms, ejabberd_config];
+meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin, ejabberd_config];
 meck_mods(local) -> [exometer, ejabberd_config];
 meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 
@@ -179,9 +179,9 @@ setup_meck([ejabberd_commands | R]) ->
     meck:new(ejabberd_commands),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     setup_meck(R);
-setup_meck([randoms | R]) ->
-    meck:new(randoms),
-    meck:expect(randoms, get_string, fun() -> "123456" end),
+setup_meck([mongoose_bin | R]) ->
+    meck:new(mongoose_bin, [passthrough]),
+    meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end),
     setup_meck(R);
 setup_meck([mod_bosh_socket | R]) ->
     meck:new(mod_bosh_socket),

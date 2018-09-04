@@ -356,7 +356,7 @@ record_to_map({Id, From, Msg}) ->
 build_packet(message_chat, Body) ->
     #xmlel{name = <<"message">>,
            attrs = [{<<"type">>, <<"chat">>},
-                    {<<"id">>, list_to_binary(randoms:get_string())}],
+                    {<<"id">>, mongoose_bin:gen_from_crypto()}],
            children = [#xmlel{name = <<"body">>,
                               children = [#xmlcdata{content = Body}]}]
           }.

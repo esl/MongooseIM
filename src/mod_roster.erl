@@ -540,7 +540,7 @@ push_item(User, Server, Resource, From, Item, RosterVersion) ->
     ResIQ = #iq{type = set, xmlns = ?NS_ROSTER,
                 %% @doc Roster push, calculate and include the version attribute.
                 %% TODO: don't push to those who didn't load roster
-                id = list_to_binary("push" ++ randoms:get_string()),
+                id = <<"push", (mongoose_bin:gen_from_crypto())/binary>>,
                 sub_el =
                 [#xmlel{name = <<"query">>,
                         attrs = [{<<"xmlns">>, ?NS_ROSTER} | ExtraAttrs],

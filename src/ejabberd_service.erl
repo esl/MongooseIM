@@ -417,7 +417,7 @@ send_element(StateData, El) ->
 
 -spec new_id() -> string().
 new_id() ->
-    randoms:get_string().
+    binary_to_list(mongoose_bin:gen_from_crypto()).
 
 -spec component_host(state()) -> binary() | string().
 component_host(#state{ host = undefined }) -> "undefined";
