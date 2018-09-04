@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 COMMIT=$1
-REV=$2
 set -e
 
 HOSTNAME=`hostname`
@@ -15,7 +14,9 @@ git clone ${MONGOOSEIM_REPO} mongooseim
 cd mongooseim
 git checkout ${COMMIT}
 
-VER=$(cat VERSION)
+VER=$(./tools/generate_vsn.sh tag)
+COMMITS_COUNT=$(./tools/generate_vsn.sh commits)
+REV=${2:-$((COMMITS_COUNT+1))}
 
 
 export ERL_TOP=`pwd`

@@ -3,7 +3,7 @@
 set -e
 
 VER=$1
-REVISION=${2:-1}
+REVISION=$2
 
 if [ x"$VER" == x"" ]; then
     echo "$0: which version to build?"

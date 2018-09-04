@@ -13,7 +13,7 @@ License: %{_license}
 Group: "Development/Languages"
 BuildArch: @ARCH@
 BuildRoot: %{_topdir}/BUILDROOT/%{name}-%{version}.@ARCH@
-BuildRequires:  esl-erlang >= 18.3, esl-erlang <= 20.3
+BuildRequires:  esl-erlang >= 19.3, esl-erlang <= 21.0
 BuildRequires:  expat-devel
 BuildRequires:	chrpath
 Requires(pre): shadow-utils
