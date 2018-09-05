@@ -53,8 +53,6 @@
 
 -record(read_action, {
           query           :: cql_query(),
-          fold_fun        :: mongoose_cassandra:fold_fun(),
-          accumulator     :: mongoose_cassandra:fold_accumulator(),
           last_result     :: cql_result() | undefined %% Last result handle from cqerl
          }).
 
@@ -167,8 +165,20 @@ write_async(PoolName, ContextId, QueryStr, Rows, Opts) ->
                   {ok, mongoose_cassandra:fold_accumulator()} | {error, Reason :: term()}.
 read(PoolName, ContextId, QueryStr, Params, Fun, AccIn, Opts) ->
     Opts1 = #{timeout := Timeout} = prepare_options(Opts),
-    Call = {read, QueryStr, Params, Fun, AccIn, Opts1},
-    mongoose_cassandra_pool:call_query(PoolName, ContextId, Call, Timeout).
+    Call = {read, QueryStr, Params, Opts1},
+    do_read(PoolName, ContextId, Call, Timeout, Fun, AccIn).
+
+do_read(PoolName, ContextId, Call, Timeout, Fun, AccIn) ->
+    case mongoose_cassandra_pool:call_query(PoolName, ContextId, Call, Timeout) of
+        {finished, Result} ->
+            NextAcc = Fun(cqerl:all_rows(Result), AccIn),
+            {ok, NextAcc};
+        {partial, Req, Result} ->
+            NextAcc = Fun(cqerl:all_rows(Result), AccIn),
+            do_read(PoolName, ContextId, {continue, Req}, Timeout, Fun, NextAcc);
+        Other ->
+            Other
+    end.
 
 %%====================================================================
 %% gen_server callbacks
@@ -201,13 +211,18 @@ handle_call({write, QueryStr, Rows, Opts}, From, State = #state{}) ->
     NewRequest = schedule_timeout(maps:get(timeout, Opts), Request),
     NewState = update_req(NewRequest, State),
     {noreply, process_request(RequestId, NewState)};
-handle_call({read, QueryStr, Params, Fun, AccIn, Opts}, From, State = #state{}) ->
-    Action = new_read_action(QueryStr, Params, Fun , AccIn),
+handle_call({read, QueryStr, Params, Opts}, From, State = #state{}) ->
+    Action = new_read_action(QueryStr, Params),
     Request = new_request(From, Opts, Action),
     RequestId = Request#request.id,
 
     NewRequest = schedule_timeout(maps:get(timeout, Opts), Request),
     NewState = update_req(NewRequest, State),
+    {noreply, process_request(RequestId, NewState)};
+handle_call({continue, Req}, From, State = #state{}) ->
+    RequestId = Req#request.id,
+    NewReq = Req#request{from = From},
+    NewState = update_req(NewReq, State),
     {noreply, process_request(RequestId, NewState)};
 handle_call(Msg, _From, State) ->
     ?WARNING_MSG("Unexpected call ~p", [Msg]),
@@ -387,21 +402,20 @@ do_handle_result(Result, Req, State) ->
             NextState = update_req(NextReq, State),
 
             process_request(ReqId, NextState);
-        {false, #read_action{fold_fun = Fun, accumulator = AccIn} = A} ->
-            NextAcc = Fun(cqerl:all_rows(Result), AccIn),
+        {false, #read_action{} = A} ->
 
-            NextAction = A#read_action{accumulator = NextAcc, last_result = Result},
+            NextAction = A#read_action{last_result = Result},
             NextReq = Req#request{action = NextAction},
             NextState = update_req(NextReq, State),
-            process_request(ReqId, NextState);
+            maybe_reply(Req, {partial, NextReq, Result}),
+            NextState;
 
         %% Reply and cleanup for finished queries
         {true, #write_action{}} ->
             maybe_reply(Req, ok),
             cleanup_request(ReqId, State);
-        {true, #read_action{fold_fun = Fun, accumulator = AccIn}} ->
-            NextAcc = Fun(cqerl:all_rows(Result), AccIn),
-            maybe_reply(Req, {ok, NextAcc}),
+        {true, #read_action{}} ->
+            maybe_reply(Req, {finished, Result}),
             cleanup_request(ReqId, State)
 
     end.
@@ -447,7 +461,8 @@ do_handle_error(Type, Reason, Req, State) ->
     end.
 
 %% Sends given reply is caller is known.
--spec maybe_reply(request(), Result :: ok | {ok, term()} | {error, term()}) -> any().
+-spec maybe_reply(request(), Result :: ok | {ok, term()} |
+                  {error, term()} | {finished, term()} | {partial, request(), term()}) -> any().
 maybe_reply(#request{from = undefined}, _Result) ->
     ok;
 maybe_reply(#request{from = From}, Result) ->
@@ -593,14 +608,10 @@ new_write_action(QueryStr, Rows) ->
        current_rows = []
       }.
 
--spec new_read_action(query_str(), mongoose_cassandra:parameters(), mongoose_cassandra:fold_fun(),
-                      mongoose_cassandra:fold_accumulator()) ->
-                             read_action().
-new_read_action(QueryStr, Params, Fun, AccIn) ->
+-spec new_read_action(query_str(), mongoose_cassandra:parameters()) -> read_action().
+new_read_action(QueryStr, Params) ->
     #read_action{
-       query = #cql_query{statement = QueryStr, values = Params},
-       fold_fun = Fun,
-       accumulator = AccIn
+       query = #cql_query{statement = QueryStr, values = Params}
       }.
 
 schedule_timeout(Timeout, Req = #request{id = ReqId}) ->
