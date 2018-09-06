@@ -8,7 +8,6 @@
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
 -dialyzer({no_match, start_pool/1}).
--define(POOL_NAME, redis_pool).
 
 %% API
 -export([start_pool/1, cmd/1, cmd/2, cmds/1, cmds/2]).
@@ -23,12 +22,12 @@ start_pool(Opts) ->
     PoolSize = proplists:get_value(pool_size, Opts, 10),
     RedisOpts = proplists:get_value(worker_config, Opts, []),
     PoolOpts = proplists:get_value(pool_opts, Opts, []),
-    PoolOptions = [{workers, PoolSize},
+    PoolOptions = [{strategy, random_worker},
+                   {workers, PoolSize},
                    {worker, {eredis_client, makeargs(RedisOpts)}}
-                  ] ++ PoolOpts,
-    Res = wpool:start_sup_pool(?POOL_NAME, PoolOptions),
-    case Res of
-        {ok, _Pid} -> Res;
+                   | PoolOpts],
+    case mongoose_wpool:start(?MODULE, PoolOptions) of
+        {ok, Pid} -> {ok, Pid};
         Error ->
             ?ERROR_MSG("Failed to start worker pool, reason: ~p~n", [Error]),
             Error
@@ -53,7 +52,8 @@ cmds(Cmd) ->
 -spec cmd(iolist(), integer()) -> eredis:return_value()
                                   | {'error', _}.
 cmd(Cmd, Timeout) ->
-    case eredis:q(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout) of
+    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    case eredis:q(Worker, Cmd, Timeout) of
         {ok, Value} -> Value;
         V -> V
     end.
@@ -61,7 +61,8 @@ cmd(Cmd, Timeout) ->
 -spec cmds([iolist()], integer()) -> [eredis:return_value()]
                                      | {'error', _}.
 cmds(Cmd, Timeout) ->
-    eredis:qp(wpool_pool:random_worker(?POOL_NAME), Cmd, Timeout).
+    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    eredis:qp(Worker, Cmd, Timeout).
 
 %%%===================================================================
 %%% Internal functions
@@ -73,4 +74,3 @@ makeargs(RedisOpts) ->
     Database = proplists:get_value(database, RedisOpts, 0),
     Password = proplists:get_value(password, RedisOpts, ""),
     [Host, Port, Database, Password, 100, 5000].
-

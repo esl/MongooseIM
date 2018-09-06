@@ -108,4 +108,3 @@ gen_user() ->
 
 random_binary(S) ->
     base16:encode(crypto:strong_rand_bytes(S)).
-

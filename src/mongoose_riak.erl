@@ -39,8 +39,6 @@
 -export([get_index_range/5]).
 -export([get_worker/0]).
 
--export([pool_name/0]).
-
 -compile({no_auto_import, [put/2]}).
 
 -define(CALL(F, Args), call_riak(F, Args)).
@@ -69,14 +67,14 @@ start_pool(RiakOpts) ->
     RiakPBOpts = [auto_reconnect, keepalive],
     WorkerArgs = maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
     Worker = {riakc_pb_socket, [RiakAddr, RiakPort, WorkerArgs]},
-    PoolOpts = [{workers, Workers},
-                {worker, Worker}]
-                ++  proplists:get_value(pool_options, RiakOpts, []),
-    wpool:start_sup_pool(pool_name(), PoolOpts).
+    %% TODO (Bartek Gorny): improve worker_pool, then use available_worker strategy here
+    PoolOpts = [{strategy, next_worker}, {workers, Workers}, {worker, Worker}
+                | proplists:get_value(pool_options, RiakOpts, [])],
+    mongoose_wpool:start(?MODULE, PoolOpts).
 
 -spec stop() -> _.
 stop() ->
-    wpool:stop_sup_pool(pool_name()).
+    mongoose_wpool:stop(?MODULE).
 
 -spec put(riakc_obj()) ->
     ok | {ok, riakc_obj()} | {ok, key()} | {error, term()}.
@@ -179,21 +177,16 @@ get_index(BucketType, Index, Value, Opts) ->
 get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
     ?CALL(get_index_range, [Bucket, Index, StartKey, EndKey, Opts]).
 
--spec pool_name() ->  atom().
-pool_name() -> riak_pool.
-
 update_map_op({Field, Fun}, Map) ->
     riakc_map:update(Field, Fun, Map).
 
 call_riak(F, ArgsIn) ->
-    Worker = get_worker(),
-    Args = [Worker | ArgsIn],
+    Args = [get_worker() | ArgsIn],
     apply(riakc_pb_socket, F, Args).
 
 get_worker() ->
-    PoolName = pool_name(),
-    % TODO: improve worker_pool, then use available_worker strategy here
-    wpool_pool:next_worker(PoolName).
+    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    Worker.
 
 %% @doc Gets a particular option from `Opts`. They're expressed as a list
 %% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
@@ -217,4 +210,3 @@ verify_if_riak_opt_exists(Opt, _) -> Opt.
 maybe_add_additional_opts(Opts, AdditionalOpts) ->
     Opts2 = [verify_if_riak_opt_exists(Opt, []) || Opt <- AdditionalOpts],
     lists:flatten(Opts ++ Opts2).
-

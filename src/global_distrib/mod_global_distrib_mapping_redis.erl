@@ -52,14 +52,12 @@ start(Opts) ->
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
     EredisArgs = [Server, Port, 0, Password, 100, 5000],
-    WorkerPool = {?MODULE,
-                  {wpool, start_pool, [?MODULE, [{workers, PoolSize},
-                                                 {worker, {eredis_client, EredisArgs}}]]},
-                  permanent, 10000, supervisor, dynamic},
+    mongoose_wpool:ensure_started(),
+    mongoose_wpool:start(?MODULE, [{workers, PoolSize}, {worker, {eredis_client, EredisArgs}}]),
+
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
                  permanent, 1000, supervisor, [?MODULE]},
-    ejabberd_sup:start_child(WorkerPool),
     ejabberd_sup:start_child(Refresher),
     ok.
 
@@ -158,7 +156,8 @@ handle_info(refresh, RefreshAfter) ->
 
 -spec q(Args :: list()) -> {ok, term()}.
 q(Args) ->
-    case eredis:q(wpool_pool:best_worker(?MODULE), Args) of
+    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    case eredis:q(Worker, Args) of
         {ok, _} = OKRes ->
             OKRes;
         Error ->
@@ -366,4 +365,3 @@ refresh_set(Key, Members) ->
         _ -> q([<<"SADD">>, Key | Members])
     end,
     q([<<"EXPIRE">>, Key, expire_after()]).
-

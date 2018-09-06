@@ -50,7 +50,9 @@ start(Host, Opts) ->
     ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
 
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
-    wpool:start_sup_pool(pool_name(Host, wpool), [{workers, MaxHTTPConnections}]),
+    mongoose_wpool:ensure_started(),
+    {ok, _} = mongoose_wpool:start(?MODULE, Host, [{strategy, available_worker},
+                                                   {workers, MaxHTTPConnections}]),
 
     %% Hooks
     ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
@@ -60,7 +62,7 @@ start(Host, Opts) ->
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
-    wpool:stop_sup_pool(pool_name(Host, wpool)),
+    mongoose_wpool:stop(?MODULE, Host),
 
     ok.
 
@@ -149,10 +151,4 @@ make_notification(v2, Notification, Options) ->
 
 -spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
-    wpool:cast(pool_name(Host, wpool), {M, F, A}, available_worker).
-
--spec pool_name(Host :: jid:server(), Base0 :: atom()) -> atom().
-pool_name(Host, Base0) ->
-    Base = list_to_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(Base0)),
-    gen_mod:get_module_proc(Host, Base).
-
+    mongoose_wpool:cast(?MODULE, Host, {M, F, A}).
