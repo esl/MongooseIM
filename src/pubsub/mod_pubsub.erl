@@ -1077,21 +1077,14 @@ route_disco_info(ServerHost, Host, From, To, Packet, IQ) ->
 
 route_disco_info_stanza(ServerHost, Host, From, Packet,
                         IQ = #iq{sub_el = SubEl, lang = Lang}) ->
-    #xmlel{attrs = QAttrs} = SubEl,
-    Node = xml:get_attr_s(<<"node">>, QAttrs),
-    Info = ejabberd_hooks:run_fold(disco_info, ServerHost,
-                                   [],
-                                   [ServerHost, ?MODULE, <<>>, <<>>]),
-    case iq_disco_info(Host, Node, From, Lang) of
-        {result, IQRes} ->
-            jlib:iq_to_xml(IQ#iq{type = result,
-                                 sub_el =
-                                 [#xmlel{name = <<"query">>,
-                                         attrs = QAttrs,
-                                         children = IQRes ++ Info}]});
-        {error, Error} ->
-            jlib:make_error_reply(Packet, Error)
-    end.
+    Node = exml_query:attr(SubEl, <<"node">>, <<>>),
+    Info = get_disco_info(ServerHost),
+    Result = iq_disco_info(Host, Node, From, Lang),
+    handle_query_result(Packet, IQ, Result, Info).
+
+get_disco_info(ServerHost) ->
+    ejabberd_hooks:run_fold(disco_info, ServerHost, [],
+                            [ServerHost, ?MODULE, <<>>, <<>>]).
 
 route_disco_items(Host, From, To, Packet, IQ) ->
     Stanza = route_disco_items_stanza(Host, From, Packet, IQ),
@@ -1099,18 +1092,9 @@ route_disco_items(Host, From, To, Packet, IQ) ->
 
 route_disco_items_stanza(Host, From, Packet,
                          IQ = #iq{sub_el = SubEl}) ->
-    #xmlel{attrs = QAttrs} = SubEl,
-    Node = xml:get_attr_s(<<"node">>, QAttrs),
-    case iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)) of
-        {result, IQRes} ->
-            jlib:iq_to_xml(IQ#iq{type = result,
-                                 sub_el =
-                                 [#xmlel{name = <<"query">>,
-                                         attrs = QAttrs,
-                                         children = IQRes}]});
-        {error, Error} ->
-            jlib:make_error_reply(Packet, Error)
-    end.
+    Node = exml_query:attr(SubEl, <<"node">>, <<>>),
+    Result = iq_disco_items(Host, Node, From, jlib:rsm_decode(IQ)),
+    handle_query_result(Packet, IQ, Result, []).
 
 node_disco_info(Host, Node, From) ->
     node_disco_info(Host, Node, From, true, true).
@@ -4770,3 +4754,16 @@ pubsub_node_to_node_id(#pubsub_node{nodeid = {_, Node}}) -> Node.
 pubsub_node_to_options(#pubsub_node{options = Options}) -> Options.
 
 jid_to_lserver(#jid{lserver=Host}) -> Host.
+
+handle_query_result(_Packet, IQ, {result, IQRes}, Info) ->
+    jlib:iq_to_xml(make_query_result_iq(IQ, IQRes ++ Info));
+handle_query_result(Packet, _IQ, {error, Error}, _Info) ->
+    jlib:make_error_reply(Packet, Error).
+
+make_query_result_iq(IQ = #iq{sub_el = #xmlel{attrs = QAttrs}}, Children) ->
+    IQ#iq{
+        type = result,
+        sub_el = [#xmlel{
+                     name = <<"query">>,
+                     attrs = QAttrs,
+                     children = Children}]}.
