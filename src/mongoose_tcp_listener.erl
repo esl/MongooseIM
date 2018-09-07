@@ -21,6 +21,9 @@
 
 -behaviour(supervisor).
 
+%% We do not block on send anymore.
+-define(TCP_SEND_TIMEOUT, 15000).
+
 -export([start_link/6, init/1]).
 
 %% Internal
@@ -111,7 +114,7 @@ listen_tcp(PortIPProto, Module, SockOpts, Port, IPS) ->
                        {active, false},
                        {reuseaddr, true},
                        {nodelay, true},
-                       {send_timeout, 120},
+                       {send_timeout, ?TCP_SEND_TIMEOUT},
                        {keepalive, true},
                        {send_timeout_close, true}],
     FinalSockOpts = override_sock_opts(SockOpts, DefaultSockOpts),
