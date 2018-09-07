@@ -1,6 +1,6 @@
 ## vars.config
 
-The `vars.config` file can be found under the `[MongooseIM root]/rel/` directory. Change the most important settings quickly and without touching `ejabberd.cfg` or `vm.args` files directly. Recommended for basic usage.
+The `vars.config` file can be found under the `[MongooseIM root]/rel/` directory. Change the most important settings quickly and without touching `mongooseim.cfg` or `vm.args` files directly. Recommended for basic usage.
 
 The file contains erlang tuples terminated with period ('.'). For users not familiar with Erlang syntax, here is a quick cheat sheet:
 

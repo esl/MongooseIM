@@ -34,13 +34,13 @@ cwd(Node, Config) ->
     ?config({ejabberd_cwd, Node}, Config).
 
 current_config_path(Node, Config) ->
-    filename:join([cwd(Node, Config), "etc", "ejabberd.cfg"]).
+    filename:join([cwd(Node, Config), "etc", "mongooseim.cfg"]).
 
 backup_config_path(Node, Config) ->
-    filename:join([cwd(Node, Config), "etc","ejabberd.cfg.bak"]).
+    filename:join([cwd(Node, Config), "etc","mongooseim.cfg.bak"]).
 
 config_template_path(Config) ->
-    filename:join([path_helper:repo_dir(Config), "rel", "files", "ejabberd.cfg"]).
+    filename:join([path_helper:repo_dir(Config), "rel", "files", "mongooseim.cfg"]).
 
 config_vars_path(File, Config) ->
     filename:join([path_helper:repo_dir(Config), "rel", File]).
@@ -132,10 +132,10 @@ file_exists(Filename) ->
 file_exists(Node, Filename) ->
     call_fun(Node, filelib, is_file, [Filename]).
 
-%% @doc Modifies default ejabberd config file: `etc/ejabberd.cfg'.
+%% @doc Modifies default ejabberd config file: `etc/mongooseim.cfg'.
 %%
 %% This function assumes that the config file was generated from template
-%% file in `rel/files/ejabberd.cfg' using variables from `rel/vars.config'.
+%% file in `rel/files/mongooseim.cfg' using variables from `rel/vars.config'.
 %% The modification procedure overrides given variables provided in
 %% `rel/vars.config'.
 %%

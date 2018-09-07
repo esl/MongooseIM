@@ -1,7 +1,7 @@
 ### Module Description
 This module implements [XEP-0206: XMPP Over BOSH](http://xmpp.org/extensions/xep-0206.html) (using [XEP-0124: Bidirectional-streams Over Synchronous HTTP (BOSH)](http://xmpp.org/extensions/xep-0124.html)), allowing clients to connect to MongooseIM over regular HTTP long-lived connections.
 
-If you want to use BOSH, you must enable it both in the `listen` section of `ejabberd.cfg` ([Listener-Modules](wiki/Listener-Modules)) and as a module.
+If you want to use BOSH, you must enable it both in the `listen` section of `mongooseim.cfg` ([Listener-Modules](wiki/Listener-Modules)) and as a module.
 
 ### Options
 

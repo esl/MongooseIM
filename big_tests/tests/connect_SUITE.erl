@@ -87,7 +87,7 @@ cipher_test_cases() ->
     [clients_can_connect_with_advertised_ciphers,
      'clients_can_connect_with_DHE-RSA-AES256-SHA',
      'clients_can_connect_with_DHE-RSA-AES128-SHA',
-     %% node2 accepts DHE-RSA-AES256-SHA exclusively (see ejabberd.cfg)
+     %% node2 accepts DHE-RSA-AES256-SHA exclusively (see mongooseim.cfg)
      'clients_can_connect_with_DHE-RSA-AES256-SHA_only'].
 
 

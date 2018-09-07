@@ -31,7 +31,7 @@ This value should be used as the *userid* in the Basic Authentication method for
 ## Configuration
 
 In order to enable the REST API, the following configuration should be added to the
-*listen* section in *ejabberd.cfg* file.
+*listen* section in *mongooseim.cfg* file.
 
 ```erlang
   { 8089 , ejabberd_cowboy, [

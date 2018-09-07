@@ -29,7 +29,7 @@ Don't use `ERROR_MSG` for cases that are not errors.
 
 # Logging levels
 
-A system operator can choose log level by setting loglevel in `ejabberd.cfg`.
+A system operator can choose log level by setting loglevel in `mongooseim.cfg`.
 
 - level 5 - debug
 - level 4 - info

@@ -107,7 +107,7 @@ mim-sandbox-system/
 ├── etc
 │   └── mongooseim
 │       ├── app.config
-│       ├── ejabberd.cfg
+│       ├── mongooseim.cfg
 │       └── vm.args
 ├── usr
 │   ├── bin

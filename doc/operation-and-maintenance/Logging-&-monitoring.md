@@ -57,7 +57,7 @@ To monitor MongooseIM during load testing, we recommend the following open sourc
 MongooseIM uses [a fork of Exometer library](https://github.com/esl/exometer_core) for collecting metrics.
 Exometer has many plug-in reporters that can send metrics to external services. We maintain [exometer_report_graphite](https://github.com/esl/exometer_report_graphite) and [exometer_report_statsd](https://github.com/esl/exometer_report_statsd) for Graphite and StatsD respectively.
 It is possible to enable them in MoongooseIM via the `app.config` file.
-The file sits next to the `ejabberd.cfg` file in the `rel/files` and `_REL_DIR_/etc` directories.
+The file sits next to the `mongooseim.cfg` file in the `rel/files` and `_REL_DIR_/etc` directories.
 
 Below you can find a sample configuration.
 It shows setting up a reporter connecting to graphite running on localhost.

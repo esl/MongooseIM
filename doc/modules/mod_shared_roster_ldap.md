@@ -3,7 +3,7 @@
 This module, when enabled, will inject roster entries fetched from LDAP. 
 It might get quite complicated to configure it properly, so fasten your seatbelts and prepare for a ride. 
 
-When a default value for an option is defined with "top-level/XXX", it means that the default value is equal to a top-level parameter in `ejabberd.cfg` of the same name. 
+When a default value for an option is defined with "top-level/XXX", it means that the default value is equal to a top-level parameter in `mongooseim.cfg` of the same name. 
 If it is not defined, XXX becomes the default value.
 
 

@@ -99,15 +99,15 @@ Global distribution modules expose several per-datacenter metrics that can be us
 
 ### Notes
 
-* You should only start `mod_global_distrib` by configuring it under `modules` option in `ejabberd.cfg`. Do not add it as host-specific module via `host_config`.
+* You should only start `mod_global_distrib` by configuring it under `modules` option in `mongooseim.cfg`. Do not add it as host-specific module via `host_config`.
 * Do not use `mod_offline` on domains given via `global_host` or `local_host` options, as it will decrease messaging robustness; the users logged in other datacenters will not be registered as available by `mod_offline`, and so the messages will not be flushed.
 
 ### Options
 
 * **global_host** (string, required): The XMPP domain that will be shared between datacenters.
-  *Note:* this needs to be one of the domains given in `host` option in `ejabberd.cfg`.
+  *Note:* this needs to be one of the domains given in `host` option in `mongooseim.cfg`.
 * **local_host** (string, required): XMPP domain that maps uniquely to the local datacenter; it will be used for inter-center routing.
-  *Note:* this needs to be one of the domains given in `host` option in `ejabberd.cfg`.
+  *Note:* this needs to be one of the domains given in `host` option in `mongooseim.cfg`.
 * **message_ttl** (integer, default: `4`): Number of times a message can be rerouted between datacenters.
 * **connections** (list, default: `[]`): Options for connections maintained by the module; see *Connections' options* section.
 * **cache** (list, default: `[]`): Options for caching database lookups; see *Database cache options* section.

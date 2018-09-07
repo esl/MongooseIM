@@ -96,9 +96,9 @@ start() ->
 
 
 %% @doc Get the filename of the ejabberd configuration file.
-%% The filename can be specified with: erl -config "/path/to/ejabberd.cfg".
+%% The filename can be specified with: erl -config "/path/to/mongooseim.cfg".
 %% It can also be specified with the environtment variable EJABBERD_CONFIG_PATH.
-%% If not specified, the default value 'ejabberd.cfg' is assumed.
+%% If not specified, the default value 'mongooseim.cfg' is assumed.
 -spec get_ejabberd_config_path() -> string().
 get_ejabberd_config_path() ->
     DefaultPath = case os:getenv("EJABBERD_CONFIG_PATH") of
@@ -149,7 +149,7 @@ get_plain_terms_file(File1) ->
 -spec describe_config_problem(Filename :: string(),
                               Reason :: config_problem()) -> string().
 describe_config_problem(Filename, Reason) ->
-    Text1 = lists:flatten("Problem loading ejabberd config file " ++ Filename),
+    Text1 = lists:flatten("Problem loading MongooseIM config file " ++ Filename),
     Text2 = lists:flatten(" : " ++ file:format_error(Reason)),
     ExitText = Text1 ++ Text2,
     ExitText.

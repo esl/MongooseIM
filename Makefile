@@ -25,7 +25,7 @@ ct:
 rel: certs configure.out rel/vars.config
 	. ./configure.out && $(REBAR) as prod release
 
-shell: certs etc/ejabberd.cfg
+shell: certs etc/mongooseim.cfg
 	$(REBAR) shell
 
 # Top-level targets' dependency chain
@@ -42,9 +42,9 @@ rel/vars.config: rel/vars.config.in rel/configure.vars.config
 configure.out rel/configure.vars.config:
 	./tools/configure with-all without-jingle-sip
 
-etc/ejabberd.cfg:
+etc/mongooseim.cfg:
 	@mkdir -p $(@D)
-	tools/generate_cfg.es etc/ejabberd.cfg rel/files/ejabberd.cfg
+	tools/generate_cfg.es etc/mongooseim.cfg rel/files/mongooseim.cfg
 
 devrel: $(DEVNODES)
 
