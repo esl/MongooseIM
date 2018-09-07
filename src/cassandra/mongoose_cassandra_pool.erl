@@ -27,7 +27,7 @@
 
 %% API
 -export([init/1, shutdown/1, all/0]).
--export([call_callback/4, call_query/4, cast_query/3]).
+-export([call_query/4, cast_query/3]).
 
 %% Types
 
@@ -51,14 +51,10 @@ init({PoolName, PoolSize, PoolConfig}) ->
         {workers, PoolSize},
         {worker, {mongoose_cassandra_worker, [PoolName]}}
     ]),
-    {ok, _} = wpool:start_sup_pool(wpool_name(PoolName, callback), [
-        {workers, PoolSize}
-    ]),
     ok.
 
 shutdown(PoolName) ->
-    wpool:stop_sup_pool(wpool_name(PoolName, query)),
-    wpool:stop_sup_pool(wpool_name(PoolName, callback)).
+    wpool:stop_sup_pool(wpool_name(PoolName, query)).
 
 extend_config(PoolConfig) ->
     Defaults = #{
@@ -83,9 +79,6 @@ call_query(PoolName, ContextId, Call, Timeout) ->
 
 cast_query(PoolName, ContextId, Call) ->
     wpool:cast(wpool_name(PoolName, query), Call, worker_strategy(ContextId)).
-
-call_callback(PoolName, ContextId, {M, F, A}, Timeout) ->
-    wpool:call(wpool_name(PoolName, callback), {M, F, A}, worker_strategy(ContextId), Timeout).
 
 wpool_name(PoolName, Type) ->
     NameStr = atom_to_list(?MODULE) ++ "_" ++ atom_to_list(PoolName) ++ "_" ++ atom_to_list(Type),
