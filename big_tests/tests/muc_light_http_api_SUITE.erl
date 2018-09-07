@@ -104,6 +104,8 @@ create_unique_room(Config) ->
                   subject => <<"Lewis Carol">>
                 },
         {{<<"201">>, _}, _} = rest_helper:post(admin, Path, Body),
+        AffChange = escalus:wait_for_stanza(Alice),
+        muc_light_helper:assert_aff_change_stanza(AffChange, Alice, <<"owner">>),
         [Item] = get_disco_rooms(Alice),
         MUCLightDomain = muc_light_domain(),
         true = is_room_name(Name, Item),
@@ -124,6 +126,8 @@ create_identifiable_room(Config) ->
                   subject => <<"Lewis Carol">>
                 },
         {{<<"201">>, _}, RoomJID} = rest_helper:putt(admin, Path, Body),
+        AffChange = escalus:wait_for_stanza(Alice),
+        muc_light_helper:assert_aff_change_stanza(AffChange, Alice, <<"owner">>),
         [Item] = get_disco_rooms(Alice),
         [RoomIDescaped, MUCLightDomain] = binary:split(RoomJID, <<"@">>),
         MUCLightDomain = muc_light_domain(),
