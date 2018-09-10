@@ -22,7 +22,7 @@
          ).
 
 -import(muc_light_helper,
-        [set_mod_config/3]).
+        [set_mod_config/3, assert_aff_change_stanza/3]).
 
 -import(escalus_ejabberd, [rpc/3]).
 
@@ -789,15 +789,6 @@ send_messages(Config, Alice, Bob, Kate) ->
     M3 = send_message(kate, Kate, Alice),
     mam_helper:maybe_wait_for_archive(Config),
     [M1, M2, M3].
-
-assert_aff_change_stanza(Stanza, Target, Change) ->
-    TargetJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Target)),
-    ID = exml_query:attr(Stanza, <<"id">>),
-    true = is_binary(ID) andalso ID /= <<>>,
-    Users = exml_query:paths(Stanza, [{element, <<"x">>}, {element, <<"user">>}]),
-    [User] = [User || User <- Users, TargetJID == exml_query:cdata(User)],
-    Change = exml_query:attr(User, <<"affiliation">>),
-    TargetJID = exml_query:cdata(User).
 
 assert_room_info(Owner, RoomInfo) ->
     true = is_property_present(<<"subject">>, RoomInfo),

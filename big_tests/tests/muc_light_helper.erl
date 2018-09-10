@@ -239,3 +239,12 @@ ver(Int) ->
 -spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
 set_mod_config(K, V, Host) ->
         true = rpc(gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).
+
+assert_aff_change_stanza(Stanza, Target, Change) ->
+    TargetJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Target)),
+    ID = exml_query:attr(Stanza, <<"id">>),
+    true = is_binary(ID) andalso ID /= <<>>,
+    Users = exml_query:paths(Stanza, [{element, <<"x">>}, {element, <<"user">>}]),
+    [User] = [User || User <- Users, TargetJID == exml_query:cdata(User)],
+    Change = exml_query:attr(User, <<"affiliation">>),
+    TargetJID = exml_query:cdata(User).
