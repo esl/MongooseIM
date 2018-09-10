@@ -136,13 +136,19 @@ route(From, To, #xmlel{} = Packet) ->
                               #{user => From#jid.luser,
                                 server => From#jid.lserver}),
     route(From, To, Acc1);
+route(From, To, {broadcast, #xmlel{} = Payload}) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => From,
+                              to_jid => To,
+                              lserver => To#jid.lserver,
+                              origin_stanza => Payload }),
+    route(From, To, Acc, {broadcast, Payload});
 route(From, To, {broadcast, Payload}) ->
-    Acc0 = mongoose_acc:new(),
-    Acc1 = mongoose_acc:update(Acc0,
-                               #{user => From#jid.luser,
-                                 server => From#jid.lserver,
-                                 type => undefined}),
-    route(From, To, Acc1, {broadcast, Payload});
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => From,
+                              to_jid => To,
+                              lserver => To#jid.lserver }),
+    route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:get(element, Acc)).
 

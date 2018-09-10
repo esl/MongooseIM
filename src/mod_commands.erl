@@ -386,17 +386,6 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     {ok, {_, _, L}} = R,
     L.
 
-create_acc(CallerJid, Name, Type) ->
-    A = mongoose_acc:new(),
-    Map = #{name => Name, type => Type, from => jid:to_binary(CallerJid),
-            from_jid => CallerJid},
-    mongoose_acc:update(A, Map).
-
-create_acc(CallerJid, Name, Type, OtherJid) ->
-    A = create_acc(CallerJid, Name, Type),
-    Map = #{to => jid:to_binary(OtherJid), to_jid => OtherJid},
-    mongoose_acc:update(A, Map).
-
 subscription(Caller, Other, Action) ->
     Act = binary_to_existing_atom(Action, latin1),
     run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
@@ -404,9 +393,12 @@ subscription(Caller, Other, Action) ->
 -spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
 run_subscription(Type, CallerJid, OtherJid) ->
     StanzaType = atom_to_binary(Type, latin1),
-    A = create_acc(CallerJid, <<"presence">>, StanzaType, OtherJid),
     El = #xmlel{name = <<"presence">>, attrs = [{<<"type">>, StanzaType}]},
-    Acc1 = mongoose_acc:update(A, #{element => El}),
+    Acc1 = mongoose_acc:new(#{ location => ?LOCATION,
+                               from_jid => CallerJid,
+                               to_jid => OtherJid,
+                               lserver => CallerJid#jid.lserver,
+                               origin_stanza => El }),
     % set subscription to
     Server = CallerJid#jid.server,
     LUser = CallerJid#jid.luser,
@@ -415,7 +407,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
                                    Server,
                                    Acc1,
                                    [LUser, LServer, OtherJid, Type]),
-    ejabberd_router:route(CallerJid, OtherJid, mongoose_acc:get(element, Acc2)),
+    ejabberd_router:route(CallerJid, OtherJid, Acc2),
     ok.
 
 set_subscription(Caller, Other, <<"connect">>) ->

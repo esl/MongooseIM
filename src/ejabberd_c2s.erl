@@ -1039,14 +1039,18 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 %%% system events
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
-    maybe_send_element_safe(StateData,
-                            mongoose_xmpp_errors:stream_conflict(Lang, <<"Replaced by new connection">>)),
+    StreamConflict = mongoose_xmpp_errors:stream_conflict(Lang, <<"Replaced by new connection">>),
+    maybe_send_element_safe(StateData, StreamConflict),
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 handle_info(new_offline_messages, session_established,
-            #state{pres_last = Presence, pres_invis = Invisible} = StateData)
+            #state{pres_last = Presence, pres_invis = Invisible, jid = JID} = StateData)
   when Presence =/= undefined orelse Invisible ->
-    resend_offline_messages(mongoose_acc:new(), StateData),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => JID,
+                              to_jid => JID,
+                              lserver => JID#jid.lserver }),
+    resend_offline_messages(Acc, StateData),
     {next_state, session_established, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
@@ -1109,8 +1113,7 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     send_text(StateData, Text),
     ejabberd_hooks:run(c2s_loop_debug, [Text]),
     fsm_next_state(StateName, StateData);
-handle_incoming_message({broadcast, Accum}, StateName, StateData) ->
-    Acc0 = setup_accum(Accum, StateData),
+handle_incoming_message({broadcast, Acc0}, StateName, StateData) ->
     % DEPRECATED - some obsolete modules broadcast a barebones acc
     Acc = case mongoose_acc:get(from_jid, Acc0, undefined) of
               undefined ->
@@ -1125,14 +1128,16 @@ handle_incoming_message({broadcast, Accum}, StateName, StateData) ->
     {Acc2, Res} = handle_routed_broadcast(Acc1, Broadcast, StateData),
     handle_broadcast_result(Acc2, Res, StateName, StateData);
 handle_incoming_message({route, From, To, Acc0}, StateName, StateData) ->
-    Acc = setup_accum(Acc0, StateData),
-    Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc, [{route, From, To}]),
+    Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc0, [{route, From, To}]),
     Name = mongoose_acc:get(name, Acc1),
     process_incoming_stanza_with_conflict_check(Name, From, To, Acc1, StateName, StateData);
 handle_incoming_message({send_filtered, Feature, From, To, Packet}, StateName, StateData) ->
     % this is used by pubsub and should be rewritten when someone rewrites pubsub module
-    Acc0 = mongoose_acc:new(),
-    Acc = setup_accum(Acc0, StateData),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => From,
+                              to_jid => To,
+                              lserver => To#jid.lserver,
+                              origin_stanza => Packet }),
     Drop = ejabberd_hooks:run_fold(c2s_filter_packet, StateData#state.server,
         true, [StateData#state.server, StateData,
             Feature, To, Packet]),
@@ -3213,14 +3218,6 @@ terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
 terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
     process_unauthenticated_stanza(StateData, El),
     fsm_next_state(wait_for_feature_before_auth, StateData).
-
-%% @doc an acc incoming from another process is usually stripped of local data (server, user)
-%% we need them
--spec setup_accum(mongoose_acc:t(), state()) -> mongoose_acc:t().
-setup_accum(Acc, StateData) ->
-    User = StateData#state.user,
-    Server = StateData#state.server,
-    mongoose_acc:update(Acc, #{server => Server, user => User}).
 
 %% @doc This function is executed when c2s receives a stanza from TCP connection.
 -spec element_to_origin_accum(jlib:xmlel(), StateData :: state()) -> mongoose_acc:t().

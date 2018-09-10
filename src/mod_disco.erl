@@ -387,9 +387,12 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 
 
 -spec is_presence_subscribed(jid:jid(), jid:jid()) -> boolean().
-is_presence_subscribed(#jid{luser=User, lserver=Server}, #jid{luser=LUser, lserver=LServer}) ->
-    % TODO this one probably could be smarter too
-    A = mongoose_acc:new(),
+is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
+                       #jid{luser=LUser, lserver=LServer} = To) ->
+    A = mongoose_acc:new(#{ location => ?LOCATION,
+                            from_jid => From,
+                            to_jid => To,
+                            lserver => From#jid.lserver }),
     A2 = ejabberd_hooks:run_fold(roster_get, Server, A, [{User, Server}]),
     Roster = mongoose_acc:get(roster, A2, []),
     lists:any(fun({roster, _, _, {TUser, TServer, _}, _, S, _, _, _, _}) ->

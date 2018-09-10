@@ -29,6 +29,8 @@
 
 -define(CONFIG_PATH, "etc/mongooseim.cfg").
 
+-define(LOCATION, {?MODULE, ?FUNCTION_NAME, ?LINE}).
+
 -define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim.html">>).
 
 %% ---------------------------------

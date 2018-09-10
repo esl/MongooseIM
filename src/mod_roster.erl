@@ -820,12 +820,6 @@ in_auto_reply(from, out, unsubscribe) -> unsubscribed;
 in_auto_reply(both, none, unsubscribe) -> unsubscribed;
 in_auto_reply(_, _, _) -> none.
 
-remove_test_user(User, Server) ->
-    mod_roster_backend:remove_user(User, Server).
-
-remove_user(User, Server) ->
-    remove_user(mongoose_acc:new(), User, Server).
-
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -1009,7 +1003,11 @@ get_roster_old(LUser, LServer) ->
     get_roster_old(LServer, LUser, LServer).
 
 get_roster_old(DestServer, LUser, LServer) ->
-    A = mongoose_acc:new(),
+    UserJID = jid:make_noprep(LUser, LServer, <<>>),
+    A = mongoose_acc:new(#{ location => ?LOCATION,
+                            from_jid => UserJID,
+                            to_jid => UserJID,
+                            lserver => DestServer }),
     A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
     mongoose_acc:get(roster, A2, []).
 
