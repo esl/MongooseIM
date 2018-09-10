@@ -139,7 +139,7 @@ make_result_iq_reply_attrs(Attrs) ->
 
 -spec make_error_reply(exml:element() | mongoose_acc:t(),
                        xmlcdata() | exml:element()) ->
-    exml:element() | mongoose_acc:t().
+    exml:element() | {mongoose_acc:t(), exml:element() | {error, {already_an_error, _, _}}}.
 make_error_reply(#xmlel{name = Name, attrs = Attrs,
                         children = SubTags}, Error) ->
     NewAttrs = make_error_reply_attrs(Attrs),

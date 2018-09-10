@@ -8,6 +8,8 @@
 
 -include("mongoose.hrl").
 
+-dialyzer({[no_match, no_return], set_extra_db_nodes/1}).
+
 %%
 %% API
 %%

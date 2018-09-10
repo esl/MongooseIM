@@ -259,7 +259,7 @@ get_accesscommands() ->
 -spec try_run_ctp(Args :: [string()],
                   Auth :: ejabberd_commands:auth(),
                   AccessCommands :: [ejabberd_commands:access_cmd()]
-                  ) -> string() | integer() | {string(), integer()}.
+                 ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
 try_run_ctp(Args, Auth, AccessCommands) ->
     try ejabberd_hooks:run_fold(ejabberd_ctl_process, false, [Args]) of
         false when Args /= [] ->
@@ -284,7 +284,7 @@ try_run_ctp(Args, Auth, AccessCommands) ->
 -spec try_call_command(Args :: [string()],
                        Auth :: ejabberd_commands:auth(),
                        AccessCommands :: [ejabberd_commands:access_cmd()]
-                       ) -> string() | integer() | {string(), integer()}.
+                      ) -> string() | integer() | {string(), integer()} | {string(), wrong_command_arguments}.
 try_call_command(Args, Auth, AccessCommands) ->
     try call_command(Args, Auth, AccessCommands) of
         {error, command_unknown} ->
@@ -302,7 +302,7 @@ try_call_command(Args, Auth, AccessCommands) ->
                    Auth :: ejabberd_commands:auth(),
                    AccessCommands :: [ejabberd_commands:access_cmd()]
                    ) -> string() | integer() | {string(), integer()}
-                     | {error, any()}.
+                     | {string(), wrong_command_arguments} | {error, command_unknown}.
 call_command([CmdString | Args], Auth, AccessCommands) ->
     CmdStringU = re:replace(CmdString, "-", "_", [global, {return, list}]),
     Command = list_to_atom(CmdStringU),

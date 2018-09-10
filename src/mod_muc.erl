@@ -505,7 +505,7 @@ route_to_online_room(Pid, {From, To, Acc, Packet}) ->
     {_, _, Nick} = jid:to_lower(To),
     ok = mod_muc_room:route(Pid, From, Nick, Acc, Packet).
 
--spec get_registered_room_or_route_error(room(), from_to_packet(), state()) -> 'ok' | {_, pid()}.
+-spec get_registered_room_or_route_error(room(), from_to_packet(), state()) -> {ok, pid()} | {route_error, binary()}.
 get_registered_room_or_route_error(Room, {From, To, Acc, Packet}, State) ->
     #xmlel{name = Name, attrs = Attrs} = Packet,
     Type = xml:get_attr_s(<<"type">>, Attrs),
