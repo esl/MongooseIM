@@ -380,7 +380,7 @@ is_query_allowed(Query) ->
 -spec locked_state_process_owner_iq(jid:jid(), exml:element(),
         ejabberd:lang(), 'error' | 'get' | 'invalid' | 'result', _)
             -> {{'error', exml:element()}, statename()}
-               | {result, [exml:element() | jlib:xmlcdata()], state() | stop}.
+               | {{result, [exml:element() | jlib:xmlcdata()], state() | stop}, statename()}.
 locked_state_process_owner_iq(From, Query, Lang, set, StateData) ->
     Result = case is_query_allowed(Query) of
                  true ->
@@ -4131,7 +4131,7 @@ get_field(_Var, []) ->
 
 -spec check_invitation(jid:simple_jid() | jid:jid(),
         [jlib:xmlcdata() | exml:element()], ejabberd:lang(), state())
-            -> {'error', _} | {'ok', jid:jid()}.
+            -> {'error', _} | {'ok', [jid:jid()]}.
 check_invitation(FromJID, Els, Lang, StateData) ->
     try
         unsafe_check_invitation(FromJID, Els, Lang, StateData)
@@ -4561,7 +4561,7 @@ route_voice_approval(_Type, From, Packet, _Lang, StateData) ->
 -spec route_invitation(InvitationsOrError,
                        From, Packet, Lang, state()) -> state() when
       InvitationsOrError :: {'error', jlib:xmlcdata() | exml:element()}
-                          | {'ok', jid:jid()},
+                          | {'ok', [jid:jid()]},
       From :: jid:simple_jid() | jid:jid(),
       Packet :: exml:element(),
       Lang :: ejabberd:lang().
