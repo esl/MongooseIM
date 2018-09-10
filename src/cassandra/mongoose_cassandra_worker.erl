@@ -136,9 +136,9 @@
             mongoose_cassandra:rows(), options()) ->
                    ok | {error, Reason :: term()}.
 write(PoolName, ContextId, QueryStr, Rows, Opts) ->
-    Opts1 = #{timeout := Timeout} = prepare_options(Opts),
+    Opts1 = prepare_options(Opts),
     Call = {write, QueryStr, Rows, Opts1},
-    mongoose_cassandra_pool:call_query(PoolName, ContextId, Call, Timeout).
+    mongoose_cassandra_pool:call_query(PoolName, ContextId, Call).
 
 %% --------------------------------------------------------
 %% @doc Same as @see write/5 but asynchronous (without response).
@@ -164,18 +164,18 @@ write_async(PoolName, ContextId, QueryStr, Rows, Opts) ->
            mongoose_cassandra:fold_accumulator(), options()) ->
                   {ok, mongoose_cassandra:fold_accumulator()} | {error, Reason :: term()}.
 read(PoolName, ContextId, QueryStr, Params, Fun, AccIn, Opts) ->
-    Opts1 = #{timeout := Timeout} = prepare_options(Opts),
+    Opts1 = prepare_options(Opts),
     Call = {read, QueryStr, Params, Opts1},
-    do_read(PoolName, ContextId, Call, Timeout, Fun, AccIn).
+    do_read(PoolName, ContextId, Call, Fun, AccIn).
 
-do_read(PoolName, ContextId, Call, Timeout, Fun, AccIn) ->
-    case mongoose_cassandra_pool:call_query(PoolName, ContextId, Call, Timeout) of
+do_read(PoolName, ContextId, Call, Fun, AccIn) ->
+    case mongoose_cassandra_pool:call_query(PoolName, ContextId, Call) of
         {finished, Result} ->
             NextAcc = Fun(cqerl:all_rows(Result), AccIn),
             {ok, NextAcc};
         {partial, Req, Result} ->
             NextAcc = Fun(cqerl:all_rows(Result), AccIn),
-            do_read(PoolName, ContextId, {continue, Req}, Timeout, Fun, NextAcc);
+            do_read(PoolName, ContextId, {continue, Req}, Fun, NextAcc);
         Other ->
             Other
     end.

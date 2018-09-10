@@ -23,9 +23,6 @@
 %% Definitions
 %% ====================================================================
 
--define(WRITE_TIMEOUT, timer:minutes(5)).
--define(READ_TIMEOUT, timer:minutes(5)).
-
 -define(WRITE_RETRY_COUNT, 3).
 -define(READ_RETRY_COUNT, 3).
 
@@ -75,7 +72,7 @@ start() ->
     case mongoose_cassandra_pool:all() of
         [_ | _] = ConfiguredPools ->
             {ok, []} = application:ensure_all_started(cqerl),
-            {ok, []} = application:ensure_all_started(worker_pool),
+            mongoose_wpool:ensure_started(),
 
             [mongoose_cassandra_pool:init(Pool) || Pool <- ConfiguredPools];
         _ ->
@@ -104,8 +101,7 @@ stop() ->
 cql_write(PoolName, UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
     Opts = #{
-      retry   => ?WRITE_RETRY_COUNT,
-      timeout => ?WRITE_TIMEOUT
+      retry   => ?WRITE_RETRY_COUNT
      },
     mongoose_cassandra_worker:write(PoolName, UserJID, QueryStr, Rows, Opts).
 
@@ -155,8 +151,7 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
     Opts = #{
-      retry   => ?READ_RETRY_COUNT,
-      timeout => ?READ_TIMEOUT
+      retry   => ?READ_RETRY_COUNT
      },
     mongoose_cassandra_worker:read(PoolName, UserJID, QueryStr, Params, Fun, AccIn, Opts).
 
