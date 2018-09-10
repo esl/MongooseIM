@@ -45,6 +45,7 @@ after_failure:
 after_success:
         # env variables help to distinguish CI builds
         # It takes less time without gcov
+        - test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
         - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
         - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
