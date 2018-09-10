@@ -45,9 +45,6 @@
 
 -include("mongoose.hrl").
 
-%% We do not block on send anymore.
--define(TCP_SEND_TIMEOUT, 15000).
-
 -type proto() :: tcp | udp | ws | wss.
 -type addr() :: inet:ip4_address() | string().
 -type portnum() :: inet:port_number().
