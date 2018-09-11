@@ -1094,7 +1094,7 @@ is_riak_enabled(_Host) ->
     end.
 
 is_cassandra_enabled(_) ->
-    case rpc(mim(), mongoose_cassandra_sup, get_all_workers, []) of
+    case rpc(mim(), mongoose_cassandra_pool, all, []) of
         [_|_]=_Pools ->
             true;
         _ ->

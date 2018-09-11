@@ -44,6 +44,7 @@
   {git,"https://github.com/esl/fusco.git",
        {ref,"0a428471aefb3a38207c2141249181e6c018e565"}},
   1},
+ {<<"gen_fsm_compat">>,{pkg,<<"gen_fsm_compat">>,<<"0.3.0">>},0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},2},
  {<<"gun">>,
   {git,"https://github.com/ninenines/gun.git",
@@ -125,6 +126,7 @@
 [
 {pkg_hash,[
  {<<"certifi">>, <<"389D4B126A47895FE96D65FCF8681F4D09ECA1153DC2243ED6BABAD0AAC1E763">>},
+ {<<"gen_fsm_compat">>, <<"5903549F67D595F58A7101154CBE0FDD46955FBFBE40813F1E53C23A970FF5F4">>},
  {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"hpack">>, <<"17670F83FF984AE6CD74B1C456EDDE906D27FF013740EE4D9EFAA4F1BF999633">>},
  {<<"idna">>, <<"D456A8761CAD91C97E9788C27002EB3B773ADAF5C893275FC35BA4E3434BBD9B">>},

@@ -23,9 +23,6 @@
 %% Definitions
 %% ====================================================================
 
--define(WRITE_TIMEOUT, timer:minutes(5)).
--define(READ_TIMEOUT, timer:minutes(5)).
-
 -define(WRITE_RETRY_COUNT, 3).
 -define(READ_RETRY_COUNT, 3).
 
@@ -72,43 +69,20 @@
 -spec start() -> ignore | ok | no_return().
 start() ->
     application:set_env(cqerl, maps, true),
-    case ejabberd_config:get_local_option(cassandra_servers) of
-        undefined ->
-            ignore;
-        Pools ->
-            cqerl_app:start(normal, []),
-            [init_pool(Pool) || Pool <- Pools]
+    case mongoose_cassandra_pool:all() of
+        [_ | _] = ConfiguredPools ->
+            {ok, []} = application:ensure_all_started(cqerl),
+            mongoose_wpool:ensure_started(),
+
+            [mongoose_cassandra_pool:init(Pool) || Pool <- ConfiguredPools];
+        _ ->
+            ignore
     end.
 
 -spec stop() -> _.
 stop() ->
-    mongoose_cassandra_sup:stop(),
-    cqerl_app:stop(undefined).
-
-%% Module helpers
--spec init_pool({pool_name(), proplists:proplist()} |
-                {pool_name(), PoolSize :: non_neg_integer(), proplists:proplist()}) ->
-                       ok | no_return().
-init_pool({PoolName, PoolConfig}) ->
-    init_pool({PoolName, 20, PoolConfig});
-init_pool({PoolName, PoolSize, PoolConfig}) ->
-    ExtConfig = extend_config(PoolConfig),
-    application:set_env(cqerl, num_clients, PoolSize),
-    Res = cqerl_cluster:add_nodes(PoolName, proplists:get_value(servers, ExtConfig), ExtConfig),
-    false = lists:keyfind(error, 1, Res),
-    {ok, _} = mongoose_cassandra_sup:start(PoolName, PoolSize * 4),
-    ok.
-
-extend_config(PoolConfig) ->
-    Defaults = #{
-      servers     => [{"localhost", 9042}],
-      tcp_opts    => [{keepalive, true}],
-      keyspace    => mongooseim
-     },
-
-    ConfigMap = maps:merge(Defaults, maps:from_list(PoolConfig)),
-    maps:to_list(ConfigMap).
-
+    [mongoose_cassandra_pool:shutdown(PoolName) || {PoolName, _} <- mongoose_cassandra_pool:all()],
+    application:stop(cqerl).
 
 %% ====================================================================
 %% Cassandra API
@@ -127,8 +101,7 @@ extend_config(PoolConfig) ->
 cql_write(PoolName, UserJID, Module, QueryName, Rows)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
     Opts = #{
-      retry   => ?WRITE_RETRY_COUNT,
-      timeout => ?WRITE_TIMEOUT
+      retry   => ?WRITE_RETRY_COUNT
      },
     mongoose_cassandra_worker:write(PoolName, UserJID, QueryStr, Rows, Opts).
 
@@ -178,8 +151,7 @@ cql_read(PoolName, UserJID, Module, QueryName, Params)  ->
 cql_foldl(PoolName, UserJID, Module, QueryName, Params, Fun, AccIn)  ->
     QueryStr = proplists:get_value(QueryName, Module:prepared_queries()),
     Opts = #{
-      retry   => ?READ_RETRY_COUNT,
-      timeout => ?READ_TIMEOUT
+      retry   => ?READ_RETRY_COUNT
      },
     mongoose_cassandra_worker:read(PoolName, UserJID, QueryStr, Params, Fun, AccIn, Opts).
 
