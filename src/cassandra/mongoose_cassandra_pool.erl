@@ -50,11 +50,11 @@ init({PoolName, PoolSize, PoolConfig}) ->
     WPoolOpts = [{workers, PoolSize},
                  {worker, {mongoose_cassandra_worker, [PoolName]}},
                  {call_timeout, timer:minutes(1)}],
-    {ok, _} = mongoose_wpool:start(wpool_name(PoolName, query), WPoolOpts),
+    {ok, _} = mongoose_wpool:start(?MODULE, global, PoolName, WPoolOpts),
     ok.
 
 shutdown(PoolName) ->
-    mongoose_wpool:stop(wpool_name(PoolName, query)).
+    mongoose_wpool:stop(?MODULE, global, PoolName).
 
 extend_config(PoolConfig) ->
     Defaults = #{
@@ -75,16 +75,12 @@ all() ->
     end.
 
 call_query(PoolName, undefined, Call) ->
-    mongoose_wpool:call(wpool_name(PoolName, query), Call);
+    mongoose_wpool:call(?MODULE, global, PoolName, Call);
 call_query(PoolName, ContextId, Call) ->
-    mongoose_wpool:call(wpool_name(PoolName, query), global, default, ContextId, Call).
+    mongoose_wpool:call(?MODULE, global, PoolName, ContextId, Call).
 
 cast_query(PoolName, undefined, Call) ->
-    mongoose_wpool:cast(wpool_name(PoolName, query), Call);
+    mongoose_wpool:cast(?MODULE, global, PoolName, Call);
 cast_query(PoolName, ContextId, Call) ->
-    mongoose_wpool:cast(wpool_name(PoolName, query), global, default, ContextId, Call).
-
-wpool_name(PoolName, Type) ->
-    NameStr = atom_to_list(?MODULE) ++ "_" ++ atom_to_list(PoolName) ++ "_" ++ atom_to_list(Type),
-    list_to_atom(NameStr).
+    mongoose_wpool:cast(?MODULE, global, PoolName, ContextId, Call).
 
