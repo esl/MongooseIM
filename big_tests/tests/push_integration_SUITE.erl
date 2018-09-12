@@ -23,7 +23,8 @@
 all() ->
     [
         {group, pm_msg_notifications},
-        {group, muclight_msg_notifications}
+        {group, muclight_msg_notifications},
+        {group, inbox_msg_notifications}
     ].
 
 groups() ->
@@ -47,7 +48,15 @@ groups() ->
            muclight_msg_notify_on_apns_silent,
            muclight_msg_notify_on_fcm_silent,
            muclight_msg_notify_on_w_topic
-          ]}
+          ]},
+         {inbox_msg_notifications, [parallel],
+          [
+           inbox_msg_unread_count_apns,
+           inbox_msg_unread_count_fcm,
+           muclight_inbox_msg_unread_count_apns,
+           muclight_inbox_msg_unread_count_fcm
+          ]
+         }
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -79,11 +88,25 @@ end_per_suite(Config) ->
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
+init_per_group(inbox_msg_notifications, Config) ->
+    rpc(mod_muc_light_db_backend, force_clear, []),
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true ->
+            dynamic_modules:start(domain(), mod_inbox, [{backend, rdbms}]),
+            Config;
+        false ->
+            {skip, require_rdbms}
+    end;
+
 init_per_group(_, Config) ->
     %% Some cleaning up
     rpc(mod_muc_light_db_backend, force_clear, []),
 
     Config.
+
+end_per_group(inbox_msg_notifications, Config) ->
+    dynamic_modules:stop(domain(), mod_inbox),
+    Config;
 
 end_per_group(_, Config) ->
     Config.
@@ -180,6 +203,64 @@ pm_msg_notify_on_apns_w_topic(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
 
 %%--------------------------------------------------------------------
+%% GROUP inbox_msg_notifications
+%%--------------------------------------------------------------------
+inbox_msg_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+              assert_incr_message_count_when_message_sent(Alice, Bob, DeviceToken, 1),
+              assert_incr_message_count_when_message_sent(Alice, Bob, DeviceToken, 2),
+              assert_incr_message_count_when_message_sent(Alice, Bob, DeviceToken, 3)
+
+      end).
+
+muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{alice, 1}, {kate, 1}, {bob, 1}],
+      fun(Alice, Kate, Bob) ->
+              Room = room_name(Config),
+              RoomInfo = create_room(Room, [alice, kate, bob], Config),
+              ct:pal("~n~p~n", [RoomInfo]),
+              KateToken = enable_push_for_user(Kate, Service, EnableOpts),
+              BobToken = enable_push_for_user(Bob, Service, EnableOpts),
+
+              assert_incr_message_count_when_message_sent_to_room(Alice, Room, KateToken, 1),
+              assert_incr_message_count_when_message_sent_to_room(Alice, Room, KateToken, 2),
+              assert_incr_message_count_when_message_sent_to_room(Alice, Room, BobToken, 1),
+              check_notification(KateToken, 3),
+              check_notification(BobToken, 2),
+              check_notification(BobToken, 3)
+      end).
+
+assert_incr_message_count_when_message_sent(Sender, Recipient, DeviceToken, ExpectedCount) ->
+    escalus:send(Sender, escalus_stanza:chat_to(Recipient, <<"Chat">>)),
+    check_notification(DeviceToken, ExpectedCount).
+
+check_notification(DeviceToken, ExpectedCount) ->
+    Notification = wait_for_push_request(DeviceToken),
+    Data = maps:get(<<"data">>, Notification, undefined),
+    ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
+
+assert_incr_message_count_when_message_sent_to_room(Sender, Room, DeviceToken, ExpectedCount) ->
+    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat">>),
+    escalus:send(Sender, Stanza),
+    check_notification(DeviceToken, ExpectedCount).
+
+inbox_msg_unread_count_apns(Config) ->
+    inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_unread_count_fcm(Config) ->
+    inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_apns(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_fcm(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+%%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
 
@@ -252,7 +333,6 @@ pm_conversation(Alice, Bob, Service, EnableOpts) ->
     DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
     escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
     {AliceJID, DeviceToken}.
-
 
 enable_push_for_user(User, Service, EnableOpts) ->
     PubsubJID = node_addr(),
