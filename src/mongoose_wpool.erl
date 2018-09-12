@@ -22,6 +22,9 @@
          cast/2, cast/3, cast/4, cast/5,
          get_pool_settings/3, get_pools/0, stats/3]).
 
+-export([start_configured_pools/0]).
+-export([start_configured_pools/1]).
+
 ensure_started() ->
     wpool:start(),
     case ets:info(?MODULE) of
@@ -34,6 +37,18 @@ ensure_started() ->
         _ ->
             ok
     end.
+
+start_configured_pools() ->
+    Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
+    start_configured_pools(Pools).
+
+start_configured_pools(Pools) ->
+    [start(Pool) || Pool <- Pools].
+
+start({Type, Host, Tag, PoolOpts, ConnOpts}) ->
+    ?INFO_MSG("event=starting_pool, pool=~p, host=~p, tag=~p, pool_opts=~p, conn_opts=~p",
+              [Type, Host, Tag, PoolOpts, ConnOpts]).
+
 
 start(Type, PoolOpts) ->
     start(Type, global, PoolOpts).

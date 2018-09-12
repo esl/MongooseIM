@@ -60,6 +60,7 @@ start(normal, _Args) ->
     connect_nodes(),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
+    mongoose_wpool:start_configured_pools(),
     ejabberd_rdbms:start(),
     mongoose_riak:start(),
     mongoose_cassandra:start(),

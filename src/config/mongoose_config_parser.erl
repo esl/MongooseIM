@@ -358,6 +358,8 @@ process_host_term(Term, Host, State) ->
             State;
         {hosts, _Hosts} ->
             State;
+        {outgoing_pools, Pools} when is_list(Pools) ->
+            add_option(outgoing_pools, Pools, State);
         {rdbms_pool, Pool} when is_atom(Pool) ->
             add_option({rdbms_pool, Host}, Pool, State);
         {riak_server, RiakConfig} ->
