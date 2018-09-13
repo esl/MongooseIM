@@ -80,7 +80,7 @@ start_pool(PoolName, Opts) ->
 -spec stop_pool(atom()) -> ok.
 stop_pool(Name) ->
     ets:delete(?MODULE, Name),
-    mongoose_wpool:stop(?MODULE, global, Name),
+    mongoose_wpool:stop(http, global, Name),
     ok.
 
 -spec get(atom(), binary(), list()) ->
@@ -109,12 +109,10 @@ do_start_pool(PoolName, Opts) ->
     PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
     ets:insert(?MODULE, {PoolName, PathPrefix, RequestTimeout}),
     PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
-    Server = gen_mod:get_opt(server, Opts),
-    HttpOpts = gen_mod:get_opt(http_opts, Opts, []),
     PoolSettings = [{strategy, SelectionStrategy}, {call_timeout, PoolTimeout},
-                    {workers, PoolSize}, {worker, {fusco, {Server, HttpOpts}}}
+                    {workers, PoolSize}
                     | gen_mod:get_opt(pool_opts, Opts, [])],
-    mongoose_wpool:start(?MODULE, global, PoolName, PoolSettings).
+    mongoose_wpool:start(http, global, PoolName, PoolSettings, Opts).
 
 make_request(PoolName, Path, Method, Headers, Query) ->
     case ets:lookup(?MODULE, PoolName) of
@@ -128,7 +126,7 @@ make_request(PoolName, Path, Method, Headers, Query) ->
 make_request(PoolName, PathPrefix, RequestTimeout, Path, Method, Headers, Query) ->
     FullPath = <<PathPrefix/binary, Path/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
-    try mongoose_wpool:call(?MODULE, global, PoolName, Req) of
+    try mongoose_wpool:call(http, global, PoolName, Req) of
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
             {ok, {Code, RespBody}};
         {error, timeout} ->
