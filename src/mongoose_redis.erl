@@ -23,10 +23,9 @@ start_pool(Opts) ->
     RedisOpts = proplists:get_value(worker_config, Opts, []),
     PoolOpts = proplists:get_value(pool_opts, Opts, []),
     PoolOptions = [{strategy, random_worker},
-                   {workers, PoolSize},
-                   {worker, {eredis_client, makeargs(RedisOpts)}}
+                   {workers, PoolSize}
                    | PoolOpts],
-    case mongoose_wpool:start(?MODULE, PoolOptions) of
+    case mongoose_wpool:start(redis, global, default, PoolOptions, RedisOpts) of
         {ok, Pid} -> {ok, Pid};
         Error ->
             ?ERROR_MSG("Failed to start worker pool, reason: ~p~n", [Error]),
@@ -52,7 +51,7 @@ cmds(Cmd) ->
 -spec cmd(iolist(), integer()) -> eredis:return_value()
                                   | {'error', _}.
 cmd(Cmd, Timeout) ->
-    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     case eredis:q(Worker, Cmd, Timeout) of
         {ok, Value} -> Value;
         V -> V
@@ -61,16 +60,6 @@ cmd(Cmd, Timeout) ->
 -spec cmds([iolist()], integer()) -> [eredis:return_value()]
                                      | {'error', _}.
 cmds(Cmd, Timeout) ->
-    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    {ok, Worker} = mongoose_wpool:get_worker(redis, global, default),
     eredis:qp(Worker, Cmd, Timeout).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
-makeargs(RedisOpts) ->
-    Host = proplists:get_value(host, RedisOpts, "localhost"),
-    Port = proplists:get_value(port, RedisOpts, 6379),
-    Database = proplists:get_value(database, RedisOpts, 0),
-    Password = proplists:get_value(password, RedisOpts, ""),
-    [Host, Port, Database, Password, 100, 5000].

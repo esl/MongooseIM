@@ -28,7 +28,8 @@
 all() ->
     [get_pools_returns_pool_names,
      stats_passes_through_to_wpool_stats,
-     a_global_riak_pool_is_started].
+     a_global_riak_pool_is_started,
+     two_distinct_redis_pools_are_started].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -90,17 +91,47 @@ a_global_riak_pool_is_started(_Config) ->
     ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)),
 
     ok.
+
+two_distinct_redis_pools_are_started(_C) ->
+    PoolName1 = mongoose_wpool:make_pool_name(redis, global, default),
+    PoolName2 = mongoose_wpool:make_pool_name(redis, global, global_dist),
+    meck:expect(wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
+    Pools = [{redis, global, default, [{workers, 2}],
+              [{host, "localhost"},
+               {port, 1805}]},
+             {redis, global, global_dist, [{workers, 4}],
+              [{host, "localhost2"},
+               {port, 1806}]}],
+
+    [{ok, PoolName1}, {ok, PoolName2}] = mongoose_wpool:start_configured_pools(Pools),
+
+    H = meck_history:get_history(self(), wpool),
+    F = fun({_, {wpool, start_sup_pool, [PN, Args]}, _}) -> {true, {PN, Args}};
+           (_) -> false
+        end,
+    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = lists:filtermap(F, H),
+    ?assertEqual(2, proplists:get_value(workers, CallArgs1)),
+    ?assertEqual(4, proplists:get_value(workers, CallArgs2)),
+    ?assertMatch({eredis_client, ["localhost", 1805 | _]}, proplists:get_value(worker, CallArgs1)),
+    ?assertMatch({eredis_client, ["localhost2", 1806 | _]}, proplists:get_value(worker, CallArgs2)),
+
+    ok.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
+start_sup_pool_mock(PoolNames) when is_list(PoolNames) ->
+    fun(PN, Opts) ->
+            case lists:member(PN, PoolNames) of
+                true ->
+                    {ok, PN}; %% we don't realy need a pid here for mocking
+                _ ->
+                    meck:passthrough([PN, Opts])
+            end
+    end;
 start_sup_pool_mock(PoolName) ->
-    fun(PN, _Opts) when PN =:= PoolName ->
-            {ok, PN}; %% we don't realy need a pid here for mocking
-       (PN, Opts) ->
-            meck:passthrough([PN, Opts])
-    end.
-
+    start_sup_pool_mock([PoolName]).
 
 cleanup_pools() ->
     lists:foreach(fun({Type, Host, Tag}) -> mongoose_wpool:stop(Type, Host, Tag) end,
