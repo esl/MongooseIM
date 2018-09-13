@@ -43,7 +43,10 @@
 {riak_server, "%%{riak_server, [{pool_size, 20}, {address, \"127.0.0.1\"}, {port, 8087}, {riak_pb_socket_opts, []}]}."}.
 {cassandra_servers, "%%{cassandra_servers, [{default, []}]}."}.
 {elasticsearch_server, "%%{elasticsearch_server, []}."}.
-
+{outgoing_pools, "
+% {outgoing_pools, [
+%  {riak, global, default, [{workers, 5}], [{address, \"127.0.0.1\"}, {port, 8087}]}
+%  ]}."}.
 {http_api_old_endpoint, "{5288, \"127.0.0.1\"}"}.
 {http_api_endpoint, "{8088, \"127.0.0.1\"}"}.
 {http_api_client_endpoint, "8089"}.
