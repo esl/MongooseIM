@@ -143,8 +143,7 @@ process_packet(Acc, From, To, El, _Extra) ->
                        "reason=~p,packet=~ts,stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
                         ?MODULE, Reason, exml:to_binary(mongoose_acc:element(Acc)),
-                        erlang:get_stacktrace()]);
-        _ -> ok
+                        erlang:get_stacktrace()])
     end.
 
 -spec route_iq(From :: jid:jid(),

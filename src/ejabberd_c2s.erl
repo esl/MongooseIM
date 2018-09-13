@@ -1026,7 +1026,8 @@ handle_info(new_offline_messages, session_established,
             #state{pres_last = Presence, pres_invis = Invisible, jid = JID} = StateData)
   when Presence =/= undefined orelse Invisible ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => JID#jid.lserver }),
+                              lserver => JID#jid.lserver,
+                              element => undefined }),
     resend_offline_messages(Acc, StateData),
     {next_state, session_established, StateData};
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
@@ -1091,7 +1092,9 @@ handle_incoming_message({send_text, Text}, StateName, StateData) ->
     ejabberd_hooks:run(c2s_loop_debug, [Text]),
     fsm_next_state(StateName, StateData);
 handle_incoming_message({broadcast, Broadcast}, StateName, StateData) ->
-    Acc0 = mongoose_acc:new(#{ location => ?LOCATION, lserver => StateData#state.server }),
+    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
+                               lserver => StateData#state.server,
+                               element => undefined }),
     Acc1 = ejabberd_hooks:run_fold(c2s_loop_debug, Acc0, [{broadcast, Broadcast}]),
     ?DEBUG("event=broadcast,data=~p", [Broadcast]),
     {Acc2, Res} = handle_routed_broadcast(Acc1, Broadcast, StateData),
@@ -2228,11 +2231,11 @@ get_priority_from_presence(PresencePacket) ->
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc1, To, StateData) ->
     case mongoose_iq:record(Acc1) of
-        #iq{type = Type, sub_el = SubEl} = IQ when Type == get; Type == set ->
-            From = mongoose_acc:from_jid(Acc1),
-            {Acc2, NewStateData} = process_privacy_iq(Acc1, Type, To, StateData),
-            Res = mongoose_acc:get(hook, result, Acc2,
-                                   {error, mongoose_xmpp_errors:feature_not_implemented()}),
+        {#iq{type = Type, sub_el = SubEl} = IQ, Acc2} when Type == get; Type == set ->
+            From = mongoose_acc:from_jid(Acc2),
+            {Acc3, NewStateData} = process_privacy_iq(Acc2, Type, To, StateData),
+            Res = mongoose_acc:get(hook, result,
+                                   {error, mongoose_xmpp_errors:feature_not_implemented()}, Acc3),
             IQRes = case Res of
                         {result, Result} ->
                             IQ#iq{type = result, sub_el = Result};
@@ -2241,8 +2244,8 @@ process_privacy_iq(Acc1, To, StateData) ->
                         {error, Error} ->
                             IQ#iq{type = error, sub_el = [SubEl, Error]}
                     end,
-            Acc3 = ejabberd_router:route(To, From, Acc2, jlib:iq_to_xml(IQRes)),
-            {Acc3, NewStateData};
+            Acc4 = ejabberd_router:route(To, From, Acc3, jlib:iq_to_xml(IQRes)),
+            {Acc4, NewStateData};
         _ ->
             {Acc1, StateData}
     end.
@@ -2266,7 +2269,7 @@ process_privacy_iq(Acc, set, To, StateData) ->
                                    StateData#state.server,
                                    Acc,
                                    [From, To, IQ]),
-    case mongoose_acc:get(hook, result, Acc1, undefined) of
+    case mongoose_acc:get(hook, result, undefined, Acc1) of
         {result, _, NewPrivList} ->
             Acc2 = maybe_update_presence(Acc1, StateData, NewPrivList),
             NState = StateData#state{privacy_list = NewPrivList},
@@ -2293,7 +2296,7 @@ resend_offline_messages(Acc, StateData) ->
 
 
 resend_offline_message(Acc0, StateData, From, To, Packet, in) ->
-    Acc = mongoose_acc:stanza(#{ element => Packet, from_jid => From, to_jid => To }, Acc0),
+    Acc = mongoose_acc:update_stanza(#{ element => Packet, from_jid => From, to_jid => To }, Acc0),
     check_privacy_and_route_or_ignore(Acc, StateData, From, To, Packet, in).
 
 
@@ -3197,8 +3200,8 @@ element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server}) ->
         _ToBin -> BaseParams
     end,
     Acc = mongoose_acc:new(Params),
-    Acc1 = mongoose_acc:set(Acc, c2s, origin_sid, SID, false),
-    mongoose_acc:set(Acc1, c2s, origin_jid, JID, true).
+    Acc1 = mongoose_acc:set(c2s, origin_sid, SID, false, Acc),
+    mongoose_acc:set(c2s, origin_jid, JID, false, Acc1).
 
 -spec hibernate() -> hibernate | infinity.
 hibernate() ->

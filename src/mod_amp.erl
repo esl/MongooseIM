@@ -120,9 +120,9 @@ amp_check_packet(_, <<"message">>, Acc, From, Event) ->
         drop ->
             mongoose_acc:set(amp, check_result, drop, Acc);
         NewElem ->
-            mongoose_acc:stanza(#{ element => NewElem,
-                                   from_jid => From,
-                                   to_jid => mongoose_acc:to_jid(Acc) }, Acc)
+            mongoose_acc:update_stanza(#{ element => NewElem,
+                                          from_jid => From,
+                                          to_jid => mongoose_acc:to_jid(Acc) }, Acc)
     end;
 amp_check_packet(_, _, Acc, _, _) ->
     Acc.

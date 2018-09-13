@@ -64,7 +64,7 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
               Stanza = push_notification_iq(From, Packet, Node, Form),
               Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                         lserver => To#jid.lserver,
-                                        element => Stanza,
+                                        element => jlib:iq_to_xml(Stanza),
                                         from_jid => To,
                                         to_jid => PubsubJID }),
               ResponseHandler =

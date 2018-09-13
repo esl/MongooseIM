@@ -60,7 +60,7 @@ find_metadata(Acc, Key) ->
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
 put_metadata(Acc, Key, Value) ->
-    mongoose_acc:set(global_distrib, Key, Value, Acc, false).
+    mongoose_acc:set(global_distrib, Key, Value, false, Acc).
 
 -spec remove_metadata(mongoose_acc:t(), Key :: term()) -> mongoose_acc:t().
 remove_metadata(Acc, Key) ->
@@ -126,11 +126,11 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
 
 -spec maybe_initialize_metadata(mongoose_acc:t()) -> mongoose_acc:t().
 maybe_initialize_metadata(Acc) ->
-    case find_metadata(origin, Acc) of
+    case find_metadata(Acc, origin) of
         {error, undefined} ->
-            Acc1 = put_metadata(ttl, opt(message_ttl), Acc),
-            Acc2 = put_metadata(id , uuid:uuid_to_string(uuid:get_v4(), binary_standard), Acc1),
-            put_metadata(origin, opt(local_host), Acc2);
+            Acc1 = put_metadata(Acc, ttl, opt(message_ttl)),
+            Acc2 = put_metadata(Acc1, id , uuid:uuid_to_string(uuid:get_v4(), binary_standard)),
+            put_metadata(Acc2, origin, opt(local_host));
         _ ->
             Acc
     end.

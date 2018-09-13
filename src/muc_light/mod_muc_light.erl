@@ -343,7 +343,7 @@ remove_user(Acc, User, Server) ->
 -spec add_rooms_to_roster(Acc :: mongoose_acc:t(), UserUS :: jid:simple_bare_jid()) ->
     mongoose_acc:t().
 add_rooms_to_roster(Acc, UserUS) ->
-    Items = mongoose_acc:get(roster, items, Acc, []),
+    Items = mongoose_acc:get(roster, items, [], Acc),
     RoomList = mod_muc_light_db_backend:get_user_rooms(UserUS, undefined),
     Info = get_rooms_info(lists:sort(RoomList)),
     NewItems = lists:foldl(

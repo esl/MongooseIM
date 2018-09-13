@@ -365,16 +365,19 @@ create_sub_el(Items, Version) ->
 -spec get_user_roster(mongoose_acc:t(),
                       {jid:luser(), jid:lserver()}) ->
     mongoose_acc:t().
-get_user_roster(#{show_full_roster := true} = Acc, {LUser, LServer}) ->
-    Roster = get_roster(LUser, LServer),
-    mongoose_acc:append(roster, items, Roster, Acc);
 get_user_roster(Acc, {LUser, LServer}) ->
-    Roster = lists:filter(fun (#roster{subscription = none, ask = in}) ->
-                                  false;
-                              (_) ->
-                                  true
-                          end, get_roster(LUser, LServer)),
-    mongoose_acc:append(roster, items, Roster, Acc).
+    case mongoose_acc:get(roster, show_full_roster, false, Acc) of
+        true ->
+            Roster = get_roster(LUser, LServer),
+            mongoose_acc:append(roster, items, Roster, Acc);
+        _ ->
+            Roster = lists:filter(fun (#roster{subscription = none, ask = in}) ->
+                                          false;
+                                      (_) ->
+                                          true
+                                  end, get_roster(LUser, LServer)),
+            mongoose_acc:append(roster, items, Roster, Acc)
+    end.
 
 get_roster(LUser, LServer) ->
     mod_roster_backend:get_roster(jid:nameprep(LUser), LServer).
@@ -825,7 +828,9 @@ remove_test_user(User, Server) ->
 
 %% Used only by tests
 remove_user(User, Server) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION, lserver => jid:nameprep(Server) }),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<_/binary>> = jid:nameprep(Server),
+                              element => undefined }),
     remove_user(Acc, User, Server).
 
 remove_user(Acc, User, Server) ->
@@ -1011,9 +1016,9 @@ get_roster_old(LUser, LServer) ->
     get_roster_old(LServer, LUser, LServer).
 
 get_roster_old(DestServer, LUser, LServer) ->
-    UserJID = jid:make_noprep(LUser, LServer, <<>>),
     A = mongoose_acc:new(#{ location => ?LOCATION,
-                            lserver => DestServer }),
+                            lserver => DestServer,
+                            element => undefined }),
     A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
     mongoose_acc:get(roster, items, [], A2).
 

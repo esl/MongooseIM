@@ -64,7 +64,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
     FromBin = jid:to_binary(From),
     ToBin = jid:to_binary(To),
     Key = {cached_check, Server, User, FromBin, ToBin, Name, Type, Dir},
-    case mongoose_acc:get(privacy, Key, Acc, undefined) of
+    case mongoose_acc:get(privacy, Key, undefined, Acc) of
         undefined ->
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
                                            Server,

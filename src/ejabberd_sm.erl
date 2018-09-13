@@ -128,7 +128,7 @@ start_link() ->
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
       To :: jid:jid(),
-      Packet :: exml:element() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
+      Packet :: exml:element() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -146,7 +146,8 @@ route(From, To, {broadcast, #xmlel{} = Payload}) ->
     route(From, To, Acc, {broadcast, Payload});
 route(From, To, {broadcast, Payload}) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => To#jid.lserver }),
+                              lserver => To#jid.lserver,
+                              element => undefined }),
     route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
     route(From, To, Acc, mongoose_acc:element(Acc)).

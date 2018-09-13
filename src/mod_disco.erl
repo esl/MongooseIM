@@ -390,7 +390,8 @@ get_sm_items(empty, From, To, _Node, _Lang) ->
 is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
                        #jid{luser=LUser, lserver=LServer} = To) ->
     A = mongoose_acc:new(#{ location => ?LOCATION,
-                            lserver => From#jid.lserver }),
+                            lserver => From#jid.lserver,
+                            element => undefined }),
     A2 = ejabberd_hooks:run_fold(roster_get, Server, A, [{User, Server}]),
     Roster = mongoose_acc:get(roster, items, [], A2),
     lists:any(fun({roster, _, _, {TUser, TServer, _}, _, S, _, _, _, _}) ->

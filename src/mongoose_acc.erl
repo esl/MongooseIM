@@ -27,40 +27,48 @@
 
 -type location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
 -type stanza_metadata() :: #{
-        element => exml:element(),
-        from_jid => jid:jid(),
-        to_jid => jid:jid(),
-        type => binary()
+        element := exml:element(),
+        from_jid := jid:jid(),
+        to_jid := jid:jid(),
+        type := binary(),
+        ref := reference()
        }.
 
 %% if it is defined as -opaque then dialyzer fails
 -type t() :: #{
-        mongoose_acc => true,
-        ref => reference(),
-        timestamp => erlang:timestamp(),
-        origin_pid => pid(),
-        origin_location => location(),
-        from_jid => jid:jid(),
-        to_jid => jid:jid(),
-        lserver => jid:lserver(),
-        non_strippable => sets:set(ns_key()),
-        origin_stanza => stanza_metadata(),
-        stanza => stanza_metadata()
+        mongoose_acc := true,
+        ref := reference(),
+        timestamp := erlang:timestamp(),
+        origin_pid := pid(),
+        origin_location := location(),
+        origin_stanza := stanza_metadata() | undefined,
+        stanza := stanza_metadata() | undefined,
+        lserver := jid:lserver(),
+        non_strippable := sets:set(ns_key()),
+        {NS :: any(), Key :: any()} => Value :: any()
        }.
 -export_type([t/0]).
 
 -type new_acc_params() :: #{
-        location => location(),
-        lserver => jid:lserver(),
-        element => exml:element(), % optional
+        location := location(),
+        lserver := jid:lserver(),
+        element := exml:element() | undefined,
         from_jid => jid:jid(), % optional
         to_jid => jid:jid() % optional
        }.
 
--type new_stanza_params() :: #{
-        element => exml:element(),
+-type strip_params() :: #{
+        lserver := jid:lserver(),
+        element := exml:element(),
         from_jid => jid:jid(), % optional
         to_jid => jid:jid() % optional
+       }.
+
+-type stanza_params() :: #{
+        element := exml:element() | undefined,
+        from_jid => jid:jid(), % optional
+        to_jid => jid:jid(), % optional
+        _ => _
        }.
 
 -type ns_key() :: {NS :: any(), Key :: any()}.
@@ -117,7 +125,8 @@ stanza_ref(#{ mongoose_acc := true, stanza := #{ ref := StanzaRef } }) ->
 stanza_ref(#{ mongoose_acc := true }) ->
     undefined.
 
--spec update_stanza(NewStanzaParams :: new_stanza_params(), Acc :: t()) -> t().
+%% While possible, it is not recommended to update stanza to 'undefined'.
+-spec update_stanza(NewStanzaParams :: stanza_params(), Acc :: t()) -> t().
 update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
     Acc#{ stanza := stanza_from_params(NewStanzaParams) }.
 
@@ -162,7 +171,7 @@ delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0)
     Acc1#{ non_strippable => sets:del_element(Key, NonStrippable) }.
 
 %% Doesn't use 'location' param
--spec strip(ParamsToOverwrite :: new_acc_params(), Acc :: t()) -> t().
+-spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
 strip(#{ lserver := NewLServer } = Params,
       #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
     NonStrippableL = sets:to_list(NonStrippable),
@@ -183,7 +192,9 @@ dump(Acc) ->
 %% Internal functions
 %% --------------------------------------------------------
 
--spec stanza_from_params(Params :: new_acc_params()) -> stanza_metadata().
+-spec stanza_from_params(Params :: stanza_params()) -> stanza_metadata() | undefined.
+stanza_from_params(#{ element := undefined }) ->
+    undefined;
 stanza_from_params(#{ element := El } = Params) ->
     FromJID = case Params of
                   #{ from_jid := FromJID0 } -> FromJID0;
@@ -197,7 +208,7 @@ stanza_from_params(#{ element := El } = Params) ->
       element => El,
       from_jid => FromJID,
       to_jid => ToJID,
-      type => exml_query:attrs(El, <<"type">>),
+      type => exml_query:attr(El, <<"type">>),
       ref => make_ref()
      }.
 
