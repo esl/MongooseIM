@@ -182,7 +182,7 @@ get_vcard_content(User, Server, Data) ->
                               from_jid => JID,
                               to_jid => JID,
                               lserver => JID#jid.lserver,
-                              origin_stanza => jlib:iq_to_xml(IQ) }),
+                              element => jlib:iq_to_xml(IQ) }),
     {_, IQr} = mod_vcard:process_sm_iq(JID, JID, Acc, IQ),
     case IQr#iq.sub_el of
         [#xmlel{} = A1] ->
@@ -215,7 +215,7 @@ set_vcard_content(User, Server, Data, ContentList) ->
                               from_jid => JID,
                               to_jid => JID,
                               lserver => JID#jid.lserver,
-                              origin_stanza => jlib:iq_to_xml(IQ) }),
+                              element => jlib:iq_to_xml(IQ) }),
     {Acc1, IQr} = mod_vcard:process_sm_iq(JID, JID, Acc, IQ),
 
     %% Get old vcard

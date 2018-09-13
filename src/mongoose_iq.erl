@@ -20,9 +20,15 @@
 -export([try_to_handle_iq/4,
          iq_to_sub_el/1,
          empty_result_iq/1]).
+-export([update_acc_info/1]).
+-export([record/1, xmlns/1, command/1]).
 
 -include("mongoose_logger.hrl").
 -include("jlib.hrl").
+
+%% ---------------------------------------------------------
+%% API
+%% ---------------------------------------------------------
 
 %% @doc Generic error handling code for IQ.
 %% Use this function, instead of `try ... catch _:_ -> ok end'.
@@ -48,3 +54,49 @@ iq_to_sub_el(#iq{sub_el = SubEl}) ->
 
 empty_result_iq(IQ) ->
     IQ#iq{type = result, sub_el = []}.
+
+%% Fills mongoose_acc with useful IQ information
+-spec update_acc_info(mongoose_acc:t()) -> mongoose_acc:t().
+update_acc_info(Acc0) ->
+    IQRef = mongoose_acc:get(iq, ref, undefined, Acc0),
+    case mongoose_acc:stanza_ref(Acc0) of
+        IQRef ->
+            % Up to date
+            Acc0;
+        CurrentRef ->
+            El = mongoose_acc:element(Acc0),
+            IQ = jlib:iq_query_or_response_info(El),
+            Acc1 = mongoose_acc:set(iq, record, IQ),
+            {XMLNS, Command} = case IQ of
+                                   #iq{ xmlns = XMLNS0, sub_el = SubEl } ->
+                                       {XMLNS0, sub_el_to_command(SubEl)};
+                                   _ ->
+                                       {undefined, undefined}
+                               end,
+            Acc2 = mongoose_acc:set(iq, xmlns, XMLNS, Acc1),
+            Acc3 = mongoose_acc:set(iq, command, Command, Acc2),
+            mongoose_acc:set(iq, ref, CurrentRef, Acc3)
+    end.
+
+record(Acc) -> update_and_get(record, Acc).
+
+xmlns(Acc) -> update_and_get(xmlns, Acc).
+
+command(Acc) -> update_and_get(command, Acc).
+
+%% ---------------------------------------------------------
+%% Internal functions
+%% ---------------------------------------------------------
+
+-spec sub_el_to_command([exml:element()] | exml:element()) -> binary().
+sub_el_to_command([SubEl | _]) -> SubEl#xmlel.name;
+sub_el_to_command(#xmlel{ name = Name }) -> Name.
+
+-type iq_acc_field() :: record | xmlns | command.
+
+-spec update_and_get(iq_acc_field(), mongoose_acc:t()) ->
+    {FieldValue :: any(), mongoose_acc:t()}.
+update_and_get(Field, Acc0) ->
+    Acc1 = update_acc_info(Acc0),
+    {mongoose_acc:get(iq, Field, Acc1), Acc1}.
+

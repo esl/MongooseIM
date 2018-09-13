@@ -113,7 +113,7 @@ stop(Host) ->
 %% Hooks
 %%--------------------------------------------------------------------
 get_user_roster(Acc, {U, S} = US) ->
-    Items = mongoose_acc:get(roster, Acc, []),
+    Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =
         lists:mapfoldl(
@@ -134,7 +134,7 @@ get_user_roster(Acc, {U, S} = US) ->
                        name = get_user_name(U1, S1), subscription = both,
                        ask = none, groups = GroupNames}
                || {{U1, S1}, GroupNames} <- dict:to_list(SRUsersRest)],
-    mongoose_acc:put(roster, SRItems ++ NewItems1, Acc).
+    mongoose_acc:set(roster, items, SRItems ++ NewItems1, Acc).
 
 %% This function in use to rewrite the roster entries when moving or renaming
 %% them in the user contact list.
@@ -154,7 +154,7 @@ process_item(RosterItem, _Host) ->
     end.
 
 get_subscription_lists(Acc, User, Server) ->
-    {F, T, P} = mongoose_acc:get(subscription_lists, Acc, {[], [], []}),
+    {F, T, P} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc),
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
@@ -165,7 +165,7 @@ get_subscription_lists(Acc, User, Server) ->
                                         DisplayedGroups)),
     SRJIDs = [{U1, S1, <<"">>} || {U1, S1} <- SRUsers],
     NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
-    mongoose_acc:put(subscription_lists, NewLists, Acc).
+    mongoose_acc:set(roster, subscription_lists, NewLists, Acc).
 
 get_jid_info({Subscription, Groups}, User, Server, JID) ->
     LUser = jid:nodeprep(User),
@@ -196,7 +196,7 @@ in_subscription(Acc, User, Server, JID, Type, _Reason) ->
         stop ->
             {stop, Acc};
         {stop, false} ->
-            {stop, mongoose_acc:put(result, false, Acc)};
+            {stop, mongoose_acc:set(hook, result, false, Acc)};
         _ -> Acc
     end.
 

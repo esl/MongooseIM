@@ -46,35 +46,25 @@ stop(Host) ->
 
 -spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) -> Value :: term().
 get_metadata(Acc, Key, Default) ->
-    case mongoose_acc:find(global_distrib, Acc) of
-        error -> Default;
-        {ok, GD} -> maps:get(Key, GD, Default)
-    end.
+    mongoose_acc:get(global_distrib, Key, Default, Acc).
 
 -spec find_metadata(mongoose_acc:t(), Key :: term()) ->
-    {ok, Value :: term()} | {error, missing_gd_structure | undefined}.
+    {ok, Value :: term()} | {error, undefined}.
 find_metadata(Acc, Key) ->
-    case mongoose_acc:find(global_distrib, Acc) of
-        error ->
-            {error, missing_gd_structure};
-        {ok, GD} ->
-           case maps:find(Key, GD) of
-               error -> {error, undefined};
-               {ok, Value} -> {ok, Value}
-           end
+    try mongoose_acc:get(global_distrib, Key, Acc) of
+        Value -> {ok, Value}
+    catch
+        _:_ ->
+            {error, undefined}
     end.
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
 put_metadata(Acc, Key, Value) ->
-    GD0 = mongoose_acc:get(global_distrib, Acc),
-    GD = maps:put(Key, Value, GD0),
-    mongoose_acc:put(global_distrib, GD, Acc).
+    mongoose_acc:set(global_distrib, Key, Value, Acc, false).
 
 -spec remove_metadata(mongoose_acc:t(), Key :: term()) -> mongoose_acc:t().
 remove_metadata(Acc, Key) ->
-    GD0 = mongoose_acc:get(global_distrib, Acc),
-    GD = maps:remove(Key, GD0),
-    mongoose_acc:put(global_distrib, GD, Acc).
+    mongoose_acc:delete(global_distrib, Key, Acc).
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
@@ -136,13 +126,13 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
 
 -spec maybe_initialize_metadata(mongoose_acc:t()) -> mongoose_acc:t().
 maybe_initialize_metadata(Acc) ->
-    case mongoose_acc:get(global_distrib, Acc, undefined) of
-        #{} -> Acc;
-        undefined ->
-            Metadata = #{ttl => opt(message_ttl),
-                         id => uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-                         origin => opt(local_host)},
-            mongoose_acc:put(global_distrib, Metadata, Acc)
+    case find_metadata(origin, Acc) of
+        {error, undefined} ->
+            Acc1 = put_metadata(ttl, opt(message_ttl), Acc),
+            Acc2 = put_metadata(id , uuid:uuid_to_string(uuid:get_v4(), binary_standard), Acc1),
+            put_metadata(origin, opt(local_host), Acc2);
+        _ ->
+            Acc
     end.
 
 -spec get_bound_connection(Server :: jid:lserver()) -> pid().

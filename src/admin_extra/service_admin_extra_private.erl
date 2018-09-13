@@ -87,7 +87,7 @@ do_private_get(Username, Host, Element, Ns) ->
                               from_jid => From,
                               to_jid => To,
                               lserver => From#jid.lserver,
-                              origin_stanza => jlib:iq_to_xml(IQ) }),
+                              element => jlib:iq_to_xml(IQ) }),
     {_, ResIq} = mod_private:process_sm_iq(From, To, Acc, IQ),
     [#xmlel{ name = <<"query">>,
              attrs = [{<<"xmlns">>, ?NS_PRIVATE}],
@@ -129,7 +129,7 @@ do_private_set2(Username, Host, Xml) ->
                                       from_jid => From,
                                       to_jid => To,
                                       lserver => From#jid.lserver,
-                                      origin_stanza => jlib:iq_to_xml(IQ) }),
+                                      element => jlib:iq_to_xml(IQ) }),
             mod_private:process_sm_iq(From, To, Acc, IQ),
             {ok, ""};
         false ->

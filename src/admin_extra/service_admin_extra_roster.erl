@@ -252,8 +252,6 @@ unsubscribe(LU, LS, User, Server) ->
 get_roster(User, Server) ->
     UserJID = jid:make(User, Server, <<>>),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => UserJID,
-                              to_jid => UserJID,
                               lserver => UserJID#jid.lserver }),
     Acc2 = ejabberd_hooks:run_fold(roster_get, Server, Acc, [jid:to_lus(UserJID)]),
     Items = mongoose_acc:get(roster, Acc2, []),

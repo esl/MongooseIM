@@ -45,8 +45,8 @@ jingle_iq(ToBinary, FromBinary, JingleEl) ->
 
 -spec maybe_rewrite_to_phone(mongoose_acc:t()) -> jid:jid().
 maybe_rewrite_to_phone(Acc) ->
-    Server = mongoose_acc:get(server, Acc),
-    #jid{luser = ToUser} = JID = mongoose_acc:get(to_jid, Acc),
+    Server = mongoose_acc:lserver(Acc),
+    #jid{luser = ToUser} = JID = mongoose_acc:to_jid(Acc),
     ToRewrite = gen_mod:get_module_opt(Server, mod_jingle_sip, username_to_phone, []),
     case lists:keyfind(ToUser, 1, ToRewrite) of
         {ToUser, PhoneNumber} ->

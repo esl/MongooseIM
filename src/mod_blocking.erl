@@ -53,7 +53,7 @@ process_iq_get(Acc, _From = #jid{luser = LUser, lserver = LServer},
                 {error, _} ->
                     {error, mongoose_xmpp_errors:internal_server_error()}
             end,
-    mongoose_acc:put(iq_result, IqRes, Acc);
+    mongoose_acc:set(hook, result, IqRes, Acc);
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
@@ -75,7 +75,7 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     {Acc1, Res} = process_blocking_iq_set(Type, Acc, LUser, LServer, CurrList, Usrs),
     %% respond / notify
     {Acc2, Res1} = complete_iq_set(blocking_command, Acc1, LUser, LServer, Res),
-    mongoose_acc:put(iq_result, Res1, Acc2);
+    mongoose_acc:set(hook, result, Res1, Acc2);
 process_iq_set(Val, _, _, _) ->
     Val.
 

@@ -191,7 +191,11 @@ handle_info({timeout, _TRef, {ping, JID}},
                 Acc
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
-    Acc = mongoose_acc:from_element(IQ, From, JID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => State#state.host,
+                              from_jid => From,
+                              to_jid => JID,
+                              element => jlib:iq_to_xml(IQ) }),
     ejabberd_local:route_iq(From, JID, Acc, IQ, F, PingReqTimeout),
     Timers = add_timer(JID, State#state.ping_interval, State#state.timers),
     {noreply, State#state{timers = Timers}};

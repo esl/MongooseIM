@@ -264,12 +264,11 @@ process_decoded_packet(From, To, {ok, {_, #blocking{}} = Blocking}, Acc, OrigPac
     RouteFun = make_handler_fun(Acc),
     case gen_mod:get_module_opt_by_subhost(To#jid.lserver, ?MODULE, blocking, ?DEFAULT_BLOCKING) of
         true ->
-            Res = handle_blocking(From, To, Blocking),
-            case (mongoose_acc:is_acc(Res) or (Res == ok)) of
-                true ->
-                    ok;
-                false ->
-                    mod_muc_light_codec_backend:encode_error(Res, From, To, OrigPacket, RouteFun)
+            case handle_blocking(From, To, Blocking) of
+                {error, _} = Res ->
+                    mod_muc_light_codec_backend:encode_error(Res, From, To, OrigPacket, RouteFun);
+                _ ->
+                    ok
             end;
         false -> mod_muc_light_codec_backend:encode_error(
                    {error, bad_request}, From, To, OrigPacket, RouteFun)
@@ -344,7 +343,7 @@ remove_user(Acc, User, Server) ->
 -spec add_rooms_to_roster(Acc :: mongoose_acc:t(), UserUS :: jid:simple_bare_jid()) ->
     mongoose_acc:t().
 add_rooms_to_roster(Acc, UserUS) ->
-    Items = mongoose_acc:get(roster, Acc, []),
+    Items = mongoose_acc:get(roster, items, Acc, []),
     RoomList = mod_muc_light_db_backend:get_user_rooms(UserUS, undefined),
     Info = get_rooms_info(lists:sort(RoomList)),
     NewItems = lists:foldl(
@@ -359,7 +358,7 @@ add_rooms_to_roster(Acc, UserUS) ->
                        },
               [Item | Items0]
       end, Items, Info),
-    mongoose_acc:put(roster, NewItems, Acc).
+    mongoose_acc:set(roster, items, NewItems, Acc).
 
 -spec process_iq_get(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
                      IQ :: jlib:iq(), ActiveList :: binary()) ->
@@ -375,13 +374,13 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
               fun(_, _, Packet) -> put(encode_res, Packet) end),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
             Result = {result, ResponseChildren},
-            {stop, mongoose_acc:put(iq_result, Result, Acc)};
+            {stop, mongoose_acc:set(hook, result, Result, Acc)};
         {{ok, {get, #blocking{}}}, false} ->
             Result = {error, mongoose_xmpp_errors:bad_request()},
-            {stop, mongoose_acc:put(iq_result, Result, Acc)};
+            {stop, mongoose_acc:set(hook, result, Result, Acc)};
         _ ->
             Result = {error, mongoose_xmpp_errors:bad_request()},
-            mongoose_acc:put(iq_result, Result, Acc)
+            mongoose_acc:set(hook, result, Result, Acc)
     end.
 
 -spec process_iq_set(Acc :: mongoose_acc:t(), From :: jid:jid(),
@@ -396,17 +395,19 @@ process_iq_set(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ) ->
             ConditionFun = fun({_, _, {WhoU, WhoS}}) -> WhoU =:= <<>> orelse WhoS =:= <<>> end,
             case lists:any(ConditionFun, Items) of
                 true ->
-                    {stop, mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)};
+                    {stop, mongoose_acc:set(hook, result,
+                                            {error, mongoose_xmpp_errors:bad_request()}, Acc)};
                 false ->
                     ok = mod_muc_light_db_backend:set_blocking(jid:to_lus(From), MUCHost, Items),
                     mod_muc_light_codec_backend:encode(Blocking, From, jid:to_lus(To), RouteFun),
                     #xmlel{ children = ResponseChildren } = erase(encode_res),
-                    {stop, mongoose_acc:put(iq_result, {result, ResponseChildren}, Acc)}
+                    {stop, mongoose_acc:set(hook, result, {result, ResponseChildren}, Acc)}
             end;
         {{ok, {set, #blocking{}}}, false} ->
-            {stop, mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)};
+            {stop, mongoose_acc:set(hook, result,
+                                    {error, mongoose_xmpp_errors:bad_request()}, Acc)};
         _ ->
-            mongoose_acc:put(iq_result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
+            mongoose_acc:set(hook, result, {error, mongoose_xmpp_errors:bad_request()}, Acc)
     end.
 
 -spec is_room_owner(Acc :: boolean(), Room :: jid:jid(), User :: jid:jid()) -> boolean().

@@ -861,12 +861,12 @@ send_queue(StateData, Q) ->
 %% @doc Bounce a single message (xmlel)
 -spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> 'ok'.
 bounce_element(Acc, El, Error) ->
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> ok;
         <<"result">> -> ok;
         _ ->
-            From = mongoose_acc:get(from_jid, Acc),
-            To = mongoose_acc:get(to_jid, Acc),
+            From = mongoose_acc:from_jid(Acc),
+            To = mongoose_acc:to_jid(Acc),
             {Acc1, Err} = jlib:make_error_reply(Acc, El, Error),
             ejabberd_router:route(To, From, Acc1, Err)
     end.

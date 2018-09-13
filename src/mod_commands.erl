@@ -271,10 +271,11 @@ send_message(From, To, Body) ->
     ok.
 
 list_contacts(Caller) ->
-    Acc = mongoose_acc:from_kv(show_full_roster, true),
+    Acc0 = mongoose_acc:new(#{ location => ?LOCATION, lserver => Caller#jid.lserver }),
+    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
     {User, Host} = jid:to_lus(jid:from_binary(Caller)),
-    Acc1 = ejabberd_hooks:run_fold(roster_get, Host, Acc, [{User, Host}]),
-    Res = mongoose_acc:get(roster, Acc1),
+    Acc2 = ejabberd_hooks:run_fold(roster_get, Host, Acc1, [{User, Host}]),
+    Res = mongoose_acc:get(roster, items, Acc2),
     [roster_info(mod_roster:item_to_map(I)) || I <- Res].
 
 roster_info(M) ->
@@ -398,7 +399,7 @@ run_subscription(Type, CallerJid, OtherJid) ->
                                from_jid => CallerJid,
                                to_jid => OtherJid,
                                lserver => CallerJid#jid.lserver,
-                               origin_stanza => El }),
+                               element => El }),
     % set subscription to
     Server = CallerJid#jid.server,
     LUser = CallerJid#jid.luser,

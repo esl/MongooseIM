@@ -394,7 +394,7 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              to = To,
              packet = jlib:remove_delay_tags(Packet)},
     Pid ! {Acc, Msg},
-    mongoose_acc:put(stored_offlne, true, Acc).
+    mongoose_acc:set(offline, stored, true, Acc).
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
@@ -479,7 +479,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     end.
 
 pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline_messages, pop_offline_messages(User, Server), Acc).
+    mongoose_acc:append(offline, messages, pop_offline_messages(User, Server), Acc).
 
 pop_offline_messages(User, Server) ->
     LUser = jid:nodeprep(User),

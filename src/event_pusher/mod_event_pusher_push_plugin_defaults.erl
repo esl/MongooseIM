@@ -51,22 +51,30 @@ sender_id(From, Packet) ->
             jid:to_binary(jid:to_lower(From))
     end.
 
--spec publish_notification(Acc :: mongooseim_acc:t(), From :: jid:jid(),
-                           To :: jid:jid(), Packet :: exml:element(),
-                           Services :: [mod_event_pusher_push:publish_service()]) -> mongooseim_acc:t().
+-spec publish_notification(Acc :: mongooseim_acc:t(),
+                           From :: jid:jid(),
+                           To :: jid:jid(),
+                           Packet :: exml:element(),
+                           Services :: [mod_event_pusher_push:publish_service()]) ->
+    mongooseim_acc:t().
 publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
     BareRecipient = jid:to_bare(To),
     lists:foreach(
       fun({PubsubJID, Node, Form}) ->
               Stanza = push_notification_iq(From, Packet, Node, Form),
-              Acc = mongoose_acc:from_element(Stanza, To, PubsubJID),
+              Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                        lserver => To#jid.lserver,
+                                        element => Stanza,
+                                        from_jid => To,
+                                        to_jid => PubsubJID }),
               ResponseHandler =
                   fun(_From, _To, Acc1, Response) ->
                           mod_event_pusher_push:cast(Host, handle_publish_response,
                                                      [BareRecipient, PubsubJID, Node, Response]),
                           Acc1
                   end,
-              mod_event_pusher_push:cast(Host, ejabberd_local, route_iq, [To, PubsubJID, Acc, Stanza, ResponseHandler])
+              mod_event_pusher_push:cast(Host, ejabberd_local, route_iq,
+                                         [To, PubsubJID, Acc, Stanza, ResponseHandler])
       end, Services),
     Acc0.
 
