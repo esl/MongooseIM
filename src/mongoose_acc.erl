@@ -17,10 +17,33 @@
 -include("mongoose.hrl").
 
 %% API
+% Constructor
 -export([new/1]).
--export([lserver/1, send_result/1, element/1, to_jid/1, from_jid/1, stanza_type/1, stanza_ref/1]).
+% Access to built-in fields
+-export([
+         ref/1,
+         timestamp/1,
+         lserver/1,
+         element/1,
+         to_jid/1,
+         from_jid/1,
+         stanza_name/1,
+         stanza_type/1,
+         stanza_ref/1
+        ]).
+% Stanza update
 -export([update_stanza/2]).
--export([set/4, set/5, append/4, append/5, get/3, get/4, delete/3]).
+% Access to namespaced fields
+-export([
+         set/4,
+         set/5,
+         append/4,
+         append/5,
+         get/3,
+         get/4,
+         delete/3
+        ]).
+% Strip and replace stanza
 -export([strip/2]).
 %% Debug API
 -export([dump/1]).
@@ -30,6 +53,7 @@
         element := exml:element(),
         from_jid := jid:jid(),
         to_jid := jid:jid(),
+        name := binary(),
         type := binary(),
         ref := reference()
        }.
@@ -94,11 +118,14 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       non_strippable => sets:new()
      }.
 
+ref(#{ mongoose_acc := true, ref := Ref }) ->
+    Ref.
+
+timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
+    TS.
+
 lserver(#{ mongoose_acc := true, lserver := LServer }) ->
     LServer.
-
-send_result(#{ mongoose_acc := true, send_result := SR }) ->
-    hd(SR).
 
 element(#{ mongoose_acc := true, stanza := #{ element := El } }) ->
     El;
@@ -113,6 +140,11 @@ from_jid(#{ mongoose_acc := true }) ->
 to_jid(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID } }) ->
     ToJID;
 to_jid(#{ mongoose_acc := true }) ->
+    undefined.
+
+stanza_name(#{ mongoose_acc := true, stanza := #{ name := Name } }) ->
+    Name;
+stanza_name(#{ mongoose_acc := true }) ->
     undefined.
 
 stanza_type(#{ mongoose_acc := true, stanza := #{ type := Type } }) ->
@@ -208,6 +240,7 @@ stanza_from_params(#{ element := El } = Params) ->
       element => El,
       from_jid => FromJID,
       to_jid => ToJID,
+      name => El#xmlel.name,
       type => exml_query:attr(El, <<"type">>),
       ref => make_ref()
      }.

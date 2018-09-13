@@ -6,6 +6,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("ejabberd_commands.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 
@@ -21,11 +22,22 @@ all() ->
 groups() ->
     [
      {basic, [sequence],
-      [store_and_retrieve, init_from_element, get_and_require, strip,
-          parse_with_cdata]
+      [
+       store_and_retrieve,
+       init_from_element,
+       produce_iq_meta_automatically,
+       strip,
+       parse_with_cdata
+      ]
      }
     ].
 
+init_per_suite(C) ->
+    application:ensure_all_started(stringprep),
+    C.
+
+end_per_suite(C) ->
+    C.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% test methods
@@ -33,64 +45,74 @@ groups() ->
 
 
 store_and_retrieve(_C) ->
-    Acc = mongoose_acc:new(),
-    Acc2 = mongoose_acc:put(check, 1, Acc),
-    ?assertEqual(mongoose_acc:get(check, Acc2), 1),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => undefined }),
+    Acc2 = mongoose_acc:set(ns, check, 1, Acc),
+    ?assertEqual(mongoose_acc:get(ns, check, Acc2), 1),
     ok.
 
 
 init_from_element(_C) ->
-    Acc = mongoose_acc:from_element(sample_stanza()),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => sample_stanza() }),
     mongoose_acc:dump(Acc),
     ?PRT("Acc", Acc),
-    ?assertEqual(mongoose_acc:get(name, Acc), <<"iq">>),
-    ?assertEqual(mongoose_acc:get(type, Acc), <<"set">>),
+    ?assertEqual(mongoose_acc:stanza_name(Acc), <<"iq">>),
+    ?assertEqual(mongoose_acc:stanza_type(Acc), <<"set">>),
     ok.
 
 
-get_and_require(_C) ->
-    Acc = mongoose_acc:from_element(sample_stanza()),
-    ?assertEqual(mongoose_acc:get(command, Acc, nope), nope),
-    ?assertEqual(mongoose_acc:get(xmlns, Acc, nope), nope),
-    Acc1 = mongoose_acc:require(command, Acc),
-    ?assertEqual(mongoose_acc:get(command, Acc1), <<"block">>),
-    ?assertEqual(mongoose_acc:get(xmlns, Acc, nope), nope),
-    Acc2 = mongoose_acc:require([command, xmlns], Acc),
-    ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:xmpp:blocking">>),
-    ?assertEqual(mongoose_acc:get(iq_query_info, Acc2, nope), nope),
-    Iq = mongoose_acc:from_element(iq_stanza()),
-    Iq1 = mongoose_acc:require([iq_query_info], Iq),
-    IqData = mongoose_acc:get(iq_query_info, Iq1),
+produce_iq_meta_automatically(_C) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => sample_stanza() }),
+    {Command, Acc1} = mongoose_iq:command(Acc),
+    ?assertEqual(Command, <<"block">>),
+    % We check for exactly the same Acc, as there is no need to update the cache
+    {XMLNS, Acc1} = mongoose_iq:xmlns(Acc1),
+    ?assertEqual(XMLNS, <<"urn:xmpp:blocking">>),
+    Iq = mongoose_acc:update_stanza(#{ element => iq_stanza() }, Acc1),
+    {IqData, _Iq1} = mongoose_iq:record(Iq),
     ?assertEqual(IqData#iq.type, set),
     ?assertEqual(IqData#iq.xmlns, <<"urn:ietf:params:xml:ns:xmpp-session">>),
     ok.
 
 parse_with_cdata(_C) ->
-    Acc = mongoose_acc:from_element(stanza_with_cdata()),
-    Acc1 = mongoose_acc:require(xmlns, Acc),
-    ?assertEqual(mongoose_acc:get(xmlns, Acc1), <<"jabber:iq:roster">>).
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => stanza_with_cdata() }),
+    {XMLNS, _} = mongoose_iq:xmlns(Acc),
+    ?assertEqual(XMLNS, <<"jabber:iq:roster">>).
 
 strip(_C) ->
-    Acc = mongoose_acc:from_element(iq_stanza()),
-    Acc1 = mongoose_acc:update(#{from => <<"ja">>, from_jid => <<"jajid">>,
-        to => <<"ty">>, to_jid => <<"tyjid">>}, Acc),
-    Acc2 = mongoose_acc:require([command, xmlns], Acc1),
-    ?assertEqual(mongoose_acc:get(xmlns, Acc2), <<"urn:ietf:params:xml:ns:xmpp-session">>),
-    ?assertEqual(mongoose_acc:get(type, Acc2), <<"set">>),
-    ?assertEqual(undefined, mongoose_acc:get_prop(ppp, Acc2)),
-    Acc3 = mongoose_acc:add_prop(ppp, 997, Acc2),
-    ?assertEqual(997, mongoose_acc:get_prop(ppp, Acc3)),
-    Ref = mongoose_acc:get(ref, Acc3),
-    NAcc = mongoose_acc:strip(Acc3),
-    ?assertEqual(mongoose_acc:get(xmlns, NAcc, niema), niema),
-    ?assertEqual(mongoose_acc:get(to_jid, NAcc), <<"tyjid">>),
-    ?assertEqual(mongoose_acc:get(ref, NAcc, ref), Ref),
-    ?assertEqual(997, mongoose_acc:get_prop(ppp, NAcc)).
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => iq_stanza(),
+                              from_jid => <<"jajid">>,
+                              to_jid => <<"tyjid">> }),
+    {XMLNS1, Acc1} = mongoose_iq:xmlns(Acc),
+    ?assertEqual(XMLNS1, <<"urn:ietf:params:xml:ns:xmpp-session">>),
+    ?assertEqual(mongoose_acc:stanza_type(Acc1), <<"set">>),
+    ?assertEqual(undefined, mongoose_acc:get(ns, ppp, undefined, Acc1)),
+    Acc2 = mongoose_acc:set(ns, ppp, 997, false, Acc1),
+    ?assertEqual(997, mongoose_acc:get(ns, ppp, Acc2)),
+    Ref = mongoose_acc:ref(Acc2),
+    NAcc = mongoose_acc:strip(#{ lserver => <<"localhost">>, element => undefined }, Acc2),
+    {XMLNS2, _} = mongoose_iq:xmlns(NAcc),
+    ?assertEqual(XMLNS2, undefined),
+    ?assertEqual(mongoose_acc:to_jid(NAcc), undefined),
+    ?assertEqual(mongoose_acc:ref(NAcc), Ref),
+    ?assertEqual(997, mongoose_acc:get(ns, ppp, NAcc)).
 
 
 sample_stanza() ->
     {xmlel, <<"iq">>,
-        [{<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"set">>}],
+        [{<<"xml:lang">>, <<"en">>},
+         {<<"type">>, <<"set">>},
+         {<<"from">>, <<"a@localhost">>},
+         {<<"to">>, <<"a@localhost">>}],
         [{xmlel, <<"block">>,
             [{<<"xmlns">>, <<"urn:xmpp:blocking">>}],
             [{xmlel, <<"item">>,
@@ -99,7 +121,8 @@ sample_stanza() ->
 
 
 stanza_with_cdata() ->
-    Txt = <<"<iq type=\"get\" id=\"aab9a\"><query xmlns=\"jabber:iq:roster\"/>\" \"</iq>">>,
+    Txt = <<"<iq type=\"get\" id=\"aab9a\" from=\"a@localhost\" to=\"a@localhost\">"
+            "<query xmlns=\"jabber:iq:roster\"/>\" \"</iq>">>,
     {ok, X} = exml:parse(Txt),
     X.
 
@@ -107,7 +130,9 @@ stanza_with_cdata() ->
 iq_stanza() ->
     {xmlel,<<"iq">>,
         [{<<"type">>,<<"set">>},
-            {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
+         {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>},
+         {<<"from">>, <<"a@localhost">>},
+         {<<"to">>, <<"localhost">>}],
         [{xmlel,<<"session">>,
             [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.
@@ -115,7 +140,9 @@ iq_stanza() ->
 another_iq_stanza() ->
     {xmlel,<<"iq">>,
         [{<<"type">>,<<"pet">>},
-            {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>}],
+         {<<"id">>,<<"a31baa4c478896af19b76bac799b65ed">>},
+         {<<"from">>, <<"a@localhost">>},
+         {<<"to">>, <<"localhost">>}],
         [{xmlel,<<"session">>,
             [{<<"xmlns">>,<<"urn:ietf:params:xml:ns:xmpp-session">>}],
             []}]}.

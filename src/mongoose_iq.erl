@@ -58,7 +58,7 @@ empty_result_iq(IQ) ->
 %% Fills mongoose_acc with useful IQ information
 -spec update_acc_info(mongoose_acc:t()) -> mongoose_acc:t().
 update_acc_info(Acc0) ->
-    IQRef = mongoose_acc:get(iq, ref, undefined, Acc0),
+    IQRef = mongoose_acc:get(iq, ref, not_exists, Acc0),
     case mongoose_acc:stanza_ref(Acc0) of
         IQRef ->
             % Up to date

@@ -11,6 +11,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include("ejabberd_c2s.hrl").
+-include("mongoose.hrl").
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("mod_roster.hrl").
 -compile([export_all]).
@@ -140,14 +141,19 @@ get_roster_old() ->
     get_roster_old(a()).
 
 get_roster_old(User) ->
-    Acc = mongoose_acc:new(),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => undefined }),
     Acc1 = mod_roster:get_user_roster(Acc, {User, host()}),
-    mongoose_acc:get(roster, Acc1).
+    mongoose_acc:get(roster, items, Acc1).
 
 get_full_roster() ->
-    Acc = mongoose_acc:from_kv(show_full_roster, true),
-    Acc1 = mod_roster:get_user_roster(Acc, {a(), host()}),
-    mongoose_acc:get(roster, Acc1).
+    Acc0 = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => undefined }),
+    Acc1 = mongoose_acc:set(roster, show_full_roster, true, Acc0),
+    Acc2 = mod_roster:get_user_roster(Acc1, {a(), host()}),
+    mongoose_acc:get(roster, items, Acc2).
 
 assert_state_old(Subscription, Ask) ->
     [Rentry] = get_roster_old(),
