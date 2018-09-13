@@ -105,7 +105,7 @@ maybe_iq_stanza(Acc) ->
 
 maybe_iq_to_other_user(Acc) ->
     #jid{luser = StanzaTo} = mongoose_acc:to_jid(Acc),
-    #jid{luser = LUser} = mongoose_acc:from_jid(Acc),
+    #jid{luser = LUser} = mongoose_acc:get(c2s, origin_jid, Acc),
     case LUser of
         StanzaTo ->
             QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
@@ -221,7 +221,7 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
     LServer = mongoose_acc:lserver(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:from_jid(Acc)) of
+    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, ReqID} ->
             try_to_accept_session(ReqID, Jingle, Acc, LServer, SID);
         _ ->
@@ -236,7 +236,7 @@ translate_to_sip(<<"source-update">> = Name, Jingle, Acc) ->
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:from_jid(Acc)) of
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
             ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
             {error, item_not_found};
@@ -250,7 +250,7 @@ translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
-    From = mongoose_acc:from_jid(Acc),
+    From = mongoose_acc:get(c2s, origin_jid, Acc),
     FromLUS = jid:to_lus(From),
     ToLUS = jid:to_lus(ToJID),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
@@ -269,7 +269,7 @@ translate_source_change_to_sip(ActionName, Jingle, Acc) ->
                               | SDPAttrs],
     SDP = RawSDP#sdp{attributes = SDPAttrsWithActionName},
 
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:from_jid(Acc)) of
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
             ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
             {error, item_not_found};
