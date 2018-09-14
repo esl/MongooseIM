@@ -2256,25 +2256,25 @@ process_privacy_iq(Acc1, To, StateData) ->
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc, get, To, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    IQ = mongoose_iq:record(Acc),
-    Acc1 = ejabberd_hooks:run_fold(privacy_iq_get,
+    {IQ, Acc1} = mongoose_iq:record(Acc),
+    Acc2 = ejabberd_hooks:run_fold(privacy_iq_get,
                                    StateData#state.server,
-                                   Acc,
+                                   Acc1,
                                    [From, To, IQ, StateData#state.privacy_list]),
-    {Acc1, StateData};
+    {Acc2, StateData};
 process_privacy_iq(Acc, set, To, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    IQ = mongoose_iq:record(Acc),
-    Acc1 = ejabberd_hooks:run_fold(privacy_iq_set,
+    {IQ, Acc1} = mongoose_iq:record(Acc),
+    Acc2 = ejabberd_hooks:run_fold(privacy_iq_set,
                                    StateData#state.server,
-                                   Acc,
+                                   Acc1,
                                    [From, To, IQ]),
-    case mongoose_acc:get(hook, result, undefined, Acc1) of
+    case mongoose_acc:get(hook, result, undefined, Acc2) of
         {result, _, NewPrivList} ->
-            Acc2 = maybe_update_presence(Acc1, StateData, NewPrivList),
+            Acc3 = maybe_update_presence(Acc2, StateData, NewPrivList),
             NState = StateData#state{privacy_list = NewPrivList},
-            {Acc2, NState};
-        _ -> {Acc1, StateData}
+            {Acc3, NState};
+        _ -> {Acc2, StateData}
     end.
 
 
