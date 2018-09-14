@@ -24,6 +24,7 @@
 
 -export([start_configured_pools/0]).
 -export([start_configured_pools/1]).
+-export([is_configured/1]).
 
 %% Mostly for tests
 -export([make_pool_name/3]).
@@ -97,6 +98,11 @@ stop(Type, Host) ->
 stop(Type, Host, Tag) ->
     ets:delete(?MODULE, {Type, Host, Tag}),
     wpool:stop_sup_pool(make_pool_name(Type, Host, Tag)).
+
+-spec is_configured(type()) -> boolean().
+is_configured(Type) ->
+    Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
+    lists:keymember(Type, 1, Pools).
 
 get_worker(Type) ->
     get_worker(Type, global).

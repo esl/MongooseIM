@@ -88,7 +88,7 @@ init_per_suite(Config) ->
     application:ensure_all_started(gun),
     load_test_module(Config),
 
-    case is_cassandra_enabled() of
+    case mam_helper:is_cassandra_enabled() of
         true ->
             [{pool, ?TEST_DB_POOL_NAME} | Config];
         false ->
@@ -243,15 +243,6 @@ getenv_or_fail(EnvVar) ->
 load_test_module(_Config) ->
     {Mod, Bin, File} = code:get_object_code(?MODULE),
     call(code, load_binary, [Mod, File, Bin]).
-
-is_cassandra_enabled() ->
-    case call(mongoose_cassandra_pool, all, []) of
-        [_|_]=_Pools ->
-            true;
-        _ ->
-            false
-    end.
-
 
 call(F, A) ->
     call(mongoose_cassandra, F, A).

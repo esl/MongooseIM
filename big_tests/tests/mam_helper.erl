@@ -1094,12 +1094,11 @@ is_riak_enabled(_Host) ->
     end.
 
 is_cassandra_enabled(_) ->
-    case rpc(mim(), mongoose_cassandra_pool, all, []) of
-        [_|_]=_Pools ->
-            true;
-        _ ->
-            false
-    end.
+    is_cassandra_enabled().
+
+
+is_cassandra_enabled() ->
+    rpc(mim(), mongoose_wpool, is_configured, [cassandra]).
 
 is_elasticsearch_enabled(_Host) ->
     case rpc(mim(), mongoose_elasticsearch, health, []) of

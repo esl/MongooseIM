@@ -51,7 +51,6 @@ all() ->
         undefined ->
             [];
         Pools ->
-            ?WARNING_MSG("Deprecated cassandra_servers option, please use outgoing_pools", []),
             Pools
     end.
 
