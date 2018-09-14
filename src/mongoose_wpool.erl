@@ -25,9 +25,10 @@
 -export([start_configured_pools/0]).
 -export([start_configured_pools/1]).
 -export([is_configured/1]).
+-export([make_pool_name/3]).
 
 %% Mostly for tests
--export([make_pool_name/3]).
+-export([expand_pools/1]).
 
 -type type() :: redis | riak | http | rdbms | cassandra | elastic | generic.
 -type host() :: global | host | jid:lserver().
@@ -54,7 +55,8 @@ start_configured_pools() ->
     Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
     start_configured_pools(Pools).
 
-start_configured_pools(Pools) ->
+start_configured_pools(PoolsIn) ->
+    Pools = expand_pools(PoolsIn),
     [start(Pool) || Pool <- Pools].
 
 start({Type, Host, Tag, PoolOpts, ConnOpts}) ->
@@ -196,3 +198,18 @@ start_by_callback(Type, Host, Tag, WpoolOpts, ConnOpts) ->
 make_callback_module_name(Type) ->
     Name = "mongoose_wpool_" ++ atom_to_list(Type),
     list_to_existing_atom(Name).
+
+expand_pools(Pools) ->
+    %% First we select only pools for a specific vhost
+    HostSpecific = [{Type, Host, Tag} ||
+                     {Type, Host, Tag, _, _} <- Pools, is_binary(Host)],
+    %% Then we expand all pools with `host` as Host parameter but using host specific configs
+    %% if they were provided
+    AllHosts = ?MYHOSTS,
+    F = fun({Type, host, Tag, WpoolOpts, ConnOpts}) ->
+                [{Type, Host, Tag, WpoolOpts, ConnOpts} || Host <- AllHosts,
+                                                           not lists:member({Type, Host, Tag}, HostSpecific)];
+           (Other) -> [Other]
+        end,
+    lists:flatmap(F, Pools).
+

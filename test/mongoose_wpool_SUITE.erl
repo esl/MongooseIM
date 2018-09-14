@@ -29,7 +29,10 @@ all() ->
     [get_pools_returns_pool_names,
      stats_passes_through_to_wpool_stats,
      a_global_riak_pool_is_started,
-     two_distinct_redis_pools_are_started].
+     two_distinct_redis_pools_are_started,
+     generic_pools_are_started_for_all_vhosts,
+     host_specific_pools_are_preseved,
+     pools_for_different_tag_are_expanded_with_host_specific_config_preserved].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -37,12 +40,16 @@ all() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(lager),
-    ok = meck:new(wpool, [passthrough]),
+    ok = meck:new(wpool, [no_link, passthrough]),
+    ok = meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_global_option,
+                fun(hosts) -> [<<"a.com">>, <<"b.com">>, <<"c.eu">>] end),
     mongoose_wpool:ensure_started(),
     Config.
 
 end_per_suite(Config) ->
     meck:unload(wpool),
+    meck:unload(ejabberd_config),
     Config.
 
 init_per_testcase(_Case, Config) ->
@@ -116,6 +123,37 @@ two_distinct_redis_pools_are_started(_C) ->
     ?assertMatch({eredis_client, ["localhost2", 1806 | _]}, proplists:get_value(worker, CallArgs2)),
 
     ok.
+
+generic_pools_are_started_for_all_vhosts(_C) ->
+    Pools = [{generic, host, default, [], []}],
+    StartRes = mongoose_wpool:start_configured_pools(Pools),
+    ?assertMatch([_, _, _], StartRes),
+    ?assertMatch([{generic, <<"a.com">>, default},
+                  {generic, <<"b.com">>, default},
+                  {generic, <<"c.eu">>, default}],
+                 ordsets:from_list(mongoose_wpool:get_pools())).
+
+host_specific_pools_are_preseved(_C) ->
+    Pools = [{generic, host, default, [], []},
+             {generic, <<"b.com">>, default, [{workers, 12}], []}],
+    Expanded = mongoose_wpool:expand_pools(Pools),
+    ?assertMatch([{generic,<<"a.com">>,default,[],[]},
+                  {generic,<<"c.eu">>,default,[],[]},
+                  {generic,<<"b.com">>,default,[{workers,12}],[]}], Expanded).
+
+pools_for_different_tag_are_expanded_with_host_specific_config_preserved(_C) ->
+    Pools = [{generic, host, default, [], []},
+             {generic, <<"b.com">>, default, [{workers, 12}], []},
+             {generic, host, other_tag, [], []}],
+    Expanded = mongoose_wpool:expand_pools(Pools),
+    ?assertMatch([{generic,<<"a.com">>,default,[],[]},
+                  {generic,<<"c.eu">>,default,[],[]},
+                  {generic,<<"b.com">>,default,[{workers,12}],[]},
+                  {generic,<<"a.com">>,other_tag,[],[]},
+                  {generic,<<"b.com">>,other_tag,[],[]},
+                  {generic,<<"c.eu">>,other_tag,[],[]}], Expanded).
+
+
 
 %%--------------------------------------------------------------------
 %% Helpers
