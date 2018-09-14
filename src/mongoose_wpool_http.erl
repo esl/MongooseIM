@@ -1,7 +1,12 @@
 -module(mongoose_wpool_http).
 -behaviour(mongoose_wpool).
 
--export([wpool_spec/2]).
+-export([start/4]).
+
+start(Host, Tag, WpoolOptsIn, ConnOpts) ->
+    Name = mongoose_wpool:make_pool_name(http, Host, Tag),
+    WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
+    wpool:start_sup_pool(Name, WpoolOpts).
 
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     Server = gen_mod:get_opt(server, ConnOpts),

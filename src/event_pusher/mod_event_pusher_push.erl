@@ -68,7 +68,7 @@ start(Host, Opts) ->
 
     mongoose_wpool:ensure_started(),
     WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
-    {ok, _} = mongoose_wpool:start(?MODULE, Host, WpoolOpts),
+    {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
 
     gen_mod:start_backend_module(?MODULE, Opts, []),
     mod_event_pusher_push_backend:init(Host, Opts),
@@ -92,7 +92,7 @@ stop(Host) ->
     gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_PUSH),
     mod_disco:unregister_feature(Host, ?NS_PUSH),
 
-    mongoose_wpool:stop(?MODULE, Host),
+    mongoose_wpool:stop(generic, Host, pusher_push),
 
     ok.
 
@@ -239,4 +239,4 @@ cast(Host, F, A) ->
 
 -spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
-    mongoose_wpool:cast(?MODULE, Host, {M, F, A}).
+    mongoose_wpool:cast(generic, Host, pusher_push, {M, F, A}).

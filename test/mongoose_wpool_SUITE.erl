@@ -58,11 +58,11 @@ end_per_testcase(_Case, Config) ->
 %%--------------------------------------------------------------------
 
 get_pools_returns_pool_names(_Config) ->
-    mongoose_wpool:start(a, <<"b">>, c, [{workers, 1}]),
-    mongoose_wpool:start(d, <<"e">>, f, [{workers, 1}]),
-    mongoose_wpool:start(g, <<"h">>, i, [{workers, 1}]),
+    mongoose_wpool:start(generic, <<"b">>, c, [{workers, 1}]),
+    mongoose_wpool:start(generic, <<"e">>, f, [{workers, 1}]),
+    mongoose_wpool:start(generic, <<"h">>, i, [{workers, 1}]),
 
-    ?assertEqual([{a, <<"b">>, c}, {d, <<"e">>, f}, {g, <<"h">>, i}],
+    ?assertEqual([{generic, <<"b">>, c}, {generic, <<"e">>, f}, {generic, <<"h">>, i}],
                  ordsets:from_list(mongoose_wpool:get_pools())).
 
 

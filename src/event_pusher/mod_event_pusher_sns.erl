@@ -47,7 +47,7 @@ start(Host, Opts) ->
 
     WorkerNum = gen_mod:get_opt(pool_size, Opts, 100),
     mongoose_wpool:ensure_started(),
-    {ok, _} = mongoose_wpool:start(?MODULE, Host,
+    {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns,
                                    [{workers, WorkerNum}, {strategy, available_worker}]),
 
     %% Check for required options
@@ -65,7 +65,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
-    mongoose_wpool:stop(?MODULE, Host),
+    mongoose_wpool:stop(generic, Host, pusher_sns),
     ok.
 
 push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
@@ -126,7 +126,7 @@ handle_packet(From = #jid{lserver = Host}, To, Packet) ->
               attributes()) -> ok.
 async_publish(Host, TopicARN, Content, Attributes) ->
     Retry = opt(Host, publish_retry_count, 2),
-    mongoose_wpool:cast(?MODULE, Host,
+    mongoose_wpool:cast(generic, Host, pusher_sns,
                         {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]}).
 
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
@@ -141,7 +141,7 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
         Type:Error ->
             BackoffTime = calc_backoff_time(Host, Retry),
             timer:apply_after(BackoffTime, mongoose_wpool, cast,
-                              [?MODULE, Host,
+                              [generic, Host, pusher_sns,
                                {?MODULE, try_publish,
                                 [Host, TopicARN, Content, Attributes, Retry - 1]}]),
             ?WARNING_MSG("Retrying SNS notification ~p after ~p ms due to ~p~n~p",

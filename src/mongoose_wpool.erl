@@ -28,7 +28,13 @@
 %% Mostly for tests
 -export([make_pool_name/3]).
 
--callback wpool_spec(WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) -> [wpool:option()].
+-type type() :: redis | riak | http | rdbms | cassandra | elastic | generic.
+-type host() :: global | host | jid:lserver().
+-type tag() :: atom().
+
+%-callback wpool_spec(WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) -> [wpool:option()].
+-callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
+    {ok, pid()} | {error, Reason :: term()}.
 
 ensure_started() ->
     wpool:start(),
@@ -68,8 +74,9 @@ start(Type, Host, Tag, PoolOpts) ->
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
     Opts = lists:append(Opts0),
-    WpoolOpts = maybe_get_wpool_opts_from_callback(Type, WpoolOptsIn, ConnOpts),
-    case wpool:start_sup_pool(make_pool_name(Type, Host, Tag), WpoolOpts) of
+    %WpoolOpts = maybe_get_wpool_opts_from_callback(Type, WpoolOptsIn, ConnOpts),
+    %case wpool:start_sup_pool(make_pool_name(Type, Host, Tag), WpoolOpts) of
+    case start_by_callback(Type, Host, Tag, WpoolOptsIn,ConnOpts) of
         {ok, Pid} ->
             Strategy = proplists:get_value(strategy, Opts, best_worker),
             CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
@@ -162,22 +169,24 @@ get_pools() ->
 stats(Type, Host, Tag) ->
     wpool:stats(make_pool_name(Type, Host, Tag)).
 
+-spec make_pool_name(type(), host(), tag()) -> atom().
 make_pool_name(Type, Host, Tag) when is_atom(Host) ->
     make_pool_name(Type, atom_to_binary(Host, utf8), Tag);
 make_pool_name(Type, Host, Tag) when is_binary(Host) ->
     binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(Type, utf8))/binary, $$,
                      Host/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
 
+start_by_callback(Type, Host, Tag, WpoolOpts, ConnOpts) ->
+    try
+        CallbackModule = make_callback_module_name(Type),
+        CallbackModule:start(Host, Tag, WpoolOpts, ConnOpts)
+    catch E:R ->
+          ?ERROR_MSG("event=wpool_callback_error, error=~p, reason=~p, stacktrace=~p",
+                    [E, R, erlang:get_stacktrace()]),
+          {error, pool_not_started}
+    end.
+
+-spec make_callback_module_name(type()) -> module().
 make_callback_module_name(Type) ->
     Name = "mongoose_wpool_" ++ atom_to_list(Type),
     list_to_existing_atom(Name).
-
-maybe_get_wpool_opts_from_callback(Type, WpoolOptsIn, ConnOpts) ->
-    try
-        CallbackModule = make_callback_module_name(Type),
-        CallbackModule:wpool_spec(WpoolOptsIn, ConnOpts)
-    catch E:R ->
-          ?INFO_MSG("event=wpool_callback_error, error=~p, reason=~p, stacktrace=~p",
-                    [E, R, erlang:get_stacktrace()]),
-          WpoolOptsIn
-    end.

@@ -1,7 +1,12 @@
 -module(mongoose_wpool_redis).
 -behaviour(mongoose_wpool).
 
--export([wpool_spec/2]).
+-export([start/4]).
+
+start(Host, Tag, WpoolOptsIn, ConnOpts) ->
+    Name = mongoose_wpool:make_pool_name(redis, Host, Tag),
+    WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
+    wpool:start_sup_pool(Name, WpoolOpts).
 
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     Worker = {eredis_client, makeargs(ConnOpts)},

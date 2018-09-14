@@ -38,49 +38,30 @@
 init({PoolName, PoolConfig}) ->
     init({PoolName, 20, PoolConfig});
 init({PoolName, PoolSize, PoolConfig}) ->
-    ExtConfig = extend_config(PoolConfig),
-    application:set_env(cqerl, num_clients, PoolSize),
-    Res = cqerl_cluster:add_nodes(PoolName, proplists:get_value(servers, ExtConfig), ExtConfig),
-    case lists:keyfind(error, 1, Res) of
-        false ->
-            ok;
-        _ ->
-            erlang:throw({not_all_nodes_added, Res})
-    end,
     WPoolOpts = [{workers, PoolSize},
-                 {worker, {mongoose_cassandra_worker, [PoolName]}},
                  {call_timeout, timer:minutes(1)}],
-    {ok, _} = mongoose_wpool:start(?MODULE, global, PoolName, WPoolOpts),
+    {ok, _} = mongoose_wpool:start(cassandra, global, PoolName, WPoolOpts, PoolConfig),
     ok.
 
 shutdown(PoolName) ->
-    mongoose_wpool:stop(?MODULE, global, PoolName).
-
-extend_config(PoolConfig) ->
-    Defaults = #{
-        servers     => [{"localhost", 9042}],
-        tcp_opts    => [{keepalive, true}],
-        keyspace    => mongooseim
-    },
-
-    ConfigMap = maps:merge(Defaults, maps:from_list(PoolConfig)),
-    maps:to_list(ConfigMap).
+    mongoose_wpool:stop(cassandra, global, PoolName).
 
 all() ->
     case ejabberd_config:get_local_option(cassandra_servers) of
         undefined ->
             [];
         Pools ->
+            ?WARNING_MSG("Deprecated cassandra_servers option, please use outgoing_pools", []),
             Pools
     end.
 
 call_query(PoolName, undefined, Call) ->
-    mongoose_wpool:call(?MODULE, global, PoolName, Call);
+    mongoose_wpool:call(cassandra, global, PoolName, Call);
 call_query(PoolName, ContextId, Call) ->
-    mongoose_wpool:call(?MODULE, global, PoolName, ContextId, Call).
+    mongoose_wpool:call(cassandra, global, PoolName, ContextId, Call).
 
 cast_query(PoolName, undefined, Call) ->
-    mongoose_wpool:cast(?MODULE, global, PoolName, Call);
+    mongoose_wpool:cast(cassandra, global, PoolName, Call);
 cast_query(PoolName, ContextId, Call) ->
-    mongoose_wpool:cast(?MODULE, global, PoolName, ContextId, Call).
+    mongoose_wpool:cast(cassandra, global, PoolName, ContextId, Call).
 
