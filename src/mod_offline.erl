@@ -184,9 +184,14 @@ handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 write_messages(Acc, LUser, LServer, Msgs) ->
     case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
         ok ->
-            [mod_amp:check_packet(Packet, From, archived)
-             || #offline_msg{from = From, packet = Packet} <- Msgs],
-            ok;
+            lists:foreach(fun(#offline_msg{from = From, to = To, packet = Packet}) ->
+                                  Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                                            lserver => LServer,
+                                                            from_jid => From,
+                                                            to_jid => To,
+                                                            element => Packet }),
+                                  mod_amp:check_packet(Acc, From, archived)
+                          end, Msgs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
                 [LUser, LServer, Reason]),

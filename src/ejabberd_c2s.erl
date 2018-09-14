@@ -1148,7 +1148,7 @@ process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData)
     case check_incoming_accum_for_conflicts(Acc, StateData) of
         conflict -> %% A race condition detected
             %% Same jid, but different sids
-            OriginSID = mongoose_acc:get(c2s, origin_sid, Acc),
+            OriginSID = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
             ?WARNING_MSG("event=conflict_check_failed "
                           "jid=~ts c2s_sid=~p origin_sid=~p acc=~1000p",
                          [jid:to_binary(StateData#state.jid), StateData#state.sid,
@@ -1173,8 +1173,8 @@ process_incoming_stanza_with_conflict_check(From, To, Acc, StateName, StateData)
 -spec check_incoming_accum_for_conflicts(mongoose_acc:t(), state()) ->
     unknown_origin | different_origin | same_device | conflict.
 check_incoming_accum_for_conflicts(Acc, #state{sid = SID, jid = JID}) ->
-    OriginSID = mongoose_acc:get(c2s, origin_sid, Acc),
-    OriginJID = mongoose_acc:get(c2s, origin_jid, Acc),
+    OriginSID = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    OriginJID = mongoose_acc:get(c2s, origin_jid, undefined, Acc),
     AreDefined = OriginJID =/= undefined andalso OriginSID =/= undefined,
     case AreDefined of
         false ->
