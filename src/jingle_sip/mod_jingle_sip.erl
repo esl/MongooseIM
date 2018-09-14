@@ -96,8 +96,8 @@ intercept_jingle_stanza(Acc, _C2SState) ->
     end.
 
 maybe_iq_stanza(Acc) ->
-    case mongoose_acc:element(Acc) of
-        #xmlel{ name = <<"iq">> } ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"iq">> ->
             maybe_iq_to_other_user(Acc);
         _ ->
             Acc

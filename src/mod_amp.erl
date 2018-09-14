@@ -82,8 +82,8 @@ check_packet(Packet = #xmlel{name = <<"message">>}, From, Event) ->
 check_packet(Packet = #xmlel{}, _, _) ->
     Packet;
 check_packet(Acc, #jid{lserver = Host} = From, Event) ->
-    case mongoose_acc:element(Acc) of
-        #xmlel{ name = <<"message">> } ->
+    case mongoose_acc:stanza_name(Acc) of
+        <<"message">> ->
             % this hook replaces original element with something modified by amp
             % which is a hack, but since we have accumulator here we have a chance
             % to fix implementation
@@ -104,8 +104,7 @@ add_stream_feature(Acc, _Host) ->
 -spec amp_check_packet(mongoose_acc:t(), jid:jid(), amp_event()) -> mongoose_acc:t().
 amp_check_packet(Acc, From, Event) ->
     Res = mongoose_acc:get(amp, check_result, ok, Acc),
-    #xmlel{ name = Name } = mongoose_acc:element(Acc),
-    amp_check_packet(Res, Name, Acc, From, Event).
+    amp_check_packet(Res, mongoose_acc:stanza_name(Acc), Acc, From, Event).
 
 amp_check_packet(drop, _, Acc, _, _) ->
     Acc;
