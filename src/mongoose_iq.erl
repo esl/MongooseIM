@@ -88,7 +88,8 @@ command(Acc) -> update_and_get(command, Acc).
 %% Internal functions
 %% ---------------------------------------------------------
 
--spec sub_el_to_command([exml:element()] | exml:element()) -> binary().
+-spec sub_el_to_command([exml:element()] | exml:element()) -> binary() | undefined.
+sub_el_to_command([]) -> undefined;
 sub_el_to_command([SubEl | _]) -> SubEl#xmlel.name;
 sub_el_to_command(#xmlel{ name = Name }) -> Name.
 

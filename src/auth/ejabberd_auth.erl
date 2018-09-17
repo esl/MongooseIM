@@ -585,7 +585,7 @@ do_remove_user(LUser, LServer, Password) ->
             Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => LServer,
                               element => undefined }),
-            ejabberd_hooks:run(remove_user, LServer, Acc, [LUser, LServer]);
+            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]);
         _ ->
             none
     end,

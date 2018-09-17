@@ -185,12 +185,12 @@ write_messages(Acc, LUser, LServer, Msgs) ->
     case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
         ok ->
             lists:foreach(fun(#offline_msg{from = From, to = To, packet = Packet}) ->
-                                  Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                  NAcc = mongoose_acc:new(#{ location => ?LOCATION,
                                                             lserver => LServer,
                                                             from_jid => From,
                                                             to_jid => To,
                                                             element => Packet }),
-                                  mod_amp:check_packet(Acc, From, archived)
+                                  mod_amp:check_packet(NAcc, From, archived)
                           end, Msgs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
