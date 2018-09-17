@@ -37,9 +37,7 @@ init_per_suite(Config) ->
                   receive stop -> ok end
           end),
     receive ready -> ok end,
-    meck_config(),
-    mongoose_http_client:start(),
-    meck_cleanup(),
+    mongoose_wpool:ensure_started(),
     Config.
 
 process_request(Req) ->
@@ -56,21 +54,28 @@ end_per_suite(_Config) ->
     whereis(test_helper) ! stop.
 
 init_per_testcase(request_timeout_test, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"},
-                                               {request_timeout, 10}]),
+    mongoose_wpool:start_configured_pools([{http, global, tmp_pool, [],
+                                            [{server, "http://localhost:8080"},
+                                             {request_timeout, 10}]}],
+                                          [<<"a.com">>]),
     Config;
 init_per_testcase(pool_timeout_test, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"},
-                                               {pool_size, 1},
-                                               {max_overflow, 0},
-                                               {pool_timeout, 10}]),
+    mongoose_wpool:start_configured_pools([{http, global, tmp_pool,
+                                            [{workers, 1},
+                                             {max_overflow, 0},
+                                             {strategy, available_worker},
+                                             {call_timeout, 10}],
+                                            [{server, "http://localhost:8080"}]}],
+                                          [<<"a.com">>]),
     Config;
 init_per_testcase(_TC, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"}]),
+    mongoose_wpool:start_configured_pools([{http, global, tmp_pool, [],
+                                            [{server, "http://localhost:8080"}]}],
+                                          [<<"a.com">>]),
     Config.
 
 end_per_testcase(_TC, _Config) ->
-    mongoose_http_client:stop_pool(tmp_pool).
+    mongoose_wpool:stop(http, global, tmp_pool).
 
 get_test(_Config) ->
     Pool = mongoose_http_client:get_pool(tmp_pool),
@@ -101,14 +106,3 @@ pool_timeout_test(_Config) ->
     Result = mongoose_http_client:get(Pool, <<"some/path">>, []),
     {error, pool_timeout} = Result,
     receive finished -> ok after 1000 -> error(no_finished_message) end.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
-
-meck_config() ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, fun(http_connections) -> [] end).
-
-meck_cleanup() ->
-    meck:validate(ejabberd_config),
-    meck:unload(ejabberd_config).
