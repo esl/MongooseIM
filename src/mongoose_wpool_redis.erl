@@ -3,6 +3,7 @@
 
 -export([init/0]).
 -export([start/4]).
+-export([stop/2]).
 
 init() ->
     ok.
@@ -12,13 +13,17 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
     wpool:start_sup_pool(Name, WpoolOpts).
 
-wpool_spec(WpoolOptsIn, ConnOpts) ->
-    Worker = {eredis_client, makeargs(ConnOpts)},
-    [{worker, Worker} | WpoolOptsIn].
+stop(_, _) ->
+    ok.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+wpool_spec(WpoolOptsIn, ConnOpts) ->
+    Worker = {eredis_client, makeargs(ConnOpts)},
+    [{worker, Worker} | WpoolOptsIn].
+
 
 makeargs(RedisOpts) ->
     Host = proplists:get_value(host, RedisOpts, "localhost"),

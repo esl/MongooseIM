@@ -3,6 +3,7 @@
 
 -export([init/0]).
 -export([start/4]).
+-export([stop/2]).
 -export([get_riak_opt/2]).
 -export([get_riak_opt/3]).
 
@@ -13,6 +14,9 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(riak, Host, Tag),
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
     wpool:start_sup_pool(Name, WpoolOpts).
+
+stop(_, _) ->
+    ok.
 
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     {_, RiakAddr} = mongoose_wpool_riak:get_riak_opt(address, ConnOpts),

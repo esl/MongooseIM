@@ -3,6 +3,7 @@
 
 -export([init/0]).
 -export([start/4]).
+-export([stop/2]).
 
 init() ->
     case ets:info(mongoose_http_client) of
@@ -31,13 +32,13 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
             Other
     end.
 
+stop(_Host, Tag) ->
+    true = ets:delete(mongoose_http_client, Tag),
+    ok.
+
 wpool_spec(WpoolOptsIn, ConnOpts) ->
     Server = gen_mod:get_opt(server, ConnOpts),
     HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
     Worker = {fusco, {Server, HttpOpts}},
     [{worker, Worker} | WpoolOptsIn].
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
 

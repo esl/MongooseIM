@@ -3,6 +3,7 @@
 
 -export([init/0]).
 -export([start/4]).
+-export([stop/2]).
 
 init() ->
     {ok, []} = application:ensure_all_started(cqerl),
@@ -23,6 +24,9 @@ start(Host, Tag, WpoolOptsIn, CqerlOpts) ->
     Worker = {mongoose_cassandra_worker, [Tag]},
     WpoolOpts = [{worker, Worker} | WpoolOptsIn],
     wpool:start_sup_pool(Name, WpoolOpts).
+
+stop(_, _) ->
+    ok.
 
 extend_config(PoolConfig) ->
     Defaults = #{

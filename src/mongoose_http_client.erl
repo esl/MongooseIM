@@ -70,7 +70,6 @@ start_pool(PoolName, Opts) ->
 
 -spec stop_pool(atom()) -> ok.
 stop_pool(Name) ->
-    ets:delete(?MODULE, Name),
     mongoose_wpool:stop(http, global, Name),
     ok.
 

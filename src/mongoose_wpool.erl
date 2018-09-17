@@ -37,6 +37,7 @@
 -callback init() -> ok | {error, term()}.
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
     {ok, pid()} | {error, Reason :: term()}.
+-callback stop(host(), tag()) -> ok.
 
 ensure_started() ->
     wpool:start(),
@@ -100,6 +101,7 @@ stop(Type, Host) ->
 
 stop(Type, Host, Tag) ->
     ets:delete(?MODULE, {Type, Host, Tag}),
+    stop_by_callback(Type, Host, Tag),
     wpool:stop_sup_pool(make_pool_name(Type, Host, Tag)).
 
 -spec is_configured(type()) -> boolean().
@@ -191,7 +193,7 @@ start_by_callback(Type, Host, Tag, WpoolOpts, ConnOpts) ->
         CallbackModule:start(Host, Tag, WpoolOpts, ConnOpts)
     catch E:R ->
           ?ERROR_MSG("event=wpool_callback_start_error, error=~p, reason=~p, stacktrace=~p",
-                    [E, R, erlang:get_stacktrace()]),
+                     [E, R, erlang:get_stacktrace()]),
           {error, pool_not_started}
     end.
 
@@ -201,8 +203,18 @@ init(Type) ->
         CallbackModule:init()
     catch E:R ->
           ?ERROR_MSG("event=wpool_callback_init_error, error=~p, reason=~p, stacktrace=~p",
-                    [E, R, erlang:get_stacktrace()]),
+                     [E, R, erlang:get_stacktrace()]),
           {error, pool_not_initialized}
+    end.
+
+stop_by_callback(Type, Host, Tag) ->
+    try
+        CallbackModule = make_callback_module_name(Type),
+        CallbackModule:stop(Host, Tag)
+    catch E:R ->
+          ?ERROR_MSG("event=wpool_callback_stop_error, error=~p, reason=~p, stacktrace=~p",
+                     [E, R, erlang:get_stacktrace()]),
+          {error, pool_stop_failed}
     end.
 
 -spec make_callback_module_name(type()) -> module().
