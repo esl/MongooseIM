@@ -136,7 +136,7 @@ generic_pools_are_started_for_all_vhosts(_C) ->
 host_specific_pools_are_preseved(_C) ->
     Pools = [{generic, host, default, [], []},
              {generic, <<"b.com">>, default, [{workers, 12}], []}],
-    Expanded = mongoose_wpool:expand_pools(Pools),
+    Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
     ?assertMatch([{generic,<<"a.com">>,default,[],[]},
                   {generic,<<"c.eu">>,default,[],[]},
                   {generic,<<"b.com">>,default,[{workers,12}],[]}], Expanded).
@@ -145,7 +145,7 @@ pools_for_different_tag_are_expanded_with_host_specific_config_preserved(_C) ->
     Pools = [{generic, host, default, [], []},
              {generic, <<"b.com">>, default, [{workers, 12}], []},
              {generic, host, other_tag, [], []}],
-    Expanded = mongoose_wpool:expand_pools(Pools),
+    Expanded = mongoose_wpool:expand_pools(Pools, [<<"a.com">>, <<"b.com">>, <<"c.eu">>]),
     ?assertMatch([{generic,<<"a.com">>,default,[],[]},
                   {generic,<<"c.eu">>,default,[],[]},
                   {generic,<<"b.com">>,default,[{workers,12}],[]},

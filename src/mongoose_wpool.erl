@@ -24,11 +24,12 @@
 
 -export([start_configured_pools/0]).
 -export([start_configured_pools/1]).
+-export([start_configured_pools/2]).
 -export([is_configured/1]).
 -export([make_pool_name/3]).
 
 %% Mostly for tests
--export([expand_pools/1]).
+-export([expand_pools/2]).
 
 -type type() :: redis | riak | http | rdbms | cassandra | elastic | generic.
 -type host() :: global | host | jid:lserver().
@@ -57,8 +58,11 @@ start_configured_pools() ->
     start_configured_pools(Pools).
 
 start_configured_pools(PoolsIn) ->
+    start_configured_pools(PoolsIn, ?MYHOSTS).
+
+start_configured_pools(PoolsIn, Hosts) ->
     [init(Type) || Type <- get_unique_types(PoolsIn)],
-    Pools = expand_pools(PoolsIn),
+    Pools = expand_pools(PoolsIn, Hosts),
     [start(Pool) || Pool <- Pools].
 
 start({Type, Host, Tag, PoolOpts, ConnOpts}) ->
@@ -222,13 +226,12 @@ make_callback_module_name(Type) ->
     Name = "mongoose_wpool_" ++ atom_to_list(Type),
     list_to_existing_atom(Name).
 
-expand_pools(Pools) ->
+expand_pools(Pools, AllHosts) ->
     %% First we select only pools for a specific vhost
     HostSpecific = [{Type, Host, Tag} ||
                      {Type, Host, Tag, _, _} <- Pools, is_binary(Host)],
     %% Then we expand all pools with `host` as Host parameter but using host specific configs
     %% if they were provided
-    AllHosts = ?MYHOSTS,
     F = fun({Type, host, Tag, WpoolOpts, ConnOpts}) ->
                 [{Type, Host, Tag, WpoolOpts, ConnOpts} || Host <- AllHosts,
                                                            not lists:member({Type, Host, Tag}, HostSpecific)];
