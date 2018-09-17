@@ -64,8 +64,8 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     Username = Receiver#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
     Timestamp = erlang:timestamp(),
-    ok = mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
-                                                 Content, MsgId, Timestamp).
+    mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
+                                            Content, MsgId, Timestamp).
 
 -spec clear_inbox(User :: jid:luser(), Server :: host()) -> ok.
 clear_inbox(User, Server) when is_binary(User) ->

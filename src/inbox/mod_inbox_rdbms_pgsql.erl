@@ -11,6 +11,7 @@
 -author("ludwikbukowski").
 
 -include("mod_inbox.hrl").
+-include("mongoose_logger.hrl").
 
 -export([set_inbox/7, set_inbox_incr_unread/6]).
 
@@ -57,5 +58,4 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
             "update set content=", esc_string(Content), ", "
                        "unread_count=inbox.unread_count + 1, "
                        "msg_id=", esc_string(MsgId), ", ",
-                       "timestamp=", esc_int(Timestamp), ";"]).
-
+                       "timestamp=", esc_int(Timestamp), "returning unread_count;"]).

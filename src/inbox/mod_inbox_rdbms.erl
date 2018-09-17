@@ -117,7 +117,7 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
                                               Content, MsgId, NumericTimestamp),
     %% psql will always return {updated, 1}
     %% but mysql will return {updated, 2} if it overwrites the row
-    check_result(Res,[1,2]).
+    check_result(Res).
 
 -spec reset_unread(User :: binary(),
                    Server :: binary(),
@@ -214,6 +214,10 @@ check_result({updated, Res}, Exp) ->
     {error, {expected_does_not_match, Exp, Res}};
 check_result(Result, _) ->
     {error, {bad_result, Result}}.
+
+%% TODO
+check_result({updated, _, [{Val}]}) ->
+    {ok, Val};
 
 check_result({updated, _}) ->
     ok;
