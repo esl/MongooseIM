@@ -34,7 +34,7 @@
 -type host() :: global | host | jid:lserver().
 -type tag() :: atom().
 
-%-callback wpool_spec(WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) -> [wpool:option()].
+-callback init() -> ok | {error, term()}.
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
     {ok, pid()} | {error, Reason :: term()}.
 
@@ -56,6 +56,7 @@ start_configured_pools() ->
     start_configured_pools(Pools).
 
 start_configured_pools(PoolsIn) ->
+    [init(Type) || Type <- get_unique_types(PoolsIn)],
     Pools = expand_pools(PoolsIn),
     [start(Pool) || Pool <- Pools].
 
@@ -189,9 +190,19 @@ start_by_callback(Type, Host, Tag, WpoolOpts, ConnOpts) ->
         CallbackModule = make_callback_module_name(Type),
         CallbackModule:start(Host, Tag, WpoolOpts, ConnOpts)
     catch E:R ->
-          ?ERROR_MSG("event=wpool_callback_error, error=~p, reason=~p, stacktrace=~p",
+          ?ERROR_MSG("event=wpool_callback_start_error, error=~p, reason=~p, stacktrace=~p",
                     [E, R, erlang:get_stacktrace()]),
           {error, pool_not_started}
+    end.
+
+init(Type) ->
+    try
+        CallbackModule = make_callback_module_name(Type),
+        CallbackModule:init()
+    catch E:R ->
+          ?ERROR_MSG("event=wpool_callback_init_error, error=~p, reason=~p, stacktrace=~p",
+                    [E, R, erlang:get_stacktrace()]),
+          {error, pool_not_initialized}
     end.
 
 -spec make_callback_module_name(type()) -> module().
@@ -213,3 +224,5 @@ expand_pools(Pools) ->
         end,
     lists:flatmap(F, Pools).
 
+get_unique_types(Pools) ->
+    ordsets:to_list(ordsets:from_list([Type || {Type, _, _, _, _} <- Pools])).

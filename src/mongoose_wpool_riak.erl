@@ -1,9 +1,13 @@
 -module(mongoose_wpool_riak).
 -behaviour(mongoose_wpool).
 
+-export([init/0]).
 -export([start/4]).
 -export([get_riak_opt/2]).
 -export([get_riak_opt/3]).
+
+init() ->
+    ok.
 
 start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(riak, Host, Tag),

@@ -1,11 +1,14 @@
 -module(mongoose_wpool_cassandra).
 -behaviour(mongoose_wpool).
 
+-export([init/0]).
 -export([start/4]).
 
-start(Host, Tag, WpoolOptsIn, CqerlOpts) ->
+init() ->
     {ok, []} = application:ensure_all_started(cqerl),
-    application:set_env(cqerl, maps, true),
+    application:set_env(cqerl, maps, true).
+
+start(Host, Tag, WpoolOptsIn, CqerlOpts) ->
     PoolSize = proplists:get_value(workers, WpoolOptsIn, 20),
     application:set_env(cqerl, num_clients, PoolSize),
     ExtConfig = extend_config(CqerlOpts),

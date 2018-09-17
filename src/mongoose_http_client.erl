@@ -43,17 +43,8 @@
 
 -spec start() -> ok.
 start() ->
-    case ets:info(?MODULE) of
-        undefined ->
-            Heir = case whereis(ejabberd_sup) of
-                       undefined -> [];
-                       Pid -> [{heir, Pid, undefined}]
-                   end,
-            ets:new(?MODULE, [named_table, public, {read_concurrency, true} | Heir]);
-        _ ->
-            ok
-    end,
     mongoose_wpool:ensure_started(),
+    mongoose_wpool_http:init(),
     case ejabberd_config:get_local_option(http_connections) of
         undefined -> ok;
         Opts -> start(Opts)
@@ -104,10 +95,7 @@ start(Opts) ->
 
 do_start_pool(PoolName, Opts) ->
     SelectionStrategy = gen_mod:get_opt(selection_strategy, Opts, available_worker),
-    PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
-    RequestTimeout = gen_mod:get_opt(request_timeout, Opts, 2000),
     PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
-    ets:insert(?MODULE, {PoolName, PathPrefix, RequestTimeout}),
     PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
     PoolSettings = [{strategy, SelectionStrategy}, {call_timeout, PoolTimeout},
                     {workers, PoolSize}

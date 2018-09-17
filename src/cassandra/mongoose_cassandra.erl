@@ -72,6 +72,7 @@ start() ->
         [_ | _] = ConfiguredPools ->
             ?WARNING_MSG("Deprecated cassandra_servers option, please use outgoing_pools", []),
             mongoose_wpool:ensure_started(),
+            mongoose_wpool_cassandra:init(),
             [mongoose_cassandra_pool:init(Pool) || Pool <- ConfiguredPools];
         _ ->
             ignore

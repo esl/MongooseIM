@@ -1,7 +1,11 @@
 -module(mongoose_wpool_redis).
 -behaviour(mongoose_wpool).
 
+-export([init/0]).
 -export([start/4]).
+
+init() ->
+    ok.
 
 start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(redis, Host, Tag),
