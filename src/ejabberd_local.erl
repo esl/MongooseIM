@@ -95,6 +95,8 @@ process_iq(Acc0, From, To, El) ->
     {IQ, Acc} = mongoose_iq:record(Acc0),
     process_iq(IQ, Acc, From, To, El).
 
+process_iq(#iq{ type = result } = IQReply, Acc, From, To, _El) ->
+    process_iq_reply(From, To, Acc, IQReply);
 process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
     Host = To#jid.lserver,
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
@@ -109,9 +111,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
         [] ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:feature_not_implemented())
     end;
-process_iq(reply, Acc, From, To, El) ->
-    IQReply = jlib:iq_query_or_response_info(El),
-    process_iq_reply(From, To, Acc, IQReply);
 process_iq(_, Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),
     ejabberd_router:route(To, From, Acc1, Err).
