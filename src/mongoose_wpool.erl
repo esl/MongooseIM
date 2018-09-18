@@ -61,7 +61,7 @@ start_configured_pools(PoolsIn) ->
     start_configured_pools(PoolsIn, ?MYHOSTS).
 
 start_configured_pools(PoolsIn, Hosts) ->
-    [init(Type) || Type <- get_unique_types(PoolsIn)],
+    [call_callback(init, Type, []) || Type <- get_unique_types(PoolsIn)],
     Pools = expand_pools(PoolsIn, Hosts),
     [start(Pool) || Pool <- Pools].
 
@@ -83,9 +83,7 @@ start(Type, Host, Tag, PoolOpts) ->
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
     Opts = lists:append(Opts0),
-    %WpoolOpts = maybe_get_wpool_opts_from_callback(Type, WpoolOptsIn, ConnOpts),
-    %case wpool:start_sup_pool(make_pool_name(Type, Host, Tag), WpoolOpts) of
-    case start_by_callback(Type, Host, Tag, WpoolOptsIn,ConnOpts) of
+    case call_callback(start, Type, [Host, Tag, WpoolOptsIn,ConnOpts]) of
         {ok, Pid} ->
             Strategy = proplists:get_value(strategy, Opts, best_worker),
             CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
@@ -105,7 +103,7 @@ stop(Type, Host) ->
 
 stop(Type, Host, Tag) ->
     ets:delete(?MODULE, {Type, Host, Tag}),
-    stop_by_callback(Type, Host, Tag),
+    call_callback(stop, Type, [Host, Tag]),
     wpool:stop_sup_pool(make_pool_name(Type, Host, Tag)).
 
 -spec is_configured(type()) -> boolean().
@@ -191,34 +189,14 @@ make_pool_name(Type, Host, Tag) when is_binary(Host) ->
     binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(Type, utf8))/binary, $$,
                      Host/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
 
-start_by_callback(Type, Host, Tag, WpoolOpts, ConnOpts) ->
+call_callback(Name, Type, Args) ->
     try
         CallbackModule = make_callback_module_name(Type),
-        CallbackModule:start(Host, Tag, WpoolOpts, ConnOpts)
+        erlang:apply(CallbackModule, Name, Args)
     catch E:R ->
-          ?ERROR_MSG("event=wpool_callback_start_error, error=~p, reason=~p, stacktrace=~p",
-                     [E, R, erlang:get_stacktrace()]),
-          {error, pool_not_started}
-    end.
-
-init(Type) ->
-    try
-        CallbackModule = make_callback_module_name(Type),
-        CallbackModule:init()
-    catch E:R ->
-          ?ERROR_MSG("event=wpool_callback_init_error, error=~p, reason=~p, stacktrace=~p",
-                     [E, R, erlang:get_stacktrace()]),
-          {error, pool_not_initialized}
-    end.
-
-stop_by_callback(Type, Host, Tag) ->
-    try
-        CallbackModule = make_callback_module_name(Type),
-        CallbackModule:stop(Host, Tag)
-    catch E:R ->
-          ?ERROR_MSG("event=wpool_callback_stop_error, error=~p, reason=~p, stacktrace=~p",
-                     [E, R, erlang:get_stacktrace()]),
-          {error, pool_stop_failed}
+          ?ERROR_MSG("event=wpool_callback_error, name=~p, error=~p, reason=~p, stacktrace=~p",
+                     [Name, E, R, erlang:get_stacktrace()]),
+          {error, {callback_crashed, Name}}
     end.
 
 -spec make_callback_module_name(type()) -> module().

@@ -1,6 +1,6 @@
 # Outgoing connections
 
-MongooseIM can be cofigured to talk to external service like databases or HTTP servers in order get or set required data.
+MongooseIM can be configured to talk to external service like databases or HTTP servers in order to get or set required data.
 The interface for outgoing connections management was unified and is now available via the `outgoing_pools` config option for the following type of connections:
 
 * `cassandra` - pool of connections to cassandra cluster
@@ -30,7 +30,7 @@ Where:
     * `strategy` - specifies worker selection strategy for the given pool, default is `best_worker`,
       more details on this can be found in [Choosing strategy in worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
     * `call_timeout` - specifies the timeout for a call operation to the pool
-* `ConnectionOptions` - list of `{key, value}` pairs passed to the `start` function of the pool type
+* `ConnectionOptions` - list options passed to the `start` function of the pool type
 
 
 ### Examples
