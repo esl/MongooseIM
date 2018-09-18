@@ -36,7 +36,7 @@ INSTALL_OPTS="-o ${RUNNER_USER} -g ${RUNNER_GROUP}"
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 555 _build/prod/rel/mongooseim/bin/mongooseimctl ${BIN_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -d ${ETC_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 _build/prod/rel/mongooseim/etc/app.config ${ETC_DIR}
-[ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 _build/prod/rel/mongooseim/etc/ejabberd.cfg ${ETC_DIR}
+[ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 _build/prod/rel/mongooseim/etc/mongooseim.cfg ${ETC_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 _build/prod/rel/mongooseim/etc/vm.args ${ETC_DIR}
 [ x"$SYSTEM" == x"yes" ] && install $INSTALL_OPTS -m 664 _build/prod/rel/mongooseim/etc/vm.dist.args ${ETC_DIR}
 install $INSTALL_OPTS -d ${LIB_DIR}
@@ -44,7 +44,7 @@ cp -R _build/prod/rel/mongooseim/* ${LIB_DIR}
 chown -R ${RUNNER_USER}:${RUNNER_GROUP} ${LIB_DIR}
 [ x"$SYSTEM" == x"yes" ] && {
     mv ${LIB_DIR}/etc/app.config   ${LIB_DIR}/etc/app.config.example
-    mv ${LIB_DIR}/etc/ejabberd.cfg ${LIB_DIR}/etc/ejabberd.cfg.example
+    mv ${LIB_DIR}/etc/mongooseim.cfg ${LIB_DIR}/etc/mongooseim.cfg.example
     mv ${LIB_DIR}/etc/vm.args      ${LIB_DIR}/etc/vm.args.example
     mv ${LIB_DIR}/etc/vm.dist.args ${LIB_DIR}/etc/vm.dist.args.example
 }
@@ -64,7 +64,7 @@ log () {
 [ x"$SYSTEM" == x"yes" ] && log ${BIN_DIR}/mongooseimctl
 [ x"$SYSTEM" == x"yes" ] && log ${ETC_DIR}
 [ x"$SYSTEM" == x"yes" ] && log ${ETC_DIR}/app.config
-[ x"$SYSTEM" == x"yes" ] && log ${ETC_DIR}/ejabberd.cfg
+[ x"$SYSTEM" == x"yes" ] && log ${ETC_DIR}/mongooseim.cfg
 [ x"$SYSTEM" == x"yes" ] && log ${ETC_DIR}/vm.args
 [ x"$SYSTEM" == x"yes" ] && log ${ETC_DIR}/vm.dist.args
 find ${LIB_DIR} >> $LOG

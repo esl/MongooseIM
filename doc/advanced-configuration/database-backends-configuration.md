@@ -72,7 +72,7 @@ mysql -h localhost -u user -p -e 'create database mongooseim'
 mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
-You should also configure MySQL database in the `ejabberd.cfg` file.
+You should also configure MySQL database in the `mongooseim.cfg` file.
 Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 **Version notice**
@@ -110,7 +110,7 @@ You can use the following command to apply it on localhost:
 psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
-You should also configure Postgres database in `ejabberd.cfg` file.
+You should also configure Postgres database in `mongooseim.cfg` file.
 Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 ## Microsoft SQL Server
@@ -183,7 +183,7 @@ cat azuresql.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
 isql mongoose-mssql username password -b
 ```
 
-The final step is to configure ``ejabberd.cfg`` appropriately.
+The final step is to configure ``mongooseim.cfg`` appropriately.
 Configure the database section as follows:
 ```erlang
 {RDBMS_server, "DSN=mongoose-mssql;UID=username;PWD=password"}.
@@ -277,7 +277,7 @@ riak-admin bucket-type activate privacy_lists
 
 This will create bucket types, search schemas and indexes required for storing the above persitent data and it will activate them.
 
-You should also configure Riak in the `ejabberd.cfg` file.
+You should also configure Riak in the `mongooseim.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 ## Cassandra

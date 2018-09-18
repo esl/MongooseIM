@@ -1,6 +1,6 @@
 For advanced configuration use the following files:
 
-* `ejabberd.cfg` for pure MongooseIM settings,
+* `mongooseim.cfg` for pure MongooseIM settings,
 
 * `vm.args` to affect the Erlang VM behaviour (performance tuning, node name),
 
@@ -8,7 +8,7 @@ For advanced configuration use the following files:
 
 Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
-# ejabberd.cfg
+# mongooseim.cfg
 
 This file consists of multiple erlang tuples terminated with a period.
 In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're building from source) or `[MongooseIM install root]/etc/` if you're using a pre-built version.
@@ -16,7 +16,7 @@ In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're b
 The tuple order is important, unless no `host_config` option is set.
 Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
 
-`ejabberd.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
+`mongooseim.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
 
 ## Options
 
@@ -203,7 +203,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
 
-* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
+* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `mongooseim.cfg` file.
 
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
@@ -443,7 +443,7 @@ An SSL connection can be established with both self-signed and CA-signed certifi
 
 ###### Self-signed certificate
 
-Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+Find `cassandra_servers` in `mongooseim.cfg` and add the following line:
 ```
 {cassandra_servers, [{default, [{ssl, [{verify, verify_none}]}]}]}.
 ```
@@ -451,7 +451,7 @@ Save the changes and restart MongooseIM.
 
 ###### CA-signed certificate
 
-Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
+Find `cassandra_servers` in `mongooseim.cfg` and add the following line:
 ```
 {cassandra_servers, [{default, [{ssl, [{cacertfile,
                                         "/path/to/rootCA.pem"},
@@ -486,7 +486,7 @@ If no errors occurred and your output is similar to the one above then your Mong
 ### ElasticSearch connection setup
 
 Currently MongooseIM allows to create only a single pool of connections to a single ElasticSearch node.
-To enable a pool you need to add `elasticsearch_server` option in `ejabberd.cfg`:
+To enable a pool you need to add `elasticsearch_server` option in `mongooseim.cfg`:
 
 ```
 {elasticsearch_server, [Option1, Option2]}.
@@ -633,7 +633,7 @@ For a specific configuration, please refer to [Services](advanced-configuration/
 
 ### Per-domain configuration
 
-The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `ejabberd.cfg`.
+The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `mongooseim.cfg`.
 
 * **host_config** (multi, local)
     * **Syntax:** `{host_config, Domain, [ {{add, modules}, [{mod_some, Opts}]}, {access, c2s, [{deny, local}]}, ... ]}.`
@@ -660,10 +660,10 @@ Let's explore the default options.
 A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
 By default only the following applications can be found there:
 
-* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by defaultthey are overridden with the value in `ejabberd.cfg`.
+* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by default they are overridden with the value set in `mongooseim.cfg`.
 * `ejabberd`
-    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value in `ejabberd.cfg`.
-    * `config` (default: `"etc/ejabberd.cfg"`) - path to MongooseIM config file.
+    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value set in `mongooseim.cfg`.
+    * `config` (default: `"etc/mongooseim.cfg"`) - path to MongooseIM config file.
 * `ssl`
     * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 

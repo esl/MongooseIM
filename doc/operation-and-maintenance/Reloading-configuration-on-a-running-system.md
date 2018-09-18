@@ -42,7 +42,7 @@ By default in such cases `reload_cluster` would detect a configuration
 inconsistency and would not allow configuration updates.
 
 To tell `reload_cluster` to ignore such options, extra information should be
-provided in `ejabberd.cfg`.
+provided in `mongooseim.cfg`.
 
 It's called `node_specific_options`.
 

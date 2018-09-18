@@ -234,8 +234,8 @@ conf_reload(Config) ->
     Headers2 = ws_headers(<<"xmpp">>),
     Body = [],
 
-    copy(data(Config, "ejabberd.onlyhttp.cfg"), data(Config, "ejabberd.cfg")),
-    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    copy(data(Config, "mongooseim.onlyhttp.cfg"), data(Config, "mongooseim.cfg")),
+    start_ejabberd_with_config(Config, "mongooseim.cfg"),
 
     %% When making requests for http and ws
     Response1 = execute_request(HTTPHost, Path, Method, Headers1, Body),
@@ -246,7 +246,7 @@ conf_reload(Config) ->
     assert_status_code(Response2, 404),
 
     %% Given new configuration
-    copy(data(Config, "ejabberd.onlyws.cfg"), data(Config, "ejabberd.cfg")),
+    copy(data(Config, "mongooseim.onlyws.cfg"), data(Config, "mongooseim.cfg")),
     ejabberd_config:reload_local(),
 
     %% When making requests for http and ws

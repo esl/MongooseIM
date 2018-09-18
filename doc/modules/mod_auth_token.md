@@ -31,7 +31,7 @@ The default values for tokens are:
 * 1 hour for an access token
 * 25 days for a refresh token
 
-Example configuration from `ejabberd.cfg`, inside `modules` section:
+Example configuration from `mongooseim.cfg`, inside `modules` section:
 
 ```erlang
 {modules, [
@@ -47,7 +47,7 @@ Validity period configuration for provision tokens happens outside the module si
 Keys are used for signing binary tokens using an HMAC with SHA-2 family function SHA-384.
 Therefore, `mod_auth_token` requires `mod_keystore` to provide some predefined keys.
 
-The required keys are (example from `ejabberd.cfg`):
+The required keys are (example from `mongooseim.cfg`):
 
 ```erlang
 {mod_keystore, [{keys, [{token_secret, ram},

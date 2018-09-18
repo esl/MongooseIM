@@ -177,7 +177,7 @@ auth_config_states() ->
 auth_config_node1_config_v1() ->
     Terms = auth_config(),
     #{mongoose_node => mim1,
-      config_file => "/etc/ejabberd.cfg",
+      config_file => "/etc/mongooseim.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms),
       ondisc_config_terms => Terms,
       missing_files => [], required_files => []}.
@@ -255,7 +255,7 @@ example_config_states() ->
 config_node1_config_v1() ->
     Terms = node1_config_v1(),
     #{mongoose_node => mim1,
-      config_file => "/etc/ejabberd.cfg",
+      config_file => "/etc/mongooseim.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms),
       ondisc_config_terms => Terms,
       missing_files => [], required_files => []}.
@@ -264,7 +264,7 @@ config_node1_config_v1() ->
 config_node2_config_v1() ->
     Terms = node2_config_v1(),
     #{mongoose_node => mim2,
-      config_file => "/etc/ejabberd.cfg",
+      config_file => "/etc/mongooseim.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms),
       ondisc_config_terms => Terms,
       missing_files => [], required_files => []}.
@@ -275,7 +275,7 @@ config_node1_config_v2() ->
     Terms_v1 = node1_config_v1(),
     Terms_v2 = node1_config_v2(),
     #{mongoose_node => mim1,
-      config_file => "/etc/ejabberd.cfg",
+      config_file => "/etc/mongooseim.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms_v1),
       ondisc_config_terms => Terms_v2,
       missing_files => [], required_files => []}.
@@ -286,7 +286,7 @@ config_node2_config_v2() ->
     Terms_v1 = node2_config_v1(),
     Terms_v2 = node2_config_v2(),
     #{mongoose_node => mim2,
-      config_file => "/etc/ejabberd.cfg",
+      config_file => "/etc/mongooseim.cfg",
       loaded_categorized_options => terms_to_categorized_options(Terms_v1),
       ondisc_config_terms => Terms_v2,
       missing_files => [], required_files => []}.

@@ -1,7 +1,7 @@
 ### Module Description
 
 MongooseIM can be used as a reverse proxy thanks to `mod_revproxy` module. 
-To enable this functionality, add a new entry to the listeners and modules sections in the ejabberd.cfg file.
+To enable this functionality, add a new entry to the listeners and modules sections in the mongooseim.cfg file.
 
 #### Setting up listener
 

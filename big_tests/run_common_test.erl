@@ -260,9 +260,9 @@ is_test_host_enabled(HostName) ->
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join([repo_dir(), "rel", "files", "ejabberd.cfg"]),
+    Cfg = filename:join([repo_dir(), "rel", "files", "mongooseim.cfg"]),
     Vars = filename:join([repo_dir(), "rel", HostVars]),
-    CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
+    CfgFile = filename:join([Cwd, "etc", "mongooseim.cfg"]),
     {ok, Template} = handle_file_error(Cfg, file:read_file(Cfg)),
     {ok, Default} = handle_file_error(Vars, file:consult(Vars)),
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->

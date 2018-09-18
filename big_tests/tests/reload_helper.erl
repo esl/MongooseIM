@@ -74,11 +74,11 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
                 end, CfgVars, CfgVarsToChange).
 
 node_cfg(N, current, C) ->
-    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/ejabberd.cfg");
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg");
 node_cfg(N, backup, C)  ->
-    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/ejabberd.cfg.bak");
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg.bak");
 node_cfg(_N, template, C) ->
-    filename:join(path_helper:repo_dir(C), "rel/files/ejabberd.cfg");
+    filename:join(path_helper:repo_dir(C), "rel/files/mongooseim.cfg");
 node_cfg(N, vars, C) ->
     filename:join(path_helper:repo_dir(C), "rel/vars.config").
 

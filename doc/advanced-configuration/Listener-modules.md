@@ -1,5 +1,5 @@
 Some of the MongooseIM modules are specialised in handling user connections.
-They can be used in the `listen` clause in the `ejabberd.cfg` file.
+They can be used in the `listen` clause in the `mongooseim.cfg` file.
 See this section for their description and configuration options.
 
 Options described with a value type (e.g. string, integer) are key-value tuples.

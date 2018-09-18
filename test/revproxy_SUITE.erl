@@ -156,8 +156,8 @@ conf_reload(Config) ->
     Headers = [],
     Body = [],
 
-    copy(data("ejabberd.onerule.cfg", Config), data("ejabberd.cfg", Config)),
-    start_ejabberd_with_config(Config, "ejabberd.cfg"),
+    copy(data("mongooseim.onerule.cfg", Config), data("mongooseim.cfg", Config)),
+    start_ejabberd_with_config(Config, "mongooseim.cfg"),
 
     %% When making request for http
     Response1 = execute_request(Host, Path, Method, Headers, Body),
@@ -166,7 +166,7 @@ conf_reload(Config) ->
     true = is_status_code(Response1, 200),
 
     %% Given new configuration
-    copy(data("ejabberd.norules.cfg", Config), data("ejabberd.cfg", Config)),
+    copy(data("mongooseim.norules.cfg", Config), data("mongooseim.cfg", Config)),
     ejabberd_config:reload_local(),
 
     %% When request is replayed

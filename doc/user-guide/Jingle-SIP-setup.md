@@ -89,13 +89,13 @@ Now we need to use this to update `/etc/hosts` file like below:
 
 At this point I assume that MongooseIM was built with `make rel`, that it is running and the current working directory is `_build/prod/rel/mongooseim`.
 Similar to Routr, MongooseIM also needs to know which hosts to server.
-Please replace the default host defined in file `etc/ejabberd.cfg` in line
+Please replace the default host defined in `etc/mongooseim.cfg`; the line:
 
 ```erlang
 {hosts, ["localhost"] }.
 ```
 
-to:
+should be changed to:
 
 ```erlang
 {hosts, ["xmpp.example", "sip.example"] }.
@@ -296,5 +296,3 @@ Current implementation makes following assumptions:
 
 This makes the current implementation a bit limited, but on the other hand the basic integration between XMPP and SIP world is already there.
 Based on the current state it can be improved and extended if needed.
-
-
