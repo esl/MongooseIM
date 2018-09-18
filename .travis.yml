@@ -33,7 +33,8 @@ install:
 before_script:
         - tools/travis-setup-db.sh
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-script: KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
+script:
+    - KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 
 after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
@@ -45,6 +46,7 @@ after_failure:
 after_success:
         # env variables help to distinguish CI builds
         # It takes less time without gcov
+        - test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
         - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
         - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "19.3" ];
