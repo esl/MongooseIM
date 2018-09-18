@@ -347,9 +347,6 @@ analyze(Test, CoverOpts) ->
     report_time("Export merged cover data", fun() ->
 			cover:export("/tmp/mongoose_combined.coverdata")
 		end),
-    report_time("Export merged cover data in codecov.json format", fun() ->
-            export_codecov_json()
-        end),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
             make_html(modules_to_analyze(CoverOpts));
@@ -559,9 +556,6 @@ travis_fold(Description, Fun) ->
 import_code_paths(FromNode) when is_atom(FromNode) ->
     Paths = rpc:call(FromNode, code, get_path, []),
     code:add_paths(Paths).
-
-export_codecov_json() ->
-    codecov_helper:to_json(repo_dir() ++ "/codecov.json").
 
 %% Gets result of file operation and prints filename, if we have any issues.
 handle_file_error(FileName, {error, Reason}) ->
