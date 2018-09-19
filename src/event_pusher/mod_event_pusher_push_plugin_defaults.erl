@@ -58,15 +58,17 @@ sender_id(From, Packet) ->
                            Services :: [mod_event_pusher_push:publish_service()]) ->
     mongooseim_acc:t().
 publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
+    MessageCount = read_unread_count(Acc0),
     BareRecipient = jid:to_bare(To),
     lists:foreach(
       fun({PubsubJID, Node, Form}) ->
-              Stanza = push_notification_iq(From, Packet, Node, Form),
+              Stanza = push_notification_iq(From, Packet, Node, Form, MessageCount),
               Acc = mongoose_acc:new(#{ location => ?LOCATION,
                                         lserver => To#jid.lserver,
                                         element => jlib:iq_to_xml(Stanza),
                                         from_jid => To,
                                         to_jid => PubsubJID }),
+
               ResponseHandler =
                   fun(_From, _To, Acc1, Response) ->
                           mod_event_pusher_push:cast(Host, handle_publish_response,
@@ -81,12 +83,13 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
 
 -spec push_notification_iq(From :: jid:jid(),
                            Packet :: exml:element(), Node :: mod_event_pusher_push:pubsub_node(),
-                           Form :: mod_event_pusher_push:form()) -> jlib:iq().
-push_notification_iq(From, Packet, Node, Form) ->
+                           Form :: mod_event_pusher_push:form(),
+                           MessageCount :: binary()) -> jlib:iq().
+push_notification_iq(From, Packet, Node, Form, MessageCount) ->
     ContentFields =
         [
          {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
-         {<<"message-count">>, <<"1">>},
+         {<<"message-count">>, MessageCount},
          {<<"last-message-sender">>, sender_id(From, Packet)},
          {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
         ],
@@ -121,4 +124,13 @@ make_form_field({Name, Value}) ->
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Name}],
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
+
+read_unread_count(Acc) ->
+    try mongoose_acc:get(inbox, unread_count, Acc) of
+        Val when is_integer(Val) ->
+            integer_to_binary(Val)
+    catch
+        _:_ ->
+            <<"1">>
+    end.
 
