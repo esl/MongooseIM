@@ -13,6 +13,7 @@
 -include("jid.hrl").
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
+-include("mongoose_logger.hrl").
 
 -export([start/2, stop/1, deps/2]).
 -export([process_iq/4, user_send_packet/4, filter_packet/1]).
@@ -58,6 +59,10 @@
                        MsgId :: binary().
 
 -callback clear_inbox(Username, Server) -> inbox_write_res() when
+                      Username :: jid:luser(),
+                      Server :: jid:lserver().
+
+-callback get_inbox_unread(Username, Server) -> {ok, integer()} when
                       Username :: jid:luser(),
                       Server :: jid:lserver().
 
@@ -408,7 +413,7 @@ muc_dep(List) ->
 
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
-        reset_unread, remove_inbox, clear_inbox].
+        reset_unread, remove_inbox, clear_inbox, get_inbox_unread].
 
 invalid_field_value(Field, Value) ->
     <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.

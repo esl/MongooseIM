@@ -27,7 +27,8 @@
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
-         reset_marker_to_bin/1]).
+         reset_marker_to_bin/1,
+         get_inbox_unread/2]).
 
 
 -spec reset_unread_count(User :: jid:jid(),
@@ -135,3 +136,6 @@ reset_marker_to_bin(displayed) -> <<"displayed">>;
 reset_marker_to_bin(acknowledged) -> <<"acknowledged">>;
 reset_marker_to_bin(received) -> <<"received">>;
 reset_marker_to_bin(Unknown) -> throw({unknown_marker, Unknown}).
+
+get_inbox_unread(User, Server) ->
+    mod_inbox_backend:get_inbox_unread(User, Server).
