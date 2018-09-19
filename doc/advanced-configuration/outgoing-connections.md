@@ -1,17 +1,17 @@
 # Outgoing connections
 
-MongooseIM can be configured to talk to external service like databases or HTTP servers in order to get or set required data.
+MongooseIM can be configured to talk to external service like databases or HTTP servers in order to get or set the required data.
 The interface for outgoing connections management was unified and is now available via the `outgoing_pools` config option for the following type of connections:
 
 * `cassandra` - pool of connections to cassandra cluster
 * `riak` - pool of connections to riak cluster
 * `redis` - pool of connections to redis server
-* `http` - pool of connections to various HTTP(S) server MongooseIM can talk to, in example HTTP auth backend or HTTP notifications
+* `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, in example HTTP authentication backend or HTTP notifications
 * `generic` - pool of generic workers not assosiated directly with a paritcualr connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
 
-Every entry in the `outgoing_pools` is a 5 element tuple like below:
+Every entry in the `outgoing_pools` is a 5 element tuple:
 
 ```erlang
 {Type, Host, Tag, PoolOptions, ConnectionOptions}
@@ -21,16 +21,16 @@ Where:
 
 * `Type` is one of the types listed above
 * `Host` can be set to:
-    * `global` - meaning the pool will started once despited the XMPP hosts served by MongooseIM
+    * `global` - meaning the pool will started once no matter how many XMPP hosts served by MongooseIM
     * `host` - the pool will be started for all the XMPP hosts served by MongooseIM
     * a binary representing a specific XMPP host like `<<"domain1.chat.im">>`
 * `Tag` is a name to distinguish pools with the same `Type` and `Host` parameter.
 * `PoolOptions` is a list of `{key, value}` pairs as defined in [worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
    with the following exception:
-    * `strategy` - specifies worker selection strategy for the given pool, default is `best_worker`,
+    * `strategy` - specifies the worker selection strategy for the given pool, default is `best_worker`,
       more details on this can be found in [Choosing strategy in worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
     * `call_timeout` - specifies the timeout for a call operation to the pool
-* `ConnectionOptions` - list options passed to the `start` function of the pool type
+* `ConnectionOptions` - options list passed to the `start` function of the pool type
 
 
 ### Examples
@@ -56,7 +56,7 @@ will be expanded to the following configuration:
 ## Riak connection setup
 
 Currently only one Riak connection pool can exist for each supported XMPP host.
-It is configured with the following tuple inside `outgoing_pools` config option.
+It is configured with the following tuple inside the `outgoing_pools` config option.
 
 ```erlang
 {outgoing_pools, [
@@ -107,7 +107,7 @@ An example configuration can look as follows:
 
 ## Cassandra connection setup
 
-The minimum pool definition for cassandra workers looks like below:
+The minimum pool definition for cassandra workers looks as follows:
 
 ```erlang
 {outgoing_pools, [
@@ -115,7 +115,7 @@ The minimum pool definition for cassandra workers looks like below:
 ]}.
 ```
 
-In this case MongooseIM will take by default try to connect to Cassandra server on "localhost" and port 9042.
+In this case MongooseIM will by default try to connect to Cassandra server on "localhost" and port 9042.
 The keyspace used in queries will be `mongooseim`.
 
 
