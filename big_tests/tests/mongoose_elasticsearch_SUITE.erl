@@ -81,10 +81,5 @@ start_and_stop_sequence(_Config) ->
 
 -spec is_elasticsearch_enabled() -> boolean().
 is_elasticsearch_enabled() ->
-    case rpc(mim(), mongoose_elasticsearch, health, []) of
-        {ok, _} ->
-            true;
-        {error, _} ->
-            false
-    end.
+    rpc(mim(), mongoose_wpool, is_configured, [elastic]).
 

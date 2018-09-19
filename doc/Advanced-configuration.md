@@ -354,41 +354,6 @@ sslmode     = verify-full
 sslrootcert = /path/to/ca/cert
 ```
 
-### ElasticSearch connection setup
-
-Currently MongooseIM allows to create only a single pool of connections to a single ElasticSearch node.
-To enable a pool you need to add `elasticsearch_server` option in `mongooseim.cfg`:
-
-```
-{elasticsearch_server, [Option1, Option2]}.
-```
-
-Options include:
-* `host` (default: `"localhost"`) - hostname or IP address of ElasticSearch node
-* `port` (default: `9200`) - port the ElasticSearch node's HTTP API is listening on
-
-You can verify that MongooseIM has established the connection by running the following function in the MongooseIM shell:
-
-```
-1> mongoose_elasticsearch:health().
-{ok,#{<<"active_primary_shards">> => 15,<<"active_shards">> => 15,
-       <<"active_shards_percent_as_number">> => 50.0,
-       <<"cluster_name">> => <<"docker-cluster">>,
-       <<"delayed_unassigned_shards">> => 0,
-       <<"initializing_shards">> => 0,
-       <<"number_of_data_nodes">> => 1,
-       <<"number_of_in_flight_fetch">> => 0,
-       <<"number_of_nodes">> => 1,
-       <<"number_of_pending_tasks">> => 0,
-       <<"relocating_shards">> => 0,
-       <<"status">> => <<"yellow">>,
-       <<"task_max_waiting_in_queue_millis">> => 0,
-       <<"timed_out">> => false,
-       <<"unassigned_shards">> => 15}}
-```
-
-Note that the output might differ based on your ElasticSearch cluster configuration.
-
 ### Outgoing HTTP connections
 
 The `http_connections` option configures a list of named pools of outgoing HTTP connections that may be used by various modules. Each of the pools has a name (atom) and a list of options:

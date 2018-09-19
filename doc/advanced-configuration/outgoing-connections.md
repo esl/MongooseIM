@@ -3,10 +3,11 @@
 MongooseIM can be configured to talk to external service like databases or HTTP servers in order to get or set the required data.
 The interface for outgoing connections management was unified and is now available via the `outgoing_pools` config option for the following type of connections:
 
-* `cassandra` - pool of connections to cassandra cluster
-* `riak` - pool of connections to riak cluster
-* `redis` - pool of connections to redis server
+* `cassandra` - pool of connections to Cassandra cluster
+* `riak` - pool of connections to Riak cluster
+* `redis` - pool of connections to Redis server
 * `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, in example HTTP authentication backend or HTTP notifications
+* `elastic` - pool of connections to ElasticSearch server
 * `generic` - pool of generic workers not assosiated directly with a paritcualr connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
@@ -205,4 +206,50 @@ Make sure Cassandra is running and then run MongooseIM in live mode:
 ```
 
 If no errors occurred and your output is similar to the one above then your MongooseIM and Cassandra nodes can communicate over SSL.
+
+## ElasticSearch connection setup
+
+A connection pool to ElasticSearch can be configured as below:
+
+```erlang
+{outgoing_pools, [
+ {elastic, global, elasticsearch, [], []}
+]}.
+```
+
+MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
+This library starts pool of worker by its own so:
+
+* number of workers (which is 50)
+* `call_timeout` (inifinity)
+* worker selection strategy (`available_worker` or what's set as `default_strategy` of `worker_pool` application)
+
+are not possible to change via `WPoolOpts`.
+
+Only `ConnectionOpts` can be set and in them the following options can be added (as `{key, value}` pairs):
+
+* `host` (default: `"localhost"`) - hostname or IP address of ElasticSearch node
+* `port` (default: `9200`) - port the ElasticSearch node's HTTP API is listening on
+
+You can verify that MongooseIM has established the connection by running the following function in the MongooseIM shell:
+
+```erlang
+1> mongoose_elasticsearch:health().
+{ok,#{<<"active_primary_shards">> => 15,<<"active_shards">> => 15,
+       <<"active_shards_percent_as_number">> => 50.0,
+       <<"cluster_name">> => <<"docker-cluster">>,
+       <<"delayed_unassigned_shards">> => 0,
+       <<"initializing_shards">> => 0,
+       <<"number_of_data_nodes">> => 1,
+       <<"number_of_in_flight_fetch">> => 0,
+       <<"number_of_nodes">> => 1,
+       <<"number_of_pending_tasks">> => 0,
+       <<"relocating_shards">> => 0,
+       <<"status">> => <<"yellow">>,
+       <<"task_max_waiting_in_queue_millis">> => 0,
+       <<"timed_out">> => false,
+       <<"unassigned_shards">> => 15}}
+```
+
+Note that the output might differ based on your ElasticSearch cluster configuration.
 
