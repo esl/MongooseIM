@@ -68,12 +68,11 @@
 
 -spec start() -> ignore | ok | no_return().
 start() ->
-    application:set_env(cqerl, maps, true),
     case mongoose_cassandra_pool:all() of
         [_ | _] = ConfiguredPools ->
-            {ok, []} = application:ensure_all_started(cqerl),
+            ?WARNING_MSG("Deprecated cassandra_servers option, please use outgoing_pools", []),
             mongoose_wpool:ensure_started(),
-
+            mongoose_wpool_cassandra:init(),
             [mongoose_cassandra_pool:init(Pool) || Pool <- ConfiguredPools];
         _ ->
             ignore

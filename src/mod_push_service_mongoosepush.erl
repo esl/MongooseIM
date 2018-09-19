@@ -51,8 +51,9 @@ start(Host, Opts) ->
 
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
     mongoose_wpool:ensure_started(),
-    {ok, _} = mongoose_wpool:start(?MODULE, Host, [{strategy, available_worker},
-                                                   {workers, MaxHTTPConnections}]),
+    {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service,
+                                   [{strategy, available_worker},
+                                    {workers, MaxHTTPConnections}]),
 
     %% Hooks
     ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
@@ -62,7 +63,7 @@ start(Host, Opts) ->
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
-    mongoose_wpool:stop(?MODULE, Host),
+    mongoose_wpool:stop(generic, Host, mongoosepush_service),
 
     ok.
 
@@ -151,4 +152,4 @@ make_notification(v2, Notification, Options) ->
 
 -spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
-    mongoose_wpool:cast(?MODULE, Host, {M, F, A}).
+    mongoose_wpool:cast(generic, Host, mongoosepush_service, {M, F, A}).

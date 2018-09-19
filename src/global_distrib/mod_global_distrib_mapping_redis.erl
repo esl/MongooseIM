@@ -51,9 +51,9 @@ start(Opts) ->
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
-    EredisArgs = [Server, Port, 0, Password, 100, 5000],
+    ConnectionOpts = [{host, Server}, {port, Port}, {database, 0}, {password, Password}],
     mongoose_wpool:ensure_started(),
-    mongoose_wpool:start(?MODULE, [{workers, PoolSize}, {worker, {eredis_client, EredisArgs}}]),
+    mongoose_wpool:start(redis, global, distrib, [{workers, PoolSize}], ConnectionOpts),
 
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
@@ -156,7 +156,7 @@ handle_info(refresh, RefreshAfter) ->
 
 -spec q(Args :: list()) -> {ok, term()}.
 q(Args) ->
-    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    {ok, Worker} = mongoose_wpool:get_worker(redis, global, distrib),
     case eredis:q(Worker, Args) of
         {ok, _} = OKRes ->
             OKRes;

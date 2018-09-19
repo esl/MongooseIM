@@ -43,17 +43,8 @@
 
 -spec start() -> ok.
 start() ->
-    case ets:info(?MODULE) of
-        undefined ->
-            Heir = case whereis(ejabberd_sup) of
-                       undefined -> [];
-                       Pid -> [{heir, Pid, undefined}]
-                   end,
-            ets:new(?MODULE, [named_table, public, {read_concurrency, true} | Heir]);
-        _ ->
-            ok
-    end,
     mongoose_wpool:ensure_started(),
+    mongoose_wpool_http:init(),
     case ejabberd_config:get_local_option(http_connections) of
         undefined -> ok;
         Opts -> start(Opts)
@@ -79,8 +70,7 @@ start_pool(PoolName, Opts) ->
 
 -spec stop_pool(atom()) -> ok.
 stop_pool(Name) ->
-    ets:delete(?MODULE, Name),
-    mongoose_wpool:stop(?MODULE, global, Name),
+    mongoose_wpool:stop(http, global, Name),
     ok.
 
 -spec get(atom(), binary(), list()) ->
@@ -104,17 +94,12 @@ start(Opts) ->
 
 do_start_pool(PoolName, Opts) ->
     SelectionStrategy = gen_mod:get_opt(selection_strategy, Opts, available_worker),
-    PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, Opts, "/")),
-    RequestTimeout = gen_mod:get_opt(request_timeout, Opts, 2000),
     PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
-    ets:insert(?MODULE, {PoolName, PathPrefix, RequestTimeout}),
     PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
-    Server = gen_mod:get_opt(server, Opts),
-    HttpOpts = gen_mod:get_opt(http_opts, Opts, []),
     PoolSettings = [{strategy, SelectionStrategy}, {call_timeout, PoolTimeout},
-                    {workers, PoolSize}, {worker, {fusco, {Server, HttpOpts}}}
+                    {workers, PoolSize}
                     | gen_mod:get_opt(pool_opts, Opts, [])],
-    mongoose_wpool:start(?MODULE, global, PoolName, PoolSettings).
+    mongoose_wpool:start(http, global, PoolName, PoolSettings, Opts).
 
 make_request(PoolName, Path, Method, Headers, Query) ->
     case ets:lookup(?MODULE, PoolName) of
@@ -128,7 +113,7 @@ make_request(PoolName, Path, Method, Headers, Query) ->
 make_request(PoolName, PathPrefix, RequestTimeout, Path, Method, Headers, Query) ->
     FullPath = <<PathPrefix/binary, Path/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
-    try mongoose_wpool:call(?MODULE, global, PoolName, Req) of
+    try mongoose_wpool:call(http, global, PoolName, Req) of
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
             {ok, {Code, RespBody}};
         {error, timeout} ->

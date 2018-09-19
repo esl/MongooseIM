@@ -55,26 +55,20 @@ start() ->
         undefined ->
             ignore;
         RiakOpts ->
+            ?WARNING_MSG("Deprecated riak_server option, please use outgoing_pools", []),
             start_pool(RiakOpts)
     end.
 
 start_pool(RiakOpts) ->
-    {_, RiakAddr} = get_riak_opt(address, RiakOpts),
-    {_, RiakPort} = get_riak_opt(port, RiakOpts),
-    {_, Workers} = get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
-    SecurityOptsKeys = [credentials, cacertfile, ssl_opts],
-    SecurityOpts = [get_riak_opt(OptKey, RiakOpts) || OptKey <- SecurityOptsKeys],
-    RiakPBOpts = [auto_reconnect, keepalive],
-    WorkerArgs = maybe_add_additional_opts(RiakPBOpts, SecurityOpts),
-    Worker = {riakc_pb_socket, [RiakAddr, RiakPort, WorkerArgs]},
+    {_, Workers} = mongoose_wpool_riak:get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
     %% TODO (Bartek Gorny): improve worker_pool, then use available_worker strategy here
-    PoolOpts = [{strategy, next_worker}, {workers, Workers}, {worker, Worker}
+    PoolOpts = [{strategy, next_worker}, {workers, Workers}
                 | proplists:get_value(pool_options, RiakOpts, [])],
-    mongoose_wpool:start(?MODULE, PoolOpts).
+    mongoose_wpool:start(riak, global, default, PoolOpts, RiakOpts).
 
 -spec stop() -> _.
 stop() ->
-    mongoose_wpool:stop(?MODULE).
+    mongoose_wpool:stop(riak).
 
 -spec put(riakc_obj()) ->
     ok | {ok, riakc_obj()} | {ok, key()} | {error, term()}.
@@ -185,28 +179,6 @@ call_riak(F, ArgsIn) ->
     apply(riakc_pb_socket, F, Args).
 
 get_worker() ->
-    {ok, Worker} = mongoose_wpool:get_worker(?MODULE),
+    {ok, Worker} = mongoose_wpool:get_worker(riak),
     Worker.
 
-%% @doc Gets a particular option from `Opts`. They're expressed as a list
-%% of tuples where the first element is `OptKey`. If provided `OptKey` doesn't
-%% exist the `Default` is returned.
--spec get_riak_opt(OptKey :: atom(), Opts :: [tuple()], Default :: tuple()) ->
-                                   tuple().
-get_riak_opt(OptKey, Opts, Default) ->
-    Opt = get_riak_opt(OptKey, Opts),
-    verify_if_riak_opt_exists(Opt, Default).
-
-get_riak_opt(OptKey, Opts) ->
-    lists:keyfind(OptKey, 1, Opts).
-
-verify_if_riak_opt_exists(false, Default) -> Default;
-verify_if_riak_opt_exists(Opt, _) -> Opt.
-
-%% @docs Merges `AdditionalOpts` into `Opts` if a particular additional option
-%% exists.
--spec maybe_add_additional_opts(Opts :: [term()],
-                                   AdditionalOpts :: [tuple()]) -> [term()].
-maybe_add_additional_opts(Opts, AdditionalOpts) ->
-    Opts2 = [verify_if_riak_opt_exists(Opt, []) || Opt <- AdditionalOpts],
-    lists:flatten(Opts ++ Opts2).
