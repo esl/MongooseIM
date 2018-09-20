@@ -135,27 +135,9 @@ delete_by_query(Index, Type, SearchQuery) ->
 
 -spec start_pool(list()) -> ok | no_return().
 start_pool(Opts) ->
-    Host = proplists:get_value(host, Opts, "localhost"),
-    Port = proplists:get_value(port, Opts, 9200),
-    case tirerl:start_pool(?POOL_NAME, [{host, list_to_binary(Host)}, {port, Port}]) of
-        {ok, _} ->
-            ?INFO_MSG("event=elasticsearch_pool_started elasticsearch_host=~p elasticsearch_port=~p",
-                      [Host, Port]),
-            ok;
-        {ok, _, _} ->
-            ?INFO_MSG("event=elasticsearch_pool_started elasticsearch_host=~p elasticsearch_port=~p",
-                      [Host, Port]),
-            ok;
-        {error, {already_started, _}} ->
-            ok;
-        {error, _} = Err ->
-            ?ERROR_MSG("event=elasticsearch_pool_start_failed elasticsearch_host=~p "
-                       "elasticsearch_port=~p reason=~1000p",
-                       [Host, Port, Err]),
-            error(Err)
-    end.
+    mongoose_wpool:start(elastic, global, ?POOL_NAME, [], Opts).
 
 -spec stop_pool() -> any().
 stop_pool() ->
-    tirerl:stop_pool(?POOL_NAME).
+    mongoose_wpool:stop(elastic, global, ?POOL_NAME).
 

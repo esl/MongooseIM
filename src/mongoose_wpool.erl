@@ -10,7 +10,7 @@
 -include("mongoose.hrl").
 -include("mongoose_wpool.hrl").
 
--record(mongoose_wpool, {name :: term(), strategy :: atom(), call_timeout :: pos_integer()}).
+-record(mongoose_wpool, {name :: term(), strategy :: atom(), call_timeout :: pos_integer() | undefined}).
 -dialyzer({no_match, start/4}).
 
 %% API
@@ -37,7 +37,7 @@
 
 -callback init() -> ok | {error, term()}.
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
-    {ok, pid()} | {error, Reason :: term()}.
+    {ok, pid()} | {external, pid()} | {error, Reason :: term()}.
 -callback stop(host(), tag()) -> ok.
 
 ensure_started() ->
@@ -90,6 +90,9 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
             ets:insert(?MODULE, #mongoose_wpool{name = {Type, Host, Tag},
                                                 strategy = Strategy,
                                                 call_timeout = CallTimeout}),
+            {ok, Pid};
+        {external, Pid} ->
+            ets:insert(?MODULE, #mongoose_wpool{name = {Type, Host, Tag}}),
             {ok, Pid};
         Error ->
             Error
