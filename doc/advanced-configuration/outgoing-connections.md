@@ -209,16 +209,16 @@ If no errors occurred and your output is similar to the one above then your Mong
 
 ## ElasticSearch connection setup
 
-A connection pool to ElasticSearch can be configured as below:
+A connection pool to ElasticSearch can be configured as follows:
 
 ```erlang
 {outgoing_pools, [
- {elastic, global, elasticsearch, [], []}
+ {elastic, global, elasticsearch, [], [{host, "localhost"}]}
 ]}.
 ```
 
 MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
-This library starts pool of worker by its own so:
+This library starts a pool of workers on its own so the following options are not configurable via `WPoolOpts`:
 
 * number of workers (which is 50)
 * `call_timeout` (inifinity)
@@ -226,12 +226,12 @@ This library starts pool of worker by its own so:
 
 are not possible to change via `WPoolOpts`.
 
-Only `ConnectionOpts` can be set and in them the following options can be added (as `{key, value}` pairs):
+Only configurable options are `ConnectionOpts` and here you can add (as `{key, value}` pairs):
 
 * `host` (default: `"localhost"`) - hostname or IP address of ElasticSearch node
 * `port` (default: `9200`) - port the ElasticSearch node's HTTP API is listening on
 
-You can verify that MongooseIM has established the connection by running the following function in the MongooseIM shell:
+Run the following function in the MongooseIM shell to verify that the connection has been established:
 
 ```erlang
 1> mongoose_elasticsearch:health().
