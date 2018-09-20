@@ -1273,7 +1273,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
 -spec handle_routed_iq(From :: jid:jid(),
                        To :: jid:jid(),
                        Acc :: mongoose_acc:t(),
-                       IQ :: invalid | not_iq | reply | jlib:iq(),
+                       IQ :: invalid | not_iq | jlib:iq(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData) 
   when Type /= result ->
@@ -1298,16 +1298,12 @@ handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData
         _ ->
             {forbidden, Acc, StateData}
     end;
-handle_routed_iq(_From, To, Acc, IQ, StateData)
-  when (is_record(IQ, iq)) orelse (IQ == reply) ->
+handle_routed_iq(_From, To, Acc, #iq{}, StateData) ->
     {Acc1, Res} = privacy_check_packet(Acc, To, in, StateData),
     case Res of
         allow ->
             {allow, Acc1, StateData};
-        deny when is_record(IQ, iq) ->
-            {deny, Acc1, StateData};
-        deny when IQ == reply ->
-            %% ???
+        deny ->
             {deny, Acc1, StateData}
     end;
 handle_routed_iq(_From, _To, Acc, IQ, StateData)

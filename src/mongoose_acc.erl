@@ -65,7 +65,7 @@
         timestamp := erlang:timestamp(),
         origin_pid := pid(),
         origin_location := location(),
-        origin_stanza := stanza_metadata() | undefined,
+        origin_stanza := binary() | undefined,
         stanza := stanza_metadata() | undefined,
         lserver := jid:lserver(),
         non_strippable := sets:set(ns_key()),
@@ -105,15 +105,18 @@
 
 -spec new(Params :: new_acc_params()) -> t().
 new(#{ location := Location, lserver := LServer } = Params) ->
-    Stanza = stanza_from_params(Params),
+    ElementBin = case maps:get(element, Params, undefined) of
+                     undefined -> undefined;
+                     Element -> exml:to_binary(Element)
+                 end,
     #{
       mongoose_acc => true,
       ref => make_ref(),
       timestamp => os:timestamp(),
       origin_pid => self(),
       origin_location => Location,
-      origin_stanza => Stanza, % Stanza that triggered the processing
-      stanza => Stanza,
+      origin_stanza => ElementBin,
+      stanza => stanza_from_params(Params),
       lserver => LServer,
       non_strippable => sets:new()
      }.

@@ -95,7 +95,8 @@ process_iq(Acc0, From, To, El) ->
     {IQ, Acc} = mongoose_iq:record(Acc0),
     process_iq(IQ, Acc, From, To, El).
 
-process_iq(#iq{ type = result } = IQReply, Acc, From, To, _El) ->
+process_iq(#iq{ type = Type } = IQReply, Acc, From, To, _El)
+  when Type == result; Type == error ->
     process_iq_reply(From, To, Acc, IQReply);
 process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
     Host = To#jid.lserver,

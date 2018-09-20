@@ -595,7 +595,8 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
               NewEve = connect_from_spec(EveSpec2, Config),
-              ct:sleep(timer:seconds(1)), % without it, on very slow systems (e.g. travis),
+              %% We want SM resume to definitely time out
+              ct:sleep(timer:seconds(2)), % without it, on very slow systems (e.g. travis),
                                           % global_distrib correctly routes "hi again from eu"
                                           % message to local host, but it's rejected by some
                                           % underlying mechanism (presence unavailable?)
