@@ -97,7 +97,7 @@ process_iq(Acc0, From, To, El) ->
 
 process_iq(#iq{ type = result } = IQReply, Acc, From, To, _El) ->
     process_iq_reply(From, To, Acc, IQReply);
-process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
+process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
     Host = To#jid.lserver,
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
         [{_, Module, Function}] ->

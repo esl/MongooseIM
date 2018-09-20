@@ -994,6 +994,8 @@ process_iq(From, To, Acc0, Packet) ->
     {IQ, Acc} = mongoose_iq:record(Acc0),
     process_iq(IQ, From, To, Acc, Packet).
 
+process_iq(#iq{type = result}, _From, _To, Acc, _Packet) ->
+    Acc;
 process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
     Host = To#jid.lserver,
     case ets:lookup(sm_iqtable, {XMLNS, Host}) of
@@ -1012,8 +1014,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
                     Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
             ejabberd_router:route(To, From, Acc1, Err)
     end;
-process_iq(reply, _From, _To, Acc, _Packet) ->
-    Acc;
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
    ejabberd_router:route(To, From, Acc1, Err).

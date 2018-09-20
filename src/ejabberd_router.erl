@@ -135,9 +135,12 @@ route(From, To, Acc, {error, Reason} = Err) ->
     ?INFO_MSG("event=cannot_route_stanza,from=~p,to=~p,reason=~p,acc=~p", [From, To, Reason, Acc]),
     mongoose_acc:append(router, result, Err, Acc);
 route(From, To, Acc, El) ->
+    Acc1 = mongoose_acc:update_stanza(#{ from_jid => From,
+                                         to_jid => To,
+                                         element => El }, Acc),
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-        [From, To, Acc]),
-    route(From, To, Acc, El, routing_modules_list()).
+        [From, To, Acc1]),
+    route(From, To, Acc1, El, routing_modules_list()).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
