@@ -113,11 +113,7 @@ init_per_suite(Config) ->
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
-            CertDir = filename:join(path_helper:test_dir(Config), "priv/ssl"),
-            CertPath = path_helper:canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
-            CACertPath = path_helper:canonicalize_path(filename:join(CertDir, "cacert.pem")),
             escalus:init_per_suite([{add_advertised_endpoints, []},
-                                    {certfile, CertPath}, {cafile, CACertPath},
                                     {extra_config, []}, {redis_extra_config, []} | Config]);
         _ ->
             {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
@@ -160,8 +156,8 @@ init_per_group(_, Config0) ->
                             {global_host, "localhost"},
                             {endpoints, [listen_endpoint(ReceiverPort)]},
                             {tls_opts, [
-                                        {certfile, ?config(certfile, Config1)},
-                                        {cafile, ?config(cafile, Config1)}
+                                        {certfile, "priv/ssl/fake_server.pem"},
+                                        {cafile, "priv/ssl/ca/cacert.pem"}
                                        ]},
                             {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
                             {resend_after_ms, 500}]),

@@ -37,20 +37,14 @@ default_keyfile     = ca/cakey.pem
 distinguished_name  = ca_distinguished_name
 #x509_extensions     = ca_extensions
 string_mask         = utf8only
+prompt              = no
 
 ####################################################################
 [ ca_distinguished_name ]
 countryName                 = PL
-countryName_default         = PL
-
 stateOrProvinceName         = Malopolska
-stateOrProvinceName_default = Malopolska
-
 localityName                = Krakow
-localityName_default        = Krakow
-
 commonName                  = MongooseIM Fake CA
-commonName_default          = MongooseIM Fake CA
 
 ####################################################################
 [ signing_policy ]

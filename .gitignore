@@ -2,6 +2,9 @@
 # You can add personal rules in your file .git/info/exclude
 tools/*.tar.gz
 tools/*.pyc
+tools/ssl/ca
+tools/ssl/mongooseim
+tools/ssl/ca-clients
 src/#*
 src/.#*
 test/.#*
@@ -115,6 +118,7 @@ get-deps.log
 big_tests/src/mim_ct_rest.erl
 big_tests/src/mim_ct_rest_handler.erl
 big_tests/src/mim_ct_sup.erl
+big_tests/priv/ssl
 test_preset.log
 
 codecov.json
