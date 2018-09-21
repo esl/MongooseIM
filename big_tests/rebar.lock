@@ -22,7 +22,7 @@
   1},
  {<<"erlsh">>,
   {git,"https://github.com/proger/erlsh.git",
-       {ref,"2fce5134f969be3b92ec501d9caa17e4122ba9aa"}},
+       {ref,"4e8a107e4a082b5e687877cf08d152a45a715bf4"}},
   0},
  {<<"escalus">>,
   {git,"https://github.com/esl/escalus.git",
