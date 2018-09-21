@@ -1,14 +1,14 @@
 all: mongooseim/server.pem mongooseim/cert.pem \
   mongooseim/key.pem mongooseim/dh_server.pem \
   mongooseim/pubkey.pem mongooseim/privkey.pem \
-  ca/cacert.pem ca/cakey.pem \
-  ca-clients/cacert.pem ca-clients/cakey.pem
+  ca/cacert.pem ca/cakey.pem ca/index.txt ca/serial.txt \
+  ca-clients/cacert.pem ca-clients/cakey.pem ca-clients/index.txt ca-clients/serial.txt
 
 %/cacert.pem: openssl-%.cnf
 	mkdir -p $(@D)
 	openssl req -x509 -config $< -newkey rsa:2048 -sha256 -nodes -out $@ -outform PEM
 
-%/cakey.pem: %/cacert.pem;
+%/cakey.pem: %/cacert.pem
 
 %/cert.csr: openssl-%.cnf
 	mkdir -p $(@D)
@@ -34,11 +34,11 @@ all: mongooseim/server.pem mongooseim/cert.pem \
 %/dh_server.pem:
 	openssl dhparam -outform PEM -out $@ 1024
 
-ca/index.txt:
+%/index.txt:
 	mkdir -p $(@D)
 	touch $@
 
-ca/serial.txt:
+%/serial.txt:
 	mkdir -p $(@D)
 	echo 01 > $@
 
