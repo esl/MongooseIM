@@ -2,6 +2,7 @@ all: mongooseim/server.pem mongooseim/cert.pem \
   mongooseim/key.pem mongooseim/dh_server.pem \
   mongooseim/pubkey.pem mongooseim/privkey.pem \
   ca/cacert.pem ca/cakey.pem \
+  ca-clients/cacert.pem ca-clients/cakey.pem
 
 %/cacert.pem: openssl-%.cnf
 	mkdir -p $(@D)
