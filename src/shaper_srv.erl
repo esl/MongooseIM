@@ -143,7 +143,6 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info(delete_old_shapers, State) ->
-    ?DEBUG("Deleted old shapers", []),
     {noreply, delete_old_shapers(State)};
 handle_info(_Info, State) ->
     {noreply, State}.
