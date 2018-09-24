@@ -8,7 +8,9 @@ all() ->
     [{group, fast_tls}].
 
 groups() ->
-    G = [{fast_tls, [], [cert_with_cn_xmpp_addresses_requested_correct_user]}],
+    G = [{fast_tls, [parallel],
+	  [cert_with_cn_xmpp_addrs_requested_correct_user,
+	   cert_with_cn_xmpp_addrs_request_name_empty]}],
     %ct_helper:repeat_all_until_all_ok(G).
     G.
 
@@ -39,7 +41,20 @@ init_per_group(_, Config) ->
 end_per_group(_, Config) ->
     Config.
 
-cert_with_cn_xmpp_addresses_requested_correct_user(C) ->
+cert_with_cn_xmpp_addrs_requested_correct_user(C) ->
+    UserSpec = [{requested_name, <<"alice@localhost">>} |
+		generate_user(C)],
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+
+    escalus_connection:stop(Client).
+
+cert_with_cn_xmpp_addrs_request_name_empty(C) ->
+    UserSpec = generate_user(C),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+
+    escalus_connection:stop(Client).
+
+generate_user(C) ->
     SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),
 
     AliceConfig = filename:join(?config(data_dir, C), "openssl-alice.cnf"),
@@ -49,7 +64,7 @@ cert_with_cn_xmpp_addresses_requested_correct_user(C) ->
     Cmd = ["openssl", "req", "-config", AliceConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
 	   "-out", AliceCsr, "-keyout", AliceKey, "-outform", "PEM"],
     ct:pal("Sign request"),
-    {done, 0, Output} = erlsh:run(Cmd),
+    {done, 0, _Output} = erlsh:run(Cmd),
 
     AliceCert = filename:join(?config(priv_dir, C), "alice_cert.pem"),
     SignCmd = filename:join(?config(data_dir, C), "sign_cert.sh"),
@@ -58,17 +73,13 @@ cert_with_cn_xmpp_addresses_requested_correct_user(C) ->
     LogFile = filename:join(?config(priv_dir, C), "singing.log"),
     {done, 0, _} = erlsh:run(Cmd2, LogFile, SSLDir),
 
-    UserSpec = [{username, <<"alice">>},
-		{server, <<"localhost">>},
-		{password, <<"break_me">>},
-		{requested_name, <<"alice@localhost">>},
-		{auth, {escalus_auth, auth_sasl_external}},
-		{ssl_opts, [{certfile, AliceCert},
-			    {keyfile, AliceKey}]},
-		{starttls, required}],
-
-    {ok, Client, _} = escalus_connection:start(UserSpec),
-
-    escalus_connection:stop(Client).
+    [{username, <<"alice">>},
+     {server, <<"localhost">>},
+     {password, <<"break_me">>},
+     {resource, <<>>}, %% Allow the server to generate the resource
+     {auth, {escalus_auth, auth_sasl_external}},
+     {ssl_opts, [{certfile, AliceCert},
+		 {keyfile, AliceKey}]},
+     {starttls, required}].
 
 
