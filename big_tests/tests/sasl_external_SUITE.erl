@@ -61,7 +61,7 @@ cert_with_cn_xmpp_addresses_requested_correct_user(C) ->
     UserSpec = [{username, <<"alice">>},
 		{server, <<"localhost">>},
 		{password, <<"break_me">>},
-		{endpoint, {server, <<"alice@localhost">>}},
+		{requested_name, <<"alice@localhost">>},
 		{auth, {escalus_auth, auth_sasl_external}},
 		{ssl_opts, [{certfile, AliceCert},
 			    {keyfile, AliceKey}]},
