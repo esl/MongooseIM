@@ -111,8 +111,8 @@ if [ "$db" = 'mysql' ]; then
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
     docker rm -f mongooseim-mysql || echo "Skip removing previous container"
-    cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/
-    openssl rsa -in ${SSLDIR}/fake_key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
+    cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
+    openssl rsa -in ${SSLDIR}/mongooseim/key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
     # mysql_native_password is needed until mysql-otp implements caching-sha2-password
     # https://github.com/mysql-otp/mysql-otp/issues/83
     docker run -d \
@@ -138,8 +138,8 @@ elif [ "$db" = 'pgsql' ]; then
     echo "Configuring postgres with SSL"
     sudo -n service postgresql stop || echo "Failed to stop psql"
     docker rm -f mongooseim-pgsql || echo "Skip removing previous container"
-    cp ${SSLDIR}/fake_cert.pem ${SQL_TEMP_DIR}/.
-    cp ${SSLDIR}/fake_key.pem ${SQL_TEMP_DIR}/.
+    cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
+    cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
     cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
     cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
     cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
@@ -168,8 +168,8 @@ elif [ "$db" = 'riak' ]; then
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
         --name=mongooseim-riak \
 	$(mount_ro_volume "${DB_CONF_DIR}/advanced.config" "/etc/riak/advanced.config") \
-	$(mount_ro_volume "${SSLDIR}/fake_cert.pem" "/etc/riak/cert.pem") \
-	$(mount_ro_volume "${SSLDIR}/fake_key.pem" "/etc/riak/key.pem") \
+	$(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/etc/riak/cert.pem") \
+	$(mount_ro_volume "${SSLDIR}/mongooseim/key.pem" "/etc/riak/key.pem") \
 	$(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/etc/riak/ca/cacertfile.pem") \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/riak) \
         --health-cmd='riak-admin status' \

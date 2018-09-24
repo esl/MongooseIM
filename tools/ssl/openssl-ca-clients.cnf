@@ -20,7 +20,7 @@ preserve            = no            # keep passed DN ordering
 email_in_dn         = no            # Don't concat the email in the DN
 copy_extensions     = copy          # Required to copy SANs from CSR to cert
 
-base_dir            = ca
+base_dir            = ca-clients
 certificate         = $base_dir/cacert.pem  # The CA certifcate
 private_key         = $base_dir/cakey.pem   # The CA private key
 new_certs_dir       = $base_dir             # Location for new certs after signing
@@ -33,7 +33,7 @@ unique_subject      = no                    # Set to 'no' to allow creation of
 ####################################################################
 [ req ]
 default_bits        = 4096
-default_keyfile     = ca/cakey.pem
+default_keyfile     = ca-clients/cakey.pem
 distinguished_name  = ca_distinguished_name
 #x509_extensions     = ca_extensions
 string_mask         = utf8only
@@ -44,7 +44,7 @@ prompt              = no
 countryName                 = PL
 stateOrProvinceName         = Malopolska
 localityName                = Krakow
-commonName                  = MongooseIM Fake CA
+commonName                  = MongooseIM Fake CA 2
 
 ####################################################################
 [ signing_policy ]
