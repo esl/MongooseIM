@@ -3,6 +3,8 @@
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
 
 all() ->
     [{group, fast_tls},
@@ -11,13 +13,13 @@ all() ->
 groups() ->
     G = [{fast_tls, [parallel], common_test_cases()},
 	 {just_tls, [parallel], common_test_cases()}],
-    %ct_helper:repeat_all_until_all_ok(G).
-    G.
+    ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
     [cert_with_cn_xmpp_addrs_requested_correct_user,
      cert_with_cn_xmpp_addrs_request_name_empty,
-     cert_with_cn_no_xmpp_addrs_request_name_empty].
+     cert_with_cn_no_xmpp_addrs_request_name_empty,
+     no_cert_fails_to_authenticate].
 
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
@@ -65,6 +67,21 @@ cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
+
+no_cert_fails_to_authenticate(_C) ->
+    UserSpec = [{username, <<"no_cert_user">>},
+		{server, <<"localhost">>},
+		{password, <<"break_me">>},
+		{resource, <<>>}, %% Allow the server to generate the resource
+		{auth, {escalus_auth, auth_sasl_external}},
+		{starttls, required}],
+
+    Result = escalus_connection:start(UserSpec),
+    ?assertMatch({error, {connection_step_failed, _, _}}, Result),
+    {error, {connection_step_failed, _Call, Details}} = Result,
+    ?assertMatch({auth_failed, _, #xmlel{name = <<"failure">>}}, Details),
+    ok.
+
 
 generate_user(C, User) ->
     generate_user(C, User, #{}).

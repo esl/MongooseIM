@@ -45,7 +45,12 @@ stop() ->
 -spec mech_new(Host :: ejabberd:server(),
                Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}.
 mech_new(_Host, Creds) ->
-    Cert = mongoose_credentials:get(Creds, client_cert),
+    Cert = mongoose_credentials:get(Creds, client_cert, no_cert),
+    maybe_extract_certs(Cert, Creds).
+
+maybe_extract_certs(no_cert, Creds) ->
+    {ok, #state{creds = Creds}};
+maybe_extract_certs(Cert, Creds) ->
     DerCert = public_key:pkix_encode('Certificate', Cert, plain),
     PemCert = public_key:pem_encode([{'Certificate', DerCert, not_encrypted}]),
     CertFields = get_common_name(Cert) ++ get_xmpp_addresses(Cert),
