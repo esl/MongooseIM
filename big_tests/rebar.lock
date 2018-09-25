@@ -5,7 +5,7 @@
   1},
  {<<"bbmustache">>,
   {git,"https://github.com/soranoba/bbmustache.git",
-       {ref,"d731d93e351a2ae567f93c4991c3f421626fab5c"}},
+       {ref,"8ad09adf7f5ea675868c88cfa664ed7c1d7febb4"}},
   0},
  {<<"certifi">>,{pkg,<<"certifi">>,<<"0.3.0">>},2},
  {<<"chatterbox">>,
