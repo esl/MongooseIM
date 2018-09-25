@@ -3,23 +3,20 @@ all: mongooseim/server.pem mongooseim/cert.pem \
   mongooseim/pubkey.pem mongooseim/privkey.pem \
   ca/cacert.pem ca/cakey.pem \
 
-%/cacert.pem: openssl-%.cnf
+%/cacert.pem %/cakey.pem: openssl-%.cnf
 	mkdir -p $(@D)
-	openssl req -x509 -config $< -newkey rsa:2048 -sha256 -nodes -out $@ -outform PEM
+	openssl req -x509 -config $< -newkey rsa:2048 -sha256 -nodes \
+	            -out $(@D)/cacert.pem -keyout $(@D)/cakey.pem -outform PEM
 
-%/cakey.pem: %/cacert.pem;
-
-%/cert.csr: openssl-%.cnf
+%/cert.csr %/key.pem: openssl-%.cnf
 	mkdir -p $(@D)
 	openssl req -config $< -newkey rsa:2048 -sha256 -nodes \
-		-out $@ -keyout $(subst cert.csr,key.pem,$@) \
+		-out $(@D)/cert.csr -keyout $(@D)/key.pem \
 		-outform PEM
 
 %/cert.pem: %/cert.csr openssl-ca.cnf ca/cacert.pem ca/cakey.pem | ca/index.txt ca/serial.txt
 	yes | openssl ca -config openssl-ca.cnf -policy signing_policy \
 		-extensions signing_req -out $@ -infiles $<
-
-%/key.pem: %/cert.pem;
 
 %/server.pem: %/cert.pem %/key.pem
 	cat $^ > $@

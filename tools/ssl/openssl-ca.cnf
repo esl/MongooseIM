@@ -33,7 +33,6 @@ unique_subject      = no                    # Set to 'no' to allow creation of
 ####################################################################
 [ req ]
 default_bits        = 4096
-default_keyfile     = ca/cakey.pem
 distinguished_name  = ca_distinguished_name
 #x509_extensions     = ca_extensions
 string_mask         = utf8only
