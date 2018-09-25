@@ -64,8 +64,8 @@ end_per_suite(Config) ->
 
 init_per_group(public_key, Config) ->
     Root = small_path_helper:repo_dir(Config),
-    PrivkeyPath = filename:join([Root, "tools", "ssl", "fake_privkey.pem"]),
-    PubkeyPath = filename:join([Root, "tools", "ssl", "fake_pubkey.pem"]),
+    PrivkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "privkey.pem"]),
+    PubkeyPath = filename:join([Root, "tools", "ssl", "mongooseim", "pubkey.pem"]),
     {ok, PrivKey} = file:read_file(PrivkeyPath),
     set_auth_opts(PubkeyPath, undefined, "RS256", bookingNumber),
     ok = ejabberd_auth_jwt:start(?DOMAIN1),

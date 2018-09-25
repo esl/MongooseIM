@@ -63,7 +63,8 @@ init([{Addr, Port}, Server]) ->
                     peer = mod_global_distrib_transport:peername(Socket)}}
     catch
         error:{badmatch, Reason} ->
-            ?ERROR_MSG("Connection to ~p failed: ~p", [{Addr, Port}, Reason]),
+            ?ERROR_MSG("Connection to ~p failed: ~p~n~p",
+                       [{Addr, Port}, Reason, erlang:get_stacktrace()]),
             {stop, normal}
     end.
 

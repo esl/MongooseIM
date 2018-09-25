@@ -85,15 +85,15 @@ mim_ct_rest: \
 vm.dist.args: vm.dist.args.in certs
 	$(SED) -e 's%__PWD__%$(PWD)%g' $< > $@
 
-certs: priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem
+certs: priv/ssl/cert.pem priv/ssl/key.pem priv/ssl/cacert.pem
 
-priv/ssl/fake_cert.pem priv/ssl/fake_key.pem priv/ssl/cacert.pem: \
-  $(REPO_DIR)/tools/ssl/fake_cert.pem \
-  $(REPO_DIR)/tools/ssl/fake_key.pem \
+priv/ssl/cert.pem priv/ssl/key.pem priv/ssl/cacert.pem: \
+  $(REPO_DIR)/tools/ssl/mongooseim/cert.pem \
+  $(REPO_DIR)/tools/ssl/mongooseim/key.pem \
   $(REPO_DIR)/tools/ssl/ca/cacert.pem
 	mkdir -p $(@D)
 	cp $^ $(@D)/
-	cat priv/ssl/fake_key.pem >> priv/ssl/fake_cert.pem
+	cat priv/ssl/key.pem >> priv/ssl/cert.pem
 
 console: $(PREPARE)
 	erl $(COMMON_OPTS) $(ADD_OPTS)

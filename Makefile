@@ -53,19 +53,7 @@ $(DEVNODES): certs configure.out rel/vars.config
 	(. ./configure.out && \
 	DEVNODE=true $(RUN) $(REBAR) as $@ release)
 
-certs: tools/ssl/ca/cacert.pem \
-       tools/ssl/fake_cert.pem \
-       tools/ssl/fake_key.pem \
-       tools/ssl/fake_pubkey.pem \
-       tools/ssl/fake_server.pem \
-       tools/ssl/fake_dh_server.pem
-
-tools/ssl/ca/cacert.pem \
-tools/ssl/fake_cert.pem \
-tools/ssl/fake_key.pem \
-tools/ssl/fake_pubkey.pem \
-tools/ssl/fake_server.pem \
-tools/ssl/fake_dh_server.pem:
+certs:
 	cd tools/ssl && $(MAKE)
 
 xeplist: escript

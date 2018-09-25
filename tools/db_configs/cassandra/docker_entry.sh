@@ -14,8 +14,8 @@ cat - >>"${CASSANDRA_CONFIG}/cassandra.yaml" <<-EOF
 
 openssl pkcs12 -export                                     \
                -out "${CASSANDRA_CONFIG}/fake_server.p12"  \
-               -in /ssl/fake_cert.pem                      \
-               -inkey /ssl/fake_privkey.pem                \
+               -in /ssl/mongooseim/cert.pem                      \
+               -inkey /ssl/mongooseim/privkey.pem                \
                -password "pass:${password}"
 
 keytool -importkeystore                                     \
