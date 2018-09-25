@@ -11,7 +11,7 @@ prompt              = no
 
 ####################################################################
 [ client_distinguished_name ]
-commonName                  = alice
+commonName                  = {{cn}}
 
 ####################################################################
 [ client_req_extensions ]
@@ -25,7 +25,9 @@ nsComment                   = "Fake Dev-Only Certificate for SASL EXTERNAL tests
 ###############################################################################################################
 ## subjectAltName sections, see 'man x509v3_config' for more information
 ## id-on-xmppAddr = 1.3.6.1.5.5.7.8.5
+## example:
+## otherName.1 = 1.3.6.1.5.5.7.8.5;UTF8:alice@localhost
 ###############################################################################################################
-[alternate_names]
-otherName.1 = 1.3.6.1.5.5.7.8.5;UTF8:alice@localhost
-otherName.2 = 1.3.6.1.5.5.7.8.5;UTF8:alice@fed1
+[ alternate_names ]
+{{{xmppAddrs}}}
+email = {{cn}}@mail.domain.com ## this is just to have sth in the section
