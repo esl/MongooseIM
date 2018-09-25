@@ -5,15 +5,19 @@
 -include_lib("common_test/include/ct.hrl").
 
 all() ->
-    [{group, fast_tls}].
+    [{group, fast_tls},
+     {group, just_tls}].
 
 groups() ->
-    G = [{fast_tls, [parallel],
-	  [cert_with_cn_xmpp_addrs_requested_correct_user,
-	   cert_with_cn_xmpp_addrs_request_name_empty,
-	   cert_with_cn_no_xmpp_addrs_request_name_empty]}],
+    G = [{fast_tls, [parallel], common_test_cases()},
+	 {just_tls, [parallel], common_test_cases()}],
     %ct_helper:repeat_all_until_all_ok(G).
     G.
+
+common_test_cases() ->
+    [cert_with_cn_xmpp_addrs_requested_correct_user,
+     cert_with_cn_xmpp_addrs_request_name_empty,
+     cert_with_cn_no_xmpp_addrs_request_name_empty].
 
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
@@ -26,12 +30,13 @@ end_per_suite(Config) ->
     ejabberd_node_utils:restart_application(mongooseim),
     escalus:end_per_suite(Config).
 
-init_per_group(_, Config) ->
+init_per_group(GroupName, Config) ->
     CACertFile = filename:join([path_helper:repo_dir(Config),
 				"tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "{certfile, \"priv/ssl/fake_server.pem\"},"
 			            "starttls, verify_peer,"
 				    "{cafile, \"" ++ CACertFile ++ "\"},"},
+		       {tls_module, "{tls_module, " ++ atom_to_list(GroupName) ++ "},"},
 		       {auth_method, "pki"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
