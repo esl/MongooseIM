@@ -89,8 +89,7 @@
                    | {access, _, _}
                    | {shaper, _, _}
                    | {host, _}
-                   | {hosts, _}
-                   | {rdbms_server, _}.
+                   | {hosts, _}.
 
 -spec search_hosts_and_pools({host|hosts, [host()] | host()}
                              | {pool, rdbms, atom()}
@@ -252,13 +251,6 @@ process_term(Term, State) ->
             lists:foldl(fun(T, S) ->
                             process_host_term(T, list_to_binary(Host), S) end,
                         State, Terms);
-        {pool, rdbms, _PoolName} ->
-            State;
-        {pool, rdbms, PoolName, Options} ->
-            lists:foldl(fun(T, S) ->
-                            process_db_pool_term(T, PoolName, S)
-                        end,
-                        State, Options);
         {listen, Listeners} ->
             Listeners2 =
                 lists:map(
@@ -273,6 +265,8 @@ process_term(Term, State) ->
             add_option(language, list_to_binary(Val), State);
         {sm_backend, Val} ->
             add_option(sm_backend, Val, State);
+        {rdbms_server_type, Val} ->
+            add_option(rdbms_server_type, Val, State);
         {outgoing_s2s_port, Port} ->
             add_option(outgoing_s2s_port, Port, State);
         {outgoing_s2s_options, Methods, Timeout} ->
@@ -320,27 +314,9 @@ process_term(Term, State) ->
         {services, Value} ->
             add_option(services, Value, State);
         {_Opt, _Val} ->
-            process_term_for_hosts_and_pools(Term, State)
-    end.
-
-process_term_for_hosts_and_pools(Term = {Key, _Val}, State) ->
-    BKey = atom_to_binary(Key, utf8),
-    case get_key_group(BKey, Key) of
-        rdbms ->
-            ok = check_pools(State#state.rdbms_pools),
-            lists:foldl(fun(Pool, S) -> process_db_pool_term(Term, Pool, S) end,
-                        State, State#state.rdbms_pools);
-        _ ->
             lists:foldl(fun(Host, S) -> process_host_term(Term, Host, S) end,
                         State, State#state.hosts)
     end.
-
-check_pools([]) ->
-    ?CRITICAL_MSG("event=invalid_config "
-                  "details=\"no_rdbms_pools: RDBMS pools are not defined\"", []),
-    exit(no_rdbms_pools);
-check_pools(Pools) when is_list(Pools) ->
-    ok.
 
 -spec process_host_term(Term :: host_term(),
                         Host :: acl:host(),
@@ -360,8 +336,6 @@ process_host_term(Term, Host, State) ->
             State;
         {outgoing_pools, Pools} when is_list(Pools) ->
             add_option(outgoing_pools, Pools, State);
-        {rdbms_pool, Pool} when is_atom(Pool) ->
-            add_option({rdbms_pool, Host}, Pool, State);
         {riak_server, RiakConfig} ->
             add_option(riak_server, RiakConfig, State);
         {cassandra_servers, CassandraConfig} ->
@@ -373,9 +347,6 @@ process_host_term(Term, Host, State) ->
         {Opt, Val} ->
             add_option({Opt, Host}, Val, State)
     end.
-
-process_db_pool_term({Opt, Val}, Pool, State) when is_atom(Pool) ->
-    add_option({Opt, rdbms_pool, Pool}, Val, State).
 
 -spec add_option(Opt :: key(),
                  Val :: value(),

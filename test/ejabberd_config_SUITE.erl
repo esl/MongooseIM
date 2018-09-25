@@ -30,9 +30,7 @@ groups() ->
                            change_module_option_with_node_param_opts,
                            change_module_option_with_node_specific_mods,
                            module_deps_work_correctly_with_reload_cluster,
-                           try_to_reload_with_different_options_on_nodes]},
-     {rdbms_pools, [], [rdbms_server_no_pools,
-                        rdbms_server_pools]}
+                           try_to_reload_with_different_options_on_nodes]}
     ].
 
 init_per_suite(Config) ->
@@ -68,24 +66,6 @@ end_per_group(_GroupName, _Config) ->
 %%
 %% Tests
 %%
-
-rdbms_server_no_pools(Config) ->
-    FileName = get_mongooseim_cfg(Config, "mongooseim.rdbms_no_pools.cfg"),
-    try ejabberd_config:load_file(FileName) of
-        _ -> ct:fail(success_without_pools)
-    catch
-        exit:Reason ->
-            ?eq(Reason, no_rdbms_pools)
-    end.
-
-rdbms_server_pools(Config) ->
-    FileName = get_mongooseim_cfg(Config, "mongooseim.rdbms_pools.cfg"),
-    try ejabberd_config:load_file(FileName) of
-        _ -> ok
-    catch
-        _:_ ->
-            ct:fail(failed_with_pools)
-    end.
 
 smoke(Config) ->
     % when

@@ -22,19 +22,19 @@
 
 -define(PGSQL_PORT, 5432).
 
--export([escape_binary/2, unescape_binary/2, connect/2, disconnect/1,
-         query/3, prepare/6, execute/4]).
+-export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
+         query/3, prepare/5, execute/4]).
 
 %% API
 
--spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
-escape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec escape_binary(binary()) -> iodata().
+escape_binary(Bin) when is_binary(Bin) ->
     [<<"decode('">>, base64:encode(Bin), <<"','base64')">>].
 
--spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
-unescape_binary(_Pool, <<"\\x", Bin/binary>>) ->
+-spec unescape_binary(binary()) -> binary().
+unescape_binary(<<"\\x", Bin/binary>>) ->
     bin_to_hex:hex_to_bin(Bin);
-unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
@@ -58,11 +58,10 @@ disconnect(Connection) ->
 query(Connection, Query, _Timeout) ->
     pgsql_to_rdbms(epgsql:squery(Connection, Query)).
 
--spec prepare(Pool :: mongoose_rdbms:pool(),
-              Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, term()} | {error, any()}.
-prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
+prepare(Connection, Name, _Table, _Fields, Statement) ->
     BinName = [atom_to_binary(Name, latin1)],
     ReplacedStatement = replace_question_marks(Statement),
     case epgsql:parse(Connection, BinName, ReplacedStatement, []) of

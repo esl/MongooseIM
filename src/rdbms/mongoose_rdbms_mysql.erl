@@ -22,17 +22,17 @@
 
 -define(MYSQL_PORT, 3306).
 
--export([escape_binary/2, unescape_binary/2, connect/2, disconnect/1,
-         query/3, prepare/6, execute/4]).
+-export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
+         query/3, prepare/5, execute/4]).
 
 %% API
 
--spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
-escape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec escape_binary(binary()) -> iodata().
+escape_binary(Bin) when is_binary(Bin) ->
     [<<"X'">>, bin_to_hex:bin_to_hex(Bin), <<"'">>].
 
--spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
-unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec unescape_binary(binary()) -> binary().
+unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
@@ -56,11 +56,10 @@ disconnect(Connection) ->
 query(Connection, Query, _Timeout) ->
     mysql_to_rdbms(mysql:query(Connection, Query), Connection).
 
--spec prepare(Pool :: mongoose_rdbms:pool(),
-              Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, term()} | {error, any()}.
-prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
+prepare(Connection, Name, _Table, _Fields, Statement) ->
     mysql:prepare(Connection, Name, Statement).
 
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],

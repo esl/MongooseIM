@@ -78,6 +78,7 @@ backend_code(Module, Backend, TrackedFuns) when is_atom(Backend) ->
 
               "-spec backend() -> atom().\n",
               "backend() ->", RealBackendModule, ".\n",
+              "backend_name() ->", atom_to_list(Backend), ".\n",
               BehaviourImpl
              ]),
     {ProxyModuleName, Code}.
