@@ -11,8 +11,8 @@ all() ->
      {group, just_tls}].
 
 groups() ->
-    G = [{fast_tls, [parallel], common_test_cases()},
-	 {just_tls, [parallel], common_test_cases()}],
+    G = [{fast_tls, [], common_test_cases()},
+	 {just_tls, [], common_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
