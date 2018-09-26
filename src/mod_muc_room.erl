@@ -2974,7 +2974,7 @@ check_changed_item(UJID, UAffiliation, URole, JID, #xmlel{ attrs = Attrs } = Ite
 -spec is_owner(UJID ::jid:jid(), StateData :: state()) -> boolean().
 is_owner(UJID, StateData) ->
     case search_affiliation(owner, StateData) of
-        [{OJID, _}] -> jid:to_bare(OJID) /= jid:to_lower(jid:to_bare(UJID));
+        [{OJID, _}] -> jid:to_bare(OJID) =:= jid:to_lower(jid:to_bare(UJID));
         _ -> true
     end.
 
@@ -3015,11 +3015,6 @@ can_change_ra(_FAffiliation, _FRole,
     %% A room owner tries to add as persistent owner a
     %% participant that is already owner because he is MUC admin
     true;
-can_change_ra(_FAffiliation, _FRole,
-              _TAffiliation, _TRole,
-              _RoleorAffiliation, _Value, owner) ->
-    %% Nobody can decrease MUC admin's role/affiliation
-    false;
 can_change_ra(_FAffiliation, _FRole,
           TAffiliation, _TRole,
           affiliation, Value, _ServiceAf)
