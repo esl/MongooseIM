@@ -46,7 +46,7 @@ all_test_cases() ->
 init_per_suite(Config) ->
     case is_elasticsearch_enabled() of
         true ->
-            ok = rpc(mim(), mongoose_elasticsearch, stop, []),
+            ok = rpc(mim(), mongoose_wpool, stop, [elastic, global, default]),
             Config;
         false ->
             {skip, elasticsearch_unavailable}
@@ -66,13 +66,13 @@ end_per_suite(_Config) ->
 %%--------------------------------------------------------------------
 
 start_and_stop_sequence(_Config) ->
-    rpc(mim(), mongoose_elasticsearch, start, []),
+    rpc(mim(), mongoose_wpool, start, [elastic, global, default, [], []]),
     ?assertMatch({ok, _}, rpc(mim(), mongoose_elasticsearch, health, [])),
 
-    rpc(mim(), mongoose_elasticsearch, stop, []),
+    rpc(mim(), mongoose_wpool, stop, [elastic, global, default]),
     ?assertMatch({error, _}, rpc(mim(), mongoose_elasticsearch, health, [])),
 
-    rpc(mim(), mongoose_elasticsearch, start, []),
+    rpc(mim(), mongoose_wpool, start, [elastic, global, default, [], []]),
     ?assertMatch({ok, _}, rpc(mim(), mongoose_elasticsearch, health, [])).
 
 %%--------------------------------------------------------------------
