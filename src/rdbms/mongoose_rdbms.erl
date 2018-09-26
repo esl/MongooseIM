@@ -413,7 +413,7 @@ init(Opts) ->
     process_flag(trap_exit, true),
     {server, Settings} = lists:keyfind(server, 1, Opts),
     KeepaliveInterval = proplists:get_value(keepalive_interval, Opts),
-    MaxStartInterval = get_start_interval(),
+    MaxStartInterval = proplists:get_value(start_interval, Opts, 30),
     case connect(Settings, ?CONNECT_RETRIES, 2, MaxStartInterval) of
         {ok, DbRef} ->
             schedule_keepalive(KeepaliveInterval),
@@ -659,8 +659,3 @@ schedule_keepalive(KeepaliveInterval) ->
             ?ERROR_MSG("Wrong keepalive_interval definition '~p'~n", [Other]),
             ok
     end.
-
-
--spec get_start_interval() -> any().
-get_start_interval() ->
-    30.

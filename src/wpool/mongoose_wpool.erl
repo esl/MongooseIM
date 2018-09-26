@@ -131,7 +131,7 @@ get_worker(Type, Host) ->
 get_worker(Type, Host, Tag) ->
     case get_pool(Type, Host, Tag) of
         {ok, #mongoose_wpool{strategy = Strategy} = Pool} ->
-            Worker = wpool_pool:Strategy(Pool),
+            Worker = wpool_pool:Strategy(make_pool_name(Pool)),
             {ok, whereis(Worker)};
         Err ->
             Err

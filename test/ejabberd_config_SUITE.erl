@@ -18,7 +18,6 @@ all() ->
     [smoke,
      {group, reload_local},
      {group, reload_cluster},
-     {group, rdbms_pools},
      split_config].
 
 groups() ->

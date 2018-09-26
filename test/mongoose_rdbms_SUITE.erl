@@ -51,16 +51,19 @@ end_per_group(_, Config) ->
 
 init_per_testcase(does_backoff_increase_to_a_point, Config) ->
     DbType = ?config(db_type, Config),
-    meck_config(DbType, 2, 10),
+    backend_module:create(mongoose_rdbms, DbType, []),
+    meck_config(DbType),
     meck_db(DbType),
     meck_connection_error(DbType),
     meck_rand(),
-    Config;
+    [{db_opts, [{server, server(DbType)}, {keepalive_interval, 2}, {start_interval, 10}]} | Config];
 init_per_testcase(_, Config) ->
     DbType = ?config(db_type, Config),
-    meck_config(DbType, ?KEEPALIVE_INTERVAL, ?MAX_INTERVAL),
+    backend_module:create(mongoose_rdbms, DbType, []),
+    meck_config(DbType),
     meck_db(DbType),
-    Config.
+    [{db_opts, [{server, server(DbType)}, {keepalive_interval, ?KEEPALIVE_INTERVAL},
+                {start_interval, ?MAX_INTERVAL}]} | Config].
 
 end_per_testcase(does_backoff_increase_to_a_point, Config) ->
     meck_unload_rand(),
@@ -73,16 +76,14 @@ end_per_testcase(_, Config) ->
 
 %% Test cases
 keepalive_interval(Config) ->
-    {ok, Pid} = gen_server:start_link(mongoose_rdbms, default, []),
-    true = erlang:unlink(Pid),
+    {ok, Pid} = gen_server:start(mongoose_rdbms, ?config(db_opts, Config), []),
     timer:sleep(5500),
     ?eq(5, query_calls(Config)),
     true = erlang:exit(Pid, kill),
     ok.
 
 keepalive_exit(Config) ->
-    {ok, Pid} = gen_server:start_link(mongoose_rdbms, default, []),
-    true = erlang:unlink(Pid),
+    {ok, Pid} = gen_server:start(mongoose_rdbms, ?config(db_opts, Config), []),
     Monitor = erlang:monitor(process, Pid),
     timer:sleep(3500),
     ?eq(3, query_calls(Config)),
@@ -97,7 +98,7 @@ keepalive_exit(Config) ->
 %% 5 retries. Max retry 10. Iniitial retry 2.
 %% We should get a sequence: 2 -> 4 -> 10 -> 10 -> 10.
 does_backoff_increase_to_a_point(Config) ->
-    {error, _} = gen_server:start(mongoose_rdbms, default, []),
+    {error, _} = gen_server:start(mongoose_rdbms, ?config(db_opts, Config), []),
     % We expect to have 2 at the begininng, then values up to 10 and 10 three times in total
     receive_backoffs(2, 10, 3).
 
@@ -127,17 +128,11 @@ meck_rand() ->
 meck_unload_rand() ->
     meck:unload(rand).
 
-meck_config(Server, KeepaliveInterval, MaxInterval) ->
+meck_config(Server) ->
     meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_local_option,
                 fun(max_fsm_queue) -> 1024;
                    (all_metrics_are_global) -> false
-                end),
-    meck:new(mongoose_rdbms_sup, [no_link, passthrough]),
-    meck:expect(mongoose_rdbms_sup, get_option,
-                fun(default, rdbms_keepalive_interval) -> KeepaliveInterval;
-                   (default, rdbms_start_interval) -> MaxInterval;
-                   (default, rdbms_server) -> server(Server)
                 end).
 
 meck_db(odbc) ->
@@ -181,7 +176,6 @@ meck_error(pgsql) ->
 
 meck_config_and_db_unload(DbType) ->
     meck:unload(ejabberd_config),
-    meck:unload(mongoose_rdbms_sup),
     do_meck_unload(DbType).
 
 do_meck_unload(odbc) ->
