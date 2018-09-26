@@ -57,6 +57,7 @@ start(normal, _Args) ->
     gen_mod:start(),
     ejabberd_config:start(),
     ejabberd_check:config(),
+    ejabberd_loglevel:set(ejabberd_config:get_local_option_or_default(loglevel, 3)),
     connect_nodes(),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
