@@ -20,7 +20,7 @@
 start(Port, Path, HandleFun) ->
     application:ensure_all_started(cowboy),
     Dispatch = cowboy_router:compile([{'_', [{Path, http_helper, [HandleFun]}]}]),
-    {ok, _} = cowboy:start_clear(http_helper_listener, 100, [{port, Port}],
+    {ok, _} = cowboy:start_clear(http_helper_listener, [{port, Port}],
                                  #{env => #{dispatch => Dispatch}}).
 
 stop() ->
