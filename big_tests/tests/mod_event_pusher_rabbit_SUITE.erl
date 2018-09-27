@@ -81,17 +81,17 @@ groups() ->
       ]},
      {chat_message_publish, [],
       [
-       users_push_chat_message_sent_events,
-       chat_message_sent_messages_are_properly_formatted,
-       users_push_chat_message_received_events,
-       chat_message_received_messages_are_properly_formatted
+       chat_message_sent_event,
+       chat_message_sent_event_properly_formatted,
+       chat_message_received_event,
+       chat_message_received_event_properly_formatted
       ]},
      {group_chat_message_publish, [],
      [
-      users_push_group_chat_message_sent_events,
-      group_chat_message_sent_messages_are_properly_formatted,
-      users_push_group_chat_message_received_events,
-      group_chat_message_received_messages_are_properly_formatted
+      group_chat_message_sent_event,
+      group_chat_message_sent_event_properly_formatted,
+      group_chat_message_received_event,
+      group_chat_message_received_event_properly_formatted
      ]}
     ].
 
@@ -183,22 +183,17 @@ exchanges_are_deleted_on_module_stop(Config) ->
 
 connected_users_push_presence_events_when_change_status(Config) ->
     escalus:story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
+      Config, [{bob, 1}],
+      fun(Bob) ->
               %% GIVEN
               escalus:wait_for_stanzas(Bob, 1),
-              escalus:wait_for_stanzas(Alice, 1),
               BobJID = nick_to_jid(bob, Config),
-              AliceJID = nick_to_jid(alice, Config),
-              listen_to_presence_events_from_rabbit([BobJID, AliceJID], Config),
+              listen_to_presence_events_from_rabbit([BobJID], Config),
               %% WHEN users generate some traffic.
-              send_presence_stanzas([Bob, Alice], 1),
+              send_presence_stanzas([Bob], 1),
               %% THEN  wait for presence events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobJID},
-                                    #amqp_msg{}}, timer:seconds(5)),
-              ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = AliceJID},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
@@ -222,58 +217,43 @@ presence_messages_are_properly_formatted(Config) ->
 %% GROUP chat_message_publish
 %%--------------------------------------------------------------------
 
-users_push_chat_message_sent_events(Config) ->
+chat_message_sent_event(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               %% GIVEN
               BobJID = nick_to_jid(bob, Config),
-              AliceJID = nick_to_jid(alice, Config),
               BobChatMsgSentRK = chat_msg_sent_rk(BobJID),
-              AliceChatMsgSentRK = chat_msg_sent_rk(AliceJID),
-              listen_to_chat_msg_sent_events_from_rabbit([BobJID, AliceJID],
-                                                         Config),
+              listen_to_chat_msg_sent_events_from_rabbit([BobJID], Config),
               %% WHEN users chat
               escalus:send(Bob,
                            escalus_stanza:chat_to(Alice, <<"Oh, hi Alice!">>)),
-              escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi Bob!">>)),
               %% THEN  wait for chat message sent events events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobChatMsgSentRK},
-                                    #amqp_msg{}}, timer:seconds(5)),
-              ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = AliceChatMsgSentRK},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
-users_push_chat_message_received_events(Config) ->
+chat_message_received_event(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               %% GIVEN
-              BobJID = nick_to_jid(bob, Config),
               AliceJID = nick_to_jid(alice, Config),
-              BobChatMsgRecvRK = chat_msg_recv_rk(BobJID),
               AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
-              listen_to_chat_msg_recv_events_from_rabbit([BobJID, AliceJID],
-                                                         Config),
+              listen_to_chat_msg_recv_events_from_rabbit([AliceJID], Config),
               %% WHEN users chat
               escalus:send(Bob,
                            escalus_stanza:chat_to(Alice, <<"Oh, hi Alice!">>)),
-              escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi Bob!">>)),
-              escalus:wait_for_stanzas(Bob, 2),
               escalus:wait_for_stanzas(Alice, 2),
               %% THEN  wait for chat message received events events from
               %% Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = AliceChatMsgRecvRK},
-                                    #amqp_msg{}}, timer:seconds(5)),
-              ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = BobChatMsgRecvRK},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
-chat_message_sent_messages_are_properly_formatted(Config) ->
+chat_message_sent_event_properly_formatted(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
@@ -293,7 +273,7 @@ chat_message_sent_messages_are_properly_formatted(Config) ->
                            get_decoded_message_from_rabbit(AliceChatMsgSentRK))
       end).
 
-chat_message_received_messages_are_properly_formatted(Config) ->
+chat_message_received_event_properly_formatted(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
@@ -318,40 +298,29 @@ chat_message_received_messages_are_properly_formatted(Config) ->
 %% GROUP group_message_publish
 %%--------------------------------------------------------------------
 
-users_push_group_chat_message_sent_events(Config) ->
+group_chat_message_sent_event(Config) ->
     escalus:story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
+      Config, [{bob, 1}],
+      fun(Bob) ->
               %% GIVEN
               Room = ?config(room, Config),
               RoomAddr = room_address(Room),
               BobJID = nick_to_jid(bob, Config),
-              AliceJID = nick_to_jid(alice, Config),
               BobGroupChatMsgSentRK = group_chat_msg_sent_rk(BobJID),
-              AliceGroupChatMsgSentRK = group_chat_msg_sent_rk(AliceJID),
-              listen_to_group_chat_msg_sent_events_from_rabbit([BobJID,
-                                                                AliceJID],
-                                                               Config),
+              listen_to_group_chat_msg_sent_events_from_rabbit([BobJID], Config),
               %% WHEN users chat
-              escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
               escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
 
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr,
                                                             <<"Hi there!">>)),
-              escalus:send(Alice,
-                           escalus_stanza:groupchat_to(RoomAddr,
-                                                       <<"Hello everyone!">>)),
 
               %% THEN  wait for chat message sent events events from Rabbit.
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = BobGroupChatMsgSentRK},
-                                    #amqp_msg{}}, timer:seconds(5)),
-              ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = AliceGroupChatMsgSentRK},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
-users_push_group_chat_message_received_events(Config) ->
+group_chat_message_received_event(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
@@ -360,10 +329,8 @@ users_push_group_chat_message_received_events(Config) ->
               RoomAddr = room_address(Room),
               BobJID = nick_to_jid(bob, Config),
               AliceJID = nick_to_jid(alice, Config),
-              BobGroupChatMsgRecvRK = group_chat_msg_recv_rk(BobJID),
               AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
-              listen_to_group_chat_msg_recv_events_from_rabbit([BobJID,
-                                                                AliceJID],
+              listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID],
                                                                Config),
               %% WHEN users chat
               escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
@@ -371,20 +338,14 @@ users_push_group_chat_message_received_events(Config) ->
 
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr,
                                                             <<"Hi there!">>)),
-              escalus:send(Alice,
-                           escalus_stanza:groupchat_to(RoomAddr,
-                                                       <<"Hello everyone!">>)),
 
               %% THEN  wait for chat message received events events from Rabbit.
-              ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = BobGroupChatMsgRecvRK},
-                                    #amqp_msg{}}, timer:seconds(5)),
               ?assertReceivedMatch({#'basic.deliver'{
                                        routing_key = AliceGroupChatMsgRecvRK},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
-group_chat_message_sent_messages_are_properly_formatted(Config) ->
+group_chat_message_sent_event_properly_formatted(Config) ->
     escalus:story(
       Config, [{bob, 1}],
       fun(Bob) ->
@@ -407,7 +368,7 @@ group_chat_message_sent_messages_are_properly_formatted(Config) ->
                            get_decoded_message_from_rabbit(BobGroupChatMsgSentRK))
       end).
 
-group_chat_message_received_messages_are_properly_formatted(Config) ->
+group_chat_message_received_event_properly_formatted(Config) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
@@ -683,18 +644,18 @@ nick_to_full_jid(UserName, Config) ->
 nick(User) -> escalus_utils:get_username(User).
 
 maybe_prepare_muc(TestCase, Config) when
-      TestCase == users_push_group_chat_message_sent_events orelse
-      TestCase == users_push_group_chat_message_received_events orelse
-      TestCase == group_chat_message_sent_messages_are_properly_formatted orelse
-      TestCase == group_chat_message_received_messages_are_properly_formatted ->
+      TestCase == group_chat_message_sent_event orelse
+      TestCase == group_chat_message_received_event orelse
+      TestCase == group_chat_message_sent_event_properly_formatted orelse
+      TestCase == group_chat_message_received_event_properly_formatted ->
     prepare_muc(Config);
 maybe_prepare_muc(_, Config) -> Config.
 
 maybe_cleanup_muc(TestCase, Config) when
-      TestCase == users_push_group_chat_message_sent_events orelse
-      TestCase == users_push_group_chat_message_received_events orelse
-      TestCase == group_chat_message_sent_messages_are_properly_formatted orelse
-      TestCase == group_chat_message_received_messages_are_properly_formatted ->
+      TestCase == group_chat_message_sent_event orelse
+      TestCase == group_chat_message_received_event orelse
+      TestCase == group_chat_message_sent_event_properly_formatted orelse
+      TestCase == group_chat_message_received_event_properly_formatted ->
     cleanup_muc(Config);
 maybe_cleanup_muc(_, _) -> ok.
 
