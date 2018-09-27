@@ -105,7 +105,7 @@ generate_user(C, User, TemplateValuesIn) ->
     UserCert = filename:join(?config(priv_dir, C), User ++ "_cert.pem"),
     SignCmd = filename:join(?config(data_dir, C), "sign_cert.sh"),
     Cmd2 = [SignCmd, "--req", UserCsr, "--out", UserCert],
-    LogFile = filename:join(?config(priv_dir, C), User ++ "singing.log"),
+    LogFile = filename:join(?config(priv_dir, C), User ++ "signing.log"),
     {done, 0, _} = erlsh:run(Cmd2, LogFile, SSLDir),
 
     [{username, list_to_binary(User)},
@@ -132,5 +132,6 @@ maybe_prepare_xmpp_addresses(Addrs) when is_list(Addrs) ->
     string:join(Entries, "\n").
 
 make_xmpp_addr_entry(Addr, I) ->
-    "otherName." ++ integer_to_list(I) ++ " = 1.3.6.1.5.5.7.8.5;UTF8:" ++ Addr.
+    % id-on-xmppAddr OID is specified in the openssl-user.cnf config file
+    "otherName." ++ integer_to_list(I) ++ " = id-on-xmppAddr;UTF8:" ++ Addr.
 
