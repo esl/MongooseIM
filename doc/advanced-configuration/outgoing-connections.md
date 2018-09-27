@@ -217,8 +217,10 @@ A connection pool to ElasticSearch can be configured as follows:
 ]}.
 ```
 
+Currently only one pool with tag `default` can be used.
+
 MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
-This library starts a pool of workers on its own so the following options are not configurable via `WPoolOpts`:
+This library uses `worker_pool` in a bit different way than MongooseIM does, so the following options are not configurable via `WPoolOpts`:
 
 * `call_timeout` (inifinity)
 * worker selection strategy (`available_worker` or what's set as `default_strategy` of `worker_pool` application)
