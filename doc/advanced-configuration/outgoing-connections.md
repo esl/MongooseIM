@@ -213,20 +213,23 @@ A connection pool to ElasticSearch can be configured as follows:
 
 ```erlang
 {outgoing_pools, [
- {elastic, global, elasticsearch, [], [{host, "localhost"}]}
+ {elastic, global, default, [], [{host, "localhost"}]}
 ]}.
 ```
 
-MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
-This library starts a pool of workers on its own so the following options are not configurable via `WPoolOpts`:
+Currently only one pool with tag `default` can be used.
 
-* number of workers (which is 50)
+MongooseIM uses [inaka/tirerl](https://github.com/inaka/tirerl) library to communicate with ElasticSearch.
+This library uses `worker_pool` in a bit different way than MongooseIM does, so the following options are not configurable via `WPoolOpts`:
+
 * `call_timeout` (inifinity)
 * worker selection strategy (`available_worker` or what's set as `default_strategy` of `worker_pool` application)
+* `overrun_warning` (infinity)
+* `overrun_handler`, ({error_logger, warning_report})
 
-are not possible to change via `WPoolOpts`.
+Other `worker_pool` options are possible to set.
 
-Only configurable options are `ConnectionOpts` and here you can add (as `{key, value}` pairs):
+In `ConnectionOpts`  you can add (as `{key, value}` pairs):
 
 * `host` (default: `"localhost"`) - hostname or IP address of ElasticSearch node
 * `port` (default: `9200`) - port the ElasticSearch node's HTTP API is listening on

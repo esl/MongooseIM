@@ -40,7 +40,7 @@
 
 -include("mongoose.hrl").
 
--define(POOL_NAME, elasticsearch).
+-define(POOL_NAME, mongoose_wpool:make_pool_name(elastic, global, default)).
 
 %%-------------------------------------------------------------------
 %% API
@@ -135,9 +135,9 @@ delete_by_query(Index, Type, SearchQuery) ->
 
 -spec start_pool(list()) -> ok | no_return().
 start_pool(Opts) ->
-    mongoose_wpool:start(elastic, global, ?POOL_NAME, [], Opts).
+    mongoose_wpool:start(elastic, global, default, [], Opts).
 
 -spec stop_pool() -> any().
 stop_pool() ->
-    mongoose_wpool:stop(elastic, global, ?POOL_NAME).
+    mongoose_wpool:stop(elastic, global, default).
 
