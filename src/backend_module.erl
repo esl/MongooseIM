@@ -72,7 +72,7 @@ backend_code(Module, Backend, TrackedFuns) when is_atom(Backend) ->
     Code = lists:flatten(
              ["-module(", ProxyModuleName, ").\n",
               "-behaviour(backend_module).\n"
-              "-export([backend/0]).\n",
+              "-export([backend/0, backend_name/0]).\n",
               BehaviourExports,
 
 
