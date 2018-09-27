@@ -3678,6 +3678,9 @@ notify_config_change_and_get_type(_, _, _, _, _StateData) ->
 -spec set_xoption([{binary(), [binary()]}], config()) -> config() | {error, exml:element()}.
 set_xoption([], Config) ->
     Config;
+set_xoption([{_, []} | Opts], Config) ->
+    % We ignore options with no <value/>
+    set_xoption(Opts, Config);
 set_xoption([{<<"muc#roomconfig_roomname">>, [Val]} | Opts], Config) ->
     ?SET_XOPT(title, Val);
 set_xoption([{<<"muc#roomconfig_roomdesc">>, [Val]} | Opts], Config) ->
