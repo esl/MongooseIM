@@ -11,12 +11,17 @@
 -behaviour(gen_mod).
 -behaviour(mod_event_pusher).
 
--callback should_make_req(Packet :: exml:element(), From :: jid:jid(), To :: jid:jid()) -> boolean().
--callback prepare_headers(Host :: jid:lserver(),
+-callback should_make_req(Acc :: mongoose_acc:t(),
+                          Packet :: exml:element(),
+                          From :: jid:jid(),
+                          To :: jid:jid()) -> boolean().
+-callback prepare_headers(Acc :: mongoose_acc:t(),
+                          Host :: jid:lserver(),
                           Message :: binary(),
                           Sender :: jid:luser(),
                           Receiver :: jid:luser()) -> [{binary(), binary()}].
--callback prepare_body(Host :: jid:lserver(),
+-callback prepare_body(Acc :: mongoose_acc:t(),
+                       Host :: jid:lserver(),
                        Message :: binary(),
                        Sender :: jid:luser(),
                        Receiver :: jid:luser()) -> binary().
@@ -47,9 +52,9 @@ stop(_Host) ->
 push_event(Acc, _, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
     Mod = get_callback_module(From#jid.lserver),
-    case Mod:should_make_req(Packet, From, To) of
+    case Mod:should_make_req(Acc, Packet, From, To) of
         true ->
-            make_req(From#jid.lserver, From#jid.luser, To#jid.luser, Body);
+            make_req(Acc, From#jid.lserver, From#jid.luser, To#jid.luser, Body);
         _ ->
             ok
     end,
@@ -64,13 +69,13 @@ push_event(Acc, _, _Event) ->
 get_callback_module(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, callback_module, mod_event_pusher_http_defaults).
 
-make_req(Host, Sender, Receiver, Message) ->
+make_req(Acc, Host, Sender, Receiver, Message) ->
     Path = fix_path(list_to_binary(gen_mod:get_module_opt(Host, ?MODULE, path, ?DEFAULT_PATH))),
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
     Mod = get_callback_module(Host),
-    Body = Mod:prepare_body(Host, Message, Sender, Receiver),
-    Headers = Mod:prepare_headers(Host, Message, Sender, Receiver),
+    Body = Mod:prepare_body(Acc, Host, Message, Sender, Receiver),
+    Headers = Mod:prepare_headers(Acc, Host, Message, Sender, Receiver),
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     T0 = os:timestamp(),
     {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Body) of
