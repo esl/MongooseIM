@@ -71,8 +71,20 @@ remove_metadata(Acc, Key) ->
 %%--------------------------------------------------------------------
 
 -spec maybe_reroute(drop) -> drop;
-                   ({jid:jid(), jid:jid(), mongoose_acc:t()}) -> drop | {jid:jid(), jid:jid(), mongoose_acc:t()}.
+                   ({jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) ->
+    drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 maybe_reroute(drop) -> drop;
+maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
+               #jid{ luser = SameUser, lserver = SameServer } = _To,
+               _Acc, _Packet} = FPacket) ->
+    %% GD is not designed to support two user sessions existing in distinct clusters
+    %% and here we explicitly block routing stanzas between them.
+    %% Without this clause, test_pm_with_ungraceful_reconnection_to_different_server test
+    %% was randomly failing because sometimes 'unavailable' presence from a dead session
+    %% was poisoning reg1 cache. In such case, reg1 tried to route locally stanzas
+    %% from unacked SM buffer, leading to an error, while a brand new, shiny Eve
+    %% on mim1 was waiting.
+    FPacket;
 maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
     {ok, ID} = find_metadata(Acc, id),
@@ -186,7 +198,9 @@ lookup_recipients_host(undefined, To, LocalHost, GlobalHost) ->
 lookup_recipients_host(TargetHost, _To, _LocalHost, _GlobalHost) ->
     {ok, TargetHost}.
 
--spec lookup_recipients_host(jid:jid(), binary(), binary()) -> {ok, binary()} | error.
+-spec lookup_recipients_host(To :: jid:jid(),
+                             LocalHost :: binary(),
+                             GlobalHost :: binary()) -> {ok, binary()} | error.
 lookup_recipients_host(#jid{luser = <<>>, lserver = LServer}, LocalHost, GlobalHost)
   when LServer == LocalHost; LServer == GlobalHost ->
     {ok, LocalHost};
