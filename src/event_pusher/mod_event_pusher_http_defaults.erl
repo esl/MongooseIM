@@ -11,7 +11,7 @@
 -behaviour(mod_event_pusher_http).
 
 %% API
--export([should_make_req/3]).
+-export([should_make_req/3, prepare_body/4, prepare_headers/4]).
 
 %% @doc This function determines whether to send http notification or not.
 %% Can be reconfigured by creating a custom module implementing should_make_req/3
@@ -26,3 +26,10 @@ should_make_req(<<"chat">>, Body, _From, _To) when Body /= <<"">> ->
     true;
 should_make_req(_, _, _, _) ->
     false.
+
+prepare_body(Host, Message, Sender, Receiver) ->
+    cow_qs:qs([{<<"author">>, Sender},
+        {<<"server">>, Host}, {<<"receiver">>, Receiver}, {<<"message">>, Message}]).
+
+prepare_headers(_Host, _Sender, _Receiver, _Message) ->
+    [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}].
