@@ -93,6 +93,7 @@ chat_type(Acc) ->
         <<"chat">> -> chat;
         <<"groupchat">> -> groupchat;
         <<"headline">> -> headline;
+        <<"normal">> -> normal;
         undefined -> normal;
         _ -> false
     end.

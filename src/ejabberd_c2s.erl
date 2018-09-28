@@ -1267,7 +1267,7 @@ handle_routed(_, _From, _To, Acc, StateData) ->
                        Acc :: mongoose_acc:t(),
                        StateData :: state()) -> routing_result().
 handle_routed_iq(From, To, Acc, StateData) ->
-    {Qi, Acc1} = mongoose_iq:record(Acc),
+    {Qi, Acc1} = mongoose_iq:info(Acc),
     handle_routed_iq(From, To, Acc1, Qi, StateData).
 
 -spec handle_routed_iq(From :: jid:jid(),
@@ -2227,7 +2227,7 @@ get_priority_from_presence(PresencePacket) ->
                          To :: jid:jid(),
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc1, To, StateData) ->
-    case mongoose_iq:record(Acc1) of
+    case mongoose_iq:info(Acc1) of
         {#iq{type = Type, sub_el = SubEl} = IQ, Acc2} when Type == get; Type == set ->
             From = mongoose_acc:from_jid(Acc2),
             {Acc3, NewStateData} = process_privacy_iq(Acc2, Type, To, StateData),
@@ -2253,7 +2253,7 @@ process_privacy_iq(Acc1, To, StateData) ->
                          StateData :: state()) -> {mongoose_acc:t(), state()}.
 process_privacy_iq(Acc, get, To, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    {IQ, Acc1} = mongoose_iq:record(Acc),
+    {IQ, Acc1} = mongoose_iq:info(Acc),
     Acc2 = ejabberd_hooks:run_fold(privacy_iq_get,
                                    StateData#state.server,
                                    Acc1,
@@ -2261,7 +2261,7 @@ process_privacy_iq(Acc, get, To, StateData) ->
     {Acc2, StateData};
 process_privacy_iq(Acc, set, To, StateData) ->
     From = mongoose_acc:from_jid(Acc),
-    {IQ, Acc1} = mongoose_iq:record(Acc),
+    {IQ, Acc1} = mongoose_iq:info(Acc),
     Acc2 = ejabberd_hooks:run_fold(privacy_iq_set,
                                    StateData#state.server,
                                    Acc1,

@@ -991,7 +991,7 @@ get_max_user_sessions(LUser, Host) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 process_iq(From, To, Acc0, Packet) ->
-    {IQ, Acc} = mongoose_iq:record(Acc0),
+    {IQ, Acc} = mongoose_iq:info(Acc0),
     process_iq(IQ, From, To, Acc, Packet).
 
 process_iq(#iq{type = Type}, _From, _To, Acc, _Packet) when Type == result; Type == error ->

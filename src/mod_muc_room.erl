@@ -469,7 +469,7 @@ normal_state({route, From, <<>>, _Acc,
 normal_state({route, From, <<>>, Acc0,
           #xmlel{name = <<"iq">>} = Packet},
          StateData) ->
-    {IQ, Acc} = mongoose_iq:record(Acc0),
+    {IQ, Acc} = mongoose_iq:info(Acc0),
     {RoutingEffect, NewStateData} = route_iq(Acc, #routed_iq{
         iq = IQ,
         from = From,
@@ -4593,6 +4593,9 @@ store_room_if_persistent(_SD) ->
     ok.
 
 -spec route_iq(mongoose_acc:t(), routed_iq(), state()) -> {ok | stop, state()}.
+route_iq(_Acc, #routed_iq{iq = #iq{type = Type}}, StateData)
+  when Type == error; Type == result ->
+    {ok, StateData};
 route_iq(Acc, #routed_iq{iq = #iq{type = Type, xmlns = ?NS_MUC_ADMIN, lang = Lang,
     sub_el = SubEl}, from = From} = Routed, StateData) ->
     Res = process_iq_admin(From, Type, Lang, SubEl, StateData),
@@ -4618,8 +4621,6 @@ route_iq(Acc, #routed_iq{iq = IQ = #iq{}, packet = Packet, from = From},
             ejabberd_router:route(RoomJID, From, Acc2, Err);
         _ -> ok
     end,
-    {ok, StateData};
-route_iq(_Acc, #routed_iq{iq = reply}, StateData) ->
     {ok, StateData};
 route_iq(Acc, #routed_iq{packet = Packet, from = From}, StateData) ->
     {Acc1, Err} = jlib:make_error_reply(

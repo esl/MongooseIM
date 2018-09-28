@@ -92,7 +92,7 @@ start_link() ->
                  El :: exml:element()
                  ) -> mongoose_acc:t().
 process_iq(Acc0, From, To, El) ->
-    {IQ, Acc} = mongoose_iq:record(Acc0),
+    {IQ, Acc} = mongoose_iq:info(Acc0),
     process_iq(IQ, Acc, From, To, El).
 
 process_iq(#iq{ type = Type } = IQReply, Acc, From, To, _El)

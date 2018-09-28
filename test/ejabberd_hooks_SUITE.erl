@@ -27,7 +27,6 @@ all() ->
 
 init_per_suite(C) ->
     Res = application:ensure_all_started(exometer_core),
-    ct:pal("Exometer start result: ~p", [Res]),
     C.
 
 end_per_suite(_C) ->

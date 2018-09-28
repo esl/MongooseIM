@@ -10,7 +10,7 @@
 %%% * iq:* contains useful IQ metadata but must be provided by mongoose_iq.erl
 %%%-------------------------------------------------------------------
 -module(mongoose_acc).
--author("bartek").
+-author("bartlomiej.gorny@erlang-solutions.com").
 -author("piotr.nosek@erlang-solutions.com").
 
 -include("jlib.hrl").
@@ -58,7 +58,8 @@
         ref := reference()
        }.
 
-%% if it is defined as -opaque then dialyzer fails
+%% If it is defined as -opaque then dialyzer fails
+%% It's still valid in acc 2.0 and gain is probably not worth the effort
 -type t() :: #{
         mongoose_acc := true,
         ref := reference(),
@@ -89,7 +90,7 @@
        }.
 
 -type stanza_params() :: #{
-        element := exml:element() | undefined,
+        element := exml:element(),
         from_jid => jid:jid(), % optional
         to_jid => jid:jid(), % optional
         _ => _
@@ -105,10 +106,11 @@
 
 -spec new(Params :: new_acc_params()) -> t().
 new(#{ location := Location, lserver := LServer } = Params) ->
-    ElementBin = case maps:get(element, Params, undefined) of
-                     undefined -> undefined;
-                     Element -> exml:to_binary(Element)
-                 end,
+    {ElementBin, Stanza} =
+    case maps:get(element, Params, undefined) of
+        undefined -> {undefined, undefined};
+        Element -> {exml:to_binary(Element), stanza_from_params(Params)}
+    end,
     #{
       mongoose_acc => true,
       ref => make_ref(),
@@ -116,7 +118,7 @@ new(#{ location := Location, lserver := LServer } = Params) ->
       origin_pid => self(),
       origin_location => Location,
       origin_stanza => ElementBin,
-      stanza => stanza_from_params(Params),
+      stanza => Stanza,
       lserver => LServer,
       non_strippable => sets:new()
      }.
@@ -160,7 +162,6 @@ stanza_ref(#{ mongoose_acc := true, stanza := #{ ref := StanzaRef } }) ->
 stanza_ref(#{ mongoose_acc := true }) ->
     undefined.
 
-%% While possible, it is not recommended to update stanza to 'undefined'.
 -spec update_stanza(NewStanzaParams :: stanza_params(), Acc :: t()) -> t().
 update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
     Acc#{ stanza := stanza_from_params(NewStanzaParams) }.
@@ -228,8 +229,6 @@ dump(Acc) ->
 %% --------------------------------------------------------
 
 -spec stanza_from_params(Params :: stanza_params()) -> stanza_metadata() | undefined.
-stanza_from_params(#{ element := undefined }) ->
-    undefined;
 stanza_from_params(#{ element := El } = Params) ->
     FromJID = case Params of
                   #{ from_jid := FromJID0 } -> FromJID0;

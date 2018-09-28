@@ -49,7 +49,7 @@ store_and_retrieve(_C) ->
                               lserver => <<"localhost">>,
                               element => undefined }),
     Acc2 = mongoose_acc:set(ns, check, 1, Acc),
-    ?assertEqual(mongoose_acc:get(ns, check, Acc2), 1),
+    ?assertEqual(1, mongoose_acc:get(ns, check, Acc2)),
     ok.
 
 
@@ -59,8 +59,8 @@ init_from_element(_C) ->
                               element => sample_stanza() }),
     mongoose_acc:dump(Acc),
     ?PRT("Acc", Acc),
-    ?assertEqual(mongoose_acc:stanza_name(Acc), <<"iq">>),
-    ?assertEqual(mongoose_acc:stanza_type(Acc), <<"set">>),
+    ?assertEqual(<<"iq">>, mongoose_acc:stanza_name(Acc)),
+    ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc)),
     ok.
 
 
@@ -69,14 +69,14 @@ produce_iq_meta_automatically(_C) ->
                               lserver => <<"localhost">>,
                               element => sample_stanza() }),
     {Command, Acc1} = mongoose_iq:command(Acc),
-    ?assertEqual(Command, <<"block">>),
+    ?assertEqual(<<"block">>, Command),
     % We check for exactly the same Acc, as there is no need to update the cache
     {XMLNS, Acc1} = mongoose_iq:xmlns(Acc1),
-    ?assertEqual(XMLNS, <<"urn:xmpp:blocking">>),
+    ?assertEqual(<<"urn:xmpp:blocking">>, XMLNS),
     Iq = mongoose_acc:update_stanza(#{ element => iq_stanza() }, Acc1),
     {IqData, _Iq1} = mongoose_iq:record(Iq),
-    ?assertEqual(IqData#iq.type, set),
-    ?assertEqual(IqData#iq.xmlns, <<"urn:ietf:params:xml:ns:xmpp-session">>),
+    ?assertEqual(set, IqData#iq.type),
+    ?assertEqual(<<"urn:ietf:params:xml:ns:xmpp-session">>, IqData#iq.xmlns),
     ok.
 
 parse_with_cdata(_C) ->
@@ -84,7 +84,7 @@ parse_with_cdata(_C) ->
                               lserver => <<"localhost">>,
                               element => stanza_with_cdata() }),
     {XMLNS, _} = mongoose_iq:xmlns(Acc),
-    ?assertEqual(XMLNS, <<"jabber:iq:roster">>).
+    ?assertEqual(<<"jabber:iq:roster">>, XMLNS).
 
 strip(_C) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
@@ -93,17 +93,17 @@ strip(_C) ->
                               from_jid => <<"jajid">>,
                               to_jid => <<"tyjid">> }),
     {XMLNS1, Acc1} = mongoose_iq:xmlns(Acc),
-    ?assertEqual(XMLNS1, <<"urn:ietf:params:xml:ns:xmpp-session">>),
-    ?assertEqual(mongoose_acc:stanza_type(Acc1), <<"set">>),
+    ?assertEqual(<<"urn:ietf:params:xml:ns:xmpp-session">>, XMLNS1),
+    ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc1)),
     ?assertEqual(undefined, mongoose_acc:get(ns, ppp, undefined, Acc1)),
     Acc2 = mongoose_acc:set(ns, ppp, 997, false, Acc1),
     ?assertEqual(997, mongoose_acc:get(ns, ppp, Acc2)),
     Ref = mongoose_acc:ref(Acc2),
     NAcc = mongoose_acc:strip(#{ lserver => <<"localhost">>, element => undefined }, Acc2),
     {XMLNS2, _} = mongoose_iq:xmlns(NAcc),
-    ?assertEqual(XMLNS2, undefined),
-    ?assertEqual(mongoose_acc:to_jid(NAcc), undefined),
-    ?assertEqual(mongoose_acc:ref(NAcc), Ref),
+    ?assertEqual(undefined, XMLNS2),
+    ?assertEqual(undefined, mongoose_acc:to_jid(NAcc)),
+    ?assertEqual(Ref, mongoose_acc:ref(NAcc)),
     ?assertEqual(997, mongoose_acc:get(ns, ppp, NAcc)).
 
 

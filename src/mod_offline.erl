@@ -186,10 +186,10 @@ write_messages(Acc, LUser, LServer, Msgs) ->
         ok ->
             lists:foreach(fun(#offline_msg{from = From, to = To, packet = Packet}) ->
                                   NAcc = mongoose_acc:new(#{ location => ?LOCATION,
-                                                            lserver => LServer,
-                                                            from_jid => From,
-                                                            to_jid => To,
-                                                            element => Packet }),
+                                                             lserver => LServer,
+                                                             from_jid => From,
+                                                             to_jid => To,
+                                                             element => Packet }),
                                   mod_amp:check_packet(NAcc, From, archived)
                           end, Msgs);
         {error, Reason} ->
