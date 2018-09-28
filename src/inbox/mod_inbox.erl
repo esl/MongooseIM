@@ -216,9 +216,10 @@ build_result_iq(CountBin) ->
 -spec build_forward_el(content(), erlang:timestamp()) -> exml:element().
 build_forward_el(Content, Timestamp) ->
     {ok, Parsed} = exml:parse(Content),
+    Packet = mod_inbox_utils:fill_namespace_attr(Parsed),
     Delay = build_delay_el(Timestamp),
     #xmlel{name = <<"forwarded">>, attrs = [{<<"xmlns">>, ?NS_FORWARD}],
-           children = [Delay, Parsed]}.
+           children = [Delay, Packet]}.
 
 -spec build_delay_el(Timestamp :: erlang:timestamp()) -> exml:element().
 build_delay_el({_, _, Micro} = Timestamp) ->

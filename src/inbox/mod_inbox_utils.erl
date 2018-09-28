@@ -27,7 +27,8 @@
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
-         reset_marker_to_bin/1]).
+         reset_marker_to_bin/1,
+         fill_namespace_attr/1]).
 
 
 -spec reset_unread_count(User :: jid:jid(),
@@ -135,3 +136,14 @@ reset_marker_to_bin(displayed) -> <<"displayed">>;
 reset_marker_to_bin(acknowledged) -> <<"acknowledged">>;
 reset_marker_to_bin(received) -> <<"received">>;
 reset_marker_to_bin(Unknown) -> throw({unknown_marker, Unknown}).
+
+-spec fill_namespace_attr(Msg :: exml:element()) -> exml:element().
+fill_namespace_attr(Msg = #xmlel{name = Name, attrs = Attrs}) when Name =:= <<"message">>  ->
+  case xml:get_attr(<<"xmlns">>, Attrs) of
+    false ->
+      Msg#xmlel{attrs = [{<<"xmlns">>, ?NS_CLIENT} | Attrs]};
+    _ ->
+      Msg
+  end;
+fill_namespace_attr(Msg) ->
+  Msg.
