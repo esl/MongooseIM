@@ -66,23 +66,13 @@ If you haven't encountered the term _fold_ before, think of it as _reduce_ (like
 
 ### Using accumulators
 
-MongooseIM uses a dedicated data structure to accumulate results (see ["Accumulators"](accumulators.md)).
-This data structure is implemented in the `mongoose_acc` module, which has a map-like interface: it has `get/2`, `get/3`, `put/3` etc.
-It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from hook calls, and terminated when stanza is leaving MongooseIM.
-If hook handlers are supposed to return some value they put it into the accumulator.
+MongooseIM uses a dedicated data structure to accumulate data related to stanza processing (see ["Accumulators"](accumulators.md)).
+It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from certain hook calls, and terminated when stanza is leaving MongooseIM.
 
-The right way to use hooks is therefore:
-
-* create a handler which takes and returns an accumulator
-* take an accumulator if available, or instantiate a new one
-* call run_fold giving your acc as the accumulator, plus some extra arguments as needed
-* take return value from the acc the hook call returned
-* pass the modified accumulator on
-
-Handlers should store their return values in the accumulator; there are three ways to do it:
-* if it is a one-off value whch doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:put(result, Value, Acc)`
-* if the value is to be passed on to be reused within the user's session use `mongoose_acc:put(Key, Value, Acc)`
-* if the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:add_prop(Key, Value, Acc)`
+If a Mongoose accumulator is provided to a hook, handlers should store their return values in one of 3 ways:
+* If it is a one-off value whch doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:set(hook, result, Value, Acc)`.
+* If the value is to be passed on to be reused within the current processing context, use `mongoose_acc:set(Namespace, Key, Value, Acc)`.
+* If the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:set_permanent(Namespace, Key, Value, Acc)`.
 
 A real life example, then, with regard to `mod_offline` is the `resend_offline_messages_hook` run in `ejabberd_c2s`:
 
@@ -91,14 +81,14 @@ Acc1 = ejabberd_hooks:run_fold(resend_offline_messages_hook,
                                StateData#state.server,
                                Acc,
                                [StateData#state.user, StateData#state.server]),
-Rs = mongoose_acc:get(offline_messages, Acc1, []),
+Rs = mongoose_acc:get(offline, messages, Acc1, []),
 
 ```
 
 ### Sidenote: something deprecated
 
 Occassionally you may find some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
-Under the hood it calls the same handlers with an empty accumulator.
+Under the hood it calls the same handlers with `ok` as an initial accumulator.
 This is deprecated and some day will be removed.
 
 ### Error handling in hooks
@@ -175,9 +165,9 @@ Such skipped hooks update metrics defined in the `mongoose_metrics_hooks` module
 
 The signature of a handler has to follow three rules:
 
-* correct arity (the numer of args passed to `run_fold` + 1)
-* the first arg is a mongoose_acc
-* returns mongoose_acc
+* Correct arity (the numer of args passed to `run_fold` + 1).
+* The first arg is a mutable accumulator (may be `mongoose_acc` in particular).
+* Returns an accumulator of the same type as the input one.
 
 Let's look at this example, from MongooseIM codebase:
 
@@ -194,13 +184,13 @@ process_iq_get(Acc, #jid{ lserver = FromS } = From, To, #iq{} = IQ, _ActiveList)
               fun(_, _, Packet) -> put(encode_res, Packet) end),
             #xmlel{ children = ResponseChildren } = erase(encode_res),
             Result = {result, ResponseChildren},
-            {stop, mongoose_acc:put(iq_result, Result, Acc)};
+            {stop, mongoose_acc:set(hook, result, Result, Acc)};
         {{ok, {get, #blocking{}}}, false} ->
             Result = {error, ?ERR_BAD_REQUEST},
-            {stop, mongoose_acc:put(iq_result, Result, Acc)};
+            {stop, mongoose_acc:set(hook, result, Result, Acc)};
         _ ->
             Result = {error, ?ERR_BAD_REQUEST},
-            mongoose_acc:put(iq_result, Result, Acc)
+            mongoose_acc:set(hook, result, Result, Acc)
     end.
 ```
 
@@ -307,32 +297,32 @@ stop(Host) ->
     ejabberd_hooks:delete(custom_new_hook, Host, ?MODULE, never_run_handler, 75).
 
 run_custom_hook(Host) ->
-    Acc = mongoose_acc:new(),
-    Acc1 = mongoose_acc:put(value, 5, Acc),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION, lserver => Host, element => undefined }),
+    Acc1 = mongoose_acc:set(example, value, 5, Acc),
     ResultAcc = ejabberd_hooks:run_fold(custom_new_hook, Host, Acc1, [2]),
-    ResultValue = mongoose_acc:get(value, ResultAcc),
+    ResultValue = mongoose_acc:get(example, value, ResultAcc),
     ?INFO_MSG("Final hook result: ~p", [ResultValue]),
     ?INFO_MSG("Returned accumulator: ~p", [ResultAcc]).
 
 first_handler(Acc, Number) ->
-    V0 = mongoose_acc:get(value, Acc),
+    V0 = mongoose_acc:get(example, value, Acc),
     Result = V0 + Number,
     ?INFO_MSG("First handler~n"
     "  value: ~p~n"
     "  argument: ~p~n"
     "  will return: ~p",
         [V0, Number, Result]),
-    mongoose_acc:put(value, Result, Acc).
+    mongoose_acc:set(example, value, Result, Acc).
 
 stopping_handler(Acc, Number) ->
-    V0 = mongoose_acc:get(value, Acc),
+    V0 = mongoose_acc:get(example, value, Acc),
     Result = V0 + Number,
     ?INFO_MSG("Stopping handler~n"
     "  value: ~p~n"
     "  argument: ~p~n"
     "  will return: ~p",
         [V0, Number, Result]),
-    {stop, mongoose_acc:put(value, Result, Acc)}.
+    {stop, mongoose_acc:set(example, value, Result, Acc)}.
 
 never_run_handler(Acc, Number) ->
     ?INFO_MSG("This hook won't run as it's registered with a priority bigger "
@@ -348,31 +338,31 @@ The module is intended to be used from the shell for educational purposes:
 (mongooseim@localhost)1> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 false
 (mongooseim@localhost)2> gen_mod:start_module(<<"localhost">>, mod_hook_example, [no_opts]).
-ok
+{ok,ok}
 (mongooseim@localhost)3> gen_mod:is_loaded(<<"localhost">>, mod_hook_example).
 true
 (mongooseim@localhost)4> ejabberd_loglevel:set_custom(mod_hook_example, 4).
 [{{lager_file_backend,"ejabberd.log"},ok},
- {lager_console_backend,ok}]
+ {lager_console_backend,ok},
+ {lager_manager_killer,ok}]
 (mongooseim@localhost)5> mod_hook_example:run_custom_hook(<<"localhost">>).
-ok
-(mongooseim@localhost)6> 2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:first_handler:41 First handler
+17:48:55.421 [info] First handler
   value: 5
   argument: 2
   will return: 7
-2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:stopping_handler:51 Stopping handler
+ok
+17:48:55.421 [info] Stopping handler
   value: 7
   argument: 2
   will return: 9
-2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:run_custom_hook:35 Final hook result: 9
-2017-11-23 13:50:48.128 [info] <0.757.0>@mod_hook_example:run_custom_hook:36 Returned accumulator: #{mongoose_acc => true,ref => #Ref<0.2751102611.732692481.234656>,timestamp => {1511,441448,119842},value => 9}
+17:48:55.421 [info] Final hook result: 9
+(mongooseim@localhost)6> 17:48:55.421 [info] Returned accumulator: #{lserver => <<"localhost">>,mongoose_acc => true,non_strippable => {set,0,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},{{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]}}},origin_location => {mod_hook_example,run_custom_hook,31},origin_pid => <0.1189.0>,origin_stanza => undefined,ref => #Ref<0.3348369203.60555266.196226>,stanza => undefined,timestamp => {1538,408935,405141},{example,value} => 9}
 
 (mongooseim@localhost)6> mod_hook_example:run_custom_hook(<<"another-domain">>).
 ok
-(mongooseim@localhost)7> 2017-11-23 13:51:38.251 [info] <0.757.0>@mod_hook_example:run_custom_hook:35 Final hook result: 5
-2017-11-23 13:51:38.251 [info] <0.757.0>@mod_hook_example:run_custom_hook:36 Returned accumulator: #{mongoose_acc => true,ref => #Ref<0.2751102611.732692481.234676>,timestamp => {1511,441498,251466},value => 5}
+17:49:11.672 [info] Final hook result: 5
+(mongooseim@localhost)7> 17:49:11.673 [info] Returned accumulator: #{lserver => <<"another-domain">>,mongoose_acc => true,non_strippable => {set,0,16,16,8,80,48,{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},{{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]}}},origin_location => {mod_hook_example,run_custom_hook,31},origin_pid => <0.1189.0>,origin_stanza => undefined,ref => #Ref<0.3348369203.60555270.195733>,stanza => undefined,timestamp => {1538,408951,672653},{example,value} => 5}
 
 (mongooseim@localhost)7> gen_mod:stop_module(<<"localhost">>, mod_hook_example).
-{atomic,ok}
-(mongooseim@localhost)8>
+ok
 ```

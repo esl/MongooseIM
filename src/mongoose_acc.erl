@@ -45,6 +45,9 @@
 % Strip and replace stanza
 -export([strip/2]).
 
+%% Note about 'undefined' to_jid and from_jid: these are the special cases when JID may be
+%% truly unknown: before a client is authorized.
+
 -type location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
 -type stanza_metadata() :: #{
         element := exml:element(),
