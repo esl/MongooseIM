@@ -5,7 +5,7 @@
 
 test_save_acc(#{ stanza := #{ type := <<"chat">>} } = Acc, _State) ->
     Rand = rand:uniform(),
-    Acc1 = mongoose_acc:set(test, random_prop, Rand, false, Acc),
+    Acc1 = mongoose_acc:set_permanent(test, random_prop, Rand, Acc),
     Acc2 = mongoose_acc:set(test, should_be_stripped, 123, Acc1),
     Data = {mongoose_acc:ref(Acc2), mongoose_acc:timestamp(Acc2), Rand},
     ets:insert(test_message_index, Data),
