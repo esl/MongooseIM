@@ -39,6 +39,9 @@ init_per_group(GroupName, Config) ->
 			            "starttls, verify_peer,"
 				    "{cafile, \"" ++ CACertFile ++ "\"},"},
 		       {tls_module, "{tls_module, " ++ atom_to_list(GroupName) ++ "},"},
+		       {https_config,  "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"},"
+			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
+				              "{verify, verify_peer}, {cacertfile, \"" ++ CACertFile ++ "\"}]},"},
 		       {auth_method, "pki"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
