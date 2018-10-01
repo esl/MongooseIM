@@ -48,8 +48,8 @@
 -type location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
 -type stanza_metadata() :: #{
         element := exml:element(),
-        from_jid := jid:jid(),
-        to_jid := jid:jid(),
+        from_jid := jid:jid() | undefined,
+        to_jid := jid:jid() | undefined,
         name := binary(),
         type := binary(),
         ref := reference()
@@ -75,21 +75,21 @@
         location := location(),
         lserver := jid:lserver(),
         element := exml:element() | undefined,
-        from_jid => jid:jid(), % optional
-        to_jid => jid:jid() % optional
+        from_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | undefined % optional
        }.
 
 -type strip_params() :: #{
         lserver := jid:lserver(),
         element := exml:element(),
-        from_jid => jid:jid(), % optional
-        to_jid => jid:jid() % optional
+        from_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | undefined % optional
        }.
 
 -type stanza_params() :: #{
         element := exml:element(),
-        from_jid => jid:jid(), % optional
-        to_jid => jid:jid(), % optional
+        from_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | undefined, % optional
         _ => _
        }.
 
@@ -189,7 +189,6 @@ delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0)
     Acc1 = maps:remove(Key, Acc0),
     Acc1#{ non_strippable => sets:del_element(Key, NonStrippable) }.
 
-%% Doesn't use 'location' param
 -spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
 strip(#{ lserver := NewLServer } = Params,
       #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
@@ -216,9 +215,9 @@ stanza_from_params(#{ element := El } = Params) ->
                       StanzaAttrName :: binary(),
                       Params :: stanza_params()) -> jid:jid().
 jid_from_params(MapKey, StanzaAttrName, #{ element := El } = Params) ->
-    case maps:get(MapKey, Params, undefined) of
-        undefined -> #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName));
-        #jid{} = JID0 -> JID0
+    case maps:find(MapKey, Params) of
+        {ok, JID0} -> JID0;
+        error -> #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName))
     end.
 
 -spec default_non_strippable() -> [atom()].

@@ -3,6 +3,7 @@
 
 -include_lib("exml/include/exml.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("mongoose.hrl").
 
 %% ---------------------------------------------------------------
 %% Common Test callbacks
@@ -100,7 +101,9 @@ do_not_reroute_errors(_) ->
     Stanza = #xmlel{name = <<"iq">>, 
         attrs = [{<<"from">>, From}, {<<"to">>, To}, {<<"type">>, <<"get">>} ]
     },
-    Acc = mongoose_acc:from_element(Stanza),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => Stanza }),
     meck:new(xmpp_router_a, [non_strict]),
     meck:expect(xmpp_router_a, filter,
                 fun(From0, To0, Acc0, Packet0) -> {From0, To0, Acc0, Packet0} end),
@@ -165,7 +168,9 @@ make_routing_fun(Name, PacketToRoute) ->
     end.
 
 route(I) ->
-    Acc = mongoose_acc:from_kv(element, I),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => I }),
     #{} = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
                                jid:from_binary(<<"bob@localhost">>),
                                Acc, I).

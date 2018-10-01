@@ -57,7 +57,6 @@ init_from_element(_C) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,
                               element => sample_stanza() }),
-    mongoose_acc:dump(Acc),
     ?PRT("Acc", Acc),
     ?assertEqual(<<"iq">>, mongoose_acc:stanza_name(Acc)),
     ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc)),
@@ -74,7 +73,7 @@ produce_iq_meta_automatically(_C) ->
     {XMLNS, Acc1} = mongoose_iq:xmlns(Acc1),
     ?assertEqual(<<"urn:xmpp:blocking">>, XMLNS),
     Iq = mongoose_acc:update_stanza(#{ element => iq_stanza() }, Acc1),
-    {IqData, _Iq1} = mongoose_iq:record(Iq),
+    {IqData, _Iq1} = mongoose_iq:info(Iq),
     ?assertEqual(set, IqData#iq.type),
     ?assertEqual(<<"urn:ietf:params:xml:ns:xmpp-session">>, IqData#iq.xmlns),
     ok.
@@ -90,21 +89,22 @@ strip(_C) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,
                               element => iq_stanza(),
-                              from_jid => <<"jajid">>,
-                              to_jid => <<"tyjid">> }),
+                              from_jid => jid:make(<<"jajid">>, <<"localhost">>, <<>>),
+                              to_jid => jid:make(<<"tyjid">>, <<"localhost">>, <<>>) }),
     {XMLNS1, Acc1} = mongoose_iq:xmlns(Acc),
     ?assertEqual(<<"urn:ietf:params:xml:ns:xmpp-session">>, XMLNS1),
     ?assertEqual(<<"set">>, mongoose_acc:stanza_type(Acc1)),
     ?assertEqual(undefined, mongoose_acc:get(ns, ppp, undefined, Acc1)),
-    Acc2 = mongoose_acc:set(ns, ppp, 997, false, Acc1),
+    Acc2 = mongoose_acc:set_permanent(ns, ppp, 997, Acc1),
     ?assertEqual(997, mongoose_acc:get(ns, ppp, Acc2)),
     Ref = mongoose_acc:ref(Acc2),
-    NAcc = mongoose_acc:strip(#{ lserver => <<"localhost">>, element => undefined }, Acc2),
-    {XMLNS2, _} = mongoose_iq:xmlns(NAcc),
-    ?assertEqual(undefined, XMLNS2),
-    ?assertEqual(undefined, mongoose_acc:to_jid(NAcc)),
-    ?assertEqual(Ref, mongoose_acc:ref(NAcc)),
-    ?assertEqual(997, mongoose_acc:get(ns, ppp, NAcc)).
+    NAcc1 = mongoose_acc:strip(#{ lserver => <<"localhost">>,
+                                 element => sample_stanza() }, Acc2),
+    {XMLNS2, NAcc2} = mongoose_iq:xmlns(NAcc1),
+    ?assertEqual(<<"urn:xmpp:blocking">>, XMLNS2),
+    ?assertEqual(jid:from_binary(<<"a@localhost">>), mongoose_acc:to_jid(NAcc2)),
+    ?assertEqual(Ref, mongoose_acc:ref(NAcc2)),
+    ?assertEqual(997, mongoose_acc:get(ns, ppp, NAcc2)).
 
 
 sample_stanza() ->
