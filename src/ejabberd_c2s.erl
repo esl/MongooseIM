@@ -285,7 +285,7 @@ stream_start_error(Error, StateData) ->
       State :: state(),
       Result :: {stop, normal, state()}.
 c2s_stream_error(Error, StateData) ->
-    send_element_from_server(StateData, Error),
+    send_element_from_server_jid(StateData, Error),
     send_trailer(StateData),
     {stop, normal, StateData}.
 
@@ -309,7 +309,7 @@ stream_start_negotiate_features(#state{} = S) ->
         {_, <<>>} ->
             stream_start_features_after_auth(S);
         {_, _} ->
-            send_element_from_server(S, #xmlel{name = <<"stream:features">>}),
+            send_element_from_server_jid(S, #xmlel{name = <<"stream:features">>}),
             fsm_next_state(wait_for_session_or_sm, S)
     end.
 
@@ -317,7 +317,7 @@ stream_start_features_before_auth(#state{server = Server} = S) ->
     Creds = maybe_add_cert(mongoose_credentials:new(Server), S),
     SASLState = cyrsasl:server_new(<<"jabber">>, Server, <<>>, [], Creds),
     SockMod = (S#state.sockmod):get_sockmod(S#state.socket),
-    send_element_from_server(S, stream_features(determine_features(SockMod, S))),
+    send_element_from_server_jid(S, stream_features(determine_features(SockMod, S))),
     fsm_next_state(wait_for_feature_before_auth,
                    S#state{sasl_state = SASLState}).
 
@@ -330,7 +330,7 @@ stream_start_features_after_auth(#state{server = Server} = S) ->
                            attrs = [{<<"xmlns">>, ?NS_SESSION}]}]
                 ++ maybe_roster_versioning_feature(Server)
                 ++ hook_enabled_features(Server) ),
-    send_element_from_server(S, stream_features(Features)),
+    send_element_from_server_jid(S, stream_features(Features)),
     fsm_next_state(wait_for_feature_after_auth, S).
 
 maybe_roster_versioning_feature(Server) ->
@@ -510,7 +510,7 @@ wait_for_feature_before_auth({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth({xmlstreamerror, _}, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_feature_before_auth(closed, StateData) ->
@@ -557,7 +557,7 @@ wait_for_sasl_response({xmlstreamend, _Name}, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_sasl_response({xmlstreamerror, _}, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 wait_for_sasl_response(closed, StateData) ->
@@ -584,7 +584,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
             case R of
                 error ->
                     Err = jlib:make_error_reply(El, mongoose_xmpp_errors:bad_request()),
-                    send_element_from_server(StateData, Err),
+                    send_element_from_server_jid(StateData, Err),
                     fsm_next_state(wait_for_feature_after_auth, StateData);
                 _ ->
                     JID = jid:make(U, StateData#state.server, R),
@@ -595,7 +595,7 @@ wait_for_feature_after_auth({xmlstreamelement, El}, StateData) ->
                                                  attrs = [{<<"xmlns">>, ?NS_BIND}],
                                                  children = [JIDEl]}]},
                     XmlEl = jlib:iq_to_xml(Res),
-                    send_element_from_server(StateData, XmlEl),
+                    send_element_from_server_jid(StateData, XmlEl),
                     fsm_next_state(wait_for_session_or_sm,
                                    StateData#state{resource = R, jid = JID})
             end;
@@ -611,7 +611,7 @@ wait_for_feature_after_auth({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_feature_after_auth({xmlstreamerror, _}, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 
@@ -655,7 +655,7 @@ wait_for_session_or_sm({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 wait_for_session_or_sm({xmlstreamerror, _}, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 
@@ -680,7 +680,7 @@ check_compression_auth(El, NextState, StateData) ->
     Auth = StateData#state.authenticated,
     case Auth of
         false ->
-            send_element_from_server(StateData, compress_setup_failed()),
+            send_element_from_server_jid(StateData, compress_setup_failed()),
             fsm_next_state(NextState, StateData);
         _ ->
             check_compression_method(El, NextState, StateData)
@@ -689,7 +689,7 @@ check_compression_auth(El, NextState, StateData) ->
 check_compression_method(El, NextState, StateData) ->
     case exml_query:path(El, [{element, <<"method">>}, cdata]) of
         undefined ->
-            send_element_from_server(StateData, compress_setup_failed()),
+            send_element_from_server_jid(StateData, compress_setup_failed()),
             fsm_next_state(NextState, StateData);
         <<"zlib">> ->
             {_, ZlibLimit} = StateData#state.zlib,
@@ -699,7 +699,7 @@ check_compression_method(El, NextState, StateData) ->
             fsm_next_state(wait_for_stream,
                            StateData#state{socket = ZlibSocket, streamid = new_id()});
         _ ->
-            send_element_from_server(StateData, compress_unsupported_method()),
+            send_element_from_server_jid(StateData, compress_unsupported_method()),
             fsm_next_state(NextState, StateData)
     end.
 
@@ -813,7 +813,7 @@ session_established({xmlstreamelement, El}, StateData) ->
     % Check 'from' attribute in stanza RFC 3920 Section 9.1.2
     case check_from(El, FromJID) of
         'invalid-from' ->
-            send_element_from_server(StateData, mongoose_xmpp_errors:invalid_from()),
+            send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_from()),
             send_trailer(StateData),
             {stop, normal, StateData};
         _NewEl ->
@@ -839,11 +839,12 @@ session_established({xmlstreamend, _Name}, StateData) ->
     {stop, normal, StateData};
 
 session_established({xmlstreamerror, <<"child element too big">> = E}, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:policy_violation(StateData#state.lang, E)),
+    PolicyViolationErr = mongoose_xmpp_errors:policy_violation(StateData#state.lang, E),
+    send_element_from_server_jid(StateData, PolicyViolationErr),
     send_trailer(StateData),
     {stop, normal, StateData};
 session_established({xmlstreamerror, _}, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:xml_not_well_formed()),
     send_trailer(StateData),
     {stop, normal, StateData};
 session_established(closed, StateData) ->
@@ -926,7 +927,7 @@ process_outgoing_stanza(_Acc, _ToJID, _Name, StateData) ->
 resume_session({xmlstreamelement, _}, StateData) ->
     Err = mongoose_xmpp_errors:policy_violation(StateData#state.lang,
                                 <<"session in resume state cannot accept incoming stanzas">>),
-    maybe_send_element_from_server_safe(StateData, Err),
+    maybe_send_element_from_server_jid_safe(StateData, Err),
     maybe_send_trailer_safe(StateData),
     {next_state, resume_session, StateData, hibernate()};
 
@@ -1019,7 +1020,7 @@ code_change(_OldVsn, StateName, StateData, _Extra) ->
 handle_info(replaced, _StateName, StateData) ->
     Lang = StateData#state.lang,
     StreamConflict = mongoose_xmpp_errors:stream_conflict(Lang, <<"Replaced by new connection">>),
-    maybe_send_element_from_server_safe(StateData, StreamConflict),
+    maybe_send_element_from_server_jid_safe(StateData, StreamConflict),
     maybe_send_trailer_safe(StateData),
     {stop, normal, StateData#state{authenticated = replaced}};
 handle_info(new_offline_messages, session_established,
@@ -1037,11 +1038,11 @@ handle_info(system_shutdown, StateName, StateData) ->
     case StateName of
         wait_for_stream ->
             send_header(StateData, ?MYNAME, <<"1.0">>, <<"en">>),
-            send_element_from_server(StateData, mongoose_xmpp_errors:system_shutdown()),
+            send_element_from_server_jid(StateData, mongoose_xmpp_errors:system_shutdown()),
             send_trailer(StateData),
             ok;
         _ ->
-            send_element_from_server(StateData, mongoose_xmpp_errors:system_shutdown()),
+            send_element_from_server_jid(StateData, mongoose_xmpp_errors:system_shutdown()),
             send_trailer(StateData),
             ok
     end,
@@ -1072,7 +1073,7 @@ handle_info(check_buffer_full, StateName, StateData) ->
         true ->
             Err = mongoose_xmpp_errors:stream_resource_constraint((StateData#state.lang),
                                            <<"too many unacked stanzas">>),
-            send_element_from_server(StateData, Err),
+            send_element_from_server_jid(StateData, Err),
             send_trailer(StateData),
             {stop, normal, StateData};
         false ->
@@ -1573,17 +1574,17 @@ send_text(StateData, Text) ->
     mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
--spec maybe_send_element_from_server_safe(state(), El :: exml:element()) -> any().
-maybe_send_element_from_server_safe(#state{stream_mgmt = false} = State, El) ->
-    send_element_from_server(State, El);
-maybe_send_element_from_server_safe(State, El) ->
-    case catch send_element_from_server(State, El) of
+-spec maybe_send_element_from_server_jid_safe(state(), El :: exml:element()) -> any().
+maybe_send_element_from_server_jid_safe(#state{stream_mgmt = false} = State, El) ->
+    send_element_from_server_jid(State, El);
+maybe_send_element_from_server_jid_safe(State, El) ->
+    case catch send_element_from_server_jid(State, El) of
         ok -> ok;
         _ -> error
     end.
 
--spec send_element_from_server(state(), exml:element()) -> any().
-send_element_from_server(#state{server = Server} = StateData, #xmlel{} = El) ->
+-spec send_element_from_server_jid(state(), exml:element()) -> any().
+send_element_from_server_jid(#state{server = Server} = StateData, #xmlel{} = El) ->
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               from_jid => jid:make_noprep(<<>>, Server, <<>>),
                               to_jid => StateData#state.jid,
@@ -1688,7 +1689,7 @@ result_to_amp_event(_) -> delivery_failed.
 -spec send_and_maybe_buffer_stanza(packet(), state()) ->
     {ok | any(), state()}.
 send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
-    SendResult = maybe_send_element_from_server_safe(State, Stanza),
+    SendResult = maybe_send_element_from_server_jid_safe(State, Stanza),
     BufferedStateData = buffer_out_stanza(Packet, State),
     {SendResult, BufferedStateData}.
 
@@ -2372,9 +2373,9 @@ process_unauthenticated_stanza(StateData, El) ->
                              jid:make(<<>>, StateData#state.server, <<>>),
                              jid:make(<<>>, <<>>, <<>>),
                              jlib:iq_to_xml(ResIQ)),
-                    send_element_from_server(StateData, jlib:remove_attr(<<"to">>, Res1));
+                    send_element_from_server_jid(StateData, jlib:remove_attr(<<"to">>, Res1));
                 _ ->
-                    send_element_from_server(StateData, Res)
+                    send_element_from_server_jid(StateData, Res)
             end;
         _ ->
             % Drop any stanza, which isn't IQ stanza
@@ -2708,7 +2709,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
                                      true ->
                                          enable_stream_resumption(StateData)
                                  end,
-            send_element_from_server(NewSD, EnabledEl),
+            send_element_from_server_jid(NewSD, EnabledEl),
             BufferMax = get_buffer_max(),
             AckFreq = get_ack_freq(),
             ResumeTimeout = get_resume_timeout(),
@@ -2722,7 +2723,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
             fsm_next_state(NextState, StateData);
         {_, _, _} ->
             %% invalid namespace
-            send_element_from_server(StateData, mongoose_xmpp_errors:invalid_namespace()),
+            send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
             send_trailer(StateData),
             {stop, normal, StateData}
     end.
@@ -2743,10 +2744,10 @@ make_smid() ->
 maybe_unexpected_sm_request(NextState, El, StateData) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
         ?NS_STREAM_MGNT_3 ->
-            send_element_from_server(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
+            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
             fsm_next_state(NextState, StateData);
         _ ->
-            send_element_from_server(StateData, mongoose_xmpp_errors:invalid_namespace()),
+            send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
             send_trailer(StateData),
             {stop, normal, StateData}
     end.
@@ -2763,12 +2764,12 @@ stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
         fsm_next_state(NextState, NSD)
     catch
         error:{badmatch, {ns, _}} ->
-            maybe_send_element_from_server_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
+            maybe_send_element_from_server_jid_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
         throw:{policy_violation, Reason} ->
             PolicyViolation = mongoose_xmpp_errors:policy_violation(SD#state.lang, Reason),
-            maybe_send_element_from_server_safe(SD, PolicyViolation),
+            maybe_send_element_from_server_jid_safe(SD, PolicyViolation),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD}
     end.
@@ -2794,10 +2795,10 @@ maybe_send_sm_ack(?NS_STREAM_MGNT_3, false, _NIncoming,
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
                   NextState, StateData) ->
-    send_element_from_server(StateData, stream_mgmt_ack(NIncoming)),
+    send_element_from_server_jid(StateData, stream_mgmt_ack(NIncoming)),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(_, _, _, _NextState, StateData) ->
-    send_element_from_server(StateData, mongoose_xmpp_errors:invalid_namespace()),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
     send_trailer(StateData),
     {stop, normal, StateData}.
 
@@ -2975,7 +2976,7 @@ do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) -
                 try
                     Resumed = stream_mgmt_resumed(NSD#state.stream_mgmt_id,
                                                   NSD#state.stream_mgmt_in),
-                    send_element_from_server(NSD, Resumed),
+                    send_element_from_server_jid(NSD, Resumed),
                     [send_element(mongoose_acc:new(#{ location => ?LOCATION,
                                                       from_jid => FromJID,
                                                       to_jid => ToJID,
@@ -2998,13 +2999,13 @@ do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) -
         _:_ ->
             ?WARNING_MSG("resumption error (invalid response from ~p)~n",
                          [Pid]),
-            send_element_from_server(StateData, stream_mgmt_failed(<<"item-not-found">>)),
+            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
 do_resume_session(SMID, _El, [], StateData) ->
     ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
-    send_element_from_server(StateData, stream_mgmt_failed(<<"item-not-found">>)),
+    send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
 
 merge_state(OldSD, SD) ->
@@ -3126,7 +3127,7 @@ sasl_challenge_stanza(Challenge) ->
 
 handle_sasl_success(State, Creds) ->
     ServerOut = mongoose_credentials:get(Creds, sasl_success_response, undefined),
-    send_element_from_server(State, sasl_success_stanza(ServerOut)),
+    send_element_from_server_jid(State, sasl_success_stanza(ServerOut)),
     User = mongoose_credentials:get(Creds, username),
     AuthModule = mongoose_credentials:get(Creds, auth_module),
     ?INFO_MSG("(~w) Accepted authentication for ~s by ~p",
@@ -3143,18 +3144,18 @@ handle_sasl_step(#state{server = Server, socket = Sock} = State, StepRes) ->
             handle_sasl_success(State, Creds);
         {continue, ServerOut, NewSASLState} ->
             Challenge  = [#xmlcdata{content = jlib:encode_base64(ServerOut)}],
-            send_element_from_server(State, sasl_challenge_stanza(Challenge)),
+            send_element_from_server_jid(State, sasl_challenge_stanza(Challenge)),
             {wait_for_sasl_response, State#state{sasl_state = NewSASLState}};
         {error, Error, Username} ->
             IP = peerip(State#state.sockmod, Sock),
             ?INFO_MSG("(~w) Failed authentication for ~s@~s from IP ~s (~w)",
                       [Sock, Username, Server, jlib:ip_to_list(IP), IP]),
             ejabberd_hooks:run(auth_failed, Server, [Username, Server]),
-            send_element_from_server(State, sasl_failure_stanza(Error)),
+            send_element_from_server_jid(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State};
         {error, Error} ->
             ejabberd_hooks:run(auth_failed, Server, [unknown, Server]),
-            send_element_from_server(State, sasl_failure_stanza(Error)),
+            send_element_from_server_jid(State, sasl_failure_stanza(Error)),
             {wait_for_feature_before_auth, State}
     end.
 
@@ -3173,8 +3174,8 @@ open_session_allowed_hook(Server, JID) ->
 
 terminate_when_tls_required_but_not_enabled(true, false, StateData, _El) ->
     Lang = StateData#state.lang,
-    send_element_from_server(StateData, mongoose_xmpp_errors:policy_violation(
-                               Lang, <<"Use of STARTTLS required">>)),
+    send_element_from_server_jid(StateData, mongoose_xmpp_errors:policy_violation(
+                                              Lang, <<"Use of STARTTLS required">>)),
     send_trailer(StateData),
     {stop, normal, StateData};
 terminate_when_tls_required_but_not_enabled(_, _, StateData, El) ->
@@ -3197,8 +3198,8 @@ element_to_origin_accum(El, #state{sid = SID, jid = JID, server = Server}) ->
         _ToBin -> BaseParams
     end,
     Acc = mongoose_acc:new(Params),
-    Acc1 = mongoose_acc:set(c2s, origin_sid, SID, false, Acc),
-    mongoose_acc:set(c2s, origin_jid, JID, false, Acc1).
+    Acc1 = mongoose_acc:set_permanent(c2s, origin_sid, SID, Acc),
+    mongoose_acc:set_permanent(c2s, origin_jid, JID, Acc1).
 
 -spec hibernate() -> hibernate | infinity.
 hibernate() ->

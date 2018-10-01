@@ -60,7 +60,7 @@ find_metadata(Acc, Key) ->
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
 put_metadata(Acc, Key, Value) ->
-    mongoose_acc:set(global_distrib, Key, Value, false, Acc).
+    mongoose_acc:set_permanent(global_distrib, Key, Value, Acc).
 
 -spec remove_metadata(mongoose_acc:t(), Key :: term()) -> mongoose_acc:t().
 remove_metadata(Acc, Key) ->

@@ -36,17 +36,14 @@
 % Access to namespaced fields
 -export([
          set/4,
-         set/5,
+         set_permanent/4,
          append/4,
-         append/5,
          get/3,
          get/4,
          delete/3
         ]).
 % Strip and replace stanza
 -export([strip/2]).
-%% Debug API
--export([dump/1]).
 
 -type location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
 -type stanza_metadata() :: #{
@@ -97,8 +94,6 @@
        }.
 
 -type ns_key() :: {NS :: any(), Key :: any()}.
-
--type strippable() :: boolean() | undefined.
 
 %% --------------------------------------------------------
 %% API
@@ -166,34 +161,22 @@ stanza_ref(#{ mongoose_acc := true }) ->
 update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
     Acc#{ stanza := stanza_from_params(NewStanzaParams) }.
 
+%% Values set with this function are discarded during 'strip' operation...
 -spec set(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
-set(NS, K, V, Acc) ->
-    set(NS, K, V, undefined, Acc).
- 
--spec set(Namespace :: any(), K :: any(), V :: any(), IsStrippable :: strippable(), Acc :: t()) ->
-    t().
-set(NS, K, V, undefined, #{ mongoose_acc := true } = Acc) ->
-    Acc#{ {NS, K} => V };
-set(NS, K, V, IsStrippable, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
+set(NS, K, V, #{ mongoose_acc := true } = Acc) ->
+    Acc#{ {NS, K} => V }.
+
+%% .. while these are not.
+-spec set_permanent(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
+set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
     Key = {NS, K},
-    NewNonStrippable = case IsStrippable of
-                           true -> sets:del_element(Key, NonStrippable);
-                           false -> sets:add_element(Key, NonStrippable)
-                       end,
+    NewNonStrippable = sets:add_element(Key, NonStrippable),
     Acc#{ Key => V, non_strippable => NewNonStrippable }.
 
 -spec append(NS :: any(), Key :: any(), Val :: any() | [any()], Acc :: t()) -> t().
 append(NS, Key, Val, Acc) ->
-    append(NS, Key, Val, undefined, Acc).
-
--spec append(NS :: any(),
-            Key :: any(),
-            Val :: any() | [any()],
-            IsStrippable :: strippable(),
-            Acc :: t()) -> t().
-append(NS, Key, Val, IsStrippable, Acc) ->
     OldVal = get(NS, Key, [], Acc),
-    set(NS, Key, append(OldVal, Val), IsStrippable, Acc).
+    set(NS, Key, append(OldVal, Val), Acc).
 
 get(NS, K, #{ mongoose_acc := true } = Acc) ->
     maps:get({NS, K}, Acc).
@@ -215,37 +198,28 @@ strip(#{ lserver := NewLServer } = Params,
     StrippedAcc#{ lserver => NewLServer, stanza => stanza_from_params(Params) }.
 
 %% --------------------------------------------------------
-%% Debug API
-%% --------------------------------------------------------
-
--spec dump(t()) -> ok.
-dump(Acc) ->
-    lists:foreach(fun(K) ->
-                          ?ERROR_MSG("~p = ~p", [K, maps:get(K, Acc)])
-                  end, lists:sort(maps:keys(Acc))).
-
-%% --------------------------------------------------------
 %% Internal functions
 %% --------------------------------------------------------
 
 -spec stanza_from_params(Params :: stanza_params()) -> stanza_metadata() | undefined.
 stanza_from_params(#{ element := El } = Params) ->
-    FromJID = case Params of
-                  #{ from_jid := FromJID0 } -> FromJID0;
-                  _ -> #jid{} = jid:from_binary(exml_query:attr(El, <<"from">>))
-              end,
-    ToJID = case Params of
-                  #{ to_jid := ToJID0 } -> ToJID0;
-                  _ -> #jid{} = jid:from_binary(exml_query:attr(El, <<"to">>))
-              end,
     #{
       element => El,
-      from_jid => FromJID,
-      to_jid => ToJID,
+      from_jid => jid_from_params(from_jid, <<"from">>, Params),
+      to_jid => jid_from_params(to_jid, <<"to">>, Params),
       name => El#xmlel.name,
       type => exml_query:attr(El, <<"type">>),
       ref => make_ref()
      }.
+
+-spec jid_from_params(MapKey :: to_jid | from_jid,
+                      StanzaAttrName :: binary(),
+                      Params :: stanza_params()) -> jid:jid().
+jid_from_params(MapKey, StanzaAttrName, #{ element := El } = Params) ->
+    case maps:get(MapKey, Params, undefined) of
+        undefined -> #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName));
+        #jid{} = JID0 -> JID0
+    end.
 
 -spec default_non_strippable() -> [atom()].
 default_non_strippable() ->
