@@ -247,8 +247,10 @@ get_sockmod(SocketData) ->
 
 
 -spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
-get_peer_certificate(SocketData) ->
-    ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
+get_peer_certificate(#socket_state{sockmod = ejabberd_tls, socket = Socket}) ->
+    ejabberd_tls:get_peer_certificate(Socket);
+get_peer_certificate(_SocketData) ->
+    no_peer_cert.
 
 
 -spec close(socket_state()) -> ok.
