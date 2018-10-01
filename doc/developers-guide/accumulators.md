@@ -12,11 +12,11 @@ At the beginning of the main processing chain an accumulator is created containi
 * `origin_stanza` - Original stanza that triggered the processing (in a binary).
 * `lserver` - Nameprepped domain in which context the processing is being done.
 * `stanza` - A map with information about the stanza being routed. May be missing in some processing chains (when they are not triggered by a stanza)!
-** `element` - `exml:element()` with the current stanza being routed.
-** `from_jid`, `to_jid` - `jid:jid()` with the sender and the recipient.
-** `name` - A name of top-level element in `element`.
-** `type` - A value of `type` attribute of top-level element. If the attribute is missing, this field contains `undefined`.
-** `ref` - A reference of routed stanza.
+  * `element` - `exml:element()` with the current stanza being routed.
+  * `from_jid`, `to_jid` - `jid:jid()` with the sender and the recipient.
+  * `name` - A name of top-level element in `element`.
+  * `type` - A value of `type` attribute of top-level element. If the attribute is missing, this field contains `undefined`.
+  * `ref` - A reference of routed stanza.
 
 It is then passed through all the stages until it reaches the end of its life.
 Throughout the process it is the very same accumulator; it is therefore possible to store a value in it on one stage of the processing and retrieve the same value later on.
