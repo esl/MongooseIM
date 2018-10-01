@@ -18,6 +18,7 @@ groups() ->
 common_test_cases() ->
     [cert_with_cn_xmpp_addrs_requested_correct_user,
      cert_with_cn_xmpp_addrs_request_name_empty,
+     cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_no_xmpp_addrs_request_name_empty,
      no_cert_fails_to_authenticate].
 
@@ -25,7 +26,7 @@ init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
     Config1 = ejabberd_node_utils:init(Config0),
     ejabberd_node_utils:backup_config_file(Config1),
-    Config1.
+    generate_certs(Config1).
 
 end_per_suite(Config) ->
     ejabberd_node_utils:restore_config_file(Config),
@@ -54,19 +55,25 @@ end_per_group(_, Config) ->
 
 cert_with_cn_xmpp_addrs_requested_correct_user(C) ->
     UserSpec = [{requested_name, <<"alice@localhost">>} |
-		generate_user(C, "john", #{"xmppAddrs" => ["alice@localhost", "alice@fed1"]})],
+		generate_user_tcp(C, "not-alice-name")],
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
 cert_with_cn_xmpp_addrs_request_name_empty(C) ->
-    UserSpec = generate_user(C, "bob", #{"xmppAddrs" => ["bob@localhost", "bob@fed1"]}),
+    UserSpec = generate_user_tcp(C, "bob"),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+
+    escalus_connection:stop(Client).
+
+cert_with_cn_xmpp_addrs_request_name_empty_ws(C) ->
+    UserSpec = generate_user(C, "bob", escalus_ws),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
 cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
-    UserSpec = generate_user(C, "john"),
+    UserSpec = generate_user_tcp(C, "john"),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
@@ -85,16 +92,19 @@ no_cert_fails_to_authenticate(_C) ->
     ?assertMatch({auth_failed, _, #xmlel{name = <<"failure">>}}, Details),
     ok.
 
+generate_certs(C) ->
+    Certs = [{User, generate_cert(C, User, XMPPAddrs)} ||
+	     {User, XMPPAddrs} <- [{"not-alice-name", ["alice@localhost", "alice@fed1"]},
+				   {"bob", ["bob@localhost"]},
+				   {"john", undefined}]],
+    [{certs, maps:from_list(Certs)} | C].
 
-generate_user(C, User) ->
-    generate_user(C, User, #{}).
-
-generate_user(C, User, TemplateValuesIn) ->
+generate_cert(C, User, XMPPAddrs) ->
     SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),
 
     ConfigTemplate = filename:join(?config(data_dir, C), "openssl-user.cnf"),
     {ok, Template} = file:read_file(ConfigTemplate),
-    TemplateValues = prepare_template_values(User, TemplateValuesIn),
+    TemplateValues = prepare_template_values(User, XMPPAddrs),
     OpenSSLConfig = bbmustache:render(Template, TemplateValues),
     UserConfig = filename:join(?config(priv_dir, C), User ++ ".cfg"),
     file:write_file(UserConfig, OpenSSLConfig),
@@ -110,22 +120,39 @@ generate_user(C, User, TemplateValuesIn) ->
     Cmd2 = [SignCmd, "--req", UserCsr, "--out", UserCert],
     LogFile = filename:join(?config(priv_dir, C), User ++ "signing.log"),
     {done, 0, _} = erlsh:run(Cmd2, LogFile, SSLDir),
-
-    [{username, list_to_binary(User)},
-     {server, <<"localhost">>},
-     {password, <<"break_me">>},
-     {resource, <<>>}, %% Allow the server to generate the resource
-     {auth, {escalus_auth, auth_sasl_external}},
-     {ssl_opts, [{certfile, UserCert},
-		 {keyfile, UserKey}]},
-     {starttls, required}].
+    #{key => UserKey,
+      cert => UserCert}.
 
 
-prepare_template_values(User, TemplateValues) ->
+generate_user_tcp(C, User) ->
+    generate_user(C, User, escalus_tcp).
+
+generate_user(C, User, Transport) ->
+    Certs = ?config(certs, C),
+    UserCert = maps:get(User, Certs),
+
+    Common = [{username, list_to_binary(User)},
+	      {server, <<"localhost">>},
+	      {password, <<"break_me">>},
+	      {resource, <<>>}, %% Allow the server to generate the resource
+	      {auth, {escalus_auth, auth_sasl_external}},
+	      {transport, Transport},
+	      {ssl_opts, [{certfile, maps:get(cert, UserCert)},
+			  {keyfile, maps:get(key, UserCert)}]}],
+    Common ++ transport_specific_options(Transport).
+
+transport_specific_options(escalus_tcp) ->
+    [{starttls, required}];
+transport_specific_options(escalus_ws) ->
+     [{port, 5285},
+      {ssl, true}].
+
+
+prepare_template_values(User, XMPPAddrsIn) ->
     Defaults = #{"cn" => User,
 		 "xmppAddrs" => ""},
-    XMPPAddrs = maybe_prepare_xmpp_addresses(maps:get("xmppAddrs", TemplateValues, undefined)),
-    maps:merge(Defaults, TemplateValues#{"xmppAddrs" => XMPPAddrs}).
+    XMPPAddrs = maybe_prepare_xmpp_addresses(XMPPAddrsIn),
+    Defaults#{"xmppAddrs" => XMPPAddrs}.
 
 maybe_prepare_xmpp_addresses(undefined) ->
     "";
