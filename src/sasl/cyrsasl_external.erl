@@ -12,7 +12,7 @@
 %%%   * pem_cert        - certificate in PEM format
 %%%   * der_cert        - certificate in DER format
 %%%   * common_name     - CN field (bitstring) of client's cert (if available)
-%%%   * xmpp_addressses - list of "id-on-xmppAddr" fields (bitstrings) of
+%%%   * xmpp_addresses  - list of "id-on-xmppAddr" fields (bitstrings) of
 %%%                       client's certificate (if available)
 %%%   * requested_name  - authorization identity (if requested by the client)
 %%%
@@ -82,5 +82,5 @@ get_common_name(Cert) ->
 get_xmpp_addresses(Cert) ->
     case cert_utils:get_xmpp_addresses(Cert) of
         [] -> [];
-        XmmpAddresses -> [{xmpp_addressses, XmmpAddresses}]
+        XmmpAddresses -> [{xmpp_addresses, XmmpAddresses}]
     end.
