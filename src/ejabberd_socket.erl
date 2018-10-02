@@ -246,7 +246,7 @@ get_sockmod(SocketData) ->
     SocketData#socket_state.sockmod.
 
 
--spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
+-spec get_peer_certificate(socket_state()) -> mongoose_transport:peercert_return().
 get_peer_certificate(#socket_state{sockmod = ejabberd_tls, socket = Socket}) ->
     ejabberd_tls:get_peer_certificate(Socket);
 get_peer_certificate(_SocketData) ->

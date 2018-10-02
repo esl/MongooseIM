@@ -1043,6 +1043,7 @@ close(#bosh_socket{pid = Pid}) ->
 peername(#bosh_socket{peer = Peer}) ->
     {ok, Peer}.
 
+-spec get_peer_certificate(mod_bosh:socket()) -> mongoose_transport:peercert_return().
 get_peer_certificate(#bosh_socket{peercert = undefined}) ->
     no_peer_cert;
 get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
