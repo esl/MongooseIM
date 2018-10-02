@@ -12,15 +12,18 @@
 -behaviour(mod_event_pusher).
 
 -callback should_make_req(Acc :: mongoose_acc:t(),
+                          Dir :: in | out,
                           Packet :: exml:element(),
                           From :: jid:jid(),
                           To :: jid:jid()) -> boolean().
 -callback prepare_headers(Acc :: mongoose_acc:t(),
+                          Dir :: in | out,
                           Host :: jid:lserver(),
                           Message :: binary(),
                           Sender :: jid:luser(),
                           Receiver :: jid:luser()) -> [{binary(), binary()}].
 -callback prepare_body(Acc :: mongoose_acc:t(),
+                       Dir :: in | out,
                        Host :: jid:lserver(),
                        Message :: binary(),
                        Sender :: jid:luser(),
@@ -49,19 +52,19 @@ start(Host, _Opts) ->
 stop(_Host) ->
     ok.
 
-push_event(Acc, _Host, #chat_event{direction = in, from = From, to = To, packet = Packet}) ->
-    lists:map(fun(Opts) -> push_event(Acc, From, To, Packet, Opts) end,
+push_event(Acc, _Host, #chat_event{direction = Dir, from = From, to = To, packet = Packet}) ->
+    lists:map(fun(Opts) -> push_event(Acc, Dir, From, To, Packet, Opts) end,
               gen_mod:get_module_opt(From#jid.lserver, ?MODULE, configs, [])),
     Acc;
 push_event(Acc, _Host, _Event) ->
     Acc.
 
-push_event(Acc, From, To, Packet, Opts) ->
+push_event(Acc, Dir, From, To, Packet, Opts) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
     Mod = get_callback_module(Opts),
-    case Mod:should_make_req(Acc, Packet, From, To) of
+    case Mod:should_make_req(Acc, Dir, Packet, From, To) of
         true ->
-            make_req(Acc, From#jid.lserver, From#jid.luser, To#jid.luser, Body, Opts);
+            make_req(Acc, Dir, From#jid.lserver, From#jid.luser, To#jid.luser, Body, Opts);
         _ ->
             ok
     end,
@@ -74,13 +77,13 @@ push_event(Acc, From, To, Packet, Opts) ->
 get_callback_module(Opts) ->
     proplists:get_value(callback_module, Opts, mod_event_pusher_http_defaults).
 
-make_req(Acc, Host, Sender, Receiver, Message, Opts) ->
+make_req(Acc, Dir, Host, Sender, Receiver, Message, Opts) ->
     Path = fix_path(list_to_binary(proplists:get_value(path, Opts, ?DEFAULT_PATH))),
     PoolName = proplists:get_value(pool_name, Opts, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
     Mod = get_callback_module(Opts),
-    Body = Mod:prepare_body(Acc, Host, Message, Sender, Receiver),
-    Headers = Mod:prepare_headers(Acc, Host, Message, Sender, Receiver),
+    Body = Mod:prepare_body(Acc, Dir, Host, Message, Sender, Receiver),
+    Headers = Mod:prepare_headers(Acc, Dir, Host, Message, Sender, Receiver),
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     T0 = os:timestamp(),
     {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Body) of
