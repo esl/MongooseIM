@@ -39,11 +39,11 @@
 
 -record(websocket, {
           pid :: pid(),
-          peername :: {inet:ip_address(), inet:port_number()},
+          peername :: mongoose_transport:peer(),
           peercert :: undefined | binary()
          }).
 -record(ws_state, {
-          peer :: {inet:ip_address(), inet:port_number()} | undefined,
+          peer :: mongoose_transport:peer() | undefined,
           fsm_pid :: pid() | undefined,
           open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,

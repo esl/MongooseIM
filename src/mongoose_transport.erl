@@ -17,10 +17,11 @@
 -type send_xml_input() :: {xmlstreamelement, exml:element()}
                         | jlib:xmlstreamstart()
                         | jlib:xmlstreamend().
--type peername_return() :: {ok, {inet:ip_address(), inet:port_number()}} | {error, inet:posix()}.
+-type peer() :: {inet:ip_address(), inet:port_number()}.
+-type peername_return() :: {ok, peer()} | {error, inet:posix()}.
 -type peercert_return() :: no_peer_cert | {ok, any()}.
 
--export_type([t/0, send_xml_input/0, peername_return/0, peercert_return/0]).
+-export_type([t/0, send_xml_input/0, peer/0, peername_return/0, peercert_return/0]).
 
 %%----------------------------------------------------------------------
 %% Callback declarations

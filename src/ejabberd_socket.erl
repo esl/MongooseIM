@@ -258,8 +258,7 @@ close(SocketData) ->
     ejabberd_receiver:close(SocketData#socket_state.receiver).
 
 
--spec sockname(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
-                                | {error, inet:posix()}.
+-spec sockname(socket_state()) -> mongoose_transport:peername_return().
 sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
         gen_tcp ->
