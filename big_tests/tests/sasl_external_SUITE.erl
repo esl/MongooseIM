@@ -18,8 +18,9 @@ groups() ->
 common_test_cases() ->
     [cert_with_cn_xmpp_addrs_requested_correct_user,
      cert_with_cn_xmpp_addrs_request_name_empty,
-     cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_no_xmpp_addrs_request_name_empty,
+     cert_with_cn_xmpp_addrs_request_name_empty_ws,
+     cert_with_cn_xmpp_addrs_request_name_empty_bosh,
      no_cert_fails_to_authenticate].
 
 init_per_suite(Config) ->
@@ -68,6 +69,12 @@ cert_with_cn_xmpp_addrs_request_name_empty(C) ->
 
 cert_with_cn_xmpp_addrs_request_name_empty_ws(C) ->
     UserSpec = generate_user(C, "bob", escalus_ws),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+
+    escalus_connection:stop(Client).
+
+cert_with_cn_xmpp_addrs_request_name_empty_bosh(C) ->
+    UserSpec = generate_user(C, "bob", escalus_bosh),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
@@ -143,7 +150,7 @@ generate_user(C, User, Transport) ->
 
 transport_specific_options(escalus_tcp) ->
     [{starttls, required}];
-transport_specific_options(escalus_ws) ->
+transport_specific_options(_) ->
      [{port, 5285},
       {ssl, true}].
 

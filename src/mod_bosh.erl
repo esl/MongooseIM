@@ -63,7 +63,6 @@
                     | streamend.
 
 -type headers_list() :: [{binary(), binary()}].
--type peer() :: {inet:ip_address(), inet:port_number()}.
 
 %% Request State
 -record(rstate, {req_sid}).
@@ -364,7 +363,8 @@ maybe_start_session_on_known_host_unsafe(Req, Body) ->
     %% only a subset of the specification.
     {ok, NewBody} = set_max_hold(Body),
     Peer = cowboy_req:peer(Req),
-    start_session(Peer, NewBody),
+    PeerCert = cowboy_req:cert(Req),
+    start_session(Peer, PeerCert, NewBody),
     {true, Req}.
 
 %% @doc Is the argument locally served host?
@@ -372,10 +372,10 @@ is_known_host(Host) ->
     Hosts = ejabberd_config:get_global_option(hosts),
     lists:member(Host, Hosts).
 
--spec start_session(peer(), exml:element()) -> any().
-start_session(Peer, Body) ->
+-spec start_session(mongoose_transport:peer(), binary(), exml:element()) -> any().
+start_session(Peer, PeerCert, Body) ->
     Sid = make_sid(),
-    {ok, Socket} = mod_bosh_socket:start(Sid, Peer),
+    {ok, Socket} = mod_bosh_socket:start(Sid, Peer, PeerCert),
     store_session(Sid, Socket),
     handle_request(Socket, streamstart, Body),
     ?DEBUG("issue=bosh_start_seassion sid=~ts", [Sid]).
