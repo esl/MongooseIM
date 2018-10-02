@@ -92,9 +92,12 @@ prepare_message_and_route_to_room(User, JID, Room, State, Req, JSONData) ->
     case validate_body(JSONData) of
         {ok, Body} ->
             Message = build_message(User, RoomJID, UUID, Body),
-            Acc0 = mongoose_acc:from_element(Message, JID, RoomJID),
-            Acc1 = mongoose_acc:update(Acc0, #{server => Host}),
-            ejabberd_router:route(JID, RoomJID, Acc1, Message),
+            Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                      lserver => JID#jid.lserver,
+                                      from_jid => JID,
+                                      to_jid => RoomJID,
+                                      element => Message }),
+            ejabberd_router:route(JID, RoomJID, Acc, Message),
             Resp = #{id => UUID},
             Req3 = cowboy_req:set_resp_body(jiffy:encode(Resp), Req),
             {true, Req3, State};

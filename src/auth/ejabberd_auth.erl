@@ -551,7 +551,10 @@ do_remove_user(LUser, LServer) when LUser =:= error; LServer =:= error ->
     error;
 do_remove_user(LUser, LServer) ->
     [M:remove_user(LUser, LServer) || M <- auth_modules(LServer)],
-    ejabberd_hooks:run(remove_user, LServer, [LUser, LServer]),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => LServer,
+                              element => undefined }),
+    ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
     ok.
 
 %% @doc Try to remove user if the provided password is correct.
@@ -578,8 +581,13 @@ do_remove_user(LUser, LServer, Password) ->
                 M:remove_user(LUser, LServer, Password)
         end, error, auth_modules(LServer)),
     case R of
-        ok -> ejabberd_hooks:run(remove_user, LServer, [LUser, LServer]);
-        _ -> none
+        ok ->
+            Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => LServer,
+                              element => undefined }),
+            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]);
+        _ ->
+            none
     end,
     R.
 

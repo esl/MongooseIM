@@ -126,7 +126,7 @@ user_receive_packet_type(Server, #xmlel{name = <<"presence">>}) ->
 
 -spec xmpp_bounce_message(Acc :: mongoose_acc:t()) -> metrics_notify_return().
 xmpp_bounce_message(Acc) ->
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:lserver(Acc),
     mongoose_metrics:update(Server, xmppMessageBounced, 1),
     Acc.
 
@@ -138,12 +138,12 @@ xmpp_stanza_dropped(Acc, #jid{server = Server} , _, _) ->
 
 -spec xmpp_send_element(Acc :: map(), Server :: jid:server()) -> ok | metrics_notify_return().
 xmpp_send_element(Acc, _El) ->
-    Server = mongoose_acc:get(server, Acc),
+    Server = mongoose_acc:lserver(Acc),
     mongoose_metrics:update(Server, xmppStanzaCount, 1),
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:stanza_type(Acc) of
         <<"error">> ->
             mongoose_metrics:update(Server, xmppErrorTotal, 1),
-            case mongoose_acc:get(name, Acc) of
+            case mongoose_acc:stanza_name(Acc) of
                 <<"iq">> ->
                     mongoose_metrics:update(Server, xmppErrorIq, 1);
                 <<"message">> ->
@@ -239,7 +239,7 @@ user_ping_timeout(Acc, _JID) ->
                           term(), term(), term()) -> mongoose_acc:t().
 privacy_check_packet(Acc, _, Server, _, {_, _, _, _}, _) ->
     mongoose_metrics:update(Server, modPrivacyStanzaAll, 1),
-    case mongoose_acc:get(privacy_check, Acc, allow) of
+    case mongoose_acc:get(privacy, check, allow, Acc) of
         deny ->
             mongoose_metrics:update(Server, modPrivacyStanzaDenied, 1);
         block ->

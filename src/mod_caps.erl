@@ -431,7 +431,8 @@ feature_request(Acc, Host, From, Caps,
                                          children = []}]},
                     cache_tab:insert(caps_features, NodePair, now_ts(),
                                      caps_write_fun(Host, NodePair, now_ts())),
-                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, Acc, IQ, F);
+                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, Acc, IQ, F),
+                    Acc;
                false -> feature_request(Acc, Host, From, Caps, Tail)
             end
     end;

@@ -208,7 +208,7 @@ maybe_update_mapping(From, Acc) ->
         error ->
             case mod_global_distrib:find_metadata(Acc, origin) of
                 %% Lack of 'global_distrib' indicates 100% local routing...
-                {error, missing_gd_structure} ->
+                {error, undefined} ->
                     %% .. so we can insert From into cache with local host as mapping
                     mod_global_distrib_mapping:cache_jid(From, local_host());
                 {ok, Origin} ->
@@ -228,7 +228,7 @@ ensure_domain_inserted(Acc, Domain) ->
         error ->
             %% See the comments in the last match of maybe_update_mapping/2 function
             case mod_global_distrib:find_metadata(Acc, origin) of
-                {error, missing_gd_structure} ->
+                {error, undefined} ->
                     mod_global_distrib_mapping:cache_domain(Domain, local_host());
                 {ok, Origin} ->
                     mod_global_distrib_mapping:cache_domain(Domain, Origin)

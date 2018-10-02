@@ -37,7 +37,7 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, To, Dir) ->
            {Acc, #xmlel{}} -> Acc;
             _ -> Acc0
         end,
-    From = mongoose_acc:get(from_jid, Acc1),
+    From = mongoose_acc:from_jid(Acc1),
     privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir).
 
 %% @doc check packet, store result in accumulator, return acc and result for quick check
@@ -57,24 +57,24 @@ privacy_check_packet(Acc0, Server, User, PrivacyList, From, To, Dir) ->
                            SType = exml_query:attr(Stanza, <<"type">>, undefined),
                            {A, SName, SType};
                        _ ->
-                           {Acc0, mongoose_acc:get(name, Acc0), mongoose_acc:get(type, Acc0)}
+                           {Acc0, mongoose_acc:stanza_name(Acc0), mongoose_acc:stanza_type(Acc0)}
                    end,
     % check if it is there, if not then set default and run a hook
     FromBin = jid:to_binary(From),
     ToBin = jid:to_binary(To),
-    Key = {cached_privacy_check, Server, User, FromBin, ToBin, Name, Type, Dir},
-    case mongoose_acc:get(Key, Acc, undefined) of
+    Key = {cached_check, Server, User, FromBin, ToBin, Name, Type, Dir},
+    case mongoose_acc:get(privacy, Key, undefined, Acc) of
         undefined ->
             Acc1 = ejabberd_hooks:run_fold(privacy_check_packet,
                                            Server,
-                                           mongoose_acc:put(result, allow, Acc),
+                                           mongoose_acc:set(hook, result, allow, Acc),
                                            [User,
                                             Server,
                                             PrivacyList,
                                             {From, To, Name, Type},
                                             Dir]),
-            Res = mongoose_acc:get(result, Acc1),
-            {mongoose_acc:put(Key, Res, Acc1), Res};
+            Res = mongoose_acc:get(hook, result, Acc1),
+            {mongoose_acc:set(privacy, Key, Res, Acc1), Res};
         Res ->
             {Acc, Res}
     end.

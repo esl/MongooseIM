@@ -78,4 +78,7 @@ terminate(_Reason, _State) ->
 do_work(Data) ->
     {From, To, Acc, Packet} = erlang:binary_to_term(Data),
     mod_global_distrib_utils:maybe_update_mapping(From, Acc),
+    ?DEBUG("event=route_incoming_gd,id=~s,stanza=~s",
+           [mod_global_distrib:get_metadata(Acc, id, "unknown"),
+            exml:to_binary(mongoose_acc:element(Acc))]),
     ejabberd_router:route(From, To, Acc, Packet).

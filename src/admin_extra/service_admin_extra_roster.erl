@@ -250,11 +250,12 @@ unsubscribe(LU, LS, User, Server) ->
 -spec get_roster(jid:user(), jid:server()) ->
     [jids_nick_subs_ask_grp()].
 get_roster(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
-    Acc = mongoose_acc:new(),
-    Acc2 = ejabberd_hooks:run_fold(roster_get, Server, Acc, [{LUser, LServer}]),
-    Items = mongoose_acc:get(roster, Acc2, []),
+    UserJID = jid:make(User, Server, <<>>),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => UserJID#jid.lserver,
+                              element => undefined }),
+    Acc2 = ejabberd_hooks:run_fold(roster_get, Server, Acc, [jid:to_lus(UserJID)]),
+    Items = mongoose_acc:get(roster, items, [], Acc2),
     make_roster(Items).
 
 
