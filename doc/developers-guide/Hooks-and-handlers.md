@@ -69,8 +69,8 @@ If you haven't encountered the term _fold_ before, think of it as _reduce_ (like
 MongooseIM uses a dedicated data structure to accumulate data related to stanza processing (see ["Accumulators"](accumulators.md)).
 It is instantiated with an incoming stanza, passed along throughout the processing chain, supplied to and returned from certain hook calls, and terminated when stanza is leaving MongooseIM.
 
-If a Mongoose accumulator is provided to a hook, handlers should store their return values in one of 3 ways:
-* If it is a one-off value whch doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:set(hook, result, Value, Acc)`.
+If a Mongoose accumulator is passed to a hook, handlers should store their return values in one of 3 ways:
+* If it is a one-off value which doesn't need to be passed on along with the accumulator (can be overwritten any time), use `mongoose_acc:set(hook, result, Value, Acc)`.
 * If the value is to be passed on to be reused within the current processing context, use `mongoose_acc:set(Namespace, Key, Value, Acc)`.
 * If the value should be passed on to the recipient's session, pubsub node etc. use `mongoose_acc:set_permanent(Namespace, Key, Value, Acc)`.
 
@@ -88,7 +88,7 @@ Rs = mongoose_acc:get(offline, messages, Acc1, []),
 ### Sidenote: something deprecated
 
 Occassionally you may find some calls to `ejabberd_hooks:run/3` in the MongooseIM source code.
-Under the hood it calls the same handlers with `ok` as an initial accumulator.
+Under the hood it calls the same handlers with `ok` as the initial accumulator.
 This is deprecated and some day will be removed.
 
 ### Error handling in hooks
