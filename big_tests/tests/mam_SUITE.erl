@@ -2765,7 +2765,7 @@ check_user_exist(Config) ->
   %% when
   [{_, AdminSpec}] = escalus_users:get_users([admin]),
   [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  #{} = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+  ok = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
   %% admin user already registered
   true = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, AdminS]),
   false = rpc(mim(), ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),

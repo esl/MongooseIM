@@ -37,15 +37,14 @@ handle_notify(_Msg, State) ->
     {nosend, State}.
 
 handle_info({route, _From, _To, Acc}, State) ->
-    TagName = mongoose_acc:get(name, Acc),
-    El = mongoose_acc:get(element, Acc),
+    #xmlel{ name = TagName } = El = mongoose_acc:element(Acc),
     handle_msg(TagName, Acc, El, State);
 handle_info(_Msg, State) ->
     {nosend, State}.
 
 handle_msg(<<"message">>, Acc, El, State) ->
     Timestamp = usec:from_now(os:timestamp()),
-    Type = mongoose_acc:get(type, Acc),
+    Type = mongoose_acc:stanza_type(Acc),
     maybe_send_message_event(Type, El, Timestamp, State).
 
 handle_error(_Msg, _Reson, State) ->

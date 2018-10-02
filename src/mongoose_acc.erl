@@ -1,300 +1,241 @@
 %%%-------------------------------------------------------------------
-%%% @doc
-%%% This module encapsulates a data type which will is instantiated when stanza
-%%% enters the system and is passed all the way along processing chain.
-%%% Its interface is map-like, and you can put there whatever you want, bearing in mind two things:
-%%% 1. It is read-only, you can't change value once you wrote it (accumulator is to accumulate)
-%%% 2. Whatever you put will be removed before the acc is sent to another c2s process
+%%% File    : mongoose_acc.erl
+%%% Author  : Piotr Nosek <piotr.nosek@erlang-solutions.com>
+%%% Author  : Bartlomiej Gorny <bartlomiej.gorny@erlang-solutions.com>
+%%% Purpose : Mongoose accumulator implementation
+%%% Created : 11 Sep 2018 by Piotr Nosek <piotr.nosek@erlang-solutions.com>
 %%%
-%%% There are three caveats to the above:
-%%% 1. Although you can not put to an existing key, you can append as many times as you like
-%%% 2. A special key 'result' is writeable and is meant to be used to get return value from hook calls
-%%% 3. If you want to pass something to another c2s process you can use add_prop/3 - values
-%%%    put there are not stripped.
-%%% @end
+%%% NS:Key conventions:
+%%% * hook:result should be used to return hook processing result
+%%% * iq:* contains useful IQ metadata but must be provided by mongoose_iq.erl
 %%%-------------------------------------------------------------------
 -module(mongoose_acc).
--author("bartek").
+-author("bartlomiej.gorny@erlang-solutions.com").
+-author("piotr.nosek@erlang-solutions.com").
 
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
 %% API
--export([new/0, from_kv/2, put/3, get/2, get/3, find/2, append/3, remove/2]).
--export([increment/2, get_counter/2]).
--export([add_prop/3, get_prop/2]).
--export([from_element/1, from_map/1, update_element/4, update/2, is_acc/1, require/2]).
--export([strip/1, strip/2, record_sending/4, record_sending/6]).
--export([dump/1, to_binary/1]).
--export([to_element/1]).
+% Constructor
+-export([new/1]).
+% Access to built-in fields
+-export([
+         ref/1,
+         timestamp/1,
+         lserver/1,
+         element/1,
+         to_jid/1,
+         from_jid/1,
+         stanza_name/1,
+         stanza_type/1,
+         stanza_ref/1
+        ]).
+% Stanza update
+-export([update_stanza/2]).
+% Access to namespaced fields
+-export([
+         set/4,
+         set_permanent/4,
+         append/4,
+         get/3,
+         get/4,
+         delete/3
+        ]).
+% Strip and replace stanza
+-export([strip/2]).
+
+%% Note about 'undefined' to_jid and from_jid: these are the special cases when JID may be
+%% truly unknown: before a client is authorized.
+
+-type location() :: {Module :: module(), Function :: atom(), Line :: pos_integer()}.
+-type stanza_metadata() :: #{
+        element := exml:element(),
+        from_jid := jid:jid() | undefined,
+        to_jid := jid:jid() | undefined,
+        name := binary(),
+        type := binary(),
+        ref := reference()
+       }.
+
+%% If it is defined as -opaque then dialyzer fails
+%% It's still valid in acc 2.0 and gain is probably not worth the effort
+-type t() :: #{
+        mongoose_acc := true,
+        ref := reference(),
+        timestamp := erlang:timestamp(),
+        origin_pid := pid(),
+        origin_location := location(),
+        origin_stanza := binary() | undefined,
+        stanza := stanza_metadata() | undefined,
+        lserver := jid:lserver(),
+        non_strippable := sets:set(ns_key()),
+        {NS :: any(), Key :: any()} => Value :: any()
+       }.
 -export_type([t/0]).
--export([from_element/3]).
 
-%% if it is defined as -opaque then dialyzer fails
--type t() :: map().
+-type new_acc_params() :: #{
+        location := location(),
+        lserver := jid:lserver(),
+        element := exml:element() | undefined,
+        from_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | undefined % optional
+       }.
 
-%%% This module encapsulates implementation of mongoose_acc
-%%% its interface is map-like but implementation might change
-%%% it is passed along many times, and relatively rarely read or written to
-%%% might be worth reimplementing as binary
+-type strip_params() :: #{
+        lserver := jid:lserver(),
+        element := exml:element(),
+        from_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | undefined % optional
+       }.
 
-dump(Acc) ->
-    dump(Acc, lists:sort(maps:keys(Acc))).
+-type stanza_params() :: #{
+        element := exml:element(),
+        from_jid => jid:jid() | undefined, % optional
+        to_jid => jid:jid() | undefined, % optional
+        _ => _
+       }.
 
-to_binary(#xmlel{} = Packet) ->
-    exml:to_binary(Packet);
-to_binary({broadcast, Payload}) ->
-    case is_acc(Payload) of
-        true ->
-            to_binary(Payload);
-        false ->
-            list_to_binary(io_lib:format("~p", [Payload]))
-    end;
-to_binary(Acc) ->
-    % replacement to exml:to_binary, for error logging
-    case is_acc(Acc) of
-        true ->
-            El = get(element, Acc),
-            case El of
-                #xmlel{} -> exml:to_binary(El);
-                _ -> list_to_binary(io_lib:format("~p", [El]))
-            end;
-        false ->
-            list_to_binary(io_lib:format("~p", [Acc]))
-    end.
+-type ns_key() :: {NS :: any(), Key :: any()}.
 
-%% This function is for transitional period, eventually all hooks will use accumulator
-%% and we will not have to check
-is_acc(A) when is_map(A) ->
-    maps:get(mongoose_acc, A, false);
-is_acc(_) ->
-    false.
+%% --------------------------------------------------------
+%% API
+%% --------------------------------------------------------
 
-%% this is a temporary hack - right now processes receive accumulators and stanzas, it is all
-%% mixed up so we have to cater for this
--spec to_element(exml:element() | t()) -> exml:element().
-to_element(A) ->
-    case is_acc(A) of
-        true -> get(element, A, undefined);
-        false -> A
-    end.
-
-
-%%%%% API %%%%%
-
--spec new() -> t().
-new() ->
-    #{mongoose_acc => true, timestamp => os:timestamp(), ref => make_ref()}.
-
--spec from_kv(atom(), any()) -> t().
-from_kv(K, V) ->
-    M = maps:put(K, V, #{}),
-    maps:put(mongoose_acc, true, M).
-
-%% @doc This one has an alternative form because normally an acc carries an xml element, as
-%% received from client, but sometimes messages are generated internally (broadcast) by sm
-%% and sent to c2s
--spec from_element(exml:element() | jlib:iq() | tuple()) -> t().
-from_element(#xmlel{name = Name, attrs = Attrs} = El) ->
-    Type = exml_query:attr(El, <<"type">>, undefined),
-    #{element => El, mongoose_acc => true, name => Name, attrs => Attrs, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
-        };
-from_element(#iq{type = Type} = El) ->
-    #{element => El, mongoose_acc => true, name => <<"iq">>, type => Type,
-        timestamp => os:timestamp(), ref => make_ref()
-    };
-from_element(El) when is_tuple(El) ->
-    Name = <<"broadcast">>,
-    Type = element(1, El),
-    % ref and timestamp will be filled in by strip/2
-    #{element => El, name => Name, type => Type, mongoose_acc => true}.
-
--spec from_element(exml:element() | jlib:iq(), jid:jid(), jid:jid()) -> t().
-from_element(El, From, To) ->
-    Acc = from_element(El),
-    M = #{from_jid => From, to_jid => To, from => jid:to_binary(From), to => jid:to_binary(To)},
-    update(Acc, M).
-
--spec from_map(map()) -> t().
-from_map(M) ->
-    maps:put(mongoose_acc, true, M).
-
--spec update_element(t(), exml:element(), jid:jid(), jid:jid()) -> t().
-update_element(Acc, Element, From, To) ->
-    update(Acc, from_element(Element, From, To)).
-
--spec update(t(), map() | t()) -> t().
-update(Acc, M) ->
-    maps:merge(Acc, M).
-
--spec put(any(), any(), t()) -> t().
-put(from_jid, Val, Acc) ->
-    % used only when we have to manually construct an acc (instead of calling from_element)
-    % namely: in c2s terminate, since it is not triggered by stanza, and in some
-    % deprecated functions
-    A = maps:put(from_jid, Val, Acc),
-    maps:put(from, jid:to_binary(Val), A);
-put(result, Val, Acc) ->
-    maps:put(result, Val, Acc);
-put(Key, Val, Acc) ->
-    % check whether we are replacing existing value (warning now, later it will become
-    % read-only; accumulator is for accumulating)
-    case maps:is_key(Key, Acc) of
-        true ->
-%%            ?WARNING_MSG("Overwriting existing key \"~p\" in accumulator,"
-%%                         "are you sure you have to do it?",
-%%                         [Key]);
-            ok;
-        false ->
-            ok
+-spec new(Params :: new_acc_params()) -> t().
+new(#{ location := Location, lserver := LServer } = Params) ->
+    {ElementBin, Stanza} =
+    case maps:get(element, Params, undefined) of
+        undefined -> {undefined, undefined};
+        Element -> {exml:to_binary(Element), stanza_from_params(Params)}
     end,
-    maps:put(Key, Val, Acc).
+    #{
+      mongoose_acc => true,
+      ref => make_ref(),
+      timestamp => os:timestamp(),
+      origin_pid => self(),
+      origin_location => Location,
+      origin_stanza => ElementBin,
+      stanza => Stanza,
+      lserver => LServer,
+      non_strippable => sets:new()
+     }.
 
--spec get(any()|[any()], t()) -> any().
-get(send_result, Acc) ->
-    hd(maps:get(send_result, Acc));
-get(Key, P) ->
-    maps:get(Key, P).
+ref(#{ mongoose_acc := true, ref := Ref }) ->
+    Ref.
 
--spec get(any(), t(), any()) -> any().
-get(Key, P, Default) ->
-    maps:get(Key, P, Default).
+timestamp(#{ mongoose_acc := true, timestamp := TS }) ->
+    TS.
 
-%% @doc increments a counter, returns new value
-%% counters are tagged so as not to interfere with other values
--spec increment(atom(), t()) -> {integer(), t()}.
-increment(Key, Acc) ->
-    CKey = {counter, Key},
-    NVal = get(CKey, Acc, 0) + 1,
-    {NVal, put(CKey, NVal, Acc)}.
+lserver(#{ mongoose_acc := true, lserver := LServer }) ->
+    LServer.
 
-%% @doc returns current value of a counter
--spec get_counter(atom(), t()) -> integer().
-get_counter(Key, Acc) ->
-    get({counter, Key}, Acc, 0).
+element(#{ mongoose_acc := true, stanza := #{ element := El } }) ->
+    El;
+element(#{ mongoose_acc := true }) ->
+    undefined.
 
--spec find(any(), t()) -> {ok, any()} | error.
-find(send_result, Acc) ->
-    case maps:find(send_result, Acc) of
-        error -> error;
-        {ok, SRs} -> hd(SRs)
-    end;
-find(Key, P) ->
-    maps:find(Key, P).
+from_jid(#{ mongoose_acc := true, stanza := #{ from_jid := FromJID } }) ->
+    FromJID;
+from_jid(#{ mongoose_acc := true }) ->
+    undefined.
 
--spec append(any(), any(), t()) -> t().
-append(Key, Val, P) ->
-    L = get(Key, P, []),
-    maps:put(Key, append(Val, L), P).
+to_jid(#{ mongoose_acc := true, stanza := #{ to_jid := ToJID } }) ->
+    ToJID;
+to_jid(#{ mongoose_acc := true }) ->
+    undefined.
 
--spec remove(Key :: any(), Accumulator :: t()) -> t().
-remove(Key, Accumulator) ->
-    maps:remove(Key, Accumulator).
+stanza_name(#{ mongoose_acc := true, stanza := #{ name := Name } }) ->
+    Name;
+stanza_name(#{ mongoose_acc := true }) ->
+    undefined.
 
-%% @doc adds a persistent property to an accumulator
--spec add_prop(atom(), any(), t()) -> t().
-add_prop(Key, Value, Acc) ->
-    append(persistent_properties, {Key, Value}, Acc).
+stanza_type(#{ mongoose_acc := true, stanza := #{ type := Type } }) ->
+    Type;
+stanza_type(#{ mongoose_acc := true }) ->
+    undefined.
 
--spec get_prop(atom(), t()) -> any().
-get_prop(Key, Acc) ->
-    proplists:get_value(Key, get(persistent_properties, Acc, [])).
+stanza_ref(#{ mongoose_acc := true, stanza := #{ ref := StanzaRef } }) ->
+    StanzaRef;
+stanza_ref(#{ mongoose_acc := true }) ->
+    undefined.
 
-%% @doc Make sure the acc has certain keys - some of them require expensive computations and
-%% are therefore not calculated upon instantiation, this func is saying "I will need these,
-%% please prepare them for me"
--spec require(any() | [any()], t()) -> t().
-require([], Acc) ->
-    Acc;
-require([Key|Tail], Acc) ->
-    Acc1 = case maps:is_key(Key, Acc) of
-               true -> Acc;
-               false -> produce(Key, Acc)
-           end,
-    require(Tail, Acc1);
-require(Key, Acc) ->
-    require([Key], Acc).
+-spec update_stanza(NewStanzaParams :: stanza_params(), Acc :: t()) -> t().
+update_stanza(NewStanzaParams, #{ mongoose_acc := true } = Acc) ->
+    Acc#{ stanza := stanza_from_params(NewStanzaParams) }.
 
-%% @doc Convert the acc before routing it out to another c2s process - remove everything except
-%% the very bare minimum
-%% We get rid of all caches, traces etc.
-%% There is a special key "persistent_properties" which is also kept, use add_prop to store
-%% persistent stuff you want to pass between processes there.
--spec strip(t()) -> t().
-strip(Acc) ->
-    strip(Acc, get(element, Acc)).
+%% Values set with this function are discarded during 'strip' operation...
+-spec set(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
+set(NS, K, V, #{ mongoose_acc := true } = Acc) ->
+    Acc#{ {NS, K} => V }.
 
-%% @doc alt version in case we want to replace the xmlel we are sending
--spec strip(t(), exml:element()) -> t().
-strip(Acc, El) ->
-    Acc1 = from_element(El),
-    Attributes = [ref, timestamp],
-    NewAcc = lists:foldl(fun(Attrib, AccIn) ->
-                           Val = maps:get(Attrib, Acc),
-                           maps:put(Attrib, Val, AccIn)
-                       end,
-                       Acc1, Attributes),
-    OptionalAttributes = [from, from_jid, to, to_jid, persistent_properties, global_distrib],
-    lists:foldl(fun(Attrib, AccIn) ->
-                    case maps:get(Attrib, Acc, undefined) of
-                        undefined -> AccIn;
-                        Val -> maps:put(Attrib, Val, AccIn)
-                    end
-                end,
-        NewAcc, OptionalAttributes).
+%% .. while these are not.
+-spec set_permanent(Namespace :: any(), K :: any(), V :: any(), Acc :: t()) -> t().
+set_permanent(NS, K, V, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
+    Key = {NS, K},
+    NewNonStrippable = sets:add_element(Key, NonStrippable),
+    Acc#{ Key => V, non_strippable => NewNonStrippable }.
 
-%% @doc Recording info about sending out a stanza/accumulator
-%% There are two versions because when we send xml element from c2s then
-%% there is no From and To args available, everything is already in the stanza
-%% while from ejabberd_router:route we get bare stanza and two jids.
--spec record_sending(t(), exml:element(), atom(), any()) -> t().
-record_sending(Acc, Stanza, Module, Result) ->
-    record_sending(Acc, none, none, Stanza, Module, Result).
--spec record_sending(t(),jid:jid()|none,jid:jid()|none, exml:element(), atom(), any()) -> t().
-record_sending(Acc, _From, _To, _Stanza, _Module, Result) ->
-    mongoose_acc:append(send_result, Result, Acc).
+-spec append(NS :: any(), Key :: any(), Val :: any() | [any()], Acc :: t()) -> t().
+append(NS, Key, Val, Acc) ->
+    OldVal = get(NS, Key, [], Acc),
+    set(NS, Key, append(OldVal, Val), Acc).
 
-%%%%% internal %%%%%
+get(NS, K, #{ mongoose_acc := true } = Acc) ->
+    maps:get({NS, K}, Acc).
 
-append(Val, L) when is_list(L), is_list(Val) ->
-    L ++ Val;
-append(Val, L) when is_list(L) ->
-    [Val | L].
+get(NS, K, Default, #{ mongoose_acc := true } = Acc) ->
+    maps:get({NS, K}, Acc, Default).
 
-dump(_, []) ->
-    ok;
-dump(Acc, [K|Tail]) ->
-    ?ERROR_MSG("~p = ~p", [K, maps:get(K, Acc)]),
-    dump(Acc, Tail).
+delete(NS, K, #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc0) ->
+    Key = {NS, K},
+    Acc1 = maps:remove(Key, Acc0),
+    Acc1#{ non_strippable => sets:del_element(Key, NonStrippable) }.
 
+-spec strip(ParamsToOverwrite :: strip_params(), Acc :: t()) -> t().
+strip(#{ lserver := NewLServer } = Params,
+      #{ mongoose_acc := true, non_strippable := NonStrippable } = Acc) ->
+    NonStrippableL = sets:to_list(NonStrippable),
+    StrippedAcc = maps:with(NonStrippableL ++ default_non_strippable(), Acc),
+    StrippedAcc#{ lserver => NewLServer, stanza => stanza_from_params(Params) }.
 
-%% @doc pattern-match to figure out (a) which attrs can be 'required' (b) how to cook them
-produce(iq_query_info, Acc) ->
-    Iq = jlib:iq_query_info(get(element, Acc)), % it doesn't change
-    put(iq_query_info, Iq, Acc);
-produce(xmlns, Acc) ->
-    read_children(Acc);
-produce(command, Acc) ->
-    read_children(Acc).
+%% --------------------------------------------------------
+%% Internal functions
+%% --------------------------------------------------------
 
+-spec stanza_from_params(Params :: stanza_params()) -> stanza_metadata() | undefined.
+stanza_from_params(#{ element := El } = Params) ->
+    #{
+      element => El,
+      from_jid => jid_from_params(from_jid, <<"from">>, Params),
+      to_jid => jid_from_params(to_jid, <<"to">>, Params),
+      name => El#xmlel.name,
+      type => exml_query:attr(El, <<"type">>),
+      ref => make_ref()
+     }.
 
-%% @doc scan xml children to look for namespace; the name of xml element containing namespace
-%% defines the purpose of a stanza, we store it as 'command'; if absent, we store 'undefined'.
-read_children(Acc) ->
-    Acc1 = put(command, undefined, put(xmlns, undefined, Acc)),
-    #xmlel{children = Children} = get(element, Acc1),
-    read_children(Acc, Children).
+-spec jid_from_params(MapKey :: to_jid | from_jid,
+                      StanzaAttrName :: binary(),
+                      Params :: stanza_params()) -> jid:jid().
+jid_from_params(MapKey, StanzaAttrName, #{ element := El } = Params) ->
+    case maps:find(MapKey, Params) of
+        {ok, JID0} -> JID0;
+        error -> #jid{} = jid:from_binary(exml_query:attr(El, StanzaAttrName))
+    end.
 
-read_children(Acc, []) ->
-    Acc;
-read_children(Acc, [#xmlel{} = Chld|Tail]) ->
-    case exml_query:attr(Chld, <<"xmlns">>, undefined) of
-        undefined ->
-            read_children(Acc, Tail);
-        Ns ->
-            #xmlel{name = Name} = Chld,
-            put(command, Name, put(xmlns, Ns, Acc))
-    end;
-read_children(Acc, [_|Tail]) ->
-    read_children(Acc, Tail).
+-spec default_non_strippable() -> [atom()].
+default_non_strippable() ->
+    [
+     mongoose_acc,
+     ref,
+     timestamp,
+     origin_pid,
+     origin_location,
+     origin_stanza,
+     non_strippable
+    ].
+
+-spec append(OldVal :: list(), Val :: list() | any()) -> list().
+append(OldVal, Val) when is_list(OldVal), is_list(Val) -> OldVal ++ Val;
+append(OldVal, Val) when is_list(OldVal) -> [Val | OldVal].
+

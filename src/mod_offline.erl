@@ -184,9 +184,14 @@ handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 write_messages(Acc, LUser, LServer, Msgs) ->
     case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
         ok ->
-            [mod_amp:check_packet(Packet, From, archived)
-             || #offline_msg{from = From, packet = Packet} <- Msgs],
-            ok;
+            lists:foreach(fun(#offline_msg{from = From, to = To, packet = Packet}) ->
+                                  NAcc = mongoose_acc:new(#{ location => ?LOCATION,
+                                                             lserver => LServer,
+                                                             from_jid => From,
+                                                             to_jid => To,
+                                                             element => Packet }),
+                                  mod_amp:check_packet(NAcc, From, archived)
+                          end, Msgs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
                 [LUser, LServer, Reason]),
@@ -394,7 +399,7 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              to = To,
              packet = jlib:remove_delay_tags(Packet)},
     Pid ! {Acc, Msg},
-    mongoose_acc:put(stored_offlne, true, Acc).
+    mongoose_acc:set(offline, stored, true, Acc).
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
@@ -479,7 +484,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     end.
 
 pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline_messages, pop_offline_messages(User, Server), Acc).
+    mongoose_acc:append(offline, messages, pop_offline_messages(User, Server), Acc).
 
 pop_offline_messages(User, Server) ->
     LUser = jid:nodeprep(User),

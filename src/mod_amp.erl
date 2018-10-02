@@ -50,9 +50,9 @@ hooks(Host) ->
 run_initial_check(#{result := drop} = Acc, _C2SState) ->
     Acc;
 run_initial_check(Acc, _C2SState) ->
-    Acc1 = mod_amp:check_packet(Acc, mongoose_acc:get(from_jid, Acc), initial_check),
-    case mongoose_acc:get(amp_check_result, Acc1, ok) of
-        drop -> mongoose_acc:put(result, drop, Acc1);
+    Acc1 = mod_amp:check_packet(Acc, mongoose_acc:from_jid(Acc), initial_check),
+    case mongoose_acc:get(amp, check_result, ok, Acc1) of
+        drop -> mongoose_acc:set(hook, result, drop, Acc1);
         _ -> Acc1
     end.
 
@@ -69,16 +69,20 @@ check_packet(Packet = #xmlel{attrs = Attrs}, Event) ->
             Packet
     end;
 check_packet(Acc, Event) ->
-    check_packet(Acc, mongoose_acc:get(from_jid, Acc), Event).
+    check_packet(Acc, mongoose_acc:from_jid(Acc), Event).
 
 -spec check_packet(exml:element()|mongoose_acc:t(), jid:jid(), amp_event()) ->
     exml:element() | mongoose_acc:t() | drop.
 check_packet(Packet = #xmlel{name = <<"message">>}, From, Event) ->
-    mongoose_acc:get(element, check_packet(mongoose_acc:from_element(Packet), From, Event));
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => From#jid.lserver,
+                              from_jid => From,
+                              element => Packet }),
+    mongoose_acc:element(check_packet(Acc, From, Event));
 check_packet(Packet = #xmlel{}, _, _) ->
     Packet;
 check_packet(Acc, #jid{lserver = Host} = From, Event) ->
-    case mongoose_acc:get(name, Acc) of
+    case mongoose_acc:stanza_name(Acc) of
         <<"message">> ->
             % this hook replaces original element with something modified by amp
             % which is a hack, but since we have accumulator here we have a chance
@@ -99,14 +103,13 @@ add_stream_feature(Acc, _Host) ->
 
 -spec amp_check_packet(mongoose_acc:t(), jid:jid(), amp_event()) -> mongoose_acc:t().
 amp_check_packet(Acc, From, Event) ->
-    Res = mongoose_acc:get(amp_check_result, Acc, ok),
-    Name = mongoose_acc:get(name, Acc),
-    amp_check_packet(Res, Name, Acc, From, Event).
+    Res = mongoose_acc:get(amp, check_result, ok, Acc),
+    amp_check_packet(Res, mongoose_acc:stanza_name(Acc), Acc, From, Event).
 
 amp_check_packet(drop, _, Acc, _, _) ->
     Acc;
 amp_check_packet(_, <<"message">>, Acc, From, Event) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:element(Acc),
     Res = case amp:extract_requested_rules(Packet) of
               none                    -> Packet;
               {rules, Rules}          -> process_amp_rules(Packet, From, Event, Rules);
@@ -114,9 +117,11 @@ amp_check_packet(_, <<"message">>, Acc, From, Event) ->
           end,
     case Res of
         drop ->
-            mongoose_acc:put(amp_check_result, drop, Acc);
+            mongoose_acc:set(amp, check_result, drop, Acc);
         NewElem ->
-            mongoose_acc:put(element, NewElem, Acc)
+            mongoose_acc:update_stanza(#{ element => NewElem,
+                                          from_jid => From,
+                                          to_jid => mongoose_acc:to_jid(Acc) }, Acc)
     end;
 amp_check_packet(_, _, Acc, _, _) ->
     Acc.

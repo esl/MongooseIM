@@ -124,10 +124,9 @@ commands() ->
 -spec get_vcard(jid:user(), jid:server(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name) ->
-    Acc = mongoose_acc:new(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
-            get_vcard_content(Acc, User, Host, [Name]);
+            get_vcard_content(User, Host, [Name]);
         false ->
             {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -135,10 +134,9 @@ get_vcard(User, Host, Name) ->
 -spec get_vcard(jid:user(), jid:server(), any(), any())
                -> {error, string()} | [binary()].
 get_vcard(User, Host, Name, Subname) ->
-    Acc = mongoose_acc:new(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
-            get_vcard_content(Acc, User, Host, [Name, Subname]);
+            get_vcard_content(User, Host, [Name, Subname]);
         false ->
             {error, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -146,10 +144,9 @@ get_vcard(User, Host, Name, Subname) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, SomeContent) ->
-    Acc = mongoose_acc:new(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
-            set_vcard_content(Acc, User, Host, [Name], SomeContent);
+            set_vcard_content(User, Host, [Name], SomeContent);
         false ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -157,10 +154,9 @@ set_vcard(User, Host, Name, SomeContent) ->
 -spec set_vcard(jid:user(), jid:server(), [binary()], [binary()],
                 binary() | [binary()]) -> {ok, string()} | {user_does_not_exist, string()}.
 set_vcard(User, Host, Name, Subname, SomeContent) ->
-    Acc = mongoose_acc:new(),
     case ejabberd_auth:is_user_exists(User, Host) of
         true ->
-            set_vcard_content(Acc, User, Host, [Name, Subname], SomeContent);
+            set_vcard_content(User, Host, [Name, Subname], SomeContent);
         false ->
             {user_does_not_exist, io_lib:format("User ~s@~s does not exist", [User, Host])}
     end.
@@ -177,11 +173,16 @@ get_module_resource(Server) ->
     end.
 
 
--spec get_vcard_content(mongoose_acc:t(), jid:user(), jid:server(), any())
+-spec get_vcard_content(jid:user(), jid:server(), any())
                        -> {error, string()} | list(binary()).
-get_vcard_content(Acc, User, Server, Data) ->
+get_vcard_content(User, Server, Data) ->
     JID = jid:make(User, Server, list_to_binary(get_module_resource(Server))),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => JID,
+                              to_jid => JID,
+                              lserver => JID#jid.lserver,
+                              element => jlib:iq_to_xml(IQ) }),
     {_, IQr} = mod_vcard:process_sm_iq(JID, JID, Acc, IQ),
     case IQr#iq.sub_el of
         [#xmlel{} = A1] ->
@@ -203,13 +204,18 @@ get_vcard([Data1, Data2], A1) ->
 get_vcard([Data], A1) ->
     exml_query:subelements(A1, Data).
 
--spec set_vcard_content(mongoose_acc:t(), jid:user(), jid:server(), Data :: [binary()],
+-spec set_vcard_content(jid:user(), jid:server(), Data :: [binary()],
                         ContentList :: binary() | [binary()]) -> {ok, string()}.
-set_vcard_content(Acc, U, S, D, SomeContent) when is_binary(SomeContent) ->
-    set_vcard_content(Acc, U, S, D, [SomeContent]);
-set_vcard_content(Acc, User, Server, Data, ContentList) ->
+set_vcard_content(U, S, D, SomeContent) when is_binary(SomeContent) ->
+    set_vcard_content(U, S, D, [SomeContent]);
+set_vcard_content(User, Server, Data, ContentList) ->
     JID = jid:make(User, Server, <<>>),
     IQ = #iq{type = get, xmlns = ?NS_VCARD, sub_el = []},
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => JID,
+                              to_jid => JID,
+                              lserver => JID#jid.lserver,
+                              element => jlib:iq_to_xml(IQ) }),
     {Acc1, IQr} = mod_vcard:process_sm_iq(JID, JID, Acc, IQ),
 
     %% Get old vcard

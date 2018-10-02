@@ -92,11 +92,13 @@ start_link() ->
                  El :: exml:element()
                  ) -> mongoose_acc:t().
 process_iq(Acc0, From, To, El) ->
-    Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
+    {IQ, Acc} = mongoose_iq:info(Acc0),
     process_iq(IQ, Acc, From, To, El).
 
-process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
+process_iq(#iq{ type = Type } = IQReply, Acc, From, To, _El)
+  when Type == result; Type == error ->
+    process_iq_reply(From, To, Acc, IQReply);
+process_iq(#iq{ xmlns = XMLNS } = IQ, Acc, From, To, _El) ->
     Host = To#jid.lserver,
     case ets:lookup(?IQTABLE, {XMLNS, Host}) of
         [{_, Module, Function}] ->
@@ -110,9 +112,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, Acc, From, To, _El) ->
         [] ->
             ejabberd_router:route_error_reply(To, From, Acc, mongoose_xmpp_errors:feature_not_implemented())
     end;
-process_iq(reply, Acc, From, To, El) ->
-    IQReply = jlib:iq_query_or_response_info(El),
-    process_iq_reply(From, To, Acc, IQReply);
 process_iq(_, Acc, From, To, El) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, El, mongoose_xmpp_errors:bad_request()),
     ejabberd_router:route(To, From, Acc1, Err).
@@ -136,14 +135,15 @@ process_iq_reply(From, To, Acc, #iq{id = ID} = IQ) ->
                      Extra :: any()) ->
     ok | {error, lager_not_running}.
 process_packet(Acc, From, To, El, _Extra) ->
-    case (catch do_route(Acc, From, To, El)) of
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p "
-                       "reason=~p packet=~ts stack_trace=~p",
+    try
+        do_route(Acc, From, To, El)
+    catch
+        _:Reason ->
+            ?ERROR_MSG("event=routing_error,from=~ts,to=~ts,module=~p,"
+                       "reason=~p,packet=~ts,stack_trace=~p",
                        [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, mongoose_acc:to_binary(Acc),
-                        erlang:get_stacktrace()]);
-        _ -> ok
+                        ?MODULE, Reason, exml:to_binary(mongoose_acc:element(Acc)),
+                        erlang:get_stacktrace()])
     end.
 
 -spec route_iq(From :: jid:jid(),
@@ -390,14 +390,14 @@ do_route(Acc, From, To, El) ->
         user ->
             ejabberd_sm:route(From, To, Acc, El);
         server ->
-            case mongoose_acc:get(name, Acc) of
+            case El#xmlel.name of
                 <<"iq">> ->
                     process_iq(Acc, From, To, El);
                 _ ->
                     Acc
             end;
         local_resource ->
-            case mongoose_acc:get(type, Acc) of
+            case mongoose_acc:stanza_type(Acc) of
                 <<"error">> -> Acc;
                 <<"result">> -> Acc;
                 _ ->

@@ -252,7 +252,10 @@ default_host() ->
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
+    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+                                                  from_jid => From,
+                                                  to_jid => To,
+                                                  element => El }, Acc)}.
 
 %%====================================================================
 %% gen_server callbacks
@@ -705,9 +708,8 @@ disco_items(Host, Node, From) ->
 %% callback that prevents routing subscribe authorizations back to the sender
 %%
 
-handle_pep_authorization_response({From, To, Acc, Packet}) ->
-    Name = mongoose_acc:get(name, Acc),
-    Type = mongoose_acc:get(type, Acc),
+handle_pep_authorization_response({From, To, Acc, #xmlel{ name = Name } = Packet}) ->
+    Type = mongoose_acc:stanza_type(Acc),
     handle_pep_authorization_response(Name, Type, From, To, Acc, Packet).
 
 handle_pep_authorization_response(_, <<"error">>, From, To, Acc, Packet) ->
@@ -887,7 +889,7 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% @private
 handle_info({route, From, To, Acc},
             #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
-    Packet = mongoose_acc:to_element(Acc),
+    Packet = mongoose_acc:element(Acc),
     case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
         {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
         _ -> ok

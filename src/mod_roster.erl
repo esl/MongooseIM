@@ -365,16 +365,19 @@ create_sub_el(Items, Version) ->
 -spec get_user_roster(mongoose_acc:t(),
                       {jid:luser(), jid:lserver()}) ->
     mongoose_acc:t().
-get_user_roster(#{show_full_roster := true} = Acc, {LUser, LServer}) ->
-    Roster = get_roster(LUser, LServer),
-    mongoose_acc:append(roster, Roster, Acc);
 get_user_roster(Acc, {LUser, LServer}) ->
-    Roster = lists:filter(fun (#roster{subscription = none, ask = in}) ->
-                                  false;
-                              (_) ->
-                                  true
-                          end, get_roster(LUser, LServer)),
-    mongoose_acc:append(roster, Roster, Acc).
+    case mongoose_acc:get(roster, show_full_roster, false, Acc) of
+        true ->
+            Roster = get_roster(LUser, LServer),
+            mongoose_acc:append(roster, items, Roster, Acc);
+        _ ->
+            Roster = lists:filter(fun (#roster{subscription = none, ask = in}) ->
+                                          false;
+                                      (_) ->
+                                          true
+                                  end, get_roster(LUser, LServer)),
+            mongoose_acc:append(roster, items, Roster, Acc)
+    end.
 
 get_roster(LUser, LServer) ->
     mod_roster_backend:get_roster(jid:nameprep(LUser), LServer).
@@ -566,7 +569,7 @@ get_subscription_lists(Acc, User, Server) ->
     Items = mod_roster_backend:get_subscription_lists(Acc, LUser, LServer),
     JID = jid:make(User, Server, <<>>),
     SubLists = fill_subscription_lists(JID, LServer, Items, [], [], []),
-    mongoose_acc:put(subscription_lists, SubLists, Acc).
+    mongoose_acc:set(roster, subscription_lists, SubLists, Acc).
 
 
 fill_subscription_lists(JID, LServer, [#roster{} = I | Is], F, T, P) ->
@@ -631,7 +634,7 @@ transaction(LServer, F) ->
 in_subscription(Acc, User, Server, JID, Type, Reason) ->
     Res = process_subscription(in, User, Server, JID, Type,
                                Reason),
-    mongoose_acc:put(result, Res, Acc).
+    mongoose_acc:set(hook, result, Res, Acc).
 
 -spec out_subscription(Acc:: mongoose_acc:t(),
                        User :: binary(),
@@ -641,7 +644,7 @@ in_subscription(Acc, User, Server, JID, Type, Reason) ->
     mongoose_acc:t().
 out_subscription(Acc, User, Server, JID, Type) ->
     Res = process_subscription(out, User, Server, JID, Type, <<"">>),
-    mongoose_acc:put(result, Res, Acc).
+    mongoose_acc:set(hook, result, Res, Acc).
 
 process_subscription(Direction, User, Server, JID1, Type, Reason) ->
     LUser = jid:nodeprep(User),
@@ -823,8 +826,12 @@ in_auto_reply(_, _, _) -> none.
 remove_test_user(User, Server) ->
     mod_roster_backend:remove_user(User, Server).
 
+%% Used only by tests
 remove_user(User, Server) ->
-    remove_user(mongoose_acc:new(), User, Server).
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<_/binary>> = jid:nameprep(Server),
+                              element => undefined }),
+    remove_user(Acc, User, Server).
 
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
@@ -839,7 +846,7 @@ remove_user(Acc, User, Server) ->
 %% Both or To, send a "unsubscribe" presence stanza.
 send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
     Acc1 = get_user_roster(Acc, {LUser, LServer}),
-    RosterItems = mongoose_acc:get(roster, Acc1, []),
+    RosterItems = mongoose_acc:get(roster, items, [], Acc1),
     From = jid:make({LUser, LServer, <<"">>}),
     lists:foreach(fun (RosterItem) ->
                           send_unsubscribing_presence(From, RosterItem)
@@ -1009,9 +1016,11 @@ get_roster_old(LUser, LServer) ->
     get_roster_old(LServer, LUser, LServer).
 
 get_roster_old(DestServer, LUser, LServer) ->
-    A = mongoose_acc:new(),
+    A = mongoose_acc:new(#{ location => ?LOCATION,
+                            lserver => DestServer,
+                            element => undefined }),
     A2 = ejabberd_hooks:run_fold(roster_get, DestServer, A, [{LUser, LServer}]),
-    mongoose_acc:get(roster, A2, []).
+    mongoose_acc:get(roster, items, [], A2).
 
 -spec item_to_map(roster()) -> map().
 item_to_map(#roster{} = Roster) ->

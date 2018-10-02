@@ -20,6 +20,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("mongoose.hrl").
+-include("jlib.hrl").
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -117,7 +119,9 @@ fake_acc_to_component(From) ->
                 attrs = [{<<"from">>, FromBin}, {<<"to">>, ToBin}, {<<"type">>, <<"chat">>}],
                 children = [BodyEl]
                },
-    {mongoose_acc:from_element(Packet), To}.
+    {mongoose_acc:new(#{ location => ?LOCATION,
+                         lserver => From#jid.lserver,
+                         element => Packet }), To}.
 
 %%--------------------------------------------------------------------
 %% Meck & fake zone

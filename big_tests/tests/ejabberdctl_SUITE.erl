@@ -158,7 +158,11 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
             true ->
                 SB = string_to_binary(S),
                 UB = string_to_binary(U),
-                rpc(mim(), ejabberd_hooks, run, [remove_user, SB, [UB, SB]]);
+                Acc = rpc(mim(), mongoose_acc, new,
+                          [#{ location => {?MODULE, ?FUNCTION_NAME, ?LINE},
+                              lserver => SB,
+                              element => undefined }]),
+                rpc(mim(), ejabberd_hooks, run_fold, [remove_user, SB, Acc, [UB, SB]]);
             _ ->
                ok
         end

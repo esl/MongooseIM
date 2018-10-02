@@ -128,32 +128,37 @@ start_link() ->
 -spec route(From, To, Packet) -> Acc when
       From :: jid:jid(),
       To :: jid:jid(),
-      Packet :: exml:element() | mongoose_acc:t()| ejabberd_c2s:broadcast(),
+      Packet :: exml:element() | mongoose_acc:t() | ejabberd_c2s:broadcast(),
       Acc :: mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
-    Acc0 = mongoose_acc:from_element(Packet, From, To),
-    Acc1 = mongoose_acc:update(Acc0,
-                              #{user => From#jid.luser,
-                                server => From#jid.lserver}),
-    route(From, To, Acc1);
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => From#jid.lserver,
+                              element => Packet,
+                              from_jid => From,
+                              to_jid => To }),
+    route(From, To, Acc);
+route(From, To, {broadcast, #xmlel{} = Payload}) ->
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              from_jid => From,
+                              to_jid => To,
+                              lserver => To#jid.lserver,
+                              element => Payload }),
+    route(From, To, Acc, {broadcast, Payload});
 route(From, To, {broadcast, Payload}) ->
-    Acc0 = mongoose_acc:new(),
-    Acc1 = mongoose_acc:update(Acc0,
-                               #{user => From#jid.luser,
-                                 server => From#jid.lserver,
-                                 type => undefined}),
-    route(From, To, Acc1, {broadcast, Payload});
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => To#jid.lserver,
+                              element => undefined }),
+    route(From, To, Acc, {broadcast, Payload});
 route(From, To, Acc) ->
-    route(From, To, Acc, mongoose_acc:get(element, Acc)).
+    route(From, To, Acc, mongoose_acc:element(Acc)).
 
 route(From, To, Acc, {broadcast, Payload}) ->
     case (catch do_route(Acc, From, To, {broadcast, Payload})) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-            "packet=~ts~n~nstack_trace=~p~n",
+            "broadcast=~p~n~nstack_trace=~p~n",
                 [jid:to_binary(From), jid:to_binary(To),
-                    ?MODULE, Reason, mongoose_acc:to_binary(Payload),
-                    erlang:get_stacktrace()]);
+                    ?MODULE, Reason, Payload, erlang:get_stacktrace()]);
         Acc1 -> Acc1
     end;
 route(From, To, Acc, El) ->
@@ -162,8 +167,7 @@ route(From, To, Acc, El) ->
             ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
                        "packet=~ts~n~nstack_trace=~p~n",
                        [jid:to_binary(From), jid:to_binary(To),
-                        ?MODULE, Reason, mongoose_acc:to_binary(Acc),
-                        erlang:get_stacktrace()]);
+                        ?MODULE, Reason, exml:to_binary(El), erlang:get_stacktrace()]);
         Acc1 -> Acc1
     end.
 
@@ -246,7 +250,7 @@ check_in_subscription(Acc, User, Server, _JID, _Type, _Reason) ->
         true ->
             Acc;
         false ->
-            {stop, mongoose_acc:put(result, false, Acc)}
+            {stop, mongoose_acc:set(hook, result, false, Acc)}
     end.
 
 -spec bounce_offline_message(Acc, From, To, Packet) -> {stop, Acc} when
@@ -601,7 +605,7 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
             Acc1 = ejabberd_hooks:run_fold(sm_broadcast, To#jid.lserver, Acc,
                                            [From, To, Broadcast, length(CurrentPids)]),
             ?DEBUG("bc_to=~p~n", [CurrentPids]),
-            BCast = {broadcast, mongoose_acc:strip(Acc1, Payload)},
+            BCast = {broadcast, Payload},
             lists:foreach(fun({_, Pid}) -> Pid ! BCast end, CurrentPids),
             Acc1;
         _ ->
@@ -612,7 +616,7 @@ do_route(Acc, From, To, {broadcast, Payload} = Broadcast) ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    BCast = {broadcast, mongoose_acc:strip(Acc, Payload)},
+                    BCast = {broadcast, Payload},
                     Pid ! BCast,
                     Acc
             end
@@ -635,7 +639,10 @@ do_route(Acc, From, To, El) ->
                     Session = lists:max(Ss),
                     Pid = element(2, Session#session.sid),
                     ?DEBUG("sending to process ~p~n", [Pid]),
-                    Pid ! {route, From, To, mongoose_acc:strip(Acc, El)},
+                    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => To#jid.lserver,
+                                                                  from_jid => From,
+                                                                  to_jid => To,
+                                                                  element => El }, Acc)},
                     Acc
             end
     end.
@@ -655,7 +662,7 @@ do_route_no_resource_presence_prv(From, To, Acc, Packet, Type, Reason) ->
                         To#jid.lserver,
                         Acc,
                         [To#jid.user, To#jid.server, From, Type, Reason]),
-            mongoose_acc:get(result, Res, false);
+            mongoose_acc:get(hook, result, false, Res);
         false ->
             false
     end.
@@ -801,7 +808,10 @@ route_message(From, To, Acc, Packet) ->
               %% positive
               fun({Prio, Pid}) when Prio == Priority ->
                  %% we will lose message if PID is not alive
-                      Pid ! {route, From, To, mongoose_acc:strip(Acc, Packet)};
+                      Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => To#jid.lserver,
+                                                                    from_jid => From,
+                                                                    to_jid => To,
+                                                                    element => Packet }, Acc)};
                  %% Ignore other priority:
                  ({_Prio, _Pid}) ->
                       ok
@@ -981,10 +991,11 @@ get_max_user_sessions(LUser, Host) ->
       Acc :: mongoose_acc:t(),
       Packet :: exml:element().
 process_iq(From, To, Acc0, Packet) ->
-    Acc = mongoose_acc:require(iq_query_info, Acc0),
-    IQ = mongoose_acc:get(iq_query_info, Acc),
-    process_iq(IQ, From, To, Acc0, Packet).
+    {IQ, Acc} = mongoose_iq:info(Acc0),
+    process_iq(IQ, From, To, Acc, Packet).
 
+process_iq(#iq{type = Type}, _From, _To, Acc, _Packet) when Type == result; Type == error ->
+    Acc;
 process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
     Host = To#jid.lserver,
     case ets:lookup(sm_iqtable, {XMLNS, Host}) of
@@ -1003,8 +1014,6 @@ process_iq(#iq{xmlns = XMLNS} = IQ, From, To, Acc, Packet) ->
                     Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
             ejabberd_router:route(To, From, Acc1, Err)
     end;
-process_iq(reply, _From, _To, Acc, _Packet) ->
-    Acc;
 process_iq(_, From, To, Acc, Packet) ->
     {Acc1, Err} = jlib:make_error_reply(Acc, Packet, mongoose_xmpp_errors:bad_request()),
    ejabberd_router:route(To, From, Acc1, Err).

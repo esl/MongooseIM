@@ -1,9 +1,0 @@
-@startuml
-(*) --> "session_establshed"
-"session_establshed" -down-> [Acc1] "some_function"
--down-> [Acc1] "next function"
--right-> [Acc1] "ejabberd_router:route"
---> [Acc1] "next function"
-"ejabberd_router:route" -right-> [Acc1] "routing"
-"next function" -down-> [Acc1] "send_element"
-@enduml

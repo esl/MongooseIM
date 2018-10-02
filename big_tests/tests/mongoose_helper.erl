@@ -88,18 +88,20 @@ clear_last_activity(Config, User) ->
 
 do_clear_last_activity(Config, User) when is_atom(User)->
     [U, S, _P] = escalus_users:get_usp(Config, carol),
-    Acc = new_mongoose_acc(),
+    Acc = new_mongoose_acc({?MODULE, ?FUNCTION_NAME, ?LINE}, S),
     successful_rpc(mod_last, remove_user, [Acc, U, S]);
 do_clear_last_activity(_Config, User) when is_binary(User) ->
     U = escalus_utils:get_username(User),
     S = escalus_utils:get_server(User),
-    Acc = new_mongoose_acc(),
+    Acc = new_mongoose_acc({?MODULE, ?FUNCTION_NAME, ?LINE}, S),
     successful_rpc(mod_last, remove_user, [Acc, U, S]);
 do_clear_last_activity(Config, Users) when is_list(Users) ->
     lists:foreach(fun(User) -> do_clear_last_activity(Config, User) end, Users).
 
-new_mongoose_acc() ->
-    successful_rpc(mongoose_acc, new, []).
+new_mongoose_acc(Location, Server) ->
+    successful_rpc(mongoose_acc, new, [#{ location => Location,
+                                          lserver => Server,
+                                          element => undefined }]).
 
 clear_caps_cache(CapsNode) ->
     ok = rpc(mim(), mod_caps, delete_caps, [CapsNode]).

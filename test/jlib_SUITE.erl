@@ -3,10 +3,9 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
 -include_lib("common_test/include/ct.hrl").
 -compile([export_all]).
-
--import(prop_helper, [prop/2]).
 
 all() -> [
           make_iq_reply_changes_type_to_result,
@@ -64,7 +63,11 @@ make_iq_reply_changes_type_to_result(_) ->
 
 error_reply_check(_) ->
     BaseIQReply = jlib:make_result_iq_reply(base_iq()),
-    Acc = mongoose_acc:from_element(BaseIQReply),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => <<"localhost">>,
+                              element => BaseIQReply,
+                              from_jid => jid:make_noprep(<<"a">>, <<"localhost">>, <<>>),
+                              to_jid => jid:make_noprep(<<>>, <<"localhost">>, <<>>) }),
     {Acc1, ErrorReply1} = jlib:make_error_reply(Acc, BaseIQReply, #xmlel{name = <<"testerror">>}),
     ?assertMatch(#xmlel{}, ErrorReply1),
     {_Acc2, ErrorReply2} = jlib:make_error_reply(Acc1, ErrorReply1, #xmlel{name = <<"testerror">>}),

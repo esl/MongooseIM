@@ -171,7 +171,7 @@ process_iq_get(Acc,
               _ ->
                   {error, mongoose_xmpp_errors:bad_request()}
           end,
-    mongoose_acc:put(iq_result, Res, Acc);
+    mongoose_acc:set(hook, result, Res, Acc);
 process_iq_get(Val, _, _, _, _) ->
     Val.
 
@@ -218,7 +218,7 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_PRIVACY, sub_el = SubEl}) ->
               _ ->
                   {error, mongoose_xmpp_errors:bad_request()}
           end,
-    mongoose_acc:put(iq_result, Res, Acc);
+    mongoose_acc:set(hook, result, Res, Acc);
 process_iq_set(Val, _, _, _) ->
     Val.
 
@@ -332,7 +332,7 @@ check_packet(Acc, User, Server,
             end,
             check_packet_aux(List, PType, Type, LJID, Subscription, Groups)
     end,
-    mongoose_acc:put(result, CheckResult, Acc).
+    mongoose_acc:set(hook, result, CheckResult, Acc).
 
 %% allow error messages
 check_packet_aux(_, message, <<"error">>, _JID, _Subscription, _Groups) ->

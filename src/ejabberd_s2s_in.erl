@@ -398,18 +398,25 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: jid:jid(), To :: jid:jid(), El :: exml:element(), StateData :: state()) ->
+-spec route_incoming_stanza(From :: jid:jid(),
+                            To :: jid:jid(),
+                            El :: exml:element(),
+                            StateData :: state()) ->
     mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
-    LFrom = From#jid.lserver,
-    LTo = To#jid.lserver,
+    LFromS = From#jid.lserver,
+    LToS = To#jid.lserver,
     #xmlel{name = Name} = El,
-    Acc = mongoose_acc:from_element(El, From, To),
-    case is_s2s_authenticated(LFrom, LTo, StateData) of
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => LToS,
+                              element => El,
+                              from_jid => From,
+                              to_jid => To }),
+    case is_s2s_authenticated(LFromS, LToS, StateData) of
         true ->
             route_stanza(Name, Acc);
         false ->
-            case is_s2s_connected(LFrom, LTo, StateData) of
+            case is_s2s_connected(LFromS, LToS, StateData) of
                 true ->
                     route_stanza(Name, Acc);
                 false ->
@@ -444,8 +451,8 @@ route_stanza(_, _Acc) ->
 
 -spec route_stanza(mongoose_acc:t()) -> mongoose_acc:t().
 route_stanza(Acc) ->
-    From = mongoose_acc:get(from_jid, Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    From = mongoose_acc:from_jid(Acc),
+    To = mongoose_acc:to_jid(Acc),
     LTo = To#jid.lserver,
     Acc1 = ejabberd_hooks:run_fold(s2s_receive_packet,
                                    LTo, Acc, []),
