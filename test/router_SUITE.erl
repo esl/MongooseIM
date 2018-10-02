@@ -81,7 +81,7 @@ basic_routing(_C) ->
     %% module 'c' routes everything
     setup_routing_module(xmpp_router_c, none, all),
     %% send messages from 1 to 5
-    lists:map(fun(I) -> route(I) end, [1,2,3,4,5]),
+    lists:map(fun(I) -> route(msg(I)) end, [1,2,3,4,5]),
     meck:validate(xmpp_router_a),
     meck:unload(xmpp_router_a),
     meck:validate(xmpp_router_b),
@@ -139,7 +139,7 @@ setup_routing_module(Name, PacketToDrop, PacketToRoute) ->
     meck:new(Name, [non_strict]),
     meck:expect(Name, filter,
         fun(From, To, Acc, Packet) ->
-            case Packet of
+            case msg_to_id(Packet) of
                 PacketToDrop -> drop;
                 _ -> {From, To, Acc, Packet}
             end
@@ -159,7 +159,7 @@ make_routing_fun(Name, PacketToRoute) ->
     Self = self(),
     Marker = list_to_atom([lists:last(atom_to_list(Name))]),
     fun(From, To, Acc, Packet) ->
-        case Packet of
+        case msg_to_id(Packet) of
             PacketToRoute ->
                 Self ! {Marker, Packet},
                 done;
@@ -167,20 +167,35 @@ make_routing_fun(Name, PacketToRoute) ->
         end
     end.
 
+msg(I) ->
+    IBin = integer_to_binary(I),
+    #xmlel{ name = <<"message">>,
+            children = [
+                        #xmlel{ name = <<"body">>,
+                                children = [#xmlcdata{ content = IBin }] }
+                       ] }.
+
+msg_to_id(Msg) ->
+    binary_to_integer(exml_query:path(Msg, [{element, <<"body">>}, cdata])).
+
 route(I) ->
+    FromJID = jid:from_binary(<<"ala@localhost">>),
+    ToJID = jid:from_binary(<<"bob@localhost">>),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
                               lserver => <<"localhost">>,
-                              element => I }),
-    #{} = ejabberd_router:route(jid:from_binary(<<"ala@localhost">>),
-                               jid:from_binary(<<"bob@localhost">>),
-                               Acc, I).
+                              element => I,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
+    #{} = ejabberd_router:route(FromJID, ToJID, Acc, I).
 
 verify(L) ->
     receive
-        X ->
-            ct:pal("{X, L}: ~p", [{X, L}]),
-            ?assert(lists:member(X, L)),
-            verify(lists:delete(X, L))
+        {RouterID, XML} ->
+            X = msg_to_id(XML),
+            ct:pal("{RouterID, X, L}: ~p", [{RouterID, X, L}]),
+            Item = {RouterID, X},
+            ?assert(lists:member(Item, L)),
+            verify(lists:delete(Item, L))
     after 1000 ->
         ?assertEqual(L, []),
         ct:pal("all messages routed correctly")
