@@ -11,6 +11,17 @@ A server must request the certificate from a client, so you'll need to enable `v
 
 Please check [Listener modules](../advanced-configuration/Listener-modules.md#client-to-server-c2s-ejabberd_c2s) page for more information or simply follow the examples at the end of this section.
 
+### Properly configure `ejabberd_cowboy` listener
+
+SASL EXTERNAL authentication is also possible for WebSocketSecure and BOSH connections over HTTPS.
+Similarly as in `ejabberd_c2s` case, the server must request the certificate from the client.
+In this case it's enabled by adding the following options to `ssl` option of `ejabberd_cowboy` :
+
+* `{verify, verify_peer}` - this is to tell Erlang's SSL to request the cert from the client
+* `{cacertfile, "/path/to/ca.pem"}` - this is to tell Erlang's SSL where  the CA cert file is in order to check if the cert is correctly signed
+
+Please check [Listener modules](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy) for more details regarding `ejabberd_cowboy` configuration.
+
 ### Enable `SASL EXTERNAL` method
 
 A `SASL EXTERNAL` authentication method is disabled by default.
@@ -48,6 +59,20 @@ Certificate authentication only.
                                   verify_peer,
                                   (...)
                                 ]},
+           (...)
+
+           {5285, ejabberd_cowboy, [
+
+                                    {ssl, [(...),
+                                           {verify, verify_peer},
+                                           {cacertfile, "/path/to/ca.pem"}
+                                           ]},
+                                    {modules, [{mod_websockets, []},
+                                               {mod_bosh, []}]},
+                                    (...)
+
+           ]},
+
            (...)
          ]}.
 
