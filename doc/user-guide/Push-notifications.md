@@ -74,17 +74,32 @@ Also, it's important to note, that the first node type on the `plugins` list, wi
 
 ##### [mod_push_service_mongoosepush][]
 
-This module acts as a bridge between [mod_pubsub][] that receives notifications from [mod_event_pusher_push][] and passes them to [MongoosePush][], which sends them to _FCM_ and/or _APNS_. To enable this module type in your configuration:
+This module acts as a bridge between [mod_pubsub][] that receives notifications from [mod_event_pusher_push][] and passes them to [MongoosePush][], which sends them to _FCM_ and/or _APNS_.
+To enable this first you need to define the pool of HTTPS connections to MongoosePush:
 
 ```Erlang
-{http_connections, [{mongoose_push_http,
-    [{server, "https://localhost:8443"}]
-}]}.
+{outgoing_pools,
+ [{http, global, mongoose_push_http,
+   [{strategy, available_worker}],
+   [{server, "https://localhost:8443"}]}
+ ]
+}.
+```
 
-{mod_push_service_mongoosepush, [
-    {pool_name, mongoose_push_http},
-    {api_version, "v2"}
-]}.
+> Please note that there maybe more than one pool in the `outgoing_pools` list.
+
+Then add `mod_push_service_mongoosepush` to the modules section in the config file, like below:
+
+```Erlang
+{modules, [
+
+    (...)
+
+    {mod_push_service_mongoosepush, [
+        {pool_name, mongoose_push_http},
+        {api_version, "v2"}]},
+
+    (...)
 ```
 
 First, we create the HTTP pool for communicating with [MongoosePush][].

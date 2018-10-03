@@ -1,20 +1,20 @@
 ### Module Description
-This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) (MUC). 
-It's a common XMPP group chat solution. 
-This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself. 
-Note that only `mod_muc` needs to be enabled in the configuration file. 
+This module implements [XEP-0045: Multi-User Chat](http://xmpp.org/extensions/xep-0045.html) (MUC).
+It's a common XMPP group chat solution.
+This extension consists of two Erlang modules: `mod_muc` and `mod_muc_room`, the latter being the room code itself.
+Note that only `mod_muc` needs to be enabled in the configuration file.
 Also `mod_muc_log` is a logging submodule.
 
 ### Options
-* `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under. 
+* `host` (string, default: `"conference.@HOST@"`): Subdomain for MUC service to reside under.
  `@HOST@` is replaced with each served domain.
 * `backend` (atom, default: `mnesia`): Storage backend. Currently only `mnesia` is supported.
 * `access` (atom, default: `all`): Access Rule to determine who is allowed to use the MUC service.
 * `access_create` (atom, default: `all`): Who is allowed to create rooms.
 * `access_admin` (atom, default: `none`): Who is the administrator in all rooms.
-* `access_persistent` (atom, default: `all`): Who is allowed to make the rooms persistent. 
+* `access_persistent` (atom, default: `all`): Who is allowed to make the rooms persistent.
  In order to change this parameter, the user must not only match the Access Rule but also be the owner of the room.
-* `history_size` (non-negative integer, default: 20): Room message history to be kept in RAM. 
+* `history_size` (non-negative integer, default: 20): Room message history to be kept in RAM.
  After node restart, the history is lost.
 * `room_shaper` (atom, default: `none`): Limits per-room data throughput with traffic shaper.
 * `max_room_id` (atom or positive integer, default: `infinite`): Maximum room username length (in JID).
@@ -51,10 +51,10 @@ Also `mod_muc_log` is a logging submodule.
     * `allow_user_invites` (boolean, default: `false`): Allow ordinary members to send mediated invitations.
     * `allow_multiple_sessions` (boolean, default: `false`): Allow multiple user session to use the same nick.
     * `password_protected` (boolean, default: `false`): Room is protected with a password.
-    * `password` (binary, default: `<<>>`): Room password is required upon joining. 
+    * `password` (binary, default: `<<>>`): Room password is required upon joining.
      This option has no effect when `password_protected` is `false`.
     * `anonymous` (boolean, default: `true`): Room is anonymous, meaning occupants can't see each others real JIDs, except for the room moderators.
-    * `max_users` (positive integer, default: 200): Maximum user count per room. 
+    * `max_users` (positive integer, default: 200): Maximum user count per room.
      Admins and the room owner are not affected.
     * `logging` (boolean, default: `false`): Enables logging of room events (messages, presences) to a file on the disk. Uses `mod_muc_log`.
     * `maygetmemberlist` (list of atoms, default: `[]`): A list of roles and/or privileges that enable retrieving the room's member list.
@@ -97,30 +97,32 @@ The room's process can be recreated on demand, for example when a presence sent 
 
 ### External HTTP Authentication
 
-MUC rooms can be protected by a password that is set by the room owner. 
-Note that MongooseIM supports another custom solution, where each attempt to enter or create a room requires the password to be checked by an external HTTP service. 
+MUC rooms can be protected by a password that is set by the room owner.
+Note that MongooseIM supports another custom solution, where each attempt to enter or create a room requires the password to be checked by an external HTTP service.
 To enable this option, you need to:
 
-* Configure an [HTTP connection pool](../Advanced-configuration.md#outgoing-http-connections).
+* Configure an [HTTP connection pool](../advanced-configuration/outgoing-connections.md#http-connections-setup).
 * Set the name of the connection pool as the value of the `http_auth_pool` option of `mod_muc`.
 * Enable the `password_protected` default room option (without setting the password itself).
 
-Whenever a user tries to enter or create a room, the server will receive a GET request to the `check_password` path. 
-It should return a 200 response with a JSON object `{"code": Code, "msg": Message}` in the response body. 
+Whenever a user tries to enter or create a room, the server will receive a GET request to the `check_password` path.
+It should return a 200 response with a JSON object `{"code": Code, "msg": Message}` in the response body.
 If the server returns something else, an error presence will be sent back to the client.
 
 * `Code` is the status code: 0 indicates a successful authentication, any other value means the authentication failed.
-* `Message` is a string containing the message to be sent back to the XMPP client indicating the reason for a failed authentication. 
+* `Message` is a string containing the message to be sent back to the XMPP client indicating the reason for a failed authentication.
  When authentication succeeds it is ignored and can contain anything ( eg. the string `"OK"`).
 
 **Example:**
 
-```
+```Erlang
 
-{http_connections, [
-                    {my_auth_pool, [{server, "http://my_server:8000"}]}
-                   ]}.
-
+{outgoing_pools,
+ [{http, global, my_auth_pool,
+   [{strategy, available_worker}],
+   [{server, "http://my_server:8000"}]}
+ ]
+}.
 
 {modules, [
 

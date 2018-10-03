@@ -17,19 +17,24 @@ By default it uses the function in `mod_event_pusher_http` itself, which ships a
 
 ## Prerequisites
 
-This module uses a connection pool created by mongoose_http_client. It must be defined in the `http_connections` settings.
+This module uses a connection pool created by mongoose_http_client.
+It must be defined in the [`outgoing_pools` settings](../advanced-configuration/outgoing-connections.md#http-connections-setup).
 
 ## Options
 
-* `pool_name`: name of the pool to use (as defined in http_connections)
+* `pool_name`: name of the pool to use (as defined in outgoing_pools)
 * `path`: path part of an URL to which a request should be sent (will be appended to the pool's prefix path).
 * `callback_module`: name of a module which should be used to check whether a notification should be sent.
 
 ## Example configuration
 
-`{http_connections, [{http_pool, [{server, "http://localhost:8000"},
-                             {pool_size, 50}, {path_prefix, "/webservice"}]}
-                   ]}.`
+```erlang
+{outgoing_pools, [
+  {http, global, http_pool, [{workers, 50}],
+  [{server, "http://localhost:8000"},
+   {path_prefix, "/webservice"}]}
+]}.
+```
 
 ```erlang
 {mod_event_pusher, [
@@ -45,7 +50,9 @@ This module uses a connection pool created by mongoose_http_client. It must be d
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
 
 ## Payload format
+
 The HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
+
 * `author`: username of the user who authored the message
 * `server`: name of the server from where the message originates
 * `receiver`: username of the user who the message is for
