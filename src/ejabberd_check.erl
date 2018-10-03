@@ -52,8 +52,7 @@ check_database_modules() ->
 
 -spec check_database_module('mysql' | 'odbc' | 'pgsql') -> 'ok'.
 check_database_module(odbc) ->
-    check_modules(odbc, [odbc, odbc_app, odbc_sup, mongoose_rdbms, mongoose_rdbms_sup,
-                         rdbms_queries]);
+    check_modules(odbc, [mongoose_rdbms, rdbms_queries]);
 check_database_module(mysql) ->
     check_modules(mysql, [mysql, mysql_cache, mysql_encode, mysql_protocol]);
 check_database_module(pgsql) ->

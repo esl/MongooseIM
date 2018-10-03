@@ -184,8 +184,7 @@ clear_inbox_rdbms(Username, Server) ->
 -spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary()}) ->
     inbox_res().
 decode_row(LServer, {Username, Content, Count, Timestamp}) ->
-    Pool = mongoose_rdbms_sup:pool(LServer),
-    Data = mongoose_rdbms:unescape_binary(Pool, Content),
+    Data = mongoose_rdbms:unescape_binary(LServer, Content),
     BCount = count_to_bin(Count),
     NumericTimestamp = mongoose_rdbms:result_to_integer(Timestamp),
     {Username, Data, BCount, usec:to_now(NumericTimestamp)}.

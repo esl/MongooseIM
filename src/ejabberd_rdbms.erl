@@ -27,42 +27,12 @@
 -module(ejabberd_rdbms).
 -author('alexey@process-one.net').
 
--export([start/0, start_pool/1, stop_pool/1, pools/0]).
+-export([start/0]).
 -include("mongoose.hrl").
 
 -spec start() -> 'ok' | {'error', 'lager_not_running'}.
 start() ->
-    compile_rdbms_type_helper(),
-    %% Check if ejabberd has been compiled with RDBMS support
-    case catch mongoose_rdbms_sup:module_info() of
-        {'EXIT', {undef, _}} ->
-            ?INFO_MSG("MongooseIM has not been compiled with relational database support. "
-                      "Skipping database startup.", []);
-        _ ->
-            {ok, _Pid} = start_pool_sup(),
-            [start_pool(Pool) || Pool <- pools()],
-            ok
-    end.
-
-
-start_pool_sup() ->
-    ChildSpec =
-        {mongoose_rdbms_sup,
-         {mongoose_rdbms_sup, start_link, []},
-         transient,
-         infinity,
-         supervisor,
-         [mongoose_rdbms_sup]},
-    ejabberd_sup:start_child(ChildSpec).
-
-pools() ->
-    ejabberd_config:get_local_option_or_default(rdbms_pools, []).
-
-start_pool(Pool) ->
-    mongoose_rdbms_sup:add_pool(Pool).
-
-stop_pool(Pool) ->
-    mongoose_rdbms_sup:remove_pool(Pool).
+    compile_rdbms_type_helper().
 
 compile_rdbms_type_helper() ->
     %% TODO This parameter should not be global, but pool-name parameterized

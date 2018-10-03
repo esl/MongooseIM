@@ -354,9 +354,9 @@ escape_like_internal(S) when is_list(S) ->
     [escape_like_character(C) || C <- S].
 
 escape_string_internal(S) ->
-    case erlang:function_exported(mongoose_rdbms_backend:backend(), escape_string, 2) of
+    case erlang:function_exported(mongoose_rdbms_backend:backend(), escape_string, 1) of
         true ->
-            mongoose_rdbms_backend:escape_string(default, S);
+            mongoose_rdbms_backend:escape_string(S);
         false ->
             %% generic escaping
             [$', escape_characters(S), $']
