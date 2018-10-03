@@ -78,14 +78,14 @@ init_per_testcase(CaseName, Config) ->
     HTTPOpts = [
         {server, "http://localhost:" ++ integer_to_list(MongoosePushMockPort)}
     ],
-    rpc(mongoose_http_client, start, []),
-    rpc(mongoose_http_client, start_pool, [mongoose_push_http, HTTPOpts]),
+    PoolOpts = [{strategy, available_worker}, {workers, 20}],
+    rpc(mongoose_wpool, start_configured_pools,
+        [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     escalus:init_per_testcase(CaseName, Config).
 
 
 end_per_testcase(CaseName, Config) ->
-    rpc(mongoose_http_client, stop_pool, [mongoose_push_http]),
-    rpc(mongoose_http_client, stop, []),
+    rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),
     teardown_mock_rest(),
     escalus:end_per_testcase(CaseName, Config).
 
