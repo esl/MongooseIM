@@ -40,7 +40,6 @@
 {https_config, "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"}, {keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"}]},"}. %% Applies to Websockets, BOSH and metrics; PEM format
 {zlib, "%%{zlib, 10000},"}. %% Second element of a tuple is inflated data size limit; 0 for no limit
 {registration_watchers, "%{registration_watchers, [\"admin@localhost\"]},"}.
-{riak_server, "%%{riak_server, [{pool_size, 20}, {address, \"127.0.0.1\"}, {port, 8087}, {riak_pb_socket_opts, []}]}."}.
 {cassandra_servers, "%%{cassandra_servers, [{default, []}]}."}.
 {elasticsearch_server, "%%{elasticsearch_server, []}."}.
 {outgoing_pools, "

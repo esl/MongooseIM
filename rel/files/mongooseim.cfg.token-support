@@ -416,12 +416,6 @@
 %%
 %%{rdbms_pool_size, 10}.
 
-%%% ====================
-%%% RIAK SETUP
-%%% ====================
-
-%%{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}, {riak_pb_socket_opts, []}]}.
-
 %%
 %% Interval to make a dummy SQL request to keep the connections to the
 %% database alive. Specify in seconds: for example 28800 means 8 hours

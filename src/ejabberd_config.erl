@@ -478,15 +478,11 @@ handle_config_change({_Key, _OldValue, _NewValue}) ->
 %% ----------------------------------------------------------------
 %% LOCAL CONFIG
 %% ----------------------------------------------------------------
-handle_local_config_add(#local_config{key = riak_server}) ->
-    mongoose_riak:start();
 handle_local_config_add(#local_config{key = cassandra_servers}) ->
     mongoose_cassandra:start();
 handle_local_config_add(#local_config{key = Key} = El) ->
     ?WARNING_MSG_IF(not can_be_ignored(Key), "local config add ~p option unhandled", [El]).
 
-handle_local_config_del(#local_config{key = riak_server}) ->
-    mongoose_riak:stop();
 handle_local_config_del(#local_config{key = cassandra_servers}) ->
     mongoose_cassandra:stop();
 handle_local_config_del(#local_config{key = node_start}) ->
@@ -499,10 +495,6 @@ handle_local_config_change({listen, Old, New}) ->
     reload_listeners(mongoose_config_reload:compare_listeners(Old, New));
 handle_local_config_change({loglevel, _Old, Loglevel}) ->
     ejabberd_loglevel:set(Loglevel),
-    ok;
-handle_local_config_change({riak_server, _Old, _New}) ->
-    mongoose_riak:stop(),
-    mongoose_riak:start(),
     ok;
 handle_local_config_change({cassandra_servers, _Old, _New}) ->
     mongoose_cassandra:stop(),

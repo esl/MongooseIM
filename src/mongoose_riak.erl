@@ -48,16 +48,10 @@
 
 %%%%
 
--spec start() -> {ok, pid()} | ignore.
+-spec start() -> ok.
 start() ->
     mongoose_wpool:ensure_started(),
-    case ejabberd_config:get_local_option(riak_server) of
-        undefined ->
-            ignore;
-        RiakOpts ->
-            ?WARNING_MSG("Deprecated riak_server option, please use outgoing_pools", []),
-            start_pool(RiakOpts)
-    end.
+    ok.
 
 start_pool(RiakOpts) ->
     {_, Workers} = mongoose_wpool_riak:get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
