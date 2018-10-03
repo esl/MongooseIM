@@ -246,9 +246,11 @@ get_sockmod(SocketData) ->
     SocketData#socket_state.sockmod.
 
 
--spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
-get_peer_certificate(SocketData) ->
-    ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
+-spec get_peer_certificate(socket_state()) -> mongoose_transport:peercert_return().
+get_peer_certificate(#socket_state{sockmod = ejabberd_tls, socket = Socket}) ->
+    ejabberd_tls:get_peer_certificate(Socket);
+get_peer_certificate(_SocketData) ->
+    no_peer_cert.
 
 
 -spec close(socket_state()) -> ok.
@@ -256,8 +258,7 @@ close(SocketData) ->
     ejabberd_receiver:close(SocketData#socket_state.receiver).
 
 
--spec sockname(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
-                                | {error, inet:posix()}.
+-spec sockname(socket_state()) -> mongoose_transport:peername_return().
 sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
         gen_tcp ->

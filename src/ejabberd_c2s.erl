@@ -440,15 +440,13 @@ default_language() ->
 verify_opts(verify_none) -> [verify_none];
 verify_opts(verify_peer) -> [].
 
-get_peer_cert(#state{ tls_enabled = true,
-                      tls_verify  = verify_peer,
-                      socket      = Socket,
-                      sockmod     = ejabberd_socket }) ->
-    case ejabberd_socket:get_peer_certificate(Socket) of
+-spec get_peer_cert(state()) -> {ok, any()} | error.
+get_peer_cert(#state{socket      = Socket,
+                     sockmod     = SockMod }) ->
+    case mongoose_transport:get_peer_certificate(SockMod, Socket) of
         {ok, Cert} -> Cert;
         _ -> error
-    end;
-get_peer_cert(_) -> error.
+    end.
 
 maybe_add_cert(Creds, S) ->
     case get_peer_cert(S) of

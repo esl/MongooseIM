@@ -14,6 +14,8 @@ setup() ->
     meck:expect(ejabberd_socket, get_sockmod, fun(_) -> gen_tcp end),
     meck:expect(ejabberd_socket, peername,
                 fun(_) -> {ok, {{127, 0, 0, 0}, 50001}}  end),
+    meck:expect(ejabberd_socket, get_peer_certificate,
+                fun(_) -> no_peer_cert  end),
     meck:expect(ejabberd_socket, monitor,
                 fun(_) -> ok  end),
     meck:expect(ejabberd_socket, change_shaper, fun(_, _) -> ok end),

@@ -4,8 +4,8 @@
 -behaviour(mongoose_transport).
 
 %% API
--export([start/2,
-         start_link/2,
+-export([start/3,
+         start_link/3,
          start_supervisor/0,
          handle_request/2,
          pause/2]).
@@ -26,7 +26,8 @@
          monitor/1,
          get_sockmod/1,
          close/1,
-         peername/1]).
+         peername/1,
+         get_peer_certificate/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -88,15 +89,16 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(mod_bosh:sid(), _) ->
+-spec start(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(Sid, Peer) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer]).
+start(Sid, Peer, PeerCert) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer, PeerCert]).
 
 
--spec start_link(mod_bosh:sid(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(Sid, Peer) ->
-    gen_fsm_compat:start_link(?MODULE, [Sid, Peer], []).
+-spec start_link(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
+    'ignore' | {'error', _} | {'ok', pid()}.
+start_link(Sid, Peer, PeerCert) ->
+    gen_fsm_compat:start_link(?MODULE, [Sid, Peer, PeerCert], []).
 
 
 start_supervisor() ->
@@ -175,8 +177,8 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Sid, Peer]) ->
-    BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer},
+init([Sid, Peer, PeerCert]) ->
+    BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = [{xml_socket, true}],
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
     ?DEBUG("mod_bosh_socket started~n", []),
@@ -1040,6 +1042,13 @@ close(#bosh_socket{pid = Pid}) ->
 -spec peername(mod_bosh:socket()) -> mongoose_transport:peername_return().
 peername(#bosh_socket{peer = Peer}) ->
     {ok, Peer}.
+
+-spec get_peer_certificate(mod_bosh:socket()) -> mongoose_transport:peercert_return().
+get_peer_certificate(#bosh_socket{peercert = undefined}) ->
+    no_peer_cert;
+get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
+    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
+    {ok, Decoded}.
 
 %%--------------------------------------------------------------------
 %% Helpers
