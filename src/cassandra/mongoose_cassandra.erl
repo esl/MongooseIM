@@ -66,22 +66,13 @@
 %% Module API
 %% ====================================================================
 
--spec start() -> ignore | ok | no_return().
+-spec start() -> ok.
 start() ->
-    case mongoose_cassandra_pool:all() of
-        [_ | _] = ConfiguredPools ->
-            ?WARNING_MSG("Deprecated cassandra_servers option, please use outgoing_pools", []),
-            mongoose_wpool:ensure_started(),
-            mongoose_wpool_cassandra:init(),
-            [mongoose_cassandra_pool:init(Pool) || Pool <- ConfiguredPools];
-        _ ->
-            ignore
-    end.
+    ok.
 
--spec stop() -> _.
+-spec stop() -> ok.
 stop() ->
-    [mongoose_cassandra_pool:shutdown(PoolName) || {PoolName, _} <- mongoose_cassandra_pool:all()],
-    application:stop(cqerl).
+    ok.
 
 %% ====================================================================
 %% Cassandra API

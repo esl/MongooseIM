@@ -26,7 +26,7 @@
 %% Module callbacks
 
 %% API
--export([init/1, shutdown/1, all/0]).
+-export([init/1, shutdown/1]).
 -export([call_query/3, cast_query/3]).
 
 %% Types
@@ -45,14 +45,6 @@ init({PoolName, PoolSize, PoolConfig}) ->
 
 shutdown(PoolName) ->
     mongoose_wpool:stop(cassandra, global, PoolName).
-
-all() ->
-    case ejabberd_config:get_local_option(cassandra_servers) of
-        undefined ->
-            [];
-        Pools ->
-            Pools
-    end.
 
 call_query(PoolName, undefined, Call) ->
     mongoose_wpool:call(cassandra, global, PoolName, Call);

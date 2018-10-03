@@ -122,40 +122,13 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 ### Cassandra backend
 
-Edit main config section adding:
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-connection-setup) page to learn how to properly configure Cassandra connection pool.
+By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag:
 
 ```erlang
-{cassandra_servers, [{default, []}]}.
-```
-
-MongooseIM will create one pool with one worker to connect to localhost:9042.
-
-You can change the default settings using extra parameters:
-* 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
-* Keyspace "mongooseim";
-* Custom connect timeout in milliseconds;
-* Custom credentials.
-
-```erlang
-{cassandra_servers,
- [
-  {default,
-   [
-    {servers,
-     [
-      {"10.0.0.1", 9042, 5},
-      {"10.0.0.2", 9042, 5},
-      {"10.0.0.3", 9042, 5},
-      {"10.0.0.4", 9042, 5}
-     ]
-    },
-    {keyspace, "mongooseim"},
-    {connect_timeout, 5000}, % five seconds
-    {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
-   ]
-  }
- ]
-}.
+{outgoing_pools, [
+    {cassandra, global, default, [], []}.
+]}.
 ```
 
 ### ElasticSearch backend
