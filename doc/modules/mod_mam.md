@@ -134,17 +134,7 @@ By default, `mod_mam` Cassandra backend requires `global` pool with `default` ta
 ### ElasticSearch backend
 
 First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
-Please refer to [database backends configuration](../advanced-configuration/database-backends-configuration.md#elasticsearch) page for information on how to configure ElasticSearch properly.
-
-Edit main config section adding:
-
-```erlang
-{elasticsearch_server, []}.
-```
-
-MongooseIM will create one pool with one worker which will try to connect to localhost:9200.
-Make sure that your ElasticSearch node's HTTP API is listening on this address!
-For more information on how to configure the connection pool, please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page.
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-connection-setup) page to learn how to properly configure ElasticSearch connection pool.
 
 ### Example configuration
 

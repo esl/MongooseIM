@@ -325,8 +325,6 @@ process_host_term(Term, Host, State) ->
             State;
         {outgoing_pools, Pools} when is_list(Pools) ->
             add_option(outgoing_pools, Pools, State);
-        {elasticsearch_server, ESConfig} ->
-            add_option(elasticsearch_server, ESConfig, State);
         {node_specific_options, NodeOpts} ->
             add_option(node_specific_options, NodeOpts, State);
         {Opt, Val} ->
