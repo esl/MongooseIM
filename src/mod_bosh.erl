@@ -372,7 +372,7 @@ is_known_host(Host) ->
     Hosts = ejabberd_config:get_global_option(hosts),
     lists:member(Host, Hosts).
 
--spec start_session(mongoose_transport:peer(), binary(), exml:element()) -> any().
+-spec start_session(mongoose_transport:peer(), binary() | undefined, exml:element()) -> any().
 start_session(Peer, PeerCert, Body) ->
     Sid = make_sid(),
     {ok, Socket} = mod_bosh_socket:start(Sid, Peer, PeerCert),

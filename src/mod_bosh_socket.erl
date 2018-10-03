@@ -89,13 +89,13 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(mod_bosh:sid(), mongoose_transport:peer(), binary()) ->
+-spec start(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
 start(Sid, Peer, PeerCert) ->
     supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer, PeerCert]).
 
 
--spec start_link(mod_bosh:sid(), mongoose_transport:peer(), binary()) ->
+-spec start_link(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
     'ignore' | {'error', _} | {'ok', pid()}.
 start_link(Sid, Peer, PeerCert) ->
     gen_fsm_compat:start_link(?MODULE, [Sid, Peer, PeerCert], []).
