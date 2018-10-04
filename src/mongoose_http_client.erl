@@ -38,9 +38,6 @@
 -export([start/0, stop/0, start_pool/2, stop_pool/1, get/3, post/4]).
 -export([get_pool/1]). % for backward compatibility
 
-%% Exported for testing
--export([start/1]).
-
 -spec start() -> ok.
 start() ->
     mongoose_wpool:ensure_started(),
