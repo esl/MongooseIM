@@ -184,8 +184,7 @@ cast(Type, Host, Tag, HashKey, Request) ->
 get_pool_settings(Type, Host, Tag) ->
     case get_pool(Type, Host, Tag) of
         {ok, PoolOpts} -> PoolOpts;
-        {error, pool_not_started} -> undefined;
-        Err -> Err
+        {error, pool_not_started} -> undefined
     end.
 
 get_pools() ->

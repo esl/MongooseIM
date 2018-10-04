@@ -30,9 +30,10 @@
 -export([start/0]).
 -include("mongoose.hrl").
 
--spec start() -> 'ok' | {'error', 'lager_not_running'}.
+-spec start() -> ok.
 start() ->
-    compile_rdbms_type_helper().
+    compile_rdbms_type_helper(),
+    ok.
 
 compile_rdbms_type_helper() ->
     %% TODO This parameter should not be global, but pool-name parameterized

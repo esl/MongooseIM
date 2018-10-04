@@ -25,7 +25,7 @@ start(Host, Tag, WpoolOpts, RdbmsOpts) ->
         Err -> {error, Err}
     end.
 
-do_start(Host, Tag, WpoolOpts0, RdbmsOpts) ->
+do_start(Host, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(RdbmsOpts) ->
     Backend =
         case lists:keyfind(server, 1, RdbmsOpts) of
             {_, ConnStr} when is_list(ConnStr) -> odbc;
@@ -45,7 +45,9 @@ do_start(Host, Tag, WpoolOpts0, RdbmsOpts) ->
     mongoose_metrics:ensure_db_pool_metric({rdbms, Host, Tag}),
 
     Worker = {mongoose_rdbms, RdbmsOpts},
-    WpoolOpts = [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0],
+    %% Without lists:map dialyzer doesn't understand that WpoolOpts is a list (?) and the
+    %% do_start function has no return.
+    WpoolOpts = lists:map(fun(X) -> X end, [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0]),
     Name = mongoose_wpool:make_pool_name(rdbms, Host, Tag),
     case wpool:start_sup_pool(Name, WpoolOpts) of
         {ok, Pid} -> {ok, {Pid, [{call_timeout, 60000}]}};
