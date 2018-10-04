@@ -45,17 +45,11 @@
 start() ->
     mongoose_wpool:ensure_started(),
     mongoose_wpool_http:init(),
-    case ejabberd_config:get_local_option(http_connections) of
-        undefined -> ok;
-        Opts -> start(Opts)
-    end.
+    ok.
 
--spec stop() -> any().
+-spec stop() -> ok.
 stop() ->
-    case ejabberd_config:get_local_option(http_connections) of
-        undefined -> ok;
-        Opts -> lists:map(fun({Name, _}) -> stop_pool(Name) end, Opts)
-    end.
+    ok.
 
 -spec start_pool(atom(), list()) -> ok | {error, already_started}.
 start_pool(PoolName, Opts) ->
@@ -86,11 +80,6 @@ post(Pool, Path, Headers, Query) ->
 get_pool(PoolName) -> PoolName.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-start(Opts) ->
-    [start_pool(Name, PoolOpts) || {Name, PoolOpts} <- Opts],
-    ok.
 
 do_start_pool(PoolName, Opts) ->
     SelectionStrategy = gen_mod:get_opt(selection_strategy, Opts, available_worker),

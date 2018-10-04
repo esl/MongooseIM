@@ -296,8 +296,6 @@ process_term(Term, State) ->
             add_option(max_fsm_queue, N, State);
         {sasl_mechanisms, Mechanisms} ->
             add_option(sasl_mechanisms, Mechanisms, State);
-        {http_connections, HttpConnections} ->
-            add_option(http_connections, HttpConnections, State);
         {all_metrics_are_global, Value} ->
             add_option(all_metrics_are_global, Value, State);
         {services, Value} ->
