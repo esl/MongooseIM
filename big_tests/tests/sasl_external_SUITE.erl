@@ -11,8 +11,8 @@ all() ->
      {group, just_tls}].
 
 groups() ->
-    G = [{fast_tls, [], common_test_cases()},
-	 {just_tls, [], common_test_cases()}],
+    G = [{fast_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]},
+	 {just_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]}],
     ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
@@ -39,7 +39,8 @@ init_per_group(GroupName, Config) ->
 				"tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "{certfile, \"priv/ssl/fake_server.pem\"},"
 			            "starttls, verify_peer,"
-				    "{cafile, \"" ++ CACertFile ++ "\"},"},
+				    "{cafile, \"" ++ CACertFile ++ "\"},"
+		                    "{ssl_options, [{verify_fun, {peer, true}}]},"},
 		       {tls_module, "{tls_module, " ++ atom_to_list(GroupName) ++ "},"},
 		       {https_config,  "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"},"
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
@@ -85,6 +86,19 @@ cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
 
     escalus_connection:stop(Client).
 
+self_signed_cert_fails_to_authenticate(C) ->
+    UserSpec = generate_user_tcp(C, "alice-self-signed"),
+    try
+	{ok, Client, _} = escalus_connection:start(UserSpec),
+	escalus_connection:stop(Client),
+	ct:fail(authenticated_but_should_not)
+    catch
+	_:_ ->
+	    ok
+    end.
+
+
+
 no_cert_fails_to_authenticate(_C) ->
     UserSpec = [{username, <<"no_cert_user">>},
 		{server, <<"localhost">>},
@@ -103,11 +117,11 @@ generate_certs(C) ->
     Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec)} ||
 	     CertSpec <- [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
 			  #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
-			  #{cn => "john"}]],
+			  #{cn => "john"},
+			  #{cn => "alice-self-signed", signed => self}]],
     [{certs, maps:from_list(Certs)} | C].
 
 generate_cert(C, #{cn := User} = CertSpec) ->
-    SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),
     ConfigTemplate = filename:join(?config(data_dir, C), "openssl-user.cnf"),
     {ok, Template} = file:read_file(ConfigTemplate),
     XMPPAddrs = maps:get(xmpp_addrs, CertSpec, undefined),
@@ -116,6 +130,15 @@ generate_cert(C, #{cn := User} = CertSpec) ->
     UserConfig = filename:join(?config(priv_dir, C), User ++ ".cfg"),
     file:write_file(UserConfig, OpenSSLConfig),
     UserKey = filename:join(?config(priv_dir, C), User ++ "_key.pem"),
+
+    case maps:get(signed, CertSpec, ca) of
+	ca ->
+	    generate_ca_signed_cert(C, User, UserConfig, UserKey);
+	self ->
+	    generate_self_signed_cert(C, User, UserConfig, UserKey)
+    end.
+
+generate_ca_signed_cert(C, User, UserConfig, UserKey ) ->
     UserCsr = filename:join(?config(priv_dir, C), User ++ ".csr"),
 
     Cmd = ["openssl", "req", "-config", UserConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
@@ -126,7 +149,18 @@ generate_cert(C, #{cn := User} = CertSpec) ->
     SignCmd = filename:join(?config(data_dir, C), "sign_cert.sh"),
     Cmd2 = [SignCmd, "--req", UserCsr, "--out", UserCert],
     LogFile = filename:join(?config(priv_dir, C), User ++ "signing.log"),
+    SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),
     {done, 0, _} = erlsh:run(Cmd2, LogFile, SSLDir),
+    #{key => UserKey,
+      cert => UserCert}.
+
+generate_self_signed_cert(C, User, UserConfig, UserKey) ->
+    UserCert = filename:join(?config(priv_dir, C), User ++ "_self_signed_cert.pem"),
+    ct:pal("~p", [UserCert]),
+
+    Cmd = ["openssl", "req", "-config", UserConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
+	   "-out", UserCert, "-keyout", UserKey, "-x509", "-outform", "PEM"],
+    {done, 0, _Output} = erlsh:run(Cmd),
     #{key => UserKey,
       cert => UserCert}.
 
