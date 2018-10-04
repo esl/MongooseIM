@@ -32,7 +32,8 @@ all() ->
      two_distinct_redis_pools_are_started,
      generic_pools_are_started_for_all_vhosts,
      host_specific_pools_are_preseved,
-     pools_for_different_tag_are_expanded_with_host_specific_config_preserved].
+     pools_for_different_tag_are_expanded_with_host_specific_config_preserved,
+     global_pool_is_used_by_default].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -153,7 +154,20 @@ pools_for_different_tag_are_expanded_with_host_specific_config_preserved(_C) ->
                   {generic,<<"b.com">>,other_tag,[],[]},
                   {generic,<<"c.eu">>,other_tag,[],[]}], Expanded).
 
+global_pool_is_used_by_default(_C) ->
+    Pools = [{generic, global, default, [], []},
+             {generic, <<"a.com">>, default, [], []}],
+    StartRes = mongoose_wpool:start_configured_pools(Pools),
 
+    meck:expect(wpool, call, fun(Name, _Req, _Strat, _Timeout) -> Name end),
+    ?assertEqual(mongoose_wpool:make_pool_name(generic, <<"a.com">>, default),
+                 mongoose_wpool:call(generic, <<"a.com">>, default, request)),
+
+    ?assertEqual(mongoose_wpool:make_pool_name(generic, global, default),
+                 mongoose_wpool:call(generic, <<"b.com">>, default, request)),
+
+    ?assertEqual(mongoose_wpool:make_pool_name(generic, global, default),
+                 mongoose_wpool:call(generic, global, default, request)).
 
 %%--------------------------------------------------------------------
 %% Helpers
