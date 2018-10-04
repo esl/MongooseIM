@@ -66,24 +66,15 @@ init_per_suite(Config0) ->
     Config = dynamic_modules:save_modules(domain(), Config0),
     dynamic_modules:ensure_modules(domain(), required_modules()),
 
-    try
-        rpc(mongoose_http_client, start, [[]])
-    catch
-        error:Reason ->
-            ct:pal("pool sup start failed ~p", [Reason]),
-            ok
-    end,
-
-    rpc(mongoose_http_client, start_pool, [mongoose_push_http, [
-        {server, "https://localhost:" ++ integer_to_list(Port)}
-    ]]),
+    PoolOpts = [{strategy, available_worker}, {workers, 20}],
+    HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
+    rpc(mongoose_wpool, start_configured_pools, [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     escalus:init_per_suite(Config).
 
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    rpc(mongoose_http_client, stop_pool, [mongoose_push_http]),
-    rpc(mongoose_http_client, stop, []),
+    rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),
     dynamic_modules:restore_modules(domain(), Config),
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).

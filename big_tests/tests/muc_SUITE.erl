@@ -347,11 +347,11 @@ init_per_group(disco_rsm, Config) ->
 
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
-    ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
-    ok = ejabberd_node_utils:call_fun(mongoose_http_client, start_pool, [muc_http_auth_test,
-                                                                         [{server, "http://localhost:8080"},
-                                                                          {path_prefix, "/muc/auth/"},
-                                                                          {pool_size, 5}]]),
+    PoolOpts = [{strategy, available_worker}, {workers, 5}],
+    HTTPOpts = [{server, "http://localhost:8080"},
+                {path_prefix, "/muc/auth/"}],
+    [{ok, _}] = ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
+                                             [[{http, global, muc_http_auth_test, PoolOpts, HTTPOpts}]]),
     case G of
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok
@@ -421,8 +421,7 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         http_auth -> http_helper:stop();
         _ -> ok
     end,
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
+    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of

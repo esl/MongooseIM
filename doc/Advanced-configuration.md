@@ -246,29 +246,6 @@ There are some additional options that influence all database connections in the
     * **Supported values:** `mssql`, `pgsql` or `undefined`
     * **Default:** `undefined`
 
-### Outgoing HTTP connections
-
-The `http_connections` option configures a list of named pools of outgoing HTTP connections that may be used by various modules. Each of the pools has a name (atom) and a list of options:
-
-* **Syntax:** `{http_connections, [{PoolName1, PoolOptions1}, {PoolName2, PoolOptions2}, ...]}.`
-
-Following pool options are recognized - all of them are optional.
-
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
-* `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
-* `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
-* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
-* `{pool_timeout, TimeoutValue}` - non-negative integer, default: `200` - maximum number of milliseconds to wait for an available worker from the pool.
-* `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
-
-**Example:**
-```
-{http_connections, [{conn1, [{server, "http://my.server:8080"},
-                             {pool_size, 50},
-                             {path_prefix, "/my/path/"}]}
-                   ]}.
-```
-
 ### Traffic shapers
 
 * **shaper** (mutli, global)

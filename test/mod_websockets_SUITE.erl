@@ -140,7 +140,7 @@ get_websocket() ->
     %% it's the one which started due to our gen_tcp:connect in ws_handshake/2.
     [{cowboy_clear, Pid}] = get_ranch_connections(),
     %% This is a record! See mod_websockets: #websocket{}.
-    {websocket, Pid, fake_peername}.
+    {websocket, Pid, fake_peername, undefined}.
 
 get_child_by_mod(Sup, Mod) ->
     Kids = supervisor:which_children(Sup),

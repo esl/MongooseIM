@@ -27,11 +27,11 @@ Where:
     * `host` - the pool will be started for all the XMPP hosts served by MongooseIM
     * a binary representing a specific XMPP host like `<<"domain1.chat.im">>`
 * `Tag` is a name to distinguish pools with the same `Type` and `Host` parameter.
-* `PoolOptions` is a list of `{key, value}` pairs as defined in [worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
+* `PoolOptions` is a list of `{key, value}` pairs as defined in [worker_pool doc](https://github.com/inaka/worker_pool#starting-a-pool)
    with the following exception:
     * `strategy` - specifies the worker selection strategy for the given pool, default is `best_worker`,
       more details on this can be found in [Choosing strategy in worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
-    * `call_timeout` - specifies the timeout for a call operation to the pool
+    * `call_timeout` - specifies the timeout, in milliseconds, for a call operation to the pool
 * `ConnectionOptions` - options list passed to the `start` function of the pool type
 
 
@@ -180,6 +180,38 @@ Port        = ...
 ...
 sslmode     = verify-full
 sslrootcert = /path/to/ca/cert
+```
+
+## HTTP connections setup
+
+Some MongooseIM modules need an HTTP connection to external service.
+These pools need to be configured and started before the module needs them.
+Below is a sample configuration:
+
+```erlang
+{outgoing_pools, [
+ {http, global, default, PoolOptions, ConnectionOptions}
+]}.
+```
+
+`PoolOptions` are described above, below there are the recommended `PoolOptions` for `HTTP` pools:
+
+* `strategy` - the recommended value is `available_worker`
+* `call_timeout` - it should be equal or longer than the value set in `request_timeout` below.
+
+`ConnectionOptions` can take the following `{key, value}` pairs:
+
+* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
+* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
+* `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
+
+##### Example configuration
+
+```Erlang
+{outgoing_pools, [
+  {http, global, http_auth,
+   [{strategy, available_worker}], [{server, "https://my_server:8080"}]}
+]}.
 ```
 
 ## Riak connection setup

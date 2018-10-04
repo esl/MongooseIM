@@ -38,10 +38,10 @@
 
 -callback controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
 
--callback sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
+-callback sockname(tls_socket()) -> {ok, mongoose_transport:peer()} |
                                     {error, any()}.
 
--callback peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
+-callback peername(tls_socket()) -> {ok, mongoose_transport:peer()} |
                                     {error, any()}.
 
 -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
@@ -96,11 +96,11 @@ controlling_process(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, Pid) -
     M:controlling_process(S, Pid).
 
 
--spec sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
+-spec sockname(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 sockname(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:sockname(S).
 
 
--spec peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
+-spec peername(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 peername(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
 
 

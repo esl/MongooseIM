@@ -25,6 +25,7 @@
          get_sockmod/1,
          close/1,
          peername/1,
+         get_peer_certificate/1,
          set_ping/2,
          disable_ping/1]).
 
@@ -38,16 +39,19 @@
 
 -record(websocket, {
           pid :: pid(),
-          peername :: {inet:ip_address(), inet:port_number()}
+          peername :: mongoose_transport:peer(),
+          peercert :: undefined | binary()
          }).
 -record(ws_state, {
-          peer :: {inet:ip_address(), inet:port_number()} | undefined,
+          peer :: mongoose_transport:peer() | undefined,
           fsm_pid :: pid() | undefined,
           open_tag :: stream | open | undefined,
           parser :: exml_stream:parser() | undefined,
           opts :: proplists:proplist() | undefined,
           ping_rate :: integer() | none,
-          max_stanza_size :: integer() | infinity
+          max_stanza_size :: integer() | infinity,
+          peercert :: undefined | passed | binary()
+          %% the passed value is used to clear the certificate from the handlers state after it's passed down to the socket()
          }).
 
 -type socket() :: #websocket{}.
@@ -58,10 +62,11 @@
 
 init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
+    PeerCert = cowboy_req:cert(Req),
     Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
     ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
     %% upgrade protocol
-    {cowboy_websocket, Req1, [{peer,Peer}|Opts]}.
+    {cowboy_websocket, Req1, [{peer, Peer}, {peercert, PeerCert} | Opts]}.
 
 terminate(_Reason, _Req, _State) ->
     ok.
@@ -78,12 +83,14 @@ websocket_init(Opts) ->
     PingRate = gen_mod:get_opt(ping_rate, Opts, none),
     MaxStanzaSize = gen_mod:get_opt(max_stanza_size, Opts, infinity),
     Peer = gen_mod:get_opt(peer, Opts),
+    PeerCert = gen_mod:get_opt(peercert, Opts),
     ?DEBUG("ping rate is ~p", [PingRate]),
     maybe_send_ping_request(PingRate),
     State = #ws_state{opts = Opts,
                       ping_rate = PingRate,
                       max_stanza_size = MaxStanzaSize,
-                      peer = Peer},
+                      peer = Peer,
+                      peercert = PeerCert},
     {ok, State}.
 
 % Called when a text message arrives.
@@ -193,18 +200,19 @@ maybe_start_fsm([#xmlel{ name = <<"open">> }],
 maybe_start_fsm(_Els, State) ->
     {ok, State}.
 
-do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer}) ->
+do_start_fsm(FSMModule, Opts, State = #ws_state{peer = Peer, peercert = PeerCert}) ->
     SocketData = #websocket{pid = self(),
-                            peername = Peer},
+                            peername = Peer,
+                            peercert = PeerCert},
     Opts1 = [{xml_socket, true} | Opts],
     case call_fsm_start(FSMModule, SocketData, Opts1) of
         {ok, Pid} ->
             ?DEBUG("started ~p via websockets: ~p", [FSMModule, Pid]),
-            NewState = State#ws_state{fsm_pid = Pid},
+            NewState = State#ws_state{fsm_pid = Pid, peercert = passed},
             {ok, NewState};
         {error, Reason} ->
             ?WARNING_MSG("~p start failed: ~p", [FSMModule, Reason]),
-            {stop, State}
+            {stop, State#ws_state{peercert = passed}}
     end.
 
 call_fsm_start(ejabberd_c2s, SocketData, Opts) ->
@@ -260,6 +268,12 @@ close(#websocket{pid = Pid}) ->
 -spec peername(socket()) -> mongoose_transport:peername_return().
 peername(#websocket{peername = PeerName}) ->
     {ok, PeerName}.
+
+get_peer_certificate(#websocket{peercert = undefined}) ->
+    no_peer_cert;
+get_peer_certificate(#websocket{peercert = PeerCert}) ->
+    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
+    {ok, Decoded}.
 
 set_ping(#websocket{pid = Pid}, Value) ->
     Pid ! {set_ping, Value}.
