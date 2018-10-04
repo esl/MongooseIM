@@ -17,7 +17,7 @@
 %% API
 -export([ensure_started/0,
          start/2, start/3, start/4, start/5,
-         stop/1, stop/2, stop/3,
+         stop/0, stop/1, stop/2, stop/3,
          get_worker/1, get_worker/2, get_worker/3,
          call/2, call/3, call/4, call/5,
          cast/2, cast/3, cast/4, cast/5,
@@ -103,6 +103,9 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
             Error
     end.
 
+stop() ->
+    [ stop(Type, Host, Tag) || {Type, Host, Tag} <- get_pools() ].
+
 stop(Type) ->
     stop(Type, global).
 
@@ -110,9 +113,15 @@ stop(Type, Host) ->
     stop(Type, Host, default).
 
 stop(Type, Host, Tag) ->
-    ets:delete(?MODULE, {Type, Host, Tag}),
-    call_callback(stop, Type, [Host, Tag]),
-    wpool:stop_sup_pool(make_pool_name(Type, Host, Tag)).
+    try
+        ets:delete(?MODULE, {Type, Host, Tag}),
+        call_callback(stop, Type, [Host, Tag]),
+        wpool:stop_sup_pool(make_pool_name(Type, Host, Tag))
+    catch
+        C:R ->
+            ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,class=~p,reason=~p",
+                       [Type, Host, Tag, C, R])
+    end.
 
 -spec is_configured(type()) -> boolean().
 is_configured(Type) ->

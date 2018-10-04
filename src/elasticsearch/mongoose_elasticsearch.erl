@@ -18,8 +18,6 @@
 %%------------------------------------------------------------------
 -module(mongoose_elasticsearch).
 
--export([start/0]).
--export([stop/0]).
 -export([health/0]).
 -export([insert_document/4]).
 -export([search/3]).
@@ -45,14 +43,6 @@
 %%-------------------------------------------------------------------
 %% API
 %%-------------------------------------------------------------------
-
--spec start() -> ok.
-start() ->
-    ok.
-
--spec stop() -> ok.
-stop() ->
-    ok.
 
 %% @doc Returns the health status of the ElasticSearch cluster.
 %%

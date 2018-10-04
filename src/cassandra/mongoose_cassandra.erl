@@ -43,9 +43,6 @@
 %% Exports
 %% ====================================================================
 
-%% Module callbacks
--export([start/0, stop/0]).
-
 %% API
 -export([cql_read/5, cql_foldl/7, cql_write/5, cql_write_async/5]).
 -export([now_timestamp/0]).
@@ -60,19 +57,6 @@
 
 %% Callbacks definitions
 -callback prepared_queries() -> list({term(), string()}).
-
-
-%% ====================================================================
-%% Module API
-%% ====================================================================
-
--spec start() -> ok.
-start() ->
-    ok.
-
--spec stop() -> ok.
-stop() ->
-    ok.
 
 %% ====================================================================
 %% Cassandra API

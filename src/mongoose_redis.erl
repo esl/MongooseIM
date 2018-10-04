@@ -18,7 +18,6 @@
 
 -spec start_pool(list()) -> {ok, pid()} | {error, {already_started, pid()}}.
 start_pool(Opts) ->
-    mongoose_wpool:ensure_started(),
     PoolSize = proplists:get_value(pool_size, Opts, 10),
     RedisOpts = proplists:get_value(worker_config, Opts, []),
     PoolOpts = proplists:get_value(pool_opts, Opts, []),

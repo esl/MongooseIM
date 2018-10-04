@@ -19,10 +19,6 @@
 -include_lib("riakc/include/riakc.hrl").
 
 %% API
--export([start/0]).
--export([start_pool/1]).
--export([stop/0]).
-
 -export([put/1, put/2]).
 -export([get/2, get/3]).
 -export([delete/2, delete/3]).
@@ -47,22 +43,6 @@
                           fun((riakc_datatype:datatype()) -> riakc_datatype:datatype())}.
 
 %%%%
-
--spec start() -> ok.
-start() ->
-    mongoose_wpool:ensure_started(),
-    ok.
-
-start_pool(RiakOpts) ->
-    {_, Workers} = mongoose_wpool_riak:get_riak_opt(pool_size, RiakOpts, {pool_size, 20}),
-    %% TODO (Bartek Gorny): improve worker_pool, then use available_worker strategy here
-    PoolOpts = [{strategy, next_worker}, {workers, Workers}
-                | proplists:get_value(pool_options, RiakOpts, [])],
-    mongoose_wpool:start(riak, global, default, PoolOpts, RiakOpts).
-
--spec stop() -> _.
-stop() ->
-    mongoose_wpool:stop(riak).
 
 -spec put(riakc_obj()) ->
     ok | {ok, riakc_obj()} | {ok, key()} | {error, term()}.

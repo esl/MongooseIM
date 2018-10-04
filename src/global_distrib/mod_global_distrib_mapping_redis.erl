@@ -52,7 +52,6 @@ start(Opts) ->
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
 
     ConnectionOpts = [{host, Server}, {port, Port}, {database, 0}, {password, Password}],
-    mongoose_wpool:ensure_started(),
     mongoose_wpool:start(redis, global, distrib, [{workers, PoolSize}], ConnectionOpts),
 
     Refresher = {mod_global_distrib_redis_refresher,

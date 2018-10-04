@@ -16,16 +16,10 @@
 %%%-------------------------------------------------------------------
 %%% @doc
 %% options and defaults:
-%% [
-%%     {selection_strategy, available_worker},
-%%     {server, (required)},
-%%     {path_prefix, ""},
-%%     {request_timeout, 2000},
-%%     {pool_timeout, 5000}, % waiting for worker - not for all selection strategies
-%%     {pool_size, 20},
-%%     {http_opts, []}, % passed to fusco
-%%     {pool_opts, []} % extra options for worker_pool
-%% ]
+%%     * server - (required)
+%%     * path_prefix - ""
+%%     * request_timeout - 2000,
+%%     * http_opts - [] % passed to fusco
 %%%
 %%% @end
 %%% Created : 26. Jun 2018 13:07
@@ -36,11 +30,9 @@
 
 %% API
 -export([start/0, stop/0, start_pool/2, stop_pool/1, get/3, post/4]).
--export([get_pool/1]). % for backward compatibility
 
 -spec start() -> ok.
 start() ->
-    mongoose_wpool:ensure_started(),
     mongoose_wpool_http:init(),
     ok.
 
@@ -52,7 +44,6 @@ stop() ->
 start_pool(PoolName, Opts) ->
     case ets:lookup(?MODULE, PoolName) of
         [] ->
-            mongoose_wpool:ensure_started(),
             do_start_pool(PoolName, Opts),
             ok;
         _ ->
@@ -73,8 +64,6 @@ get(Pool, Path, Headers) ->
     {ok, {binary(), binary()}} | {error, any()}.
 post(Pool, Path, Headers, Query) ->
     make_request(Pool, Path, <<"POST">>, Headers, Query).
-
-get_pool(PoolName) -> PoolName.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

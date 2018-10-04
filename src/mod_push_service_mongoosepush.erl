@@ -50,7 +50,6 @@ start(Host, Opts) ->
     ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
 
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
-    mongoose_wpool:ensure_started(),
     {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service,
                                    [{strategy, available_worker},
                                     {workers, MaxHTTPConnections}]),
@@ -102,8 +101,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ok | {error, Reason :: term()}.
 http_notification(Host, Method, URL, ReqHeaders, Payload) ->
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, undefined),
-    Pool = mongoose_http_client:get_pool(PoolName),
-    case mongoose_http_client:Method(Pool, URL, ReqHeaders, Payload) of
+    case mongoose_http_client:Method(PoolName, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
