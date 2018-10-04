@@ -19,6 +19,7 @@
 -export([reset_unread_count/3,
          write_to_sender_inbox/4,
          write_to_receiver_inbox/4,
+         clear_inbox/1,
          clear_inbox/2,
          get_reset_markers/1,
          if_chat_marker_get_id/2,
@@ -72,6 +73,10 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
 clear_inbox(User, Server) when is_binary(User) ->
     JidForm = jid:from_binary(User),
     ok = mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
+
+-spec clear_inbox(Server :: host()) -> ok.
+clear_inbox(Server) ->
+    ok = mod_inbox_backend:clear_inbox(Server).
 
 
 %%%%%%%%%%%%%%%%%%%

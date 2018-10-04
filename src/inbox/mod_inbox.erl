@@ -58,6 +58,9 @@
                        BareJid :: binary(),
                        MsgId :: binary().
 
+-callback clear_inbox(Server) -> inbox_write_res() when
+                      Server :: jid:lserver().
+
 -callback clear_inbox(Username, Server) -> inbox_write_res() when
                       Username :: jid:luser(),
                       Server :: jid:lserver().

@@ -19,6 +19,7 @@
          set_inbox_incr_unread/6,
          reset_unread/4,
          remove_inbox/3,
+         clear_inbox/1,
          clear_inbox/2,
          get_inbox_unread/2]).
 
@@ -158,6 +159,12 @@ clear_inbox(Username, Server) ->
     Res = clear_inbox_rdbms(LUsername, LServer),
     check_result(Res).
 
+-spec clear_inbox(Server :: binary()) -> ok.
+clear_inbox( Server) ->
+    LServer = jid:nameprep(Server),
+    Res = clear_inbox_rdbms(LServer),
+    check_result(Res).
+
 -spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
 esc_string(String) ->
     mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
@@ -192,6 +199,10 @@ sql_and_where_unread_count(_) ->
 clear_inbox_rdbms(Username, Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
         esc_string(Username), " and lserver=", esc_string(Server), ";"]).
+
+-spec clear_inbox_rdbms(Server :: jid:lserver()) -> query_result().
+clear_inbox_rdbms(Server) ->
+    mongoose_rdbms:sql_query(Server, ["delete from inbox;"]).
 
 -spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary()}) ->
     inbox_res().

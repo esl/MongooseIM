@@ -105,6 +105,7 @@ init_per_group(_, Config) ->
     Config.
 
 end_per_group(inbox_msg_notifications, Config) ->
+    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [domain()]),
     dynamic_modules:stop(domain(), mod_inbox),
     Config;
 
@@ -222,7 +223,6 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
       fun(Alice, Kate, Bob) ->
               Room = room_name(Config),
               RoomInfo = create_room(Room, [alice, kate, bob], Config),
-              ct:pal("~n~p~n", [RoomInfo]),
               KateToken = enable_push_for_user(Kate, Service, EnableOpts),
               BobToken = enable_push_for_user(Bob, Service, EnableOpts),
 
