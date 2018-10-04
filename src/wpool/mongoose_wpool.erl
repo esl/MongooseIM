@@ -40,7 +40,10 @@
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
     {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
     {external, pid()} | {error, Reason :: term()}.
+-callback default_opts() -> proplist:proplists().
 -callback stop(host(), tag()) -> ok.
+
+-optional_callbacks([default_opts/0]).
 
 ensure_started() ->
     wpool:start(),
@@ -84,15 +87,9 @@ start(Type, Host, Tag, PoolOpts) ->
 
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
-    Opts1 = lists:append(Opts0),
+    Opts = lists:append(Opts0) ++ default_opts(Type),
     case call_callback(start, Type, [Host, Tag, WpoolOptsIn, ConnOpts]) of
-        {ok, Res} ->
-            {Pid, Opts} =
-                case Res of
-                    {Pid, Defaults} -> {Pid, Opts1 ++ Defaults};
-                    Pid -> {Pid, Opts1}
-                end,
-
+        {ok, Pid} ->
             Strategy = proplists:get_value(strategy, Opts, best_worker),
             CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
             ets:insert(?MODULE, #mongoose_wpool{name = {Type, Host, Tag},
@@ -217,6 +214,13 @@ call_callback(Name, Type, Args) ->
 make_callback_module_name(Type) ->
     Name = "mongoose_wpool_" ++ atom_to_list(Type),
     list_to_existing_atom(Name).
+
+default_opts(Type) ->
+    Mod = make_callback_module_name(Type),
+    case erlang:function_exported(Mod, default_opts, 0) of
+        true -> Mod:default_opts();
+        false -> []
+    end.
 
 expand_pools(Pools, AllHosts) ->
     %% First we select only pools for a specific vhost

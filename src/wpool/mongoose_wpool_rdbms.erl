@@ -3,6 +3,7 @@
 
 -export([init/0]).
 -export([start/4]).
+-export([default_opts/0]).
 -export([stop/2]).
 
 init() ->
@@ -24,6 +25,9 @@ start(Host, Tag, WpoolOpts, RdbmsOpts) ->
     catch
         Err -> {error, Err}
     end.
+
+default_opts() ->
+    [{call_timeout, 60000}].
 
 do_start(Host, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(RdbmsOpts) ->
     Backend =
@@ -49,10 +53,7 @@ do_start(Host, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(
     %% do_start function has no return.
     WpoolOpts = lists:map(fun(X) -> X end, [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0]),
     Name = mongoose_wpool:make_pool_name(rdbms, Host, Tag),
-    case wpool:start_sup_pool(Name, WpoolOpts) of
-        {ok, Pid} -> {ok, {Pid, [{call_timeout, 60000}]}};
-        Err -> Err
-    end.
+    wpool:start_sup_pool(Name, WpoolOpts).
 
 stop(_, _) ->
     ok.
