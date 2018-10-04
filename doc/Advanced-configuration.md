@@ -231,34 +231,8 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 ### RDMBS connection setup
 
-The following options can be used to configure RDMBS connection pools.
-To set the options for all connection pools, put them on the top level of the configuration file.
-To set them for an individual pool, put them inside the `Options` list in a pool specification.
-Setting `rdbms_server` is mandatory if connection details are not provided in pool tuples directly.
-
-Please remember that SQL databases require creating a schema.
-See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
-
-* **pool** (multi, local)
-    * **Description:** Declares a named pool of connections to the database.
-    At least one pool is required to connect to an SQL database.
-    * **Syntax:** `{pool, rdbms, PoolName}.` or `{pool, rdbms, PoolName, Options}.`
-    * **Examples:** `{pool, rdbms, default}.`
-
-* **rdbms_pool** (local)
-    * **Description:** Name of the default connection pool used to connect to the database.
-    * **Syntax:** `{rdbms_pool, PoolName}`
-    * **Default:** `default`
-
-* **rdbms_pool_size** (local)
-    * **Description:** How many DB client workers should be started per each domain.
-    * **Syntax:** `{rdbms_pool_size, Size}`.
-    * **Default:** 10
-
-* **rdbms_server** (local)
-    * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
-    * **Syntax:** `{rdbms_server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{rdbms_server, "<ODBC connection string>"}`
-    * **Default:** `undefined`
+RDBMS connection pools are set using [outgoing connections configuration](./advanced-configuration/outgoing-connections.md).
+There are some additional options that influence all database connections in the server:
 
 * **pgsql_users_number_estimate** (local)
     * **Description:** PostgreSQL's internal structure can make the row counting slow.
@@ -266,93 +240,11 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Syntax:** `{pgsql_users_number_estimate, false | true}`
     * **Default:** `false`
 
-* **rdbms_keepalive_interval** (local)
-    * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
-    This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
-    Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
-    * **Syntax:** `{rdbms_keepalive_interval, IntervalSeconds}.`
-    * **Example:** `{rdbms_keepalive_interval, 30}.`
-    * **Default:** `undefined`
-
 * **rdbms_server_type** (local)
     * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_rdbms_user` uses different query for `mssql`).
     * **Syntax:** `{rdbms_server_type, Type}`
     * **Supported values:** `mssql`, `pgsql` or `undefined`
     * **Default:** `undefined`
-
-### MySQL and PostgreSQL SSL connection setup
-
-In order to establish a secure connection with a database, additional options must be passed in the aforementioned `rdbms_server` tuple.
-Here is the proper syntax:
-
-`{rdbms_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
-
-#### MySQL
-
-SSL configuration options for MySQL:
-
-* **SSL**
-    * **Description:** Specifies SSL connection options.
-    * **Syntax:** `[Opt]`
-    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-
-##### Example configuration
-
-An example configuration can look as follows:
-
-`{rdbms_server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
-               [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}`
-
-#### PostgreSQL
-
-SSL configuration options for PGSQL:
-
-* **SSL**
-    * **Description:** Specifies general options for SSL connection.
-    * **Syntax:** `[SSLMode, SSLOpts]`
-
-* **SSLMode**
-    * **Description:** Specifies a mode of SSL connection. Mode expresses how much the PostgreSQL driver carries about security of the connections.
-    For more information click [here](https://github.com/epgsql/epgsql).
-    * **Syntax:** `{ssl, Mode}`
-    * **Supported values:** `false`, `true`, `required`
-
-* **SSLOpts**
-    * **Description:** Specifies SSL connection options.
-    * **Syntax:** `{ssl_opts, [Opt]}`
-    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-
-##### Example configuration
-
-An example configuration can look as follows:
-
-`{rdbms_server, {pgsql, "localhost", 5432, "mydb", "mim", "mimpass",
-               [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
-
-### ODBC SSL connection setup
-
-If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string to `rdbms_server` option, e.g.
-
-```erlang
-{rdbms_server, "DSN=mydb"}.
-```
-
-then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
-
-To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
-Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
-
-#### Example ~/.odbc.ini configuration
-
-```
-[mydb]
-Driver      = ...
-ServerName  = ...
-Port        = ...
-...
-sslmode     = verify-full
-sslrootcert = /path/to/ca/cert
-```
 
 ### Outgoing HTTP connections
 

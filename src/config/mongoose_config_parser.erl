@@ -42,7 +42,6 @@
 
 -record(state, {opts = [] :: list(),
                 hosts = [] :: [host()],
-                rdbms_pools = [] :: [atom()],
                 override_local = false :: boolean(),
                 override_global = false :: boolean(),
                 override_acls = false :: boolean()}).
@@ -91,9 +90,7 @@
                    | {host, _}
                    | {hosts, _}.
 
--spec search_hosts_and_pools({host|hosts, [host()] | host()}
-                             | {pool, rdbms, atom()}
-                             | {pool, rdbms, atom(), list()}, state()) -> any().
+-spec search_hosts_and_pools({host|hosts, [host()] | host()} , state()) -> any().
 search_hosts_and_pools({host, Host}, State) ->
     search_hosts_and_pools({hosts, [Host]}, State);
 search_hosts_and_pools({hosts, Hosts}, State=#state{hosts = []}) ->
@@ -104,10 +101,6 @@ search_hosts_and_pools({hosts, Hosts}, #state{hosts = OldHosts}) ->
     exit(#{issue => "too many hosts definitions",
            new_hosts => Hosts,
            old_hosts => OldHosts});
-search_hosts_and_pools({pool, PoolType, PoolName, _Options}, State) ->
-    search_hosts_and_pools({pool, PoolType, PoolName}, State);
-search_hosts_and_pools({pool, rdbms, PoolName}, State) ->
-    add_rdbms_pool_to_option(PoolName, State);
 search_hosts_and_pools(_Term, State) ->
     State.
 
@@ -116,10 +109,6 @@ search_hosts_and_pools(_Term, State) ->
 add_hosts_to_option(Hosts, State) ->
     PrepHosts = normalize_hosts(Hosts),
     add_option(hosts, PrepHosts, State#state{hosts = PrepHosts}).
-
-add_rdbms_pool_to_option(PoolName, State) ->
-    Pools = State#state.rdbms_pools,
-    State#state{rdbms_pools = [PoolName | Pools]}.
 
 -spec normalize_hosts([host()]) -> [binary() | tuple()].
 normalize_hosts(Hosts) ->
@@ -447,9 +436,7 @@ parse_terms(Terms) ->
 just_parse_terms(Terms) ->
     State = lists:foldl(fun search_hosts_and_pools/2, #state{}, Terms),
     TermsWExpandedMacros = replace_macros(Terms),
-    lists:foldl(fun process_term/2,
-                add_option(rdbms_pools, State#state.rdbms_pools, State),
-                TermsWExpandedMacros).
+    lists:foldl(fun process_term/2, State, TermsWExpandedMacros).
 
 -spec check_hosts([jid:server()], [jid:server()]) ->
     {[jid:server()], [jid:server()]}.

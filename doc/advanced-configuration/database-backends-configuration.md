@@ -185,9 +185,13 @@ isql mongoose-mssql username password -b
 
 The final step is to configure ``mongooseim.cfg`` appropriately.
 Configure the database section as follows:
+
 ```erlang
-{RDBMS_server, "DSN=mongoose-mssql;UID=username;PWD=password"}.
-{RDBMS_server_type, mssql}.
+{rdbms_server_type, mssql}.
+{outgoing_pools, [
+ {rdbms, global, default, [{workers, 5}],
+  [{server, "DSN=mongoose-mssql;UID=username;PWD=password"}]}
+]}.
 ```
 
 # NOSQL

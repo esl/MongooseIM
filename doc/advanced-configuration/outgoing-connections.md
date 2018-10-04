@@ -8,6 +8,7 @@ The interface for outgoing connections management was unified and is now availab
 * `redis` - pool of connections to Redis server
 * `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, in example HTTP authentication backend or HTTP notifications
 * `elastic` - pool of connections to ElasticSearch server
+* `rdbms` - pool of connections to an RDBMS database
 * `generic` - pool of generic workers not assosiated directly with a paritcualr connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
@@ -52,6 +53,133 @@ will be expanded to the following configuration:
 {redis, <<"b.com">>, default, PoolOpts, ConnOpts},
 {redis, <<"c.eu", default, PoolOpts, ConnOptsForDomain2},
 {redis, <<"d.eu">>, default, PoolOpts, ConnOpts}
+```
+
+## RDBMS connection setup
+
+An example RDBMS configuration inside `outgoing_pools` may look like this:
+
+```erlang
+{outgoing_pools, [
+ {rdbms, global, default, [{workers, 5}],
+  [{server, {mysql, "localhost", 3306, "mydb", "user", "passwd"}}]}
+]}.
+```
+
+This configuration will create a default, global pool of 5 connections to a mysql database.
+We might also want to add a dedicated pool for a specific host:
+
+```erlang
+{outgoing_pools, [
+ {rdbms, global, default, [{workers, 5}],
+  [{server, {mysql, "localhost", 3306, "mydb", "user", "passwd"}}]},
+ {rdbms, "myhost.com", default, [{workers, 3}],
+  [{server, {mysql, "localhost", 3306, "mydb", "user", "passwd"}}]}
+]}.
+```
+
+Please remember that SQL databases require creating a schema.
+See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
+Also see [Advanced configuration](./Advanced-configuration.md) for additional options that influence RDBMS connections.
+Currently all pools must use the same RDBMS type (e.g. `mysql`, `pgsql`).
+
+### Connection options
+
+* **server**
+    * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
+    * **Syntax:** `{server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{server, "<ODBC connection string>"}`
+    * **Default:** `undefined`
+
+* **keepalive_interval**
+    * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
+    This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
+    Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
+    * **Syntax:** `{keepalive_interval, IntervalSeconds}.`
+    * **Example:** `{keepalive_interval, 30}.`
+    * **Default:** `undefined`
+
+#### MySQL and PostgreSQL SSL connection setup
+
+In order to establish a secure connection with a database, additional options must be passed in the `server` tuple.
+Here is the proper syntax:
+
+`{server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
+
+##### MySQL
+
+SSL configuration options for MySQL:
+
+* **SSL**
+    * **Description:** Specifies SSL connection options.
+    * **Syntax:** `[Opt]`
+    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+
+###### Example configuration
+
+An example configuration can look as follows:
+
+```erlang
+{outgoing_pools, [
+ {rdbms, global, default, [{workers, 5}],
+  [{server, {mysql, "localhost", 3306, "mydb", "mim", "mimpass",
+             [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}]}
+]}.
+```
+
+##### PostgreSQL
+
+SSL configuration options for PGSQL:
+
+* **SSL**
+    * **Description:** Specifies general options for SSL connection.
+    * **Syntax:** `[SSLMode, SSLOpts]`
+
+* **SSLMode**
+    * **Description:** Specifies a mode of SSL connection. Mode expresses how much the PostgreSQL driver carries about security of the connections.
+    For more information click [here](https://github.com/epgsql/epgsql).
+    * **Syntax:** `{ssl, Mode}`
+    * **Supported values:** `false`, `true`, `required`
+
+* **SSLOpts**
+    * **Description:** Specifies SSL connection options.
+    * **Syntax:** `{ssl_opts, [Opt]}`
+    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+
+###### Example configuration
+
+An example configuration can look as follows:
+
+```erlang
+{outgoing_pools, [
+ {rdbms, global, default, [{workers, 5}],
+  [{server, {pgsql, "localhost", 5432, "mydb", "mim", "mimpass",
+             [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}]}
+]}.
+```
+
+##### ODBC SSL connection setup
+
+If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string in the `server` option, e.g.
+
+```erlang
+{server, "DSN=mydb"}.
+```
+
+then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
+
+To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
+Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
+
+###### Example ~/.odbc.ini configuration
+
+```
+[mydb]
+Driver      = ...
+ServerName  = ...
+Port        = ...
+...
+sslmode     = verify-full
+sslrootcert = /path/to/ca/cert
 ```
 
 ## Riak connection setup
@@ -255,4 +383,3 @@ Run the following function in the MongooseIM shell to verify that the connection
 ```
 
 Note that the output might differ based on your ElasticSearch cluster configuration.
-

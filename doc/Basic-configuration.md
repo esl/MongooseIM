@@ -9,7 +9,7 @@ The file contains erlang tuples terminated with period ('.'). For users not fami
 * The first element of each tuple is the name (Erlang atom). The file contains all possible keys so you will never have to change the first element or add new tuple.
 * The second element is a string (in quotes: "").  Remeber to escape quote with backslash ('\') if you ever use one inside a string.
 * A value can be a list. Erlang lists are other Erlang terms separated with commas and enclosed in square brackets ([]).
-* If a value is terminated with a period (e.g. `rdbms_server`) or a comma (e.g. `mod_privacy`), don't change it.
+* If a value is terminated with a period (e.g. `acl`) or a comma (e.g. `mod_privacy`), don't change it.
 * Config options that are "features", can be disabled by using empty string as the value or prepending the actual value with  '%' ('%' starts one-line comment in Erlang, like '//' in C or Java).
 
 ### Options
@@ -25,16 +25,6 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Description:** List of specific options for chosen XMPP domains. They will override the global ones. Allowed keys are marked on the [Advanced configuration](Advanced-configuration.md) page
     * **Syntax:** `"{host_config, \"overridden-domain\", [{key, value}]}."`
     * **Example:** `"{host_config, \"localhost2\", [{auth_method, anonymous}, {allow_multiple_connections, false}]}." `
-
-* **pool** - feature
-    * **Description:** A named pool of connections to an SQL DB.
-        To enable the connection, remove '%%' prefix from the value and configure it with the `rdbms_server` option (see below).
-    * **Syntax:** `"{pool, rdbms, PoolName}."` or `"{pool, rdbms, PoolName, Options}."`
-    * **Examples:** `"{pool, rdbms, default}."`
-
-* **rdbms_server** - feature
-    * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`. To enable the connection, remove '%%' prefix from value.
-    * **Syntax:** `"{rdbms_server, {Type, Host, Port, DBName, Username, Password}}."`
 
 * **riak_server** - feature
     * **Description:** Riak connection pool configuration. Currently only one endpoint can be specified, to connect to more riak nodes you have to use load balancing techniques, for more details see:
