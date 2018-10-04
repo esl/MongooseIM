@@ -86,9 +86,9 @@ To enable this first you need to define the pool of HTTPS connections to Mongoos
 }.
 ```
 
-> Please note that there maybe more than one pool in the `outgoing_pools` list.
+> Please note that more than one pool may exist in the `outgoing_pools` list.
 
-Then add `mod_push_service_mongoosepush` to the modules section in the config file, like below:
+Then add `mod_push_service_mongoosepush` to the `modules` section in the config file:
 
 ```Erlang
 {modules, [

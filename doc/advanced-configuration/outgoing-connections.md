@@ -56,9 +56,9 @@ will be expanded to the following configuration:
 
 ## HTTP connections setup
 
-Some MongooseIM modules needs HTTP connection to external service.
-These pools needs to be configured and started before the module needs them.
-Sample configuration looks like the following:
+Some MongooseIM modules need an HTTP connection to external service.
+These pools need to be configured and started before the module needs them.
+Below is a sample configuration:
 
 ```erlang
 {outgoing_pools, [
@@ -66,12 +66,12 @@ Sample configuration looks like the following:
 ]}.
 ```
 
-`PoolOptions` are described above, below there are described recommended `PoolOptions` for `HTTP` pools:
+`PoolOptions` are described above, below there are the recommended `PoolOptions` for `HTTP` pools:
 
 * `strategy` - the recommended value is `available_worker`
 * `call_timeout` - it should be equal or longer than the value set in `request_timeout` below.
 
-`ConnectionOptions` can take following `{key, value}` pairs:
+`ConnectionOptions` can take the following `{key, value}` pairs:
 
 * `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
 * `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).

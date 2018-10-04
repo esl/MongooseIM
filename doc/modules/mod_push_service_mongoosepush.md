@@ -12,14 +12,14 @@ The following `publish-options` that are added to the hook are directly passed t
   E.g. `fcm`, `apns`.
  * `device_id` - has to be specified and the value must be valid device token received from push notification service provider specified in `service` option
 
-In addition to those `publish-options` you may specify also `silent` option, that when set to
-`true` will result in "silent" notification.
+In addition to those `publish-options` you may also specify a `silent` option,
+which, when set to `true` will result in "silent" notification.
 Silent notifications send only data payload to push notifications service provider with all
 fields specified in the notification without any modification and/or filtering.
 
 #### Prerequisites
 
-This module uses a connection pool via mongoose_http_client.
+This module uses a connection pool via `mongoose_http_client`.
 It must be defined in [outgoing_pools setting](../advanced-configuration/outgoing-connections.md#http-connections-setup).
 
 ### Options
