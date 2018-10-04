@@ -93,8 +93,7 @@ cool_mod_mam_config() ->
      {modules, [{mod_mam, [{pool, cool_pool}]}]}].
 
 cool_mod_mam_config_flat() ->
-    [{[l,rdbms_pools],[]},
-     {[h,<<"localhost">>,modules],'FLAT'},
+    [{[h,<<"localhost">>,modules],'FLAT'},
      {[h,<<"localhost">>,module,mod_mam],'FLAT'},
      {[h,<<"localhost">>,module_opt,mod_mam,pool],cool_pool}].
 
