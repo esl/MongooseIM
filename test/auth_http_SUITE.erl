@@ -63,6 +63,7 @@ init_per_suite(Config) ->
     % so will supervisor and children and ETS tables
     mim_ct_rest:do(fun() ->
                            mim_ct_sup:start_link(ejabberd_sup),
+                           mongoose_wpool:ensure_started(),
                            ejabberd_auth_http:start(?DOMAIN1),
                            %% confirms compatibility with multi-domain cluster
                            ejabberd_auth_http:start(?DOMAIN2)
