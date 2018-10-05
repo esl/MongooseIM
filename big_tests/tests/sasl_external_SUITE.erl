@@ -8,11 +8,13 @@
 
 all() ->
     [{group, fast_tls},
-     {group, just_tls}].
+     {group, just_tls},
+     {group, just_tls_allow_self_signed}].
 
 groups() ->
     G = [{fast_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]},
-	 {just_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]}],
+	 {just_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]},
+	 {just_tls_allow_self_signed, [], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
@@ -22,6 +24,11 @@ common_test_cases() ->
      cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_xmpp_addrs_request_name_empty_bosh,
      no_cert_fails_to_authenticate].
+
+self_signed_test_cases() ->
+    [self_signed_cert_is_allowed_with_tls,
+     self_signed_cert_is_allowed_with_ws,
+     self_signed_cert_is_allowed_with_bosh].
 
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
@@ -37,11 +44,12 @@ end_per_suite(Config) ->
 init_per_group(GroupName, Config) ->
     CACertFile = filename:join([path_helper:repo_dir(Config),
 				"tools", "ssl", "ca-clients", "cacert.pem"]),
+    TLSModule = tls_module_by_group_name(GroupName),
     NewConfigValues = [{tls_config, "{certfile, \"priv/ssl/fake_server.pem\"},"
 			            "starttls, verify_peer,"
 				    "{cafile, \"" ++ CACertFile ++ "\"},"
-		                    "{ssl_options, [{verify_fun, {peer, true}}]},"},
-		       {tls_module, "{tls_module, " ++ atom_to_list(GroupName) ++ "},"},
+                                    ++ ssl_options_by_group_name(GroupName)},
+		       {tls_module, "{tls_module, " ++ atom_to_list(TLSModule) ++ "},"},
 		       {https_config,  "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"},"
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
 				              "{verify, verify_peer}, {cacertfile, \"" ++ CACertFile ++ "\"}]},"},
@@ -51,6 +59,21 @@ init_per_group(GroupName, Config) ->
     ejabberd_node_utils:restart_application(mongooseim),
 
     Config.
+
+tls_module_by_group_name(fast_tls) ->
+    fast_tls;
+tls_module_by_group_name(just_tls) ->
+    just_tls;
+tls_module_by_group_name(just_tls_allow_self_signed) ->
+    just_tls.
+
+ssl_options_by_group_name(fast_tls) ->
+    "";
+ssl_options_by_group_name(just_tls) ->
+    "{ssl_options, [{verify_fun, {peer, true}}]},";
+ssl_options_by_group_name(just_tls_allow_self_signed) ->
+    "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},".
+
 
 end_per_group(_, Config) ->
     Config.
@@ -97,6 +120,13 @@ self_signed_cert_fails_to_authenticate(C) ->
 	    ok
     end.
 
+self_signed_cert_is_allowed_with_tls(C) ->
+    UserSpec = generate_user(C, "alice-self-signed", escalus_tcp),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+    escalus_connection:stop(Client).
+
+self_signed_cert_is_allowed_with_ws(C) -> ok.
+self_signed_cert_is_allowed_with_bosh(C) -> ok.
 
 
 no_cert_fails_to_authenticate(_C) ->
