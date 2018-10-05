@@ -12,8 +12,8 @@ all() ->
      {group, just_tls_allow_self_signed}].
 
 groups() ->
-    G = [{fast_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]},
-	 {just_tls, [], common_test_cases() ++ [self_signed_cert_fails_to_authenticate]},
+    G = [{fast_tls, [], common_test_cases() ++ no_allowed_self_signed_test_cases()},
+	 {just_tls, [], common_test_cases() ++ no_allowed_self_signed_test_cases()},
 	 {just_tls_allow_self_signed, [], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -29,6 +29,11 @@ self_signed_test_cases() ->
     [self_signed_cert_is_allowed_with_tls,
      self_signed_cert_is_allowed_with_ws,
      self_signed_cert_is_allowed_with_bosh].
+
+no_allowed_self_signed_test_cases() ->
+    [self_signed_cert_fails_to_authenticate_with_tls,
+     self_signed_cert_fails_to_authenticate_with_ws,
+     self_signed_cert_fails_to_authenticate_with_bosh].
 
 init_per_suite(Config) ->
     Config0 = escalus:init_per_suite(Config),
@@ -117,15 +122,31 @@ cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
 
     escalus_connection:stop(Client).
 
-self_signed_cert_fails_to_authenticate(C) ->
-    UserSpec = generate_user_tcp(C, "alice-self-signed"),
-    try
-	{ok, Client, _} = escalus_connection:start(UserSpec),
-	escalus_connection:stop(Client),
-	ct:fail(authenticated_but_should_not)
-    catch
-	_:_ ->
+self_signed_cert_fails_to_authenticate_with_tls(C) ->
+    self_signed_cert_fails_to_authenticate(C, escalus_tcp).
+
+self_signed_cert_fails_to_authenticate_with_ws(C) ->
+    self_signed_cert_fails_to_authenticate(C, escalus_ws).
+
+self_signed_cert_fails_to_authenticate_with_bosh(C) ->
+    self_signed_cert_fails_to_authenticate(C, escalus_bosh).
+
+self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
+    F = fun() ->
+		UserSpec = generate_user(C, "alice-self-signed", EscalusTransport),
+		{ok, Client, _} = escalus_connection:start(UserSpec),
+		escalus_connection:stop(Client)
+	end,
+    %% We spawn the process trying to connect because otherwise the testcase may crash
+    %% due linked process crash (client's process are started with start_link)
+    Pid = spawn(F),
+    MRef = erlang:monitor(process, Pid),
+
+    receive
+	{'DOWN', MRef, process, Pid, Reason} ->
 	    ok
+    after 10000 ->
+	      ct:fail(authenticated_but_should_not)
     end.
 
 self_signed_cert_is_allowed_with_tls(C) ->
