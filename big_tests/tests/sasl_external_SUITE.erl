@@ -52,7 +52,8 @@ init_per_group(GroupName, Config) ->
 		       {tls_module, "{tls_module, " ++ atom_to_list(TLSModule) ++ "},"},
 		       {https_config,  "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"},"
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
-				              "{verify, verify_peer}, {cacertfile, \"" ++ CACertFile ++ "\"}]},"},
+				              "{verify, verify_peer}," ++ verify_mode_by_group_name(GroupName) ++
+					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
 		       {auth_method, "pki"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
@@ -70,9 +71,16 @@ tls_module_by_group_name(just_tls_allow_self_signed) ->
 ssl_options_by_group_name(fast_tls) ->
     "";
 ssl_options_by_group_name(just_tls) ->
-    "{ssl_options, [{verify_fun, {peer, true}}]},";
+    "{ssl_options, [{verify_fun, {peer, false}}]},";
 ssl_options_by_group_name(just_tls_allow_self_signed) ->
     "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},".
+
+verify_mode_by_group_name(fast_tls) ->
+    "";
+verify_mode_by_group_name(just_tls) ->
+    "";
+verify_mode_by_group_name(just_tls_allow_self_signed) ->
+    "{verify_mode, selfsigned_peer},".
 
 
 end_per_group(_, Config) ->
@@ -121,13 +129,18 @@ self_signed_cert_fails_to_authenticate(C) ->
     end.
 
 self_signed_cert_is_allowed_with_tls(C) ->
-    UserSpec = generate_user(C, "alice-self-signed", escalus_tcp),
+    self_signed_cert_is_allowed_with(escalus_tcp, C).
+
+self_signed_cert_is_allowed_with_ws(C) ->
+    self_signed_cert_is_allowed_with(escalus_ws, C).
+
+self_signed_cert_is_allowed_with_bosh(C) ->
+    self_signed_cert_is_allowed_with(escalus_bosh, C).
+
+self_signed_cert_is_allowed_with(EscalusTransport, C) ->
+    UserSpec = generate_user(C, "alice-self-signed", EscalusTransport),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
-
-self_signed_cert_is_allowed_with_ws(C) -> ok.
-self_signed_cert_is_allowed_with_bosh(C) -> ok.
-
 
 no_cert_fails_to_authenticate(_C) ->
     UserSpec = [{username, <<"no_cert_user">>},
