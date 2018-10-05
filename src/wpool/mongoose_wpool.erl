@@ -213,7 +213,7 @@ call_callback(Name, Type, Args) ->
 -spec make_callback_module_name(type()) -> module().
 make_callback_module_name(Type) ->
     Name = "mongoose_wpool_" ++ atom_to_list(Type),
-    list_to_existing_atom(Name).
+    list_to_atom(Name).
 
 default_opts(Type) ->
     Mod = make_callback_module_name(Type),
