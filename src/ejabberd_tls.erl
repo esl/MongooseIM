@@ -119,7 +119,7 @@ get_peer_certificate(#ejabberd_tls_socket{tls_module = fast_tls, tls_socket = S,
         {0, {ok, Cert}} -> {ok, Cert};
         {Error, {ok, Cert}} ->
             SSLOpts = proplists:get_value(ssl_options, TLSOpts, []),
-            maybe_self_signed(Error, Cert, SSLOpts);
+            maybe_allow_selfsigned(Error, Cert, SSLOpts);
         {_, error} -> no_peer_cert
     end.
 
@@ -144,14 +144,14 @@ has_peer_cert(Opts) ->
     end.
 
 %% 18 is OpenSSL's and fast_tls's error code for self-signed certs
-maybe_self_signed(18 = Error, Cert, SSLOpts) ->
+maybe_allow_selfsigned(18 = Error, Cert, SSLOpts) ->
     case lists:keyfind(verify_fun, 1, SSLOpts) of
         {verify_fun, {selfsigned_peer, _}} ->
             {ok, Cert};
         _ ->
             cert_verification_error(Error, Cert)
     end;
-maybe_self_signed(Error, Cert, _SSLOpts) ->
+maybe_allow_selfsigned(Error, Cert, _SSLOpts) ->
     cert_verification_error(Error, Cert).
 
 cert_verification_error(Error, Cert) ->

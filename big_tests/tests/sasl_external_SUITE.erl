@@ -140,9 +140,11 @@ self_signed_cert_fails_to_authenticate_with_bosh(C) ->
     self_signed_cert_fails_to_authenticate(C, escalus_bosh).
 
 self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
+    Self = self(),
     F = fun() ->
 		UserSpec = generate_user(C, "alice-self-signed", EscalusTransport),
 		{ok, Client, _} = escalus_connection:start(UserSpec),
+		Self ! escalus_connected,
 		escalus_connection:stop(Client)
 	end,
     %% We spawn the process trying to connect because otherwise the testcase may crash
@@ -151,8 +153,10 @@ self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
     MRef = erlang:monitor(process, Pid),
 
     receive
-	{'DOWN', MRef, process, Pid, Reason} ->
-	    ok
+	{'DOWN', MRef, process, Pid, _Reason} ->
+	    ok;
+	escalus_connected ->
+	    ct:fail(authenticated_but_should_not)
     after 10000 ->
 	      ct:fail(authenticated_but_should_not)
     end.
@@ -228,7 +232,6 @@ generate_ca_signed_cert(C, User, UserConfig, UserKey ) ->
 
 generate_self_signed_cert(C, User, UserConfig, UserKey) ->
     UserCert = filename:join(?config(priv_dir, C), User ++ "_self_signed_cert.pem"),
-    ct:pal("~p", [UserCert]),
 
     Cmd = ["openssl", "req", "-config", UserConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
 	   "-out", UserCert, "-keyout", UserKey, "-x509", "-outform", "PEM"],
