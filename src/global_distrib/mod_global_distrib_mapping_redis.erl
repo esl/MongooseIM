@@ -41,18 +41,13 @@
 
 -spec start(proplists:proplist()) -> any().
 start(Opts) ->
-    Server = proplists:get_value(server, Opts, "127.0.0.1"),
-    Port = proplists:get_value(port, Opts, 8102),
-    Password = proplists:get_value(password, Opts, ""),
-    PoolSize = proplists:get_value(pool_size, Opts, 1),
     RefreshAfter = proplists:get_value(refresh_after, Opts, 60),
 
     mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]),
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
-
-    ConnectionOpts = [{host, Server}, {port, Port}, {database, 0}, {password, Password}],
-    mongoose_wpool:start(redis, global, distrib, [{workers, PoolSize}], ConnectionOpts),
+    PoolTag = proplists:get_value(pool, Opts, gd),
+    ets:insert(?MODULE, {pool, PoolTag}),
 
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
@@ -155,7 +150,7 @@ handle_info(refresh, RefreshAfter) ->
 
 -spec q(Args :: list()) -> {ok, term()}.
 q(Args) ->
-    {ok, Worker} = mongoose_wpool:get_worker(redis, global, distrib),
+    {ok, Worker} = mongoose_wpool:get_worker(redis, global, pool()),
     case eredis:q(Worker, Args) of
         {ok, _} = OKRes ->
             OKRes;
@@ -215,6 +210,10 @@ opt(Key) ->
 -spec expire_after() -> pos_integer().
 expire_after() ->
     ets:lookup_element(?MODULE, expire_after, 2).
+
+-spec pool() -> atom().
+pool() ->
+    ets:lookup_element(?MODULE, pool, 2).
 
 -spec do_put(Key :: binary(), Host :: binary()) -> ok.
 do_put(Key, Host) ->

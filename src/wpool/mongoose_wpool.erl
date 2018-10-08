@@ -10,8 +10,11 @@
 -include("mongoose.hrl").
 -include("mongoose_wpool.hrl").
 
--record(mongoose_wpool, {name :: term(), strategy :: atom(),
-                         call_timeout :: pos_integer() | undefined}).
+-record(mongoose_wpool, {
+          name :: term(),
+          strategy :: atom(),
+          call_timeout :: pos_integer() | undefined
+         }).
 -dialyzer({no_match, start/4}).
 
 %% API

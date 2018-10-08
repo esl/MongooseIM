@@ -109,14 +109,15 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case {rpc(europe_node1, eredis, start_link, []), rpc(asia_node, eredis, start_link, [])} of
+    case {rpc(europe_node1, mongoose_wpool, get_worker, [redis, global, gd]),
+          rpc(asia_node, mongoose_wpool, get_worker, [redis, global, gd])} of
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
             escalus:init_per_suite([{add_advertised_endpoints, []},
                                     {extra_config, []}, {redis_extra_config, []} | Config]);
         _ ->
-            {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
+            {skip, "GD Redis default pool not available"}
     end.
 
 end_per_suite(Config) ->
