@@ -13,10 +13,10 @@ all() ->
      {group, just_tls_allow_self_signed}].
 
 groups() ->
-    G = [{fast_tls, [], common_test_cases() ++ no_allowed_self_signed_test_cases()},
-	 {just_tls, [], common_test_cases() ++ no_allowed_self_signed_test_cases()},
-	 {fast_tls_allow_self_signed, [], common_test_cases() ++ self_signed_test_cases()},
-	 {just_tls_allow_self_signed, [], common_test_cases() ++ self_signed_test_cases()}],
+    G = [{fast_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
+	 {just_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
+	 {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
+	 {just_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
