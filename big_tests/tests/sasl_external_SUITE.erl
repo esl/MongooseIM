@@ -9,11 +9,13 @@
 all() ->
     [{group, fast_tls},
      {group, just_tls},
+     {group, fast_tls_allow_self_signed},
      {group, just_tls_allow_self_signed}].
 
 groups() ->
     G = [{fast_tls, [], common_test_cases() ++ no_allowed_self_signed_test_cases()},
 	 {just_tls, [], common_test_cases() ++ no_allowed_self_signed_test_cases()},
+	 {fast_tls_allow_self_signed, [], common_test_cases() ++ self_signed_test_cases()},
 	 {just_tls_allow_self_signed, [], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -71,13 +73,17 @@ tls_module_by_group_name(fast_tls) ->
 tls_module_by_group_name(just_tls) ->
     just_tls;
 tls_module_by_group_name(just_tls_allow_self_signed) ->
-    just_tls.
+    just_tls;
+tls_module_by_group_name(fast_tls_allow_self_signed) ->
+    fast_tls.
 
 ssl_options_by_group_name(fast_tls) ->
     "";
 ssl_options_by_group_name(just_tls) ->
     "{ssl_options, [{verify_fun, {peer, false}}]},";
 ssl_options_by_group_name(just_tls_allow_self_signed) ->
+    "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},";
+ssl_options_by_group_name(fast_tls_allow_self_signed) ->
     "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},".
 
 verify_mode_by_group_name(fast_tls) ->
@@ -85,6 +91,8 @@ verify_mode_by_group_name(fast_tls) ->
 verify_mode_by_group_name(just_tls) ->
     "";
 verify_mode_by_group_name(just_tls_allow_self_signed) ->
+    "{verify_mode, selfsigned_peer},";
+verify_mode_by_group_name(fast_tls_allow_self_signed) ->
     "{verify_mode, selfsigned_peer},".
 
 
