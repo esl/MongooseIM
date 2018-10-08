@@ -160,7 +160,7 @@ init_per_group(_, Config0) ->
                                         {certfile, "priv/ssl/fake_server.pem"},
                                         {cafile, "priv/ssl/ca/cacert.pem"}
                                        ]},
-                            {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
+                            {redis, ?config(redis_extra_config, Config1)},
                             {resend_after_ms, 500}]),
                   Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
