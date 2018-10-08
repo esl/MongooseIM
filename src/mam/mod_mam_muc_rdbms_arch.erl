@@ -351,16 +351,15 @@ before_id(ID, Filter) ->
 -spec rows_to_uniform_format([raw_row()], jid:server(), jid:jid()) ->
                                     [mod_mam_muc:row()].
 rows_to_uniform_format(MessageRows, Host, RoomJID) ->
-    Pool = mongoose_rdbms_sup:pool(Host),
-    [row_to_uniform_format(Host, Pool, Row, RoomJID) || Row <- MessageRows].
+    [do_row_to_uniform_format(Host, Row, RoomJID) || Row <- MessageRows].
 
 
--spec row_to_uniform_format(jid:server(), mongoose_rdbms:pool(), raw_row(), jid:jid()) ->
+-spec do_row_to_uniform_format(jid:server(), raw_row(), jid:jid()) ->
                                    mod_mam_muc:row().
-row_to_uniform_format(Host, Pool, {BMessID, BNick, SDataRaw}, RoomJID) ->
+do_row_to_uniform_format(Host, {BMessID, BNick, SDataRaw}, RoomJID) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = jid:replace_resource(RoomJID, BNick),
-    Data = mongoose_rdbms:unescape_binary(Pool, SDataRaw),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
     Packet = stored_binary_to_packet(Host, Data),
     {MessID, SrcJID, Packet}.
 

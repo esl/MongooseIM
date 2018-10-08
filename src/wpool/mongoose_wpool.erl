@@ -10,7 +10,8 @@
 -include("mongoose.hrl").
 -include("mongoose_wpool.hrl").
 
--record(mongoose_wpool, {name :: term(), strategy :: atom(), call_timeout :: pos_integer() | undefined}).
+-record(mongoose_wpool, {name :: term(), strategy :: atom(),
+                         call_timeout :: pos_integer() | undefined}).
 -dialyzer({no_match, start/4}).
 
 %% API
@@ -37,8 +38,12 @@
 
 -callback init() -> ok | {error, term()}.
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
-    {ok, pid()} | {external, pid()} | {error, Reason :: term()}.
+    {ok, {pid(), proplists:proplist()}} | {ok, pid()} |
+    {external, pid()} | {error, Reason :: term()}.
+-callback default_opts() -> proplist:proplists().
 -callback stop(host(), tag()) -> ok.
+
+-optional_callbacks([default_opts/0]).
 
 ensure_started() ->
     wpool:start(),
@@ -82,8 +87,8 @@ start(Type, Host, Tag, PoolOpts) ->
 
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
-    Opts = lists:append(Opts0),
-    case call_callback(start, Type, [Host, Tag, WpoolOptsIn,ConnOpts]) of
+    Opts = lists:append(Opts0) ++ default_opts(Type),
+    case call_callback(start, Type, [Host, Tag, WpoolOptsIn, ConnOpts]) of
         {ok, Pid} ->
             Strategy = proplists:get_value(strategy, Opts, best_worker),
             CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
@@ -121,12 +126,12 @@ get_worker(Type, Host) ->
     get_worker(Type, Host, default).
 
 get_worker(Type, Host, Tag) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [#mongoose_wpool{strategy = Strategy}] ->
-            Worker = wpool_pool:Strategy(make_pool_name(Type, Host, Tag)),
+    case get_pool(Type, Host, Tag) of
+        {ok, #mongoose_wpool{strategy = Strategy} = Pool} ->
+            Worker = wpool_pool:Strategy(make_pool_name(Pool)),
             {ok, whereis(Worker)};
-        [] ->
-            {error, pool_not_started}
+        Err ->
+            Err
     end.
 
 call(Type, Request) ->
@@ -136,19 +141,19 @@ call(Type, Host, Request) ->
     call(Type, Host, default, Request).
 
 call(Type, Host, Tag, Request) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [#mongoose_wpool{strategy = Strategy, call_timeout = CallTimeout}] ->
-            wpool:call(make_pool_name(Type, Host, Tag), Request, Strategy, CallTimeout);
-        [] ->
-            {error, pool_not_started}
+    case get_pool(Type, Host, Tag) of
+        {ok, #mongoose_wpool{strategy = Strategy, call_timeout = CallTimeout} = Pool} ->
+            wpool:call(make_pool_name(Pool), Request, Strategy, CallTimeout);
+        Err ->
+            Err
     end.
 
 call(Type, Host, Tag, HashKey, Request) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [#mongoose_wpool{call_timeout = CallTimeout}] ->
-            wpool:call(make_pool_name(Type, Host, Tag), Request, {hash_worker, HashKey}, CallTimeout);
-        [] ->
-            {error, pool_not_started}
+    case get_pool(Type, Host, Tag) of
+        {ok, #mongoose_wpool{call_timeout = CallTimeout} = Pool} ->
+            wpool:call(make_pool_name(Pool), Request, {hash_worker, HashKey}, CallTimeout);
+        Err ->
+            Err
     end.
 
 cast(Type, Request) ->
@@ -158,25 +163,25 @@ cast(Type, Host, Request) ->
     cast(Type, Host, default, Request).
 
 cast(Type, Host, Tag, Request) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [#mongoose_wpool{strategy = Strategy}] ->
-            wpool:cast(make_pool_name(Type, Host, Tag), Request, Strategy);
-        [] ->
-            {error, pool_not_started}
+    case get_pool(Type, Host, Tag) of
+        {ok, #mongoose_wpool{strategy = Strategy} = Pool} ->
+            wpool:cast(make_pool_name(Pool), Request, Strategy);
+        Err ->
+            Err
     end.
 
 cast(Type, Host, Tag, HashKey, Request) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [#mongoose_wpool{}] ->
-            wpool:cast(make_pool_name(Type, Host, Tag), Request, {hash_worker, HashKey});
-        [] ->
-            {error, pool_not_started}
+    case get_pool(Type, Host, Tag) of
+        {ok, #mongoose_wpool{} = Pool} ->
+            wpool:cast(make_pool_name(Pool), Request, {hash_worker, HashKey});
+        Err ->
+            Err
     end.
 
 get_pool_settings(Type, Host, Tag) ->
-    case ets:lookup(?MODULE, {Type, Host, Tag}) of
-        [PoolOpts] -> PoolOpts;
-        [] -> undefined
+    case get_pool(Type, Host, Tag) of
+        {ok, PoolOpts} -> PoolOpts;
+        {error, pool_not_started} -> undefined
     end.
 
 get_pools() ->
@@ -192,6 +197,9 @@ make_pool_name(Type, Host, Tag) when is_binary(Host) ->
     binary_to_atom(<<"mongoose_wpool$", (atom_to_binary(Type, utf8))/binary, $$,
                      Host/binary, $$, (atom_to_binary(Tag, utf8))/binary>>, utf8).
 
+make_pool_name(#mongoose_wpool{name = {Type, Host, Tag}}) ->
+    make_pool_name(Type, Host, Tag).
+
 call_callback(Name, Type, Args) ->
     try
         CallbackModule = make_callback_module_name(Type),
@@ -205,7 +213,14 @@ call_callback(Name, Type, Args) ->
 -spec make_callback_module_name(type()) -> module().
 make_callback_module_name(Type) ->
     Name = "mongoose_wpool_" ++ atom_to_list(Type),
-    list_to_existing_atom(Name).
+    list_to_atom(Name).
+
+default_opts(Type) ->
+    Mod = make_callback_module_name(Type),
+    case erlang:function_exported(Mod, default_opts, 0) of
+        true -> Mod:default_opts();
+        false -> []
+    end.
 
 expand_pools(Pools, AllHosts) ->
     %% First we select only pools for a specific vhost
@@ -222,3 +237,10 @@ expand_pools(Pools, AllHosts) ->
 
 get_unique_types(Pools) ->
     ordsets:to_list(ordsets:from_list([Type || {Type, _, _, _, _} <- Pools])).
+
+get_pool(Type, Host, Tag) ->
+    case ets:lookup(?MODULE, {Type, Host, Tag}) of
+        [] when is_binary(Host) -> get_pool(Type, global, Tag);
+        [] -> {error, pool_not_started};
+        [Pool] -> {ok, Pool}
+    end.

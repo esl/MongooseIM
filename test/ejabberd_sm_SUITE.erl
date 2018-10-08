@@ -525,4 +525,3 @@ set_meck(SMBackend) ->
     meck:new(ejabberd_commands, []),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     ok.
-

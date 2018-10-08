@@ -90,10 +90,10 @@ create_generic_hook_metric(Host, Hook) ->
     UseOrSkip = filter_hook(Hook),
     do_create_generic_hook_metric(Host, Hook, UseOrSkip).
 
-ensure_db_pool_metric(Pool) ->
-    ensure_metric(global,
-                  [data, rdbms, Pool],
-                  {function, mongoose_metrics, get_rdbms_data_stats, [[Pool]], proplist,
+ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
+    ensure_metric(Host,
+                  [data, rdbms, Tag],
+                  {function, mongoose_metrics, get_rdbms_data_stats, [[Name]], proplist,
                    [workers | ?INET_STATS]}).
 
 -spec update(Host :: jid:lserver() | global, Name :: term() | list(),
@@ -138,11 +138,21 @@ increment_generic_hook_metric(Host, Hook) ->
     do_increment_generic_hook_metric(Host, Hook, UseOrSkip).
 
 get_rdbms_data_stats() ->
-    get_rdbms_data_stats(ejabberd_rdbms:pools()).
+    Pools = lists:filter(fun({Type, _Host, _Tag}) -> Type == rdbms end, mongoose_wpool:get_pools()),
+    get_rdbms_data_stats(Pools).
 
 get_rdbms_data_stats(Pools) ->
-    RDBMSWorkers = [catch mongoose_rdbms_sup:get_pids(Pool) || Pool <- Pools],
-    get_rdbms_stats(lists:flatten(RDBMSWorkers)).
+    RDBMSWorkers =
+        lists:flatmap(
+          fun({Type, Host, Tag}) ->
+                  PoolName = mongoose_wpool:make_pool_name(Type, Host, Tag),
+                  Wpool = wpool_pool:find_wpool(PoolName),
+                  PoolSize = wpool_pool:wpool_get(size, Wpool),
+                  [whereis(wpool_pool:worker_name(PoolName, I)) || I <- lists:seq(1, PoolSize)]
+          end,
+          Pools),
+
+    get_rdbms_stats(RDBMSWorkers).
 
 get_dist_data_stats() ->
     DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],

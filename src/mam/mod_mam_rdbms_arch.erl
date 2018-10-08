@@ -419,13 +419,12 @@ before_id(ID, Filter) ->
     [Filter, " AND id < ", use_escaped_integer(SID)].
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
-    Pool = mongoose_rdbms_sup:pool(Host),
-    [row_to_uniform_format(Host, Pool, UserJID, Row) || Row <- MessageRows].
+    [do_row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].
 
-row_to_uniform_format(Host, Pool, UserJID, {BMessID, BSrcJID, SDataRaw}) ->
+do_row_to_uniform_format(Host, UserJID, {BMessID, BSrcJID, SDataRaw}) ->
     MessID = mongoose_rdbms:result_to_integer(BMessID),
     SrcJID = stored_binary_to_jid(Host, UserJID, BSrcJID),
-    Data = mongoose_rdbms:unescape_binary(Pool, SDataRaw),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
     Packet = stored_binary_to_packet(Host, Data),
     {MessID, SrcJID, Packet}.
 

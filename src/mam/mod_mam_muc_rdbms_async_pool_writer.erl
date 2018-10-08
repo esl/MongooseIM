@@ -40,7 +40,6 @@
 -record(state, {flush_interval      :: non_neg_integer(), %% milliseconds
                 max_batch_size     :: non_neg_integer(),
                 host                :: jid:server(),
-                connection_pool     :: atom(),
                 acc=[]              :: list(),
                 flush_interval_tref :: reference() | undefined
               }).
@@ -90,11 +89,10 @@ worker_number(Host, ArcID) ->
 start(Host, Opts) ->
     mongoose_metrics:ensure_metric(Host, ?PER_MESSAGE_FLUSH_TIME, histogram),
     mongoose_metrics:ensure_metric(Host, ?FLUSH_TIME, histogram),
-    PoolName = gen_mod:get_opt(rdbms_pool, Opts, mongoose_rdbms_sup:pool(Host)),
     MaxSize = gen_mod:get_module_opt(Host, ?MODULE, max_batch_size, 30),
     mod_mam_muc_rdbms_arch:prepare_insert(insert_mam_muc_message, 1),
     mod_mam_muc_rdbms_arch:prepare_insert(insert_mam_muc_messages, MaxSize),
-    start_workers(Host, PoolName, MaxSize),
+    start_workers(Host, MaxSize),
     start_muc(Host, Opts).
 
 
@@ -121,11 +119,11 @@ stop_muc(Host) ->
 %% API
 %%====================================================================
 
--spec start_workers(jid:server(), Pool :: atom(), MaxSize :: pos_integer()) -> [{'error', _}
+-spec start_workers(jid:server(), MaxSize :: pos_integer()) -> [{'error', _}
                                         | {'ok', 'undefined' | pid()}
                                         | {'ok', 'undefined' | pid(), _}].
-start_workers(Host, Pool, MaxSize) ->
-    [start_worker(WriterProc, N, Host, Pool, MaxSize)
+start_workers(Host, MaxSize) ->
+    [start_worker(WriterProc, N, Host, MaxSize)
      || {N, WriterProc} <- worker_names(Host)].
 
 
@@ -135,14 +133,14 @@ stop_workers(Host) ->
     [stop_worker(WriterProc) ||  {_, WriterProc} <- worker_names(Host)].
 
 
--spec start_worker(atom(), integer(), jid:server(), Pool :: atom(), MaxSize :: pos_integer())
+-spec start_worker(atom(), integer(), jid:server(), MaxSize :: pos_integer())
       -> {'error', _}
          | {'ok', 'undefined' | pid()}
          | {'ok', 'undefined' | pid(), _}.
-start_worker(WriterProc, _N, Host, Pool, MaxSize) ->
+start_worker(WriterProc, _N, Host, MaxSize) ->
     WriterChildSpec =
     {WriterProc,
-     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [Host, Pool, MaxSize], []]},
+     {gen_server, start_link, [{local, WriterProc}, ?MODULE, [Host, MaxSize], []]},
      permanent,
      5000,
      worker,
@@ -262,18 +260,17 @@ run_flush(State = #state{host = Host, acc = Acc}) ->
     mongoose_metrics:update(Host, ?FLUSH_TIME, FlushTime),
     NewState.
 
-do_run_flush(MessageCount, State = #state{host = Host, connection_pool = Pool,
-                                          max_batch_size = MaxSize, flush_interval_tref = TRef,
-                                          acc = Acc}) ->
+do_run_flush(MessageCount, State = #state{host = Host, max_batch_size = MaxSize,
+                                          flush_interval_tref = TRef, acc = Acc}) ->
     cancel_and_flush_timer(TRef),
     ?DEBUG("Flushed ~p entries.", [MessageCount]),
 
     InsertResult =
         case MessageCount of
             MaxSize ->
-                mongoose_rdbms:execute(Pool, insert_mam_muc_messages, lists:append(Acc));
+                mongoose_rdbms:execute(Host, insert_mam_muc_messages, lists:append(Acc));
             OtherSize ->
-                Results = [mongoose_rdbms:execute(Pool, insert_mam_muc_message, Row) || Row <- Acc],
+                Results = [mongoose_rdbms:execute(Host, insert_mam_muc_message, Row) || Row <- Acc],
                 case lists:keyfind(error, 1, Results) of
                     false -> {updated, OtherSize};
                     Error -> Error
@@ -319,12 +316,10 @@ cancel_and_flush_timer(TRef) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Host, Pool, MaxSize]) ->
+init([Host, MaxSize]) ->
     %% Use a private RDBMS-connection.
     Int = gen_mod:get_module_opt(Host, ?MODULE, flush_interval, 2000),
-    {ok, #state{host=Host, connection_pool=Pool,
-                flush_interval = Int,
-                max_batch_size = MaxSize}}.
+    {ok, #state{host=Host, flush_interval = Int, max_batch_size = MaxSize}}.
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |

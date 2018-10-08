@@ -18,22 +18,22 @@
 -author('konrad.zemek@erlang-solutions.com').
 -behaviour(mongoose_rdbms).
 
--export([escape_binary/2, escape_string/2,
-         unescape_binary/2, connect/2, disconnect/1,
-         query/3, prepare/6, execute/4]).
+-export([escape_binary/1, escape_string/1,
+         unescape_binary/1, connect/2, disconnect/1,
+         query/3, prepare/5, execute/4]).
 
 %% API
 
--spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
-escape_binary(Pool, Bin) when is_binary(Bin) ->
-    escape_binary(Pool, server_type(Pool), Bin).
+-spec escape_binary(binary()) -> iodata().
+escape_binary(Bin) when is_binary(Bin) ->
+    escape_binary(server_type(), Bin).
 
-escape_string(Pool, Iolist) ->
-    ServerType = server_type(Pool),
-    escape_text(Pool, ServerType, iolist_to_binary(Iolist)).
+escape_string(Iolist) ->
+    ServerType = server_type(),
+    escape_text(ServerType, iolist_to_binary(Iolist)).
 
--spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
-unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec unescape_binary(binary()) -> binary().
+unescape_binary(Bin) when is_binary(Bin) ->
     bin_to_hex:hex_to_bin(Bin).
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
@@ -71,15 +71,14 @@ query(Connection, Query, Timeout) when is_binary(Query) ->
 query(Connection, Query, Timeout) ->
     parse(eodbc:sql_query(Connection, Query, Timeout)).
 
--spec prepare(Pool :: mongoose_rdbms:pool(),
-              Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, {[binary()], [fun((term()) -> tuple())]}}.
-prepare(Pool, Connection, _Name, Table, Fields, Statement) ->
+prepare(Connection, _Name, Table, Fields, Statement) ->
     {ok, TableDesc} = eodbc:describe_table(Connection, unicode:characters_to_list(Table)),
     SplitQuery = binary:split(iolist_to_binary(Statement), <<"?">>, [global]),
-    ServerType = server_type(Pool),
-    ParamMappers = [field_name_to_mapper(Pool, ServerType, TableDesc, Field) || Field <- Fields],
+    ServerType = server_type(),
+    ParamMappers = [field_name_to_mapper(ServerType, TableDesc, Field) || Field <- Fields],
     {ok, {SplitQuery, ParamMappers}}.
 
 -spec execute(Connection :: term(), Statement :: {[binary()], [fun((term()) -> tuple())]},
@@ -138,16 +137,16 @@ parse_row([FieldValue|Row], [generic|FieldsInfo]) ->
 parse_row([], []) ->
     [].
 
--spec field_name_to_mapper(Pool :: mongoose_rdbms:pool(), ServerType :: atom(),
+-spec field_name_to_mapper(ServerType :: atom(),
                            TableDesc :: proplists:proplist(),
                            FieldName :: binary()) -> fun((term()) -> tuple()).
-field_name_to_mapper(Pool, ServerType, TableDesc, FieldName) ->
+field_name_to_mapper(ServerType, TableDesc, FieldName) ->
     {_, ODBCType} = lists:keyfind(unicode:characters_to_list(FieldName), 1, TableDesc),
     case simple_type(just_type(ODBCType)) of
         binary ->
-            fun(P) -> {[escape_binary(Pool, ServerType, P)], []} end;
+            fun(P) -> {[escape_binary(ServerType, P)], []} end;
         unicode ->
-            fun(P) -> {[escape_text_or_integer(Pool, ServerType, P)], []} end;
+            fun(P) -> {[escape_text_or_integer(ServerType, P)], []} end;
         bigint ->
             fun(P) -> {[<<"'">>, integer_to_binary(P), <<"'">>], []} end;
         _ ->
@@ -190,36 +189,36 @@ unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc,
     NewParamsAcc = ODBCParam ++ ParamsAcc,
     unsplit_query(QueryRest, NextParamMappers, Params, NewQueryAcc, NewParamsAcc).
 
--spec server_type(mongoose_rdbms:pool()) -> atom().
-server_type(Pool) ->
-    mongoose_rdbms_sup:get_option(Pool, rdbms_server_type).
+-spec server_type() -> atom().
+server_type() ->
+    ejabberd_config:get_local_option(rdbms_server_type).
 
--spec escape_binary(mongoose_rdbms:pool(), ServerType :: atom(), binary()) -> iodata().
-escape_binary(Pool, pgsql, Bin) ->
-    mongoose_rdbms_pgsql:escape_binary(Pool, Bin);
-escape_binary(Pool, mysql, Bin) ->
-    mongoose_rdbms_mysql:escape_binary(Pool, Bin);
-escape_binary(_Pool, mssql, Bin) ->
+-spec escape_binary(ServerType :: atom(), binary()) -> iodata().
+escape_binary(pgsql, Bin) ->
+    mongoose_rdbms_pgsql:escape_binary(Bin);
+escape_binary(mysql, Bin) ->
+    mongoose_rdbms_mysql:escape_binary(Bin);
+escape_binary(mssql, Bin) ->
     [<<"0x">>, bin_to_hex:bin_to_hex(Bin)];
-escape_binary(_Pool, _ServerType, Bin) ->
+escape_binary(_ServerType, Bin) ->
     [$', bin_to_hex:bin_to_hex(Bin), $'].
 
 %% boolean are of type {sql_varchar,5} in pgsql.
 %% So, we need to handle integers.
 %% But converting to integer would cause type check failure.
-escape_text_or_integer(Pool, ServerType, P) when is_integer(P) ->
+escape_text_or_integer(_ServerType, P) when is_integer(P) ->
     [$', integer_to_list(P), $'];
-escape_text_or_integer(Pool, ServerType, P) ->
-    escape_text(Pool, ServerType, P).
+escape_text_or_integer(ServerType, P) ->
+    escape_text(ServerType, P).
 
--spec escape_text(mongoose_rdbms:pool(), ServerType :: atom(), binary()) -> iodata().
-escape_text(_Pool, pgsql, Bin) ->
+-spec escape_text(ServerType :: atom(), binary()) -> iodata().
+escape_text(pgsql, Bin) ->
     escape_pgsql_string(Bin);
-escape_text(_Pool, mssql, Bin) ->
+escape_text(mssql, Bin) ->
     Utf16 = unicode_characters_to_binary(Bin, utf8, {utf16, little}),
     [<<"CAST(0x">>, bin_to_hex:bin_to_hex(Utf16), <<" AS NVARCHAR(max))">>];
-escape_text(Pool, ServerType, Bin) ->
-    escape_binary(Pool, ServerType, Bin).
+escape_text(ServerType, Bin) ->
+    escape_binary(ServerType, Bin).
 
 unicode_characters_to_binary(Input, FromEncoding, ToEncoding) ->
     case unicode:characters_to_binary(Input, FromEncoding, ToEncoding) of
