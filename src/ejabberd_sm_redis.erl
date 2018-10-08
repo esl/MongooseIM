@@ -24,8 +24,7 @@
          unique_count/0]).
 
 -spec start(list()) -> any().
-start(Opts) ->
-    mongoose_redis:start_pool(Opts),
+start(_Opts) ->
     %% Clean current node's sessions from previous life
     {Elapsed, RetVal} = timer:tc(?MODULE, cleanup, [node()]),
     ?WARNING_MSG("cleanup on start took=~pms~n",
