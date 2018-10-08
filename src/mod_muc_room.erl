@@ -1931,7 +1931,7 @@ make_http_auth_request(From, RoomJid, Password, Pool) ->
     Path = <<"check_password?from=", FromVal/binary,
              "&to=", RoomJidVal/binary,
              "&pass=", PassVal/binary>>,
-    case mongoose_http_client:get(Pool, Path, []) of
+    case mongoose_http_client:get(global, Pool, Path, []) of
         {ok, {<<"200">>, Body}} -> decode_http_auth_response(Body);
         _ -> error
     end.
