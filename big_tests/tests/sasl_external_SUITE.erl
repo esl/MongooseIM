@@ -158,7 +158,7 @@ self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
 	escalus_connected ->
 	    ct:fail(authenticated_but_should_not)
     after 10000 ->
-	      ct:fail(authenticated_but_should_not)
+	      ct:fail(timeout_waiting_for_authentication_error)
     end.
 
 self_signed_cert_is_allowed_with_tls(C) ->

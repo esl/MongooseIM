@@ -56,8 +56,16 @@ For development purposes, it is possible to tell MongooseIM to accept them.
 In order to tell MongooseIM to accept self-signed certs, the `ssl_options` list needs to be added to `ejabberd_c2s` listener config like below:
 
 ```Erlang
-{ssl_options, [{verify_fun, {selfsigned_peer, true}}]}
+{ssl_options, [{verify_fun, {selfsigned_peer, DisconnectOnVerificationFailure}}]}
 ```
+
+where the `DisconnectOnVerificationFailure` is a boolean with the following meaning only for `just_tls`:
+
+* `true` the connection is closed if a certificate is invalid,
+* `false` the connection is not be closed, but the certificate is not be returned if is invalid.
+  This leads to authentication failure but allows the client to choose different auth method if set.
+
+For `fast_tls` backend, the configuration is the same, only the `DisconnectOnVerificationFailure` is ignored.
 
 #### Self-signed certificates for WS or BOSH
 
