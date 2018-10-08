@@ -26,7 +26,6 @@
 %% Module callbacks
 
 %% API
--export([init/1, shutdown/1]).
 -export([call_query/3, cast_query/3]).
 
 %% Types
@@ -34,17 +33,6 @@
 %% ====================================================================
 %% Module API
 %% ====================================================================
-
-init({PoolName, PoolConfig}) ->
-    init({PoolName, 20, PoolConfig});
-init({PoolName, PoolSize, PoolConfig}) ->
-    WPoolOpts = [{workers, PoolSize},
-                 {call_timeout, timer:minutes(1)}],
-    {ok, _} = mongoose_wpool:start(cassandra, global, PoolName, WPoolOpts, PoolConfig),
-    ok.
-
-shutdown(PoolName) ->
-    mongoose_wpool:stop(cassandra, global, PoolName).
 
 call_query(PoolName, undefined, Call) ->
     mongoose_wpool:call(cassandra, global, PoolName, Call);
