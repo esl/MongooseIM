@@ -64,7 +64,7 @@ make_req(Host, Sender, Receiver, Message) ->
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     Headers = [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}],
     T0 = os:timestamp(),
-    {Res, Elapsed} = case mongoose_http_client:post(PoolName, Path, Headers, EncodedQuery) of
+    {Res, Elapsed} = case mongoose_http_client:post(Host, PoolName, Path, Headers, EncodedQuery) of
                          {ok, _} ->
                              {ok, timer:now_diff(os:timestamp(), T0)};
                          {error, Reason} ->
