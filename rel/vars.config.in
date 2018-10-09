@@ -1,7 +1,5 @@
 {hosts, "[\"localhost\"]"}.
 {host_config, ""}.
-{rdbms_server, "%% {rdbms_server, {mysql, \"localhost\", 3306, \"database\", \"username\", \"password\"}}."}.
-{rdbms_server_type, "%% {rdbms_server_type, pgsql}."}.
 {auth_ldap, ""}.
 {s2s_addr, "%% { {s2s_addr, \"example-host.net\"}, { {127,0,0,1}, 5269 } }."}.
 {s2s_default_policy, deny}.
@@ -42,8 +40,13 @@
 {registration_watchers, "%{registration_watchers, [\"admin@localhost\"]},"}.
 {outgoing_pools, "
 % {outgoing_pools, [
-%  {riak, global, default, [{workers, 5}], [{address, \"127.0.0.1\"}, {port, 8087}]}
+%  {riak, global, default, [{workers, 5}], [{address, \"127.0.0.1\"}, {port, 8087}]},
+%  {elastic, global, default, [], [{host, "elastic.host.com"}, {port, 9042}]},
+%  {http, global, conn1, [{workers, 50}], [{server, "http://server:8080"}]},
+%  {cassandra, global, default, [{workers, 100}], [{servers, [{"server1", 9042}]}, {keyspace, "big_mongooseim"}]},
+%  {rdbms, global, default, [{workers, 10}], [{server, {mysql, "server", 3306, "database", "username", "password"}}]}
 %  ]}."}.
+{rdbms_server_type, "%% {rdbms_server_type, pgsql}."}.
 {http_api_old_endpoint, "{5288, \"127.0.0.1\"}"}.
 {http_api_endpoint, "{8088, \"127.0.0.1\"}"}.
 {http_api_client_endpoint, "8089"}.
