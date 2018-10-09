@@ -109,14 +109,17 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case {rpc(europe_node1, mongoose_wpool, get_worker, [redis, global, gd]),
-          rpc(asia_node, mongoose_wpool, get_worker, [redis, global, gd])} of
+    case {rpc(europe_node1, mongoose_wpool, get_worker, [redis, global, global_distrib]),
+          rpc(asia_node, mongoose_wpool, get_worker, [redis, global, global_distrib])} of
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
+            % We have to pass [no_opts] because [] is treated as string and converted
+            % automatically to <<>>
             escalus:init_per_suite([{add_advertised_endpoints, []},
-                                    {extra_config, []}, {redis_extra_config, []} | Config]);
-        _ ->
+                                    {extra_config, []}, {redis_extra_config, [no_opts]} | Config]);
+        Result ->
+            ct:pal("Redis check result: ~p", [Result]),
             {skip, "GD Redis default pool not available"}
     end.
 
@@ -963,7 +966,7 @@ jids(Client) ->
     {FullJid, BareJid}.
 
 redis_query(Node, Query) ->
-    {ok, RedisWorker} = rpc(Node, mongoose_wpool, get_worker, [redis, global, distrib]),
+    {ok, RedisWorker} = rpc(Node, mongoose_wpool, get_worker, [redis, global, global_distrib]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
 
 %% A fake address we don't try to connect to.

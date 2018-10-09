@@ -46,7 +46,7 @@ start(Opts) ->
     mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]),
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
-    PoolTag = proplists:get_value(pool, Opts, gd),
+    PoolTag = proplists:get_value(pool, Opts, global_distrib),
     ets:insert(?MODULE, {pool, PoolTag}),
 
     Refresher = {mod_global_distrib_redis_refresher,
