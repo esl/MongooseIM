@@ -160,8 +160,13 @@ filter_packet(drop) ->
     drop;
 filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
     Host = To#jid.server,
-    maybe_process_message(Host, From, To, Msg, incoming),
-    {From, To, Acc, Msg};
+    Acc0 = case maybe_process_message(Host, From, To, Msg, incoming) of
+               {ok, UnreadCount} ->
+                   mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
+               _ ->
+                   Acc
+           end,
+    {From, To, Acc0, Msg};
 
 filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
