@@ -49,11 +49,7 @@ init_per_testcase(_TC, C) ->
     meck:expect(gen_iq_handler, add_iq_handler, fun(_, _, _, _, _, _) -> ok end),
     meck:expect(gen_iq_handler, remove_iq_handler, fun(_, _, _) -> ok end),
     gen_mod:start(),
-    Opts = [
-%%        {rdbms_server, {mysql, "localhost", 3306, "mongoose", "bartek", "siema"}},
-%%        {backend, rdbms}
-    ],
-    gen_mod:start_module(host(), mod_roster, Opts),
+    gen_mod:start_module(host(), mod_roster, []),
     C.
 
 end_per_testcase(_TC, C) ->

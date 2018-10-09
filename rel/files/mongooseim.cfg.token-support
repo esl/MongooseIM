@@ -368,7 +368,9 @@
 %%%.   ==============
 %%%'   DATABASE SETUP
 
-{rdbms_server, {pgsql, "localhost", "eslmongooseim", "eslmongooseim", "eslpassword"}}.
+{outgoing_pools, [
+  {rdbms, global, default, [], [{server, {pgsql, "localhost", "eslmongooseim", "eslmongooseim", "eslpassword"}}]}
+]}.
 
 %%%.   ===============
 %%%'   TRAFFIC SHAPERS
