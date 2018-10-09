@@ -27,6 +27,8 @@
          get_peer_certificate/1,
          close/1]).
 
+-export([verify_fun/1]).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% APIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -35,7 +37,7 @@
 tcp_to_tls(TCPSocket, Options) ->
     inet:setopts(TCPSocket, [{active, false}]),
     Opts = format_opts(Options),
-    {Ref, NewOpts} = set_verity_fun(Opts),
+    {Ref, NewOpts} = set_verify_fun(Opts),
     Ret = case lists:member(connect, Opts) of
               false -> ssl:ssl_accept(TCPSocket, NewOpts);
               true -> ssl:connect(TCPSocket, NewOpts)
@@ -135,8 +137,20 @@ remove_duplicates(PropList) ->
 error_to_list(_Error) ->
     %TODO: implement later if needed
     "verify_fun failed".
-
-set_verity_fun(Opts) ->
+%% doc
+%% this function translates the `verify_fun` tuple from `ssl_options` to the real fun
+%% which will later be used when TCP socket is upgraded to TLS
+%% accepted format is:
+%% {verify_fun, {PredefinedValidationFun,DisconnectOnFailure}
+%%  PredefinedValidationFun is one of the following:
+%%     none - no validation of the clients certificate - any cert is accepted.
+%%     peer - standard verification of the certificate.
+%%     selfsigned_peer -  the same as peer but also accepts self-signed certificates
+%%  DisconnectOnFailure is boolean parameter:
+%%     true - drop connection if certificate verification failed
+%%     false - connect anyway, but later return {bad_cert,Error}
+%%             on certificate verification (the same as fast_tls do).
+set_verify_fun(Opts) ->
     case proplists:get_value(verify_fun, Opts) of
         undefined -> {dummy_ref, Opts};
         {VerifyFun, true} ->
