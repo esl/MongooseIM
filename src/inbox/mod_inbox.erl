@@ -89,8 +89,8 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     MucTypes = get_groupchat_types(Host),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 70),
+    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 70),
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
@@ -99,8 +99,8 @@ start(Host, Opts) ->
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
     mod_inbox_muc:stop(Host),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 70),
+    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 70),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 
