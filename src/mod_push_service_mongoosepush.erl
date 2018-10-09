@@ -101,7 +101,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ok | {error, Reason :: term()}.
 http_notification(Host, Method, URL, ReqHeaders, Payload) ->
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, undefined),
-    case mongoose_http_client:Method(PoolName, URL, ReqHeaders, Payload) of
+    case mongoose_http_client:Method(Host, PoolName, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
