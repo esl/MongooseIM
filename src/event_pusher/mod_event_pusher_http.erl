@@ -15,19 +15,22 @@
                           Dir :: in | out,
                           Packet :: exml:element(),
                           From :: jid:jid(),
-                          To :: jid:jid()) -> boolean().
+                          To :: jid:jid(),
+                          Opts :: [{atom(), term()}]) -> boolean().
 -callback prepare_headers(Acc :: mongoose_acc:t(),
                           Dir :: in | out,
                           Host :: jid:lserver(),
                           Message :: binary(),
                           Sender :: jid:luser(),
-                          Receiver :: jid:luser()) -> [{binary(), binary()}].
+                          Receiver :: jid:luser(),
+                          Opts :: [{atom(), term()}]) -> [{binary(), binary()}].
 -callback prepare_body(Acc :: mongoose_acc:t(),
                        Dir :: in | out,
                        Host :: jid:lserver(),
                        Message :: binary(),
                        Sender :: jid:luser(),
-                       Receiver :: jid:luser()) -> binary().
+                       Receiver :: jid:luser(),
+                       Opts :: [{atom(), term()}]) -> binary().
 
 -include("mod_event_pusher_events.hrl").
 -include("jlib.hrl").
@@ -62,7 +65,7 @@ push_event(Acc, _Host, _Event) ->
 push_event(Acc, Dir, From, To, Packet, Opts) ->
     Body = exml_query:path(Packet, [{element, <<"body">>}, cdata], <<>>),
     Mod = get_callback_module(Opts),
-    case Mod:should_make_req(Acc, Dir, Packet, From, To) of
+    case Mod:should_make_req(Acc, Dir, Packet, From, To, Opts) of
         true ->
             make_req(Acc, Dir, From#jid.lserver, From#jid.luser, To#jid.luser, Body, Opts);
         _ ->
@@ -82,8 +85,8 @@ make_req(Acc, Dir, Host, Sender, Receiver, Message, Opts) ->
     PoolName = proplists:get_value(pool_name, Opts, ?DEFAULT_POOL_NAME),
     Pool = mongoose_http_client:get_pool(PoolName),
     Mod = get_callback_module(Opts),
-    Body = Mod:prepare_body(Acc, Dir, Host, Message, Sender, Receiver),
-    Headers = Mod:prepare_headers(Acc, Dir, Host, Message, Sender, Receiver),
+    Body = Mod:prepare_body(Acc, Dir, Host, Message, Sender, Receiver, Opts),
+    Headers = Mod:prepare_headers(Acc, Dir, Host, Message, Sender, Receiver, Opts),
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     T0 = os:timestamp(),
     {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Body) of
