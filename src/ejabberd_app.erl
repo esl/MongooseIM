@@ -61,6 +61,9 @@ start(normal, _Args) ->
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     mongoose_wpool:start_configured_pools(),
+    %% ejabberd_sm is started separately because it may use one of the outgoing_pools
+    %% but some outgoing_pools should be started only with ejabberd_sup already running
+    ejabberd_sm:start(),
     ejabberd_rdbms:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),

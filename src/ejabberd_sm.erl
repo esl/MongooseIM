@@ -29,7 +29,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,
+-export([start/0,
+         start_link/0,
          route/3,
          route/4,
          open_session/5, open_session/6,
@@ -119,6 +120,12 @@
 %% Function: start_link() -> {ok, Pid} | ignore | {error, Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
+
+-spec start() -> {ok, pid()}.
+start() ->
+    Spec = {?MODULE, {?MODULE, start_link, []}, permanent, brutal_kill, worker, [?MODULE]},
+    {ok, _} = ejabberd_sup:start_child(Spec).
+
 -spec start_link() -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link() ->
     mongoose_metrics:ensure_metric(global, ?UNIQUE_COUNT_CACHE, gauge),

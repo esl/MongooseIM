@@ -237,7 +237,7 @@ backend(Node) ->
     rpc:call(Node, ejabberd_config, get_global_option, [sm_backend]).
 
 %% Specify just some nodes to run the tests on:
-%% TEST_HOSTS="mim1" ./tools/travis-test.sh -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/travis-test.sh -p odbc_mssql_mnesia
 maybe_enable_preset_on_node(Node, PresetVars, HostVars, HostName) ->
     case is_test_host_enabled(HostName) of
         true ->
