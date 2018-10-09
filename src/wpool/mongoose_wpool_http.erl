@@ -1,22 +1,35 @@
 -module(mongoose_wpool_http).
 -behaviour(mongoose_wpool).
 
--export([start/4]).
--export([stop/2]).
+-export([init/0]).
+-export([start/4, stop/2]).
 -export([get_params/2]).
 
 %% --------------------------------------------------------------
 %% API
 %% --------------------------------------------------------------
 
+init() ->
+    case ets:info(?MODULE) of
+        undefined ->
+            Heir = case whereis(ejabberd_sup) of
+                       undefined -> [];
+                       Pid -> [{heir, Pid, undefined}]
+                   end,
+            ets:new(?MODULE,
+                    [named_table, public, {read_concurrency, true} | Heir]),
+            ok;
+        _ ->
+            ok
+    end.
+
 start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(http, Host, Tag),
-    WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
+    WpoolOpts = wpool_spec(Host, WpoolOptsIn, ConnOpts),
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, ConnOpts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, ConnOpts, 2000),
     case wpool:start_sup_pool(Name, WpoolOpts) of
         {ok, Pid} ->
-            ensure_ets(),
             ets:insert(?MODULE, {{Host, Tag}, PathPrefix, RequestTimeout}),
             {ok, Pid};
         Other ->
@@ -41,24 +54,9 @@ get_params(Host, Tag) ->
 %% Internal functions
 %% --------------------------------------------------------------
 
-wpool_spec(WpoolOptsIn, ConnOpts) ->
-    Server = gen_mod:get_opt(server, ConnOpts),
+wpool_spec(Host, WpoolOptsIn, ConnOpts) ->
+    TargetServer = gen_mod:get_opt(server, ConnOpts),
     HttpOpts = gen_mod:get_opt(http_opts, ConnOpts, []),
-    Worker = {fusco, {Server, HttpOpts}},
+    Worker = {fusco, {TargetServer, HttpOpts}},
     [{worker, Worker} | WpoolOptsIn].
-
-ensure_ets() ->
-    case ets:info(?MODULE) of
-        undefined ->
-            Heir = case whereis(ejabberd_sup) of
-                       undefined -> [];
-                       Pid -> [{heir, Pid, undefined}]
-                   end,
-            ets:new(?MODULE,
-                    [named_table, public, {read_concurrency, true} | Heir]),
-            ok;
-        _ ->
-            ok
-    end.
-
 

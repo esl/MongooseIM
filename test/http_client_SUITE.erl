@@ -78,29 +78,29 @@ end_per_testcase(_TC, _Config) ->
     mongoose_wpool:stop(http, global, pool()).
 
 get_test(_Config) ->
-    Result = mongoose_http_client:get(pool(), <<"some/path">>, []),
+    Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
     {ok, {<<"200">>, <<"OK">>}} = Result.
 
 no_pool_test(_Config) ->
-    Result = mongoose_http_client:get(non_existent_pool, <<"some/path">>, []),
+    Result = mongoose_http_client:get(global, non_existent_pool, <<"some/path">>, []),
     {error, pool_not_started} = Result.
 
 post_test(_Config) ->
-    Result = mongoose_http_client:post(pool(), <<"some/path">>, [], <<"test request">>),
+    Result = mongoose_http_client:post(global, pool(), <<"some/path">>, [], <<"test request">>),
     {ok, {<<"200">>, <<"OK">>}} = Result.
 
 request_timeout_test(_Config) ->
-    Result = mongoose_http_client:get(pool(), <<"some/path?sleep=true">>, []),
+    Result = mongoose_http_client:get(global, pool(), <<"some/path?sleep=true">>, []),
     {error, request_timeout} = Result.
 
 pool_timeout_test(_Config) ->
     Pid = self(),
     spawn(fun() ->
-                  mongoose_http_client:get(pool(), <<"/some/path?sleep=true">>, []),
+                  mongoose_http_client:get(global, pool(), <<"/some/path?sleep=true">>, []),
                   Pid ! finished
           end),
     timer:sleep(10), % wait for the only pool worker to start handling the request
-    Result = mongoose_http_client:get(pool(), <<"some/path">>, []),
+    Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
     {error, pool_timeout} = Result,
     receive finished -> ok after 1000 -> error(no_finished_message) end.
 

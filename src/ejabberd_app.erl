@@ -62,7 +62,6 @@ start(normal, _Args) ->
     {ok, _} = Sup = ejabberd_sup:start_link(),
     mongoose_wpool:start_configured_pools(),
     ejabberd_rdbms:start(),
-    mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
     start_services(),

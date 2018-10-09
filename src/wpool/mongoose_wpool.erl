@@ -217,9 +217,10 @@ call_callback(Name, Type, Args) ->
         CallbackModule = make_callback_module_name(Type),
         erlang:apply(CallbackModule, Name, Args)
     catch E:R ->
+          ST = erlang:get_stacktrace(),
           ?ERROR_MSG("event=wpool_callback_error, name=~p, error=~p, reason=~p, stacktrace=~p",
-                     [Name, E, R, erlang:get_stacktrace()]),
-          {error, {callback_crashed, Name}}
+                     [Name, E, R, ST]),
+          {error, {callback_crashed, Name, E, R, ST}}
     end.
 
 -spec make_callback_module_name(type()) -> module().
