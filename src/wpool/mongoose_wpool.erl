@@ -122,8 +122,9 @@ stop(Type, Host, Tag) ->
         wpool:stop_sup_pool(make_pool_name(Type, Host, Tag))
     catch
         C:R ->
-            ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,class=~p,reason=~p",
-                       [Type, Host, Tag, C, R])
+            ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,"
+                       "class=~p,reason=~p,stack_trace=~p",
+                       [Type, Host, Tag, C, R, erlang:get_stacktrace()])
     end.
 
 -spec is_configured(type()) -> boolean().

@@ -69,10 +69,9 @@ init_per_group(redis, Config) ->
 
 init_redis_group(true, Config) ->
     mongoose_wpool:ensure_started(),
-    mongoose_wpool_redis:init(),
     % This would be started via outgoing_pools in normal case
-    {ok, _} = mongoose_wpool:start(redis, global, default,
-                                   [{strategy, random_worker}, {workers, 10}], []),
+    Pool = {redis, global, default, [{strategy, random_worker}, {workers, 10}], []},
+    mongoose_wpool:start_configured_pools([Pool], []),
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
