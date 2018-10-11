@@ -79,8 +79,8 @@ We might also want to add a dedicated pool for a specific host:
 ```
 
 Please remember that SQL databases require creating a schema.
-See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
-Also see [Advanced configuration](./Advanced-configuration.md) for additional options that influence RDBMS connections.
+See [Database backends configuration](./database-backends-configuration.md) for more information.
+Also see [Advanced configuration](../Advanced-configuration.md) for additional options that influence RDBMS connections.
 Currently all pools must use the same RDBMS type (e.g. `mysql`, `pgsql`).
 
 ### Connection options
@@ -211,6 +211,41 @@ Below is a sample configuration:
 {outgoing_pools, [
   {http, global, http_auth,
    [{strategy, available_worker}], [{server, "https://my_server:8080"}]}
+]}.
+```
+
+## Redis connection setup
+
+Session manager backend or `mod_global_distrib` requires a redis pool defined in the `outgoing_pools` option.
+They can be defined as follows:
+
+```erlang
+{ougtoing_pools, [
+ {redis, global, Tag, WorkersOptions, ConnectionOptions}
+]}.
+```
+The `Tag` parameter can be set only to `default` for session backend.
+For `mod_global_distrib` module it can take any value (default is **global_distrib**) but the name needs to be passed as:
+
+```erlang
+{redis, [{pool, Tag}]}
+```
+in the `mod_global_distrib` options. See [mod_global_distrib doc](../modules/mod_global_distrib.md) for details and examples.
+
+The `ConnectionOptions` list can take following parametrs as `{key, value`} pairs:
+
+* **host** (default: **"localhost"**) the hostname or IP address of the Redis server
+* **port** (default: **6379**) the port of the Redis server
+* **database** (default: **0**) number of the database to use by the pool
+* **password** (default: **""**) the password to the database (if set).
+
+### Example
+
+```erlang
+{ougtoing_pools, [
+ {redis, global, default, [{strategy, random_worker}],
+  [{host, "198.172.15.12"},
+   {port, 9923}]}
 ]}.
 ```
 
