@@ -89,9 +89,7 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     MucTypes = get_groupchat_types(Host),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 70),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 70),
-    ejabberd_hooks:add(inbox_unread_count, Host, ?MODULE, inbox_unread_count, 70),
+    ejabberd_hooks:add(hooks(Host)),
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
@@ -100,8 +98,7 @@ start(Host, Opts) ->
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
     mod_inbox_muc:stop(Host),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 70),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 70),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 
@@ -320,6 +317,13 @@ form_field_value(Value) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
+
+hooks(Host) ->
+    [
+     {user_send_packet, Host, ?MODULE, user_send_packet, 70},
+     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
+     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80}
+    ].
 
 get_groupchat_types(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
