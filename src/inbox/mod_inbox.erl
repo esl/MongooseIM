@@ -152,7 +152,7 @@ user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
--spec inbox_unread_count(Acc :: map(), To :: jid:jid()) -> map().
+-spec inbox_unread_count(Acc :: mongooseim_acc:t(), To :: jid:jid()) -> mongooseim_acc:t().
 inbox_unread_count(Acc, To) ->
     try mongoose_acc:get(inbox, unread_count, Acc) of
         Val when is_integer(Val) ->

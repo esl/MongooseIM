@@ -58,7 +58,7 @@ sender_id(From, Packet) ->
                            Services :: [mod_event_pusher_push:publish_service()]) ->
     mongooseim_acc:t().
 publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
-    MessageCount = read_unread_count(Acc0),
+    {Acc2, MessageCount} = get_unread_count(Acc0, From, To),
     BareRecipient = jid:to_bare(To),
     lists:foreach(
       fun({PubsubJID, Node, Form}) ->
@@ -78,18 +78,18 @@ publish_notification(Acc0, From, #jid{lserver = Host} = To, Packet, Services) ->
               mod_event_pusher_push:cast(Host, ejabberd_local, route_iq,
                                          [To, PubsubJID, Acc, Stanza, ResponseHandler])
       end, Services),
-    Acc0.
+    Acc2.
 
 
 -spec push_notification_iq(From :: jid:jid(),
                            Packet :: exml:element(), Node :: mod_event_pusher_push:pubsub_node(),
                            Form :: mod_event_pusher_push:form(),
-                           MessageCount :: binary()) -> jlib:iq().
+                           MessageCount :: integer()) -> jlib:iq().
 push_notification_iq(From, Packet, Node, Form, MessageCount) ->
     ContentFields =
         [
          {<<"FORM_TYPE">>, ?PUSH_FORM_TYPE},
-         {<<"message-count">>, MessageCount},
+         {<<"message-count">>, integer_to_binary(MessageCount)},
          {<<"last-message-sender">>, sender_id(From, Packet)},
          {<<"last-message-body">>, exml_query:cdata(exml_query:subelement(Packet, <<"body">>))}
         ],
@@ -125,12 +125,8 @@ make_form_field({Name, Value}) ->
            attrs = [{<<"var">>, Name}],
            children = [#xmlel{name = <<"value">>, children = [#xmlcdata{content = Value}]}]}.
 
-read_unread_count(Acc) ->
-    try mongoose_acc:get(inbox, unread_count, Acc) of
-        Val when is_integer(Val) ->
-            integer_to_binary(Val)
-    catch
-        _:_ ->
-            <<"1">>
-    end.
+get_unread_count(Acc, From, To) ->
+    Acc0 = ejabberd_hooks:run_fold(inbox_unread_count, To#jid.lserver, Acc, [To]),
+    UnreadCount = mongoose_acc:get(inbox, unread_count, 1, Acc0),
+    {Acc0, UnreadCount}.
 
