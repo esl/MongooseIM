@@ -144,7 +144,8 @@ do_start_cowboy(Ref, Opts) ->
 start_http_or_https(undefined, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
     cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
 start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
-    FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
+    SSLOptsWithVerifyFun = maybe_set_verify_fun(SSLOpts),
+    FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOptsWithVerifyFun),
     TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
     cowboy_start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
 
@@ -219,9 +220,8 @@ ensure_loaded_module(Module) ->
     end.
 
 ignored_ssl_options() ->
-    %% these options are specified in the listener section
-    %% and should be ignored if they creep into ssl section
-    [port, ip, max_connections].
+    %% these options should be ignored if they creep into ssl section
+    [port, ip, max_connections, verify_mode].
 
 filter_options(IgnoreOpts, [Opt | Opts]) when is_atom(Opt) ->
     case lists:member(Opt, IgnoreOpts) of
@@ -235,6 +235,15 @@ filter_options(IgnoreOpts, [Opt | Opts]) when tuple_size(Opt) >= 1 ->
     end;
 filter_options(_, []) ->
     [].
+
+maybe_set_verify_fun(SSLOptions) ->
+    case proplists:get_value(verify_mode, SSLOptions, undefined) of
+        undefined ->
+            SSLOptions;
+        Mode ->
+            Fun = just_tls:verify_fun(Mode),
+            lists:keystore(verify_fun, 1, SSLOptions, {verify_fun, Fun})
+    end.
 
 % This functions is for backward compatibility, as previous default config
 % used max_connections tuple for all ejabberd_cowboy listeners

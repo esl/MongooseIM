@@ -7,13 +7,24 @@ This module is a backend of [mod_event_pusher] that enables forwarding certain e
 The module hooks on all packets sent by connected users.
 When the hook is triggered, the module:
 
-* runs a callback module's `should_make_req/3` function to see if a notification should be sent
+* runs a callback module's `should_make_req/6` function to see if a notification should be sent
+* runs a callback module's `prepare_headers/7` to get http headers to be used
+* runs a callback module's `prepare_body/7`
 * sends a POST request composed of `{Host::binary(), Sender::binary(), Receiver::binary(), Message::binary()}` to the http notification server
+
+You can make multiple configuration entries for this backend to handle more complicated pushing scenarios (e.g. sending various types of messages to different backends).
 
 ### Callback module
 
-To find out what should be sent to the HTTP server, MongooseIM calls `Mod:should_make_req(Packet::xmlel(), From::jid(), To::jid())`.
-By default it uses the function in `mod_event_pusher_http` itself, which ships all non-empty chat messages and nothing else. The module can be substituted here, the method should return `true | false`.
+
+To find out what and how to send MongooseIM calls the following callback module's functions:
+`Mod:should_make_req(Acc::mongoose_acc:t(), Dir::in|out, Packet::xmlel(), From::jid(), To::jid(), Opts :: [{atom(), term()}])`.
+
+`Mod:prepare_headers(Acc::mongoose_acc:t(), Dir::in|out, Host::jid:lserver(), Message::binary(), Sender::jid:luser(), Receiver::luser(), Opts :: [{atom(), term()}])`.
+
+`Mod:prepare_body(Acc::mongoose_acc:t(), Dir::in|out, Host::jid:lserver(), Message::binary(), Sender::jid:luser(), Receiver::luser(), Opts :: [{atom(), term()}])`.
+
+By default it uses the function in `mod_event_pusher_http` itself, which ships all non-empty chat messages.
 
 ## Prerequisites
 
@@ -49,16 +60,35 @@ It must be defined in the [`outgoing_pools` settings](../advanced-configuration/
 
 Notifications will be POSTed to `http://localhost:8000/webservice/notifications`.
 
-## Payload format
+```erlang
+{mod_event_pusher, [
+    {backends, [
+        {http, [
+            {pool_name, http_pool},
+            {path, "/notifications"},
+            {callback_module, mod_event_pusher_http_notifications}
+        ]},
+        {http, [
+            {pool_name, http_pool},
+            {path, "/alerts"},
+            {callback_module, mod_event_pusher_http_alerts}
+        ]}
+    ]}
+]}
+```
 
-The HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
+Here, some notifications will be POSTed to `http://localhost:8000/webservice/notifications` and some to `http://localhost:8000/webservice/alerts`, depending on implementation of `should_make_req/6` in the two callback modules.
 
+
+## Default payload format
+The default HTTP event pusher sends a POST request with Content-Type `application/x-www-form-urlencoded`. The form has the following fields:
 * `author`: username of the user who authored the message
 * `server`: name of the server from where the message originates
 * `receiver`: username of the user who the message is for
 * `message`: content of `<body>` element of the message
 
-The contents of the author, server and receiver fields are processed by `stringprep`. As a result, these values are all lower case.
+The contents of the author, server and receiver fields are processed by `stringprep`.
+As a result, these values are all lower case.
 
 ### Example
 Below is an example of what the body of an HTTP POST request can look like:

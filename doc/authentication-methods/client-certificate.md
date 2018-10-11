@@ -46,11 +46,41 @@ Below you may find a list of backends that are safe to use with `cyrsasl_externa
 * `rdbms`
 * `riak`
 
+### Self-signed certificates
+
+By default MongooseIM doesn't accept self-signed certs for the SASL-EXTERNAL authentication.
+For development purposes, it is possible to tell MongooseIM to accept them.
+
+#### Self-signed certificates for regular TCP/TLS connections
+
+In order to tell MongooseIM to accept self-signed certs, the `ssl_options` list needs to be added to `ejabberd_c2s` listener config like below:
+
+```Erlang
+{ssl_options, [{verify_fun, {selfsigned_peer, DisconnectOnVerificationFailure}}]}
+```
+
+where the `DisconnectOnVerificationFailure` is a boolean with the following meaning only for `just_tls`:
+
+* `true` - the connection is closed if a certificate is invalid,
+* `false` - the connection isn't closed, but the certificate is not returned if it's invalid.
+  This leads to an authentication failure but allows the client to choose a different auth method if available.
+
+For `fast_tls` backend, the configuration is the same, only the `DisconnectOnVerificationFailure` is ignored.
+
+#### Self-signed certificates for WS or BOSH
+
+In order to accept self-signed certs for WS or BOSH connections, the `ssl` option list of `ejabberd_cowboy` must contain the following pair:
+
+```Erlang
+{verify_mode, selfsigned_peer}
+```
+
+
 ### Examples
 
 Certificate authentication only.
 
-```
+```Erlang
 {listen, [
            (...)
            {5222, ejabberd_c2s, [
