@@ -16,7 +16,7 @@
 -include("mongoose_logger.hrl").
 
 -export([start/2, stop/1, deps/2]).
--export([process_iq/4, user_send_packet/4, filter_packet/1]).
+-export([process_iq/4, user_send_packet/4, filter_packet/1, inbox_unread_count/2]).
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
@@ -91,6 +91,7 @@ start(Host, Opts) ->
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 70),
     ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 70),
+    ejabberd_hooks:add(inbox_unread_count, Host, ?MODULE, inbox_unread_count, 70),
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
@@ -150,6 +151,18 @@ user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
     Acc;
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
+
+-spec inbox_unread_count(Acc :: map(), To :: jid:jid()) -> map().
+inbox_unread_count(Acc, To) ->
+    try mongoose_acc:get(inbox, unread_count, Acc) of
+        Val when is_integer(Val) ->
+            Acc
+    catch
+        _:_ ->
+            {User, Host} = jid:to_lus(To),
+            {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
+            mongoose_acc:set(inbox, unread_count, Count, Acc)
+    end.
 
 -type fpacket() :: {From :: jid:jid(),
                     To :: jid:jid(),
