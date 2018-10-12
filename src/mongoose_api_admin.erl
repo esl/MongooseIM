@@ -171,7 +171,7 @@ from_json(Req, #http_api_state{command_category = Category,
             Cmds = mongoose_commands:list(admin, Category, method_to_action(Method), SubCategory),
             QVals = cowboy_req:parse_qs(Req),
             Arity = length(B) + length(Params) + length(QVals),
-            case [C || C <- Cmds, mongoose_commands:arity(C) == Arity] of
+            case [C || C <- Cmds, mongoose_commands:func_arity(C) == Arity] of
                 [Command] ->
                     process_request(Method, Command, {Params, Req}, State);
                 [] ->
