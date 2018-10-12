@@ -14,7 +14,7 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, become_unavailable/1]).
+-import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -54,7 +54,9 @@ groups() ->
            inbox_msg_unread_count_apns,
            inbox_msg_unread_count_fcm,
            muclight_inbox_msg_unread_count_apns,
-           muclight_inbox_msg_unread_count_fcm
+           muclight_inbox_msg_unread_count_fcm,
+           inbox_msg_reset_unread_count_apns,
+           inbox_msg_reset_unread_count_fcm
           ]
          }
         ],
@@ -219,16 +221,45 @@ muclight_inbox_msg_unread_count_apns(Config) ->
 muclight_inbox_msg_unread_count_fcm(Config) ->
     muclight_inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
 
+inbox_msg_reset_unread_count_apns(Config) ->
+    inbox_msg_reset_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_reset_unread_count_fcm(Config) ->
+    inbox_msg_reset_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
 inbox_msg_unread_count(Config, Service, EnableOpts) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
-              assert_incr_message_count_when_message_sent(Alice, Bob, DeviceToken, 1),
-              assert_incr_message_count_when_message_sent(Alice, Bob, DeviceToken, 2),
-              assert_incr_message_count_when_message_sent(Alice, Bob, DeviceToken, 3)
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 1),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 2),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 3)
 
       end).
+
+inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 1),
+              MsgId = send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 2),
+
+              become_available(Bob),
+              ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
+              escalus:send(Bob, ChatMarker),
+
+              become_unavailable(Bob),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 1)
+      end).
+
 
 muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
     escalus:story(
@@ -239,13 +270,13 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               KateToken = enable_push_for_user(Kate, Service, EnableOpts),
               BobToken = enable_push_for_user(Bob, Service, EnableOpts),
 
-              assert_incr_message_count_when_message_sent_to_room(Alice, Room),
+              send_message_to_room(Alice, Room),
               check_notification(KateToken, 1),
 
-              assert_incr_message_count_when_message_sent_to_room(Alice, Room),
+              send_message_to_room(Alice, Room),
               check_notification(KateToken, 2),
 
-              assert_incr_message_count_when_message_sent_to_room(Alice, Room),
+              send_message_to_room(Alice, Room),
               [ check_notification(Token, ExpectedCount) ||
                                   {Token, ExpectedCount} <- [{BobToken, 1},
                                                              {KateToken, 3},
@@ -253,16 +284,18 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
                                                              {BobToken, 3}] ]
       end).
 
-assert_incr_message_count_when_message_sent(Sender, Recipient, DeviceToken, ExpectedCount) ->
-    escalus:send(Sender, escalus_stanza:chat_to(Recipient, <<"Chat">>)),
-    check_notification(DeviceToken, ExpectedCount).
+send_private_message(Sender, Recipient) ->
+    Id = escalus_stanza:id(),
+    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(Recipient, <<"Chat">>), Id),
+    escalus:send(Sender, Msg),
+    Id.
 
 check_notification(DeviceToken, ExpectedCount) ->
     Notification = wait_for_push_request(DeviceToken),
     Data = maps:get(<<"data">>, Notification, undefined),
     ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
 
-assert_incr_message_count_when_message_sent_to_room(Sender, Room) ->
+send_message_to_room(Sender, Room) ->
     Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat">>),
     escalus:send(Sender, Stanza).
 
