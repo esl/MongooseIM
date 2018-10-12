@@ -170,6 +170,10 @@ filter_packet(drop) ->
     drop;
 filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
     Host = To#jid.server,
+    %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
+    %% so we put it in accumulator here.
+    %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
+    %% (when push notification is created)
     Acc0 = case maybe_process_message(Host, From, To, Msg, incoming) of
                {ok, UnreadCount} ->
                    mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
