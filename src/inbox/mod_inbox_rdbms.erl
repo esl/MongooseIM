@@ -119,7 +119,7 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
                             ToBareJid :: binary(),
                             Content :: binary(),
                             MsgId :: binary(),
-                            Timestamp :: erlang:timestamp()) -> {ok, binary()}.
+                            Timestamp :: erlang:timestamp()) -> ok | {ok, integer()}.
 set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
@@ -152,14 +152,14 @@ reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
         esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
         esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).
 
--spec clear_inbox(Username :: binary(), Server :: binary()) -> ok.
+-spec clear_inbox(Username :: binary(), Server :: binary()) -> inbox_write_res().
 clear_inbox(Username, Server) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Res = clear_inbox_rdbms(LUsername, LServer),
     check_result(Res).
 
--spec clear_inbox(Server :: binary()) -> ok.
+-spec clear_inbox(Server :: binary()) -> inbox_write_res().
 clear_inbox( Server) ->
     LServer = jid:nameprep(Server),
     Res = clear_inbox_rdbms(LServer),

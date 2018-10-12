@@ -34,7 +34,7 @@ handle_outgoing_message(Host, User, Remote, Packet) ->
 -spec handle_incoming_message(Host :: jid:server(),
                               User :: jid:jid(),
                               Remote :: jid:jid(),
-                              Packet :: packet()) -> ok.
+                              Packet :: packet()) -> ok | {ok, integer()}.
 handle_incoming_message(Host, User, Remote, Packet) ->
     Markers = mod_inbox_utils:get_reset_markers(Host),
     case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of

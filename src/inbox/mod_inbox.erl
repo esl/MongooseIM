@@ -182,7 +182,7 @@ filter_packet({From, To, Acc, Packet}) ->
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
-                            Dir :: outgoing | incoming) -> ok | {ok, binary()}.
+                            Dir :: outgoing | incoming) -> ok | {ok, integer()}.
 maybe_process_message(Host, From, To, Msg, Dir) ->
     AcceptableMessage = should_be_stored_in_inbox(Msg),
     case AcceptableMessage of
@@ -204,7 +204,7 @@ maybe_process_acceptable_message(Host, From, To, Msg, Dir, groupchat) ->
                       To :: jid:jid(),
                       Message :: exml:element(),
                       Dir :: outgoing | incoming,
-                      Type :: one2one | groupchat) -> ok | {ok, binary()}.
+                      Type :: one2one | groupchat) -> ok | {ok, integer()}.
 process_message(Host, From, To, Message, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, one2one) ->
@@ -415,7 +415,7 @@ get_message_type(Msg) ->
             one2one
     end.
 
--spec clear_inbox(Username :: jid:luser(), Server :: host()) -> ok.
+-spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(Username, Server) ->
     mod_inbox_utils:clear_inbox(Username, Server).
 
@@ -441,7 +441,7 @@ muc_dep(List) ->
 
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
-        reset_unread, remove_inbox, clear_inbox, get_inbox_unread].
+     reset_unread, remove_inbox, clear_inbox, get_inbox_unread].
 
 invalid_field_value(Field, Value) ->
     <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.

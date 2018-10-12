@@ -59,7 +59,7 @@ write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
 -spec write_to_receiver_inbox(Server :: host(),
                               Sender :: jid:jid(),
                               Receiver :: jid:jid(),
-                              Packet :: exml:element()) -> ok.
+                              Packet :: exml:element()) -> ok | {ok, integer()}.
 write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
@@ -69,12 +69,12 @@ write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
                                             Content, MsgId, Timestamp).
 
--spec clear_inbox(User :: jid:luser(), Server :: host()) -> ok.
+-spec clear_inbox(User :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(User, Server) when is_binary(User) ->
     JidForm = jid:from_binary(User),
     ok = mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
 
--spec clear_inbox(Server :: host()) -> ok.
+-spec clear_inbox(Server :: host()) -> inbox_write_res().
 clear_inbox(Server) ->
     ok = mod_inbox_backend:clear_inbox(Server).
 
