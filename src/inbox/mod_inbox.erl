@@ -151,15 +151,8 @@ user_send_packet(Acc, _From, _To, _Packet) ->
 
 -spec inbox_unread_count(Acc :: mongooseim_acc:t(), To :: jid:jid()) -> mongooseim_acc:t().
 inbox_unread_count(Acc, To) ->
-    try mongoose_acc:get(inbox, unread_count, Acc) of
-        Val when is_integer(Val) ->
-            Acc
-    catch
-        _:_ ->
-            {User, Host} = jid:to_lus(To),
-            {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
-            mongoose_acc:set(inbox, unread_count, Count, Acc)
-    end.
+    Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
+    get_inbox_unread(Res, Acc, To).
 
 -type fpacket() :: {From :: jid:jid(),
                     To :: jid:jid(),
@@ -321,6 +314,12 @@ form_field_value(Value) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
+get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
+    Acc;
+get_inbox_unread(undefined, Acc, To) ->
+    {User, Host} = jid:to_lus(To),
+    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
+    mongoose_acc:set(inbox, unread_count, Count, Acc).
 
 hooks(Host) ->
     [
