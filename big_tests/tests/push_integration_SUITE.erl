@@ -206,6 +206,19 @@ pm_msg_notify_on_apns_w_topic(Config) ->
 %%--------------------------------------------------------------------
 %% GROUP inbox_msg_notifications
 %%--------------------------------------------------------------------
+
+inbox_msg_unread_count_apns(Config) ->
+    inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_unread_count_fcm(Config) ->
+    inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_apns(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_fcm(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
 inbox_msg_unread_count(Config, Service, EnableOpts) ->
     escalus:story(
       Config, [{bob, 1}, {alice, 1}],
@@ -226,12 +239,18 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               KateToken = enable_push_for_user(Kate, Service, EnableOpts),
               BobToken = enable_push_for_user(Bob, Service, EnableOpts),
 
-              assert_incr_message_count_when_message_sent_to_room(Alice, Room, KateToken, 1),
-              assert_incr_message_count_when_message_sent_to_room(Alice, Room, KateToken, 2),
-              assert_incr_message_count_when_message_sent_to_room(Alice, Room, BobToken, 1),
-              check_notification(KateToken, 3),
-              check_notification(BobToken, 2),
-              check_notification(BobToken, 3)
+              assert_incr_message_count_when_message_sent_to_room(Alice, Room),
+              check_notification(KateToken, 1),
+
+              assert_incr_message_count_when_message_sent_to_room(Alice, Room),
+              check_notification(KateToken, 2),
+
+              assert_incr_message_count_when_message_sent_to_room(Alice, Room),
+              [ check_notification(Token, ExpectedCount) ||
+                                  {Token, ExpectedCount} <- [{BobToken, 1},
+                                                             {KateToken, 3},
+                                                             {BobToken, 2},
+                                                             {BobToken, 3}] ]
       end).
 
 assert_incr_message_count_when_message_sent(Sender, Recipient, DeviceToken, ExpectedCount) ->
@@ -243,22 +262,9 @@ check_notification(DeviceToken, ExpectedCount) ->
     Data = maps:get(<<"data">>, Notification, undefined),
     ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
 
-assert_incr_message_count_when_message_sent_to_room(Sender, Room, DeviceToken, ExpectedCount) ->
+assert_incr_message_count_when_message_sent_to_room(Sender, Room) ->
     Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat">>),
-    escalus:send(Sender, Stanza),
-    check_notification(DeviceToken, ExpectedCount).
-
-inbox_msg_unread_count_apns(Config) ->
-    inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
-
-inbox_msg_unread_count_fcm(Config) ->
-    inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
-
-muclight_inbox_msg_unread_count_apns(Config) ->
-    muclight_inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
-
-muclight_inbox_msg_unread_count_fcm(Config) ->
-    muclight_inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+    escalus:send(Sender, Stanza).
 
 %%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
