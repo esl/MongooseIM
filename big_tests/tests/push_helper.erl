@@ -8,7 +8,7 @@
 -export([enable_stanza/2, enable_stanza/3, enable_stanza/4,
          disable_stanza/1, disable_stanza/2]).
 
--export([become_unavailable/1]).
+-export([become_unavailable/1, become_available/1]).
 
 -export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
@@ -64,6 +64,9 @@ make_form_field(Name, Value) ->
 become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
     {ok, _} = wait_for_user_offline(Client).
+
+become_available(Client) ->
+    escalus:send(Client, escalus_stanza:presence(<<"available">>)).
 
 is_offline(LUser, LServer, LRes) ->
     PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),
