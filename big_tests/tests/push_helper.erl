@@ -66,7 +66,27 @@ become_unavailable(Client) ->
     {ok, _} = wait_for_user_offline(Client).
 
 become_available(Client) ->
-    escalus:send(Client, escalus_stanza:presence(<<"available">>)).
+    escalus:send(Client, escalus_stanza:presence(<<"available">>)),
+    {ok, true} = wait_for_user_online(Client),
+    timer:sleep(100).
+
+is_online(LUser, LServer, LRes) ->
+    PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),
+    case lists:keyfind(LRes, 2, PResources) of
+        {_, LRes} ->
+            true;
+        Other ->
+            false
+    end.
+
+wait_for_user_online(Client) ->
+    mongoose_helper:wait_until(fun() ->
+                                       is_online(escalus_utils:jid_to_lower(escalus_client:username(Client)),
+                                                  escalus_utils:jid_to_lower(escalus_client:server(Client)),
+                                                  escalus_utils:jid_to_lower(escalus_client:resource(Client)))
+                               end,
+                               true,
+                               #{sleep_time => 500, time_left => timer:seconds(20), name => is_online}).
 
 is_offline(LUser, LServer, LRes) ->
     PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),
