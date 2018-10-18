@@ -246,17 +246,18 @@ inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
-              send_private_message(Alice, Bob),
+              send_private_message(Alice, Bob, <<"FIRST MESSAGE">>),
               check_notification(DeviceToken, 1),
-              MsgId = send_private_message(Alice, Bob),
+              MsgId = send_private_message(Alice, Bob, <<"SECOND MESSAGE">>),
               check_notification(DeviceToken, 2),
 
               become_available(Bob),
               ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
               escalus:send(Bob, ChatMarker),
+              escalus:wait_for_stanza(Alice),
 
               become_unavailable(Bob),
-              send_private_message(Alice, Bob),
+              send_private_message(Alice, Bob, <<"THIRD MESSAGE">>),
               check_notification(DeviceToken, 1)
       end).
 
@@ -285,8 +286,11 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
       end).
 
 send_private_message(Sender, Recipient) ->
+    send_private_message(Sender, Recipient, <<"Private message">>).
+
+send_private_message(Sender, Recipient, Body) ->
     Id = escalus_stanza:id(),
-    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(Recipient, <<"Chat">>), Id),
+    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(Recipient, Body), Id),
     escalus:send(Sender, Msg),
     Id.
 
@@ -296,7 +300,7 @@ check_notification(DeviceToken, ExpectedCount) ->
     ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
 
 send_message_to_room(Sender, Room) ->
-    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat">>),
+    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat message">>),
     escalus:send(Sender, Stanza).
 
 %%--------------------------------------------------------------------
