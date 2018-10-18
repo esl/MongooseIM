@@ -238,22 +238,22 @@ maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes) ->
         case {lists:keyfind(owner, 2, AU), find_new_owner(AffRes)} of
             {false, {NewOwner, PromotionType}} -> %select new owner
                 NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
-                NewAUC = case PromotionType of
-                             promote_old_member ->
-                                 [{NewOwner, owner} | AUC];
-                             promote_joined_member ->
-                                 lists:keyreplace(NewOwner, 1, AUC, {NewOwner, owner});
-                             promote_demoted_owner ->
-                                 lists:keydelete(NewOwner, 1, AUC)
-                         end,
+                NewAUC = update_auc(PromotionType, NewOwner, AUC),
                 {NewAU, NewAUC};
-
             _ ->
                 {AU, AUC}
         end,
     {ok, AffUsers, AffUsersChanged, JoiningUsers, LeavingUsers};
 maybe_select_new_owner(Error) ->
     Error.
+
+update_auc(promote_old_member, NewOwner, AUC) ->
+    [{NewOwner, owner} | AUC];
+update_auc(promote_joined_member, NewOwner, AUC) ->
+    lists:keyreplace(NewOwner, 1, AUC, {NewOwner, owner});
+update_auc(promote_demoted_owner, NewOwner, AUC) ->
+    lists:keydelete(NewOwner, 1, AUC).
+
 
 -spec find_new_owner(ChangeResult :: change_aff_success()) ->
     {jid:simple_bare_jid(), promotion_type()} | false.
