@@ -237,7 +237,7 @@ maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes) ->
     {AffUsers, AffUsersChanged} =
         case is_new_owner_needed(AU) of
             true ->
-                {NewOwner, PromotionType} = find_new_owner(AffRes),
+                {NewOwner, PromotionType} = find_new_owner(AU, AUC, JoiningUsers),
                 NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
                 NewAUC = update_au(PromotionType, NewOwner, AUC),
                 {NewAU, NewAUC};
@@ -264,7 +264,7 @@ is_new_owner_needed(AU) ->
 
 -spec find_new_owner(ChangeResult :: change_aff_success()) ->
     {jid:simple_bare_jid(), promotion_type()} | false.
-find_new_owner({ok, AU, AUC, JoiningUsers, _LeavingUsers}) ->
+find_new_owner(AU, AUC, JoiningUsers) ->
     AllMembers = [U || {U, member} <- (AU)],
     NewMembers = [U || {U, member} <- (AUC)],
     OldMembers = AllMembers -- NewMembers,
