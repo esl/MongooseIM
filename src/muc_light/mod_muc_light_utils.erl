@@ -269,16 +269,20 @@ find_new_owner(AU, AUC, JoiningUsers) ->
     NewMembers = [U || {U, member} <- (AUC)],
     OldMembers = AllMembers -- NewMembers,
     DemotedOwners = NewMembers -- JoiningUsers,
-    %% try to select the new owner from:
-    %%   1) old unchanged room members
-    %%   2) new just joined room members
-    %%   3) demoted room owners
-    case {OldMembers, JoiningUsers, DemotedOwners} of
-        {[U | _], _, _} -> {U, promote_old_member};
-        {_, [U | _], _} -> {U, promote_joined_member};
-        {_, _, [U | _]} -> {U, promote_demoted_owner};
-        _ -> false
-    end.
+    generate_promotion(OldMembers, JoiningUsers, DemotedOwners).
+
+%% @doc try to select the new owner from:
+%%   1) old unchanged room members
+%%   2) new just joined room members
+%%   3) demoted room owners
+generate_promotion([U | _], _JoiningUsers, _DemotedOwners) ->
+    {U, promote_old_member};
+generate_promotion(_OldMembers, [U | _], DemotedOwners) ->
+    {U, promote_joined_member};
+generate_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
+    {U, promote_demoted_owner};
+generate_promotion(_, _, _) ->
+    false.
 
 -spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request}) ->
     change_aff_success() | {error, bad_request}.
