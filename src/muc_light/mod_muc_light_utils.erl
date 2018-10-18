@@ -235,24 +235,31 @@ value2b(Val, float) -> float_to_binary(Val).
     change_aff_success() | {error, bad_request}.
 maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes) ->
     {AffUsers, AffUsersChanged} =
-        case {lists:keyfind(owner, 2, AU), find_new_owner(AffRes)} of
-            {false, {NewOwner, PromotionType}} -> %select new owner
+        case is_new_owner_needed(AU) of
+            true ->
+                {NewOwner, PromotionType} = find_new_owner(AffRes),
                 NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
-                NewAUC = update_auc(PromotionType, NewOwner, AUC),
+                NewAUC = update_au(PromotionType, NewOwner, AUC),
                 {NewAU, NewAUC};
-            _ ->
+            false ->
                 {AU, AUC}
         end,
     {ok, AffUsers, AffUsersChanged, JoiningUsers, LeavingUsers};
 maybe_select_new_owner(Error) ->
     Error.
 
-update_auc(promote_old_member, NewOwner, AUC) ->
+update_au(promote_old_member, NewOwner, AUC) ->
     [{NewOwner, owner} | AUC];
-update_auc(promote_joined_member, NewOwner, AUC) ->
+update_au(promote_joined_member, NewOwner, AUC) ->
     lists:keyreplace(NewOwner, 1, AUC, {NewOwner, owner});
-update_auc(promote_demoted_owner, NewOwner, AUC) ->
+update_au(promote_demoted_owner, NewOwner, AUC) ->
     lists:keydelete(NewOwner, 1, AUC).
+
+is_new_owner_needed(AU) ->
+    case lists:keyfind(owner, 2, AU) of
+        false -> false;
+        _ -> true
+    end.
 
 
 -spec find_new_owner(ChangeResult :: change_aff_success()) ->
