@@ -290,17 +290,16 @@ maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
     Owners = [U || {U, owner} <- AU],
     PromotedOwners = [U || {U, owner} <- AUC],
     OldOwners = Owners -- PromotedOwners,
-    if
-        length(Owners) =< 1 ->
+    case {Owners, OldOwners} of
+        _ when length(Owners) =< 1 ->
             {ok, AU, AUC, JoiningUsers, LeavingUsers};
-        length(Owners) =:= 2 andalso length(OldOwners) =:= 1 ->
-            [U] = OldOwners,
-            NewAU = lists:keyreplace(U, 1, AU, {U, member}),
-            NewAUC = [{U, member} | AUC],
+        {[_, _], [OldOwner]} ->
+            NewAU = lists:keyreplace(OldOwner, 1, AU, {OldOwner, member}),
+            NewAUC = [{OldOwner, member} | AUC],
             {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
-        true ->
+        _ ->
             {error, bad_request}
-    end;
+    end
 maybe_demote_old_owner(Error) ->
     Error.
 
