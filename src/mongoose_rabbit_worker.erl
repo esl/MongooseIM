@@ -67,10 +67,10 @@ list_metrics() ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([{amqp_client_opts, Opts}, {host, Host}]) ->
+init(Opts) ->
     process_flag(trap_exit, true),
     self() ! {init, Opts},
-    {ok, #state{host = Host}}.
+    {ok, #state{host = proplists:get_value(host, Opts)}}.
 
 handle_call({create_exchanges, Exchanges}, _From,
             #state{channel = Channel} = State) ->
@@ -104,7 +104,7 @@ handle_cast({user_groupchat_msg_recv, EventData},
 
 handle_info({init, Opts}, State = #state{host = Host}) ->
     {Connection, Channel} = establish_rabbit_connection(Opts, Host),
-    enable_confirms(Channel),
+    maybe_enable_confirms(Channel, Opts),
     {noreply, State#state{connection = Connection, channel = Channel}}.
 
 terminate(_Reason, #state{connection = Connection, channel = Channel,
@@ -218,12 +218,16 @@ publish_message_and_wait_for_confirm(Channel, Exchange, RoutingKey, Message) ->
     amqp_channel:call(Channel, #'basic.publish'{exchange = Exchange,
                                                 routing_key = RoutingKey},
                       #amqp_msg{payload = Message}),
-    amqp_channel:wait_for_confirms(Channel).
+    try amqp_channel:wait_for_confirms(Channel)
+    catch
+        throw:not_in_confirm_mode -> ok
+    end.
 
--spec establish_rabbit_connection(Opts :: #amqp_params_network{},
+-spec establish_rabbit_connection(Opts :: proplists:proplist(),
                                   Host :: jid:server()) -> ok.
 establish_rabbit_connection(Opts, Host) ->
-    case amqp_connection:start(Opts) of
+    AMQPOpts = proplists:get_value(amqp_client_opts, Opts),
+    case amqp_connection:start(AMQPOpts) of
         {ok, Connection} ->
             update_success_connections_metrics(Host),
             {ok, Channel} = amqp_connection:open_channel(Connection),
@@ -235,10 +239,16 @@ establish_rabbit_connection(Opts, Host) ->
             exit("connection to a Rabbit server failed")
     end.
 
--spec enable_confirms(Channel :: pid()) -> ok.
-enable_confirms(Channel) ->
-    #'confirm.select_ok'{} = amqp_channel:call(Channel, #'confirm.select'{}),
-    ok.
+-spec maybe_enable_confirms(Channel :: pid(), Opts :: proplists:proplist()) -> ok.
+maybe_enable_confirms(Channel, Opts) ->
+    case proplists:get_value(confirms_enabled, Opts) of
+        true ->
+            #'confirm.select_ok'{} =
+                amqp_channel:call(Channel, #'confirm.select'{}),
+            ok;
+        false ->
+            ok
+    end.
 
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid(),
                               Host :: jid:server()) ->

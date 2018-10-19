@@ -58,7 +58,9 @@ start(Host, _Opts) ->
     wpool:start_sup_pool(pool_name(Host),
                          [{worker, {mongoose_rabbit_worker,
                                     [{amqp_client_opts, amqp_client_opts(Host)},
-                                     {host, Host}]
+                                     {host, Host},
+                                     {confirms_enabled,
+                                      opt(Host, confirms_enabled, false)}]
                                    }},
                           {workers, WorkerNum}]),
     create_exchanges(Host),

@@ -40,6 +40,8 @@
          {amqp_port, 5672},
          {amqp_username, <<"guest">>},
          {amqp_password, <<"guest">>},
+         %% enables publisher one-to-one confirms; disabled by default
+         %% {confirms_enabled, true},
          {presence_exchange, ?PRESENCE_EXCHANGE},
          {chat_msg_exchange, ?CHAT_MSG_EXCHANGE},
          {chat_msg_sent_topic, ?CHAT_MSG_SENT_TOPIC},
