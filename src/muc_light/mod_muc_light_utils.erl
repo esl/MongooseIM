@@ -239,7 +239,7 @@ maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes) ->
             true ->
                 {NewOwner, PromotionType} = find_new_owner(AU, AUC, JoiningUsers),
                 NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
-                NewAUC = update_au(PromotionType, NewOwner, AUC),
+                NewAUC = update_auc(PromotionType, NewOwner, AUC),
                 {NewAU, NewAUC};
             false ->
                 {AU, AUC}
@@ -248,11 +248,11 @@ maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes) ->
 maybe_select_new_owner(Error) ->
     Error.
 
-update_au(promote_old_member, NewOwner, AUC) ->
+update_auc(promote_old_member, NewOwner, AUC) ->
     [{NewOwner, owner} | AUC];
-update_au(promote_joined_member, NewOwner, AUC) ->
+update_auc(promote_joined_member, NewOwner, AUC) ->
     lists:keyreplace(NewOwner, 1, AUC, {NewOwner, owner});
-update_au(promote_demoted_owner, NewOwner, AUC) ->
+update_auc(promote_demoted_owner, NewOwner, AUC) ->
     lists:keydelete(NewOwner, 1, AUC).
 
 is_new_owner_needed(AU) ->
@@ -269,19 +269,19 @@ find_new_owner(AU, AUC, JoiningUsers) ->
     NewMembers = [U || {U, member} <- (AUC)],
     OldMembers = AllMembers -- NewMembers,
     DemotedOwners = NewMembers -- JoiningUsers,
-    generate_promotion(OldMembers, JoiningUsers, DemotedOwners).
+    select_promotion(OldMembers, JoiningUsers, DemotedOwners).
 
 %% @doc try to select the new owner from:
 %%   1) old unchanged room members
 %%   2) new just joined room members
 %%   3) demoted room owners
-generate_promotion([U | _], _JoiningUsers, _DemotedOwners) ->
+select_promotion([U | _], _JoiningUsers, _DemotedOwners) ->
     {U, promote_old_member};
-generate_promotion(_OldMembers, [U | _], DemotedOwners) ->
+select_promotion(_OldMembers, [U | _], DemotedOwners) ->
     {U, promote_joined_member};
-generate_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
+select_promotion(_OldMembers, _JoiningUsers, [U | _]) ->
     {U, promote_demoted_owner};
-generate_promotion(_, _, _) ->
+select_promotion(_, _, _) ->
     false.
 
 -spec maybe_demote_old_owner(ChangeResult :: change_aff_success() | {error, bad_request}) ->
