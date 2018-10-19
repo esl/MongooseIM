@@ -74,11 +74,11 @@ init(Opts) ->
 
 handle_call({create_exchanges, Exchanges}, _From,
             #state{channel = Channel} = State) ->
-    [declare_exchange(Channel, Exchange) || Exchange <- Exchanges],
+    [declare_exchange(Channel, ExName, ExType) || {ExName, ExType} <- Exchanges],
     {reply, ok, State};
 handle_call({delete_exchanges, Exchanges}, _From,
             #state{channel = Channel} = State) ->
-    [delete_exchange(Channel, Exchange) || Exchange <- Exchanges],
+    [delete_exchange(Channel, ExName) || {ExName, _} <- Exchanges],
     {reply, ok, State}.
 
 handle_cast({user_presence_changed, EventData},
@@ -116,10 +116,11 @@ terminate(_Reason, #state{connection = Connection, channel = Channel,
 %%% Internal functions
 %%%===================================================================
 
--spec declare_exchange(Channel :: pid(), Exchange :: binary()) -> term().
-declare_exchange(Channel, Exchange) ->
-    amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                   type = <<"topic">>}).
+-spec declare_exchange(Channel :: pid(), Name :: binary(), Type :: binary()) ->
+  term().
+declare_exchange(Channel, Name, Type) ->
+    amqp_channel:call(Channel, #'exchange.declare'{exchange = Name,
+                                                   type = Type}).
 
 -spec delete_exchange(Channel :: pid(), Exchange :: binary()) -> term().
 delete_exchange(Channel, Exchange) ->

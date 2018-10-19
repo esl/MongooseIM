@@ -20,10 +20,13 @@
 %%%===================================================================
 
 -define(DEFAULT_PRESENCE_EXCHANGE, <<"presence">>).
+-define(DEFAULT_PRESENCE_EXCHANGE_TYPE, <<"topic">>).
 -define(DEFAULT_CHAT_MSG_EXCHANGE, <<"chat_msg">>).
+-define(DEFAULT_CHAT_MSG_EXCHANGE_TYPE, <<"topic">>).
 -define(DEFAULT_CHAT_MSG_SENT_TOPIC, <<"chat_msg_sent">>).
 -define(DEFAULT_CHAT_MSG_RECV_TOPIC, <<"chat_msg_recv">>).
 -define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE, <<"groupchat_msg">>).
+-define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE, <<"topic">>).
 -define(DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC, <<"groupchat_msg_sent">>).
 -define(DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC, <<"groupchat_msg_recv">>).
 
@@ -177,9 +180,12 @@ amqp_client_opts(Host) ->
 -spec exchanges(Host :: jid:server()) -> [binary()].
 exchanges(Host) ->
     [
-     opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
-     opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
-     opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE)
+     {opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
+      opt(Host, presence_exchange_type, ?DEFAULT_PRESENCE_EXCHANGE_TYPE)},
+     {opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
+      opt(Host, chat_msg_exchange_type, ?DEFAULT_CHAT_MSG_EXCHANGE_TYPE)},
+     {opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE),
+      opt(Host, groupchat_msg_exchange_type, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE)}
     ].
 
 -spec initialize_metrics(Host :: jid:server()) -> ok.

@@ -28,6 +28,7 @@
 
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(QUEUE_NAME, <<"test_queue">>).
+-define(DEFAULT_EXCHANGE_TYPE, <<"topic">>).
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
 -define(CHAT_MSG_EXCHANGE, <<"custom_chat_msg_exchange">>).
 -define(GROUP_CHAT_MSG_EXCHANGE, <<"custom_group_chat_msg_exchange">>).
@@ -156,10 +157,18 @@ exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE,
-                 ?GROUP_CHAT_MSG_EXCHANGE],
+    ExCustomType = <<"headers">>,
+    Exchanges = [{?PRESENCE_EXCHANGE, ExCustomType},
+                 {?CHAT_MSG_EXCHANGE, ExCustomType},
+                 {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType}],
+    ConfigWithCustomExchangeType =
+        ?MOD_EVENT_PUSHER_RABBIT_CFG ++ [
+                                         {presence_exchange_type, ExCustomType},
+                                         {chat_msg_exchange_type, ExCustomType},
+                                         {groupchat_msg_exchange, ExCustomType}
+                                        ],
     %% WHEN
-    start_mod_event_pusher_rabbit(),
+    start_mod_event_pusher_rabbit(ConfigWithCustomExchangeType),
     %% THEN exchanges are created
     [?assert(ensure_exchange_present(Connection, Channel, Exchange,
                                  ?IF_EXCHANGE_EXISTS_RETRIES))
@@ -459,7 +468,9 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
     Channel = proplists:get_value(rabbit_channel, Config),
     declare_temporary_rabbit_queue(Channel, ?QUEUE_NAME),
     wait_for_exchanges_to_be_created(Connection,
-                                     [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE]),
+                                     [{?PRESENCE_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
+                                      {?CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
+                                      {?GROUP_CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE}]),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
 
@@ -530,16 +541,17 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                           Exchange :: binary(),
                           Retries :: non_neg_integer()) ->
     true | no_return().
-ensure_exchange_present(_Connection, Channel, Exchange, 1) ->
-    amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                   type = <<"topic">>,
+ensure_exchange_present(_Connection, Channel, {ExName, ExType}, 1) ->
+    amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
+                                                   type = ExType,
                                                    %% this option allows to
                                                    %% check if an exchange exists
                                                    passive = true}),
     true;
-ensure_exchange_present(Connection, Channel, Exchange, Retries) ->
-    try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                       type = <<"topic">>,
+ensure_exchange_present(Connection, Channel, Exchange = {ExName, ExType},
+                        Retries) ->
+    try amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
+                                                       type = ExType,
                                                        passive = true}) of
         {'exchange.declare_ok'} -> true
     catch
@@ -609,9 +621,11 @@ get_decoded_message_from_rabbit(RoutingKey) ->
 %%--------------------------------------------------------------------
 
 start_mod_event_pusher_rabbit() ->
+    start_mod_event_pusher_rabbit(?MOD_EVENT_PUSHER_RABBIT_CFG).
+
+start_mod_event_pusher_rabbit(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    rpc(mim(), gen_mod, start_module, [Host, mod_event_pusher_rabbit,
-                                       ?MOD_EVENT_PUSHER_RABBIT_CFG]).
+    rpc(mim(), gen_mod, start_module, [Host, mod_event_pusher_rabbit, Config]).
 
 stop_mod_event_pusher_rabbit() ->
     Host = ct:get_config({hosts, mim, domain}),
