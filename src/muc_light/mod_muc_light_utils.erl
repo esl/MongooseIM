@@ -262,7 +262,7 @@ is_new_owner_needed(AU) ->
     end.
 
 
--spec find_new_owner(ChangeResult :: change_aff_success()) ->
+-spec find_new_owner(aff_users(), aff_users(), [jid:simple_bare_jid()]) ->
     {jid:simple_bare_jid(), promotion_type()} | false.
 find_new_owner(AU, AUC, JoiningUsers) ->
     AllMembers = [U || {U, member} <- (AU)],
@@ -299,7 +299,7 @@ maybe_demote_old_owner({ok, AU, AUC, JoiningUsers, LeavingUsers}) ->
             {ok, NewAU, NewAUC, JoiningUsers, LeavingUsers};
         _ ->
             {error, bad_request}
-    end
+    end;
 maybe_demote_old_owner(Error) ->
     Error.
 
