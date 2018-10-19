@@ -257,8 +257,8 @@ update_auc(promote_demoted_owner, NewOwner, AUC) ->
 
 is_new_owner_needed(AU) ->
     case lists:keyfind(owner, 2, AU) of
-        false -> false;
-        _ -> true
+        false -> true;
+        _ -> false
     end.
 
 
