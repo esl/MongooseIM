@@ -10,10 +10,10 @@ receiver) along with the message body.
 * **group message sent/received** - Carries the user id and the room id
 (full jids by default) along with the message body.
 
-All these notifications are sent as JSON strings to RabbitMQ topic exchanges.
-Each type of the notifications is sent to it's dedicated exchange. There are
-three exchanges created on startup of the module, for presences, private
-messages and group chat messages related events.
+All these notifications are sent as JSON strings to RabbitMQ exchanges. Type
+of exchanges can be chosen as desired. Each type of the notifications is sent
+to it's dedicated exchange. There are three exchanges created on startup of the
+module, for presences, private messages and group chat messages related events.
 
 Messages are published to a RabbitMQ server with routing key being set to a user
 bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_message_sent`.
@@ -24,9 +24,13 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
 * **amqp_port** (integer, default: `5672`) - Defines RabbitMQ server AMQP port;
 * **amqp_username** (string, default: `<<"guest">>`) - Defines RabbitMQ server username;
 * **amqp_password** (string, default: `<<"guest">>`) - Defines RabbitMQ server password;
+* **confirms_enabled** (boolean, default: `false`) - Enables/disables one-to-one publishers confirms;
 * **presence_exchange** (string, default: `<<"presence">>`) - Defines RabbitMQ presence exchange name;
+* **presence_exchange_type** (string, default: `<<"topic">>`) - Defines RabbitMQ presence exchange type;
 * **chat_msg_exchange** (string, default: `<<"chat_msg">>`) - Defines RabbitMQ chat message exchange name;
+* **chat_msg_exchange_type** (string, default: `<<"topic">>`) - Defines RabbitMQ chat message exchange type;
 * **groupchat_msg_exchange** (string, default: `<<"groupchat_msg">>`) - Defines RabbitMQ group chat message exchange name;
+* **groupchat_msg_exchange_type** (string, default: `<<"topic">>`) - Defines RabbitMQ group chat message exchange type;
 * **chat_msg_sent_topic** (string, default: `<<"chat_msg_sent">>`) - Defines RabbitMQ chat message sent topic name;
 * **chat_msg_recv_topic** (string, default: `<<"chat_msg_recv">>`) - Defines RabbitMQ chat message received topic name;
 * **groupchat_msg_sent_topic** (string, default: `<<"groupchat_msg_sent">>`) - Defines RabbitMQ group chat message sent topic name;
@@ -144,9 +148,26 @@ which means that we don't care if a message is delivered to a RabbitMQ server.
 If a message couldn't be delivered to the server for any reason the module
 just updates appropriate metrics and print some log messages.
 
+### Type of exchanges
+
+By default all the exchanges used are of type `topic`. Using topic exchanges
+gives a lot of flexibility when binding queues to such an exchange by using
+`#` and `*` in binding keys. But flexibility comes at the cost of performance -
+imagine a scenario when there is thousands of users and AMQP consumers use
+bindig keys, for particular users, which looks like `user_N@host.#`. In such
+case RabbitMQ has to go through all the users in order to find out where
+a message should be sent to. This operations is proved to be costly. In a load
+test with 100k users a delay caused by this operation was substantial (about an
+order of magnitue higher in compared to a load test with 60k users).
+
+If perfromance is a top priority go for `direct` exchanges. Using this type of
+exchanges is proved to work efficiently with 100k users. Keep in mind it gives
+up flexibility over perfromance.
+
 ### Publisher confirms
 
-One-to-one confirmations are in use. When a worker sends a message to a RabbitMQ
+By default publisher confirmations are disabled. However, one-to-one
+confirmations can be enabled . When a worker sends a message to a RabbitMQ
 server it waits for a confirmation from the server before it starts to process
 next message. This approach allows to introduce backpressure on a RabbitMQ server
 connection cause the server can reject messages when it's overloaded. On the
