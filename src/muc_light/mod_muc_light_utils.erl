@@ -235,9 +235,8 @@ value2b(Val, float) -> float_to_binary(Val).
     change_aff_success() | {error, bad_request}.
 maybe_select_new_owner({ok, AU, AUC, JoiningUsers, LeavingUsers} = AffRes) ->
     {AffUsers, AffUsersChanged} =
-        case is_new_owner_needed(AU) of
-            true ->
-                {NewOwner, PromotionType} = find_new_owner(AU, AUC, JoiningUsers),
+        case is_new_owner_needed(AU) andalso find_new_owner(AU, AUC, JoiningUsers) of
+            {NewOwner, PromotionType} ->
                 NewAU = lists:keyreplace(NewOwner, 1, AU, {NewOwner, owner}),
                 NewAUC = update_auc(PromotionType, NewOwner, AUC),
                 {NewAU, NewAUC};
