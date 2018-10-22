@@ -101,7 +101,8 @@ delete_exchanges(Host) ->
 -spec publish_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
 publish_user_presence_change(JID = #jid{lserver = Host}, Status) ->
     UserJID = jid:to_lower(JID),
-    PresenceExchange = opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
+    PresenceExchange = exchange_opt(Host, presence_exchange, name,
+                                    ?DEFAULT_PRESENCE_EXCHANGE),
     wpool:cast(pool_name(Host), {user_presence_changed,
                                  #{user_jid => UserJID,
                                    status => Status,
@@ -140,9 +141,10 @@ extract_message(Packet) ->
 
 -spec get_chat_exchange(chat | groupchat, Host :: binary()) -> binary().
 get_chat_exchange(chat, Host) ->
-    opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE);
+    exchange_opt(Host, chat_msg_exchange, name, ?DEFAULT_CHAT_MSG_EXCHANGE);
 get_chat_exchange(groupchat, Host) ->
-    opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE).
+    exchange_opt(Host, groupchat_msg_exchange, name,
+                 ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE).
 
 -spec get_chat_event(chat | groupchat, in | out) -> chat_event().
 get_chat_event(chat, in) -> user_chat_msg_sent;
@@ -152,13 +154,17 @@ get_chat_event(groupchat, out) -> user_groupchat_msg_recv.
 
 -spec get_chat_topic(event(), Host :: binary()) -> binary().
 get_chat_topic(user_chat_msg_sent, Host) ->
-    opt(Host, chat_msg_sent_topic, ?DEFAULT_CHAT_MSG_SENT_TOPIC);
+    exchange_opt(Host, chat_msg_exchange, sent_topic,
+                 ?DEFAULT_CHAT_MSG_SENT_TOPIC);
 get_chat_topic(user_chat_msg_recv, Host) ->
-    opt(Host, chat_msg_recv_topic, ?DEFAULT_CHAT_MSG_RECV_TOPIC);
+    exchange_opt(Host, chat_msg_exchange, recv_topic,
+                 ?DEFAULT_CHAT_MSG_RECV_TOPIC);
 get_chat_topic(user_groupchat_msg_sent, Host) ->
-    opt(Host, groupchat_msg_sent_topic, ?DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC);
+    exchange_opt(Host, groupchat_msg_exchange, sent_topic,
+                        ?DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC);
 get_chat_topic(user_groupchat_msg_recv, Host) ->
-    opt(Host, groupchat_msg_recv_topic, ?DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC).
+    exchange_opt(Host, groupchat_msg_exchange, recv_topic,
+                 ?DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC).
 
 
 -spec pool_name(Host :: jid:lserver()) -> atom().
@@ -180,18 +186,30 @@ amqp_client_opts(Host) ->
 -spec exchanges(Host :: jid:server()) -> [binary()].
 exchanges(Host) ->
     [
-     {opt(Host, presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE),
-      opt(Host, presence_exchange_type, ?DEFAULT_PRESENCE_EXCHANGE_TYPE)},
-     {opt(Host, chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE),
-      opt(Host, chat_msg_exchange_type, ?DEFAULT_CHAT_MSG_EXCHANGE_TYPE)},
-     {opt(Host, groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE),
-      opt(Host, groupchat_msg_exchange_type, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE)}
+     {exchange_opt(Host, presence_exchange, name,
+                   ?DEFAULT_PRESENCE_EXCHANGE),
+      exchange_opt(Host, presence_exchange, type,
+                   ?DEFAULT_PRESENCE_EXCHANGE_TYPE)},
+     {exchange_opt(Host, chat_msg_exchange, name,
+                   ?DEFAULT_CHAT_MSG_EXCHANGE),
+      exchange_opt(Host, chat_msg_exchange, type,
+                   ?DEFAULT_CHAT_MSG_EXCHANGE_TYPE)},
+     {exchange_opt(Host, groupchat_msg_exchange, name,
+                   ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE),
+      exchange_opt(Host, groupchat_msg_exchange, type,
+                   ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE)}
     ].
 
 -spec initialize_metrics(Host :: jid:server()) -> ok.
 initialize_metrics(Host) ->
     [mongoose_metrics:ensure_metric(Host, Name, Type)
      || {Name, Type} <- mongoose_rabbit_worker:list_metrics()].
+
+-spec exchange_opt(Host :: jid:lserver(), ExchangeKey :: atom(),
+                   Option :: atom(), Default :: term()) -> term().
+exchange_opt(Host, Exchange, Option, Default) ->
+    ExchangeOptions = opt(Host, Exchange, []),
+    proplists:get_value(Option, ExchangeOptions, Default).
 
 %% Getter for module options
 -spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().

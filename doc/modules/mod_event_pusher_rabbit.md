@@ -25,16 +25,19 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
 * **amqp_username** (string, default: `<<"guest">>`) - Defines RabbitMQ server username;
 * **amqp_password** (string, default: `<<"guest">>`) - Defines RabbitMQ server password;
 * **confirms_enabled** (boolean, default: `false`) - Enables/disables one-to-one publishers confirms;
-* **presence_exchange** (string, default: `<<"presence">>`) - Defines RabbitMQ presence exchange name;
-* **presence_exchange_type** (string, default: `<<"topic">>`) - Defines RabbitMQ presence exchange type;
-* **chat_msg_exchange** (string, default: `<<"chat_msg">>`) - Defines RabbitMQ chat message exchange name;
-* **chat_msg_exchange_type** (string, default: `<<"topic">>`) - Defines RabbitMQ chat message exchange type;
-* **groupchat_msg_exchange** (string, default: `<<"groupchat_msg">>`) - Defines RabbitMQ group chat message exchange name;
-* **groupchat_msg_exchange_type** (string, default: `<<"topic">>`) - Defines RabbitMQ group chat message exchange type;
-* **chat_msg_sent_topic** (string, default: `<<"chat_msg_sent">>`) - Defines RabbitMQ chat message sent topic name;
-* **chat_msg_recv_topic** (string, default: `<<"chat_msg_recv">>`) - Defines RabbitMQ chat message received topic name;
-* **groupchat_msg_sent_topic** (string, default: `<<"groupchat_msg_sent">>`) - Defines RabbitMQ group chat message sent topic name;
-* **groupchat_msg_recv_topic** (string, default: `<<"groupchat_msg_recv">>`) - Defines RabbitMQ group chat message received topic name;
+* **presence_exchange** - Defines presence exchange options, such as:
+  * `name` - (string, default: `<<"presence">>`) - Defines RabbitMQ presence exchange name;
+  * `type` (string, default: `<<"topic">>`) - Defines RabbitMQ presence exchange type;
+* **chat_msg_exchange** - Defines chat message exchange options, such as:
+  * `name` - (string, default: `<<"chat_msg">>`) - Defines RabbitMQ chat message exchange name;
+  * `type` (string, default: `<<"topic">>`) - Defines RabbitMQ chat message exchange type;
+  * `sent_topic` - (string, default: `<<"chat_msg_sent">>`) - Defines RabbitMQ chat message sent topic name;
+  * `recv_topic` - (string, default: `<<"chat_msg_recv">>`) - Defines RabbitMQ chat message received topic name;
+* **groupchat_msg_exchange** - Defines group chat message exchange options, such as:
+  * `name` - (string, default: `<<"groupchat_msg">>`) - Defines RabbitMQ group chat message exchange name;
+  * `type` (string, default: `<<"topic">>`) - Defines RabbitMQ group chat message exchange type;
+  * `sent_topic` (string, default: `<<"groupchat_msg_sent">>`) - Defines RabbitMQ group chat message sent topic name;
+  * `recv_topic` (string, default: `<<"groupchat_msg_recv">>`) - Defines RabbitMQ group chat message received topic name;
 * **pool_size** (integer, default: `100`) - Worker pool size for publishing notifications.
 
 ### Example configuration
@@ -47,13 +50,14 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
             {amqp_port, 5672},
             {amqp_username, <<"guest">>},
             {amqp_password, <<"guest">>},
-            {presence_exchange, <<"presence">>},
-            {chat_msg_exchange, <<"chat_msg">>},
-            {chat_msg_sent_topic, <<"chat_msg_sent">>},
-            {chat_msg_recv_topic, <<"chat_msg_recv">>},
-            {groupchat_msg_exchange, <<"groupchat_msg">>},
-            {groupchat_msg_sent_topic, <<"groupchat_msg_sent">>},
-            {groupchat_msg_recv_topic, <<"groupchat_msg_recv"},
+            {presence_exchange, [{name, <<"presence">>},
+                                 {type, <<"topic">>}]},
+            {chat_msg_exchange, [{name, <<"chat_msg">>},
+                                 {sent_topic, <<"chat_msg_sent">>},
+                                 {recv_topic, <<"chat_msg_recv">>}]},
+            {groupchat_msg_exchange, [{name, <<"groupchat_msg">>},
+                                      {sent_topic, <<"groupchat_msg_sent">>},
+                                      {recv_topic, <<"groupchat_msg_recv">>}]},
             {pool_size, 50}
         ]}
     ]}

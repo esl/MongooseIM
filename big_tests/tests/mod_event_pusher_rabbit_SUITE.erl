@@ -43,13 +43,13 @@
          {amqp_password, <<"guest">>},
          %% enables publisher one-to-one confirms; disabled by default
          %% {confirms_enabled, true},
-         {presence_exchange, ?PRESENCE_EXCHANGE},
-         {chat_msg_exchange, ?CHAT_MSG_EXCHANGE},
-         {chat_msg_sent_topic, ?CHAT_MSG_SENT_TOPIC},
-         {chat_msg_recv_topic, ?CHAT_MSG_RECV_TOPIC},
-         {groupchat_msg_exchange, ?GROUP_CHAT_MSG_EXCHANGE},
-         {groupchat_msg_sent_topic, ?GROUP_CHAT_MSG_SENT_TOPIC},
-         {groupchat_msg_recv_topic, ?GROUP_CHAT_MSG_RECV_TOPIC}
+         {presence_exchange, [{name, ?PRESENCE_EXCHANGE}]},
+         {chat_msg_exchange, [{name, ?CHAT_MSG_EXCHANGE},
+                              {sent_topic, ?CHAT_MSG_SENT_TOPIC},
+                              {recv_topic, ?CHAT_MSG_RECV_TOPIC}]},
+         {groupchat_msg_exchange, [{name, ?GROUP_CHAT_MSG_EXCHANGE},
+                                   {sent_topic, ?GROUP_CHAT_MSG_SENT_TOPIC},
+                                   {recv_topic, ?GROUP_CHAT_MSG_RECV_TOPIC}]}
         ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
@@ -162,11 +162,7 @@ exchanges_are_created_on_module_startup(Config) ->
                  {?CHAT_MSG_EXCHANGE, ExCustomType},
                  {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType}],
     ConfigWithCustomExchangeType =
-        ?MOD_EVENT_PUSHER_RABBIT_CFG ++ [
-                                         {presence_exchange_type, ExCustomType},
-                                         {chat_msg_exchange_type, ExCustomType},
-                                         {groupchat_msg_exchange, ExCustomType}
-                                        ],
+        extend_config_with_exchange_type(ExCustomType),
     %% WHEN
     start_mod_event_pusher_rabbit(ConfigWithCustomExchangeType),
     %% THEN exchanges are created
@@ -714,3 +710,17 @@ room_address(Room, Nick) ->
 user_room_jid(RoomJID, UserJID) ->
     Nick = nick(UserJID),
     <<RoomJID/binary, "/", Nick/binary>>.
+
+extend_config_with_exchange_type(ExType) ->
+    ExConfigKeys = [presence_exchange, chat_msg_exchange, groupchat_msg_exchange],
+    ExtendExConfig =
+        fun(ExKey) ->
+                {ExKey, proplists:get_value(ExKey, ?MOD_EVENT_PUSHER_RABBIT_CFG) ++ [{type, ExType}]}
+        end,
+    ExtendedExConfigs = [ExtendExConfig(ExKey) || ExKey <- ExConfigKeys],
+    ReplaceExConfig =
+       fun(ExConfig = {ExKey, _}, Config) ->
+               lists:keyreplace(ExKey, 1, Config, ExConfig)
+       end,
+    lists:foldl(ReplaceExConfig, ?MOD_EVENT_PUSHER_RABBIT_CFG,
+                ExtendedExConfigs).
