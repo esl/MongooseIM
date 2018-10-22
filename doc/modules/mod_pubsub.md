@@ -39,7 +39,7 @@ Node configuration still uses the default configuration defined by the node plug
                  {ignore_pep_from_offline, false},
                  {last_item_cache, true},
                  {max_items_node, 1000},
-                 {plugins, [<<"flat">>, <<"pep">>]}}
+                 {plugins, [<<"flat">>, <<"pep">>]}
   ]},
 ```
 
