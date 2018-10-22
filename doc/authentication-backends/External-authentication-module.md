@@ -25,6 +25,6 @@ The following list describes packets that the script should support.
 
 ## Configuration options
 
-* **ext_auth_script**
+* **extauth_program**
      * **Description:** Path to the authentication script used by the `external` auth module.
 
