@@ -224,7 +224,7 @@ They can be defined as follows:
  {redis, global, Tag, WorkersOptions, ConnectionOptions}
 ]}.
 ```
-The `Tag` parameter can be set only to `default` for session backend.
+The `Tag` parameter can only be set to `default` for a session backend.
 For `mod_global_distrib` module it can take any value (default is **global_distrib**) but the name needs to be passed as:
 
 ```erlang
