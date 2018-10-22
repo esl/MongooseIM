@@ -140,8 +140,10 @@ init_per_testcase(CaseName, Config0) ->
 
 end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
     stop_mod_event_pusher_rabbit(),
+    close_rabbit_connection(Config),
     Config;
 end_per_testcase(exchanges_are_deleted_on_module_stop, Config) ->
+    close_rabbit_connection(Config),
     Config;
 end_per_testcase(CaseName, Config) ->
     maybe_cleanup_muc(CaseName, Config),
