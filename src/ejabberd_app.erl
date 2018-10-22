@@ -61,16 +61,12 @@ start(normal, _Args) ->
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
     mongoose_wpool:start_configured_pools(),
+    %% ejabberd_sm is started separately because it may use one of the outgoing_pools
+    %% but some outgoing_pools should be started only with ejabberd_sup already running
+    ejabberd_sm:start(),
     ejabberd_rdbms:start(),
-    mongoose_riak:start(),
-    mongoose_cassandra:start(),
-    mongoose_elasticsearch:start(),
-    mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
-    %% Profiling
-    %%ejabberd_debug:eprof_start(),
-    %%ejabberd_debug:fprof_start(),
     start_services(),
     start_modules(),
     mongoose_metrics:init(),
@@ -92,6 +88,7 @@ prep_stop(State) ->
     mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
     timer:sleep(5000),
+    mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
     State.
 

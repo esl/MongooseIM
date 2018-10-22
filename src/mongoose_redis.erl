@@ -7,30 +7,13 @@
 -module(mongoose_redis).
 -author("bartlomiej.gorny@erlang-solutions.com").
 -include("mongoose.hrl").
--dialyzer({no_match, start_pool/1}).
 
 %% API
--export([start_pool/1, cmd/1, cmd/2, cmds/1, cmds/2]).
+-export([cmd/1, cmd/2, cmds/1, cmds/2]).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
-
--spec start_pool(list()) -> {ok, pid()} | {error, {already_started, pid()}}.
-start_pool(Opts) ->
-    mongoose_wpool:ensure_started(),
-    PoolSize = proplists:get_value(pool_size, Opts, 10),
-    RedisOpts = proplists:get_value(worker_config, Opts, []),
-    PoolOpts = proplists:get_value(pool_opts, Opts, []),
-    PoolOptions = [{strategy, random_worker},
-                   {workers, PoolSize}
-                   | PoolOpts],
-    case mongoose_wpool:start(redis, global, default, PoolOptions, RedisOpts) of
-        {ok, Pid} -> {ok, Pid};
-        Error ->
-            ?ERROR_MSG("Failed to start worker pool, reason: ~p~n", [Error]),
-            Error
-    end.
 
 -spec cmd(iolist()) -> undefined
                        | binary()

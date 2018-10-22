@@ -83,13 +83,12 @@ get_callback_module(Opts) ->
 make_req(Acc, Dir, Host, Sender, Receiver, Message, Opts) ->
     Path = fix_path(list_to_binary(proplists:get_value(path, Opts, ?DEFAULT_PATH))),
     PoolName = proplists:get_value(pool_name, Opts, ?DEFAULT_POOL_NAME),
-    Pool = mongoose_http_client:get_pool(PoolName),
     Mod = get_callback_module(Opts),
     Body = Mod:prepare_body(Acc, Dir, Host, Message, Sender, Receiver, Opts),
     Headers = Mod:prepare_headers(Acc, Dir, Host, Message, Sender, Receiver, Opts),
     ?INFO_MSG("Making request '~p' for user ~s@~s...", [Path, Sender, Host]),
     T0 = os:timestamp(),
-    {Res, Elapsed} = case mongoose_http_client:post(Pool, Path, Headers, Body) of
+    {Res, Elapsed} = case mongoose_http_client:post(Host, PoolName, Path, Headers, Body) of
                          {ok, _} ->
                              {ok, timer:now_diff(os:timestamp(), T0)};
                          {error, Reason} ->

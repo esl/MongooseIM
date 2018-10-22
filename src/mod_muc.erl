@@ -279,10 +279,7 @@ init([Host, Opts]) ->
     AccessCreate = gen_mod:get_opt(access_create, Opts, all),
     AccessAdmin = gen_mod:get_opt(access_admin, Opts, none),
     AccessPersistent = gen_mod:get_opt(access_persistent, Opts, all),
-    HttpAuthPool = case gen_mod:get_opt(http_auth_pool, Opts, none) of
-                       none -> none;
-                       PoolName -> mongoose_http_client:get_pool(PoolName)
-                   end,
+    HttpAuthPool = gen_mod:get_opt(http_auth_pool, Opts, none),
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
     DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),

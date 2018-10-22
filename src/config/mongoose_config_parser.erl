@@ -296,8 +296,6 @@ process_term(Term, State) ->
             add_option(max_fsm_queue, N, State);
         {sasl_mechanisms, Mechanisms} ->
             add_option(sasl_mechanisms, Mechanisms, State);
-        {http_connections, HttpConnections} ->
-            add_option(http_connections, HttpConnections, State);
         {all_metrics_are_global, Value} ->
             add_option(all_metrics_are_global, Value, State);
         {services, Value} ->
@@ -325,12 +323,6 @@ process_host_term(Term, Host, State) ->
             State;
         {outgoing_pools, Pools} when is_list(Pools) ->
             add_option(outgoing_pools, Pools, State);
-        {riak_server, RiakConfig} ->
-            add_option(riak_server, RiakConfig, State);
-        {cassandra_servers, CassandraConfig} ->
-            add_option(cassandra_servers, CassandraConfig, State);
-        {elasticsearch_server, ESConfig} ->
-            add_option(elasticsearch_server, ESConfig, State);
         {node_specific_options, NodeOpts} ->
             add_option(node_specific_options, NodeOpts, State);
         {Opt, Val} ->

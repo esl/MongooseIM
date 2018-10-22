@@ -42,17 +42,8 @@
 %%%----------------------------------------------------------------------
 
 -spec start(binary()) -> ok.
-start(Host) ->
-    mongoose_http_client:start(),
-    Opts = [{selection_strategy, ejabberd_auth:get_opt(Host, selection_strategy, random_worker)},
-            {server, ejabberd_auth:get_opt(Host, host)},
-            {path_prefix, ejabberd_auth:get_opt(Host, path_prefix, "")},
-            {pool_size, ejabberd_auth:get_opt(Host, connection_pool_size, 20)},
-            {http_opts, ejabberd_auth:get_opt(Host, connection_opts, [])}
-           ],
-    mongoose_http_client:start_pool(pool_name(Host), Opts),
+start(_Host) ->
     ok.
-
 
 -spec store_type(binary()) -> plain | external | scram.
 store_type(Server) ->
@@ -231,8 +222,8 @@ make_req(Method, Path, LUser, LServer, Password) ->
 
     ?DEBUG("Making request '~s' for user ~s@~s...", [Path, LUser, LServer]),
     {ok, {Code, RespBody}} = case Method of
-        get -> mongoose_http_client:get(pool_name(LServer), <<Path/binary, "?", Query/binary>>, Header);
-        post -> mongoose_http_client:post(pool_name(LServer), Path, Header, Query)
+        get -> mongoose_http_client:get(LServer, auth, <<Path/binary, "?", Query/binary>>, Header);
+        post -> mongoose_http_client:post(LServer, auth, Path, Header, Query)
     end,
 
     ?DEBUG("Request result: ~s: ~p", [Code, RespBody]),
@@ -250,9 +241,6 @@ make_req(Method, Path, LUser, LServer, Password) ->
 %%%----------------------------------------------------------------------
 %%% Other internal functions
 %%%----------------------------------------------------------------------
--spec pool_name(binary()) -> atom().
-pool_name(Host) ->
-    list_to_atom("ejabberd_auth_http_" ++ binary_to_list(Host)).
 
 -spec verify_scram_password(binary(), binary(), binary()) ->
     {ok, boolean()} | {error, bad_request | not_exists}.
@@ -269,10 +257,7 @@ verify_scram_password(LUser, LServer, Password) ->
             {error, not_exists}
     end.
 
-stop(Host) ->
-    Id = {ejabberd_auth_http_sup, Host},
-    supervisor:terminate_child(ejabberd_sup, Id),
-    supervisor:delete_child(ejabberd_sup, Id),
+stop(_Host) ->
     ok.
 
 -spec check_scram_password(binary(), binary(), binary(), fun()) -> boolean().

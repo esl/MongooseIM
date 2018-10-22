@@ -43,9 +43,6 @@
 %% Exports
 %% ====================================================================
 
-%% Module callbacks
--export([start/0, stop/0]).
-
 %% API
 -export([cql_read/5, cql_foldl/7, cql_write/5, cql_write_async/5]).
 -export([now_timestamp/0]).
@@ -60,28 +57,6 @@
 
 %% Callbacks definitions
 -callback prepared_queries() -> list({term(), string()}).
-
-
-%% ====================================================================
-%% Module API
-%% ====================================================================
-
--spec start() -> ignore | ok | no_return().
-start() ->
-    case mongoose_cassandra_pool:all() of
-        [_ | _] = ConfiguredPools ->
-            ?WARNING_MSG("Deprecated cassandra_servers option, please use outgoing_pools", []),
-            mongoose_wpool:ensure_started(),
-            mongoose_wpool_cassandra:init(),
-            [mongoose_cassandra_pool:init(Pool) || Pool <- ConfiguredPools];
-        _ ->
-            ignore
-    end.
-
--spec stop() -> _.
-stop() ->
-    [mongoose_cassandra_pool:shutdown(PoolName) || {PoolName, _} <- mongoose_cassandra_pool:all()],
-    application:stop(cqerl).
 
 %% ====================================================================
 %% Cassandra API

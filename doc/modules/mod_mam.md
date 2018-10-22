@@ -122,56 +122,19 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 ### Cassandra backend
 
-Edit main config section adding:
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-connection-setup) page to learn how to properly configure Cassandra connection pool.
+By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag:
 
 ```erlang
-{cassandra_servers, [{default, []}]}.
-```
-
-MongooseIM will create one pool with one worker to connect to localhost:9042.
-
-You can change the default settings using extra parameters:
-* 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
-* Keyspace "mongooseim";
-* Custom connect timeout in milliseconds;
-* Custom credentials.
-
-```erlang
-{cassandra_servers,
- [
-  {default,
-   [
-    {servers,
-     [
-      {"10.0.0.1", 9042, 5},
-      {"10.0.0.2", 9042, 5},
-      {"10.0.0.3", 9042, 5},
-      {"10.0.0.4", 9042, 5}
-     ]
-    },
-    {keyspace, "mongooseim"},
-    {connect_timeout, 5000}, % five seconds
-    {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
-   ]
-  }
- ]
-}.
+{outgoing_pools, [
+    {cassandra, global, default, [], []}.
+]}.
 ```
 
 ### ElasticSearch backend
 
 First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
-Please refer to [database backends configuration](../advanced-configuration/database-backends-configuration.md#elasticsearch) page for information on how to configure ElasticSearch properly.
-
-Edit main config section adding:
-
-```erlang
-{elasticsearch_server, []}.
-```
-
-MongooseIM will create one pool with one worker which will try to connect to localhost:9200.
-Make sure that your ElasticSearch node's HTTP API is listening on this address!
-For more information on how to configure the connection pool, please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page.
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-connection-setup) page to learn how to properly configure ElasticSearch connection pool.
 
 ### Example configuration
 

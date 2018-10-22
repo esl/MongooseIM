@@ -10,14 +10,17 @@
 -include("mongoose.hrl").
 -include("mongoose_wpool.hrl").
 
--record(mongoose_wpool, {name :: term(), strategy :: atom(),
-                         call_timeout :: pos_integer() | undefined}).
+-record(mongoose_wpool, {
+          name :: term(),
+          strategy :: atom(),
+          call_timeout :: pos_integer() | undefined
+         }).
 -dialyzer({no_match, start/4}).
 
 %% API
 -export([ensure_started/0,
          start/2, start/3, start/4, start/5,
-         stop/1, stop/2, stop/3,
+         stop/0, stop/1, stop/2, stop/3,
          get_worker/1, get_worker/2, get_worker/3,
          call/2, call/3, call/4, call/5,
          cast/2, cast/3, cast/4, cast/5,
@@ -103,6 +106,9 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
             Error
     end.
 
+stop() ->
+    [ stop(Type, Host, Tag) || {Type, Host, Tag} <- get_pools() ].
+
 stop(Type) ->
     stop(Type, global).
 
@@ -110,9 +116,16 @@ stop(Type, Host) ->
     stop(Type, Host, default).
 
 stop(Type, Host, Tag) ->
-    ets:delete(?MODULE, {Type, Host, Tag}),
-    call_callback(stop, Type, [Host, Tag]),
-    wpool:stop_sup_pool(make_pool_name(Type, Host, Tag)).
+    try
+        ets:delete(?MODULE, {Type, Host, Tag}),
+        call_callback(stop, Type, [Host, Tag]),
+        wpool:stop_sup_pool(make_pool_name(Type, Host, Tag))
+    catch
+        C:R ->
+            ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,"
+                       "class=~p,reason=~p,stack_trace=~p",
+                       [Type, Host, Tag, C, R, erlang:get_stacktrace()])
+    end.
 
 -spec is_configured(type()) -> boolean().
 is_configured(Type) ->
@@ -205,9 +218,10 @@ call_callback(Name, Type, Args) ->
         CallbackModule = make_callback_module_name(Type),
         erlang:apply(CallbackModule, Name, Args)
     catch E:R ->
+          ST = erlang:get_stacktrace(),
           ?ERROR_MSG("event=wpool_callback_error, name=~p, error=~p, reason=~p, stacktrace=~p",
-                     [Name, E, R, erlang:get_stacktrace()]),
-          {error, {callback_crashed, Name}}
+                     [Name, E, R, ST]),
+          {error, {callback_crashed, Name, E, R, ST}}
     end.
 
 -spec make_callback_module_name(type()) -> module().

@@ -46,7 +46,6 @@ start(Host, Opts) ->
     application:ensure_all_started(worker_pool),
 
     WorkerNum = gen_mod:get_opt(pool_size, Opts, 100),
-    mongoose_wpool:ensure_started(),
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns,
                                    [{workers, WorkerNum}, {strategy, available_worker}]),
 

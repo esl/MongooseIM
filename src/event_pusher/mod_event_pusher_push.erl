@@ -66,7 +66,6 @@
 start(Host, Opts) ->
     ?INFO_MSG("mod_event_pusher_push starting on host ~p", [Host]),
 
-    mongoose_wpool:ensure_started(),
     WpoolOpts = [{strategy, available_worker} | gen_mod:get_opt(wpool, Opts, [])],
     {ok, _} = mongoose_wpool:start(generic, Host, pusher_push, WpoolOpts),
 

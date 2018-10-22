@@ -18,8 +18,6 @@
 %%------------------------------------------------------------------
 -module(mongoose_elasticsearch).
 
--export([start/0]).
--export([stop/0]).
 -export([health/0]).
 -export([insert_document/4]).
 -export([search/3]).
@@ -45,30 +43,6 @@
 %%-------------------------------------------------------------------
 %% API
 %%-------------------------------------------------------------------
-
-%% @doc Starts the pool of connections to ElasticSearch cluster.
-%%
-%% Currently only a single pool of connections to a single node may be started. This function pulls
-%% the configuration from `elasticsearch_server' local option. It expects a proplist of following
-%% configuration values:
-%% * `host' (default: `"localhost"') - IP address or a hostname of ElasticSearch node
-%% * `port' (default: `9200') - port number the ElasticSeach node's HTTP endpoint is listening on
--spec start() -> ignore | ok | no_return().
-start() ->
-    Opts = ejabberd_config:get_local_option(elasticsearch_server),
-    case Opts of
-        undefined ->
-            ignore;
-        _ ->
-            tirerl:start(),
-            start_pool(Opts)
-    end.
-
-%% @doc Stops the pool of connections to ElasticSearch cluster.
--spec stop() -> ok.
-stop() ->
-    stop_pool(),
-    tirerl:stop().
 
 %% @doc Returns the health status of the ElasticSearch cluster.
 %%
@@ -132,12 +106,4 @@ delete_by_query(Index, Type, SearchQuery) ->
 %%-------------------------------------------------------------------
 %% Helpers
 %%-------------------------------------------------------------------
-
--spec start_pool(list()) -> ok | no_return().
-start_pool(Opts) ->
-    mongoose_wpool:start(elastic, global, default, [], Opts).
-
--spec stop_pool() -> any().
-stop_pool() ->
-    mongoose_wpool:stop(elastic, global, default).
 

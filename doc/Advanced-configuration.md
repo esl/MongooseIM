@@ -121,9 +121,14 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 ### Session backend
 
 * **sm_backend** (global)
-    * **Description:** Backend for storing user session data. Currently all nodes in a cluster must have access to a complete session database. Valid backends are `mnesia` and `redis`. Mnesia is sufficient in most cases, use Redis only in large deployments.
+    * **Description:** Backend for storing user session data.
+      Currently all nodes in a cluster must have access to a complete session database.
+      Valid backends are `mnesia` and `redis`.
+      Mnesia is sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend.
     * **Mnesia:** `{sm_backend, {mnesia, []}}`
-    * **Redis:** `{redis, [{pool_size, Size}, {worker_config, [{host, "Host"}, {port, Port}]}]}}`
+    * **Redis:** `{sm_backend, {redis, []}}`
+      Requires redis pool defined in `outgoing_pools`: <br/> `{redis, global, default, ..., ...}`.
+      See [redis section in outgoing connections doc](./advanced-configuration/outgoing-connections.md#redis-connection-setup)
 
 ### LDAP Connection
 * **ldap_servers**

@@ -16,16 +16,10 @@
 %%%-------------------------------------------------------------------
 %%% @doc
 %% options and defaults:
-%% [
-%%     {selection_strategy, available_worker},
-%%     {server, (required)},
-%%     {path_prefix, ""},
-%%     {request_timeout, 2000},
-%%     {pool_timeout, 5000}, % waiting for worker - not for all selection strategies
-%%     {pool_size, 20},
-%%     {http_opts, []}, % passed to fusco
-%%     {pool_opts, []} % extra options for worker_pool
-%% ]
+%%     * server - (required)
+%%     * path_prefix - ""
+%%     * request_timeout - 2000,
+%%     * http_opts - [] % passed to fusco
 %%%
 %%% @end
 %%% Created : 26. Jun 2018 13:07
@@ -35,85 +29,39 @@
 -include("mongoose.hrl").
 
 %% API
--export([start/0, stop/0, start_pool/2, stop_pool/1, get/3, post/4]).
--export([get_pool/1]). % for backward compatibility
+-export([get/4, post/5]).
 
-%% Exported for testing
--export([start/1]).
-
--spec start() -> ok.
-start() ->
-    mongoose_wpool:ensure_started(),
-    mongoose_wpool_http:init(),
-    case ejabberd_config:get_local_option(http_connections) of
-        undefined -> ok;
-        Opts -> start(Opts)
-    end.
-
--spec stop() -> any().
-stop() ->
-    case ejabberd_config:get_local_option(http_connections) of
-        undefined -> ok;
-        Opts -> lists:map(fun({Name, _}) -> stop_pool(Name) end, Opts)
-    end.
-
--spec start_pool(atom(), list()) -> ok | {error, already_started}.
-start_pool(PoolName, Opts) ->
-    case ets:lookup(?MODULE, PoolName) of
-        [] ->
-            mongoose_wpool:ensure_started(),
-            do_start_pool(PoolName, Opts),
-            ok;
-        _ ->
-            {error, already_started}
-    end.
-
--spec stop_pool(atom()) -> ok.
-stop_pool(Name) ->
-    mongoose_wpool:stop(http, global, Name),
-    ok.
-
--spec get(atom(), binary(), list()) ->
+-spec get(Host :: jid:lserver() | global,
+          PoolTag :: atom(),
+          Path :: binary(),
+          Headers :: list()) ->
     {ok, {binary(), binary()}} | {error, any()}.
-get(Pool, Path, Headers) ->
-    make_request(Pool, Path, <<"GET">>, Headers, <<>>).
+get(Host, PoolTag, Path, Headers) ->
+    make_request(Host, PoolTag, Path, <<"GET">>, Headers, <<>>).
 
--spec post(atom(), binary(), list(), binary()) ->
+-spec post(Host :: jid:lserver() | global,
+           PoolTag :: atom(),
+           Path :: binary(),
+           Headers :: list(),
+           Query :: binary()) ->
     {ok, {binary(), binary()}} | {error, any()}.
-post(Pool, Path, Headers, Query) ->
-    make_request(Pool, Path, <<"POST">>, Headers, Query).
-
-get_pool(PoolName) -> PoolName.
+post(Host, PoolTag, Path, Headers, Query) ->
+    make_request(Host, PoolTag, Path, <<"POST">>, Headers, Query).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-start(Opts) ->
-    [start_pool(Name, PoolOpts) || {Name, PoolOpts} <- Opts],
-    ok.
-
-do_start_pool(PoolName, Opts) ->
-    SelectionStrategy = gen_mod:get_opt(selection_strategy, Opts, available_worker),
-    PoolTimeout = gen_mod:get_opt(pool_timeout, Opts, 5000),
-    PoolSize = gen_mod:get_opt(pool_size, Opts, 20),
-    PoolSettings = [{strategy, SelectionStrategy}, {call_timeout, PoolTimeout},
-                    {workers, PoolSize}
-                    | gen_mod:get_opt(pool_opts, Opts, [])],
-    mongoose_wpool:start(http, global, PoolName, PoolSettings, Opts).
-
-make_request(PoolName, Path, Method, Headers, Query) ->
-    case ets:lookup(?MODULE, PoolName) of
-        [] ->
-            {error, pool_not_started};
-        [{_, PathPrefix, RequestTimeout}] ->
-            make_request(PoolName, PathPrefix, RequestTimeout, Path,
-                         Method, Headers, Query)
+make_request(Host, PoolTag, Path, Method, Headers, Query) ->
+    case mongoose_wpool_http:get_params(Host, PoolTag) of
+        {ok, PathPrefix, RequestTimeout} ->
+            make_request(Host, PoolTag, PathPrefix, RequestTimeout, Path, Method, Headers, Query);
+        Err ->
+            Err
     end.
 
-make_request(PoolName, PathPrefix, RequestTimeout, Path, Method, Headers, Query) ->
+make_request(Host, PoolTag, PathPrefix, RequestTimeout, Path, Method, Headers, Query) ->
     FullPath = <<PathPrefix/binary, Path/binary>>,
     Req = {request, FullPath, Method, Headers, Query, 2, RequestTimeout},
-    try mongoose_wpool:call(http, global, PoolName, Req) of
+    try mongoose_wpool:call(http, Host, PoolTag, Req) of
         {ok, {{Code, _Reason}, _RespHeaders, RespBody, _, _}} ->
             {ok, {Code, RespBody}};
         {error, timeout} ->
