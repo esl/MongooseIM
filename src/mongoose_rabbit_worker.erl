@@ -38,7 +38,12 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
 
--record(state, {connection, channel, host}).
+-record(state, {connection :: pid(),
+                channel :: pid(),
+                host :: binary(),
+                confirms_enabled = false :: boolean()}).
+
+-type publish_opts() :: #state{}.
 
 %%%===================================================================
 %%% API
@@ -81,31 +86,27 @@ handle_call({delete_exchanges, Exchanges}, _From,
     [delete_exchange(Channel, ExName) || {ExName, _} <- Exchanges],
     {reply, ok, State}.
 
-handle_cast({user_presence_changed, EventData},
-            #state{channel = Channel} = State) ->
-    publish_status(Channel, EventData),
+handle_cast({user_presence_changed, EventData}, State) ->
+    publish_status(EventData, State),
     {noreply, State};
-handle_cast({user_chat_msg_sent, EventData},
-            #state{channel = Channel} = State) ->
-    publish_chat_msg_sent(Channel, EventData),
+handle_cast({user_chat_msg_sent, EventData}, State) ->
+    publish_chat_msg_sent(EventData, State),
     {noreply, State};
-handle_cast({user_chat_msg_recv, EventData},
-            #state{channel = Channel} = State) ->
-    publish_chat_msg_received(Channel, EventData),
+handle_cast({user_chat_msg_recv, EventData}, State) ->
+    publish_chat_msg_received(EventData, State),
     {noreply, State};
-handle_cast({user_groupchat_msg_sent, EventData},
-            #state{channel = Channel} = State) ->
-    publish_groupchat_msg_sent(Channel, EventData),
+handle_cast({user_groupchat_msg_sent, EventData}, State) ->
+    publish_groupchat_msg_sent(EventData, State),
     {noreply, State};
-handle_cast({user_groupchat_msg_recv, EventData},
-            #state{channel = Channel} = State) ->
-    publish_groupchat_msg_recv(Channel, EventData),
+handle_cast({user_groupchat_msg_recv, EventData}, State) ->
+    publish_groupchat_msg_recv(EventData, State),
     {noreply, State}.
 
 handle_info({init, Opts}, State = #state{host = Host}) ->
     {Connection, Channel} = establish_rabbit_connection(Opts, Host),
-    maybe_enable_confirms(Channel, Opts),
-    {noreply, State#state{connection = Connection, channel = Channel}}.
+    IsConfirmOn = maybe_enable_confirms(Channel, Opts),
+    {noreply, State#state{connection = Connection, channel = Channel,
+                          confirms_enabled = IsConfirmOn}}.
 
 terminate(_Reason, #state{connection = Connection, channel = Channel,
                           host = Host}) ->
@@ -126,54 +127,50 @@ declare_exchange(Channel, Name, Type) ->
 delete_exchange(Channel, Exchange) ->
     amqp_channel:call(Channel, #'exchange.delete'{exchange = Exchange}).
 
--spec publish_status(Channel :: pid(), map()) -> term().
-publish_status(Channel, #{user_jid := {User, Host, _} = JID,
-                          exchange := Exchange,
-                          status := Status}) ->
+-spec publish_status(map(), Opts :: publish_opts()) -> term().
+publish_status(#{user_jid := {User, Host, _} = JID, exchange := Exchange,
+                 status := Status}, Opts) ->
     RoutingKey = jid:to_binary({User, Host}),
     Message = make_presence_msg(JID, Status),
-    publish(Channel, Exchange, RoutingKey, Message, Host).
+    publish(Exchange, RoutingKey, Message, Opts#state{host = Host}).
 
--spec publish_chat_msg_sent(Channel :: pid(), EventData :: map()) -> ok.
-publish_chat_msg_sent(Channel, EventData = #{from_jid := From,
-                                             topic := Topic}) ->
+-spec publish_chat_msg_sent(EventData :: map(), Opts :: publish_opts()) -> ok.
+publish_chat_msg_sent(EventData = #{from_jid := From, topic := Topic}, Opts) ->
     RoutingKey = user_topic_routing_key(From, Topic),
-    publish_chat_msg_event(Channel, RoutingKey, EventData).
+    publish_chat_msg_event(RoutingKey, EventData, Opts).
 
--spec publish_chat_msg_received(Channel :: pid(), EventData :: map()) -> ok.
-publish_chat_msg_received(Channel, EventData = #{to_jid := To,
-                                                 topic := Topic}) ->
+-spec publish_chat_msg_received(EventData :: map(), Opts :: publish_opts()) -> ok.
+publish_chat_msg_received(EventData = #{to_jid := To, topic := Topic}, Opts) ->
     RoutingKey = user_topic_routing_key(To, Topic),
-    publish_chat_msg_event(Channel, RoutingKey, EventData).
+    publish_chat_msg_event(RoutingKey, EventData, Opts).
 
--spec publish_groupchat_msg_sent(Channel :: pid(), EventData :: map()) -> ok.
-publish_groupchat_msg_sent(Channel, EventData = #{from_jid := From,
-                                                  topic := Topic}) ->
+-spec publish_groupchat_msg_sent(EventData :: map(), Opts :: publish_opts()) -> ok.
+publish_groupchat_msg_sent(EventData = #{from_jid := From, topic := Topic},
+                           Opts) ->
     RoutingKey = user_topic_routing_key(From, Topic),
-    publish_chat_msg_event(Channel, RoutingKey, EventData).
+    publish_chat_msg_event(RoutingKey, EventData, Opts).
 
--spec publish_groupchat_msg_recv(Channel :: pid(), EventData :: map()) -> ok.
-publish_groupchat_msg_recv(Channel, EventData = #{to_jid := To,
-                                                  topic := Topic}) ->
+-spec publish_groupchat_msg_recv(EventData :: map(), Opts :: publish_opts()) -> ok.
+publish_groupchat_msg_recv(EventData = #{to_jid := To, topic := Topic}, Opts) ->
     RoutingKey = user_topic_routing_key(To, Topic),
-    publish_chat_msg_event(Channel, RoutingKey, EventData).
+    publish_chat_msg_event(RoutingKey, EventData, Opts).
 
--spec publish_chat_msg_event(Channel :: pid(), RoutingKey :: binary(), map()) ->
+-spec publish_chat_msg_event(RoutingKey :: binary(), map(), Opts :: publish_opts()) ->
     term().
-publish_chat_msg_event(Channel, RoutingKey, #{from_jid := From,
-                                              to_jid := To,
-                                              msg := UserMsg,
-                                              exchange := Exchange,
-                                              host := Host}) ->
+publish_chat_msg_event(RoutingKey, #{from_jid := From,
+                                     to_jid := To,
+                                     msg := UserMsg,
+                                     exchange := Exchange,
+                                     host := Host}, Opts) ->
     Message = make_chat_msg(From, To, UserMsg),
-    publish(Channel, Exchange, RoutingKey, Message, Host).
+    publish(Exchange, RoutingKey, Message, Opts#state{host = Host}).
 
--spec publish(Channel :: pid(), Exchange :: binary(), RoutingKey :: binary(),
-              Message :: binary(), Host :: jid:server()) -> term().
-publish(Channel, Exchange, RoutingKey, Message, Host) ->
+-spec publish(Exchange :: binary(), RoutingKey :: binary(), Message :: binary(),
+              Opts :: publish_opts()) -> term().
+publish(Exchange, RoutingKey, Message, Opts = #state{host = Host}) ->
     {PublishTime, Result} =
         timer:tc(fun publish_message_and_wait_for_confirm/4,
-                 [Channel, Exchange, RoutingKey, Message]),
+                 [Exchange, RoutingKey, Message, Opts]),
     case Result of
         true ->
             update_messages_published_metrics(Host, PublishTime, Message),
@@ -211,17 +208,21 @@ make_chat_msg(From, To, UserMsg) ->
 is_user_online(online) -> true;
 is_user_online(offline) -> false.
 
--spec publish_message_and_wait_for_confirm(Channel :: pid(),
-                                           Exchange :: binary(),
+-spec publish_message_and_wait_for_confirm(Exchange :: binary(),
                                            RoutingKey :: binary(),
-                                           Message :: binary()) -> term().
-publish_message_and_wait_for_confirm(Channel, Exchange, RoutingKey, Message) ->
+                                           Message :: binary(),
+                                           Opts :: publish_opts()) -> term().
+publish_message_and_wait_for_confirm(Exchange, RoutingKey, Message,
+                                     #state{channel = Channel,
+                                            confirms_enabled = IsConfirmOn}) ->
     amqp_channel:call(Channel, #'basic.publish'{exchange = Exchange,
                                                 routing_key = RoutingKey},
                       #amqp_msg{payload = Message}),
-    try amqp_channel:wait_for_confirms(Channel)
-    catch
-        throw:not_in_confirm_mode -> ok
+    case IsConfirmOn of
+        true ->
+            amqp_channel:wait_for_confirms(Channel);
+        false ->
+            ok
     end.
 
 -spec establish_rabbit_connection(Opts :: proplists:proplist(),
@@ -246,9 +247,9 @@ maybe_enable_confirms(Channel, Opts) ->
         true ->
             #'confirm.select_ok'{} =
                 amqp_channel:call(Channel, #'confirm.select'{}),
-            ok;
+            true;
         false ->
-            ok
+            false
     end.
 
 -spec close_rabbit_connection(Connection :: pid(), Channel :: pid(),
