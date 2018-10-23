@@ -143,7 +143,6 @@ end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
     close_rabbit_connection(Config),
     Config;
 end_per_testcase(exchanges_are_deleted_on_module_stop, Config) ->
-    close_rabbit_connection(Config),
     Config;
 end_per_testcase(CaseName, Config) ->
     maybe_cleanup_muc(CaseName, Config),
