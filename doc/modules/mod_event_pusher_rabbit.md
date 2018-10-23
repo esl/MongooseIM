@@ -157,12 +157,12 @@ just updates appropriate metrics and print some log messages.
 By default all the exchanges used are of type `topic`. Using topic exchanges
 gives a lot of flexibility when binding queues to such an exchange by using
 `#` and `*` in binding keys. But flexibility comes at the cost of performance -
-imagine a scenario when there is thousands of users and AMQP consumers use
-bindig keys, for particular users, which looks like `user_N@host.#`. In such
+imagine a scenario where there are thousands of users and AMQP consumers use
+bindig keys for particular users which looks like `user_N@host.#`. In such
 case RabbitMQ has to go through all the users in order to find out where
 a message should be sent to. This operations is proved to be costly. In a load
 test with 100k users a delay caused by this operation was substantial (about an
-order of magnitue higher in compared to a load test with 60k users).
+order of magnitue higher than compared to a load test with 60k users).
 
 If perfromance is a top priority go for `direct` exchanges. Using this type of
 exchanges is proved to work efficiently with 100k users. Keep in mind it gives
