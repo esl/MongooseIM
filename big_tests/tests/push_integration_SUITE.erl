@@ -14,7 +14,7 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/1]).
+-import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -251,7 +251,8 @@ inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
               MsgId = send_private_message(Alice, Bob, <<"SECOND MESSAGE">>),
               check_notification(DeviceToken, 2),
 
-              become_available(Bob),
+              become_available(Bob, 2),
+              inbox_helper:get_inbox(Bob, #{ count => 1 }),
               ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
               escalus:send(Bob, ChatMarker),
               escalus:wait_for_stanza(Alice),
@@ -290,7 +291,7 @@ send_private_message(Sender, Recipient) ->
 
 send_private_message(Sender, Recipient, Body) ->
     Id = escalus_stanza:id(),
-    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(Recipient, Body), Id),
+    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(bare_jid(Recipient), Body), Id),
     escalus:send(Sender, Msg),
     Id.
 
