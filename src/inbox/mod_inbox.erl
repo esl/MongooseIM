@@ -317,6 +317,7 @@ form_field_value(Value) ->
 get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
     Acc;
 get_inbox_unread(undefined, Acc, To) ->
+%% TODO this value should be bound to a stanza reference inside Acc
     {User, Host} = jid:to_lus(To),
     {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
