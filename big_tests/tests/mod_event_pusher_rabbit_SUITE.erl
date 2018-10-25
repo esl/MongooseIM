@@ -28,6 +28,7 @@
 
 -define(MUC_HOST, <<"muc.localhost">>).
 -define(QUEUE_NAME, <<"test_queue">>).
+-define(DEFAULT_EXCHANGE_TYPE, <<"topic">>).
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
 -define(CHAT_MSG_EXCHANGE, <<"custom_chat_msg_exchange">>).
 -define(GROUP_CHAT_MSG_EXCHANGE, <<"custom_group_chat_msg_exchange">>).
@@ -40,13 +41,15 @@
          {amqp_port, 5672},
          {amqp_username, <<"guest">>},
          {amqp_password, <<"guest">>},
-         {presence_exchange, ?PRESENCE_EXCHANGE},
-         {chat_msg_exchange, ?CHAT_MSG_EXCHANGE},
-         {chat_msg_sent_topic, ?CHAT_MSG_SENT_TOPIC},
-         {chat_msg_recv_topic, ?CHAT_MSG_RECV_TOPIC},
-         {groupchat_msg_exchange, ?GROUP_CHAT_MSG_EXCHANGE},
-         {groupchat_msg_sent_topic, ?GROUP_CHAT_MSG_SENT_TOPIC},
-         {groupchat_msg_recv_topic, ?GROUP_CHAT_MSG_RECV_TOPIC}
+         %% enables publisher one-to-one confirms; disabled by default
+         %% {confirms_enabled, true},
+         {presence_exchange, [{name, ?PRESENCE_EXCHANGE}]},
+         {chat_msg_exchange, [{name, ?CHAT_MSG_EXCHANGE},
+                              {sent_topic, ?CHAT_MSG_SENT_TOPIC},
+                              {recv_topic, ?CHAT_MSG_RECV_TOPIC}]},
+         {groupchat_msg_exchange, [{name, ?GROUP_CHAT_MSG_EXCHANGE},
+                                   {sent_topic, ?GROUP_CHAT_MSG_SENT_TOPIC},
+                                   {recv_topic, ?GROUP_CHAT_MSG_RECV_TOPIC}]}
         ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
@@ -137,6 +140,7 @@ init_per_testcase(CaseName, Config0) ->
 
 end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
     stop_mod_event_pusher_rabbit(),
+    close_rabbit_connection(Config),
     Config;
 end_per_testcase(exchanges_are_deleted_on_module_stop, Config) ->
     Config;
@@ -154,10 +158,14 @@ exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
     Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE,
-                 ?GROUP_CHAT_MSG_EXCHANGE],
+    ExCustomType = <<"headers">>,
+    Exchanges = [{?PRESENCE_EXCHANGE, ExCustomType},
+                 {?CHAT_MSG_EXCHANGE, ExCustomType},
+                 {?GROUP_CHAT_MSG_EXCHANGE, ExCustomType}],
+    ConfigWithCustomExchangeType =
+        extend_config_with_exchange_type(ExCustomType),
     %% WHEN
-    start_mod_event_pusher_rabbit(),
+    start_mod_event_pusher_rabbit(ConfigWithCustomExchangeType),
     %% THEN exchanges are created
     [?assert(ensure_exchange_present(Connection, Channel, Exchange,
                                  ?IF_EXCHANGE_EXISTS_RETRIES))
@@ -457,7 +465,9 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
     Channel = proplists:get_value(rabbit_channel, Config),
     declare_temporary_rabbit_queue(Channel, ?QUEUE_NAME),
     wait_for_exchanges_to_be_created(Connection,
-                                     [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE]),
+                                     [{?PRESENCE_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
+                                      {?CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE},
+                                      {?GROUP_CHAT_MSG_EXCHANGE, ?DEFAULT_EXCHANGE_TYPE}]),
     bind_queues_to_exchanges(Channel, QueueBindings),
     subscribe_to_rabbit_queue(Channel, ?QUEUE_NAME).
 
@@ -528,16 +538,17 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                           Exchange :: binary(),
                           Retries :: non_neg_integer()) ->
     true | no_return().
-ensure_exchange_present(_Connection, Channel, Exchange, 1) ->
-    amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                   type = <<"topic">>,
+ensure_exchange_present(_Connection, Channel, {ExName, ExType}, 1) ->
+    amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
+                                                   type = ExType,
                                                    %% this option allows to
                                                    %% check if an exchange exists
                                                    passive = true}),
     true;
-ensure_exchange_present(Connection, Channel, Exchange, Retries) ->
-    try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                       type = <<"topic">>,
+ensure_exchange_present(Connection, Channel, Exchange = {ExName, ExType},
+                        Retries) ->
+    try amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
+                                                       type = ExType,
                                                        passive = true}) of
         {'exchange.declare_ok'} -> true
     catch
@@ -607,9 +618,11 @@ get_decoded_message_from_rabbit(RoutingKey) ->
 %%--------------------------------------------------------------------
 
 start_mod_event_pusher_rabbit() ->
+    start_mod_event_pusher_rabbit(?MOD_EVENT_PUSHER_RABBIT_CFG).
+
+start_mod_event_pusher_rabbit(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    rpc(mim(), gen_mod, start_module, [Host, mod_event_pusher_rabbit,
-                                       ?MOD_EVENT_PUSHER_RABBIT_CFG]).
+    rpc(mim(), gen_mod, start_module, [Host, mod_event_pusher_rabbit, Config]).
 
 stop_mod_event_pusher_rabbit() ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -698,3 +711,12 @@ room_address(Room, Nick) ->
 user_room_jid(RoomJID, UserJID) ->
     Nick = nick(UserJID),
     <<RoomJID/binary, "/", Nick/binary>>.
+
+extend_config_with_exchange_type(ExType) ->
+    lists:map(fun({Ex, Opts}) when
+                        Ex == presence_exchange orelse
+                        Ex == chat_msg_exchange orelse
+                        Ex == groupchat_msg_exchange ->
+                      {Ex, Opts ++ [{type, ExType}]};
+                 (Other) -> Other
+              end, ?MOD_EVENT_PUSHER_RABBIT_CFG).
