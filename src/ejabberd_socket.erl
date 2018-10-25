@@ -216,7 +216,7 @@ send(SocketData, Data) ->
 
 %% @doc Can only be called when in c2s StateData#state.xml_socket is true
 %% This function is used for HTTP bind
-%% sockmod=ejabberd_http_poll|ejabberd_http_bind or any custom module
+%% sockmod=mod_bosh_socket|mod_websockets or any custom module
 -spec send_xml(socket_state(), mongoose_transport:send_xml_input()) -> ok.
 send_xml(SocketData, Data) ->
     catch (SocketData#socket_state.sockmod):send_xml(
