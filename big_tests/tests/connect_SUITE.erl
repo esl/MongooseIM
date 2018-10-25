@@ -46,34 +46,35 @@ all() ->
     ].
 
 groups() ->
-    [ {c2s_noproc, [], [reset_stream_noproc,
-                        starttls_noproc,
-                        compress_noproc,
-                        bad_xml,
-                        invalid_host,
-                        invalid_stream_namespace,
-                        pre_xmpp_1_0_stream]},
-      {starttls, test_cases()},
-      {tls, [parallel], [auth_bind_pipelined_session,
-                         auth_bind_pipelined_auth_failure |
-                         generate_tls_vsn_tests() ++ cipher_test_cases()]},
-      {feature_order, [parallel], [stream_features_test,
-                                   tls_authenticate,
-                                   tls_compression_fail,
-                                   tls_compression_authenticate_fail,
-                                   tls_authenticate_compression,
-                                   auth_compression_bind_session,
-                                   auth_bind_compression_session,
-                                   bind_server_generated_resource]},
-      {just_tls,all_groups()},
-      {fast_tls,all_groups()}
-    ].
+    G = [ {c2s_noproc, [], [reset_stream_noproc,
+                            starttls_noproc,
+                            compress_noproc,
+                            bad_xml,
+                            invalid_host,
+                            invalid_stream_namespace,
+                            deny_pre_xmpp_1_0_stream]},
+          {starttls, [], test_cases()},
+          {tls, [parallel], [auth_bind_pipelined_session,
+                             auth_bind_pipelined_auth_failure |
+                             generate_tls_vsn_tests() ++ cipher_test_cases()]},
+          {feature_order, [parallel], [stream_features_test,
+                                       tls_authenticate,
+                                       tls_compression_fail,
+                                       tls_compression_authenticate_fail,
+                                       tls_authenticate_compression,
+                                       auth_compression_bind_session,
+                                       auth_bind_compression_session,
+                                       bind_server_generated_resource]},
+          {just_tls,all_groups()},
+          {fast_tls,all_groups()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_groups()->
     [{group, c2s_noproc},
-        {group, starttls},
-        {group, feature_order},
-        {group, tls}].
+     {group, starttls},
+     {group, feature_order},
+     {group, tls}].
 
 test_cases() ->
     generate_tls_vsn_tests() ++
@@ -86,7 +87,7 @@ cipher_test_cases() ->
     [clients_can_connect_with_advertised_ciphers,
      'clients_can_connect_with_DHE-RSA-AES256-SHA',
      'clients_can_connect_with_DHE-RSA-AES128-SHA',
-     %% node2 accepts DHE-RSA-AES256-SHA exclusively (see ejabberd.cfg)
+     %% node2 accepts DHE-RSA-AES256-SHA exclusively (see mongooseim.cfg)
      'clients_can_connect_with_DHE-RSA-AES256-SHA_only'].
 
 
@@ -195,16 +196,16 @@ invalid_stream_namespace(Config) ->
     escalus:assert(is_stream_error, [<<"invalid-namespace">>, <<>>], Error),
     escalus:assert(is_stream_end, End).
 
-pre_xmpp_1_0_stream(Config) ->
+deny_pre_xmpp_1_0_stream(Config) ->
     %% given
     Spec = escalus_fresh:freshen_spec(Config, alice),
     Steps = [
              %% when
-             {legacy_stream_helper, start_stream_pre_xmpp_1_0},
-             {legacy_stream_helper, failed_legacy_auth}
+             {?MODULE, start_stream_pre_xmpp_1_0}
             ],
-    %% ok, now do the plan from above
     {ok, Conn, _} = escalus_connection:start(Spec, Steps),
+    StreamError = escalus:wait_for_stanza(Conn),
+    escalus:assert(is_stream_error, [<<"unsupported-version">>, <<>>], StreamError),
     escalus_connection:stop(Conn).
 
 should_fail_with_sslv3(Config) ->
@@ -632,8 +633,29 @@ connect_with_invalid_stream_namespace(Spec) ->
     {ok, Conn, _} = escalus_connection:start(Spec, [F]),
     escalus:wait_for_stanzas(Conn, 3).
 
+start_stream_pre_xmpp_1_0(Conn = #client{props = Props}, UnusedFeatures) ->
+    escalus:send(Conn, stream_start_pre_xmpp_1_0(escalus_users:get_server([], Props))),
+    #xmlstreamstart{attrs = StreamAttrs} = StreamStart = escalus:wait_for_stanza(Conn),
+    escalus:assert(is_stream_start, StreamStart),
+    {<<"id">>, StreamID} = lists:keyfind(<<"id">>, 1, StreamAttrs),
+    {Conn#client{props = [{stream_id, StreamID} | Props]}, UnusedFeatures}.
+
+stream_start_pre_xmpp_1_0(To) ->
+        stream_start(lists:keystore(version, 1, default_context(To), {version, <<>>})).
+
+stream_start(Context) ->
+    %% Be careful! The closing slash here is a hack to enable implementation of from_template/2
+    %% to parse the snippet properly. In standard XMPP <stream:stream> is just opening of an XML
+    %% element, NOT A SELF CLOSING element.
+    T = <<"<stream:stream {{version}} xml:lang='en' xmlns='jabber:client' "
+          "               to='{{to}}' "
+          "               xmlns:stream='{{stream_ns}}' />">>,
+    %% So we rewrap the parsed contents from #xmlel{} to #xmlstreamstart{} here.
+    #xmlel{name = Name, attrs = Attrs, children = []} = escalus_stanza:from_template(T, Context),
+    #xmlstreamstart{name = Name, attrs = Attrs}.
+
 stream_start_invalid_stream_ns(To) ->
-    legacy_stream_helper:stream_start(lists:keystore(stream_ns, 1, default_context(To),
+    stream_start(lists:keystore(stream_ns, 1, default_context(To),
                                 {stream_ns, <<"obviously-invalid-namespace">>})).
 
 default_context(To) ->

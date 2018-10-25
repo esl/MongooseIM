@@ -17,6 +17,25 @@ all() ->
      log_at_custom_level
     ].
 
+init_per_suite(Config) ->
+    OTPRelease = list_to_integer(erlang:system_info(otp_release)),
+    case OTPRelease > 20 of
+        true ->
+            %% This is a workaround for Erlang 21 where by default
+            %% progress reports are not visible so the log file is filled with new
+            %% content after lager backend is started.
+            %% We need this in tests in order to reliably wait for the backend start
+            %% TODO remove the case when we stop supporting Erlang 20
+            LoggerConfig = logger:get_primary_config(),
+            logger:set_primary_config(LoggerConfig#{level := info});
+        _ ->
+            ok
+    end,
+    Config.
+
+end_per_suite(Config) ->
+    Config.
+
 end_per_testcase(_TestCase, _Config) ->
     application:stop(lager),
     ok.

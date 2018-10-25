@@ -1,5 +1,5 @@
 Some of the MongooseIM modules are specialised in handling user connections.
-They can be used in the `listen` clause in the `ejabberd.cfg` file.
+They can be used in the `listen` clause in the `mongooseim.cfg` file.
 See this section for their description and configuration options.
 
 Options described with a value type (e.g. string, integer) are key-value tuples.
@@ -52,9 +52,9 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 * `ip` (IP tuple, default: `{0,0,0,0}`) - IP address to bind to.
 * `num_acceptors` (positive integer, default: 100) - Number of acceptors.
 * `transport_options` (proplist, default: []) - Ranch-specific transport options.
- See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.2/manual/ranch/#_opt).
+ See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.5/manual/ranch/#_opt).
 * `protocol_options` (proplist, default: []) - Protocol configuration options for Cowboy.
- See [Cowboy protocol manual](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/)
+ See [Cowboy HTTP module docs](https://ninenines.eu/docs/en/cowboy/2.4/manual/cowboy_http/).
 * `ssl` (list of ssl options, required for https, no default value) - If specified, https will be used.
  Accepts all ranch_ssl options that don't take fun() parameters.
  Only `certfile` and `keyfile` are mandatory.

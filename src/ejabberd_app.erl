@@ -49,25 +49,24 @@ start(normal, _Args) ->
     acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
+    mongoose_wpool:ensure_started(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_subhosts:init(),
     mongoose_service:start(),
     gen_mod:start(),
     ejabberd_config:start(),
-    ejabberd_check:config(),
+    ejabberd_loglevel:set(ejabberd_config:get_local_option_or_default(loglevel, 3)),
     connect_nodes(),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
+    mongoose_wpool:start_configured_pools(),
+    %% ejabberd_sm is started separately because it may use one of the outgoing_pools
+    %% but some outgoing_pools should be started only with ejabberd_sup already running
+    ejabberd_sm:start(),
     ejabberd_rdbms:start(),
-    mongoose_riak:start(),
-    mongoose_cassandra:start(),
-    mongoose_http_client:start(),
     ejabberd_auth:start(),
     cyrsasl:start(),
-    %% Profiling
-    %%ejabberd_debug:eprof_start(),
-    %%ejabberd_debug:fprof_start(),
     start_services(),
     start_modules(),
     mongoose_metrics:init(),
@@ -89,6 +88,7 @@ prep_stop(State) ->
     mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
     timer:sleep(5000),
+    mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
     State.
 
@@ -213,10 +213,26 @@ delete_pid_file() ->
     end.
 
 init_log() ->
+    maybe_disable_default_logger(),
     ejabberd_loglevel:init(),
     case application:get_env(mongooseim, keep_lager_intact, false) of
         true ->
             skip;
         false ->
             ejabberd_loglevel:set(4)
+    end.
+
+maybe_disable_default_logger() ->
+    try
+
+        Loggers = logger:get_handler_ids(),
+        case lists:member(default, Loggers) of
+            true ->
+                logger:remove_handler(default);
+            _ ->
+                ok
+        end
+    catch
+        _E:_R ->
+            ok
     end.

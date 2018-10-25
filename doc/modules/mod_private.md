@@ -3,7 +3,7 @@ This module implements [XEP-0049: Private XML Storage](http://xmpp.org/extension
 
 ### Options
 * `iqdisc` (default: `one_queue`)
-* `backend` (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `odbc`, `riak` and `mysql` are supported . `mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `odbc`.
+* `backend` (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms`, `riak` and `mysql` are supported . `mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `rdbms`.
 
 **CAUTION:**  Riak KV backend doesn't support transactions (rollbacks), so please avoid inserting more
 than one value in one set request, otherwise you may end up with partially save data, backend returns

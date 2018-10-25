@@ -1,0 +1,30 @@
+{
+	"mappings": {
+		"pm": {
+			"properties": {
+				"mam_id": {
+					"type": "long"
+				},
+				"owner": {
+					"type": "keyword"
+				},
+				"remote": {
+					"type": "keyword"
+				},
+				"source_jid": {
+					"type": "keyword",
+					"index": false
+				},
+				"message": {
+					"type": "text",
+					"index": false
+				},
+				"body": {
+					"type": "text",
+					"analyzer": "english"
+				}
+			}
+		}
+
+    }
+}

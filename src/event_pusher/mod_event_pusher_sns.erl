@@ -46,7 +46,8 @@ start(Host, Opts) ->
     application:ensure_all_started(worker_pool),
 
     WorkerNum = gen_mod:get_opt(pool_size, Opts, 100),
-    wpool:start_sup_pool(pool_name(Host), [{workers, WorkerNum}]),
+    {ok, _} = mongoose_wpool:start(generic, Host, pusher_sns,
+                                   [{workers, WorkerNum}, {strategy, available_worker}]),
 
     %% Check for required options
     RequiredOptions = [access_key_id, secret_access_key, region, account_id, sns_host],
@@ -63,7 +64,7 @@ start(Host, Opts) ->
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
-    wpool:stop(pool_name(Host)),
+    mongoose_wpool:stop(generic, Host, pusher_sns),
     ok.
 
 push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
@@ -124,9 +125,8 @@ handle_packet(From = #jid{lserver = Host}, To, Packet) ->
               attributes()) -> ok.
 async_publish(Host, TopicARN, Content, Attributes) ->
     Retry = opt(Host, publish_retry_count, 2),
-    wpool:cast(pool_name(Host),
-               {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]},
-               available_worker).
+    mongoose_wpool:cast(generic, Host, pusher_sns,
+                        {?MODULE, try_publish, [Host, TopicARN, Content, Attributes, Retry]}).
 
 %% @doc Publish notification to AWS SNS service. Content should be a valid JSON term
 -spec try_publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
@@ -139,11 +139,10 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
     catch
         Type:Error ->
             BackoffTime = calc_backoff_time(Host, Retry),
-            timer:apply_after(BackoffTime, wpool, cast,
-                              [pool_name(Host),
+            timer:apply_after(BackoffTime, mongoose_wpool, cast,
+                              [generic, Host, pusher_sns,
                                {?MODULE, try_publish,
-                                [Host, TopicARN, Content, Attributes, Retry - 1]},
-                               available_worker]),
+                                [Host, TopicARN, Content, Attributes, Retry - 1]}]),
             ?WARNING_MSG("Retrying SNS notification ~p after ~p ms due to ~p~n~p",
                          [{Host, TopicARN, Content}, BackoffTime,
                           {Type, Error}, erlang:get_stacktrace()]),
@@ -236,7 +235,3 @@ calc_backoff_time(Host, Retry) ->
     BaseTime = opt(Host, publish_retry_time_ms, 50),
     BackoffMaxTime = round(math:pow(2, MaxRetry - Retry)) * BaseTime,
     crypto:rand_uniform(BackoffMaxTime - BaseTime, BackoffMaxTime).
-
--spec pool_name(Host :: jid:lserver()) -> atom().
-pool_name(Host) ->
-    gen_mod:get_module_proc(Host, ?MODULE).

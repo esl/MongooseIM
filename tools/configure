@@ -19,7 +19,11 @@
                mdb_dir          = "$RUNNER_BASE_DIR/Mnesia.$NODE",
                mdb_dir_toggle   = "%",
                lock_dir         = "$EJABBERD_DIR/var/lock",
-               nodetool_etc_dir = "etc"}).
+               nodetool_etc_dir = "etc",
+               % nksip writes an erlang module file, which is used as a cache.
+               % By default it uses "log" directory, and we want to change it.
+               nksip_cache_dir  = "priv/nksip_cache"
+              }).
 
 main([]) ->
     usage();
@@ -33,17 +37,18 @@ main(Args) ->
     end.
 
 app_opts() ->
-    %% Opt         Apps                 Desc
-    [{"none",      [],                  "include no 3rd party drivers"},
-     {"all",       [],                  "include all drivers"},
-     {"mysql",     ["mysql"],           include_driver("mysql")},
-     {"odbc",      ["eodbc"],           "include alternative version of ODBC driver"},
-     {"pgsql",     ["epgsql"],          include_driver("pgsql")},
-     {"redis",     ["redo"],            include_driver("redis")},
-     {"riak",      ["riakc"],           include_driver("riak")},
-     {"jingle-sip",["nksip"],           include_driver("nksip")},
-     {"cassandra", ["cqerl"],           include_driver("cassandra")},
-     {"aws",       ["erlcloud"],        "include support for AWS services"}].
+    %% Opt             Apps                 Desc
+    [{"none",          [],                  "include no 3rd party drivers"},
+     {"all",           [],                  "include all drivers"},
+     {"mysql",         ["mysql"],           include_driver("mysql")},
+     {"odbc",          ["eodbc"],           "include alternative version of ODBC driver"},
+     {"pgsql",         ["epgsql"],          include_driver("pgsql")},
+     {"redis",         ["eredis"],            include_driver("redis")},
+     {"riak",          ["riakc"],           include_driver("riak")},
+     {"jingle-sip",    ["nksip"],           include_driver("nksip")},
+     {"cassandra",     ["cqerl"],           include_driver("cassandra")},
+     {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
+     {"aws",           ["erlcloud"],        "include support for AWS services"}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
@@ -96,7 +101,8 @@ system_install(Opts) ->
               mdb_dir           = "$PREFIX/var/lib/mongooseim",
               mdb_dir_toggle    = "",
               lock_dir          = "$PREFIX/var/lock/mongooseim",
-              nodetool_etc_dir  = "$PREFIX/etc/mongooseim"}.
+              nodetool_etc_dir  = "$PREFIX/etc/mongooseim",
+              nksip_cache_dir   = "$PREFIX/var/lib/mongooseim/nksip"}.
 
 process_app("none", _Apps) -> [];
 process_app("all", _Apps) -> all_apps();
@@ -168,7 +174,8 @@ write(reltool, FileName, Opts) ->
             rt_var(mongooseim_mdb_dir, Opts#opts.mdb_dir),
             rt_var(mongooseim_mdb_dir_toggle, Opts#opts.mdb_dir_toggle),
             rt_var(mongooseim_lock_dir, Opts#opts.lock_dir),
-            rt_var(mongooseim_nodetool_etc_dir, Opts#opts.nodetool_etc_dir)],
+            rt_var(mongooseim_nodetool_etc_dir, Opts#opts.nodetool_etc_dir),
+            rt_var(nksip_cache_dir, Opts#opts.nksip_cache_dir)],
     file:write_file(FileName, Data).
 
 expand_prefix(Opts) when Opts#opts.system /= "yes" -> Opts;
@@ -181,7 +188,8 @@ expand_prefix(Opts) ->
                               #opts.log_dir,
                               #opts.mdb_dir,
                               #opts.lock_dir,
-                              #opts.nodetool_etc_dir]),
+                              #opts.nodetool_etc_dir,
+                              #opts.nksip_cache_dir]),
     NOpts.
 
 expand_prefix(Index, {Opts, Prefix}) ->

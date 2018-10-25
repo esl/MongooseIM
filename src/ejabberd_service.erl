@@ -132,7 +132,10 @@ socket_type() ->
 -spec process_packet(Acc :: mongoose_acc:t(), From :: jid:jid(), To :: jid:jid(),
     El :: exml:element(), Pid :: pid()) -> any().
 process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(Acc, El)}.
+    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+                                                  from_jid => From,
+                                                  to_jid => To,
+                                                  element => El }, Acc)}.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_fsm
@@ -353,7 +356,7 @@ handle_info({send_element, El}, StateName, StateData) ->
     send_element(StateData, El),
     {next_state, StateName, StateData};
 handle_info({route, From, To, Acc}, StateName, StateData) ->
-    Packet = mongoose_acc:get(element, Acc),
+    Packet = mongoose_acc:element(Acc),
     ?DEBUG("event=packet_to_component,component=\"~s\",from=\"~s\",to=\"~s\"",
            [component_host(StateData), jid:to_binary(From), jid:to_binary(To)]),
     case acl:match_rule(global, StateData#state.access, From) of
@@ -417,7 +420,7 @@ send_element(StateData, El) ->
 
 -spec new_id() -> string().
 new_id() ->
-    randoms:get_string().
+    binary_to_list(mongoose_bin:gen_from_crypto()).
 
 -spec component_host(state()) -> binary() | string().
 component_host(#state{ host = undefined }) -> "undefined";

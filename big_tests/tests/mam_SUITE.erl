@@ -123,6 +123,7 @@
         [rpc_apply/3,
          is_riak_enabled/1,
          is_cassandra_enabled/1,
+         is_elasticsearch_enabled/1,
          is_mam_possible/1,
          print_configuration_not_supported/2,
          start_alice_room/1,
@@ -212,21 +213,37 @@
 
 
 configurations() ->
-    cassandra_configs(is_cassandra_enabled(host()))
-    ++ odbc_configs(mongoose_helper:is_odbc_enabled(host()))
-    ++ riak_configs(is_riak_enabled(host())).
+    case ct_helper:is_ct_running() of
+        true ->
+            configurations_for_running_ct();
+        false ->
+            all_configurations()
+    end.
 
-odbc_configs(true) ->
-    [odbc,
-     odbc_simple,
-     odbc_async_pool,
-     odbc_mnesia,
-     odbc_async_cache,
-     odbc_cache,
-     odbc_mnesia_cache,
-     odbc_mnesia_muc_cache
+%% Called by test-runner for autocompletion
+all_configurations() ->
+    cassandra_configs(true)
+    ++ rdbms_configs(true)
+    ++ riak_configs(true)
+    ++ elasticsearch_configs(true).
+
+configurations_for_running_ct() ->
+    cassandra_configs(is_cassandra_enabled(host()))
+    ++ rdbms_configs(mongoose_helper:is_rdbms_enabled(host()))
+    ++ riak_configs(is_riak_enabled(host()))
+    ++ elasticsearch_configs(is_elasticsearch_enabled(host())).
+
+rdbms_configs(true) ->
+    [rdbms,
+     rdbms_simple,
+     rdbms_async_pool,
+     rdbms_mnesia,
+     rdbms_async_cache,
+     rdbms_cache,
+     rdbms_mnesia_cache,
+     rdbms_mnesia_muc_cache
     ];
-odbc_configs(_) ->
+rdbms_configs(_) ->
     [].
 
 riak_configs(true) ->
@@ -238,6 +255,11 @@ cassandra_configs(true) ->
      [cassandra];
 cassandra_configs(_) ->
      [].
+
+elasticsearch_configs(true) ->
+    [elasticsearch];
+elasticsearch_configs(_) ->
+    [].
 
 basic_group_names() ->
     [
@@ -252,9 +274,14 @@ basic_group_names() ->
 
 all() ->
     Reasons =
-    case is_mam_possible(host())  of
-        false -> [require_odbc];
-        true  -> []
+    case ct_helper:is_ct_running() of
+        true ->
+            case is_mam_possible(host())  of
+                false -> [require_rdbms];
+                true  -> []
+            end;
+        false ->
+            []
     end,
     case Reasons of
         [] ->
@@ -269,9 +296,10 @@ tests() ->
         not is_skipped(C, G)].
 
 groups() ->
-    [{full_group(C, G), Props, Tests}
-     || C <- configurations(), {G, Props, Tests} <- basic_groups(),
-        not is_skipped(C, G)].
+    Gs = [{full_group(C, G), Props, Tests}
+          || C <- configurations(), {G, Props, Tests} <- basic_groups(),
+             not is_skipped(C, G)],
+    ct_helper:repeat_all_until_all_ok(Gs).
 
 is_skipped(_, _) ->
     false.
@@ -334,6 +362,7 @@ mam_cases() ->
      range_archive_request,
      range_archive_request_not_empty,
      limit_archive_request,
+     querying_for_all_messages_with_jid,
      unicode_messages_can_be_extracted
     ].
 
@@ -594,8 +623,10 @@ do_init_per_group(C, ConfigIn) ->
             [{archive_wait, 2500} | Config0];
         cassandra ->
             [{archive_wait, 1500} | Config0];
+        elasticsearch ->
+            [{archive_wait, 2500} | Config0];
         _ ->
-            [{archive_wait, 0} | Config0]
+            [{archive_wait, 200} | Config0]
     end.
 
 end_per_group(G, Config) when G == rsm_all; G == nostore;
@@ -626,10 +657,10 @@ end_per_group(Group, Config) ->
     escalus_fresh:clean(),
     delete_users(Config2).
 
-init_modules(odbc, muc_light, Config) ->
-    Config1 = init_modules_for_muc_light(odbc, Config),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
-    init_module(host(), mod_mam_odbc_arch, [muc, pm]),
+init_modules(rdbms, muc_light, Config) ->
+    Config1 = init_modules_for_muc_light(rdbms, Config),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
+    init_module(host(), mod_mam_rdbms_arch, [muc, pm]),
     Config1;
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
@@ -640,77 +671,83 @@ init_modules(cassandra, muc_all, Config) ->
     init_module(host(), mod_mam_muc_cassandra_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc, muc_all, Config) ->
-    init_module(host(), mod_mam_odbc_arch, [muc]),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(BT = elasticsearch, muc_light, config) ->
+    init_modules_for_muc_light(BT, config);
+init_modules(elasticsearch, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_elasticsearch_arch, []),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_simple, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [muc, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms, muc_all, Config) ->
+    init_module(host(), mod_mam_rdbms_arch, [muc]),
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_async_pool, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_simple, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, [muc, simple]),
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_mnesia, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
+init_modules(rdbms_async_pool, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
+    Config;
+init_modules(rdbms_mnesia, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_async_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, [no_writer]),
-    init_module(host(), mod_mam_muc_odbc_async_pool_writer, [{flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+init_modules(rdbms_async_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
+    init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_mnesia_muc_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
+init_modules(rdbms_mnesia_muc_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
-init_modules(odbc_mnesia_muc_cache, _, _Config) ->
+init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
     skip;
-init_modules(odbc_mnesia_cache, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_odbc_arch, []),
+init_modules(rdbms_mnesia_cache, muc_all, Config) ->
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_odbc_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(BackendType, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(BackendType, Config),
-    init_module(host(), mod_mam_odbc_user, [muc, pm]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     Config1;
-init_modules(odbc, C, Config) ->
+init_modules(rdbms, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
-init_modules(odbc_simple, C, Config) ->
+init_modules(rdbms_simple, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, simple]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, simple]),
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(riak_timed_yz_buckets, C, Config) ->
     init_module(host(), mod_mam_riak_timed_arch_yz, [pm, muc]),
@@ -725,46 +762,51 @@ init_modules(cassandra, C, Config) ->
     init_module(host(), mod_mam_cassandra_prefs, [pm]),
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
     Config;
-init_modules(odbc_async, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_writer, [pm, {flush_interval, 1}]), % 1ms
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
-    Config;
-init_modules(odbc_async_pool, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
-    Config;
-init_modules(odbc_mnesia, C, Config) ->
-    init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
+init_modules(elasticsearch, C, Config) ->
+    init_module(host(), mod_mam_elasticsearch_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
-    Config;
-init_modules(odbc_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    Config;
+init_modules(rdbms_async, C, Config) ->
+    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
+    Config;
+init_modules(rdbms_async_pool, C, Config) ->
+    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
+    Config;
+init_modules(rdbms_mnesia, C, Config) ->
+    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_mnesia_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
+    Config;
+init_modules(rdbms_cache, C, Config) ->
+    init_module(host(), mod_mam, addin_mam_options(C, Config)),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_async_cache, C, Config) ->
+init_modules(rdbms_async_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm, no_writer]),
-    init_module(host(), mod_mam_odbc_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
-    init_module(host(), mod_mam_odbc_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
+    init_module(host(), mod_mam_rdbms_prefs, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
-init_modules(odbc_mnesia_cache, C, Config) ->
+init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_odbc_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, [pm]),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
-    init_module(host(), mod_mam_odbc_user, [pm]),
+    init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config.
 
@@ -800,13 +842,15 @@ mam_modules() ->
      mod_mam_cassandra_arch,
      mod_mam_muc_cassandra_arch,
      mod_mam_cassandra_prefs,
-     mod_mam_odbc_arch,
-     mod_mam_muc_odbc_arch,
-     mod_mam_odbc_async_pool_writer,
-     mod_mam_muc_odbc_async_pool_writer,
-     mod_mam_odbc_prefs,
+     mod_mam_elasticsearch_arch,
+     mod_mam_muc_elasticsearch_arch,
+     mod_mam_rdbms_arch,
+     mod_mam_muc_rdbms_arch,
+     mod_mam_rdbms_async_pool_writer,
+     mod_mam_muc_rdbms_async_pool_writer,
+     mod_mam_rdbms_prefs,
      mod_mam_mnesia_prefs,
-     mod_mam_odbc_user,
+     mod_mam_rdbms_user,
      mod_mam_cache_user,
      mod_mam_muc_cache_user,
      mod_mam_riak_timed_arch_yz].
@@ -829,9 +873,9 @@ end_state(_, _, Config) ->
 
 init_per_testcase(C=metric_incremented_when_store_message, ConfigIn) ->
     Config = case ?config(configuration, ConfigIn) of
-                 odbc_async_pool ->
+                 rdbms_async_pool ->
                      MongooseMetrics = [
-                                        {[global, data, odbc, default],
+                                        {[global, data, rdbms, default],
                                          [{recv_oct, '>'}, {send_oct, '>'}]}
                                        ],
                      [{mongoose_metrics, MongooseMetrics} | ConfigIn];
@@ -994,11 +1038,9 @@ end_per_testcase(C=muc_message_with_stanzaid, Config) ->
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_no_elements, Config) ->
-    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C=muc_only_stanzaid, Config) ->
-    timer:sleep(50),
     destroy_room(Config),
     escalus:end_per_testcase(C, Config);
 end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
@@ -1046,8 +1088,8 @@ configuration(Group) ->
 %% will be tested.
 %%
 %% Example:
-%% `make_greedy(odbc_mnesia_muc, [odbc, odbc_mnesia]) -> odbc'
-%% `make_greedy(odbc_mnesia_muc, match_longer_first([odbc, odbc_mnesia])) -> odbc_mnesia'
+%% `make_greedy(rdbms_mnesia_muc, [rdbms, rdbms_mnesia]) -> rdbms'
+%% `make_greedy(rdbms_mnesia_muc, match_longer_first([rdbms, rdbms_mnesia])) -> rdbms_mnesia'
 %% @end
 make_greedy(List) ->
     lists:reverse(lists:usort(List)).
@@ -1180,7 +1222,7 @@ simple_archive_request(Config) ->
         %%   {<<"type">>,<<"chat">>}],
         %%   [{xmlel,<<"body">>,[],[{xmlcdata,<<"OH, HAI!">>}]}]}
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, 1),
         escalus:send(Alice, stanza_archive_request(P, <<"q1">>)),
         Res = wait_archive_respond(P, Alice),
         assert_respond_size(1, Res),
@@ -1238,7 +1280,7 @@ simple_text_search_request(Config) ->
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Also my bike broke down so I'm unable ",
                                                           "to return him home">>)),
         escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Cats are awesome by the way">>)),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, 3),
 
         %% 'Cat' query
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"cat">>)),
@@ -1269,22 +1311,20 @@ long_text_search_request(Config) ->
     F = fun(Alice, Bob) ->
         Msgs = text_search_messages(),
 
-        lists:foreach(
-            fun(Msg) ->
-                escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg)),
-                timer:sleep(50)
-            end, Msgs),
+        [ escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg)) || Msg <- Msgs ],
 
         %% Just check that Bob receives the messages.
         %% It should help, when the CI server is overloaded.
         %% The test should work without this block.
         %% But sometimes on the CI server we ending up with not all messages
         %% yet archived, which leads to the test failure.
-        BobMessages = escalus:wait_for_stanzas(Bob, length(Msgs), 15000),
-        ?assert_equal_extra(length(Msgs), length(BobMessages),
+        ExpectedLen = length(Msgs),
+        BobMessages = escalus:wait_for_stanzas(Bob, ExpectedLen, 15000),
+        ?assert_equal_extra(ExpectedLen, length(BobMessages),
                             #{bob_messages => BobMessages}),
 
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Bob, ExpectedLen),
+        mam_helper:wait_for_archive_size(Alice, ExpectedLen),
         escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>,
                                                                <<"Ribs poRk cUlpa">>)),
         Res = wait_archive_respond(P, Alice),
@@ -1314,7 +1354,7 @@ unicode_messages_can_be_extracted(Config) ->
 
         [escalus:send(Alice, escalus_stanza:chat_to(Bob, Text))
          || Text <- Texts],
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Alice, length(Texts)),
 
         %% WHEN Getting all messages
         escalus:send(Alice, stanza_archive_request(P, <<"uni-q">>)),
@@ -1342,7 +1382,7 @@ save_unicode_messages(Config) ->
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi! this is an unicode character lol 😂"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"this is another one no 🙅"/utf8>>)),
                 escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"This is the same again lol 😂"/utf8>>)),
-                maybe_wait_for_archive(Config),
+                mam_helper:wait_for_archive_size(Alice, 3),
 
                 %% WHEN Searching for a message with "lol" string
                 escalus:send(Alice, stanza_text_search_archive_request(P, <<"q1">>, <<"lol"/utf8>>)),
@@ -1355,7 +1395,7 @@ save_unicode_messages(Config) ->
                 ?assert_equal(<<"Hi! this is an unicode character lol 😂"/utf8>>, Body1),
                 ?assert_equal(<<"This is the same again lol 😂"/utf8>>, Body2),
 
-                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"no"/utf8>>)),
+                escalus:send(Alice, stanza_text_search_archive_request(P, <<"q2">>, <<"another"/utf8>>)),
                 Res2 = wait_archive_respond(P, Alice),
                 assert_respond_size(1, Res2),
                 assert_respond_query_id(P, <<"q2">>, parse_result_iq(P, Res2)),
@@ -1611,7 +1651,7 @@ filter_forwarded(Config) ->
 
         %% Bob receives a message.
         escalus:wait_for_stanza(Bob),
-        maybe_wait_for_archive(Config),
+        mam_helper:wait_for_archive_size(Bob, 1),
         escalus:send(Bob, stanza_archive_request(P, <<"q1">>)),
         assert_respond_size(1, wait_archive_respond(P, Bob)),
 
@@ -2725,7 +2765,7 @@ check_user_exist(Config) ->
   %% when
   [{_, AdminSpec}] = escalus_users:get_users([admin]),
   [AdminU, AdminS, AdminP] = escalus_users:get_usp(Config, AdminSpec),
-  #{} = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
+  ok = rpc(mim(), ejabberd_auth, try_register, [AdminU, AdminS, AdminP]),
   %% admin user already registered
   true = rpc(mim(), ejabberd_users, does_user_exist, [AdminU, AdminS]),
   false = rpc(mim(), ejabberd_users, does_user_exist, [<<"fake-user">>, AdminS]),

@@ -45,7 +45,7 @@
          remove_user/2,
          remove_user/3,
          determine_amp_strategy/5,
-         amp_failed_event/2]).
+         amp_failed_event/3]).
 
 %% Internal exports
 -export([start_link/3]).
@@ -166,8 +166,8 @@ stop(Host) ->
 %% Server side functions
 %% ------------------------------------------------------------------
 
-amp_failed_event(Packet, From) ->
-    mod_amp:check_packet(Packet, From, offline_failed).
+amp_failed_event(Acc, From, _Packet) ->
+    mod_amp:check_packet(Acc, From, offline_failed).
 
 handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
     {LUser, LServer} = US,
@@ -184,9 +184,14 @@ handle_offline_msg(Acc, #offline_msg{us=US} = Msg, AccessMaxOfflineMsgs) ->
 write_messages(Acc, LUser, LServer, Msgs) ->
     case mod_offline_backend:write_messages(LUser, LServer, Msgs) of
         ok ->
-            [mod_amp:check_packet(Packet, From, archived)
-             || #offline_msg{from = From, packet = Packet} <- Msgs],
-            ok;
+            lists:foreach(fun(#offline_msg{from = From, to = To, packet = Packet}) ->
+                                  NAcc = mongoose_acc:new(#{ location => ?LOCATION,
+                                                             lserver => LServer,
+                                                             from_jid => From,
+                                                             to_jid => To,
+                                                             element => Packet }),
+                                  mod_amp:check_packet(NAcc, From, archived)
+                          end, Msgs);
         {error, Reason} ->
             ?ERROR_MSG("~ts@~ts: write_messages failed with ~p.",
                 [LUser, LServer, Reason]),
@@ -233,12 +238,11 @@ start_worker(Host, AccessMaxOfflineMsgs) ->
     {Proc,
      {?MODULE, start_link, [Proc, Host, AccessMaxOfflineMsgs]},
      permanent, 5000, worker, [?MODULE]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 stop_worker(Host) ->
     Proc = srv_name(Host),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 start_link(Name, Host, AccessMaxOfflineMsgs) ->
     gen_server:start_link({local, Name}, ?MODULE, [Host, AccessMaxOfflineMsgs], []).
@@ -395,7 +399,7 @@ store_packet(Acc, From, To = #jid{luser = LUser, lserver = LServer},
              to = To,
              packet = jlib:remove_delay_tags(Packet)},
     Pid ! {Acc, Msg},
-    mongoose_acc:put(stored_offlne, true, Acc).
+    mongoose_acc:set(offline, stored, true, Acc).
 
 %% Check if the packet has any content about XEP-0022 or XEP-0085
 check_event_chatstates(Acc, From, To, Packet) ->
@@ -480,7 +484,7 @@ find_x_expire(TimeStamp, [El | Els]) ->
     end.
 
 pop_offline_messages(Acc, User, Server) ->
-    mongoose_acc:append(offline_messages, pop_offline_messages(User, Server), Acc).
+    mongoose_acc:append(offline, messages, pop_offline_messages(User, Server), Acc).
 
 pop_offline_messages(User, Server) ->
     LUser = jid:nodeprep(User),
@@ -556,7 +560,7 @@ discard_warn_sender(Acc, Msgs) ->
               ErrText = <<"Your contact offline message queue is full."
                           " The message has been discarded.">>,
               Lang = exml_query:attr(Packet, <<"xml:lang">>, <<>>),
-              amp_failed_event(Packet, From),
+              amp_failed_event(Acc, From, Packet),
               {Acc1, Err} = jlib:make_error_reply(
                       Acc, Packet, mongoose_xmpp_errors:resource_constraint(Lang, ErrText)),
               ejabberd_router:route(To, From, Acc1, Err)

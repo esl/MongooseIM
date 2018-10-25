@@ -59,11 +59,11 @@ To compile MongooseIM, go to the main repo directory `$REPO` and execute the com
 
         $ ./rebar3 compile
 
-To generate full MongooseIM release (with mysql, pgsql or other deps):
+To generate a full MongooseIM release (i.e. an executable with mysql, pgsql or other dependencies):
 
         $ make rel
 
-If more advanced release is required (with some specific db support only, f.e. mysql or pgsql) or you want to set `prefix` or `user` for the installation script please refer to the [release configuration](release_config.md) page in our documentation.
+If a more advanced release is required (with only specific DB support, e.g. mysql or pgsql) or you want to set the `prefix` or `user` for the installation script please refer to the [release configuration](release_config.md) page in our documentation.
 
 The `make rel` commands will generate a self-contained OTP system image in the project's `_build/prod/rel/mongooseim` subdirectory.
 The contents of that directory are as follows:
@@ -79,15 +79,16 @@ The contents of that directory are as follows:
 
 To run MongooseIM from the project tree after compiling it, change to `$REPO/_build/prod/rel/mongooseim`.
 
-There you can use the `mongooseim` command line administration script to start and stop MongooseIM. For example, this command will start the server:
+There you can use the `mongooseim` command line administration script to start and stop MongooseIM.
+For example, this command will start the server:
 
     $ bin/mongooseim start
 
-You can also run the server in interactive mode:
+You can also run the server in interactive mode (drop into an Erlang shell):
 
     $ bin/mongooseim live
 
-There's also a tool called `mongooseimctl` allowing you to perform some operations on a running instance, e.g.:
+There's also a tool called `mongooseimctl` to perform some operations on a running instance, e.g.:
 
     $ bin/mongooseimctl status
     MongooseIM node mongooseim@localhost:

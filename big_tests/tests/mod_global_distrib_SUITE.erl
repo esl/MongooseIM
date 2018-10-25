@@ -43,59 +43,60 @@ all() ->
     ].
 
 groups() ->
-    [{mod_global_distrib, [shuffle],
-      [
-       test_pm_between_users_at_different_locations,
-       test_pm_between_users_before_available_presence,
-       test_muc_conversation_on_one_host,
-       test_component_disconnect,
-       test_component_on_one_host,
-       test_components_in_different_regions,
-       test_hidden_component_disco_in_different_region,
-       test_pm_with_disconnection_on_other_server,
-       test_pm_with_graceful_reconnection_to_different_server,
-       test_pm_with_ungraceful_reconnection_to_different_server,
-       test_global_disco,
-       test_component_unregister,
-       test_update_senders_host,
-       test_update_senders_host_by_ejd_service
-       %% TODO: Add test case fo global_distrib_addr option
-      ]},
-     {hosts_refresher, [],
-      [test_host_refreshing]},
-     {cluster_restart, [],
-      [
-       test_location_disconnect
-      ]},
-     {start_checks, [],
-      [
-       test_error_on_wrong_hosts
-      ]},
-     {invalidation, [],
-      [
-       % TODO: Add checks for other mapping refreshes
-       refresh_nodes
-      ]},
-     {multi_connection, [shuffle],
-      [
-       test_in_order_messages_on_multiple_connections,
-       test_muc_conversation_history,
-       test_in_order_messages_on_multiple_connections_with_bounce,
-       test_messages_bounced_in_order
-      ]},
-     {rebalancing, [shuffle],
-      [
-       enable_new_endpoint_on_refresh,
-       disable_endpoint_on_refresh,
-       wait_for_connection,
-       closed_connection_is_removed_from_disabled
-      ]},
-     {advertised_endpoints, [],
-      [
-       test_advertised_endpoints_override_endpoints,
-       test_pm_between_users_at_different_locations
-      ]}
-    ].
+    G = [{mod_global_distrib, [shuffle],
+          [
+           test_pm_between_users_at_different_locations,
+           test_pm_between_users_before_available_presence,
+           test_muc_conversation_on_one_host,
+           test_component_disconnect,
+           test_component_on_one_host,
+           test_components_in_different_regions,
+           test_hidden_component_disco_in_different_region,
+           test_pm_with_disconnection_on_other_server,
+           test_pm_with_graceful_reconnection_to_different_server,
+           test_pm_with_ungraceful_reconnection_to_different_server,
+           test_global_disco,
+           test_component_unregister,
+           test_update_senders_host,
+           test_update_senders_host_by_ejd_service
+           %% TODO: Add test case fo global_distrib_addr option
+          ]},
+         {hosts_refresher, [],
+          [test_host_refreshing]},
+         {cluster_restart, [],
+          [
+           test_location_disconnect
+          ]},
+         {start_checks, [],
+          [
+           test_error_on_wrong_hosts
+          ]},
+         {invalidation, [],
+          [
+           % TODO: Add checks for other mapping refreshes
+           refresh_nodes
+          ]},
+         {multi_connection, [shuffle],
+          [
+           test_in_order_messages_on_multiple_connections,
+           test_muc_conversation_history,
+           test_in_order_messages_on_multiple_connections_with_bounce,
+           test_messages_bounced_in_order
+          ]},
+         {rebalancing, [shuffle],
+          [
+           enable_new_endpoint_on_refresh,
+           disable_endpoint_on_refresh,
+           wait_for_connection,
+           closed_connection_is_removed_from_disabled
+          ]},
+         {advertised_endpoints, [],
+          [
+           test_advertised_endpoints_override_endpoints,
+           test_pm_between_users_at_different_locations
+          ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},
@@ -108,18 +109,18 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    case {rpc(europe_node1, eredis, start_link, []), rpc(asia_node, eredis, start_link, [])} of
+    case {rpc(europe_node1, mongoose_wpool, get_worker, [redis, global, global_distrib]),
+          rpc(asia_node, mongoose_wpool, get_worker, [redis, global, global_distrib])} of
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
-            CertDir = filename:join(path_helper:test_dir(Config), "priv/ssl"),
-            CertPath = path_helper:canonicalize_path(filename:join(CertDir, "fake_cert.pem")),
-            CACertPath = path_helper:canonicalize_path(filename:join(CertDir, "cacert.pem")),
+            % We have to pass [no_opts] because [] is treated as string and converted
+            % automatically to <<>>
             escalus:init_per_suite([{add_advertised_endpoints, []},
-                                    {certfile, CertPath}, {cafile, CACertPath},
-                                    {extra_config, []}, {redis_extra_config, []} | Config]);
-        _ ->
-            {skip, "Cannot connect to Redis server on 127.0.0.1 6379"}
+                                    {extra_config, []}, {redis_extra_config, [no_opts]} | Config]);
+        Result ->
+            ct:pal("Redis check result: ~p", [Result]),
+            {skip, "GD Redis default pool not available"}
     end.
 
 end_per_suite(Config) ->
@@ -159,10 +160,10 @@ init_per_group(_, Config0) ->
                             {global_host, "localhost"},
                             {endpoints, [listen_endpoint(ReceiverPort)]},
                             {tls_opts, [
-                                        {certfile, ?config(certfile, Config1)},
-                                        {cafile, ?config(cafile, Config1)}
+                                        {certfile, "priv/ssl/fake_server.pem"},
+                                        {cafile, "priv/ssl/ca/cacert.pem"}
                                        ]},
-                            {redis, [{port, 6379} | ?config(redis_extra_config, Config1)]},
+                            {redis, ?config(redis_extra_config, Config1)},
                             {resend_after_ms, 500}]),
                   Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
@@ -194,8 +195,10 @@ init_per_group(_, Config0) ->
 end_per_group(advertised_endpoints, Config) ->
     Pids = ?config(meck_handlers, Config),
     unmock_inet(Pids),
+    escalus_fresh:clean(),
     Config;
 end_per_group(start_checks, Config) ->
+    escalus_fresh:clean(),
     Config;
 end_per_group(invalidation, Config) ->
     redis_query(europe_node1, [<<"HDEL">>, ?config(nodes_key, Config),
@@ -297,7 +300,7 @@ unpause_refresher(NodeName, _) ->
 %% for each host in get_hosts().
 %% Reads Redis to confirm that endpoints (in Redis) are overwritten
 %% with `advertised_endpoints` option value
-test_advertised_endpoints_override_endpoints(Config) ->
+test_advertised_endpoints_override_endpoints(_Config) ->
     Endps = execute_on_each_node(mod_global_distrib_mapping_redis,
                                  get_endpoints,
                                  [<<"reg1">>]),
@@ -310,13 +313,15 @@ test_advertised_endpoints_override_endpoints(Config) ->
 %% Also actually verifies that refresher properly reads host list
 %% from backend and starts appropriate pool.
 test_host_refreshing(_Config) ->
-    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, 2, ?HOSTS_REFRESH_INTERVAL),
+    mongoose_helper:wait_until(fun() -> trees_for_connections_present() end, true,
+                               #{name => trees_for_connections_present}),
     ConnectionSups = out_connection_sups(asia_node),
     {europe_node1, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
     EuropeSup = rpc(asia_node, mod_global_distrib_utils, server_to_sup_name, [list_to_binary(EuropeHost)]),
     {_, EuropePid, supervisor, _} = lists:keyfind(EuropeSup, 1, ConnectionSups),
     erlang:exit(EuropePid, kill), % it's ok to kill temporary process
-    mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, 2, ?HOSTS_REFRESH_INTERVAL).
+    mongoose_helper:wait_until(fun() -> tree_for_sup_present(asia_node, EuropeSup) end, true,
+                               #{name => tree_for_sup_present}).
 
 %% When run in mod_global_distrib group - tests simple case of connection
 %% between two users connected to different clusters.
@@ -400,6 +405,11 @@ test_muc_conversation_history(Config0) ->
                                     Msg = <<"test-", (integer_to_binary(I))/binary>>,
                                     escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg))
                             end, lists:seq(1, 3)),
+              %% Ensure that the messages are received by the room
+              %% before trying to login Eve.
+              %% Otherwise, Eve would receive some messages from history and
+              %% some as regular groupchat messages.
+              escalus:wait_for_stanzas(Alice, 3),
 
               EveUsername = escalus_utils:get_username(Eve),
               escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
@@ -589,10 +599,6 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
               NewEve = connect_from_spec(EveSpec2, Config),
-              ct:sleep(timer:seconds(1)), % without it, on very slow systems (e.g. travis),
-                                          % global_distrib correctly routes "hi again from eu"
-                                          % message to local host, but it's rejected by some
-                                          % underlying mechanism (presence unavailable?)
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
@@ -723,13 +729,8 @@ test_update_senders_host(Config) ->
               AliceJid = rpc(asia_node, jid, from_binary, [escalus_client:full_jid(Alice)]),
               {ok, <<"localhost.bis">>}
               = rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid]),
-
               ok = rpc(europe_node1, mod_global_distrib_mapping, delete_for_jid, [AliceJid]),
-              GetCachesFun
-              = fun() ->
-                        rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])
-                end,
-              mongoose_helper:wait_until(GetCachesFun, error, 10, 1000),
+              wait_for_node(asia_node, AliceJid),
 
               %% TODO: Should prevent Redis refresher from executing for a moment,
               %%       as it may collide with this test.
@@ -740,6 +741,12 @@ test_update_senders_host(Config) ->
               {ok, <<"localhost.bis">>}
               = rpc(asia_node, mod_global_distrib_mapping, for_jid, [AliceJid])
       end).
+wait_for_node(Node,Jid) ->
+    mongoose_helper:wait_until(fun() -> rpc(Node, mod_global_distrib_mapping, for_jid, [Jid]) end,
+                               error,
+                               #{time_left => timer:seconds(10),
+                                 sleep_time => timer:seconds(1),
+                                 name => rpc}).
 
 test_update_senders_host_by_ejd_service(Config) ->
     %% Connects to europe_node1
@@ -757,14 +764,8 @@ test_update_senders_host_by_ejd_service(Config) ->
               {ok, <<"reg1">>} = rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid]),
 
               ok = rpc(asia_node, mod_global_distrib_mapping, delete_for_jid, [EveJid]),
-              GetCachesFun
-              = fun() ->
-                        {
-                         rpc(europe_node1, mod_global_distrib_mapping, for_jid, [EveJid]),
-                         rpc(europe_node2, mod_global_distrib_mapping, for_jid, [EveJid])
-                        }
-                end,
-              mongoose_helper:wait_until(GetCachesFun, {error, error}, 10, 1000),
+              wait_for_node(europe_node1, EveJid),
+              wait_for_node(europe_node2, EveJid),
 
               %% Component is connected to europe_node1
               %% but we force asia_node to connect to europe_node2 by hiding europe_node1
@@ -830,11 +831,13 @@ wait_for_connection(Config) ->
     set_endpoints(asia_node, []),
     %% Because of hosts refresher, a pool of connections to asia_node
     %% may already be present here
-    wait_for(rebalance,
-             fun () ->
-                 try trigger_rebalance(europe_node1, <<"reg1">>), true
-                 catch _:_ -> false end
-             end),
+    mongoose_helper:wait_until(
+                                fun () ->
+                                    try trigger_rebalance(europe_node1, <<"reg1">>), true
+                                    catch _:_ -> false end
+                                end,
+                                true,
+                                #{name => rebalance, time_left => timer:seconds(5)}),
 
     spawn_connection_getter(europe_node1),
 
@@ -865,7 +868,8 @@ closed_connection_is_removed_from_disabled(_Config) ->
     restart_receiver(asia_node, [listen_endpoint(10001)]),
 
     mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
-               {[], [], []}, 5, 1000).
+                               {[], [], []},
+                              #{name => get_outgoing_connections}).
 
 %%--------------------------------------------------------------------
 %% Test helpers
@@ -962,7 +966,7 @@ jids(Client) ->
     {FullJid, BareJid}.
 
 redis_query(Node, Query) ->
-    RedisWorker = rpc(Node, wpool_pool, best_worker, [mod_global_distrib_mapping_redis]),
+    {ok, RedisWorker} = rpc(Node, mongoose_wpool, get_worker, [redis, global, global_distrib]),
     rpc(Node, eredis, q, [RedisWorker, Query]).
 
 %% A fake address we don't try to connect to.
@@ -1013,7 +1017,7 @@ mock_inet() ->
     meck:expect(inet, getaddrs, fun(_, inet) -> {ok, [{127, 0, 0, 1}]};
                                    (_, inet6) -> {error, "No ipv6 address"} end).
 
-unmock_inet(Pids) ->
+unmock_inet(_Pids) ->
     execute_on_each_node(meck, unload, [inet]).
 
 out_connection_sups(Node) ->
@@ -1087,16 +1091,3 @@ refresh_mappings(NodeName, Config) ->
 trigger_rebalance(NodeName, DestinationDomain) ->
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
-
-wait_for(Label, Pred) ->
-    wait_for(Label, Pred, timer:seconds(5)).
-
-wait_for(Label, _Pred, RemainingTime) when RemainingTime =< 0 ->
-    error({timeout, Label});
-wait_for(Label, Pred, RemainingTime) ->
-    case Pred() of
-        true -> ok;
-        false ->
-            timer:sleep(100),
-            wait_for(Label, Pred, RemainingTime - 100)
-    end.

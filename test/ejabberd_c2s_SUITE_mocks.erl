@@ -14,6 +14,8 @@ setup() ->
     meck:expect(ejabberd_socket, get_sockmod, fun(_) -> gen_tcp end),
     meck:expect(ejabberd_socket, peername,
                 fun(_) -> {ok, {{127, 0, 0, 0}, 50001}}  end),
+    meck:expect(ejabberd_socket, get_peer_certificate,
+                fun(_) -> no_peer_cert  end),
     meck:expect(ejabberd_socket, monitor,
                 fun(_) -> ok  end),
     meck:expect(ejabberd_socket, change_shaper, fun(_, _) -> ok end),
@@ -43,9 +45,8 @@ setup() ->
                 fun default_global_option/1),
     meck:expect(acl, match_rule, fun(_, _, _) -> allow end),
 
-    meck:new(randoms),
-    meck:expect(randoms, get_string,
-                fun() -> "57" end),
+    meck:new(mongoose_bin, [passthrough]),
+    meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"57">> end),
 
     meck:new(mongoose_metrics),
     meck:expect(mongoose_metrics, update, fun (_, _, _) -> ok end).
@@ -66,7 +67,7 @@ mcred_get(dummy_creds, auth_module) -> auuuthmodule.
 hookfold(check_bl_c2s, _, _) -> false.
 
 hookfold(roster_get_versioning_feature, _, _, _) -> [];
-hookfold(roster_get_subscription_lists, _, _, _) -> mongoose_acc:new();
+hookfold(roster_get_subscription_lists, _, A, _) -> A;
 hookfold(privacy_get_user_list, _, A, _) -> A;
 hookfold(session_opening_allowed_for_user, _, _, _) -> allow;
 hookfold(c2s_stream_features, _, _, _) -> [];

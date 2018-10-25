@@ -11,7 +11,7 @@
          remove_smid/5,
          session_cleanup/5]).
 
-%% `ejabberd.cfg' options (don't use outside of tests)
+%% `mongooseim.cfg' options (don't use outside of tests)
 -export([get_buffer_max/1,
          set_buffer_max/1,
          get_ack_freq/1,
@@ -74,7 +74,7 @@ session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
     remove_smid(Acc, SID, undefined, undefined, undefined).
 
 %%
-%% `ejabberd.cfg' options (don't use outside of tests)
+%% `mongooseim.cfg' options (don't use outside of tests)
 %%
 
 -spec get_buffer_max(pos_integer() | infinity | no_buffer)

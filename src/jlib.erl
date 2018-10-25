@@ -145,15 +145,15 @@ make_error_reply(#xmlel{name = Name, attrs = Attrs,
     NewAttrs = make_error_reply_attrs(Attrs),
     #xmlel{name = Name, attrs = NewAttrs, children = SubTags ++ [Error]};
 make_error_reply(Acc, Error) ->
-    make_error_reply(Acc, mongoose_acc:get(element, Acc), Error).
+    make_error_reply(Acc, mongoose_acc:element(Acc), Error).
 
 make_error_reply(Acc, Packet, Error) ->
-    case mongoose_acc:get(return_type, Acc, undefined) of
-        error_reply ->
+    case mongoose_acc:get(flag, error, false, Acc) of
+        true ->
             ?ERROR_MSG("event=error_reply_to_error,stanza=~p,error=~p", [Packet, Error]),
             {Acc, {error, {already_an_error, Packet, Error}}};
         _ ->
-            {mongoose_acc:put(return_type, error_reply, Acc),
+            {mongoose_acc:set(flag, error, true, Acc),
              make_error_reply(Packet, Error)}
     end.
 
@@ -557,16 +557,21 @@ timestamp_to_iso({{Year, Month, Day}, {Hour, Minute, Second}}, Timezone) ->
 
 -spec timestamp_to_xml(DateTime :: calendar:datetime() | datetime_micro(),
                        Timezone :: tz(),
-                       FromJID :: jid:simple_jid() | jid:jid(),
-                       Desc :: iodata()) -> exml:element().
+                       FromJID :: jid:simple_jid() | jid:jid() | undefined,
+                       Desc :: iodata() | undefined) -> exml:element().
 timestamp_to_xml(DateTime, Timezone, FromJID, Desc) ->
     {TString, TzString} = timestamp_to_iso(DateTime, Timezone),
-    Text = [#xmlcdata{content = Desc}],
-    From = jid:to_binary(FromJID),
+    Text = case Desc of
+               undefined -> [];
+               _ -> [#xmlcdata{content = Desc}]
+           end,
+    From = case FromJID of
+               undefined -> [];
+               _ -> [{<<"from">>, jid:to_binary(FromJID)}]
+           end,
     #xmlel{name = <<"delay">>,
            attrs = [{<<"xmlns">>, ?NS_DELAY},
-                    {<<"from">>, From},
-                    {<<"stamp">>, list_to_binary(TString ++ TzString)}],
+                    {<<"stamp">>, list_to_binary(TString ++ TzString)} | From],
            children = Text}.
 
 -spec now_to_utc_string(erlang:timestamp()) -> string().

@@ -154,8 +154,7 @@ start(Host, Opts) ->
          1000,
          worker,
          [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
-
+    ejabberd_sup:start_child(ChildSpec).
 
 -spec stop(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
@@ -167,8 +166,7 @@ stop_gen_server(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
     %% Proc can still be alive because of a race condition
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 
 %% @doc This function is called by a room in three situations:
@@ -281,10 +279,7 @@ init([Host, Opts]) ->
     AccessCreate = gen_mod:get_opt(access_create, Opts, all),
     AccessAdmin = gen_mod:get_opt(access_admin, Opts, none),
     AccessPersistent = gen_mod:get_opt(access_persistent, Opts, all),
-    HttpAuthPool = case gen_mod:get_opt(http_auth_pool, Opts, none) of
-                       none -> none;
-                       PoolName -> mongoose_http_client:get_pool(PoolName)
-                   end,
+    HttpAuthPool = gen_mod:get_opt(http_auth_pool, Opts, none),
     HistorySize = gen_mod:get_opt(history_size, Opts, 20),
     DefRoomOpts = gen_mod:get_opt(default_room_options, Opts, []),
     RoomShaper = gen_mod:get_opt(room_shaper, Opts, none),
@@ -456,15 +451,14 @@ start_supervisor(Host) ->
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 
 -spec stop_supervisor(jid:server()) -> 'ok'
     | {'error', 'not_found' | 'restarting' | 'running' | 'simple_one_for_one'}.
 stop_supervisor(Host) ->
     Proc = gen_mod:get_module_proc(Host, ejabberd_mod_muc_sup),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 
 -spec process_packet(Acc :: mongoose_acc:t(),
@@ -818,7 +812,7 @@ iq_disco_info(Lang) ->
         Rsm :: none | jlib:rsm_in()) -> any().
 iq_disco_items(Host, From, Lang, none) ->
     lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm:sync_send_all_state_event(
+                     case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
                          {item, Desc} ->
                              flush(),
@@ -834,7 +828,7 @@ iq_disco_items(Host, From, Lang, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
     lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm:sync_send_all_state_event(
+                     case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
                          {item, Desc} ->
                              flush(),
@@ -935,7 +929,7 @@ xfield(Type, Label, Var, Val, Lang) ->
 -spec iq_get_unique(jid:jid()) -> jlib:xmlcdata().
 iq_get_unique(From) ->
         #xmlcdata{content = sha:sha1_hex(term_to_binary([From, p1_time_compat:unique_integer(),
-                                                         randoms:get_string()]))}.
+                                                         mongoose_bin:gen_from_crypto()]))}.
 
 
 -spec iq_get_register_info(jid:server(), jid:server(),
@@ -1060,7 +1054,7 @@ iq_get_vcard(Lang) ->
 broadcast_service_message(Host, Msg) ->
     lists:foreach(
       fun(#muc_online_room{pid = Pid}) ->
-              gen_fsm:send_all_state_event(
+              gen_fsm_compat:send_all_state_event(
                 Pid, {service_message, Msg})
       end, get_vh_rooms(Host)).
 

@@ -50,7 +50,9 @@ start(Host, Opts) ->
     ?INFO_MSG("mod_push_service starting on host ~p", [Host]),
 
     MaxHTTPConnections = gen_mod:get_opt(max_http_connections, Opts, 100),
-    wpool_sup:start_pool(pool_name(Host, wpool), [{workers, MaxHTTPConnections}]),
+    {ok, _} = mongoose_wpool:start(generic, Host, mongoosepush_service,
+                                   [{strategy, available_worker},
+                                    {workers, MaxHTTPConnections}]),
 
     %% Hooks
     ejabberd_hooks:add(push_notifications, Host, ?MODULE, push_notifications, 10),
@@ -60,7 +62,7 @@ start(Host, Opts) ->
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(push_notifications, Host, ?MODULE, push_notifications, 10),
-    wpool_sup:stop_pool(pool_name(Host, wpool)),
+    mongoose_wpool:stop(generic, Host, mongoosepush_service),
 
     ok.
 
@@ -99,8 +101,7 @@ push_notifications(AccIn, Host, Notifications, Options) ->
     ok | {error, Reason :: term()}.
 http_notification(Host, Method, URL, ReqHeaders, Payload) ->
     PoolName = gen_mod:get_module_opt(Host, ?MODULE, pool_name, undefined),
-    Pool = mongoose_http_client:get_pool(PoolName),
-    case mongoose_http_client:Method(Pool, URL, ReqHeaders, Payload) of
+    case mongoose_http_client:Method(Host, PoolName, URL, ReqHeaders, Payload) of
         {ok, {BinStatusCode, Body}} ->
             case binary_to_integer(BinStatusCode) of
                 StatusCode when StatusCode >= 200 andalso StatusCode < 300 ->
@@ -149,10 +150,4 @@ make_notification(v2, Notification, Options) ->
 
 -spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
 cast(Host, M, F, A) ->
-    wpool:cast(pool_name(Host, wpool), {M, F, A}, available_worker).
-
--spec pool_name(Host :: jid:server(), Base0 :: atom()) -> atom().
-pool_name(Host, Base0) ->
-    Base = list_to_atom(atom_to_list(?MODULE) ++ "_" ++ atom_to_list(Base0)),
-    gen_mod:get_module_proc(Host, Base).
-
+    mongoose_wpool:cast(generic, Host, mongoosepush_service, {M, F, A}).

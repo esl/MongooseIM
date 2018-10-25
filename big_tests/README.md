@@ -41,7 +41,7 @@ In order to do this define configuration variables in `test.config` file, for ex
     ]}.
 ```
 For each configuration the given variables merged with values from `node1_vars.config`
-will be overlaid with the original `ejabberd.cfg` file and ejabberd will be restarted.
+will be overlaid with the original `mongooseim.cfg` file and ejabberd will be restarted.
 
 
 If there is no `ejabberd_configs` entry in the config file the test will run ordinarily with running ejabberd configuration.

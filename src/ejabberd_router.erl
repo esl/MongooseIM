@@ -114,21 +114,33 @@ start_link() ->
     Packet :: mongoose_acc:t()|exml:element()) -> mongoose_acc:t().
 route(From, To, #xmlel{} = Packet) ->
     % ?ERROR_MSG("Deprecated - it should be Acc: ~p", [Packet]),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => From#jid.lserver,
+                              element => Packet,
+                              from_jid => From,
+                              to_jid => To }),
     % (called by broadcasting)
-    route(From, To, mongoose_acc:from_element(Packet, From, To));
+    route(From, To, Acc);
 route(From, To, Acc) ->
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
            [From, To, Acc]),
-    El = mongoose_acc:get(element, Acc),
+    El = mongoose_acc:element(Acc),
     route(From, To, Acc, El, routing_modules_list()).
 
-route(From, To, Acc, {error, Reason}) ->
+-spec route(From   :: jid:jid(),
+            To     :: jid:jid(),
+            Acc :: mongoose_acc:t(),
+            El :: exml:element() | {error, term()}) -> mongoose_acc:t().
+route(From, To, Acc, {error, Reason} = Err) ->
     ?INFO_MSG("event=cannot_route_stanza,from=~p,to=~p,reason=~p,acc=~p", [From, To, Reason, Acc]),
-    mongoose_acc:append(errors, Reason, Acc);
+    mongoose_acc:append(router, result, Err, Acc);
 route(From, To, Acc, El) ->
+    Acc1 = mongoose_acc:update_stanza(#{ from_jid => From,
+                                         to_jid => To,
+                                         element => El }, Acc),
     ?DEBUG("route~n\tfrom ~p~n\tto ~p~n\tpacket ~p~n",
-        [From, To, Acc]),
-    route(From, To, Acc, El, routing_modules_list()).
+        [From, To, Acc1]),
+    route(From, To, Acc1, El, routing_modules_list()).
 
 %% Route the error packet only if the originating packet is not an error itself.
 %% RFC3920 9.3.1
@@ -137,11 +149,11 @@ route(From, To, Acc, El) ->
                   Acc :: mongoose_acc:t(),
                   ErrPacket :: exml:element()) -> mongoose_acc:t().
 route_error(From, To, Acc, ErrPacket) ->
-    case <<"error">> == mongoose_acc:get(type, Acc) of
-        false ->
-            route(From, To, Acc, ErrPacket);
-        true ->
-            Acc
+    case mongoose_acc:stanza_type(Acc) of
+        <<"error">> ->
+            Acc;
+        _ ->
+            route(From, To, Acc, ErrPacket)
     end.
 
 -spec route_error_reply(jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()) ->
@@ -499,41 +511,36 @@ make_routing_module_source(Mods) ->
             Packet :: exml:element(),
             [atom()]) -> mongoose_acc:t().
 route(From, To, Acc, Packet, []) ->
-    ?ERROR_MSG("error routing from=~ts to=~ts, packet=~ts, reason: no more routing modules",
-               [jid:to_binary(From), jid:to_binary(To),
-                mongoose_acc:to_binary(Packet)]),
+    ?ERROR_MSG("event=no_more_routing_modules,from=~ts,to=~ts,packet=~ts",
+               [jid:to_binary(From), jid:to_binary(To), exml:to_binary(Packet)]),
     mongoose_metrics:update(global, routingErrors, 1),
-    mongoose_acc:record_sending(Acc, From, To, Packet, none, out_of_modules);
+    mongoose_acc:append(router, result, {error, out_of_modules}, Acc);
 route(OrigFrom, OrigTo, Acc, OrigPacket, [M|Tail]) ->
     ?DEBUG("Using module ~p", [M]),
     case (catch xmpp_router:call_filter(M, OrigFrom, OrigTo, Acc, OrigPacket)) of
         {'EXIT', Reason} ->
-            ?DEBUG("Filtering error", []),
-            ?ERROR_MSG("error when filtering from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-                       "packet=~ts~n~nstack_trace=~p~n",
-                       [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                        M, Reason, mongoose_acc:to_binary(OrigPacket),
-                        erlang:get_stacktrace()]),
-            mongoose_acc:record_sending(Acc, OrigFrom, OrigTo, OrigPacket, M, Reason);
+            ?WARNING_MSG("event=filtering_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
+                         "packet=~ts~n~nstack_trace=~p~n",
+                         [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                          M, Reason, exml:to_binary(OrigPacket),
+                          erlang:get_stacktrace()]),
+            mongoose_acc:append(router, result, {error, {M, Reason}}, Acc);
         drop ->
             ?DEBUG("filter dropped packet", []),
-            mongoose_acc:record_sending(Acc, OrigFrom, OrigTo, OrigPacket, M, drop);
+            mongoose_acc:append(router, result, {drop, M}, Acc);
         {OrigFrom, OrigTo, NAcc, OrigPacketFiltered} ->
             ?DEBUG("filter passed", []),
             case catch(xmpp_router:call_route(M, OrigFrom, OrigTo, NAcc, OrigPacketFiltered)) of
                 {'EXIT', Reason} ->
-                    ?ERROR_MSG("error when routing from=~ts to=~ts in module=~p~n~nreason=~p~n~n"
-                               "packet=~ts~n~nstack_trace=~p~n",
-                               [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
-                                M, Reason, mongoose_acc:to_binary(OrigPacketFiltered),
-                                erlang:get_stacktrace()]),
-                    ?DEBUG("routing error", []),
-                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered,
-                                                M, Reason);
+                    ?WARNING_MSG("event=routing_error,from=~ts,to=~ts,module=~p~n~nreason=~p~n~n"
+                                 "packet=~ts~n~nstack_trace=~p~n",
+                                 [jid:to_binary(OrigFrom), jid:to_binary(OrigTo),
+                                  M, Reason, exml:to_binary(OrigPacketFiltered),
+                                  erlang:get_stacktrace()]),
+                    mongoose_acc:append(router, result, {error, {M, Reason}}, NAcc);
                 done ->
                     ?DEBUG("routing done", []),
-                    mongoose_acc:record_sending(NAcc, OrigFrom, OrigTo, OrigPacketFiltered,
-                                                M, done);
+                    mongoose_acc:append(router, result, {done, M}, NAcc);
                 {From, To, NAcc1, Packet} ->
                     ?DEBUG("routing skipped", []),
                     route(From, To, NAcc1, Packet, Tail)

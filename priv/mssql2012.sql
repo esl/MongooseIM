@@ -2,7 +2,9 @@
 GO
 CREATE TABLE [dbo].[test_types](
     [unicode] [nvarchar](max),
-    [binary_data] [varbinary](max),
+    [binary_data_8k] [varbinary](8000),
+    [binary_data_65k] [varbinary](max),
+    [binary_data_16m] [varbinary](max), -- varbinary(max) is 2^31-1 bytes
     [ascii_char] char(1),
     [ascii_string] varchar(250), -- limited usage, base64-like stuff
     [int32] [int],
@@ -449,6 +451,27 @@ CREATE TABLE dbo.muc_light_blocking(
 GO
 
 CREATE INDEX i_muc_light_blocking ON muc_light_blocking(luser, lserver);
+GO
+
+-- luser, lserver and remote_bare_jid have 250 characters in MySQL
+-- but here we are limited by index size (900 bytes)
+CREATE TABLE dbo.inbox(
+    luser NVARCHAR(150) NOT NULL,
+    lserver NVARCHAR(150) NOT NULL,
+    remote_bare_jid NVARCHAR(150) NOT NULL,
+    content VARBINARY(max) NOT NULL,
+    unread_count INT NOT NULL,
+    msg_id NVARCHAR(250) NOT NULL,
+    timestamp BIGINT NOT NULL,
+    CONSTRAINT PK_inbox PRIMARY KEY CLUSTERED(
+        luser ASC,
+        lserver ASC,
+        remote_bare_jid ASC
+    )
+)
+GO
+
+CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
 GO
 
 SET ANSI_PADDING OFF

@@ -12,20 +12,21 @@ all() -> [{group, all}].
 
 
 groups() ->
-    [{all, [parallel, shuffle],
-      [discovering_support,
-                  enabling_carbons,
-                  disabling_carbons,
-                  avoiding_carbons,
-                  non_enabled_clients_dont_get_sent_carbons,
-                  non_enabled_clients_dont_get_received_carbons,
-                  enabled_single_resource_doesnt_get_carbons,
-       unavailable_resources_dont_get_carbons,
-       dropped_client_doesnt_create_duplicate_carbons,
-       prop_forward_received_chat_messages,
-       prop_forward_sent_chat_messages,
-       prop_normal_routing_to_bare_jid
-      ]}].
+    G = [{all, [parallel, shuffle],
+          [discovering_support,
+           enabling_carbons,
+           disabling_carbons,
+           avoiding_carbons,
+           non_enabled_clients_dont_get_sent_carbons,
+           non_enabled_clients_dont_get_received_carbons,
+           enabled_single_resource_doesnt_get_carbons,
+           unavailable_resources_dont_get_carbons,
+           dropped_client_doesnt_create_duplicate_carbons,
+           prop_forward_received_chat_messages,
+           prop_forward_sent_chat_messages,
+           prop_normal_routing_to_bare_jid
+          ]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 init_per_suite(C) -> escalus:init_per_suite(C).
 end_per_suite(C) -> escalus_fresh:clean(), escalus:end_per_suite(C).
@@ -121,33 +122,31 @@ unavailable_resources_dont_get_carbons(Config) ->
         carbons_get_enabled(Alice1),
         carbons_get_enabled(Alice2),
         client_unsets_presence(Alice1),
-        _unavailable = escalus_client:wait_for_stanza(Alice2),
+        escalus:assert(is_presence_with_type, [<<"unavailable">>],
+                       escalus_client:wait_for_stanza(Alice2)),
 
         escalus_client:send(Bob, escalus_stanza:chat_to(Alice2, <<"one">>)),
 
         client_sets_presence(Alice1),
         %% no carbons for Alice1, only presences
         escalus_new_assert:mix_match([is_presence, is_presence],
-                                     escalus:peek_stanzas(Alice1))
+                                     escalus:wait_for_stanzas(Alice1, 2))
       end).
 
 client_unsets_presence(Client) ->
-    escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    timer:sleep(100).
+    escalus_client:send(Client, escalus_stanza:presence(<<"unavailable">>)).
 
 client_sets_presence(Client) ->
-    escalus_client:send(Client, escalus_stanza:presence(<<"available">>)),
-    timer:sleep(100).
-
+    escalus_client:send(Client, escalus_stanza:presence(<<"available">>)).
 
 dropped_client_doesnt_create_duplicate_carbons(Config) ->
     escalus:fresh_story(
       Config, [{alice, 2}, {bob, 1}],
       fun(Alice1, Alice2, Bob) ->
               Msg = escalus_stanza:chat_to(Bob, <<"And pious action">>),
-              given_client_logs_out(Config, Alice2),
-              _Pres = escalus_client:wait_for_stanza(Alice1),
-
+              escalus_client:stop(Config, Alice2),
+              escalus:assert(is_presence_with_type, [<<"unavailable">>],
+                    escalus_client:wait_for_stanza(Alice1)),
               escalus_client:send(Alice1, Msg),
               escalus:assert(
                 is_chat_message, [<<"And pious action">>],
@@ -247,10 +246,6 @@ carbons_get_enabled(ClientOrClients) ->
 %% Internal helpers
 %%
 
-given_client_logs_out(Config, Client) ->
-    escalus_client:stop(Config, Client),
-    timer:sleep(300).
-
 %% Wrapper around escalus:story. Returns PropEr result.
 true_story(Config, UserSpecs, TestFun) ->
     try   escalus_fresh:story_with_client_list(Config, UserSpecs, TestFun), true
@@ -259,7 +254,7 @@ true_story(Config, UserSpecs, TestFun) ->
     end.
 
 %% Number of resources per users
-no_of_resources() -> random:uniform(4).
+no_of_resources() -> rand:uniform(4).
 
 %% A sample chat message
 utterance() ->

@@ -1,11 +1,11 @@
 -module(mod_bosh_socket).
 
--behaviour(gen_fsm).
+-behaviour(gen_fsm_compat).
 -behaviour(mongoose_transport).
 
 %% API
--export([start/2,
-         start_link/2,
+-export([start/3,
+         start_link/3,
          start_supervisor/0,
          handle_request/2,
          pause/2]).
@@ -26,7 +26,8 @@
          monitor/1,
          get_sockmod/1,
          close/1,
-         peername/1]).
+         peername/1,
+         get_peer_certificate/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -88,15 +89,16 @@
 %% API
 %%--------------------------------------------------------------------
 
--spec start(mod_bosh:sid(), _) ->
+-spec start(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
     {'error', _} | {'ok', 'undefined' | pid()} | {'ok', 'undefined' | pid(), _}.
-start(Sid, Peer) ->
-    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer]).
+start(Sid, Peer, PeerCert) ->
+    supervisor:start_child(?BOSH_SOCKET_SUP, [Sid, Peer, PeerCert]).
 
 
--spec start_link(mod_bosh:sid(), _) -> 'ignore' | {'error', _} | {'ok', pid()}.
-start_link(Sid, Peer) ->
-    gen_fsm:start_link(?MODULE, [Sid, Peer], []).
+-spec start_link(mod_bosh:sid(), mongoose_transport:peer(), binary() | undefined) ->
+    'ignore' | {'error', _} | {'ok', pid()}.
+start_link(Sid, Peer, PeerCert) ->
+    gen_fsm_compat:start_link(?MODULE, [Sid, Peer, PeerCert], []).
 
 
 start_supervisor() ->
@@ -128,40 +130,40 @@ start_supervisor() ->
                      Handler :: pid(),
                      Body :: exml:element()}) -> ok.
 handle_request(Pid, Request) ->
-    gen_fsm:send_all_state_event(Pid, Request).
+    gen_fsm_compat:send_all_state_event(Pid, Request).
 
 
 %% @doc TODO: no handler for this call is present!
 %% No check for violating maxpause is made when calling this!
 -spec pause(Pid :: pid(), Seconds :: pos_integer()) -> ok.
 pause(Pid, Seconds) ->
-    gen_fsm:send_all_state_event(Pid, {pause, Seconds}).
+    gen_fsm_compat:send_all_state_event(Pid, {pause, Seconds}).
 
 %%--------------------------------------------------------------------
 %% Private API
 %%--------------------------------------------------------------------
 
 get_handlers(Pid) ->
-    gen_fsm:sync_send_all_state_event(Pid, get_handlers).
+    gen_fsm_compat:sync_send_all_state_event(Pid, get_handlers).
 
 
 get_pending(Pid) ->
-    gen_fsm:sync_send_all_state_event(Pid, get_pending).
+    gen_fsm_compat:sync_send_all_state_event(Pid, get_pending).
 
 
 -spec get_client_acks(pid()) -> boolean().
 get_client_acks(Pid) ->
-    gen_fsm:sync_send_all_state_event(Pid, get_client_acks).
+    gen_fsm_compat:sync_send_all_state_event(Pid, get_client_acks).
 
 
 -spec set_client_acks(pid(), boolean()) -> any().
 set_client_acks(Pid, Enabled) ->
-    gen_fsm:sync_send_all_state_event(Pid, {set_client_acks, Enabled}).
+    gen_fsm_compat:sync_send_all_state_event(Pid, {set_client_acks, Enabled}).
 
 
 -spec get_cached_responses(pid()) -> [cached_response()].
 get_cached_responses(Pid) ->
-    gen_fsm:sync_send_all_state_event(Pid, get_cached_responses).
+    gen_fsm_compat:sync_send_all_state_event(Pid, get_cached_responses).
 
 %%--------------------------------------------------------------------
 %% gen_fsm callbacks
@@ -175,8 +177,8 @@ get_cached_responses(Pid) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([Sid, Peer]) ->
-    BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer},
+init([Sid, Peer, PeerCert]) ->
+    BoshSocket = #bosh_socket{sid = Sid, pid = self(), peer = Peer, peercert = PeerCert},
     C2SOpts = [{xml_socket, true}],
     {ok, C2SPid} = ejabberd_c2s:start({mod_bosh_socket, BoshSocket}, C2SOpts),
     ?DEBUG("mod_bosh_socket started~n", []),
@@ -199,7 +201,7 @@ get_maxpause() ->
 %% @doc
 %% There should be one instance of this function for each possible
 %% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_event/2, the instance of this function with the same
+%% gen_fsm_compat:send_event/2, the instance of this function with the same
 %% name as the current state name StateName is called to handle
 %% the event. It is also called if a timeout occurs.
 %%
@@ -235,7 +237,7 @@ closing(Event, State) ->
 %% @doc
 %% There should be one instance of this function for each possible
 %% state name. Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_event/[2, 3], the instance of this function with
+%% gen_fsm_compat:sync_send_event/[2, 3], the instance of this function with
 %% the same name as the current state name StateName is called to
 %% handle the event.
 %%
@@ -264,7 +266,7 @@ closing(Event, _From, State) ->
 %% @private
 %% @doc
 %% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:send_all_state_event/2, this function is called to handle
+%% gen_fsm_compat:send_all_state_event/2, this function is called to handle
 %% the event.
 %%
 %% @spec handle_event(Event, StateName, State) ->
@@ -300,7 +302,7 @@ determine_next_state(EventTag, SName, NNS) ->
     case EventTag of
         _ when EventTag == streamstart; EventTag == restart ->
             timer:apply_after(?ACCUMULATE_PERIOD,
-                gen_fsm, send_event, [self(), acc_off]),
+                gen_fsm_compat, send_event, [self(), acc_off]),
             {next_state, accumulate, NNS};
         _ ->
             {next_state, SName, NNS}
@@ -310,7 +312,7 @@ determine_next_state(EventTag, SName, NNS) ->
 %% @private
 %% @doc
 %% Whenever a gen_fsm receives an event sent using
-%% gen_fsm:sync_send_all_state_event/[2, 3], this function is called
+%% gen_fsm_compat:sync_send_all_state_event/[2, 3], this function is called
 %% to handle the event.
 %%
 %% @spec handle_sync_event(Event, From, StateName, State) ->
@@ -763,7 +765,7 @@ store(Data, #state{pending = Pending} = S) ->
 
 -spec forward_to_c2s('undefined' | pid(), jlib:xmlstreamel()) -> 'ok'.
 forward_to_c2s(C2SPid, StreamElement) ->
-    gen_fsm:send_event(C2SPid, StreamElement).
+    gen_fsm_compat:send_event(C2SPid, StreamElement).
 
 
 -spec maybe_add_handler(_, rid(), state()) -> state().
@@ -1040,6 +1042,13 @@ close(#bosh_socket{pid = Pid}) ->
 -spec peername(mod_bosh:socket()) -> mongoose_transport:peername_return().
 peername(#bosh_socket{peer = Peer}) ->
     {ok, Peer}.
+
+-spec get_peer_certificate(mod_bosh:socket()) -> mongoose_transport:peercert_return().
+get_peer_certificate(#bosh_socket{peercert = undefined}) ->
+    no_peer_cert;
+get_peer_certificate(#bosh_socket{peercert = PeerCert}) ->
+    Decoded = public_key:pkix_decode_cert(PeerCert, plain),
+    {ok, Decoded}.
 
 %%--------------------------------------------------------------------
 %% Helpers

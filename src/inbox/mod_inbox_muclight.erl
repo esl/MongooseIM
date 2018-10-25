@@ -75,7 +75,7 @@ handle_system_message(Host, Room, Remote, Packet) ->
         invite->
             handle_invitation_message(Host, Room, Remote, Packet);
         other ->
-            ?WARNING_MSG("unknown system messasge for mod_inbox_muclight='~p' with error ~p", [Packet]),
+            ?DEBUG("event=unknown_system_message_for_mod_inbox_muclight,stanza='~p'", [Packet]),
             ok
     end.
 
@@ -138,14 +138,16 @@ write_to_inbox(Server, RoomUser, Remote, _Sender, Packet) ->
                          Packet :: exml:element()) -> boolean().
 is_system_message(Sender, Receiver, Packet) ->
     ReceiverDomain = Receiver#jid.lserver,
-    MUCLightDomain = list_to_binary(gen_mod:get_module_opt(ReceiverDomain, mod_muc_light, host, undefined)),
+    MUCLightDomain = list_to_binary(gen_mod:get_module_opt(ReceiverDomain, mod_muc_light,
+                                                           host, undefined)),
     case {Sender#jid.lserver, Sender#jid.lresource} of
         {MUCLightDomain, <<>>} ->
             true;
         {MUCLightDomain, _RoomUser} ->
             false;
         Other ->
-            ?WARNING_MSG("unknown messasge for mod_inbox_muclight='~p' with error ~p", [Packet, Other])
+            ?WARNING_MSG("event=unknown_message_for_mod_inbox_muclight,packet='~p',error='~p'",
+                         [Packet, Other])
     end.
 
 

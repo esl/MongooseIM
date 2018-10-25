@@ -57,7 +57,11 @@ ct_config_giver(Config) ->
 
 maybe_stop_client(undefined) -> ok;
 maybe_stop_client(Client) ->
-    escalus_connection:stop(Client).
+    try
+        escalus_connection:stop(Client)
+    catch throw:{timeout, Details} ->
+              ct:pal("There was timeout ~p when stopping ~p", [Details, Client])
+    end.
 
 initial_state(Pid) ->
     #state{carol = undefined,

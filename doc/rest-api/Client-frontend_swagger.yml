@@ -142,6 +142,27 @@ paths:
           description: A room with the given ID was successfully created.
           schema:
             $ref: '#/definitions/ResourceID'
+  /rooms/{id}/config:
+    put:
+      description: "Changes room configuration"
+      tags:
+        - "Rooms"
+      parameters:
+        - $ref: '#/parameters/roomID'
+        - in: body
+          name: room
+          required: true
+          schema:
+            $ref: "#/definitions/CreateRoomBody"
+      responses:
+        200:
+          description: Configuration was successfully changed.
+        404:
+          description: When there is no room with the given ID.
+        403:
+          description: |
+            When the authenticated user is not allowed to change room configuration.
+
   /rooms/{id}/users:
     post:
       description: "Adds a user to a room."
@@ -204,6 +225,8 @@ paths:
           description: Message was sent, ID returned in the body.
           schema:
             $ref: "#/definitions/ResourceID"
+        400:
+          description: When the request body is in wrong format.
         404:
           description: When there is no room with a given ID.
         403:

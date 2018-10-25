@@ -18,20 +18,22 @@
 
 -include_lib("exml/include/exml.hrl").
 
+-define(safe_fail(FmtStr, Args),
+        ct:fail("~ts", [lager_format:format(FmtStr, Args, 25000)])).
+
 -define(assert_equal(E, V), (
-    [ct:fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
+    [?safe_fail("ASSERT EQUAL~n\tExpected ~p~n\tValue ~p~n", [(E), (V)])
      || (E) =/= (V)]
     )).
 
--define(assert_equal_extra(E, V, Extra), (
-    [ct:fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
-             [(??E), (??V), (E), (V), (Extra)])
-     || (E) =/= (V)]
-    )).
+-define(assert_equal_extra(E, V, Extra),
+    [?safe_fail("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~ts~n",
+             [(??E), (??V), (E), (V), assert_helper:transform_extra(Extra)])
+     || (E) =/= (V)]).
 
 -define(_assert_equal_extra(E, V, Extra), (
-    [ct:pal("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~nExtra ~p~n",
-            [(??E), (??V), (E), (V), (Extra)])
+    [ct:pal("assert_equal_extra(~s, ~s)~n\tExpected ~p~n\tValue ~p~ts~n",
+            [(??E), (??V), (E), (V), assert_helper:transform_extra(Extra)])
      || (E) =/= (V)]
     )).
 

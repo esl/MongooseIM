@@ -55,7 +55,6 @@ sip_invite(Req, Call) ->
     end.
 
 sip_reinvite(Req, Call) ->
-    ?WARNING_MSG("re-INVITE: ~p", [Req]),
     try
         sip_reinvite_unsafe(Req, Call)
     catch Class:Reason ->
@@ -84,6 +83,7 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     {ok, ReqID} = nksip_request:get_handle(Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
+
     OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
@@ -93,12 +93,17 @@ translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     ok = mod_jingle_sip_backend:set_incoming_request(CallID, ReqID, FromJID, ToJID, JingleEl),
 
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
     {reply, ringing}.
 
 sip_reinvite_unsafe(Req, _Call) ->
+    ?INFO_MSG("re-INVITE: ~p", [Req]),
     {FromJID, FromBinary} = get_user_from_sip_msg(from, Req),
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
 
@@ -106,15 +111,28 @@ sip_reinvite_unsafe(Req, _Call) ->
     Body = nksip_sipmsg:meta(body, Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
-    OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
+    RemainingAttrs = SDP#sdp.attributes,
+    OtherEls = sip_to_jingle:parse_sdp_attributes(RemainingAttrs),
 
     ContentEls = [sip_to_jingle:sdp_media_to_content_el(Media, CodecMap) || Media <- SDP#sdp.medias],
-    ?WARNING_MSG("ContentEls: ~p", [ContentEls]),
-    JingleEl = jingle_sip_helper:jingle_element(CallID, <<"transport-info">>, ContentEls ++ OtherEls),
+    Name = get_action_name_from_sdp(RemainingAttrs, <<"transport-info">>),
+    JingleEl = jingle_sip_helper:jingle_element(CallID, Name, ContentEls ++ OtherEls),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     {reply, ok}.
+
+get_action_name_from_sdp(Attrs, Default) ->
+    case lists:keyfind(<<"jingle-action">>, 1, Attrs) of
+        {_, [Name]} ->
+            Name;
+        _ ->
+            Default
+    end.
 
 
 sip_info(Req, _Call) ->
@@ -137,7 +155,11 @@ sip_bye(Req, _Call) ->
                       children = [#xmlel{name = <<"success">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
     {reply, ok}.
@@ -151,7 +173,11 @@ sip_cancel(_InviteReq, Req, _Call) ->
                       children = [#xmlel{name = <<"decline">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
 
     {reply, ok}.
@@ -204,7 +230,11 @@ invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
 
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-accept">>, ContentEls ++ OtherEls),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     ok = mod_jingle_sip_backend:set_outgoing_accepted(CallID),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
@@ -221,7 +251,11 @@ invite_resp_callback({resp, 486, SIPMsg, _Call}) ->
                       children = [#xmlel{name = <<"decline">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
 invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
@@ -234,7 +268,11 @@ invite_resp_callback({resp, ErrorCode, SIPMsg, _Call})
 
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-terminate">>, [ReasonEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok;
 
@@ -257,7 +295,11 @@ send_ringing_session_info(SIPMsg) ->
                        attrs = [{<<"xmlns">>, <<"urn:xmpp:jingle:apps:rtp:1:info">>}]},
     JingleEl = jingle_sip_helper:jingle_element(CallID, <<"session-info">>, [RingingEl]),
     IQEl = jingle_sip_helper:jingle_iq(ToBinary, FromBinary, JingleEl),
-    Acc = mongoose_acc:from_element(IQEl, FromJID, ToJID),
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => FromJID#jid.lserver,
+                              element => IQEl,
+                              from_jid => FromJID,
+                              to_jid => ToJID }),
     maybe_route_to_all_sessions(FromJID, ToJID, Acc, IQEl),
     ok.
 

@@ -22,17 +22,17 @@
 
 -define(MYSQL_PORT, 3306).
 
--export([escape_binary/2, unescape_binary/2, connect/2, disconnect/1,
-         query/3, prepare/6, execute/4]).
+-export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
+         query/3, prepare/5, execute/4]).
 
 %% API
 
--spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
-escape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec escape_binary(binary()) -> iodata().
+escape_binary(Bin) when is_binary(Bin) ->
     [<<"X'">>, bin_to_hex:bin_to_hex(Bin), <<"'">>].
 
--spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
-unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec unescape_binary(binary()) -> binary().
+unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
@@ -54,19 +54,18 @@ disconnect(Connection) ->
 -spec query(Connection :: term(), Query :: any(),
             Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 query(Connection, Query, _Timeout) ->
-    mysql_to_odbc(mysql:query(Connection, Query), Connection).
+    mysql_to_rdbms(mysql:query(Connection, Query), Connection).
 
--spec prepare(Pool :: mongoose_rdbms:pool(),
-              Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, term()} | {error, any()}.
-prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
+prepare(Connection, Name, _Table, _Fields, Statement) ->
     mysql:prepare(Connection, Name, Statement).
 
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
               Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 execute(Connection, StatementRef, Params, _Timeout) ->
-    mysql_to_odbc(mysql:execute(Connection, StatementRef, Params), Connection).
+    mysql_to_rdbms(mysql:execute(Connection, StatementRef, Params), Connection).
 
 %% Helpers
 
@@ -97,15 +96,15 @@ get_db_basic_opts({Server, Port, DB, User, Pass}) ->
 extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
     Opts ++ [{ssl, SSLConnOpts}].
 
-%% @doc Convert MySQL query result to Erlang ODBC result formalism
--spec mysql_to_odbc(mysql:query_result(), Conn :: term()) -> mongoose_rdbms:query_result().
-mysql_to_odbc(ok, Conn) ->
+%% @doc Convert MySQL query result to Erlang RDBMS result formalism
+-spec mysql_to_rdbms(mysql:query_result(), Conn :: term()) -> mongoose_rdbms:query_result().
+mysql_to_rdbms(ok, Conn) ->
     {updated, mysql:affected_rows(Conn)};
-mysql_to_odbc({ok, _ColumnNames, Rows}, _Conn) ->
+mysql_to_rdbms({ok, _ColumnNames, Rows}, _Conn) ->
     {selected, [list_to_tuple(Row) || Row <- Rows]};
-mysql_to_odbc({ok, Results}, Conn) ->
-    [mysql_to_odbc({ok, Cols, Rows}, Conn) || {Cols, Rows} <- Results];
-mysql_to_odbc({error, {1062, _SQLState, _Message}}, _Conn) ->
+mysql_to_rdbms({ok, Results}, Conn) ->
+    [mysql_to_rdbms({ok, Cols, Rows}, Conn) || {Cols, Rows} <- Results];
+mysql_to_rdbms({error, {1062, _SQLState, _Message}}, _Conn) ->
     {error, duplicate_key};
-mysql_to_odbc({error, {_Code, _SQLState, Message}}, _Conn) ->
+mysql_to_rdbms({error, {_Code, _SQLState, Message}}, _Conn) ->
     {error, unicode:characters_to_list(Message)}.

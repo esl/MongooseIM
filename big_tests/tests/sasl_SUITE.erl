@@ -38,7 +38,8 @@ all() ->
     [{group, text_response}].
 
 groups() ->
-    [{text_response, [sequence], all_tests()}].
+    G = [{text_response, [sequence], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 all_tests() ->
     [text_response].

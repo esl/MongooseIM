@@ -24,7 +24,9 @@
 
 CREATE TABLE test_types(
     unicode text CHARACTER SET utf8mb4,
-    `binary_data` blob,
+    `binary_data_8k` blob, -- blob has 65k bytes limit
+    `binary_data_65k` blob,
+    `binary_data_16m` mediumblob, -- mediumblob has 16MB size limit
     `ascii_char` character(1),
     `ascii_string` varchar(250),
     `int32` int,
@@ -214,7 +216,7 @@ CREATE TABLE roster_version (
 -- Differences between old and simple format:
 -- - message is stored as XML
 -- - remote_bare_jid is not "minified"
--- To enable simple format pass {simple, true} as an option for mod_mam_odbc_arch
+-- To enable simple format pass {simple, true} as an option for mod_mam_rdbms_arch
 CREATE TABLE mam_message(
   -- Message UID (64 bits)
   -- A server-assigned UID that MUST be unique within the archive.
@@ -235,8 +237,9 @@ CREATE TABLE mam_message(
   direction ENUM('I','O') NOT NULL,
   -- Term-encoded message packet
   -- Don't try to decode it using MySQL tools
-  message blob NOT NULL,
-  search_body text,
+  -- Type test_types.binary_data_16m
+  message mediumblob NOT NULL,
+  search_body mediumtext,
   PRIMARY KEY (user_id, id),
   INDEX i_mam_message_rem USING BTREE (user_id, remote_bare_jid, id)
 ) CHARACTER SET utf8mb4
@@ -278,8 +281,8 @@ CREATE TABLE mam_muc_message(
   -- A nick of the message's originator
   nick_name varchar(250) NOT NULL,
   -- Term-encoded message packet
-  message blob NOT NULL,
-  search_body text,
+  message mediumblob NOT NULL,
+  search_body mediumtext,
   PRIMARY KEY (room_id, id)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
@@ -291,7 +294,7 @@ CREATE TABLE offline_message(
   server    varchar(250)    NOT NULL,
   username  varchar(250)    NOT NULL,
   from_jid  varchar(250)    NOT NULL,
-  packet    blob            NOT NULL
+  packet    mediumblob      NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 CREATE INDEX i_offline_message USING BTREE ON offline_message(server, username, id);
@@ -345,7 +348,8 @@ CREATE TABLE inbox (
     content blob                     NOT NULL,
     unread_count int                 NOT NULL,
     msg_id varchar(250),
+    timestamp BIGINT UNSIGNED        NOT NULL,
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
-CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver);
+CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver, timestamp);
 

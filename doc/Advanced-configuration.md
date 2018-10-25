@@ -1,6 +1,6 @@
 For advanced configuration use the following files:
 
-* `ejabberd.cfg` for pure MongooseIM settings,
+* `mongooseim.cfg` for pure MongooseIM settings,
 
 * `vm.args` to affect the Erlang VM behaviour (performance tuning, node name),
 
@@ -8,7 +8,7 @@ For advanced configuration use the following files:
 
 Since you've gotten this far, we assume you're already familiar with Erlang syntax.
 
-# ejabberd.cfg
+# mongooseim.cfg
 
 This file consists of multiple erlang tuples terminated with a period.
 In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're building from source) or `[MongooseIM install root]/etc/` if you're using a pre-built version.
@@ -16,11 +16,11 @@ In order to configure it, go to `[MongooseIM repo root]/rel/files/` (if you're b
 The tuple order is important, unless no `host_config` option is set.
 Retaining the default layout is recommended so that the experienced MongooseIM users can smoothly traverse the file.
 
-`ejabberd.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
+`mongooseim.cfg` is full of useful comments and in most cases they should be sufficient help in changing the configuration.
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `pool` and the ODBC options can be used in the `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `pool` and the RDBMS options can be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -121,9 +121,14 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 ### Session backend
 
 * **sm_backend** (global)
-    * **Description:** Backend for storing user session data. Currently all nodes in a cluster must have access to a complete session database. Valid backends are `mnesia` and `redis`. Mnesia is sufficient in most cases, use Redis only in large deployments.
+    * **Description:** Backend for storing user session data.
+      Currently all nodes in a cluster must have access to a complete session database.
+      Valid backends are `mnesia` and `redis`.
+      Mnesia is sufficient in most cases, use Redis only in large deployments when you notice issues with the mnesia backend.
     * **Mnesia:** `{sm_backend, {mnesia, []}}`
-    * **Redis:** `{redis, [{pool_size, Size}, {worker_config, [{host, "Host"}, {port, Port}]}]}}`
+    * **Redis:** `{sm_backend, {redis, []}}`
+      Requires redis pool defined in `outgoing_pools`: <br/> `{redis, global, default, ..., ...}`.
+      See [redis section in outgoing connections doc](./advanced-configuration/outgoing-connections.md#redis-connection-setup)
 
 ### LDAP Connection
 * **ldap_servers**
@@ -171,7 +176,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Values:** String
     * **Default:** empty string
 
-* **ldap_deref_aliases**
+* **ldap_deref**
     * **Description:** Whether or not to dereference aliases
     * **Values:** `never`, `always`, `finding`, `searching`
     * **Default:** `never`
@@ -180,13 +185,13 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 * **auth_method** (local)
     * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
-    * **Valid values:** `internal` (Mnesia), `odbc`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
+    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
     * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
-    * **Examples:** `odbc`, `[internal, anonymous]`
+    * **Examples:** `rdbms`, `[internal, anonymous]`
 
 * **auth_opts** (local)
     * **Description:** Provides different parameters that will be applied to a choosen authentication method.
-                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `odbc`, `internal` and `riak`.
+                       `auth_password_format` and `auth_scram_iterations` are common to `http`, `rdbms`, `internal` and `riak`.
 
         * **auth_password_format**
              * **Description:** Decide whether user passwords will be kept plain or hashed in the database. Currently the popular XMPP clients support the SCRAM method, so it is strongly recommended to use the hashed version. The older ones can still use `PLAIN` mechiansm. `DIGEST-MD5` is not available with `scram`.
@@ -203,7 +208,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
 
-* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `ejabberd.cfg` file.
+* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `mongooseim.cfg` file.
 
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
@@ -217,38 +222,22 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Syntax:** `{extauth_instances, Count}.`
     * **Default:** 1
 
+### Outgoing connections setup
+
+* **outgoing_pools** (local)
+    * **Description** Declares pools for outgoing connections.
+      See more in [outgoing connections configuration](./advanced-configuration/outgoing-connections.md)
+    * **Syntax** `[{Type, Host, Tag, PoolOptions, ConnectionOptions}]`
+    * **Example**:
+```erlang
+        [{riak, global, default, [], [{address, "127.0.0.1"}]},
+         {http, host, auth, [], [{server, "127.0.0.1"}]}
+```
+
 ### RDMBS connection setup
 
-The following options can be used to configure RDMBS connection pools.
-To set the options for all connection pools, put them on the top level of the configuration file.
-To set them for an individual pool, put them inside the `Options` list in a pool specification.
-Setting `odbc_server` is mandatory if connection details are not provided in pool tuples directly.
-
-*Note*: `odbc` prefixes may be misleading. The options apply to all kinds of RDBMS connections, not only pure ODBC.
-
-Please remember that SQL databases require creating a schema.
-See [Database backends configuration](./advanced-configuration/database-backends-configuration.md) for more information.
-
-* **pool** (multi, local)
-    * **Description:** Declares a named pool of connections to the database.
-    At least one pool is required to connect to an SQL database.
-    * **Syntax:** `{pool, odbc, PoolName}.` or `{pool, odbc, PoolName, Options}.`
-    * **Examples:** `{pool, odbc, default}.`
-
-* **odbc_pool** (local)
-    * **Description:** Name of the default connection pool used to connect to the database.
-    * **Syntax:** `{odbc_pool, PoolName}`
-    * **Default:** `default`
-
-* **odbc_pool_size** (local)
-    * **Description:** How many DB client workers should be started per each domain.
-    * **Syntax:** `{odbc_pool_size, Size}`.
-    * **Default:** 10
-
-* **odbc_server** (local)
-    * **Description:** SQL DB connection configuration. Currently supported DB types are `mysql` and `pgsql`.
-    * **Syntax:** `{odbc_server, {Type, Host, Port, DBName, Username, Password}}.` **or** `{odbc_server, "<ODBC connection string>"}`
-    * **Default:** `undefined`
+RDBMS connection pools are set using [outgoing connections configuration](./advanced-configuration/outgoing-connections.md).
+There are some additional options that influence all database connections in the server:
 
 * **pgsql_users_number_estimate** (local)
     * **Description:** PostgreSQL's internal structure can make the row counting slow.
@@ -256,257 +245,11 @@ See [Database backends configuration](./advanced-configuration/database-backends
     * **Syntax:** `{pgsql_users_number_estimate, false | true}`
     * **Default:** `false`
 
-* **odbc_keepalive_interval** (local)
-    * **Description:** When enabled, will send `SELECT 1` query through every DB connection at given interval to keep them open.
-    This option should be used to ensure that database connections are restarted after they became broken (e.g. due to a database restart or a load balancer dropping connections).
-    Currently, not every network related error returned from a database driver to a regular query will imply a connection restart.
-    * **Syntax:** `{odbc_keepalive_interval, IntervalSeconds}.`
-    * **Example:** `{odbc_keepalive_interval, 30}.`
-    * **Default:** `undefined`
-
-* **odbc_server_type** (local)
-    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_odbc_user` uses different query for `mssql`).
-    * **Syntax:** `{odbc_server_type, Type}`
+* **rdbms_server_type** (local)
+    * **Description:** Specifies RDBMS type. Some modules may optimise queries for certain DBs (e.g. `mod_mam_rdbms_user` uses different query for `mssql`).
+    * **Syntax:** `{rdbms_server_type, Type}`
     * **Supported values:** `mssql`, `pgsql` or `undefined`
     * **Default:** `undefined`
-
-### MySQL and PostgreSQL SSL connection setup
-
-In order to establish a secure connection with a database additional options must be passed in aforementioned `odbc_server` tuple.
-Here is the proper syntax:
-
-`{odbc_server, {Type, Host, Port, DBName, Username, Password, SSL}}.`
-
-#### MySQL
-
-SSL configuration options for MySQL:
-
-* **SSL**
-    * **Description:** Specifies SSL connection options.
-    * **Syntax:** `[Opt]`
-    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-
-##### Example configuration
-
-An example configuration can look as follows:
-
-`{odbc_server, {mysql, "localhost", "username", "database", "pass",
-               [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}}`
-
-#### PostgreSQL
-
-SSL configuration options for PGSQL:
-
-* **SSL**
-    * **Description:** Specifies general options for SSL connection.
-    * **Syntax:** `[SSLMode, SSLOpts]`
-
-* **SSLMode**
-    * **Description:** Specifies a mode of SSL connection. Mode expresses how much the PostgreSQL driver carries about security of the connections.
-    For more information click [here](https://github.com/epgsql/epgsql).
-    * **Syntax:** `{ssl, Mode}`
-    * **Supported values:** `false`, `true`, `required`
-
-* **SSLOpts**
-    * **Description:** Specifies SSL connection options.
-    * **Syntax:** `{ssl_opts, [Opt]}`
-    * **Supported values:** The options are just a **list** of Erlang `ssl:ssl_option()`. More details can be found in [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-
-##### Example configuration
-
-An example configuration can look as follows:
-
-`{odbc_server, {pgsql, "localhost", "username", "database", "pass",
-               [{ssl, required}, {ssl_opts, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}]}}.`
-
-### ODBC SSL connection setup
-
-If you've configured MongooseIM to use an ODBC driver, i.e. you've provided an ODBC connection string to `odbc_server` option, e.g.
-
-```erlang
-{odbc_server, "DSN=mydb"}.
-```
-
-then the SSL options, along other connection options, should be present in the `~/.odbc.ini` file.
-
-To enable SSL connection the `sslmode` option needs to be set to `verify-full`.
-Additionally, you can provide the path to the CA certificate using the `sslrootcert` option.
-
-#### Example ~/.odbc.ini configuration
-
-```
-[mydb]
-Driver      = ...
-ServerName  = ...
-Port        = ...
-...
-sslmode     = verify-full
-sslrootcert = /path/to/ca/cert
-```
-
-### Riak connection setup
-
-Only one Riak connection pool can exist per each supported XMPP host.
-It is configured with single tuple.
-
-* **riak_server** (local)
-    * **Description:** Declares a Riak connection pool with provided options.
-    Autmatic reconnect and keepalive features are always enabled in the driver.
-    * **Syntax:** `{riak_server, OptionList}.`
-    * **Options:**
-        * **pool_size** - A positive integer.
-        * **address** - A string with IP or hostname.
-        * **port** - A positive integer.
-    * **Example:** `{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}]}.`
-
-#### Riak SSL connection setup
-
-Using SSL for Riak connection requires passing extra options to the
-aforementioned `riak_server` tuple.
-
-Here is the proper syntax:
-
-`{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087}, Credentials, CACert]}.`
-
-* **Credentials**
-    * **Description:** Specifies credentials to use to connect to the database.
-    * **Syntax:** `{credentials, User, Password}`
-    * **Supported values** `User` and `Password` are strings with a database username and password respectively.
-
-* **CACert**
-    * **Description:** Specifies a path to the CA certificate that was used to sign the database certificates.
-    * **Syntax:** `{cacertfile, Path}`
-    * **Supported values** `Path` is a string with a path to the CA certificate file.
-
-##### Example configuration
-
-An example configuration can look as follows:
-
-`{riak_server, [{pool_size, 20}, {address, "127.0.0.1"}, {port, 8087},
-               {credentials, "username", "pass"}, {cacertfile, "path/to/cacert.pem"}]}.`
-
-### Cassandra connection setup
-
-Cassandra connection pools are defined in a manner similar to RDBMS ones, but with a slightly different syntax.
-All pools are grouped in `cassandra_servers` tuple and per-pool connection parameters can be provided.
-If they are not present - defaults are used (connection to `localhost:9042` with 1 worker).
-
-* **cassandra_servers** (local)
-    * **Description:** Declares Cassandra connection pool(s) with provided options.
-    * **Syntax:** `{cassandra_servers, [ PoolDefinition1, PoolDefinition2, ... ]}`
-
-#### Pool definition
-
-* **Syntax:** `{PoolName, WorkerCount, ConnectionParamsList}`
-* **Elements:**
-    * **PoolName** (atom) - A unique identifier used by modules that make requests to Cassandra.
-    * **WorkerCount** (positive integer) - How many connections should be open to every node in Cassandra cluster.
-    Cassandra database layer creates `4 * WorkerCount` workers as a intermediary between the caller and DB driver.
-    * **ConnectionParamsList**
-
-#### Connection parameters
-
-* **servers** - A list of servers in Cassandra cluster in `{HostnameOrIP, Port}` format.
-* **keyspace** - A name of keyspace to use in queries executed in this pool.
-* You can find a full list in `cqerl` [documentation](https://github.com/matehat/cqerl#all-modes).
-
-#### Example
-
-```
-{cassandra_servers,
- [
-  {default, 100,
-   [
-    {servers, [{"cassandra_server1.example.com", 9042}, {"cassandra_server2.example.com", 9042}] },
-    {keyspace, "big_mongooseim"}
-   ]}
- ]}.
-```
-
-#### SSL connection setup
-
-In order to establish a secure connection to Cassandra you must make some changes in the MongooseIM and Cassandra configuration files.
-
-##### Create server keystore
-Follow [this](https://docs.datastax.com/en/cassandra/3.0/cassandra/configuration/secureSSLCertWithCA.html) guide if you need to create certificate files.
-
-##### Change the Cassandra configuration file
-Find `client_encryption_options` in `cassandra.yaml` and make these changes:
-```
-client_encryption_options:
-    enabled: true
-    keystore: /your_certificate_directory/server.keystore
-    keystore_password: your_password
-```
-Save the changes and restart Cassandra.
-
-##### Enable MongooseIM to connect with SSL
-An SSL connection can be established with both self-signed and CA-signed certificates.
-
-###### Self-signed certificate
-
-Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
-```
-{cassandra_servers, [{default, [{ssl, [{verify, verify_none}]}]}]}.
-```
-Save the changes and restart MongooseIM.
-
-###### CA-signed certificate
-
-Find `cassandra_servers` in `ejabberd.cfg` and add the following line:
-```
-{cassandra_servers, [{default, [{ssl, [{cacertfile,
-                                        "/path/to/rootCA.pem"},
-                                        {verify, verify_peer}]}]}]}.
-```
-Save the changes and restart MongooseIM.
-
-##### Testing the connection
-
-Make sure Cassandra is running and then run MongooseIM in live mode:
- ```
- $ ./mongooseim live
- $ (mongooseim@localhost)1> cqerl:get_client(default).
- {ok,{<0.474.0>,#Ref<0.160699839.1270874114.234457>}}
- $ (mongooseim@localhost)2> sys:get_state(pid(0,474,0)).
- {live,{client_state,cqerl_auth_plain_handler,undefined,
-                    undefined,
-                    {"localhost",9042},
-                    ssl,
-                    {sslsocket,{gen_tcp,#Port<0.8458>,tls_connection,undefined},
-                               <0.475.0>},
-                    undefined,mongooseim,infinity,<<>>,undefined,
-                    [...],
-                    {[],[]},
-                    [0,1,2,3,4,5,6,7,8,9,10,11|...],
-                    [],hash,
-                    {{"localhost",9042},
-                     [...]}}}
- ```
-If no errors occurred and your output is similar to the one above then your MongooseIM and Cassandra nodes can communicate over SSL.
-
-### Outgoing HTTP connections
-
-The `http_connections` option configures a list of named pools of outgoing HTTP connections that may be used by various modules. Each of the pools has a name (atom) and a list of options:
-
-* **Syntax:** `{http_connections, [{PoolName1, PoolOptions1}, {PoolName2, PoolOptions2}, ...]}.`
-
-Following pool options are recognized - all of them are optional.
-
-* `{server, HostName}` - string, default: `"http://localhost"` - the URL of the destination HTTP server (including a port number if needed).
-* `{pool_size, Number}` - positive integer, default: `20` - number of workers in the connection pool.
-* `{max_overflow, Number}` - non-negative integer, default: `5` - maximum number of extra workers that can be allocated when the whole pool is busy.
-* `{path_prefix, Prefix}` - string, default: `"/"` - the part of the destination URL that is appended to the host name (`host` option).
-* `{pool_timeout, TimeoutValue}` - non-negative integer, default: `200` - maximum number of milliseconds to wait for an available worker from the pool.
-* `{request_timeout, TimeoutValue}` - non-negative integer, default: `2000` - maximum number of milliseconds to wait for the HTTP response.
-
-**Example:**
-```
-{http_connections, [{conn1, [{server, "http://my.server:8080"},
-                             {pool_size, 50},
-                             {path_prefix, "/my/path/"}]}
-                   ]}.
-```
 
 ### Traffic shapers
 
@@ -600,7 +343,7 @@ For a specific configuration, please refer to [Services](advanced-configuration/
 
 ### Per-domain configuration
 
-The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `ejabberd.cfg`.
+The `host_config` allows configuring most options separately for specific domains served by the cluster. It is best to put `host_config` tuple right after the global section it overrides/complements or even at the end of `mongooseim.cfg`.
 
 * **host_config** (multi, local)
     * **Syntax:** `{host_config, Domain, [ {{add, modules}, [{mod_some, Opts}]}, {access, c2s, [{deny, local}]}, ... ]}.`
@@ -627,10 +370,10 @@ Let's explore the default options.
 A file with Erlang application configuration. To configure it, go to `[MongooseIM root]/rel/files/`.
 By default only the following applications can be found there:
 
-* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by defaultthey are overridden with the value in `ejabberd.cfg`.
+* `lager` - check [Lager's documentation](https://github.com/basho/lager) for more information. Here you can change the logs location and the file names (`file`), as well as the rotation strategy (`size` and `count`) and date formatting (`date`). Ignore the log level parameters - by default they are overridden with the value set in `mongooseim.cfg`.
 * `ejabberd`
-    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value in `ejabberd.cfg`.
-    * `config` (default: `"etc/ejabberd.cfg"`) - path to MongooseIM config file.
+    * `keep_lager_intact` (default: `false`) - set it to `true` when you want to keep `lager` log level parameters from `app.config`. `false` means overriding the log levels with the value set in `mongooseim.cfg`.
+    * `config` (default: `"etc/mongooseim.cfg"`) - path to MongooseIM config file.
 * `ssl`
     * `session_lifetime` (default specified in the file: `600` seconds) - This parameter says for how long should the ssl session remain in the cache for further re-use, should `ssl session resumption` happen.
 

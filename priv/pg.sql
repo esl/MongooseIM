@@ -20,7 +20,9 @@
 CREATE TYPE test_enum_char AS ENUM('A','B', 'C');
 CREATE TABLE test_types(
     unicode text,
-    binary_data bytea,
+    binary_data_8k bytea, -- byte a has 1 GB limit
+    binary_data_65k bytea,
+    binary_data_16m bytea,
     ascii_char character(1),
     ascii_string varchar(250),
     int32 integer,
@@ -307,9 +309,10 @@ CREATE TABLE inbox (
     content bytea                    NOT NULL,
     unread_count int                 NOT NULL,
     msg_id varchar(250),
+    timestamp BIGINT                 NOT NULL,
     PRIMARY KEY(luser, lserver, remote_bare_jid));
 
 CREATE INDEX i_inbox
     ON inbox
-    USING BTREE(luser, lserver);
+    USING BTREE(luser, lserver, timestamp);
 

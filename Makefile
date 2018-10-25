@@ -1,33 +1,32 @@
 .PHONY: rel
-LOG=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log; exit 1))
-SILENCE_COVER =  | grep -v "logs.*\\.coverdata"
-SILENCE_COVER += | grep -v "Analysis includes data from imported files"
-SILENCE_COVER += | grep -v "WARNING: Deleting data for module"
-LOG_SILENCE_COVER=$(subst TARGET,$@,TARGET.log 2>&1 || (cat TARGET.log $(SILENCE_COVER); exit 1))
+
+RUN=./tools/silent_exec.sh "$@.log"
 XEP_TOOL = tools/xep_tool
 EBIN = ebin
 DEVNODES = mim1 mim2 mim3 fed1 reg1
+REBAR=./rebar3
 
 # Top-level targets aka user interface
 
 all: rel
 
-dev: $(DEVNODES)
-
 clean:
+	-rm -rf asngen
 	-rm -rf _build
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
 
+# REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
-	@(if [ "$(SUITE)" ]; then ./rebar3 ct --dir test --suite $(SUITE) ;\
-		else ./rebar3 ct ; fi) > $(LOG_SILENCE_COVER)
+	@(if [ "$(SUITE)" ]; \
+		then $(RUN) $(REBAR) ct --dir test --suite $(SUITE) ; \
+		else $(RUN) $(REBAR) ct $(REBAR_CT_EXTRA_ARGS); fi)
 
 rel: certs configure.out rel/vars.config
-	. ./configure.out && ./rebar3 as prod release
+	. ./configure.out && $(REBAR) as prod release
 
-shell: certs etc/ejabberd.cfg
-	./rebar3 shell
+shell: certs etc/mongooseim.cfg
+	$(REBAR) shell
 
 # Top-level targets' dependency chain
 
@@ -43,30 +42,18 @@ rel/vars.config: rel/vars.config.in rel/configure.vars.config
 configure.out rel/configure.vars.config:
 	./tools/configure with-all without-jingle-sip
 
-etc/ejabberd.cfg:
+etc/mongooseim.cfg:
 	@mkdir -p $(@D)
-	tools/generate_cfg.es etc/ejabberd.cfg rel/files/ejabberd.cfg
+	tools/generate_cfg.es etc/mongooseim.cfg rel/files/mongooseim.cfg
 
 devrel: $(DEVNODES)
 
 $(DEVNODES): certs configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
-	DEVNODE=true ./rebar3 as $@ release) > $(LOG_SILENCE_COVER)
+	DEVNODE=true $(RUN) $(REBAR) as $@ release)
 
-certs: tools/ssl/ca/cacert.pem \
-       tools/ssl/fake_cert.pem \
-       tools/ssl/fake_key.pem \
-       tools/ssl/fake_pubkey.pem \
-       tools/ssl/fake_server.pem \
-       tools/ssl/fake_dh_server.pem
-
-tools/ssl/ca/cacert.pem \
-tools/ssl/fake_cert.pem \
-tools/ssl/fake_key.pem \
-tools/ssl/fake_pubkey.pem \
-tools/ssl/fake_server.pem \
-tools/ssl/fake_dh_server.pem:
+certs:
 	cd tools/ssl && $(MAKE)
 
 xeplist: escript
@@ -76,4 +63,8 @@ install: configure.out rel
 	@. ./configure.out && tools/install
 
 cover_report: /tmp/mongoose_combined.coverdata
-	erl -noshell -pa _build/default/lib/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()' > $(LOG)
+	$(RUN) erl -noshell -pa _build/default/lib/*/ebin \
+			-eval 'ecoveralls:travis_ci("$?"), init:stop()'
+
+elvis:
+	rebar3 as lint lint

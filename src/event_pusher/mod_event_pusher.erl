@@ -37,8 +37,10 @@
 %% @doc Pushes the event to each backend registered with the event_pusher.
 -spec push_event(mongoose_acc:t(), Host :: jid:server(), Event :: event()) -> mongoose_acc:t().
 push_event(Acc, Host, Event) ->
-    [B:push_event(Acc, Host, Event) || B <- ets:lookup_element(ets_name(Host), backends, 2)],
-    Acc.
+    lists:foldl(fun(B, Acc0) ->
+                        B:push_event(Acc0, Host, Event) end,
+                Acc,
+                ets:lookup_element(ets_name(Host), backends, 2)).
 
 %%--------------------------------------------------------------------
 %% gen_mod API
@@ -69,7 +71,36 @@ stop(Host) ->
 -spec get_backends(Opts :: proplists:proplist()) -> [{module(), proplists:proplist()}].
 get_backends(Opts) ->
     {backends, Backends0} = lists:keyfind(backends, 1, Opts),
-    [{translate_backend(B), DepOpts} || {B, DepOpts} <- Backends0].
+    lists:foldr(fun add_backend/2, [], Backends0).
+
+add_backend({http, Opts}, BackendList) ->
+    % http backend is treated somewhat differently - we allow configuration settins as if there
+    % were many modules, while here we put together a single list of settings for the http event
+    % pusher module. Thus, you can configure event pusher like:
+    %{mod_event_pusher,
+    %   [{backends,
+    %       [{http,
+    %           [{path, "/push_here"},
+    %            {callback_module, mod_event_pusher_http_one},
+    %            {pool_name, http_pool}]
+    %       },
+    %        {http,
+    %           [{path, "/push_there"},
+    %            {callback_module, mod_event_pusher_http_two},
+    %            {pool_name, http_pool}]
+    %        }
+    %      ]
+    %   }]
+    HttpModName = translate_backend(http),
+    case lists:keyfind(HttpModName, 1, BackendList) of
+        false ->
+            [{HttpModName, [{configs, [Opts]}]} | BackendList];
+        {HttpModName, [{configs, O}]} ->
+            lists:keyreplace(HttpModName, 1, BackendList,
+                {HttpModName, [{configs, [Opts | O]}]})
+    end;
+add_backend({Mod, Opts}, BackendList) ->
+    [{translate_backend(Mod), Opts} | BackendList].
 
 -spec translate_backend(Backend :: atom()) -> module().
 translate_backend(Backend) ->

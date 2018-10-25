@@ -7,6 +7,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
 
+-import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
@@ -26,8 +27,9 @@ create_room(RoomU, MUCHost, Owner, Members, Config, Version) ->
     RoomUS = {RoomU, MUCHost},
     AffUsers = [{to_lus(Owner, Config), owner}
                 | [ {to_lus(Member, Config), member} || Member <- Members ]],
+    AffUsersSort = lists:sort(AffUsers),
     {ok, _RoomUS} = rpc(mim(), mod_muc_light_db_backend, create_room,
-                        [RoomUS, DefaultConfig, AffUsers, Version]).
+                        [RoomUS, DefaultConfig, AffUsersSort, Version]).
 
 -spec default_config() -> list().
 default_config() -> rpc(mim(), mod_muc_light, default_config, [muc_host()]).
@@ -235,3 +237,6 @@ clear_db() ->
 ver(Int) ->
   <<"ver-", (list_to_binary(integer_to_list(Int)))/binary>>.
 
+-spec set_mod_config(K :: atom(), V :: any(), Host :: binary()) -> ok.
+set_mod_config(K, V, Host) ->
+        true = rpc(gen_mod, set_module_opt_by_subhost, [Host, mod_muc_light, K, V]).

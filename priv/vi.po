@@ -348,8 +348,8 @@ msgstr "Quy tắc Truy Cập"
 #: mod_configure.erl:1200 mod_configure.erl:1222 mod_configure.erl:1234
 #: mod_configure.erl:1246 mod_configure.erl:1258 mod_configure.erl:1275
 #: mod_configure.erl:1287 mod_configure.erl:1652 mod_configure.erl:1702
-#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_odbc.erl:1048
-#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_odbc.erl:442
+#: mod_configure.erl:1723 mod_roster.erl:943 mod_roster_rdbms.erl:1048
+#: mod_vcard.erl:466 mod_vcard_ldap.erl:550 mod_vcard_rdbms.erl:442
 msgid "Jabber ID"
 msgstr "Jabber ID"
 
@@ -562,9 +562,9 @@ msgstr "Đăng Ký Bí Danh tại"
 msgid "Enter nickname you want to register"
 msgstr "Nhập bí danh bạn muốn đăng ký"
 
-#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_odbc.erl:1049
-#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:447
+#: mod_muc/mod_muc.erl:722 mod_roster.erl:944 mod_roster_rdbms.erl:1049
+#: mod_vcard.erl:358 mod_vcard.erl:471 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:447
 msgid "Nickname"
 msgstr "Bí danh"
 
@@ -978,18 +978,18 @@ msgstr "~s mời bạn vào phòng ~s"
 msgid "the password is"
 msgstr "mật khẩu là"
 
-#: mod_offline.erl:510 mod_offline_odbc.erl:352
+#: mod_offline.erl:510 mod_offline_rdbms.erl:352
 msgid ""
 "Your contact offline message queue is full. The message has been discarded."
 msgstr ""
 "Danh sách chờ thư liên lạc ngoại tuyến của bạn đã đầy. Thư này đã bị loại bỏ."
 
-#: mod_offline.erl:560 mod_offline_odbc.erl:408
+#: mod_offline.erl:560 mod_offline_rdbms.erl:408
 msgid "~s's Offline Messages Queue"
 msgstr "~s's Danh Sách Chờ Thư Ngoại Tuyến"
 
-#: mod_offline.erl:563 mod_offline_odbc.erl:411 mod_roster.erl:987
-#: mod_roster_odbc.erl:1092 mod_shared_roster.erl:896
+#: mod_offline.erl:563 mod_offline_rdbms.erl:411 mod_roster.erl:987
+#: mod_roster_rdbms.erl:1092 mod_shared_roster.erl:896
 #: mod_shared_roster.erl:1005 web/ejabberd_web_admin.erl:833
 #: web/ejabberd_web_admin.erl:874 web/ejabberd_web_admin.erl:942
 #: web/ejabberd_web_admin.erl:978 web/ejabberd_web_admin.erl:1019
@@ -1012,20 +1012,20 @@ msgstr "Từ"
 msgid "To"
 msgstr "Đến"
 
-#: mod_offline.erl:574 mod_offline_odbc.erl:419
+#: mod_offline.erl:574 mod_offline_rdbms.erl:419
 msgid "Packet"
 msgstr "Gói thông tin"
 
-#: mod_offline.erl:587 mod_offline_odbc.erl:432 mod_shared_roster.erl:903
+#: mod_offline.erl:587 mod_offline_rdbms.erl:432 mod_shared_roster.erl:903
 #: web/ejabberd_web_admin.erl:882 web/ejabberd_web_admin.erl:986
 msgid "Delete Selected"
 msgstr "Tùy chọn Xóa được Chọn"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 msgid "Offline Messages:"
 msgstr "Thư Ngoại Tuyến:"
 
-#: mod_offline.erl:645 mod_offline_odbc.erl:519
+#: mod_offline.erl:645 mod_offline_rdbms.erl:519
 #, fuzzy
 msgid "Remove All Offline Messages"
 msgstr "Thư Ngoại Tuyến"
@@ -1034,104 +1034,104 @@ msgstr "Thư Ngoại Tuyến"
 msgid "ejabberd SOCKS5 Bytestreams module"
 msgstr "Môdun SOCKS5 Bytestreams Bản quyền"
 
-#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_odbc.erl:928
+#: mod_pubsub/mod_pubsub.erl:1119 mod_pubsub/mod_pubsub_rdbms.erl:928
 msgid "Publish-Subscribe"
 msgstr "Xuất Bản-Đăng Ký"
 
-#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_odbc.erl:1024
+#: mod_pubsub/mod_pubsub.erl:1213 mod_pubsub/mod_pubsub_rdbms.erl:1024
 msgid "ejabberd Publish-Subscribe module"
 msgstr "Môdun ejabberd Xuất Bản-Đăng Ký Bản quyền"
 
-#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_odbc.erl:1311
+#: mod_pubsub/mod_pubsub.erl:1496 mod_pubsub/mod_pubsub_rdbms.erl:1311
 msgid "PubSub subscriber request"
 msgstr "Yêu cầu người đăng ký môđun Xuất Bản Đăng Ký"
 
-#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_odbc.erl:1313
+#: mod_pubsub/mod_pubsub.erl:1498 mod_pubsub/mod_pubsub_rdbms.erl:1313
 msgid "Choose whether to approve this entity's subscription."
 msgstr "Chọn có nên chấp nhận sự đăng ký của đối tượng này không"
 
-#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_odbc.erl:1319
+#: mod_pubsub/mod_pubsub.erl:1504 mod_pubsub/mod_pubsub_rdbms.erl:1319
 msgid "Node ID"
 msgstr "ID Nút"
 
-#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_odbc.erl:1324
+#: mod_pubsub/mod_pubsub.erl:1509 mod_pubsub/mod_pubsub_rdbms.erl:1324
 msgid "Subscriber Address"
 msgstr "Địa Chỉ Người Đăng Ký"
 
-#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_odbc.erl:1330
+#: mod_pubsub/mod_pubsub.erl:1515 mod_pubsub/mod_pubsub_rdbms.erl:1330
 msgid "Allow this Jabber ID to subscribe to this pubsub node?"
 msgstr "Cho phép Jabber ID đăng ký nút môđun xuất bản đăng ký này không?"
 
-#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_odbc.erl:3229
+#: mod_pubsub/mod_pubsub.erl:3416 mod_pubsub/mod_pubsub_rdbms.erl:3229
 msgid "Deliver payloads with event notifications"
 msgstr "Đưa ra thông tin dung lượng với các thông báo sự kiện"
 
-#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_odbc.erl:3230
+#: mod_pubsub/mod_pubsub.erl:3417 mod_pubsub/mod_pubsub_rdbms.erl:3230
 msgid "Deliver event notifications"
 msgstr "Đưa ra các thông báo sự kiện"
 
-#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_odbc.erl:3231
+#: mod_pubsub/mod_pubsub.erl:3418 mod_pubsub/mod_pubsub_rdbms.erl:3231
 msgid "Notify subscribers when the node configuration changes"
 msgstr "Thông báo cho người đăng ký khi nào cấu hình nút thay đổi"
 
-#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_odbc.erl:3232
+#: mod_pubsub/mod_pubsub.erl:3419 mod_pubsub/mod_pubsub_rdbms.erl:3232
 msgid "Notify subscribers when the node is deleted"
 msgstr "Thông báo cho người đăng ký khi nào nút bị xóa bỏ"
 
-#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_odbc.erl:3233
+#: mod_pubsub/mod_pubsub.erl:3420 mod_pubsub/mod_pubsub_rdbms.erl:3233
 msgid "Notify subscribers when items are removed from the node"
 msgstr "Thông báo cho người đăng ký khi nào các mục chọn bị gỡ bỏ khỏi nút"
 
-#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_odbc.erl:3234
+#: mod_pubsub/mod_pubsub.erl:3421 mod_pubsub/mod_pubsub_rdbms.erl:3234
 msgid "Persist items to storage"
 msgstr "Những mục cần để lưu trữ"
 
-#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_odbc.erl:3235
+#: mod_pubsub/mod_pubsub.erl:3422 mod_pubsub/mod_pubsub_rdbms.erl:3235
 msgid "A friendly name for the node"
 msgstr ""
 
-#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_odbc.erl:3236
+#: mod_pubsub/mod_pubsub.erl:3423 mod_pubsub/mod_pubsub_rdbms.erl:3236
 msgid "Max # of items to persist"
 msgstr "Số mục tối đa để lưu trữ"
 
-#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_odbc.erl:3237
+#: mod_pubsub/mod_pubsub.erl:3424 mod_pubsub/mod_pubsub_rdbms.erl:3237
 msgid "Whether to allow subscriptions"
 msgstr "Xác định nên cho phép đăng ký không"
 
-#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_odbc.erl:3238
+#: mod_pubsub/mod_pubsub.erl:3425 mod_pubsub/mod_pubsub_rdbms.erl:3238
 msgid "Specify the access model"
 msgstr "Xác định mô hình truy cập"
 
-#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_odbc.erl:3241
+#: mod_pubsub/mod_pubsub.erl:3428 mod_pubsub/mod_pubsub_rdbms.erl:3241
 msgid "Roster groups allowed to subscribe"
 msgstr ""
 
-#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_odbc.erl:3242
+#: mod_pubsub/mod_pubsub.erl:3429 mod_pubsub/mod_pubsub_rdbms.erl:3242
 msgid "Specify the publisher model"
 msgstr "Xác định mô hình nhà xuất bản"
 
-#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_odbc.erl:3244
+#: mod_pubsub/mod_pubsub.erl:3431 mod_pubsub/mod_pubsub_rdbms.erl:3244
 msgid "Purge all items when the relevant publisher goes offline"
 msgstr ""
 
-#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_odbc.erl:3245
+#: mod_pubsub/mod_pubsub.erl:3432 mod_pubsub/mod_pubsub_rdbms.erl:3245
 #, fuzzy
 msgid "Specify the event message type"
 msgstr "Xác định mô hình truy cập"
 
-#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_odbc.erl:3247
+#: mod_pubsub/mod_pubsub.erl:3434 mod_pubsub/mod_pubsub_rdbms.erl:3247
 msgid "Max payload size in bytes"
 msgstr "Kích thước dung lượng byte tối đa"
 
-#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_odbc.erl:3248
+#: mod_pubsub/mod_pubsub.erl:3435 mod_pubsub/mod_pubsub_rdbms.erl:3248
 msgid "When to send the last published item"
 msgstr "Khi cần gửi mục được xuất bản cuối cùng"
 
-#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_odbc.erl:3250
+#: mod_pubsub/mod_pubsub.erl:3437 mod_pubsub/mod_pubsub_rdbms.erl:3250
 msgid "Only deliver notifications to available users"
 msgstr "Chỉ gửi thông báo đến những người sử dụng hiện có"
 
-#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_odbc.erl:3251
+#: mod_pubsub/mod_pubsub.erl:3438 mod_pubsub/mod_pubsub_rdbms.erl:3251
 msgid "The collections with which a node is affiliated"
 msgstr ""
 
@@ -1139,7 +1139,7 @@ msgstr ""
 msgid "Choose a username and password to register with this server"
 msgstr "Chọn một tên truy cập và mật khẩu để đăng ký với máy chủ này"
 
-#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_register.erl:230 mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 #: web/ejabberd_web_admin.erl:1516 web/ejabberd_web_admin.erl:1573
 msgid "User"
 msgstr "Người sử dụng"
@@ -1154,37 +1154,37 @@ msgstr "mật khẩu là"
 msgid "Users are not allowed to register accounts so quickly"
 msgstr "Người ghé thăm không được phép gửi thư đến tất cả các người tham dự"
 
-#: mod_roster.erl:938 mod_roster_odbc.erl:1043 web/ejabberd_web_admin.erl:1699
+#: mod_roster.erl:938 mod_roster_rdbms.erl:1043 web/ejabberd_web_admin.erl:1699
 #: web/ejabberd_web_admin.erl:1884 web/ejabberd_web_admin.erl:1895
 #: web/ejabberd_web_admin.erl:2218
 msgid "None"
 msgstr "Không có"
 
-#: mod_roster.erl:945 mod_roster_odbc.erl:1050
+#: mod_roster.erl:945 mod_roster_rdbms.erl:1050
 msgid "Subscription"
 msgstr "Đăng ký"
 
-#: mod_roster.erl:946 mod_roster_odbc.erl:1051
+#: mod_roster.erl:946 mod_roster_rdbms.erl:1051
 msgid "Pending"
 msgstr "Chờ"
 
-#: mod_roster.erl:947 mod_roster_odbc.erl:1052
+#: mod_roster.erl:947 mod_roster_rdbms.erl:1052
 msgid "Groups"
 msgstr "Nhóm"
 
-#: mod_roster.erl:974 mod_roster_odbc.erl:1079
+#: mod_roster.erl:974 mod_roster_rdbms.erl:1079
 msgid "Validate"
 msgstr "Xác nhận hợp lệ"
 
-#: mod_roster.erl:982 mod_roster_odbc.erl:1087
+#: mod_roster.erl:982 mod_roster_rdbms.erl:1087
 msgid "Remove"
 msgstr "Gỡ bỏ"
 
-#: mod_roster.erl:985 mod_roster_odbc.erl:1090
+#: mod_roster.erl:985 mod_roster_rdbms.erl:1090
 msgid "Roster of "
 msgstr "Bảng phân công của "
 
-#: mod_roster.erl:988 mod_roster_odbc.erl:1093 mod_shared_roster.erl:897
+#: mod_roster.erl:988 mod_roster_rdbms.erl:1093 mod_shared_roster.erl:897
 #: mod_shared_roster.erl:1006 web/ejabberd_web_admin.erl:834
 #: web/ejabberd_web_admin.erl:875 web/ejabberd_web_admin.erl:943
 #: web/ejabberd_web_admin.erl:979 web/ejabberd_web_admin.erl:1020
@@ -1194,11 +1194,11 @@ msgstr "Bảng phân công của "
 msgid "Bad format"
 msgstr "Định dạng hỏng"
 
-#: mod_roster.erl:995 mod_roster_odbc.erl:1100
+#: mod_roster.erl:995 mod_roster_rdbms.erl:1100
 msgid "Add Jabber ID"
 msgstr "Thêm Jabber ID"
 
-#: mod_roster.erl:1094 mod_roster_odbc.erl:1199
+#: mod_roster.erl:1094 mod_roster_rdbms.erl:1199
 msgid "Roster"
 msgstr "Bảng phân công"
 
@@ -1238,36 +1238,36 @@ msgstr "Nhóm "
 msgid "Submit"
 msgstr "Gửi"
 
-#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_odbc.erl:129
+#: mod_vcard.erl:165 mod_vcard_ldap.erl:237 mod_vcard_rdbms.erl:129
 msgid "Erlang Jabber Server"
 msgstr "Erlang Jabber Server Bản quyền"
 
-#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:448
+#: mod_vcard.erl:358 mod_vcard.erl:472 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:448
 msgid "Birthday"
 msgstr "Ngày sinh"
 
-#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:450
+#: mod_vcard.erl:358 mod_vcard.erl:474 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:450
 msgid "City"
 msgstr "Thành phố"
 
-#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:449
+#: mod_vcard.erl:358 mod_vcard.erl:473 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:449
 msgid "Country"
 msgstr "Quốc gia"
 
-#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:451
+#: mod_vcard.erl:358 mod_vcard.erl:475 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:451
 msgid "Email"
 msgstr "Email"
 
-#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:446
+#: mod_vcard.erl:358 mod_vcard.erl:470 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:446
 msgid "Family Name"
 msgstr "Họ"
 
-#: mod_vcard.erl:358 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_rdbms.erl:336
 msgid ""
 "Fill in the form to search for any matching Jabber User (Add * to the end of "
 "field to match substring)"
@@ -1275,49 +1275,49 @@ msgstr ""
 "Điền vào mẫu này để tìm kiếm bất kỳ thông tin nào khớp với Người sử dụng "
 "Jabber (Thêm dấu * vào cuối ô để thông tin khớp với chuỗi bên trong)"
 
-#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:443
+#: mod_vcard.erl:358 mod_vcard.erl:467 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:443
 msgid "Full Name"
 msgstr "Tên Đầy Đủ"
 
-#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:445
+#: mod_vcard.erl:358 mod_vcard.erl:469 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:445
 msgid "Middle Name"
 msgstr "Họ Đệm"
 
-#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:444 web/ejabberd_web_admin.erl:2004
+#: mod_vcard.erl:358 mod_vcard.erl:468 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:444 web/ejabberd_web_admin.erl:2004
 msgid "Name"
 msgstr "Tên"
 
-#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:452
+#: mod_vcard.erl:358 mod_vcard.erl:476 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:452
 msgid "Organization Name"
 msgstr "Tên Tổ Chức"
 
-#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_odbc.erl:336
-#: mod_vcard_odbc.erl:453
+#: mod_vcard.erl:358 mod_vcard.erl:477 mod_vcard_rdbms.erl:336
+#: mod_vcard_rdbms.erl:453
 msgid "Organization Unit"
 msgstr "Bộ Phận"
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "Search users in "
 msgstr "Tìm kiếm người sử dụng trong"
 
-#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_odbc.erl:336
+#: mod_vcard.erl:358 mod_vcard_ldap.erl:458 mod_vcard_rdbms.erl:336
 msgid "You need an x:data capable client to search"
 msgstr ""
 "Bạn cần có một trình ứng dụng khách hỗ trợ định dạng dữ liệu x: để tìm kiếm"
 
-#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_odbc.erl:361
+#: mod_vcard.erl:383 mod_vcard_ldap.erl:483 mod_vcard_rdbms.erl:361
 msgid "vCard User Search"
 msgstr "Tìm Kiếm Người Sử Dụng vCard"
 
-#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_odbc.erl:415
+#: mod_vcard.erl:439 mod_vcard_ldap.erl:537 mod_vcard_rdbms.erl:415
 msgid "ejabberd vCard module"
 msgstr "Môdun ejabberd vCard Bản quyền"
 
-#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_odbc.erl:439
+#: mod_vcard.erl:463 mod_vcard_ldap.erl:547 mod_vcard_rdbms.erl:439
 msgid "Search Results for "
 msgstr "Kết Quả Tìm Kiếm cho "
 
@@ -1511,11 +1511,11 @@ msgstr "Sao lưu dự phòng về"
 #, fuzzy
 msgid ""
 "Please note that these options will only backup the builtin Mnesia database. "
-"If you are using the ODBC module, you also need to backup your SQL database "
+"If you are using the RDBMS module, you also need to backup your SQL database "
 "separately."
 msgstr ""
 "Lưu ý rằng những tùy chọn này sẽ chỉ được sao lưu cơ sở dữ liệu bên trong "
-"Mnesia. Nếu bạn đang sử dụng môđun ODBC, bạn cũng cần sao lưu cơ sở dữ liệu "
+"Mnesia. Nếu bạn đang sử dụng môđun RDBMS, bạn cũng cần sao lưu cơ sở dữ liệu "
 "SQL của bạn riêng biệt."
 
 #: web/ejabberd_web_admin.erl:2040

@@ -15,7 +15,7 @@
 -import(escalus_ejabberd, [rpc/3]).
 -import(push_helper, [
     enable_stanza/2, enable_stanza/3, enable_stanza/4,
-    disable_stanza/1, disable_stanza/2
+    disable_stanza/1, disable_stanza/2, become_unavailable/1
 ]).
 
 -record(route, {from, to, acc, packet}).
@@ -33,37 +33,38 @@ all() ->
     ].
 
 groups() ->
-    [
-        {disco, [], [
-            push_notifications_listed_disco_when_available,
-            push_notifications_not_listed_disco_when_not_available
-        ]},
-        {toggling, [parallel], [
-            enable_should_fail_with_missing_attributes,
-            enable_should_fail_with_invalid_attributes,
-            enable_should_succeed_without_form,
-            enable_with_form_should_fail_with_incorrect_from,
-            enable_should_accept_correct_from,
-            disable_should_fail_with_missing_attributes,
-            disable_should_fail_with_invalid_attributes,
-            disable_all,
-            disable_node
-        ]},
-        {pm_msg_notifications, [parallel], [
-            pm_no_msg_notifications_if_not_enabled,
-            pm_no_msg_notifications_if_user_online,
-            pm_msg_notify_if_user_offline,
-            pm_msg_notify_if_user_offline_with_publish_options,
-            pm_msg_notify_stops_after_disabling
-        ]},
-        {muclight_msg_notifications, [parallel], [
-            muclight_no_msg_notifications_if_not_enabled,
-            muclight_no_msg_notifications_if_user_online,
-            muclight_msg_notify_if_user_offline,
-            muclight_msg_notify_if_user_offline_with_publish_options,
-            muclight_msg_notify_stops_after_disabling
-        ]}
-    ].
+    G = [
+         {disco, [], [
+                      push_notifications_listed_disco_when_available,
+                      push_notifications_not_listed_disco_when_not_available
+                     ]},
+         {toggling, [parallel], [
+                                 enable_should_fail_with_missing_attributes,
+                                 enable_should_fail_with_invalid_attributes,
+                                 enable_should_succeed_without_form,
+                                 enable_with_form_should_fail_with_incorrect_from,
+                                 enable_should_accept_correct_from,
+                                 disable_should_fail_with_missing_attributes,
+                                 disable_should_fail_with_invalid_attributes,
+                                 disable_all,
+                                 disable_node
+                                ]},
+         {pm_msg_notifications, [parallel], [
+                                             pm_no_msg_notifications_if_not_enabled,
+                                             pm_no_msg_notifications_if_user_online,
+                                             pm_msg_notify_if_user_offline,
+                                             pm_msg_notify_if_user_offline_with_publish_options,
+                                             pm_msg_notify_stops_after_disabling
+                                            ]},
+         {muclight_msg_notifications, [parallel], [
+                                                   muclight_no_msg_notifications_if_not_enabled,
+                                                   muclight_no_msg_notifications_if_user_online,
+                                                   muclight_msg_notify_if_user_offline,
+                                                   muclight_msg_notify_if_user_offline_with_publish_options,
+                                                   muclight_msg_notify_stops_after_disabling
+                                                  ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
@@ -100,6 +101,7 @@ init_per_group(_, Config0) ->
     Config.
 
 end_per_group(disco, Config) ->
+    escalus:delete_users(Config),
     Config;
 end_per_group(_, Config) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -637,24 +639,6 @@ is_offline(LUser, LServer) ->
             false;
         _ ->
             true
-    end.
-
-become_unavailable(Client) ->
-    escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
-    ok = wait_for(timer:seconds(20), fun() ->
-        is_offline(lower(escalus_client:username(Client)), lower(escalus_client:server(Client)))
-    end). %% There is no ACK for unavailable status
-
-wait_for(TimeLeft, _Fun) when TimeLeft < 0 ->
-    timeout;
-wait_for(TimeLeft, Fun) ->
-    Step = 500,
-    case Fun() of
-        true ->
-            ok;
-        false ->
-            timer:sleep(Step),
-            wait_for(TimeLeft - Step, Fun)
     end.
 
 lower(Bin) when is_binary(Bin) ->

@@ -41,10 +41,11 @@ all() ->
      {group, clustering_three}].
 
 groups() ->
-    [{clustered, [], [one_to_one_message]},
-     {clustering_two, [], clustering_two_tests()},
-     {clustering_three, [], clustering_three_tests()},
-     {mnesia, [], [set_master_test]}].
+    G = [{clustered, [], [one_to_one_message]},
+         {clustering_two, [], clustering_two_tests()},
+         {clustering_three, [], clustering_three_tests()},
+         {mnesia, [], [set_master_test]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim, mim2, mim3]) ++ escalus:suite().

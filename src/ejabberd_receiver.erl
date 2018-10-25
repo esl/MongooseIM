@@ -1,5 +1,5 @@
 %%%----------------------------------------------------------------------
-%%% File    : ejabberd_receiver.erl
+%% File    : ejabberd_receiver.erl
 %%% Author  : Alexey Shchepin <alexey@process-one.net>
 %%% Purpose : Socket receiver for C2S and S2S connections
 %%% Created : 10 Nov 2003 by Alexey Shchepin <alexey@process-one.net>
@@ -288,7 +288,7 @@ terminate(_Reason, #state{parser = Parser,
     free_parser(Parser),
     case C2SPid of
         undefined -> ok;
-        _ -> gen_fsm:send_event(C2SPid, closed)
+        _ -> gen_fsm_compat:send_event(C2SPid, closed)
     end,
     catch (State#state.sock_mod):close(State#state.socket),
     ok.
@@ -347,7 +347,7 @@ process_data([Element|Els], #state{c2s_pid = C2SPid} = State)
         undefined ->
             State;
         _ ->
-            catch gen_fsm:send_event(C2SPid, element_wrapper(Element)),
+            catch gen_fsm_compat:send_event(C2SPid, element_wrapper(Element)),
             process_data(Els, State)
     end;
 %% Data processing for connectors receivind data as string.
@@ -365,7 +365,7 @@ process_data(Data, #state{parser = Parser,
         end,
     NewChunkSize = update_stanza_size(C2SEvents, ChunkSize, Size),
     {NewShaperState, Pause} = shaper:update(ShaperState, Size),
-    [gen_fsm:send_event(C2SPid, Event) || Event <- C2SEvents],
+    [gen_fsm_compat:send_event(C2SPid, Event) || Event <- C2SEvents],
     maybe_pause(Pause, State),
     State#state{parser = NewParser, shaper_state = NewShaperState, stanza_chunk_size = NewChunkSize}.
 
@@ -390,7 +390,7 @@ maybe_run_keep_alive_hook(Size, #state{c2s_pid = C2SPid})
   when Size < 3, is_pid(C2SPid) ->
     %% yes it can happen that the data is shorter than 3 bytes and contain
     %% some part of xml but this will not harm the keep_alive_hook
-    gen_fsm:send_all_state_event(C2SPid, keep_alive_packet);
+    gen_fsm_compat:send_all_state_event(C2SPid, keep_alive_packet);
 maybe_run_keep_alive_hook(_, _) ->
     ok.
 
@@ -424,8 +424,13 @@ free_parser(Parser) ->
 gen_server_call_or_noproc(Pid, Message) ->
     try
         gen_server:call(Pid, Message)
-    catch exit:{noproc, Extra} ->
-        {error, {noproc, Extra}}
+    catch
+        exit:{noproc, Extra} ->
+            {error, {noproc, Extra}};
+        exit:{normal, Extra} ->
+            % reciver exited with normal status after the gen_server call was sent
+            % but before it was processed
+            {error, {died, Extra}}
     end.
 
 gen_fsm() -> p1_fsm.

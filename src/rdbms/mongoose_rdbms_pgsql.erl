@@ -22,19 +22,19 @@
 
 -define(PGSQL_PORT, 5432).
 
--export([escape_binary/2, unescape_binary/2, connect/2, disconnect/1,
-         query/3, prepare/6, execute/4]).
+-export([escape_binary/1, unescape_binary/1, connect/2, disconnect/1,
+         query/3, prepare/5, execute/4]).
 
 %% API
 
--spec escape_binary(mongoose_rdbms:pool(), binary()) -> iodata().
-escape_binary(_Pool, Bin) when is_binary(Bin) ->
+-spec escape_binary(binary()) -> iodata().
+escape_binary(Bin) when is_binary(Bin) ->
     [<<"decode('">>, base64:encode(Bin), <<"','base64')">>].
 
--spec unescape_binary(mongoose_rdbms:pool(), binary()) -> binary().
-unescape_binary(_Pool, <<"\\x", Bin/binary>>) ->
+-spec unescape_binary(binary()) -> binary().
+unescape_binary(<<"\\x", Bin/binary>>) ->
     bin_to_hex:hex_to_bin(Bin);
-unescape_binary(_Pool, Bin) when is_binary(Bin) ->
+unescape_binary(Bin) when is_binary(Bin) ->
     Bin.
 
 -spec connect(Args :: any(), QueryTimeout :: non_neg_integer()) ->
@@ -56,14 +56,13 @@ disconnect(Connection) ->
 -spec query(Connection :: term(), Query :: any(),
             Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 query(Connection, Query, _Timeout) ->
-    pgsql_to_odbc(epgsql:squery(Connection, Query)).
+    pgsql_to_rdbms(epgsql:squery(Connection, Query)).
 
--spec prepare(Pool :: mongoose_rdbms:pool(),
-              Connection :: term(), Name :: atom(), Table :: binary(),
+-spec prepare(Connection :: term(), Name :: atom(), Table :: binary(),
               Fields :: [binary()], Statement :: iodata()) ->
                      {ok, term()} | {error, any()}.
-prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
-    BinName = atom_to_binary(Name, latin1),
+prepare(Connection, Name, _Table, _Fields, Statement) ->
+    BinName = [atom_to_binary(Name, latin1)],
     ReplacedStatement = replace_question_marks(Statement),
     case epgsql:parse(Connection, BinName, ReplacedStatement, []) of
         {ok, _} -> {ok, BinName};
@@ -73,7 +72,7 @@ prepare(_Pool, Connection, Name, _Table, _Fields, Statement) ->
 -spec execute(Connection :: term(), StatementRef :: term(), Params :: [term()],
               Timeout :: infinity | non_neg_integer()) -> mongoose_rdbms:query_result().
 execute(Connection, StatementRef, Params, _Timeout) ->
-    pgsql_to_odbc(epgsql:prepared_query(Connection, StatementRef, Params)).
+    pgsql_to_rdbms(epgsql:prepared_query(Connection, StatementRef, Params)).
 
 %% Helpers
 
@@ -95,23 +94,27 @@ get_db_basic_opts({Server, Port, DB, User, Pass}) ->
      {port, Port},
      {database, DB},
      {username, User},
-     {password, Pass}
+     {password, Pass},
+     %% Encode 0 and 1 as booleans, as well as true and false
+     {codecs, [{mongoose_rdbms_pgsql_codec_boolean, []}]}
     ].
 
 -spec extend_db_opts_with_ssl(Opts :: [term()], SSLConnOpts :: [term()]) -> [term()].
 extend_db_opts_with_ssl(Opts, SSLConnOpts) ->
     Opts ++ SSLConnOpts.
 
--spec pgsql_to_odbc(epgsql:reply(term())) -> mongoose_rdbms:query_result().
-pgsql_to_odbc(Items) when is_list(Items) ->
-    lists:reverse([pgsql_to_odbc(Item) || Item <- Items]);
-pgsql_to_odbc({error, #error{codename = unique_violation}}) ->
+-spec pgsql_to_rdbms(epgsql:reply(term())) -> mongoose_rdbms:query_result().
+pgsql_to_rdbms(Items) when is_list(Items) ->
+    lists:reverse([pgsql_to_rdbms(Item) || Item <- Items]);
+pgsql_to_rdbms({error, #error{codename = unique_violation}}) ->
     {error, duplicate_key};
-pgsql_to_odbc({error, #error{message = Message}}) ->
+pgsql_to_rdbms({error, #error{message = Message}}) ->
     {error, unicode:characters_to_list(Message)};
-pgsql_to_odbc({ok, Count}) ->
+pgsql_to_rdbms({ok, Count}) ->
     {updated, Count};
-pgsql_to_odbc({ok, _Columns, Rows}) ->
+pgsql_to_rdbms({ok, Count, _Column, Value}) ->
+    {updated, Count, Value};
+pgsql_to_rdbms({ok, _Columns, Rows}) ->
     {selected, Rows}.
 
 -spec replace_question_marks(Statement :: iodata()) -> iodata().

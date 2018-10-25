@@ -114,84 +114,86 @@ all() -> [
           {group, debug_calls}
          ].
 
-groups() -> [{basic, [parallel],
-              [
-               discover_nodes_test,
-               create_delete_node_test,
-               subscribe_unsubscribe_test,
-               publish_test,
-               publish_with_max_items_test,
-               notify_test,
-               request_all_items_test,
-               retract_test,
-               retract_when_user_goes_offline_test,
-               purge_all_items_test
-              ]
-             },
-             {service_config, [parallel],
-              [
-               max_subscriptions_test
-              ]
-             },
-             {node_config, [parallel],
-              [
-               retrieve_configuration_test,
-               set_configuration_test,
-               notify_config_test,
-               disable_notifications_test,
-               disable_payload_test,
-               disable_persist_items_test,
-               notify_only_available_users_test,
-               notify_unavailable_user_test,
-               send_last_published_item_test
-              ]
-             },
-             {node_affiliations, [parallel],
-              [
-               get_affiliations_test,
-               add_publisher_and_member_test,
-               swap_owners_test,
-               deny_no_owner_test
-              ]
-             },
-             {manage_subscriptions, [parallel],
-              [
-               retrieve_user_subscriptions_test,
-               retrieve_node_subscriptions_test,
-               modify_node_subscriptions_test,
-               process_subscription_requests_test,
-               retrieve_pending_subscription_requests_test
-              ]
-             },
-             {collection, [parallel],
-              [
-               create_delete_collection_test,
-               subscribe_unsubscribe_collection_test,
-               create_delete_leaf_test,
-               notify_collection_test,
-               notify_collection_leaf_and_item_test,
-               notify_collection_bare_jid_test,
-               notify_collection_and_leaf_test,
-               notify_collection_and_leaf_same_user_test,
-               retrieve_subscriptions_collection_test,
-               discover_top_level_nodes_test,
-               discover_child_nodes_test,
-               request_all_items_leaf_test
-              ]
-             },
-             {collection_config, [parallel],
-              [
-               disable_notifications_leaf_test,
-               disable_payload_leaf_test,
-               disable_persist_items_leaf_test
-              ]
-             },
-             {debug_calls, [parallel],
-              [
-               debug_get_items_test
-              ]
-             }
-            ].
+groups() ->
+    G = [{basic, [parallel],
+          [
+           discover_nodes_test,
+           create_delete_node_test,
+           subscribe_unsubscribe_test,
+           publish_test,
+           publish_with_max_items_test,
+           notify_test,
+           request_all_items_test,
+           retract_test,
+           retract_when_user_goes_offline_test,
+           purge_all_items_test
+          ]
+         },
+         {service_config, [parallel],
+          [
+           max_subscriptions_test
+          ]
+         },
+         {node_config, [parallel],
+          [
+           retrieve_configuration_test,
+           set_configuration_test,
+           notify_config_test,
+           disable_notifications_test,
+           disable_payload_test,
+           disable_persist_items_test,
+           notify_only_available_users_test,
+           notify_unavailable_user_test,
+           send_last_published_item_test
+          ]
+         },
+         {node_affiliations, [parallel],
+          [
+           get_affiliations_test,
+           add_publisher_and_member_test,
+           swap_owners_test,
+           deny_no_owner_test
+          ]
+         },
+         {manage_subscriptions, [parallel],
+          [
+           retrieve_user_subscriptions_test,
+           retrieve_node_subscriptions_test,
+           modify_node_subscriptions_test,
+           process_subscription_requests_test,
+           retrieve_pending_subscription_requests_test
+          ]
+         },
+         {collection, [parallel],
+          [
+           create_delete_collection_test,
+           subscribe_unsubscribe_collection_test,
+           create_delete_leaf_test,
+           notify_collection_test,
+           notify_collection_leaf_and_item_test,
+           notify_collection_bare_jid_test,
+           notify_collection_and_leaf_test,
+           notify_collection_and_leaf_same_user_test,
+           retrieve_subscriptions_collection_test,
+           discover_top_level_nodes_test,
+           discover_child_nodes_test,
+           request_all_items_leaf_test
+          ]
+         },
+         {collection_config, [parallel],
+          [
+           disable_notifications_leaf_test,
+           disable_payload_leaf_test,
+           disable_persist_items_leaf_test
+          ]
+         },
+         {debug_calls, [parallel],
+          [
+           debug_get_items_test
+          ]
+         }
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -604,7 +606,7 @@ notify_only_available_users_test(Config) ->
 
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
 
-              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+              push_helper:become_unavailable(Bob),
 
               %% Item from node 2 not received (blocked by resource-based delivery)
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
@@ -623,7 +625,7 @@ notify_unavailable_user_test(Config) ->
 
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
 
-              escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
+              push_helper:become_unavailable(Bob),
 
               %% Receive item from node 1 (also make sure the presence is processed)
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),

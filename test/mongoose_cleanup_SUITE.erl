@@ -51,7 +51,7 @@ end_per_testcase(T, Config) ->
     Config.
 
 meck_mods(bosh) -> [exometer, mod_bosh_socket, ejabberd_config];
-meck_mods(s2s) -> [exometer, ejabberd_commands, randoms, ejabberd_config];
+meck_mods(s2s) -> [exometer, ejabberd_commands, mongoose_bin, ejabberd_config];
 meck_mods(local) -> [exometer, ejabberd_config];
 meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 
@@ -108,7 +108,7 @@ stream_management(_Config) ->
 local(_Config) ->
     ejabberd_local:start_link(),
     Self = self(),
-    SelfNotify = fun(Arg) -> Self ! Arg end,
+    SelfNotify = fun(_, _, _, Arg) -> Self ! Arg end,
     ID = <<"abc123">>,
 
     ejabberd_local:register_iq_response_handler(?HOST, ID, undefined, SelfNotify, 50),
@@ -139,11 +139,11 @@ bosh(_Config) ->
     mod_bosh:start(?HOST, []),
     SID = <<"sid">>,
     Self = self(),
-    {'EXIT', _} = (catch mod_bosh:get_session_socket(SID)),
+    {error, _} = mod_bosh:get_session_socket(SID),
     mod_bosh:store_session(SID, Self),
-    Self = mod_bosh:get_session_socket(SID),
+    {ok, Self} = mod_bosh:get_session_socket(SID),
     ejabberd_hooks:run(node_cleanup, [node()]),
-    {'EXIT', _} = (catch mod_bosh:get_session_socket(SID)),
+    {error, _} = mod_bosh:get_session_socket(SID),
     ok.
 
 %% -----------------------------------------------------
@@ -179,9 +179,9 @@ setup_meck([ejabberd_commands | R]) ->
     meck:new(ejabberd_commands),
     meck:expect(ejabberd_commands, register_commands, fun(_) -> ok end),
     setup_meck(R);
-setup_meck([randoms | R]) ->
-    meck:new(randoms),
-    meck:expect(randoms, get_string, fun() -> "123456" end),
+setup_meck([mongoose_bin | R]) ->
+    meck:new(mongoose_bin, [passthrough]),
+    meck:expect(mongoose_bin, gen_from_crypto, fun() -> <<"123456">> end),
     setup_meck(R);
 setup_meck([mod_bosh_socket | R]) ->
     meck:new(mod_bosh_socket),

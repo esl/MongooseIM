@@ -107,171 +107,173 @@ all() -> [
           {group, register_over_s2s}
         ].
 
-groups() -> [
-             {hibernation, [parallel], [room_is_hibernated,
-                                        room_with_participants_is_hibernated,
-                                        hibernation_metrics_are_updated,
-                                        room_with_participants_and_messages_is_hibernated,
-                                        hibernated_room_can_be_queried_for_archive,
-                                        hibernated_room_is_stopped,
-                                        hibernated_room_is_stopped_and_restored_by_presence,
-                                        stopped_rooms_history_is_available,
-                                        stopped_members_only_room_process_invitations_correctly,
-                                        room_with_participants_is_not_stopped,
-                                        room_with_only_owner_is_stopped,
-                                        deep_hibernation_metrics_are_updated,
-                                        can_found_in_db_when_stopped
-                                       ]},
-        {disco, [parallel], [
-                disco_service,
-                disco_features,
-                disco_rooms,
-                disco_info,
-                disco_items,
-                disco_items_nonpublic
-                ]},
-        {disco_rsm, [parallel], rsm_cases()},
-        {moderator, [parallel], [
-                moderator_subject,
-                moderator_subject_unauthorized,
-                moderator_kick,
-                moderator_kick_with_reason,
-                moderator_kick_unauthorized,
-                moderator_voice,
-                moderator_voice_with_reason,
-                moderator_voice_unauthorized,
-                moderator_voice_list,
-                moderator_voice_approval,
-                moderator_voice_forbidden,
-                moderator_voice_not_occupant,
-                moderator_voice_nonick
-                ]},
-        {admin, [parallel], [
-                admin_ban,
-                admin_ban_with_reason,
-                admin_ban_list,
-                admin_get_form,
-                admin_invalid_affiliation,
-                admin_invalid_jid,
-                %% test should fail, temporarily changed
-                admin_ban_higher_user,
-                admin_membership,
-                admin_membership_with_reason,
-                admin_member_list,
-                admin_member_list_allowed,
-                admin_moderator,
-                admin_moderator_with_reason,
-                admin_moderator_revoke_owner,
-                admin_moderator_list,
-                admin_invalid_role,
-                admin_invalid_nick
-                ]},
-        {admin_membersonly, [], [
-                admin_mo_revoke,
-                admin_mo_invite,
-                admin_mo_invite_with_reason,
-                admin_mo_invite_mere
-                ]},
-        {occupant, [parallel], [
-                %nick registration in a room is not implemented and will not be tested
-                groupchat_user_enter,
-                groupchat_user_enter_no_nickname,
-                muc_user_enter,
-                enter_non_anonymous_room,
-                deny_access_to_password_protected_room,
-                enter_password_protected_room,
-                deny_accesss_to_memebers_only_room,
-                deny_entry_to_a_banned_user,
-                deny_entry_nick_conflict,
-                multi_sessions_enter,
-                multi_sessions_messages,
-                multi_sessions_exit_session,
-                multi_sessions_exit,
-                deny_entry_with_multiple_sessions_disallowed,
-                enter_room_with_logging,
-                deny_entry_user_limit_reached,
-                send_history,
-                history_since,
+groups() ->
+    G = [
+         {hibernation, [parallel], [room_is_hibernated,
+                                    room_with_participants_is_hibernated,
+                                    hibernation_metrics_are_updated,
+                                    room_with_participants_and_messages_is_hibernated,
+                                    hibernated_room_can_be_queried_for_archive,
+                                    hibernated_room_is_stopped,
+                                    hibernated_room_is_stopped_and_restored_by_presence,
+                                    stopped_rooms_history_is_available,
+                                    stopped_members_only_room_process_invitations_correctly,
+                                    room_with_participants_is_not_stopped,
+                                    room_with_only_owner_is_stopped,
+                                    deep_hibernation_metrics_are_updated,
+                                    can_found_in_db_when_stopped
+                                   ]},
+         {disco, [parallel], [
+                              disco_service,
+                              disco_features,
+                              disco_rooms,
+                              disco_info,
+                              disco_items,
+                              disco_items_nonpublic
+                             ]},
+         {disco_rsm, [parallel], rsm_cases()},
+         {moderator, [parallel], [
+                                  moderator_subject,
+                                  moderator_subject_unauthorized,
+                                  moderator_kick,
+                                  moderator_kick_with_reason,
+                                  moderator_kick_unauthorized,
+                                  moderator_voice,
+                                  moderator_voice_with_reason,
+                                  moderator_voice_unauthorized,
+                                  moderator_voice_list,
+                                  moderator_voice_approval,
+                                  moderator_voice_forbidden,
+                                  moderator_voice_not_occupant,
+                                  moderator_voice_nonick
+                                 ]},
+         {admin, [parallel], [
+                              admin_ban,
+                              admin_ban_with_reason,
+                              admin_ban_list,
+                              admin_get_form,
+                              admin_invalid_affiliation,
+                              admin_invalid_jid,
+                              %% test should fail, temporarily changed
+                              admin_ban_higher_user,
+                              admin_membership,
+                              admin_membership_with_reason,
+                              admin_member_list,
+                              admin_member_list_allowed,
+                              admin_moderator,
+                              admin_moderator_with_reason,
+                              admin_moderator_revoke_owner,
+                              admin_moderator_list,
+                              admin_invalid_role,
+                              admin_invalid_nick
+                             ]},
+         {admin_membersonly, [], [
+                                  admin_mo_revoke,
+                                  admin_mo_invite,
+                                  admin_mo_invite_with_reason,
+                                  admin_mo_invite_mere
+                                 ]},
+         {occupant, [parallel], [
+                                 %nick registration in a room is not implemented and will not be tested
+                                 groupchat_user_enter,
+                                 groupchat_user_enter_no_nickname,
+                                 muc_user_enter,
+                                 enter_non_anonymous_room,
+                                 deny_access_to_password_protected_room,
+                                 enter_password_protected_room,
+                                 deny_accesss_to_memebers_only_room,
+                                 deny_entry_to_a_banned_user,
+                                 deny_entry_nick_conflict,
+                                 multi_sessions_enter,
+                                 multi_sessions_messages,
+                                 multi_sessions_exit_session,
+                                 multi_sessions_exit,
+                                 deny_entry_with_multiple_sessions_disallowed,
+                                 enter_room_with_logging,
+                                 deny_entry_user_limit_reached,
+                                 send_history,
+                                 history_since,
 
-                %% the following tests fail and have been commented because
-                %% certain features are not implemented in ejabberd
-                %% send_non_anonymous_history,
-                %% limit_history_chars,
-                %% limit_history_messages,
-                %% recent_history, %unfinished,
-                %% no_history,
+                                 %% the following tests fail and have been commented because
+                                 %% certain features are not implemented in ejabberd
+                                 %% send_non_anonymous_history,
+                                 %% limit_history_chars,
+                                 %% limit_history_messages,
+                                 %% recent_history, %unfinished,
+                                 %% no_history,
 
-                subject,
-                no_subject,
-                send_to_all,
-                send_and_receive_private_message,
-                send_private_groupchat,
-                change_nickname,
-                deny_nickname_change_conflict,
-                change_availability_status,
-                mediated_invite,
-                one2one_chat_to_muc,
-                exit_room,
-                exit_room_with_status,
-                kicked_after_sending_malformed_presence
-                ]},
-        {owner, [parallel], [
-                %% fails, see testcase
-                cant_enter_locked_room,
-                create_instant_room,
-                destroy_locked_room,
-                create_reserved_room,
-                %% fails, see testcase
-                reserved_room_cancel,
-                reserved_room_unacceptable,
-                reserved_room_configuration,
-                owner_grant_revoke,
-                owner_grant_revoke_with_reason,
-                owner_list,
-                owner_unauthorized,
-                admin_grant_revoke,
-                admin_grant_revoke_with_reason,
-                admin_list,
-                admin_unauthorized,
-                destroy,
-                destroy_unauthorized,
-                config_denial,
-                config_cancel,
-                configure,
-                configure_logging,
-                %% fails, see testcase
-                configure_anonymous,
-                cancel_iq_sent_to_locked_room_destroys_it,
-                cancel_iq_sent_to_unlocked_room_has_no_effect
-                ]},
-        {owner_no_parallel, [], [
-                                 room_creation_not_allowed
+                                 subject,
+                                 no_subject,
+                                 send_to_all,
+                                 send_and_receive_private_message,
+                                 send_private_groupchat,
+                                 change_nickname,
+                                 deny_nickname_change_conflict,
+                                 change_availability_status,
+                                 mediated_invite,
+                                 one2one_chat_to_muc,
+                                 exit_room,
+                                 exit_room_with_status,
+                                 kicked_after_sending_malformed_presence
                                 ]},
-        {room_management, [], [
-                create_and_destroy_room,
-                create_and_destroy_room_multiple_x_elements
-                ]},
-        {http_auth_no_server, [parallel], [
-                deny_access_to_http_password_protected_room_service_unavailable,
-                deny_creation_of_http_password_protected_room_service_unavailable
-                ]},
-        {http_auth, [parallel], [
-                enter_http_password_protected_room,
-                deny_access_to_password_protected_room,
-                deny_access_to_http_password_protected_room_wrong_password,
-                create_instant_http_password_protected_room,
-                deny_creation_of_http_password_protected_room,
-                deny_creation_of_http_password_protected_room_wrong_password
-                ]},
-        {room_registration_race_condition, [], [
-                load_already_registered_permanent_rooms,
-                create_already_registered_room,
-                check_presence_route_to_offline_room,
-                check_message_route_to_offline_room
-               ]},
-        {register, [parallel], register_cases()},
-        {register_over_s2s, [parallel], register_cases()}
-        ].
+         {owner, [parallel], [
+                              %% fails, see testcase
+                              cant_enter_locked_room,
+                              create_instant_room,
+                              destroy_locked_room,
+                              create_reserved_room,
+                              %% fails, see testcase
+                              reserved_room_cancel,
+                              reserved_room_unacceptable,
+                              reserved_room_configuration,
+                              owner_grant_revoke,
+                              owner_grant_revoke_with_reason,
+                              owner_list,
+                              owner_unauthorized,
+                              admin_grant_revoke,
+                              admin_grant_revoke_with_reason,
+                              admin_list,
+                              admin_unauthorized,
+                              destroy,
+                              destroy_unauthorized,
+                              config_denial,
+                              config_cancel,
+                              configure,
+                              configure_logging,
+                              %% fails, see testcase
+                              configure_anonymous,
+                              cancel_iq_sent_to_locked_room_destroys_it,
+                              cancel_iq_sent_to_unlocked_room_has_no_effect
+                             ]},
+         {owner_no_parallel, [], [
+                                  room_creation_not_allowed
+                                 ]},
+         {room_management, [], [
+                                create_and_destroy_room,
+                                create_and_destroy_room_multiple_x_elements
+                               ]},
+         {http_auth_no_server, [parallel], [
+                                            deny_access_to_http_password_protected_room_service_unavailable,
+                                            deny_creation_of_http_password_protected_room_service_unavailable
+                                           ]},
+         {http_auth, [parallel], [
+                                  enter_http_password_protected_room,
+                                  deny_access_to_password_protected_room,
+                                  deny_access_to_http_password_protected_room_wrong_password,
+                                  create_instant_http_password_protected_room,
+                                  deny_creation_of_http_password_protected_room,
+                                  deny_creation_of_http_password_protected_room_wrong_password
+                                 ]},
+         {room_registration_race_condition, [], [
+                                                 load_already_registered_permanent_rooms,
+                                                 create_already_registered_room,
+                                                 check_presence_route_to_offline_room,
+                                                 check_message_route_to_offline_room
+                                                ]},
+         {register, [parallel], register_cases()},
+         {register_over_s2s, [parallel], register_cases()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 register_cases() ->
     [user_asks_for_registration_form,
@@ -345,11 +347,11 @@ init_per_group(disco_rsm, Config) ->
 
 init_per_group(G, Config) when G =:= http_auth_no_server;
                                G =:= http_auth ->
-    ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
-    ok = ejabberd_node_utils:call_fun(mongoose_http_client, start_pool, [muc_http_auth_test,
-                                                                         [{server, "http://localhost:8080"},
-                                                                          {path_prefix, "/muc/auth/"},
-                                                                          {pool_size, 5}]]),
+    PoolOpts = [{strategy, available_worker}, {workers, 5}],
+    HTTPOpts = [{server, "http://localhost:8080"},
+                {path_prefix, "/muc/auth/"}],
+    [{ok, _}] = ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
+                                             [[{http, global, muc_http_auth_test, PoolOpts, HTTPOpts}]]),
     case G of
         http_auth -> http_helper:start(8080, "/muc/auth/check_password", fun handle_http_auth/1);
         _ -> ok
@@ -359,10 +361,10 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
     ConfigWithModules;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
-        odbc ->
-    dynamic_modules:start(domain(), mod_mam_muc_odbc_arch, [muc, simple]),
-    dynamic_modules:start(domain(), mod_mam_odbc_prefs, [muc]),
-    dynamic_modules:start(domain(), mod_mam_odbc_user, [muc]),
+        rdbms ->
+    dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc, simple]),
+    dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
+    dynamic_modules:start(domain(), mod_mam_rdbms_user, [muc]),
             dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
         _ ->
             ok
@@ -419,15 +421,14 @@ end_per_group(G, Config) when G =:= http_auth_no_server;
         http_auth -> http_helper:stop();
         _ -> ok
     end,
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [muc_http_auth_test]),
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
+    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, muc_http_auth_test]),
     dynamic_modules:restore_modules(domain(), Config);
 end_per_group(hibernation, Config) ->
     case mam_helper:backend() of
-        odbc ->
-    dynamic_modules:stop(domain(), mod_mam_muc_odbc_arch),
-    dynamic_modules:stop(domain(), mod_mam_odbc_prefs),
-    dynamic_modules:stop(domain(), mod_mam_odbc_user),
+        rdbms ->
+    dynamic_modules:stop(domain(), mod_mam_muc_rdbms_arch),
+    dynamic_modules:stop(domain(), mod_mam_rdbms_prefs),
+    dynamic_modules:stop(domain(), mod_mam_rdbms_user),
             dynamic_modules:stop(domain(), mod_mam_muc);
         _ ->
             ok
@@ -502,10 +503,10 @@ init_per_testcase(CN, Config)
   when CN =:= hibernated_room_can_be_queried_for_archive orelse
        CN =:= stopped_rooms_history_is_available ->
     case mam_helper:backend() of
-        odbc ->
+        rdbms ->
             escalus:init_per_testcase(CN, Config);
         _ ->
-            {skip, "MAM works only for ODBC as of now"}
+            {skip, "MAM works only for RDBMS as of now"}
     end;
 init_per_testcase(CaseName, ConfigIn) ->
     Config = maybe_create_unique_room(ConfigIn),
@@ -4096,7 +4097,7 @@ hibernated_room_can_be_queried_for_archive(Config) ->
                                                               [{membersonly, false}], Bob),
         {Msg, {ok, _, Pid}} = Result,
         wait_for_mam_result(RoomName, Bob, Msg),
-        true = wait_for_hibernation(Pid, 10)
+        wait_for_hibernation(Pid)
 
     end),
 
@@ -4128,9 +4129,8 @@ hibernated_room_is_stopped_and_restored_by_presence(Config) ->
 
         escalus:send(Bob, stanza_join_room(RoomName, <<"bob">>)),
         Presence = escalus:wait_for_stanza(Bob, ?WAIT_TIMEOUT),
-        ct:print("~p", [Presence]),
+        escalus:assert(is_presence, Presence),
         MessageWithSubject = escalus:wait_for_stanza(Bob),
-        ct:print("~p", [MessageWithSubject]),
         true = is_subject_message(MessageWithSubject, <<"Restorable">>),
 
         {ok, _Pid2} = rpc(mim(), mod_muc, room_jid_to_pid, [RoomJID]),
@@ -4255,7 +4255,7 @@ get_spiral_metric_count(Host, MetricName) ->
 
 given_fresh_room_is_hibernated(Owner, RoomName, Opts) ->
     {ok, _, RoomPid} = Result = given_fresh_room_for_user(Owner, RoomName, Opts),
-    true = wait_for_hibernation(RoomPid, 10),
+    wait_for_hibernation(RoomPid),
     Result.
 
 given_fresh_room_for_user(Owner, RoomName, Opts) ->
@@ -4310,7 +4310,7 @@ given_fresh_room_with_participants_is_hibernated(Owner, RoomName, Opts, Particip
     escalus:send(Participant, JoinRoom),
     escalus:wait_for_stanzas(Participant, 3),
     escalus:wait_for_stanza(Owner),
-    true = wait_for_hibernation(Pid, 10),
+    wait_for_hibernation(Pid),
     Result.
 
 given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant) ->
@@ -4322,7 +4322,7 @@ given_fresh_room_with_messages_is_hibernated(Owner, RoomName, Opts, Participant)
     escalus:send(Owner, Message),
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Participant)),
     escalus:assert(is_groupchat_message, [MessageBin], escalus:wait_for_stanza(Owner)),
-    true = wait_for_hibernation(Pid, 10),
+    wait_for_hibernation(Pid),
     {MessageBin, Result}.
 
 forget_room(ServerHost, MUCHost, RoomName) ->
@@ -4337,16 +4337,8 @@ wait_for_room_to_be_stopped(Pid, Timeout) ->
               false
     end.
 
-wait_for_hibernation(Pid, 0) ->
-    is_hibernated(Pid);
-wait_for_hibernation(Pid, N) ->
-    case is_hibernated(Pid) of
-        true ->
-            true;
-        _ ->
-            timer:sleep(500),
-            wait_for_hibernation(Pid, N-1)
-    end.
+wait_for_hibernation(Pid) ->
+    mongoose_helper:wait_until(fun() -> is_hibernated(Pid) end, true, #{name => is_hibernated}).
 
 is_hibernated(Pid) ->
     CurrentFunction = rpc(mim(), erlang, process_info, [Pid, current_function]),

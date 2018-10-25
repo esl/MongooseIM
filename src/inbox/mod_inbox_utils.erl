@@ -19,6 +19,7 @@
 -export([reset_unread_count/3,
          write_to_sender_inbox/4,
          write_to_receiver_inbox/4,
+         clear_inbox/1,
          clear_inbox/2,
          get_reset_markers/1,
          if_chat_marker_get_id/2,
@@ -27,7 +28,8 @@
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
-         reset_marker_to_bin/1]).
+         reset_marker_to_bin/1,
+         get_inbox_unread/2]).
 
 
 -spec reset_unread_count(User :: jid:jid(),
@@ -50,23 +52,31 @@ write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
     RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
     Count = integer_to_binary(0),
-    ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid, Content, Count, MsgId).
+    Timestamp = erlang:timestamp(),
+    ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid,
+                                     Content, Count, MsgId, Timestamp).
 
 -spec write_to_receiver_inbox(Server :: host(),
                               Sender :: jid:jid(),
                               Receiver :: jid:jid(),
-                              Packet :: exml:element()) -> ok.
+                              Packet :: exml:element()) -> ok | {ok, integer()}.
 write_to_receiver_inbox(Server, Sender, Receiver, Packet) ->
     MsgId = get_msg_id(Packet),
     Content = exml:to_binary(Packet),
     Username = Receiver#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Sender)),
-    ok = mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid, Content, MsgId).
+    Timestamp = erlang:timestamp(),
+    mod_inbox_backend:set_inbox_incr_unread(Username, Server, RemoteBareJid,
+                                            Content, MsgId, Timestamp).
 
--spec clear_inbox(User :: jid:luser(), Server :: host()) -> ok.
+-spec clear_inbox(User :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(User, Server) when is_binary(User) ->
     JidForm = jid:from_binary(User),
     ok = mod_inbox_backend:clear_inbox(JidForm#jid.luser, Server).
+
+-spec clear_inbox(Server :: host()) -> inbox_write_res().
+clear_inbox(Server) ->
+    ok = mod_inbox_backend:clear_inbox(Server).
 
 
 %%%%%%%%%%%%%%%%%%%
@@ -131,3 +141,6 @@ reset_marker_to_bin(displayed) -> <<"displayed">>;
 reset_marker_to_bin(acknowledged) -> <<"acknowledged">>;
 reset_marker_to_bin(received) -> <<"received">>;
 reset_marker_to_bin(Unknown) -> throw({unknown_marker, Unknown}).
+
+get_inbox_unread(User, Server) ->
+    mod_inbox_backend:get_inbox_unread(User, Server).

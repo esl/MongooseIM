@@ -1,7 +1,7 @@
 -module(mod_muc_db).
 -include("mod_muc.hrl").
 
-%% Defines which ODBC pool to use
+%% Defines which RDBMS pool to use
 %% Parent host of the MUC service
 -type server_host() :: ejabberd:server().
 

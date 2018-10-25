@@ -4,7 +4,7 @@
 %% Test the mod_vcard* modules.
 %% mod_vcard uses mnesia
 %% mod_vcard_ldap uses ldap
-%% mod_vcard_odbc uses odbc
+%% mod_vcard_rdbms uses rdbms
 %%
 %% They share many comonalities but sometimes behave differently or have
 %% some extra or missing features. They also need different config depending
@@ -59,12 +59,13 @@ all() ->
 groups() ->
     %% setting test data before tests is proving awkward so might as well use the
     %% data set in the update tests to test the rest.
-    [{rw, [sequence], rw_tests()},
-     {ro_full, [], ro_full_search_tests()},
-     {ro_limited, [], ro_limited_search_tests()},
-     {ro_no, [sequence], ro_no_search_tests()},
-     {ldap_only, [], ldap_only_tests()}
-    ].
+    G = [{rw, [sequence], rw_tests()},
+         {ro_full, [], ro_full_search_tests()},
+         {ro_limited, [], ro_limited_search_tests()},
+         {ro_no, [sequence], ro_no_search_tests()},
+         {ldap_only, [], ldap_only_tests()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 rw_tests() ->
     [
@@ -1004,12 +1005,12 @@ prepare_vcard(ldap, JID, Fields) ->
             undefined ->
                 undefined;
             LdapField ->
-                rpc(mim(), eldap, mod_replace, [LdapField, [Val]])
+                rpc(mim(), eldap, mod_replace, [binary_to_list(LdapField), [binary_to_list(Val)]])
         end
     end,
     Modificators = convert_vcard_fields(Fields, [], Fun),
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = rpc(mim(), eldap, modify, [EPid, Dn, Modificators]);
+    ok = rpc(mim(), eldap, modify, [EPid, binary_to_list(Dn), Modificators]);
 prepare_vcard(_, JID, Fields) ->
     RJID = get_jid_record(JID),
     VCard = escalus_stanza:vcard_update(JID, Fields),
@@ -1020,9 +1021,9 @@ insert_alice_photo(Config) ->
     Server = domain(),
     {EPid, Base} = get_ldap_pid_and_base(Server),
     Photo = ?PHOTO_BIN,
-    Modificators = [rpc(mim(), eldap, mod_replace, [<<"jpegPhoto">>, [Photo]])],
+    Modificators = [rpc(mim(), eldap, mod_replace, ["jpegPhoto", [binary_to_list(Photo)]])],
     Dn = <<"cn=", User/binary, ",", Base/binary>>,
-    ok = rpc(mim(), eldap, modify, [EPid, Dn, Modificators]),
+    ok = rpc(mim(), eldap, modify, [EPid, binary_to_list(Dn), Modificators]),
     Config.
 
 
@@ -1033,7 +1034,7 @@ fields_to_ldap_modificators(VcardMap, [{Field, Val} | Rest], Acc) when is_binary
         undefined ->
             NewAcc = Acc;
         LdapField ->
-            LdapModify = rpc(mim(), eldap, mod_replace, [LdapField, [Val]]),
+            LdapModify = rpc(mim(), eldap, mod_replace, [binary_to_list(LdapField), [binary_to_list(Val)]]),
             NewAcc = [LdapModify | Acc]
     end,
     fields_to_ldap_modificators(VcardMap, Rest, NewAcc);

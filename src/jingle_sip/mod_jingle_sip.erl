@@ -50,15 +50,26 @@
 
 -spec start(ejabberd:server(), list()) -> ok.
 start(Host, Opts) ->
+    start_nksip_service_or_error(Opts),
+    mod_jingle_sip_backend:init(Host, Opts),
+    ejabberd_hooks:add(hooks(Host)),
+    ok.
+
+start_nksip_service_or_error(Opts) ->
+    application:ensure_all_started(nksip),
     ListenPort = gen_mod:get_opt(listen_port, Opts, 5600),
     NkSipBasicOpts = #{sip_listen => "sip:all:" ++ integer_to_list(ListenPort),
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
-    {ok, _SrvID} = nksip:start(?SERVICE, NkSipOpts),
-    mod_jingle_sip_backend:init(Host, Opts),
-    ejabberd_hooks:add(hooks(Host)),
-    ok.
+    case nksip:start(?SERVICE, NkSipOpts) of
+        {ok, _SrvID} ->
+            ok;
+        {error, already_started} ->
+            ok;
+        Other ->
+            erlang:error(Other)
+    end.
 
 maybe_add_udp_max_size(NkSipOpts, Opts) ->
     case gen_mod:get_opt(udp_max_size, Opts, undefined) of
@@ -71,14 +82,13 @@ maybe_add_udp_max_size(NkSipOpts, Opts) ->
 -spec stop(ejabberd:server()) -> ok.
 stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
-    nksip:stop(?SERVICE),
     ok.
 
 hooks(Host) ->
     [{c2s_preprocessing_hook, Host, ?MODULE, intercept_jingle_stanza, 75}].
 
 intercept_jingle_stanza(Acc, _C2SState) ->
-    case mongoose_acc:get(result, Acc, udefined) of
+    case mongoose_acc:get(hook, result, undefined, Acc) of
         drop ->
             Acc;
         _ ->
@@ -86,7 +96,7 @@ intercept_jingle_stanza(Acc, _C2SState) ->
     end.
 
 maybe_iq_stanza(Acc) ->
-    case mongoose_acc:get(name, Acc) of
+    case mongoose_acc:stanza_name(Acc) of
         <<"iq">> ->
             maybe_iq_to_other_user(Acc);
         _ ->
@@ -94,21 +104,21 @@ maybe_iq_stanza(Acc) ->
     end.
 
 maybe_iq_to_other_user(Acc) ->
-    #jid{luser = StanzaTo} = mongoose_acc:get(to_jid, Acc),
-    #jid{luser = LUser} = mongoose_acc:get_prop(origin_jid, Acc),
+    #jid{luser = StanzaTo} = mongoose_acc:to_jid(Acc),
+    #jid{luser = LUser} = mongoose_acc:get(c2s, origin_jid, Acc),
     case LUser of
         StanzaTo ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
+            QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
             maybe_jingle_get_stanza_to_self(QueryInfo, Acc);
         _ ->
-            QueryInfo = jlib:iq_query_info(mongoose_acc:get(element, Acc)),
+            QueryInfo = jlib:iq_query_info(mongoose_acc:element(Acc)),
             maybe_jingle_stanza(QueryInfo, Acc)
     end.
 
 maybe_jingle_stanza(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = set} = IQ, Acc) ->
     JingleAction = exml_query:attr(Jingle, <<"action">>),
-    From = mongoose_acc:get(from_jid, Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    From = mongoose_acc:from_jid(Acc),
+    To = mongoose_acc:to_jid(Acc),
     maybe_translate_to_sip(JingleAction, From, To, IQ, Acc);
 maybe_jingle_stanza(_, Acc) ->
     Acc.
@@ -118,15 +128,20 @@ maybe_jingle_get_stanza_to_self(#iq{xmlns = ?JINGLE_NS, sub_el = Jingle, type = 
     case JingleAction of
         <<"existing-session-initiate">> ->
             resend_session_initiate(IQ, Acc),
-            mongoose_acc:put(result, drop, Acc);
+            mongoose_acc:set(hook, result, drop, Acc);
         _ ->
             Acc
-    end.
+    end;
+maybe_jingle_get_stanza_to_self(_, Acc) ->
+    Acc.
 
 maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
   when JingleAction =:= <<"session-initiate">>;
        JingleAction =:= <<"session-accept">>;
        JingleAction =:= <<"session-terminate">>;
+       JingleAction =:= <<"source-remove">>;
+       JingleAction =:= <<"source-add">>;
+       JingleAction =:= <<"source-update">>;
        JingleAction =:= <<"transport-info">> ->
     #iq{sub_el = Jingle} = IQ,
     try
@@ -137,7 +152,7 @@ maybe_translate_to_sip(JingleAction, From, To, IQ, Acc)
             ?ERROR_MSG("error=~p, while translating to sip, class=~p, stack_trace=~p",
                        [Class, Error, erlang:get_stacktrace()])
     end,
-    mongoose_acc:put(result, drop, Acc);
+    mongoose_acc:set(hook, result, drop, Acc);
 maybe_translate_to_sip(JingleAction, _, _, _, Acc) ->
     ?WARNING_MSG("Forwarding unknown action: ~p", [JingleAction]),
     Acc.
@@ -167,8 +182,8 @@ route_ok_result(From, To, IQ) ->
     ejabberd_router:route(To, From, Packet).
 
 resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
-    From = mongoose_acc:get(from_jid, Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    From = mongoose_acc:from_jid(Acc),
+    To = mongoose_acc:to_jid(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
         {ok, Session} ->
@@ -179,17 +194,16 @@ resend_session_initiate(#iq{sub_el = Jingle} = IQ, Acc) ->
 
 translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
-    FromUser = mongoose_acc:get(user, Acc),
     #jid{luser = ToUser} = ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
-    FromJID = mongoose_acc:get(from_jid, Acc),
+    #jid{luser = FromUser} = FromJID = mongoose_acc:from_jid(Acc),
     From = jid:to_binary(jid:to_lus(FromJID)),
     To = jid:to_binary(jid:to_lus(ToJID)),
-    Server = mongoose_acc:get(server, Acc),
-    SDP = prepare_initial_sdp(Server, Jingle),
-    ProxyURI = get_proxy_uri(Server),
+    LServer = mongoose_acc:lserver(Acc),
+    SDP = prepare_initial_sdp(LServer, Jingle),
+    ProxyURI = get_proxy_uri(LServer),
     RequestURI = list_to_binary(["sip:", ToUser, "@", ProxyURI]),
     ToHeader = <<ToUser/binary, " <sip:",To/binary, ">">>,
-    LocalHost = gen_mod:get_module_opt(Server, ?MODULE, local_host, "localhost"),
+    LocalHost = gen_mod:get_module_opt(LServer, ?MODULE, local_host, "localhost"),
 
     {async, Handle} = nksip_uac:invite(?SERVICE, RequestURI,
                                        [%% Request options
@@ -205,38 +219,65 @@ translate_to_sip(<<"session-initiate">>, Jingle, Acc) ->
     mod_jingle_sip_backend:set_outgoing_request(SID, Handle, FromJID, ToJID),
     {ok, Handle};
 translate_to_sip(<<"session-accept">>, Jingle, Acc) ->
-    Server = mongoose_acc:get(server, Acc),
+    LServer = mongoose_acc:lserver(Acc),
     SID = exml_query:attr(Jingle, <<"sid">>),
-    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
+    case mod_jingle_sip_backend:get_incoming_request(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, ReqID} ->
-            try_to_accept_session(ReqID, Jingle, Acc, Server, SID);
+            try_to_accept_session(ReqID, Jingle, Acc, LServer, SID);
         _ ->
             {error, item_not_found}
     end;
+translate_to_sip(<<"source-remove">> = Name, Jingle, Acc) ->
+    translate_source_change_to_sip(Name, Jingle, Acc);
+translate_to_sip(<<"source-add">> = Name, Jingle, Acc) ->
+    translate_source_change_to_sip(Name, Jingle, Acc);
+translate_to_sip(<<"source-update">> = Name, Jingle, Acc) ->
+    translate_source_change_to_sip(Name, Jingle, Acc);
 translate_to_sip(<<"transport-info">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     SDP = make_sdp_for_ice_candidate(Jingle),
-    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get_prop(origin_jid, Acc)) of
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
         {ok, undefined} ->
-            ?ERROR_MSG("There was no dialog for session ~p yet", [SID]),
+            ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
             {error, item_not_found};
         {ok, Handle} ->
             nksip_uac:info(Handle, [{content_type, <<"application/sdp">>},
                                     {body, SDP}]);
         _ ->
-            ?ERROR_MSG("There was no such session ~p", [SID]),
+            ?ERROR_MSG("event=missing_sip_session sid=~p", [SID]),
             {error, item_not_found}
     end;
 translate_to_sip(<<"session-terminate">>, Jingle, Acc) ->
     SID = exml_query:attr(Jingle, <<"sid">>),
     ToJID = jingle_sip_helper:maybe_rewrite_to_phone(Acc),
-    From = mongoose_acc:get_prop(origin_jid, Acc),
+    From = mongoose_acc:get(c2s, origin_jid, Acc),
     FromLUS = jid:to_lus(From),
     ToLUS = jid:to_lus(ToJID),
     case mod_jingle_sip_backend:get_session_info(SID, From) of
         {ok, Session} ->
             try_to_terminate_the_session(FromLUS, ToLUS, Session);
         _ ->
+            {error, item_not_found}
+    end.
+
+translate_source_change_to_sip(ActionName, Jingle, Acc) ->
+    SID = exml_query:attr(Jingle, <<"sid">>),
+    LServer = mongoose_acc:lserver(Acc),
+    #sdp{attributes = SDPAttrs} = RawSDP = prepare_initial_sdp(LServer, Jingle),
+
+    SDPAttrsWithActionName = [{<<"jingle-action">>, [ActionName]}
+                              | SDPAttrs],
+    SDP = RawSDP#sdp{attributes = SDPAttrsWithActionName},
+
+    case mod_jingle_sip_backend:get_outgoing_handle(SID, mongoose_acc:get(c2s, origin_jid, Acc)) of
+        {ok, undefined} ->
+            ?ERROR_MSG("event=missing_sip_dialog sid=~p", [SID]),
+            {error, item_not_found};
+        {ok, Handle} ->
+            nksip_uac:invite(Handle, [auto_2xx_ack,
+                                      {body, SDP}]);
+        _ ->
+            ?ERROR_MSG("event=missing_sip_session sid=~p", [SID]),
             {error, item_not_found}
     end.
 
@@ -262,8 +303,8 @@ try_to_terminate_the_session(FromLUS, ToLUS, Session) ->
 
 try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     SDP = prepare_initial_sdp(Server, Jingle),
-    %case nksip_request:reply({ok, [{body, SDP}]}, ReqID) of
-    case nksip_request_reply({ok, [{body, SDP}]}, ReqID) of
+    LocalHost = gen_mod:get_module_opt(Server, ?MODULE, local_host, "localhost"),
+    case nksip_request_reply({ok, [{body, SDP}, {local_host, LocalHost}]}, ReqID) of
         ok ->
            ok = mod_jingle_sip_backend:set_incoming_accepted(SID),
            terminate_session_on_other_devices(SID, Acc),
@@ -273,7 +314,7 @@ try_to_accept_session(ReqID, Jingle, Acc, Server, SID) ->
     end.
 
 terminate_session_on_other_devices(SID, Acc) ->
-    #jid{lresource = Res} = From = mongoose_acc:get(from_jid, Acc),
+    #jid{lresource = Res} = From = mongoose_acc:from_jid(Acc),
     FromBin = jid:to_binary(From),
     ReasonEl = #xmlel{name = <<"reason">>,
                       children = [#xmlel{name = <<"cancel">>}]},
@@ -295,7 +336,7 @@ make_user_header({User, _} = US) ->
 
 get_proxy_uri(Server) ->
     ProxyHost = gen_mod:get_module_opt(Server, ?MODULE, proxy_host, "localhost"),
-    ProxyPort = gen_mod:get_module_opt(Server, ?MODULE, proxy_port, 5600),
+    ProxyPort = gen_mod:get_module_opt(Server, ?MODULE, proxy_port, 5060),
     Transport = gen_mod:get_module_opt(Server, ?MODULE, transport, "udp"),
     PortStr = integer_to_list(ProxyPort),
     [ProxyHost, ":", PortStr, ";transport=", Transport].

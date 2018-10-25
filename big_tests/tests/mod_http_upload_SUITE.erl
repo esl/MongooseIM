@@ -1,4 +1,5 @@
 -module(mod_http_upload_SUITE).
+
 -compile(export_all).
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -29,22 +30,23 @@ all() ->
     [{group, mod_http_upload_s3}, {group, unset_size}].
 
 groups() ->
-    [{unset_size, [], [does_not_advertise_max_size_if_unset]},
-     {mod_http_upload_s3, [], [
-                               http_upload_item_discovery,
-                               http_upload_feature_discovery,
-                               advertises_max_file_size,
-                               request_slot,
-                               rejects_set_iq,
-                               get_url_ends_with_filename,
-                               urls_contain_s3_hostname,
-                               rejects_empty_filename,
-                               rejects_negative_filesize,
-                               rejects_invalid_size_type,
-                               denies_slots_over_max_file_size,
-                               sends_different_put_and_get_urls,
-                               escapes_urls_once
-                              ]}].
+    G = [{unset_size, [], [does_not_advertise_max_size_if_unset]},
+         {mod_http_upload_s3, [], [
+                                   http_upload_item_discovery,
+                                   http_upload_feature_discovery,
+                                   advertises_max_file_size,
+                                   request_slot,
+                                   rejects_set_iq,
+                                   get_url_ends_with_filename,
+                                   urls_contain_s3_hostname,
+                                   rejects_empty_filename,
+                                   rejects_negative_filesize,
+                                   rejects_invalid_size_type,
+                                   denies_slots_over_max_file_size,
+                                   sends_different_put_and_get_urls,
+                                   escapes_urls_once
+                                  ]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

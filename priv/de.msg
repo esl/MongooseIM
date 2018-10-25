@@ -246,7 +246,7 @@
 {"Period: ","Zeitraum: "}.
 {"Persist items to storage","Einträge dauerhaft speichern"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Beachten sie, das diese Optionen nur die eingebaute Mnesia-Datenbank sichern. Wenn sie das ODBC-Modul verwenden, müssen sie die SQL-Datenbank manuell sichern."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Beachten sie, das diese Optionen nur die eingebaute Mnesia-Datenbank sichern. Wenn sie das RDBMS-Modul verwenden, müssen sie die SQL-Datenbank manuell sichern."}.
 {"Pong","Pong"}.
 {"Port ~b","Port ~b"}.
 {"Port","Port"}.

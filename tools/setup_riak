@@ -19,26 +19,48 @@ RIAK_MAM_SCHEMA_PATH=${RIAK_MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
 
 RIAK_CONTAINER_NAME=${RIAK_CONTAINER_NAME:-"mongooseim-riak"}
 
+wait_for_http_status () {
+    local expected_status=$1
+    local get_path=$2
+    echo "Waiting for HTTP status: ${expected_status} from path ${get_path}"
+    for i in {1..10}; do
+	HTTP_STATUS=`curl -s -o /dev/null -w "%{http_code}" $get_path`
+	if [ "${HTTP_STATUS}" = "${expected_status}" ]; then
+	    echo "Expected status observed after $i attempts"
+	    break
+	fi
+	echo "Attempt number $i of 10 failed, HTTP status was ${HTTP_STATUS}, waiting 2s and trying again"
+	sleep 2s
+    done
+}
 
+echo "Creating vcard schema"
 curl -v -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @${RIAK_VCARD_SCHEMA_PATH}
 
-curl -v $RIAK_HOST/search/schema/vcard
+wait_for_http_status "200" $RIAK_HOST/search/schema/vcard
 
+echo "Creating vcard search index"
 curl -v -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
     -d '{"schema":"vcard"}'
 
+wait_for_http_status "200"  $RIAK_HOST/search/index/vcard
+
+echo "Creating mam schema"
 curl -v -XPUT $RIAK_HOST/search/schema/mam \
     -H 'Content-Type:application/xml' \
     --data-binary @${RIAK_MAM_SCHEMA_PATH}
 
-curl -v $RIAK_HOST/search/schema/mam
+wait_for_http_status "200"  $RIAK_HOST/search/schema/mam
 
+echo "Creating mam index"
 curl -v -XPUT $RIAK_HOST/search/index/mam \
     -H 'Content-Type: application/json' \
     -d '{"schema":"mam"}'
+
+wait_for_http_status "200"  $RIAK_HOST/search/index/mam
 
 # Allow to pass RIAK_ADMIN as an env variable.
 # Use riak-admin as a default command.
@@ -98,7 +120,7 @@ if [ "$RIAK_SECURITY" == "enabled" ]; then
 # "no function clause matching tls_v1:enum_to_oid(28)" error
 # on Riak's side running with Erlang R16.
 # https://github.com/basho/riak-erlang-client/issues/232#issuecomment-178612129
-# We also set ciphers in ejabberd.cfg
+# We also set ciphers in mongooseim.cfg
 # (see test.config presets in the big test directory).
     $RIAK_ADMIN security ciphers "AES256-SHA:DHE-RSA-AES128-SHA256"
 

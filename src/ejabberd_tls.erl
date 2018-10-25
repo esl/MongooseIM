@@ -38,10 +38,10 @@
 
 -callback controlling_process(tls_socket(), pid()) -> ok | {error, any()}.
 
--callback sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
+-callback sockname(tls_socket()) -> {ok, mongoose_transport:peer()} |
                                     {error, any()}.
 
--callback peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} |
+-callback peername(tls_socket()) -> {ok, mongoose_transport:peer()} |
                                     {error, any()}.
 
 -callback setopts(tls_socket(), Opts::list()) -> ok | {error, any()}.
@@ -96,11 +96,11 @@ controlling_process(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, Pid) -
     M:controlling_process(S, Pid).
 
 
--spec sockname(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
+-spec sockname(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 sockname(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:sockname(S).
 
 
--spec peername(tls_socket()) -> {ok, {inet:ip_address(), inet:port_number()}} | {error, any()}.
+-spec peername(tls_socket()) -> {ok, mongoose_transport:peer()} | {error, any()}.
 peername(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:peername(S).
 
 
@@ -111,9 +111,17 @@ setopts(#ejabberd_tls_socket{tls_module = M, tls_socket = S}, Opts) -> M:setopts
 -spec get_peer_certificate(socket()) -> cert().
 get_peer_certificate(#ejabberd_tls_socket{has_cert = false}) ->
     no_peer_cert;
-get_peer_certificate(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) ->
-    get_peer_cert(M, S).
-
+get_peer_certificate(#ejabberd_tls_socket{tls_module = just_tls, tls_socket = S}) ->
+    just_tls:get_peer_certificate(S);
+get_peer_certificate(#ejabberd_tls_socket{tls_module = fast_tls, tls_socket = S,
+                                          tls_opts = TLSOpts}) ->
+    case {fast_tls:get_verify_result(S), fast_tls:get_peer_certificate(S)} of
+        {0, {ok, Cert}} -> {ok, Cert};
+        {Error, {ok, Cert}} ->
+            SSLOpts = proplists:get_value(ssl_options, TLSOpts, []),
+            maybe_allow_selfsigned(Error, Cert, SSLOpts);
+        {_, error} -> no_peer_cert
+    end.
 
 -spec close(socket()) -> ok.
 close(#ejabberd_tls_socket{tls_module = M, tls_socket = S}) -> M:close(S).
@@ -135,11 +143,16 @@ has_peer_cert(Opts) ->
             true
     end.
 
-get_peer_cert(fast_tls, Socket) ->
-    case {fast_tls:get_verify_result(Socket), fast_tls:get_peer_certificate(Socket)} of
-        {0, {ok, Cert}} -> {ok, Cert};
-        {Error, {ok, Cert}} -> {bad_cert, fast_tls:get_cert_verify_string(Error, Cert)};
-        {_, error} -> no_peer_cert
+%% 18 is OpenSSL's and fast_tls's error code for self-signed certs
+maybe_allow_selfsigned(18 = Error, Cert, SSLOpts) ->
+    case lists:keyfind(verify_fun, 1, SSLOpts) of
+        {verify_fun, {selfsigned_peer, _}} ->
+            {ok, Cert};
+        _ ->
+            cert_verification_error(Error, Cert)
     end;
-get_peer_cert(M, S) ->
-    M:get_peer_certificate(S).
+maybe_allow_selfsigned(Error, Cert, _SSLOpts) ->
+    cert_verification_error(Error, Cert).
+
+cert_verification_error(Error, Cert) ->
+    {bad_cert, fast_tls:get_cert_verify_string(Error, Cert)}.

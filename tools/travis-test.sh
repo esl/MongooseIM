@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
+#
+# Env variables:
+# - SMALL_TESTS
+# - COVER_ENABLED
+# - STOP_NODES (default false)
 set -o pipefail
 IFS=$'\n\t'
 
-PRESET="internal_mnesia"
-SMALL_TESTS="true"
-START_SERVICES="true"
-COVER_ENABLED="true"
+DEFAULT_PRESET=internal_mnesia
+PRESET="${PRESET-$DEFAULT_PRESET}"
+SMALL_TESTS="${SMALL_TESTS:-true}"
+COVER_ENABLED="${COVER_ENABLED:-true}"
 
 while getopts ":p::s::e::c:" opt; do
   case $opt in
@@ -17,9 +22,6 @@ while getopts ":p::s::e::c:" opt; do
       ;;
     c)
       COVER_ENABLED=$OPTARG
-      ;;
-    e)
-      START_SERVICES=$OPTARG
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -44,37 +46,46 @@ fi
 # Print ct_progress_hook output
 echo "" > /tmp/progress
 tail -f /tmp/progress &
-
-# Kill children on exit, but do not kill self on normal exit
-trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM
-trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
+PRINT_PROGRESS_PID=$!
+CURRENT_SCRIPT_PID=$$
+./tools/kill_processes_on_exit.sh $CURRENT_SCRIPT_PID $PRINT_PROGRESS_PID &
 
 echo ${BASE}
 
-summaries_dir() {
+# Example: choose_newest_directory dir1 dir2 dir3
+# Returns: a directory, that was modified last
+choose_newest_directory() {
+  if [ "$#" -eq 0 ]; then
+      echo "No arguments passed"
+      exit 1
+  fi
+
   if [ `uname` = "Darwin" ]; then
-    echo `ls -dt ${1} | head -n 1`
+    ls -dt "$@" | head -n 1
   else
-    echo `eval ls -d ${1} --sort time | head -n 1`
+    ls -d "$@" --sort time | head -n 1
   fi
 }
 
 run_small_tests() {
-  echo "############################"
-  echo "Running small tests (test/)"
-  echo "############################"
-  echo "Advice: "
-  echo "    Add option \"-s false\" to skip embeded common tests"
-  echo "Example: "
-  echo "    ./tools/travis-test.sh -s false"
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   make ct
+  tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
-  SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
+  SMALL_SUMMARIES_DIR=$(choose_newest_directory ${SMALL_SUMMARIES_DIRS})
   ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
 maybe_run_small_tests() {
   if [ "$SMALL_TESTS" = "true" ]; then
+    echo "############################"
+    echo "Running small tests (test/)"
+    echo "############################"
+    echo "Advice: "
+    echo "    Add option \"-s false\" to skip embeded common tests"
+    echo "Example: "
+    echo "    ./tools/travis-test.sh -s false"
     run_small_tests
   else
     echo "############################"
@@ -83,32 +94,17 @@ maybe_run_small_tests() {
   fi
 }
 
-maybe_start_services() {
-  if [ "$START_SERVICES" = "true" ]; then
-    start_services
-  else
-    echo "Skip start_services"
-  fi
-}
-
-start_services() {
-    for env in ${BASE}/big_tests/services/*-compose.yml; do
-        echo "Stating service" $(basename "${env}") "..."
-        time ${BASE}/tools/docker-compose.sh -f "${env}" up -d
-        echo "docker-compose execution time reported above"
-        echo ""
-    done
-}
-
 run_test_preset() {
   tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   cd ${BASE}/big_tests
   local MAKE_RESULT=0
+  TESTSPEC=${TESTSPEC:-default.spec}
   if [ "$COVER_ENABLED" = "true" ]; then
-    make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+    make cover_test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET
     MAKE_RESULT=$?
   else
-    make test_preset TESTSPEC=default.spec PRESET=$PRESET
+    make test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET
     MAKE_RESULT=$?
   fi
   cd -
@@ -135,14 +131,12 @@ run_tests() {
 
   time ${TOOLS}/start-nodes.sh
 
-  # Start all additional services
-  maybe_start_services
-
   run_test_preset
   BIG_STATUS=$?
 
-  SUMMARIES_DIRS=${BASE}'/big_tests/ct_report/ct_run*'
-  SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
+  SUMMARIES_DIRS=${BASE}/big_tests/ct_report/ct_run*
+  SUMMARIES_DIR=$(choose_newest_directory ${SUMMARIES_DIRS})
+  echo "SUMMARIES_DIR=$SUMMARIES_DIR"
   ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
   BIG_STATUS_BY_SUMMARY=$?
 
@@ -163,9 +157,17 @@ run_tests() {
     echo "Build failed:"
     [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
     [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
-    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites"
+    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
     print_running_nodes
+  fi
+
+  # Do not stop nodes if big tests failed
+  if [ "$STOP_NODES" = true ] && [ $BIG_STATUS -eq 0 ] && [ $BIG_STATUS_BY_SUMMARY -eq 0 ]; then
+      echo "Stopping MongooseIM nodes"
+      ./tools/stop-nodes.sh
+  else
+      echo "Keep MongooseIM nodes running"
   fi
 
   exit ${RESULT}
@@ -189,14 +191,19 @@ build_pkg () {
   set +e
 }
 
-if [ $PRESET == "dialyzer_only" ]; then
+if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   ./rebar3 dialyzer
   RESULT=$?
   tools/print-dots.sh stop
   exit ${RESULT}
-elif [ $PRESET == "pkg" ]; then
+elif [ "$PRESET" == "pkg" ]; then
   build_pkg $pkg_PLATFORM
+elif [ "$PRESET" == "small_tests" ]; then
+  time run_small_tests
+  RESULT=$?
+  exit ${RESULT}
 else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests

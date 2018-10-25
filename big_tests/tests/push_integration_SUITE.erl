@@ -7,10 +7,6 @@
 -include_lib("exml/include/exml.hrl").
 
 -define(MUCHOST,                        <<"muclight.@HOST@">>).
--define(DEFAULT_FCM_MOCK_PORT,          "12991").
--define(DEFAULT_APNS_MOCK_PORT,         "12992").
--define(DEFAULT_MONGOOSE_PUSH_PORT,     "12993").
-
 
 -import(muc_light_helper,
     [
@@ -18,7 +14,7 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, wait_for/2, become_unavailable/1]).
+-import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -27,30 +23,44 @@
 all() ->
     [
         {group, pm_msg_notifications},
-        {group, muclight_msg_notifications}
+        {group, muclight_msg_notifications},
+        {group, inbox_msg_notifications}
     ].
 
 groups() ->
-    [
-        {pm_msg_notifications, [parallel], [
-            pm_msg_notify_on_apns_no_click_action,
-            pm_msg_notify_on_fcm_no_click_action,
-            pm_msg_notify_on_apns_w_click_action,
-            pm_msg_notify_on_fcm_w_click_action,
-            pm_msg_notify_on_apns_silent,
-            pm_msg_notify_on_fcm_silent,
-            pm_msg_notify_on_apns_w_topic
-        ]},
-        {muclight_msg_notifications, [parallel], [
-            muclight_msg_notify_on_apns_no_click_action,
-            muclight_msg_notify_on_fcm_no_click_action,
-            muclight_msg_notify_on_apns_w_click_action,
-            muclight_msg_notify_on_fcm_w_click_action,
-            muclight_msg_notify_on_apns_silent,
-            muclight_msg_notify_on_fcm_silent,
-            muclight_msg_notify_on_w_topic
-        ]}
-    ].
+    G = [
+         {pm_msg_notifications, [parallel],
+          [
+           pm_msg_notify_on_apns_no_click_action,
+           pm_msg_notify_on_fcm_no_click_action,
+           pm_msg_notify_on_apns_w_click_action,
+           pm_msg_notify_on_fcm_w_click_action,
+           pm_msg_notify_on_apns_silent,
+           pm_msg_notify_on_fcm_silent,
+           pm_msg_notify_on_apns_w_topic
+          ]},
+         {muclight_msg_notifications, [parallel],
+          [
+           muclight_msg_notify_on_apns_no_click_action,
+           muclight_msg_notify_on_fcm_no_click_action,
+           muclight_msg_notify_on_apns_w_click_action,
+           muclight_msg_notify_on_fcm_w_click_action,
+           muclight_msg_notify_on_apns_silent,
+           muclight_msg_notify_on_fcm_silent,
+           muclight_msg_notify_on_w_topic
+          ]},
+         {inbox_msg_notifications, [parallel],
+          [
+           inbox_msg_unread_count_apns,
+           inbox_msg_unread_count_fcm,
+           muclight_inbox_msg_unread_count_apns,
+           muclight_inbox_msg_unread_count_fcm,
+           inbox_msg_reset_unread_count_apns,
+           inbox_msg_reset_unread_count_fcm
+          ]
+         }
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
@@ -59,64 +69,47 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 
-connect_to(fcm) ->
-    FCMPort = list_to_integer(getenv("FCM_MOCK_PORT", ?DEFAULT_FCM_MOCK_PORT)),
-    {ok, FCM} = h2_client:start_link(https, "localhost", FCMPort),
-    FCM;
-connect_to(apns) ->
-    APNSPort = list_to_integer(getenv("APNS_MOCK_PORT", ?DEFAULT_APNS_MOCK_PORT)),
-    {ok, APNS} = h2_client:start_link(https, "localhost", APNSPort),
-    APNS;
-connect_to(mongoose_push) ->
-    PushPort = list_to_integer(getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT)),
-    {ok, Push} = h2_client:start_link(https, "localhost", PushPort),
-    Push.
-
 init_per_suite(Config0) ->
-    %% For mocking with unnamed functions
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    rpc(code, load_binary, [?MODULE, Filename, Binary]),
-
-    application:set_env(chatterbox, ssl_options, []),
-    application:ensure_all_started(chatterbox),
+    mongoose_push_mock:start(Config0),
+    Port = mongoose_push_mock:port(),
 
     %% Start modules
     Config = dynamic_modules:save_modules(domain(), Config0),
     dynamic_modules:ensure_modules(domain(), required_modules()),
 
-    rpc(mongoose_http_client, start, [[]]),
-    rpc(mongoose_http_client, start_pool, [mongoose_push_http, [
-        {server, "https://localhost:" ++ getenv("MONGOOSE_PUSH_PORT",
-                                                   ?DEFAULT_MONGOOSE_PUSH_PORT)}
-    ]]),
-
-    try
-        %% Connect only to test if MongoosePush is available
-        PushPortStr = getenv("MONGOOSE_PUSH_PORT", ?DEFAULT_MONGOOSE_PUSH_PORT),
-        {ok, _} = gen_tcp:connect("localhost", list_to_integer(PushPortStr), []),
-        escalus:init_per_suite(Config)
-    catch
-        _:_ ->
-            {skip,  "MongoosePush is not available"}
-    end.
+    PoolOpts = [{strategy, available_worker}, {workers, 20}],
+    HTTPOpts = [{server, "https://localhost:" ++ integer_to_list(Port)}],
+    rpc(mongoose_wpool, start_configured_pools, [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
+    escalus:init_per_suite(Config).
 
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    rpc(mongoose_http_client, stop_pool, [mongoose_push_http]),
-    rpc(mongoose_http_client, stop, []),
+    rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),
     dynamic_modules:restore_modules(domain(), Config),
+    mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
+
+init_per_group(inbox_msg_notifications, Config) ->
+    rpc(mod_muc_light_db_backend, force_clear, []),
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true ->
+            dynamic_modules:start(domain(), mod_inbox, [{backend, rdbms}]),
+            Config;
+        false ->
+            {skip, require_rdbms}
+    end;
 
 init_per_group(_, Config) ->
     %% Some cleaning up
-    FCM = connect_to(fcm),
-    APNS = connect_to(apns),
-    {ok, 200, _} = h2_req(FCM, post, <<"/reset">>),
-    {ok, 200, _} = h2_req(APNS, post, <<"/reset">>),
     rpc(mod_muc_light_db_backend, force_clear, []),
 
     Config.
+
+end_per_group(inbox_msg_notifications, Config) ->
+    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [domain()]),
+    dynamic_modules:stop(domain(), mod_inbox),
+    Config;
 
 end_per_group(_, Config) ->
     Config.
@@ -139,77 +132,56 @@ pm_msg_notify_on_apns(Config, EnableOpts) ->
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"apns">>, EnableOpts),
-            [Notification = #{}] = get_push_logs(apns, DeviceToken, Config),
+            Notification = wait_for_push_request(DeviceToken),
 
-            APNSNotification = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification),
-                                        undefined),
-            APNSData = maps:remove(<<"aps">>, maps:get(<<"request_data">>, Notification)),
-            APNSAlert = maps:get(<<"alert">>, APNSNotification, undefined),
+            assert_push_notification(Notification, <<"apns">>, EnableOpts, SenderJID)
 
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, APNSAlert),
-                    ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
-                    ?assertMatch(#{<<"badge">> := 1}, APNSNotification),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"category">> := null}, APNSNotification);
-                        Activity ->
-                            ?assertMatch(#{<<"category">> := Activity}, APNSNotification)
-                    end;
-                <<"true">> ->
-                    ?assert(not maps:is_key(<<"aps">>, APNSNotification)),
-                    ?assert(not maps:is_key(<<"sound">>, APNSNotification)),
-                    ?assert(not maps:is_key(<<"badge">>, APNSNotification)),
-                    ?assertMatch(#{<<"content-available">> := 1}, APNSNotification),
-                    ?assertMatch(#{<<"last-message-body">> := <<"OH, HAI!">>}, APNSData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
-                    ?assertMatch(#{<<"message-count">> := 1}, APNSData)
-            end,
-
-            case  proplists:get_value(<<"topic">>, EnableOpts) of
-                undefined -> ok;
-                Topic ->
-                    Headers = maps:get(<<"request_headers">>, Notification),
-                    ?assertMatch(Topic, maps:get(<<"apns-topic">>, Headers, undefined))
-            end,
-
-            ok
         end).
+
+assert_push_notification(Notification, Service, EnableOpts, SenderJID) ->
+
+    ?assertMatch(#{<<"service">> := Service}, Notification),
+
+    Alert = maps:get(<<"alert">>, Notification, undefined),
+    Data = maps:get(<<"data">>, Notification, undefined),
+
+    ExpectedBody = proplists:get_value(body, EnableOpts, <<"OH, HAI!">>),
+
+    case proplists:get_value(<<"silent">>, EnableOpts) of
+        undefined ->
+            ?assertMatch(#{<<"body">> := ExpectedBody}, Alert),
+            ?assertMatch(#{<<"title">> := SenderJID}, Alert),
+            ?assertMatch(#{<<"badge">> := 1}, Alert),
+            ?assertMatch(#{<<"tag">> := SenderJID}, Alert),
+
+            case proplists:get_value(<<"click_action">>, EnableOpts) of
+                undefined ->
+                    ?assertMatch(#{<<"click_action">> := null}, Alert);
+                Activity ->
+                    ?assertMatch(#{<<"click_action">> := Activity}, Alert)
+            end;
+        <<"true">> ->
+            ?assertMatch(#{<<"last-message-body">> := ExpectedBody}, Data),
+            ?assertMatch(#{<<"last-message-sender">> := SenderJID}, Data),
+            ?assertMatch(#{<<"message-count">> := 1}, Data)
+    end,
+
+    case  proplists:get_value(<<"topic">>, EnableOpts) of
+        undefined -> ok;
+        Topic ->
+            ?assertMatch(Topic, maps:get(<<"topic">>, Notification, undefined))
+    end.
+
 
 pm_msg_notify_on_fcm(Config, EnableOpts) ->
     escalus:story(
         Config, [{bob, 1}, {alice, 1}],
         fun(Bob, Alice) ->
             {SenderJID, DeviceToken} = pm_conversation(Alice, Bob, <<"fcm">>, EnableOpts),
-            [Notification = #{}] = get_push_logs(fcm, DeviceToken, Config),
+            Notification = wait_for_push_request(DeviceToken),
 
-            FCMNotification = maps:get(<<"notification">>,
-                                       maps:get(<<"request_data">>, Notification)),
+            assert_push_notification(Notification, <<"fcm">>, EnableOpts, SenderJID)
 
-            FCMData = maps:get(<<"data">>,
-                               maps:get(<<"request_data">>, Notification)),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"OH, HAI!">>}, FCMNotification),
-                    ?assertMatch(#{<<"title">> := SenderJID}, FCMNotification),
-                    ?assertMatch(#{<<"tag">> := SenderJID}, FCMNotification),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"click_action">> :=  null}, FCMNotification);
-                        Activity ->
-                            ?assertMatch(#{<<"click_action">> :=  Activity}, FCMNotification)
-                    end;
-                <<"true">> ->
-                    ?assertMatch(#{<<"last-message-body">> := <<"OH, HAI!">>}, FCMData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, FCMData),
-                    ?assertMatch(#{<<"message-count">> := 1}, FCMData)
-            end,
-
-            ok
         end).
 
 pm_msg_notify_on_apns_no_click_action(Config) ->
@@ -234,6 +206,105 @@ pm_msg_notify_on_apns_w_topic(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
 
 %%--------------------------------------------------------------------
+%% GROUP inbox_msg_notifications
+%%--------------------------------------------------------------------
+
+inbox_msg_unread_count_apns(Config) ->
+    inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_unread_count_fcm(Config) ->
+    inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_apns(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_fcm(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_reset_unread_count_apns(Config) ->
+    inbox_msg_reset_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_reset_unread_count_fcm(Config) ->
+    inbox_msg_reset_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 1),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 2),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 3)
+
+      end).
+
+inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+              send_private_message(Alice, Bob, <<"FIRST MESSAGE">>),
+              check_notification(DeviceToken, 1),
+              MsgId = send_private_message(Alice, Bob, <<"SECOND MESSAGE">>),
+              check_notification(DeviceToken, 2),
+
+              become_available(Bob, 2),
+              inbox_helper:get_inbox(Bob, #{ count => 1 }),
+              ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
+              escalus:send(Bob, ChatMarker),
+              escalus:wait_for_stanza(Alice),
+
+              become_unavailable(Bob),
+              send_private_message(Alice, Bob, <<"THIRD MESSAGE">>),
+              check_notification(DeviceToken, 1)
+      end).
+
+
+muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{alice, 1}, {kate, 1}, {bob, 1}],
+      fun(Alice, Kate, Bob) ->
+              Room = room_name(Config),
+              RoomInfo = create_room(Room, [alice, kate, bob], Config),
+              KateToken = enable_push_for_user(Kate, Service, EnableOpts),
+              BobToken = enable_push_for_user(Bob, Service, EnableOpts),
+
+              send_message_to_room(Alice, Room),
+              check_notification(KateToken, 1),
+
+              send_message_to_room(Alice, Room),
+              check_notification(KateToken, 2),
+
+              send_message_to_room(Alice, Room),
+              [ check_notification(Token, ExpectedCount) ||
+                                  {Token, ExpectedCount} <- [{BobToken, 1},
+                                                             {KateToken, 3},
+                                                             {BobToken, 2},
+                                                             {BobToken, 3}] ]
+      end).
+
+send_private_message(Sender, Recipient) ->
+    send_private_message(Sender, Recipient, <<"Private message">>).
+
+send_private_message(Sender, Recipient, Body) ->
+    Id = escalus_stanza:id(),
+    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(bare_jid(Recipient), Body), Id),
+    escalus:send(Sender, Msg),
+    Id.
+
+check_notification(DeviceToken, ExpectedCount) ->
+    Notification = wait_for_push_request(DeviceToken),
+    Data = maps:get(<<"data">>, Notification, undefined),
+    ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
+
+send_message_to_room(Sender, Room) ->
+    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat message">>),
+    escalus:send(Sender, Stanza).
+
+%%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
 
@@ -243,44 +314,11 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
             {SenderJID, DeviceToken} =
-                muclight_conversation(Config, Alice, Bob, <<"apns">>,EnableOpts),
-            [Notification = #{}] = get_push_logs(apns, DeviceToken, Config),
+                muclight_conversation(Config, Alice, Bob, <<"apns">>, EnableOpts),
+            Notification = wait_for_push_request(DeviceToken),
+            assert_push_notification(Notification, <<"apns">>,
+                                     [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
 
-            APNSNotification = maps:get(<<"aps">>, maps:get(<<"request_data">>, Notification),
-                                        undefined),
-            APNSData = maps:remove(<<"aps">>, maps:get(<<"request_data">>, Notification)),
-            APNSAlert = maps:get(<<"alert">>, APNSNotification, undefined),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"Heyah!">>}, APNSAlert),
-                    ?assertMatch(#{<<"title">> := SenderJID}, APNSAlert),
-                    ?assertMatch(#{<<"badge">> := 1}, APNSNotification),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"category">> := null}, APNSNotification);
-                        Activity ->
-                            ?assertMatch(#{<<"category">> := Activity}, APNSNotification)
-                    end;
-                <<"true">> ->
-                    ?assert(not maps:is_key(<<"aps">>, APNSNotification)),
-                    ?assert(not maps:is_key(<<"sound">>, APNSNotification)),
-                    ?assert(not maps:is_key(<<"badge">>, APNSNotification)),
-                    ?assertMatch(#{<<"content-available">> := 1}, APNSNotification),
-                    ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, APNSData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, APNSData),
-                    ?assertMatch(#{<<"message-count">> := 1}, APNSData)
-            end,
-
-            case  proplists:get_value(<<"topic">>, EnableOpts) of
-                undefined -> ok;
-                Topic ->
-                    Headers = maps:get(<<"request_headers">>, Notification),
-                    ?assertMatch(Topic, maps:get(<<"apns-topic">>, Headers, undefined))
-            end,
-
-            ok
         end).
 
 muclight_msg_notify_on_fcm(Config, EnableOpts) ->
@@ -289,32 +327,9 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
         fun(Alice, Bob, _Kate) ->
             {SenderJID, DeviceToken} =
                 muclight_conversation(Config, Alice, Bob, <<"fcm">>,EnableOpts),
-            [Notification = #{}] = get_push_logs(fcm, DeviceToken, Config),
-
-            FCMNotification = maps:get(<<"notification">>,
-                                       maps:get(<<"request_data">>, Notification)),
-            FCMData = maps:get(<<"data">>,
-                               maps:get(<<"request_data">>, Notification)),
-
-            case proplists:get_value(<<"silent">>, EnableOpts) of
-                undefined ->
-                    ?assertMatch(#{<<"body">> := <<"Heyah!">>}, FCMNotification),
-                    ?assertMatch(#{<<"title">> := SenderJID}, FCMNotification),
-                    ?assertMatch(#{<<"tag">> := SenderJID}, FCMNotification),
-
-                    case proplists:get_value(<<"click_action">>, EnableOpts) of
-                        undefined ->
-                            ?assertMatch(#{<<"click_action">> :=  null}, FCMNotification);
-                        Activity ->
-                            ?assertMatch(#{<<"click_action">> :=  Activity}, FCMNotification)
-                    end;
-                <<"true">> ->
-                    ?assertMatch(#{<<"last-message-body">> := <<"Heyah!">>}, FCMData),
-                    ?assertMatch(#{<<"last-message-sender">> := SenderJID}, FCMData),
-                    ?assertMatch(#{<<"message-count">> := 1}, FCMData)
-            end,
-
-            ok
+            Notification = wait_for_push_request(DeviceToken),
+            assert_push_notification(Notification, <<"fcm">>,
+                                     [{body, <<"Heyah!">>} | EnableOpts], SenderJID)
         end).
 
 muclight_msg_notify_on_apns_no_click_action(Config) ->
@@ -363,7 +378,6 @@ pm_conversation(Alice, Bob, Service, EnableOpts) ->
     escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
     {AliceJID, DeviceToken}.
 
-
 enable_push_for_user(User, Service, EnableOpts) ->
     PubsubJID = node_addr(),
     Node = {_, NodeName} = pubsub_node(),
@@ -375,28 +389,15 @@ enable_push_for_user(User, Service, EnableOpts) ->
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
     escalus:assert(is_iq_result, escalus:wait_for_stanza(User)),
+    mongoose_push_mock:subscribe(DeviceToken),
     become_unavailable(User),
     DeviceToken.
 
 
-get_push_logs(Service, DeviceToken, _Config) ->
-    wait_for(timer:seconds(10), fun() ->
-        PushMock = connect_to(Service),
-        {ok, 200, Body} = h2_req(PushMock, get, <<"/activity">>),
-        #{<<"logs">> := Logs} = jiffy:decode(Body, [return_maps]),
+wait_for_push_request(DeviceToken) ->
+    Body = mongoose_push_mock:wait_for_push_request(DeviceToken),
+    jiffy:decode(Body, [return_maps]).
 
-        DeviceLogs = lists:filter(
-            fun(#{<<"device_token">> := Token}) ->
-                DeviceToken =:= Token
-            end, Logs),
-
-        case length(DeviceLogs) > 0 of
-            true ->
-                DeviceLogs;
-            false ->
-                throw({no_push_messages, DeviceToken})
-        end
-     end).
 
 %% ----------------------------------
 %% Other helpers

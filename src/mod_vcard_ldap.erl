@@ -24,7 +24,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
-%%TODO LDAP layer should be separated like odbc one.
+%%TODO LDAP layer should be separated like rdbms one.
 %%     Now every ldap module creates its own ldap pool per vhost
 %%TODO gen_server is created only to store the state
 %%     and create/destroy pool, should it be replaced ?
@@ -79,7 +79,8 @@
          search_reported_attrs = [] :: [binary()],
          search_operator            :: 'or' | 'and',
          binary_search_fields       :: [binary()],
-         deref_aliases = never      :: never | searching | finding | always,
+         deref = neverDerefAliases  :: neverDerefAliases | derefInSearching
+                                     | derefFindingBaseObj | derefAlways,
          matches = 0                :: non_neg_integer()}).
 
 -define(VCARD_MAP,
@@ -236,17 +237,27 @@ find_ldap_user(User, State) ->
     EldapID = State#state.eldap_id,
     VCardAttrs = State#state.vcard_map_attrs,
     case eldap_filter:parse(RFC2254Filter, [{<<"%u">>, User}]) of
-      {ok, EldapFilter} ->
-          case eldap_pool:search(EldapID,
-                                 [{base, Base}, {filter, EldapFilter},
-                                  {deref_aliases, State#state.deref_aliases},
-                                  {attributes, VCardAttrs}])
-              of
-            #eldap_search_result{entries = [E | _]} -> E;
-            _ -> false
-          end;
-      _ -> false
+        {ok, EldapFilter} ->
+            Res = eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false),
+            case Res of
+                L when is_list(L) ->
+                    hd(Res);
+                _ ->
+                    Res
+            end;
+        _ -> false
     end.
+
+eldap_pool_search(EldapID, Base, EldapFilter, Deref, Attrs, NoResultRes) ->
+  case eldap_pool:search(EldapID,
+    [{base, Base}, {filter, EldapFilter},
+      {deref, Deref},
+      {attributes, Attrs}])
+  of
+    #eldap_search_result{entries = E} -> E;
+    _ ->
+      NoResultRes
+  end.
 
 ldap_attributes_to_vcard(Attributes, VCardMap, UD) ->
     Attrs = lists:map(fun ({VCardName, _, _}) ->
@@ -368,17 +379,22 @@ search_internal(State, Data) ->
     Limit = State#state.matches,
     ReportedAttrs = State#state.search_reported_attrs,
     Op = State#state.search_operator,
-    Filter = eldap:'and'([SearchFilter,
-                          eldap_utils:make_filter(Data, UIDs, Op)]),
-    case eldap_pool:search(EldapID,
-                           [{base, Base}, {filter, Filter}, {limit, Limit},
-                            {deref_aliases, State#state.deref_aliases},
-                            {attributes, ReportedAttrs}])
-        of
-      #eldap_search_result{entries = E} ->
-          search_items(E, State);
-      _ -> error
-    end.
+    Filter = eldap:'and'([SearchFilter, eldap_utils:make_filter(Data, UIDs, Op)]),
+    E = eldap_pool_search(EldapID, Base, Filter, State#state.deref, ReportedAttrs, error),
+    case E of
+      error ->
+        error;
+      E ->
+        Limited = limited_results(E, Limit),
+        search_items(Limited, State)
+     end.
+
+limited_results(E, Limit) when length(E) > Limit ->
+  lists:sublist(E, Limit);
+limited_results(E, _) when not is_list(E) ->
+  [E];
+limited_results(E, _) ->
+   E.
 
 search_items(Entries, State) ->
     lists:flatmap(fun(#eldap_entry{attributes = Attrs}) -> attrs_to_item_xml(Attrs, State) end,
@@ -523,7 +539,7 @@ parse_options(Host, Opts) ->
            dn = Cfg#eldap_config.dn,
            password = Cfg#eldap_config.password,
            base = Cfg#eldap_config.base,
-           deref_aliases = Cfg#eldap_config.deref_aliases,
+           deref = Cfg#eldap_config.deref,
            uids = UIDs, vcard_map = VCardMap,
            vcard_map_attrs = VCardMapAttrs,
            user_filter = UserFilter, search_filter = SearchFilter,

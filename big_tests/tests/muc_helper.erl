@@ -44,14 +44,16 @@ foreach_recipient(Users, VerifyFun) ->
       end, Users).
 
 load_muc(Host) ->
-    case mongoose_helper:is_odbc_enabled(<<"localhost">>) of
-        true -> odbc;
+    %% Stop modules before trying to start them
+    unload_muc(),
+    case mongoose_helper:is_rdbms_enabled(<<"localhost">>) of
+        true -> rdbms;
         false -> mnesia
     end,
     %% TODO refactoring. "localhost" should be passed as a parameter
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
-                          %% XXX TODO Uncomment, when mod_muc_db_odbc is written
+                          %% XXX TODO Uncomment, when mod_muc_db_rdbms is written
                           %{backend, Backend},
                            {hibernate_timeout, 2000},
                            {hibernated_room_check_interval, 1000},
@@ -92,7 +94,7 @@ destroy_room(Config) ->
 destroy_room(Host, Room) when is_binary(Host), is_binary(Room) ->
     Room1 = rpc(mim(), jid, nodeprep, [Room]),
     case rpc(mim(), ets, lookup, [muc_online_room, {Room1, Host}]) of
-        [{_,_,Pid}|_] -> gen_fsm:send_all_state_event(Pid, destroy);
+        [{_,_,Pid}|_] -> gen_fsm_compat:send_all_state_event(Pid, destroy);
         _ -> ok
     end.
 

@@ -246,7 +246,7 @@
 {"Period: ","持续时间: "}.
 {"Persist items to storage","持久化内容条目"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","注意：这些选项仅将备份内置的 Mnesia 数据库. 如果您正在使用 ODBC 模块, 您还需要分别备份您的数据库."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","注意：这些选项仅将备份内置的 Mnesia 数据库. 如果您正在使用 RDBMS 模块, 您还需要分别备份您的数据库."}.
 {"Pong","Pong"}.
 {"Port ~b","~b 的端口"}.
 {"Port","端口"}.

@@ -30,6 +30,7 @@
 -import(metrics_helper, [assert_counter/2,
                          get_counter_value/1]).
 
+
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -38,8 +39,9 @@ all() ->
     [{group, registration}].
 
 groups() ->
-    [{registration, [sequence], [register,
-                                 unregister]}].
+    G = [{registration, [sequence], [register,
+                                     unregister]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -88,20 +90,29 @@ end_per_testcase(_CaseName, Config) ->
 %%--------------------------------------------------------------------
 
 register(Config) ->
-    {value, Registarations} = get_counter_value(modRegisterCount),
+    {value, Registrations} = get_counter_value(modRegisterCount),
 
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:create_user(Config, Alice),
-
-    assert_counter(Registarations + 1, modRegisterCount).
-
+    wait_for_registrations(Registrations + 1).
 
 unregister(Config) ->
-    {value, Deregistarations} = get_counter_value(modUnregisterCount),
+    {value, Deregistrations} = get_counter_value(modUnregisterCount),
 
     Alice = escalus_users:get_user_by_name(alice),
     escalus_users:delete_user(Config, Alice),
+    wait_for_deregistrations(Deregistrations + 1).
 
-    %% TODO replace sleep with backoff - wait until the metric is updated
-    timer:sleep(100),
-    assert_counter(Deregistarations + 1, modUnregisterCount).
+%%--------------------------------------------------------------------
+%% Helpers
+%%--------------------------------------------------------------------
+
+wait_for_registrations(Count) ->
+    mongoose_helper:wait_until(fun() -> assert_counter(Count, modRegisterCount) end,
+                               {value, Count},
+                               #{name => assert_counter}).
+
+wait_for_deregistrations(Count) ->
+    mongoose_helper:wait_until(fun() -> assert_counter(Count, modUnregisterCount) end,
+                               {value, Count},
+                               #{name => assert_counter}).

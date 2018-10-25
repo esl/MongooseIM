@@ -21,20 +21,21 @@ all() ->
     ].
 
 groups() ->
-    [
-        {disco, [], [has_disco_identity]},
-        {allocate, [], [allocate_basic_node]},
-        {pubsub_publish, [], [
-            publish_fails_with_invalid_item,
-            publish_fails_with_no_options,
-            publish_succeeds_with_valid_options
-        ]},
-        {rest_integration_v2, [], [
-            rest_service_called_with_correct_path_v2,
-            rest_service_gets_correct_payload_v2,
-            rest_service_gets_correct_payload_silent_v2
-        ]}
-    ].
+    G = [
+         {disco, [], [has_disco_identity]},
+         {allocate, [], [allocate_basic_node]},
+         {pubsub_publish, [], [
+                               publish_fails_with_invalid_item,
+                               publish_fails_with_no_options,
+                               publish_succeeds_with_valid_options
+                              ]},
+         {rest_integration_v2, [], [
+                                    rest_service_called_with_correct_path_v2,
+                                    rest_service_gets_correct_payload_v2,
+                                    rest_service_gets_correct_payload_silent_v2
+                                   ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
@@ -74,15 +75,17 @@ init_per_testcase(CaseName, Config) ->
     MongoosePushMockPort = setup_mock_rest(),
 
     %% Start HTTP pool
-    HTTPOpts = [{mongoose_push_http, [
+    HTTPOpts = [
         {server, "http://localhost:" ++ integer_to_list(MongoosePushMockPort)}
-    ]}],
-    rpc(mongoose_http_client, start, [HTTPOpts]),
+    ],
+    PoolOpts = [{strategy, available_worker}, {workers, 20}],
+    rpc(mongoose_wpool, start_configured_pools,
+        [[{http, global, mongoose_push_http, PoolOpts, HTTPOpts}]]),
     escalus:init_per_testcase(CaseName, Config).
 
 
 end_per_testcase(CaseName, Config) ->
-    rpc(mongoose_http_client, stop, []),
+    rpc(mongoose_wpool, stop, [http, global, mongoose_push_http]),
     teardown_mock_rest(),
     escalus:end_per_testcase(CaseName, Config).
 

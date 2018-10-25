@@ -21,7 +21,9 @@
     fill_archive/2,
     fill_room_archive/2,
     make_timestamp/2,
-    change_admin_creds/1
+    change_admin_creds/1,
+    make_msg_stanza_with_props/2,
+    make_malformed_msg_stanza_with_props/2
 ]).
 
 -import(distributed_helper, [mim/0,
@@ -143,7 +145,7 @@ decode(RespBody) ->
 
 %% a request specyfying credentials is directed to client http listener
 fusco_request(Role, {Method, {User, Password}}, Path, Body) ->
-    Basic = list_to_binary("basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
+    Basic = list_to_binary("Basic " ++ base64:encode_to_string(to_list(User) ++ ":"++ to_list(Password))),
     Headers = [{<<"authorization">>, Basic}],
     fusco_request(Method, Path, Body, Headers, get_port(Role), get_ssl_status(Role));
 %% without them it is for admin (secure) interface
@@ -237,13 +239,13 @@ to_list(V) when is_binary(V) ->
 to_list(V) when is_list(V) ->
     V.
 
-maybe_enable_mam(odbc, Host, Config) ->
-    init_module(Host, mod_mam_odbc_arch, [muc, pm, simple]),
-    init_module(Host, mod_mam_odbc_prefs, [muc, pm]),
-    init_module(Host, mod_mam_odbc_user, [muc, pm]),
+maybe_enable_mam(rdbms, Host, Config) ->
+    init_module(Host, mod_mam_rdbms_arch, [muc, pm, simple]),
+    init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
+    init_module(Host, mod_mam_rdbms_user, [muc, pm]),
     init_module(Host, mod_mam, []),
     init_module(Host, mod_mam_muc, [{host, "muclight.@HOST@"}]),
-    [{mam_backend, odbc} | Config];
+    [{mam_backend, rdbms} | Config];
 maybe_enable_mam(riak, Host,  Config) ->
     init_module(Host, mod_mam_riak_timed_arch_yz, [pm, muc]),
     init_module(Host, mod_mam_mnesia_prefs, [pm, muc]),
@@ -256,10 +258,10 @@ maybe_enable_mam(_, _, C) ->
 init_module(Host, Mod, Opts) ->
     dynamic_modules:start(Host, Mod, Opts).
 
-maybe_disable_mam(odbc, Host) ->
-    stop_module(Host, mod_mam_odbc_arch),
-    stop_module(Host, mod_mam_odbc_prefs),
-    stop_module(Host, mod_mam_odbc_user),
+maybe_disable_mam(rdbms, Host) ->
+    stop_module(Host, mod_mam_rdbms_arch),
+    stop_module(Host, mod_mam_rdbms_prefs),
+    stop_module(Host, mod_mam_rdbms_user),
     stop_module(Host, mod_mam),
     stop_module(Host, mod_mam_muc);
 maybe_disable_mam(riak, Host) ->
@@ -369,3 +371,36 @@ make_room_arc_id({_, RoomJID, _}, Client) ->
     JIDBin = mam_helper:rpc_apply(jid, to_binary, [JID]),
     {JIDBin, JID, undefined}.
 
+%%Make sample message with property for Smack lib.
+make_msg_stanza_with_props(ToJID,MsgID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with properties</body>
+            <properties xmlns='http://www.jivesoftware.com/xmlns/xmpp/properties'>
+                <property>
+                    <name>some_string</name>
+                    <value type='string'>abcdefghijklmnopqrstuvwxyz</value>
+                </property>
+                <property>
+                    <name>some_number</name>
+                    <value type='long'>1234567890</value>
+                </property>
+            </properties>
+        </message>">>).
+
+%%Make sample message with general property, malformed i.e. not for Smack lib.
+make_malformed_msg_stanza_with_props(ToJID,MsgID) ->
+    escalus_stanza:from_xml(
+        <<"<message xml:lang='en' to='",ToJID/binary,"' id='",MsgID/binary,"' type='chat'>
+            <body xml:lang='en_US'>Test message with malformed properties</body>
+            <properties>
+                <property1>
+                    <name>some_string</name>
+                    <value type='string'>abcdefghijklmnopqrstuvwxyz</value>
+                </property1>
+                <property2>
+                    <name>some_number</name>
+                    <value type='long'>1234567890</value>
+                </property2>
+            </properties>
+        </message>">>).

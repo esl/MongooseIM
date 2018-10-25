@@ -29,7 +29,8 @@ all() ->
     [{group, mod_time}].
 
 groups() ->
-    [{mod_time, [], [ask_for_time, time_service_discovery]}].
+    G = [{mod_time, [], [ask_for_time, time_service_discovery]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().

@@ -246,7 +246,7 @@
 {"Period: ","Čas: "}.
 {"Persist items to storage","Uložit položky natrvalo do úložiště"}.
 {"Ping","Ping"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Podotýkáme, že tato nastavení budou zálohována do zabudované databáze Mnesia. Pokud používáte ODBC modul, musíte zálohovat svoji SQL databázi samostatně."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Podotýkáme, že tato nastavení budou zálohována do zabudované databáze Mnesia. Pokud používáte RDBMS modul, musíte zálohovat svoji SQL databázi samostatně."}.
 {"Pong","Pong"}.
 {"Port ~b","Port ~b"}.
 {"Port","Port"}.

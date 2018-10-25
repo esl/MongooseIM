@@ -28,7 +28,8 @@ all_tests() ->
     [user_sic, forbidden_user_sic].
 
 groups() ->
-    [{mod_sic_tests, [sequence], all_tests()}].
+    G = [{mod_sic_tests, [sequence], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

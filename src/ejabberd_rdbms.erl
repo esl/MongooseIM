@@ -27,52 +27,22 @@
 -module(ejabberd_rdbms).
 -author('alexey@process-one.net').
 
--export([start/0, start_pool/1, stop_pool/1, pools/0]).
+-export([start/0]).
 -include("mongoose.hrl").
 
--spec start() -> 'ok' | {'error', 'lager_not_running'}.
+-spec start() -> ok.
 start() ->
-    compile_odbc_type_helper(),
-    %% Check if ejabberd has been compiled with ODBC
-    case catch mongoose_rdbms_sup:module_info() of
-        {'EXIT', {undef, _}} ->
-            ?INFO_MSG("MongooseIM has not been compiled with relational database support. "
-                      "Skipping database startup.", []);
-        _ ->
-            {ok, _Pid} = start_pool_sup(),
-            [start_pool(Pool) || Pool <- pools()],
-            ok
-    end.
+    compile_rdbms_type_helper(),
+    ok.
 
-
-start_pool_sup() ->
-    ChildSpec =
-        {mongoose_rdbms_sup,
-         {mongoose_rdbms_sup, start_link, []},
-         transient,
-         infinity,
-         supervisor,
-         [mongoose_rdbms_sup]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
-
-pools() ->
-    ejabberd_config:get_local_option_or_default(odbc_pools, []).
-
-start_pool(Pool) ->
-    mongoose_rdbms_sup:add_pool(Pool).
-
-stop_pool(Pool) ->
-    mongoose_rdbms_sup:remove_pool(Pool).
-
-compile_odbc_type_helper() ->
+compile_rdbms_type_helper() ->
     %% TODO This parameter should not be global, but pool-name parameterized
-    Key = {odbc_server_type, odbc_pool, default},
-    Type = ejabberd_config:get_local_option(Key),
-    CodeStr = odbc_type_helper(Type),
+    Type = ejabberd_config:get_local_option(rdbms_server_type),
+    CodeStr = rdbms_type_helper(Type),
     {Mod, Code} = dynamic_compile:from_string(CodeStr),
     code:load_binary(Mod, "mongoose_rdbms_type.erl", Code).
 
-odbc_type_helper(Type) ->
+rdbms_type_helper(Type) ->
     lists:flatten(
         ["-module(mongoose_rdbms_type).
          -export([get/0]).

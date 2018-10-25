@@ -1,25 +1,80 @@
 #!/usr/bin/env escript
 
 main(Directories) ->
-    Files = lists:foldl(fun(Dir, Acc) ->
-                    Wildcard = filename:join([Dir, "*.logs",
-                                              "*", "suite.summary"]),
-                    Acc ++ filelib:wildcard(Wildcard)
-            end, [], Directories),
-    Result = lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
-        {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
-        {OkAcc+Ok, FAcc+F, USAcc+US, ASAcc+AS}
-    end, {0, 0, 0, 0}, Files),
-    {Ok, Failed, UserSkipped, AutoSkipped} = Result,
+    {OkTests, FailedTests, UserSkipped, AutoSkipped} =
+        add_up_suite_results(suite_summaries(Directories)),
+    {OkGroups, FailedGroups, EventuallyOkTests} =
+        add_up_group_results(group_summaries(Directories)),
+    verify_results(OkGroups, FailedGroups, EventuallyOkTests,
+                   OkTests, FailedTests, UserSkipped, AutoSkipped).
+
+verify_results(0 = _OkGroups, 0 = _FailedGroups, 0 = _EventuallyOkTests,
+               OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    %% These are likely small tests - we're not writing
+    %% groups.summaries files, therefore we get 0 for both group kinds.
+    verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped);
+verify_results(OkGroups, FailedGroups, EventuallyOkTests,
+               OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
+                               OkTests, FailedTests, UserSkipped, AutoSkipped).
+
+verify_results_no_groups(OkTests, FailedTests, UserSkipped, AutoSkipped) ->
     io:format("CT results:~n"
               "    ~p tests passed~n"
               "    ~p tests failed~n"
               "    ~p tests skipped by user~n"
               "    ~p tests skipped automatically~n",
-          [Ok, Failed, UserSkipped, AutoSkipped]),
-    case Ok =< 0 of
+              [OkTests, FailedTests, UserSkipped, AutoSkipped]),
+    case OkTests =< 0 of
         true ->
             erlang:halt(100404);
         _ ->
-            erlang:halt(Failed + AutoSkipped)
+            erlang:halt(FailedTests + AutoSkipped)
     end.
+
+verify_results_with_groups(OkGroups, FailedGroups, EventuallyOkTests,
+                           OkTests, FailedTests, UserSkipped, AutoSkipped) ->
+    io:format("CT results:~n"
+              "    ~p groups passed~n"
+              "    ~p groups failed~n"
+              "    ~p tests eventually passed~n"
+              "    ~p tests passed~n"
+              "    ~p tests failed~n"
+              "    ~p tests skipped by user~n"
+              "    ~p tests skipped automatically~n",
+              [OkGroups, FailedGroups, EventuallyOkTests,
+               OkTests, FailedTests, UserSkipped, AutoSkipped]),
+    if
+        OkTests =< 0 ->
+            erlang:halt(100404);
+        OkGroups =< 0 ->
+            erlang:halt(100405);
+        true ->
+            erlang:halt(FailedGroups + FailedTests - EventuallyOkTests)
+    end.
+
+suite_summaries(Directories) ->
+    summaries(Directories, "suite.summary").
+
+group_summaries(Directories) ->
+    summaries(Directories, "groups.summary").
+
+summaries(Directories, Filename) ->
+    lists:foldl(fun(Dir, Acc) ->
+                        Wildcard = filename:join([Dir, "*.logs", "*", Filename]),
+                        Acc ++ filelib:wildcard(Wildcard)
+                end, [], Directories).
+
+add_up_suite_results(SuiteSummaries) ->
+    lists:foldl(fun(Filename, {OkAcc, FAcc, USAcc, ASAcc}) ->
+                        {ok, [{summary, {Ok, F, US, AS}}]} = file:consult(Filename),
+                        {OkAcc + Ok, FAcc + F, USAcc + US, ASAcc + AS}
+                end, {0, 0, 0, 0}, SuiteSummaries).
+
+add_up_group_results(GroupSummaries) ->
+    lists:foldl(fun(Filename, {OkAcc, FAcc, EvOkAcc}) ->
+                        {ok, Terms} = file:consult(Filename),
+                        #{eventually_ok_tests := EvOk,
+                          groups_summary := {Ok, F}} = maps:from_list(Terms),
+                        {OkAcc + Ok, FAcc + F, EvOkAcc + EvOk}
+                end, {0, 0, 0}, GroupSummaries).

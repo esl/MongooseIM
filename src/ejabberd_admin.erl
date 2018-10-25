@@ -158,6 +158,14 @@ commands() ->
                         desc = "Reload configuration file in the cluster",
                         module = ejabberd_config, function = reload_cluster,
                         args = [], result = {res, restuple}},
+     #ejabberd_commands{name = reload_cluster_dryrun, tags = [server],
+                        desc = "Display what the reload_cluster command would do, without making any changes",
+                        module = ejabberd_config, function = reload_cluster_dryrun,
+                        args = [], result = {res, restuple}},
+     #ejabberd_commands{name = print_flat_config, tags = [server],
+                        desc = "Display configuration file in the flat format",
+                        module = ejabberd_config, function = print_flat_config,
+                        args = [], result = {res, restuple}},
      #ejabberd_commands{name = join_cluster, tags = [server],
                         desc = "Join the node to a cluster. Call it from the joining node.
                                 Use `-f` or `--force` flag to avoid question prompt and force join the node",
@@ -223,7 +231,7 @@ remove_rpc_alive_node(AliveNode) ->
             {rpc_error, String}
     end.
 
--spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {alread_joined, string()} |
+-spec join_cluster(string()) -> {ok, string()} | {pang, string()} | {already_joined, string()} |
                                 {mnesia_error, string()} | {error, string()}.
 join_cluster(NodeString) ->
     NodeAtom = list_to_atom(NodeString),
@@ -231,7 +239,7 @@ join_cluster(NodeString) ->
     case lists:member(NodeAtom, NodeList) of
         true ->
             String = io_lib:format("The node ~s has already joined the cluster~n", [NodeString]),
-            {alread_joined, String};
+            {already_joined, String};
         _ ->
             do_join_cluster(NodeAtom)
     end.
@@ -249,7 +257,8 @@ do_join_cluster(Node) ->
             String = io_lib:format("Cannot get storage type for table ~p~n. Reason: ~p:~p", [T, E, R]),
             {mnesia_error, String};
         E:R ->
-            {error, {E, R}}
+            Stacktrace = erlang:get_stacktrace(),
+            {error, {E, R, Stacktrace}}
     end.
 
 -spec leave_cluster() -> {ok, string()} | {error, term()} | {not_in_cluster, string()}.

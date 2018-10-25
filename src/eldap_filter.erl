@@ -172,4 +172,4 @@ replace_amps(Bin) ->
         fun($&) -> "\\&";
            ($\\) -> "\\\\";
            (Chr) -> [Chr]
-        end, binary_to_list(Bin))).
+        end, eldap_utils:maybe_b2list(Bin))).

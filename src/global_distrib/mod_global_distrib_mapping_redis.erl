@@ -41,34 +41,25 @@
 
 -spec start(proplists:proplist()) -> any().
 start(Opts) ->
-    Server = proplists:get_value(server, Opts, "127.0.0.1"),
-    Port = proplists:get_value(port, Opts, 8102),
-    Password = proplists:get_value(password, Opts, ""),
-    PoolSize = proplists:get_value(pool_size, Opts, 1),
     RefreshAfter = proplists:get_value(refresh_after, Opts, 60),
 
     mod_global_distrib_utils:create_ets([?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]),
     ExpireAfter = proplists:get_value(expire_after, Opts, 120),
     ets:insert(?MODULE, {expire_after, ExpireAfter}),
+    PoolTag = proplists:get_value(pool, Opts, global_distrib),
+    ets:insert(?MODULE, {pool, PoolTag}),
 
-    EredisArgs = [Server, Port, 0, Password, 100, 5000],
-    WorkerPool = {?MODULE,
-                  {wpool, start_pool, [?MODULE, [{workers, PoolSize},
-                                                 {worker, {eredis_client, EredisArgs}}]]},
-                  permanent, 10000, supervisor, dynamic},
     Refresher = {mod_global_distrib_redis_refresher,
                  {gen_server, start_link, [?MODULE, RefreshAfter, []]},
                  permanent, 1000, supervisor, [?MODULE]},
-    {ok, _} = supervisor:start_child(ejabberd_sup, WorkerPool),
-    {ok, _} = supervisor:start_child(ejabberd_sup, Refresher),
+    ejabberd_sup:start_child(Refresher),
     ok.
 
 -spec stop() -> any().
 stop() ->
     lists:foreach(
      fun(Id) ->
-             supervisor:terminate_child(ejabberd_sup, Id),
-             supervisor:delete_child(ejabberd_sup, Id)
+             ejabberd_sup:stop_child(Id)
      end,
       [?MODULE, mod_global_distrib_redis_refresher]),
     [ets:delete(Tab) || Tab <- [?MODULE, ?JIDS_ETS, ?DOMAINS_ETS, ?PUBLIC_DOMAINS_ETS]].
@@ -159,7 +150,8 @@ handle_info(refresh, RefreshAfter) ->
 
 -spec q(Args :: list()) -> {ok, term()}.
 q(Args) ->
-    case eredis:q(wpool_pool:best_worker(?MODULE), Args) of
+    {ok, Worker} = mongoose_wpool:get_worker(redis, global, pool()),
+    case eredis:q(Worker, Args) of
         {ok, _} = OKRes ->
             OKRes;
         Error ->
@@ -218,6 +210,10 @@ opt(Key) ->
 -spec expire_after() -> pos_integer().
 expire_after() ->
     ets:lookup_element(?MODULE, expire_after, 2).
+
+-spec pool() -> atom().
+pool() ->
+    ets:lookup_element(?MODULE, pool, 2).
 
 -spec do_put(Key :: binary(), Host :: binary()) -> ok.
 do_put(Key, Host) ->
@@ -367,4 +363,3 @@ refresh_set(Key, Members) ->
         _ -> q([<<"SADD">>, Key | Members])
     end,
     q([<<"EXPIRE">>, Key, expire_after()]).
-

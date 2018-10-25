@@ -21,6 +21,7 @@
 
 all() ->
     [get_test,
+     no_pool_test,
      post_test,
      request_timeout_test,
      pool_timeout_test
@@ -36,19 +37,16 @@ init_per_suite(Config) ->
                   receive stop -> ok end
           end),
     receive ready -> ok end,
-    meck_config(),
-    mongoose_http_client:start(),
-    meck_cleanup(),
+    mongoose_wpool:ensure_started(),
     Config.
 
 process_request(Req) ->
-    {Sleep, Req1} = cowboy_req:qs_val(<<"sleep">>, Req),
-    case Sleep of
+    QS = cowboy_req:parse_qs(Req),
+    case proplists:get_value(<<"sleep">>, QS) of
         <<"true">> -> timer:sleep(100);
         _ -> ok
     end,
-    {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], <<"OK">>, Req1),
-    Req2.
+    cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, <<"OK">>, Req).
 
 end_per_suite(_Config) ->
     http_helper:stop(),
@@ -56,56 +54,54 @@ end_per_suite(_Config) ->
     whereis(test_helper) ! stop.
 
 init_per_testcase(request_timeout_test, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"},
-                                               {request_timeout, 10}]),
+    mongoose_wpool:start_configured_pools([{http, global, pool(), [],
+                                            [{server, "http://localhost:8080"},
+                                             {request_timeout, 10}]}],
+                                          [<<"a.com">>]),
     Config;
 init_per_testcase(pool_timeout_test, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"},
-                                               {pool_size, 1},
-                                               {max_overflow, 0},
-                                               {pool_timeout, 10}]),
+    mongoose_wpool:start_configured_pools([{http, global, pool(),
+                                            [{workers, 1},
+                                             {max_overflow, 0},
+                                             {strategy, available_worker},
+                                             {call_timeout, 10}],
+                                            [{server, "http://localhost:8080"}]}],
+                                          [<<"a.com">>]),
     Config;
 init_per_testcase(_TC, Config) ->
-    mongoose_http_client:start_pool(tmp_pool, [{server, "http://localhost:8080"}]),
+    mongoose_wpool:start_configured_pools([{http, global, pool(), [],
+                                            [{server, "http://localhost:8080"}]}],
+                                          [<<"a.com">>]),
     Config.
 
 end_per_testcase(_TC, _Config) ->
-    mongoose_http_client:stop_pool(tmp_pool).
+    mongoose_wpool:stop(http, global, pool()).
 
 get_test(_Config) ->
-    Pool = mongoose_http_client:get_pool(tmp_pool),
-    Result = mongoose_http_client:get(Pool, <<"some/path">>, []),
+    Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
     {ok, {<<"200">>, <<"OK">>}} = Result.
 
+no_pool_test(_Config) ->
+    Result = mongoose_http_client:get(global, non_existent_pool, <<"some/path">>, []),
+    {error, pool_not_started} = Result.
+
 post_test(_Config) ->
-    Pool = mongoose_http_client:get_pool(tmp_pool),
-    Result = mongoose_http_client:post(Pool, <<"some/path">>, [], <<"test request">>),
+    Result = mongoose_http_client:post(global, pool(), <<"some/path">>, [], <<"test request">>),
     {ok, {<<"200">>, <<"OK">>}} = Result.
 
 request_timeout_test(_Config) ->
-    Pool = mongoose_http_client:get_pool(tmp_pool),
-    Result = mongoose_http_client:get(Pool, <<"some/path?sleep=true">>, []),
+    Result = mongoose_http_client:get(global, pool(), <<"some/path?sleep=true">>, []),
     {error, request_timeout} = Result.
 
 pool_timeout_test(_Config) ->
-    Pool = mongoose_http_client:get_pool(tmp_pool),
     Pid = self(),
     spawn(fun() ->
-                  mongoose_http_client:get(Pool, <<"/some/path?sleep=true">>, []),
+                  mongoose_http_client:get(global, pool(), <<"/some/path?sleep=true">>, []),
                   Pid ! finished
           end),
     timer:sleep(10), % wait for the only pool worker to start handling the request
-    Result = mongoose_http_client:get(Pool, <<"some/path">>, []),
+    Result = mongoose_http_client:get(global, pool(), <<"some/path">>, []),
     {error, pool_timeout} = Result,
     receive finished -> ok after 1000 -> error(no_finished_message) end.
 
-domain() ->
-    ct:get_config({hosts, mim, domain}).
-
-meck_config() ->
-    meck:new(ejabberd_config),
-    meck:expect(ejabberd_config, get_local_option, fun(http_connections) -> [] end).
-
-meck_cleanup() ->
-    meck:validate(ejabberd_config),
-    meck:unload(ejabberd_config).
+pool() -> tmp_pool.

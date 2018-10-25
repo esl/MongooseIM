@@ -160,12 +160,11 @@ start(VHost, Opts) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 stop(VHost) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 %%--------------------------------------------------------------------
 %% mongoose_packet_handler callbacks
@@ -233,8 +232,7 @@ handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
 
 handle_info({route, From, To, Acc, _El}, State) ->
-    Acc1 = mongoose_acc:require(iq_query_info, Acc),
-    IQ = mongoose_acc:get(iq_query_info, Acc1),
+    {IQ, Acc1} = mongoose_iq:info(Acc),
     case catch do_route(State#state.host, From, To, Acc1, IQ) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]);

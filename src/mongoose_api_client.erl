@@ -21,7 +21,7 @@
 
 %% API
 -export([is_authorized/2,
-         init/3, rest_init/2,
+         init/2,
          allowed_methods/2,
          content_types_provided/2,
          content_types_accepted/2,
@@ -61,11 +61,8 @@ cowboy_router_paths(Base, _Opts) ->
 %%--------------------------------------------------------------------
 
 
-init({_Transport, _}, Req, Opts) ->
-    {upgrade, protocol, cowboy_rest, Req, Opts}.
-
-rest_init(Req, Opts) ->
-    {Bindings, Req1} = cowboy_req:bindings(Req),
+init(Req, Opts) ->
+    Bindings = maps:to_list(cowboy_req:bindings(Req)),
     CommandCategory =
         case lists:keytake(command_category, 1, Opts) of
             {value, {command_category, Name},  _Opts1} ->
@@ -75,7 +72,7 @@ rest_init(Req, Opts) ->
         end,
     State = #http_api_state{allowed_methods = mongoose_api_common:get_allowed_methods(user),
         bindings = Bindings, command_category = CommandCategory},
-    {ok, Req1, State}.
+    {cowboy_rest, Req, State}.
 
 allowed_methods(Req, #http_api_state{command_category = Name} = State) ->
     CommandList = mongoose_commands:list(user, Name),
@@ -95,13 +92,8 @@ rest_terminate(_Req, _State) ->
     ok.
 
 is_authorized(Req, State) ->
-    Auth = cowboy_req:parse_header(<<"authorization">>, Req),
-    case Auth of
-        {ok, undefined, _} ->
-            make_unauthorized_response(Req, State);
-        {ok, AuthDetails, Req2} ->
-            do_authorize(AuthDetails, Req2, State)
-    end.
+    AuthDetails = cowboy_req:parse_header(<<"authorization">>, Req),
+    do_authorize(AuthDetails, Req, State).
 
 %% @doc Called for a method of type "DELETE"
 delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
@@ -124,7 +116,7 @@ to_json(Req, #http_api_state{command_category = Category, bindings = B} = State)
 
 %% @doc Called for a method of type "POST" and "PUT"
 from_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
-    {Method, _} = cowboy_req:method(Req),
+    Method = cowboy_req:method(Req),
     case parse_request_body(Req) of
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED, Req, State);
@@ -145,7 +137,7 @@ arity(C) ->
     Args = mongoose_commands:args(C),
     length([N || {N, _} <- Args, N =/= caller]).
 
-do_authorize({<<"basic">>, {User, Password}}, Req, State) ->
+do_authorize({basic, User, Password}, Req, State) ->
     case jid:from_binary(User) of
         error ->
             make_unauthorized_response(Req, State);

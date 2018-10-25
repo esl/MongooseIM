@@ -90,13 +90,12 @@ start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 get_features_list(Host, Caps) ->
     case get_features(Host, Caps) of
@@ -135,8 +134,7 @@ read_caps([#xmlel{name = <<"c">>, attrs = Attrs}
             Node = xml:get_attr_s(<<"node">>, Attrs),
             Version = xml:get_attr_s(<<"ver">>, Attrs),
             Hash = xml:get_attr_s(<<"hash">>, Attrs),
-            Exts = str:tokens(xml:get_attr_s(<<"ext">>, Attrs),
-                              <<" ">>),
+            Exts = mongoose_bin:tokens(xml:get_attr_s(<<"ext">>, Attrs), <<" ">>),
             read_caps(Tail,
                       #caps{node = Node, hash = Hash, version = Version,
                             exts = Exts});
@@ -416,8 +414,8 @@ feature_request(Acc, Host, From, Caps,
                               {ok, TS} -> now_ts() >= TS + (?BAD_HASH_LIFETIME);
                               _ -> true
                           end,
-            F = fun (IQReply) ->
-                        feature_response(Acc, IQReply, Host, From, Caps,
+            F = fun (_From, _To, Acc1, IQReply) ->
+                        feature_response(Acc1, IQReply, Host, From, Caps,
                                          SubNodes)
                 end,
             case NeedRequest of
@@ -433,7 +431,8 @@ feature_request(Acc, Host, From, Caps,
                                          children = []}]},
                     cache_tab:insert(caps_features, NodePair, now_ts(),
                                      caps_write_fun(Host, NodePair, now_ts())),
-                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, Acc, IQ, F);
+                    ejabberd_local:route_iq(jid:make(<<"">>, Host, <<"">>), From, Acc, IQ, F),
+                    Acc;
                false -> feature_request(Acc, Host, From, Caps, Tail)
             end
     end;
@@ -633,7 +632,7 @@ now_ts() ->
     MS * 1000000 + S.
 
 is_valid_node(Node) ->
-    case str:tokens(Node, <<"#">>) of
+    case mongoose_bin:tokens(Node, <<"#">>) of
         [?MONGOOSE_URI|_] ->
             true;
         _ ->

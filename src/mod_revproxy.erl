@@ -5,7 +5,7 @@
 %%%===================================================================
 -module(mod_revproxy).
 -behaviour(gen_mod).
--behaviour(cowboy_http_handler).
+-behaviour(cowboy_handler).
 
 %% API
 -export([compile/1]).
@@ -15,8 +15,7 @@
          stop/1]).
 
 %% cowboy_http_handler callbacks
--export([init/3,
-         handle/2,
+-export([init/2,
          terminate/3]).
 
 %% to be used by tests only
@@ -65,30 +64,31 @@ stop(_Host) ->
 %%--------------------------------------------------------------------
 %% cowboy_http_handler callbacks
 %%--------------------------------------------------------------------
--spec init({atom(), http}, cowboy_req:req(), [option()])
+-spec init(cowboy_req:req(), [option()])
     -> {ok, cowboy_req:req(), state()}.
-init(_Transport, Req, Opts) ->
+init(Req, Opts) ->
     Timeout = gen_mod:get_opt(timeout, Opts, 5000),
     Length = gen_mod:get_opt(body_length, Opts, 8000000),
     Headers = gen_mod:get_opt(custom_headers, Opts, []),
-    {ok, Req, #state{timeout=Timeout,
-                     length=Length,
-                     custom_headers=Headers}}.
+    State = #state{timeout=Timeout,
+                   length=Length,
+                   custom_headers=Headers},
+    handle(Req, State).
 
 -spec handle(cowboy_req:req(), state()) -> {ok, cowboy_req:req(), state()}.
 handle(Req, State) ->
-    {Host, Req1} = cowboy_req:header(<<"host">>, Req),
-    {Path, Req2} = cowboy_req:path(Req1),
-    {QS, Req3} = cowboy_req:qs(Req2),
+    Host = cowboy_req:header(<<"host">>, Req),
+    Path = cowboy_req:path(Req),
+    QS = cowboy_req:qs(Req),
     PathQS = case QS of
         <<>> ->
             Path;
         _ ->
             <<Path/binary, "?", QS/binary>>
     end,
-    {Method, Req4} = cowboy_req:method(Req3),
+    Method = cowboy_req:method(Req),
     Match = match(mod_revproxy_dynamic:rules(), Host, PathQS, Method),
-    handle_match(Match, Method, Req4, State).
+    handle_match(Match, Method, Req, State).
 
 -spec terminate(any(), cowboy_req:req(), state()) -> ok.
 terminate(_Reason, _Req, _State) ->
@@ -103,31 +103,31 @@ handle_match(#match{}=Match, Method, Req, State) ->
     {Host, Path} = upstream_uri(Match),
     pass_request(Host, Path, Method, Req, State);
 handle_match(false, _, Req, State) ->
-    {ok, Req1} = cowboy_req:reply(404, Req),
+    Req1 = cowboy_req:reply(404, Req),
     {ok, Req1, State}.
 
 pass_request(Host, Path, Method, Req,
              #state{timeout=Timeout, custom_headers=CustomHeaders}=State) ->
     {ok, Pid} = fusco:start_link(Host, [{connect_timeout, Timeout}]),
-    {Headers, Req1} = cowboy_req:headers(Req),
-    {Body, Req2} = request_body(Req1, State),
+    Headers = maps:to_list(cowboy_req:headers(Req)),
+    {Body, Req1} = request_body(Req, State),
     Headers1 = Headers ++ CustomHeaders,
     Response = fusco:request(Pid, Path, Method, Headers1, Body, Timeout),
-    return_response(Response, Req2, State).
+    return_response(Response, Req1, State).
 
 return_response({ok, {{Status, _}, Headers, Body, _, _}}, Req, State) ->
     StatusI = binary_to_integer(Status),
     Headers1 = remove_confusing_headers(Headers),
-    {ok, Req1} = cowboy_req:reply(StatusI, Headers1, Body, Req),
+    Req1 = cowboy_req:reply(StatusI, maps:from_list(Headers1), Body, Req),
     {ok, Req1, State};
 return_response({error, connect_timeout}, Req, State) ->
-    {ok, Req1} = cowboy_req:reply(504, Req),
+    Req1 = cowboy_req:reply(504, Req),
     {ok, Req1, State};
 return_response({error, timeout}, Req, State) ->
-    {ok, Req1} = cowboy_req:reply(504, Req),
+    Req1 = cowboy_req:reply(504, Req),
     {ok, Req1, State};
 return_response({error, _Other}, Req, State) ->
-    {ok, Req1} = cowboy_req:reply(502, Req),
+    Req1 = cowboy_req:reply(502, Req),
     {ok, Req1, State}.
 
 request_body(Req, #state{length=Length}) ->
@@ -135,7 +135,7 @@ request_body(Req, #state{length=Length}) ->
         false ->
             {<<>>, Req};
         true ->
-            {ok, Data, Req1} = cowboy_req:body(Req, [{length, Length}]),
+            {ok, Data, Req1} = cowboy_req:read_body(Req, #{length => Length}),
             {Data, Req1}
     end.
 

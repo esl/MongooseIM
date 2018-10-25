@@ -18,11 +18,15 @@
 
 -include("mongoose.hrl").
 
+-type hardness() :: soft | hard | optional.
+-type deps_list() :: [{module(), gen_mod_params(), hardness()}].
 -type gen_mod_params() :: proplists:proplist().
 -type gen_mod_list() :: [{module(), gen_mod_params()}].
 -type gen_mod_map() :: #{module() => gen_mod_params()}.
 
 -export([start_modules/2, replace_modules/3]).
+-export([add_deps/2]).
+-export_type([hardness/0]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -32,6 +36,11 @@
 start_modules(Host, Modules) ->
     replace_modules(Host, [], Modules).
 
+%% @doc Adds deps into module list.
+%% Side-effect free.
+-spec add_deps(Host :: jid:server(), Modules :: gen_mod_list()) -> gen_mod_list().
+add_deps(Host, Modules) ->
+    sort_deps(Host, resolve_deps(Host, Modules)).
 
 %% @doc
 %% Replaces OldModules (along with dependencies) with NewModules (along with
@@ -81,12 +90,26 @@ replace_modules(Host, OldModules0, NewModules0) ->
 %% @end
 -spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_list()) ->
                           gen_mod_map().
-resolve_deps(Host, ModuleQueue) -> resolve_deps(Host, ModuleQueue, #{}).
+resolve_deps(Host, ModuleQueue) -> resolve_deps(Host, ModuleQueue, #{}, #{}).
 
--spec resolve_deps(Host :: jid:server(), Modules :: gen_mod_list(),
+-spec resolve_deps(Host :: jid:server(),
+                   Modules :: [{module(), gen_mod_params()} | {module(), gen_mod_params(), hardness()}],
+                   OptionalQueue :: #{module() => gen_mod_params()},
                    Acc :: gen_mod_map()) -> gen_mod_map().
-resolve_deps(_Host, [], KnownModules) -> KnownModules;
-resolve_deps(Host, [{Module, Args} | ModuleQueue], KnownModules) ->
+resolve_deps(Host, [], OptionalMods, KnownModules) ->
+    KnownModNames = maps:keys(KnownModules),
+    case maps:with(KnownModNames, OptionalMods) of
+        NewQueueMap when map_size(NewQueueMap) > 0 ->
+            resolve_deps(Host, maps:to_list(NewQueueMap),
+                         maps:without(KnownModNames, OptionalMods), KnownModules);
+        _Nothing ->
+            KnownModules
+    end;
+resolve_deps(Host, [{Module, Args, optional} | ModuleQueue], OptionalMods, KnownModules) ->
+    resolve_deps(Host, ModuleQueue, maps:put(Module, Args, OptionalMods), KnownModules);
+resolve_deps(Host, [{Module, Args, _Hardness} | ModuleQueue], OptionalMods, KnownModules) ->
+    resolve_deps(Host, [{Module, Args} | ModuleQueue], OptionalMods, KnownModules);
+resolve_deps(Host, [{Module, Args} | ModuleQueue], OptionalMods, KnownModules) ->
     NewArgs =
         case maps:find(Module, KnownModules) of
             {ok, PreviousArgs} ->
@@ -100,18 +123,12 @@ resolve_deps(Host, [{Module, Args} | ModuleQueue], KnownModules) ->
         end,
 
     case NewArgs of
-        undefined -> resolve_deps(Host, ModuleQueue, KnownModules);
+        undefined -> resolve_deps(Host, ModuleQueue, OptionalMods, KnownModules);
         _ ->
-            Deps = lists:map(
-                     fun
-                         ({Mod, _Hardness}) -> {Mod, []};
-                         ({Mod, ModArgs, _Hardness}) -> {Mod, ModArgs}
-                     end,
-                     gen_mod:get_deps(Host, Module, NewArgs)),
-
+            Deps = get_deps(Host, Module, NewArgs),
             UpdatedQueue = Deps ++ ModuleQueue,
             UpdatedKnownModules = maps:put(Module, NewArgs, KnownModules),
-            resolve_deps(Host, UpdatedQueue, UpdatedKnownModules)
+            resolve_deps(Host, UpdatedQueue, OptionalMods, UpdatedKnownModules)
     end.
 
 %% @doc
@@ -153,8 +170,14 @@ sort_deps(Host, ModuleMap) ->
           end,
           undefined, ModuleMap),
 
-        lists:map(fun(Module) -> {Module, maps:get(Module, ModuleMap)} end,
-                  digraph_utils:topsort(DepsGraph))
+        lists:filtermap(
+          fun(Module) ->
+                  case maps:find(Module, ModuleMap) of
+                      error -> false;
+                      {ok, Opts} -> {true, {Module, Opts}}
+                  end
+          end,
+          digraph_utils:topsort(DepsGraph))
     after
         digraph:delete(DepsGraph)
     end.
@@ -166,25 +189,16 @@ sort_deps(Host, ModuleMap) ->
 process_module_dep(Host, Module, Args, DepsGraph) ->
     digraph:add_vertex(DepsGraph, Module),
     lists:foreach(
-      fun
-          ({DepModule, _, DepHardness}) ->
-              process_dep(Module, DepModule, DepHardness, DepsGraph);
-          ({DepModule, DepHardness}) ->
-              process_dep(Module, DepModule, DepHardness, DepsGraph)
-      end, gen_mod:get_deps(Host, Module, Args)).
+      fun({DepModule, _, DepHardness}) -> process_dep(Module, DepModule, DepHardness, DepsGraph) end,
+      get_deps(Host, Module, Args)).
 
 
 -spec process_dep(Module :: module(), DepModule :: module(),
-                  DepHardness :: soft | hard, Graph :: digraph:graph()) -> ok.
+                  DepHardness :: hardness(), Graph :: digraph:graph()) -> ok.
 process_dep(Module, DepModule, DepHardness, Graph) ->
     digraph:add_vertex(Graph, DepModule),
     case {digraph:add_edge(Graph, DepModule, Module, DepHardness), DepHardness} of
         {['$e' | _], _} ->
-            ok;
-
-        {{error, {bad_edge, CyclePath}}, soft} ->
-            ?INFO_MSG("Soft module dependency cycle detected: ~p. Dropping "
-                      "edge ~p -> ~p~n", [CyclePath, Module, DepModule]),
             ok;
 
         {{error, {bad_edge, CyclePath}}, hard} ->
@@ -201,7 +215,12 @@ process_dep(Module, DepModule, DepHardness, Graph) ->
                     digraph:del_edge(Graph, EdgeId),
                     ['$e' | _] = digraph:add_edge(Graph, DepModule, Module, hard),
                     ok
-            end
+            end;
+
+        {{error, {bad_edge, CyclePath}}, _Soft} ->
+            ?INFO_MSG("Soft module dependency cycle detected: ~p. Dropping "
+                      "edge ~p -> ~p~n", [CyclePath, Module, DepModule]),
+            ok
     end.
 
 
@@ -219,7 +238,10 @@ find_soft_edge(Graph, CyclePath) ->
               end,
               VerticePairs),
 
-    lists:keyfind(soft, 4, Edges).
+    case lists:keyfind(optional, 4, Edges) of
+        false -> lists:keyfind(soft, 4, Edges);
+        Edge -> Edge
+    end.
 
 
 -spec find_edge(digraph:graph(), digraph:vertex(), digraph:vertex()) ->
@@ -232,3 +254,13 @@ find_edge(Graph, A, B) ->
         [Edge] -> Edge;
         [] -> false
     end.
+
+
+-spec get_deps(Host :: jid:server(), module(), gen_mod_params()) -> deps_list().
+get_deps(Host, Module, Args) ->
+    lists:map(
+      fun
+          ({Mod, Hardness}) -> {Mod, [], Hardness};
+          ({Mod, ModArgs, Hardness}) -> {Mod, ModArgs, Hardness}
+             end,
+      gen_mod:get_deps(Host, Module, Args)).

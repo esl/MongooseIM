@@ -1,18 +1,22 @@
 %% During dev you would use something similar to:
-%% TEST_HOSTS="mim1" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% If you also want to start just mim1 node use:
-%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1" TEST_HOSTS="mim" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
 %%
 %% TEST_HOSTS variable contains host names from hosts in big_tests/test.config.
-%% DEV_NAMES variable contains release names from profiles in rebar.config.
+%% DEV_NODES variable contains release names from profiles in rebar.config.
 %% Release names are also used to name directories in the _build directory.
 %%
 %% Valid TEST_HOSTS are mim, mim2, mim3, fed, reg.
-%% Valid DEV_NAMES are mim1, mim2, mim3, fed1, reg1.
+%% Valid DEV_NODES are mim1, mim2, mim3, fed1, reg1.
 %%
 %% Example with two nodes:
-%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -e false -c false -s false -p odbc_mssql_mnesia
+%% DEV_NODES="mim1 mim2" TEST_HOSTS="mim mim2" ./tools/travis-test.sh -c false -s false -p odbc_mssql_mnesia
+%%
+%% Environment variable PRESET_ENABLED is true by default.
+%% PRESET_ENABLED=false disables preset application and forces to run
+%% one preset.
 -module(run_common_test).
 
 -export([main/1, analyze/2]).
@@ -47,12 +51,21 @@ opts() ->
 %% "=" is an invalid character in option name or value.
 main(RawArgs) ->
     Args = [raw_to_arg(Raw) || Raw <- RawArgs],
-    Opts = args_to_opts(Args),
+    Opts = apply_preset_enabled(args_to_opts(Args)),
     try
         Results = run(Opts),
         %% Waiting for messages to be flushed
         timer:sleep(50),
-        process_results(Results)
+        ExitStatusByGroups = anaylyze_groups_runs(),
+        ExitStatusByTestCases = process_results(Results),
+        case ExitStatusByGroups of
+            undefined ->
+                io:format("Exiting by test cases summary: ~p~n", [ExitStatusByTestCases]),
+                init:stop(ExitStatusByTestCases);
+            _ when is_integer(ExitStatusByGroups) ->
+                io:format("Exiting by groups summary: ~p~n",  [ExitStatusByGroups]),
+                init:stop(ExitStatusByGroups)
+        end
     catch Type:Reason ->
         Stacktrace = erlang:get_stacktrace(),
         io:format("TEST CRASHED~n Error type: ~p~n Reason: ~p~n Stacktrace:~n~p~n",
@@ -70,8 +83,19 @@ run(#opts{test = full, spec = Spec, preset = Preset, cover = Cover}) ->
     run_test(tests_to_run(Spec), case Preset of
                                      all -> all;
                                      undefined -> all;
+                                     _ when is_list(Preset) -> Preset;
                                      _   -> [Preset]
                                  end, Cover).
+
+apply_preset_enabled(#opts{} = Opts) ->
+    case os:getenv("PRESET_ENABLED") of
+        "false" ->
+            io:format("PRESET_ENABLED is set to false, enabling quick mode~n"),
+            Opts#opts{test = quick};
+        _ ->
+            Opts
+    end.
+
 
 %%
 %% Helpers
@@ -91,8 +115,12 @@ args_to_opts(Args) ->
 
 raw_to_arg(RawArg) ->
     ArgVal = atom_to_list(RawArg),
-    [Arg, Val] = string:tokens(ArgVal, "="),
-    {list_to_atom(Arg), Val}.
+    case string:tokens(ArgVal, "=") of
+        [Arg, Val] ->
+            {list_to_atom(Arg), Val};
+        [Arg] ->
+            {list_to_atom(Arg), ""}
+    end.
 
 set_opt({Opt, Index, Sanitizer}, {Args, Opts}) ->
     Value = Sanitizer(proplists:get_value(Opt, Args)),
@@ -102,7 +130,8 @@ quick_or_full("quick") -> quick;
 quick_or_full("full")  -> full.
 
 preset(undefined) -> undefined;
-preset(Preset) -> list_to_atom(Preset).
+preset(PresetList) ->
+    [list_to_atom(Preset) || Preset <- string:tokens(PresetList, " ")].
 
 read_file(ConfigFile) when is_list(ConfigFile) ->
     {ok, CWD} = file:get_cwd(),
@@ -204,11 +233,8 @@ enable_preset(Name, PresetVars, Test, N, Tests) ->
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]).
 
-backend(Node) ->
-    rpc:call(Node, ejabberd_config, get_global_option, [sm_backend]).
-
 %% Specify just some nodes to run the tests on:
-%% TEST_HOSTS="mim1" ./tools/travis-test.sh -p odbc_mssql_mnesia
+%% TEST_HOSTS="mim" ./tools/travis-test.sh -p odbc_mssql_mnesia
 maybe_enable_preset_on_node(Node, PresetVars, HostVars, HostName) ->
     case is_test_host_enabled(HostName) of
         true ->
@@ -231,9 +257,9 @@ is_test_host_enabled(HostName) ->
 
 enable_preset_on_node(Node, PresetVars, HostVars) ->
     {ok, Cwd} = call(Node, file, get_cwd, []),
-    Cfg = filename:join([repo_dir(), "rel", "files", "ejabberd.cfg"]),
+    Cfg = filename:join([repo_dir(), "rel", "files", "mongooseim.cfg"]),
     Vars = filename:join([repo_dir(), "rel", HostVars]),
-    CfgFile = filename:join([Cwd, "etc", "ejabberd.cfg"]),
+    CfgFile = filename:join([Cwd, "etc", "mongooseim.cfg"]),
     {ok, Template} = handle_file_error(Cfg, file:read_file(Cfg)),
     {ok, Default} = handle_file_error(Vars, file:consult(Vars)),
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
@@ -272,9 +298,15 @@ analyze_coverage(_, _) ->
     ok.
 
 prepare(Test) ->
-    Apps = get_apps(),
     Nodes = get_ejabberd_nodes(Test),
+    maybe_compile_cover(Nodes).
+
+maybe_compile_cover([]) ->
+    io:format("cover: skip cover compilation~n", []),
+    ok;
+maybe_compile_cover(Nodes) ->
     io:format("cover: compiling modules for nodes ~p~n", [Nodes]),
+    Apps = get_apps(),
     import_code_paths(hd(Nodes)),
     %% Time is in microseconds
     {Time, Compiled} = timer:tc(fun() ->
@@ -293,6 +325,17 @@ analyze(Test, CoverOpts) ->
     report_time("Export cover data from MongooseIM nodes", fun() ->
             multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
         end),
+    case os:getenv("KEEP_COVER_RUNNING") of
+        "1" ->
+            io:format("Skip stopping cover~n"),
+            ok;
+        _ ->
+            report_time("Stopping cover on MongooseIM nodes", fun() ->
+                            multicall(Nodes, mongoose_cover_helper, stop, [], cover_timeout())
+                    end)
+    end,
+    cover:start(),
+    deduplicate_cover_server_console_prints(),
     Files = filelib:wildcard(repo_dir() ++ "/_build/**/cover/*.coverdata"),
     io:format("Files: ~p", [Files]),
     report_time("Import cover data into run_common_test node", fun() ->
@@ -301,9 +344,6 @@ analyze(Test, CoverOpts) ->
     report_time("Export merged cover data", fun() ->
 			cover:export("/tmp/mongoose_combined.coverdata")
 		end),
-    report_time("Export merged cover data in codecov.json format", fun() ->
-            export_codecov_json()
-        end),
     case os:getenv("TRAVIS_JOB_ID") of
         false ->
             make_html(modules_to_analyze(CoverOpts));
@@ -349,11 +389,12 @@ make_html(Modules) ->
 get_hosts(Test) ->
     {_File, Props} = get_ct_config(Test),
     {hosts, Hosts} = lists:keyfind(hosts, 1, Props),
-    %% `mim` is our assumed cluster name - it has to be defined in test.config
-    dict:fetch(mim, group_by(fun host_cluster/1, Hosts)).
+    %% We apply preset options to `mim` and `reg` clusters
+    Clusters = group_by(fun host_cluster/1, Hosts),
+    dict:fetch(mim, Clusters) ++ dict:fetch(reg, Clusters).
 
 get_ejabberd_nodes(Test) ->
-    [ host_node(H) || H <- get_hosts(Test) ].
+    [ host_node(H) || H <- get_hosts(Test), is_test_host_enabled(host_name(H)) ].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
@@ -405,9 +446,10 @@ process_results(CTResults) ->
     process_results(CTResults, {{Ok, Failed, UserSkipped, AutoSkipped}, Errors}).
 
 process_results([], {StatsAcc, Errors}) ->
+    write_stats_into_vars_file(StatsAcc),
     print_errors(Errors),
     print_stats(StatsAcc),
-    init:stop(exit_code(StatsAcc));
+    exit_code(StatsAcc);
 process_results([ {ok, RunStats} | T ], {StatsAcc, Errors}) ->
     process_results(T, {add(RunStats, StatsAcc), Errors});
 process_results([ Error | T ], {StatsAcc, Errors}) ->
@@ -426,6 +468,16 @@ do_print_stats({Ok, Failed, _UserSkipped, AutoSkipped}) when Ok == 0;
     Ok == 0 andalso print(standard_error,         "  ok          : ~b~n", [Ok]),
     Failed > 0 andalso print(standard_error,      "  failed      : ~b~n", [Failed]),
     AutoSkipped > 0 andalso print(standard_error, "  auto-skipped: ~b~n", [AutoSkipped]).
+
+write_stats_into_vars_file(Stats) ->
+    file:write_file("/tmp/ct_stats_vars", [format_stats_as_vars(Stats)]).
+
+format_stats_as_vars({Ok, Failed, UserSkipped, AutoSkipped}) ->
+    io_lib:format("CT_COUNTER_OK=~p~n"
+                  "CT_COUNTER_FAILED=~p~n"
+                  "CT_COUNTER_USER_SKIPPED=~p~n"
+                  "CT_COUNTER_AUTO_SKIPPED=~p~n",
+                  [Ok, Failed, UserSkipped, AutoSkipped]).
 
 %% Fail if there are failed test cases, auto skipped cases,
 %% or the number of passed tests is 0 (which is also strange - a misconfiguration?).
@@ -503,73 +555,6 @@ import_code_paths(FromNode) when is_atom(FromNode) ->
     Paths = rpc:call(FromNode, code, get_path, []),
     code:add_paths(Paths).
 
-%% covecov.json cover format
-%% ------------------------------------------------------------------
-
-%% Writes codecov.json into root of the repo directory
-%%
-%% Format:
-%%
-%% {"coverage": {
-%%     "src/mod_mam.erl": [0, 1, 4, null]
-%% }}
-%%
-%% Where:
-%%
-%% - 0 - zero hits
-%% - null - lines, that are not executed (comments, patterns...)
-%% - 1 - called once
-%% - 4 - called 4 times
-export_codecov_json() ->
-    Modules = cover:imported_modules(),
-    %% Result is a flat map of `{{Module, Line}, CallTimes}'
-    {result, Result, _} = cover:analyse(Modules, calls, line),
-    Mod2Data = lists:foldl(fun add_cover_line_into_array/2, #{}, Result),
-    JSON = maps:fold(fun format_array_to_list/3, [], Mod2Data),
-    Binary = jiffy:encode(#{<<"coverage">> => {JSON}}),
-    file:write_file(repo_dir() ++ "/codecov.json", Binary).
-
-add_cover_line_into_array({{Module, Line}, CallTimes}, Acc) ->
-    %% Set missing lines to null
-    CallsPerLineArray = maps:get(Module, Acc, array:new({default, null})),
-    Acc#{Module => array:set(Line, CallTimes, CallsPerLineArray)}.
-
-format_array_to_list(Module, CallsPerLineArray, Acc) ->
-    ListOfCallTimes = array:to_list(CallsPerLineArray),
-    BinPath = list_to_binary(get_source_path(Module)),
-    [{BinPath, ListOfCallTimes}|Acc].
-
-%% We assume that all mongooseim modules are loaded on this node
-get_source_path(Module) when is_atom(Module) ->
-    try
-        AbsPath = proplists:get_value(source, Module:module_info(compile)),
-        string_prefix(AbsPath, get_repo_dir())
-    catch Error:Reason ->
-        Stacktrace = erlang:get_stacktrace(),
-        error_logger:warning_msg("issue=get_source_path_failed module=~p "
-                                  "reason=~p:~p stacktrace=~1000p",
-                                 [Module, Error, Reason, Stacktrace]),
-        atom_to_list(Module) ++ ".erl"
-    end.
-
-get_repo_dir() ->
-    %% We make an assumption, that mongooseim.erl is in src/ directory
-    MongoosePath = proplists:get_value(source, mongooseim:module_info(compile)),
-    string_suffix(MongoosePath, "src/mongooseim.erl").
-
-%% Removes string prefix
-%% string:prefix/2 that works for any version of erlang and does not return nomatch
-string_prefix([H|String], [H|Prefix]) ->
-    string_prefix(String, Prefix);
-string_prefix(String, []) ->
-    String.
-
-%% Removes string suffix
-string_suffix(String, Suffix) ->
-    StringR = lists:reverse(String),
-    SuffixR = lists:reverse(Suffix),
-    lists:reverse(string_prefix(StringR, SuffixR)).
-
 %% Gets result of file operation and prints filename, if we have any issues.
 handle_file_error(FileName, {error, Reason}) ->
     error_logger:error_msg("issue=file_operation_error filename=~p reason=~p",
@@ -579,3 +564,26 @@ handle_file_error(_FileName, Other) ->
     Other.
 
 %% ------------------------------------------------------------------
+
+%% cover_server process is using io:format too much.
+%% This code removes duplicate io:formats.
+%%
+%% Example of a message we want to write only once:
+%% "Analysis includes data from imported files" from cover.erl in Erlang/R19
+deduplicate_cover_server_console_prints() ->
+    %% Set a new group leader for cover_server
+    CoverPid = whereis(cover_server),
+    dedup_proxy_group_leader:start_proxy_group_leader_for(CoverPid).
+
+anaylyze_groups_runs() ->
+    CTRunDirs = filelib:wildcard("ct_report/ct_run*"),
+    SortFun = fun(F1, F2) -> filelib:last_modified(F1) > filelib:last_modified(F2) end,
+    SortedCTRunDirs = lists:sort(SortFun, CTRunDirs),
+    LatestCTRun = hd(SortedCTRunDirs),
+    case file:consult(LatestCTRun ++ "/all_groups.summary") of
+        {ok, Terms} ->
+            proplists:get_value(total_failed, Terms, undefined);
+      {error, Error} ->
+            error_logger:error_msg("Error reading all_groups.summary: ~p~n", [Error]),
+            undefined
+    end.

@@ -34,8 +34,8 @@
          get_global_metric_names/0,
          get_aggregated_values/1,
          increment_generic_hook_metric/2,
-         get_odbc_data_stats/0,
-         get_odbc_data_stats/1,
+         get_rdbms_data_stats/0,
+         get_rdbms_data_stats/1,
          get_dist_data_stats/0,
          get_up_time/0,
          remove_host_metrics/1,
@@ -90,10 +90,10 @@ create_generic_hook_metric(Host, Hook) ->
     UseOrSkip = filter_hook(Hook),
     do_create_generic_hook_metric(Host, Hook, UseOrSkip).
 
-ensure_db_pool_metric(Pool) ->
-    ensure_metric(global,
-                  [data, odbc, Pool],
-                  {function, mongoose_metrics, get_odbc_data_stats, [[Pool]], proplist,
+ensure_db_pool_metric({rdbms, Host, Tag} = Name) ->
+    ensure_metric(Host,
+                  [data, rdbms, Tag],
+                  {function, mongoose_metrics, get_rdbms_data_stats, [[Name]], proplist,
                    [workers | ?INET_STATS]}).
 
 -spec update(Host :: jid:lserver() | global, Name :: term() | list(),
@@ -137,12 +137,22 @@ increment_generic_hook_metric(Host, Hook) ->
     UseOrSkip = filter_hook(Hook),
     do_increment_generic_hook_metric(Host, Hook, UseOrSkip).
 
-get_odbc_data_stats() ->
-    get_odbc_data_stats(ejabberd_rdbms:pools()).
+get_rdbms_data_stats() ->
+    Pools = lists:filter(fun({Type, _Host, _Tag}) -> Type == rdbms end, mongoose_wpool:get_pools()),
+    get_rdbms_data_stats(Pools).
 
-get_odbc_data_stats(Pools) ->
-    ODBCWorkers = [catch mongoose_rdbms_sup:get_pids(Pool) || Pool <- Pools],
-    get_odbc_stats(lists:flatten(ODBCWorkers)).
+get_rdbms_data_stats(Pools) ->
+    RDBMSWorkers =
+        lists:flatmap(
+          fun({Type, Host, Tag}) ->
+                  PoolName = mongoose_wpool:make_pool_name(Type, Host, Tag),
+                  Wpool = wpool_pool:find_wpool(PoolName),
+                  PoolSize = wpool_pool:wpool_get(size, Wpool),
+                  [whereis(wpool_pool:worker_name(PoolName, I)) || I <- lists:seq(1, PoolSize)]
+          end,
+          Pools),
+
+    get_rdbms_stats(RDBMSWorkers).
 
 get_dist_data_stats() ->
     DistStats = [inet_stats(Port) || {_, Port} <- erlang:system_info(dist_ctrl)],
@@ -199,20 +209,20 @@ do_increment_generic_hook_metric(_, _, skip) ->
 do_increment_generic_hook_metric(Host, Hook, use) ->
     update(Host, Hook, 1).
 
-get_odbc_stats(ODBCWorkers) ->
-    ODBCConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- ODBCWorkers],
-    Ports = [get_port_from_odbc_connection(Conn) || Conn <- ODBCConnections],
+get_rdbms_stats(RDBMSWorkers) ->
+    RDBMSConnections = [{catch mongoose_rdbms:get_db_info(Pid), Pid} || Pid <- RDBMSWorkers],
+    Ports = [get_port_from_rdbms_connection(Conn) || Conn <- RDBMSConnections],
     PortStats = [inet_stats(Port) || Port <- lists:flatten(Ports)],
-    [{workers, length(ODBCConnections)} | merge_stats(PortStats)].
+    [{workers, length(RDBMSConnections)} | merge_stats(PortStats)].
 
-get_port_from_odbc_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= mysql;
-                                                                DB =:= pgsql ->
+get_port_from_rdbms_connection({{ok, DB, Pid}, _WorkerPid}) when DB =:= mysql;
+                                                                 DB =:= pgsql ->
     ProcState = sys:get_state(Pid),
     get_port_from_proc_state(DB, ProcState);
-get_port_from_odbc_connection({{ok, odbc, Pid}, WorkerPid}) ->
+get_port_from_rdbms_connection({{ok, odbc, Pid}, WorkerPid}) ->
     Links = element(2, erlang:process_info(Pid, links)) -- [WorkerPid],
     [Port || Port <- Links, is_port(Port), {name, "tcp_inet"} == erlang:port_info(Port, name)];
-get_port_from_odbc_connection(_) ->
+get_port_from_rdbms_connection(_) ->
     undefined.
 
 %% @doc Gets a socket from mysql/epgsql library Gen_server state

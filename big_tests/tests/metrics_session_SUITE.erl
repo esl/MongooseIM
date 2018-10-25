@@ -20,14 +20,13 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--define(WAIT_TIME, 500).
--define(GLOBAL_WAIT_TIME, 3000).  % milliseconds
 -define(RT_WINDOW, 3).  % seconds
 
 -import(metrics_helper, [assert_counter/2,
                          assert_counter/3,
-                         get_counter_value/1]).
-
+                         get_counter_value/1,
+                         wait_for_counter/2,
+                         wait_for_counter/3]).
 %%--------------------------------------------------------------------
 %% Suite configuration
 %%--------------------------------------------------------------------
@@ -37,11 +36,12 @@ all() ->
      {group, session_global}].
 
 groups() ->
-    [{session, [sequence], [login_one,
-                            login_many,
-                            auth_failed]},
-     {session_global, [sequence], [session_global,
-                                   session_unique]}].
+    G = [{session, [sequence], [login_one,
+                                login_many,
+                                auth_failed]},
+         {session_global, [sequence], [session_global,
+                                       session_unique]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -82,9 +82,8 @@ login_one(Config) ->
 
         {value, Logouts} = get_counter_value(sessionLogouts),
         escalus_client:stop(Config, Alice),
-        timer:sleep(?WAIT_TIME),
-        assert_counter(0, sessionCount),
-        assert_counter(Logouts + 1, sessionLogouts)
+        wait_for_counter(0, sessionCount),
+        wait_for_counter(Logouts + 1, sessionLogouts)
 
     end).
 
@@ -112,16 +111,14 @@ auth_failed(Config) ->
 session_global(Config) ->
     escalus:story(Config, [{alice, 1}], fun(_Alice) ->
 
-        timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(global, 1, totalSessionCount)
+        wait_for_counter(global, 1, totalSessionCount)
 
         end).
 
 session_unique(Config) ->
     escalus:story(Config, [{alice, 2}], fun(_Alice1, _Alice2) ->
 
-        timer:sleep(?GLOBAL_WAIT_TIME),
-        assert_counter(global, 1, uniqueSessionCount),
-        assert_counter(global, 2, totalSessionCount)
+        wait_for_counter(global, 1, uniqueSessionCount),
+        wait_for_counter(global, 2, totalSessionCount)
 
         end).

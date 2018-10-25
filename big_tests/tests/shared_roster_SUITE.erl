@@ -36,10 +36,11 @@ all() ->
     [{group, shared_roster}].
 
 groups() ->
-    [{shared_roster, [sequence], [receive_presences,
-                                  get_contacts,
-                                  delete_user,
-                                  add_user]}].
+    G = [{shared_roster, [sequence], [receive_presences,
+                                      get_contacts,
+                                      delete_user,
+                                      add_user]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().

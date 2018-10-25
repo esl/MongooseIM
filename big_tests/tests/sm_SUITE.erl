@@ -32,10 +32,10 @@ all() ->
      ].
 
 groups() ->
-    [{parallel, [parallel], parallel_test_cases()},
-     {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
-     {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}
-    ].
+    G = [{parallel, [parallel], parallel_test_cases()},
+         {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
+         {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 parallel_test_cases() ->
     [server_announces_sm,
@@ -49,7 +49,7 @@ parallel_test_cases() ->
      h_ok_after_session_enabled_before_session,
      h_ok_after_session_enabled_after_session,
      h_ok_after_a_chat,
-%    resend_unacked_on_reconnection, % TODO fix it #1638
+     resend_unacked_on_reconnection,
      session_established,
      wait_for_resumption,
      resume_session,
@@ -334,10 +334,10 @@ resend_more_offline_messages_than_buffer_size(Config) ->
     % confirm messages + presence
     escalus_connection:send(Alice, escalus_stanza:sm_ack(4)),
     % wait for check constraint message on server side
-    ct:sleep(?CONSTRAINT_CHECK_TIMEOUT+1000),
 
-    % should not receive anything especially any stream errors
+    ct:sleep(?CONSTRAINT_CHECK_TIMEOUT + 1000),
     false = escalus_client:has_stanzas(Alice),
+    % should not receive anything especially any stream errors
 
     escalus_connection:stop(Alice),
     escalus_connection:stop(Bob).
@@ -346,19 +346,22 @@ resend_unacked_on_reconnection(Config) ->
     Messages = [<<"msg-1">>, <<"msg-2">>, <<"msg-3">>],
     {Bob, _} = given_fresh_user(Config, bob),
     {Alice, AliceSpec0} = given_fresh_user(Config, alice),
-        discard_vcard_update(Alice),
-        %% Bob sends some messages to Alice.
-        [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
-         || Msg <- Messages],
-        %% Alice receives the messages.
-        Stanzas = escalus:wait_for_stanzas(Alice, length(Messages)),
-        [escalus:assert(is_chat_message, [Msg], Stanza)
-         || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
-        %% Alice disconnects without acking the messages.
+    discard_vcard_update(Alice),
+    %% Bob sends some messages to Alice.
+    [escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg))
+     || Msg <- Messages],
+    %% Alice receives the messages.
+    Stanzas = escalus:wait_for_stanzas(Alice, length(Messages)),
+    [escalus:assert(is_chat_message, [Msg], Stanza)
+     || {Msg, Stanza} <- lists:zip(Messages, Stanzas)],
+    %% Alice disconnects without acking the messages.
+    C2SRef = monitor_session(Alice),
     escalus_connection:stop(Alice),
+    %% TODO There's a race condition between the C2S process and mod_offline,
+    %% so we have to wait for C2S termination.
+    %% For details please see https://github.com/esl/MongooseIM/pull/2007
+    ok = wait_for_process_termination(C2SRef),
     escalus_connection:stop(Bob),
-    wait_until_disconnected(AliceSpec0),
-
     %% Messages go to the offline store.
     %% Alice receives the messages from the offline store.
     AliceSpec = [{manual_ack, true} | AliceSpec0],
@@ -492,13 +495,14 @@ resume_session_state_send_message(Config) ->
     {ok, Alice, _} = escalus_connection:start(AliceSpec, ConnSteps++[stream_resumption]),
     escalus_connection:send(Alice, escalus_stanza:presence(<<"available">>)),
     escalus_connection:get_stanza(Alice, presence),
-
+    %% Ack the presence stanza
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus:send(Alice, escalus_stanza:sm_ack(1)),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
     escalus_connection:kill(Alice),
-    ct:sleep(1000), %% alice should be in resume_session_state
+    ct:sleep(200), %% alice should be in resume_session_state
 
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
@@ -515,6 +519,7 @@ resume_session_state_send_message(Config) ->
     Stanzas = [escalus_connection:get_stanza(NewAlice, msg) || _ <- lists:seq(1,4) ],
 
     % what about order ?
+    % alice receive presence from herself and 3 unacked messages from bob
     escalus_new_assert:mix_match([is_presence,
                                   is_chat(<<"msg-1">>),
                                   is_chat(<<"msg-2">>),
@@ -589,7 +594,7 @@ wait_for_resumption(Config) ->
     {C2SPid, _} = buffer_unacked_messages_and_die(Config, AliceSpec, Bob, Messages),
     %% Ensure the c2s process is waiting for resumption.
     assert_no_offline_msgs(AliceSpec),
-    wait_for_c2s_state_change(C2SPid, session_established, resume_session).
+    wait_for_c2s_state_change(C2SPid, resume_session).
 
 resume_session(Config) ->
     AliceSpec = [{manual_ack, true}
@@ -805,19 +810,9 @@ assert_no_offline_msgs(Spec) ->
 assert_no_offline_msgs() ->
     0 = mongoose_helper:total_offline_messages().
 
-wait_for_c2s_state_change(C2SPid, StateName, NewStateName) ->
-    wait_for_c2s_state_change(C2SPid, StateName, NewStateName, 5000).
-
-wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft) when TimeLeft =< 0 ->
-    error({c2s_state_change_timeout, C2SPid, StateName, NewStateName});
-wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft) ->
-    case get_c2s_state(C2SPid) of
-        StateName ->
-            timer:sleep(100),
-            wait_for_c2s_state_change(C2SPid, StateName, NewStateName, TimeLeft - 100);
-        NewStateName ->
-            ok
-    end.
+wait_for_c2s_state_change(C2SPid, NewStateName) ->
+    mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName, 
+                                #{name => get_c2s_state, time_left => timer:seconds(5)}).
 
 assert_c2s_state(C2SPid, StateName) ->
     StateName = get_c2s_state(C2SPid).
@@ -832,9 +827,23 @@ extract_state_name(SysStatus) ->
     proplists:get_value("StateName", FSMData).
 
 wait_until_disconnected(UserSpec) ->
-    mongoose_helper:wait_until(fun() ->
-                                       get_user_resources(UserSpec) =:= [] end,
-                               5, 200).
+    mongoose_helper:wait_until(fun() -> get_user_resources(UserSpec) =:= [] end, true,
+                               #{name => get_user_resources}).
+
+monitor_session(Client) ->
+    UserSpec = Client#client.props,
+    {resource, Res} = lists:keyfind(resource, 1, UserSpec),
+    {ok, C2SPid} = get_session_pid(UserSpec, Res),
+    erlang:monitor(process, C2SPid).
+
+wait_for_process_termination(C2SRef) ->
+    receive
+        {'DOWN', _MRef, _Type, C2SRef, _Info} ->
+            ok
+    after timer:seconds(1) ->
+              ok
+    end,
+    ok.
 
 get_session_pid(UserSpec, Resource) ->
     {U, S} = get_us_from_spec(UserSpec),

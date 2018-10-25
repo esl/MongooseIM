@@ -44,6 +44,7 @@
 
 %% Receive notification or response
 -export([receive_item_notification/4,
+         check_item_notification/4,
          receive_subscription_notification/4,
          receive_subscription_request/4,
          receive_subscription_requests/4,

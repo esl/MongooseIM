@@ -17,8 +17,6 @@
 
 -compile(export_all).
 
--export([wait_for_complete_archive_response/3]).
-
 -include("mam_helper.hrl").
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
@@ -62,7 +60,7 @@ mam04_props() ->
 mam06_props() ->
      [{final_message, false},
       {result_format, iq_fin},           %% RSM is inside iq with <fin/> inside
-     {mam_ns, mam_ns_binary_v06()}].   
+     {mam_ns, mam_ns_binary_v06()}].
 
 respond_messages(#mam_archive_respond{respond_messages=Messages}) ->
     Messages.
@@ -724,25 +722,22 @@ send_muc_rsm_messages(Config) ->
 
 send_rsm_messages(Config) ->
     Pid = self(),
-%%    Room = ?config(room, Config),
+    %%    Room = ?config(room, Config),
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
-        %% Alice sends messages to Bob.
-        lists:foreach(fun(N) ->
-                              escalus:send(Alice,
-                                           escalus_stanza:chat_to(Bob, generate_message_text(N))),
-                              timer:sleep(5)
-                      end, lists:seq(1, 15)),
-        %% Bob is waiting for 15 messages for 5 seconds.
-        escalus:wait_for_stanzas(Bob, 15, 5000),
-        maybe_wait_for_archive(Config),
-        %% Get whole history.
-        rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
-        AllMessages =
-            respond_messages(assert_respond_size(15, wait_archive_respond(P, Alice))),
-        ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
-        Pid ! {parsed_messages, ParsedMessages},
-        ok
+                %% Alice sends messages to Bob.
+                [escalus:send(Alice,
+                              escalus_stanza:chat_to(Bob, generate_message_text(N))) || N <- lists:seq(1, 15)],
+                %% Bob is waiting for 15 messages for 5 seconds.
+                escalus:wait_for_stanzas(Bob, 15, 5000),
+                maybe_wait_for_archive(Config),
+                %% Get whole history.
+                rsm_send(Config, Alice, stanza_archive_request(P, <<"all_messages">>)),
+                AllMessages =
+                respond_messages(assert_respond_size(15, wait_archive_respond(P, Alice))),
+                ParsedMessages = [parse_forwarded_message(M) || M <- AllMessages],
+                Pid ! {parsed_messages, ParsedMessages},
+                ok
         end,
     Config1 = escalus:init_per_testcase(pre_rsm, Config),
     escalus:story(Config1, [{alice, 1}, {bob, 1}], F),
@@ -764,8 +759,8 @@ clean_archives(Config) ->
     %% It is not the best place to delete these messages.
     [ok = delete_offline_messages(S, U) || {S, U} <- SUs],
     [ok = delete_archive(S, U) || {S, U} <- SUs],
-    %% Retry 10 times if not empty
-    [assert_empty_archive(S, U, 10) || {S, U} <- SUs],
+    %% Wait for archive to be empty
+    [wait_for_archive_size(S, U, 0) || {S, U} <- SUs],
     Config.
 
 destroy_room(Config) ->
@@ -776,7 +771,7 @@ clean_room_archive(Config) ->
     Room = ?config(room, Config),
     delete_room_archive(muc_host(), Room),
     %% Retry 10 times if not empty
-    assert_empty_room_archive(muc_host(), Room, 10),
+    wait_for_room_archive_size(muc_host(), Room, 0),
     Config.
 
 serv_users(Config) ->
@@ -787,52 +782,48 @@ serv_user(Config, UserSpec) ->
     [Username, Server, _Pass] = escalus_users:get_usp(Config, UserSpec),
     {Server, Username}.
 
-%% @doc Check, that the archive is empty.
-assert_empty_archive(Server, Username, RetryTimes) when is_integer(RetryTimes) ->
-    %% Wait for zero messages in archive
-    case wait_for_archive_size(Server, Username, RetryTimes, 0) of
-       0 -> ok;
-       X -> ct:fail({not_empty, Server, Username, {actual_size, X}})
+wait_for_archive_size(User, ExpectedSize) ->
+    wait_for_archive_size(
+      escalus_utils:get_server(User),
+      escalus_utils:jid_to_lower(escalus_utils:get_username(User)),
+      ExpectedSize).
+
+wait_for_archive_size(Server, Username, ExpectedSize) ->
+    mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
+                               ExpectedSize,
+                               #{
+                                 time_left => timer:seconds(20),
+                                 name => archive_size
+                                }).
+
+wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
+    try mongoose_helper:wait_until(fun() -> archive_size(Server, Username) end,
+                                   ExpectedSize,
+                                   #{
+                                     time_left => timer:seconds(20),
+                                     name => archive_size
+                                    }) of
+        {ok, ExpectedSize} ->
+            ok
+    catch
+        _Error:Reason ->
+            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, log=~p",
+                   [ExpectedSize, Reason])
     end.
 
-wait_for_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
-    archive_size(Server, Username);
-wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
-    case archive_size(Server, Username) of
-        ExpectedSize ->
-            ExpectedSize;
-        _ActualSize ->
-            %% Wait and retry
-            timer:sleep(100),
-            wait_for_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
-    end.
-
-wait_for_archive_size_or_warning(Server, Username, RetryTimes, ExpectedSize) ->
-    case wait_for_archive_size(Server, Username, RetryTimes, ExpectedSize) of
-        ExpectedSize -> ok;
-        ActualSize ->
-            ct:pal("issue=wait_for_archive_size_or_warning, expected_size=~p, actual_size=~p",
-                   [ExpectedSize, ActualSize])
-    end.
-
-%% @doc Check, that the archive is empty.
-assert_empty_room_archive(Server, Username, RetryTimes) ->
-    %% Wait for zero messages in archive
-    case wait_for_room_archive_size(Server, Username, RetryTimes, 0) of
-       0 -> ok;
-       X -> ct:fail({room_not_empty, Server, Username, {actual_size, X}})
-    end.
-
-wait_for_room_archive_size(Server, Username, _RetryTimes=0, _ExpectedSize) ->
-    room_archive_size(Server, Username);
-wait_for_room_archive_size(Server, Username, RetryTimes, ExpectedSize) when RetryTimes > 0 ->
-    case room_archive_size(Server, Username) of
-        ExpectedSize ->
-            ExpectedSize;
-        _ActualSize ->
-            %% Wait and retry
-            timer:sleep(100),
-            wait_for_room_archive_size(Server, Username, RetryTimes-1, ExpectedSize)
+wait_for_room_archive_size(Server, Username, ExpectedSize) ->
+    try mongoose_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
+                                   ExpectedSize,
+                                   #{
+                                     time_left => timer:seconds(20),
+                                     name => room_archive_size
+                                    }) of
+        {ok, ExpectedSize} ->
+            ExpectedSize
+    catch
+        _Error:Reason ->
+            ct:pal("issue=wait_for_room_archive_size, expected_size=~p, log=~p",
+                   [ExpectedSize, Reason])
     end.
 
 
@@ -932,7 +923,7 @@ bootstrap_archive(Config) ->
 %% Wait for messages to be written
 wait_for_msgs(Msgs, Users) ->
     UsersCnt = [{S, U, count_msgs(Msgs, S, U)} || {S, U} <- Users],
-    [wait_for_archive_size_or_warning(S, U, 10, C) || {S, U, C} <- UsersCnt],
+    [wait_for_archive_size_or_warning(S, U, C) || {S, U, C} <- UsersCnt],
     ok.
 
 count_msgs(Msgs, S, U) ->
@@ -1028,7 +1019,7 @@ muc_bootstrap_archive(Config) ->
 
     maybe_wait_for_archive(Config),
     ?assert_equal(length(Msgs),
-                  wait_for_room_archive_size(Domain, Room, 10, length(Msgs))),
+                  wait_for_room_archive_size(Domain, Room, length(Msgs))),
 
     [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
 
@@ -1050,9 +1041,9 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
--spec backend() -> odbc | riak | cassandra | false.
+-spec backend() -> rdbms | riak | cassandra | false.
 backend() ->
-    Funs = [fun maybe_odbc/1, fun maybe_riak/1, fun maybe_cassandra/1],
+    Funs = [fun maybe_rdbms/1, fun maybe_riak/1, fun maybe_cassandra/1],
     determine_backend(host(), Funs).
 
 determine_backend(_, []) ->
@@ -1065,10 +1056,10 @@ determine_backend(Host, [F | Rest]) ->
             Result
     end.
 
-maybe_odbc(Host) ->
-    case mongoose_helper:is_odbc_enabled(Host) of
+maybe_rdbms(Host) ->
+    case mongoose_helper:is_rdbms_enabled(Host) of
         true ->
-            odbc;
+            rdbms;
         _ ->
             false
     end.
@@ -1090,22 +1081,30 @@ maybe_cassandra(Host) ->
     end.
 
 is_mam_possible(Host) ->
-    mongoose_helper:is_odbc_enabled(Host) orelse is_riak_enabled(Host) orelse
-    is_cassandra_enabled(Host).
+    mongoose_helper:is_rdbms_enabled(Host) orelse is_riak_enabled(Host) orelse
+    is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
 
+%% TODO create mongoose_riak:get_status() for cleaner checks, same for cassandra and elasticsearch
 is_riak_enabled(_Host) ->
-    case rpc(mim(), mongoose_riak, get_worker, []) of
-        Pid when is_pid(Pid) ->
+    case catch rpc(mim(), mongoose_riak, list_buckets, [<<"default">>]) of
+        {ok, _} ->
             true;
         _ ->
             false
     end.
 
 is_cassandra_enabled(_) ->
-    case rpc(mim(), mongoose_cassandra_sup, get_all_workers, []) of
-        [_|_]=_Pools ->
+    is_cassandra_enabled().
+
+
+is_cassandra_enabled() ->
+    rpc(mim(), mongoose_wpool, is_configured, [cassandra]).
+
+is_elasticsearch_enabled(_Host) ->
+    case rpc(mim(), mongoose_elasticsearch, health, []) of
+        {ok, _} ->
             true;
-        _ ->
+        {error, _} ->
             false
     end.
 
@@ -1196,8 +1195,7 @@ make_alice_and_bob_friends(Alice, Bob) ->
 run_prefs_case({PrefsState, ExpectedMessageStates}, Namespace, Alice, Bob, Kate, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
-    escalus:send(Alice, IqSet),
-    _ReplySet = escalus:wait_for_stanza(Alice),
+    _ReplySet = escalus:send_iq_and_wait_for_result(Alice, IqSet),
     Messages = [iolist_to_binary(io_lib:format("n=~p, prefs=~p, now=~p",
                                                [N, PrefsState, os:timestamp()]))
                 || N <- [1, 2, 3, 4]],
@@ -1278,8 +1276,7 @@ print_configuration_not_supported(C, B) ->
 run_set_and_get_prefs_case({PrefsState, _ExpectedMessageStates}, Namespace, Alice, Config) ->
     {DefaultMode, AlwaysUsers, NeverUsers} = PrefsState,
     IqSet = stanza_prefs_set_request({DefaultMode, AlwaysUsers, NeverUsers, Namespace}, Config),
-    escalus:send(Alice, IqSet),
-    ReplySet = escalus:wait_for_stanza(Alice, 5000),
+    ReplySet = escalus:send_iq_and_wait_for_result(Alice, IqSet),
     ReplySetNS = exml_query:path(ReplySet, [{element, <<"prefs">>}, {attr, <<"xmlns">>}]),
     ?assert_equal(ReplySetNS, Namespace),
     escalus:send(Alice, stanza_prefs_get_request(Namespace)),

@@ -175,8 +175,12 @@ get_tls_socket(#socket_state{receiver = Receiver}) ->
 -spec starttls(socket_state(), list()) -> socket_state().
 starttls(SocketData, TLSOpts) ->
     tcp_to_tls(SocketData, TLSOpts),
-    NewSocket = get_tls_socket(SocketData),
-    SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}.
+    case get_tls_socket(SocketData) of
+        invalid_socket ->
+            exit(invalid_socket_after_upgrade_to_tls);
+        NewSocket ->
+            SocketData#socket_state{socket = NewSocket, sockmod = ejabberd_tls}
+    end.
 
 
 -spec starttls(socket_state(), _, _) -> socket_state().
@@ -242,9 +246,11 @@ get_sockmod(SocketData) ->
     SocketData#socket_state.sockmod.
 
 
--spec get_peer_certificate(socket_state()) -> 'error' | {'ok', _}.
-get_peer_certificate(SocketData) ->
-    ejabberd_tls:get_peer_certificate(SocketData#socket_state.socket).
+-spec get_peer_certificate(socket_state()) -> mongoose_transport:peercert_return().
+get_peer_certificate(#socket_state{sockmod = ejabberd_tls, socket = Socket}) ->
+    ejabberd_tls:get_peer_certificate(Socket);
+get_peer_certificate(_SocketData) ->
+    no_peer_cert.
 
 
 -spec close(socket_state()) -> ok.
@@ -252,8 +258,7 @@ close(SocketData) ->
     ejabberd_receiver:close(SocketData#socket_state.receiver).
 
 
--spec sockname(socket_state()) -> {ok, {inet:ip_address(), inet:port_number()}}
-                                | {error, inet:posix()}.
+-spec sockname(socket_state()) -> mongoose_transport:peername_return().
 sockname(#socket_state{sockmod = SockMod, socket = Socket}) ->
     case SockMod of
         gen_tcp ->

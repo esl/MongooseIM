@@ -122,13 +122,14 @@ delete(Hooks) when is_list(Hooks) ->
 -spec run(Hook :: atom(),
           Args :: [any()]) -> ok.
 run(Hook, Args) ->
-    run_fold(Hook, global, #{}, Args).
+    run(Hook, global, Args).
 
 -spec run(Hook :: atom(),
           Host :: jid:server() | global,
           Args :: [any()]) -> ok.
 run(Hook, Host, Args) ->
-    run_fold(Hook, Host, mongoose_acc:new(), Args).
+    %% We don't provide mongoose_acc here because we can't create a valid one.
+    run_fold(Hook, Host, ok, Args).
 
 %% @spec (Hook::atom(), Val, Args) -> Val | stopped | NewVal
 %% @doc Run the calls of this hook in order.
@@ -140,26 +141,13 @@ run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
 run_fold(Hook, Host, Val, Args) ->
-    Res = case ets:lookup(hooks, {Hook, Host}) of
+    case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->
             mongoose_metrics:increment_generic_hook_metric(Host, Hook),
             run_fold1(Ls, Hook, Val, Args);
         [] ->
             Val
-    end,
-    record(Hook, Res).
-
-record(_Hook, Acc) ->
-    Acc.
-    % just to show some nice things we can do now
-    % this should probably be protected by a compilation flag
-    % unless load tests show that the impact on performance is negligible
-%%    case mongoose_acc:is_acc(Acc) of % this check will go away some day
-%%        true ->
-%%            mongoose_acc:append(hooks_run, Hook, Acc);
-%%        false ->
-%%            Acc
-%%    end.
+    end.
 
 %%%----------------------------------------------------------------------
 %%% Callback functions from gen_server
@@ -258,7 +246,7 @@ code_change(_OldVsn, State, _Extra) ->
 run_fold1([], _Hook, Val, _Args) ->
     Val;
 run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
-    Res = hook_apply_function(Module, Function, Hook, Val, Args),
+    Res = hook_apply_function(Module, Function, Val, Args),
     case Res of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p~nrunning hook: ~p",
@@ -272,21 +260,8 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
             run_fold1(Ls, Hook, NewVal, Args)
     end.
 
-hook_apply_function(_Module, Function, _Hook, Val, Args) when is_function(Function) ->
+hook_apply_function(_Module, Function, Val, Args) when is_function(Function) ->
     safely:apply(Function, [Val | Args]);
-hook_apply_function(Module, Function, Hook, Val, Args) ->
-    Result = safely:apply(Module, Function, [Val | Args]),
-    record(Hook, Module, Function, Result).
+hook_apply_function(Module, Function, Val, Args) ->
+    safely:apply(Module, Function, [Val | Args]).
 
-
-record(_Hook, _Module, _Function, Acc) ->
-    Acc.
-    % just to show some nice things we can do now
-    % this should probably be protected by a compilation flag
-    % unless load tests show that the impact on performance is negligible
-%%    case mongoose_acc:is_acc(Acc) of % this check will go away some day
-%%        true ->
-%%            mongoose_acc:append(handlers_run, {Hook, Module, Function}, Acc);
-%%        false ->
-%%            Acc
-%%    end.

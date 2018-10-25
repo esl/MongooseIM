@@ -5,4 +5,5 @@
 
 -record(bosh_socket, {sid   :: mod_bosh:sid(),
                       pid   :: pid(),
-                      peer  :: {inet:ip_address(), inet:port_number()}}).
+                      peer  :: {inet:ip_address(), inet:port_number()},
+                      peercert :: undefined | binary()}).

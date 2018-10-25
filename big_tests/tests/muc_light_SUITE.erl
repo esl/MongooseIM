@@ -87,7 +87,8 @@
                            create_room/6,
                            stanza_aff_set/2,
                            default_config/0,
-                           user_leave/3
+                           user_leave/3,
+                           set_mod_config/3
 ]).
 
 -include("muc_light.hrl").
@@ -123,67 +124,68 @@ all() ->
     ].
 
 groups() ->
-    [
-     {service, [sequence], [
-                            mismatched_default_config_is_rejected,
-                            removing_users_from_server_triggers_room_destruction
-                           ]},
-     {entity, [sequence], [
-                            disco_service,
-                            disco_features,
-                            disco_rooms,
-                            disco_rooms_rsm,
-                            disco_rooms_created_page_1,
-                            disco_rooms_created_page_infinity,
-                            disco_rooms_empty_page_infinity,
-                            disco_rooms_empty_page_1,
-                            rooms_in_rosters,
-                            no_roomname_in_schema_doesnt_break_disco_and_roster,
-                            unauthorized_stanza
-                         ]},
-     {occupant, [sequence], [
-                             send_message,
-                             change_subject,
-                             change_roomname,
-                             all_can_configure,
-                             set_config_deny,
-                             get_room_config,
-                             custom_schema_works_with_standard_default_config,
-                             custom_default_config_works,
-                             get_room_occupants,
-                             get_room_info,
-                             leave_room,
-                             change_other_aff_deny
-                            ]},
-     {owner, [sequence], [
-                          create_room,
-                          create_room_unique,
-                          create_room_with_equal_occupants,
-                          create_existing_room_deny,
-                          destroy_room,
-                          destroy_room_get_disco_items_empty,
-                          destroy_room_get_disco_items_one_left,
-                          set_config,
-                          set_config_with_custom_schema,
-                          deny_config_change_that_conflicts_with_schema,
-                          assorted_config_doesnt_lead_to_duplication,
-                          remove_and_add_users,
-                          explicit_owner_change,
-                          implicit_owner_change,
-                          edge_case_owner_change,
-                          adding_wrongly_named_user_triggers_infinite_loop
-                         ]},
-     {limits, [sequence], [
-                           rooms_per_user,
-                           max_occupants
-                          ]},
-     {blocking, [sequence], [
-                             manage_blocklist,
-                             block_room,
-                             block_user,
-                             blocking_disabled
-                            ]}
-    ].
+    G = [
+         {service, [sequence], [
+                                mismatched_default_config_is_rejected,
+                                removing_users_from_server_triggers_room_destruction
+                               ]},
+         {entity, [sequence], [
+                               disco_service,
+                               disco_features,
+                               disco_rooms,
+                               disco_rooms_rsm,
+                               disco_rooms_created_page_1,
+                               disco_rooms_created_page_infinity,
+                               disco_rooms_empty_page_infinity,
+                               disco_rooms_empty_page_1,
+                               rooms_in_rosters,
+                               no_roomname_in_schema_doesnt_break_disco_and_roster,
+                               unauthorized_stanza
+                              ]},
+         {occupant, [sequence], [
+                                 send_message,
+                                 change_subject,
+                                 change_roomname,
+                                 all_can_configure,
+                                 set_config_deny,
+                                 get_room_config,
+                                 custom_schema_works_with_standard_default_config,
+                                 custom_default_config_works,
+                                 get_room_occupants,
+                                 get_room_info,
+                                 leave_room,
+                                 change_other_aff_deny
+                                ]},
+         {owner, [sequence], [
+                              create_room,
+                              create_room_unique,
+                              create_room_with_equal_occupants,
+                              create_existing_room_deny,
+                              destroy_room,
+                              destroy_room_get_disco_items_empty,
+                              destroy_room_get_disco_items_one_left,
+                              set_config,
+                              set_config_with_custom_schema,
+                              deny_config_change_that_conflicts_with_schema,
+                              assorted_config_doesnt_lead_to_duplication,
+                              remove_and_add_users,
+                              explicit_owner_change,
+                              implicit_owner_change,
+                              edge_case_owner_change,
+                              adding_wrongly_named_user_triggers_infinite_loop
+                             ]},
+         {limits, [sequence], [
+                               rooms_per_user,
+                               max_occupants
+                              ]},
+         {blocking, [sequence], [
+                                 manage_blocklist,
+                                 block_room,
+                                 block_user,
+                                 blocking_disabled
+                                ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
@@ -194,8 +196,8 @@ suite() ->
 
 init_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    Backend = case mongoose_helper:is_odbc_enabled(Host) of
-                  true -> odbc;
+    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
+                  true -> rdbms;
                   false -> mnesia
               end,
     dynamic_modules:start(Host, mod_muc_light,
@@ -203,7 +205,7 @@ init_per_suite(Config) ->
                            {backend, Backend},
                            {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
-    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike, carol])).
+    escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).
 
 end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -229,11 +231,12 @@ end_per_group(_GroupName, Config) ->
 
 init_per_testcase(removing_users_from_server_triggers_room_destruction = CN, Config) ->
     set_default_mod_config(),
-    create_room(?ROOM, ?MUCHOST, carol, [], Config, ver(1)),
-    escalus:init_per_testcase(CN, Config);
+    Config1 = escalus:create_users(Config, escalus:get_users([carol])),
+    create_room(?ROOM, ?MUCHOST, carol, [], Config1, ver(1)),
+    escalus:init_per_testcase(CN, Config1);
 init_per_testcase(disco_rooms_rsm, Config) ->
     set_default_mod_config(),
-    set_mod_config(rooms_per_page, 1),
+    set_mod_config(rooms_per_page, 1, ?MUCHOST),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     create_room(?ROOM2, ?MUCHOST, alice, [bob, kate], Config, ver(1)),
     escalus:init_per_testcase(disco_rooms_rsm, Config);
@@ -311,25 +314,25 @@ disco_features(Config) ->
 %% The room list is empty. Rooms_per_page set to `infinity`
 disco_rooms_empty_page_infinity(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, infinity),
+        set_mod_config(rooms_per_page, infinity, ?MUCHOST),
         [] = get_disco_rooms(Alice)
         end).
 
 %% The room list is empty. Rooms_per_page set to 1
 disco_rooms_empty_page_1(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-        set_mod_config(rooms_per_page, 1),
+        set_mod_config(rooms_per_page, 1, ?MUCHOST),
         [] = get_disco_rooms(Alice)
         end).
 
 %% There is one room created. Rooms_per_page set to 1
 disco_rooms_created_page_1(Config) ->
-    set_mod_config(rooms_per_page, 1),
+    set_mod_config(rooms_per_page, 1, ?MUCHOST),
     escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
 
 %% There is one room created. Rooms_per_page set to `infinity`
 disco_rooms_created_page_infinity(Config) ->
-    set_mod_config(rooms_per_page, infinity),
+    set_mod_config(rooms_per_page, infinity, ?MUCHOST),
     escalus:story(Config, [{alice, 1}], fun verify_user_has_one_room/1).
 
 disco_rooms(Config) ->
@@ -452,7 +455,7 @@ change_roomname(Config) ->
 
 all_can_configure(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
-            set_mod_config(all_can_configure, true),
+            set_mod_config(all_can_configure, true, ?MUCHOST),
             ConfigChange = [{<<"roomname">>, <<"new subject">>}],
             Stanza = stanza_config_set(?ROOM, ConfigChange),
             foreach_occupant([Alice, Bob, Kate], Stanza, config_msg_verify_fun(ConfigChange))
@@ -553,7 +556,7 @@ change_other_aff_deny(Config) ->
             escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
                            escalus:wait_for_stanza(Kate)),
 
-            set_mod_config(all_can_invite, false),
+            set_mod_config(all_can_invite, false, ?MUCHOST),
             AffUsersChanges3 = [{Mike, member}],
             escalus:send(Kate, stanza_aff_set(?ROOM, AffUsersChanges3)),
             escalus:assert(is_error, [<<"cancel">>, <<"not-allowed">>],
@@ -586,7 +589,7 @@ create_room_unique(Config) ->
 
 create_room_with_equal_occupants(Config) ->
     escalus:story(Config, [{bob, 1}], fun(Bob) ->
-            set_mod_config(equal_occupants, true),
+            set_mod_config(equal_occupants, true, ?MUCHOST),
             InitConfig = [{<<"roomname">>, <<"Bob's room">>}],
             escalus:send(Bob, stanza_create_room(undefined, InitConfig, [])),
             verify_aff_bcast([{Bob, member}], [{Bob, member}]),
@@ -734,7 +737,7 @@ adding_wrongly_named_user_triggers_infinite_loop(Config)->
 rooms_per_user(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                   fun(Alice, Bob, Kate, Mike) ->
-            set_mod_config(rooms_per_user, 1),
+            set_mod_config(rooms_per_user, 1, ?MUCHOST),
             escalus:send(Bob, stanza_create_room(undefined, [], [])),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Bob)),
@@ -753,7 +756,7 @@ rooms_per_user(Config) ->
 max_occupants(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}, {mike, 1}],
                   fun(Alice, Bob, Kate, Mike) ->
-            set_mod_config(max_occupants, 1),
+            set_mod_config(max_occupants, 1, ?MUCHOST),
             escalus:send(Bob, stanza_create_room(undefined, [], [{Alice, member}, {Kate, member}])),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Bob)),
@@ -835,7 +838,7 @@ block_user(Config) ->
             verify_no_stanzas([Alice, Bob, Kate]),
 
             % But Kate can add Bob to the main room!
-            set_mod_config(all_can_invite, true),
+            set_mod_config(all_can_invite, true, ?MUCHOST),
             BobReadd = [{Bob, member}],
             SuccessStanza = stanza_aff_set(?ROOM, BobReadd),
             escalus:send(Kate, SuccessStanza),
@@ -847,7 +850,7 @@ block_user(Config) ->
 
 blocking_disabled(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
-            set_mod_config(blocking, false),
+            set_mod_config(blocking, false, ?MUCHOST),
             escalus:send(Alice, stanza_blocking_get()),
             escalus:assert(is_error, [<<"modify">>, <<"bad-request">>],
                            escalus:wait_for_stanza(Alice)),
@@ -1067,7 +1070,7 @@ standard_config_schema() -> rpc(mod_muc_light, standard_config_schema, []).
 -spec set_default_mod_config() -> ok.
 set_default_mod_config() ->
     lists:foreach(
-      fun({K, V}) -> set_mod_config(K, V) end,
+      fun({K, V}) -> set_mod_config(K, V, ?MUCHOST) end,
       [
        {equal_occupants, false},
        {rooms_per_user, infinity},
@@ -1086,12 +1089,8 @@ set_custom_config(RawSchema, RawDefaultConfig) ->
     DefaultConfig = rpc(mod_muc_light_utils, make_default_config, [RawDefaultConfig, ConfigSchema]),
     _ = hd(DefaultConfig), %% checks if is a list
 
-    set_mod_config(config_schema, ConfigSchema),
-    set_mod_config(default_config, DefaultConfig).
-
--spec set_mod_config(K :: atom(), V :: any()) -> ok.
-set_mod_config(K, V) ->
-    true = rpc(gen_mod, set_module_opt_by_subhost, [?MUCHOST, mod_muc_light, K, V]).
+    set_mod_config(config_schema, ConfigSchema, ?MUCHOST),
+    set_mod_config(default_config, DefaultConfig, ?MUCHOST).
 
 domain() ->
     ct:get_config({hosts, mim, domain}).

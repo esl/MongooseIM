@@ -10,7 +10,7 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
 * `store_current_id` (boolean, default: `false`): Stores the last roster hash in DB (used in Roster Versioning). 
  Improves performance but should be disabled, when shared rosters are used.
 * `backend` (atom, default: `mnesia`): Storage backend. 
- Currently `mnesia`, `odbc` and `riak` are supported.
+ Currently `mnesia`, `rdbms` and `riak` are supported.
 
 ### Example configuration
 ```

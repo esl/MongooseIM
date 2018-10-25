@@ -1,7 +1,7 @@
 -module(mongoose_client_api_contacts).
+-behaviour(cowboy_rest).
 
--export([init/3]).
--export([rest_init/2]).
+-export([init/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([is_authorized/2]).
@@ -17,11 +17,8 @@
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, HandlerOpts) ->
-    mongoose_client_api:rest_init(Req, HandlerOpts).
+init(Req, Opts) ->
+    mongoose_client_api:init(Req, Opts).
 
 is_authorized(Req, State) ->
     mongoose_client_api:is_authorized(Req, State).
@@ -41,46 +38,45 @@ allowed_methods(Req, State) ->
      Req, State}.
 
 forbidden_request(Req, State) ->
-    cowboy_req:reply(403, Req),
-    {halt, Req, State}.
+    Req1 = cowboy_req:reply(403, Req),
+    {stop, Req1, State}.
 
 to_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
-    {Method, _} = cowboy_req:method(Req),
-    {Jid, _} = cowboy_req:binding(jid, Req),
+    Method = cowboy_req:method(Req),
+    Jid = cowboy_req:binding(jid, Req),
     case Jid of
         undefined ->
             {ok, Res} = handle_request(Method, Jid, undefined, CJid),
             {jiffy:encode(lists:flatten([Res])), Req, State};
         _ ->
-            {ok, Req2} = cowboy_req:reply(404, Req),
-            {halt, Req2, State}
+            Req2 = cowboy_req:reply(404, Req),
+            {stop, Req2, State}
     end.
 
 
 from_json(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
-    {Method, Req2} = cowboy_req:method(Req),
-    {ok, Body, Req1} = cowboy_req:body(Req),
+    Method = cowboy_req:method(Req),
+    {ok, Body, Req1} = cowboy_req:read_body(Req),
     JSONData = jiffy:decode(Body, [return_maps]),
     Jid = case maps:get(<<"jid">>, JSONData, undefined) of
               undefined ->
-                  {J, _} = cowboy_req:binding(jid, Req1),
-                  J;
+                  cowboy_req:binding(jid, Req1);
               J -> J
           end,
     Action = maps:get(<<"action">>, JSONData, undefined),
-    handle_request_and_respond(Method, Jid, Action, CJid, Req2, State).
+    handle_request_and_respond(Method, Jid, Action, CJid, Req1, State).
 
 %% @doc Called for a method of type "DELETE"
 delete_resource(Req, #{jid := Caller} = State) ->
     CJid = jid:to_binary(Caller),
-    {Jid, Req2} = cowboy_req:binding(jid, Req),
+    Jid = cowboy_req:binding(jid, Req),
     case Jid of
         undefined ->
-            handle_multiple_deletion(CJid, get_requested_contacts(Req2), Req2, State);
+            handle_multiple_deletion(CJid, get_requested_contacts(Req), Req, State);
         _ ->
-            handle_single_deletion(CJid, Jid, Req2, State)
+            handle_single_deletion(CJid, Jid, Req, State)
     end.
 
 handle_multiple_deletion(CJid, ToDelete, Req, State) ->
@@ -107,23 +103,23 @@ handle_request_and_respond(Method, Jid, Action, CJid, Req, State) ->
         ok ->
             {true, Req, State};
         not_implemented ->
-            {ok, Req2} = cowboy_req:reply(501, Req),
-            {halt, Req2, State};
+            Req2 = cowboy_req:reply(501, Req),
+            {stop, Req2, State};
         not_found ->
-            {ok, Req2} = cowboy_req:reply(404, Req),
-            {halt, Req2, State}
+            Req2 = cowboy_req:reply(404, Req),
+            {stop, Req2, State}
     end.
 
 serve_failure(not_implemented, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(501, Req),
-    {halt, Req2, State};
+    Req2 = cowboy_req:reply(501, Req),
+    {stop, Req2, State};
 serve_failure(not_found, Req, State) ->
-    {ok, Req2} = cowboy_req:reply(404, Req),
-    {halt, Req2, State};
+    Req2 = cowboy_req:reply(404, Req),
+    {stop, Req2, State};
 serve_failure({error, ErrorType, Msg}, Req, State) ->
     ?ERROR_MSG("Error while serving http request: ~p: ~s", [ErrorType, Msg]),
-    {ok, Req2} = cowboy_req:reply(500, Req),
-    {halt, Req2, State}.
+    Req2 = cowboy_req:reply(500, Req),
+    {stop, Req2, State}.
 
 get_requested_contacts(Req) ->
     Body = get_whole_body(Req, <<"">>),
@@ -131,7 +127,7 @@ get_requested_contacts(Req) ->
     ResultJids.
 
 get_whole_body(Req, Acc) ->
-    case cowboy_req:body(Req) of
+    case cowboy_req:read_body(Req) of
         {ok, Data, _Req2} ->
             <<Data/binary, Acc/binary>>;
         {more, Data, Req2} ->
@@ -143,7 +139,7 @@ handle_request(<<"GET">>, undefined, undefined, CJid) ->
 handle_request(<<"POST">>, Jid, undefined, CJid) ->
     mongoose_commands:execute(CJid, add_contact, #{caller => CJid,
         jid => Jid});
-handle_request(<<"DELETE">>, Jids, Action, CJid) when is_list(Jids) ->
+handle_request(<<"DELETE">>, Jids, _Action, CJid) when is_list(Jids) ->
     mongoose_commands:execute(CJid, delete_contacts, #{caller => CJid,
         jids => Jids});
 handle_request(Method, Jid, Action, CJid) ->

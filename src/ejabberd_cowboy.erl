@@ -142,11 +142,25 @@ do_start_cowboy(Ref, Opts) ->
     end.
 
 start_http_or_https(undefined, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
-    cowboy:start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
+    cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
 start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
-    FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOpts),
+    SSLOptsWithVerifyFun = maybe_set_verify_fun(SSLOpts),
+    FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOptsWithVerifyFun),
     TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
-    cowboy:start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
+    cowboy_start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
+
+cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
+    TransOpts = [{num_acceptors, NumAcceptors}|TransportOpts],
+    cowboy:start_clear(Ref, TransOpts, ProtoOpts).
+
+cowboy_start_https(Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+    ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
+    TransOpts = [{num_acceptors, NumAcceptors}|TransportOpts],
+    cowboy:start_tls(Ref, TransOpts, ProtoOpts).
+
+make_env_map(Map = #{env := Env}) ->
+    Map#{env => maps:from_list(Env)}.
 
 reload_dispatch(Ref, Opts) ->
     Dispatch = cowboy_router:compile(get_routes(gen_mod:get_opt(modules, Opts))),
@@ -187,7 +201,7 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
         "_" -> '_';
         _ -> Host
     end,
-    {module, Module} = code:ensure_loaded(Module),
+    ensure_loaded_module(Module),
     Paths = proplists:get_value(CowboyHost, Routes, []) ++
     case erlang:function_exported(Module, cowboy_router_paths, 2) of
         true -> Module:cowboy_router_paths(BasePath, Opts);
@@ -195,10 +209,19 @@ get_routes([{Host, BasePath, Module, Opts} | Tail], Routes) ->
     end,
     get_routes(Tail, lists:keystore(CowboyHost, 1, Routes, {CowboyHost, Paths})).
 
+ensure_loaded_module(Module) ->
+    case code:ensure_loaded(Module) of
+        {module, Module} ->
+            ok;
+        Other ->
+            erlang:error(#{issue => ensure_loaded_module_failed,
+                           modue => Module,
+                           reason => Other})
+    end.
+
 ignored_ssl_options() ->
-    %% these options are specified in the listener section
-    %% and should be ignored if they creep into ssl section
-    [port, ip, max_connections].
+    %% these options should be ignored if they creep into ssl section
+    [port, ip, max_connections, verify_mode].
 
 filter_options(IgnoreOpts, [Opt | Opts]) when is_atom(Opt) ->
     case lists:member(Opt, IgnoreOpts) of
@@ -212,6 +235,15 @@ filter_options(IgnoreOpts, [Opt | Opts]) when tuple_size(Opt) >= 1 ->
     end;
 filter_options(_, []) ->
     [].
+
+maybe_set_verify_fun(SSLOptions) ->
+    case proplists:get_value(verify_mode, SSLOptions, undefined) of
+        undefined ->
+            SSLOptions;
+        Mode ->
+            Fun = just_tls:verify_fun(Mode),
+            lists:keystore(verify_fun, 1, SSLOptions, {verify_fun, Fun})
+    end.
 
 % This functions is for backward compatibility, as previous default config
 % used max_connections tuple for all ejabberd_cowboy listeners

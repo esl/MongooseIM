@@ -46,43 +46,45 @@ stop(Host) ->
 
 -spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) -> Value :: term().
 get_metadata(Acc, Key, Default) ->
-    case mongoose_acc:find(global_distrib, Acc) of
-        error -> Default;
-        {ok, GD} -> maps:get(Key, GD, Default)
-    end.
+    mongoose_acc:get(global_distrib, Key, Default, Acc).
 
 -spec find_metadata(mongoose_acc:t(), Key :: term()) ->
-    {ok, Value :: term()} | {error, missing_gd_structure | undefined}.
+    {ok, Value :: term()} | {error, undefined}.
 find_metadata(Acc, Key) ->
-    case mongoose_acc:find(global_distrib, Acc) of
-        error ->
-            {error, missing_gd_structure};
-        {ok, GD} ->
-           case maps:find(Key, GD) of
-               error -> {error, undefined};
-               {ok, Value} -> {ok, Value}
-           end
+    try mongoose_acc:get(global_distrib, Key, Acc) of
+        Value -> {ok, Value}
+    catch
+        _:_ ->
+            {error, undefined}
     end.
 
 -spec put_metadata(mongoose_acc:t(), Key :: term(), Value :: term()) -> mongoose_acc:t().
 put_metadata(Acc, Key, Value) ->
-    GD0 = mongoose_acc:get(global_distrib, Acc),
-    GD = maps:put(Key, Value, GD0),
-    mongoose_acc:put(global_distrib, GD, Acc).
+    mongoose_acc:set_permanent(global_distrib, Key, Value, Acc).
 
 -spec remove_metadata(mongoose_acc:t(), Key :: term()) -> mongoose_acc:t().
 remove_metadata(Acc, Key) ->
-    GD0 = mongoose_acc:get(global_distrib, Acc),
-    GD = maps:remove(Key, GD0),
-    mongoose_acc:put(global_distrib, GD, Acc).
+    mongoose_acc:delete(global_distrib, Key, Acc).
 
 %%--------------------------------------------------------------------
 %% Hooks implementation
 %%--------------------------------------------------------------------
 
 -spec maybe_reroute(drop) -> drop;
-                   ({jid:jid(), jid:jid(), mongoose_acc:t()}) -> drop | {jid:jid(), jid:jid(), mongoose_acc:t()}.
+                   ({jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) ->
+    drop | {jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}.
 maybe_reroute(drop) -> drop;
+maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
+               #jid{ luser = SameUser, lserver = SameServer } = _To,
+               _Acc, _Packet} = FPacket) ->
+    %% GD is not designed to support two user sessions existing in distinct clusters
+    %% and here we explicitly block routing stanzas between them.
+    %% Without this clause, test_pm_with_ungraceful_reconnection_to_different_server test
+    %% was randomly failing because sometimes 'unavailable' presence from a dead session
+    %% was poisoning reg1 cache. In such case, reg1 tried to route locally stanzas
+    %% from unacked SM buffer, leading to an error, while a brand new, shiny Eve
+    %% on mim1 was waiting.
+    FPacket;
 maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     Acc = maybe_initialize_metadata(Acc0),
     {ok, ID} = find_metadata(Acc, id),
@@ -136,13 +138,13 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
 
 -spec maybe_initialize_metadata(mongoose_acc:t()) -> mongoose_acc:t().
 maybe_initialize_metadata(Acc) ->
-    case mongoose_acc:get(global_distrib, Acc, undefined) of
-        #{} -> Acc;
-        undefined ->
-            Metadata = #{ttl => opt(message_ttl),
-                         id => uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-                         origin => opt(local_host)},
-            mongoose_acc:put(global_distrib, Metadata, Acc)
+    case find_metadata(Acc, origin) of
+        {error, undefined} ->
+            Acc1 = put_metadata(Acc, ttl, opt(message_ttl)),
+            Acc2 = put_metadata(Acc1, id , uuid:uuid_to_string(uuid:get_v4(), binary_standard)),
+            put_metadata(Acc2, origin, opt(local_host));
+        _ ->
+            Acc
     end.
 
 -spec get_bound_connection(Server :: jid:lserver()) -> pid().
@@ -196,7 +198,9 @@ lookup_recipients_host(undefined, To, LocalHost, GlobalHost) ->
 lookup_recipients_host(TargetHost, _To, _LocalHost, _GlobalHost) ->
     {ok, TargetHost}.
 
--spec lookup_recipients_host(jid:jid(), binary(), binary()) -> {ok, binary()} | error.
+-spec lookup_recipients_host(To :: jid:jid(),
+                             LocalHost :: binary(),
+                             GlobalHost :: binary()) -> {ok, binary()} | error.
 lookup_recipients_host(#jid{luser = <<>>, lserver = LServer}, LocalHost, GlobalHost)
   when LServer == LocalHost; LServer == GlobalHost ->
     {ok, LocalHost};

@@ -80,7 +80,7 @@ check_networking(ClusterMember) ->
 unsafe_join(Node, ClusterMember) ->
     delete_mnesia(),
     ok = mnesia:start(),
-    {ok, [ClusterMember]} = mnesia:change_config(extra_db_nodes, [ClusterMember]),
+    set_extra_db_nodes(ClusterMember),
     true = lists:member(ClusterMember, mnesia:system_info(running_db_nodes)),
     ok = change_schema_type(Node),
     Tables = [ {T, table_type(ClusterMember, T)}
@@ -90,6 +90,16 @@ unsafe_join(Node, ClusterMember) ->
                || {T, Type} = Table <- Tables ],
     lists:foreach(fun check_if_successful_copied/1, Copied),
     ok.
+
+set_extra_db_nodes(ClusterMember) ->
+    case mnesia:change_config(extra_db_nodes, [ClusterMember]) of
+        {ok, [ClusterMember]} ->
+            ok;
+        Other ->
+            error(#{reason => set_extra_db_nodes_failed,
+                    result => Other,
+                    cluster_member => ClusterMember})
+    end.
 
 check_if_successful_copied(TableEl) ->
     case TableEl of
@@ -130,8 +140,10 @@ delete_mnesia() ->
         Dir ->
             %% Both settings match, OK!
             ok;
-        _NotDir ->
-            error(mnesia_dir_inconsistent)
+        AppEnvDir ->
+            ?WARNING_MSG("mnesia:system_info(directory) returned ~p, but application:get_env(mnesia, dir) "
+                         "returned ~p: the values are different", [Dir, AppEnvDir]),
+            ok
     end,
     ok = rmrf(Dir),
     ?WARNING_MSG("Mnesia schema and files deleted", []),
@@ -155,7 +167,6 @@ rmrf(Dir) ->
             ok = file:delete(Dir);
         {ok, Dirs} ->
             [ ok = rmrf(filename:join(Dir, Sub)) || Sub <- Dirs],
-            ok = file:del_dir(Dir),
             ok
     end.
 

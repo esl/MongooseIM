@@ -32,8 +32,9 @@ all_tests() ->
     [simple_message, simple_message_no_listener, simple_message_failing_listener, proper_http_message_encode_decode].
 
 groups() ->
-    [{mod_http_notification_tests, [sequence], all_tests()},
-        {mod_http_notification_tests_with_prefix, [sequence], all_tests()}].
+    G = [{mod_http_notification_tests, [sequence], all_tests()},
+         {mod_http_notification_tests_with_prefix, [sequence], all_tests()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -46,10 +47,10 @@ set_worker(Config, Prefix) ->
 
 set_modules(Config0, Opts) ->
     Config = dynamic_modules:save_modules(host(), Config0),
-    ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
-    ejabberd_node_utils:call_fun(mongoose_http_client,
-        start_pool,
-        [http_pool, [{server, "http://localhost:8000"}]]),
+    HTTPOpts = [{server, "http://localhost:8000"}],
+    PoolOpts = [{strategy, available_worker}, {workers, 20}],
+    ejabberd_node_utils:call_fun(mongoose_wpool, start_configured_pools,
+                                 [[{http, global, http_pool, PoolOpts, HTTPOpts}]]),
     dynamic_modules:ensure_modules(host(), [{mod_http_notification, Opts}]),
     Config.
 
@@ -69,8 +70,7 @@ init_per_group(mod_http_notification_tests_with_prefix, Config) ->
     set_worker(Config, "/prefix").
 
 end_per_group(_GroupName, Config) ->
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [http_pool]),
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
+    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, global, http_pool]),
     dynamic_modules:restore_modules(host(), Config),
     ok.
 

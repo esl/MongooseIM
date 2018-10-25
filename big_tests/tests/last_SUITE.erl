@@ -27,7 +27,8 @@ all() ->
     [{group, last}].
 
 groups() ->
-     [{last, [sequence], test_cases()}].
+    G = [{last, [sequence], test_cases()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 test_cases() -> [last_online_user,
                  last_offline_user,
@@ -55,7 +56,7 @@ init_per_group(_GroupName, Config0) ->
     Config2.
 
 end_per_group(_GroupName, Config) ->
-    escalus:delete_users(Config, escalus:get_users([alice, bob])).
+    escalus_fresh:clean().
 
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).

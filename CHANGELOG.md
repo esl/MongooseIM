@@ -1,3 +1,80 @@
+# [MongooseIM 3.1.0](https://github.com/esl/MongooseIM/releases/tag/3.1.0) - 2018-07-24
+
+## Highlights
+
+- Inbox extension enters beta stage, improved with MUC, timestamps and MSSQL support
+- Test Runner - comprehensive tool for executing tests locally
+- OTP 21 support
+- ElasticSearch backend for message archive
+
+## All changes
+
+### Added
+
+- `mod_inbox` enters beta stage
+  - Timestamps support (#1970)
+  - Classic MUC support (#1961)
+  - MSSQL support (#1965)
+- Test Runner (#1973, #1989, #1991)
+- OTP 21 support, OTP 18.x is no longer officially supported (#1947)
+- Jingle/SIP tutorial (#1980)
+- ElasticSearch backend for message archive (#1900)
+- Smack-specific properties support in REST API (#1976)
+- `reload_cluster` command support for ignorable options (#1948)
+- Jingle/SIP Re-INVITE support (#1903)
+- More meaningful HTTP API errors (#1776)
+- MUC hooks for user join and leave (#1898)
+- Support for result limiting options in `mod_mam_meta` (#1977)
+
+### Changed
+
+- Message archive async writers no longer synchronise on reading operations (#1919)
+- Replaced bundled LDAP driver with an OTP one (#1216)
+- All worker pools are now based on one library: `worker_pool` (#1955)
+- Mnesia directory is no longer removed in clustering operations (#1951)
+- Inconsistent Mnesia directory names are no longer an error in clustering operations (#1904)
+- `MEDIUMBLOB` is used for message archive data by default (#1873)
+- Adding children to main supervisor is now more strictly verified (#1905)
+- Updated dependencies:
+  - `worker_pool` 3.1.1 (#1983)
+  - `lager` 3.6.4 (#1992)
+  - `jiffy` 0.15.2 (#1992)
+  - `idna` 1.5.2 (#1992)
+  - `uuid` 1.7.3 (#1992)
+  - `lasse` 1.1.1 (#1992)
+  - `escalus` `e7eece237a56560add06127bc9ed47d423e88dcc` (#1947)
+- Removed `pooler` dependency (#1875)
+- Moved some multi-module MongooseIM components to dedicated subdirectories (#1952)
+- `conflict_check_failed` log severity changed to "warning" (#1981)
+- Decreased severity of some log messages (#1984)
+
+### Fixed
+
+- `mongoose_acc` server property scope (#1925)
+- `mod_inbox_odbc` was reporting false errors on MySQL upserts (#1994)
+- Rosters are properly updated on subscription requests (#1931)
+- DB deadlock is now handled properly in message archive preferences (#1897)
+- Handling of terminating receiver process (#1949)
+- `mod_jingle_sip` startup for multiple hosts (#1960)
+- `Record-Route` header generation in Jingle/SIP (#1958)
+- MSSQL transactions are now stable in MUC Light (#1917)
+
+### Other
+
+- Documentation fixes and improvements (#1906, #1936, #1966)
+- Tests improvements and refactoring (#1874, #1879, #1883, #1884, #1885, #1886, #1892, #1893, #1895, #1899, #1908, #1911, #1914, #1916, #1920, #1921, #1922, #1924, #1926, #1932, #1937, #1940, #1943, #1944, #1950, #1953, #1954, #1956, #1962, #1967, #1982, #1990)
+- Build improvements (#1915)
+- Deps are downloaded with HTTPS (#1929)
+- Codecov thresholds for failed build are now set to 0.5% (#1957)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/issues?q=is%3Aclosed+milestone%3A3.1.0+sort%3Acreated-asc)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-05-23..2018-07-24%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-05-23&to=2018-07-24&type=c)
+
+Special thanks to our contributors: @SamuelNichols @Beisenbek @GalaxyGorilla !
+
 # [MongooseIM 3.0.0](https://github.com/esl/MongooseIM/releases/tag/3.0.0) - 2018-05-22
 
 ## Highlights

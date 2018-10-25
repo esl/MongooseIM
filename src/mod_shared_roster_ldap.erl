@@ -69,8 +69,10 @@
          base = <<"">>                                :: binary(),
          password = <<"">>                            :: binary(),
          uid = <<"">>                                 :: binary(),
-         deref_aliases = never                        :: never | searching |
-         finding | always,
+         deref =                                         neverDerefAliases  :: neverDerefAliases |
+                                                         derefInSearching |
+                                                         derefFindingBaseObj |
+                                                         derefAlways,
          group_attr = <<"">>                          :: binary(),
          group_desc = <<"">>                          :: binary(),
          user_desc = <<"">>                           :: binary(),
@@ -101,18 +103,17 @@ start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  permanent, 1000, worker, [?MODULE]},
-    supervisor:start_child(ejabberd_sup, ChildSpec).
+    ejabberd_sup:start_child(ChildSpec).
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?MODULE),
-    supervisor:terminate_child(ejabberd_sup, Proc),
-    supervisor:delete_child(ejabberd_sup, Proc).
+    ejabberd_sup:stop_child(Proc).
 
 %%--------------------------------------------------------------------
 %% Hooks
 %%--------------------------------------------------------------------
 get_user_roster(Acc, {U, S} = US) ->
-    Items = mongoose_acc:get(roster, Acc, []),
+    Items = mongoose_acc:get(roster, items, [], Acc),
     SRUsers = get_user_to_groups_map(US, true),
     {NewItems1, SRUsersRest} =
         lists:mapfoldl(
@@ -133,7 +134,7 @@ get_user_roster(Acc, {U, S} = US) ->
                        name = get_user_name(U1, S1), subscription = both,
                        ask = none, groups = GroupNames}
                || {{U1, S1}, GroupNames} <- dict:to_list(SRUsersRest)],
-    mongoose_acc:put(roster, SRItems ++ NewItems1, Acc).
+    mongoose_acc:set(roster, items, SRItems ++ NewItems1, Acc).
 
 %% This function in use to rewrite the roster entries when moving or renaming
 %% them in the user contact list.
@@ -153,7 +154,7 @@ process_item(RosterItem, _Host) ->
     end.
 
 get_subscription_lists(Acc, User, Server) ->
-    {F, T, P} = mongoose_acc:get(subscription_lists, Acc, {[], [], []}),
+    {F, T, P} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc),
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     US = {LUser, LServer},
@@ -164,7 +165,7 @@ get_subscription_lists(Acc, User, Server) ->
                                         DisplayedGroups)),
     SRJIDs = [{U1, S1, <<"">>} || {U1, S1} <- SRUsers],
     NewLists = {lists:usort(SRJIDs ++ F), lists:usort(SRJIDs ++ T), P},
-    mongoose_acc:put(subscription_lists, NewLists, Acc).
+    mongoose_acc:set(roster, subscription_lists, NewLists, Acc).
 
 get_jid_info({Subscription, Groups}, User, Server, JID) ->
     LUser = jid:nodeprep(User),
@@ -195,7 +196,7 @@ in_subscription(Acc, User, Server, JID, Type, _Reason) ->
         stop ->
             {stop, Acc};
         {stop, false} ->
-            {stop, mongoose_acc:put(result, false, Acc)};
+            {stop, mongoose_acc:set(hook, result, false, Acc)};
         _ -> Acc
     end.
 
@@ -211,7 +212,7 @@ out_subscription(Acc, User, Server, JID, Type) ->
             {stop, Acc};
         {stop, false} ->
             {stop, Acc};
-        _ -> Acc
+         false -> Acc
     end.
 
 process_subscription(Direction, User, Server, JID, _Type) ->
@@ -339,7 +340,7 @@ eldap_search(State, FilterParseArgs, AttributesList) ->
                                    [{base, State#state.base},
                                     {filter, EldapFilter},
                                     {timeout, ?LDAP_SEARCH_TIMEOUT},
-                                    {deref_aliases, State#state.deref_aliases},
+                                    {deref, State#state.deref},
                                     {attributes, AttributesList}])
             of
                 #eldap_search_result{entries = Es} ->
@@ -362,7 +363,7 @@ get_user_displayed_groups({User, Host}) ->
                            [GroupAttr]),
     Reply = lists:flatmap(fun (#eldap_entry{attributes = Attrs}) ->
                                   case eldap_utils:singleton_value(Attrs) of
-                                      {GroupAttr, Value} -> [Value];
+                                      {GroupAttr, Value} -> [eldap_utils:maybe_list2b(Value)];
                                       _ -> []
                                   end
                           end,
@@ -441,16 +442,18 @@ ldap_entries_to_group(LDAPEntries, Host, Group, State, Extractor, AuthChecker) -
 
 ldap_entries_to_group([#eldap_entry{ attributes = Attrs } | REntries], Host,
                       DescAcc, JIDsAcc, State, Extractor, AuthChecker) ->
+    UID = lists:keysearch(State#state.uid, 1, Attrs),
+    ListUID = State#state.uid,
     case {eldap_utils:get_ldap_attr(State#state.group_attr, Attrs),
-          eldap_utils:get_ldap_attr(State#state.group_desc, Attrs),
-          lists:keysearch(State#state.uid, 1, Attrs)} of
+          eldap_utils:get_ldap_attr(State#state.group_desc, Attrs), UID} of
         {ID, Desc, {value, {GroupMemberAttr, MemberIn}}}
-          when ID /= <<"">>, GroupMemberAttr == State#state.uid ->
+          when ID /= <<"">>, GroupMemberAttr == ListUID ->
             Member = case MemberIn of
                          [M] -> M;
                          _ -> MemberIn
                      end,
-            NewJIDsAcc = check_and_accumulate_member(Extractor(Member), AuthChecker, Host, JIDsAcc),
+            Extracted = Extractor(eldap_utils:maybe_list2b(Member)),
+            NewJIDsAcc = check_and_accumulate_member(Extracted, AuthChecker, Host, JIDsAcc),
             ldap_entries_to_group(REntries, Host, Desc, NewJIDsAcc, State, Extractor, AuthChecker);
         _ ->
             ldap_entries_to_group(REntries, Host, DescAcc, JIDsAcc, State, Extractor, AuthChecker)
@@ -592,7 +595,7 @@ parse_options(Host, Opts) ->
            dn = Cfg#eldap_config.dn,
            password = Cfg#eldap_config.password,
            base = Cfg#eldap_config.base,
-           deref_aliases = Cfg#eldap_config.deref_aliases,
+           deref = Cfg#eldap_config.deref,
            uid = UIDAttr,
            group_attr = GroupAttr, group_desc = GroupDesc,
            user_desc = UserDesc, user_uid = UserUID,

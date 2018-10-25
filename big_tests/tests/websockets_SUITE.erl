@@ -31,9 +31,10 @@ all() ->
      {group, wss_chat}].
 
 groups() ->
-    [{ws_chat, [sequence], test_cases()},
-     {wss_chat, [sequence], test_cases()}
-    ].
+    G = [{ws_chat, [sequence], test_cases()},
+         {wss_chat, [sequence], test_cases()}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 test_cases() ->
     [chat_msg,

@@ -41,16 +41,17 @@ all() ->
     ].
 
 groups() ->
-    [
-     {token_login, [sequence], token_login_tests()},
-     {token_revocation, [sequence], token_revocation_tests()},
-     {provision_token, [], [provision_token_login]},
-     {commands, [], [revoke_token_cmd_when_no_token,
-                     revoke_token_cmd]},
-     {cleanup, [], [token_removed_on_user_removal]},
-     {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
-                            check_for_oauth_with_mod_auth_token_loaded]}
-    ].
+    G = [
+         {token_login, [sequence], token_login_tests()},
+         {token_revocation, [sequence], token_revocation_tests()},
+         {provision_token, [], [provision_token_login]},
+         {commands, [], [revoke_token_cmd_when_no_token,
+                         revoke_token_cmd]},
+         {cleanup, [], [token_removed_on_user_removal]},
+         {sasl_mechanisms, [], [check_for_oauth_with_mod_auth_token_not_loaded,
+                                check_for_oauth_with_mod_auth_token_loaded]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 token_login_tests() ->
     [
@@ -165,7 +166,7 @@ get_revoked_token(Config, UserName) ->
     BJID = escalus_users:get_jid(Config, UserName),
     JID = rpc(mim(), jid, from_binary, [BJID]),
     Token = rpc(mim(), mod_auth_token, token, [refresh, JID]),
-    ValidSeqNo = rpc(mim(), mod_auth_token_odbc, get_valid_sequence_number, [JID]),
+    ValidSeqNo = rpc(mim(), mod_auth_token_rdbms, get_valid_sequence_number, [JID]),
     RevokedToken0 = record_set(Token, [{5, invalid_sequence_no(ValidSeqNo)},
                                        {7, undefined},
                                        {8, undefined}]),
@@ -310,7 +311,6 @@ token_removed_on_user_removal(Config) ->
     S = fun (Bob) ->
                 IQ = escalus_stanza:remove_account(),
                 escalus:send(Bob, IQ),
-                timer:sleep(500),
                 escalus:assert(is_iq_result, [IQ], escalus:wait_for_stanza(Bob))
         end,
     escalus:story(Config, [{bob, 1}], S),
@@ -413,8 +413,8 @@ convert_arg(S) when is_list(S) -> S.
 
 clean_token_db() ->
     Q = [<<"DELETE FROM auth_token">>],
-    ODBCHost = domain(), %% mam is also tested against local odbc
-    {updated, _} = rpc(mim(), mongoose_rdbms, sql_query, [ODBCHost, Q]).
+    RDBMSHost = domain(), %% mam is also tested against local rdbms
+    {updated, _} = rpc(mim(), mongoose_rdbms, sql_query, [RDBMSHost, Q]).
 
 get_users_token(C, User) ->
     Q = ["SELECT * FROM auth_token at "
@@ -478,9 +478,9 @@ to_lower(B) when is_binary(B) ->
 
 is_pgsql_available(_) ->
     Q = [<<"SELECT version();">>],
-    %% TODO: hardcoded ODBCHost
-    ODBCHost = domain(),
-    case rpc(mim(), mongoose_rdbms, sql_query, [ODBCHost, Q]) of
+    %% TODO: hardcoded RDBMSHost
+    RDBMSHost = domain(),
+    case rpc(mim(), mongoose_rdbms, sql_query, [RDBMSHost, Q]) of
         {selected, [{<<"PostgreSQL", _/binary>>}]} ->
             true;
         _ ->

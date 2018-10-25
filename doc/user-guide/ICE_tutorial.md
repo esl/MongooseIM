@@ -59,9 +59,8 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 #### Configuration
 
 You can find MongooseIM installation instructions on [this page](Getting-started.md).
-Once you have cloned the repository and compiled the project, you need to modify the `ejabberd.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/ejabberd.cfg`, where `$REPO` is a top-level directory of
-cloned repo).
-You can use [this](ICE_tutorial/ejabberd.cfg) configuration file and modify the relevant part:
+Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.cfg`, where `$REPO` is a top-level directory of the cloned repo).
+You can use [this](ICE_tutorial/mongooseim.cfg) configuration file and modify the relevant part:
 ```erlang
 %%%% ICE DEMO %%%%
 {hosts, ["localhost", "myxmpp.com"] }.
@@ -211,4 +210,3 @@ Hopefully, now you can see the video on your own mobile device.
 [ffmpeg]: https://ffmpeg.org
 [ice_demo_client]: https://github.com/esl/ice_demo
 [h264_sample_video]: https://drive.google.com/file/d/0B48g-HBQ5xpxeVlUSks2bVRlLTQ/view?usp=sharing
-

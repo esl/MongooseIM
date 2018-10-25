@@ -1,3 +1,83 @@
+# Test runner
+
+The test runner script is used to compile MongooseIM and run tests.
+
+The help command prints a list of supported options.
+
+```bash
+./tools/test-runner.sh --help
+```
+
+## Test runner examples
+
+Usage example:
+
+```bash
+./tools/test-runner.sh --db redis --preset internal_mnesia
+```
+
+The command runs both big (feature) and small (unit) tests.
+
+To view more examples, run:
+
+```bash
+./tools/test-runner.sh --examples
+```
+
+## Test runner completion
+
+Test runner supports shell TAB completion.
+
+To enable completion in bash or zsh, run:
+
+```bash
+source tools/test-runner-complete.sh
+```
+
+To view completion examples, run:
+
+```bash
+./tools/test-runner.sh --examples-complete
+```
+
+## Viewing test reports
+
+To view test execution results, run:
+
+```bash
+./tools/test-runner.sh --show-big-reports
+./tools/test-runner.sh --show-small-reports
+```
+
+## Rerun big tests
+
+Very often we want to restart a specific suite when some test failed.
+
+For example, some test has failed in `mam_SUITE`. The command was used to
+execute tests:
+
+```bash
+./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes
+```
+
+`--skip-stop-nodes` is optional here, because if any big test fails, then nodes
+would be still running.
+
+We can just execute the same command, but it would rebuild nodes and start
+them.
+
+The command can be used instead:
+
+```bash
+./tools/test-runner.sh --rerun-big-tests -- mam
+```
+
+`--rerun-big-tests` expands into
+`--skip-small-tests --skip-setup-db --dev-nodes --test-hosts --skip-cover --skip-preset`.
+
+And `mam` is used to run `mam_SUITE` suite only.
+
+
 # Unit tests (a.k.a. "small tests")
 
 These test suites are aimed at testing various modules and libraries standalone, without launching a MongooseIM instance.
@@ -15,7 +95,39 @@ Detailed test results in a nice HTML format are saved in
 _build/test/logs/ct_run.[something][datetime]/
 ```
 
+Unit test running example using test runner:
+
+```bash
+# Run all small tests, show progress
+./tools/test-runner.sh --skip-big-tests --verbose
+
+# Run sha_SUITE without cover
+./tools/test-runner.sh --skip-big-tests sha --skip-cover
+
+# Run reload_cluster group in ejabberd_config_SUITE, show progress
+./tools/test-runner.sh --skip-big-tests ejabberd_config:reload_cluster --verbose
+```
+
+
 # End-to-end tests (a.k.a. "big tests")
+
+## Using test runner
+
+Most important options are preset and database:
+
+```bash
+# Runs privacy_SUITE and private_SUITE with MySQL
+./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia -- privacy private
+
+
+# Runs MAM tests for MUC light with MySQL and Postgres
+./tools/test-runner.sh --skip-small-tests --db mysql pgsql --preset mysql_mnesia pgsql_mnesia -- mam:rdbms_muc_light
+
+# Runs rdbms_SUITE with MSSQL
+# Inits a single MongooseIM node (works for some tests only)
+# Disables cover
+./tools/test-runner.sh --skip-small-tests --db mssql --preset rdbms_mssql_mnesia --test-hosts mim --dev-nodes mim1 -- rdbms --skip-cover
+```
 
 ## TL;DR
 

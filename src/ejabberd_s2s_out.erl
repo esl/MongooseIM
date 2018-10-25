@@ -861,12 +861,12 @@ send_queue(StateData, Q) ->
 %% @doc Bounce a single message (xmlel)
 -spec bounce_element(Acc :: mongoose_acc:t(), El :: exml:element(), Error :: exml:element()) -> 'ok'.
 bounce_element(Acc, El, Error) ->
-    case mongoose_acc:get(type, Acc) of
+    case mongoose_acc:stanza_type(Acc) of
         <<"error">> -> ok;
         <<"result">> -> ok;
         _ ->
-            From = mongoose_acc:get(from_jid, Acc),
-            To = mongoose_acc:get(to_jid, Acc),
+            From = mongoose_acc:from_jid(Acc),
+            To = mongoose_acc:to_jid(Acc),
             {Acc1, Err} = jlib:make_error_reply(Acc, El, Error),
             ejabberd_router:route(To, From, Acc1, Err)
     end.
@@ -885,7 +885,7 @@ bounce_queue(Q, Error) ->
 
 -spec new_id() -> binary().
 new_id() ->
-    list_to_binary(randoms:get_string()).
+    mongoose_bin:gen_from_crypto().
 
 
 -spec cancel_timer(reference()) -> 'ok'.
@@ -987,7 +987,6 @@ get_addr_port(Server) ->
         {ok, #hostent{h_addr_list = AddrList}} ->
             %% Probabilities are not exactly proportional to weights
             %% for simplicity (higher weigths are overvalued)
-            random:seed(randoms:good_seed()),
             case (catch lists:map(fun calc_addr_index/1, AddrList)) of
                 {'EXIT', _Reason} ->
                     [{Server, outgoing_s2s_port()}];
@@ -1296,7 +1295,7 @@ get_tls_opts_with_ciphers(TLSOpts) ->
 calc_addr_index({Priority, Weight, Port, Host}) ->
     N = case Weight of
             0 -> 0;
-            _ -> (Weight + 1) * random:uniform()
+            _ -> (Weight + 1) * rand:uniform()
         end,
     {Priority * 65536 - N, Host, Port}.
 

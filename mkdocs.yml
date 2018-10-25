@@ -8,7 +8,7 @@ extra_javascript: []
 
 pages:
   - Home: 'index.md'
-  - User guide:
+  - 'User guide':
       - 'ABCs of MongooseIM': 'user-guide/Get-to-know-MongooseIM.md'
       - 'High-level Architecture': 'user-guide/MongooseIM-High-level-Architecture.md'
       - 'Features and supported standards': 'user-guide/Features-and-supported-standards.md'
@@ -19,6 +19,9 @@ pages:
       - 'How to Set up MongoosePush': 'user-guide/Push-notifications.md'
       - 'How to Set up MongooseICE': 'user-guide/ICE_tutorial.md'
       - 'How to Build an iOS messaging app': 'user-guide/iOS_tutorial.md'
+      - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
+  - Migration Guide:
+      - '3.1.1 to 3.1.1++': 'migrations/3.1.1_3.1.1++.md'
   - Platform:
       - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
@@ -28,6 +31,7 @@ pages:
       - 'Basic Configuration': 'Basic-configuration.md'
       - 'Advanced Configuration': 'Advanced-configuration.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
+      - 'Outgoing connections': 'advanced-configuration/outgoing-connections.md'
       - 'Extension Modules': 'advanced-configuration/Modules.md'
       - 'Listener Modules': 'advanced-configuration/Listener-modules.md'
       - 'ACL': 'advanced-configuration/acl.md'
@@ -56,16 +60,19 @@ pages:
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
   - "Developer's guide":
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
+      - 'Logging': 'developers-guide/logging.md'
       - 'Hooks and Handlers': 'developers-guide/Hooks-and-handlers.md'
       - 'Hooks description': 'developers-guide/hooks_description.md'
       - 'Stanza routing': 'developers-guide/message_routing.md'
       - 'Accumulators':  'developers-guide/accumulators.md'
+      - 'Flat options format': 'developers-guide/flat_options.md'
       - 'Moving to single app project structure': 'developers-guide/Moving-to-single-app-project-structure.md'
       - 'mod_amp development': 'developers-guide/mod_amp_developers_guide.md'
       - 'mod_muc_light developers doc': 'developers-guide/mod_muc_light_developers_guide.md'
       - 'SCRAM serialization format': 'developers-guide/SCRAM-serialization.md'
       - 'xep-tool usage': 'developers-guide/xep_tool.md'
       - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
+      - 'Basic IQ Handler': 'developers-guide/Basic-iq-handler.md'
   - 'Module index':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_amp': 'modules/mod_amp.md'

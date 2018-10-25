@@ -27,10 +27,14 @@
 -define(MYNAME,  hd(ejabberd_config:get_global_option(hosts))).
 -define(MYLANG,  ejabberd_config:get_global_option(language)).
 
--define(CONFIG_PATH, "etc/ejabberd.cfg").
+-define(CONFIG_PATH, "etc/mongooseim.cfg").
+
+-define(LOCATION, {?MODULE, ?FUNCTION_NAME, ?LINE}).
 
 -define(MONGOOSE_URI, <<"https://www.erlang-solutions.com/products/mongooseim.html">>).
 
 %% ---------------------------------
 %% Logging mechanism
 -include("mongoose_logger.hrl").
+
+

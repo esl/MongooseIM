@@ -128,7 +128,7 @@ start() ->
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_INCOMING_CLOSED(undefined), spiral),
     ChildMod = mod_global_distrib_worker_sup,
     Child = {ChildMod, {ChildMod, start_link, []}, permanent, 10000, supervisor, [ChildMod]},
-    {ok, _}= supervisor:start_child(ejabberd_sup, Child),
+    ejabberd_sup:start_child(Child),
     Endpoints = mod_global_distrib_utils:resolve_endpoints(opt(endpoints)),
     ets:insert(?MODULE, {endpoints, Endpoints}),
     start_listeners().
@@ -136,8 +136,7 @@ start() ->
 -spec stop() -> any().
 stop() ->
     stop_listeners(),
-    supervisor:terminate_child(ejabberd_sup, mod_global_distrib_worker_sup),
-    supervisor:delete_child(ejabberd_sup, mod_global_distrib_worker_sup).
+    ejabberd_sup:stop_child(mod_global_distrib_worker_sup).
 
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->

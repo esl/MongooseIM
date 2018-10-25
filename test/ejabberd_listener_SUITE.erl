@@ -79,8 +79,8 @@ tcp_port_ip() ->
 
 tcp_start_stop_reload(C) ->
     %% start server
-    copy(data(C, "ejabberd.basic.cfg"), data(C, "ejabberd.cfg")),
-    ejabberd_helper:start_ejabberd_with_config(C, "ejabberd.cfg"),
+    copy(data(C, "mongooseim.basic.cfg"), data(C, "mongooseim.cfg")),
+    ejabberd_helper:start_ejabberd_with_config(C, "mongooseim.cfg"),
     ?assert(lists:keymember(mongooseim, 1, application:which_applications())),
     %% make sure all ports are open
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
@@ -91,7 +91,7 @@ tcp_start_stop_reload(C) ->
     ejabberd_listener:start_listeners(),
     lists:map(fun assert_open/1, ?DEFAULT_PORTS),
     %% alternative configuration differs only in that s2s listens on 5296 instea of 5269
-    copy(data(C, "ejabberd.alt.cfg"), data(C, "ejabberd.cfg")),
+    copy(data(C, "mongooseim.alt.cfg"), data(C, "mongooseim.cfg")),
     %% we want to make sure that connection to an unchanged port survives reload
     UnchPort = 5222,
     {ok, Sock} = gen_tcp:connect("localhost", UnchPort,[{active, false}, {packet, 2}]),
@@ -118,14 +118,11 @@ assert_open(PortNo) ->
     end .
 
 assert_closed(PortNo) ->
-    case gen_tcp:connect("localhost", PortNo, [{active, false}, {packet, 2}]) of
-        {ok, _Socket} ->
-            ct:fail("Failed: port ~p is open, should be closed", [PortNo]);
-        {error, econnrefused} ->
-            ok;
-        E ->
-            ct:fail("Error trying port ~p: ~p", [PortNo, E])
-    end .
+    F = fun() ->
+              gen_tcp:connect("localhost", PortNo, [{active, false}, {packet, 2}])
+        end,
+    async_helper:wait_until(F, {error, econnrefused}).
+
 
 assert_connected(Sock, Port) ->
     case gen_tcp:recv(Sock, 0, 500) of

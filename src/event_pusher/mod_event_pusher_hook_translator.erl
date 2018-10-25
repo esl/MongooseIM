@@ -89,11 +89,12 @@ user_not_present(Acc, User, Host, Resource, _Status) ->
 
 -spec chat_type(mongoose_acc:t()) -> chat | groupchat | headline | normal | false.
 chat_type(Acc) ->
-    case mongoose_acc:get(type, Acc, <<"normal">>) of
+    case mongoose_acc:stanza_type(Acc) of
         <<"chat">> -> chat;
         <<"groupchat">> -> groupchat;
         <<"headline">> -> headline;
         <<"normal">> -> normal;
+        undefined -> normal;
         _ -> false
     end.
 

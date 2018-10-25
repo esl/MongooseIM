@@ -14,6 +14,7 @@
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
+-import(muc_light_helper, [lbin/1]).
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
@@ -22,32 +23,34 @@ all() -> [{group, Group} || Group <- enabled_group_names()].
 
 enabled_group_names() ->
     [basic, offline] ++
-    case mongoose_helper:is_odbc_enabled(domain()) of
+    case mongoose_helper:is_rdbms_enabled(domain()) of
         true -> [mam];
         false -> []
     end.
 
 groups() ->
-    [{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
-     {mam, [], [{group, mam_success},
-                {group, mam_failure}]},
-     {mam_success, [], [{group, G} || G <- subgroup_names()]},
-     {mam_failure, [], [{group, G} || G <- subgroup_names()]},
-     {offline, [], [{group, offline_success},
-                    {group, offline_failure}]},
-     {offline_success, [], [{group, G} || G <- subgroup_names()]},
-     {offline_failure, [], [{group, G} || G <- subgroup_names()]}
-    ] ++
-        [{G, [parallel, shuffle], notify_deliver_test_cases()}
-         || G <- notify_deliver_group_names()] ++
-        [{G, [parallel, shuffle], error_deliver_test_cases()}
-         || G <- error_deliver_group_names()] ++
-        [{G, [parallel, shuffle], drop_deliver_test_cases()}
-         || G <- drop_deliver_group_names()].
+    Gs = ([{basic, [parallel], [{group, G} || G <- subgroup_names()] ++ basic_test_cases()},
+           {mam, [], [{group, mam_success},
+                      {group, mam_failure}]},
+           {mam_success, [], [{group, G} || G <- subgroup_names()]},
+           {mam_failure, [], [{group, G} || G <- subgroup_names()]},
+           {offline, [], [{group, offline_success},
+                          {group, offline_failure}]},
+           {offline_success, [], [{group, G} || G <- subgroup_names()]},
+           {offline_failure, [], [{group, G} || G <- subgroup_names()]}
+          ] ++
+          [{G, [parallel, shuffle], notify_deliver_test_cases()}
+           || G <- notify_deliver_group_names()] ++
+          [{G, [parallel, shuffle], error_deliver_test_cases()}
+           || G <- error_deliver_group_names()] ++
+          [{G, [parallel, shuffle], drop_deliver_test_cases()}
+           || G <- drop_deliver_group_names()]),
+    ct_helper:repeat_all_until_all_ok(Gs).
+
 
 subgroup_names() -> notify_deliver_group_names() ++
-                        error_deliver_group_names() ++
-                        drop_deliver_group_names().
+                    error_deliver_group_names() ++
+                    drop_deliver_group_names().
 
 notify_deliver_group_names() ->
     [notify_deliver_none,
@@ -102,10 +105,10 @@ drop_deliver_test_cases() ->
      drop_deliver_to_stranger_test].
 
 init_per_suite(C) ->
-    rpc(mim(), ejabberd_config, add_local_option, [outgoing_s2s_options, {[ipv4, ipv6], 1000}]),
+    rpc(mim(), ejabberd_config, add_local_option, [{{s2s_host, <<"not a jid">>}, domain()}, deny]),
     escalus:init_per_suite(C).
 end_per_suite(C) ->
-    rpc(mim(), ejabberd_config, del_local_option, [outgoing_s2s_options]),
+    rpc(mim(), ejabberd_config, del_local_option, [{{s2s_host, <<"not a jid">>}, domain()}]),
     escalus_fresh:clean(),
     escalus:end_per_suite(C).
 
@@ -117,7 +120,7 @@ init_per_group(GroupName, Config) ->
     save_offline_status(GroupName, ConfigWithRules).
 
 setup_meck(mam_failure) ->
-    ok = rpc(mim(), meck, expect, [mod_mam_odbc_arch, archive_message, 9, {error, simulated}]);
+    ok = rpc(mim(), meck, expect, [mod_mam_rdbms_arch, archive_message, 9, {error, simulated}]);
 setup_meck(offline_failure) ->
     ok = rpc(mim(), meck, expect, [mod_offline_mnesia, write_messages, 3, {error, simulated}]);
 setup_meck(_) -> ok.
@@ -283,7 +286,7 @@ notify_deliver_to_online_user_recipient_privacy_test(Config) ->
 
 notify_deliver_to_offline_user_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:story(
+    escalus_fresh:story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -325,20 +328,18 @@ notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
 
 do_notify_deliver_to_offline_user_recipient_privacy_test(Config) ->
     FreshConfig = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
-    escalus:story(
-      FreshConfig, [{bob, 1}],
-      fun(Bob) ->
-              %% given
+    escalus:fresh_story(
+      FreshConfig, [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+
               privacy_helper:set_and_activate(Bob, <<"deny_all_message">>),
-              privacy_helper:set_default_list(Bob, <<"deny_all_message">>)
-      end),
-    escalus:story(
-      FreshConfig, [{alice, 1}],
-      fun(Alice) ->
+              privacy_helper:set_default_list(Bob, <<"deny_all_message">>),
+              mongoose_helper:logout_user(Config, Bob),
               %% given
               Rule = {deliver, none, notify},
               Rules = rules(Config, [Rule]),
-              BobJid = escalus_users:get_jid(FreshConfig, bob),
+              BobJid = lbin(escalus_client:short_jid(Bob)),
+
               Msg = amp_message_to(BobJid, Rules, <<"A message in a bottle...">>),
 
               %% when
@@ -393,8 +394,8 @@ notify_deliver_to_malformed_jid_test(Config) ->
                   true -> client_receives_notification(Alice, StrangerJid, Rule);
                   false -> ok
               end,
-              % Error codes may vary because of s2s config - accept any code
-              client_receives_generic_error(Alice, any, <<"cancel">>),
+              % s2s does not allow routing to 'not a jid', so error 503 is expected
+              client_receives_generic_error(Alice, <<"503">>, <<"cancel">>),
               client_receives_nothing(Alice)
       end).
 
@@ -496,7 +497,7 @@ error_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, error},
     Rules = rules(Config, [Rule]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -577,7 +578,7 @@ drop_deliver_to_offline_user_test(Config) ->
                          _ -> stored
                      end, drop},
     Rules = rules(Config, [Rule]),
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{alice, 1}],
       fun(Alice) ->
               %% given
@@ -647,7 +648,7 @@ last_rule_applies_test(Config) ->
 %% Internal
 
 user_has_no_incoming_offline_messages(FreshConfig, UserName) ->
-    escalus:story(
+    escalus:fresh_story(
       FreshConfig, [{UserName, 1}],
       fun(User) ->
               client_receives_nothing(User),
@@ -930,9 +931,9 @@ required_modules(_) ->
     [].
 
 mam_modules(on) ->
-    [{mod_mam_odbc_user, [pm]},
-     {mod_mam_odbc_prefs, [pm]},
-     {mod_mam_odbc_arch, [pm]},
+    [{mod_mam_rdbms_user, [pm]},
+     {mod_mam_rdbms_prefs, [pm]},
+     {mod_mam_rdbms_arch, [pm]},
      {mod_mam, []}];
 mam_modules(off) ->
     [{mod_mam, stopped}].

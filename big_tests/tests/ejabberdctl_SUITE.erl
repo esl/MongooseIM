@@ -51,28 +51,30 @@ all() ->
     ].
 
 groups() ->
-     [{accounts, [sequence], accounts()},
-      {sessions, [sequence], sessions()},
-      {vcard, [sequence], vcard()},
-      {roster, [sequence], roster()},
-      {last, [sequence], last()},
-      {private, [sequence], private()},
-      {stanza, [sequence], stanza()},
-      {roster_advanced, [sequence], roster_advanced()},
-      {basic, [sequence], basic()},
-      {stats, [sequence], stats()}].
+    G = [{accounts, [sequence], accounts()},
+         {sessions, [sequence], sessions()},
+         {vcard, [sequence], vcard()},
+         {roster, [sequence], roster()},
+         {last, [sequence], last()},
+         {private, [sequence], private()},
+         {stanza, [sequence], stanza()},
+         {roster_advanced, [sequence], roster_advanced()},
+         {basic, [sequence], basic()},
+         {stats, [sequence], stats()}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 basic() ->
-    [simple_register, simple_unregister, register_twice,
-        backup_restore_mnesia,
-        restore_mnesia_wrong,
-        dump_and_load,
-        load_mnesia_wrong,
-        dump_table,
-        get_loglevel,
-        remove_old_messages_test,
-        remove_expired_messages_test
-    ].
+    [simple_register,
+     simple_unregister,
+     register_twice,
+     backup_restore_mnesia,
+     restore_mnesia_wrong,
+     dump_and_load,
+     load_mnesia_wrong,
+     dump_table,
+     get_loglevel,
+     remove_old_messages_test,
+     remove_expired_messages_test].
 
 accounts() -> [change_password, check_password_hash, check_password,
                check_account, ban_account, num_active_users, delete_old_users,
@@ -83,17 +85,18 @@ sessions() -> [num_resources_num, kick_session, status,
 
 vcard() -> [vcard_rw, vcard2_rw, vcard2_multi_rw].
 
-roster() -> [rosteritem_rw, presence_after_add_rosteritem,
+roster() -> [rosteritem_rw,
+             presence_after_add_rosteritem,
              push_roster,
              push_roster_all,
              push_roster_alltoall].
 
-roster_advanced() ->[process_rosteritems_list_simple,
-                          process_rosteritems_list_nomatch,
-                          process_rosteritems_list_advanced1,
-                          process_rosteritems_list_advanced2,
-                          process_rosteritems_delete_advanced,
-                          process_rosteritems_delete_advanced2].
+roster_advanced() -> [process_rosteritems_list_simple,
+                      process_rosteritems_list_nomatch,
+                      process_rosteritems_list_advanced1,
+                      process_rosteritems_list_advanced2,
+                      process_rosteritems_delete_advanced,
+                      process_rosteritems_delete_advanced2].
 
 last() -> [set_last].
 
@@ -155,7 +158,11 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
             true ->
                 SB = string_to_binary(S),
                 UB = string_to_binary(U),
-                rpc(mim(), ejabberd_hooks, run, [remove_user, SB, [UB, SB]]);
+                Acc = rpc(mim(), mongoose_acc, new,
+                          [#{ location => {?MODULE, ?FUNCTION_NAME, ?LINE},
+                              lserver => SB,
+                              element => undefined }]),
+                rpc(mim(), ejabberd_hooks, run_fold, [remove_user, SB, Acc, [UB, SB]]);
             _ ->
                ok
         end
@@ -166,14 +173,14 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 init_per_testcase(CaseName, Config)
-  % these cases are incompatible with domainless odbc schema
+  % these cases are incompatible with domainless rdbms schema
   when CaseName == delete_old_users_vhost
        orelse CaseName == stats_global
        orelse CaseName == stats_host ->
     {_, AuthMods} = lists:keyfind(ctl_auth_mods, 1, Config),
-    case lists:member(ejabberd_auth_odbc, AuthMods) orelse
+    case lists:member(ejabberd_auth_rdbms, AuthMods) orelse
          lists:member(ejabberd_auth_ldap, AuthMods) of
-        true -> {skip, vhost_odbc_incompatible};
+        true -> {skip, vhost_rdbms_incompatible};
         false -> escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(CaseName, Config)
@@ -253,17 +260,23 @@ ban_account(Config) ->
     escalus_cleaner:remove_client(Config, Mike).
 
 num_active_users(Config) ->
+    %% Given some users with recorded last activity timestamps
     {AliceName, Domain, _} = get_user_data(alice, Config),
     {MikeName, Domain, _} = get_user_data(mike, Config),
-
     {Mega, Secs, _} = os:timestamp(),
-    Now = Mega*1000000+Secs,
+    Now = Mega * 1000000 + Secs,
     set_last(AliceName, Domain, Now),
-    {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
-    set_last(MikeName, Domain, Now - 864000), %% Now - 10 days
-    %We expect than number of active user in last 5 days is the same as before
-    %the change above
-    {Result, _} = ejabberdctl("num_active_users", [Domain, "5"], Config).
+    set_last(MikeName, Domain, Now),
+    {SLastActiveBefore, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
+    %% When we artificially remove a user's last activity timestamp in the given period
+    TenDaysAgo = Now - 864000,
+    set_last(MikeName, Domain, TenDaysAgo),
+    %% Then we expect that the number of active users in the last 5 days is one less
+    %% than before the change above
+    {SLastActiveAfter, _} = ejabberdctl("num_active_users", [Domain, "5"], Config),
+    NLastActiveBefore = list_to_integer(string:strip(SLastActiveBefore, both, $\n)),
+    NLastActiveAfter = list_to_integer(string:strip(SLastActiveAfter, both, $\n)),
+    NLastActiveAfter = NLastActiveBefore - 1.
 
 delete_old_users(Config) ->
     {AliceName, Domain, _} = get_user_data(alice, Config),

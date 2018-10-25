@@ -26,7 +26,7 @@
 
 -module(ejabberd_s2s_in).
 -author('alexey@process-one.net').
--behaviour(gen_fsm).
+-behaviour(gen_fsm_compat).
 
 %% External exports
 -export([start/2,
@@ -80,7 +80,7 @@
 
 %% Module start with or without supervisor:
 -ifdef(NO_TRANSIENT_SUPERVISORS).
--define(SUPERVISOR_START, gen_fsm:start(ejabberd_s2s_in, [SockData, Opts],
+-define(SUPERVISOR_START, gen_fsm_compat:start(ejabberd_s2s_in, [SockData, Opts],
                                         ?FSMOPTS)).
 -else.
 -define(SUPERVISOR_START, supervisor:start_child(ejabberd_s2s_in_sup,
@@ -108,7 +108,7 @@ start(SockData, Opts) ->
 
 -spec start_link(_, _) -> 'ignore' | {'error', _} | {'ok', pid()}.
 start_link(SockData, Opts) ->
-    gen_fsm:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
+    gen_fsm_compat:start_link(ejabberd_s2s_in, [SockData, Opts], ?FSMOPTS).
 
 
 socket_type() ->
@@ -398,18 +398,25 @@ stream_established(timeout, StateData) ->
 stream_established(closed, StateData) ->
     {stop, normal, StateData}.
 
--spec route_incoming_stanza(From :: jid:jid(), To :: jid:jid(), El :: exml:element(), StateData :: state()) ->
+-spec route_incoming_stanza(From :: jid:jid(),
+                            To :: jid:jid(),
+                            El :: exml:element(),
+                            StateData :: state()) ->
     mongoose_acc:t() | error.
 route_incoming_stanza(From, To, El, StateData) ->
-    LFrom = From#jid.lserver,
-    LTo = To#jid.lserver,
+    LFromS = From#jid.lserver,
+    LToS = To#jid.lserver,
     #xmlel{name = Name} = El,
-    Acc = mongoose_acc:from_element(El, From, To),
-    case is_s2s_authenticated(LFrom, LTo, StateData) of
+    Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                              lserver => LToS,
+                              element => El,
+                              from_jid => From,
+                              to_jid => To }),
+    case is_s2s_authenticated(LFromS, LToS, StateData) of
         true ->
             route_stanza(Name, Acc);
         false ->
-            case is_s2s_connected(LFrom, LTo, StateData) of
+            case is_s2s_connected(LFromS, LToS, StateData) of
                 true ->
                     route_stanza(Name, Acc);
                 false ->
@@ -444,8 +451,8 @@ route_stanza(_, _Acc) ->
 
 -spec route_stanza(mongoose_acc:t()) -> mongoose_acc:t().
 route_stanza(Acc) ->
-    From = mongoose_acc:get(from_jid, Acc),
-    To = mongoose_acc:get(to_jid, Acc),
+    From = mongoose_acc:from_jid(Acc),
+    To = mongoose_acc:to_jid(Acc),
     LTo = To#jid.lserver,
     Acc1 = ejabberd_hooks:run_fold(s2s_receive_packet,
                                    LTo, Acc, []),
@@ -582,7 +589,7 @@ change_shaper(StateData, Host, JID) ->
 
 -spec new_id() -> binary().
 new_id() ->
-    list_to_binary(randoms:get_string()).
+    mongoose_bin:gen_from_crypto().
 
 
 -spec cancel_timer(reference()) -> 'ok'.

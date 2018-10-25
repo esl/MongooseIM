@@ -23,7 +23,8 @@
 -define(WAIT_TIME, 100).
 
 -import(metrics_helper, [assert_counter/2,
-                         get_counter_value/1]).
+                         get_counter_value/1,
+                         wait_for_counter/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -37,19 +38,20 @@ all() ->
      {group, count}].
 
 groups() ->
-    [{single, [sequence], [message_one,
-                           stanza_one,
-                           presence_one,
-                           presence_direct_one,
-                           iq_one]},
-     {multiple, [sequence], [messages]},
-     {drop, [sequence], [bounced
-                         ]},
-     {errors, [sequence], [error_total,
-                           error_mesg,
-                           error_iq,
-                           error_presence]},
-     {count, [sequence], [stanza_count]}].
+    G = [{single, [sequence], [message_one,
+                               stanza_one,
+                               presence_one,
+                               presence_direct_one,
+                               iq_one]},
+         {multiple, [sequence], [messages]},
+         {drop, [sequence], [bounced
+                            ]},
+         {errors, [sequence], [error_total,
+                               error_mesg,
+                               error_iq,
+                               error_presence]},
+         {count, [sequence], [stanza_count]}],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     [{require, ejabberd_node} | escalus:suite()].
@@ -189,9 +191,7 @@ bounced(Config) ->
         timer:sleep(?WAIT_TIME),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        timer:sleep(?WAIT_TIME),
-
-        assert_counter(MesgBounced + 1, xmppMessageBounced)
+        wait_for_counter(MesgBounced + 1, xmppMessageBounced)
 
         end).
 
@@ -226,9 +226,7 @@ error_total(Config) ->
         timer:sleep(?WAIT_TIME),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        timer:sleep(?WAIT_TIME),
-
-        assert_counter(Errors + 1, xmppErrorTotal)
+        wait_for_counter(Errors + 1, xmppErrorTotal)
 
         end).
 
@@ -240,9 +238,7 @@ error_mesg(Config) ->
         timer:sleep(?WAIT_TIME),
 
         escalus_client:send(Alice, escalus_stanza:chat_to(Bob, <<"Hi!">>)),
-        timer:sleep(?WAIT_TIME),
-
-        assert_counter(Errors + 1, xmppErrorMessage)
+        wait_for_counter(Errors + 1, xmppErrorMessage)
 
         end).
 
@@ -260,7 +256,7 @@ error_presence(Config) ->
         escalus:send(Bob, Presence),
         escalus:wait_for_stanza(Alice),
 
-        assert_counter(Errors + 1, xmppErrorPresence)
+        wait_for_counter(Errors + 1, xmppErrorPresence)
 
         end).
 
@@ -270,7 +266,4 @@ error_iq(Config) ->
     Users = escalus_config:get_config(escalus_users, Config),
     Alice = escalus_users:get_user_by_name(alice, Users),
     escalus_users:create_user(Config, Alice),
-
-    timer:sleep(?WAIT_TIME),
-
-    assert_counter(Errors + 1, xmppErrorIq).
+    wait_for_counter(Errors + 1, xmppErrorIq).

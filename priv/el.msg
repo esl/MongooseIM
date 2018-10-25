@@ -246,7 +246,7 @@
 {"Period: ","Περίοδος: "}.
 {"Persist items to storage","Μονιμη αποθήκευση στοιχείων"}.
 {"Ping","Πινγκ"}.
-{"Please note that these options will only backup the builtin Mnesia database. If you are using the ODBC module, you also need to backup your SQL database separately.","Παρακαλώ σημειώστε ότι οι επιλογές αυτές θα αποθήκευσουν Αντιγράφο Ασφαλείας μόνο της ενσωματωμένης βάσης δεδομένων Mnesia. Εάν χρησιμοποιείτε το module ODBC, θα πρέπει επίσης να κάνετε χωριστά Αντιγράφο Ασφαλείας της SQL βάση δεδομένων σας ."}.
+{"Please note that these options will only backup the builtin Mnesia database. If you are using the RDBMS module, you also need to backup your SQL database separately.","Παρακαλώ σημειώστε ότι οι επιλογές αυτές θα αποθήκευσουν Αντιγράφο Ασφαλείας μόνο της ενσωματωμένης βάσης δεδομένων Mnesia. Εάν χρησιμοποιείτε το module RDBMS, θα πρέπει επίσης να κάνετε χωριστά Αντιγράφο Ασφαλείας της SQL βάση δεδομένων σας ."}.
 {"Pong","Πονγκ"}.
 {"Port ~b","Θύρα ~b"}.
 {"Port","Θύρα"}.

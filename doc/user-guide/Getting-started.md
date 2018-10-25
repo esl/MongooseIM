@@ -107,7 +107,7 @@ The following steps assumes that you have already registered a user on the Mongo
 
 ## Domains
 
-To use your system’s domain name instead of localhost, edit the MongooseIM configuration file: `MongooseIM/_build/prod/rel/mongooseim/etc/ejabberd.cfg`.
+To use your system’s domain name instead of localhost, edit the MongooseIM configuration file: `MongooseIM/_build/prod/rel/mongooseim/etc/mongooseim.cfg`.
 Find and replace the line:
 
 ```erlang
