@@ -13,9 +13,10 @@
 -include("jid.hrl").
 -include("mongoose_ns.hrl").
 -include("mongoose.hrl").
+-include("mongoose_logger.hrl").
 
 -export([start/2, stop/1, deps/2]).
--export([process_iq/4, user_send_packet/4, filter_packet/1]).
+-export([process_iq/4, user_send_packet/4, filter_packet/1, inbox_unread_count/2]).
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
@@ -43,7 +44,7 @@
                        ToBareJid :: binary().
 
 -callback set_inbox_incr_unread(Username, Server, ToBareJid,
-                                Content, MsgId, Timestamp) -> inbox_write_res() when
+                                Content, MsgId, Timestamp) -> {ok, integer()} | ok when
                                 Username :: jid:luser(),
                                 Server :: jid:lserver(),
                                 ToBareJid :: binary(),
@@ -57,7 +58,14 @@
                        BareJid :: binary(),
                        MsgId :: binary().
 
+-callback clear_inbox(Server) -> inbox_write_res() when
+                      Server :: jid:lserver().
+
 -callback clear_inbox(Username, Server) -> inbox_write_res() when
+                      Username :: jid:luser(),
+                      Server :: jid:lserver().
+
+-callback get_inbox_unread(Username, Server) -> {ok, integer()} when
                       Username :: jid:luser(),
                       Server :: jid:lserver().
 
@@ -81,8 +89,7 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     MucTypes = get_groupchat_types(Host),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
-    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:add(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:add(hooks(Host)),
     store_bin_reset_markers(Host, Opts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
@@ -91,8 +98,7 @@ start(Host, Opts) ->
 stop(Host) ->
     mod_disco:unregister_feature(Host, ?NS_ESL_INBOX),
     mod_inbox_muc:stop(Host),
-    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 90),
-    ejabberd_hooks:delete(filter_local_packet, Host, ?MODULE, filter_packet, 90),
+    ejabberd_hooks:delete(hooks(Host)),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX).
 
 
@@ -143,6 +149,11 @@ user_send_packet(Acc, From, To, #xmlel{name = <<"message">>} = Msg) ->
 user_send_packet(Acc, _From, _To, _Packet) ->
     Acc.
 
+-spec inbox_unread_count(Acc :: mongooseim_acc:t(), To :: jid:jid()) -> mongooseim_acc:t().
+inbox_unread_count(Acc, To) ->
+    Res = mongoose_acc:get(inbox, unread_count, undefined, Acc),
+    get_inbox_unread(Res, Acc, To).
+
 -type fpacket() :: {From :: jid:jid(),
                     To :: jid:jid(),
                     Acc :: mongoose_acc:t(),
@@ -152,8 +163,18 @@ filter_packet(drop) ->
     drop;
 filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
     Host = To#jid.server,
-    maybe_process_message(Host, From, To, Msg, incoming),
-    {From, To, Acc, Msg};
+    %% In case of PgSQL we can we can update inbox and obtain unread_count in one query,
+    %% so we put it in accumulator here.
+    %% In case of MySQL/MsSQL it costs an extra query, so we fetch it only if necessary
+    %% (when push notification is created)
+    Acc0 = case maybe_process_message(Host, From, To, Msg, incoming) of
+               {ok, UnreadCount} ->
+                   mongoose_acc:set(inbox, unread_count, UnreadCount, Acc);
+               _ ->
+                   Acc
+           end,
+    {From, To, Acc0, Msg};
+
 filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
@@ -161,25 +182,29 @@ filter_packet({From, To, Acc, Packet}) ->
                             From :: jid:jid(),
                             To :: jid:jid(),
                             Msg :: exml:element(),
-                            Dir :: outgoing | incoming) -> ok.
+                            Dir :: outgoing | incoming) -> ok | {ok, integer()}.
 maybe_process_message(Host, From, To, Msg, Dir) ->
     AcceptableMessage = should_be_stored_in_inbox(Msg),
-    if AcceptableMessage ->
-        Type = get_message_type(Msg),
-        Type == one2one andalso
-        process_message(Host, From, To, Msg, Dir, one2one),
-        (Type == groupchat andalso muclight_enabled(Host)) andalso % legacy MUC is handled in seperate module
-        process_message(Host, From, To, Msg, Dir, groupchat);
+    case AcceptableMessage of
         true ->
+            Type = get_message_type(Msg),
+            maybe_process_acceptable_message(Host, From, To, Msg, Dir, Type);
+        false ->
             ok
     end.
+
+maybe_process_acceptable_message(Host, From, To, Msg, Dir, one2one) ->
+            process_message(Host, From, To, Msg, Dir, one2one);
+maybe_process_acceptable_message(Host, From, To, Msg, Dir, groupchat) ->
+            muclight_enabled(Host) andalso
+            process_message(Host, From, To, Msg, Dir, groupchat).
 
 -spec process_message(Host :: host(),
                       From :: jid:jid(),
                       To :: jid:jid(),
                       Message :: exml:element(),
                       Dir :: outgoing | incoming,
-                      Type :: one2one | groupchat) -> ok.
+                      Type :: one2one | groupchat) -> ok | {ok, integer()}.
 process_message(Host, From, To, Message, outgoing, one2one) ->
     mod_inbox_one2one:handle_outgoing_message(Host, From, To, Message);
 process_message(Host, From, To, Message, incoming, one2one) ->
@@ -289,6 +314,20 @@ form_field_value(Value) ->
 
 %%%%%%%%%%%%%%%%%%%
 %% Helpers
+get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
+    Acc;
+get_inbox_unread(undefined, Acc, To) ->
+%% TODO this value should be bound to a stanza reference inside Acc
+    {User, Host} = jid:to_lus(To),
+    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
+    mongoose_acc:set(inbox, unread_count, Count, Acc).
+
+hooks(Host) ->
+    [
+     {user_send_packet, Host, ?MODULE, user_send_packet, 70},
+     {filter_local_packet, Host, ?MODULE, filter_packet, 90},
+     {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80}
+    ].
 
 get_groupchat_types(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, groupchat, [muclight]).
@@ -377,7 +416,7 @@ get_message_type(Msg) ->
             one2one
     end.
 
--spec clear_inbox(Username :: jid:luser(), Server :: host()) -> ok.
+-spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
 clear_inbox(Username, Server) ->
     mod_inbox_utils:clear_inbox(Username, Server).
 
@@ -403,7 +442,7 @@ muc_dep(List) ->
 
 callback_funs() ->
     [get_inbox, set_inbox, set_inbox_incr_unread,
-        reset_unread, remove_inbox, clear_inbox].
+     reset_unread, remove_inbox, clear_inbox, get_inbox_unread].
 
 invalid_field_value(Field, Value) ->
     <<"Invalid inbox form field value, field=", Field/binary, ", value=", Value/binary>>.

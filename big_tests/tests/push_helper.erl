@@ -8,7 +8,7 @@
 -export([enable_stanza/2, enable_stanza/3, enable_stanza/4,
          disable_stanza/1, disable_stanza/2]).
 
--export([become_unavailable/1]).
+-export([become_unavailable/1, become_available/2]).
 
 -export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
@@ -64,6 +64,31 @@ make_form_field(Name, Value) ->
 become_unavailable(Client) ->
     escalus:send(Client, escalus_stanza:presence(<<"unavailable">>)),
     {ok, _} = wait_for_user_offline(Client).
+
+become_available(Client, NumberOfUnreadMessages) ->
+    escalus:send(Client, escalus_stanza:presence(<<"available">>)),
+    Preds = [ is_presence | lists:duplicate(NumberOfUnreadMessages, is_message) ],
+    Stanzas = escalus:wait_for_stanzas(Client, NumberOfUnreadMessages + 1),
+    escalus:assert_many(Preds, Stanzas),
+    {ok, true} = wait_for_user_online(Client).
+
+is_online(LUser, LServer, LRes) ->
+    PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),
+    case lists:keyfind(LRes, 2, PResources) of
+        {_, LRes} ->
+            true;
+        Other ->
+            false
+    end.
+
+wait_for_user_online(Client) ->
+    mongoose_helper:wait_until(fun() ->
+                                       is_online(escalus_utils:jid_to_lower(escalus_client:username(Client)),
+                                                  escalus_utils:jid_to_lower(escalus_client:server(Client)),
+                                                  escalus_utils:jid_to_lower(escalus_client:resource(Client)))
+                               end,
+                               true,
+                               #{sleep_time => 500, time_left => timer:seconds(20), name => is_online}).
 
 is_offline(LUser, LServer, LRes) ->
     PResources =  rpc(mim(), ejabberd_sm, get_user_present_resources, [LUser, LServer]),

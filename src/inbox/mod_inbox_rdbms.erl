@@ -19,7 +19,9 @@
          set_inbox_incr_unread/6,
          reset_unread/4,
          remove_inbox/3,
-         clear_inbox/2]).
+         clear_inbox/1,
+         clear_inbox/2,
+         get_inbox_unread/2]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
@@ -60,6 +62,17 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
                  BeginSQL, EndSQL, HiddenSQL,
                  " ORDER BY timestamp ", OrderSQL, ";"],
     mongoose_rdbms:sql_query(LServer, Query).
+
+
+get_inbox_unread(Username, Server) ->
+    Res = mongoose_rdbms:sql_query(Server,
+                                   ["select unread_count from inbox "
+                                    "WHERE luser=", esc_string(Username),
+                                    ";"]),
+    {ok, Val} = check_result(Res),
+    %% We read unread_count value when the message is sent and is not yet in receiver inbox
+    %% so we have to add +1
+    {ok, Val + 1}.
 
 -spec set_inbox(Username, Server, ToBareJid, Content,
                 Count, MsgId, Timestamp) -> inbox_write_res() when
@@ -106,7 +119,7 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
                             ToBareJid :: binary(),
                             Content :: binary(),
                             MsgId :: binary(),
-                            Timestamp :: erlang:timestamp()) -> ok.
+                            Timestamp :: erlang:timestamp()) -> ok | {ok, integer()}.
 set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
@@ -115,9 +128,9 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     NumericTimestamp = usec:from_now(Timestamp),
     Res = BackendModule:set_inbox_incr_unread(LUsername, LServer, LToBareJid,
                                               Content, MsgId, NumericTimestamp),
-    %% psql will always return {updated, 1}
-    %% but mysql will return {updated, 2} if it overwrites the row
-    check_result(Res,[1,2]).
+    %% psql will return {updated, {[UnreadCount]}}
+    %% mssql and mysql will return {selected, {[Val]}}
+    check_result(Res).
 
 -spec reset_unread(User :: binary(),
                    Server :: binary(),
@@ -139,11 +152,17 @@ reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
         esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
         esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).
 
--spec clear_inbox(Username :: binary(), Server :: binary()) -> ok.
+-spec clear_inbox(Username :: binary(), Server :: binary()) -> inbox_write_res().
 clear_inbox(Username, Server) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Res = clear_inbox_rdbms(LUsername, LServer),
+    check_result(Res).
+
+-spec clear_inbox(Server :: binary()) -> inbox_write_res().
+clear_inbox( Server) ->
+    LServer = jid:nameprep(Server),
+    Res = clear_inbox_rdbms(LServer),
     check_result(Res).
 
 -spec esc_string(binary() | string()) -> mongoose_rdbms:sql_query_part().
@@ -181,6 +200,10 @@ clear_inbox_rdbms(Username, Server) ->
     mongoose_rdbms:sql_query(Server, ["delete from inbox where luser=",
         esc_string(Username), " and lserver=", esc_string(Server), ";"]).
 
+-spec clear_inbox_rdbms(Server :: jid:lserver()) -> query_result().
+clear_inbox_rdbms(Server) ->
+    mongoose_rdbms:sql_query(Server, ["delete from inbox;"]).
+
 -spec decode_row(host(), {username(), binary(), count_bin(), non_neg_integer() | binary()}) ->
     inbox_res().
 decode_row(LServer, {Username, Content, Count, Timestamp}) ->
@@ -215,7 +238,23 @@ check_result({updated, Res}, Exp) ->
 check_result(Result, _) ->
     {error, {bad_result, Result}}.
 
+check_result({selected, []}) ->
+    {ok, 0};
+
+check_result({selected, [{Val}]}) ->
+    parse_result(Val);
+check_result({updated, _, [{Val}]}) ->
+    parse_result(Val);
 check_result({updated, _}) ->
     ok;
 check_result(Result) ->
     {error, {bad_result, Result}}.
+
+parse_result(Value) when is_integer(Value) ->
+    {ok, Value};
+parse_result(Value) when is_binary(Value) ->
+    {ok, binary_to_integer(Value)};
+parse_result(null) ->
+    {ok, 0};
+parse_result(Value) ->
+    {error, {unknown_result_value_type, Value}}.

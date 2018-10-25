@@ -14,7 +14,7 @@
         create_room/6
     ]).
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, become_unavailable/1]).
+-import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -23,7 +23,8 @@
 all() ->
     [
         {group, pm_msg_notifications},
-        {group, muclight_msg_notifications}
+        {group, muclight_msg_notifications},
+        {group, inbox_msg_notifications}
     ].
 
 groups() ->
@@ -47,7 +48,17 @@ groups() ->
            muclight_msg_notify_on_apns_silent,
            muclight_msg_notify_on_fcm_silent,
            muclight_msg_notify_on_w_topic
-          ]}
+          ]},
+         {inbox_msg_notifications, [parallel],
+          [
+           inbox_msg_unread_count_apns,
+           inbox_msg_unread_count_fcm,
+           muclight_inbox_msg_unread_count_apns,
+           muclight_inbox_msg_unread_count_fcm,
+           inbox_msg_reset_unread_count_apns,
+           inbox_msg_reset_unread_count_fcm
+          ]
+         }
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -79,11 +90,26 @@ end_per_suite(Config) ->
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
+init_per_group(inbox_msg_notifications, Config) ->
+    rpc(mod_muc_light_db_backend, force_clear, []),
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true ->
+            dynamic_modules:start(domain(), mod_inbox, [{backend, rdbms}]),
+            Config;
+        false ->
+            {skip, require_rdbms}
+    end;
+
 init_per_group(_, Config) ->
     %% Some cleaning up
     rpc(mod_muc_light_db_backend, force_clear, []),
 
     Config.
+
+end_per_group(inbox_msg_notifications, Config) ->
+    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [domain()]),
+    dynamic_modules:stop(domain(), mod_inbox),
+    Config;
 
 end_per_group(_, Config) ->
     Config.
@@ -180,6 +206,105 @@ pm_msg_notify_on_apns_w_topic(Config) ->
     pm_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
 
 %%--------------------------------------------------------------------
+%% GROUP inbox_msg_notifications
+%%--------------------------------------------------------------------
+
+inbox_msg_unread_count_apns(Config) ->
+    inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_unread_count_fcm(Config) ->
+    inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_apns(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+muclight_inbox_msg_unread_count_fcm(Config) ->
+    muclight_inbox_msg_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_reset_unread_count_apns(Config) ->
+    inbox_msg_reset_unread_count(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_reset_unread_count_fcm(Config) ->
+    inbox_msg_reset_unread_count(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
+
+inbox_msg_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 1),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 2),
+              send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 3)
+
+      end).
+
+inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{bob, 1}, {alice, 1}],
+      fun(Bob, Alice) ->
+              DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+              send_private_message(Alice, Bob, <<"FIRST MESSAGE">>),
+              check_notification(DeviceToken, 1),
+              MsgId = send_private_message(Alice, Bob, <<"SECOND MESSAGE">>),
+              check_notification(DeviceToken, 2),
+
+              become_available(Bob, 2),
+              inbox_helper:get_inbox(Bob, #{ count => 1 }),
+              ChatMarker = escalus_stanza:chat_marker(Alice, <<"displayed">>, MsgId),
+              escalus:send(Bob, ChatMarker),
+              escalus:wait_for_stanza(Alice),
+
+              become_unavailable(Bob),
+              send_private_message(Alice, Bob, <<"THIRD MESSAGE">>),
+              check_notification(DeviceToken, 1)
+      end).
+
+
+muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
+    escalus:story(
+      Config, [{alice, 1}, {kate, 1}, {bob, 1}],
+      fun(Alice, Kate, Bob) ->
+              Room = room_name(Config),
+              RoomInfo = create_room(Room, [alice, kate, bob], Config),
+              KateToken = enable_push_for_user(Kate, Service, EnableOpts),
+              BobToken = enable_push_for_user(Bob, Service, EnableOpts),
+
+              send_message_to_room(Alice, Room),
+              check_notification(KateToken, 1),
+
+              send_message_to_room(Alice, Room),
+              check_notification(KateToken, 2),
+
+              send_message_to_room(Alice, Room),
+              [ check_notification(Token, ExpectedCount) ||
+                                  {Token, ExpectedCount} <- [{BobToken, 1},
+                                                             {KateToken, 3},
+                                                             {BobToken, 2},
+                                                             {BobToken, 3}] ]
+      end).
+
+send_private_message(Sender, Recipient) ->
+    send_private_message(Sender, Recipient, <<"Private message">>).
+
+send_private_message(Sender, Recipient, Body) ->
+    Id = escalus_stanza:id(),
+    Msg = escalus_stanza:set_id( escalus_stanza:chat_to(bare_jid(Recipient), Body), Id),
+    escalus:send(Sender, Msg),
+    Id.
+
+check_notification(DeviceToken, ExpectedCount) ->
+    Notification = wait_for_push_request(DeviceToken),
+    Data = maps:get(<<"data">>, Notification, undefined),
+    ?assertMatch(#{<<"message-count">> := ExpectedCount}, Data).
+
+send_message_to_room(Sender, Room) ->
+    Stanza = escalus_stanza:groupchat_to(room_bin_jid(Room), <<"GroupChat message">>),
+    escalus:send(Sender, Stanza).
+
+%%--------------------------------------------------------------------
 %% GROUP muclight_msg_notifications
 %%--------------------------------------------------------------------
 
@@ -252,7 +377,6 @@ pm_conversation(Alice, Bob, Service, EnableOpts) ->
     DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
     escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
     {AliceJID, DeviceToken}.
-
 
 enable_push_for_user(User, Service, EnableOpts) ->
     PubsubJID = node_addr(),

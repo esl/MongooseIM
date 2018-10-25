@@ -34,7 +34,7 @@ wait_for_push_request(Token) ->
         {push_request, Token, Body} ->
             Body
     after 10000 ->
-              ct:error(timeout_waiting_for_push_request)
+              ct:fail("timeout_waiting_for_push_request")
     end.
 
 init(Req, State) ->
