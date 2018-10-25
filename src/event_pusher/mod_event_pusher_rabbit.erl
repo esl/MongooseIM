@@ -185,20 +185,18 @@ amqp_client_opts(Host) ->
 
 -spec exchanges(Host :: jid:server()) -> [binary()].
 exchanges(Host) ->
-    [
-     {exchange_opt(Host, presence_exchange, name,
-                   ?DEFAULT_PRESENCE_EXCHANGE),
-      exchange_opt(Host, presence_exchange, type,
-                   ?DEFAULT_PRESENCE_EXCHANGE_TYPE)},
-     {exchange_opt(Host, chat_msg_exchange, name,
-                   ?DEFAULT_CHAT_MSG_EXCHANGE),
-      exchange_opt(Host, chat_msg_exchange, type,
-                   ?DEFAULT_CHAT_MSG_EXCHANGE_TYPE)},
-     {exchange_opt(Host, groupchat_msg_exchange, name,
-                   ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE),
-      exchange_opt(Host, groupchat_msg_exchange, type,
-                   ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE)}
-    ].
+    [{
+      exchange_opt(Host, ExKey, name, DefName),
+      exchange_opt(Host, ExKey, type, DefType)
+     } || {ExKey, DefName, DefType} <-
+              [
+               {presence_exchange, ?DEFAULT_PRESENCE_EXCHANGE,
+                ?DEFAULT_PRESENCE_EXCHANGE_TYPE},
+               {chat_msg_exchange, ?DEFAULT_CHAT_MSG_EXCHANGE,
+                ?DEFAULT_CHAT_MSG_EXCHANGE_TYPE},
+               {groupchat_msg_exchange, ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE,
+                ?DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE}
+              ]].
 
 -spec initialize_metrics(Host :: jid:server()) -> ok.
 initialize_metrics(Host) ->
@@ -210,11 +208,6 @@ initialize_metrics(Host) ->
 exchange_opt(Host, Exchange, Option, Default) ->
     ExchangeOptions = opt(Host, Exchange, []),
     proplists:get_value(Option, ExchangeOptions, Default).
-
-%% Getter for module options
--spec opt(Host :: jid:lserver(), Option :: atom()) -> Value :: term().
-opt(Host, Option) ->
-    opt(Host, Option, undefined).
 
 %% Getter for module options with default value
 -spec opt(Host :: jid:lserver(), Option :: atom(), Default :: term()) ->

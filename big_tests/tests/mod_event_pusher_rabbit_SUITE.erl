@@ -713,15 +713,10 @@ user_room_jid(RoomJID, UserJID) ->
     <<RoomJID/binary, "/", Nick/binary>>.
 
 extend_config_with_exchange_type(ExType) ->
-    ExConfigKeys = [presence_exchange, chat_msg_exchange, groupchat_msg_exchange],
-    ExtendExConfig =
-        fun(ExKey) ->
-                {ExKey, proplists:get_value(ExKey, ?MOD_EVENT_PUSHER_RABBIT_CFG) ++ [{type, ExType}]}
-        end,
-    ExtendedExConfigs = [ExtendExConfig(ExKey) || ExKey <- ExConfigKeys],
-    ReplaceExConfig =
-       fun(ExConfig = {ExKey, _}, Config) ->
-               lists:keyreplace(ExKey, 1, Config, ExConfig)
-       end,
-    lists:foldl(ReplaceExConfig, ?MOD_EVENT_PUSHER_RABBIT_CFG,
-                ExtendedExConfigs).
+    lists:map(fun({Ex, Opts}) when
+                        Ex == presence_exchange orelse
+                        Ex == chat_msg_exchange orelse
+                        Ex == groupchat_msg_exchange ->
+                      {Ex, Opts ++ [{type, ExType}]};
+                 (Other) -> Other
+              end, ?MOD_EVENT_PUSHER_RABBIT_CFG).
