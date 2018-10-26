@@ -72,7 +72,6 @@
          get_pending_nodes/3,
          get_states/2,
          get_state/3,
-         set_state/2,
          get_items/8,
          get_items/4,
          get_item/8,
@@ -192,8 +191,6 @@
 
 -callback get_state(NodeIdx :: nodeIdx(), Key :: jid:ljid()) -> pubsubState().
 
--callback set_state(State::pubsubState()) -> ok | {error, exml:element()}.
-
 -callback get_items(NodeIdx :: nodeIdx(),
         JID :: jid:jid(),
         AccessModel :: accessModel(),
@@ -302,9 +299,6 @@ get_states(Mod, NodeIdx) ->
 
 get_state(Mod, NodeIdx, Key) ->
     Mod:get_state(NodeIdx, Key).
-
-set_state(Mod, State) ->
-    Mod:set_state(State).
 
 get_items(Mod, NodeIdx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM) ->
     Mod:get_items(NodeIdx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM).

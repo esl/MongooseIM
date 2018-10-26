@@ -36,6 +36,7 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include("mongoose.hrl").
 
 -export([init/3, terminate/2, options/0, features/0,
          create_node_permission/6, create_node/2, delete_node/1,
@@ -46,16 +47,12 @@
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
          get_pending_nodes/2, get_states/1, get_state/2,
-         set_state/1, get_items/7, get_items/3, get_item/7,
+         get_items/7, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1]).
 
 init(_Host, _ServerHost, _Opts) ->
     pubsub_subscription:init(),
-    mnesia:create_table(pubsub_state,
-        [{disc_copies, [node()]},
-            {type, ordered_set},
-            {attributes, record_info(fields, pubsub_state)}]),
     mnesia:create_table(pubsub_item,
         [{disc_only_copies, [node()]},
             {attributes, record_info(fields, pubsub_item)}]),
@@ -120,8 +117,8 @@ create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
 
 create_node(Nidx, Owner) ->
     OwnerKey = jid:to_lower(jid:to_bare(Owner)),
-    set_state(#pubsub_state{stateid = {OwnerKey, Nidx},
-            affiliation = owner}),
+    mod_pubsub_db_backend:set_state(?MYNAME, #pubsub_state{stateid = {OwnerKey, Nidx},
+                                                           affiliation = owner}),
     {result, {default, broadcast}}.
 
 delete_node(Nodes) ->
@@ -196,7 +193,8 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
                 [] ->
                     Id = pubsub_subscription:make_subid(),
                     Sub = access_model_to_subscription(AccessModel),
-                    set_state(SubState#pubsub_state{subscriptions = [{Sub, Id} | Subscriptions]}),
+                    NSubState = SubState#pubsub_state{subscriptions = [{Sub, Id} | Subscriptions]},
+                    mod_pubsub_db_backend:set_state(?MYNAME, NSubState),
                     {Sub, Id}
             end,
             case {NewSub, SendLast} of
@@ -310,7 +308,8 @@ delete_subscriptions(SubKey, Nidx, Subscriptions, SubState) ->
             end, SubState#pubsub_state.subscriptions, Subscriptions),
     case {SubState#pubsub_state.affiliation, NewSubs} of
         {none, []} -> del_state(Nidx, SubKey);
-        _          -> set_state(SubState#pubsub_state{subscriptions = NewSubs})
+        _ -> mod_pubsub_db_backend:set_state(?MYNAME,
+                                             SubState#pubsub_state{subscriptions = NewSubs})
     end.
 
 %% @doc <p>Publishes the item passed as parameter.</p>
@@ -377,7 +376,7 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
                    Items = [ItemId | GenState#pubsub_state.items -- [ItemId]],
                    {result, {NI, OI}} = remove_extra_items(Nidx, MaxItems, Items),
                    set_item(Item),
-                   set_state(GenState#pubsub_state{items = NI}),
+                   mod_pubsub_db_backend:set_state(?MYNAME, GenState#pubsub_state{items = NI}),
                    {result, {default, broadcast, OI}};
                false ->
                    {result, {default, broadcast, []}}
@@ -442,7 +441,9 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
             case lists:member(ItemId, Items) of
                 true ->
                     del_item(Nidx, ItemId),
-                    set_state(GenState#pubsub_state{items = lists:delete(ItemId, Items)}),
+                    mod_pubsub_db_backend:set_state(?MYNAME,
+                                                    GenState#pubsub_state{
+                                                      items = lists:delete(ItemId, Items)}),
                     {result, {default, broadcast}};
                 false ->
                     delete_foreign_item(Nidx, ItemId, Affiliation)
@@ -458,7 +459,8 @@ delete_foreign_item(Nidx, ItemId, owner) ->
                             true ->
                                 Nitems = lists:delete(ItemId, PI),
                                 del_item(Nidx, ItemId),
-                                set_state(S#pubsub_state{items = Nitems}),
+                                mod_pubsub_db_backend:set_state(?MYNAME,
+                                                                S#pubsub_state{items = Nitems}),
                                 {result, {default, broadcast}};
                             false ->
                                 Res
@@ -482,7 +484,7 @@ purge_node(Nidx, Owner) ->
                         ok;
                     (#pubsub_state{items = Items} = S) ->
                         del_items(Nidx, Items),
-                        set_state(S#pubsub_state{items = []})
+                        mod_pubsub_db_backend:set_state(?MYNAME, S#pubsub_state{items = []})
                 end,
                 States),
             {result, {default, broadcast}};
@@ -528,7 +530,8 @@ set_affiliation(Nidx, Owner, Affiliation) ->
     GenState = get_state(Nidx, GenKey),
     case {Affiliation, GenState#pubsub_state.subscriptions} of
         {none, []} -> del_state(Nidx, GenKey);
-        _ -> set_state(GenState#pubsub_state{affiliation = Affiliation})
+        _ -> mod_pubsub_db_backend:set_state(?MYNAME,
+                                             GenState#pubsub_state{affiliation = Affiliation})
     end.
 
 %% @doc <p>Return the current subscriptions for the given user</p>
@@ -612,7 +615,7 @@ set_subscriptions(Nidx, Owner, Subscription, SubId) ->
 
 replace_subscription(NewSub, SubState) ->
     NewSubs = replace_subscription(NewSub, SubState#pubsub_state.subscriptions, []),
-    set_state(SubState#pubsub_state{subscriptions = NewSubs}).
+    mod_pubsub_db_backend:set_state(?MYNAME, SubState#pubsub_state{subscriptions = NewSubs}).
 
 replace_subscription(_, [], Acc) -> Acc;
 replace_subscription({Sub, SubId}, [{_, SubId} | T], Acc) ->
@@ -622,7 +625,8 @@ new_subscription(_Nidx, _Owner, Sub, SubState) ->
     %%SubId = pubsub_subscription:add_subscription(Owner, Nidx, []),
     SubId = pubsub_subscription:make_subid(),
     Subs = SubState#pubsub_state.subscriptions,
-    set_state(SubState#pubsub_state{subscriptions = [{Sub, SubId} | Subs]}),
+    mod_pubsub_db_backend:set_state(?MYNAME,
+                                    SubState#pubsub_state{subscriptions = [{Sub, SubId} | Subs]}),
     {Sub, SubId}.
 
 unsub_with_subid(Nidx, SubId, #pubsub_state{stateid = {Entity, _}} = SubState) ->
@@ -632,7 +636,8 @@ unsub_with_subid(Nidx, SubId, #pubsub_state{stateid = {Entity, _}} = SubState) -
                 SubId =/= Sid],
     case {NewSubs, SubState#pubsub_state.affiliation} of
         {[], none} -> del_state(Nidx, Entity);
-        _ -> set_state(SubState#pubsub_state{subscriptions = NewSubs})
+        _ -> mod_pubsub_db_backend:set_state(?MYNAME,
+                                             SubState#pubsub_state{subscriptions = NewSubs})
     end.
 
 %% @doc <p>Returns a list of Owner's nodes on Host with pending
@@ -703,11 +708,6 @@ get_state(Nidx, Key) ->
         [State] when is_record(State, pubsub_state) -> State;
         _ -> #pubsub_state{stateid = StateId}
     end.
-
-%% @doc <p>Write a state into database.</p>
-set_state(State) when is_record(State, pubsub_state) ->
-    mnesia:write(State).
-%set_state(_) -> {error, mongoose_xmpp_errors:internal_server_error()}.
 
 %% @doc <p>Delete a state from database.</p>
 del_state(Nidx, Key) ->

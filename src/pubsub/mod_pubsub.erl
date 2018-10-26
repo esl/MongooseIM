@@ -204,8 +204,7 @@
           max_subscriptions_node  = undefined,
           default_node_config     = [],
           nodetree                = <<"nodetree_", (?STDTREE)/binary>>,
-          plugins                 = [?STDNODE],
-          db_type
+          plugins                 = [?STDNODE]
         }).
 
 -type(state() ::
@@ -220,8 +219,7 @@
            max_subscriptions_node  :: non_neg_integer()|undefined,
            default_node_config     :: [{atom(), binary()|boolean()|integer()|atom()}],
            nodetree                :: binary(),
-           plugins                 :: [binary(), ...],
-           db_type                 :: atom()
+           plugins                 :: [binary(), ...]
           }
 
         ).
@@ -231,7 +229,7 @@ start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:start_link({local, Proc}, ?MODULE, [Host, Opts], []).
 
-deps(Host, Opts) ->
+deps(_Host, _Opts) ->
     [{mod_caps, optional}].
 
 start(Host, Opts) ->
@@ -275,12 +273,39 @@ process_packet(Acc, From, To, El, Pid) ->
 init([ServerHost, Opts]) ->
     ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
     Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
-    Access = gen_mod:get_opt(access_createnode, Opts,
-                             fun(A) when is_atom(A) -> A end, all),
+    
+    init_backend(ServerHost, Host, Opts),
+
+    pubsub_index:init(Host, ServerHost, Opts),
+    ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
+    {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
+    
+    mod_disco:register_feature(ServerHost, ?NS_PUBSUB),
+    
+    store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping),
+    hooks(add, ServerHost),
+    case lists:member(?PEPNODE, Plugins) of
+        true -> pep_hooks_and_handlers(add, ServerHost, Opts);
+        false -> ok
+    end,
+
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
+    {_, State} = init_send_loop(ServerHost),
+    {ok, State}.
+
+init_backend(ServerHost, Host, Opts) ->
+    TrackedDBFuns = [],
+    gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
+    mod_pubsub_db_backend:start(ServerHost, Host),
+
+    mnesia:create_table(pubsub_last_item,
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_last_item)}]).
+
+store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
+    Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
     PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts,
                                  fun(A) when is_boolean(A) -> A end, true),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts,
-                             fun gen_iq_handler:check_type/1, one_queue),
     LastItemCache = gen_mod:get_opt(last_item_cache, Opts,
                                     fun(A) when is_boolean(A) -> A end, false),
     MaxItemsNode = gen_mod:get_opt(max_items_node, Opts,
@@ -291,13 +316,6 @@ init([ServerHost, Opts]) ->
                                      fun(A) when is_list(A) -> filter_node_options(A) end, []),
     ItemPublisher = gen_mod:get_opt(item_publisher, Opts,
                                     fun(A) when is_boolean(A) -> A end, false),
-    pubsub_index:init(Host, ServerHost, Opts),
-    ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
-    {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
-    mnesia:create_table(pubsub_last_item,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, pubsub_last_item)}]),
-    mod_disco:register_feature(ServerHost, ?NS_PUBSUB),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {nodetree, NodeTree}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {plugins, Plugins}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {last_item_cache, LastItemCache}),
@@ -308,48 +326,32 @@ init([ServerHost, Opts]) ->
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {ignore_pep_from_offline, PepOffline}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {host, Host}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {access, Access}),
-    ets:insert(gen_mod:get_module_proc(ServerHost, config), {item_publisher, ItemPublisher}),
-    ejabberd_hooks:add(sm_remove_connection_hook, ServerHost,
-                       ?MODULE, on_user_offline, 75),
-    ejabberd_hooks:add(disco_local_identity, ServerHost,
-                       ?MODULE, disco_local_identity, 75),
-    ejabberd_hooks:add(disco_local_features, ServerHost,
-                       ?MODULE, disco_local_features, 75),
-    ejabberd_hooks:add(disco_local_items, ServerHost,
-                       ?MODULE, disco_local_items, 75),
-    ejabberd_hooks:add(presence_probe_hook, ServerHost,
-                       ?MODULE, presence_probe, 80),
-    ejabberd_hooks:add(roster_in_subscription, ServerHost,
-                       ?MODULE, in_subscription, 50),
-    ejabberd_hooks:add(roster_out_subscription, ServerHost,
-                       ?MODULE, out_subscription, 50),
-    ejabberd_hooks:add(remove_user, ServerHost,
-                       ?MODULE, remove_user, 50),
-    ejabberd_hooks:add(anonymous_purge_hook, ServerHost,
-                       ?MODULE, remove_user, 50),
+    ets:insert(gen_mod:get_module_proc(ServerHost, config), {item_publisher, ItemPublisher}).
 
-    case lists:member(?PEPNODE, Plugins) of
-        true ->
-            ejabberd_hooks:add(caps_recognised, ServerHost,
-                               ?MODULE, caps_recognised, 80),
-            ejabberd_hooks:add(disco_sm_identity, ServerHost,
-                               ?MODULE, disco_sm_identity, 75),
-            ejabberd_hooks:add(disco_sm_features, ServerHost,
-                               ?MODULE, disco_sm_features, 75),
-            ejabberd_hooks:add(disco_sm_items, ServerHost,
-                               ?MODULE, disco_sm_items, 75),
-            ejabberd_hooks:add(filter_local_packet, ServerHost, ?MODULE,
-                               handle_pep_authorization_response, 1),
-            gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost,
-                                          ?NS_PUBSUB, ?MODULE, iq_sm, IQDisc),
-            gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost,
-                                          ?NS_PUBSUB_OWNER, ?MODULE, iq_sm, IQDisc);
-        false ->
-            ok
-    end,
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
-    {_, State} = init_send_loop(ServerHost),
-    {ok, State}.
+hooks(Op, ServerHost) when Op == add ->
+    ejabberd_hooks:Op(sm_remove_connection_hook, ServerHost, ?MODULE, on_user_offline, 75),
+    ejabberd_hooks:Op(disco_local_identity, ServerHost, ?MODULE, disco_local_identity, 75),
+    ejabberd_hooks:Op(disco_local_features, ServerHost, ?MODULE, disco_local_features, 75),
+    ejabberd_hooks:Op(disco_local_items, ServerHost, ?MODULE, disco_local_items, 75),
+    ejabberd_hooks:Op(presence_probe_hook, ServerHost, ?MODULE, presence_probe, 80),
+    ejabberd_hooks:Op(roster_in_subscription, ServerHost, ?MODULE, in_subscription, 50),
+    ejabberd_hooks:Op(roster_out_subscription, ServerHost, ?MODULE, out_subscription, 50),
+    ejabberd_hooks:Op(remove_user, ServerHost, ?MODULE, remove_user, 50),
+    ejabberd_hooks:Op(anonymous_purge_hook, ServerHost, ?MODULE, remove_user, 50).
+
+pep_hooks_and_handlers(add, ServerHost, Opts) ->
+    pep_hooks_and_handlers(add, add_iq_handler, ServerHost, Opts).
+
+pep_hooks_and_handlers(Op, IQOp, ServerHost, Opts) ->
+    IQDisc = gen_mod:get_opt(iqdisc, Opts, fun gen_iq_handler:check_type/1, one_queue),
+    ejabberd_hooks:Op(caps_recognised, ServerHost, ?MODULE, caps_recognised, 80),
+    ejabberd_hooks:Op(disco_sm_identity, ServerHost, ?MODULE, disco_sm_identity, 75),
+    ejabberd_hooks:Op(disco_sm_features, ServerHost, ?MODULE, disco_sm_features, 75),
+    ejabberd_hooks:Op(disco_sm_items, ServerHost, ?MODULE, disco_sm_items, 75),
+    ejabberd_hooks:Op(filter_local_packet, ServerHost, ?MODULE,
+                      handle_pep_authorization_response, 1),
+    gen_iq_handler:IQOp(ejabberd_sm, ServerHost, ?NS_PUBSUB, ?MODULE, iq_sm, IQDisc),
+    gen_iq_handler:IQOp(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER, ?MODULE, iq_sm, IQDisc).
 
 init_send_loop(ServerHost) ->
     NodeTree = config(ServerHost, nodetree),
@@ -360,13 +362,12 @@ init_send_loop(ServerHost) ->
     PepOffline = config(ServerHost, ignore_pep_from_offline),
     Host = config(ServerHost, host),
     Access = config(ServerHost, access),
-    DBType = db_type(ServerHost),
     State = #state{host = Host, server_host = ServerHost,
                    access = Access, pep_mapping = PepMapping,
                    ignore_pep_from_offline = PepOffline,
                    last_item_cache = LastItemCache,
                    max_items_node = MaxItemsNode, nodetree = NodeTree,
-                   plugins = Plugins, db_type = DBType},
+                   plugins = Plugins },
     Proc = gen_mod:get_module_proc(ServerHost, ?LOOPNAME),
     Pid = case whereis(Proc) of
               undefined ->
@@ -436,17 +437,17 @@ send_loop(State) ->
             ok
     end.
 
-send_last_pubsub_items(Recipient, #state{host = Host, db_type = DBType, plugins = Plugins})
+send_last_pubsub_items(Recipient, #state{host = Host, plugins = Plugins})
   when is_list(Plugins) ->
     lists:foreach(
       fun(PluginType) ->
-              send_last_pubsub_items_for_plugin(Host, DBType, PluginType, Recipient)
+              send_last_pubsub_items_for_plugin(Host, PluginType, Recipient)
       end,
       Plugins).
 
-send_last_pubsub_items_for_plugin(Host, DBType, PluginType, Recipient) ->
+send_last_pubsub_items_for_plugin(Host, PluginType, Recipient) ->
     JIDs = [Recipient, jid:to_lower(Recipient), jid:to_bare(Recipient)],
-    Subs = get_subscriptions_for_send_last(Host, PluginType, DBType, JIDs),
+    Subs = get_subscriptions_for_send_last(Host, PluginType, JIDs),
     lists:foreach(
       fun({#pubsub_node{nodeid={_, Node}, id=Nidx, options=Options}, _, _, SubJID}) ->
               send_items(Host, Node, Nidx, PluginType, Options, SubJID, last)
@@ -602,7 +603,7 @@ disco_identity(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Result}} -> Result;
         _ -> []
     end.
@@ -637,7 +638,7 @@ disco_features(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Result}} -> Result;
         _ -> []
     end.
@@ -682,7 +683,7 @@ disco_items(Host, <<>>, From) ->
                        {result,
                         lists:foldl(Action, [], tree_call(Host, get_nodes, [Host]))}
                end,
-    case transaction(Host, NodeBloc, sync_dirty) of
+    case mod_pubsub_db_backend:dirty(Host, NodeBloc) of
         {result, Items} -> Items;
         _ -> []
     end;
@@ -699,7 +700,7 @@ disco_items(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Result}} -> Result;
         _ -> []
     end.
@@ -1116,7 +1117,7 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
                              || F <- plugin_features(Host, Type)]],
                      {result, [I | F]}
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
@@ -1194,7 +1195,7 @@ iq_disco_items(Host, Item, From, RSM) ->
             Action = fun (PubSubNode) ->
                              iq_disco_items_transaction(Host, From, Node, RSM, PubSubNode)
                      end,
-            case transaction(Host, Node, Action, sync_dirty) of
+            case dirty(Host, Node, Action) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
@@ -1513,7 +1514,7 @@ get_pending_nodes(Host, Owner, Plugins) ->
                  end
          end,
     Action = fun() -> {result, lists:flatmap(Tr, Plugins)} end,
-    case transaction(Host, Action, sync_dirty) of
+    case mod_pubsub_db_backend:dirty(Host, Action) of
         {result, Res} -> Res;
         Err -> Err
     end.
@@ -1540,7 +1541,7 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
     Action = fun(PubSubNode) ->
                      get_node_subscriptions_transaction(Host, Owner, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {N, Subs}} ->
             lists:foreach(fun
                               ({J, pending, _SubId}) -> send_authorization_request(N, jid:make(J));
@@ -1682,7 +1683,7 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
                              handle_authorization_response_transaction(Host, FromLJID, Subscriber,
                                                                        Allow, Node, PubSubNode)
                      end,
-            case transaction(Host, Node, Action, sync_dirty) of
+            case dirty(Host, Node, Action) of
                 {error, Error} ->
                     Err = jlib:make_error_reply(Packet, Error),
                     ejabberd_router:route(To, From, Err);
@@ -1856,7 +1857,7 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                                  create_node_transaction(Host, ServerHost, Node, Owner,
                                                          Type, Access, NodeOptions)
                          end,
-            case transaction(Host, CreateNode, transaction) of
+            case mod_pubsub_db_backend:transaction(Host, CreateNode) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
                     ejabberd_hooks:run(pubsub_create_node, ServerHost,
@@ -1956,7 +1957,7 @@ delete_node(_Host, <<>>, _Owner) ->
 delete_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> delete_node_transaction(Host, Owner, Node, PubSubNode) end,
     ServerHost = serverhost(Host),
-    case transaction(Host, Node, Action, transaction) of
+    case transaction(Host, Node, Action) of
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   {RH, RN} = RNode#pubsub_node.nodeid,
@@ -2050,7 +2051,7 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
     Action = fun (PubSubNode) ->
                      subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {TNode, {Result, subscribed, SubId, send_last}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2184,9 +2185,9 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
                      node_call(Host, Type, unsubscribe_node, [Nidx, From, Subscriber, SubId])
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, default}} -> {result, []};
-                                                %      {result, {_, Result}} -> {result, Result};
+ %      {result, {_, Result}} -> {result, Result};
         Error -> Error
     end.
 
@@ -2266,7 +2267,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                                        children = [#xmlel{name = <<"item">>,
                                                           attrs = item_attr(ItemId)}]}]}],
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2360,7 +2361,7 @@ delete_item(_, <<>>, _, _, _) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
     Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2417,7 +2418,7 @@ delete_item_transaction(Host, Publisher, ItemId,
                | {error, exml:element()}.
 purge_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2484,7 +2485,7 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
     Action = fun (PubSubNode) ->
                      get_items_transaction(Host, From, RSM, SubId, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, {Items, RsmOut}}} ->
             SendItems = filter_items_by_item_ids(Items, ItemIds),
             {result,
@@ -2529,7 +2530,7 @@ get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
                      node_call(Host, Type, get_items, [Nidx, service_jid(Host), none])
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, {Items, _}}} -> Items;
         Error -> Error
     end.
@@ -2538,7 +2539,7 @@ get_item(Host, Node, ItemId) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
                      node_call(Host, Type, get_item, [Nidx, ItemId])
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Items}} -> Items;
         Error -> Error
     end.
@@ -2556,18 +2557,16 @@ get_allowed_items_call(Host, Nidx, From, Type, Options, Owners, RSM) ->
 
 get_last_item(Host, Type, Nidx, LJID) ->
     case get_cached_item(Host, Nidx) of
-        undefined -> get_last_item(Host, Type, Nidx, LJID, db_type(serverhost(Host)));
-        LastItem -> LastItem
-    end.
-get_last_item(Host, Type, Nidx, LJID, mnesia) ->
-    case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
-        {result, {[LastItem|_], _}} -> LastItem;
-        _ -> undefined
+        undefined ->
+            case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
+                {result, {[LastItem|_], _}} -> LastItem;
+                _ -> undefined
+            end;
+        LastItem ->
+            LastItem
     end.
 
 get_last_items(Host, Type, Nidx, LJID, Number) ->
-    get_last_items(Host, Type, Nidx, LJID, Number, db_type(serverhost(Host))).
-get_last_items(Host, Type, Nidx, LJID, Number, mnesia) ->
     case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
         {result, {Items, _}} -> lists:sublist(Items, Number);
         _ -> []
@@ -2667,7 +2666,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     {result, [exml:element(), ...]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, []}} ->
             {error, mongoose_xmpp_errors:item_not_found()};
         {result, {_, Affs}} ->
@@ -2736,7 +2735,7 @@ set_affiliations(Host, Node, From, EntitiesEls) ->
             Action = fun (PubSubNode) ->
                              set_affiliations_transaction(Host, Owner, PubSubNode, Entities)
                      end,
-            case transaction(Host, Node, Action, sync_dirty) of
+            case dirty(Host, Node, Action) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
@@ -2807,7 +2806,7 @@ get_options(Host, Node, JID, SubId, Lang) ->
     Action = fun(PubSubNode) ->
                      get_options_transaction(Host, Node, JID, SubId, Lang, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_Node, XForm}} -> {result, [XForm]};
         Error -> Error
     end.
@@ -2865,7 +2864,7 @@ set_options(Host, Node, JID, SubId, Configuration) ->
     Action = fun(PubSubNode) ->
                      set_options_transaction(Host, JID, SubId, Configuration, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_Node, Result}} -> {result, Result};
         Error -> Error
     end.
@@ -2998,7 +2997,7 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _}, _Node) ->
 
 get_subscriptions(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_subscriptions_transaction(Host, JID, PubSubNode) end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Subs}} ->
             Entities =
             lists:flatmap(fun({_, none}) ->
@@ -3042,7 +3041,7 @@ get_subscriptions_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) -
              extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"manage-subscriptions">>)}
     end.
 
-get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
+get_subscriptions_for_send_last(Host, PType, [JID, LJID, BJID]) ->
     {result, Subs} = node_action(Host, PType,
                                  get_entity_subscriptions,
                                  [Host, JID]),
@@ -3050,7 +3049,7 @@ get_subscriptions_for_send_last(Host, PType, mnesia, [JID, LJID, BJID]) ->
      || {Node, Sub, SubId, SubJID} <- Subs,
         Sub =:= subscribed, (SubJID == LJID) or (SubJID == BJID),
         match_option(Node, send_last_published_item, on_sub_and_presence)];
-get_subscriptions_for_send_last(_Host, _PType, _, _JIDs) ->
+get_subscriptions_for_send_last(_Host, _PType, _JIDs) ->
     [].
 
 set_subscriptions(Host, Node, From, EntitiesEls) ->
@@ -3076,7 +3075,7 @@ set_subscriptions(Host, Node, From, EntitiesEls) ->
             Action = fun (PubSubNode) ->
                              set_subscriptions_transaction(Host, Owner, Node, PubSubNode, Entities)
                      end,
-            case transaction(Host, Node, Action, sync_dirty) of
+            case dirty(Host, Node, Action) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
@@ -3456,7 +3455,7 @@ get_collection_subscriptions(Host, Node) ->
     Action = fun() ->
                      {result, get_node_subs_by_depth(Host, Node, service_jid(Host))}
              end,
-    case transaction(Host, Action, sync_dirty) of
+    case mod_pubsub_db_backend:dirty(Host, Action) of
         {result, CollSubs} -> CollSubs;
         _ -> []
     end.
@@ -3626,7 +3625,7 @@ get_configure(Host, ServerHost, Node, From, Lang) ->
     Action = fun(PubSubNode) ->
                      get_configure_transaction(Host, ServerHost, Node, From, Lang, PubSubNode)
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
@@ -3840,7 +3839,7 @@ set_configure_submit(Host, Node, User, XEl, Lang) ->
     Action = fun(NodeRec) ->
                      set_configure_transaction(Host, User, XEl, NodeRec)
              end,
-    case transaction(Host, Node, Action, transaction) of
+    case transaction(Host, Node, Action) of
         {result, {_OldNode, TNode}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -4134,7 +4133,7 @@ features(Host, Node) when is_binary(Node) ->
     Action = fun (#pubsub_node{type = Type}) ->
                      {result, plugin_features(Host, Type)}
              end,
-    case transaction(Host, Node, Action, sync_dirty) of
+    case dirty(Host, Node, Action) of
         {result, Features} -> lists:usort(features() ++ Features);
         _ -> features()
     end.
@@ -4173,66 +4172,27 @@ node_call(Host, Type, Function, Args) ->
 
 node_action(Host, Type, Function, Args) ->
     ?DEBUG("node_action ~p ~p ~p ~p", [Host, Type, Function, Args]),
-    transaction(Host, fun () ->
-                              node_call(Host, Type, Function, Args)
-                      end,
-                sync_dirty).
+    mod_pubsub_db_backend:dirty(Host, fun() ->
+                                              node_call(Host, Type, Function, Args)
+                                      end).
 
-%% @doc <p>plugin transaction handling.</p>
-transaction(Host, Node, Action, Trans) ->
-    transaction(Host, fun () ->
-                              case tree_call(Host, get_node, [Host, Node]) of
-                                  #pubsub_node{} = N -> transaction(Action, N);
-                                  Error -> Error
-                              end
-                      end,
-                Trans).
+dirty(Host, Node, Action) ->
+    mod_pubsub_db_backend:dirty(Host, db_call_fun(Host, Node, Action)).
 
-transaction(Action, PubSubNode) ->
-    case Action(PubSubNode) of
-        {result, Result} -> {result, {PubSubNode, Result}};
-        {atomic, {result, Result}} -> {result, {PubSubNode, Result}};
-        Other -> Other
-    end.
+transaction(Host, Node, Action) ->
+    mod_pubsub_db_backend:transaction(Host, db_call_fun(Host, Node, Action)).
 
-transaction(Host, Fun, Trans) ->
-    ServerHost = serverhost(Host),
-    DBType = db_type(ServerHost),
-    Retry = 1,
-    transaction_retry(Host, ServerHost, Fun, Trans, DBType, Retry).
-
--spec transaction_retry(Host :: binary() | jid:simple_jid(),
-                        ServerHost :: binary(),
-                        Fun :: fun(() -> tuple()),
-                        Trans :: atom(),
-                        DBType :: any(),
-                        Count :: non_neg_integer()) ->
-    {result, any()}
-    | {error, exml:element() | [exml:element()] | {exml:element(), [exml:element()]}}.
-transaction_retry(_Host, _ServerHost, _Fun, _Trans, _DBType, 0) ->
-    {error, mongoose_xmpp_errors:internal_server_error()};
-transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count) ->
-    case catch mnesia:Trans(Fun) of
-        {result, Result} ->
-            {result, Result};
-        {error, Error} ->
-            {error, Error};
-        {atomic, {result, Result}} ->
-            {result, Result};
-        {atomic, {error, Error}} ->
-            {error, Error};
-        {aborted, Reason} ->
-            ?ERROR_MSG("transaction return internal error: ~p~n", [{aborted, Reason}]),
-            {error, mongoose_xmpp_errors:internal_server_error()};
-        {'EXIT', {timeout, _} = Reason} ->
-            ?ERROR_MSG("transaction return internal error: ~p~n", [Reason]),
-            transaction_retry(Host, ServerHost, Fun, Trans, DBType, Count - 1);
-        {'EXIT', Reason} ->
-            ?ERROR_MSG("transaction return internal error: ~p~n", [{'EXIT', Reason}]),
-            {error, mongoose_xmpp_errors:internal_server_error()};
-        Other ->
-            ?ERROR_MSG("transaction return internal error: ~p~n", [Other]),
-            {error, mongoose_xmpp_errors:internal_server_error()}
+db_call_fun(Host, Node, Action) ->
+    fun () ->
+            case tree_call(Host, get_node, [Host, Node]) of
+                #pubsub_node{} = N ->
+                    case Action(N) of
+                        {result, Result} -> {result, {N, Result}};
+                        {atomic, {result, Result}} -> {result, {N, Result}};
+                        Other -> Other
+                    end;
+                Error -> Error
+            end
     end.
 
 %%%% helpers
@@ -4401,5 +4361,3 @@ purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
 timestamp() ->
     os:timestamp().
 
-db_type(_Host) ->
-    mnesia.
