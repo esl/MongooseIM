@@ -43,7 +43,7 @@
          get_affiliation/2, set_affiliation/3,
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
-         get_pending_nodes/2, get_states/1, get_state/2,
+         get_pending_nodes/2,
          get_items/7, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1]).
@@ -208,12 +208,6 @@ set_subscriptions(Nidx, Owner, Subscription, SubId) ->
 
 get_pending_nodes(Host, Owner) ->
     node_flat:get_pending_nodes(Host, Owner).
-
-get_states(Nidx) ->
-    node_flat:get_states(Nidx).
-
-get_state(Nidx, JID) ->
-    node_flat:get_state(Nidx, JID).
 
 get_items(Nidx, From, RSM) ->
     node_flat:get_items(Nidx, From, RSM).

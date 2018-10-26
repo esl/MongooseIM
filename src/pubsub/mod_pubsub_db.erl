@@ -30,7 +30,21 @@
     {result | error, any()}.
 
 -callback set_state(PubSubHost :: jid:lserver(),
-                    mod_pubsub:pubsubState()) -> ok.
+                    State :: mod_pubsub:pubsubState()) -> ok.
+
+-callback del_state(PubSubHost :: jid:lserver(),
+                    Nidx :: mod_pubsub:nodeIdx(),
+                    UserLJID :: jid:ljid()) -> ok.
+
+-callback get_states(PubSubHost :: jid:lserver(),
+                     Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+
+%% When a state is not found, returns empty state.
+-callback get_state(PubSubHost :: jid:lserver(),
+                    Nidx :: mod_pubsub:nodeIdx(),
+                    UserLJID :: jid:ljid()) ->
+    {ok, mod_pubsub:pubsubState()}.
 
 %%====================================================================
 %% API

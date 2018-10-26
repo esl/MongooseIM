@@ -46,7 +46,7 @@
          get_affiliation/2, set_affiliation/3,
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
-         get_pending_nodes/2, get_states/1, get_state/2,
+         get_pending_nodes/2,
          get_items/7, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1]).
@@ -126,10 +126,10 @@ delete_node(Nodes) ->
             lists:map(fun (S) -> {J, S} end, Ss)
     end,
     Reply = lists:map(fun (#pubsub_node{id = Nidx} = PubsubNode) ->
-                    {result, States} = get_states(Nidx),
+                    {ok, States} = mod_pubsub_db_backend:get_states(?MYNAME, Nidx),
                     lists:foreach(fun (#pubsub_state{stateid = {LJID, _}, items = Items}) ->
                                 del_items(Nidx, Items),
-                                del_state(Nidx, LJID)
+                                mod_pubsub_db_backend:del_state(?MYNAME, Nidx, LJID)
                         end, States),
                     {PubsubNode, lists:flatmap(Tr, States)}
             end, Nodes),
@@ -171,11 +171,14 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
     SubKey = jid:to_lower(Subscriber),
     GenKey = jid:to_bare(SubKey),
     SenderMatchesSubscriber = jid:to_lower(jid:to_bare(Sender)) == GenKey,
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     SubState = case SubKey of
-        GenKey -> GenState;
-        _ -> get_state(Nidx, SubKey)
-    end,
+                   GenKey ->
+                       GenState;
+                   _ ->
+                       {ok, SubState0} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
+                       SubState0
+               end,
     Affiliation = GenState#pubsub_state.affiliation,
     Subscriptions = SubState#pubsub_state.subscriptions,
     Whitelisted = lists:member(Affiliation, [member, publisher, owner]),
@@ -248,10 +251,13 @@ unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     SubKey = jid:to_lower(Subscriber),
     GenKey = jid:to_bare(SubKey),
     SenderMatchesSubscriber = jid:to_lower(jid:to_bare(Sender)) == GenKey,
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     SubState = case SubKey of
-                   GenKey -> GenState;
-                   _ -> get_state(Nidx, SubKey)
+                   GenKey ->
+                       GenState;
+                   _ ->
+                       {ok, SubState0} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
+                       SubState0
                end,
     Subscriptions = lists:filter(fun
                                      ({_Sub, _SubId}) -> true;
@@ -307,7 +313,7 @@ delete_subscriptions(SubKey, Nidx, Subscriptions, SubState) ->
                     Acc -- [{Subscription, SubId}]
             end, SubState#pubsub_state.subscriptions, Subscriptions),
     case {SubState#pubsub_state.affiliation, NewSubs} of
-        {none, []} -> del_state(Nidx, SubKey);
+        {none, []} -> mod_pubsub_db_backend:del_state(?MYNAME, Nidx, SubKey);
         _ -> mod_pubsub_db_backend:set_state(?MYNAME,
                                              SubState#pubsub_state{subscriptions = NewSubs})
     end.
@@ -347,11 +353,14 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
              Payload, _PublishOptions) ->
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     SubState = case SubKey of
-        GenKey -> GenState;
-        _ -> get_state(Nidx, SubKey)
-    end,
+                   GenKey ->
+                       GenState;
+                   _ ->
+                       {ok, SubState0} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
+                       SubState0
+               end,
     Affiliation = GenState#pubsub_state.affiliation,
     Subscribed = case PublishModel of
         subscribers -> is_subscribed(GenState#pubsub_state.subscriptions) orelse
@@ -425,7 +434,7 @@ remove_extra_items(Nidx, MaxItems, ItemIds) ->
 delete_item(Nidx, Publisher, PublishModel, ItemId) ->
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     #pubsub_state{affiliation = Affiliation, items = Items} = GenState,
     Allowed = Affiliation == publisher orelse
         Affiliation == owner orelse
@@ -452,7 +461,7 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
 
 %% Delete an item that does not belong to the user
 delete_foreign_item(Nidx, ItemId, owner) ->
-    {result, States} = get_states(Nidx),
+    {ok, States} = mod_pubsub_db_backend:get_states(?MYNAME, Nidx),
     lists:foldl(fun
                     (#pubsub_state{items = PI} = S, Res) ->
                         case lists:member(ItemId, PI) of
@@ -475,10 +484,10 @@ delete_foreign_item(_Nidx, _ItemId, _Affiliation) ->
 purge_node(Nidx, Owner) ->
     SubKey = jid:to_lower(Owner),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     case GenState of
         #pubsub_state{affiliation = owner} ->
-            {result, States} = get_states(Nidx),
+            {ok, States} = mod_pubsub_db_backend:get_states(?MYNAME, Nidx),
             lists:foreach(fun
                     (#pubsub_state{items = []}) ->
                         ok;
@@ -514,22 +523,23 @@ get_entity_affiliations(Host, Owner) ->
     {result, Reply}.
 
 get_node_affiliations(Nidx) ->
-    {result, States} = get_states(Nidx),
+    {ok, States} = mod_pubsub_db_backend:get_states(?MYNAME, Nidx),
     Tr = fun (#pubsub_state{stateid = {J, _}, affiliation = A}) -> {J, A} end,
     {result, lists:map(Tr, States)}.
 
 get_affiliation(Nidx, Owner) ->
     SubKey = jid:to_lower(Owner),
     GenKey = jid:to_bare(SubKey),
-    #pubsub_state{affiliation = Affiliation} = get_state(Nidx, GenKey),
+    {ok, #pubsub_state{affiliation = Affiliation}}
+    = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     {result, Affiliation}.
 
 set_affiliation(Nidx, Owner, Affiliation) ->
     SubKey = jid:to_lower(Owner),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     case {Affiliation, GenState#pubsub_state.subscriptions} of
-        {none, []} -> del_state(Nidx, GenKey);
+        {none, []} -> mod_pubsub_db_backend:del_state(?MYNAME, Nidx, GenKey);
         _ -> mod_pubsub_db_backend:set_state(?MYNAME,
                                              GenState#pubsub_state{affiliation = Affiliation})
     end.
@@ -568,7 +578,7 @@ get_entity_subscriptions_loop(NodeTree, #pubsub_state{stateid = {J, N}, subscrip
     end.
 
 get_node_subscriptions(Nidx) ->
-    {result, States} = get_states(Nidx),
+    {ok, States} = mod_pubsub_db_backend:get_states(?MYNAME, Nidx),
     Tr = fun (#pubsub_state{stateid = {J, _}, subscriptions = [_ | _] = Subscriptions}) ->
                  lists:foldl(fun ({S, SubId}, Acc) ->
                                      [{J, S, SubId} | Acc]
@@ -583,12 +593,12 @@ get_node_subscriptions(Nidx) ->
 
 get_subscriptions(Nidx, Owner) ->
     SubKey = jid:to_lower(Owner),
-    SubState = get_state(Nidx, SubKey),
+    {ok, SubState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
     {result, SubState#pubsub_state.subscriptions}.
 
 set_subscriptions(Nidx, Owner, Subscription, SubId) ->
     SubKey = jid:to_lower(Owner),
-    SubState = get_state(Nidx, SubKey),
+    {ok, SubState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
     case {SubId, SubState#pubsub_state.subscriptions} of
         {_, []} ->
             case Subscription of
@@ -635,7 +645,7 @@ unsub_with_subid(Nidx, SubId, #pubsub_state{stateid = {Entity, _}} = SubState) -
             || {S, Sid} <- SubState#pubsub_state.subscriptions,
                 SubId =/= Sid],
     case {NewSubs, SubState#pubsub_state.affiliation} of
-        {[], none} -> del_state(Nidx, Entity);
+        {[], none} -> mod_pubsub_db_backend:del_state(?MYNAME, Nidx, Entity);
         _ -> mod_pubsub_db_backend:set_state(?MYNAME,
                                              SubState#pubsub_state{subscriptions = NewSubs})
     end.
@@ -683,36 +693,6 @@ get_node_if_has_pending_subs(NodeTree, #pubsub_state{stateid = {_, N}, subscript
             false
     end.
 
-%% @doc Returns the list of stored states for a given node.
-%% <p>For the default PubSub module, states are stored in Mnesia database.</p>
-%% <p>We can consider that the pubsub_state table have been created by the main
-%% mod_pubsub module.</p>
-%% <p>PubSub plugins can store the states where they wants (for example in a
-%% relational database).</p>
-%% <p>If a PubSub plugin wants to delegate the states storage to the default node,
-%% they can implement this function like this:
-%% ```get_states(Nidx) ->
-%%           node_default:get_states(Nidx).'''</p>
-get_states(Nidx) ->
-    States = case catch mnesia:match_object(
-            #pubsub_state{stateid = {'_', Nidx}, _ = '_'}) of
-        List when is_list(List) -> List;
-        _ -> []
-    end,
-    {result, States}.
-
-%% @doc <p>Returns a state (one state list), given its reference.</p>
-get_state(Nidx, Key) ->
-    StateId = {Key, Nidx},
-    case catch mnesia:read({pubsub_state, StateId}) of
-        [State] when is_record(State, pubsub_state) -> State;
-        _ -> #pubsub_state{stateid = StateId}
-    end.
-
-%% @doc <p>Delete a state from database.</p>
-del_state(Nidx, Key) ->
-    mnesia:delete({pubsub_state, {Key, Nidx}}).
-
 %% @doc Returns the list of stored items for a given node.
 %% <p>For the default PubSub module, items are stored in Mnesia database.</p>
 %% <p>We can consider that the pubsub_item table have been created by the main
@@ -726,8 +706,8 @@ get_items(Nidx, _From, _RSM) ->
 get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
     SubKey = jid:to_lower(JID),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
-    SubState = get_state(Nidx, SubKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
+    {ok, SubState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
     Affiliation = GenState#pubsub_state.affiliation,
     BareSubscriptions = GenState#pubsub_state.subscriptions,
     FullSubscriptions = SubState#pubsub_state.subscriptions,
@@ -750,7 +730,7 @@ get_item(Nidx, ItemId) ->
 get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
     SubKey = jid:to_lower(JID),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
     Affiliation = GenState#pubsub_state.affiliation,
     Subscriptions = GenState#pubsub_state.subscriptions,
     Whitelisted = can_fetch_item(Affiliation, Subscriptions),

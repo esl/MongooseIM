@@ -12,7 +12,7 @@
 
 -export([start/2, stop/2]).
 -export([transaction/2, dirty/2]).
--export([set_state/2]).
+-export([set_state/2, del_state/3, get_states/2, get_state/3]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -58,4 +58,32 @@ dirty(_PubSubHost, Fun) ->
                 mod_pubsub:pubsubState()) -> ok.
 set_state(_PubSubHost, State) ->
     mnesia:write(State).
+
+-spec del_state(PubSubHost :: jid:lserver(),
+                Nidx :: mod_pubsub:nodeIdx(),
+                UserLJID :: jid:ljid()) -> ok.
+del_state(_PubSubHost, Nidx, UserLJID) ->
+    mnesia:delete({pubsub_state, {UserLJID, Nidx}}).
+
+-spec get_states(PubSubHost :: jid:lserver(),
+                 Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+get_states(_PubSubHost, Nidx) ->
+    States = case catch mnesia:match_object(
+                          #pubsub_state{stateid = {'_', Nidx}, _ = '_'}) of
+                 List when is_list(List) -> List;
+                 _ -> []
+             end,
+    {ok, States}.
+
+-spec get_state(PubSubHost :: jid:lserver(),
+                Nidx :: mod_pubsub:nodeIdx(),
+                UserLJID :: jid:ljid()) ->
+    {ok, mod_pubsub:pubsubState()}.
+get_state(_PubSubHost, Nidx, UserLJID) ->
+    StateId = {UserLJID, Nidx},
+    case catch mnesia:read({pubsub_state, StateId}) of
+        [#pubsub_state{} = State] -> {ok, State};
+        _ -> {ok, #pubsub_state{stateid = StateId}}
+    end.
 
