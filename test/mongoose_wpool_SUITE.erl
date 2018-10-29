@@ -42,15 +42,24 @@ all() ->
 init_per_suite(Config) ->
     application:ensure_all_started(lager),
     ok = meck:new(wpool, [no_link, passthrough]),
+    ok = meck:new(mongoose_wpool, [no_link, passthrough]),
     ok = meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_global_option,
                 fun(hosts) -> [<<"a.com">>, <<"b.com">>, <<"c.eu">>] end),
-    mongoose_wpool:ensure_started(),
+    Self = self(),
+    spawn(fun() ->
+                  register(test_helper, self()),
+                  mongoose_wpool:ensure_started(),
+                  Self ! ready,
+                  receive stop -> ok end
+          end),
+    receive ready -> ok end,
     Config.
 
 end_per_suite(Config) ->
     meck:unload(wpool),
     meck:unload(ejabberd_config),
+    whereis(test_helper) ! stop,
     Config.
 
 init_per_testcase(_Case, Config) ->
@@ -84,26 +93,29 @@ stats_passes_through_to_wpool_stats(_Config) ->
 
 a_global_riak_pool_is_started(_Config) ->
     PoolName = mongoose_wpool:make_pool_name(riak, global, default),
-    meck:expect(wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
+    meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
     [{ok, PoolName}] = mongoose_wpool:start_configured_pools([{riak, global, default,
                                                                [{workers, 12}],
                                                                [{address, "localhost"},
                                                                 {port, 1805}]}]),
 
-    H = meck_history:get_history(self(), wpool),
-    F = fun({_, {wpool, start_sup_pool, [PN, Args]}, _}) -> {true, {PN, Args}};
-           (_) -> false
-        end,
-    [{PoolName, CallArgs}] = lists:filtermap(F, H),
+    [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(),
     ?assertEqual(12, proplists:get_value(workers, CallArgs)),
     ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)),
 
     ok.
 
+filter_calls_to_start_sup_pool() ->
+    H = meck_history:get_history(self(), mongoose_wpool),
+    F = fun({_, {mongoose_wpool, start_sup_pool, [_, PN, Args]}, _}) -> {true, {PN, Args}};
+           (_) -> false
+        end,
+    lists:filtermap(F, H).
+
 two_distinct_redis_pools_are_started(_C) ->
     PoolName1 = mongoose_wpool:make_pool_name(redis, global, default),
     PoolName2 = mongoose_wpool:make_pool_name(redis, global, global_dist),
-    meck:expect(wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
+    meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
     Pools = [{redis, global, default, [{workers, 2}],
               [{host, "localhost"},
                {port, 1805}]},
@@ -113,11 +125,7 @@ two_distinct_redis_pools_are_started(_C) ->
 
     [{ok, PoolName1}, {ok, PoolName2}] = mongoose_wpool:start_configured_pools(Pools),
 
-    H = meck_history:get_history(self(), wpool),
-    F = fun({_, {wpool, start_sup_pool, [PN, Args]}, _}) -> {true, {PN, Args}};
-           (_) -> false
-        end,
-    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = lists:filtermap(F, H),
+    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = filter_calls_to_start_sup_pool(),
     ?assertEqual(2, proplists:get_value(workers, CallArgs1)),
     ?assertEqual(4, proplists:get_value(workers, CallArgs2)),
     ?assertMatch({eredis_client, ["localhost", 1805 | _]}, proplists:get_value(worker, CallArgs1)),
@@ -174,12 +182,12 @@ global_pool_is_used_by_default(_C) ->
 %%--------------------------------------------------------------------
 
 start_sup_pool_mock(PoolNames) when is_list(PoolNames) ->
-    fun(PN, Opts) ->
+    fun(Type, PN, Opts) ->
             case lists:member(PN, PoolNames) of
                 true ->
                     {ok, PN}; %% we don't realy need a pid here for mocking
                 _ ->
-                    meck:passthrough([PN, Opts])
+                    meck:passthrough([Type, PN, Opts])
             end
     end;
 start_sup_pool_mock(PoolName) ->

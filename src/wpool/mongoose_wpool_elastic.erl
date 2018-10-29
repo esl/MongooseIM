@@ -18,7 +18,7 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
                      {overrun_handler, {error_logger, warning_report}},
                      {worker, {tirerl_worker, Opts}}
                     | WpoolOptsIn],
-    case wpool:start_sup_pool(PoolName, WPoolOptions) of
+    case mongoose_wpool:start_sup_pool(elastic, PoolName, WPoolOptions) of
         {ok, Pid} ->
             {external, Pid};
         Other ->

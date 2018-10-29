@@ -119,6 +119,11 @@ init([]) ->
          infinity,
          supervisor,
          [ejabberd_tmp_sup]},
+    OutgoingPoolsSupervisor =
+        {mongoose_wpool_sup,
+         {mongoose_wpool_sup, start_link, []},
+         permanent, infinity,
+         supervisor, [mongoose_wpool_sup]},
     IQSupervisor =
         {ejabberd_iq_sup,
          {ejabberd_tmp_sup, start_link,
@@ -160,6 +165,7 @@ init([]) ->
            S2SInSupervisor,
            S2SOutSupervisor,
            ServiceSupervisor,
+           OutgoingPoolsSupervisor,
            IQSupervisor,
            Listener,
            MucIQ,

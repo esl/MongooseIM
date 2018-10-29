@@ -23,7 +23,7 @@ start(Host, Tag, WpoolOptsIn, CqerlOpts) ->
     Name = mongoose_wpool:make_pool_name(cassandra, Host, Tag),
     Worker = {mongoose_cassandra_worker, [Tag]},
     WpoolOpts = [{worker, Worker} | WpoolOptsIn],
-    wpool:start_sup_pool(Name, WpoolOpts).
+    mongoose_wpool:start_sup_pool(cassandra, Name, WpoolOpts).
 
 stop(_, _) ->
     ok.

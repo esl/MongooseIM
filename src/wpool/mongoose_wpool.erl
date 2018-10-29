@@ -26,6 +26,8 @@
          cast/2, cast/3, cast/4, cast/5,
          get_pool_settings/3, get_pools/0, stats/3]).
 
+-export([start_sup_pool/3]).
+-export([known_types/0]).
 -export([start_configured_pools/0]).
 -export([start_configured_pools/1]).
 -export([start_configured_pools/2]).
@@ -38,6 +40,12 @@
 -type type() :: redis | riak | http | rdbms | cassandra | elastic | generic.
 -type host() :: global | host | jid:lserver().
 -type tag() :: atom().
+-type name() :: atom().
+
+-export_type([type/0]).
+-export_type([tag/0]).
+-export_type([host/0]).
+-export_type([name/0]).
 
 -callback init() -> ok | {error, term()}.
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
@@ -50,16 +58,27 @@
 
 ensure_started() ->
     wpool:start(),
+    case whereis(mongoose_wpool_sup) of
+        undefined ->
+            mongoose_wpool_sup:start_link();
+        _ ->
+            ok
+    end,
+
     case ets:info(?MODULE) of
         undefined ->
             % we set heir here because the whole thing may be started by an ephemeral process
             ets:new(?MODULE, [named_table, public,
                 {read_concurrency, true},
                 {keypos, 2},
-                {heir, whereis(wpool_sup), undefined}]);
+                {heir, whereis(mongoose_wpool_sup), undefined}]);
         _ ->
             ok
     end.
+
+-spec known_types() -> [type()].
+known_types() ->
+    [redis, riak, http, rdbms, cassandra, elastic, generic].
 
 start_configured_pools() ->
     Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),
@@ -106,6 +125,17 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
             Error
     end.
 
+-spec start_sup_pool(type(), name(), [wpool:option()]) ->
+    {ok, pid()} | {error, term()}.
+start_sup_pool(Type, Name, WpoolOpts) ->
+    SupName = mongoose_wpool_type_sup:name(Type),
+    ChildSpec = #{id => Name,
+                  start => {wpool, start_pool, [Name, WpoolOpts]},
+                  restart => temporary,
+                  type => supervisor,
+                  modules => [wpool]},
+    supervisor:start_child(SupName, ChildSpec).
+
 stop() ->
     [ stop(Type, Host, Tag) || {Type, Host, Tag} <- get_pools() ].
 
@@ -119,7 +149,8 @@ stop(Type, Host, Tag) ->
     try
         ets:delete(?MODULE, {Type, Host, Tag}),
         call_callback(stop, Type, [Host, Tag]),
-        wpool:stop_sup_pool(make_pool_name(Type, Host, Tag))
+        SupName = mongoose_wpool_type_sup:name(Type),
+        supervisor:terminate_child(SupName, make_pool_name(Type, Host, Tag))
     catch
         C:R ->
             ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,"
