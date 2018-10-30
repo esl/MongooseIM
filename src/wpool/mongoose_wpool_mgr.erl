@@ -125,7 +125,16 @@ handle_info({'DOWN', MRef, process, _Pid, Reason}, #state{monitors = Monitors} =
         {Details, NewMonitors0} ->
             NewState = restart_pool(Reason, Details, State#state{monitors = NewMonitors0}),
             {noreply, NewState}
+    end;
+handle_info({restart, PoolKey}, #state{pools = Pools, monitors = Monitors} = State) ->
+    case maps:get(PoolKey, Pools, undefined) of
+        undefined -> %% The pool was stopped in the meantime, no need to restart it
+            {noreply, State};
+        Pool ->
+            start_or_schedule_another_restart(PoolKey, Pool, State)
     end.
+
+
 
 terminate(_Reason, _State) ->
     ok.
@@ -136,10 +145,46 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-restart_pool(Reason, Pool, State) ->
+start_or_schedule_another_restart(PoolKey, Pool, State) ->
+    case try_starting(PoolKey, Pool, State) of
+        {ok, NewState} ->
+            {noreply, NewState};
+        _ ->
+            {noreply, do_schedule_restart(PoolKey, Pool, State)}
+    end.
+
+try_starting({Type, Host, Tag} = PoolKey,
+             #{wpool_opts := WpoolOpts, conn_opts := ConnOpts} = Pool,
+             #state{pools = Pools, monitors = Monitors} = State) ->
+    case mongoose_wpool:call_start_callback(Type, [Host, Tag, WpoolOpts, ConnOpts]) of
+        {_, Pid} when is_pid(Pid) ->
+            Ref = erlang:monitor(process, Pid),
+            NewMonitors = Monitors#{Ref => PoolKey},
+            NewPools = Pools#{PoolKey => Pool#{monitor := Ref}},
+
+            {ok, State#state{pools = NewPools, monitors = NewMonitors}};
+        Other ->
+            ?WARNING_MSG("issue=unable_to_restart_pool, pool=~p, reason=~p",
+                         [PoolKey, Other]),
+            Other
+    end.
+
+
+restart_pool(Reason, PoolKey, #state{pools = Pools} = State) ->
     ?ERROR_MSG("event=dead_pool, name=~p, reason=~p",
-               [Pool, Reason]),
-    State.
+               [PoolKey, Reason]),
+    case maps:get(PoolKey, Pools, undefined) of
+        undefined ->
+            ?WARNING_MSG("event=unknonw_pool_dead, name=~p", [PoolKey]),
+            State;
+        Pool ->
+            do_schedule_restart(PoolKey, Pool, State)
+    end.
+
+do_schedule_restart(PoolKey, Pool, #state{pools = Pools} = State) ->
+    timer:send_after(timer:seconds(2), {restart, PoolKey}),
+    NewPool = Pool#{monitor := undefined},
+    State#state{pools = Pools#{PoolKey := NewPool}}.
 
 maybe_stop_pool(_, #{monitor := undefined}, Monitors) ->
     {ok, Monitors};

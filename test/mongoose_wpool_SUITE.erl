@@ -33,7 +33,9 @@ all() ->
      generic_pools_are_started_for_all_vhosts,
      host_specific_pools_are_preseved,
      pools_for_different_tag_are_expanded_with_host_specific_config_preserved,
-     global_pool_is_used_by_default].
+     global_pool_is_used_by_default,
+     dead_pool_is_restarted,
+     dead_pool_is_stopped_before_restarted].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -84,12 +86,12 @@ get_pools_returns_pool_names(_Config) ->
 
 
 stats_passes_through_to_wpool_stats(_Config) ->
-    mongoose_wpool:start(x, global, z, [{workers, 1}]),
+    mongoose_wpool:start(generic, global, z, [{workers, 1}]),
 
     Ref = make_ref(),
 
         meck:expect(wpool, stats, fun(_Name) -> Ref end),
-        ?assertEqual(Ref, mongoose_wpool:stats(x, global, z)).
+        ?assertEqual(Ref, mongoose_wpool:stats(generic, global, z)).
 
 a_global_riak_pool_is_started(_Config) ->
     PoolName = mongoose_wpool:make_pool_name(riak, global, default),
@@ -179,6 +181,51 @@ global_pool_is_used_by_default(_C) ->
     ?assertEqual(mongoose_wpool:make_pool_name(generic, global, default),
                  mongoose_wpool:call(generic, global, default, request)).
 
+dead_pool_is_restarted(_C) ->
+    Size = 3,
+    {PoolName, KillingSwitch} = start_killable_pool(Size, kill_and_restart),
+    %% set the switch to kill every new worker
+    set_killing_switch(KillingSwitch, true),
+    %% kill existing workers so they will be restarted
+    [erlang:exit(whereis(wpool_pool:worker_name(PoolName, I)), kill) ||
+     I <- lists:seq(1, Size)],
+
+    wait_until_pool_is_dead(PoolName),
+    %% set the switch to stop killing workers
+    set_killing_switch(KillingSwitch, false),
+
+    %% wait until the pool is restarted by the manager
+    Fun = fun() ->
+                  case erlang:whereis(PoolName) of
+                      undefined -> false;
+                      _ -> true
+                  end
+          end,
+
+    async_helper:wait_until(Fun, true),
+
+    meck:unload(killing_workers).
+
+dead_pool_is_stopped_before_restarted(_C) ->
+    Size = 3,
+    Tag = kill_stop_before_restart,
+    {PoolName, KillingSwitch} = start_killable_pool(Size, Tag),
+    %% set the switch to kill every new worker
+    set_killing_switch(KillingSwitch, true),
+    %% kill existing workers so they will be restarted
+    [erlang:exit(whereis(wpool_pool:worker_name(PoolName, I)), kill) ||
+     I <- lists:seq(1, Size)],
+
+    wait_until_pool_is_dead(PoolName),
+    %% stop the pool before it's restarted
+    mongoose_wpool:stop(generic, global, Tag),
+    %% set the switch to stop killing workers
+    set_killing_switch(KillingSwitch, false),
+    %% wait 4s (the restart attempt will happen after 2s)
+    %% and check if the pool is started, it should not be
+    timer:sleep(timer:seconds(4)),
+    ?assertEqual(undefined, erlang:whereis(PoolName)),
+    meck:unload(killing_workers).
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -198,3 +245,43 @@ start_sup_pool_mock(PoolName) ->
 cleanup_pools() ->
     lists:foreach(fun({Type, Host, Tag}) -> mongoose_wpool:stop(Type, Host, Tag) end,
                   mongoose_wpool:get_pools()).
+
+start_killable_pool(Size, Tag) ->
+    KillingSwitch = ets:new(killing_switch, [public]),
+    ets:insert(KillingSwitch, {kill_worker, false}),
+    meck:new(killing_workers, [non_strict]),
+    meck:expect(killing_workers, handle_worker_creation, kill_worker_fun(KillingSwitch)),
+    Pools = [{generic, global, Tag,
+              [{workers, Size},
+               {enable_callbacks, true},
+               {callbacks, [killing_workers]}],
+              []}],
+    [{ok, _Pid}] = mongoose_wpool:start_configured_pools(Pools),
+    PoolName = mongoose_wpool:make_pool_name(generic, global, Tag),
+    {PoolName, KillingSwitch}.
+
+kill_worker_fun(KillingSwitch) ->
+    fun(AWorkerName) ->
+            case ets:lookup_element(KillingSwitch, kill_worker, 2) of
+                true ->
+                    ct:pal("I'll be killing ~p", [AWorkerName]),
+                    erlang:exit(whereis(AWorkerName), kill);
+                _ ->
+                    ok
+            end
+    end.
+
+wait_until_pool_is_dead(PoolName) ->
+    %% Wait until the pool is killed due to too many restarts
+    Pid = whereis(PoolName),
+    MRef = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', MRef, process, Pid, _} ->
+            ok
+    after
+        timer:minutes(3) ->
+            ct:fail("pool not stopped")
+    end.
+
+set_killing_switch(KillingSwitch, Value) ->
+    ets:update_element(KillingSwitch, kill_worker, {2, Value}).
