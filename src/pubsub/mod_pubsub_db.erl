@@ -36,15 +36,31 @@
                     Nidx :: mod_pubsub:nodeIdx(),
                     UserLJID :: jid:ljid()) -> ok.
 
--callback get_states(PubSubHost :: jid:lserver(),
-                     Nidx :: mod_pubsub:nodeIdx()) ->
-    {ok, [mod_pubsub:pubsubState()]}.
-
 %% When a state is not found, returns empty state.
 -callback get_state(PubSubHost :: jid:lserver(),
                     Nidx :: mod_pubsub:nodeIdx(),
                     UserLJID :: jid:ljid()) ->
     {ok, mod_pubsub:pubsubState()}.
+
+-callback get_states(PubSubHost :: jid:lserver(),
+                     Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+
+-callback get_states_by_lus(PubSubHost :: jid:lserver(),
+                            JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+
+-callback get_states_by_bare(PubSubHost :: jid:lserver(),
+                             JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+
+-callback get_states_by_full(PubSubHost :: jid:lserver(),
+                             JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+
+-callback get_own_nodes_states(PubSubHost :: jid:lserver(),
+                               JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
 
 %%====================================================================
 %% API

@@ -140,11 +140,8 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
 purge_node(Nidx, Owner) ->
     node_flat:purge_node(Nidx, Owner).
 
-get_entity_affiliations(Host, Owner) ->
-    {_, D, _} = SubKey = jid:to_lower(Owner),
-    SubKey = jid:to_lower(Owner),
-    GenKey = jid:to_bare(SubKey),
-    States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'}),
+get_entity_affiliations(Host, #jid{ lserver = D } = Owner) ->
+    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Host, Owner),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of
@@ -165,17 +162,16 @@ get_affiliation(Nidx, Owner) ->
 set_affiliation(Nidx, Owner, Affiliation) ->
     node_flat:set_affiliation(Nidx, Owner, Affiliation).
 
-get_entity_subscriptions(Host, Owner) ->
-    {U, D, _} = SubKey = jid:to_lower(Owner),
-    GenKey = jid:to_bare(SubKey),
-    States = case SubKey of
-        GenKey ->
-            mnesia:match_object(#pubsub_state{stateid = {{U, D, '_'}, '_'}, _ = '_'});
-        _ ->
-            mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'})
-            ++
-            mnesia:match_object(#pubsub_state{stateid = {SubKey, '_'}, _ = '_'})
-    end,
+get_entity_subscriptions(Host, #jid{ lserver = D } = Owner) ->
+    States = case Owner#jid.lresource of
+                 <<>> ->
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Host, Owner),
+                     States0;
+                 _ ->
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare(Host, Owner),
+                     {ok, States1} = mod_pubsub_db_backend:get_states_by_full(Host, Owner),
+                     States0 ++ States1
+             end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of

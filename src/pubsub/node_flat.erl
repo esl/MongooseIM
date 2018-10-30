@@ -501,17 +501,8 @@ purge_node(Nidx, Owner) ->
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
-%% @doc <p>Return the current affiliations for the given user</p>
-%% <p>The default module reads affiliations in the main Mnesia
-%% <tt>pubsub_state</tt> table. If a plugin stores its data in the same
-%% table, it should return an empty list, as the affiliation will be read by
-%% the default PubSub module. Otherwise, it should return its own affiliation,
-%% that will be added to the affiliation stored in the main
-%% <tt>pubsub_state</tt> table.</p>
 get_entity_affiliations(Host, Owner) ->
-    SubKey = jid:to_lower(Owner),
-    GenKey = jid:to_bare(SubKey),
-    States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'}),
+    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Host, Owner),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
                                 case gen_pubsub_nodetree:get_node(NodeTree, N) of
@@ -544,24 +535,16 @@ set_affiliation(Nidx, Owner, Affiliation) ->
                                              GenState#pubsub_state{affiliation = Affiliation})
     end.
 
-%% @doc <p>Return the current subscriptions for the given user</p>
-%% <p>The default module reads subscriptions in the main Mnesia
-%% <tt>pubsub_state</tt> table. If a plugin stores its data in the same
-%% table, it should return an empty list, as the affiliation will be read by
-%% the default PubSub module. Otherwise, it should return its own affiliation,
-%% that will be added to the affiliation stored in the main
-%% <tt>pubsub_state</tt> table.</p>
 get_entity_subscriptions(Host, Owner) ->
-    {U, D, _} = SubKey = jid:to_lower(Owner),
-    GenKey = jid:to_bare(SubKey),
-    States = case SubKey of
-        GenKey ->
-            mnesia:match_object(#pubsub_state{stateid = {{U, D, '_'}, '_'}, _ = '_'});
-        _ ->
-            mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'})
-            ++
-            mnesia:match_object(#pubsub_state{stateid = {SubKey, '_'}, _ = '_'})
-    end,
+    States = case Owner#jid.lresource of
+                 <<>> ->
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Host, Owner),
+                     States0;
+                 _ ->
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare(Host, Owner),
+                     {ok, States1} = mod_pubsub_db_backend:get_states_by_full(Host, Owner),
+                     States0 ++ States1
+             end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (PubSubState, Acc) ->
                                 get_entity_subscriptions_loop(NodeTree, PubSubState, Acc)
@@ -653,29 +636,16 @@ unsub_with_subid(Nidx, SubId, #pubsub_state{stateid = {Entity, _}} = SubState) -
 %% @doc <p>Returns a list of Owner's nodes on Host with pending
 %% subscriptions.</p>
 get_pending_nodes(Host, Owner) ->
-    GenKey = jid:to_bare(jid:to_lower(Owner)),
-    States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'},
-                                               affiliation = owner,
-                                               _ = '_'}),
-    NodeIdxs = [Nidx || #pubsub_state{stateid = {_, Nidx}} <- States],
+    {ok, States} = mod_pubsub_db_backend:get_own_nodes_states(Host, Owner),
     NodeTree = mod_pubsub:tree(Host),
-    Reply = mnesia:foldl(fun (#pubsub_state{stateid = {_, Nidx}} = PubSubState, Acc) ->
-                                 get_node_with_pending_subs_if_in_list(Nidx, NodeIdxs, NodeTree,
-                                                                       PubSubState, Acc)
+    Reply = lists:foldl(fun (PubSubState, Acc) ->
+                                case get_node_if_has_pending_subs(NodeTree, PubSubState) of
+                                    {value, Node} -> [Node | Acc];
+                                    false -> Acc
+                                end
                          end,
-                         [], pubsub_state),
+                         [], States),
     {result, Reply}.
-
-get_node_with_pending_subs_if_in_list(Nidx, NodeIdxs, NodeTree, PubSubState, Acc) ->
-  case lists:member(Nidx, NodeIdxs) of
-      true ->
-          case get_node_if_has_pending_subs(NodeTree, PubSubState) of
-              {value, Node} -> [Node | Acc];
-              false -> Acc
-          end;
-      false ->
-          Acc
-  end.
 
 get_node_if_has_pending_subs(NodeTree, #pubsub_state{stateid = {_, N}, subscriptions = Subs}) ->
     HasPending = fun

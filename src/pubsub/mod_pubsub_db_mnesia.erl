@@ -9,10 +9,13 @@
 -author('piotr.nosek@erlang-solutions.com').
 
 -include("pubsub.hrl").
+-include("jlib.hrl").
 
 -export([start/2, stop/2]).
 -export([transaction/2, dirty/2]).
--export([set_state/2, del_state/3, get_states/2, get_state/3]).
+-export([set_state/2, del_state/3, get_state/3,
+         get_states/2, get_states_by_lus/2, get_states_by_bare/2,
+         get_states_by_full/2, get_own_nodes_states/2]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -44,7 +47,7 @@ transaction(_PubSubHost, Fun) ->
     end.
 
 dirty(_PubSubHost, Fun) ->
-    try mnesia:sync_dirty(Fun) of
+    try mnesia:sync_dirty(Fun, []) of
         Result ->
             Result
     catch
@@ -75,6 +78,44 @@ get_states(_PubSubHost, Nidx) ->
                  _ -> []
              end,
     {ok, States}.
+
+-spec get_states_by_lus(PubSubHost :: jid:lserver(),
+                        JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+get_states_by_lus(_PubSubHost, #jid{ luser = LUser, lserver = LServer }) ->
+    {ok, mnesia:match_object(#pubsub_state{stateid = {{LUser, LServer, '_'}, '_'}, _ = '_'})}.
+
+-spec get_states_by_bare(PubSubHost :: jid:lserver(),
+                         JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+get_states_by_bare(_PubSubHost, JID) ->
+    LBare = jid:to_bare(jid:to_lower(JID)),
+    {ok, mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
+
+-spec get_states_by_full(PubSubHost :: jid:lserver(),
+                         JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+get_states_by_full(_PubSubHost, JID) ->
+    LJID = jid:to_lower(JID),
+    {ok, mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'})}.
+
+-spec get_own_nodes_states(PubSubHost :: jid:lserver(),
+                           JID :: jid:jid()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+get_own_nodes_states(_PubSubHost, JID) ->
+    LBare = jid:to_bare(jid:to_lower(JID)),
+    MyStates = mnesia:match_object(#pubsub_state{stateid = {LBare, '_'},
+                                                 affiliation = owner, _ = '_'}),
+    NodeIdxs = [Nidx || #pubsub_state{stateid = {_, Nidx}} <- MyStates],
+    OwnNodesStates =
+    mnesia:foldl(fun (#pubsub_state{stateid = {_, Nidx}} = PubSubState, Acc) ->
+                         case lists:member(Nidx, NodeIdxs) of
+                             true -> [PubSubState | Acc];
+                             false -> Acc
+                         end
+                 end,
+                 [], pubsub_state),
+    {ok, OwnNodesStates}.
 
 -spec get_state(PubSubHost :: jid:lserver(),
                 Nidx :: mod_pubsub:nodeIdx(),
