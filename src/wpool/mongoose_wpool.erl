@@ -33,6 +33,7 @@
 -export([start_configured_pools/2]).
 -export([is_configured/1]).
 -export([make_pool_name/3]).
+-export([call_start_callback/2]).
 
 %% Mostly for tests
 -export([expand_pools/2]).
@@ -110,7 +111,8 @@ start(Type, Host, Tag, PoolOpts) ->
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
     Opts = lists:append(Opts0) ++ default_opts(Type),
-    case call_callback(start, Type, [Host, Tag, WpoolOptsIn, ConnOpts]) of
+
+    case mongoose_wpool_mgr:start(Type, Host, Tag, WpoolOptsIn, ConnOpts) of
         {ok, Pid} ->
             Strategy = proplists:get_value(strategy, Opts, best_worker),
             CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
@@ -125,6 +127,12 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
             Error
     end.
 
+%% @doc this function starts the worker_pool's pool under a specific supervisor
+%% in MongooseIM application.
+%% It's needed for 2 reasons:
+%% 1. We want to have a full controll of all the pools and its restarts
+%% 2. When a pool is started via wpool:start_pool it's supposed be called by a supervisor,
+%%    if not, there is no way to stop the pool.
 -spec start_sup_pool(type(), name(), [wpool:option()]) ->
     {ok, pid()} | {error, term()}.
 start_sup_pool(Type, Name, WpoolOpts) ->
@@ -149,8 +157,7 @@ stop(Type, Host, Tag) ->
     try
         ets:delete(?MODULE, {Type, Host, Tag}),
         call_callback(stop, Type, [Host, Tag]),
-        SupName = mongoose_wpool_type_sup:name(Type),
-        supervisor:terminate_child(SupName, make_pool_name(Type, Host, Tag))
+        mongoose_wpool_mgr:stop(Type, Host, Tag)
     catch
         C:R ->
             ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,"
@@ -243,6 +250,9 @@ make_pool_name(Type, Host, Tag) when is_binary(Host) ->
 
 make_pool_name(#mongoose_wpool{name = {Type, Host, Tag}}) ->
     make_pool_name(Type, Host, Tag).
+
+call_start_callback(Type, Args) ->
+    call_callback(start, Type, Args).
 
 call_callback(Name, Type, Args) ->
     try

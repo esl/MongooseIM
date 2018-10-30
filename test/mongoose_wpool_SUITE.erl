@@ -99,14 +99,15 @@ a_global_riak_pool_is_started(_Config) ->
                                                                [{address, "localhost"},
                                                                 {port, 1805}]}]),
 
-    [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(),
+    MgrPid = whereis(mongoose_wpool_mgr:name(riak)),
+    [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(MgrPid),
     ?assertEqual(12, proplists:get_value(workers, CallArgs)),
     ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)),
 
     ok.
 
-filter_calls_to_start_sup_pool() ->
-    H = meck_history:get_history(self(), mongoose_wpool),
+filter_calls_to_start_sup_pool(Pid) ->
+    H = meck_history:get_history(Pid, mongoose_wpool),
     F = fun({_, {mongoose_wpool, start_sup_pool, [_, PN, Args]}, _}) -> {true, {PN, Args}};
            (_) -> false
         end,
@@ -125,7 +126,8 @@ two_distinct_redis_pools_are_started(_C) ->
 
     [{ok, PoolName1}, {ok, PoolName2}] = mongoose_wpool:start_configured_pools(Pools),
 
-    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = filter_calls_to_start_sup_pool(),
+    MgrPid = whereis(mongoose_wpool_mgr:name(redis)),
+    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = filter_calls_to_start_sup_pool(MgrPid),
     ?assertEqual(2, proplists:get_value(workers, CallArgs1)),
     ?assertEqual(4, proplists:get_value(workers, CallArgs2)),
     ?assertMatch({eredis_client, ["localhost", 1805 | _]}, proplists:get_value(worker, CallArgs1)),
