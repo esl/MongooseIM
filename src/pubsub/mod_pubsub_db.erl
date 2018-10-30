@@ -16,17 +16,15 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--callback start(Host :: jid:lserver(), PubSubHost :: jid:lserver()) -> ok.
+-callback start() -> ok.
 
--callback stop(Host :: jid:lserver(), PubSubHost :: jid:lserver()) -> ok.
+-callback stop() -> ok.
 
--callback transaction(PubSubHost :: jid:lserver(),
-                      Fun :: fun(() -> {result | error, any()})) ->
+-callback transaction(Fun :: fun(() -> {result | error, any()})) ->
     {result | error, any()}.
 
 %% Synchronous
--callback dirty(PubSubHost :: jid:lserver(),
-                Fun :: fun(() -> {result | error, any()})) ->
+-callback dirty(Fun :: fun(() -> {result | error, any()})) ->
     {result | error, any()}.
 
 -callback set_state(State :: mod_pubsub:pubsubState()) -> ok.

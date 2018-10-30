@@ -11,8 +11,8 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([start/2, stop/2]).
--export([transaction/2, dirty/2]).
+-export([start/0, stop/0]).
+-export([transaction/1, dirty/1]).
 -export([set_state/1, del_state/2, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
          get_states_by_full/1, get_own_nodes_states/1]).
@@ -23,8 +23,8 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start(Host :: jid:lserver(), PubSubHost :: jid:lserver()) -> ok.
-start(_, _) ->
+-spec start() -> ok.
+start() ->
     mnesia:create_table(pubsub_state,
                         [{disc_copies, [node()]},
                          {type, ordered_set},
@@ -32,13 +32,13 @@ start(_, _) ->
     mnesia:add_table_copy(pubsub_state, node(), disc_copies),
     ok.
 
--spec stop(Host :: jid:lserver(), PubSubHost :: jid:lserver()) -> ok.
-stop(_, _) ->
+-spec stop() -> ok.
+stop() ->
     ok.
 
 %% ------------------------ Fun execution ------------------------
 
-transaction(_PubSubHost, Fun) ->
+transaction(Fun) ->
     case mnesia:transaction(Fun) of
         {atomic, Result} ->
             Result;
@@ -46,7 +46,7 @@ transaction(_PubSubHost, Fun) ->
             {error, Reason}
     end.
 
-dirty(_PubSubHost, Fun) ->
+dirty(Fun) ->
     try mnesia:sync_dirty(Fun, []) of
         Result ->
             Result

@@ -296,7 +296,7 @@ init([ServerHost, Opts]) ->
 init_backend(ServerHost, Host, Opts) ->
     TrackedDBFuns = [],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
-    mod_pubsub_db_backend:start(ServerHost, Host),
+    mod_pubsub_db_backend:start(),
 
     mnesia:create_table(pubsub_last_item,
                         [{ram_copies, [node()]},
@@ -683,7 +683,7 @@ disco_items(Host, <<>>, From) ->
                        {result,
                         lists:foldl(Action, [], tree_call(Host, get_nodes, [Host]))}
                end,
-    case mod_pubsub_db_backend:dirty(Host, NodeBloc) of
+    case mod_pubsub_db_backend:dirty(NodeBloc) of
         {result, Items} -> Items;
         _ -> []
     end;
@@ -954,7 +954,8 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
         Pid ->
             Pid ! stop
     end,
-    terminate_plugins(Host, ServerHost, Plugins, TreePlugin).
+    terminate_plugins(Host, ServerHost, Plugins, TreePlugin),
+    mod_pubsub_db_backend:stop().
 
 %%--------------------------------------------------------------------
 %% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -1514,7 +1515,7 @@ get_pending_nodes(Host, Owner, Plugins) ->
                  end
          end,
     Action = fun() -> {result, lists:flatmap(Tr, Plugins)} end,
-    case mod_pubsub_db_backend:dirty(Host, Action) of
+    case mod_pubsub_db_backend:dirty(Action) of
         {result, Res} -> Res;
         Err -> Err
     end.
@@ -1857,7 +1858,7 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                                  create_node_transaction(Host, ServerHost, Node, Owner,
                                                          Type, Access, NodeOptions)
                          end,
-            case mod_pubsub_db_backend:transaction(Host, CreateNode) of
+            case mod_pubsub_db_backend:transaction(CreateNode) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
                     ejabberd_hooks:run(pubsub_create_node, ServerHost,
@@ -3455,7 +3456,7 @@ get_collection_subscriptions(Host, Node) ->
     Action = fun() ->
                      {result, get_node_subs_by_depth(Host, Node, service_jid(Host))}
              end,
-    case mod_pubsub_db_backend:dirty(Host, Action) of
+    case mod_pubsub_db_backend:dirty(Action) of
         {result, CollSubs} -> CollSubs;
         _ -> []
     end.
@@ -4172,15 +4173,15 @@ node_call(Host, Type, Function, Args) ->
 
 node_action(Host, Type, Function, Args) ->
     ?DEBUG("node_action ~p ~p ~p ~p", [Host, Type, Function, Args]),
-    mod_pubsub_db_backend:dirty(Host, fun() ->
-                                              node_call(Host, Type, Function, Args)
-                                      end).
+    mod_pubsub_db_backend:dirty(fun() ->
+                                        node_call(Host, Type, Function, Args)
+                                end).
 
 dirty(Host, Node, Action) ->
-    mod_pubsub_db_backend:dirty(Host, db_call_fun(Host, Node, Action)).
+    mod_pubsub_db_backend:dirty(db_call_fun(Host, Node, Action)).
 
 transaction(Host, Node, Action) ->
-    mod_pubsub_db_backend:transaction(Host, db_call_fun(Host, Node, Action)).
+    mod_pubsub_db_backend:transaction(db_call_fun(Host, Node, Action)).
 
 db_call_fun(Host, Node, Action) ->
     fun () ->
