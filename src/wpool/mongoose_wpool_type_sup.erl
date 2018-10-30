@@ -39,7 +39,6 @@
 -spec start_link(mongoose_wpool:type()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
 start_link(Type) ->
-    io:format("what is the name :~p~n", [name(Type)]),
     supervisor:start_link({local, name(Type)}, ?MODULE, [Type]).
 
 -spec name(mongoose_wpool:type()) -> mongoose_wpool:name().

@@ -94,8 +94,6 @@ start_configured_pools(PoolsIn, Hosts) ->
     [start(Pool) || Pool <- Pools].
 
 start({Type, Host, Tag, PoolOpts, ConnOpts}) ->
-    ?INFO_MSG("event=starting_pool, pool=~p, host=~p, tag=~p, pool_opts=~p, conn_opts=~p",
-              [Type, Host, Tag, PoolOpts, ConnOpts]),
     start(Type, Host, Tag, PoolOpts, ConnOpts).
 
 
@@ -130,7 +128,7 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
 %% @doc this function starts the worker_pool's pool under a specific supervisor
 %% in MongooseIM application.
 %% It's needed for 2 reasons:
-%% 1. We want to have a full controll of all the pools and its restarts
+%% 1. We want to have a full control of all the pools and its restarts
 %% 2. When a pool is started via wpool:start_pool it's supposed be called by a supervisor,
 %%    if not, there is no way to stop the pool.
 -spec start_sup_pool(type(), name(), [wpool:option()]) ->

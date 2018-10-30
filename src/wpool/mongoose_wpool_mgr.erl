@@ -89,8 +89,8 @@ init([Type]) ->
     {reply, reply(), state()}.
 handle_call({start_pool, Host, Tag, WpoolOpts, ConnOpts}, _From,
             #state{type = Type, pools = Pools, monitors = Monitors} = State) ->
-    ?WARNING_MSG("Starting pool {~p,~p,~p}, with pool opts: ~p and conn opts: ~p~n",
-                 [Type, Host, Tag, WpoolOpts, ConnOpts]),
+    ?INFO_MSG("event=starting_pool, pool=~p, host=~p, tag=~p, pool_opts=~p, conn_opts=~p",
+              [Type, Host, Tag, WpoolOpts, ConnOpts]),
     case mongoose_wpool:call_start_callback(Type, [Host, Tag, WpoolOpts, ConnOpts]) of
         {_, Pid} = OkReply when is_pid(Pid) ->
             Ref = erlang:monitor(process, Pid),
@@ -164,7 +164,7 @@ try_starting({Type, Host, Tag} = PoolKey,
 
             {ok, State#state{pools = NewPools, monitors = NewMonitors}};
         Other ->
-            ?WARNING_MSG("issue=unable_to_restart_pool, pool=~p, reason=~p",
+            ?WARNING_MSG("event=unable_to_restart_pool, pool=~p, reason=~p",
                          [PoolKey, Other]),
             Other
     end.
@@ -175,7 +175,7 @@ restart_pool(Reason, PoolKey, #state{pools = Pools} = State) ->
                [PoolKey, Reason]),
     case maps:get(PoolKey, Pools, undefined) of
         undefined ->
-            ?WARNING_MSG("event=unknonw_pool_dead, name=~p", [PoolKey]),
+            ?WARNING_MSG("event=unknown_pool_dead, name=~p", [PoolKey]),
             State;
         Pool ->
             do_schedule_restart(PoolKey, Pool, State)
@@ -197,7 +197,7 @@ maybe_stop_pool({Type, Host, Tag} = Key, #{monitor := Monitor}, Monitors) ->
         ok ->
             {ok, NewMonitors};
         Other ->
-            ?WARNING_MSG("issue=error_stopping_pool, pool=~p, reason=~p",
+            ?WARNING_MSG("event=error_stopping_pool, pool=~p, reason=~p",
                          [Key, Other]),
             {Other, NewMonitors}
     end.
