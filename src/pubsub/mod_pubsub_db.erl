@@ -29,37 +29,29 @@
                 Fun :: fun(() -> {result | error, any()})) ->
     {result | error, any()}.
 
--callback set_state(PubSubHost :: jid:lserver(),
-                    State :: mod_pubsub:pubsubState()) -> ok.
+-callback set_state(State :: mod_pubsub:pubsubState()) -> ok.
 
--callback del_state(PubSubHost :: jid:lserver(),
-                    Nidx :: mod_pubsub:nodeIdx(),
+-callback del_state(Nidx :: mod_pubsub:nodeIdx(),
                     UserLJID :: jid:ljid()) -> ok.
 
 %% When a state is not found, returns empty state.
--callback get_state(PubSubHost :: jid:lserver(),
-                    Nidx :: mod_pubsub:nodeIdx(),
+-callback get_state(Nidx :: mod_pubsub:nodeIdx(),
                     UserLJID :: jid:ljid()) ->
     {ok, mod_pubsub:pubsubState()}.
 
--callback get_states(PubSubHost :: jid:lserver(),
-                     Nidx :: mod_pubsub:nodeIdx()) ->
+-callback get_states(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_lus(PubSubHost :: jid:lserver(),
-                            JID :: jid:jid()) ->
+-callback get_states_by_lus(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_bare(PubSubHost :: jid:lserver(),
-                             JID :: jid:jid()) ->
+-callback get_states_by_bare(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_full(PubSubHost :: jid:lserver(),
-                             JID :: jid:jid()) ->
+-callback get_states_by_full(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_own_nodes_states(PubSubHost :: jid:lserver(),
-                               JID :: jid:jid()) ->
+-callback get_own_nodes_states(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
 %%====================================================================

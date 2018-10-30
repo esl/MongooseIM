@@ -141,7 +141,12 @@ purge_node(Nidx, Owner) ->
     node_flat:purge_node(Nidx, Owner).
 
 get_entity_affiliations(Host, #jid{ lserver = D } = Owner) ->
-    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Host, Owner),
+    get_entity_affiliations(Host, D, Owner);
+get_entity_affiliations(Host, {_, D, _} = Owner) ->
+    get_entity_affiliations(Host, D, Owner).
+
+get_entity_affiliations(Host, D, Owner) ->
+    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Owner),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of
@@ -162,14 +167,19 @@ get_affiliation(Nidx, Owner) ->
 set_affiliation(Nidx, Owner, Affiliation) ->
     node_flat:set_affiliation(Nidx, Owner, Affiliation).
 
-get_entity_subscriptions(Host, #jid{ lserver = D } = Owner) ->
-    States = case Owner#jid.lresource of
+get_entity_subscriptions(Host, #jid{ lserver = D, lresource = R } = Owner) ->
+    get_entity_subscriptions(Host, D, R, Owner);
+get_entity_subscriptions(Host, {_, D, R} = Owner) ->
+    get_entity_subscriptions(Host, D, R, Owner).
+
+get_entity_subscriptions(Host, D, R, Owner) ->
+    States = case R of
                  <<>> ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Host, Owner),
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Owner),
                      States0;
                  _ ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare(Host, Owner),
-                     {ok, States1} = mod_pubsub_db_backend:get_states_by_full(Host, Owner),
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare(Owner),
+                     {ok, States1} = mod_pubsub_db_backend:get_states_by_full(Owner),
                      States0 ++ States1
              end,
     NodeTree = mod_pubsub:tree(Host),
