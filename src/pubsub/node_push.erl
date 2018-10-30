@@ -89,12 +89,12 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
              PublishOptions) ->
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_bare(SubKey),
-    {ok, GenState} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(Nidx, GenKey),
     SubState = case SubKey of
                    GenKey ->
                        GenState;
                    _ ->
-                       {ok, SubState0} = mod_pubsub_db_backend:get_state(?MYNAME, Nidx, SubKey),
+                       {ok, SubState0} = mod_pubsub_db_backend:get_state(Nidx, SubKey),
                        SubState0
                end,
     Affiliation = SubState#pubsub_state.affiliation,
