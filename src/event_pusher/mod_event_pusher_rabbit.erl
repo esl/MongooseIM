@@ -41,6 +41,7 @@
 -define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE, <<"topic">>).
 -define(DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC, <<"groupchat_msg_sent">>).
 -define(DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC, <<"groupchat_msg_recv">>).
+-define(NUM_OF_WORKERS, 100).
 
 %%%===================================================================
 %%% Exports
@@ -61,7 +62,7 @@ start(Host, _Opts) ->
     application:ensure_all_started(amqp_client),
     application:ensure_all_started(worker_pool),
     initialize_metrics(Host),
-    WorkerNum = opt(Host, pool_size, 100),
+    WorkerNum = opt(Host, pool_size, ?NUM_OF_WORKERS),
     IsConfirmEnabled = opt(Host, confirms_enabled, false),
     wpool:start_sup_pool(pool_name(Host),
                          [{worker, {mongoose_rabbit_worker,
