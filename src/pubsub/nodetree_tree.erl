@@ -60,7 +60,6 @@ init(_Host, _ServerHost, _Options) ->
         NodesFields -> ok;
         _ -> ok
     end,
-    %% mnesia:transform_table(pubsub_state, ignore, StatesFields)
     ok.
 
 terminate(_Host, _ServerHost) ->

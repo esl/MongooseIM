@@ -43,8 +43,8 @@
          get_affiliation/2, set_affiliation/3,
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
-         get_pending_nodes/2, get_states/1, get_state/2,
-         set_state/1, get_items/7, get_items/3, get_item/7,
+         get_pending_nodes/2,
+         get_items/7, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1]).
 
@@ -140,11 +140,13 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
 purge_node(Nidx, Owner) ->
     node_flat:purge_node(Nidx, Owner).
 
-get_entity_affiliations(Host, Owner) ->
-    {_, D, _} = SubKey = jid:to_lower(Owner),
-    SubKey = jid:to_lower(Owner),
-    GenKey = jid:to_bare(SubKey),
-    States = mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'}),
+get_entity_affiliations(Host, #jid{ lserver = D } = Owner) ->
+    get_entity_affiliations(Host, D, Owner);
+get_entity_affiliations(Host, {_, D, _} = Owner) ->
+    get_entity_affiliations(Host, D, Owner).
+
+get_entity_affiliations(Host, D, Owner) ->
+    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Owner),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of
@@ -165,17 +167,20 @@ get_affiliation(Nidx, Owner) ->
 set_affiliation(Nidx, Owner, Affiliation) ->
     node_flat:set_affiliation(Nidx, Owner, Affiliation).
 
-get_entity_subscriptions(Host, Owner) ->
-    {U, D, _} = SubKey = jid:to_lower(Owner),
-    GenKey = jid:to_bare(SubKey),
-    States = case SubKey of
-        GenKey ->
-            mnesia:match_object(#pubsub_state{stateid = {{U, D, '_'}, '_'}, _ = '_'});
-        _ ->
-            mnesia:match_object(#pubsub_state{stateid = {GenKey, '_'}, _ = '_'})
-            ++
-            mnesia:match_object(#pubsub_state{stateid = {SubKey, '_'}, _ = '_'})
-    end,
+get_entity_subscriptions(Host, #jid{ lserver = D, lresource = R } = Owner) ->
+    get_entity_subscriptions(Host, D, R, Owner);
+get_entity_subscriptions(Host, {_, D, R} = Owner) ->
+    get_entity_subscriptions(Host, D, R, Owner).
+
+get_entity_subscriptions(Host, D, R, Owner) ->
+    States = case R of
+                 <<>> ->
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Owner),
+                     States0;
+                 _ ->
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(Owner),
+                     States0
+             end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
                     case gen_pubsub_nodetree:get_node(NodeTree, N) of
@@ -208,15 +213,6 @@ set_subscriptions(Nidx, Owner, Subscription, SubId) ->
 
 get_pending_nodes(Host, Owner) ->
     node_flat:get_pending_nodes(Host, Owner).
-
-get_states(Nidx) ->
-    node_flat:get_states(Nidx).
-
-get_state(Nidx, JID) ->
-    node_flat:get_state(Nidx, JID).
-
-set_state(State) ->
-    node_flat:set_state(State).
 
 get_items(Nidx, From, RSM) ->
     node_flat:get_items(Nidx, From, RSM).

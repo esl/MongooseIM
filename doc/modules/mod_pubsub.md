@@ -16,6 +16,7 @@ It's all about tailoring PubSub to your needs!
 * `iqdisc` (default: `one_queue`)
 * `host` (string, default: `"pubsub.@HOST@"`): Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
+* `backend` (atom, default: `mnesia`) - Database backend to use. Only `mnesia` is supported currently..
 * `access_create` (atom, default: `all`): Who is allowed to create pubsub nodes.
 * `max_items_node` (integer, default: `10`): Define the maximum number of items that can be stored in a node.
 * `max_subscriptions_node` (integer, default: `undefined` - no limitation): The maximum number of subscriptions managed by a node.
@@ -102,3 +103,19 @@ Special node type that may be used as a target node for [XEP-0357 (Push Notifica
 For each published notification, a hook `push_notification` is run.
 You may enable as many modules that support this hook (all module with `mod_push_service_*` name prefix) as you like (see for example `mod_push_service_mongoosepush`).
 This node type **requires** `publish-options` with at least `device_id` and `service` fields supplied.
+
+### Metrics
+
+If you'd like to learn more about metrics in MongooseIM, please visit the [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
+
+| Name | Type | Description (when it gets incremented) |
+| ---- | ---- | -------------------------------------- |
+| `[global, backends, mod_pubsub_db, set_state]` | histogram | Time to update user's state for specific node. |
+| `[global, backends, mod_pubsub_db, del_state]` | histogram | Time to remove user's state for specific node. |
+| `[global, backends, mod_pubsub_db, get_state]` | histogram | Time to fetch user's state for specific node. |
+| `[global, backends, mod_pubsub_db, get_states]` | histogram | Time to fetch node's states. |
+| `[global, backends, mod_pubsub_db, get_states_by_lus]` | histogram | Time to fetch nodes' states for user + domain. |
+| `[global, backends, mod_pubsub_db, get_states_by_bare]` | histogram | Time to fetch nodes' states for bare JID. |
+| `[global, backends, mod_pubsub_db, get_states_by_full]` | histogram | Time to fetch nodes' states for full JID. |
+| `[global, backends, mod_pubsub_db, get_own_nodes_states]` | histogram | Time to fetch state data for user's nodes. |
+
