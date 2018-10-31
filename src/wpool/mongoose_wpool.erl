@@ -27,7 +27,6 @@
          get_pool_settings/3, get_pools/0, stats/3]).
 
 -export([start_sup_pool/3]).
--export([known_types/0]).
 -export([start_configured_pools/0]).
 -export([start_configured_pools/1]).
 -export([start_configured_pools/2]).
@@ -76,10 +75,6 @@ ensure_started() ->
         _ ->
             ok
     end.
-
--spec known_types() -> [type()].
-known_types() ->
-    [redis, riak, http, rdbms, cassandra, elastic, generic].
 
 start_configured_pools() ->
     Pools = ejabberd_config:get_local_option_or_default(outgoing_pools, []),

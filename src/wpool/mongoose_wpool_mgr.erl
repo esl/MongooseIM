@@ -69,6 +69,7 @@ start_link(Type) ->
     gen_server:start_link({local, name(Type)}, ?MODULE, [Type], []).
 
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
+    ok = ensure_started(Type),
     gen_server:call(name(Type), {start_pool, Host, Tag, PoolOpts, ConnOpts}).
 
 stop(Type, Host, Tag) ->
@@ -145,6 +146,26 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+ensure_started(Type) ->
+    Name = name(Type),
+    case whereis(Name) of
+        undefined ->
+            do_start_type_sup(Type);
+        _ ->
+            ok
+    end.
+do_start_type_sup(Type) ->
+    ChildSpec = mongoose_wpool_sup:child_spec(Type),
+    case supervisor:start_child(mongoose_wpool_sup, ChildSpec) of
+        {ok, _} ->
+            ok;
+        {error, {already_started, _}} ->
+            ok;
+        Other ->
+            ?ERROR_MSG("event=error_starting_type_sup, reason=~p", [Other]),
+            Other
+    end.
+
 start_or_schedule_another_restart(PoolKey, Pool, State) ->
     case try_starting(PoolKey, Pool, State) of
         {ok, NewState} ->

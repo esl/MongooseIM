@@ -23,6 +23,8 @@
 %% Supervisor callbacks
 -export([init/1]).
 
+-export([child_spec/1]).
+
 -define(SERVER, ?MODULE).
 
 %%%===================================================================
@@ -55,26 +57,25 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) -> {ok, {#{strategy => one_for_one, intensity => 100, period => 5},
-                                    [#{id := mongoose_wpool:name(),
-                                       start := {mongoose_wpool_type_sup, start_link, [mongoose_wpool:type()]},
-                                       restart => transient,
-                                       shutdown => brutal_kill,
-                                       type => supervisor,
-                                       modules => [module()]}]}}.
+                                    []}}.
 init([]) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 100,
                  period => 5},
 
-    ChildSpecs = [make_spec(Type) || Type <- mongoose_wpool:known_types()],
-
-    {ok, {SupFlags, ChildSpecs}}.
+    {ok, {SupFlags, []}}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-make_spec(Type) ->
+-spec child_spec(mongoose_wpool:type()) ->
+    #{id := mongoose_wpool:name(),
+      start := {mongoose_wpool_type_sup, start_link, [mongoose_wpool:type()]},
+      restart => transient,
+      shutdown => brutal_kill,
+      type => supervisor,
+      modules => [module()]}.
+child_spec(Type) ->
     #{id => mongoose_wpool_type_sup:name(Type),
       start => {mongoose_wpool_type_sup, start_link, [Type]},
       restart => transient,
