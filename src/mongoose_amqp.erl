@@ -24,8 +24,8 @@
 -include_lib("amqp_client/include/amqp_client.hrl").
 
 -export([network_params/0, network_params/1, exchange_declare/2,
-         exchange_delete/1, basic_publish/2, confirm_select/0,
-         confirm_select_ok/0, message/1]).
+         exchange_declare_ok/0, exchange_delete/1, basic_publish/2,
+         confirm_select/0, confirm_select_ok/0, message/1]).
 
 -export_type([method/0, message/0]).
 
@@ -35,6 +35,7 @@
 %%%===================================================================
 
 -type method() :: #'exchange.declare'{}
+                | #'exchange.declare_ok'{}
                 | #'exchange.delete'{}
                 | #'basic.publish'{}
                 | #'confirm.select'{}
@@ -57,6 +58,10 @@ network_params(Opts) ->
 -spec exchange_declare(Exchange :: binary(), Type :: binary()) -> method().
 exchange_declare(Exchange, Type) ->
     #'exchange.declare'{exchange = Exchange, type = Type}.
+
+-spec exchange_declare_ok() -> method().
+exchange_declare_ok() ->
+    #'exchange.declare_ok'{}.
 
 -spec exchange_delete(Exchange :: binary()) -> method().
 exchange_delete(Exchange) ->
