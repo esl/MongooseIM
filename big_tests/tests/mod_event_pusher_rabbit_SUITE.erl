@@ -74,8 +74,7 @@ groups() ->
     [
      {exchange_handling, [],
       [
-       exchanges_are_created_on_module_startup,
-       exchanges_are_deleted_on_module_stop
+       exchanges_are_created_on_module_startup
       ]},
      {presence_status_publish, [],
       [
@@ -127,6 +126,7 @@ init_per_group(_, Config0) ->
 end_per_group(exchange_handling, Config) ->
     Config;
 end_per_group(_, Config) ->
+    delete_exchanges(),
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:stop(Host, mod_event_pusher),
     dynamic_modules:restore_modules(Host, Config),
@@ -139,10 +139,9 @@ init_per_testcase(CaseName, Config0) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
+    delete_exchanges(),
     stop_mod_event_pusher_rabbit(),
     close_rabbit_connection(Config),
-    Config;
-end_per_testcase(exchanges_are_deleted_on_module_stop, Config) ->
     Config;
 end_per_testcase(CaseName, Config) ->
     maybe_cleanup_muc(CaseName, Config),
@@ -169,20 +168,6 @@ exchanges_are_created_on_module_startup(Config) ->
     %% THEN exchanges are created
     [?assert(ensure_exchange_present(Connection, Channel, Exchange,
                                  ?IF_EXCHANGE_EXISTS_RETRIES))
-     || Exchange <- Exchanges].
-
-exchanges_are_deleted_on_module_stop(Config) ->
-    %% GIVEN
-    Connection = proplists:get_value(rabbit_connection, Config),
-    Channel = proplists:get_value(rabbit_channel, Config),
-    Exchanges = [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE,
-                 ?GROUP_CHAT_MSG_EXCHANGE],
-    %% WHEN
-    start_mod_event_pusher_rabbit(),
-    stop_mod_event_pusher_rabbit(),
-    %% THEN
-    wait_for_exchanges_to_be_deleted(Connection, Exchanges),
-    [?assert(ensure_exchange_absent(Connection, Channel, Exchange, 1))
      || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
@@ -480,13 +465,6 @@ wait_for_exchanges_to_be_created(Connection, Exchanges) ->
      || Exchange <- Exchanges],
     ok.
 
-wait_for_exchanges_to_be_deleted(Connection, Exchanges) ->
-    {ok, TestChannel} = amqp_connection:open_channel(Connection),
-    [ensure_exchange_absent(Connection, TestChannel, Exchange,
-                        ?IF_EXCHANGE_EXISTS_RETRIES)
-     || Exchange <- Exchanges],
-    ok.
-
 -spec declare_temporary_rabbit_queue(Channel :: pid(), Queue :: binary()) -> binary().
 declare_temporary_rabbit_queue(Channel, Queue) ->
     #'queue.declare_ok'{} =
@@ -559,29 +537,6 @@ ensure_exchange_present(Connection, Channel, Exchange = {ExName, ExType},
             ensure_exchange_present(Connection, NewChannel, Exchange, Retries - 1)
     end.
 
--spec ensure_exchange_absent(Connection :: pid(), Channel :: pid(),
-                         Exchange :: binary(),
-                         Retries :: non_neg_integer()) ->
-    true | no_return().
-ensure_exchange_absent(_Connection, Channel, Exchange, 1) ->
-    try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                       type = <<"topic">>,
-                                                       passive = true}) of
-        {'exchange.declare_ok'} -> throw("Some exchange is present.")
-    catch
-        _Error:_Reason -> true
-    end;
-ensure_exchange_absent(Connection, Channel, Exchange, Retries) ->
-    try amqp_channel:call(Channel, #'exchange.declare'{exchange = Exchange,
-                                                       type = <<"topic">>,
-                                                       passive = true}) of
-        {'exchange.declare_ok'} ->
-            timer:sleep(?WAIT_FOR_EXCHANGE_INTERVAL),
-            ensure_exchange_absent(Connection, Channel, Exchange, Retries - 1)
-    catch
-        _Error:_Reason -> true
-    end.
-
 -spec subscribe_to_rabbit_queue(Channel :: pid(), Queue :: binary()) -> ok.
 subscribe_to_rabbit_queue(Channel, Queue) ->
     amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue,
@@ -627,6 +582,13 @@ start_mod_event_pusher_rabbit(Config) ->
 stop_mod_event_pusher_rabbit() ->
     Host = ct:get_config({hosts, mim, domain}),
     rpc(mim(), gen_mod, stop_module, [Host, mod_event_pusher_rabbit]).
+
+delete_exchanges() ->
+    ConnConf = listen_to_rabbit(),
+    Channel  = proplists:get_value(rabbit_channel, ConnConf),
+    [amqp_channel:call(Channel, #'exchange.delete'{exchange = Ex})
+     || Ex <- [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE, ?GROUP_CHAT_MSG_EXCHANGE]],
+    close_rabbit_connection(ConnConf).
 
 make_pres_stanza(X) when X rem 2 == 0 ->
     <<"available">>;
