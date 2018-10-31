@@ -116,13 +116,7 @@ terminate(_Reason, #state{connection = Connection, channel = Channel,
 -spec handle_amqp_call(Method :: mongoose_amqp:method(), worker_opts()) ->
     {ok, term()} | {error, term(), term()}.
 handle_amqp_call(Method, #state{channel = Channel}) ->
-    try amqp_channel:call(Channel, Method) of
-        Result ->
-            {ok, Result}
-    catch
-        Error:Reason ->
-            {error, Error, Reason}
-    end.
+    amqp_channel:call(Channel, Method).
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
