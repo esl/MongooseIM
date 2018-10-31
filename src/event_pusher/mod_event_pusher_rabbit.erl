@@ -93,7 +93,7 @@ push_event(Acc, _, _) ->
 %%% Internal functions
 %%%===================================================================
 
--spec initialize_metrics(Host :: jid:server()) -> ok.
+-spec initialize_metrics(Host :: jid:server()) -> [ok | {ok | error, term()}].
 initialize_metrics(Host) ->
     [mongoose_metrics:ensure_metric(Host, Name, Type)
      || {Name, Type} <- mongoose_rabbit_worker:list_metrics()].
