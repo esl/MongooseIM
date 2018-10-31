@@ -46,7 +46,7 @@
 -callback get_states_by_bare(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_full(JID :: jid:jid()) ->
+-callback get_states_by_bare_and_full(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
 -callback get_own_nodes_states(JID :: jid:jid()) ->

@@ -15,7 +15,7 @@
 -export([transaction/1, dirty/1]).
 -export([set_state/1, del_state/2, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
-         get_states_by_full/1, get_own_nodes_states/1]).
+         get_states_by_bare_and_full/1, get_own_nodes_states/1]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -87,11 +87,13 @@ get_states_by_bare(JID) ->
     LBare = jid:to_bare(jid:to_lower(JID)),
     {ok, mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
 
--spec get_states_by_full(JID :: jid:jid()) ->
+-spec get_states_by_bare_and_full(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
-get_states_by_full(JID) ->
+get_states_by_bare_and_full(JID) ->
     LJID = jid:to_lower(JID),
-    {ok, mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'})}.
+    LBare = jid:to_bare(LJID),
+    {ok, mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'})
+         ++ mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
 
 -spec get_own_nodes_states(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.

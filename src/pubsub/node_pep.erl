@@ -178,9 +178,8 @@ get_entity_subscriptions(Host, D, R, Owner) ->
                      {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Owner),
                      States0;
                  _ ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare(Owner),
-                     {ok, States1} = mod_pubsub_db_backend:get_states_by_full(Owner),
-                     States0 ++ States1
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(Owner),
+                     States0
              end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->

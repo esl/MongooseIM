@@ -283,10 +283,13 @@ init([ServerHost, Opts]) ->
     mod_disco:register_feature(ServerHost, ?NS_PUBSUB),
     
     store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping),
-    hooks(add, ServerHost),
+    add_hooks(ServerHost, hooks()),
     case lists:member(?PEPNODE, Plugins) of
-        true -> pep_hooks_and_handlers(add, ServerHost, Opts);
-        false -> ok
+        true ->
+            add_hooks(ServerHost, pep_hooks()),
+            add_pep_iq_handlers(ServerHost, Opts);
+        false ->
+            ok
     end,
 
     ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
@@ -330,38 +333,43 @@ store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {access, Access}),
     ets:insert(gen_mod:get_module_proc(ServerHost, config), {item_publisher, ItemPublisher}).
 
-hooks(Op, ServerHost) when Op == add; Op == delete ->
-    ejabberd_hooks:Op(sm_remove_connection_hook, ServerHost, ?MODULE, on_user_offline, 75),
-    ejabberd_hooks:Op(disco_local_identity, ServerHost, ?MODULE, disco_local_identity, 75),
-    ejabberd_hooks:Op(disco_local_features, ServerHost, ?MODULE, disco_local_features, 75),
-    ejabberd_hooks:Op(disco_local_items, ServerHost, ?MODULE, disco_local_items, 75),
-    ejabberd_hooks:Op(presence_probe_hook, ServerHost, ?MODULE, presence_probe, 80),
-    ejabberd_hooks:Op(roster_in_subscription, ServerHost, ?MODULE, in_subscription, 50),
-    ejabberd_hooks:Op(roster_out_subscription, ServerHost, ?MODULE, out_subscription, 50),
-    ejabberd_hooks:Op(remove_user, ServerHost, ?MODULE, remove_user, 50),
-    ejabberd_hooks:Op(anonymous_purge_hook, ServerHost, ?MODULE, remove_user, 50).
+add_hooks(ServerHost, Hooks) ->
+    [ ejabberd_hooks:add(Hook, ServerHost, ?MODULE, F, Seq) || {Hook, F, Seq} <- Hooks ].
 
-pep_hooks_and_handlers(Op, ServerHost) ->
-    pep_hooks_and_handlers(Op, ServerHost, []).
+delete_hooks(ServerHost, Hooks) ->
+    [ ejabberd_hooks:delete(Hook, ServerHost, ?MODULE, F, Seq) || {Hook, F, Seq} <- Hooks ].
 
-pep_hooks_and_handlers(Op, ServerHost, Opts) ->
+hooks() ->
+    [
+     {sm_remove_connection_hook, on_user_offline, 75},
+     {disco_local_identity, disco_local_identity, 75},
+     {disco_local_features, disco_local_features, 75},
+     {disco_local_items, disco_local_items, 75},
+     {presence_probe_hook, presence_probe, 80},
+     {roster_in_subscription, in_subscription, 50},
+     {roster_out_subscription, out_subscription, 50},
+     {remove_user, remove_user, 50},
+     {anonymous_purge_hook, remove_user, 50}
+    ].
+
+pep_hooks() ->
+    [
+     {caps_recognised, caps_recognised, 80},
+     {disco_sm_identity, disco_sm_identity, 75},
+     {disco_sm_features, disco_sm_features, 75},
+     {disco_sm_items, disco_sm_items, 75},
+     {filter_local_packet, handle_pep_authorization_response, 1}
+    ].
+
+add_pep_iq_handlers(ServerHost, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, fun gen_iq_handler:check_type/1, one_queue),
-    ejabberd_hooks:Op(caps_recognised, ServerHost, ?MODULE, caps_recognised, 80),
-    ejabberd_hooks:Op(disco_sm_identity, ServerHost, ?MODULE, disco_sm_identity, 75),
-    ejabberd_hooks:Op(disco_sm_features, ServerHost, ?MODULE, disco_sm_features, 75),
-    ejabberd_hooks:Op(disco_sm_items, ServerHost, ?MODULE, disco_sm_items, 75),
-    ejabberd_hooks:Op(filter_local_packet, ServerHost, ?MODULE,
-                      handle_pep_authorization_response, 1),
-    case Op of
-        add ->
-            gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB,
-                                          ?MODULE, iq_sm, IQDisc),
-            gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER,
-                                          ?MODULE, iq_sm, IQDisc);
-        delete ->
-            gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB),
-            gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER)
-    end.
+    gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB, ?MODULE, iq_sm, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER,
+                                  ?MODULE, iq_sm, IQDisc).
+
+delete_pep_iq_handlers(ServerHost) ->
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB),
+    gen_iq_handler:remove_iq_handler(ejabberd_sm, ServerHost, ?NS_PUBSUB_OWNER).
 
 init_send_loop(ServerHost) ->
     NodeTree = config(ServerHost, nodetree),
@@ -921,10 +929,12 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
                           nodetree = TreePlugin, plugins = Plugins}) ->
     ejabberd_router:unregister_route(Host),
     case lists:member(?PEPNODE, Plugins) of
-        true -> pep_hooks_and_handlers(delete, ServerHost);
+        true ->
+            delete_hooks(ServerHost, pep_hooks()),
+            delete_pep_iq_handlers(ServerHost);
         false -> ok
     end,
-    hooks(delete, ServerHost),
+    delete_hooks(ServerHost, hooks()),
     mod_disco:unregister_feature(ServerHost, ?NS_PUBSUB),
     case whereis(gen_mod:get_module_proc(ServerHost, ?LOOPNAME)) of
         undefined ->
