@@ -68,10 +68,17 @@ init_per_group(redis, Config) ->
     init_redis_group(is_redis_running(), Config).
 
 init_redis_group(true, Config) ->
-    mongoose_wpool:ensure_started(),
-    % This would be started via outgoing_pools in normal case
-    Pool = {redis, global, default, [{strategy, random_worker}, {workers, 10}], []},
-    mongoose_wpool:start_configured_pools([Pool], []),
+    Self = self(),
+    spawn(fun() ->
+                  register(test_helper, self()),
+                  mongoose_wpool:ensure_started(),
+                  % This would be started via outgoing_pools in normal case
+                  Pool = {redis, global, default, [{strategy, random_worker}, {workers, 10}], []},
+                  mongoose_wpool:start_configured_pools([Pool], []),
+                  Self ! ready,
+                  receive stop -> ok end
+          end),
+    receive ready -> ok end,
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
@@ -81,6 +88,7 @@ end_per_group(mnesia, Config) ->
     mnesia:delete_schema([node()]),
     Config;
 end_per_group(_, Config) ->
+    whereis(test_helper) ! stop,
     Config.
 
 init_per_testcase(too_much_sessions, Config) ->

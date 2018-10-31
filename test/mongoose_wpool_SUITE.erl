@@ -33,7 +33,9 @@ all() ->
      generic_pools_are_started_for_all_vhosts,
      host_specific_pools_are_preseved,
      pools_for_different_tag_are_expanded_with_host_specific_config_preserved,
-     global_pool_is_used_by_default].
+     global_pool_is_used_by_default,
+     dead_pool_is_restarted,
+     dead_pool_is_stopped_before_restarted].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -42,15 +44,24 @@ all() ->
 init_per_suite(Config) ->
     application:ensure_all_started(lager),
     ok = meck:new(wpool, [no_link, passthrough]),
+    ok = meck:new(mongoose_wpool, [no_link, passthrough]),
     ok = meck:new(ejabberd_config, [no_link]),
     meck:expect(ejabberd_config, get_global_option,
                 fun(hosts) -> [<<"a.com">>, <<"b.com">>, <<"c.eu">>] end),
-    mongoose_wpool:ensure_started(),
+    Self = self(),
+    spawn(fun() ->
+                  register(test_helper, self()),
+                  mongoose_wpool:ensure_started(),
+                  Self ! ready,
+                  receive stop -> ok end
+          end),
+    receive ready -> ok end,
     Config.
 
 end_per_suite(Config) ->
     meck:unload(wpool),
     meck:unload(ejabberd_config),
+    whereis(test_helper) ! stop,
     Config.
 
 init_per_testcase(_Case, Config) ->
@@ -75,35 +86,39 @@ get_pools_returns_pool_names(_Config) ->
 
 
 stats_passes_through_to_wpool_stats(_Config) ->
-    mongoose_wpool:start(x, global, z, [{workers, 1}]),
+    mongoose_wpool:start(generic, global, z, [{workers, 1}]),
 
     Ref = make_ref(),
 
         meck:expect(wpool, stats, fun(_Name) -> Ref end),
-        ?assertEqual(Ref, mongoose_wpool:stats(x, global, z)).
+        ?assertEqual(Ref, mongoose_wpool:stats(generic, global, z)).
 
 a_global_riak_pool_is_started(_Config) ->
     PoolName = mongoose_wpool:make_pool_name(riak, global, default),
-    meck:expect(wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
+    meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock(PoolName)),
     [{ok, PoolName}] = mongoose_wpool:start_configured_pools([{riak, global, default,
                                                                [{workers, 12}],
                                                                [{address, "localhost"},
                                                                 {port, 1805}]}]),
 
-    H = meck_history:get_history(self(), wpool),
-    F = fun({_, {wpool, start_sup_pool, [PN, Args]}, _}) -> {true, {PN, Args}};
-           (_) -> false
-        end,
-    [{PoolName, CallArgs}] = lists:filtermap(F, H),
+    MgrPid = whereis(mongoose_wpool_mgr:name(riak)),
+    [{PoolName, CallArgs}] = filter_calls_to_start_sup_pool(MgrPid),
     ?assertEqual(12, proplists:get_value(workers, CallArgs)),
     ?assertMatch({riakc_pb_socket, _}, proplists:get_value(worker, CallArgs)),
 
     ok.
 
+filter_calls_to_start_sup_pool(Pid) ->
+    H = meck_history:get_history(Pid, mongoose_wpool),
+    F = fun({_, {mongoose_wpool, start_sup_pool, [_, PN, Args]}, _}) -> {true, {PN, Args}};
+           (_) -> false
+        end,
+    lists:filtermap(F, H).
+
 two_distinct_redis_pools_are_started(_C) ->
     PoolName1 = mongoose_wpool:make_pool_name(redis, global, default),
     PoolName2 = mongoose_wpool:make_pool_name(redis, global, global_dist),
-    meck:expect(wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
+    meck:expect(mongoose_wpool, start_sup_pool, start_sup_pool_mock([PoolName1, PoolName2])),
     Pools = [{redis, global, default, [{workers, 2}],
               [{host, "localhost"},
                {port, 1805}]},
@@ -113,11 +128,8 @@ two_distinct_redis_pools_are_started(_C) ->
 
     [{ok, PoolName1}, {ok, PoolName2}] = mongoose_wpool:start_configured_pools(Pools),
 
-    H = meck_history:get_history(self(), wpool),
-    F = fun({_, {wpool, start_sup_pool, [PN, Args]}, _}) -> {true, {PN, Args}};
-           (_) -> false
-        end,
-    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = lists:filtermap(F, H),
+    MgrPid = whereis(mongoose_wpool_mgr:name(redis)),
+    [{PoolName1, CallArgs1}, {PoolName2, CallArgs2}] = filter_calls_to_start_sup_pool(MgrPid),
     ?assertEqual(2, proplists:get_value(workers, CallArgs1)),
     ?assertEqual(4, proplists:get_value(workers, CallArgs2)),
     ?assertMatch({eredis_client, ["localhost", 1805 | _]}, proplists:get_value(worker, CallArgs1)),
@@ -169,17 +181,62 @@ global_pool_is_used_by_default(_C) ->
     ?assertEqual(mongoose_wpool:make_pool_name(generic, global, default),
                  mongoose_wpool:call(generic, global, default, request)).
 
+dead_pool_is_restarted(_C) ->
+    Size = 3,
+    {PoolName, KillingSwitch} = start_killable_pool(Size, kill_and_restart),
+    %% set the switch to kill every new worker
+    set_killing_switch(KillingSwitch, true),
+    %% kill existing workers so they will be restarted
+    [erlang:exit(whereis(wpool_pool:worker_name(PoolName, I)), kill) ||
+     I <- lists:seq(1, Size)],
+
+    wait_until_pool_is_dead(PoolName),
+    %% set the switch to stop killing workers
+    set_killing_switch(KillingSwitch, false),
+
+    %% wait until the pool is restarted by the manager
+    Fun = fun() ->
+                  case erlang:whereis(PoolName) of
+                      undefined -> false;
+                      _ -> true
+                  end
+          end,
+
+    async_helper:wait_until(Fun, true),
+
+    meck:unload(killing_workers).
+
+dead_pool_is_stopped_before_restarted(_C) ->
+    Size = 3,
+    Tag = kill_stop_before_restart,
+    {PoolName, KillingSwitch} = start_killable_pool(Size, Tag),
+    %% set the switch to kill every new worker
+    set_killing_switch(KillingSwitch, true),
+    %% kill existing workers so they will be restarted
+    [erlang:exit(whereis(wpool_pool:worker_name(PoolName, I)), kill) ||
+     I <- lists:seq(1, Size)],
+
+    wait_until_pool_is_dead(PoolName),
+    %% stop the pool before it's restarted
+    mongoose_wpool:stop(generic, global, Tag),
+    %% set the switch to stop killing workers
+    set_killing_switch(KillingSwitch, false),
+    %% wait 4s (the restart attempt will happen after 2s)
+    %% and check if the pool is started, it should not be
+    timer:sleep(timer:seconds(4)),
+    ?assertEqual(undefined, erlang:whereis(PoolName)),
+    meck:unload(killing_workers).
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
 
 start_sup_pool_mock(PoolNames) when is_list(PoolNames) ->
-    fun(PN, Opts) ->
+    fun(Type, PN, Opts) ->
             case lists:member(PN, PoolNames) of
                 true ->
                     {ok, PN}; %% we don't realy need a pid here for mocking
                 _ ->
-                    meck:passthrough([PN, Opts])
+                    meck:passthrough([Type, PN, Opts])
             end
     end;
 start_sup_pool_mock(PoolName) ->
@@ -188,3 +245,43 @@ start_sup_pool_mock(PoolName) ->
 cleanup_pools() ->
     lists:foreach(fun({Type, Host, Tag}) -> mongoose_wpool:stop(Type, Host, Tag) end,
                   mongoose_wpool:get_pools()).
+
+start_killable_pool(Size, Tag) ->
+    KillingSwitch = ets:new(killing_switch, [public]),
+    ets:insert(KillingSwitch, {kill_worker, false}),
+    meck:new(killing_workers, [non_strict]),
+    meck:expect(killing_workers, handle_worker_creation, kill_worker_fun(KillingSwitch)),
+    Pools = [{generic, global, Tag,
+              [{workers, Size},
+               {enable_callbacks, true},
+               {callbacks, [killing_workers]}],
+              []}],
+    [{ok, _Pid}] = mongoose_wpool:start_configured_pools(Pools),
+    PoolName = mongoose_wpool:make_pool_name(generic, global, Tag),
+    {PoolName, KillingSwitch}.
+
+kill_worker_fun(KillingSwitch) ->
+    fun(AWorkerName) ->
+            case ets:lookup_element(KillingSwitch, kill_worker, 2) of
+                true ->
+                    ct:pal("I'll be killing ~p", [AWorkerName]),
+                    erlang:exit(whereis(AWorkerName), kill);
+                _ ->
+                    ok
+            end
+    end.
+
+wait_until_pool_is_dead(PoolName) ->
+    %% Wait until the pool is killed due to too many restarts
+    Pid = whereis(PoolName),
+    MRef = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', MRef, process, Pid, _} ->
+            ok
+    after
+        timer:minutes(3) ->
+            ct:fail("pool not stopped")
+    end.
+
+set_killing_switch(KillingSwitch, Value) ->
+    ets:update_element(KillingSwitch, kill_worker, {2, Value}).

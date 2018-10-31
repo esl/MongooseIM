@@ -28,7 +28,7 @@ start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     WpoolOpts = wpool_spec(Host, WpoolOptsIn, ConnOpts),
     PathPrefix = list_to_binary(gen_mod:get_opt(path_prefix, ConnOpts, "/")),
     RequestTimeout = gen_mod:get_opt(request_timeout, ConnOpts, 2000),
-    case wpool:start_sup_pool(Name, WpoolOpts) of
+    case mongoose_wpool:start_sup_pool(http, Name, WpoolOpts) of
         {ok, Pid} ->
             ets:insert(?MODULE, {{Host, Tag}, PathPrefix, RequestTimeout}),
             {ok, Pid};

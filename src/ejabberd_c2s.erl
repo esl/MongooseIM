@@ -1274,7 +1274,7 @@ handle_routed_iq(From, To, Acc, StateData) ->
                        Acc :: mongoose_acc:t(),
                        IQ :: invalid | not_iq | jlib:iq(),
                        StateData :: state()) -> routing_result().
-handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData) 
+handle_routed_iq(From, To, Acc0, #iq{ xmlns = ?NS_LAST, type = Type }, StateData)
   when Type /= result ->
     %% TODO: Support for mod_last / XEP-0012. Can we move it to the respective module?
     %%   Thanks to add_iq_handler(ejabberd_sm, ...)?
@@ -1708,8 +1708,6 @@ get_conn_type(StateData) ->
                 gen_tcp -> c2s_compressed;
                 ejabberd_tls -> c2s_compressed_tls
             end;
-        ejabberd_http_poll -> http_poll;
-        ejabberd_http_bind -> http_bind;
         _ -> unknown
     end.
 
