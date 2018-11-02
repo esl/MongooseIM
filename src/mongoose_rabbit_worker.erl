@@ -96,8 +96,9 @@ handle_call({amqp_call, Method, Opts}, _From,
         {ok, _} = Res ->
             {reply, Res, NewState};
         {error, _, _} = Err ->
-            {Conn, Chann} = restart_rabbit_connection(NewState),
-            {reply, Err, NewState#state{connection = Conn, channel = Chann}}
+            {FreshConn, FreshChann} = restart_rabbit_connection(NewState),
+            {reply, Err, NewState#state{connection = FreshConn,
+                                        channel = FreshChann}}
     end.
 
 handle_cast({amqp_publish, Method, Payload, Opts}, State) ->
@@ -143,8 +144,8 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
             update_messages_failed_metrics(Host),
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=channel_exception",
                          []),
-            {Conn, Chann} = restart_rabbit_connection(Opts),
-            {noreply, Opts#state{connection = Conn, channel = Chann}};
+            {FreshConn, FreshChann} = restart_rabbit_connection(Opts),
+            {noreply, Opts#state{connection = FreshConn, channel = FreshChann}};
         timeout ->
             update_messages_timeout_metrics(Host),
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout",
@@ -155,7 +156,7 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
 -spec publish_message_and_wait_for_confirm(Method :: mongoose_amqp:method(),
                                            Payload :: mongoose_amqp:message(),
                                            worker_opts()) ->
-    true | no_return().
+    boolean() | timeout | channel_exception.
 publish_message_and_wait_for_confirm(Method, Payload,
                                      #state{channel = Channel,
                                             confirms = IsConfirmEnabled}) ->
