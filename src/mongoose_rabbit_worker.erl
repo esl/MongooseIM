@@ -140,10 +140,10 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=negative_ack",
                          []),
             {noreply, Opts};
-        channel_exception ->
+        {channel_exception, Error, Reason} ->
             update_messages_failed_metrics(Host),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=channel_exception",
-                         []),
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=~1000p:~1000p",
+                         [Error, Reason]),
             {FreshConn, FreshChann} = restart_rabbit_connection(Opts),
             {noreply, Opts#state{connection = FreshConn, channel = FreshChann}};
         timeout ->
@@ -163,7 +163,7 @@ publish_message_and_wait_for_confirm(Method, Payload,
     case try_to_apply(amqp_channel, call, [Channel, Method, Payload]) of
         {ok, _} ->
             maybe_wait_for_confirms(Channel, IsConfirmEnabled);
-        {error, _, _} -> channel_exception
+        {error, E, R} -> {channel_exception, E, R}
     end.
 
 -spec maybe_wait_for_confirms(Channel :: pid(), boolean()) ->
