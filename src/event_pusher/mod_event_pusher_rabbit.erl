@@ -76,7 +76,6 @@ start(Host, _Opts) ->
 
 -spec stop(Host :: jid:server()) -> ok.
 stop(Host) ->
-    delete_exchanges(Host),
     wpool:stop_sup_pool(pool_name(Host)),
     ok.
 
