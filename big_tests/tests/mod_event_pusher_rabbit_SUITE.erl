@@ -320,7 +320,6 @@ group_chat_message_received_event(Config) ->
               %% GIVEN
               Room = ?config(room, Config),
               RoomAddr = room_address(Room),
-              BobJID = nick_to_jid(bob, Config),
               AliceJID = nick_to_jid(alice, Config),
               AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
               listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID],
