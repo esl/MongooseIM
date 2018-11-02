@@ -27,12 +27,14 @@
          exchange_declare_ok/0, exchange_delete/1, basic_publish/2,
          confirm_select/0, confirm_select_ok/0, message/1]).
 
--export_type([method/0, message/0]).
+-export_type([network_params/0, method/0, message/0]).
 
 
 %%%===================================================================
 %%% Types
 %%%===================================================================
+
+-type network_params() :: #amqp_params_network{}.
 
 -type method() :: #'exchange.declare'{}
                 | #'exchange.declare_ok'{}
@@ -43,11 +45,12 @@
 
 -type message() :: #amqp_msg{}.
 
+
 %%%===================================================================
 %%% API
 %%%===================================================================
 
--spec network_params() -> #amqp_params_network{}.
+-spec network_params() -> network_params().
 network_params() ->
     network_params([]).
 

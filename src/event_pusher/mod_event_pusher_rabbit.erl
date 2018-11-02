@@ -100,8 +100,9 @@ initialize_metrics(Host) ->
 -spec create_exchanges(Host :: jid:server()) -> ok.
 create_exchanges(Host) ->
     Res = [wpool:call(pool_name(Host),
-                      {amqp_call, mongoose_amqp:exchange_declare(ExName, Type)},
-                      available_worker) || {ExName, Type} <- exchanges(Host)],
+                      {amqp_call, mongoose_amqp:exchange_declare(ExName, Type),
+                       [{host, Host}]}, available_worker)
+           || {ExName, Type} <- exchanges(Host)],
     verify_exchanges_were_created_or_crash(Res).
 
 -spec handle_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
@@ -248,7 +249,7 @@ verify_opts(Opts) ->
 -spec verify_exchanges_were_created_or_crash(Res :: list()) -> ok | no_return().
 verify_exchanges_were_created_or_crash(Res) ->
     case lists:all(fun(E) ->
-                           E == mongoose_amqp:exchange_declare_ok()
+                           element(2, E) == mongoose_amqp:exchange_declare_ok()
                    end, Res) of
         true ->
             ok;

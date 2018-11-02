@@ -32,7 +32,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
 
--record(state, {connection :: pid(),
+-record(state, {amqp_client_opts :: mongoose_amqp:network_params(),
+                connection :: pid(),
                 channel :: pid(),
                 host :: binary(),
                 confirms :: boolean()}).
@@ -88,21 +89,29 @@ init(Opts) ->
     self() ! {init, Opts},
     {ok, #state{}}.
 
-handle_call({amqp_call, Method}, _From, State) ->
-    Res = handle_amqp_call(Method, State),
-    {reply, Res, State}.
+handle_call({amqp_call, Method, Opts}, _From,
+            State = #state{channel = Channel}) ->
+    NewState = State#state{host = proplists:get_value(host, Opts)},
+    case try_to_apply(amqp_channel, call, [Channel, Method]) of
+        {ok, _} = Res ->
+            {reply, Res, NewState};
+        {error, _, _} = Err ->
+            {Conn, Chann} = restart_rabbit_connection(NewState),
+            {reply, Err, NewState#state{connection = Conn, channel = Chann}}
+    end.
 
 handle_cast({amqp_publish, Method, Payload, Opts}, State) ->
     NewState = State#state{host = proplists:get_value(host, Opts)},
-    handle_amqp_publish(Method, Payload, NewState),
-    {noreply, NewState}.
+    handle_amqp_publish(Method, Payload, NewState).
 
 handle_info({init, Opts}, State) ->
     Host = proplists:get_value(host, Opts),
-    {Connection, Channel} = establish_rabbit_connection(Opts, Host),
+    AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
+    {Connection, Channel} = establish_rabbit_connection(AMQPClientOpts, Host),
     IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
-    {noreply, State#state{host = Host, connection = Connection,
-                          channel = Channel, confirms = IsConfirmEnabled}}.
+    {noreply, State#state{host = Host, amqp_client_opts = AMQPClientOpts,
+                          connection = Connection, channel = Channel,
+                          confirms = IsConfirmEnabled}}.
 
 terminate(_Reason, #state{connection = Connection, channel = Channel,
                           host = Host}) ->
@@ -112,11 +121,6 @@ terminate(_Reason, #state{connection = Connection, channel = Channel,
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
--spec handle_amqp_call(Method :: mongoose_amqp:method(), worker_opts()) ->
-    {ok, term()} | {error, term(), term()}.
-handle_amqp_call(Method, #state{channel = Channel}) ->
-    amqp_channel:call(Channel, Method).
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
@@ -128,15 +132,24 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
     case Result of
         true ->
             update_messages_published_metrics(Host, PublishTime, Payload),
-            ?DEBUG("event=rabbit_message_sent message=~1000p", [Payload]);
+            ?DEBUG("event=rabbit_message_sent message=~1000p", [Payload]),
+            {noreply, Opts};
         false ->
             update_messages_failed_metrics(Host),
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=negative_ack",
-                         []);
+                         []),
+            {noreply, Opts};
+        channel_exception ->
+            update_messages_failed_metrics(Host),
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=channel_exception",
+                         []),
+            {Conn, Chann} = restart_rabbit_connection(Opts),
+            {noreply, Opts#state{connection = Conn, channel = Chann}};
         timeout ->
             update_messages_timeout_metrics(Host),
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout",
-                         [])
+                         []),
+            {noreply, Opts}
     end.
 
 -spec publish_message_and_wait_for_confirm(Method :: mongoose_amqp:method(),
@@ -146,18 +159,28 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
 publish_message_and_wait_for_confirm(Method, Payload,
                                      #state{channel = Channel,
                                             confirms = IsConfirmEnabled}) ->
-    amqp_channel:call(Channel, Method, Payload),
-    case IsConfirmEnabled of
-        true ->
-            amqp_channel:wait_for_confirms(Channel);
-        false ->
-            true
+    case try_to_apply(amqp_channel, call, [Channel, Method, Payload]) of
+        {ok, _} ->
+            maybe_wait_for_confirms(Channel, IsConfirmEnabled);
+        {error, _, _} -> channel_exception
     end.
 
+-spec maybe_wait_for_confirms(Channel :: pid(), boolean()) ->
+    boolean() | timeout.
+maybe_wait_for_confirms(Channel, true) ->
+    amqp_channel:wait_for_confirms(Channel);
+maybe_wait_for_confirms(_, _) -> true.
+
+-spec restart_rabbit_connection(worker_opts()) -> {pid(), pid()}.
+restart_rabbit_connection(#state{connection = Conn, channel = Chann,
+                                 host = Host, amqp_client_opts = AMQPOpts}) ->
+    catch close_rabbit_connection(Conn, Chann, Host),
+    establish_rabbit_connection(AMQPOpts, Host).
+
+
 -spec establish_rabbit_connection(Opts :: proplists:proplist(),
-                                  Host :: jid:server()) -> ok.
-establish_rabbit_connection(Opts, Host) ->
-    AMQPOpts = proplists:get_value(amqp_client_opts, Opts),
+                                  Host :: jid:server()) -> {pid(), pid()}.
+establish_rabbit_connection(AMQPOpts, Host) ->
     case amqp_connection:start(AMQPOpts) of
         {ok, Connection} ->
             update_success_connections_metrics(Host),
@@ -225,3 +248,14 @@ update_failed_connections_metrics(Host) ->
 update_closed_connections_metrics(Host) ->
     mongoose_metrics:update(Host, ?CONNECTIONS_ACTIVE_METRIC, -1),
     mongoose_metrics:update(Host, ?CONNECTIONS_CLOSED_METRIC, 1).
+
+-spec try_to_apply(Mod :: module(), Fun :: atom(), [term()]) ->
+    {ok, term()} | {error, term(), term()}.
+try_to_apply(Mod, Fun, Args) ->
+    try erlang:apply(Mod, Fun, Args) of
+        Res ->
+            {ok, Res}
+    catch
+        Error:Reason ->
+            {error, Error, Reason}
+    end.
