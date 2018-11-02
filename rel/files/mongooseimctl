@@ -31,6 +31,9 @@ if [ -z "$NODENAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
 fi
+
+NODENAME_ARG=$(echo $NODENAME_ARG) # make sure there is no whitespace
+
 FORCE_FLAG1='"--force"'
 FORCE_FLAG2='"-f"'
 
