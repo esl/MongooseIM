@@ -177,7 +177,7 @@ start(Host, Opts) ->
 
     TrackedDBFuns = [create_room, destroy_room, room_exists, get_user_rooms, remove_user,
                      get_config, set_config, get_blocking, set_blocking,
-                     get_aff_users, modify_aff_users],
+                     get_aff_users, modify_aff_users, get_inv_users, inv_users_add, inv_users_remove],
     gen_mod:start_backend_module(mod_muc_light_db, Opts, TrackedDBFuns),
     Codec = case gen_mod:get_opt(legacy_mode, Opts, ?DEFAULT_LEGACY_MODE) of
                 false ->

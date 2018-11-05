@@ -48,6 +48,10 @@
          get_aff_users/1,
          modify_aff_users/4,
 
+        get_inv_users/1,
+        inv_users_add/4,
+        inv_users_remove/2,
+
          get_info/1
         ]).
 
@@ -64,6 +68,7 @@
           room :: jid:simple_bare_jid(),
           config :: [{atom(), term()}],
           aff_users :: aff_users(),
+          inv_users = [] :: [],
           version :: binary()
          }).
 
@@ -212,6 +217,22 @@ get_aff_users(RoomUS) ->
         [] -> {error, not_exists};
         [#muc_light_room{ aff_users = AffUsers, version = Version }] -> {ok, AffUsers, Version}
     end.
+
+get_inv_users(RoomUS) ->
+    case mnesia:dirty_read(muc_light_room, RoomUS) of
+        [] -> {error, not_exists};
+        [#muc_light_room{ inv_users = InvUsers }] -> {ok, InvUsers}
+    end.
+
+inv_users_add(RoomUS, InvUsers, InviteID, InviteUS) ->
+    {atomic, Res} = mnesia:transaction(fun add_inv_users_transaction/4,
+                                       [RoomUS, InvUsers, InviteID, InviteUS]),
+    Res.
+
+inv_users_remove(RoomUS, InvUsers) ->
+    {atomic, Res} = mnesia:transaction(fun remove_inv_users_transaction/2,
+                                       [RoomUS, InvUsers]),
+    Res.
 
 -spec modify_aff_users(RoomUS :: jid:simple_bare_jid(),
                        AffUsersChanges :: aff_users(),
@@ -382,6 +403,25 @@ modify_aff_users_transaction(RoomUS, AffUsersChanges, ExternalCheck, Version) ->
                 Error ->
                     Error
             end
+    end.
+
+add_inv_users_transaction(RoomUS, InvUsersChanges, InviteID, InviteUS) ->
+    case mnesia:wread({muc_light_room, RoomUS}) of
+        [] ->
+            {error, not_exists};
+        [#muc_light_room{ inv_users = InvUsers } = RoomRec] ->
+            NewInvUsers = InvUsers ++ [{{US, InviteID}, Affiliation, InviteUS} || {US, Affiliation} <- InvUsersChanges],
+            mnesia:write(RoomRec#muc_light_room{ inv_users = lists:usort(NewInvUsers) })
+    end.
+
+remove_inv_users_transaction(RoomUS, InvUsersChanges) ->
+    case mnesia:wread({muc_light_room, RoomUS}) of
+        [] ->
+            {error, not_exists};
+        [#muc_light_room{ inv_users = InvUsers } = RoomRec] ->
+            NewInvUsers = [InvUser || InvUser = {InvUserKey, _Affiliation, _InvUS} <- InvUsers, not lists:member(InvUserKey, InvUsersChanges)],
+            mnesia:write(RoomRec#muc_light_room{ inv_users = NewInvUsers }),
+            {ok, lists:usort(InvUsers -- NewInvUsers)}
     end.
 
 -spec verify_externally_and_submit(RoomUS :: jid:simple_bare_jid(),

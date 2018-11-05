@@ -90,6 +90,21 @@
                            Version :: binary()) ->
     modify_aff_users_return().
 
+%% ------------------------ Invitations manipulation ------------------------
+
+-callback get_inv_users(RoomUS :: jid:simple_bare_jid()) ->
+    {ok, aff_users()} | {error, not_exists}.
+
+-callback inv_users_add(RoomUS :: jid:simple_bare_jid(),
+                           InvUsersChanges :: aff_users(),
+                           InviteID :: binary(),
+                           InviteUS :: jid:simple_bare_jid()) ->
+    modify_aff_users_return().
+
+-callback inv_users_remove(RoomUS :: jid:simple_bare_jid(),
+                           InvUsersChanges :: aff_users()) ->
+    modify_aff_users_return().
+
 %% ------------------------ Getting room configuration ------------------------
 
 -callback get_info(RoomUS :: jid:simple_bare_jid()) ->
