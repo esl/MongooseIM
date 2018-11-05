@@ -93,8 +93,33 @@ process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
                       Auth :: false | aff_user(),
                       AffUsers :: aff_users()) ->
     packet_processing_result().
-process_request({set, Invite = #invite_response{action = Action}}, _From, UserUS, RoomUS, false, _AffUsers) ->
-    {set, Invite};
+process_request({set, Invite = #invite_response{action = Action, invite_id = InviteID}}, _From, UserUS, RoomUS, false, _AffUsers) ->
+    case Action of 
+        decline ->
+            case mod_muc_light_db_backend:inv_users_remove(RoomUS, [{UserUS, InviteID}]) of 
+                {ok, [{{UserUS, InviteID}, _Affiliation, InviteUS}]} ->
+                    {set, Invite, InviteUS};
+                _ ->
+                    {set, Invite}
+            end;
+        accept ->
+            case mod_muc_light_db_backend:inv_users_remove(RoomUS, [{UserUS, InviteID}]) of
+                {ok, []} -> 
+                    {error, not_allowed}; 
+                {ok, [{{UserUS, InviteID}, Affiliation, _InviteUS}]} ->
+                    AffUser = {UserUS, Affiliation},
+                    NewVersion = mongoose_bin:gen_from_timestamp(),
+                    case mod_muc_light_db_backend:modify_aff_users(RoomUS, [AffUser], fun ?MODULE:participant_limit_check/2, NewVersion) of
+                        {ok, OldAffUsers, NewAffUsers, AffUsersChanged, OldVersion} ->
+                            maybe_forget(RoomUS, NewAffUsers),
+                            {set, Invite, AffUsersChanged, OldAffUsers, NewAffUsers, OldVersion, NewVersion};
+                        Error ->
+                            Error
+                    end;
+                Error -> 
+                    Error
+            end
+    end;
 process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers) ->
     {error, item_not_found};
 process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
