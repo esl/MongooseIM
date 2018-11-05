@@ -196,6 +196,18 @@ decode_iq(_From, #iq{ xmlns = ?NS_DISCO_ITEMS, type = get, id = ID} = IQ) ->
     {ok, {get, #disco_items{ id = ID, rsm = jlib:rsm_decode(IQ) }}};
 decode_iq(_From, #iq{ xmlns = ?NS_DISCO_INFO, type = get, id = ID}) ->
     {ok, {get, #disco_info{ id = ID }}};
+decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_INVITE, type = set, id = ID,
+                sub_el = #xmlel{ children = QueryEls }}) ->
+    case catch parse_aff_users(QueryEls) of
+        {ok, AffUsers} ->
+            {ok, {set, #invite{
+                    id = ID,
+                    aff_users = AffUsers
+                   }}};
+        Error ->
+            ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
+            {error, bad_request}
+    end;
 decode_iq(_From, #iq{ type = error }) ->
     ignore;
 decode_iq(_From, #iq{} = IQ) ->
@@ -376,8 +388,14 @@ encode_iq({set, #destroy{ id = ID }, AffUsers}, RoomJID, RoomBin, HandleFun) ->
                                    | NoneAffEnveloped ],
               msg_to_aff_user(RoomJID, U, S, Attrs, DestroyEnveloped, HandleFun)
       end, AffUsers),
-
     {reply, ID};
+encode_iq({set, #invite{id = ID}, AffUsersInv, FromAff}, RoomJID, _RoomBin, HandleFun) ->
+    Attrs = [],
+    MsgEnv = msg_envelope(?NS_MUC_LIGHT_INVITE, [ aff_user_to_el(FromAff) ]),
+    lists:foreach(fun({{U, S}, _}) -> 
+        msg_to_aff_user(RoomJID, U, S, Attrs, MsgEnv, HandleFun)
+    end, AffUsersInv),
+    {reply, ?NS_MUC_LIGHT_INVITE, [aff_user_to_el(InvUser) || InvUser <- AffUsersInv], ID};
 encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     Attrs = [
              {<<"id">>, Config#config.id},

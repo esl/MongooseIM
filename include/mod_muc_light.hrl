@@ -5,6 +5,7 @@
 -define(NS_MUC_LIGHT_BLOCKING, <<"urn:xmpp:muclight:0#blocking">>).
 -define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
+-define(NS_MUC_LIGHT_INVITE, <<"urn:xmpp:muclight:0#invite">>).
 
 -define(DEFAULT_EQUAL_OCCUPANTS, false).
 -define(DEFAULT_LEGACY_MODE, false).
@@ -81,6 +82,11 @@
           id = <<>> :: binary(),
           prev_version = <<>> :: binary(),
           version = <<>> :: binary(),
+          aff_users = [] :: aff_users()
+         }).
+
+-record(invite, {
+          id = <<>> :: binary(),
           aff_users = [] :: aff_users()
          }).
 

@@ -6,4 +6,5 @@
 -define(NS_MUC_LIGHT_BLOCKING, <<"urn:xmpp:muclight:0#blocking">>).
 -define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
+-define(NS_MUC_LIGHT_INVITE, <<"urn:xmpp:muclight:0#invite">>).
 

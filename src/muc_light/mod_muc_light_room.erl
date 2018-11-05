@@ -141,6 +141,11 @@ process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owne
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}}, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
     {error, not_allowed};
+process_request({set, Invite = #invite{aff_users = AffUsersInv}}, _From, UserUS, _RoomUS, _Auth, AffUsers) ->
+    lists:foreach(fun(AffUser) -> 
+        ok
+    end, AffUsersInv),
+    {set, Invite, AffUsersInv, lists:keyfind(UserUS, 1, AffUsers)};
 process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
     {error, bad_request}.
 
