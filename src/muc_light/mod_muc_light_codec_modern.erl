@@ -415,9 +415,34 @@ encode_iq({set, #invite{id = ID}, AffUsersInv, FromAff}, RoomJID, _RoomBin, Hand
         msg_to_aff_user(RoomJID, U, S, Attrs, MsgEnv, HandleFun)
     end, AffUsersInv),
     {reply, ?NS_MUC_LIGHT_INVITE, [aff_user_to_el(InvUser) || InvUser <- AffUsersInv], ID};
+encode_iq({set, #invite_response{id = ID, action = decline}, InviteUS}, _RoomJID, _RoomBin, _HandleFun) ->
+    {reply, ID};
 encode_iq({set, #invite_response{id = ID, action = decline}}, _RoomJID, _RoomBin, _HandleFun) ->
     {reply, ID};
-encode_iq({set, #invite_response{id = ID, action = accept}}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({set, #invite_response{id = ID, action = accept}, AffUsersChanged, OldAffUsers, NewAffUsers, OldVersion, NewVersion}, 
+    RoomJID, RoomBin, HandleFun) ->
+    Attrs = [
+             {<<"id">>, ID},
+             {<<"type">>, <<"groupchat">>},
+             {<<"from">>, RoomBin}
+            ],
+
+    AllAffsEls = [ aff_user_to_el(AffUser) || AffUser <- AffUsersChanged],
+    VersionEl = kv_to_el(<<"version">>, NewVersion),
+    NotifForCurrentNoPrevVersion = [ VersionEl | AllAffsEls ],
+    MsgForArch = #xmlel{ name = <<"message">>, attrs = Attrs,
+                         children = msg_envelope(?NS_MUC_LIGHT_AFFILIATIONS,
+                                                 NotifForCurrentNoPrevVersion) },
+    EventData = room_event(RoomJID),
+    FilteredPacket = #xmlel{ children = FinalChildrenForCurrentNoPrevVersion }
+    = ejabberd_hooks:run_fold(filter_room_packet, RoomJID#jid.lserver, MsgForArch,
+                              [EventData]),
+    ejabberd_hooks:run(room_send_packet, RoomJID#jid.lserver, [FilteredPacket, EventData]),
+    FinalChildrenForCurrent = inject_prev_version(FinalChildrenForCurrentNoPrevVersion,
+                                                  OldVersion),
+    bcast_aff_messages(RoomJID, OldAffUsers, NewAffUsers, Attrs, VersionEl,
+                       FinalChildrenForCurrent, HandleFun),
+
     {reply, ID};
 encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     Attrs = [
