@@ -25,8 +25,8 @@
          get_affiliation/2, set_affiliation/3,
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
-         get_pending_nodes/2, get_states/1, get_state/2,
-         set_state/1, get_items/7, get_items/3, get_item/7,
+         get_pending_nodes/2,
+         get_items/7, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1]).
 
@@ -89,10 +89,13 @@ publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublis
              PublishOptions) ->
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_bare(SubKey),
-    GenState = get_state(Nidx, GenKey),
+    {ok, GenState} = mod_pubsub_db_backend:get_state(Nidx, GenKey),
     SubState = case SubKey of
-                   GenKey -> GenState;
-                   _ -> get_state(Nidx, SubKey)
+                   GenKey ->
+                       GenState;
+                   _ ->
+                       {ok, SubState0} = mod_pubsub_db_backend:get_state(Nidx, SubKey),
+                       SubState0
                end,
     Affiliation = SubState#pubsub_state.affiliation,
     ElPayload = [El || #xmlel{} = El <- Payload],
@@ -155,15 +158,6 @@ set_subscriptions(Nidx, Owner, Subscription, SubId) ->
 
 get_pending_nodes(Host, Owner) ->
     node_flat:get_pending_nodes(Host, Owner).
-
-get_states(Nidx) ->
-    node_flat:get_states(Nidx).
-
-get_state(Nidx, JID) ->
-    node_flat:get_state(Nidx, JID).
-
-set_state(State) ->
-    node_flat:set_state(State).
 
 get_items(Nidx, From, RSM) ->
     node_flat:get_items(Nidx, From, RSM).

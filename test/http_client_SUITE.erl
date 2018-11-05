@@ -33,11 +33,11 @@ init_per_suite(Config) ->
     spawn(fun() ->
                   register(test_helper, self()),
                   mim_ct_sup:start_link(ejabberd_sup),
+                  mongoose_wpool:ensure_started(),
                   Pid ! ready,
                   receive stop -> ok end
           end),
     receive ready -> ok end,
-    mongoose_wpool:ensure_started(),
     Config.
 
 process_request(Req) ->

@@ -113,6 +113,7 @@ pass_request(Host, Path, Method, Req,
     {Body, Req1} = request_body(Req, State),
     Headers1 = Headers ++ CustomHeaders,
     Response = fusco:request(Pid, Path, Method, Headers1, Body, Timeout),
+    fusco:disconnect(Pid),
     return_response(Response, Req1, State).
 
 return_response({ok, {{Status, _}, Headers, Body, _, _}}, Req, State) ->

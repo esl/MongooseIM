@@ -51,7 +51,7 @@ do_start(Host, Tag, WpoolOpts0, RdbmsOpts) when is_list(WpoolOpts0) and is_list(
     %% do_start function has no return.
     WpoolOpts = lists:map(fun(X) -> X end, [{worker, Worker}, {pool_sup_shutdown, infinity} | WpoolOpts0]),
     Name = mongoose_wpool:make_pool_name(rdbms, Host, Tag),
-    wpool:start_sup_pool(Name, WpoolOpts).
+    mongoose_wpool:start_sup_pool(rdbms, Name, WpoolOpts).
 
 -spec backend_name(proplist:proplists()) -> odbc | pgsql | mysql.
 backend_name(RdbmsOpts) ->

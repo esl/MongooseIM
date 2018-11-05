@@ -73,6 +73,7 @@ pages:
       - 'xep-tool usage': 'developers-guide/xep_tool.md'
       - 'FIPS mode': 'developers-guide/OpenSSL-and-FIPS.md'
       - 'Basic IQ Handler': 'developers-guide/Basic-iq-handler.md'
+      - 'mongoose_wpool': 'developers-guide/mongoose_wpool.md'
   - 'Module index':
       - 'mod_adhoc': 'modules/mod_adhoc.md'
       - 'mod_amp': 'modules/mod_amp.md'

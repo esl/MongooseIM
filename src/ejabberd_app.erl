@@ -49,7 +49,6 @@ start(normal, _Args) ->
     acl:start(),
     ejabberd_node_id:start(),
     ejabberd_ctl:init(),
-    mongoose_wpool:ensure_started(),
     ejabberd_commands:init(),
     mongoose_commands:init(),
     mongoose_subhosts:init(),
@@ -60,6 +59,7 @@ start(normal, _Args) ->
     connect_nodes(),
     mongoose_deprecations:start(),
     {ok, _} = Sup = ejabberd_sup:start_link(),
+    mongoose_wpool:ensure_started(),
     mongoose_wpool:start_configured_pools(),
     %% ejabberd_sm is started separately because it may use one of the outgoing_pools
     %% but some outgoing_pools should be started only with ejabberd_sup already running

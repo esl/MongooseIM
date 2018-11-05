@@ -26,11 +26,13 @@
          cast/2, cast/3, cast/4, cast/5,
          get_pool_settings/3, get_pools/0, stats/3]).
 
+-export([start_sup_pool/3]).
 -export([start_configured_pools/0]).
 -export([start_configured_pools/1]).
 -export([start_configured_pools/2]).
 -export([is_configured/1]).
 -export([make_pool_name/3]).
+-export([call_start_callback/2]).
 
 %% Mostly for tests
 -export([expand_pools/2]).
@@ -38,6 +40,12 @@
 -type type() :: redis | riak | http | rdbms | cassandra | elastic | generic.
 -type host() :: global | host | jid:lserver().
 -type tag() :: atom().
+-type name() :: atom().
+
+-export_type([type/0]).
+-export_type([tag/0]).
+-export_type([host/0]).
+-export_type([name/0]).
 
 -callback init() -> ok | {error, term()}.
 -callback start(host(), tag(), WPoolOpts :: [wpool:option()], ConnOpts :: [{atom(), any()}]) ->
@@ -50,13 +58,20 @@
 
 ensure_started() ->
     wpool:start(),
+    case whereis(mongoose_wpool_sup) of
+        undefined ->
+            mongoose_wpool_sup:start_link();
+        _ ->
+            ok
+    end,
+
     case ets:info(?MODULE) of
         undefined ->
             % we set heir here because the whole thing may be started by an ephemeral process
             ets:new(?MODULE, [named_table, public,
                 {read_concurrency, true},
                 {keypos, 2},
-                {heir, whereis(wpool_sup), undefined}]);
+                {heir, whereis(mongoose_wpool_sup), undefined}]);
         _ ->
             ok
     end.
@@ -74,8 +89,6 @@ start_configured_pools(PoolsIn, Hosts) ->
     [start(Pool) || Pool <- Pools].
 
 start({Type, Host, Tag, PoolOpts, ConnOpts}) ->
-    ?INFO_MSG("event=starting_pool, pool=~p, host=~p, tag=~p, pool_opts=~p, conn_opts=~p",
-              [Type, Host, Tag, PoolOpts, ConnOpts]),
     start(Type, Host, Tag, PoolOpts, ConnOpts).
 
 
@@ -91,7 +104,8 @@ start(Type, Host, Tag, PoolOpts) ->
 start(Type, Host, Tag, PoolOpts, ConnOpts) ->
     {Opts0, WpoolOptsIn} = proplists:split(PoolOpts, [strategy, call_timeout]),
     Opts = lists:append(Opts0) ++ default_opts(Type),
-    case call_callback(start, Type, [Host, Tag, WpoolOptsIn, ConnOpts]) of
+
+    case mongoose_wpool_mgr:start(Type, Host, Tag, WpoolOptsIn, ConnOpts) of
         {ok, Pid} ->
             Strategy = proplists:get_value(strategy, Opts, best_worker),
             CallTimeout = proplists:get_value(call_timeout, Opts, 5000),
@@ -106,6 +120,23 @@ start(Type, Host, Tag, PoolOpts, ConnOpts) ->
             Error
     end.
 
+%% @doc this function starts the worker_pool's pool under a specific supervisor
+%% in MongooseIM application.
+%% It's needed for 2 reasons:
+%% 1. We want to have a full control of all the pools and its restarts
+%% 2. When a pool is started via wpool:start_pool it's supposed be called by a supervisor,
+%%    if not, there is no way to stop the pool.
+-spec start_sup_pool(type(), name(), [wpool:option()]) ->
+    {ok, pid()} | {error, term()}.
+start_sup_pool(Type, Name, WpoolOpts) ->
+    SupName = mongoose_wpool_type_sup:name(Type),
+    ChildSpec = #{id => Name,
+                  start => {wpool, start_pool, [Name, WpoolOpts]},
+                  restart => temporary,
+                  type => supervisor,
+                  modules => [wpool]},
+    supervisor:start_child(SupName, ChildSpec).
+
 stop() ->
     [ stop(Type, Host, Tag) || {Type, Host, Tag} <- get_pools() ].
 
@@ -119,7 +150,7 @@ stop(Type, Host, Tag) ->
     try
         ets:delete(?MODULE, {Type, Host, Tag}),
         call_callback(stop, Type, [Host, Tag]),
-        wpool:stop_sup_pool(make_pool_name(Type, Host, Tag))
+        mongoose_wpool_mgr:stop(Type, Host, Tag)
     catch
         C:R ->
             ?ERROR_MSG("event=cannot_stop_pool,type=~p,host=~p,tag=~p,"
@@ -212,6 +243,9 @@ make_pool_name(Type, Host, Tag) when is_binary(Host) ->
 
 make_pool_name(#mongoose_wpool{name = {Type, Host, Tag}}) ->
     make_pool_name(Type, Host, Tag).
+
+call_start_callback(Type, Args) ->
+    call_callback(start, Type, Args).
 
 call_callback(Name, Type, Args) ->
     try

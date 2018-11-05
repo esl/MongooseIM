@@ -13,7 +13,7 @@ init() ->
 start(Host, Tag, WpoolOptsIn, ConnOpts) ->
     Name = mongoose_wpool:make_pool_name(riak, Host, Tag),
     WpoolOpts = wpool_spec(WpoolOptsIn, ConnOpts),
-    wpool:start_sup_pool(Name, WpoolOpts).
+    mongoose_wpool:start_sup_pool(riak, Name, WpoolOpts).
 
 stop(_, _) ->
     ok.
