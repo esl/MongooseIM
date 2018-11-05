@@ -415,7 +415,11 @@ encode_iq({set, #invite{id = ID}, AffUsersInv, FromAff}, RoomJID, _RoomBin, Hand
         msg_to_aff_user(RoomJID, U, S, Attrs, MsgEnv, HandleFun)
     end, AffUsersInv),
     {reply, ?NS_MUC_LIGHT_INVITE, [aff_user_to_el(InvUser) || InvUser <- AffUsersInv], ID};
-encode_iq({set, #invite_response{id = ID, action = decline}, InviteUS}, _RoomJID, _RoomBin, _HandleFun) ->
+encode_iq({set, #invite_response{id = ID, action = decline, invite_id = InviteId}, {U, S}}, RoomJID, _RoomBin, HandleFun) ->
+    Attrs = [],
+    DeclineEl = #xmlel{name = <<"decline">>, attrs = [{<<"invite_id">>, InviteId}]},
+    MsgEnv = msg_envelope(?NS_MUC_LIGHT_INVITE_RESPONSE, [ DeclineEl ]),
+    msg_to_aff_user(RoomJID, U, S, Attrs, MsgEnv, HandleFun),
     {reply, ID};
 encode_iq({set, #invite_response{id = ID, action = decline}}, _RoomJID, _RoomBin, _HandleFun) ->
     {reply, ID};
