@@ -41,7 +41,6 @@
 -define(DEFAULT_GROUP_CHAT_MSG_EXCHANGE_TYPE, <<"topic">>).
 -define(DEFAULT_GROUP_CHAT_MSG_SENT_TOPIC, <<"groupchat_msg_sent">>).
 -define(DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC, <<"groupchat_msg_recv">>).
--define(NUM_OF_WORKERS, 100).
 
 %%%===================================================================
 %%% Exports
@@ -59,24 +58,12 @@
 
 -spec start(Host :: jid:server(), Opts :: proplists:proplist()) -> ok.
 start(Host, _Opts) ->
-    application:ensure_all_started(amqp_client),
-    application:ensure_all_started(worker_pool),
     initialize_metrics(Host),
-    WorkerNum = opt(Host, pool_size, ?NUM_OF_WORKERS),
-    IsConfirmEnabled = opt(Host, confirms_enabled, false),
-    wpool:start_sup_pool(pool_name(Host),
-                         [{worker, {mongoose_rabbit_worker,
-                                    [{amqp_client_opts, amqp_client_opts(Host)},
-                                     {host, Host},
-                                     {confirms, IsConfirmEnabled}]
-                                   }},
-                          {workers, WorkerNum}]),
     create_exchanges(Host),
     ok.
 
 -spec stop(Host :: jid:server()) -> ok.
-stop(Host) ->
-    wpool:stop_sup_pool(pool_name(Host)),
+stop(_Host) ->
     ok.
 
 push_event(Acc, _, #user_status_event{jid = UserJID, status = Status}) ->
@@ -99,10 +86,11 @@ initialize_metrics(Host) ->
 
 -spec create_exchanges(Host :: jid:server()) -> ok.
 create_exchanges(Host) ->
-    Res = [wpool:call(pool_name(Host),
-                      {amqp_call, mongoose_amqp:exchange_declare(ExName, Type),
-                       [{host, Host}]}, available_worker)
-           || {ExName, Type} <- exchanges(Host)],
+
+    Res =
+        [call_rabbit_worker(Host, {amqp_call,
+                                   mongoose_amqp:exchange_declare(ExName, Type)})
+         || {ExName, Type} <- exchanges(Host)],
     verify_exchanges_were_created_or_crash(Res).
 
 -spec handle_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
@@ -113,8 +101,7 @@ handle_user_presence_change(JID = #jid{lserver = Host}, Status) ->
     Message = presence_msg(JID, Status),
     PublishMethod = mongoose_amqp:basic_publish(Exchange, RoutingKey),
     AMQPMessage = mongoose_amqp:message(Message),
-    wpool:cast(pool_name(Host), {amqp_publish, PublishMethod, AMQPMessage,
-                                 [{host, Host}]}, available_worker).
+    cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage}).
 
 -spec handle_user_chat_event(#chat_event{}) -> ok.
 handle_user_chat_event(#chat_event{type = normal}) -> ok;
@@ -130,21 +117,19 @@ handle_user_chat_event(#chat_event{from = From,
     RoutingKey = chat_event_routing_key(Type, Direction, From, To, Host),
     PublishMethod = mongoose_amqp:basic_publish(Exchange, RoutingKey),
     AMQPMessage = mongoose_amqp:message(Message),
-    wpool:cast(pool_name(Host), {amqp_publish, PublishMethod, AMQPMessage,
-                                 [{host, Host}]}, available_worker).
+    cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage}).
 
 %%%===================================================================
 %%% Helpers
 %%%===================================================================
 
--spec amqp_client_opts(Host :: jid:lserver()) -> term().
-amqp_client_opts(Host) ->
-    Opts = [{host, opt(Host, amqp_host, undefined)},
-            {port, opt(Host, amqp_port, undefined)},
-            {username, opt(Host, amqp_username, undefined)},
-            {password, opt(Host, amqp_password, undefined)}],
-    VerifiedOpts = verify_opts(Opts),
-    mongoose_amqp:network_params(VerifiedOpts).
+-spec call_rabbit_worker(Host :: binary(), Msg :: term()) -> term().
+call_rabbit_worker(Host, Msg) ->
+    mongoose_wpool:call(rabbit, Host, event_pusher, Msg).
+
+-spec cast_rabbit_worker(Host :: binary(), Msg :: term()) -> ok.
+cast_rabbit_worker(Host, Msg) ->
+    mongoose_wpool:cast(rabbit, Host, event_pusher, Msg).
 
 -spec exchanges(Host :: jid:server()) -> [{binary(), binary()}].
 exchanges(Host) ->
@@ -239,12 +224,6 @@ exchange_opt(Host, ExchangeKey, Option, Default) ->
      Value :: term().
 opt(Host, Option, Default) ->
     gen_mod:get_module_opt(Host, ?MODULE, Option, Default).
-
--spec verify_opts(Opts :: proplists:proplist()) -> proplists:proplist().
-verify_opts(Opts) ->
-    lists:filter(fun({_Opt, undefined}) -> false;
-                    (_Other) -> true
-                 end, Opts).
 
 -spec verify_exchanges_were_created_or_crash(Res :: list()) -> ok | no_return().
 verify_exchanges_were_created_or_crash(Res) ->

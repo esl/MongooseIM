@@ -89,21 +89,18 @@ init(Opts) ->
     self() ! {init, Opts},
     {ok, #state{}}.
 
-handle_call({amqp_call, Method, Opts}, _From,
-            State = #state{channel = Channel}) ->
-    NewState = State#state{host = proplists:get_value(host, Opts)},
+handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
     case try_to_apply(amqp_channel, call, [Channel, Method]) of
         {ok, _} = Res ->
-            {reply, Res, NewState};
+            {reply, Res, State};
         {error, _, _} = Err ->
-            {FreshConn, FreshChann} = restart_rabbit_connection(NewState),
-            {reply, Err, NewState#state{connection = FreshConn,
-                                        channel = FreshChann}}
+            {FreshConn, FreshChann} = restart_rabbit_connection(State),
+            {reply, Err, State#state{connection = FreshConn,
+                                     channel = FreshChann}}
     end.
 
-handle_cast({amqp_publish, Method, Payload, Opts}, State) ->
-    NewState = State#state{host = proplists:get_value(host, Opts)},
-    handle_amqp_publish(Method, Payload, NewState).
+handle_cast({amqp_publish, Method, Payload}, State) ->
+    handle_amqp_publish(Method, Payload, State).
 
 handle_info({init, Opts}, State) ->
     Host = proplists:get_value(host, Opts),

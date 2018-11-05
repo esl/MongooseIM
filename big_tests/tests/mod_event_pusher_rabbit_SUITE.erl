@@ -37,13 +37,7 @@
 -define(GROUP_CHAT_MSG_SENT_TOPIC, <<"custom_group_chat_msg_sent_topic">>).
 -define(GROUP_CHAT_MSG_RECV_TOPIC, <<"custom_group_chat_msg_recv_topic">>).
 -define(MOD_EVENT_PUSHER_RABBIT_CFG,
-        [{amqp_host, "localhost"},
-         {amqp_port, 5672},
-         {amqp_username, <<"guest">>},
-         {amqp_password, <<"guest">>},
-         %% enables publisher one-to-one confirms; disabled by default
-         %% {confirms_enabled, true},
-         {presence_exchange, [{name, ?PRESENCE_EXCHANGE}]},
+        [{presence_exchange, [{name, ?PRESENCE_EXCHANGE}]},
          {chat_msg_exchange, [{name, ?CHAT_MSG_EXCHANGE},
                               {sent_topic, ?CHAT_MSG_SENT_TOPIC},
                               {recv_topic, ?CHAT_MSG_RECV_TOPIC}]},
@@ -53,6 +47,16 @@
         ]).
 -define(MOD_EVENT_PUSHER_CFG, [{backends,
                                 [{rabbit, ?MOD_EVENT_PUSHER_RABBIT_CFG}]}]).
+-define(WPOOL_CFG, {rabbit, host, event_pusher,
+                    [{workers, 20}],
+                    [%% enables publisher one-to-one confirms
+                     %% disabled by default
+                     %% {confirms_enabled, true},
+                     {amqp_host, "localhost"},
+                     {amqp_port, 5672},
+                     {amqp_username, <<"guest">>},
+                     {amqp_password, <<"guest">>}
+                    ]}).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
 
@@ -105,11 +109,15 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    start_wpool(Host),
     {ok, _} = application:ensure_all_started(amqp_client),
     muc_helper:load_muc(muc_host()),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    stop_wpool(Host),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
@@ -581,6 +589,13 @@ start_mod_event_pusher_rabbit(Config) ->
 stop_mod_event_pusher_rabbit() ->
     Host = ct:get_config({hosts, mim, domain}),
     rpc(mim(), gen_mod, stop_module, [Host, mod_event_pusher_rabbit]).
+
+start_wpool(Host) ->
+    rpc(mim(), mongoose_wpool, ensure_started, []),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [[?WPOOL_CFG], [Host]]).
+
+stop_wpool(Host) ->
+    rpc(mim(), mongoose_wpool, stop, [rabbit, Host, event_pusher]).
 
 delete_exchanges() ->
     ConnConf = listen_to_rabbit(),

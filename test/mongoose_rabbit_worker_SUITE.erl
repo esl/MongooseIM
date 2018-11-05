@@ -74,19 +74,14 @@ no_request_in_worker_queue_is_lost_when_amqp_call_fails(Config) ->
     Exception = exception_fun(),
 
     %% when
-    gen_server:cast(Worker,
-                    {amqp_publish, {Lock, Ref}, ok, [{host, ?HOST}]}),
-    gen_server:cast(Worker,
-                    {amqp_publish, {Exception, ok}, ok, [{host, ?HOST}]}),
-    gen_server:cast(Worker,
-                    {amqp_publish, {SendBack, Ref}, ok, [{host, ?HOST}]}),
+    gen_server:cast(Worker, {amqp_publish, {Lock, Ref}, ok}),
+    gen_server:cast(Worker, {amqp_publish, {Exception, ok}, ok}),
+    gen_server:cast(Worker, {amqp_publish, {SendBack, Ref}, ok}),
     spawn(fun() ->
-                  gen_server:call(Worker,
-                                  {amqp_call, {Exception, ok}, [{host, ?HOST}]})
+                  gen_server:call(Worker, {amqp_call, {Exception, ok}})
           end),
     spawn(fun() ->
-                  gen_server:call(Worker,
-                                  {amqp_call, {SendBack, Ref}, [{host, ?HOST}]})
+                  gen_server:call(Worker, {amqp_call, {SendBack, Ref}})
           end),
 
     %% unlock the worker
@@ -102,15 +97,13 @@ worker_creates_fresh_amqp_conection_and_channel_when_amqp_call_fails(Config) ->
     ConnectionAndChannel0 = get_worker_conn_and_chann(Worker),
 
     %% when amqp_publish fails
-    gen_server:cast(Worker,
-                    {amqp_publish, {Exception, ok}, ok, [{host, ?HOST}]}),
+    gen_server:cast(Worker, {amqp_publish, {Exception, ok}, ok}),
     %% then
     ConnectionAndChannel1 = get_worker_conn_and_chann(Worker),
     ?assertNotMatch(ConnectionAndChannel0, ConnectionAndChannel1),
 
     %% when amqp_call fails
-    gen_server:call(Worker,
-                    {amqp_call, {Exception, ok}, [{host, ?HOST}]}),
+    gen_server:call(Worker, {amqp_call, {Exception, ok}}),
 
     %% then
     ConnectionAndChannel2 = get_worker_conn_and_chann(Worker),
