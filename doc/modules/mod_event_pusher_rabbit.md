@@ -18,13 +18,13 @@ module, for presences, private messages and group chat messages related events.
 Messages are published to a RabbitMQ server with routing key being set to a user
 bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_message_sent`.
 
+The module requires `rabbit` pool of AMQP connections to be configured in order
+to make the module work. It's well advised to read through
+[*Advanced configuration/Outgoing connections*](../advanced-configuration/outgoing-connections.md)
+section before enabling the module.
+
 ### Options
 
-* **amqp_host** (charlist, default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address);
-* **amqp_port** (integer, default: `5672`) - Defines RabbitMQ server AMQP port;
-* **amqp_username** (string, default: `<<"guest">>`) - Defines RabbitMQ server username;
-* **amqp_password** (string, default: `<<"guest">>`) - Defines RabbitMQ server password;
-* **confirms_enabled** (boolean, default: `false`) - Enables/disables one-to-one publishers confirms;
 * **presence_exchange** - Defines presence exchange options, such as:
   * `name` - (string, default: `<<"presence">>`) - Defines RabbitMQ presence exchange name;
   * `type` (string, default: `<<"topic">>`) - Defines RabbitMQ presence exchange type;
@@ -38,18 +38,13 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
   * `type` (string, default: `<<"topic">>`) - Defines RabbitMQ group chat message exchange type;
   * `sent_topic` (string, default: `<<"groupchat_msg_sent">>`) - Defines RabbitMQ group chat message sent topic name;
   * `recv_topic` (string, default: `<<"groupchat_msg_recv">>`) - Defines RabbitMQ group chat message received topic name;
-* **pool_size** (integer, default: `100`) - Worker pool size for publishing notifications.
 
 ### Example configuration
 
 ```Erlang
 {mod_event_pusher, [
     {backends, [
-        {rabbbit, [
-            {amqp_host, "localhost"},
-            {amqp_port, 5672},
-            {amqp_username, <<"guest">>},
-            {amqp_password, <<"guest">>},
+        {rabbit, [
             {presence_exchange, [{name, <<"presence">>},
                                  {type, <<"topic">>}]},
             {chat_msg_exchange, [{name, <<"chat_msg">>},
@@ -57,8 +52,7 @@ bare jid (`user@domain`) and configurable topic e.g `alice@localhost.private_mes
                                  {recv_topic, <<"chat_msg_recv">>}]},
             {groupchat_msg_exchange, [{name, <<"groupchat_msg">>},
                                       {sent_topic, <<"groupchat_msg_sent">>},
-                                      {recv_topic, <<"groupchat_msg_recv">>}]},
-            {pool_size, 50}
+                                      {recv_topic, <<"groupchat_msg_recv">>}]}
         ]}
     ]}
 ]}
@@ -171,15 +165,17 @@ up flexibility over perfromance.
 ### Publisher confirms
 
 By default publisher confirmations are disabled. However, one-to-one
-confirmations can be enabled . When a worker sends a message to a RabbitMQ
-server it waits for a confirmation from the server before it starts to process
-next message. This approach allows to introduce backpressure on a RabbitMQ server
-connection cause the server can reject messages when it's overloaded. On the
-other hand it can cause performance degratation.
+confirmations can be enabled (see
+[*RabbitMQ connection setup*](../advanced-configuration/outgoing-connections.md#rabbitmq-connection-setup)
+section). When a worker sends a message to a RabbitMQ server it waits for a
+confirmation from the server before it starts to process next message. This
+approach allows to introduce backpressure on a RabbitMQ server connection cause
+the server can reject messages when it's overloaded. On the other hand it can
+cause performance degratation.
 
 ### Worker selection strategy
 
-The module uses `wpool` library for managing worker processes  and `avaiable_worker`
+The module uses `mongoose_wpool` for managing worker processes  and `avaiable_worker`
 strategy is in use. Different strategies imply different behaviours of the system.
 
 #### Event messages queueing
