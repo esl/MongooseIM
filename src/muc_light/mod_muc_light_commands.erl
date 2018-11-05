@@ -191,7 +191,7 @@ change_room_config(Domain, RoomID, RoomName, User, Subject) ->
     ConfigReq = #config{ raw_config =
                          [{<<"roomname">>, RoomName}, {<<"subject">>, Subject}]},
     case mod_muc_light:change_room_config(UserUS, RoomID, MUCLightDomain, ConfigReq) of
-        {ok, RoomJID, _}  ->
+        {ok, _RoomJID, _}  ->
             ok;
         {error, _Reason} = E ->
             E
