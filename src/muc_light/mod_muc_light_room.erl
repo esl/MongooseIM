@@ -93,7 +93,7 @@ process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
                       Auth :: false | aff_user(),
                       AffUsers :: aff_users()) ->
     packet_processing_result().
-process_request({set, Invite = #invite_response{action = Action}}, _From, _UserUS, _RoomUS, false, _AffUsers) ->
+process_request({set, Invite = #invite_response{action = Action}}, _From, UserUS, RoomUS, false, _AffUsers) ->
     {set, Invite};
 process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers) ->
     {error, item_not_found};
@@ -143,11 +143,34 @@ process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owne
     {set, DestroyReq, AffUsers};
 process_request({set, #destroy{}}, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
     {error, not_allowed};
-process_request({set, Invite = #invite{aff_users = AffUsersInv}}, _From, UserUS, _RoomUS, _Auth, AffUsers) ->
-    lists:foreach(fun(AffUser) -> 
-        ok
-    end, AffUsersInv),
-    {set, Invite, AffUsersInv, lists:keyfind(UserUS, 1, AffUsers)};
+process_request({set, Invite = #invite{aff_users = InvUsers, id = ID}}, _From, UserUS, {_, MUCServer} = RoomUS,
+                {_, UserAff}, AffUsers) ->
+    OwnerUS = case lists:keyfind(owner, 2, AffUsers) of
+                  false -> undefined;
+                  {OwnerUS0, _} -> OwnerUS0
+              end,
+    ValidateResult
+        = case UserAff of
+            owner ->
+                {ok, mod_muc_light_utils:filter_out_prevented(
+                        UserUS, RoomUS, InvUsers)};
+            member ->
+                AllCanInvite = gen_mod:get_module_opt_by_subhost(
+                                MUCServer, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
+                validate_aff_changes_by_member(
+                    InvUsers, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
+        end,
+    case ValidateResult of 
+        {ok, InvUsersFiltered} ->
+            case mod_muc_light_db_backend:inv_users_add(RoomUS, InvUsersFiltered, ID, UserUS) of 
+                ok ->
+                    {set, Invite, InvUsersFiltered, lists:keyfind(UserUS, 1, AffUsers)};
+                Error ->
+                    Error
+            end;
+        Error -> 
+            Error
+    end;
 process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
     {error, bad_request}.
 
