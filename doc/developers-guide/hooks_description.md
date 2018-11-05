@@ -1,7 +1,7 @@
 # Selected hooks description
 
-This is a brief documentation for a few selected hooks. 
-Though hooks & handlers differ in what they are there to do, it is not necessary to describe them all, because the mechanism is general. 
+This is a brief documentation for a few selected hooks.
+Though hooks & handlers differ in what they are there to do, it is not necessary to describe them all, because the mechanism is general.
 The following is meant to give you the idea of how hooks work, what they are used for and the various purposes they can serve.
 
 
@@ -19,7 +19,7 @@ Some rudimentary verification of the stanza is done once it is received from the
   if the identity does not match the contents of the attribute, an error is returned,
 - the recipient JID (`to` attribute) format is verified.
 
-The hook is not run for stanzas which do not pass these basic validity checks. 
+The hook is not run for stanzas which do not pass these basic validity checks.
 Neither are such stanzas further processed by the server.
 
 This hook won't be called for stanzas arriving from a user served by a federated server (i.e. on a server-to-server connection handled by `ejabberd_s2s`) intended for a user served by the relevant ejabberd instance.
@@ -30,7 +30,7 @@ It is handled by the following modules:
 
 * `mod_carboncopy` - if the packet being sent is a message, it forwards it to all the user's resources which have carbon copying enabled
 
-* `mod_http_notification` - if configured, sends selected messages to an external http service
+* `mod_event_pusher_http` - if configured, sends selected messages to an external http service
 
 * `mod_mam` - stores outgoing messages in an archive
 
@@ -66,7 +66,7 @@ ejabberd_hooks:run_fold(filter_packet,
                         {OrigFrom, OrigTo, OrigPacket}, [])
 ```
 
-This hook is run by `mongoose_router_global` when the packet is being routed by `ejaberd_router:route/3`. 
+This hook is run by `mongoose_router_global` when the packet is being routed by `ejaberd_router:route/3`.
 It is in fact the first call made within the routing procedure.
 If a function hooked in to `filter_packet` returns `drop`, the packet is not processed.
 
@@ -91,11 +91,11 @@ ejabberd_hooks:run(offline_message_hook,
 
 `ejabberd_sm` runs this hook once it determines that a routed stanza is a message and while it ordinarily could be delivered, no resource (i.e. device or desktop client application) of its recipient is available online for delivery.
 
-The hook is first handled by `mod_offline`, which should store that message in a persistent way until the recipient comes online and the message can be successfully delivered. 
+The hook is first handled by `mod_offline`, which should store that message in a persistent way until the recipient comes online and the message can be successfully delivered.
 The handler in `mod_offline` stores the message and returns `stop`, which terminates the call and no more hook handlers are called.
 
-If the `mod_offline` handler fails to store the message, we should notify the user that the message could not be stored. 
-To this end, there is another handler registered, but with a greater sequence number, so that it is called after `mod_offline`. 
+If the `mod_offline` handler fails to store the message, we should notify the user that the message could not be stored.
+To this end, there is another handler registered, but with a greater sequence number, so that it is called after `mod_offline`.
 If `mod_offline` fails, `ejabberd_sm:bounce_offline_message` is called and the user gets their notification.
 
 ## `remove_user`
@@ -104,7 +104,7 @@ If `mod_offline` fails, `ejabberd_sm:bounce_offline_message` is called and the u
 ejabberd_hooks:run(remove_user, Server, [User, Server])
 ```
 
-`remove_user` is run by `ejabberd_auth` - the authentication module - when a request is made to remove the user from the database of the server. 
+`remove_user` is run by `ejabberd_auth` - the authentication module - when a request is made to remove the user from the database of the server.
 This one is rather complex, since removing a user requires many cleanup operations:
 `mod_last` removes last activity information (xep 0012);
 `mod_mam` removes the user's message archive;
@@ -121,14 +121,14 @@ and `mod_roster` removes the user's roster from database.
 ejabberd_hooks:run(node_cleanup, [Node])
 ```
 
-`node_cleanup` is run by a mongooseim_cleaner process which subscribes to `nodedown` messages. 
+`node_cleanup` is run by a mongooseim_cleaner process which subscribes to `nodedown` messages.
 Currently the hook is run inside a global transaction (via `global:trans/4`).
 
-The job of this hook is to remove all processes registered in Mnesia. 
-MongooseIM uses Mnesia to store processes through which messages are then routed - like user sessions or server-to-server communication channels - or various handlers, e.g. IQ request handlers. 
+The job of this hook is to remove all processes registered in Mnesia.
+MongooseIM uses Mnesia to store processes through which messages are then routed - like user sessions or server-to-server communication channels - or various handlers, e.g. IQ request handlers.
 Those must obviously be removed when a node goes down, and to do this the modules `ejabberd_local`, `ejabberd_s2s`, `ejabberd_sm` and `mod_bosh` register their handlers with this hook.
 
-Number of retries for this transaction is set to 1 which means that in some situations the hook may be run on more than one node in the cluster, especially when there is little garbage to clean after the dead node. 
+Number of retries for this transaction is set to 1 which means that in some situations the hook may be run on more than one node in the cluster, especially when there is little garbage to clean after the dead node.
 Setting retries to 0 is not good decision as it was observed that in some setups it may abort the transaction on all nodes.
 
 ## `session_opening_allowed_for_user`
@@ -145,7 +145,7 @@ Handler function are expected to return:
 * `deny` if the JID is not allowed but other handlers should be run
 * `{stop, deny}` if the JID is not allowed but other handlers should **not** be run
 
-In the default implementation the hook is not used, built-in user control methods are supported elsewhere. 
+In the default implementation the hook is not used, built-in user control methods are supported elsewhere.
 This is the perfect place to plug in custom security control.
 
 ## other hooks
@@ -178,6 +178,8 @@ This is the perfect place to plug in custom security control.
 * forget_room
 * host_config_update
 * is_muc_room_owner
+* join_room
+* leave_room
 * local_send_to_resource_hook
 * mam_archive_id
 * mam_archive_message

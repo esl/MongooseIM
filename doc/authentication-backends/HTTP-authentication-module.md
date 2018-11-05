@@ -10,7 +10,7 @@ The module can be especially useful for users maintaining their own central user
 ### How to enable
 
 For a full reference please check [Advanced-configuration#authentication](../Advanced-configuration.md#authentication).
-The simplest way is to just replace the default `auth_method` option in `rel/files/ejabberd.cfg` with `{auth_method, http}`.
+The simplest way is to just replace the default `auth_method` option in `rel/files/mongooseim.cfg` with `{auth_method, http}`.
 
 Enabling the module **is not enough!** 
 Please follow instructions below.
@@ -18,7 +18,7 @@ Please follow instructions below.
 ### Configuration options
 
 `ejabberd_auth_http` requires some parameters to function properly.
-The following options can be set in the `auth_opts` tuple in `rel/files/ejabberd.cfg`:
+The following options can be set in the `auth_opts` tuple in `rel/files/mongooseim.cfg`:
 
 * `host` (mandatory, `string`) - consists of protocol, hostname (or IP) and port (optional). Examples:
     * `{host, "http://localhost:12000"}`

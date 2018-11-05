@@ -1,7 +1,7 @@
 swagger: '2.0'
 info:
   version: "1.0.0"
-  title: "MongooseIM's REST Control API"
+  title: "MongooseIM's REST API for backend administration"
   description: |
     Explore MongooseIM features using our REST API.
 
@@ -9,7 +9,7 @@ info:
     The response objects are modeled on the `ejabberd_commands` entries and print-outs from `mongooseimctl`.
 
     Please note that many of the fields such as **username** or **caller** expect a **JID** (jabber identifier, f.e. **alice@wonderland.com**). There are two types of **JIDs**:
-      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `ejabberd.cfg` file).
+      * **bare JID** - consists of **username** and **domain name** (XMPP host, usually the one set in your `mongooseim.cfg` file).
       * **full JID** - is a **bare JID** with online user's resource to uniquely identify user's connection (f.e. **alice@wonderland.com/resource**).
 schemes:
   - http
@@ -24,7 +24,7 @@ paths:
     get:
       description: Lists the available commands for administering MongooseIM.
       tags:
-        - "commands"
+        - "Commands"
       responses:
         200:
           description: A list of information on all the commands that are currently available.
@@ -49,7 +49,7 @@ paths:
     get:
       description: Retrieves a list of users registered under the given XMPP hostname.
       tags:
-        - "user management"
+        - "User management"
       responses:
         200:
           description: A list of users registered under the given XMPP hostname
@@ -64,7 +64,7 @@ paths:
               format: JID
     post:
       tags:
-        - "user management"
+        - "User management"
       parameters:
         - name: Credentials
           in: body
@@ -98,7 +98,7 @@ paths:
         type: string
     put:
       tags:
-        - "user management"
+        - "User management"
       parameters:
         - name: password
           in: body
@@ -115,7 +115,7 @@ paths:
           description: Password has been changed
     delete:
       tags:
-        - "user management"
+        - "User management"
       description: Cancel a user's registration under the given domain.
       responses:
         204:
@@ -128,7 +128,7 @@ paths:
       - $ref: '#/parameters/hostName'
     get:
       tags:
-        - "session management"
+        - "Session management"
       description: Retrieve a list of sessions.
       responses:
         200:
@@ -159,7 +159,7 @@ paths:
         type: string
     delete:
       tags:
-        - "session management"
+        - "Session management"
       description: Terminate this session (connection).
       responses:
         204:
@@ -170,7 +170,7 @@ paths:
   /messages:
     post:
       tags:
-        - "one-to-one messages"
+        - "One-to-one messages"
       parameters:
         - name: message
           in: body
@@ -201,7 +201,7 @@ paths:
   /messages/{owner}:
     get:
       tags:
-        - "one-to-one messages"
+        - "One-to-one messages"
       parameters:
         - name: owner
           in: path
@@ -230,7 +230,7 @@ paths:
   /messages/{owner}/{with}:
     get:
       tags:
-        - "one-to-one messages"
+        - "One-to-one messages"
       parameters:
         - name: owner
           in: path
@@ -444,9 +444,9 @@ paths:
           schema:
             title: roomJID
             type: string
-  /muc-lights/{XMPPHost}/{roomName}/participants:
+  /muc-lights/{XMPPMUCHost}/{roomName}/participants:
     parameters:
-      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
     post:
       tags:
@@ -476,9 +476,9 @@ paths:
       responses:
         204:
           description: An invite was sent out
-  /muc-lights/{XMPPHost}/{roomName}/messages:
+  /muc-lights/{XMPPMUCHost}/{roomName}/messages:
     parameters:
-      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
     post:
       tags:
@@ -508,9 +508,9 @@ paths:
       responses:
         204:
           description: Message was sent to the MUC Light room
-  /muc-lights/{XMPPHost}/{roomName}/{user}/management:
+  /muc-lights/{XMPPMUCHost}/{roomName}/{user}/management:
     parameters:
-      - $ref: '#/parameters/hostName'
+      - $ref: '#/parameters/MUCServer'
       - $ref: '#/parameters/roomName'
       - user: owner
         in: path
@@ -641,6 +641,13 @@ paths:
           description: User was kicked out from the MUC room.
 
 parameters:
+  MUCServer:
+    name: XMPPMUCHost
+    in: path
+    description: The XMPP host of the muc service.
+    required: true
+    type: string
+    format: hostname
   hostName:
     name: XMPPHost
     in: path

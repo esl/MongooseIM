@@ -9,7 +9,7 @@ This extension consists of several modules but only `mod_muc_light` needs to be 
 * **host** (string, default: `"muclight.@HOST@"`) - Domain for the MUC Light service to reside under. 
  `@HOST@` is replaced with each served domain.
 * **backend** (atom, default: `mnesia`) - Database backend to use. 
- `mnesia` and `odbc` are supported.
+ `mnesia` and `rdbms` are supported.
 * **equal_occupants** (boolean, default: `false`) - When enabled, MUC Light rooms won't have owners. 
  It means that every occupant will be a `member`, even the room creator. 
  **Warning:** This option does not implicitly set `all_can_invite` to `true`. 

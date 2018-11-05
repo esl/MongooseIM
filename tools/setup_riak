@@ -1,39 +1,85 @@
 #!/bin/bash
+# Optional env variables:
+# - RIAK_ADMIN - riak admin command
+# - RIAK_HOST
+# - RIAK_PORT
+# - RIAK_PASSWORD
+# - RIAK_SECURITY - if enabled Riak requires SSL connections
 
-sleep 20
+set -e
 
 RIAK_HOST=${RIAK_HOST:-"localhost"}
 RIAK_PORT=${RIAK_PORT:-"8098"}
 RIAK_HOST="http://${RIAK_HOST}:${RIAK_PORT}"
+RIAK_PASSWORD="${RIAK_PASSWORD:-mongooseim_secret}"
+RIAK_SECURITY=${RIAK_SECURITY:-"enabled"}
 
 RIAK_VCARD_SCHEMA_PATH=${RIAK_VCARD_SCHEMA_PATH:-"tools/vcard_search_schema.xml"}
 RIAK_MAM_SCHEMA_PATH=${RIAK_MAM_SCHEMA_PATH:-"tools/mam_search_schema.xml"}
 
 RIAK_CONTAINER_NAME=${RIAK_CONTAINER_NAME:-"mongooseim-riak"}
 
+wait_for_http_status () {
+    local expected_status=$1
+    local get_path=$2
+    echo "Waiting for HTTP status: ${expected_status} from path ${get_path}"
+    for i in {1..10}; do
+	HTTP_STATUS=`curl -s -o /dev/null -w "%{http_code}" $get_path`
+	if [ "${HTTP_STATUS}" = "${expected_status}" ]; then
+	    echo "Expected status observed after $i attempts"
+	    break
+	fi
+	echo "Attempt number $i of 10 failed, HTTP status was ${HTTP_STATUS}, waiting 2s and trying again"
+	sleep 2s
+    done
+}
+
+echo "Creating vcard schema"
 curl -v -XPUT $RIAK_HOST/search/schema/vcard \
     -H 'Content-Type:application/xml' \
     --data-binary @${RIAK_VCARD_SCHEMA_PATH}
 
-curl -v $RIAK_HOST/search/schema/vcard
+wait_for_http_status "200" $RIAK_HOST/search/schema/vcard
 
+echo "Creating vcard search index"
 curl -v -XPUT $RIAK_HOST/search/index/vcard \
     -H 'Content-Type: application/json' \
     -d '{"schema":"vcard"}'
 
+wait_for_http_status "200"  $RIAK_HOST/search/index/vcard
+
+echo "Creating mam schema"
 curl -v -XPUT $RIAK_HOST/search/schema/mam \
     -H 'Content-Type:application/xml' \
     --data-binary @${RIAK_MAM_SCHEMA_PATH}
 
-curl -v $RIAK_HOST/search/schema/mam
+wait_for_http_status "200"  $RIAK_HOST/search/schema/mam
 
+echo "Creating mam index"
 curl -v -XPUT $RIAK_HOST/search/index/mam \
     -H 'Content-Type: application/json' \
     -d '{"schema":"mam"}'
 
-sleep 20
+wait_for_http_status "200"  $RIAK_HOST/search/index/mam
 
-RIAK_ADMIN="docker exec -i ${RIAK_CONTAINER_NAME} riak-admin"
+# Allow to pass RIAK_ADMIN as an env variable.
+# Use riak-admin as a default command.
+RIAK_ADMIN="${RIAK_ADMIN:-riak-admin}"
+
+if [ "$RIAK_SECURITY" == "enabled" ]; then
+    RIAK_USER_PERMISSIONS=riak_kv.get,riak_kv.put,riak_kv.delete,riak_kv.index,
+    RIAK_USER_PERMISSIONS+=riak_kv.list_keys,riak_kv.list_buckets,riak_kv.mapreduce,
+    RIAK_USER_PERMISSIONS+=riak_core.get_bucket,riak_core.set_bucket,riak_core.set_bucket_type,
+    RIAK_USER_PERMISSIONS+=riak_core.get_bucket_type,search.admin,search.query
+
+    $RIAK_ADMIN security enable
+
+    $RIAK_ADMIN security add-user ejabberd password="$RIAK_PASSWORD"
+
+    $RIAK_ADMIN security add-source all 127.0.0.1/32 password
+
+    $RIAK_ADMIN security grant $RIAK_USER_PERMISSIONS on any to ejabberd
+fi
 
 $RIAK_ADMIN bucket-type create users '{"props":{"datatype":"map"}}'
 $RIAK_ADMIN bucket-type activate users
@@ -67,3 +113,23 @@ $RIAK_ADMIN bucket-type activate privacy_lists_names
 
 $RIAK_ADMIN bucket-type create privacy_lists '{"props":{"last_write_wins":true,"dvv_enabled":false}}'
 $RIAK_ADMIN bucket-type activate privacy_lists
+
+
+if [ "$RIAK_SECURITY" == "enabled" ]; then
+# Specify a list of ciphers to avoid
+# "no function clause matching tls_v1:enum_to_oid(28)" error
+# on Riak's side running with Erlang R16.
+# https://github.com/basho/riak-erlang-client/issues/232#issuecomment-178612129
+# We also set ciphers in mongooseim.cfg
+# (see test.config presets in the big test directory).
+    $RIAK_ADMIN security ciphers "AES256-SHA:DHE-RSA-AES128-SHA256"
+
+# Allow connections from ejabberd, otherwise you will get
+# a hidden "Authentication failed" error.
+#
+# If you see "disconnected" error, than trace riakc_pb_socket
+# recon_trace:calls({riakc_pb_socket, start_auth, '_'}, 50, [{scope, local}]).
+#
+# In the process state of riakc process there is an orddict with a list of errors.
+    $RIAK_ADMIN security add-source ejabberd "0.0.0.0/0" password
+fi

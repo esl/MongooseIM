@@ -14,8 +14,14 @@ ct_reports_dir() {
 
 }
 
+# Works for directories only
+# Allows to list directories content
 s3_url() {
   local CT_REPORTS=${1:-}
   echo "http://esl.github.io/mongooseim-ct-reports/s3_reports.html?prefix=${CT_REPORTS}"
 }
 
+direct_s3_url() {
+  local CT_REPORTS=${1:-}
+  echo "https://mongooseim-ct-results.s3-eu-west-1.amazonaws.com/${CT_REPORTS}"
+}

@@ -10,7 +10,7 @@ Commands used by the REST API are provided by modules:
 
 `mod_muc_light_commands` - same but for rooms based on the muc-light protocol.
 
-To activate those commands, put modules you need into the ejabberd.cfg file:
+To activate those commands, put modules you need into the mongooseim.cfg file:
 
 ```
   {mod_commands, []},

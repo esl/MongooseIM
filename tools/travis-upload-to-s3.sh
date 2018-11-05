@@ -3,47 +3,35 @@
 source tools/travis-helpers.sh
 
 set -euo pipefail
-IFS=$'\n\t'
 
 CT_REPORTS=$(ct_reports_dir)
+
+if [ ! -d "${CT_REPORTS}" ]; then
+    echo "Skip uploading, because $CT_REPORTS directory does not exist"
+    exit 0
+fi
 
 echo "Uploading test results to s3"
 echo $(s3_url ${CT_REPORTS})
 
-mkdir -p ${CT_REPORTS}/small
-mkdir -p ${CT_REPORTS}/big
+echo "Installing s3-parallel-put based on boto"
+sudo time pip install boto python-magic
+# The fork of s3-parallel-put has some small optimizations.
+S3PP_COMMIT=6fd430a54e976d2d580042efdf82ac2fb66d5e57
+wget -O tools/s3-parallel-put https://raw.githubusercontent.com/arcusfelis/s3-parallel-put/$S3PP_COMMIT/s3-parallel-put
+chmod +x tools/s3-parallel-put
 
-if [ -d _build/test/logs ]; then
-	cp -Rp _build/test/logs/* ${CT_REPORTS}/small
-fi
 
-CT_REPORT=test.disabled/ejabberd_tests/ct_report
+# XXX please, reduce number of files
+FILE_COUNT=$(find "${CT_REPORTS}" -type f | wc -l)
+echo "Uploading $FILE_COUNT files"
 
-if [ -d ${CT_REPORT} ] && [ "$(ls -A ${CT_REPORT})" ];  then
-	cp -Rp ${CT_REPORT}/* ${CT_REPORTS}/big
-fi
-
-cat > ${CT_REPORTS}/index.html << EOL
-<html>
-  <head></head>
-  <body>
-    <p><a href="small/index.html">Small tests (apps/ejabberd/test)</a></p>
-    <p><a href="big/index.html">Big tests (test.disabled/ejabberd_tests)</a></p>
-  </body>
-</html>
-EOL
-
-now=`date +'%Y-%m-%d_%H.%M.%S'`
-LOG_DIR_ROOT=${CT_REPORTS}/logs/${now}
-for dev_node_logs_path in `find _build -name log -type d`; do
-	dev_node=$(basename $(dirname $(dirname $(dirname ${dev_node_logs_path}))))
-	LOG_DIR=${LOG_DIR_ROOT}/${dev_node}/log
-	mkdir -p ${LOG_DIR}
-	cp ${dev_node_logs_path}/* ${LOG_DIR}
-done
-
-cp *.log ${LOG_DIR_ROOT}
-cp test.disabled/ejabberd_tests/*.log ${LOG_DIR_ROOT}
-
-aws s3 sync --quiet ${CT_REPORTS} s3://mongooseim-ct-results/${CT_REPORTS}
-
+AWS_BUCKET="${AWS_BUCKET:-mongooseim-ct-results}"
+# We don't expect write conflicts, so we use put=stupid to reduce operations.
+#
+# Docs for the tool
+# https://github.com/mishudark/s3-parallel-put
+#
+# 64 processes works better for our case, than 32 and 8 (default).
+time tools/s3-parallel-put --quiet --processes=64 --put=stupid \
+    --bucket_region=$AWS_DEFAULT_REGION --bucket=$AWS_BUCKET --prefix=${CT_REPORTS} ${CT_REPORTS}

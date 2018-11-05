@@ -3,7 +3,7 @@
 MongooseIM by default collects many metrics showing the user behaviour and general system statistics.
 They are managed by [exometer](https://github.com/Feuerlabs/exometer).
 MongooseIM uses [ESL's fork of this project](https://github.com/esl/exometer/tree/1.2.1-patched).
- 
+
 All metrics are divided into the following groups:
 
 * Per host metrics: Gathered separately for every XMPP host supported by the cluster.
@@ -144,7 +144,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 Below you can find a list of all modules, for which at least one metric is defined.
 
 * [`mod_csi`](../modules/mod_csi.md)
-* [`mod_http_notification`](../modules/mod_http_notification.md)
+* [`mod_event_pusher_http`](../modules/mod_event_pusher_http.md)
 * [`mod_http_upload`](../modules/mod_http_upload.md)
 * [`mod_last`](../modules/mod_last.md)
 * [`mod_mam`](../modules/mod_mam.md)
@@ -179,7 +179,7 @@ Below you can find a list of all modules, for which at least one metric is defin
 | `[global, data, xmpp, received, encrypted_size]` | histogram | A size (in bytes) of a received stanza before decryption. |
 | `[global, data, xmpp, sent, encrypted_size]` | histogram | A size (in bytes) of a stanza after encryption. |
 | `[global, data, dist]` | proplist | Network stats for an Erlang distributed communication. A proplist with values: `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`, `connections` |
-| `[global, data, odbc, PoolName]` | proplist | For every ODBC pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
+| `[global, data, rdbms, PoolName]` | proplist | For every RDBMS pool defined, an instance of this metric is available. It is a proplist with values `workers`, `recv_oct`, `recv_cnt`, `recv_max`, `send_oct`, `send_max`, `send_cnt`, `send_pend`. |
 
 ### VM metrics
 
@@ -204,7 +204,7 @@ These are **total** times of respective operations.
 One operation usually requires only a single call to an auth backend but sometimes with e.g. 3 backends configured, the operation may fail for first 2 backends.
 In such case, these metrics will be updated with combined time of 2 failed and 1 successful request.
 
-Additionaly, RDMBS layer in MongooseIM exposes one more metric, if RDBMS is configured:
+Additionaly, RDMBS layer in MongooseIM exposes two more metrics, if RDBMS is configured:
 
-* `[global, backends, mongoose_rdbms, query]` - Execution time of a "not prepared" query by a DB driver.
-
+* `[global, backends, mongoose_rdbms, query]` - Execution time of a "simple"" (not prepared) query by a DB driver.
+* `[global, backends, mongoose_rdbms, execute]` - Execution time of a prepared query by a DB driver.

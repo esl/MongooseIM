@@ -6,9 +6,10 @@ It is a highly customizable module, that requires some skill and knowledge to op
 
 Configure MAM with different storage backends:
 
-* ODBC (RDBMS, like MySQL, PostgreSQL, MS SQL Server)
+* RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
 * Riak KV (NOSQL)
 * Cassandra (NOSQL)
+* ElasticSearch (NOSQL)
 
 `mod_mam_meta` is a meta-module that ensures all relevant `mod_mam_*` modules are loaded and properly configured.
 
@@ -18,21 +19,33 @@ This means that an XMPP client, while requesting messages from the archive may n
 If this happens, the client will receive only messages that contain words specified in the request.
 
 The exact behaviour, like whether word ordering matters, may depend on the storage backend in use.
-For now `odbc` backend has very limited support for this feature, while `cassandra` does not support it at all.
-`riak` backend on the other hand should provide you with the best results when it comes to text filtering.
+For now `rdbms` backend has very limited support for this feature, while `cassandra` does not support it at all.
+`riak` and `elasticsearch` backends, on the other hand, should provide you with the best results when it comes to text filtering.
+
+`mod_mam_rdbms_arch` returns all messages that contain all search words, order
+of words does not matter. Messages are sorted by timestamp (not by relevance).
+
+##### Note on full text search with ElasticSearch backend
+
+When using ElasticSearch MAM backend, the value provided in `full-text-search` form field will be passed to ElasticSearch as [Simple Search Query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html).
+If you're using our official ElasticSearch mappings from `priv/elasticsearch` then the query analyzer is set to `english`.
+Also note that the default separator for the search query is `AND` (which roughly means that ElasticSearch will search for messages containing all the terms provided in the query string).
 
 ### Options
 
-* **backend** (atom, default: `odbc`) - Database backend to use. `odbc`, `riak` and `cassandra` are supported.
-* **add_archived_element** (boolean, default: `false`) - Add an `<archived/>` element from MAM v0.2. **Please note:** The element is going to be deprecated in one of future releases so it's not recommended to enable this option.
+* **backend** (atom, default: `rdbms`) - Database backend to use. `rdbms`, `riak`, `cassandra` and `elasticsearch` are supported.
 * **no_stanzaid_element** (boolean, default: `false`) - Do not add a `<stanza-id/>` element from MAM v0.6.
 * **is_archivable_message** (module, default: `mod_mam_utils`) - Name of a module implementing [`is_archivable_message/3` callback](#is_archivable_message) that determines if the message should be archived.
  **Warning**: if you are using MUC Light, make sure this option is set to the MUC Light domain.
 * **archive_chat_markers** (boolean, default: `false`) - If set to true, XEP-0333 chat markers will be archived. See more details [here](#archiving-chat-markers)
 * **pm** (list | `false`, default: `[]`) - Override options for archivization of one-to-one messages. If the value of this option is `false`, one-to-one message archive is disabled.
 * **muc** (list | `false`, default: `false`) - Override options for archivization of group chat messages. If the value of this option is `false`, group chat message archive is disabled.
+* **extra_lookup_params** (atom, default: `undefined`) - a module implementing `mam_iq` behaviour.
+ If this option has value other then undefined, function `extra_lookup_params/2` from this module will be called when building MAM lookup parameters.
+ This can be used to extend currently supported MAM query fields by a custom field or fields.
+ This field(s) can be added to lookup params later passed to MAM backend.
 
-**backend**, **add_archived_element**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
+**backend**, **no_stanzaid_element** and **is_archivable_message** will be applied to both `pm` and `muc` (if they are enabled), unless overriden explicitly (see example below).
 
 #### PM-specific options
 
@@ -49,31 +62,35 @@ The example below presents how to override common option for `muc` module specif
 
 ```erlang
 {mod_mam_meta, [
-  {backend, odbc},
-  {async_writer, true}, %% this option enables async writer for ODBC backend
+  {backend, rdbms},
+  {async_writer, true}, %% this option enables async writer for RDBMS backend
   {muc, [
     {async_writer, false} %% disable async writer for MUC archive only
   ]}
 ]}
 ```
 
-#### ODBC backend options
+#### RDBMS backend options
 
-These options will only have effect when the `odbc` backend is used:
+These options will only have effect when the `rdbms` backend is used:
 
 * **cache_users** (boolean, default: `true`) - Enables Archive ID to integer mappings cache.
-* **odbc_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs.
+* **rdbms_message_format** (atom, default: `internal`) - When set to `simple`, stores messages in XML and full JIDs.
  When set to `internal`, stores messages and JIDs in internal format.
  **Warning**: Archive MUST be empty to change this option.
-* **async_writer** (boolean, default: `true`) - Enables asynchronous writer that is faster than synchronous but harder to debug.
+* **async_writer** (boolean, default: `true`) - Enables an asynchronous writer that is faster than the synchronous one but harder to debug.
+  The async writers store batches of messages with a certain delay (see **flush_interval**), so the results of the lookup operations executed right after message routing may be incomplete until the configured time passes.
+* **flush_interval** (integer, default: `2000`) How often (in milliseconds) the buffered messages are flushed to a DB.
+* **max_batch_size** (integer, default, `30`) Max size of the batch insert query for an async writer.
+  If the buffer is full, messages are flushed to a database immediately and the flush timer is reset.
 
 #### Common backend options
 
 * **user_prefs_store** (atom, default: `false`) - Leaving this option as `false` will prevent users from setting their archiving preferences. It will also increase performance. Other possible values are:
-    * `odbc` (ODBC backend only) - User archiving preferences saved in ODBC. Slow and not recommended, but might be used to simplify things and keep everything in ODBC.
-    * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
-    * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
-* **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `odbc` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
+  * `rdbms` (RDBMS backend only) - User archiving preferences saved in RDBMS. Slow and not recommended, but might be used for simplicity (keeping everything in RDBMS).
+  * `cassandra` (Cassandra backend only) - User archiving preferences are saved in Cassandra.
+  * `mnesia` (recommended) - User archiving preferences saved in Mnesia and accessed without transactions. Recommended in most deployments, could be overloaded with lots of users updating their preferences at once. There's a small risk of an inconsistent (in a rather harmless way) state of the preferences table.
+* **full_text_search** (boolean, default: `true`) - Enables full text search in message archive (see *Full Text Search* paragraph). Please note that the full text search is currently only implemented for `rdbms` and `riak` backends. Also, full text search works only for messages archived while this option is enabled.
 
 #### <a id="is_archivable_message"></a>`is_archivable_message/3` callback
 
@@ -81,7 +98,7 @@ These options will only have effect when the `odbc` backend is used:
 
 ```erlang
 -spec is_archivable_message(Mod :: module(), Dir :: incoming | outgoing,
-                          Packet :: jlib:xmlel()) -> boolean().
+                          Packet :: exml:element()) -> boolean().
 ```
 
 Servers SHOULD NOT archive messages that do not have a `<body/>` child tag. Servers SHOULD NOT archive delayed messages.
@@ -105,55 +122,33 @@ This backend works with Riak KV 2.0 and above, but we recommend version 2.1.1.
 
 ### Cassandra backend
 
-Edit main config section adding:
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#cassandra-connection-setup) page to learn how to properly configure Cassandra connection pool.
+By default, `mod_mam` Cassandra backend requires `global` pool with `default` tag:
 
 ```erlang
-{cassandra_servers, [{default, []}]}.
+{outgoing_pools, [
+    {cassandra, global, default, [], []}.
+]}.
 ```
 
-MongooseIM will create one pool with one worker to connect to localhost:9042.
+### ElasticSearch backend
 
-You can change the default settings using extra parameters:
-* 5 connections to each server with addresses from 10.0.0.1 to 10.0.0.4;
-* Keyspace "mongooseim";
-* Custom connect timeout in milliseconds;
-* Custom credentials.
-
-```erlang
-{cassandra_servers,
- [
-  {default,
-   [
-    {servers,
-     [
-      {"10.0.0.1", 9042, 5},
-      {"10.0.0.2", 9042, 5},
-      {"10.0.0.3", 9042, 5},
-      {"10.0.0.4", 9042, 5}
-     ]
-    },
-    {keyspace, "mongooseim"},
-    {connect_timeout, 5000}, % five seconds
-    {credentials, [{"username", "cassandra"}, {"password", "secret"}]}
-   ]
-  }
- ]
-}.
-```
+First, make sure that your ElasticSearch cluster has expected indexes and mappings in place.
+Please consult [Outgoing connections](../advanced-configuration/outgoing-connections.md#elasticsearch-connection-setup) page to learn how to properly configure ElasticSearch connection pool.
 
 ### Example configuration
 
 ```erlang
 {mod_mam_meta, [
-        {backend, odbc},
+        {backend, rdbms},
 
         {no_stanzaid_element, true},
 
-        {pm, [{user_prefs_store, odbc}]},
+        {pm, [{user_prefs_store, rdbms}]},
         {muc, [
                {host, "muc.example.com"},
-               {odbc_message_format, simple},
-               {async_writer, false}
+               {rdbms_message_format, simple},
+               {async_writer, false},
                {user_prefs_store, mnesia}
               ]}
        ]}.
@@ -185,7 +180,9 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, modMucMamMultiplePurges]` | spiral | A bulk purge request for MUC room is processed by MAM. |
 | `[Host, modMucMamPrefsGets]` | spiral | MUC archiving preferences have been requested by a client. |
 | `[Host, modMucMamPrefsSets]` | spiral | MUC archiving preferences have been updated by a client. |
-| `[Host, mod_mam_odbc_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
+| `[Host, mod_mam_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MAM worker. |
+| `[Host, mod_mam_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
+| `[Host, mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
+| `[Host, mod_mam_muc_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
 | `[Host, backends, mod_mam, lookup]` | histogram | Time it took to perform a lookup in an archive. |
 | `[Host, backends, mod_mam, archive]` | histogram | Time it took to save one message in an archive. |
-

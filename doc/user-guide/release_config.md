@@ -6,14 +6,14 @@ It's now possible to install MongooseIM from source in two modes:
 * `user`  - which is the default mode and used for testing on travis and
     in development
 
-An environment for building (as of now RPM) packages is accessible by
+An environment for building (as of now just RPM) packages is accessible by
 cloning ESL-internal
 [command line interface](https://gitlab.erlang-solutions.com/current-projects/necromancer-cli).
 
 ### Configure script
 
 The `tools/configure` script can be used to specify which 3rd party
-dependencies should be included in the final release or set installation
+dependencies should be included in the final release or to set the installation
 prefix and installation mode. More details can found in the tool's help.
 The help is printed when the script is run without any parameters
 `tools/configure`:
@@ -33,7 +33,7 @@ Writes rel/configure.vars.config which can be used as Reltool input.
     with-none           include no 3rd party drivers
     with-all            include all drivers
     with-mysql          include mysql driver
-    with-odbc           include standard ODBC driver shipped with Erlang/OTP
+    with-odbc           include an ODBC driver (requires unixodbc to compile)
     with-pgsql          include pgsql driver
     with-redis          include redis driver
     with-riak           include riak driver
@@ -45,7 +45,7 @@ Options:
     user      System user to run the server as. Default:
 ```
 
-This script is also accessible via make `configure` target.
+This script is also accessible via the make `configure` target.
 
 ### Example
 
@@ -79,11 +79,11 @@ Generated build configs:
 ```sh
 $ cat configure.out rel/configure.vars.config
 export MONGOOSEIM_CONFIGURED="yes"
-export APPS="seestar mysql odbc pgsql redo riakc riak_pb protobuffs"
+export APPS="mysql eodbc epgsql eredis riakc nksip cqerl tirerl erlcloud"
 export PREFIX="/tmp/mim-sandbox-system"
 export RELTOOL_VARS="rel/configure.vars.config"
-export RUNNER_USER="erszcz"
 export SYSTEM="yes"
+export RUNNER_USER="erszcz"
 export BIN_DIR="$PREFIX/usr/bin"
 export ETC_DIR="$PREFIX/etc/mongooseim"
 export LIB_DIR="$PREFIX/usr/lib/mongooseim"
@@ -107,7 +107,7 @@ mim-sandbox-system/
 ├── etc
 │   └── mongooseim
 │       ├── app.config
-│       ├── ejabberd.cfg
+│       ├── mongooseim.cfg
 │       └── vm.args
 ├── usr
 │   ├── bin
@@ -154,4 +154,3 @@ var/log/mongooseim/run_erl.log
 * Running `make install` will blindly overwrite any configs it encounters on its way.
   Mnesia database and log files are preserved only due to the fact that they're
   not build process artifacts.
-

@@ -1,0 +1,25 @@
+{
+    "mappings": {
+		"muc": {
+			"properties": {
+				"mam_id": {
+					"type": "long"
+				},
+				"room": {
+					"type": "keyword"
+				},
+				"source_jid": {
+					"type": "keyword"
+				},
+				"message": {
+					"type": "text",
+					"index": false
+				},
+				"body": {
+					"type": "text",
+					"analyzer": "english"
+				}
+			}
+		}
+	}
+}

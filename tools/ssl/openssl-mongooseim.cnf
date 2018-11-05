@@ -1,0 +1,31 @@
+HOME            = .
+RANDFILE        = $ENV::HOME/.rnd
+
+####################################################################
+[ req ]
+default_bits        = 4096
+distinguished_name  = server_distinguished_name
+req_extensions      = server_req_extensions
+string_mask         = utf8only
+prompt              = no
+
+####################################################################
+[ server_distinguished_name ]
+countryName                 = PL
+stateOrProvinceName         = Malopolska
+localityName                = Krakow
+commonName                  = MongooseIM
+
+####################################################################
+[ server_req_extensions ]
+
+subjectKeyIdentifier        = hash
+basicConstraints            = CA:FALSE
+keyUsage                    = digitalSignature, keyEncipherment
+subjectAltName              = @alternate_names
+nsComment                   = "Fake Dev-Only Certificate"
+
+####################################################################
+[ alternate_names ]
+
+DNS.1       = localhost

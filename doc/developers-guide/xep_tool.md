@@ -69,7 +69,7 @@ Or do it manually:
 
 In our case, from MongooseIM root directory:
 
-`./tools/xep_tool/xep_tool.escript markdown apps/ejabberd/ebin list.md`
+`./tools/xep_tool/xep_tool.escript markdown ebin list.md`
 
 The Markdown list with unique XEP names and URLs is saved to file `list.md`
 You can copy-paste the content of this file to your main README file.

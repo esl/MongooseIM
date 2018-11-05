@@ -71,9 +71,9 @@ usage() ->
 
 -spec do(string(), string()) -> ok | no_return().
 do(Command, Output) ->
-    EjabberdAPP = code:where_is_file("ejabberd.app"),
-    case file:consult(EjabberdAPP) of
-        {ok, [{application, ejabberd, FileStruct}]} ->
+    MongooseApp = code:where_is_file("mongooseim.app"),
+    case file:consult(MongooseApp) of
+        {ok, [{application, mongooseim, FileStruct}]} ->
             case Command of
                 "markdown" ->
                     Table = filestruct_to_table(FileStruct),

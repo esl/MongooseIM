@@ -1,0 +1,13 @@
+{application, ejabberd_tests,
+ [
+  {description, ""},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  cowboy,
+                  gen_fsm_compat
+                 ]},
+  {env, []}
+ ]}.

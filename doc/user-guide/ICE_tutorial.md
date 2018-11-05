@@ -4,7 +4,7 @@
 #### Who is this document for?
 
 This tutorial presents our TURN/STUN server in action.
-You get to see how to set up and configure MongooseICE and examine a system utilising its many talents. 
+You get to see how to set up and configure MongooseICE and examine a system utilising its many talents.
 
 Are you in need of an application requiring NAT traversal? Want to see how a TURN and STUN server would handle it? Or maybe you just like to tinker with interesting technologies and experience setting them up first hand?
 
@@ -58,15 +58,14 @@ In order to enable signalling we need an instance of [MongooseIM] running with t
 
 #### Configuration
 
-You can find MongooseIM installation instructions on [this page](Getting-started.md). 
-Once you have cloned the repository and compiled the project, you need to modify the `ejabberd.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/ejabberd.cfg`, where `$REPO` is a top-level directory of
-cloned repo). 
-You can use [this](ICE_tutorial/ejabberd.cfg) configuration file and modify the relevant part:
+You can find MongooseIM installation instructions on [this page](Getting-started.md).
+Once you have cloned the repository and compiled the project, you need to modify the `mongooseim.cfg` config file (you can find this file at `$REPO/_build/prod/rel/mongooseim/etc/mongooseim.cfg`, where `$REPO` is a top-level directory of the cloned repo).
+You can use [this](ICE_tutorial/mongooseim.cfg) configuration file and modify the relevant part:
 ```erlang
 %%%% ICE DEMO %%%%
 {hosts, ["localhost", "myxmpp.com"] }.
 ```
-This sets the virtual hostname of the XMPP server, so that you can register users in this domain. 
+This sets the virtual hostname of the XMPP server, so that you can register users in this domain.
 After that, you can start MongooseIM with
 ```
 $REPO/_build/prod/rel/mongooseim/bin/mongooseimctl start
@@ -74,9 +73,9 @@ $REPO/_build/prod/rel/mongooseim/bin/mongooseimctl start
 
 #### Users
 
-After we finish setting up [MongooseIM], we need to register some users. 
+After we finish setting up [MongooseIM], we need to register some users.
 For this demo we need two users: *movie@myxmpp.com* and *phone@myxmpp.com*, for RaspberryPi and the Android phone respectively.
-In order to do that, type:  
+In order to do that, type:
 
 ```bash
 $REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register phone myxmpp.com xmpp_password
@@ -102,8 +101,8 @@ docker run -it --net=host -e "MONGOOSEICE_UDP_RELAY_IP=1.1.1.1" -e "MONGOOSEICE_
 
 This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
 There are three important configuration options we have to set via environment variables:
-* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. 
- This should be set to public IPv4 address.
+* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on.
+This should be set to public IPv4 address.
 * **MONGOOSEICE\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
 * **MONGOOSEICE\_UDP\_REALM** - This is just a name for your TURN relay.
 
@@ -114,39 +113,39 @@ And that's it! [MongooseICE](https://github.com/esl/MongooseICE) is now ready to
 
 The source code of the video-stream-demo-enabled [Mangosta-Android] can be found on the [ice_demo_kt][mangosta_ice_demo] branch.
 If you want to tinker with it and compile it yourself, you can do that. All you need is [Android Studio 2.3+](https://developer.android.com/studio/index.html).
-The compilation is pretty straightforward, so I'm not going to explain it here. 
+The compilation is pretty straightforward, so I'm not going to explain it here.
 If you are interested in how it works, most of the code is in the `inaka.com.mangosta.videostream` package.
 If you don't want to compile this application from source, you can just install [this .apk](https://drive.google.com/file/d/0B48g-HBQ5xpxclQ2RnBFMUluRU0/view?usp=sharing) on your phone and that's it.
 
 #### How to configure
 
-Right after you start [Mangosta-Android] for the fist time, you will need to log in to your XMPP server.
+Right after you start [Mangosta-Android] for the first time, you will need to login to your XMPP server.
 In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), the password (*xmpp_password*) and the server address (*2.2.2.2* or *myxmpp.com* if you've set up the domain to actually point to this IP address), and then confirm by clicking "Enter".
 
 <img src="ICE_tutorial/mangosta_login.png" width="25%">
 
-After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/MongooseICE) server we set up before. 
+After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/MongooseICE) server we set up before.
 The process is shown on the screenshots below.
 
 <img src="mangosta_ice_settings_1.png" width="30%">
 <img alt="Mangosta test ICE connection" src="mangosta_ice_settings_2.png" width="30%">
 <img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
 
-On the "*Configure ICE*" screen we have to setup 5 fields:
+On the "*Configure ICE*" screen we have to set 5 fields up:
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
 * **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/MongooseICE) it uses a default one - **3478**
 * **TURN Realm** - Realm name we have set via *MONGOOSEICE\_UDP\_REALM* variable. In our case it's "*myrelay*".
 * **TURN username** - Current version of [MongooseICE](https://github.com/esl/MongooseICE) ignores this, so you may leave it as is.
-* **TURN password** - The password that we have set via *MONGOOSEICE\_STUN\_SECRET* variable. In out case it's "*secret*"
+* **TURN password** - The password that we have set via *MONGOOSEICE\_STUN\_SECRET* variable. In our case it's "*secret*"
 
-And that would be all. 
+And that would be all.
 Now you can click "*TEST CONNECTION*" to, well..., test the connection.
-If everything works, you can "*SAVE*" the settings. 
+If everything works, you can "*SAVE*" the settings.
 Now your [Mangosta-Android] is ready to play streamed video, but we still need the source...
 
 ### Setting up RaspberryPi
 
-Let's configure the video source now. 
+Let's configure the video source now.
 In our case it will be a RaspberryPi with [Elixir] and [ffmpeg] installed running [our ICE demo application][ice_demo_client].
 
 #### The software
@@ -156,7 +155,7 @@ This client is written in [Elixir], so we can run it from source quite easily.
 
 #### How to get and configure
 
-You can get the client's sources [here][ice_demo_client]. 
+You can get the client's sources [here][ice_demo_client].
 For now we only need to run it, so let's get to it (on our RaspberryPi):
 ```bash
 git clone https://github.com/esl/ice_demo.git
@@ -165,41 +164,41 @@ mix deps.get
 iex -S mix
 ```
 
-After a while we should get into Elixir shell. 
+After a while we should get into Elixir shell.
 In order to enable the streamer, we need to start it, providing some configuration options (in the Elixir shell):
 ```elixir
 opts = [
-  jid: "movie@myxmpp.com",
-  password: "xmpp_password",
-  host: "myxmpp.com",
-  turn_addr: "1.1.1.1:3784"
-  turn_username: "username",
-  turn_secret: "secret",
-  video_file: "/home/pi/sintel.h264"
+jid: "movie@myxmpp.com",
+password: "xmpp_password",
+host: "myxmpp.com",
+turn_addr: "1.1.1.1:3784"
+turn_username: "username",
+turn_secret: "secret",
+video_file: "/home/pi/sintel.h264"
 ]
 ICEDemo.start_movie(opts)
 ```
 
 The first 3 options are all about connecting to the XMPP server - we use "*movie@myxmpp.com*" user that we created earlier.
-Next 3 options are about connecting to the [MongooseICE](https://github.com/esl/MongooseICE) server. 
+Next 3 options are about connecting to the [MongooseICE](https://github.com/esl/MongooseICE) server.
 Those are similar to ones we set in [Mangosta-Android].
-The last one points to the video file that will be streamed on request. 
+The last one points to the video file that will be streamed on request.
 This file has to be raw, H.264-encoded, video-only file.
 If you are not sure how to get one, you can just use [this one][h264_sample_video] (pre-rendered [Sintel, OpenBlender project](https://durian.blender.org/)).
-With this configuration, out RaspberryPi is ready to stream!
+With this configuration, our RaspberryPi is ready to stream!
 
 ### The end result
 #### Playing the video
 
 Now we finally can get out phone and start streaming the video!
-In order to do that, we have to click the "*New video stream*" button as shown on the screen shoots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
+In order to do that, we have to click the "*New video stream*" button as shown on the screenshots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
 
 
 <img alt="Mangosta start streaming" src="mangosta_start_stream_1.png" width="30%">
 <img alt="Mangosta start streaming" src="mangosta_start_stream_2.png" width="30%">
 <img alt="Mangosta start streaming" src="mangosta_start_stream_3.png" width="30%">
 
-Hopefully, now you can see the video on your own screen.
+Hopefully, now you can see the video on your own mobile device.
 
 [MongooseICE]: https://github.com/esl/MongooseICE
 [MongooseIM]: https://github.com/esl/MongooseIM

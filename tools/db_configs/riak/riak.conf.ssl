@@ -1,0 +1,22 @@
+## Contains a part of riak.conf, that enables SSL connections
+
+## Default cert location for https can be overridden
+## with the ssl config variable, for example:
+##
+## Acceptable values:
+##   - the path to a file
+ssl.certfile = $(platform_etc_dir)/cert.pem
+
+## Default key location for https can be overridden with the ssl
+## config variable, for example:
+##
+## Acceptable values:
+##   - the path to a file
+ssl.keyfile = $(platform_etc_dir)/key.pem
+
+## Default signing authority location for https can be overridden
+## with the ssl config variable, for example:
+##
+## Acceptable values:
+##   - the path to a file
+ssl.cacertfile = $(platform_etc_dir)/cacertfile.pem

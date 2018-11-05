@@ -1,0 +1,7 @@
+[mysqld]
+ssl=1
+ssl-cert=fake_cert.pem
+ssl-key=fake_key.pem
+max_allowed_packet=256M
+# Relax ACID compliance
+innodb_flush_log_at_trx_commit=2

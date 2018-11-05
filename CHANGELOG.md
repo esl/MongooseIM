@@ -1,3 +1,304 @@
+# [MongooseIM 3.1.0](https://github.com/esl/MongooseIM/releases/tag/3.1.0) - 2018-07-24
+
+## Highlights
+
+- Inbox extension enters beta stage, improved with MUC, timestamps and MSSQL support
+- Test Runner - comprehensive tool for executing tests locally
+- OTP 21 support
+- ElasticSearch backend for message archive
+
+## All changes
+
+### Added
+
+- `mod_inbox` enters beta stage
+  - Timestamps support (#1970)
+  - Classic MUC support (#1961)
+  - MSSQL support (#1965)
+- Test Runner (#1973, #1989, #1991)
+- OTP 21 support, OTP 18.x is no longer officially supported (#1947)
+- Jingle/SIP tutorial (#1980)
+- ElasticSearch backend for message archive (#1900)
+- Smack-specific properties support in REST API (#1976)
+- `reload_cluster` command support for ignorable options (#1948)
+- Jingle/SIP Re-INVITE support (#1903)
+- More meaningful HTTP API errors (#1776)
+- MUC hooks for user join and leave (#1898)
+- Support for result limiting options in `mod_mam_meta` (#1977)
+
+### Changed
+
+- Message archive async writers no longer synchronise on reading operations (#1919)
+- Replaced bundled LDAP driver with an OTP one (#1216)
+- All worker pools are now based on one library: `worker_pool` (#1955)
+- Mnesia directory is no longer removed in clustering operations (#1951)
+- Inconsistent Mnesia directory names are no longer an error in clustering operations (#1904)
+- `MEDIUMBLOB` is used for message archive data by default (#1873)
+- Adding children to main supervisor is now more strictly verified (#1905)
+- Updated dependencies:
+  - `worker_pool` 3.1.1 (#1983)
+  - `lager` 3.6.4 (#1992)
+  - `jiffy` 0.15.2 (#1992)
+  - `idna` 1.5.2 (#1992)
+  - `uuid` 1.7.3 (#1992)
+  - `lasse` 1.1.1 (#1992)
+  - `escalus` `e7eece237a56560add06127bc9ed47d423e88dcc` (#1947)
+- Removed `pooler` dependency (#1875)
+- Moved some multi-module MongooseIM components to dedicated subdirectories (#1952)
+- `conflict_check_failed` log severity changed to "warning" (#1981)
+- Decreased severity of some log messages (#1984)
+
+### Fixed
+
+- `mongoose_acc` server property scope (#1925)
+- `mod_inbox_odbc` was reporting false errors on MySQL upserts (#1994)
+- Rosters are properly updated on subscription requests (#1931)
+- DB deadlock is now handled properly in message archive preferences (#1897)
+- Handling of terminating receiver process (#1949)
+- `mod_jingle_sip` startup for multiple hosts (#1960)
+- `Record-Route` header generation in Jingle/SIP (#1958)
+- MSSQL transactions are now stable in MUC Light (#1917)
+
+### Other
+
+- Documentation fixes and improvements (#1906, #1936, #1966)
+- Tests improvements and refactoring (#1874, #1879, #1883, #1884, #1885, #1886, #1892, #1893, #1895, #1899, #1908, #1911, #1914, #1916, #1920, #1921, #1922, #1924, #1926, #1932, #1937, #1940, #1943, #1944, #1950, #1953, #1954, #1956, #1962, #1967, #1982, #1990)
+- Build improvements (#1915)
+- Deps are downloaded with HTTPS (#1929)
+- Codecov thresholds for failed build are now set to 0.5% (#1957)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/issues?q=is%3Aclosed+milestone%3A3.1.0+sort%3Acreated-asc)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-05-23..2018-07-24%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-05-23&to=2018-07-24&type=c)
+
+Special thanks to our contributors: @SamuelNichols @Beisenbek @GalaxyGorilla !
+
+# [MongooseIM 3.0.0](https://github.com/esl/MongooseIM/releases/tag/3.0.0) - 2018-05-22
+
+## Highlights
+
+- `exml 3.0.1`, much faster and efficient than previous versions, thanks to a new XML parser: RapidXML
+- Inbox extension - a way to display conversations list in chat application
+
+## All changes
+
+### Added
+
+- Inbox extension - experimental (#1783)
+- Acceptor pool for incoming XMPP TCP/UDP connections (#1849)
+- OTP 20 support in `mod_jingle_sip` (#1825)
+
+### Changed
+
+- MongooseIM uses `exml 3.0.1`, based on new XML parser: RapidXML (#1729, #1870)
+- Updated `fast_tls` to a version that avoids extensive usage of `stat` function (#1806)
+- User sessions are hibernated (e.g. garbage collected) as frequently as possible (#1821)
+- Cassandra connection pool has been refactored (#1847)
+- Removed support for Message Archive Management v0.2 (#1860)
+- `policy-violation` check is performed in `mod_mam(_muc)`, not in its backends (#1817)
+- Removed unnecessary `-part` schemas for MySQL (#1845)
+- `mod_jingle_sip` uses `origin_` acc keys instead of custom ones (#1841)
+
+### Fixed
+
+- ODBC support - replaced ODBC library and refactored RDBMS code (#1816, #1838)
+- `mod_muc` terminated the room when a `cancel` form was received for a room in normal state (#1798)
+- C2S process now ignores IQ replies addressed to previous process for the same user session (#1803)
+- Metrics skipping (#1819)
+
+### Other
+
+- Documentation fixes and improvements (#1835, #1851, #1852)
+- Tests improvements and refactoring (#1413, #1782, #1808, #1813, #1820, #1823, #1836, #1846)
+- `escalus 4.0.0`
+- Flexible preset application during test execution (#1802)
+- Added packaging tools (#1662)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/issues?q=is%3Aclosed+milestone%3A3.0.0+sort%3Acreated-asc)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-04-18..2018-05-22%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-04-18&to=2018-05-22&type=c)
+
+# [MongooseIM 2.2.2](https://github.com/esl/MongooseIM/releases/tag/2.2.2) - 2018-04-18
+
+## Fixed
+
+- SIP libraries are now excluded by `rebar.config.script` if `configure.out` file is missing.
+
+# [MongooseIM 2.2.1](https://github.com/esl/MongooseIM/releases/tag/2.2.1) - 2018-04-17
+
+## Fixed
+
+- Default build failed on OTP 20.x due to SIP libraries being incompatible with this Erlang version (#1814)
+
+# [MongooseIM 2.2.0](https://github.com/esl/MongooseIM/releases/tag/2.2.0) - 2018-04-17
+
+## Added
+
+- SASL `EXTERNAL` authentication method, i.e. auth with certificates (#1735)
+- Jingle/SIP proxy (#1797)
+- "Hidden" components capability (#1769)
+- Mongoose Services (#1792)
+- Hosts Refresher process for Global Distribution (#1660)
+- `advertised_endpoints` option for Global Distribution (#1724)
+- Pluggable backends support in `mod_muc` (#1758)
+- Foreground mode (#1775)
+- Now it is possible to upload test results to Google Drive (#1702)
+- Conditional logging macros (#1707)
+- Extended logging in `mod_push_service_mongoosepush` (#1777)
+- Extra debug logs in `ejabberd_service` and `mod_websockets` (#1697)
+- Extended logging in `mod_vcard` (#1715)
+
+## Changed
+
+- Refactored MongooseIM header files (#1570)
+- `mod_event_pusher` and `mod_event_pusher_push` API has been improved; not backwards compatible (#1796)
+- `gen_mod:start,stop` no longer allow to start already running and stop already stopped module (#1771)
+- "Big tests" are moved from `test.disabled/ejabberd_tests/` to `big_tests` (#1778)
+- Binary values are now hex-escaped in queries to MySQL (#1678)
+- Updated dependencies: `fast_tls` @ `a166f0e9fe78304e5ca628fd5eff57c850241813` and `cache_tab` @ 1.0.12 (#1753, #1806)
+- Updated MySQL library to 1.3.2 (#1787)
+- Updated `rebar3` to 3.5.0 (#1786)
+- `mod_ping` no longer pings bare JIDs (#1710)
+- `mod_mam` no longer uses dynamically compiled module for accessing parameters (#1627)
+- 1-1 messages REST API now uses `mongoose_acc` structure (#1744)
+- Improved logging in Global Distribution (#1761)
+
+## Fixed
+
+- Under some conditions MongooseIM could enter infinite error routing loop (#1800)
+- `mod_mam` was handling Unicode data improperly (#1748)
+- `mod_event_pusher_push` could attempt pushing body-less message (#1726)
+- `mod_event_pusher`'s HTTP backend was escaping data improperly (#1632)
+- A corner case in Global Distribution was present that could lead to broken message order (#1689)
+- Global Distribution was not caching origin info for packets from components (#1695)
+- Race condition was present in outgoing connection pools' initialisation in Global Distribution (#1750)
+- Global Distribution mappings manager sometimes crashed when `mongoose_router_external*` routers were first in routing chain. (#1763)
+- Admin REST API wasn't working properly with MUC Light + ODBC backend (#1742)
+- `mod_mam` was calculating `complete` attribute improperly when paginating backward (#1740)
+- `X-OAUTH2` tokens were not deleted properly on user removal (#1746)
+- MAM 0.2 is now properly deprecated (#1807)
+- Received stanza size metric could be highly inaccurate (#1615)
+- Tide address used `http` instead of `https` (#1701)
+- MongooseIM could not be deployed in paths with spaces (#1621)
+
+## Other
+
+- Documentation fixes and improvements (#1676, #1696, #1709, #1727)
+- Tests improvements and refactoring (#1628, #1637, #1644, #1653, #1663, #1665, #1680, #1681, #1687, #1692, #1706, #1708, #1720, #1736, #1737, #1743, #1745, #1747, #1749, #1756, #1757, #1760, #1768, #1770)
+- Removed unused Riak script (#1671)
+- Commit messages with Unicode characters are now properly handled (#1675)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222018-01-17..2018-04-17%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-01-17..2018-04-17%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-01-17&to=2018-04-17&type=c)
+
+Special thanks to our contributors: @igors @jacksgt @sstrigler @GalaxyGorilla @varnerac!
+
+# [MongooseIM 2.1.1](https://github.com/esl/MongooseIM/releases/tag/2.1.1) - 2018-01-16
+
+## Added
+
+- Event Pusher - a module that unifies all outgoing event channels: HTTP, Push Notifications etc. (#1414)
+- TLS-secured connections to databases (#1545, #1556, #1564, #1578, #1585, #1587)
+- Dedicated API in `ejabberd_auth` for accessing parameters in `auth_opts` tuple (#1593)
+- Experimental Global Distribution extension (#1604)
+- Max allowed stanza size may be now configured for `mod_websockets` (#1641)
+
+## Changed
+
+- Project structure has been transformed to single application layout (#1580, #1590)
+- Message Archive Management v0.2 support is now deprecated and will be removed in 3.0.0beta1 (#1514, #1591)
+- MySQL schema now uses `utf8mb4` encoding and `ROW_FORMAT=DYNAMIC`. MySQL versions older than 5.5.14 are no longer supported. (#1611, #1633)
+- MongooseIM now uses updated and decoupled fork of `exometer` (#1600)
+
+## Fixed
+
+- User process crash when IQ result/error with Privacy Lists/Blocking Command namespace was received. (#1597)
+- MongooseIM build failed on macOS High Sierra due to old version of `fast_tls` (#1606)
+- Error type returned when VCard is not found (#1547)
+- Race condition in `mod_muc` on room PID registration (#1608)
+- Unnecessary transformations in `mod_vcard_ldap` (#1607)
+- MongooseIM build on 32-bit systems (#1574)
+- One of the hooks in `mod_mam_odbc_arch` wasn't properly disabled on module stop (#1576)
+- Event Pusher HTTP backend used invalid hostname to fetch options (#1630)
+- `mod_websockets:close/1` didn't work. (#1603)
+
+## Other
+
+- Removed unused API from `jlib.erl` (#1390)
+- Git now treats minified JavaScript files as binaries (#1635)
+- Message Archive Management refactoring (#1425)
+- Documentation fixes and improvements (#1500, #1503, #1513, #1538, #1550, #1563, #1567, #1568, #1577, #1579, #1581, #1584, #1586, #1592, #1594, #1618)
+- Tests improvements and refactoring (#1523, #1625, #1642, #1643, #1656)
+- Code & style improvements (#1515, #1540, #1548, #1572)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-10-24..2018-01-16%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-10-24..2018-01-16%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-10-24&to=2018-01-16&type=c)
+
+Special thanks to our contributors: @andrewvmail @igors !
+
+# [MongooseIM 2.1.0](https://github.com/esl/MongooseIM/releases/tag/2.1.0) - 2017-10-24
+
+## Added
+
+- OTP 20 compatibility (#1430)
+- Message Archive Management v0.6 support (#1442, #1471)
+- Final stage of Mongoose Accumulators implementation (#1398, #1512)
+- REST API: MUC Light rooms can be created with a specified username part (#1387)
+- REST API: MUC Light rooms can be addressed with a bare JID (not only with their usernames) (#1417)
+- REST API: MUC Light rooms can be destroyed (#1461)
+- MAM can be configured to archive [XEP-0333 Chat Markers](https://xmpp.org/extensions/xep-0333.html) (#1377)
+- `mod_http_upload_s3` can be configured to skip the ACL header (so MIM can integrate with Minio) (#1415)
+- Administration REST API can be protected with the Basic HTTP Authentication (#1453)
+- More configuration options for JWT authentication backend (#1321)
+- (Un)Subscribing to many hooks with a single function call (#1376, #1426)
+- New `ejabberd_router:route_error_reply/4` function (#1427)
+- `mongoose_commands`  can accept lists of elements as an argument (#1465)
+
+## Changed
+
+- Switched back to strictly monotonous MAM message IDs (#1372)
+- MongooseIM will not start if the ODBC connection is configured but no ODBC pools are defined (#1455)
+- SASL X-OAUTH mechanism is not advertised if `mod_auth_token` is not enabled (#1450)
+- `ejabberd_auth:authorize/1` is now used for authorisation in client REST API (#1409)
+- DNS lookup is not performed for the S2S connection if the host is already defined in the configuration (#1314)
+
+## Fixed
+
+- Fix RDMBS backoff calculation (#1394)
+- URL escaping and reporting in `mod_http_upload` (#1391)
+- Fixed Unicode support in the MAM full text search with a Riak backend (#1407)
+- Authentication crash with SASL PLAIN and an invalid password (#1433)
+- Random crashes in tests (#1374, #1428)
+- `mongooseim version` command was broken (#1457)
+
+## Other
+
+- Documentation fixes and improvements (#1373, #1380, #1382, #1385, #1396, #1399, #1402, #1408, #1416, #1418, #1434, #1441, #1445, #1451, #1456, #1468, #1469, #1472, #1475, #1477, #1480, #1482, #1483, #1484, #1485, #1486, #1487, #1488, #1489, #1490, #1492, #1493, #1494, #1495, #1496, #1498, #1499, #1501, #1502, #1503, #1504, #1506, #1507, #1508, #1532, #1534)
+- First stage of `mod_mam` and its submodules' refactoring (#1381)
+- Tests improvements and refactoring (#1383, #1388)
+- Improved coverage check (#1397)
+- Build system & scripts improvements (#1412, #1422, #1448)
+- Code & style improvements (#1454)
+- Updated dependency: `cqerl` (#1447)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?utf8=%E2%9C%93&q=is%3Apr%20base%3Amaster%20merged%3A%222017-07-04..2017-10-23%22%20sort%3Acreated-asc%20)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222017-07-04..2017-10-23%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2017-07-04&to=2017-10-23&type=c)
+
+Special thanks to our contributors: @Beisenbek, @benkard, @deadjdona, @fblackburn1 !
+
 # [MongooseIM 2.1.0beta2](https://github.com/esl/MongooseIM/releases/tag/2.1.0beta2) - 2017-07-06
 
 ## Added

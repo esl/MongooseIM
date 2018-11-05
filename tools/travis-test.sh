@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-set -uo pipefail
+#
+# Env variables:
+# - SMALL_TESTS
+# - COVER_ENABLED
+# - STOP_NODES (default false)
+set -o pipefail
 IFS=$'\n\t'
 
-PRESET="internal_mnesia"
-SMALL_TESTS="true"
-COVER_ENABLED="true"
+DEFAULT_PRESET=internal_mnesia
+PRESET="${PRESET-$DEFAULT_PRESET}"
+SMALL_TESTS="${SMALL_TESTS:-true}"
+COVER_ENABLED="${COVER_ENABLED:-true}"
 
-while getopts ":p::s::c:" opt; do
+while getopts ":p::s::e::c:" opt; do
   case $opt in
     p)
       PRESET=$OPTARG
@@ -31,9 +37,7 @@ done
 source tools/travis-common-vars.sh
 source tools/travis-helpers.sh
 
-CAN_PRINT_S3_URL=${TRAVIS_SECURE_ENV_VARS:-false}
-
-if [ "$CAN_PRINT_S3_URL" == 'true' ]; then
+if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -42,53 +46,46 @@ fi
 # Print ct_progress_hook output
 echo "" > /tmp/progress
 tail -f /tmp/progress &
-
-# Kill children on exit, but do not kill self on normal exit
-trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM
-trap "trap '' SIGTERM && kill -- -$$ 2> /dev/null" EXIT
+PRINT_PROGRESS_PID=$!
+CURRENT_SCRIPT_PID=$$
+./tools/kill_processes_on_exit.sh $CURRENT_SCRIPT_PID $PRINT_PROGRESS_PID &
 
 echo ${BASE}
 
-MIM1=${BASE}/_build/mim1/rel/mongooseim
-MIM2=${BASE}/_build/mim2/rel/mongooseim
-MIM3=${BASE}/_build/mim3/rel/mongooseim
-FED1=${BASE}/_build/fed1/rel/mongooseim
-MIM1CTL=${MIM1}/bin/mongooseimctl
-MIM2CTL=${MIM2}/bin/mongooseimctl
-MIM3CTL=${MIM3}/bin/mongooseimctl
-FED1CTL=${FED1}/bin/mongooseimctl
+# Example: choose_newest_directory dir1 dir2 dir3
+# Returns: a directory, that was modified last
+choose_newest_directory() {
+  if [ "$#" -eq 0 ]; then
+      echo "No arguments passed"
+      exit 1
+  fi
 
-NODES=(${MIM1CTL} ${MIM2CTL} ${MIM3CTL} ${FED1CTL})
-
-start_node() {
-  echo -n "${1} start: "
-  ${1} start && echo ok || echo failed
-  ${1} started
-  ${1} status
-  echo
-}
-
-summaries_dir() {
   if [ `uname` = "Darwin" ]; then
-    echo `ls -dt ${1} | head -n 1`
+    ls -dt "$@" | head -n 1
   else
-    echo `eval ls -d ${1} --sort time | head -n 1`
+    ls -d "$@" --sort time | head -n 1
   fi
 }
 
 run_small_tests() {
-  echo "############################"
-  echo "Running small tests (apps/ejabberd/tests)"
-  echo "############################"
-  echo "Add option -s false to skip embeded common tests"
+  tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   make ct
+  tools/print-dots.sh stop
   SMALL_SUMMARIES_DIRS=${BASE}/_build/test/logs/ct_run*
-  SMALL_SUMMARIES_DIR=$(summaries_dir ${SMALL_SUMMARIES_DIRS} 1)
+  SMALL_SUMMARIES_DIR=$(choose_newest_directory ${SMALL_SUMMARIES_DIRS})
   ${TOOLS}/summarise-ct-results ${SMALL_SUMMARIES_DIR}
 }
 
 maybe_run_small_tests() {
   if [ "$SMALL_TESTS" = "true" ]; then
+    echo "############################"
+    echo "Running small tests (test/)"
+    echo "############################"
+    echo "Advice: "
+    echo "    Add option \"-s false\" to skip embeded common tests"
+    echo "Example: "
+    echo "    ./tools/travis-test.sh -s false"
     run_small_tests
   else
     echo "############################"
@@ -97,27 +94,30 @@ maybe_run_small_tests() {
   fi
 }
 
-start_services() {
-    for env in ${BASE}/test.disabled/ejabberd_tests/services/*-compose.yml; do
-        echo "Stating service" $(basename "${env}") "..."
-        docker-compose -f "${env}" up -d
-    done
-}
-
 run_test_preset() {
   tools/print-dots.sh start
-  cd ${BASE}/test.disabled/ejabberd_tests
+  tools/print-dots.sh monitor $$
+  cd ${BASE}/big_tests
   local MAKE_RESULT=0
+  TESTSPEC=${TESTSPEC:-default.spec}
   if [ "$COVER_ENABLED" = "true" ]; then
-    make cover_test_preset TESTSPEC=default.spec PRESET=$PRESET
+    make cover_test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET
     MAKE_RESULT=$?
   else
-    make test_preset TESTSPEC=default.spec PRESET=$PRESET
+    make test_preset TESTSPEC=$TESTSPEC PRESET=$PRESET
     MAKE_RESULT=$?
   fi
   cd -
   tools/print-dots.sh stop
   return ${MAKE_RESULT}
+}
+
+print_running_nodes() {
+    echo "Running nodes:"
+    # Expand wildcard into a bash array
+    EPMDS=( "${BASE}"/_build/mim1/rel/mongooseim/erts-*/bin/epmd )
+    # Missing index expands into ${EPMDS[0]}
+    "$EPMDS" -names
 }
 
 run_tests() {
@@ -126,21 +126,17 @@ run_tests() {
   echo "SMALL_STATUS=$SMALL_STATUS"
   echo ""
   echo "############################"
-  echo "Running big tests (tests/ejabberd_tests)"
+  echo "Running big tests (big_tests)"
   echo "############################"
 
-  for node in ${NODES[@]}; do
-    start_node $node;
-  done
-
-  # Start all additional services
-  start_services
+  time ${TOOLS}/start-nodes.sh
 
   run_test_preset
   BIG_STATUS=$?
 
-  SUMMARIES_DIRS=${BASE}'/test.disabled/ejabberd_tests/ct_report/ct_run*'
-  SUMMARIES_DIR=$(summaries_dir ${SUMMARIES_DIRS})
+  SUMMARIES_DIRS=${BASE}/big_tests/ct_report/ct_run*
+  SUMMARIES_DIR=$(choose_newest_directory ${SUMMARIES_DIRS})
+  echo "SUMMARIES_DIR=$SUMMARIES_DIR"
   ${TOOLS}/summarise-ct-results ${SUMMARIES_DIR}
   BIG_STATUS_BY_SUMMARY=$?
 
@@ -161,30 +157,54 @@ run_tests() {
     echo "Build failed:"
     [ $SMALL_STATUS -ne 0 ] && echo "    small tests failed"
     [ $BIG_STATUS_BY_SUMMARY -ne 0 ]   && echo "    big tests failed"
-    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites"
+    [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
+    print_running_nodes
+  fi
+
+  # Do not stop nodes if big tests failed
+  if [ "$STOP_NODES" = true ] && [ $BIG_STATUS -eq 0 ] && [ $BIG_STATUS_BY_SUMMARY -eq 0 ]; then
+      echo "Stopping MongooseIM nodes"
+      ./tools/stop-nodes.sh
+  else
+      echo "Keep MongooseIM nodes running"
   fi
 
   exit ${RESULT}
 }
 
 enable_tls_dist () {
-  for node in "$MIM1" "$MIM2" "$MIM3" "$FED1"; do
+  for node in ${DEV_NODES_ARRAY[@]}; do
     # Reenable commented out TLS dist options,
     # i.e. remove the single leading comment character on lines
     # commented out with just a single comment character.
-    $SED -i -e 's/^#\([^#]\)/\1/' "$node"/etc/vm.dist.args
+    $SED -i -e 's/^#\([^#]\)/\1/' ${BASE}/_build/"$node"/rel/mongooseim/etc/vm.dist.args
   done
 }
 
-if [ $PRESET == "dialyzer_only" ]; then
+build_pkg () {
+  set -e
+  local platform=$1
+  cd tools/pkg
+  ./build $platform
+  ./run $platform
+  set +e
+}
+
+if [ "$PRESET" == "dialyzer_only" ]; then
   tools/print-dots.sh start
+  tools/print-dots.sh monitor $$
   ./rebar3 dialyzer
   RESULT=$?
   tools/print-dots.sh stop
+  exit ${RESULT}
+elif [ "$PRESET" == "pkg" ]; then
+  build_pkg $pkg_PLATFORM
+elif [ "$PRESET" == "small_tests" ]; then
+  time run_small_tests
+  RESULT=$?
   exit ${RESULT}
 else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
 fi
-

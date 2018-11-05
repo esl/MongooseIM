@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# travis secure envs are available only of our own PRs
-
-if [ ${TRAVIS_SECURE_ENV_VARS} == 'true' ]; then
-
 ./tools/configure with-all
 make rel
 
@@ -50,5 +46,3 @@ docker build -f Dockerfile.member -t ${IMAGE_TAG} \
 docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
 
 docker push ${IMAGE_TAG}
-
-fi

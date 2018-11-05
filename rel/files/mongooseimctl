@@ -1,32 +1,32 @@
-#!/bin/sh
+#!/bin/bash
 
 RUNNER_SCRIPT_DIR={{{mongooseim_script_dir}}}
-RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
+RUNNER_BASE_DIR="${RUNNER_SCRIPT_DIR%/*}"
 ## Depending on build time config RUNNER_ETC_DIR may depend on RUNNER_BASE_DIR.
-RUNNER_ETC_DIR={{mongooseim_etc_dir}}
-RUNNER_USER={{mongooseim_runner_user}}
+RUNNER_ETC_DIR="{{mongooseim_etc_dir}}"
+RUNNER_USER="{{mongooseim_runner_user}}"
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
-    exec sudo -u $RUNNER_USER -i $0 $@
+    exec sudo -u "$RUNNER_USER" -i "$0" "$@"
 fi
 
-EJABBERD_DIR=${RUNNER_SCRIPT_DIR%/*}
-EJABBERD_VMARGS_PATH=${RUNNER_ETC_DIR}/vm.args
-START_ERL=`cat $EJABBERD_DIR/releases/start_erl.data`
-ERTS_VSN=${START_ERL% *}
-ERTS_PATH=$EJABBERD_DIR/erts-$ERTS_VSN/bin
-ERL=$ERTS_PATH/erl
-EPMD=$ERTS_PATH/epmd
-EJABBERD_EBIN_PATH=$EJABBERD_DIR/lib/ejabberd-*/ebin/
+EJABBERD_DIR="${RUNNER_SCRIPT_DIR%/*}"
+EJABBERD_VMARGS_PATH="${RUNNER_ETC_DIR}"/vm.args
+START_ERL=`cat "$EJABBERD_DIR"/releases/start_erl.data`
+ERTS_VSN="${START_ERL% *}"
+ERTS_PATH="$EJABBERD_DIR/erts-$ERTS_VSN/bin"
+ERL="$ERTS_PATH"/erl
+EPMD="$ERTS_PATH"/epmd
+EJABBERD_EBIN_PATH="$EJABBERD_DIR"/lib/mongooseim-*/ebin/
 
-COOKIE_ARG=`grep -e '^-setcookie' $EJABBERD_VMARGS_PATH`
+COOKIE_ARG=`grep -e '^-setcookie' "$EJABBERD_VMARGS_PATH"`
 if [ -z "$COOKIE_ARG" ]; then
     echo "vm.args needs to have a -setcookie parameter."
     exit 1
 fi
 
-NODENAME_ARG=`egrep -e '^-s?name' $EJABBERD_VMARGS_PATH`
+NODENAME_ARG=`egrep -e '^-s?name' "$EJABBERD_VMARGS_PATH"`
 if [ -z "$NODENAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
@@ -89,32 +89,39 @@ manage_cluster()
 
 start ()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim start
+    "$RUNNER_SCRIPT_DIR"/mongooseim start
 }
 stop ()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim stop
+    "$RUNNER_SCRIPT_DIR"/mongooseim stop
 }
 
 # attach to server
 debug ()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim debug
+    "$RUNNER_SCRIPT_DIR"/mongooseim debug
 }
 
 # start interactive server
 live ()
 {
-    $RUNNER_SCRIPT_DIR/mongooseim console
+    "$RUNNER_SCRIPT_DIR"/mongooseim console
+}
+
+# start non-interactive server still attached to terminal
+foreground ()
+{
+    "$RUNNER_SCRIPT_DIR"/mongooseim foreground
 }
 
 help ()
 {
     echo ""
     echo "Commands to start a MongooseIM node:"
-    echo "  start  Start a MongooseIM node in server mode"
-    echo "  debug  Attach an interactive Erlang shell to a running MongooseIM node"
-    echo "  live   Start MongooseIM node in live (interactive) mode"
+    echo "  start           Start a MongooseIM node as daemon (detached from terminal)"
+    echo "  debug           Attach an interactive Erlang shell to a running MongooseIM node"
+    echo "  live            Start MongooseIM node in live (interactive) mode"
+    echo "  foreground      Start MongooseIM node in foreground (non-interactive) mode"
     echo "MongooseIM cluster management commands:"
     echo "  join_cluster other_node_name                Add current node to cluster"
     echo "  leave_cluster                               Leave current node from the cluster"
@@ -131,8 +138,8 @@ ctl ()
     # using flock if available. Expects a linux-style
     # flock that can lock a file descriptor.
     MAXCONNID=100
-    CONNLOCKDIR={{mongooseim_lock_dir}}/ctl
-    mkdir -p $CONNLOCKDIR
+    CONNLOCKDIR="{{mongooseim_lock_dir}}/ctl"
+    mkdir -p "$CONNLOCKDIR"
     FLOCK='/usr/bin/flock'
     if [ ! -x "$FLOCK" ] || [ ! -d "$CONNLOCKDIR" ] ; then
 	JOT='/usr/bin/jot'
@@ -203,12 +210,12 @@ ctlexec ()
 {
     CONN_NAME=$1; shift
     COMMAND=$@
-    $ERL \
+    "$ERL" \
       $NAME_TYPE ${CONN_NAME} \
       -noinput \
       -hidden \
       $COOKIE_ARG \
-      -args_file $RUNNER_ETC_DIR/vm.dist.args \
+      -args_file "$RUNNER_ETC_DIR"/vm.dist.args \
       -pa "$EJABBERD_EBIN_PATH" \
       -s ejabberd_ctl -extra $NODENAME $COMMAND
 }
@@ -223,7 +230,7 @@ usage ()
 # stop epmd if there is no other running node
 stop_epmd()
 {
-    $EPMD -names | grep -q name || $EPMD -kill
+    "$EPMD" -names | grep -q name || "$EPMD" -kill
 }
 
 # allow sync calls
@@ -273,6 +280,7 @@ case $1 in
     'remove_from_cluster') remove_from_cluster;;
     'debug') debug;;
     'live') live;;
+    'foreground') foreground;;
     'started') wait_for_status 0 30 2;; # wait 30x2s before timeout
     'stopped') wait_for_status 3 15 2; stop_epmd;; # wait 15x2s before timeout
     *) ctl $QUOTED_ARGS;;

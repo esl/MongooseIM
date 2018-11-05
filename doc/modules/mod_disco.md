@@ -8,6 +8,8 @@ Implements [XEP-0030: Service Discovery](http://xmpp.org/extensions/xep-0030.htm
 * **server_info** (list of tuples `{[Module] | all, Name, [URL]}`, default: `[]`): Adds extra disco information to all or chosen modules. 
  Example: `{server_info, [{all, "abuse-address", ["admin@example.com"]}, {[mod_muc, mod_disco], "friendly-spirits", ["spirit1@localhost", "spirit2@localhost"]}]}`. 
  New fields will be added in a manner compliant with XEP-0157.
+* **users_can_see_hidden_services** (boolean, default: `true`): MongooseIM node with this option set to `false` will exclude ["hidden services"](../advanced-configuration/Listener-modules.md#xmpp-components-ejabberd_service) from disco results sent to clients (identified by bare or full JID).
+Other entities, with empty username part in their JIDs (e.g. `component.example.com`), will still receive full disco results.
 
 ### Example Configuration
 `    {mod_disco, []} `

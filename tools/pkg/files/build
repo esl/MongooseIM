@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -e
+
+VER=$1
+REVISION=${2:-1}
+
+if [ x"$VER" == x"" ]; then
+    echo "$0: which version to build?"
+    exit 1
+fi
+
+cd /buildfiles
+bash ./script.sh ${VER} ${REVISION}
+cp -i mongooseim*.??? /packages/

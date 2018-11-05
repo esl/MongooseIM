@@ -4,31 +4,31 @@
 
 RUNNER_SCRIPT_DIR={{{mongooseim_script_dir}}}
 
-RUNNER_BASE_DIR=${RUNNER_SCRIPT_DIR%/*}
-RUNNER_ETC_DIR={{mongooseim_etc_dir}}
-RUNNER_LOG_DIR={{mongooseim_log_dir}}
+RUNNER_BASE_DIR="${RUNNER_SCRIPT_DIR%/*}"
+RUNNER_ETC_DIR="{{mongooseim_etc_dir}}"
+RUNNER_LOG_DIR="{{mongooseim_log_dir}}"
 # Note the trailing slash on $PIPE_DIR/
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
 RUNNER_USER={{mongooseim_runner_user}}
 
-EJABBERD_SO_PATH=`ls -dt $RUNNER_BASE_DIR/lib/ejabberd-2.1.8*/priv/lib | head -1`
-EJABBERD_CONFIG_PATH=$RUNNER_ETC_DIR/ejabberd.cfg
+EJABBERD_SO_PATH=`ls -dt "$RUNNER_BASE_DIR"/lib/mongooseim-*/priv/lib | head -1`
+EJABBERD_CONFIG_PATH="$RUNNER_ETC_DIR"/mongooseim.cfg
 export EJABBERD_SO_PATH
 export EJABBERD_CONFIG_PATH
 
 # Make sure this script is running as the appropriate user
 if [ ! -z "$RUNNER_USER" ] && [ `whoami` != "$RUNNER_USER" ]; then
-    exec sudo -u $RUNNER_USER -i $0 $@
+    exec sudo -u "$RUNNER_USER" -i "$0" "$@"
 fi
 
 # Make sure CWD is set to runner base dir
-cd $RUNNER_BASE_DIR
+cd "$RUNNER_BASE_DIR"
 
 # Make sure log directory exists
-mkdir -p $RUNNER_LOG_DIR
+mkdir -p "$RUNNER_LOG_DIR"
 
 # Extract the target node name from node.args
-NAME_ARG=`egrep -e '^-s?name' $RUNNER_ETC_DIR/vm.args`
+NAME_ARG=`egrep -e '^-s?name' "$RUNNER_ETC_DIR"/vm.args`
 if [ -z "$NAME_ARG" ]; then
     echo "vm.args needs to have either -name or -sname parameter."
     exit 1
@@ -38,40 +38,47 @@ NODE=$(echo $NAME_ARG | awk '{print $2}')
 MNESIA_DIR={{mongooseim_mdb_dir}}
 
 # Extract the target cookie
-COOKIE_ARG=`grep -e '^-setcookie' $RUNNER_ETC_DIR/vm.args`
+COOKIE_ARG=`grep -e '^-setcookie' "$RUNNER_ETC_DIR"/vm.args`
 if [ -z "$COOKIE_ARG" ]; then
     echo "vm.args needs to have a -setcookie parameter."
     exit 1
 fi
 
 # Identify the script name
-SCRIPT=`basename $0`
+SCRIPT=`basename "$0"`
 
 # Parse out release and erts info
-START_ERL=`cat $RUNNER_BASE_DIR/releases/start_erl.data`
-ERTS_VSN=${START_ERL% *}
-APP_VSN=${START_ERL#* }
+START_ERL=`cat "$RUNNER_BASE_DIR"/releases/start_erl.data`
+ERTS_VSN="${START_ERL% *}"
+APP_VSN="${START_ERL#* }"
 
 # Add ERTS bin dir to our path
-ERTS_PATH=$RUNNER_BASE_DIR/erts-$ERTS_VSN/bin
+ERTS_PATH="$RUNNER_BASE_DIR/erts-$ERTS_VSN/bin"
 
 # Setup command to control the node
-NODETOOL="$ERTS_PATH/escript $ERTS_PATH/nodetool $NAME_ARG $COOKIE_ARG"
+function nodetool {
+    "$ERTS_PATH"/escript "$ERTS_PATH"/nodetool $NAME_ARG $COOKIE_ARG "$@"
+}
+
+function exec_echo {
+    echo "Exec: $@"
+    exec "$@"
+}
 
 # Check the first argument for instructions
 case "$1" in
     start)
         # Make sure there is not already a node running
-        RES=`$NODETOOL ping`
+        RES=`nodetool ping`
         if [ "$RES" = "pong" ]; then
             echo "Node is already running!"
             exit 1
         fi
         HEART_COMMAND="$RUNNER_BASE_DIR/bin/$SCRIPT start"
         export HEART_COMMAND
-        mkdir -p $PIPE_DIR
+        mkdir -p "$PIPE_DIR"
         shift # remove $1
-        $ERTS_PATH/run_erl -daemon $PIPE_DIR $RUNNER_LOG_DIR "exec $RUNNER_BASE_DIR/bin/$SCRIPT console $@" 2>&1
+        "$ERTS_PATH"/run_erl -daemon "$PIPE_DIR" "$RUNNER_LOG_DIR" "exec \"$RUNNER_BASE_DIR/bin/$SCRIPT\" console $@" 2>&1
         ;;
 
     stop)
@@ -92,7 +99,7 @@ case "$1" in
                 PID=`ps -efW|grep "$RUNNER_BASE_DIR/.*/[b]eam"|awk '{print $2}'`
                 ;;
         esac
-        $NODETOOL stop
+        nodetool stop
         while `kill -0 $PID 2>/dev/null`;
         do
             sleep 1
@@ -100,58 +107,70 @@ case "$1" in
         ;;
     restart)
         ## Restart the VM without exiting the process
-        $NODETOOL restart
+        nodetool restart
         ;;
 
     reboot)
         ## Restart the VM completely (uses heart to restart it)
-        $NODETOOL reboot
+        nodetool reboot
         ;;
 
     ping)
         ## See if the VM is alive
-        $NODETOOL ping
+        nodetool ping
         ;;
 
     attach)
         # Make sure a node IS running
-        RES=`$NODETOOL ping`
+        RES=`nodetool ping`
         if [ "$RES" != "pong" ]; then
             echo "Node is not running!"
             exit 1
         fi
 
         shift
-        $ERTS_PATH/to_erl $PIPE_DIR
+        "$ERTS_PATH"/to_erl "$PIPE_DIR"
         ;;
 
-    console|live|console_clean)
+    console|live|console_clean|foreground)
         # .boot file typically just $SCRIPT (ie, the app name)
         # however, for debugging, sometimes start_clean.boot is useful:
+        FOREGROUNDOPTIONS=""
         case "$1" in
-            console|live)   BOOTFILE=$SCRIPT ;;
+            console|live)   BOOTFILE="$SCRIPT" ;;
             console_clean)  BOOTFILE=start_clean ;;
+            foreground)
+                # start up the release in the foreground for use
+                # by supervision services (e.g. systemd, upstart)
+                BOOTFILE="$SCRIPT"
+                FOREGROUNDOPTIONS="-noshell -noinput +Bd"
+                ;;
         esac
         # Setup beam-required vars
-        ROOTDIR=$RUNNER_BASE_DIR
-        BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
+        ROOTDIR="$RUNNER_BASE_DIR"
+        BINDIR="$ROOTDIR/erts-$ERTS_VSN/bin"
         EMU=beam
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erlexec -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -embedded -config $RUNNER_ETC_DIR/app.config -args_file $RUNNER_ETC_DIR/vm.args -args_file $RUNNER_ETC_DIR/vm.dist.args -- ${1+"$@"}"
+
         export EMU
         export ROOTDIR
         export BINDIR
         export PROGNAME
 
         # Dump environment info for logging purposes
-        echo "Exec: $CMD"
         echo "Root: $ROOTDIR"
 
         # Log the startup
         logger -t "$SCRIPT[$$]" "Starting up"
 
         # Start the VM
-        exec $CMD
+        exec_echo "$BINDIR/erlexec" $FOREGROUNDOPTIONS \
+            -boot "$RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE" \
+            -embedded \
+            -config "$RUNNER_ETC_DIR/app.config" \
+            -args_file "$RUNNER_ETC_DIR/vm.args"  \
+            -args_file "$RUNNER_ETC_DIR/vm.dist.args" \
+            -- ${1+"$@"}
         ;;
 
     debug)
@@ -175,30 +194,29 @@ case "$1" in
         NODE=$(echo $NAME_ARG | awk '{print $2}')
         TTY=$(basename `tty`)
 
-        ROOTDIR=$RUNNER_BASE_DIR
-        BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
+        ROOTDIR="$RUNNER_BASE_DIR"
+        BINDIR="$ROOTDIR/erts-$ERTS_VSN/bin"
         PROGNAME=`echo $0 | sed 's/.*\\///'`
-        CMD="$BINDIR/erl $NAME debug-$TTY-$NODE $COOKIE_ARG -remsh $NODE -hidden -args_file $RUNNER_ETC_DIR/vm.dist.args"
 
         # Log the startup
         logger -t "$SCRIPT[$$]" "Starting up"
 
         # Start the VM
-        exec $CMD
+        exec_echo "$BINDIR/erl" "$NAME" "debug-$TTY-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
         ;;
 
     version)
-        if [ $# == 2 ] && [ $2 == '--simple' ]
+        if [ $# == 2 ] && [ "$2" == '--simple' ]
         then
-            cat $RUNNER_BASE_DIR/priv/VERSION
+            cat "$RUNNER_BASE_DIR/priv/VERSION"
         else
-            cat $RUNNER_BASE_DIR/priv/logo.txt
+            cat "$RUNNER_BASE_DIR/priv/logo.txt"
             echo -n "MongooseIM version "
-            cat $RUNNER_BASE_DIR/priv/VERSION
+            cat "$RUNNER_BASE_DIR/priv/VERSION"
         fi
         ;;
     *)
-        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|attach|debug|version}"
+        echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|live|console|console_clean|foreground|attach|debug|version}"
         exit 1
         ;;
 esac

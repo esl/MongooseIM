@@ -1,17 +1,17 @@
 # Database Backends
 
-MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones. 
-Some of them require extra work before they can be used. 
-For example the SQL databases require defining a schema. 
+MongooseIM can work with several databases, both RDBMS (SQL) and NOSQL ones.
+Some of them require extra work before they can be used.
+For example the SQL databases require defining a schema.
 MongooseIM is tested with TravisCI, so the travis scripts can be used as a reference.
 
 # A Brief Overview
 
 Data in MongooseIM is either transient or persistent:
 
-* **transient**: volatile data changing often, such as session data, stream management data, and other in-memory data. 
+* **transient**: volatile data changing often, such as session data, stream management data, and other in-memory data.
  These don't need any backup, since after a potential failure, they will naturally rebuild as clients reconnect.
-* **persistent**: long-lived data, such as roster items, credentials, and chat archives. 
+* **persistent**: long-lived data, such as roster items, credentials, and chat archives.
  These absolutely need regular and tested backups.
 
 # Choosing a database for MongooseIM
@@ -28,24 +28,24 @@ Transient data:
  Sooner or later a migration will be needed which may be painful.
  It is possible to store all data in Mnesia, but only for testing purposes, not for any serious deployments.
 
-* Redis - A fantastic choice for storing live data. 
- It's highly scalable and it can be easily shared by multiple MongooseIM nodes. 
- Additionally, Redis' great performance makes it an excellent choice for storing `user session` data. 
+* Redis - A fantastic choice for storing live data.
+ It's highly scalable and it can be easily shared by multiple MongooseIM nodes.
+ Additionally, Redis' great performance makes it an excellent choice for storing `user session` data.
  We recommend caution, since it has not yet been widely tested in production.
 
 
 Persistent Data:
 
-* RDBMS/ODBC - MongooseIM has a strong backend support for relational databases. 
- Considering the [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) that usually guarantees both availability and consistency which is a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`. 
+* RDBMS - MongooseIM has a strong backend support for relational databases.
+ Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Never loose your data.
 
-* Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution. 
+* Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
  It offers high availability and fault tolerance which is excatly what you need for your distributed MongooseIM architecture.
  Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Erlang Solutions commercially supports Riak KV.
 
-# RDBMS/ODBC
+# RDBMS
 
 ## MySQL
 
@@ -58,10 +58,11 @@ Persistent Data:
 * privacy/block lists
 * last activity
 * mam (message archive management)
+* muc_light rooms
 
 **Setup**
 
-The schema files can be found in the `apps/ejabberd/priv` directory. 
+The schema files can be found in the `priv` directory.
 The default schema is defined in the `mysql.sql` file.
 
 You can use the following command to apply it on localhost:
@@ -71,9 +72,20 @@ mysql -h localhost -u user -p -e 'create database mongooseim'
 mysql -h localhost -u user -p mongooseim < mysql.sql
 ```
 
-You should also configure MySQL database in the `ejabberd.cfg` file.
+You should also configure MySQL database in the `mongooseim.cfg` file.
 Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
+**Version notice**
+
+The required minimum version of MySQL is `5.5.14`. For versions `5.7.8` and older, add the following options to your MySQL configuration file:
+
+```bash
+innodb_large_prefix=true
+innodb_file_format=BARRACUDA
+innodb_file_format_max=BARRACUDA
+innodb_file_per_table=true
+```
+For versions `5.7.9` and newer, all of the above options are set correctly by default.
 ## PostgreSQL
 
 **Can be used for:**
@@ -85,10 +97,11 @@ Please refer to the [Advanced configuration/Database setup](../Advanced-configur
 * privacy/block lists
 * last activity
 * mam (message archive management)
+* muc_light rooms
 
 **Setup**
 
-The schema files can be found in the `apps/ejabberd/priv` directory. 
+The schema files can be found in the `priv` directory.
 The default schema is defined in the `pg.sql` file.
 
 You can use the following command to apply it on localhost:
@@ -97,7 +110,7 @@ You can use the following command to apply it on localhost:
 psql -h localhost -U user -c "CREATE DATABASE mongooseim;"
 psql -h localhost -U user -q -d mongooseim -f pg.sql
 ```
-You should also configure Postgres database in `ejabberd.cfg` file.
+You should also configure Postgres database in `mongooseim.cfg` file.
 Please refer to the [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
 
 ## Microsoft SQL Server
@@ -113,6 +126,7 @@ Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 * privacy/block lists
 * last activity
 * mam (message archive management)
+* muc_light rooms
 
 **Setup**
 
@@ -127,36 +141,39 @@ You can configure MongooseIM appropriately by using the following command (assum
 
 You also need FreeTDS (an ODBC driver for MSSQL) installed in your system.
 
-Then you need to configure the ODBC and FreeTDS drivers. 
+Then you need to configure the ODBC and FreeTDS drivers.
 You can find an example configuration for CentOS, given that unixODBC and freetds packages have been installed.
 
-Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` file:
+Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` or ``$HOME/.odbc.ini`` file:
 ```ini
 [mongoose-mssql]
-Driver = FreeTDS
-Servername = mssql-local
-Database = mongooseim
+Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
+Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+Server      = 127.0.0.1
+Port        = 1433
+Database    = mongooseim
+Charset     = UTF-8
+TDS_Version = 7.2
+client_charset = UTF-8
 ```
 
-Add path to the ``FreeTDS`` driver to the ``/etc/odbcinst.ini`` file:
-```ini
-[FreeTDS]
-Description = TDS driver (Sybase/MS SQL)
-Setup = /usr/lib64/libtdsS.so.2
-Driver = /usr/lib64/libtdsodbc.so.0
-UsageCount = 1
-```
-For more details please refer to the [odbc.ini and odbcinst.ini documentation](http://www.unixodbc.org/odbcinst.html).
+For more details please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm) and
+[unixodbc documentation](http://www.unixodbc.org/odbcinst.html).
 
-Add database host to the ``/etc/freetds.conf`` file:
-```ini
-[mssql-local]
-    host = localhost
-    port = 1433
-    tds version = 8.0
-    client charset = UTF-8
+**Deadlocks notice**
+
+If muc_light's backend is set to ODBC and in your system there is many rooms created in parallel,
+there may be some deadlocks due to the `READ_COMMITTED_SNAPSHOT` set to `OFF` by default.
+In this case we recommend to set this database property to `ON`, this will enable row level locking which significantly reduces
+deadlock chances around muc_light operations.
+
+This property can be set by the following `ALTER DATABASE` query:
+
+```sql
+ALTER DATABASE $name_of_your_db SET READ_COMMITTED_SNAPSHOT ON
 ```
-For more details please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm).
+
+The above command may take some time.
 
 Then you need to import the SQL schema from either ``mssql2012.sql`` or ``azuresql.sql`` file depending on which database you are using.
 You can use a Microsoft's GUI tool (the provided .sql files should work with it) or isql, but after a slight modification of the dump file:
@@ -166,11 +183,15 @@ cat azuresql.sql | tr -d '\r' | tr '\n' ' ' | sed 's/GO/\n/g' |
 isql mongoose-mssql username password -b
 ```
 
-The final step is to configure ``ejabberd.cfg`` appropriately.
+The final step is to configure ``mongooseim.cfg`` appropriately.
 Configure the database section as follows:
+
 ```erlang
-{odbc_server, "DSN=mongoose-mssql;UID=username;PWD=password"}.
-{odbc_server_type, mssql}.
+{rdbms_server_type, mssql}.
+{outgoing_pools, [
+ {rdbms, global, default, [{workers, 5}],
+  [{server, "DSN=mongoose-mssql;UID=username;PWD=password"}]}
+]}.
 ```
 
 # NOSQL
@@ -260,8 +281,40 @@ riak-admin bucket-type activate privacy_lists
 
 This will create bucket types, search schemas and indexes required for storing the above persitent data and it will activate them.
 
-You should also configure Riak in the `ejabberd.cfg` file.
+You should also configure Riak in the `mongooseim.cfg` file.
 Please refer to [Advanced configuration/Database setup](../Advanced-configuration.md) for more information.
+
+## Cassandra
+
+**Setup**
+
+This will prepare Cassandra for connection from MongooseIM. Make sure Cassandra is running, open a new terminal window and enter the following commands:
+```
+$ cqlsh
+$ cqlsh> source '$REPO/priv/casssandra.cql';
+```
+
+## ElasticSearch
+
+**Can be used for:**
+
+* MAM (Message Archive Management)
+
+**Setup**
+
+Please note that MongooseIM has been tested to work properly with ElasticSearch version 5.6.9.
+
+In order to use ElasticSearch as a MAM backend, you'll need to create required indexes and mappings.
+From the root of MongooseIM's repository run:
+
+```bash
+curl -X PUT $ELASTICSEARCH_URL/messages -d '@priv/elasticsearch/pm.json'
+curl -X PUT $ELASTICSEARCH_URL/muc_messages -d '@priv/elasticsearch/muc.json'
+```
+
+where `$ELASTICSEARCH_URL` is a URL pointing to your ElasticSearch node's HTTP API endpoint.
+
+Please refer to [advanced configuration](../Advanced-configuration.md#elasticsearch-connection-setup) page to check how to configure MongooseIM to connect to ElasticSearch node.
 
 ## Redis
 
@@ -283,4 +336,4 @@ No additional steps required.
 
 **Setup**
 
-No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.
+No additional steps required, the modules that are using LDAP are very customizable, so they can be configured to support existsing schemas.d

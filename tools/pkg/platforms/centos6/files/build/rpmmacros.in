@@ -1,0 +1,20 @@
+%_topdir %(echo $ERL_TOP)/rpmbuild
+%_tmppath %(echo $ERL_TOP)/rpmbuild/tmp
+%_signature gpg
+%_gpg_name Erlang Solutions Ltd. <packages@erlang-solutions.com>
+
+%packager Erlang Solutions Ltd.
+%distsuffix erlang_solutions
+
+%_vendor erlang
+
+%_name mongooseim
+%_vers @VSN@
+%_release @REVISION@
+
+%_license GPL
+
+%_arch @ARCH@
+
+%_group Development
+%_summary MongooseIM package

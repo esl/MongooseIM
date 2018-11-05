@@ -1,41 +1,43 @@
-CA_SUB  = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Fake CA
-SRV_SUB = /C=PL/ST=Malopolska/L=Krakow/CN=MongooseIM Server
+all: mongooseim/cert.pem mongooseim/key.pem \
+  mongooseim/server.pem mongooseim/dh_server.pem \
+  mongooseim/pubkey.pem mongooseim/privkey.pem \
+  ca/cacert.pem ca/cakey.pem ca/index.txt ca/serial.txt \
+  ca-clients/cacert.pem ca-clients/cakey.pem ca-clients/index.txt ca-clients/serial.txt
 
-all: ca/cacert.pem fake_cert.pem fake_pubkey.pem fake_privkey.pem fake_server.pem fake_dh_server.pem
-
-ca/cacert.pem ca/cakey.pem: openssl-ca.cnf
-	mkdir -p ca
-	-rm ca/cacert.pem
-	-rm ca/cakey.pem
+%/cacert.pem %/cakey.pem: openssl-%.cnf
+	mkdir -p $(@D)
 	openssl req -x509 -config $< -newkey rsa:2048 -sha256 -nodes \
-		-subj '$(CA_SUB)' -out ca/cacert.pem -outform PEM
+	            -out $(@D)/cacert.pem -keyout $(@D)/cakey.pem -outform PEM
 
-fake_cert.csr: openssl-server.cnf
-	openssl req -config $< -newkey rsa:2048 -sha256 -nodes -out $@ \
-		-subj '$(SRV_SUB)' -outform PEM
+%/cert.csr %/key.pem: openssl-%.cnf
+	mkdir -p $(@D)
+	openssl req -config $< -newkey rsa:2048 -sha256 -nodes \
+		-out $(@D)/cert.csr -keyout $(@D)/key.pem \
+		-outform PEM
 
-fake_cert.pem: fake_cert.csr openssl-ca.cnf ca/cacert.pem ca/cakey.pem ca/index.txt ca/serial.txt
+%/cert.pem: %/cert.csr openssl-ca.cnf ca/cacert.pem ca/cakey.pem | ca/index.txt ca/serial.txt
 	yes | openssl ca -config openssl-ca.cnf -policy signing_policy \
-		-extensions signing_req -out $@ -infiles fake_cert.csr
+		-extensions signing_req -out $@ -infiles $<
 
-fake_pubkey.pem: fake_cert.pem
-	openssl x509 -pubkey -noout -in fake_cert.pem > fake_pubkey.pem
-
-fake_privkey.pem: fake_key.pem
-	openssl rsa -in fake_key.pem -out fake_privkey.pem
-
-fake_server.pem: fake_cert.pem fake_key.pem
+%/server.pem: %/cert.pem %/key.pem
 	cat $^ > $@
 
-fake_dh_server.pem:
+%/pubkey.pem: %/cert.pem
+	openssl x509 -pubkey -noout -in $< > $@
+
+%/privkey.pem: %/key.pem
+	openssl rsa -in $< -out $@
+
+%/dh_server.pem:
 	openssl dhparam -outform PEM -out $@ 1024
 
-ca/index.txt:
-	touch ca/index.txt
+%/index.txt:
+	mkdir -p $(@D)
+	touch $@
 
-ca/serial.txt:
+%/serial.txt:
+	mkdir -p $(@D)
 	echo 01 > $@
 
 clean:
-	-rm -f ca/*
-	-rm fake_cert.csr fake_cert.pem fake_key.pem fake_server.pem
+	rm -rf ca ca-clients mongooseim

@@ -1,7 +1,5 @@
 {hosts, "[\"localhost\"]"}.
 {host_config, ""}.
-{odbc_server, "%% {odbc_server, {mysql, \"localhost\", 3306, \"database\", \"username\", \"password\"}}."}.
-{odbc_server_type, "%% {odbc_server_type, odbc}."}.
 {auth_ldap, ""}.
 {s2s_addr, "%% { {s2s_addr, \"example-host.net\"}, { {127,0,0,1}, 5269 } }."}.
 {s2s_default_policy, deny}.
@@ -36,17 +34,25 @@
 {auth_method, "internal"}.
 {ext_auth_script, "%%{extauth_program, \"/path/to/authentication/script\"}."}.
 {tls_config, "{certfile, \"priv/ssl/fake_server.pem\"}, starttls,"}.
+{tls_module, ""}.
 {https_config, "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"}, {keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"}]},"}. %% Applies to Websockets, BOSH and metrics; PEM format
 {zlib, "%%{zlib, 10000},"}. %% Second element of a tuple is inflated data size limit; 0 for no limit
 {registration_watchers, "%{registration_watchers, [\"admin@localhost\"]},"}.
-{riak_server, "%%{riak_server, [{pool_size, 20}, {address, \"127.0.0.1\"}, {port, 8087}, {riak_pb_socket_opts, []}]}."}.
-{cassandra_servers, "%%{cassandra_servers, [{default, []}]}."}.
-
+{outgoing_pools, "
+%{outgoing_pools, [
+%  {riak, global, default, [{workers, 5}], [{address, \"127.0.0.1\"}, {port, 8087}]},
+%  {elastic, global, default, [], [{host, \"elastic.host.com\"}, {port, 9042}]},
+%  {http, global, conn1, [{workers, 50}], [{server, \"http://server:8080\"}]},
+%  {cassandra, global, default, [{workers, 100}], [{servers, [{\"server1\", 9042}]}, {keyspace, \"big_mongooseim\"}]},
+%  {rdbms, global, default, [{workers, 10}], [{server, {mysql, \"server\", 3306, \"database\", \"username\", \"password\"}}]}
+%]}."}.
+{rdbms_server_type, "%% {rdbms_server_type, pgsql}."}.
 {http_api_old_endpoint, "{5288, \"127.0.0.1\"}"}.
 {http_api_endpoint, "{8088, \"127.0.0.1\"}"}.
 {http_api_client_endpoint, "8089"}.
 {s2s_use_starttls, "{s2s_use_starttls, optional}."}.
 {s2s_certfile, "{s2s_certfile, \"priv/ssl/fake_server.pem\"}."}.
+{sasl_mechanisms, "%%{sasl_mechanisms, [cyrsasl_scram, cyrsasl_plain]}."}.
 
 {all_metrics_are_global, "false"}.
 

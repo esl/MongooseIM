@@ -19,7 +19,7 @@ fun(Path) ->
                 MaybeReadFromConfig(file:read_file(Path));
             _ ->
                 Script = filename:join(["tools", "configure"]),
-                os:cmd(Script ++ " with-all"),
+                os:cmd(Script ++ " with-all without-jingle-sip"),
                 MaybeReadFromConfig(file:read_file("configure.out"))
         end
 end,
@@ -54,7 +54,7 @@ fun() ->
         end
 end,
 
-RequiredApps = fun() -> [ejabberd, inets, tools] end,
+RequiredApps = fun() -> [mongooseim, inets, tools] end,
 EnvApps = GetEnvApps(),
 
 SetupIncludedApps =
@@ -69,5 +69,19 @@ fun(Config, EnvApps) ->
         lists:keyreplace(relx, 1, Config, {relx, NewRelxCfg})
 end,
 
+MaybeFIPSSupport = fun(Config) ->
+    code:ensure_loaded(crypto),
+    case erlang:function_exported(crypto, info_fips, 0) of
+        false ->
+            Config;
+        _ ->
+            io:format("compiling with FIPS mode enabled~n"),
+            {erl_opts, ErlOpts} = lists:keyfind(erl_opts, 1, Config),
+            NewErlOpts = [{d, fips_mode} | ErlOpts],
+            lists:keyreplace(erl_opts, 1, Config, {erl_opts, NewErlOpts})
+    end
+end,
+
 Config0 = MaybeConfigureCoveralls(CONFIG),
-SetupIncludedApps(Config0, EnvApps).
+Config1 = SetupIncludedApps(Config0, EnvApps),
+MaybeFIPSSupport(Config1).

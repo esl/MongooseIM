@@ -7,7 +7,7 @@
 * Client connections:
     * over TCP (with TLS/STARTTLS available) as defined in
     [RFC 6120](https://tools.ietf.org/html/rfc6120)
-    * over WebsSockets as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395)
+    * over WebSockets as defined in  [RFC 7395](https://tools.ietf.org/html/rfc7395)
     * over HTTP(S) long-polling (BOSH) as defined in
     [XEP-0124](http://xmpp.org/extensions/xep-0124.html) and
     [XEP-0206](http://xmpp.org/extensions/xep-0206.html)
@@ -22,7 +22,7 @@
         * RDBMS: MySQL, PostgreSQL, generic ODBC
         * NOSQL: Riak KV, Cassandra
 * Integration with third-party services
-    * [Amazon Simple Notification Service](../modules/mod_aws_sns.md)
+    * [Amazon Simple Notification Service](../modules/mod_event_pusher_sns.md)
 
 ## Supported XEPs
 
@@ -45,7 +45,6 @@
 |0068|[Field Standardization for Data Forms](http://xmpp.org/extensions/xep-0068.html)||
 |0073|[Basic IM Protocol Suite](http://xmpp.org/extensions/xep-0073.html)||
 |0077|[In-Band Registration](http://xmpp.org/extensions/xep-0077.html)|`mod_register`|
-|0078|[Non-SASL Authentication](http://xmpp.org/extensions/xep-0078.html)||
 |0079|[Advanced Message Processing](http://xmpp.org/extensions/xep-0079.html)|`mod_amp` (partial support)|
 |0082|[XMPP Date and Time Profiles](http://xmpp.org/extensions/xep-0082.html)||
 |0085|[Chat State Notifications](http://xmpp.org/extensions/xep-0085.html)||
@@ -75,10 +74,10 @@
 |0280|[Message Carbons](http://xmpp.org/extensions/xep-0280.html)|`mod_carboncopy`|
 |0313|[Message Archive Management](http://xmpp.org/extensions/attic/xep-0313.html)|`mod_mam`|
 |0352|[Client State Indication](http://www.xmpp.org/extensions/xep-0352.html)|`mod_csi`|
-|0357|[Push Notifications](http://www.xmpp.org/extensions/xep-0357.html)|`mod_push`|
+|0357|[Push Notifications](http://www.xmpp.org/extensions/xep-0357.html)|`mod_event_pusher_push`|
 |0363|[HTTP File Upload](https://xmpp.org/extensions/xep-0363.html)|`mod_http_upload`|
-|0375|[XMPP Advanced Server 2017](https://xmpp.org/extensions/xep-0387.html) (without 0369: Mediated Information eXchange)|
 |0384|[OMEMO Encryption](https://xmpp.org/extensions/xep-0384.html) (MongooseIM supports PEP, which is required by this extension)||
+|0387|[XMPP Compliance Suites 2018 - all suites, Advanced Server level](https://xmpp.org/extensions/xep-0387.html)|
 
 ## Supported Open Extensions
 
@@ -90,7 +89,7 @@
 ## Integration with other platform components
 
 ### MongoosePUSH
-MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit the push notification [user guide](user-guide/Push-notifications.md).
+MongooseIM can be integrated with [MongoosePush](https://github.com/esl/MongoosePush). For more details visit the push notification [user guide](Push-notifications.md).
 
 ### MongooseICE
-You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](user-guide/ICE_tutorial.md).
+You can also connect Mongoose with [MongooseICE](https://github.com/esl/MongooseICE). To get started, we recommend going through [this tutorial](ICE_tutorial.md).

@@ -6,14 +6,14 @@ This is an in-depth guide on `mod_muc_light` design decisions and implementation
 Source, header and test suite files
 -------------------------------
 
-All source files can be found in `apps/ejabberd/src`.
+All source files can be found in `src/`.
 
 * `mod_muc_light.erl`
-  Main module. 
-  It implements `gen_mod` behaviour. 
-  It subscribes to some essential hooks and exports several functions, mostly callbacks. 
+  Main module.
+  It implements the `gen_mod` behaviour.
+  It subscribes to some essential hooks and exports several functions, mostly callbacks.
   It handles integration with `mod_disco`, `mod_privacy` and `mod_roster`.
-  All operations that take place outside the room (including the room creation) are implemented here. 
+  All operations that take place outside the room (including the room creation) are implemented here.
   Last but not least - this module prevents `service-unavailable` errors being sent when an offline user receives a groupchat message.
 
 * `mod_muc_light_codec.erl`
@@ -21,9 +21,9 @@ All source files can be found in `apps/ejabberd/src`.
   Besides specifying callbacks, it implements generic error encoder function.
 
 * `mod_muc_light_codec_legacy.erl`
-  An implementation of XEP-0045 compatibility mode. 
-  Note that while, some parts of the legacy mode are implemented directly in `mod_muc_light.erl`, the stanza translation takes place here. 
-  It does not utilise the full potential of the MUC Light extension but allows using the standard MUC implementation in XMPP client libraries for prototyping or transition phase. 
+  An implementation of XEP-0045 compatibility mode.
+  Note, that while some parts of the legacy mode are implemented directly in `mod_muc_light.erl`, the stanza translation takes place here.
+  It does not utilise the full potential of the MUC Light extension but allows using the standard MUC implementation in XMPP client libraries for prototyping or the transition phase.
   Not recommended for production systems (less efficient than modern codec and requires more round-trips).
 
 * `mod_muc_light_codec_modern.erl`
@@ -41,28 +41,28 @@ All source files can be found in `apps/ejabberd/src`.
   A Mnesia backend for this extension.
   Uses transactions for room metadata updates (configuration and affiliation list) and dirty reads whenever possible.
 
-* `mod_muc_light_db_odbc.erl`
+* `mod_muc_light_db_rdbms.erl`
   An SQL backend for `mod_muc_light`.
   `create_room`, `destroy_room`, `remove_user`, `set_config`, `modify_aff_users` execute at least one query in a single transaction.
   `room_exists`, `get_user_rooms`, `get_user_rooms_count`, `get_config`, `get_blocking`, `set_blocking`, `get_aff_users` execute only one query per function call.
   `get_info` executes 3 `SELECT` queries, not protected by a transaction.
 
-* `mod_muc_light_db_odbc_sql.erl`
-  SQL queries for `mod_muc_light_db_odbc.erl`.
+* `mod_muc_light_db_rdbms_sql.erl`
+  SQL queries for `mod_muc_light_db_rdbms.erl`.
 
 * `mod_muc_light_room.erl`
   This module handles everything that occurs inside the room: access checks, metadata changes, message broadcasting etc.
 
 * `mod_muc_light_utils.erl`
-  Utilities shared by other MUC Light modules. 
+  Utilities shared by other MUC Light modules.
   It includes the room configuration processing and the affiliation logic.
 
-The header file can be found in `apps/ejabberd/include`.
+The header file can be found in `include/`.
 
 * `mod_muc_light.hrl`
   It contains definitions of MUC Light namespaces, default configuration options and several common data types and records.
 
-There are 2 test suites and one helper module in `test/ejabberd_tests/tests`.
+There are 2 test suites and one helper module in `big_tests/tests`.
 
 * `muc_light_SUITE.erl`
   Main test suite, checks all the most important functionalities of the MUC Light extension.
@@ -71,7 +71,7 @@ There are 2 test suites and one helper module in `test/ejabberd_tests/tests`.
   `muc_light_SUITE.erl` equivalent that uses XEP-0045 compatibility mode.
 
 * `muc_helper.erl`
-  Provides handy iterators over room participants. 
+  Provides handy iterators over room participants.
   Used in MUC Light suites but in the future could be used in `muc_SUITE` as well.
 
 Hooks handled by this extension
@@ -79,10 +79,10 @@ Hooks handled by this extension
 
 * `offline_groupchat_message_hook` handled by `mod_muc_light:prevent_service_unavailable/3` - Prevents the default behaviour of sending `service-unavailable` error to the room when a groupchat message is sent to an offline occupant.
 
-* `remove_user` handled by `mod_muc_light:remove_user/2` - Triggers DB cleanup of all data related to the removed user. 
+* `remove_user` handled by `mod_muc_light:remove_user/2` - Triggers DB cleanup of all data related to the removed user.
  Includes a broadcast of a notification about user removal from occupied rooms.
 
-* `disco_local_items` handled by `mod_muc_light:get_muc_service/5` - Adds MUC service item to the Disco result. 
+* `disco_local_items` handled by `mod_muc_light:get_muc_service/5` - Adds a MUC service item to the Disco result.
  Uses either a MUC Light or a classic MUC namespace when the legacy mode is enabled.
 
 * `roster_get` handled by `mod_muc_light:add_rooms_to_roster/2` - Injects room items to the user's roster.
@@ -96,9 +96,9 @@ Hooks executed by this extension
 
 * `filter_room_packet` by codecs - Allows `mod_mam_muc` to archive groupchat messages.
 
-* `room_send_packet` by codecs - Handled by `mod_aws_sns`.
+* `room_send_packet` by codecs - Handled by `mod_event_pusher_sns`.
 
-* `forget_room` by `mod_muc_light_db_mnesia` and `mod_muc_light_room` - It is a part of `mod_mam_muc` integration as well. 
+* `forget_room` by `mod_muc_light_db_mnesia` and `mod_muc_light_room` - It is a part of `mod_mam_muc` integration as well.
  A hook used for MAM cleanup upon room destruction.
 
 Advantages and drawbacks (compared to classic MUC)
@@ -106,7 +106,7 @@ Advantages and drawbacks (compared to classic MUC)
 
 The new MUC implementation brings quite a few benefits to the table:
 
-* It is fully distributed - Does not have SPOF, concurrent senders do not block each other, especially in large rooms. 
+* It is fully distributed - Does not have SPOF, concurrent senders do not block each other, especially in large rooms.
  Message broadcasting is being done in sender c2s context.
 * It does not use presences - Much less traffic and stable membership information, especially on mobile networks.
 * It provides built-in blocking support - Instead of blocking traffic like Privacy Lists do, it handles blocklists internally, preventing the blocker from being added to or by blocked entities.
@@ -144,4 +144,3 @@ Ideas for Further Development
 ### Hard
 
   * Room metadata cache (maybe "medium"?).
-

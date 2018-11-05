@@ -31,7 +31,7 @@ This value should be used as the *userid* in the Basic Authentication method for
 ## Configuration
 
 In order to enable the REST API, the following configuration should be added to the
-*listen* section in *ejabberd.cfg* file.
+*listen* section in *mongooseim.cfg* file.
 
 ```erlang
   { 8089 , ejabberd_cowboy, [
@@ -54,6 +54,40 @@ By default the REST API is exposed on port 8089 but this can be changed to whate
 
 For more details about possible `ejabberd_cowboy` configuration parameters please
 see the relevant documentation in the [Listener modules](../advanced-configuration/Listener-modules.md#http-based-services-bosh-websocket-rest-ejabberd_cowboy).
+
+
+## Smack library support
+REST API can fetch messages for [Smack](https://github.com/igniterealtime/Smack/blob/master/documentation/extensions/properties.md#stanza-properties) Stanza Properties.
+
+For example if we have properties in the stanza like:
+  ```
+      <message xml:lang='en' to='alice@localhost' id='123' type='chat'>
+        <body xml:lang='en_US'>Hi!</body>
+        <properties xmlns="http://www.jivesoftware.com/xmlns/xmpp/properties"
+            <property>
+                <name>some_number</name>
+                <value type='integer'>123</value>
+            <property>
+            <property>
+                <name>some_string</name>
+                <value type='string'>abc</value>
+            <property>
+        </properties>
+      </message>
+  ```
+then in the final json message these properties will be converted to json map without tag names and all types will be taken as string:
+```
+    {   "to": "alice@localhost",
+        "timestamp": 1531329049949,
+        "id": "123",
+        "from": "bob@localhost",
+        "body": "Hi!",
+        "properties":{
+            "some_number":"123",
+            "some_string":"abc"
+        }
+    }
+```
 
 ## OpenAPI specifications
 
