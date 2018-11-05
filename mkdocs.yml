@@ -92,6 +92,7 @@ pages:
           - 'HTTP backend': 'modules/mod_event_pusher_http.md'
           - 'Push backend': 'modules/mod_event_pusher_push.md'
           - 'SNS backend': 'modules/mod_event_pusher_sns.md'
+          - 'RabbitMQ backend': 'modules/mod_event_pusher_rabbit.md'
       - 'mod_http_upload': 'modules/mod_http_upload.md'
       - 'mod_jingle_sip': 'modules/mod_jingle_sip.md'
       - 'mod_keystore': 'modules/mod_keystore.md'

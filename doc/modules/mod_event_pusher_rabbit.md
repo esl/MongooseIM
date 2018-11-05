@@ -165,8 +165,8 @@ up flexibility over perfromance.
 ### Publisher confirms
 
 By default publisher confirmations are disabled. However, one-to-one
-confirmations can be enabled (see *RabbitMQ connection setup* in
-[*Outgoing connections*](../advanced-configuration/outgoing-connections.md)
+confirmations can be enabled (see
+[*RabbitMQ connection setup*](../advanced-configuration/outgoing-connections.md#rabbitmq-connection-setup)
 section). When a worker sends a message to a RabbitMQ server it waits for a
 confirmation from the server before it starts to process next message. This
 approach allows to introduce backpressure on a RabbitMQ server connection cause

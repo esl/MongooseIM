@@ -463,6 +463,11 @@ They can be defined as follows:
  {rabbit, host, Tag, WorkersOptions, ConnectionOptions}
 ]}.
 ```
+
+Notice that `Host` parameter is set to atom `host`. This basically means that
+MongooseIM will start as many `rabbit` pools as XMPP hosts are served by
+the server.
+
 The `Tag` parameter must be set to `event_pusher` in order to be able to use
 the pool for [`mod_event_pusher_rabbit`](../modules/mod_event_pusher_rabbit.md).
 Any other `Tag` can be used for any other RabbitMQ connection pool.
