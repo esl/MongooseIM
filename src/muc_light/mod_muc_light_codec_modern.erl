@@ -208,6 +208,25 @@ decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_INVITE, type = set, id = ID,
             ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
             {error, bad_request}
     end;
+decode_iq(_From, #iq{ xmlns = ?NS_MUC_LIGHT_INVITE_RESPONSE, type = set, id = ID,
+                sub_el = #xmlel{ children = QueryEls }}) ->
+    case QueryEls of
+        [#xmlel{name = <<"accept">>, attrs = [{<<"invite_id">>, InviteId}]}] ->
+            {ok, {set, #invite_response{
+                    id = ID,
+                    action = accept,
+                    invite_id = InviteId
+                   }}};
+        [#xmlel{name = <<"decline">>, attrs = [{<<"invite_id">>, InviteId}]}] ->
+            {ok, {set, #invite_response{
+                    id = ID,
+                    action = decline,
+                    invite_id = InviteId
+                   }}};
+        Error ->
+            ?WARNING_MSG("query_els=~p, error=~p", [QueryEls, Error]),
+            {error, bad_request}
+    end;
 decode_iq(_From, #iq{ type = error }) ->
     ignore;
 decode_iq(_From, #iq{} = IQ) ->
@@ -391,11 +410,15 @@ encode_iq({set, #destroy{ id = ID }, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     {reply, ID};
 encode_iq({set, #invite{id = ID}, AffUsersInv, FromAff}, RoomJID, _RoomBin, HandleFun) ->
     Attrs = [],
-    MsgEnv = msg_envelope(?NS_MUC_LIGHT_INVITE, [ aff_user_to_el(FromAff) ]),
+    MsgEnv = msg_envelope(?NS_MUC_LIGHT_INVITE, [ aff_user_invite_to_el(FromAff, ID) ]),
     lists:foreach(fun({{U, S}, _}) -> 
         msg_to_aff_user(RoomJID, U, S, Attrs, MsgEnv, HandleFun)
     end, AffUsersInv),
     {reply, ?NS_MUC_LIGHT_INVITE, [aff_user_to_el(InvUser) || InvUser <- AffUsersInv], ID};
+encode_iq({set, #invite_response{id = ID, action = decline}}, _RoomJID, _RoomBin, _HandleFun) ->
+    {reply, ID};
+encode_iq({set, #invite_response{id = ID, action = accept}}, _RoomJID, _RoomBin, _HandleFun) ->
+    {reply, ID};
 encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
     Attrs = [
              {<<"id">>, Config#config.id},
@@ -427,6 +450,11 @@ encode_iq({set, #config{} = Config, AffUsers}, RoomJID, RoomBin, HandleFun) ->
 aff_user_to_el({User, Aff}) ->
     #xmlel{ name = <<"user">>,
             attrs = [{<<"affiliation">>, mod_muc_light_utils:aff2b(Aff)}],
+            children = [#xmlcdata{ content = jid:to_binary(User) }] }.
+        
+aff_user_invite_to_el({User, Aff}, InviteId) ->
+    #xmlel{ name = <<"user">>,
+            attrs = [{<<"affiliation">>, mod_muc_light_utils:aff2b(Aff)}, {<<"invite_id">>, InviteId}],
             children = [#xmlcdata{ content = jid:to_binary(User) }] }.
 
 -spec blocking_to_el(blocking_item()) -> exml:element().

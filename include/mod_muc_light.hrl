@@ -6,6 +6,7 @@
 -define(NS_MUC_LIGHT_CREATE, <<"urn:xmpp:muclight:0#create">>).
 -define(NS_MUC_LIGHT_DESTROY, <<"urn:xmpp:muclight:0#destroy">>).
 -define(NS_MUC_LIGHT_INVITE, <<"urn:xmpp:muclight:0#invite">>).
+-define(NS_MUC_LIGHT_INVITE_RESPONSE, <<"urn:xmpp:muclight:0#invite_response">>).
 
 -define(DEFAULT_EQUAL_OCCUPANTS, false).
 -define(DEFAULT_LEGACY_MODE, false).
@@ -88,6 +89,12 @@
 -record(invite, {
           id = <<>> :: binary(),
           aff_users = [] :: aff_users()
+         }).
+
+-record(invite_response, {
+          id = <<>> :: binary(),
+          action :: accept | decline,
+          invite_id :: binary()
          }).
 
 -type affiliations_req_props() :: #affiliations{}.

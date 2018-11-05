@@ -93,6 +93,8 @@ process_request(From, RoomUS, Request, {ok, AffUsers, _Ver}) ->
                       Auth :: false | aff_user(),
                       AffUsers :: aff_users()) ->
     packet_processing_result().
+process_request({set, Invite = #invite_response{action = Action}}, _From, _UserUS, _RoomUS, false, _AffUsers) ->
+    {set, Invite};
 process_request(_Request, _From, _UserUS, _RoomUS, false, _AffUsers) ->
     {error, item_not_found};
 process_request(#msg{} = Msg, _From, _UserUS, _RoomUS, _Auth, AffUsers) ->
