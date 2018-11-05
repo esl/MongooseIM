@@ -110,14 +110,14 @@ suite() ->
 
 init_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    start_wpool(Host),
+    start_rabbit_wpool(Host),
     {ok, _} = application:ensure_all_started(amqp_client),
     muc_helper:load_muc(muc_host()),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
-    stop_wpool(Host),
+    stop_rabbit_wpool(Host),
     escalus_fresh:clean(),
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
@@ -590,11 +590,11 @@ stop_mod_event_pusher_rabbit() ->
     Host = ct:get_config({hosts, mim, domain}),
     rpc(mim(), gen_mod, stop_module, [Host, mod_event_pusher_rabbit]).
 
-start_wpool(Host) ->
+start_rabbit_wpool(Host) ->
     rpc(mim(), mongoose_wpool, ensure_started, []),
     rpc(mim(), mongoose_wpool, start_configured_pools, [[?WPOOL_CFG], [Host]]).
 
-stop_wpool(Host) ->
+stop_rabbit_wpool(Host) ->
     rpc(mim(), mongoose_wpool, stop, [rabbit, Host, event_pusher]).
 
 delete_exchanges() ->

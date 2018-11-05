@@ -210,10 +210,6 @@ chat_msg(From, To, UserMsg) ->
 is_user_online(online) -> true;
 is_user_online(offline) -> false.
 
--spec pool_name(Host :: jid:lserver()) -> atom().
-pool_name(Host) ->
-    gen_mod:get_module_proc(Host, ?MODULE).
-
 -spec exchange_opt(Host :: jid:lserver(), ExchangeKey :: atom(),
                    Option :: atom(), Default :: term()) -> term().
 exchange_opt(Host, ExchangeKey, Option, Default) ->
