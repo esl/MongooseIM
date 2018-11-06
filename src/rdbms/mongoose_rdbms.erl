@@ -482,7 +482,7 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op(rdbms_msg(), state()) -> query_result() | transaction_result().
+-spec outer_op(rdbms_msg(), state()) -> {query_result() | transaction_result(), state()}.
 outer_op({sql_query, Query}, State) ->
     {sql_query_internal(Query, State), State};
 outer_op({sql_transaction, F}, State) ->

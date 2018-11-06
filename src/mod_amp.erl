@@ -169,7 +169,7 @@ determine_strategy(Packet, From, Event) ->
                             amp_strategy:null_strategy(), [From, To, Packet, Event]).
 
 -spec fold_apply_rules(exml:element(), jid:jid(), amp_strategy(), [amp_rule()]) ->
-                              no_match | {matched | undecided, amp_rule()}.
+                              no_match | {match | undecided, amp_rule()}.
 fold_apply_rules(_, _, _, []) -> 'no_match';
 fold_apply_rules(Packet, From, Strategy, [Rule|Rest]) ->
     case resolve_condition(From, Strategy, Rule) of

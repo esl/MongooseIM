@@ -228,7 +228,7 @@ store_last_info(LUser, LServer, TimeStamp, Status) ->
     mod_last_backend:set_last_info(LUser, LServer, TimeStamp, Status).
 
 -spec get_last_info(jid:luser(), jid:lserver())
-        -> 'not_found' | {'ok', integer(), string()}.
+        -> 'not_found' | {'ok', integer(), binary()}.
 get_last_info(LUser, LServer) ->
     case get_last(LUser, LServer) of
         {error, _Reason} -> not_found;

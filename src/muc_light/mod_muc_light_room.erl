@@ -77,7 +77,7 @@ participant_limit_check({_, MUCServer} = _RoomUS, NewAffUsers) ->
 -spec process_request(From :: jid:jid(),
                       RoomUS :: jid:simple_bare_jid(),
                       Request :: muc_light_packet(),
-                      AffUsersRes :: {ok, aff_users()} | {error, term()}) ->
+                      AffUsersRes :: {ok, aff_users(), binary()} | {error, term()}) ->
     packet_processing_result().
 process_request(_From, _RoomUS, _Request, {error, _} = Error) ->
     Error;
@@ -150,7 +150,7 @@ process_request(_UnknownReq, _From, _UserUS, _RoomUS, _Auth, _AffUsers) ->
                          RoomUS :: jid:simple_bare_jid(),
                          UserAff :: member | owner, AffUsers :: aff_users(),
                          UserAllowedToConfigure :: boolean()) ->
-    {set, config_req_props()} | {error, not_allowed} | validation_error().
+    {set, config_req_props(), aff_users()} | {error, not_allowed} | validation_error().
 process_config_set(#config{ raw_config = [{<<"subject">>, _}] } = ConfigReq, RoomUS, UserAff,
                    AffUsers, false) ->
     % Everyone is allowed to change subject

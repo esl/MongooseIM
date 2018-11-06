@@ -297,7 +297,7 @@ get_password_internal(LUser, LServer) ->
 
 -spec get_password_cache(LUser :: jid:luser(),
                          LServer :: jid:lserver(),
-                         CacheTime :: integer()) -> false | string().
+                         CacheTime :: integer()) -> false | binary().
 get_password_cache(LUser, LServer, CacheTime) ->
     case get_last_access(LUser, LServer) of
         online ->

@@ -440,7 +440,7 @@ default_language() ->
 verify_opts(verify_none) -> [verify_none];
 verify_opts(verify_peer) -> [].
 
--spec get_peer_cert(state()) -> {ok, any()} | error.
+-spec get_peer_cert(state()) -> any() | error.
 get_peer_cert(#state{socket      = Socket,
                      sockmod     = SockMod }) ->
     case mongoose_transport:get_peer_certificate(SockMod, Socket) of
