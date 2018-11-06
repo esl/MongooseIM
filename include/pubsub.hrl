@@ -58,12 +58,8 @@
 %% of the current node. For example:
 %% ```<<"/home/localhost/user">>'''</p>
 
--type(nodeIdx() :: pos_integer() | binary()).
+-type(nodeIdx() :: pos_integer()).
 %% @type nodeIdx() = integer() | binary().
-%% note: pos_integer() should always be used, but we allow anything else coded
-%% as binary, so one can have a custom implementation of nodetree with custom
-%% indexing (see nodetree_virtual). this also allows to use any kind of key for
-%% indexing nodes, as this can be usefull with external backends such as rdbms.
 
 -type(itemId() :: binary()).
 %% @type itemId() = string().

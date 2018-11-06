@@ -122,7 +122,7 @@
 
 -callback subscribe_node(NodeIdx :: nodeIdx(),
         Sender :: jid:jid(),
-        Subscriber :: jid:jid(),
+        Subscriber :: jid:ljid(),
         AccessModel :: accessModel(),
         SendLast :: 'never' | 'on_sub' | 'on_sub_and_presence',
         PresenceSubscription :: boolean(),

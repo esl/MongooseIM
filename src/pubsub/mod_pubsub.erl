@@ -983,7 +983,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                                                        attrs = QAttrs,
                                                        children = IQRes ++ Info}]});
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
@@ -997,7 +997,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                                                        attrs = QAttrs,
                                                        children = IQRes}]});
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
@@ -1007,7 +1007,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB_OWNER, lang = Lang, sub_el = SubEl} = IQ ->
@@ -1017,9 +1017,9 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
                       {error, {Error, NewPayload}} ->
-                          jlib:make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
+                          make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
@@ -1032,13 +1032,13 @@ do_route(ServerHost, Access, Plugins, Host, From,
         #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
             Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error);
+                          make_error_reply(Packet, Error);
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes})
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{} ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            Err = make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(To, From, Err);
         _ ->
             ok
@@ -1054,7 +1054,7 @@ do_route(_ServerHost, _Access, _Plugins, Host, From,
                 none ->
                     ok;
                 invalid ->
-                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
+                    Err = make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
                     ejabberd_router:route(To, From, Err);
                 XFields ->
                     handle_authorization_response(Host, From, To, Packet, XFields)
@@ -1070,7 +1070,7 @@ do_route(_ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
         <<"result">> ->
             ok;
         _ ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
+            Err = make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -1674,17 +1674,17 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
                      end,
             case dirty(Host, Node, Action) of
                 {error, Error} ->
-                    Err = jlib:make_error_reply(Packet, Error),
+                    Err = make_error_reply(Packet, Error),
                     ejabberd_router:route(To, From, Err);
                 {result, {_, _NewSubscription}} ->
                     %% XXX: notify about subscription state change, section 12.11
                     ok;
                 _ ->
-                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
+                    Err = make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
                     ejabberd_router:route(To, From, Err)
             end;
         _ ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
+            Err = make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -4350,3 +4350,8 @@ purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
 timestamp() ->
     os:timestamp().
 
+make_error_reply(Packet, #xmlel{} = ErrorEl) ->
+    jlib:make_error_reply(Packet, ErrorEl);
+make_error_reply(Packet, Error) ->
+    ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
+    jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).

@@ -12,10 +12,32 @@
 -include("jlib.hrl").
 
 -export([start/0, stop/0]).
+% Funs execution
 -export([transaction/1, dirty/1]).
--export([set_state/1, del_state/2, get_state/2,
+% Direct #pubsub_state access
+-export([del_state/2, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
          get_states_by_bare_and_full/1, get_own_nodes_states/1]).
+% Affiliations
+-export([
+         set_affiliation/3,
+         get_affiliation/2
+        ]).
+% Subscriptions
+-export([
+         add_subscription/4,
+         get_node_subscriptions/1,
+         get_node_entity_subscriptions/2,
+         delete_subscription/3,
+         delete_all_subscriptions/2,
+         update_subscription/4
+        ]).
+% Items
+-export([
+         remove_items/3,
+         remove_all_items/1,
+         add_item/3
+        ]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -55,16 +77,13 @@ dirty(Fun) ->
             {error, {C, R, erlang:get_stacktrace()}}
     end.
 
-%% ------------------------ Node state ------------------------
+%% ------------------------ Direct #pubsub_state access ------------------------
 
--spec set_state(mod_pubsub:pubsubState()) -> ok.
-set_state(State) ->
-    mnesia:write(State).
-
--spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                UserLJID :: jid:ljid()) -> ok.
-del_state(Nidx, UserLJID) ->
-    mnesia:delete({pubsub_state, {UserLJID, Nidx}}).
+-spec get_state(Nidx :: mod_pubsub:nodeIdx(),
+                JID :: jid:jid()) ->
+    {ok, mod_pubsub:pubsubState()}.
+get_state(Nidx, JID) ->
+    get_state(Nidx, JID, read).
 
 -spec get_states(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
@@ -93,7 +112,7 @@ get_states_by_bare_and_full(JID) ->
     LJID = jid:to_lower(JID),
     LBare = jid:to_bare(LJID),
     {ok, mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'})
-         ++ mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
+     ++ mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
 
 -spec get_own_nodes_states(JID :: jid:jid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
@@ -112,12 +131,136 @@ get_own_nodes_states(JID) ->
                  [], pubsub_state),
     {ok, OwnNodesStates}.
 
+-spec del_state(Nidx :: mod_pubsub:nodeIdx(),
+                JID :: jid:jid()) -> ok.
+del_state(Nidx, JID) ->
+    mnesia:delete({pubsub_state, {jid:to_lower(JID), Nidx}}).
+
+%% ------------------------ Affiliations ------------------------
+
+-spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
+                      JID :: jid:jid(),
+                      Affiliation :: mod_pubsub:affiliation()) -> ok.
+set_affiliation(Nidx, JID, Affiliation) ->
+    BareJID = jid:to_bare(JID),
+    {ok, State} = get_state(Nidx, BareJID, write),
+    case {Affiliation, State#pubsub_state.subscriptions} of
+        {none, []} -> del_state(Nidx, BareJID);
+        _ ->  mnesia:write(State#pubsub_state{ affiliation = Affiliation })
+    end.
+
+-spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
+                      JID :: jid:jid()) ->
+    {ok, mod_pubsub:affiliation()}.
+get_affiliation(Nidx, JID) ->
+    {ok, State} = get_state(Nidx, jid:to_bare(JID), read),
+    {ok, State#pubsub_state.affiliation}.
+
+%% ------------------------ Subscriptions ------------------------
+
+-spec add_subscription(Nidx :: mod_pubsub:nodeIdx(),
+                       JID :: jid:jid(),
+                       Sub :: mod_pubsub:subscription(),
+                       SubId :: mod_pubsub:subId()) -> ok.
+add_subscription(Nidx, JID, Sub, SubId) ->
+    {ok, State} = get_state(Nidx, JID, write),
+    NSubscriptions = [{Sub, SubId} | State#pubsub_state.subscriptions ],
+    mnesia:write(State#pubsub_state{ subscriptions = NSubscriptions }).
+
+-spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [{Entity :: jid:jid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+get_node_subscriptions(Nidx) ->
+    {ok, States} = get_states(Nidx),
+    {ok,
+     lists:foldl(fun (#pubsub_state{ subscriptions = [] }, Acc) ->
+                         Acc;
+                     (#pubsub_state{ stateid = {J, _}, subscriptions = Subs }, Acc0) ->
+                         lists:foldl(fun({S, SubId}, Acc1) -> [{J, S, SubId} | Acc1] end,
+                                     Acc0, Subs)
+                 end, [], States)}.
+
+-spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
+                                    JID :: jid:jid()) ->
+    {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+get_node_entity_subscriptions(Nidx, JID) ->
+    {ok, State} = get_state(Nidx, JID, read),
+    {ok, State#pubsub_state.subscriptions}.
+
+-spec delete_subscription(
+        Nidx :: mod_pubsub:nodeIdx(),
+        JID :: jid:jid(),
+        SubId :: mod_pubsub:subId()) ->
+    ok.
+delete_subscription(Nidx, JID, SubId) ->
+    {ok, State} = get_state(Nidx, JID, write),
+    NewSubs = lists:keydelete(SubId, 2, State#pubsub_state.subscriptions),
+    case {State#pubsub_state.affiliation, NewSubs} of
+        {none, []} -> del_state(Nidx, JID);
+        _ -> mnesia:write(State#pubsub_state{subscriptions = NewSubs})
+    end.
+
+-spec delete_all_subscriptions(
+        Nidx :: mod_pubsub:nodeIdx(),
+        JID :: jid:jid()) ->
+    ok.
+delete_all_subscriptions(Nidx, JID) ->
+    {ok, State} = get_state(Nidx, JID, write),
+    case State#pubsub_state.affiliation of
+        none -> del_state(Nidx, JID);
+        _ -> mnesia:write(State#pubsub_state{subscriptions = []})
+    end.
+
+-spec update_subscription(Nidx :: mod_pubsub:nodeIdx(),
+                          JID :: jid:jid(),
+                          Subscription :: mod_pubsub:subscription(),
+                          SubId :: mod_pubsub:subId()) ->
+    ok.
+update_subscription(Nidx, JID, Subscription, SubId) ->
+    {ok, State} = get_state(Nidx, JID, write),
+    NewSubs = lists:keyreplace(SubId, 2, State#pubsub_state.subscriptions, {Subscription, SubId}),
+    mnesia:write(State#pubsub_state{ subscriptions = NewSubs }).
+
+%% ------------------------ Items ------------------------
+
+-spec remove_items(Nidx :: mod_pubsub:nodeIdx(),
+                   JID :: jid:jid(),
+                   ItemIds :: [mod_pubsub:itemId()]) ->
+    ok.
+remove_items(Nidx, JID, ItemIds) ->
+    {ok, State} = get_state(Nidx, jid:to_bare(JID), write),
+    NewItems = State#pubsub_state.items -- ItemIds,
+    mnesia:write(State#pubsub_state{ items = NewItems }).
+
+-spec remove_all_items(Nidx :: mod_pubsub:nodeIdx()) ->
+    ok.
+remove_all_items(Nidx) ->
+    {ok, States} = get_states(Nidx),
+    lists:foreach(fun(#pubsub_state{ items = [] }) ->
+                          ok;
+                     (#pubsub_state{} = S) ->
+                          mnesia:write(S#pubsub_state{ items = [] })
+                  end, States).
+
+-spec add_item(Nidx :: mod_pubsub:nodeIdx(),
+               JID :: jid:jid(),
+               ItemId :: mod_pubsub:itemId()) ->
+    ok.
+add_item(Nidx, JID, ItemId) ->
+    {ok, State} = get_state(Nidx, jid:to_bare(JID), write),
+    NewItems = [ItemId | State#pubsub_state.items],
+    mnesia:write(State#pubsub_state{ items = NewItems }).
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
-                UserLJID :: jid:ljid()) ->
+                JID :: jid:jid(),
+                LockKind :: write | read) ->
     {ok, mod_pubsub:pubsubState()}.
-get_state(Nidx, UserLJID) ->
-    StateId = {UserLJID, Nidx},
-    case catch mnesia:read({pubsub_state, StateId}) of
+get_state(Nidx, JID, LockKind) ->
+    StateId = {jid:to_lower(JID), Nidx},
+    case catch mnesia:read(pubsub_state, StateId, LockKind) of
         [#pubsub_state{} = State] -> {ok, State};
         _ -> {ok, #pubsub_state{stateid = StateId}}
     end.
