@@ -211,7 +211,8 @@ init([Host, Opts]) ->
                           State#state.password, State#state.tls_options),
     {ok, State}.
 
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    ?WARNING_MSG("Uknown info: ~p", [Info]),
     {noreply, State}.
 
 handle_call(get_state, _From, State) ->

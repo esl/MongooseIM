@@ -245,7 +245,8 @@ handle_info({route, From, To, Acc, _El}, State) ->
             ok
     end,
     {noreply, State};
-handle_info(_, State) ->
+handle_info(Info, State) ->
+    ?WARNING_MSG("Uknown info: ~p", [Info]),
     {noreply, State}.
 
 handle_cast(_Request, State) ->
