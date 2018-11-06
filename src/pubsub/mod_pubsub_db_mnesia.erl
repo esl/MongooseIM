@@ -34,9 +34,9 @@
         ]).
 % Items
 -export([
+         add_item/3,
          remove_items/3,
-         remove_all_items/1,
-         add_item/3
+         remove_all_items/1
         ]).
 
 %%====================================================================
@@ -132,9 +132,11 @@ get_own_nodes_states(JID) ->
     {ok, OwnNodesStates}.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                JID :: jid:jid()) -> ok.
-del_state(Nidx, JID) ->
-    mnesia:delete({pubsub_state, {jid:to_lower(JID), Nidx}}).
+                JIDorLJID :: jid:ljid() | jid:jid()) -> ok.
+del_state(Nidx, #jid{} = JID) ->
+    del_state(Nidx, jid:to_lower(JID));
+del_state(Nidx, LJID) ->
+    mnesia:delete({pubsub_state, {LJID, Nidx}}).
 
 %% ------------------------ Affiliations ------------------------
 
@@ -171,13 +173,7 @@ add_subscription(Nidx, JID, Sub, SubId) ->
     {ok, [{Entity :: jid:jid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 get_node_subscriptions(Nidx) ->
     {ok, States} = get_states(Nidx),
-    {ok,
-     lists:foldl(fun (#pubsub_state{ subscriptions = [] }, Acc) ->
-                         Acc;
-                     (#pubsub_state{ stateid = {J, _}, subscriptions = Subs }, Acc0) ->
-                         lists:foldl(fun({S, SubId}, Acc1) -> [{J, S, SubId} | Acc1] end,
-                                     Acc0, Subs)
-                 end, [], States)}.
+    {ok, states_to_subscriptions(States)}.
 
 -spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
                                     JID :: jid:jid()) ->
@@ -264,4 +260,22 @@ get_state(Nidx, JID, LockKind) ->
         [#pubsub_state{} = State] -> {ok, State};
         _ -> {ok, #pubsub_state{stateid = StateId}}
     end.
+
+-spec states_to_subscriptions([mod_pubsub:pubsubState()]) ->
+    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId()}].
+states_to_subscriptions([]) ->
+    [];
+states_to_subscriptions([#pubsub_state{ subscriptions = [] } | RStates]) ->
+    states_to_subscriptions(RStates);
+states_to_subscriptions([#pubsub_state{ stateid = {J, _}, subscriptions = Subs } | RStates]) ->
+    add_jid_to_subs(Subs, J, RStates).
+
+-spec add_jid_to_subs(Subs :: [{mod_pubsub:subscription(), mod_pubsub:subId()}],
+                      LJID :: jid:ljid(),
+                      RStates :: [mod_pubsub:pubsubState()]) ->
+    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId()}].
+add_jid_to_subs([], _J, RStates) ->
+    states_to_subscriptions(RStates);
+add_jid_to_subs([{S, SubId} | RSubs], J, RStates) ->
+    [ {J, S, SubId} | add_jid_to_subs(RSubs, J, RStates) ].
 
