@@ -159,7 +159,6 @@ start_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool,
                                  start_configured_pools,
                                  [[Pool], [<<"localhost">>]]),
-    ejabberd_node_utils:call_fun(mongoose_wpool_http, init, []),
     ok.
 
 stop_pool() ->
