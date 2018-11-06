@@ -43,13 +43,15 @@ create(For, Name) ->
                     {ok, module()} | {error, already_loaded}.
 create(Module, Backend, TrackedFuns) ->
     ProxyModule = proxy_module(Module),
+    BackendModule = backend_module(Module, Backend),
+    ensure_backend_metrics(Module, TrackedFuns),
     case catch ProxyModule:backend() of
-        Backend -> {error, already_loaded};
+        BackendModule ->
+            {error, already_loaded};
         _ ->
             {ProxyModuleStr, CodeString} = backend_code(Module, Backend, TrackedFuns),
             {Mod, Code} = dynamic_compile:from_string(CodeString),
             code:load_binary(Mod, ProxyModuleStr ++ ".erl", Code),
-            ensure_backend_metrics(Module, TrackedFuns),
             {ok, ProxyModule}
     end.
 
@@ -58,6 +60,10 @@ create(Module, Backend, TrackedFuns) ->
 -spec proxy_module(Module :: module()) -> module().
 proxy_module(Module) ->
     list_to_atom(atom_to_list(Module) ++ "_backend").
+
+-spec backend_module(Module :: module(), Backend :: atom()) -> module().
+backend_module(Module, Backend) ->
+    list_to_atom(atom_to_list(Module) ++ "_" ++ atom_to_list(Backend)).
 
 -spec backend_code(module(), atom(), list()) -> {nonempty_string(), list()}.
 backend_code(Module, Backend, TrackedFuns) when is_atom(Backend) ->
