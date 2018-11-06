@@ -12,10 +12,18 @@ if [ ! -z "$ZSH_NAME" ]; then
 fi
 
 
+function_exists() {
+    declare -f -F $1 > /dev/null
+    return $?
+}
+
+
 # If brew command exists
 # Load bash completion for _get_comp_words_by_ref on Mac
-if [ -x "$(command -v brew)" ] && [ -z "$ZSH_NAME" ]; then
-    echo "Load bash_completion"
+try_to_load_bash_completion_using_brew()
+{
+if ! function_exists _get_comp_words_by_ref && [ -x "$(command -v brew)" ] && [ -z "$ZSH_NAME" ]; then
+    echo "Load bash_completion using brew"
     INCLUDE_BASH_COMPLETION="$(brew --prefix)/etc/bash_completion"
     if ! [ -f "$INCLUDE_BASH_COMPLETION" ]; then
       echo "Install bash-completion packet"
@@ -24,11 +32,9 @@ if [ -x "$(command -v brew)" ] && [ -z "$ZSH_NAME" ]; then
     fi
     . "$INCLUDE_BASH_COMPLETION"
 fi
-
-function_exists() {
-    declare -f -F $1 > /dev/null
-    return $?
 }
+
+try_to_load_bash_completion_using_brew
 
 _run_all_tests() {
   printf "%s\n" "${COMP_WORDS[@]}" > /tmp/test-runner-last-competion
