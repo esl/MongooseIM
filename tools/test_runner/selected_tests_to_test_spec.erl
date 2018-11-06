@@ -72,7 +72,7 @@ make_test_spec_sub_atoms(Dir, SubAtoms) ->
     %% Run a part of suite
     Module = spec_to_module(hd(SubAtoms)),
     Last = lists:last(SubAtoms),
-    case is_test_case(Module, Last) of
+    try is_test_case(Module, Last) of
         true ->
             Groups = sub_atoms_to_groups(SubAtoms),
             case Groups of
@@ -84,6 +84,10 @@ make_test_spec_sub_atoms(Dir, SubAtoms) ->
         false ->
             Groups = tl(SubAtoms),
             {groups, Dir, Module, Groups}
+    catch
+        error:undef ->
+            io:format("issue=module_cannot_be_loaded run_the_whole_module_instead module=~p", [Module]),
+            {suites, Dir, spec_to_module(hd(SubAtoms))}
     end.
 
 sub_atoms_to_groups(SubAtoms) ->
