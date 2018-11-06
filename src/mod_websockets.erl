@@ -63,7 +63,7 @@
 init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
-    Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
+    Req1 = add_sec_websocket_protocol_header(Req),
     ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
     %% upgrade protocol
     {cowboy_websocket, Req1, [{peer, Peer}, {peercert, PeerCert} | Opts]}.
@@ -358,3 +358,38 @@ maybe_send_ping_request(none) ->
     ok;
 maybe_send_ping_request(PingRate) ->
     send_ping_request(PingRate).
+
+
+%%--------------------------------------------------------------------
+%% add_sec_websocket_protocol_header
+%%--------------------------------------------------------------------
+
+add_sec_websocket_protocol_header(Req) ->
+     case cowboy_req:header(<<"sec-websocket-protocol">>, Req) of
+         undefined ->
+             %% Server should not set "sec-websocket-protocol" respond header
+             %% if it does not present in the request
+             Req;
+         Proto ->
+             %% A client can propose several protocols
+             %% but we are interested in xmpp only
+             Protocols = split_protocol(Proto),
+             case lists:member(<<"xmpp">>, Protocols) of
+                 true ->
+                     cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req);
+                 false ->
+                     %% Do not agree with client, do not add a respond header
+                     ?DEBUG("issue=not_supported_procol, protocol=~p", [Proto]),
+                     Req
+             end
+     end.
+
+ split_protocol(Proto) ->
+     %% whitespace and comma can be used as separators
+    map_tolower(skip_empty(binary:split(Proto, [<<" ">>, <<",">>], [global]))).
+
+ skip_empty(List) ->
+     [X || X <- List, X =/= <<>>].
+
+ map_tolower(List) ->
+     [stringprep:tolower(X) || X <- List].
