@@ -286,6 +286,9 @@ maybe_handle_request(Callback, Args, Reply) ->
         false ->
             apply(Callback, Args);
         true ->
+            ?WARNING_MSG("event=rabbit_worker_request_dropped "
+                         ++ "reason=queue_message_length_limit_reached "
+                         ++ "limit=~p", [State#state.max_queue_len]),
             Reply
     end.
 
