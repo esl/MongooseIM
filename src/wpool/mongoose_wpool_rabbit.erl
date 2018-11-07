@@ -4,7 +4,6 @@
 -export([init/0]).
 -export([start/4]).
 -export([stop/2]).
--export([default_opts/0]).
 
 %% If a worker message queue length reaches the limit messages from the head of
 %% the queue are dropped until the queue length is again below the limit.
@@ -26,9 +25,6 @@ start(Host, Tag, WpoolOptsIn, AMQPOpts) ->
 
 stop(_, _) ->
     ok.
-
-default_opts() ->
-    [{strategy, available_worker}].
 
 amqp_client_opts(AMQPOpts) ->
     Opts = [{host, proplists:get_value(amqp_host, AMQPOpts, undefined)},
