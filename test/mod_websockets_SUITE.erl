@@ -9,10 +9,20 @@
 -define(NEW_TIMEOUT, 1200).
 
 
-all() -> [ping_test,
-          set_ping_test,
-          disable_ping_test,
-          disable_and_set].
+all() ->
+    ping_tests() ++ subprotocol_header_tests().
+
+ping_tests() ->
+    [ping_test,
+     set_ping_test,
+     disable_ping_test,
+     disable_and_set].
+
+subprotocol_header_tests() ->
+    [agree_to_xmpp_subprotocol,
+     agree_to_xmpp_subprotocol_from_many,
+     do_not_agree_to_missing_subprotocol,
+     do_not_agree_to_other_subprotocol].
 
 init_per_testcase(_, C) ->
     setup(),
@@ -25,6 +35,7 @@ end_per_testcase(_, C) ->
 setup() ->
     meck:unload(),
     application:ensure_all_started(cowboy),
+    application:ensure_all_started(stringprep),
     meck:new(supervisor, [unstick, passthrough, no_link]),
     meck:new(gen_mod,[unstick, passthrough, no_link]),
     %% Set ping rate
@@ -49,18 +60,19 @@ teardown() ->
     meck:unload(),
     cowboy:stop_listener(ejabberd_cowboy:ref({?PORT, ?IP, tcp})),
     application:stop(cowboy),
+    %% Do not stop stringprep, Erlang 21 does not like to reload nifs
     ok.
 
 ping_test(_Config) ->
     timer:sleep(500),
-    {ok, Socket1, _} = ws_handshake("localhost", ?PORT),
+    #{socket := Socket1} = ws_handshake(),
     %% When
     Resp = wait_for_ping(Socket1, 0, 5000),
     %% then
     ?eq(Resp, ok).
 
 set_ping_test(_Config) ->
-    {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
+    #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
     %% When
     mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
     ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + 1000),
@@ -74,7 +86,7 @@ set_ping_test(_Config) ->
     ?eq({error, timeout}, ErrorTimeout).
 
 disable_ping_test(_Config) ->
-    {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
+    #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
     %% When
     mod_websockets:disable_ping(InternalSocket),
     %% Should not receive any packets
@@ -83,7 +95,7 @@ disable_ping_test(_Config) ->
     ?eq(ErrorTimeout, {error, timeout}).
 
 disable_and_set(_Config) ->
-    {ok, Socket1, InternalSocket} = ws_handshake("localhost", ?PORT),
+    #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
     %% When
     mod_websockets:disable_ping(InternalSocket),
     %% Should not receive any packets
@@ -94,8 +106,14 @@ disable_and_set(_Config) ->
     ?eq(ErrorTimeout, {error, timeout}),
     ?eq(Resp1, ok).
 
+ws_handshake() ->
+    ws_handshake(#{}).
+
 %% Client side
-ws_handshake(Host, Port) ->
+%% Gun is too high level for subprotocol_header_tests checks
+ws_handshake(Opts) ->
+    Host = "localhost",
+    Port = ?PORT,
     {ok, Socket} = gen_tcp:connect(Host, Port, [binary, {packet, raw},
                                                 {active, false}]),
     ok = gen_tcp:send(Socket,
@@ -106,12 +124,22 @@ ws_handshake(Host, Port) ->
                        "Sec-WebSocket-Key: NT1P6NvEFQyDDKuTyEN+1Q==\r\n"
                        "Sec-WebSocket-Version: 13\r\n"
                        "Upgrade: websocket\r\n"
+                       ++ maps:get(extra_headers, Opts, ""),
                        "\r\n"]),
     {ok, Handshake} = gen_tcp:recv(Socket, 0, 5000),
     Packet = erlang:decode_packet(http, Handshake, []),
-    {ok, {http_response, {1,1}, 101, "Switching Protocols"}, _Rest} = Packet,
+    {ok, {http_response, {1,1}, 101, "Switching Protocols"}, Rest} = Packet,
+    {Headers, _} = consume_headers(Rest, []),
     InternalSocket = get_websocket(),
-    {ok, Socket, InternalSocket}.
+    #{socket => Socket, internal_socket => InternalSocket, headers => Headers}.
+
+consume_headers(Data, Headers) ->
+    case erlang:decode_packet(httph, Data, []) of
+        {ok, http_eoh, Rest} ->
+            {lists:reverse(Headers), Rest};
+        {ok, {http_header,_,Name,_,Value}, Rest} ->
+            consume_headers(Rest, [{Name, Value}|Headers])
+    end.
 
 wait_for_ping(_, Try, _) when Try > 10 ->
     {error, no_ping_packet};
@@ -137,7 +165,7 @@ ws_rx_frame(Payload, Opcode) ->
 
 get_websocket() ->
     %% Assumption: there's only one ranch protocol process running and
-    %% it's the one which started due to our gen_tcp:connect in ws_handshake/2.
+    %% it's the one which started due to our gen_tcp:connect in ws_handshake/1
     [{cowboy_clear, Pid}] = get_ranch_connections(),
     %% This is a record! See mod_websockets: #websocket{}.
     {websocket, Pid, fake_peername, undefined}.
@@ -153,3 +181,76 @@ get_ranch_connections() ->
     LSup = get_child_by_mod(ranch_sup, ranch_listener_sup),
     CSup = get_child_by_mod(LSup, ranch_conns_sup),
     [ {Mod, Pid} || {_, Pid, _, [Mod]} <- supervisor:which_children(CSup) ].
+
+wait_for_no_ranch_connections(Times) ->
+    case get_ranch_connections() of
+        [] ->
+            ok;
+        _ when Times > 0 ->
+            timer:sleep(100),
+            wait_for_no_ranch_connections(Times - 1);
+       Connections ->
+            error(#{reason => wait_for_no_ranch_connections_failed,
+                    connections => Connections})
+    end.
+
+%% ---------------------------------------------------------------------
+%% subprotocol_header_tests test functions
+%% ---------------------------------------------------------------------
+
+%% From RFC 6455:
+%%   The |Sec-WebSocket-Protocol| header field is used in the WebSocket
+%%   opening handshake.  It is sent from the client to the server and back
+%%   from the server to the client to confirm the subprotocol of the
+%%   connection.
+agree_to_xmpp_subprotocol(_) ->
+    check_subprotocol("Proper client behaviour", ["xmpp"], "xmpp").
+
+%% From RFC 6455:
+%%   The |Sec-WebSocket-Protocol| header field MAY appear multiple times
+%%   in an HTTP request (which is logically the same as a single
+%%   |Sec-WebSocket-Protocol| header field that contains all values).
+%%   However, the |Sec-WebSocket-Protocol| header field MUST NOT appear
+%%   more than once in an HTTP response.
+agree_to_xmpp_subprotocol_from_many(_) ->
+    check_subprotocol("Two protocols in one header", ["xmpp, other"], "xmpp"),
+    check_subprotocol("Two protocols in one header", ["other, xmpp"], "xmpp"),
+    check_subprotocol("Two protocols in two headers", ["other", "xmpp"], "xmpp").
+
+%% Do not set a Sec-Websocket-Protocol header in response if it's missing in a request.
+%%
+%% From RFC 6455:
+%%   if the server does not wish to agree to one of the suggested
+%%   subprotocols, it MUST NOT send back a |Sec-WebSocket-Protocol|
+%%   header field in its response.
+do_not_agree_to_missing_subprotocol(_) ->
+    check_subprotocol("Subprotocol header is missing", [], undefined).
+
+%% Do not set a Sec-Websocket-Protocol header in response if it's provided, but not xmpp.
+do_not_agree_to_other_subprotocol(_) ->
+    check_subprotocol("Subprotocol is not xmpp", ["other"], undefined).
+
+
+%% ---------------------------------------------------------------------
+%% subprotocol_header_tests helper functions
+%% ---------------------------------------------------------------------
+
+check_subprotocol(Comment, ProtoList, ExpectedProtocol) ->
+    ReqHeaders = lists:append(["Sec-Websocket-Protocol: " ++ Proto ++ "\r\n" || Proto <- ProtoList]),
+    Info = #{reason => check_subprotocol_failed,
+             comment => Comment,
+             expected_protocol => ExpectedProtocol,
+             request_headers => ReqHeaders},
+    #{headers := RespHeaders, socket := Socket} = ws_handshake(#{extra_headers => ReqHeaders}),
+    %% get_websocket/0 does not support more than one open connection
+    gen_tcp:close(Socket),
+    wait_for_no_ranch_connections(10),
+    RespProtocol = proplists:get_value("Sec-Websocket-Protocol", RespHeaders),
+    case RespProtocol of
+        ExpectedProtocol ->
+            ok;
+        _ ->
+            Info2 = Info#{response_headers => RespHeaders,
+                          response_protocol => RespProtocol},
+            ct:fail(Info2)
+    end.
