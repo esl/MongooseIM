@@ -13,7 +13,7 @@
 
 -export([start/0, stop/0]).
 % Funs execution
--export([transaction/1, dirty/1]).
+-export([transaction/2, dirty/2]).
 % Direct #pubsub_state access
 -export([del_state/2, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
@@ -60,21 +60,27 @@ stop() ->
 
 %% ------------------------ Fun execution ------------------------
 
-transaction(Fun) ->
+-spec transaction(Fun :: fun(() -> {result | error, any()}),
+                  ErrorDebug :: map()) ->
+    {result | error, any()}.
+transaction(Fun, ErrorDebug) ->
     case mnesia:transaction(Fun) of
         {atomic, Result} ->
             Result;
         {aborted, Reason} ->
-            {error, Reason}
+            mod_pubsub_db:transaction_error(Reason, ErrorDebug)
     end.
 
-dirty(Fun) ->
+-spec dirty(Fun :: fun(() -> {result | error, any()}),
+            ErrorDebug :: map()) ->
+    {result | error, any()}.
+dirty(Fun, ErrorDebug) ->
     try mnesia:sync_dirty(Fun, []) of
         Result ->
             Result
     catch
         C:R ->
-            {error, {C, R, erlang:get_stacktrace()}}
+            mod_pubsub_db:dirty_error(C, R, erlang:get_stacktrace(), ErrorDebug)
     end.
 
 %% ------------------------ Direct #pubsub_state access ------------------------

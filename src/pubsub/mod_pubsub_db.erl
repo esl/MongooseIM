@@ -10,6 +10,8 @@
 
 -include("mongoose_logger.hrl").
 
+-export([transaction_error/2, dirty_error/4]).
+
 %%====================================================================
 %% Behaviour callbacks
 %%====================================================================
@@ -22,11 +24,15 @@
 
 %% ----------------------- Fun execution ------------------------
 
--callback transaction(Fun :: fun(() -> {result | error, any()})) ->
+%% `ErrorDebug` are the maps of extra data that will be added to error tuple
+
+-callback transaction(Fun :: fun(() -> {result | error, any()}),
+                      ErrorDebug :: map()) ->
     {result | error, any()}.
 
 %% Synchronous
--callback dirty(Fun :: fun(() -> {result | error, any()})) ->
+-callback dirty(Fun :: fun(() -> {result | error, any()}),
+                ErrorDebug :: map()) ->
     {result | error, any()}.
 
 %% ----------------------- Direct #pubsub_state access ------------------------
@@ -122,6 +128,21 @@
 %% API
 %%====================================================================
 
+%% These are made as separate functions to make tracing easier, just in case.
+
+-spec transaction_error(Reason :: any(), ErrorDebug :: map()) ->
+    {error, Details :: map()}.
+transaction_error(Reason, ErrorDebug) ->
+    {error, ErrorDebug#{ event => transaction_failure,
+                         reason => Reason }}.
+
+-spec dirty_error(Class :: atom(), Reason :: any(), StackTrace :: list(), ErrorDebug :: map()) ->
+    {error, Details :: map()}.
+dirty_error(Class, Reason, StackTrace, ErrorDebug) ->
+    {error, ErrorDebug#{ event => dirty_failure,
+                         class => Class,
+                         reason => Reason,
+                         stacktrace => StackTrace}}.
 
 %%====================================================================
 %% Internal functions
