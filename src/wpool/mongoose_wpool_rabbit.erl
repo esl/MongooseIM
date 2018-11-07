@@ -5,7 +5,7 @@
 -export([start/4]).
 -export([stop/2]).
 
-%% If a worker message queue length reaches the limit messages from the head of
+%% If a worker message queue length reaches the limit, messages from the head of
 %% the queue are dropped until the queue length is again below the limit.
 -define(MAX_WORKER_MSG_QUEUE_LEN, 1000).
 
