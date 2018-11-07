@@ -18,7 +18,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 
 * `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
-  If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending private key after that.
+  If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 * `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients. Won't have any effect if `verify_peer` is not enabled.
 * `crlfiles` (list of strings, default: []) - A list of paths to Certificate Revocation Lists. Not supported by `fast_tls` TLS module.
 * `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires valid `cafile`.
@@ -100,15 +100,15 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
-  * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands. 
-    			    It expects one optional argument:  
-      * Credentials: `{auth, {Username, Password}}`.  
+  * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands.
+    			    It expects one optional argument:
+      * Credentials: `{auth, {Username, Password}}`.
         If they're not provided, authorization is disabled.
 
      Example:
 
             `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
-   
+
   * `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
 
