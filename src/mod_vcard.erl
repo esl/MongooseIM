@@ -156,17 +156,22 @@ default_host() ->
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
 start(VHost, Opts) ->
-    ?WARNING_MSG("Starting mod_vcard for host ~p with opts: ~p", [VHost, Opts]),
-    R = gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
-    ?WARNING_MSG("backend module started with result: ~p", [R]),
+    gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
-    ?WARNING_MSG("Starting proc: ~p", [Proc]),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    R2 = ejabberd_sup:start_child(ChildSpec),
-    ?WARNING_MSG("Proc start result: ~p", [R2]).
+    case VHost of
+        <<"localhost">> ->
+            dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
+            dbg:p(new, [call, messages, ports, timestamp]),
+            dbg:tpl(mod_vcard_ldap, x);
+        _ ->
+            ok
+    end,
+    ejabberd_sup:start_child(ChildSpec).
 
 stop(VHost) ->
+    dbg:stop_clear(),
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
