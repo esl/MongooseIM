@@ -160,11 +160,15 @@ start(VHost, Opts) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
+    ?WARNING_MSG("VHost: ~p", [VHost]),
     case VHost of
         <<"localhost">> ->
-            dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
-            dbg:p(new, [call, messages, ports, timestamp]),
-            dbg:tpl(mod_vcard_ldap, x);
+            R1 = dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
+            ?WARNING_MSG("R1: ~p", [R1]),
+            R2 = dbg:p(new, [c, m, ports]),
+            ?WARNING_MSG("R2: ~p", [R2]),
+            R3 = dbg:tpl(mod_vcard_ldap, x),
+            ?WARNING_MSG("R3: ~p", [R3]);
         _ ->
             ok
     end,
