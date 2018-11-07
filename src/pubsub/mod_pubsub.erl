@@ -4344,8 +4344,8 @@ on_user_offline(Acc, _, JID, _, _) ->
     end,
     Acc.
 
-purge_offline(LJID) ->
-    Host = host(element(2, LJID)),
+purge_offline({_, LServer, _} = LJID) ->
+    Host = host(LServer),
     Plugins = plugins(Host),
     Affs = lists:foldl(
              fun (PluginType, Acc) ->

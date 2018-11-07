@@ -211,6 +211,11 @@ h_ok_after_notify_test(ConfigIn) ->
       fun(Alice, Kate) ->
               escalus_story:make_all_clients_friends([Alice, Kate]),
 
+              %% TODO: Dirty fix. For some reason PEP resends item2 with <delay> element,
+              %% so probably there is some race condition that applies to becoming friends
+              %% and publishing
+              timer:sleep(1000),
+
               pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
               pubsub_tools:receive_item_notification(
                 Kate, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
@@ -285,10 +290,16 @@ unsubscribe_after_presence_unsubscription(Config) ->
 %%-----------------------------------------------------------------
 
 required_modules() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
+                  true -> rdbms;
+                  false -> mnesia
+              end,
     [{mod_caps, []},
      {mod_pubsub, [
                    {plugins, [<<"dag">>, <<"pep">>]},
                    {nodetree, <<"dag">>},
+                   {backend, Backend},
                    {pep_mapping, []},
                    {host, "pubsub.@HOST@"}
                   ]}].

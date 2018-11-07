@@ -353,3 +353,29 @@ CREATE TABLE inbox (
 
 CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver, timestamp);
 
+CREATE TABLE pubsub_affiliations (
+    nidx BIGINT UNSIGNED NOT NULL,
+    luser VARCHAR(250) NOT NULL,
+    lserver VARCHAR(250) NOT NULL,
+    aff TINYINT UNSIGNED NOT NULL
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE pubsub_items (
+    nidx BIGINT UNSIGNED NOT NULL,
+    itemid VARCHAR(250) NOT NULL,
+    luser VARCHAR(250) NOT NULL,
+    lserver VARCHAR(250) NOT NULL
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE pubsub_subscriptions (
+    nidx BIGINT UNSIGNED NOT NULL,
+    luser VARCHAR(250) NOT NULL,
+    lserver VARCHAR(250) NOT NULL,
+    lresource VARCHAR(250) NOT NULL,
+    type TINYINT UNSIGNED NOT NULL,
+    sub_id VARCHAR(125) NOT NULL
+) CHARACTER SET utf8mb4
+  ROW_FORMAT=DYNAMIC;
+

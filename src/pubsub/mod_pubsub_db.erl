@@ -45,66 +45,72 @@
 %% When a state is not found, returns empty state.
 %% Maybe can be removed completely later?
 -callback get_state(Nidx :: mod_pubsub:nodeIdx(),
-                    JID :: jid:jid()) ->
+                    JID :: jid:ljid()) ->
     {ok, mod_pubsub:pubsubState()}.
 
 %% Maybe can be removed completely later?
 -callback get_states(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_lus(JID :: jid:jid()) ->
+-callback get_states_by_lus(JID :: jid:ljid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_bare(JID :: jid:jid()) ->
+-callback get_states_by_bare(JID :: jid:ljid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_states_by_bare_and_full(JID :: jid:jid()) ->
+-callback get_states_by_bare_and_full(JID :: jid:ljid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback get_own_nodes_states(JID :: jid:jid()) ->
-    {ok, [mod_pubsub:pubsubState()]}.
+-callback get_idxs_of_own_nodes_with_pending_subs(JID :: jid:ljid()) ->
+    {ok, [mod_pubsub:nodeIdx()]}.
+
+%% ----------------------- Node management ------------------------
+
+-callback create_node(Nidx :: mod_pubsub:nodeIdx(),
+                      Owner :: jid:ljid()) ->
+    ok.
 
 %% ----------------------- Affiliations ------------------------
 
 -callback set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                          JID :: jid:jid(),
+                          JID :: jid:ljid(),
                           Affiliation :: mod_pubsub:affiliation()) ->
     ok.
 
 -callback get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                          JID :: jid:jid()) ->
+                          JID :: jid:ljid()) ->
     {ok, mod_pubsub:affiliation()}.
 
 %% ----------------------- Subscriptions ------------------------
 
 -callback add_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                           JID :: jid:jid(),
+                           JID :: jid:ljid(),
                            Sub :: mod_pubsub:subscription(),
                            SubId :: mod_pubsub:subId()) ->
     ok.
 
 -callback update_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                              JID :: jid:jid(),
+                              JID :: jid:ljid(),
                               Subscription :: mod_pubsub:subscription(),
                               SubId :: mod_pubsub:subId()) ->
     ok.
 
 -callback get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
-    {ok, [{Entity :: jid:jid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Entity :: jid:ljid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 
 -callback get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
-                                        JID :: jid:jid()) ->
+                                        JID :: jid:ljid()) ->
     {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 
 -callback delete_subscription(
             Nidx :: mod_pubsub:nodeIdx(),
-            JID :: jid:jid(),
+            JID :: jid:ljid(),
             SubId :: mod_pubsub:subId()) ->
     ok.
 
 -callback delete_all_subscriptions(
             Nidx :: mod_pubsub:nodeIdx(),
-            JID :: jid:jid()) ->
+            JID :: jid:ljid()) ->
     ok.
 
 %% ----------------------- Items ------------------------
@@ -112,12 +118,12 @@
 %% TODO: Refactor to use MaxItems value, so separate remove_items in publishing
 %% won't be necessary and the whole operation may be optimised in DB layer.
 -callback add_item(Nidx :: mod_pubsub:nodeIdx(),
-                   JID :: jid:jid(),
-                   ItemId :: mod_pubsub:pubsubItem()) ->
+                   JID :: jid:ljid(),
+                   PubSubItem :: mod_pubsub:pubsubItem()) ->
     ok.
 
 -callback remove_items(Nidx :: mod_pubsub:nodeIdx(),
-                       JID :: jid:jid(),
+                       JID :: jid:ljid(),
                        ItemIds :: [mod_pubsub:itemId()]) ->
     ok.
 
