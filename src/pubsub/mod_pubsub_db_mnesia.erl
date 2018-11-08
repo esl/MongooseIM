@@ -32,11 +32,20 @@
          delete_all_subscriptions/2,
          update_subscription/4
         ]).
-% Items
+% Item ids in state
 -export([
          add_item/3,
          remove_items/3,
          remove_all_items/1
+        ]).
+
+% Whole Items
+
+-export([
+         get_items/1,
+         get_item/2,
+         set_item/1,
+         del_item/2
         ]).
 
 %%====================================================================
@@ -52,6 +61,10 @@ start() ->
                          {type, ordered_set},
                          {attributes, record_info(fields, pubsub_state)}]),
     mnesia:add_table_copy(pubsub_state, node(), disc_copies),
+    mnesia:create_table(pubsub_item,
+                        [{disc_only_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_item)}]),
+    mnesia:add_table_copy(pubsub_item, node(), disc_only_copies),
     ok.
 
 -spec stop() -> ok.
@@ -251,6 +264,30 @@ add_item(Nidx, JID, ItemId) ->
     {ok, State} = get_state(Nidx, jid:to_bare(JID), write),
     NewItems = [ItemId | State#pubsub_state.items],
     mnesia:write(State#pubsub_state{ items = NewItems }).
+
+%% ------------------------ Direct #pubsub_item access ------------------------
+
+-spec get_items(Nidx :: mod_pubsub:nodeIdx()) ->
+    {result, {[mod_pubsub:pubsubItem()], none}}.
+get_items(Nidx) ->
+    Items = mnesia:match_object(#pubsub_item{itemid = {'_', Nidx}, _ = '_'}),
+    {result, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
+
+-spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
+    {result, mod_pubsub:pubsubItem()} | {error, exml:element()}.
+get_item(Nidx, ItemId) ->
+    case mnesia:read({pubsub_item, {ItemId, Nidx}}) of
+        [Item] when is_record(Item, pubsub_item) -> {result, Item};
+        _ -> {error, mongoose_xmpp_errors:item_not_found()}
+    end.
+
+-spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok | abort.
+set_item(Item) ->
+    mnesia:write(Item).
+
+-spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
+del_item(Nidx, ItemId) ->
+    mnesia:delete({pubsub_item, {ItemId, Nidx}}).
 
 %%====================================================================
 %% Internal functions

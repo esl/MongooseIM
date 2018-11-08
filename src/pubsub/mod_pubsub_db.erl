@@ -124,7 +124,18 @@
 -callback remove_all_items(Nidx :: mod_pubsub:nodeIdx()) ->
     ok.
 
+-callback get_items(Nidx :: mod_pubsub:nodeIdx()) ->
+    {result, {[mod_pubsub:pubsubItem()], none}}.
+
+-callback get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
+    {result, mod_pubsub:pubsubItem()} | {error, exml:element()}.
+
+-callback set_item(Item :: mod_pubsub:pubsubItem()) -> ok.
+
+-callback del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
+
 %%====================================================================
+
 %% API
 %%====================================================================
 

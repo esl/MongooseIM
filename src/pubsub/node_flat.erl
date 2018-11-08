@@ -53,9 +53,6 @@
 
 init(_Host, _ServerHost, _Opts) ->
     pubsub_subscription:init(),
-    mnesia:create_table(pubsub_item,
-        [{disc_only_copies, [node()]},
-            {attributes, record_info(fields, pubsub_item)}]),
     ok.
 
 terminate(_Host, _ServerHost) ->
@@ -579,8 +576,7 @@ get_node_if_has_pending_subs(NodeTree, #pubsub_state{stateid = {_, N}, subscript
 %% <p>PubSub plugins can store the items where they wants (for example in a
 %% relational database), or they can even decide not to persist any items.</p>
 get_items(Nidx, _From, _RSM) ->
-    Items = mnesia:match_object(#pubsub_item{itemid = {'_', Nidx}, _ = '_'}),
-    {result, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
+    mod_pubsub_db_backend:get_items(Nidx).
 
 get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
@@ -599,10 +595,7 @@ get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM
 %% @doc <p>Returns an item (one item list), given its reference.</p>
 
 get_item(Nidx, ItemId) ->
-    case mnesia:read({pubsub_item, {ItemId, Nidx}}) of
-        [Item] when is_record(Item, pubsub_item) -> {result, Item};
-        _ -> {error, mongoose_xmpp_errors:item_not_found()}
-    end.
+    mod_pubsub_db_backend:get_item(Nidx, ItemId).
 
 get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
@@ -631,12 +624,12 @@ authorize_get_item(_Affiliation, _AccessModel, _PresenceSubscription, _RosterGro
 
 %% @doc <p>Write an item into database.</p>
 set_item(Item) when is_record(Item, pubsub_item) ->
-    mnesia:write(Item).
+    mod_pubsub_db_backend:set_item(Item).
 %set_item(_) -> {error, mongoose_xmpp_errors:internal_server_error()}.
 
 %% @doc <p>Delete an item from database.</p>
 del_item(Nidx, ItemId) ->
-    mnesia:delete({pubsub_item, {ItemId, Nidx}}).
+    mod_pubsub_db_backend:del_item(Nidx, ItemId).
 
 del_items(Nidx, ItemIds) ->
     lists:foreach(fun (ItemId) -> del_item(Nidx, ItemId)

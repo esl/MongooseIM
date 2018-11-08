@@ -273,15 +273,15 @@ process_packet(Acc, From, To, El, Pid) ->
 init([ServerHost, Opts]) ->
     ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
     Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
-    
+
     init_backend(Opts),
 
     pubsub_index:init(Host, ServerHost, Opts),
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
     {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
-    
+
     mod_disco:register_feature(ServerHost, ?NS_PUBSUB),
-    
+
     store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping),
     add_hooks(ServerHost, hooks()),
     case lists:member(?PEPNODE, Plugins) of
@@ -299,7 +299,8 @@ init([ServerHost, Opts]) ->
 init_backend(Opts) ->
     TrackedDBFuns = [set_state, del_state, get_state, get_states,
                      get_states_by_lus, get_states_by_bare,
-                     get_states_by_full, get_own_nodes_states],
+                     get_states_by_full, get_own_nodes_states,
+                     get_items, get_item, set_item],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
 
