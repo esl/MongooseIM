@@ -621,7 +621,7 @@ disco_identity(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> Result;
         _ -> []
     end.
@@ -656,7 +656,7 @@ disco_features(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> Result;
         _ -> []
     end.
@@ -701,7 +701,12 @@ disco_items(Host, <<>>, From) ->
                        {result,
                         lists:foldl(Action, [], tree_call(Host, get_nodes, [Host]))}
                end,
-    case mod_pubsub_db_backend:dirty(NodeBloc) of
+    ErrorDebug = #{
+      action => disco_items,
+      pubsub_host => Host,
+      from => From
+     },
+    case mod_pubsub_db_backend:dirty(NodeBloc, ErrorDebug) of
         {result, Items} -> Items;
         _ -> []
     end;
@@ -718,7 +723,7 @@ disco_items(Host, Node, From) ->
                              {result, []}
                      end
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> Result;
         _ -> []
     end.
@@ -983,7 +988,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                                                        attrs = QAttrs,
                                                        children = IQRes ++ Info}]});
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = get, xmlns = ?NS_DISCO_ITEMS, sub_el = SubEl} = IQ ->
@@ -997,7 +1002,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                                                        attrs = QAttrs,
                                                        children = IQRes}]});
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB, lang = Lang, sub_el = SubEl} = IQ ->
@@ -1007,7 +1012,7 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = IQType, xmlns = ?NS_PUBSUB_OWNER, lang = Lang, sub_el = SubEl} = IQ ->
@@ -1017,9 +1022,9 @@ do_route(ServerHost, Access, Plugins, Host, From,
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes});
                       {error, {Error, NewPayload}} ->
-                          jlib:make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
+                          make_error_reply(Packet#xmlel{ children = NewPayload }, Error);
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error)
+                          make_error_reply(Packet, Error)
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{type = get, xmlns = (?NS_VCARD) = XMLNS, lang = Lang, sub_el = _SubEl} = IQ ->
@@ -1032,13 +1037,13 @@ do_route(ServerHost, Access, Plugins, Host, From,
         #iq{type = set, xmlns = ?NS_COMMANDS} = IQ ->
             Res = case iq_command(Host, ServerHost, From, IQ, Access, Plugins) of
                       {error, Error} ->
-                          jlib:make_error_reply(Packet, Error);
+                          make_error_reply(Packet, Error);
                       {result, IQRes} ->
                           jlib:iq_to_xml(IQ#iq{type = result, sub_el = IQRes})
                   end,
             ejabberd_router:route(To, From, Res);
         #iq{} ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
+            Err = make_error_reply(Packet, mongoose_xmpp_errors:feature_not_implemented()),
             ejabberd_router:route(To, From, Err);
         _ ->
             ok
@@ -1054,7 +1059,7 @@ do_route(_ServerHost, _Access, _Plugins, Host, From,
                 none ->
                     ok;
                 invalid ->
-                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
+                    Err = make_error_reply(Packet, mongoose_xmpp_errors:bad_request()),
                     ejabberd_router:route(To, From, Err);
                 XFields ->
                     handle_authorization_response(Host, From, To, Packet, XFields)
@@ -1070,7 +1075,7 @@ do_route(_ServerHost, _Access, _Plugins, _Host, From, To, Packet) ->
         <<"result">> ->
             ok;
         _ ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
+            Err = make_error_reply(Packet, mongoose_xmpp_errors:item_not_found()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -1106,7 +1111,7 @@ node_disco_info(Host, Node, _From, _Identity, _Features) ->
                              || F <- plugin_features(Host, Type)]],
                      {result, [I | F]}
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
@@ -1184,7 +1189,7 @@ iq_disco_items(Host, Item, From, RSM) ->
             Action = fun (PubSubNode) ->
                              iq_disco_items_transaction(Host, From, Node, RSM, PubSubNode)
                      end,
-            case dirty(Host, Node, Action) of
+            case dirty(Host, Node, Action, ?FUNCTION_NAME) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
@@ -1503,7 +1508,13 @@ get_pending_nodes(Host, Owner, Plugins) ->
                  end
          end,
     Action = fun() -> {result, lists:flatmap(Tr, Plugins)} end,
-    case mod_pubsub_db_backend:dirty(Action) of
+    ErrorDebug = #{
+      action => get_pending_nodes,
+      pubsub_host => Host,
+      owner => Owner,
+      plugins => Plugins
+     },
+    case mod_pubsub_db_backend:dirty(Action, ErrorDebug) of
         {result, Res} -> Res;
         Err -> Err
     end.
@@ -1530,7 +1541,7 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
     Action = fun(PubSubNode) ->
                      get_node_subscriptions_transaction(Host, Owner, PubSubNode)
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {N, Subs}} ->
             lists:foreach(fun
                               ({J, pending, _SubId}) -> send_authorization_request(N, jid:make(J));
@@ -1672,19 +1683,19 @@ handle_authorization_response(Host, From, To, Packet, XFields) ->
                              handle_authorization_response_transaction(Host, FromLJID, Subscriber,
                                                                        Allow, Node, PubSubNode)
                      end,
-            case dirty(Host, Node, Action) of
+            case dirty(Host, Node, Action, ?FUNCTION_NAME) of
                 {error, Error} ->
-                    Err = jlib:make_error_reply(Packet, Error),
+                    Err = make_error_reply(Packet, Error),
                     ejabberd_router:route(To, From, Err);
                 {result, {_, _NewSubscription}} ->
                     %% XXX: notify about subscription state change, section 12.11
                     ok;
                 _ ->
-                    Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
+                    Err = make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()),
                     ejabberd_router:route(To, From, Err)
             end;
         _ ->
-            Err = jlib:make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
+            Err = make_error_reply(Packet, mongoose_xmpp_errors:not_acceptable()),
             ejabberd_router:route(To, From, Err)
     end.
 
@@ -1846,7 +1857,12 @@ create_node(Host, ServerHost, Node, Owner, GivenType, Access, Configuration) ->
                                  create_node_transaction(Host, ServerHost, Node, Owner,
                                                          Type, Access, NodeOptions)
                          end,
-            case mod_pubsub_db_backend:transaction(CreateNode) of
+            ErrorDebug = #{
+              action => create_node,
+              pubsub_host => Host,
+              owner => Owner,
+              node_name => Node },
+            case mod_pubsub_db_backend:transaction(CreateNode, ErrorDebug) of
                 {result, {Nidx, SubsByDepth, {Result, broadcast}}} ->
                     broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth),
                     ejabberd_hooks:run(pubsub_create_node, ServerHost,
@@ -1946,7 +1962,7 @@ delete_node(_Host, <<>>, _Owner) ->
 delete_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> delete_node_transaction(Host, Owner, Node, PubSubNode) end,
     ServerHost = serverhost(Host),
-    case transaction(Host, Node, Action) of
+    case transaction(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {SubsByDepth, {Result, broadcast, Removed}}}} ->
             lists:foreach(fun ({RNode, _RSubs}) ->
                                   {RH, RN} = RNode#pubsub_node.nodeid,
@@ -2040,7 +2056,7 @@ subscribe_node(Host, Node, From, JID, Configuration) ->
     Action = fun (PubSubNode) ->
                      subscribe_node_transaction(Host, SubOpts, From, Subscriber, PubSubNode)
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, subscribed, SubId, send_last}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2174,7 +2190,7 @@ unsubscribe_node(Host, Node, From, Subscriber, SubId) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
                      node_call(Host, Type, unsubscribe_node, [Nidx, From, Subscriber, SubId])
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, default}} -> {result, []};
  %      {result, {_, Result}} -> {result, Result};
         Error -> Error
@@ -2256,7 +2272,7 @@ publish_item(Host, ServerHost, Node, Publisher, ItemId, Payload, Access, Publish
                                        children = [#xmlel{name = <<"item">>,
                                                           attrs = item_attr(ItemId)}]}]}],
     ErrorItemNotFound = mongoose_xmpp_errors:item_not_found(),
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, Broadcast, Removed}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2350,7 +2366,7 @@ delete_item(_, <<>>, _, _, _) ->
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"node-required">>)};
 delete_item(Host, Node, Publisher, ItemId, ForceNotify) ->
     Action = fun(PubSubNode) -> delete_item_transaction(Host, Publisher, ItemId, PubSubNode) end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2407,7 +2423,7 @@ delete_item_transaction(Host, Publisher, ItemId,
                | {error, exml:element()}.
 purge_node(Host, Node, Owner) ->
     Action = fun (PubSubNode) -> purge_node_transaction(Host, Owner, PubSubNode) end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {TNode, {Result, broadcast}}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -2474,7 +2490,7 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
     Action = fun (PubSubNode) ->
                      get_items_transaction(Host, From, RSM, SubId, PubSubNode)
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, RsmOut}}} ->
             SendItems = filter_items_by_item_ids(Items, ItemIds),
             {result,
@@ -2519,7 +2535,7 @@ get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
                      node_call(Host, Type, get_items, [Nidx, service_jid(Host), none])
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, _}}} -> Items;
         Error -> Error
     end.
@@ -2528,7 +2544,7 @@ get_item(Host, Node, ItemId) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
                      node_call(Host, Type, get_item, [Nidx, ItemId])
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Items}} -> Items;
         Error -> Error
     end.
@@ -2655,7 +2671,7 @@ get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
     {result, [exml:element(), ...]} | {error, exml:element()}.
 get_affiliations(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_affiliations_transaction(Host, JID, PubSubNode) end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, []}} ->
             {error, mongoose_xmpp_errors:item_not_found()};
         {result, {_, Affs}} ->
@@ -2724,7 +2740,7 @@ set_affiliations(Host, Node, From, EntitiesEls) ->
             Action = fun (PubSubNode) ->
                              set_affiliations_transaction(Host, Owner, PubSubNode, Entities)
                      end,
-            case dirty(Host, Node, Action) of
+            case dirty(Host, Node, Action, ?FUNCTION_NAME) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
@@ -2795,7 +2811,7 @@ get_options(Host, Node, JID, SubId, Lang) ->
     Action = fun(PubSubNode) ->
                      get_options_transaction(Host, Node, JID, SubId, Lang, PubSubNode)
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, XForm}} -> {result, [XForm]};
         Error -> Error
     end.
@@ -2853,7 +2869,7 @@ set_options(Host, Node, JID, SubId, Configuration) ->
     Action = fun(PubSubNode) ->
                      set_options_transaction(Host, JID, SubId, Configuration, PubSubNode)
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, Result}} -> {result, Result};
         Error -> Error
     end.
@@ -2986,7 +3002,7 @@ subscription_to_xmlel({#pubsub_node{nodeid = {_, _}}, _, _}, _Node) ->
 
 get_subscriptions(Host, Node, JID) ->
     Action = fun (PubSubNode) -> get_subscriptions_transaction(Host, JID, PubSubNode) end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Subs}} ->
             Entities =
             lists:flatmap(fun({_, none}) ->
@@ -3064,7 +3080,7 @@ set_subscriptions(Host, Node, From, EntitiesEls) ->
             Action = fun (PubSubNode) ->
                              set_subscriptions_transaction(Host, Owner, Node, PubSubNode, Entities)
                      end,
-            case dirty(Host, Node, Action) of
+            case dirty(Host, Node, Action, ?FUNCTION_NAME) of
                 {result, {_, Result}} -> {result, Result};
                 Other -> Other
             end
@@ -3444,7 +3460,12 @@ get_collection_subscriptions(Host, Node) ->
     Action = fun() ->
                      {result, get_node_subs_by_depth(Host, Node, service_jid(Host))}
              end,
-    case mod_pubsub_db_backend:dirty(Action) of
+    ErrorDebug = #{
+      pubsub_host => Host,
+      action => get_collection_subscriptions,
+      node_name => Node
+     },
+    case mod_pubsub_db_backend:dirty(Action, ErrorDebug) of
         {result, CollSubs} -> CollSubs;
         _ -> []
     end.
@@ -3614,7 +3635,7 @@ get_configure(Host, ServerHost, Node, From, Lang) ->
     Action = fun(PubSubNode) ->
                      get_configure_transaction(Host, ServerHost, Node, From, Lang, PubSubNode)
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Result}} -> {result, Result};
         Other -> Other
     end.
@@ -3828,7 +3849,7 @@ set_configure_submit(Host, Node, User, XEl, Lang) ->
     Action = fun(NodeRec) ->
                      set_configure_transaction(Host, User, XEl, NodeRec)
              end,
-    case transaction(Host, Node, Action) of
+    case transaction(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_OldNode, TNode}} ->
             Nidx = TNode#pubsub_node.id,
             Type = TNode#pubsub_node.type,
@@ -4122,7 +4143,7 @@ features(Host, Node) when is_binary(Node) ->
     Action = fun (#pubsub_node{type = Type}) ->
                      {result, plugin_features(Host, Type)}
              end,
-    case dirty(Host, Node, Action) of
+    case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, Features} -> lists:usort(features() ++ Features);
         _ -> features()
     end.
@@ -4160,16 +4181,32 @@ node_call(Host, Type, Function, Args) ->
     end.
 
 node_action(Host, Type, Function, Args) ->
-    ?DEBUG("node_action ~p ~p ~p ~p", [Host, Type, Function, Args]),
+    ?DEBUG("event=node_action,pubsub_host=~p,node_type=~p,function=~p,args=~p",
+           [Host, Type, Function, Args]),
+    ErrorDebug = #{
+        action => {node_action, Function},
+        pubsub_host => Host,
+        node_type => Type,
+        args => Args
+     },
     mod_pubsub_db_backend:dirty(fun() ->
                                         node_call(Host, Type, Function, Args)
-                                end).
+                                end, ErrorDebug).
 
-dirty(Host, Node, Action) ->
-    mod_pubsub_db_backend:dirty(db_call_fun(Host, Node, Action)).
+dirty(Host, Node, Action, ActionName) ->
+    ErrorDebug = #{
+      pubsub_host => Host,
+      node_name => Node,
+      action => ActionName },
+    mod_pubsub_db_backend:dirty(db_call_fun(Host, Node, Action), ErrorDebug).
 
-transaction(Host, Node, Action) ->
-    mod_pubsub_db_backend:transaction(db_call_fun(Host, Node, Action)).
+transaction(Host, Node, Action, ActionName) ->
+    ErrorDebug = #{
+      pubsub_host => Host,
+      node_name => Node,
+      action => ActionName
+     },
+    mod_pubsub_db_backend:transaction(db_call_fun(Host, Node, Action), ErrorDebug).
 
 db_call_fun(Host, Node, Action) ->
     fun () ->
@@ -4350,3 +4387,8 @@ purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
 timestamp() ->
     os:timestamp().
 
+make_error_reply(Packet, #xmlel{} = ErrorEl) ->
+    jlib:make_error_reply(Packet, ErrorEl);
+make_error_reply(Packet, Error) ->
+    ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
+    jlib:make_error_reply(Packet, mongoose_xmpp_errors:internal_server_error()).

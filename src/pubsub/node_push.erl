@@ -87,17 +87,7 @@ unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
 
 publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublisher, Payload,
              PublishOptions) ->
-    SubKey = jid:to_lower(Publisher),
-    GenKey = jid:to_bare(SubKey),
-    {ok, GenState} = mod_pubsub_db_backend:get_state(Nidx, GenKey),
-    SubState = case SubKey of
-                   GenKey ->
-                       GenState;
-                   _ ->
-                       {ok, SubState0} = mod_pubsub_db_backend:get_state(Nidx, SubKey),
-                       SubState0
-               end,
-    Affiliation = SubState#pubsub_state.affiliation,
+    Affiliation = mod_pubsub_db_backend:get_affiliation(Nidx, Publisher),
     ElPayload = [El || #xmlel{} = El <- Payload],
 
     case is_allowed_to_publish(Model, Affiliation) of

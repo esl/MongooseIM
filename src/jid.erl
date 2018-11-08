@@ -116,8 +116,15 @@ are_equal(_, _) ->
     false.
 
 %% @doc Returns true if `are_equal(to_bare(A), to_bare(B))'
+-spec are_bare_equal(jid() | ljid(), jid() | ljid()) -> boolean().
 are_bare_equal(#jid{luser = LUser, lserver = LServer},
                #jid{luser = LUser, lserver = LServer}) ->
+    true;
+are_bare_equal(#jid{luser = LUser, lserver = LServer}, {LUser, LServer, _}) ->
+    true;
+are_bare_equal({LUser, LServer, _}, #jid{luser = LUser, lserver = LServer}) ->
+    true;
+are_bare_equal({LUser, LServer, _}, {LUser, LServer, _}) ->
     true;
 are_bare_equal(_, _) ->
     false.
