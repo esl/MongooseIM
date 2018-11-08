@@ -4,7 +4,10 @@
 -export([init/0]).
 -export([start/4]).
 -export([stop/2]).
--export([default_opts/0]).
+
+%% If a worker message queue length reaches the limit, messages from the head of
+%% the queue are dropped until the queue length is again below the limit.
+-define(MAX_WORKER_MSG_QUEUE_LEN, 1000).
 
 init() ->
     application:ensure_all_started(amqp_client).
@@ -15,15 +18,13 @@ start(Host, Tag, WpoolOptsIn, AMQPOpts) ->
     Worker = {mongoose_rabbit_worker,
               [{amqp_client_opts, amqp_client_opts(AMQPOpts)},
                {host, Host},
-               {confirms, IsConfirmEnabled}]},
+               {confirms, IsConfirmEnabled},
+               {max_queue_len, ?MAX_WORKER_MSG_QUEUE_LEN}]},
     WpoolOpts = [{worker, Worker} | WpoolOptsIn],
     mongoose_wpool:start_sup_pool(rabbit, PoolName, WpoolOpts).
 
 stop(_, _) ->
     ok.
-
-default_opts() ->
-    [{strategy, available_worker}].
 
 amqp_client_opts(AMQPOpts) ->
     Opts = [{host, proplists:get_value(amqp_host, AMQPOpts, undefined)},

@@ -36,9 +36,13 @@
                 connection :: pid(),
                 channel :: pid(),
                 host :: binary(),
-                confirms :: boolean()}).
+                confirms :: boolean(),
+                max_queue_len :: non_neg_integer()}).
 
 -type worker_opts() :: #state{}.
+
+-define(REPLY_REQ_DROPPED(State), {reply, request_dropped, State}).
+-define(NOREPLY_REQ_DROPPED(State), {noreply, State}).
 
 %%%===================================================================
 %%% Metrics
@@ -89,27 +93,19 @@ init(Opts) ->
     self() ! {init, Opts},
     {ok, #state{}}.
 
-handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
-    case try_to_apply(amqp_channel, call, [Channel, Method]) of
-        {ok, _} = Res ->
-            {reply, Res, State};
-        {error, _, _} = Err ->
-            {FreshConn, FreshChann} = restart_rabbit_connection(State),
-            {reply, Err, State#state{connection = FreshConn,
-                                     channel = FreshChann}}
-    end.
+handle_call(Req, From, State) ->
+    maybe_handle_request(fun do_handle_call/3, [Req, From, State],
+                         ?REPLY_REQ_DROPPED(State)).
 
-handle_cast({amqp_publish, Method, Payload}, State) ->
-    handle_amqp_publish(Method, Payload, State).
+handle_cast(Req, State) ->
+   maybe_handle_request(fun do_handle_cast/2, [Req, State],
+                        ?NOREPLY_REQ_DROPPED(State)).
 
-handle_info({init, Opts}, State) ->
-    Host = proplists:get_value(host, Opts),
-    AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
-    {Connection, Channel} = establish_rabbit_connection(AMQPClientOpts, Host),
-    IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
-    {noreply, State#state{host = Host, amqp_client_opts = AMQPClientOpts,
-                          connection = Connection, channel = Channel,
-                          confirms = IsConfirmEnabled}}.
+handle_info(Req = {init, _}, State) ->
+    do_handle_info(Req, State);
+handle_info(Req, State) ->
+    maybe_handle_request(fun do_handle_info/2, [Req, State],
+                         ?NOREPLY_REQ_DROPPED(State)).
 
 terminate(_Reason, #state{connection = Connection, channel = Channel,
                           host = Host}) ->
@@ -119,6 +115,30 @@ terminate(_Reason, #state{connection = Connection, channel = Channel,
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+do_handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
+    case try_to_apply(amqp_channel, call, [Channel, Method]) of
+        {ok, _} = Res ->
+            {reply, Res, State};
+        {error, _, _} = Err ->
+            {FreshConn, FreshChann} = restart_rabbit_connection(State),
+            {reply, Err, State#state{connection = FreshConn,
+                                     channel = FreshChann}}
+    end.
+
+do_handle_cast({amqp_publish, Method, Payload}, State) ->
+    handle_amqp_publish(Method, Payload, State).
+
+do_handle_info({init, Opts}, State) ->
+    Host = proplists:get_value(host, Opts),
+    AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
+    {Connection, Channel} = establish_rabbit_connection(AMQPClientOpts, Host),
+    IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
+    MaxMsgQueueLen = proplists:get_value(max_queue_len, Opts),
+    {noreply, State#state{host = Host, amqp_client_opts = AMQPClientOpts,
+                          connection = Connection, channel = Channel,
+                          confirms = IsConfirmEnabled,
+                          max_queue_len = MaxMsgQueueLen}}.
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
@@ -256,4 +276,27 @@ try_to_apply(Mod, Fun, Args) ->
     catch
         Error:Reason ->
             {error, Error, Reason}
+    end.
+
+-spec maybe_handle_request(Callback :: function(), Args :: [term()],
+                           Reply :: term()) -> term().
+maybe_handle_request(Callback, Args, Reply) ->
+    State = lists:last(Args),
+    case is_msq_queue_max_limit_reached(State#state.max_queue_len) of
+        false ->
+            apply(Callback, Args);
+        true ->
+            ?WARNING_MSG("event=rabbit_worker_request_dropped "
+                         ++ "reason=queue_message_length_limit_reached "
+                         ++ "limit=~p", [State#state.max_queue_len]),
+            Reply
+    end.
+
+-spec is_msq_queue_max_limit_reached(Limit :: non_neg_integer()) -> boolean().
+is_msq_queue_max_limit_reached(Limit) ->
+    case process_info(self(), message_queue_len) of
+        {_, QueueLen} when QueueLen > Limit ->
+            true;
+        _Else ->
+            false
     end.
