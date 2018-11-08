@@ -408,7 +408,7 @@ group_chat_message_received_event_properly_formatted(Config) ->
 -spec listen_to_rabbit() -> proplists:proplist().
 listen_to_rabbit() ->
     {ok, Connection} =
-        amqp_connection:start(#amqp_params_network{host = "localhost"}),
+        amqp_connection:start(#amqp_params_network{}),
     {ok, Channel} = amqp_connection:open_channel(Connection),
     [{rabbit_connection, Connection}, {rabbit_channel, Channel}].
 
