@@ -1,5 +1,5 @@
 {"1.1.0",
-[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.5">>},0},
+[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.8">>},0},
  {<<"backoff">>,{pkg,<<"backoff">>,<<"1.1.3">>},1},
  {<<"base16">>,{pkg,<<"base16">>,<<"1.0.0">>},0},
  {<<"bbmustache">>,{pkg,<<"bbmustache">>,<<"1.5.0">>},0},
@@ -120,7 +120,7 @@
  {<<"pooler">>,{pkg,<<"pooler">>,<<"1.5.3">>},1},
  {<<"proper">>,{pkg,<<"proper">>,<<"1.2.0">>},0},
  {<<"quickrand">>,{pkg,<<"quickrand">>,<<"1.7.4-rc1">>},1},
- {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.5">>},1},
+ {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.8">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.5.0">>},1},
  {<<"ranch_proxy_protocol">>,{pkg,<<"ranch_proxy_protocol">>,<<"1.5.0">>},2},
  {<<"re2">>,
@@ -155,7 +155,7 @@
  {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"3.2.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"amqp_client">>, <<"EE5FF6209CA4BE0FF950E92775F4E4AAB272C74003ABD84DED9CFF64AF1B597A">>},
+ {<<"amqp_client">>, <<"5EC44AD152AED8519EF557189FA21E779F60578D21BCAB36CABE381B451728EE">>},
  {<<"backoff">>, <<"DE762C05ED6DFAE862D83DC9E58AE936792B01302B3595F5CFFE86F2D8E6C1DD">>},
  {<<"base16">>, <<"283644E2B21BD5915ACB7178BED7851FB07C6E5749B8FAD68A53C501092176D9">>},
  {<<"bbmustache">>, <<"8CFDE0602E90A4057E161BF5288ADE854B4E511E2E8924966A8438730E958381">>},
@@ -192,7 +192,7 @@
  {<<"pooler">>, <<"898CD1FA301FC42D4A8ED598CE139B71CA85B54C16AB161152B5CC5FBDCFA1A8">>},
  {<<"proper">>, <<"1466492385959412A02871505434E72E92765958C60DBA144B43863554B505A4">>},
  {<<"quickrand">>, <<"61A9AF693C8B4FC9F838818493BCEE127AA2EE70483BE32BAD20C760C208E8BA">>},
- {<<"rabbit_common">>, <<"3346C2C65DF2528891C3113AA33E78AADBD5E6996E4230B937C2429F86861268">>},
+ {<<"rabbit_common">>, <<"E1410371C5814F85092B6DDA85AA25FAD945E7A41A9C4E34A59E61BD59A8C3B2">>},
  {<<"ranch">>, <<"F04166F456790FEE2AC1AA05A02745CC75783C2BFB26D39FAF6AEFC9A3D3A58A">>},
  {<<"ranch_proxy_protocol">>, <<"E698AAEB590AD504B649DC0D3055ABEE6CAF0B49D3CAEE1A080AE83B5B499F30">>},
  {<<"recon">>, <<"2BCAD0CF621FB277CABBB6413159CD3AA30265C2DEE42C968697988B30108604">>},
