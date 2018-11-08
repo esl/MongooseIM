@@ -62,7 +62,7 @@
 %  - opening channel via AMQP connection
 
 %% XMPP stuff
--define(XMPP_GO_OFFLINE_AFTER, 1*1000). % milliseconds
+-define(XMPP_GO_OFFLINE_AFTER, 10*60*1000). % milliseconds
 -define(XMPP_GO_ONLINE_AFTER, 1*1000).  % milliseconds
 -define(XMPP_SEND_MESSAGE_AFTER, 5*60*1000). % milliseconds
 
@@ -202,6 +202,19 @@ xmpp_neighbors(MyID) ->
 
     LimitedPrevNeighbors ++ LimitedNextNeighbors.
 
+%% @doc This function returns a list of neighbours which connects via xmpp
+-spec xmpp_neighbors_for_amqp(amoc_scenario:user_id()) -> [amoc_scenario:user_id()].
+xmpp_neighbors_for_amqp(MyID) ->
+    AmocUsers = amoc_config:get(amoc_users),
+
+    PrevNeighbors = [ ID || ID <- lists:seq(1, MyID-1), ?IS_XMPP(ID) ],
+    LimitedPrevNeighbors = lists:sublist(lists:reverse(PrevNeighbors), 4),
+
+    NextNeighbors = [ ID || ID <- lists:seq(MyID+1, AmocUsers), ?IS_XMPP(ID) ],
+    LimitedNextNeighbors = lists:sublist(NextNeighbors, 4),
+
+    LimitedPrevNeighbors ++ LimitedNextNeighbors.
+
 %================================================
 % XMPP client behaviour
 %================================================
@@ -218,8 +231,6 @@ xmpp_start(MyId) ->
               go_offline_after => ?XMPP_GO_OFFLINE_AFTER,
               go_online_after => ?XMPP_GO_ONLINE_AFTER,
               send_message_after => ?XMPP_SEND_MESSAGE_AFTER},
-    % This will provide constant message rate if we have uniformly
-    % distributed message delay
     FirstMessageAfter = rand:uniform(?XMPP_SEND_MESSAGE_AFTER),
     % We did not start test for real, so it is good to GC
     garbage_collect(),
@@ -246,7 +257,8 @@ xmpp_do(#{neighborIDs := NeighborIDs,
             schedule(go_online, GoOnlineAfter),
             send_presence_unavailable(Client);
         {scheduled, go_online} ->
-            schedule(go_offline, GoOfflineAfter),
+            %This can impact the performance of the whole test substantially.
+            %schedule(go_offline, GoOfflineAfter),
             send_presence_available(Client);
         {scheduled, send_message} ->
             schedule(send_message, SendMessageAfter),
@@ -284,7 +296,7 @@ amqp_start(MyId) ->
     MyQueueName = make_queue_name(MyId),
     Channel = open_channel(),
     ok = create_queue(Channel, MyQueueName),
-    N = xmpp_neighbors(MyId),
+    N = xmpp_neighbors_for_amqp(MyId),
     ok = bind_queue_to_presence_exchange(Channel, MyQueueName, N),
     ok = bind_queue_to_message_exchange(Channel, MyQueueName, N),
     ok = subscribe_to_queue(Channel, MyQueueName),
