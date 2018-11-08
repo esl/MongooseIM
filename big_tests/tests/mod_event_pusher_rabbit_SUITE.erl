@@ -112,8 +112,13 @@ init_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     start_rabbit_wpool(Host),
     {ok, _} = application:ensure_all_started(amqp_client),
-    muc_helper:load_muc(muc_host()),
-    escalus:init_per_suite(Config).
+    case is_rabbitmq_available() of
+        true ->
+            muc_helper:load_muc(muc_host()),
+            escalus:init_per_suite(Config);
+        false ->
+            {skip, "RabbitMQ server is not available on default port."}
+    end.
 
 end_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -696,3 +701,15 @@ extend_config_with_exchange_type(ExType) ->
                       {Ex, Opts ++ [{type, ExType}]};
                  (Other) -> Other
               end, ?MOD_EVENT_PUSHER_RABBIT_CFG).
+
+is_rabbitmq_available() ->
+    try amqp_connection:start(#amqp_params_network{}) of
+        {ok, Conn} ->
+            amqp_connection:close(Conn),
+            true;
+        {error, econnrefused} ->
+            false
+    catch
+        _Err ->
+            false
+    end.
