@@ -134,6 +134,8 @@
 
 -callback del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
 
+-callback del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
+
 %%====================================================================
 
 %% API

@@ -632,9 +632,7 @@ del_item(Nidx, ItemId) ->
     mod_pubsub_db_backend:del_item(Nidx, ItemId).
 
 del_items(Nidx, ItemIds) ->
-    lists:foreach(fun (ItemId) -> del_item(Nidx, ItemId)
-        end,
-        ItemIds).
+    mod_pubsub_db_backend:del_items(Nidx, ItemIds).
 
 get_item_name(_Host, _Node, Id) ->
     Id.

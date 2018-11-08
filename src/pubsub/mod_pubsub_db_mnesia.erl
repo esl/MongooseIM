@@ -45,7 +45,8 @@
          get_items/1,
          get_item/2,
          set_item/1,
-         del_item/2
+         del_item/2,
+         del_items/2
         ]).
 
 %%====================================================================
@@ -288,6 +289,11 @@ set_item(Item) ->
 -spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
 del_item(Nidx, ItemId) ->
     mnesia:delete({pubsub_item, {ItemId, Nidx}}).
+
+-spec del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
+del_items(Nidx, ItemIds) ->
+    lists:foreach(fun (ItemId) -> del_item(Nidx, ItemId) end,
+                  ItemIds).
 
 %%====================================================================
 %% Internal functions
