@@ -3,12 +3,6 @@
 %%% @copyright (C) 2018, Kacper Mentel
 %%% @doc
 %%% Tests for `mod_event_pusher` RabbitMQ backend (`mod_event_pusher_rabbit`).
-%%% IMPORTANT: Running this SUITE requires adding `amqp_client` application and
-%%% it's dependencies ebin files from Mongoose repo directory to Common Test VM
-%%% code paths. One way (recommended) to do so is to use a dedicated mechanism
-%%% in the `big_tests/Makefile`: while running make targets export `DEPS`
-%%% environment variable providing names of necessary dependencies (include
-%%% `amqp_client` as well).
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_rabbit_SUITE).

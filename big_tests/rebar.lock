@@ -1,5 +1,6 @@
 {"1.1.0",
-[{<<"base16">>,
+[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.8">>},0},
+ {<<"base16">>,
   {git,"https://github.com/goj/base16.git",
        {ref,"ec420aa4ce0fb971f155274c606e00188a2ed37d"}},
   1},
@@ -88,7 +89,10 @@
   {git,"https://github.com/okeuday/quickrand.git",
        {ref,"336c0d94a6a384f307183b3c14fc2112656dac37"}},
   2},
+ {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.8">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.5.0">>},1},
+ {<<"ranch_proxy_protocol">>,{pkg,<<"ranch_proxy_protocol">>,<<"1.5.0">>},2},
+ {<<"recon">>,{pkg,<<"recon">>,<<"2.3.2">>},2},
  {<<"shotgun">>,
   {git,"https://github.com/inaka/shotgun.git",
        {ref,"9b6c1df9f27dda3f20d6d0382bec9972546c12fd"}},
@@ -116,6 +120,7 @@
   1}]}.
 [
 {pkg_hash,[
+ {<<"amqp_client">>, <<"5EC44AD152AED8519EF557189FA21E779F60578D21BCAB36CABE381B451728EE">>},
  {<<"certifi">>, <<"389D4B126A47895FE96D65FCF8681F4D09ECA1153DC2243ED6BABAD0AAC1E763">>},
  {<<"cowboy">>, <<"F1B72FABE9C8A5FC64AC5AC85FB65474D64733D1DF52A26FAD5D4BA3D9F70A9F">>},
  {<<"cowlib">>, <<"BBD58EF537904E4F7C1DD62E6AA8BC831C8183CE4EFA9BD1150164FE15BE4CAA">>},
@@ -125,6 +130,9 @@
  {<<"idna">>, <<"D456A8761CAD91C97E9788C27002EB3B773ADAF5C893275FC35BA4E3434BBD9B">>},
  {<<"lager">>, <<"A6DEB74DAE7927F46BD13255268308EF03EB206EC784A94EAF7C1C0F3B811615">>},
  {<<"mimerl">>, <<"993F9B0E084083405ED8252B99460C4F0563E41729AB42D9074FD5E52439BE88">>},
+ {<<"rabbit_common">>, <<"E1410371C5814F85092B6DDA85AA25FAD945E7A41A9C4E34A59E61BD59A8C3B2">>},
  {<<"ranch">>, <<"F04166F456790FEE2AC1AA05A02745CC75783C2BFB26D39FAF6AEFC9A3D3A58A">>},
+ {<<"ranch_proxy_protocol">>, <<"E698AAEB590AD504B649DC0D3055ABEE6CAF0B49D3CAEE1A080AE83B5B499F30">>},
+ {<<"recon">>, <<"4444C879BE323B1B133EEC5241CB84BD3821EA194C740D75617E106BE4744318">>},
  {<<"ssl_verify_hostname">>, <<"2E73E068CD6393526F9FA6D399353D7C9477D6886BA005F323B592D389FB47BE">>}]}
 ].
