@@ -30,6 +30,7 @@
          publish/4,
          retract_item/4,
          get_all_items/3,
+         get_item/4,
          purge_all_items/3,
 
          subscribe/3,
@@ -134,7 +135,9 @@ publish(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
     Request = case proplists:get_value(with_payload, Options, true) of
                   true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
+                  false -> escalus_pubsub_stanza:publish(User, Id, Node);
+                  #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
+
               end,
     send_request_and_receive_response(User, Request, Id, Options).
 
@@ -146,6 +149,17 @@ retract_item(User, Node, ItemId, Options) ->
 get_all_items(User, {_, NodeName} = Node, Options) ->
     Id = id(User, Node, <<"items">>),
     Request = escalus_pubsub_stanza:get_all_items(User, Id, Node),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              Items = exml_query:path(Response, [{element, <<"pubsub">>},
+                                                 {element, <<"items">>}]),
+              check_items(Items, ExpectedResult, NodeName, true)
+      end).
+
+get_item(User, {_, NodeName} = Node, ItemId, Options) ->
+    Id = id(User, Node, <<"items">>),
+    Request = escalus_pubsub_stanza:get_item(User, Id, ItemId, Node),
     send_request_and_receive_response(
       User, Request, Id, Options,
       fun(Response, ExpectedResult) ->
@@ -332,7 +346,7 @@ check_subscription_request(Stanza, Requester, NodeName, Options) ->
     DecodedForm =
     [ decode_form_field(F)
       || F <- exml_query:paths(Stanza, [{element, <<"x">>}, {element, <<"field">>}]) ],
-    
+
     RequesterJid = escalus_utils:jid_to_lower(
                      jid(Requester, proplists:get_value(jid_type, Options, full))),
     {_, _, RequesterJid} = lists:keyfind(<<"pubsub#subscriber_jid">>, 1, DecodedForm),
@@ -442,10 +456,17 @@ check_items(ReceivedItemsElem, ExpectedItemIds, NodeName, WithPayload) ->
     [check_item(ExpectedItemId, WithPayload, ReceivedItem) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
-check_item(ExpectedItemId, WithPayload, ReceivedItem) ->
+check_item(ExpectedItem, WithPayload, ReceivedItem) ->
+    #{id := ExpectedItemId} = ExpectedItemMap = decode_expected_item(ExpectedItem),
     ExpectedItemId = exml_query:attr(ReceivedItem, <<"id">>),
     Content = item_content(WithPayload),
-    Content = exml_query:subelement(ReceivedItem, <<"entry">>).
+    ExpectedContent = maps:get(content, ExpectedItemMap, Content),
+    ExpectedContent = exml_query:subelement(ReceivedItem, <<"entry">>).
+
+decode_expected_item(AMap) when is_map(AMap) ->
+    AMap;
+decode_expected_item(ItemId) when is_binary(ItemId) ->
+    #{id => ItemId}.
 
 item_content(false) -> undefined;
 item_content(true) -> item_content().
