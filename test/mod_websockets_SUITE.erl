@@ -20,6 +20,7 @@ ping_tests() ->
 
 subprotocol_header_tests() ->
     [agree_to_xmpp_subprotocol,
+     agree_to_xmpp_subprotocol_case_insensitive,
      agree_to_xmpp_subprotocol_from_many,
      do_not_agree_to_missing_subprotocol,
      do_not_agree_to_other_subprotocol].
@@ -205,6 +206,23 @@ wait_for_no_ranch_connections(Times) ->
 %%   connection.
 agree_to_xmpp_subprotocol(_) ->
     check_subprotocol("Proper client behaviour", ["xmpp"], "xmpp").
+
+agree_to_xmpp_subprotocol_case_insensitive(_) ->
+    %% The value must conform to the requirements
+    %% given in item 10 of Section 4.1 of this specification -- namely,
+    %% the value must be a token as defined by RFC 2616 [RFC2616].
+    %% ...
+    %% 10.  The request MAY include a header field with the name
+    %%      |Sec-WebSocket-Protocol|.  If present, this value indicates one
+    %%      or more comma-separated subprotocol the client wishes to speak,
+    %%      ordered by preference.  The elements that comprise this value
+    %%      MUST be non-empty strings with characters in the range U+0021 to
+    %%      U+007E not including separator characters as defined in
+    %%      [RFC2616] and MUST all be unique strings.  The ABNF for the
+    %%      value of this header field is 1#token, where the definitions of
+    %%      constructs and rules are as given in [RFC2616].
+    %% ...
+    check_subprotocol("Case insensitive", ["XMPP"], "XMPP").
 
 %% From RFC 6455:
 %%   The |Sec-WebSocket-Protocol| header field MAY appear multiple times

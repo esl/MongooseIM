@@ -365,31 +365,29 @@ maybe_send_ping_request(PingRate) ->
 %%--------------------------------------------------------------------
 
 add_sec_websocket_protocol_header(Req) ->
-     case cowboy_req:header(<<"sec-websocket-protocol">>, Req) of
+     case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
          undefined ->
-             %% Server should not set "sec-websocket-protocol" respond header
+             %% Server should not set "sec-websocket-protocol" response header
              %% if it does not present in the request
              Req;
-         Proto ->
-             %% A client can propose several protocols
-             %% but we are interested in xmpp only
-             Protocols = split_protocol(Proto),
-             case lists:member(<<"xmpp">>, Protocols) of
-                 true ->
-                     cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req);
-                 false ->
-                     %% Do not agree with client, do not add a respond header
-                     ?DEBUG("issue=not_supported_procol, protocol=~p", [Proto]),
+         Protocols ->
+             case case_insensitive_match(<<"xmpp">>, Protocols) of
+                 {matched, MatchedProtocol} ->
+                     cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, MatchedProtocol, Req);
+                 nomatch ->
+                     %% Do not agree with client, do not add a response header
+                     ?DEBUG("issue=not_supported_procol, protocol=~p", [Protocols]),
                      Req
              end
      end.
 
- split_protocol(Proto) ->
-     %% whitespace and comma can be used as separators
-    map_tolower(skip_empty(binary:split(Proto, [<<" ">>, <<",">>], [global]))).
-
- skip_empty(List) ->
-     [X || X <- List, X =/= <<>>].
-
- map_tolower(List) ->
-     [stringprep:tolower(X) || X <- List].
+case_insensitive_match(LowerPattern, [Case | Cases]) ->
+    LowerCase = stringprep:tolower(Case),
+    case LowerCase of
+        LowerPattern ->
+            {matched, Case};
+        _ ->
+            case_insensitive_match(LowerPattern, Cases)
+    end;
+case_insensitive_match(_, []) ->
+    nomatch.
