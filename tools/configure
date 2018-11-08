@@ -48,7 +48,8 @@ app_opts() ->
      {"jingle-sip",    ["nksip"],           include_driver("nksip")},
      {"cassandra",     ["cqerl"],           include_driver("cassandra")},
      {"elasticsearch", ["tirerl"],          include_driver("elasticsearch")},
-     {"aws",           ["erlcloud"],        "include support for AWS services"}].
+     {"aws",           ["erlcloud"],        "include support for AWS services"},
+     {"amqp_client",   ["amqp_client"],     "include AMQP client"}].
 
 opts() ->
     [{"prefix",  (#opts{})#opts.prefix,  "Installation PREFIX directory"},
