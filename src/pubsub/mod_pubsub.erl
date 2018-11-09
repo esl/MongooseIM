@@ -300,7 +300,7 @@ init_backend(Opts) ->
     TrackedDBFuns = [set_state, del_state, get_state, get_states,
                      get_states_by_lus, get_states_by_bare,
                      get_states_by_full, get_own_nodes_states,
-                     get_items, get_item, set_item],
+                     get_items, get_item, set_item, del_item, del_items],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
 
