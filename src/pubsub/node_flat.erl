@@ -576,7 +576,12 @@ get_node_if_has_pending_subs(NodeTree, #pubsub_state{stateid = {_, N}, subscript
 %% <p>PubSub plugins can store the items where they wants (for example in a
 %% relational database), or they can even decide not to persist any items.</p>
 get_items(Nidx, _From, _RSM) ->
-    mod_pubsub_db_backend:get_items(Nidx).
+    case mod_pubsub_db_backend:get_items(Nidx) of
+        {ok, Result} ->
+            {result, Result};
+        {error, Error} ->
+            {error, Error}
+    end.
 
 get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
@@ -595,7 +600,12 @@ get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM
 %% @doc <p>Returns an item (one item list), given its reference.</p>
 
 get_item(Nidx, ItemId) ->
-    mod_pubsub_db_backend:get_item(Nidx, ItemId).
+    case mod_pubsub_db_backend:get_item(Nidx, ItemId) of
+        {ok, Item} ->
+            {result, Item};
+        {error, Error} ->
+            {error, Error}
+    end.
 
 get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),

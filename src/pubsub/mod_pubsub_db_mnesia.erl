@@ -269,16 +269,16 @@ add_item(Nidx, JID, ItemId) ->
 %% ------------------------ Direct #pubsub_item access ------------------------
 
 -spec get_items(Nidx :: mod_pubsub:nodeIdx()) ->
-    {result, {[mod_pubsub:pubsubItem()], none}}.
+    {ok, {[mod_pubsub:pubsubItem()], none}}.
 get_items(Nidx) ->
     Items = mnesia:match_object(#pubsub_item{itemid = {'_', Nidx}, _ = '_'}),
-    {result, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
+    {ok, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {result, mod_pubsub:pubsubItem()} | {error, exml:element()}.
 get_item(Nidx, ItemId) ->
     case mnesia:read({pubsub_item, {ItemId, Nidx}}) of
-        [Item] when is_record(Item, pubsub_item) -> {result, Item};
+        [Item] when is_record(Item, pubsub_item) -> {ok, Item};
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
