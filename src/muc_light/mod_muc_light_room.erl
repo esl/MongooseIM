@@ -97,10 +97,10 @@ process_request({set, Invite = #invite_response{action = Action, invite_id = Inv
     case Action of 
         decline ->
             case mod_muc_light_db_backend:inv_users_remove(RoomUS, [{UserUS, InviteID}]) of 
-                {ok, [{{UserUS, InviteID}, _Affiliation, InviteUS}]} ->
-                    {set, Invite, InviteUS};
+                {ok, [{{UserUS, InviteID}, _Affiliation, InvFromUS}]} ->
+                    {set, Invite, InvFromUS, UserUS};
                 _ ->
-                    {set, Invite}
+                    {error, item_not_found}
             end;
         accept ->
             case mod_muc_light_db_backend:inv_users_remove(RoomUS, [{UserUS, InviteID}]) of
