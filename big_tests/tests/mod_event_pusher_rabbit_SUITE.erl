@@ -69,31 +69,32 @@ all() ->
     ].
 
 groups() ->
-    [
-     {exchange_handling, [],
-      [
-       exchanges_are_created_on_module_startup
-      ]},
-     {presence_status_publish, [],
-      [
-       connected_users_push_presence_events_when_change_status,
-       presence_messages_are_properly_formatted
-      ]},
-     {chat_message_publish, [],
-      [
-       chat_message_sent_event,
-       chat_message_sent_event_properly_formatted,
-       chat_message_received_event,
-       chat_message_received_event_properly_formatted
-      ]},
-     {group_chat_message_publish, [],
-     [
-      group_chat_message_sent_event,
-      group_chat_message_sent_event_properly_formatted,
-      group_chat_message_received_event,
-      group_chat_message_received_event_properly_formatted
-     ]}
-    ].
+    G = [
+         {exchange_handling, [],
+          [
+           exchanges_are_created_on_module_startup
+          ]},
+         {presence_status_publish, [],
+          [
+           connected_users_push_presence_events_when_change_status,
+           presence_messages_are_properly_formatted
+          ]},
+         {chat_message_publish, [],
+          [
+           chat_message_sent_event,
+           chat_message_sent_event_properly_formatted,
+           chat_message_received_event,
+           chat_message_received_event_properly_formatted
+          ]},
+         {group_chat_message_publish, [],
+          [
+           group_chat_message_sent_event,
+           group_chat_message_sent_event_properly_formatted,
+           group_chat_message_received_event,
+           group_chat_message_received_event_properly_formatted
+          ]}
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 suite() ->
     escalus:suite().
