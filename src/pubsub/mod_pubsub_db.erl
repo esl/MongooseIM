@@ -128,7 +128,7 @@
     {ok, {[mod_pubsub:pubsubItem()], jlib:rsm_out()}}.
 
 -callback get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
-    {ok, mod_pubsub:pubsubItem()} | {error, exml:element()}.
+    {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
 
 -callback set_item(Item :: mod_pubsub:pubsubItem()) -> ok.
 

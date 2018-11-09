@@ -275,11 +275,11 @@ get_items(Nidx) ->
     {ok, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
-    {result, mod_pubsub:pubsubItem()} | {error, exml:element()}.
+    {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
 get_item(Nidx, ItemId) ->
     case mnesia:read({pubsub_item, {ItemId, Nidx}}) of
         [Item] when is_record(Item, pubsub_item) -> {ok, Item};
-        _ -> {error, mongoose_xmpp_errors:item_not_found()}
+        _ -> {error, item_not_found}
     end.
 
 -spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok | abort.

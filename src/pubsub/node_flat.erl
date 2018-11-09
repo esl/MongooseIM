@@ -579,8 +579,8 @@ get_items(Nidx, _From, _RSM) ->
     case mod_pubsub_db_backend:get_items(Nidx) of
         {ok, Result} ->
             {result, Result};
-        {error, Error} ->
-            {error, Error}
+        {error, item_not_found} ->
+            {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
