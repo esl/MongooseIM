@@ -115,8 +115,7 @@ config_schema(MUCServer) ->
     | {error, validation_error() | bad_request | exists}.
 try_to_create_room(CreatorUS, RoomJID, #create{raw_config = RawConfig} = CreationCfg) ->
     {_RoomU, RoomS} = RoomUS = jid:to_lus(RoomJID),
-    InitialAffUsers = mod_muc_light_utils:filter_out_prevented(
-                        CreatorUS, RoomUS, CreationCfg#create.aff_users),
+    InitialAffUsers = [], %% As we use invites, we cannot add initial occupants to the room
     MaxOccupants = gen_mod:get_module_opt_by_subhost(
                      RoomJID#jid.lserver, ?MODULE, max_occupants, ?DEFAULT_MAX_OCCUPANTS),
     case {mod_muc_light_utils:process_raw_config(

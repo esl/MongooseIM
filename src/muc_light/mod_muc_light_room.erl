@@ -105,7 +105,7 @@ process_request({set, Invite = #invite_response{action = Action, invite_id = Inv
         accept ->
             case mod_muc_light_db_backend:inv_users_remove(RoomUS, [{UserUS, InviteID}]) of
                 {ok, []} -> 
-                    {error, not_allowed}; 
+                    {error, item_not_found}; 
                 {ok, [{{UserUS, InviteID}, Affiliation, _InviteUS}]} ->
                     AffUser = {UserUS, Affiliation},
                     NewVersion = mongoose_bin:gen_from_timestamp(),
@@ -150,17 +150,24 @@ process_request({set, #affiliations{} = AffReq}, _From, UserUS, {_, MUCServer} =
                   false -> undefined;
                   {OwnerUS0, _} -> OwnerUS0
               end,
+
+    %% As we use invites, we need to filterout all new users from affiliations request
+    AffChanges = lists:filter(fun(AffUser) ->
+        lists:member(AffUser, AffUsers) 
+    end, AffReq#affiliations.aff_users),
+
     ValidateResult
     = case UserAff of
           owner ->
               {ok, mod_muc_light_utils:filter_out_prevented(
-                     UserUS, RoomUS, AffReq#affiliations.aff_users)};
+                     UserUS, RoomUS, AffChanges)};
           member ->
               AllCanInvite = gen_mod:get_module_opt_by_subhost(
                                MUCServer, mod_muc_light, all_can_invite, ?DEFAULT_ALL_CAN_INVITE),
               validate_aff_changes_by_member(
-                AffReq#affiliations.aff_users, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
+                AffChanges, [], UserUS, OwnerUS, RoomUS, AllCanInvite)
       end,
+    
     process_aff_set(AffReq, RoomUS, ValidateResult);
 process_request({set, #destroy{} = DestroyReq}, _From, _UserUS, RoomUS, {_, owner}, AffUsers) ->
     ok = mod_muc_light_db_backend:destroy_room(RoomUS),
