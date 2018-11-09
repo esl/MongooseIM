@@ -186,8 +186,7 @@ chat_event_routing_key(groupchat, out, _From, To, Host) ->
                          ?DEFAULT_GROUP_CHAT_MSG_RECV_TOPIC),
     user_topic_routing_key(To, Topic).
 
--spec user_topic_routing_key(JID :: {binary(), binary(), binary()},
-                             Topic :: binary()) -> binary().
+-spec user_topic_routing_key(JID :: jid:jid(), Topic :: binary()) -> binary().
 user_topic_routing_key(JID, Topic) ->
     {User, Host, _Res} = jid:to_lower(JID),
     BinJID = jid:to_binary({User, Host}),

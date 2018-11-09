@@ -32,12 +32,12 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
 
--record(state, {amqp_client_opts :: mongoose_amqp:network_params(),
-                connection :: pid(),
-                channel :: pid(),
-                host :: binary(),
-                confirms :: boolean(),
-                max_queue_len :: non_neg_integer()}).
+-record(state, {amqp_client_opts :: mongoose_amqp:network_params() | undefined,
+                connection :: pid() | undefined,
+                channel :: pid() | undefined,
+                host :: binary() | undefined,
+                confirms :: boolean() | undefined,
+                max_queue_len :: non_neg_integer() | undefined}).
 
 -type worker_opts() :: #state{}.
 
@@ -142,7 +142,7 @@ do_handle_info({init, Opts}, State) ->
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
-                          Opts :: worker_opts()) -> ok | no_return().
+                          Opts :: worker_opts()) -> {noreply, worker_opts()}.
 handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
     {PublishTime, Result} =
         timer:tc(fun publish_message_and_wait_for_confirm/3,
@@ -196,7 +196,7 @@ restart_rabbit_connection(#state{connection = Conn, channel = Chann,
     establish_rabbit_connection(AMQPOpts, Host).
 
 
--spec establish_rabbit_connection(Opts :: proplists:proplist(),
+-spec establish_rabbit_connection(Opts :: mongoose_amqp:network_params(),
                                   Host :: jid:server()) -> {pid(), pid()}.
 establish_rabbit_connection(AMQPOpts, Host) ->
     case amqp_connection:start(AMQPOpts) of
@@ -222,7 +222,7 @@ close_rabbit_connection(Connection, Channel, Host) ->
     end,
     amqp_connection:close(Connection).
 
--spec maybe_enable_confirms(Channel :: pid(), worker_opts()) ->
+-spec maybe_enable_confirms(Channel :: pid(), proplists:proplist()) ->
     boolean() | no_return().
 maybe_enable_confirms(Channel, Opts) ->
     case proplists:get_value(confirms, Opts) of
