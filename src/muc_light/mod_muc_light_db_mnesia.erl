@@ -218,17 +218,23 @@ get_aff_users(RoomUS) ->
         [#muc_light_room{ aff_users = AffUsers, version = Version }] -> {ok, AffUsers, Version}
     end.
 
+-spec get_inv_users(RoomUS :: jid:simple_bare_jid()) ->
+    {ok, [{invite_key(), aff(), InvFromUS :: jid:simple_bare_jid()}]} | {error, Reason :: any()}.
 get_inv_users(RoomUS) ->
     case mnesia:dirty_read(muc_light_room, RoomUS) of
         [] -> {error, not_exists};
         [#muc_light_room{ inv_users = InvUsers }] -> {ok, InvUsers}
     end.
 
-inv_users_add(RoomUS, InvUsers, InviteID, InviteUS) ->
+-spec inv_users_add(RoomUS :: jid:simple_bare_jid(), InvUsers :: aff_users(), InviteID :: invite_id(), 
+    InvFromUS :: jid:simple_bare_jid()) -> ok.
+inv_users_add(RoomUS, InvUsers, InviteID, InvFromUS) ->
     {atomic, Res} = mnesia:transaction(fun add_inv_users_transaction/4,
-                                       [RoomUS, InvUsers, InviteID, InviteUS]),
+                                       [RoomUS, InvUsers, InviteID, InvFromUS]),
     Res.
 
+-spec inv_users_remove(RoomUS :: jid:simple_bare_jid(), InvUsers :: [invite_key()]) ->
+    {ok, [{invite_key(), aff(), InvFromUS :: jid:simple_bare_jid()}]} | {error, Reason :: any()}.
 inv_users_remove(RoomUS, InvUsers) ->
     {atomic, Res} = mnesia:transaction(fun remove_inv_users_transaction/2,
                                        [RoomUS, InvUsers]),
@@ -409,8 +415,13 @@ add_inv_users_transaction(RoomUS, InvUsersChanges, InviteID, InviteUS) ->
     case mnesia:wread({muc_light_room, RoomUS}) of
         [] ->
             {error, not_exists};
-        [#muc_light_room{ inv_users = InvUsers } = RoomRec] ->
-            NewInvUsers = InvUsers ++ [{{US, InviteID}, Affiliation, InviteUS} || {US, Affiliation} <- InvUsersChanges],
+        [#muc_light_room{ inv_users = CurrentInvUsers } = RoomRec] ->
+            InvitedUsers = 
+                lists:map(fun({UserUS, Affiliation}) ->
+                    {{UserUS, InviteID}, Affiliation, InviteUS}
+                end, InvUsersChanges),
+
+            NewInvUsers = CurrentInvUsers ++ InvitedUsers,
             mnesia:write(RoomRec#muc_light_room{ inv_users = lists:usort(NewInvUsers) })
     end.
 
@@ -418,10 +429,13 @@ remove_inv_users_transaction(RoomUS, InvUsersChanges) ->
     case mnesia:wread({muc_light_room, RoomUS}) of
         [] ->
             {error, not_exists};
-        [#muc_light_room{ inv_users = InvUsers } = RoomRec] ->
-            NewInvUsers = [InvUser || InvUser = {InvUserKey, _Affiliation, _InvUS} <- InvUsers, not lists:member(InvUserKey, InvUsersChanges)],
+        [#muc_light_room{ inv_users = CurrentInvUsers } = RoomRec] ->
+            NewInvUsers = 
+                lists:filter(fun({InvKey, _Aff, _InviteUS}) ->
+                    not lists:member(InvKey, InvUsersChanges)
+                end, CurrentInvUsers),
             mnesia:write(RoomRec#muc_light_room{ inv_users = NewInvUsers }),
-            {ok, lists:usort(InvUsers -- NewInvUsers)}
+            {ok, lists:usort(CurrentInvUsers -- NewInvUsers)}
     end.
 
 -spec verify_externally_and_submit(RoomUS :: jid:simple_bare_jid(),

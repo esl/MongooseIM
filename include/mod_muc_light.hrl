@@ -36,6 +36,9 @@
                                    NewAffUsers :: aff_users()) ->
                                    ok | {error, any()}).
 
+-type invite_id() :: binary().
+-type invite_key() :: {jid:simple_bare_jid(), invite_id()}.
+
 -type rooms_per_user() :: infinity | non_neg_integer().
 
 -type blocking_what() :: user | room.
