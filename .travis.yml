@@ -79,6 +79,8 @@ branches:
 
 otp_release:
         - 19.3
+        - 20.3
+        - 21.1
 env:
   global:
     - RUN_SMALL_TESTS=false

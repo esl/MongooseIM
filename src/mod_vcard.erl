@@ -163,12 +163,9 @@ start(VHost, Opts) ->
     ?WARNING_MSG("VHost: ~p", [VHost]),
     case VHost of
         <<"localhost">> ->
-            R1 = dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
-            ?WARNING_MSG("R1: ~p", [R1]),
+            dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
             R2 = dbg:p(new, [c, m, ports]),
-            ?WARNING_MSG("R2: ~p", [R2]),
-            R3 = dbg:tpl(mod_vcard_ldap, x),
-            ?WARNING_MSG("R3: ~p", [R3]);
+            ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok
     end,
