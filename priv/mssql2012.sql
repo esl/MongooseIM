@@ -474,6 +474,32 @@ GO
 CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
 GO
 
+CREATE TABLE dbo.pubsub_affiliations (
+    nidx BIGINT NOT NULL,
+    luser NVARCHAR(250) NOT NULL,
+    lserver NVARCHAR(250) NOT NULL,
+    aff TINYINT NOT NULL
+)
+GO
+
+CREATE TABLE dbo.pubsub_items (
+    nidx BIGINT NOT NULL,
+    itemid NVARCHAR(250) NOT NULL,
+    luser NVARCHAR(250) NOT NULL,
+    lserver NVARCHAR(250) NOT NULL
+)
+GO
+
+CREATE TABLE dbo.pubsub_subscriptions (
+    nidx BIGINT NOT NULL,
+    luser NVARCHAR(250) NOT NULL,
+    lserver NVARCHAR(250) NOT NULL,
+    lresource NVARCHAR(250) NOT NULL,
+    type TINYINT NOT NULL,
+    sub_id NVARCHAR(125) NOT NULL
+)
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]

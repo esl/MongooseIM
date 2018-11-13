@@ -316,3 +316,26 @@ CREATE INDEX i_inbox
     ON inbox
     USING BTREE(luser, lserver, timestamp);
 
+CREATE TABLE pubsub_affiliations (
+    nidx BIGINT             NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    aff SMALLINT            NOT NULL
+);
+
+CREATE TABLE pubsub_items (
+    nidx BIGINT             NOT NULL,
+    itemid VARCHAR(250)     NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL
+);
+
+CREATE TABLE pubsub_subscriptions (
+    nidx BIGINT             NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    lresource VARCHAR(250)  NOT NULL,
+    type SMALLINT           NOT NULL,
+    sub_id VARCHAR(125)     NOT NULL
+);
+
