@@ -160,15 +160,6 @@ start(VHost, Opts) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [VHost, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    ?WARNING_MSG("VHost: ~p", [VHost]),
-    case VHost of
-        <<"localhost">> ->
-            dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
-            R2 = dbg:p(new, [c, m, ports]),
-            ?WARNING_MSG("R2: ~p", [R2]);
-        _ ->
-            ok
-    end,
     ejabberd_sup:start_child(ChildSpec).
 
 stop(VHost) ->
@@ -195,6 +186,15 @@ start_link(VHost, Opts) ->
 
 init([VHost, Opts]) ->
     process_flag(trap_exit, true),
+    ?WARNING_MSG("VHost: ~p", [VHost]),
+    case VHost of
+        <<"localhost">> ->
+            dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
+            R2 = dbg:p(sos, [c, m, ports]),
+            ?WARNING_MSG("R2: ~p", [R2]);
+        _ ->
+            ok
+    end,
     mod_vcard_backend:init(VHost, Opts),
     [ ejabberd_hooks:add(Hook, VHost, M, F, Prio)
       || {Hook, M, F, Prio} <- hook_handlers() ],

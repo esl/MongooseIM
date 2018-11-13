@@ -204,11 +204,19 @@ start_link(Host, Opts) ->
 
 init([Host, Opts]) ->
     process_flag(trap_exit, true),
+    case Host of
+        <<"localhost">> ->
+            R2 = dbg:p(sos, [c, m, ports]),
+            ?WARNING_MSG("R2: ~p", [R2]);
+        _ ->
+            ok
+    end,
     State = parse_options(Host, Opts),
-    eldap_pool:start_link(State#state.eldap_id,
+    Eldap = eldap_pool:start_link(State#state.eldap_id,
                           State#state.servers, State#state.backups,
                           State#state.port, State#state.dn,
                           State#state.password, State#state.tls_options),
+    ?WARNING_MSG("Eldap Connection: ~p", [Eldap]),
     {ok, State}.
 
 handle_info(Info, State) ->
