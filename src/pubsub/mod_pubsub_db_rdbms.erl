@@ -157,7 +157,7 @@ create_node(Nidx, LJID) ->
 set_affiliation(Nidx, { LU, LS, _ } = LJID, none) ->
     BareLJID = jid:to_bare(LJID),
     case get_node_entity_subscriptions(Nidx, BareLJID) of
-        [] ->
+        {ok, []} ->
             del_state(Nidx, BareLJID);
         _ ->
             delete_affiliation_wo_subs_check(Nidx, LU, LS)
@@ -227,7 +227,7 @@ delete_subscription(Nidx, { LU, LS, LR }, SubId) ->
     ok.
 delete_all_subscriptions(Nidx, { LU, LS, LR } = LJID) ->
     case get_affiliation(Nidx, LJID) of
-        none ->
+        {ok, none} ->
             del_state(Nidx, LJID);
         _ ->
             SQL = sql_delete_all_subscriptions(Nidx, LU, LS, LR),
@@ -499,7 +499,7 @@ sql_get_entity_items(Nidx, LU, LS) ->
 -spec sql_delete_item(Nidx :: mod_pubsub:nodeIdx(),
                       LU :: jid:luser(),
                       LS :: jid:lserver(),
-                      ItemId :: mod_pubsub:nodeIdx()) -> iolist().
+                      ItemId :: mod_pubsub:itemId()) -> iolist().
 sql_delete_item(Nidx, LU, LS, ItemId) ->
     ["DELETE FROM pubsub_items"
     " WHERE nidx = ", esc_int(Nidx),
