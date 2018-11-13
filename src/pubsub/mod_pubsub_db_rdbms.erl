@@ -181,7 +181,7 @@ get_affiliation(Nidx, { LU, LS, _ }) ->
     SQL = sql_get_affiliation(Nidx, LU, LS),
     case mongoose_rdbms:sql_query(global, SQL) of
         {selected, [{AffInt}]} ->
-            {ok, int2aff(AffInt)};
+            {ok, sql2aff(AffInt)};
         {selected, []} ->
             {ok, none}
     end.
@@ -202,7 +202,7 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId) ->
 get_node_subscriptions(Nidx) ->
     SQL = sql_get_node_subs(Nidx),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
-    {ok, [{{LU, LS, LR}, int2sub(SubInt), SubId}
+    {ok, [{{LU, LS, LR}, sql2sub(SubInt), SubId}
           || {LU, LS, LR, SubInt, SubId} <- QueryResult ]}.
 
 -spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
@@ -211,7 +211,7 @@ get_node_subscriptions(Nidx) ->
 get_node_entity_subscriptions(Nidx, { LU, LS, LR }) ->
     SQL = sql_get_node_entity_subs(Nidx, LU, LS, LR),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
-    {ok, [{int2sub(SubInt), SubId} || {SubInt, SubId} <- QueryResult ]}.
+    {ok, [{sql2sub(SubInt), SubId} || {SubInt, SubId} <- QueryResult ]}.
 
 -spec delete_subscription(Nidx :: mod_pubsub:nodeIdx(),
                           LJID :: jid:ljid(),
@@ -560,7 +560,7 @@ aff_rows_to_states([], Acc) ->
 aff_rows_to_states([{ Nidx, LU, LS, AffInt } | RRows], Acc) ->
     LJID = { LU, LS, <<>> },
     PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
-    NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{ affiliation = int2aff(AffInt) } },
+    NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{ affiliation = sql2aff(AffInt) } },
     aff_rows_to_states(RRows, NAcc).
 
 sub_rows_to_states([], Acc) ->
@@ -570,7 +570,7 @@ sub_rows_to_states([{ Nidx, LU, LS, LR, TypeInt, SubId } | RRows], Acc) ->
     #pubsub_state{ subscriptions = Subs0 }
     = PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
     NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{
-                                subscriptions = [{int2sub(TypeInt), SubId} | Subs0] } },
+                                subscriptions = [{sql2sub(TypeInt), SubId} | Subs0] } },
     sub_rows_to_states(RRows, NAcc).
 
 esc_string(String) ->
@@ -587,6 +587,10 @@ aff2int(publish_only) -> 3;
 aff2int(member) -> 4;
 aff2int(outcast) -> 5.
 
+-spec sql2aff(integer() | binary()) -> mod_pubsub:affiliation().
+sql2aff(SqlInt) ->
+    int2aff(mongoose_rdbms:result_to_integer(SqlInt)).
+
 -spec int2aff(integer()) -> mod_pubsub:affiliation().
 int2aff(0) -> none;
 int2aff(1) -> owner;
@@ -600,6 +604,10 @@ sub2int(none) -> 0;
 sub2int(pending) -> 1;
 sub2int(unconfigured) -> 2;
 sub2int(subscribed) -> 3.
+
+-spec sql2sub(integer() | binary()) -> mod_pubsub:subscription().
+sql2sub(SqlInt) ->
+    int2sub(mongoose_rdbms:result_to_integer(SqlInt)).
 
 -spec int2sub(integer()) -> mod_pubsub:subscription().
 int2sub(0) -> none;
