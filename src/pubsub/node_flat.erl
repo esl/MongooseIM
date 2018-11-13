@@ -345,8 +345,7 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
                                            Payload, Publisher, ItemPublisher),
                    Items = [ItemId | GenState#pubsub_state.items -- [ItemId]],
                    {result, {_NI, OI}} = remove_extra_items(Nidx, MaxItems, Items),
-                   set_item(Item),
-                   mod_pubsub_db_backend:add_item(Nidx, Publisher, ItemId),
+                   mod_pubsub_db_backend:add_item(Nidx, Publisher, Item),
                    mod_pubsub_db_backend:remove_items(Nidx, Publisher, OI),
                    {result, {default, broadcast, OI}};
                false ->

@@ -113,7 +113,7 @@
 %% won't be necessary and the whole operation may be optimised in DB layer.
 -callback add_item(Nidx :: mod_pubsub:nodeIdx(),
                    JID :: jid:jid(),
-                   ItemId :: mod_pubsub:itemId()) ->
+                   ItemId :: mod_pubsub:pubsubItem()) ->
     ok.
 
 -callback remove_items(Nidx :: mod_pubsub:nodeIdx(),

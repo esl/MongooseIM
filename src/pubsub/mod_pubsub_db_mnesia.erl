@@ -259,9 +259,10 @@ remove_all_items(Nidx) ->
 
 -spec add_item(Nidx :: mod_pubsub:nodeIdx(),
                JID :: jid:jid(),
-               ItemId :: mod_pubsub:itemId()) ->
+               ItemId :: mod_pubsub:pubsubItem()) ->
     ok.
-add_item(Nidx, JID, ItemId) ->
+add_item(Nidx, JID, #pubsub_item{itemid = {ItemId, _}} = Item) ->
+    set_item(Item),
     {ok, State} = get_state(Nidx, jid:to_bare(JID), write),
     NewItems = [ItemId | State#pubsub_state.items],
     mnesia:write(State#pubsub_state{ items = NewItems }).
