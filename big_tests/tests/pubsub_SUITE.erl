@@ -23,8 +23,10 @@
          subscribe_unsubscribe_test/1,
          publish_test/1,
          publish_with_max_items_test/1,
+         publish_with_existing_id_test/1,
          notify_test/1,
          request_all_items_test/1,
+         request_particular_item_test/1,
          retract_test/1,
          retract_when_user_goes_offline_test/1,
          purge_all_items_test/1
@@ -83,7 +85,8 @@
         ]).
 
 -export([
-         debug_get_items_test/1
+         debug_get_items_test/1,
+         debug_get_item_test/1
         ]).
 
 %% Disabled tests - broken support in mod_pubsub
@@ -122,8 +125,10 @@ groups() ->
            subscribe_unsubscribe_test,
            publish_test,
            publish_with_max_items_test,
+           publish_with_existing_id_test,
            notify_test,
            request_all_items_test,
+           request_particular_item_test,
            retract_test,
            retract_when_user_goes_offline_test,
            purge_all_items_test
@@ -189,7 +194,8 @@ groups() ->
          },
          {debug_calls, [parallel],
           [
-           debug_get_items_test
+           debug_get_items_test,
+           debug_get_item_test
           ]
          }
         ],
@@ -338,6 +344,32 @@ publish_with_max_items_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
+publish_with_existing_id_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              %% Auto-create enabled by default
+
+              %% Request:  7.1.1 Ex.99  publish an item with an ItemID
+              %% Response: 7.1.2 Ex.100 success
+              Node = pubsub_node(),
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+
+              pubsub_tools:get_item(Alice, Node, <<"item1">>, [{expected_result, [<<"item1">>]}]),
+
+              %% Publish an item with the same id in order to update it
+              NewEl = #xmlel{name = <<"entry">>, children = [#xmlel{name = <<"new_entry">>}]},
+              pubsub_tools:publish(Alice, <<"item1">>, Node, [{with_payload, NewEl}]),
+              pubsub_tools:get_item(Alice, Node, <<"item1">>, [{expected_result,
+                                                                [#{id => <<"item1">>,
+                                                                   content => NewEl}]}]),
+
+
+              pubsub_tools:delete_node(Alice, Node, [])
+
+      end).
+
 notify_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -385,6 +417,23 @@ request_all_items_test(Config) ->
               %% TODO check ordering (although XEP does not specify this)
 
               pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+request_particular_item_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+              pubsub_tools:publish(Alice, <<"item2">>, Node, []),
+
+              %% Request:  6.5.8 Ex.78 subscriber requests a particular items
+              pubsub_tools:get_item(Bob, Node, <<"item1">>, [{expected_result, [<<"item1">>]}]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+
       end).
 
 retract_test(Config) ->
@@ -1292,9 +1341,29 @@ debug_get_items_test(Config) ->
               % We won't bother with importing records etc...
               2 = length(Items),
 
+              {error, _} = rpc(mim(), mod_pubsub, get_items, [NodeAddr, <<"no_such_node_here">>]),
+
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
+debug_get_item_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {NodeAddr, NodeName} = Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+              pubsub_tools:publish(Alice, <<"item2">>, Node, []),
+
+              Item = rpc(mim(), mod_pubsub, get_item, [NodeAddr, NodeName, <<"item2">>]),
+              % We won't bother with importing records etc...
+              {<<"item2">>, _} = element(2, Item),
+
+              {error, _} = rpc(mim(), mod_pubsub, get_item, [NodeAddr, NodeName, <<"itemX">>]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
 %%--------------------------------------------------------------------
 %% Tests for unsupported features  - excluded from suite
 %%--------------------------------------------------------------------
@@ -1384,7 +1453,7 @@ required_modules() ->
 verify_config_fields(NodeConfig) ->
     ValidFields = [
                    {<<"FORM_TYPE">>, <<"hidden">>},
-                   {<<"pubsub#title">>, <<"text-single">>}, 
+                   {<<"pubsub#title">>, <<"text-single">>},
                    {<<"pubsub#deliver_notifications">>, <<"boolean">>},
                    {<<"pubsub#deliver_payloads">>, <<"boolean">>},
                    {<<"pubsub#notify_config">>, <<"boolean">>},
@@ -1418,7 +1487,7 @@ verify_config_fields(NodeConfig) ->
 
 node_config_for_test() ->
     [
-     {<<"pubsub#title">>, <<"TARDIS">>}, 
+     {<<"pubsub#title">>, <<"TARDIS">>},
      {<<"pubsub#deliver_notifications">>, <<"1">>},
      {<<"pubsub#deliver_payloads">>, <<"1">>},
      {<<"pubsub#notify_config">>, <<"0">>},
