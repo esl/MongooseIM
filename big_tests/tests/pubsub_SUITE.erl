@@ -27,7 +27,8 @@
          request_all_items_test/1,
          retract_test/1,
          retract_when_user_goes_offline_test/1,
-         purge_all_items_test/1
+         purge_all_items_test/1,
+         publisher_delete_items_scope_test/1
         ]).
 
 -export([
@@ -126,7 +127,8 @@ groups() ->
            request_all_items_test,
            retract_test,
            retract_when_user_goes_offline_test,
-           purge_all_items_test
+           purge_all_items_test,
+           publisher_delete_items_scope_test
           ]
          },
          {service_config, [parallel],
@@ -460,6 +462,30 @@ purge_all_items_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+
+publisher_delete_items_scope_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              AffChange = [{Bob, <<"publish-only">>}],
+              pubsub_tools:set_affiliations(Alice, Node, AffChange, []),
+
+              verify_affiliations(pubsub_tools:get_affiliations(Alice, Node, []),
+                                  [{Alice, <<"owner">>}, {Bob, <<"publish-only">>}]),
+
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+
+              pubsub_tools:purge_all_items(Alice, Node, []),
+%%               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+%%               pubsub_tools:purge_all_items(Bob, Node, [{expected_error_type, <<"auth">>}]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
 
 %%--------------------------------------------------------------------
 %% Service config
