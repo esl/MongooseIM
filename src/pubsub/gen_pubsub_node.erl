@@ -37,7 +37,6 @@
 -type(nodeIdx() :: mod_pubsub:nodeIdx()).
 -type(itemId() :: mod_pubsub:itemId()).
 -type(pubsubNode() :: mod_pubsub:pubsubNode()).
--type(pubsubState() :: mod_pubsub:pubsubState()).
 -type(pubsubItem() :: mod_pubsub:pubsubItem()).
 -type(subOptions() :: mod_pubsub:subOptions()).
 -type(affiliation() :: mod_pubsub:affiliation()).
@@ -49,35 +48,10 @@
 -type(publishOptions() :: mod_pubsub:publishOptions()).
 
 -export([
-         init/4,
          terminate/3,
          options/1,
          features/1,
-         create_node_permission/7,
-         create_node/3,
-         delete_node/2,
-         purge_node/3,
-         subscribe_node/9,
-         unsubscribe_node/5,
-         publish_item/10,
-         delete_item/5,
-         remove_extra_items/4,
-         get_node_affiliations/2,
-         get_entity_affiliations/3,
-         get_affiliation/3,
-         set_affiliation/4,
-         get_node_subscriptions/2,
-         get_entity_subscriptions/3,
-         get_subscriptions/3,
-         get_pending_nodes/3,
-         get_items/8,
-         get_items/4,
-         get_item/8,
-         get_item/3,
-         set_item/2,
-         get_item_name/4,
-         node_to_path/2,
-         path_to_node/2
+         node_to_path/2
         ]).
 
 %% --------------------------------------------------------
@@ -217,12 +191,34 @@
 
 -callback path_to_node(Path :: [nodeId()]) -> nodeId().
 
+-optional_callbacks([create_node_permission/6,
+                     create_node/2,
+                     delete_node/1,
+                     purge_node/2,
+                     subscribe_node/8,
+                     unsubscribe_node/4,
+                     publish_item/9,
+                     delete_item/4,
+                     remove_extra_items/3,
+                     get_node_affiliations/1,
+                     get_entity_affiliations/2,
+                     get_affiliation/2,
+                     set_affiliation/3,
+                     get_node_subscriptions/1,
+                     get_entity_subscriptions/2,
+                     get_subscriptions/2,
+                     get_pending_nodes/2,
+                     get_items/7,
+                     get_items/3,
+                     get_item/7,
+                     get_item/2,
+                     set_item/1,
+                     get_item_name/3,
+                     path_to_node/1]).
+
 %% --------------------------------------------------------
 %% API
 %% --------------------------------------------------------
-
-init(Mod, Host, ServerHost, Opts) ->
-    Mod:init(Host, ServerHost, Opts).
 
 terminate(Mod, Host, ServerHost) ->
     Mod:terminate(Host, ServerHost).
@@ -233,82 +229,6 @@ options(Mod) ->
 features(Mod) ->
     Mod:features().
 
-create_node_permission(Mod, Host, ServerHost, Node, ParentNode, Owner, Access) ->
-    Mod:create_node_permission(Host, ServerHost, Node, ParentNode, Owner, Access).
-
-create_node(Mod, NodeIdx, Owner) ->
-    Mod:create_node(NodeIdx, Owner).
-
-delete_node(Mod, Nodes) ->
-    Mod:delete_node(Nodes).
-
-purge_node(Mod, NodeIdx, Owner) ->
-    Mod:purge_node(NodeIdx, Owner).
-
-subscribe_node(Mod, NodeIdx, Sender, Subscriber, AccessModel, SendLast, PresenceSubscription,
-               RosterGroup, Options) ->
-    Mod:subscribe_node(NodeIdx, Sender, Subscriber, AccessModel, SendLast, PresenceSubscription,
-                       RosterGroup, Options).
-
-unsubscribe_node(Mod, NodeIdx, Sender, Subscriber, SubId) ->
-    Mod:unsubscribe_node(NodeIdx, Sender, Subscriber, SubId).
-
-publish_item(Mod, ServerHost, NodeId, Publisher, PublishModel, MaxItems, ItemId,
-             ItemPublisher, Payload, PublishOptions) ->
-    Mod:publish_item(ServerHost, NodeId, Publisher, PublishModel, MaxItems, ItemId,
-                     ItemPublisher, Payload, PublishOptions).
-
-delete_item(Mod, NodeIdx, Publisher, PublishModel, ItemId) ->
-    Mod:delete_item(NodeIdx, Publisher, PublishModel, ItemId).
-
-remove_extra_items(Mod, NodeIdx, MaxItems, ItemIds) ->
-    Mod:remove_extra_items(NodeIdx, MaxItems, ItemIds).
-
-get_node_affiliations(Mod, NodeIdx) ->
-    Mod:get_node_affiliations(NodeIdx).
-
-get_entity_affiliations(Mod, Host, Owner) ->
-    Mod:get_entity_affiliations(Host, Owner).
-
-get_affiliation(Mod, NodeIdx, Owner) ->
-    Mod:get_affiliation(NodeIdx, Owner).
-
-set_affiliation(Mod, NodeIdx, Owner, Affiliation) ->
-    Mod:set_affiliation(NodeIdx, Owner, Affiliation).
-
-get_node_subscriptions(Mod, NodeIdx) ->
-    Mod:get_node_subscriptions(NodeIdx).
-
-get_entity_subscriptions(Mod, Host, Key) ->
-    Mod:get_entity_subscriptions(Host, Key).
-
-get_subscriptions(Mod, NodeIdx, Owner) ->
-    Mod:get_subscriptions(NodeIdx, Owner).
-
-get_pending_nodes(Mod, Host, Owner) ->
-    Mod:get_pending_nodes(Host, Owner).
-
-get_items(Mod, NodeIdx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM) ->
-    Mod:get_items(NodeIdx, JID, AccessModel, PresenceSubscription, RosterGroup, SubId, RSM).
-
-get_items(Mod, NodeIdx, From, RSM) ->
-    Mod:get_items(NodeIdx, From, RSM).
-
-get_item(Mod, NodeIdx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, SubId) ->
-    Mod:get_item(NodeIdx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, SubId).
-
-get_item(Mod, NodeIdx, ItemId) ->
-    Mod:get_item(NodeIdx, ItemId).
-
-set_item(Mod, Item) ->
-    Mod:set_item(Item).
-
-get_item_name(Mod, Host, ServerHost, Node) ->
-    Mod:get_item_name(Host, ServerHost, Node).
-
 node_to_path(Mod, Node) ->
     Mod:node_to_path(Node).
-
-path_to_node(Mod, Path) ->
-    Mod:path_to_node(Path).
 

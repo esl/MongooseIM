@@ -61,6 +61,7 @@
 
 -define(STDTREE, <<"tree">>).
 -define(STDNODE, <<"flat">>).
+-define(STDNODE_MODULE, node_flat).
 -define(PEPNODE, <<"pep">>).
 -define(PUSHNODE, <<"push">>).
 
@@ -4164,21 +4165,25 @@ tree_action(Host, Function, Args) ->
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
-    Module = plugin(Host, Type),
-    case apply(Module, Function, Args) of
+    PluginModule = plugin(Host, Type),
+    CallModule = maybe_default_node(PluginModule, Function, Args),
+    case apply(CallModule, Function, Args) of
         {result, Result} ->
             {result, Result};
         {error, Error} ->
             {error, Error};
-        {'EXIT', {undef, Undefined}} ->
-            case Type of
-                ?STDNODE -> {error, {undef, Undefined}};
-                _ -> node_call(Host, ?STDNODE, Function, Args)
-            end;
         {'EXIT', Reason} ->
             {error, Reason};
         Result ->
             {result, Result} %% any other return value is forced as result
+    end.
+
+maybe_default_node(PluginModule, Function, Args) ->
+    case erlang:function_exported(PluginModule, Function, length(Args)) of
+        true ->
+            PluginModule;
+        _ ->
+            ?STDNODE_MODULE
     end.
 
 node_action(Host, Type, Function, Args) ->
