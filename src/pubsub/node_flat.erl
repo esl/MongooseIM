@@ -47,7 +47,7 @@
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
          get_pending_nodes/2,
-         get_items/7, get_items/3, get_item/7,
+         get_items_if_authorised/3, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1]).
 
@@ -582,7 +582,10 @@ get_items(Nidx, _From, _RSM) ->
             {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
+get_items_if_authorised(Nidx, JID, #{access_model := AccessModel,
+                                     presence_permission := PresenceSubscription,
+                                     roster_permission := RosterGroup,
+                                     rsm := RSM}) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
     {ok, BareSubscriptions}
     = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, jid:to_bare(JID)),

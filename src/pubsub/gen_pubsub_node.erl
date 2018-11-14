@@ -46,6 +46,13 @@
 -type(publishModel() :: mod_pubsub:publishModel()).
 -type(payload() :: mod_pubsub:payload()).
 -type(publishOptions() :: mod_pubsub:publishOptions()).
+-type(get_item_options() :: #{access_model := accessModel(),
+                              presence_permission := boolean(),
+                              roster_permission := boolean(),
+                              rsm := none | jlib:rsm_in(),
+                              max_items => non_neg_integer(),
+                              item_ids => [itemId()],
+                              subscription_id => subId()}).
 
 -export([
          terminate/3,
@@ -159,13 +166,7 @@
 
 -callback get_pending_nodes(Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
 
--callback get_items(NodeIdx :: nodeIdx(),
-        JID :: jid:jid(),
-        AccessModel :: accessModel(),
-        PresenceSubscription :: boolean(),
-        RosterGroup :: boolean(),
-        SubId :: subId(),
-        RSM :: none | jlib:rsm_in()) ->
+-callback get_items_if_authorised(NodeIdx :: nodeIdx(), JID :: jid:jid(), get_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, exml:element()}.
 
 -callback get_items(NodeIdx :: nodeIdx(), From :: jid:jid(), RSM :: none | jlib:rsm_in()) ->
@@ -208,7 +209,7 @@
                      get_entity_subscriptions/2,
                      get_subscriptions/2,
                      get_pending_nodes/2,
-                     get_items/7,
+                     get_items_if_authorised/3,
                      get_items/3,
                      get_item/7,
                      get_item/2,

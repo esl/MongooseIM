@@ -2490,7 +2490,7 @@ get_items_with_limit(_Host, _Node, _From, _SubId, _ItemIds, _RSM, {error, _} = E
     Err;
 get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
     Action = fun (PubSubNode) ->
-                     get_items_transaction(Host, From, RSM, SubId, PubSubNode)
+                     get_items_transaction(Host, From, RSM, SubId, PubSubNode, MaxItems, ItemIds)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, RsmOut}}} ->
@@ -2507,7 +2507,8 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
     end.
 
 get_items_transaction(Host, From, RSM, SubId,
-                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
+                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = O},
+                      MaxItems, ItemIds) ->
     Features = plugin_features(Host, Type),
     case {lists:member(<<"retrieve-items">>, Features),
           lists:member(<<"persistent-items">>, Features)} of
@@ -2523,7 +2524,15 @@ get_items_transaction(Host, From, RSM, SubId,
             Owners = node_owners_call(Host, Type, Nidx, O),
             {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
                                                            AccessModel, AllowedGroups),
-            node_call(Host, Type, get_items, [Nidx, From, AccessModel, PS, RG, SubId, RSM])
+            Opts = #{access_model => AccessModel,
+                     presence_permission => PS,
+                     roster_permission => RG,
+                     rsm => RSM,
+                     max_items => MaxItems,
+                     item_ids => ItemIds,
+                     subscription_id => SubId},
+
+            node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts])
     end.
 
 filter_items_by_item_ids(Items, []) ->
@@ -2560,7 +2569,11 @@ get_allowed_items_call(Host, Nidx, From, Type, Options, Owners, RSM) ->
     AccessModel = get_option(Options, access_model),
     AllowedGroups = get_option(Options, roster_groups_allowed, []),
     {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners, AccessModel, AllowedGroups),
-    node_call(Host, Type, get_items, [Nidx, From, AccessModel, PS, RG, undefined, RSM]).
+    Opts = #{access_model => AccessModel,
+             presence_permission => PS,
+             roster_permission => RG,
+             rsm => RSM},
+    node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts]).
 
 get_last_item(Host, Type, Nidx, LJID) ->
     case get_cached_item(Host, Nidx) of
