@@ -204,9 +204,9 @@ start_link(Host, Opts) ->
 
 init([Host, Opts]) ->
     process_flag(trap_exit, true),
-    case Host of
-        <<"localhost">> ->
-            R2 = dbg:p(sos, [c, m, ports]),
+    case proplists:get_value(dbg, Opts, false) of
+        true ->
+            R2 = dbg:p(self(), [sos, c, m, ports]),
             ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok

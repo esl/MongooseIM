@@ -187,10 +187,10 @@ start_link(VHost, Opts) ->
 init([VHost, Opts]) ->
     process_flag(trap_exit, true),
     ?WARNING_MSG("VHost: ~p", [VHost]),
-    case VHost of
-        <<"localhost">> ->
+    case proplists:get_value(dbg, Opts, false) of
+        true ->
             dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
-            R2 = dbg:p(sos, [c, m, ports]),
+            R2 = dbg:p(self(), [sos, c, m, ports]),
             ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok
