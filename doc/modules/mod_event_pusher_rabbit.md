@@ -175,19 +175,21 @@ cause performance degratation.
 
 ### Worker selection strategy
 
-The module uses `mongoose_wpool` for managing worker processes  and `avaiable_worker`
-strategy is in use. Different strategies imply different behaviours of the system.
+The module uses `mongoose_wpool` (which in turn uses `wpool` underneath) for
+managing worker processes  and [`best_worker` strategy](https://github.com/inaka/worker_pool#best_worker),
+for choosing a worker, is in use by default. Different strategies imply different
+behaviours of the system.
 
 #### Event messages queueing
 
-When `available_worker` strategy is set all the event messages are queued in
+When `available_worker` strategy is in use all the event messages are queued in
 single worker pool manager process state. When diffrenet strategy is set e.g
-`next_worker` those messages are placed in worker processes inboxes. There is no
-possiblity to change the worker strategy for now.
+`best_worker` those messages are placed in worker processes inboxes. Worker
+selection strategy can be set in `rabbit` pool configuration.
 
 #### Event messages ordering
 
-`available_worker` strategy does not ensure that user events will be delivered to
+None of worker selection strategies ensures that user events will be delivered to
 a RabbitMQ server properly ordered in time.
 
 [mod_event_pusher]: ./mod_event_pusher.md
