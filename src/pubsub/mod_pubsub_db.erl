@@ -124,7 +124,7 @@
 -callback remove_all_items(Nidx :: mod_pubsub:nodeIdx()) ->
     ok.
 
--callback get_items(Nidx :: mod_pubsub:nodeIdx()) ->
+-callback get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     {ok, {[mod_pubsub:pubsubItem()], jlib:rsm_out()}}.
 
 -callback get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->

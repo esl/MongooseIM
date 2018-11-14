@@ -1370,16 +1370,24 @@ iq_pubsub_set_unsubscribe(Host, Node, From, UnsubscribeAttrs) ->
 iq_pubsub_get_items(Host, Node, From, QueryEl, GetItemsAttrs, GetItemsSubEls) ->
     MaxItems = xml:get_attr_s(<<"max_items">>, GetItemsAttrs),
     SubId = xml:get_attr_s(<<"subid">>, GetItemsAttrs),
-    ItemIds = lists:foldl(fun(#xmlel{name = <<"item">>, attrs = ItemAttrs}, Acc) ->
-                                  case xml:get_attr_s(<<"id">>, ItemAttrs) of
-                                      <<>> -> Acc;
-                                      ItemId -> [ItemId | Acc]
-                                  end;
-                              (_, Acc) ->
-                                  Acc
-                          end,
-                          [], xml:remove_cdata(GetItemsSubEls)),
+    ItemIds = extract_item_ids(GetItemsSubEls),
     get_items(Host, Node, From, SubId, MaxItems, ItemIds, jlib:rsm_decode(QueryEl)).
+
+extract_item_ids(GetItemsSubEls) ->
+    case lists:foldl(fun extract_item_id/2, [], GetItemsSubEls) of
+        [] ->
+            undefined;
+        List ->
+            List
+    end.
+
+extract_item_id(#xmlel{name = <<"item">>} = Item, Acc) ->
+  case exml_query:attr(Item, <<"id">>) of
+      undefined -> Acc;
+      ItemId -> [ItemId | Acc]
+    end;
+extract_item_id(_, Acc) -> Acc.
+
 
 iq_pubsub_get_options(Host, Node, Lang, GetOptionsAttrs) ->
     SubId = xml:get_attr_s(<<"subid">>, GetOptionsAttrs),
@@ -2494,13 +2502,12 @@ get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, RsmOut}}} ->
-            SendItems = filter_items_by_item_ids(Items, ItemIds),
             {result,
              [#xmlel{name = <<"pubsub">>,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                      children =
                      [#xmlel{name = <<"items">>, attrs = node_attr(Node),
-                             children = items_els(lists:sublist(SendItems, MaxItems))}
+                             children = items_els(Items)}
                       | jlib:rsm_encode(RsmOut)]}]};
         Error ->
             Error
@@ -2535,16 +2542,9 @@ get_items_transaction(Host, From, RSM, SubId,
             node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts])
     end.
 
-filter_items_by_item_ids(Items, []) ->
-    Items;
-filter_items_by_item_ids(Items, ItemIds) ->
-    lists:filter(fun (#pubsub_item{itemid = {ItemId, _}}) ->
-                         lists:member(ItemId, ItemIds)
-                 end, Items).
-
 get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), none])
+                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), #{}])
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, _}}} -> Items;
@@ -2578,7 +2578,7 @@ get_allowed_items_call(Host, Nidx, From, Type, Options, Owners, RSM) ->
 get_last_item(Host, Type, Nidx, LJID) ->
     case get_cached_item(Host, Nidx) of
         undefined ->
-            case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
+            case node_action(Host, Type, get_items, [Nidx, LJID, #{}]) of
                 {result, {[LastItem|_], _}} -> LastItem;
                 _ -> undefined
             end;
@@ -2587,7 +2587,7 @@ get_last_item(Host, Type, Nidx, LJID) ->
     end.
 
 get_last_items(Host, Type, Nidx, LJID, Number) ->
-    case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
+    case node_action(Host, Type, get_items, [Nidx, LJID, #{}]) of
         {result, {Items, _}} -> lists:sublist(Items, Number);
         _ -> []
     end.
@@ -4372,7 +4372,7 @@ check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
     end.
 
 purge_offline(Host, {User, Server, _} = _LJID, #pubsub_node{ id = Nidx, type = Type } = Node) ->
-    case node_action(Host, Type, get_items, [Nidx, service_jid(Host), none]) of
+    case node_action(Host, Type, get_items, [Nidx, service_jid(Host), #{}]) of
         {result, {[], _}} ->
             ok;
         {result, {Items, _}} ->

@@ -42,7 +42,7 @@
 % Whole Items
 
 -export([
-         get_items/1,
+         get_items/2,
          get_item/2,
          set_item/1,
          del_item/2,
@@ -269,11 +269,26 @@ add_item(Nidx, JID, #pubsub_item{itemid = {ItemId, _}} = Item) ->
 
 %% ------------------------ Direct #pubsub_item access ------------------------
 
--spec get_items(Nidx :: mod_pubsub:nodeIdx()) ->
+-spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     {ok, {[mod_pubsub:pubsubItem()], none}}.
-get_items(Nidx) ->
+get_items(Nidx, Opts) ->
     Items = mnesia:match_object(#pubsub_item{itemid = {'_', Nidx}, _ = '_'}),
-    {ok, {lists:reverse(lists:keysort(#pubsub_item.modification, Items)), none}}.
+    Sorted = lists:reverse(lists:keysort(#pubsub_item.modification, Items)),
+    ItemsLimitedByIds = filter_items_by_item_ids(Sorted, maps:get(item_ids, Opts, undefined)),
+    ItemsLimitedByMaxItems = limit_items(ItemsLimitedByIds, maps:get(max_items, Opts, undefined)),
+    {ok, {ItemsLimitedByMaxItems, none}}.
+
+filter_items_by_item_ids(Items, undefined) ->
+    Items;
+filter_items_by_item_ids(Items, ItemIds) ->
+    lists:filter(fun (#pubsub_item{itemid = {ItemId, _}}) ->
+                         lists:member(ItemId, ItemIds)
+                 end, Items).
+
+limit_items(Items, undefined) ->
+    Items;
+limit_items(Items, MaxItems) ->
+    lists:sublist(Items, MaxItems).
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.

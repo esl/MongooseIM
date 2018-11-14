@@ -46,13 +46,16 @@
 -type(publishModel() :: mod_pubsub:publishModel()).
 -type(payload() :: mod_pubsub:payload()).
 -type(publishOptions() :: mod_pubsub:publishOptions()).
--type(get_item_options() :: #{access_model := accessModel(),
-                              presence_permission := boolean(),
-                              roster_permission := boolean(),
-                              rsm := none | jlib:rsm_in(),
-                              max_items => non_neg_integer(),
-                              item_ids => [itemId()],
-                              subscription_id => subId()}).
+-type(get_authorised_item_options() :: #{access_model := accessModel(),
+                                         presence_permission := boolean(),
+                                         roster_permission := boolean(),
+                                         rsm := none | jlib:rsm_in(),
+                                         max_items => non_neg_integer(),
+                                         item_ids => [itemId()],
+                                         subscription_id => subId()}).
+-type(get_item_options() :: #{rsm => none | jlib:rms_in(),
+                              max_items => undefined | non_neg_integer(),
+                              item_ids => undefined | [itemId()]}).
 
 -export([
          terminate/3,
@@ -60,6 +63,8 @@
          features/1,
          node_to_path/2
         ]).
+
+-export_type([get_item_options/0]).
 
 %% --------------------------------------------------------
 %% Callbacks
@@ -166,10 +171,10 @@
 
 -callback get_pending_nodes(Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
 
--callback get_items_if_authorised(NodeIdx :: nodeIdx(), JID :: jid:jid(), get_item_options()) ->
+-callback get_items_if_authorised(NodeIdx :: nodeIdx(), JID :: jid:jid(), get_authorised_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, exml:element()}.
 
--callback get_items(NodeIdx :: nodeIdx(), From :: jid:jid(), RSM :: none | jlib:rsm_in()) ->
+-callback get_items(NodeIdx :: nodeIdx(), From :: jid:jid(), get_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}}.
 
 -callback get_item(NodeIdx :: nodeIdx(),

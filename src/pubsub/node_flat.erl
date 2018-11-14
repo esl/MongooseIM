@@ -574,8 +574,8 @@ get_node_if_has_pending_subs(NodeTree, #pubsub_state{stateid = {_, N}, subscript
 %% mod_pubsub module.</p>
 %% <p>PubSub plugins can store the items where they wants (for example in a
 %% relational database), or they can even decide not to persist any items.</p>
-get_items(Nidx, _From, _RSM) ->
-    case mod_pubsub_db_backend:get_items(Nidx) of
+get_items(Nidx, _From, Opts) ->
+    case mod_pubsub_db_backend:get_items(Nidx, Opts) of
         {ok, Result} ->
             {result, Result};
         {error, item_not_found} ->
@@ -585,7 +585,7 @@ get_items(Nidx, _From, _RSM) ->
 get_items_if_authorised(Nidx, JID, #{access_model := AccessModel,
                                      presence_permission := PresenceSubscription,
                                      roster_permission := RosterGroup,
-                                     rsm := RSM}) ->
+                                     rsm := RSM} = Opts) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
     {ok, BareSubscriptions}
     = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, jid:to_bare(JID)),
@@ -595,7 +595,11 @@ get_items_if_authorised(Nidx, JID, #{access_model := AccessModel,
                   can_fetch_item(Affiliation, FullSubscriptions),
     case authorize_get_item(Affiliation, AccessModel, PresenceSubscription,
                             RosterGroup, Whitelisted) of
-        ok -> get_items(Nidx, JID, RSM);
+        ok ->
+            LowLevelOpts = #{rsm => RSM,
+                             max_items => maps:get(max_items, Opts, undefined),
+                             item_ids => maps:get(item_ids, Opts, undefined)},
+            get_items(Nidx, JID, LowLevelOpts);
         {error, _} = Err -> Err
     end.
 
