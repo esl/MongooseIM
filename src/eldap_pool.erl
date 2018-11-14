@@ -93,8 +93,9 @@ parse_add_attr({N, List}) ->
 start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, _Opts) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
+  LogFun = fun(_, FormatString, FormatArgs) -> ?WARNING_MSG(FormatString, FormatArgs) end,
   lists:foreach(fun (Host) ->
-    case catch eldap:open([maybe_b2list(Host)], [{port, Port}])
+    case catch eldap:open([maybe_b2list(Host)], [{port, Port}, {log, LogFun}])
     of
       {ok, Pid} ->
         ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
