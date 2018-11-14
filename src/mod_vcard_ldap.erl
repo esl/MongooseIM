@@ -203,6 +203,7 @@ start_link(Host, Opts) ->
                           [Host, Opts], []).
 
 init([Host, Opts]) ->
+    ?WARNING_MSG("Opts: ~p", [Opts]),
     process_flag(trap_exit, true),
     case proplists:get_value(dbg, Opts, false) of
         true ->

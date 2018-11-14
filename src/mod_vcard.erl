@@ -191,6 +191,7 @@ init([VHost, Opts]) ->
         true ->
             dbg:tracer(port, dbg:trace_port(file, "log/vcard.trace")),
             R2 = dbg:p(self(), [sos, c, m, ports]),
+            dbg:tp(mod_vcard_ldap, x),
             ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok
