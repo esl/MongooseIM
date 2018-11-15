@@ -367,15 +367,23 @@ CREATE INDEX i_pubsub_affiliations_nidx USING BTREE ON pubsub_affiliations(nidx)
 CREATE TABLE pubsub_items (
     nidx BIGINT UNSIGNED NOT NULL,
     itemid VARCHAR(250) NOT NULL,
-    luser VARCHAR(250) NOT NULL,
-    lserver VARCHAR(250) NOT NULL
+    created_luser VARCHAR(250) NOT NULL,
+    created_lserver VARCHAR(250) NOT NULL,
+    created_at BIGINT                   NOT NULL,
+    modified_luser VARCHAR(250)         NOT NULL,
+    modified_lserver VARCHAR(250)       NOT NULL,
+    modified_lresource VARCHAR(250)     NOT NULL,
+    modified_at BIGINT                  NOT NULL,
+    publisher TEXT,
+    payload TEXT                        NOT NULL,
+    PRIMARY KEY(nidx, itemid)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
-
 -- we skip luser and lserver in this one as this is little chance (even impossible?)
 -- to have itemid duplication for distinct users
-CREATE INDEX i_pubsub_items_nidx_itemid USING BTREE ON pubsub_items(nidx, itemid);
-CREATE INDEX i_pubsub_items_lus_nidx USING BTREE ON pubsub_items(luser, lserver(50), nidx);
+CREATE INDEX i_pubsub_items_nidx_itemid USING BTREE ON pubsub_items(nidx);
+CREATE INDEX i_pubsub_items_lus_nidx USING BTREE ON pubsub_items(created_luser, created_lserver(50), nidx);
+
 
 CREATE TABLE pubsub_subscriptions (
     nidx BIGINT UNSIGNED NOT NULL,

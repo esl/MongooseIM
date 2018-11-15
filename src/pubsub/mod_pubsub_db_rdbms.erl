@@ -7,9 +7,11 @@
 
 -module(mod_pubsub_db_rdbms).
 -author('piotr.nosek@erlang-solutions.com').
+-author('michal.piotrowski@erlang-solutions.com').
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include("mongoose_logger.hrl").
 
 -export([start/0, stop/0]).
 % Funs execution
@@ -163,24 +165,49 @@ del_state(Nidx, {LU, LS, LR}) ->
 -spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     {ok, {[mod_pubsub:pubsubItem()], none}}.
 get_items(Nidx, Opts) ->
-    mod_pubsub_db_mnesia:get_items(Nidx, Opts).
+    SQL = mod_pubsub_db_rdbms_sql:get_items(Nidx, Opts),
+    {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
+    Result = [item_to_record(Row) || Row <- Rows],
+    {ok, {Result, none}}.
+
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
 get_item(Nidx, ItemId) ->
-    mod_pubsub_db_mnesia:get_item(Nidx, ItemId).
+    SQL = mod_pubsub_db_rdbms_sql:get_item(Nidx, ItemId),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, []} ->
+            {error, item_not_found};
+        {selected, [Item]} ->
+            {ok, item_to_record(Item)}
+    end.
 
 -spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok | abort.
-set_item(Item) ->
-    mod_pubsub_db_mnesia:set_item(Item).
+set_item(#pubsub_item{itemid = {ItemId, NodeIdx},
+                      creation = {CreatedAt, {CreatedLUser, CreatedLServer, _}},
+                      modification = {ModifiedAt, {ModifiedLUser, ModifiedLServer, ModifiedLResource}},
+                      publisher = Publisher,
+                      payload = Payload}) ->
+    PayloadXML = #xmlel{name = <<"item">>, children = Payload},
+    SQL = mod_pubsub_db_rdbms_sql:upsert_item(NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
+                                              ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
+                                              Publisher, PayloadXML),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    ok.
 
 -spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
 del_item(Nidx, ItemId) ->
-    mod_pubsub_db_mnesia:del_item(Nidx, ItemId).
+    SQL = mod_pubsub_db_rdbms_sql:del_item(Nidx, ItemId),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    ok.
 
 -spec del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
+del_items(_, []) ->
+    ok;
 del_items(Nidx, ItemIds) ->
-    mod_pubsub_db_mnesia:del_items(Nidx, ItemIds).
+    SQL = mod_pubsub_db_rdbms_sql:del_items(Nidx, ItemIds),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    ok.
 
 % ------------------- Node management --------------------------------
 
@@ -283,10 +310,8 @@ update_subscription(Nidx, { LU, LS, LR }, Subscription, SubId) ->
                LJID :: jid:ljid(),
                Item :: mod_pubsub:pubsubItem()) ->
     ok.
-add_item(Nidx, { LU, LS, _ }, #pubsub_item{ itemid = {ItemId, _} } = Item) ->
-    mod_pubsub_db_mnesia:set_item(Item),
-    SQL = mod_pubsub_db_rdbms_sql:insert_item(Nidx, LU, LS, ItemId),
-    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+add_item(_Nidx, _, Item) ->
+    set_item(Item),
     ok.
 
 %% TODO: Make public at some point
@@ -424,3 +449,29 @@ int2sub(1) -> pending;
 int2sub(2) -> unconfigured;
 int2sub(3) -> subscribed.
 
+item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
+                ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
+                PublisherIn, PayloadDB}) ->
+    PayloadXML = mongoose_rdbms:unescape_binary(CreatedLServer, PayloadDB),
+    {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
+    ItemAndNodeId = {ItemId, mongoose_rdbms:result_to_integer(NodeIdx)},
+    Creation = {usec:to_now(mongoose_rdbms:result_to_integer(CreatedAt)),
+                {CreatedLUser, CreatedLServer, <<>>}},
+    Modification = {usec:to_now(mongoose_rdbms:result_to_integer(ModifiedAt)),
+                    {ModifiedLUser, ModifiedLServer, ModifiedLResource}},
+    Publisher = decode_publisher(PublisherIn),
+    #pubsub_item{itemid = ItemAndNodeId,
+                 creation = Creation,
+                 modification = Modification,
+                 publisher = Publisher,
+                 payload = Payload}.
+
+decode_publisher(null) ->
+    undefined;
+decode_publisher(Binary) ->
+    jid:from_binary(Binary).
+
+
+%%====================================================================
+%% Helpers
+%%====================================================================

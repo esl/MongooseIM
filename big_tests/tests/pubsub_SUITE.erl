@@ -551,10 +551,10 @@ publish_only_retract_items_scope_test(Config) ->
                 %% Request:  7.2.1 Ex.116 publish-only sends a retract request for his own item
                 %% Response: 7.2.2 Ex.117 success
                 pubsub_tools:retract_item(Bob, Node, <<"item1">>, []),
-                
+
                 %% Request:  7.2.1 Ex.116 publish-only sends a retract request for someone's else item
                 %% Response: 7.2.3.1 Ex.120 insufficient privileges
-                pubsub_tools:retract_item(Bob, Node, <<"item2">>, [{expected_error_type, <<"auth">>}]),                        
+                pubsub_tools:retract_item(Bob, Node, <<"item2">>, [{expected_error_type, <<"auth">>}]),
                 pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
 
                 pubsub_tools:delete_node(Alice, Node, [])

@@ -10,7 +10,7 @@
 -- but WITHOUT ANY WARRANTY; without even the implied warranty of
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 -- General Public License for more details.
---                         
+--
 -- You should have received a copy of the GNU General Public License
 -- along with this program; if not, write to the Free Software
 -- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
@@ -327,16 +327,25 @@ CREATE TABLE pubsub_affiliations (
 CREATE INDEX i_pubsub_affiliations_nidx ON pubsub_affiliations(nidx);
 
 CREATE TABLE pubsub_items (
-    nidx BIGINT             NOT NULL,
-    itemid VARCHAR(250)     NOT NULL,
-    luser VARCHAR(250)      NOT NULL,
-    lserver VARCHAR(250)    NOT NULL
+    nidx BIGINT                         NOT NULL,
+    itemid VARCHAR(250)                 NOT NULL,
+    created_luser VARCHAR(250)          NOT NULL,
+    created_lserver VARCHAR(250)        NOT NULL,
+    created_at BIGINT                   NOT NULL,
+    modified_luser VARCHAR(250)         NOT NULL,
+    modified_lserver VARCHAR(250)       NOT NULL,
+    modified_lresource VARCHAR(250)     NOT NULL,
+    modified_at BIGINT                  NOT NULL,
+    publisher TEXT,
+    payload TEXT                        NOT NULL,
+    PRIMARY KEY(nidx, itemid)
 );
 
 -- we skip luser and lserver in this one as this is little chance (even impossible?)
 -- to have itemid duplication for distinct users
-CREATE INDEX i_pubsub_items_nidx_itemid ON pubsub_items(nidx, itemid);
-CREATE INDEX i_pubsub_items_lus_nidx ON pubsub_items(luser, lserver, nidx);
+CREATE INDEX i_pubsub_items_lus_nidx ON pubsub_items(created_luser, created_lserver, nidx);
+CREATE INDEX i_pubsub_items_nidx ON pubsub_items(nidx);
+
 
 CREATE TABLE pubsub_subscriptions (
     nidx BIGINT             NOT NULL,
