@@ -29,7 +29,8 @@
          request_particular_item_test/1,
          retract_test/1,
          retract_when_user_goes_offline_test/1,
-         purge_all_items_test/1
+         purge_all_items_test/1,
+         publish_only_retract_items_scope_test/1
         ]).
 
 -export([
@@ -131,7 +132,8 @@ groups() ->
            request_particular_item_test,
            retract_test,
            retract_when_user_goes_offline_test,
-           purge_all_items_test
+           purge_all_items_test,
+           publish_only_retract_items_scope_test
           ]
          },
          {service_config, [parallel],
@@ -509,6 +511,33 @@ purge_all_items_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+
+publish_only_retract_items_scope_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+                Node = pubsub_node(),
+                pubsub_tools:create_node(Alice, Node, []),
+                AffChange = [{Bob, <<"publish-only">>}],
+                pubsub_tools:set_affiliations(Alice, Node, AffChange, []),
+
+
+                pubsub_tools:publish(Bob, <<"item1">>, Node, []),
+                pubsub_tools:publish(Alice, <<"item2">>, Node, []),
+
+                %% Request:  7.2.1 Ex.116 publish-only sends a retract request for his own item
+                %% Response: 7.2.2 Ex.117 success
+                pubsub_tools:retract_item(Bob, Node, <<"item1">>, []),
+                
+                %% Request:  7.2.1 Ex.116 publish-only sends a retract request for someone's else item
+                %% Response: 7.2.3.1 Ex.120 insufficient privileges
+                pubsub_tools:retract_item(Bob, Node, <<"item2">>, [{expected_error_type, <<"auth">>}]),                        
+                pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item2">>]}]),
+
+                pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
 
 %%--------------------------------------------------------------------
 %% Service config
