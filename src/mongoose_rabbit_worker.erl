@@ -15,7 +15,7 @@
 %%
 %% @doc
 %% Generic RabbitMQ worker. The module is responsible for interacting with
-%% RabbitMQ server. Worker holds it's own AMQP connection and channel in it's
+%% RabbitMQ server. Worker holds its own AMQP connection and channel in its
 %% state.
 %% @end
 %%==============================================================================

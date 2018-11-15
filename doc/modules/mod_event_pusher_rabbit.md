@@ -12,7 +12,7 @@ receiver) along with the message body.
 
 All these notifications are sent as JSON strings to RabbitMQ exchanges. Type
 of exchanges can be chosen as desired. Each type of the notifications is sent
-to it's dedicated exchange. There are three exchanges created on startup of the
+to its dedicated exchange. There are three exchanges created on startup of the
 module, for presences, private messages and group chat messages related events.
 
 Messages are published to a RabbitMQ server with routing key being set to a user
@@ -126,9 +126,9 @@ as well. Provided metrics:
   * `messages_failed` - number of messages to a RabbitMQ server that were
   rejected by the server since module startup
   * `message_publish_time` - amount of time it takes to publish a message to
-  a RabbitMQ server and receives a confirmation
-  * `message_payload_size` - size of a messages (in bytes) that was published to
-  a RabbitMQ server
+  a RabbitMQ server and receive a confirmation
+  * `message_payload_size` - size of a message (in bytes) that was published to
+  a RabbitMQ server (including message properties)
 
 > All the above metrics have a prefix which looks as follows:  
 > `mongooseim.<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
@@ -143,8 +143,11 @@ This module is still in an experimental phase.
 
 There are no guarantees. The current implementation uses "best effort" approach
 which means that we don't care if a message is delivered to a RabbitMQ server.
-If a message couldn't be delivered to the server for any reason the module
-just updates appropriate metrics and print some log messages.
+If [`publisher confirms`](#publisher-confirms) are enabled and a message
+couldn't be delivered to the server for some reason (the server sent negative
+acknowledgement/didn't sent it at all or there was a channel exception)
+the module just updates appropriate metrics and print some log messages. Notice
+that there might be situations when a message silenty gets lost.
 
 ### Type of exchanges
 
@@ -170,8 +173,8 @@ confirmations can be enabled (see
 section). When a worker sends a message to a RabbitMQ server it waits for a
 confirmation from the server before it starts to process next message. This
 approach allows to introduce backpressure on a RabbitMQ server connection cause
-the server can reject messages when it's overloaded. On the other hand it can
-cause performance degratation.
+the server can reject/not confirm messages when it's overloaded. On the other
+hand it can cause performance degratation.
 
 ### Worker selection strategy
 

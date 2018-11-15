@@ -474,7 +474,7 @@ Any other `Tag` can be used for any other RabbitMQ connection pool.
 
 The `ConnectionOptions` list can take following parametrs as `{key, value`} pairs:
 
-* **amqp_host** (default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address);
+* **amqp_host** (default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address; both as a string);
 * **amqp_port** (default: `5672`) - Defines RabbitMQ server AMQP port;
 * **amqp_username** (default: `<<"guest">>`) - Defines RabbitMQ server username;
 * **amqp_password** (default: `<<"guest">>`) - Defines RabbitMQ server password;
