@@ -60,7 +60,7 @@ start_link() ->
                                     [supervisor:child_spec()]}}.
 init([]) ->
     SupFlags = #{strategy => one_for_one,
-                 intensity => 10,
-                 period => 1},
+                 intensity => 100,
+                 period => 5},
     Shapers = shaper_srv:child_specs(),
     {ok, { SupFlags, Shapers }}.
