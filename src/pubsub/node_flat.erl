@@ -400,13 +400,7 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
     GenKey = jid:to_bare(jid:to_lower(Publisher)),
     {ok, GenState} = mod_pubsub_db_backend:get_state(Nidx, jid:to_bare(Publisher)),
     #pubsub_state{affiliation = Affiliation, items = Items} = GenState,
-    Allowed = Affiliation == publisher orelse
-        Affiliation == owner orelse
-        PublishModel == open orelse
-        case get_item(Nidx, ItemId) of
-        {result, #pubsub_item{creation = {_, GenKey}}} -> true;
-        _ -> false
-    end,
+    Allowed = get_permition(Affiliation, PublishModel, Nidx, ItemId, GenKey),
     case Allowed of
         false ->
             {error, mongoose_xmpp_errors:forbidden()};
@@ -419,6 +413,15 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
                 false ->
                     delete_foreign_item(Nidx, ItemId, Affiliation)
             end
+    end.
+
+get_permition(publisher, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
+get_permition(owner, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
+get_permition(_Affiliation, open, _Nidx, _ItemId, _GenKey) -> true;
+get_permition(_Affiliation, _PublishModel, Nidx, ItemId, GenKey) -> 
+    case get_item(Nidx, ItemId) of
+        {result, #pubsub_item{creation = {_, GenKey}}} -> true;
+        _ -> false
     end.
 
 %% Delete an item that does not belong to the user
