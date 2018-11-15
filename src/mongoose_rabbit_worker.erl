@@ -120,7 +120,7 @@ do_handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
     case try_to_apply(amqp_channel, call, [Channel, Method]) of
         {ok, _} = Res ->
             {reply, Res, State};
-        {error, _, _} = Err ->
+        Err ->
             {FreshConn, FreshChann} = restart_rabbit_connection(State),
             {reply, Err, State#state{connection = FreshConn,
                                      channel = FreshChann}}
@@ -180,7 +180,7 @@ publish_message_and_wait_for_confirm(Method, Payload,
     case try_to_apply(amqp_channel, call, [Channel, Method, Payload]) of
         {ok, _} ->
             maybe_wait_for_confirms(Channel, IsConfirmEnabled);
-        {error, E, R} -> {channel_exception, E, R}
+        {E, R} -> {channel_exception, E, R}
     end.
 
 -spec maybe_wait_for_confirms(Channel :: pid(), boolean()) ->
@@ -268,14 +268,14 @@ update_closed_connections_metrics(Host) ->
     mongoose_metrics:update(Host, ?CONNECTIONS_CLOSED_METRIC, 1).
 
 -spec try_to_apply(Mod :: module(), Fun :: atom(), [term()]) ->
-    {ok, term()} | {error, term(), term()}.
+    {ok, term()} | {atom(), term()}.
 try_to_apply(Mod, Fun, Args) ->
     try erlang:apply(Mod, Fun, Args) of
         Res ->
             {ok, Res}
     catch
         Error:Reason ->
-            {error, Error, Reason}
+            {Error, Reason}
     end.
 
 -spec maybe_handle_request(Callback :: function(), Args :: [term()],

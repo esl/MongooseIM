@@ -86,7 +86,6 @@ initialize_metrics(Host) ->
 
 -spec create_exchanges(Host :: jid:server()) -> ok.
 create_exchanges(Host) ->
-
     Res =
         [call_rabbit_worker(Host, {amqp_call,
                                    mongoose_amqp:exchange_declare(ExName, Type)})
@@ -228,5 +227,5 @@ verify_exchanges_were_created_or_crash(Res) ->
         true ->
             ok;
         false ->
-            erlang:throw("Creating exchanges failed.")
+            erlang:error("Creating exchanges failed.")
     end.
