@@ -357,9 +357,12 @@ CREATE TABLE pubsub_affiliations (
     nidx BIGINT UNSIGNED NOT NULL,
     luser VARCHAR(250) NOT NULL,
     lserver VARCHAR(250) NOT NULL,
-    aff TINYINT UNSIGNED NOT NULL
+    aff TINYINT UNSIGNED NOT NULL,
+    PRIMARY KEY(luser, lserver(50), nidx)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX i_pubsub_affiliations_nidx USING BTREE ON pubsub_affiliations(nidx);
 
 CREATE TABLE pubsub_items (
     nidx BIGINT UNSIGNED NOT NULL,
@@ -368,6 +371,11 @@ CREATE TABLE pubsub_items (
     lserver VARCHAR(250) NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
+
+-- we skip luser and lserver in this one as this is little chance (even impossible?)
+-- to have itemid duplication for distinct users
+CREATE INDEX i_pubsub_items_nidx_itemid USING BTREE ON pubsub_items(nidx, itemid);
+CREATE INDEX i_pubsub_items_lus_nidx USING BTREE ON pubsub_items(luser, lserver(50), nidx);
 
 CREATE TABLE pubsub_subscriptions (
     nidx BIGINT UNSIGNED NOT NULL,
@@ -378,4 +386,7 @@ CREATE TABLE pubsub_subscriptions (
     sub_id VARCHAR(125) NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX i_pubsub_subscriptions_lus_nidx USING BTREE ON pubsub_subscriptions(luser, lserver(50), nidx);
+CREATE INDEX i_pubsub_subscriptions_nidx USING BTREE ON pubsub_subscriptions(nidx);
 

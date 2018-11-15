@@ -138,7 +138,7 @@ get_states_by_bare_and_full({ LU, LS, LR } = LJID) ->
 get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
     IdxsSQL = mod_pubsub_db_rdbms_sql:get_idxs_of_own_nodes_with_pending_subs(LU, LS),
     {selected, Rows} = mongoose_rdbms:sql_query(global, IdxsSQL),
-    {ok, [ Nidx || {Nidx} <- Rows ]}.
+    {ok, [ mongoose_rdbms:result_to_integer(Nidx) || {Nidx} <- Rows ]}.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
                 LJID :: jid:ljid()) -> ok.
@@ -168,16 +168,9 @@ set_affiliation(Nidx, { LU, LS, _ } = LJID, none) ->
         _ ->
             delete_affiliation_wo_subs_check(Nidx, LU, LS)
     end;
-set_affiliation(Nidx, { LU, LS, _ } = LJID, Affiliation) ->
-    %% TODO: Replace with proper upsert!!!
-    case get_affiliation(Nidx, LJID) of
-        {ok, none} ->
-            SQL = mod_pubsub_db_rdbms_sql:insert_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
-            {updated, _} = mongoose_rdbms:sql_query(global, SQL);
-        _ ->
-            SQL = mod_pubsub_db_rdbms_sql:update_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
-            {updated, _} = mongoose_rdbms:sql_query(global, SQL)
-    end,
+set_affiliation(Nidx, { LU, LS, _ }, Affiliation) ->
+    SQL = mod_pubsub_db_rdbms_sql:upsert_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
 -spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
@@ -309,15 +302,15 @@ delete_affiliation_wo_subs_check(Nidx, LU, LS) ->
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
--type item_row() :: { Nidx :: mod_pubsub:nodeIdx(),
+-type item_row() :: { NidxSql :: integer() | binary(),
                       LU :: binary(),
                       LS :: binary(),
                       ItemId :: binary() }.
--type aff_row() :: { Nidx :: mod_pubsub:nodeIdx(),
+-type aff_row() :: { NidxSql :: integer() | binary(),
                      LU :: binary(),
                      LS :: binary(),
                      AffInt :: integer() }.
--type sub_row() :: { Nidx :: mod_pubsub:nodeIdx(),
+-type sub_row() :: { NidxSql :: integer() | binary(),
                      LU :: binary(),
                      LS :: binary(),
                      LR :: binary(),
@@ -333,7 +326,8 @@ build_states(ItemRows, AffRows, SubRows) ->
 
 item_rows_to_states([], Acc) ->
     Acc;
-item_rows_to_states([{ Nidx, LU, LS, ItemId } | RRows], Acc) ->
+item_rows_to_states([{ NidxSql, LU, LS, ItemId } | RRows], Acc) ->
+    Nidx = mongoose_rdbms:result_to_integer(NidxSql),
     LJID = { LU, LS, <<>> },
     PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
     #pubsub_state{ items = Items0 } = PS,
@@ -342,7 +336,8 @@ item_rows_to_states([{ Nidx, LU, LS, ItemId } | RRows], Acc) ->
 
 aff_rows_to_states([], Acc) ->
     Acc;
-aff_rows_to_states([{ Nidx, LU, LS, AffInt } | RRows], Acc) ->
+aff_rows_to_states([{ NidxSql, LU, LS, AffInt } | RRows], Acc) ->
+    Nidx = mongoose_rdbms:result_to_integer(NidxSql),
     LJID = { LU, LS, <<>> },
     PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
     NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{ affiliation = sql2aff(AffInt) } },
@@ -350,7 +345,8 @@ aff_rows_to_states([{ Nidx, LU, LS, AffInt } | RRows], Acc) ->
 
 sub_rows_to_states([], Acc) ->
     Acc;
-sub_rows_to_states([{ Nidx, LU, LS, LR, TypeInt, SubId } | RRows], Acc) ->
+sub_rows_to_states([{ NidxSql, LU, LS, LR, TypeInt, SubId } | RRows], Acc) ->
+    Nidx = mongoose_rdbms:result_to_integer(NidxSql),
     LJID = { LU, LS, LR },
     PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
     #pubsub_state{ subscriptions = Subs0 } = PS,

@@ -23,8 +23,7 @@
 
 % Affiliations
 -export([
-         insert_affiliation/4,
-         update_affiliation/4,
+         upsert_affiliation/4,
          get_affiliation/3,
          delete_affiliation/3
         ]).
@@ -119,31 +118,55 @@ delete_node_entity_items(Nidx, LU, LS) ->
 
 % ------------------- Affiliations --------------------------------
 
-%% Due to lack of many specs in mod_pubsub and its submodules,
-%% sometimes it's very difficult to predict if we're going to
-%% get jid() or ljid()... Will be clarified in the future.
-
--spec insert_affiliation(Nidx :: mod_pubsub:nodeIdx(),
+-spec upsert_affiliation(Nidx :: mod_pubsub:nodeIdx(),
                          LU :: jid:luser(),
                          LS :: jid:lserver(),
                          AffInt :: integer()) -> iolist().
-insert_affiliation(Nidx, LU, LS, AffInt) ->
+upsert_affiliation(Nidx, LU, LS, AffInt) ->
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {mysql, _} -> upsert_affiliation_mysql(Nidx, LU, LS, AffInt);
+        {pgsql, _} -> upsert_affiliation_pgsql(Nidx, LU, LS, AffInt);
+        {odbc, mssql} -> upsert_affiliation_mssql(Nidx, LU, LS, AffInt);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+upsert_affiliation_mysql(Nidx, LU, LS, AffInt) ->
+    EscAffInt = esc_int(AffInt),
     ["INSERT INTO pubsub_affiliations (nidx, luser, lserver, aff)"
-     " VALUES (", esc_int(Nidx), ", ",
-     esc_string(LU), ", ",
-     esc_string(LS), ", ",
-     esc_int(AffInt), ")"].
+    " VALUES (", esc_int(Nidx), ", ",
+                 esc_string(LU), ", ",
+                 esc_string(LS), ", ",
+                 EscAffInt, ") ON DUPLICATE KEY",
+    " UPDATE aff = ", EscAffInt].
 
--spec update_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                         LU :: jid:luser(),
-                         LS :: jid:lserver(),
-                         AffInt :: integer()) -> iolist().
-update_affiliation(Nidx, LU, LS, AffInt) ->
-    ["UPDATE pubsub_affiliations"
-     " SET aff = ", esc_int(AffInt),
-     " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS) ].
+upsert_affiliation_pgsql(Nidx, LU, LS, AffInt) ->
+    EscAffInt = esc_int(AffInt),
+    ["INSERT INTO pubsub_affiliations (nidx, luser, lserver, aff)"
+    " VALUES (", esc_int(Nidx), ", ",
+                 esc_string(LU), ", ",
+                 esc_string(LS), ", ",
+                 EscAffInt, ") ON CONFLICT (nidx, luser, lserver) DO",
+    " UPDATE SET aff = ", EscAffInt].
+
+upsert_affiliation_mssql(Nidx, LU, LS, AffInt) ->
+    EscNidx = esc_int(Nidx),
+    EscLU = esc_string(LU),
+    EscLS = esc_string(LS),
+    EscAffInt = esc_int(AffInt),
+    ["MERGE INTO pubsub_affiliations with (SERIALIZABLE) AS target"
+     " USING (SELECT ", EscNidx, " AS nidx,"
+                   " ", EscLU, " AS luser,"
+                   " ", EscLS, " AS lserver,"
+                   " ", EscAffInt, " AS aff)"
+     " AS source (nidx, luser, lserver, aff)"
+         " ON (target.nidx = source.nidx"
+         " AND target.luser = source.luser"
+         " AND target.lserver = source.lserver)"
+     " WHEN MATCHED THEN UPDATE"
+         " SET aff = ", EscAffInt,
+     " WHEN NOT MATCHED THEN INSERT"
+         " (nidx, luser, lserver, aff)"
+         " VALUES (", EscNidx, ", ", EscLU, ", ", EscLS, ", ", EscAffInt, ")"].
 
 -spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
                       LU :: jid:luser(),

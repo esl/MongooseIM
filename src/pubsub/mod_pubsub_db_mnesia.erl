@@ -144,8 +144,8 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
     MyStates = mnesia:match_object(#pubsub_state{stateid = {LBare, '_'},
                                                  affiliation = owner, _ = '_'}),
     NodeIdxs = [Nidx || #pubsub_state{stateid = {_, Nidx}} <- MyStates],
-    ResultNidxs = mnesia:fold(pa:bind(fun get_idxs_with_pending_subs/3, NodeIdxs),
-                              [], pubsub_state),
+    ResultNidxs = mnesia:foldl(pa:bind(fun get_idxs_with_pending_subs/3, NodeIdxs),
+                               [], pubsub_state),
     {ok, ResultNidxs}.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),

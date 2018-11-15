@@ -478,8 +478,16 @@ CREATE TABLE dbo.pubsub_affiliations (
     nidx BIGINT NOT NULL,
     luser NVARCHAR(250) NOT NULL,
     lserver NVARCHAR(250) NOT NULL,
-    aff TINYINT NOT NULL
+    aff TINYINT NOT NULL,
+    CONSTRAINT PK_pubsub_affiliations PRIMARY KEY CLUSTERED(
+        luser ASC,
+        lserver ASC,
+        nidx ASC
+    )
 )
+GO
+
+CREATE INDEX i_pubsub_affiliations_nidx ON pubsub_affiliations(nidx);
 GO
 
 CREATE TABLE dbo.pubsub_items (
@@ -490,6 +498,13 @@ CREATE TABLE dbo.pubsub_items (
 )
 GO
 
+-- we skip luser and lserver in this one as this is little chance (even impossible?)
+-- to have itemid duplication for distinct users
+CREATE INDEX i_pubsub_items_nidx_itemid ON pubsub_items(nidx, itemid);
+GO
+CREATE INDEX i_pubsub_items_lus_nidx ON pubsub_items(luser, lserver, nidx);
+GO
+
 CREATE TABLE dbo.pubsub_subscriptions (
     nidx BIGINT NOT NULL,
     luser NVARCHAR(250) NOT NULL,
@@ -498,6 +513,11 @@ CREATE TABLE dbo.pubsub_subscriptions (
     type TINYINT NOT NULL,
     sub_id NVARCHAR(125) NOT NULL
 )
+GO
+
+CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
+GO
+CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
 GO
 
 SET ANSI_PADDING OFF
