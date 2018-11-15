@@ -42,6 +42,8 @@
          remove_items/3,
          remove_all_items/1
         ]).
+% For SQL queries
+-export([aff2int/1, sub2int/1]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -89,9 +91,12 @@ get_state(Nidx, LJID) ->
 -spec get_states(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 get_states(Nidx) ->
-    {selected, ItemRows} = mongoose_rdbms:sql_query(global, sql_get_item_rows(Nidx)),
-    {selected, AffiliationRows} = mongoose_rdbms:sql_query(global, sql_get_affiliation_rows(Nidx)),
-    {selected, SubRows} = mongoose_rdbms:sql_query(global, sql_get_subscriptions_rows(Nidx)),
+    ItemRowsSQL = mod_pubsub_db_rdbms_sql:get_item_rows(Nidx),
+    {selected, ItemRows} = mongoose_rdbms:sql_query(global, ItemRowsSQL),
+    AffRowsSQL = mod_pubsub_db_rdbms_sql:get_affiliation_rows(Nidx),
+    {selected, AffiliationRows} = mongoose_rdbms:sql_query(global, AffRowsSQL),
+    SubRowsSQL = mod_pubsub_db_rdbms_sql:get_subscriptions_rows(Nidx),
+    {selected, SubRows} = mongoose_rdbms:sql_query(global, SubRowsSQL),
     States = build_states(ItemRows, AffiliationRows, SubRows),
     {ok, States}.
 
@@ -99,11 +104,11 @@ get_states(Nidx) ->
     {ok, [mod_pubsub:pubsubState()]}.
 get_states_by_lus({ LU, LS, _ }) ->
     {selected, ItemRows} = mongoose_rdbms:sql_query(
-                             global, sql_get_item_rows(LU, LS)),
+                             global, mod_pubsub_db_rdbms_sql:get_item_rows(LU, LS)),
     {selected, AffiliationRows} = mongoose_rdbms:sql_query(
-                                    global, sql_get_affiliation_rows(LU, LS)),
+                                    global, mod_pubsub_db_rdbms_sql:get_affiliation_rows(LU, LS)),
     {selected, SubRows} = mongoose_rdbms:sql_query(
-                            global, sql_get_subscriptions_rows(LU, LS)),
+                            global, mod_pubsub_db_rdbms_sql:get_subscriptions_rows(LU, LS)),
     States = build_states(ItemRows, AffiliationRows, SubRows),
     {ok, States}.
 
@@ -111,11 +116,11 @@ get_states_by_lus({ LU, LS, _ }) ->
     {ok, [mod_pubsub:pubsubState()]}.
 get_states_by_bare({ LU, LS, _ }) ->
     {selected, ItemRows} = mongoose_rdbms:sql_query(
-                             global, sql_get_item_rows(LU, LS)),
+                             global, mod_pubsub_db_rdbms_sql:get_item_rows(LU, LS)),
     {selected, AffiliationRows} = mongoose_rdbms:sql_query(
-                                    global, sql_get_affiliation_rows(LU, LS)),
+                                    global, mod_pubsub_db_rdbms_sql:get_affiliation_rows(LU, LS)),
     {selected, SubRows} = mongoose_rdbms:sql_query(
-                            global, sql_get_subscriptions_rows(LU, LS, <<>>)),
+                            global, mod_pubsub_db_rdbms_sql:get_subscriptions_rows(LU, LS, <<>>)),
     States = build_states(ItemRows, AffiliationRows, SubRows),
     {ok, States}.
 
@@ -124,15 +129,15 @@ get_states_by_bare({ LU, LS, _ }) ->
 get_states_by_bare_and_full({ LU, LS, LR } = LJID) ->
     {ok, StatesBare} = get_states_by_bare(LJID),
     {selected, SubRows} = mongoose_rdbms:sql_query(
-                            global, sql_get_subscriptions_rows(LU, LS, LR)),
+                            global, mod_pubsub_db_rdbms_sql:get_subscriptions_rows(LU, LS, LR)),
     StatesFull = build_states([], [], SubRows),
     {ok, StatesFull ++ StatesBare}.
 
 -spec get_idxs_of_own_nodes_with_pending_subs(LJID :: jid:ljid()) ->
     {ok, [mod_pubsub:nodeIdx()]}.
 get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
-    {selected, Rows} = mongoose_rdbms:sql_query(
-                         global, sql_get_idxs_of_own_nodes_with_pending_subs(LU, LS)),
+    IdxsSQL = mod_pubsub_db_rdbms_sql:get_idxs_of_own_nodes_with_pending_subs(LU, LS),
+    {selected, Rows} = mongoose_rdbms:sql_query(global, IdxsSQL),
     {ok, [ Nidx || {Nidx} <- Rows ]}.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
@@ -140,7 +145,8 @@ get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
 del_state(Nidx, {LU, LS, LR}) ->
     delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR),
     delete_affiliation_wo_subs_check(Nidx, LU, LS),
-    {updated, _} = mongoose_rdbms:sql_query(global, sql_delete_node_entity_items(Nidx, LU, LS)),
+    DelItemsSQL = mod_pubsub_db_rdbms_sql:delete_node_entity_items(Nidx, LU, LS),
+    {updated, _} = mongoose_rdbms:sql_query(global, DelItemsSQL),
     ok.
 
 % ------------------- Node management --------------------------------
@@ -166,10 +172,10 @@ set_affiliation(Nidx, { LU, LS, _ } = LJID, Affiliation) ->
     %% TODO: Replace with proper upsert!!!
     case get_affiliation(Nidx, LJID) of
         {ok, none} ->
-            SQL = sql_insert_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
+            SQL = mod_pubsub_db_rdbms_sql:insert_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
             {updated, _} = mongoose_rdbms:sql_query(global, SQL);
         _ ->
-            SQL = sql_update_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
+            SQL = mod_pubsub_db_rdbms_sql:update_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
             {updated, _} = mongoose_rdbms:sql_query(global, SQL)
     end,
     ok.
@@ -178,7 +184,7 @@ set_affiliation(Nidx, { LU, LS, _ } = LJID, Affiliation) ->
                       LJID :: jid:ljid()) ->
     {ok, mod_pubsub:affiliation()}.
 get_affiliation(Nidx, { LU, LS, _ }) ->
-    SQL = sql_get_affiliation(Nidx, LU, LS),
+    SQL = mod_pubsub_db_rdbms_sql:get_affiliation(Nidx, LU, LS),
     case mongoose_rdbms:sql_query(global, SQL) of
         {selected, [{AffInt}]} ->
             {ok, sql2aff(AffInt)};
@@ -193,14 +199,14 @@ get_affiliation(Nidx, { LU, LS, _ }) ->
                        Sub :: mod_pubsub:subscription(),
                        SubId :: mod_pubsub:subId()) -> ok.
 add_subscription(Nidx, { LU, LS, LR }, Sub, SubId) ->
-    SQL = sql_insert_subscription(Nidx, LU, LS, LR, sub2int(Sub), SubId),
+    SQL = mod_pubsub_db_rdbms_sql:insert_subscription(Nidx, LU, LS, LR, sub2int(Sub), SubId),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [{Entity :: jid:ljid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 get_node_subscriptions(Nidx) ->
-    SQL = sql_get_node_subs(Nidx),
+    SQL = mod_pubsub_db_rdbms_sql:get_node_subs(Nidx),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
     {ok, [{{LU, LS, LR}, sql2sub(SubInt), SubId}
           || {LU, LS, LR, SubInt, SubId} <- QueryResult ]}.
@@ -209,7 +215,7 @@ get_node_subscriptions(Nidx) ->
                                     LJID :: jid:ljid()) ->
     {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 get_node_entity_subscriptions(Nidx, { LU, LS, LR }) ->
-    SQL = sql_get_node_entity_subs(Nidx, LU, LS, LR),
+    SQL = mod_pubsub_db_rdbms_sql:get_node_entity_subs(Nidx, LU, LS, LR),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
     {ok, [{sql2sub(SubInt), SubId} || {SubInt, SubId} <- QueryResult ]}.
 
@@ -218,7 +224,7 @@ get_node_entity_subscriptions(Nidx, { LU, LS, LR }) ->
                           SubId :: mod_pubsub:subId()) ->
     ok.
 delete_subscription(Nidx, { LU, LS, LR }, SubId) ->
-    SQL = sql_delete_subscription(Nidx, LU, LS, LR, SubId),
+    SQL = mod_pubsub_db_rdbms_sql:delete_subscription(Nidx, LU, LS, LR, SubId),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
@@ -240,7 +246,8 @@ delete_all_subscriptions(Nidx, { LU, LS, LR } = LJID) ->
                           SubId :: mod_pubsub:subId()) ->
     ok.
 update_subscription(Nidx, { LU, LS, LR }, Subscription, SubId) ->
-    SQL = sql_update_subscription(Nidx, LU, LS, LR, sub2int(Subscription), SubId),
+    SQL = mod_pubsub_db_rdbms_sql:update_subscription(Nidx, LU, LS, LR,
+                                                      sub2int(Subscription), SubId),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
@@ -251,7 +258,7 @@ update_subscription(Nidx, { LU, LS, LR }, Subscription, SubId) ->
                ItemId :: mod_pubsub:itemId()) ->
     ok.
 add_item(Nidx, { LU, LS, _ }, ItemId) ->
-    SQL = sql_insert_item(Nidx, LU, LS, ItemId),
+    SQL = mod_pubsub_db_rdbms_sql:insert_item(Nidx, LU, LS, ItemId),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
@@ -260,7 +267,7 @@ add_item(Nidx, { LU, LS, _ }, ItemId) ->
                        LJID :: jid:ljid()) ->
     {ok, [mod_pubsub:itemId()]}.
 get_entity_items(Nidx, { LU, LS, _ }) ->
-    SQL = sql_get_entity_items(Nidx, LU, LS),
+    SQL = mod_pubsub_db_rdbms_sql:get_entity_items(Nidx, LU, LS),
     {selected, ItemIds} = mongoose_rdbms:sql_query(global, SQL),
     {ok, [ ItemId || {ItemId} <- ItemIds]}.
 
@@ -270,246 +277,16 @@ get_entity_items(Nidx, { LU, LS, _ }) ->
     ok.
 remove_items(Nidx, { LU, LS, _ }, ItemIds) ->
     lists:foreach(fun(ItemId) ->
-                          SQL = sql_delete_item(Nidx, LU, LS, ItemId),
+                          SQL = mod_pubsub_db_rdbms_sql:delete_item(Nidx, LU, LS, ItemId),
                           {updated, _} = mongoose_rdbms:sql_query(global, SQL)
                   end, ItemIds).
 
 -spec remove_all_items(Nidx :: mod_pubsub:nodeIdx()) ->
     ok.
 remove_all_items(Nidx) ->
-    SQL = sql_delete_all_items(Nidx),
+    SQL = mod_pubsub_db_rdbms_sql:delete_all_items(Nidx),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
-
-%%====================================================================
-%% SQL queries
-%%====================================================================
-
-% -------------------- State building ----------------------------
-
--spec sql_get_item_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-sql_get_item_rows(Nidx) ->
-    ["SELECT nidx, luser, lserver, itemid FROM pubsub_items"
-    " WHERE nidx = ", esc_int(Nidx)].
-
--spec sql_get_affiliation_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-sql_get_affiliation_rows(Nidx) ->
-    ["SELECT nidx, luser, lserver, aff FROM pubsub_affiliations"
-    " WHERE nidx = ", esc_int(Nidx)].
-
--spec sql_get_subscriptions_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-sql_get_subscriptions_rows(Nidx) ->
-    ["SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions"
-    " WHERE nidx = ", esc_int(Nidx)].
-
--spec sql_get_item_rows(LU :: jid:luser(),
-                        LS :: jid:lserver()) -> iolist().
-sql_get_item_rows(LU, LS) ->
-    ["SELECT nidx, luser, lserver, itemid FROM pubsub_items"
-    " WHERE luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS)].
-
--spec sql_get_affiliation_rows(LU :: jid:luser(),
-                               LS :: jid:lserver()) -> iolist().
-sql_get_affiliation_rows(LU, LS) ->
-    ["SELECT nidx, luser, lserver, aff FROM pubsub_affiliations"
-    " WHERE luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS)].
-
--spec sql_get_subscriptions_rows(LU :: jid:luser(),
-                                 LS :: jid:lserver()) -> iolist().
-sql_get_subscriptions_rows(LU, LS) ->
-    ["SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions"
-    " WHERE luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS)].
-
--spec sql_get_subscriptions_rows(LU :: jid:luser(),
-                                 LS :: jid:lserver(),
-                                 LR :: jid:lresource()) -> iolist().
-sql_get_subscriptions_rows(LU, LS, LR) ->
-    ["SELECT nidx, luser, lserver, lresource, type, sub_id FROM pubsub_subscriptions"
-    " WHERE luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS),
-      " AND lresource = ", esc_string(LR)].
-
--spec sql_get_idxs_of_own_nodes_with_pending_subs(LU :: jid:luser(),
-                                                  LS :: jid:lserver()) -> iolist().
-sql_get_idxs_of_own_nodes_with_pending_subs(LU, LS) ->
-    ["SELECT DISTINCT s.nidx"
-    " FROM pubsub_affiliations AS a INNER JOIN pubsub_subscriptions s ON a.nidx = s.nidx"
-    " WHERE a.aff = ", esc_int(aff2int(owner)),
-      " AND a.luser = ", esc_string(LU),
-      " AND a.lserver = ", esc_string(LS),
-      " AND s.type = ", esc_int(sub2int(pending))].
-
--spec sql_delete_node_entity_items(Nidx :: mod_pubsub:nodeIdx(),
-                                   LU :: jid:luser(),
-                                   LS :: jid:lserver()) -> iolist().
-sql_delete_node_entity_items(Nidx, LU, LS) ->
-    ["DELETE FROM pubsub_items"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS)].
-
-% ------------------- Affiliations --------------------------------
-
-%% Due to lack of many specs in mod_pubsub and its submodules,
-%% sometimes it's very difficult to predict if we're going to
-%% get jid() or ljid()... Will be clarified in the future.
-
--spec sql_insert_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                             LU :: jid:luser(),
-                             LS :: jid:lserver(),
-                             AffInt :: integer()) -> iolist().
-sql_insert_affiliation(Nidx, LU, LS, AffInt) ->
-    ["INSERT INTO pubsub_affiliations (nidx, luser, lserver, aff)"
-    " VALUES (", esc_int(Nidx), ", ",
-                 esc_string(LU), ", ",
-                 esc_string(LS), ", ",
-                 esc_int(AffInt), ")"].
-
--spec sql_update_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                             LU :: jid:luser(),
-                             LS :: jid:lserver(),
-                             AffInt :: integer()) -> iolist().
-sql_update_affiliation(Nidx, LU, LS, AffInt) ->
-    ["UPDATE pubsub_affiliations"
-    " SET aff = ", esc_int(AffInt),
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS) ].
-
--spec sql_get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                          LU :: jid:luser(),
-                          LS :: jid:lserver()) -> iolist().
-sql_get_affiliation(Nidx, LU, LS) ->
-    ["SELECT aff"
-    " FROM pubsub_affiliations"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS) ].
-
--spec sql_delete_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                             LU :: jid:luser(),
-                             LS :: jid:lserver()) -> iolist().
-sql_delete_affiliation(Nidx, LU, LS) ->
-    ["DELETE FROM pubsub_affiliations"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS) ].
-
-% ------------------- Subscriptions --------------------------------
-
--spec sql_insert_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                              LU :: jid:luser(),
-                              LS :: jid:lserver(),
-                              LR :: jid:lresource(),
-                              SubInt :: integer(),
-                              SubId :: binary()) -> iolist().
-sql_insert_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
-    ["INSERT INTO pubsub_subscriptions (nidx, luser, lserver, lresource, type, sub_id)"
-    " VALUES (", esc_int(Nidx), ", ",
-                 esc_string(LU), ", ",
-                 esc_string(LS), ", ",
-                 esc_string(LR), ", ",
-                 esc_int(SubInt), ", ",
-                 esc_string(SubId), ")"].
-
--spec sql_get_node_subs(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-sql_get_node_subs(Nidx) ->
-    ["SELECT luser, lserver, lresource, type, sub_id"
-    " FROM pubsub_subscriptions"
-    " WHERE nidx = ", esc_int(Nidx)].
-
--spec sql_get_node_entity_subs(Nidx :: mod_pubsub:nodeIdx(),
-                               LU :: jid:luser(),
-                               LS :: jid:lserver(),
-                               LR :: jid:lresource()) -> iolist().
-sql_get_node_entity_subs(Nidx, LU, LS, LR) ->
-    ["SELECT type, sub_id"
-    " FROM pubsub_subscriptions"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS),
-      " AND lresource = ", esc_string(LR)].
-
--spec sql_delete_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                              LU :: jid:luser(),
-                              LS :: jid:lserver(),
-                              LR :: jid:lresource(),
-                              SubId :: binary()) -> iolist().
-sql_delete_subscription(Nidx, LU, LS, LR, SubId) ->
-    ["DELETE FROM pubsub_subscriptions"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS),
-      " AND lresource = ", esc_string(LR),
-      " AND sub_id = ", esc_string(SubId)].
-
--spec sql_delete_all_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
-                                   LU :: jid:luser(),
-                                   LS :: jid:lserver(),
-                                   LR :: jid:lresource()) -> iolist().
-sql_delete_all_subscriptions(Nidx, LU, LS, LR) ->
-    ["DELETE FROM pubsub_subscriptions"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS),
-      " AND lresource = ", esc_string(LR)].
-
--spec sql_update_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                              LU :: jid:luser(),
-                              LS :: jid:lserver(),
-                              LR :: jid:lresource(),
-                              SubInt :: integer(),
-                              SubId :: binary()) -> iolist().
-sql_update_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
-    ["UPDATE pubsub_subscriptions",
-    " SET type = ", esc_int(SubInt),
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS),
-      " AND lresource = ", esc_string(LR),
-      " AND sub_id = ", esc_string(SubId)].
-
-% ------------------- Items --------------------------------
-
--spec sql_insert_item(Nidx :: mod_pubsub:nodeIdx(),
-                      LU :: jid:luser(),
-                      LS :: jid:lserver(),
-                      ItemId :: mod_pubsub:itemId()) -> iolist().
-sql_insert_item(Nidx, LU, LS, ItemId) ->
-    ["INSERT INTO pubsub_items (nidx, luser, lserver, itemid)"
-    " VALUES (", esc_int(Nidx), ", ",
-                 esc_string(LU), ", ",
-                 esc_string(LS), ", ",
-                 esc_string(ItemId), ")"].
-
--spec sql_get_entity_items(Nidx :: mod_pubsub:nodeIdx(),
-                           LU :: jid:luser(),
-                           LS :: jid:lserver()) -> iolist().
-sql_get_entity_items(Nidx, LU, LS) ->
-    ["SELECT itemid"
-    " FROM pubsub_items"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS) ].
-
--spec sql_delete_item(Nidx :: mod_pubsub:nodeIdx(),
-                      LU :: jid:luser(),
-                      LS :: jid:lserver(),
-                      ItemId :: mod_pubsub:itemId()) -> iolist().
-sql_delete_item(Nidx, LU, LS, ItemId) ->
-    ["DELETE FROM pubsub_items"
-    " WHERE nidx = ", esc_int(Nidx),
-      " AND luser = ", esc_string(LU),
-      " AND lserver = ", esc_string(LS),
-      " AND itemid = ", esc_string(ItemId) ].
-
--spec sql_delete_all_items(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
-sql_delete_all_items(Nidx) ->
-    ["DELETE FROM pubsub_items"
-    " WHERE nidx = ", esc_int(Nidx)].
 
 %%====================================================================
 %% Helpers
@@ -520,7 +297,7 @@ sql_delete_all_items(Nidx) ->
                                             LS :: jid:lserver(),
                                             LR :: jid:lresource()) -> ok.
 delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR) ->
-    SQL = sql_delete_all_subscriptions(Nidx, LU, LS, LR),
+    SQL = mod_pubsub_db_rdbms_sql:delete_all_subscriptions(Nidx, LU, LS, LR),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
@@ -528,7 +305,7 @@ delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR) ->
                                        LU :: jid:luser(),
                                        LS :: jid:lserver()) -> ok.
 delete_affiliation_wo_subs_check(Nidx, LU, LS) ->
-    SQL = sql_delete_affiliation(Nidx, LU, LS),
+    SQL = mod_pubsub_db_rdbms_sql:delete_affiliation(Nidx, LU, LS),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
@@ -580,12 +357,6 @@ sub_rows_to_states([{ Nidx, LU, LS, LR, TypeInt, SubId } | RRows], Acc) ->
     NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{
                                 subscriptions = [{sql2sub(TypeInt), SubId} | Subs0] } },
     sub_rows_to_states(RRows, NAcc).
-
-esc_string(String) ->
-    mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
-esc_int(Int) ->
-    mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
 -spec aff2int(mod_pubsub:affiliation()) -> integer().
 aff2int(none) -> 0;
