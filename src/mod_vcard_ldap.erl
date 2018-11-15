@@ -207,7 +207,8 @@ init([Host, Opts]) ->
     process_flag(trap_exit, true),
     case proplists:get_value(dbg, Opts, false) of
         true ->
-            R2 = dbg:p(self(), [sos, c, m, ports]),
+            R2 = dbg:p(self(), [sos, c, m, p]),
+            dbg:tp(mod_vcard_ldap, x),
             ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok
