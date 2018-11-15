@@ -121,7 +121,7 @@ do_handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
         {ok, _} = Res ->
             {reply, Res, State};
         Err ->
-            {FreshConn, FreshChann} = restart_rabbit_connection(State),
+            {FreshConn, FreshChann} = maybe_restart_rabbit_connection(State),
             {reply, Err, State#state{connection = FreshConn,
                                      channel = FreshChann}}
     end.
@@ -161,7 +161,7 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
             update_messages_failed_metrics(Host),
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=~1000p:~1000p",
                          [Error, Reason]),
-            {FreshConn, FreshChann} = restart_rabbit_connection(Opts),
+            {FreshConn, FreshChann} = maybe_restart_rabbit_connection(Opts),
             {noreply, Opts#state{connection = FreshConn, channel = FreshChann}};
         timeout ->
             update_messages_timeout_metrics(Host),
@@ -189,12 +189,16 @@ maybe_wait_for_confirms(Channel, true) ->
     amqp_channel:wait_for_confirms(Channel);
 maybe_wait_for_confirms(_, _) -> true.
 
--spec restart_rabbit_connection(worker_opts()) -> {pid(), pid()}.
-restart_rabbit_connection(#state{connection = Conn, channel = Chann,
-                                 host = Host, amqp_client_opts = AMQPOpts}) ->
-    catch close_rabbit_connection(Conn, Chann, Host),
-    establish_rabbit_connection(AMQPOpts, Host).
-
+-spec maybe_restart_rabbit_connection(worker_opts()) -> {pid(), pid()}.
+maybe_restart_rabbit_connection(#state{connection = Conn, channel = Chann,
+                                       host = Host,
+                                       amqp_client_opts = AMQPOpts}) ->
+    case is_process_alive(Conn) of
+        true ->
+            {Conn, amqp_connection:open_channel(Conn)};
+        false ->
+            establish_rabbit_connection(AMQPOpts, Host)
+    end.
 
 -spec establish_rabbit_connection(Opts :: mongoose_amqp:network_params(),
                                   Host :: jid:server()) -> {pid(), pid()}.
