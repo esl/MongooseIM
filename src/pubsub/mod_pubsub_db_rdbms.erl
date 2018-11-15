@@ -335,8 +335,8 @@ item_rows_to_states([], Acc) ->
     Acc;
 item_rows_to_states([{ Nidx, LU, LS, ItemId } | RRows], Acc) ->
     LJID = { LU, LS, <<>> },
-    #pubsub_state{ items = Items0 }
-    = PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
+    PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
+    #pubsub_state{ items = Items0 } = PS,
     NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{ items = [ItemId | Items0] } },
     item_rows_to_states(RRows, NAcc).
 
@@ -352,8 +352,8 @@ sub_rows_to_states([], Acc) ->
     Acc;
 sub_rows_to_states([{ Nidx, LU, LS, LR, TypeInt, SubId } | RRows], Acc) ->
     LJID = { LU, LS, LR },
-    #pubsub_state{ subscriptions = Subs0 }
-    = PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
+    PS = maps:get({LJID, Nidx}, Acc, #pubsub_state{ stateid = {LJID, Nidx} }),
+    #pubsub_state{ subscriptions = Subs0 } = PS,
     NAcc = Acc#{ {LJID, Nidx} => PS#pubsub_state{
                                 subscriptions = [{sql2sub(TypeInt), SubId} | Subs0] } },
     sub_rows_to_states(RRows, NAcc).

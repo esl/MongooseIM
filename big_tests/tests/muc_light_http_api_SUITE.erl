@@ -61,15 +61,10 @@ negative_response() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
-              true -> rdbms;
-              false -> mnesia
-            end,
-
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
         [{host, binary_to_list(muc_light_domain())},
-         {rooms_in_rosters, true}, {backend, Backend}]),
+         {rooms_in_rosters, true},
+         {backend, mongoose_helper:backend_by_db_enabled()}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->

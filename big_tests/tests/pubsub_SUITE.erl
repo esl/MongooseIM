@@ -1533,15 +1533,10 @@ pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
 required_modules() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
-                  true -> rdbms;
-                  false -> mnesia
-              end,
     [{mod_pubsub, [
                    {plugins, [<<"dag">>]},
                    {nodetree, <<"dag">>},
-                   {backend, Backend},
+                   {backend, mongoose_helper:backend_by_db_enabled()},
                    {host, "pubsub.@HOST@"}
                   ]}].
 

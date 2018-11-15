@@ -290,16 +290,11 @@ unsubscribe_after_presence_unsubscription(Config) ->
 %%-----------------------------------------------------------------
 
 required_modules() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
-                  true -> rdbms;
-                  false -> mnesia
-              end,
     [{mod_caps, []},
      {mod_pubsub, [
                    {plugins, [<<"dag">>, <<"pep">>]},
                    {nodetree, <<"dag">>},
-                   {backend, Backend},
+                   {backend, mongoose_helper:backend_by_db_enabled()},
                    {pep_mapping, []},
                    {host, "pubsub.@HOST@"}
                   ]}].

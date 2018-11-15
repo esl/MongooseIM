@@ -466,15 +466,10 @@ h2_req(Conn, Method, Path, Body) ->
     end.
 
 required_modules() ->
-    Host = ct:get_config({hosts, mim, domain}),
-    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
-                  true -> rdbms;
-                  false -> mnesia
-              end,
     [
         {mod_pubsub, [
             {plugins, [<<"dag">>, <<"push">>]},
-            {backend, Backend},
+            {backend, mongoose_helper:backend_by_db_enabled()},
             {nodetree, <<"dag">>},
             {host, "pubsub.@HOST@"}
         ]},

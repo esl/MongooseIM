@@ -144,15 +144,8 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
     MyStates = mnesia:match_object(#pubsub_state{stateid = {LBare, '_'},
                                                  affiliation = owner, _ = '_'}),
     NodeIdxs = [Nidx || #pubsub_state{stateid = {_, Nidx}} <- MyStates],
-    ResultNidxs =
-    mnesia:foldl(fun (#pubsub_state{stateid = {_, Nidx}, subscriptions = Subs}, Acc) ->
-                         case lists:member(Nidx, NodeIdxs)
-                              andalso lists:any(fun is_pending_sub/1, Subs) of
-                             true -> [Nidx | Acc];
-                             false -> Acc
-                         end
-                 end,
-                 [], pubsub_state),
+    ResultNidxs = mnesia:fold(pa:bind(fun get_idxs_with_pending_subs/3, NodeIdxs),
+                              [], pubsub_state),
     {ok, ResultNidxs}.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
@@ -353,6 +346,19 @@ add_jid_to_subs([], _J, RStates) ->
     states_to_subscriptions(RStates);
 add_jid_to_subs([{S, SubId} | RSubs], J, RStates) ->
     [ {J, S, SubId} | add_jid_to_subs(RSubs, J, RStates) ].
+
+-spec get_idxs_with_pending_subs(NodeIdxs :: [mod_pubsub:nodeIdx()],
+                                 PubsubState :: mod_pubsub:pubsubState(),
+                                 Acc :: [mod_pubsub:nodeIdx()]) ->
+    [mod_pubsub:nodeIdx()].
+get_idxs_with_pending_subs(NodeIdxs,
+                           #pubsub_state{stateid = {_, Nidx}, subscriptions = Subs},
+                           Acc) ->
+    case lists:member(Nidx, NodeIdxs)
+         andalso lists:any(fun is_pending_sub/1, Subs) of
+        true -> [Nidx | Acc];
+        false -> Acc
+    end.
 
 is_pending_sub({pending, _}) -> true;
 is_pending_sub(pending) -> true;

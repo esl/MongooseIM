@@ -46,10 +46,6 @@ foreach_recipient(Users, VerifyFun) ->
 load_muc(Host) ->
     %% Stop modules before trying to start them
     unload_muc(),
-    case mongoose_helper:is_rdbms_enabled(<<"localhost">>) of
-        true -> rdbms;
-        false -> mnesia
-    end,
     %% TODO refactoring. "localhost" should be passed as a parameter
     dynamic_modules:start(<<"localhost">>, mod_muc,
                           [{host, binary_to_list(Host)},
