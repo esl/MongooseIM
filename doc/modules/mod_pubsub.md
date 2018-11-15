@@ -16,7 +16,7 @@ It's all about tailoring PubSub to your needs!
 * `iqdisc` (default: `one_queue`)
 * `host` (string, default: `"pubsub.@HOST@"`): Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
-* `backend` (atom, default: `mnesia`) - Database backend to use. Only `mnesia` is supported currently..
+* `backend` (atom, default: `mnesia`) - Database backend to use. `mnesia` and `rdbms` (*warning!* experimental) are supported currently.
 * `access_create` (atom, default: `all`): Who is allowed to create pubsub nodes.
 * `max_items_node` (integer, default: `10`): Define the maximum number of items that can be stored in a node.
 * `max_subscriptions_node` (integer, default: `undefined` - no limitation): The maximum number of subscriptions managed by a node.
@@ -32,6 +32,12 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 * `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
  This effectively makes them an owner of this item.
+
+#### Note about RDBMS backend
+
+Current RDBMS backend replaces `pubsub_state` Mnesia table with RDBMS equivalents.
+Due to a fact that some data is still maintained in Mnesia, there is a certain risk of data becoming inconsistent.
+The schema used by this backend may change until it reaches stable status.
 
 ### Example Configuration
 
