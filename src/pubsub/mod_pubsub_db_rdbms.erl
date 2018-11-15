@@ -137,8 +137,8 @@ get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
                 LJID :: jid:ljid()) -> ok.
-del_state(Nidx, {LU, LS, _} = LJID) ->
-    delete_all_subscriptions(Nidx, LJID),
+del_state(Nidx, {LU, LS, LR}) ->
+    delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR),
     delete_affiliation_wo_subs_check(Nidx, LU, LS),
     {updated, _} = mongoose_rdbms:sql_query(global, sql_delete_node_entity_items(Nidx, LU, LS)),
     ok.
@@ -230,8 +230,7 @@ delete_all_subscriptions(Nidx, { LU, LS, LR } = LJID) ->
         {ok, none} ->
             del_state(Nidx, LJID);
         _ ->
-            SQL = sql_delete_all_subscriptions(Nidx, LU, LS, LR),
-            {updated, _} = mongoose_rdbms:sql_query(global, SQL)
+            delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR)
     end,
     ok.
 
@@ -515,6 +514,15 @@ sql_delete_all_items(Nidx) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+-spec delete_all_subscriptions_wo_aff_check(Nidx :: mod_pubsub:nodeIdx(),
+                                            LU :: jid:luser(),
+                                            LS :: jid:lserver(),
+                                            LR :: jid:lresource()) -> ok.
+delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR) ->
+    SQL = sql_delete_all_subscriptions(Nidx, LU, LS, LR),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    ok.
 
 -spec delete_affiliation_wo_subs_check(Nidx :: mod_pubsub:nodeIdx(),
                                        LU :: jid:luser(),
