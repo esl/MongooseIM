@@ -166,7 +166,7 @@ upsert_affiliation_mssql(Nidx, LU, LS, AffInt) ->
          " SET aff = ", EscAffInt,
      " WHEN NOT MATCHED THEN INSERT"
          " (nidx, luser, lserver, aff)"
-         " VALUES (", EscNidx, ", ", EscLU, ", ", EscLS, ", ", EscAffInt, ")"].
+         " VALUES (", EscNidx, ", ", EscLU, ", ", EscLS, ", ", EscAffInt, ");"].
 
 -spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
                       LU :: jid:luser(),
