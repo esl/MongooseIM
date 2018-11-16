@@ -476,8 +476,8 @@ The `ConnectionOptions` list can take following parametrs as `{key, value`} pair
 
 * **amqp_host** (default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address; both as a string);
 * **amqp_port** (default: `5672`) - Defines RabbitMQ server AMQP port;
-* **amqp_username** (default: `<<"guest">>`) - Defines RabbitMQ server username;
-* **amqp_password** (default: `<<"guest">>`) - Defines RabbitMQ server password;
+* **amqp_username** (default: `"guest"`) - Defines RabbitMQ server username;
+* **amqp_password** (default: `"guest"`) - Defines RabbitMQ server password;
 * **confirms_enabled** (default: `false`) - Enables/disables one-to-one publishers confirms;
 
 ### Example
@@ -487,8 +487,8 @@ The `ConnectionOptions` list can take following parametrs as `{key, value`} pair
  {rabbit, host, event_pusher, [{workers, 20}],
   [{amqp_host, "localhost"},
    {amqp_port, 5672},
-   {amqp_username, <<"guest">>},
-   {amqp_password, <<"guest">>},
+   {amqp_username, "guest"},
+   {amqp_password, "guest"},
    {confirms_enabled, true}]}
 ]}.
 ```

@@ -27,10 +27,12 @@ stop(_, _) ->
     ok.
 
 amqp_client_opts(AMQPOpts) ->
-    Opts = [{host, proplists:get_value(amqp_host, AMQPOpts, undefined)},
-            {port, proplists:get_value(amqp_port, AMQPOpts, undefined)},
-            {username, proplists:get_value(amqp_username, AMQPOpts, undefined)},
-            {password, proplists:get_value(amqp_password, AMQPOpts, undefined)}],
+    Opts = [{host, proplists:get_value(amqp_host, AMQPOpts)},
+            {port, proplists:get_value(amqp_port, AMQPOpts)},
+            {username, binary:list_to_bin(proplists:get_value(amqp_username,
+                                                              AMQPOpts))},
+            {password, binary:list_to_bin(proplists:get_value(amqp_password,
+                                                              AMQPOpts))}],
     VerifiedOpts = verify_opts(Opts),
     mongoose_amqp:network_params(VerifiedOpts).
 

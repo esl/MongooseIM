@@ -48,8 +48,8 @@
                      %% {confirms_enabled, true},
                      {amqp_host, "localhost"},
                      {amqp_port, 5672},
-                     {amqp_username, <<"guest">>},
-                     {amqp_password, <<"guest">>}
+                     {amqp_username, "guest"},
+                     {amqp_password, "guest"}
                     ]}).
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
