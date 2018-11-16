@@ -38,7 +38,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--export([init/3, terminate/2, options/0, features/0,
+-export([based_on/0, init/3, terminate/2, options/0, features/0,
          create_node_permission/6, create_node/2, delete_node/1,
          purge_node/2, subscribe_node/8, unsubscribe_node/4,
          publish_item/9, delete_item/4, remove_extra_items/3,
@@ -47,9 +47,11 @@
          get_entity_subscriptions/2, get_node_subscriptions/1,
          get_subscriptions/2, set_subscriptions/4,
          get_pending_nodes/2,
-         get_items/7, get_items/3, get_item/7,
+         get_items_if_authorised/3, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1]).
+
+based_on() ->  none.
 
 init(_Host, _ServerHost, _Opts) ->
     pubsub_subscription:init(),
@@ -345,8 +347,7 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
                                            Payload, Publisher, ItemPublisher),
                    Items = [ItemId | GenState#pubsub_state.items -- [ItemId]],
                    {result, {_NI, OI}} = remove_extra_items(Nidx, MaxItems, Items),
-                   set_item(Item),
-                   mod_pubsub_db_backend:add_item(Nidx, Publisher, ItemId),
+                   mod_pubsub_db_backend:add_item(Nidx, Publisher, Item),
                    mod_pubsub_db_backend:remove_items(Nidx, Publisher, OI),
                    {result, {default, broadcast, OI}};
                false ->
@@ -578,15 +579,18 @@ get_node_if_has_pending_subs(NodeTree, #pubsub_state{stateid = {_, N}, subscript
 %% mod_pubsub module.</p>
 %% <p>PubSub plugins can store the items where they wants (for example in a
 %% relational database), or they can even decide not to persist any items.</p>
-get_items(Nidx, _From, _RSM) ->
-    case mod_pubsub_db_backend:get_items(Nidx) of
+get_items(Nidx, _From, Opts) ->
+    case mod_pubsub_db_backend:get_items(Nidx, Opts) of
         {ok, Result} ->
             {result, Result};
         {error, item_not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM) ->
+get_items_if_authorised(Nidx, JID, #{access_model := AccessModel,
+                                     presence_permission := PresenceSubscription,
+                                     roster_permission := RosterGroup,
+                                     rsm := RSM} = Opts) ->
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
     {ok, BareSubscriptions}
     = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, jid:to_bare(JID)),
@@ -596,7 +600,11 @@ get_items(Nidx, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId, RSM
                   can_fetch_item(Affiliation, FullSubscriptions),
     case authorize_get_item(Affiliation, AccessModel, PresenceSubscription,
                             RosterGroup, Whitelisted) of
-        ok -> get_items(Nidx, JID, RSM);
+        ok ->
+            LowLevelOpts = #{rsm => RSM,
+                             max_items => maps:get(max_items, Opts, undefined),
+                             item_ids => maps:get(item_ids, Opts, undefined)},
+            get_items(Nidx, JID, LowLevelOpts);
         {error, _} = Err -> Err
     end.
 

@@ -61,6 +61,7 @@
 
 -define(STDTREE, <<"tree">>).
 -define(STDNODE, <<"flat">>).
+-define(STDNODE_MODULE, node_flat).
 -define(PEPNODE, <<"pep">>).
 -define(PUSHNODE, <<"push">>).
 
@@ -1369,16 +1370,24 @@ iq_pubsub_set_unsubscribe(Host, Node, From, UnsubscribeAttrs) ->
 iq_pubsub_get_items(Host, Node, From, QueryEl, GetItemsAttrs, GetItemsSubEls) ->
     MaxItems = xml:get_attr_s(<<"max_items">>, GetItemsAttrs),
     SubId = xml:get_attr_s(<<"subid">>, GetItemsAttrs),
-    ItemIds = lists:foldl(fun(#xmlel{name = <<"item">>, attrs = ItemAttrs}, Acc) ->
-                                  case xml:get_attr_s(<<"id">>, ItemAttrs) of
-                                      <<>> -> Acc;
-                                      ItemId -> [ItemId | Acc]
-                                  end;
-                              (_, Acc) ->
-                                  Acc
-                          end,
-                          [], xml:remove_cdata(GetItemsSubEls)),
+    ItemIds = extract_item_ids(GetItemsSubEls),
     get_items(Host, Node, From, SubId, MaxItems, ItemIds, jlib:rsm_decode(QueryEl)).
+
+extract_item_ids(GetItemsSubEls) ->
+    case lists:foldl(fun extract_item_id/2, [], GetItemsSubEls) of
+        [] ->
+            undefined;
+        List ->
+            List
+    end.
+
+extract_item_id(#xmlel{name = <<"item">>} = Item, Acc) ->
+  case exml_query:attr(Item, <<"id">>) of
+      undefined -> Acc;
+      ItemId -> [ItemId | Acc]
+    end;
+extract_item_id(_, Acc) -> Acc.
+
 
 iq_pubsub_get_options(Host, Node, Lang, GetOptionsAttrs) ->
     SubId = xml:get_attr_s(<<"subid">>, GetOptionsAttrs),
@@ -2489,24 +2498,24 @@ get_items_with_limit(_Host, _Node, _From, _SubId, _ItemIds, _RSM, {error, _} = E
     Err;
 get_items_with_limit(Host, Node, From, SubId, ItemIds, RSM, MaxItems) ->
     Action = fun (PubSubNode) ->
-                     get_items_transaction(Host, From, RSM, SubId, PubSubNode)
+                     get_items_transaction(Host, From, RSM, SubId, PubSubNode, MaxItems, ItemIds)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, RsmOut}}} ->
-            SendItems = filter_items_by_item_ids(Items, ItemIds),
             {result,
              [#xmlel{name = <<"pubsub">>,
                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                      children =
                      [#xmlel{name = <<"items">>, attrs = node_attr(Node),
-                             children = items_els(lists:sublist(SendItems, MaxItems))}
+                             children = items_els(Items)}
                       | jlib:rsm_encode(RsmOut)]}]};
         Error ->
             Error
     end.
 
 get_items_transaction(Host, From, RSM, SubId,
-                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = O}) ->
+                      #pubsub_node{options = Options, type = Type, id = Nidx, owners = O},
+                      MaxItems, ItemIds) ->
     Features = plugin_features(Host, Type),
     case {lists:member(<<"retrieve-items">>, Features),
           lists:member(<<"persistent-items">>, Features)} of
@@ -2522,19 +2531,20 @@ get_items_transaction(Host, From, RSM, SubId,
             Owners = node_owners_call(Host, Type, Nidx, O),
             {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners,
                                                            AccessModel, AllowedGroups),
-            node_call(Host, Type, get_items, [Nidx, From, AccessModel, PS, RG, SubId, RSM])
-    end.
+            Opts = #{access_model => AccessModel,
+                     presence_permission => PS,
+                     roster_permission => RG,
+                     rsm => RSM,
+                     max_items => MaxItems,
+                     item_ids => ItemIds,
+                     subscription_id => SubId},
 
-filter_items_by_item_ids(Items, []) ->
-    Items;
-filter_items_by_item_ids(Items, ItemIds) ->
-    lists:filter(fun (#pubsub_item{itemid = {ItemId, _}}) ->
-                         lists:member(ItemId, ItemIds)
-                 end, Items).
+            node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts])
+    end.
 
 get_items(Host, Node) ->
     Action = fun (#pubsub_node{type = Type, id = Nidx}) ->
-                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), none])
+                     node_call(Host, Type, get_items, [Nidx, service_jid(Host), #{}])
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, {Items, _}}} -> Items;
@@ -2559,12 +2569,16 @@ get_allowed_items_call(Host, Nidx, From, Type, Options, Owners, RSM) ->
     AccessModel = get_option(Options, access_model),
     AllowedGroups = get_option(Options, roster_groups_allowed, []),
     {PS, RG} = get_presence_and_roster_permissions(Host, From, Owners, AccessModel, AllowedGroups),
-    node_call(Host, Type, get_items, [Nidx, From, AccessModel, PS, RG, undefined, RSM]).
+    Opts = #{access_model => AccessModel,
+             presence_permission => PS,
+             roster_permission => RG,
+             rsm => RSM},
+    node_call(Host, Type, get_items_if_authorised, [Nidx, From, Opts]).
 
 get_last_item(Host, Type, Nidx, LJID) ->
     case get_cached_item(Host, Nidx) of
         undefined ->
-            case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
+            case node_action(Host, Type, get_items, [Nidx, LJID, #{}]) of
                 {result, {[LastItem|_], _}} -> LastItem;
                 _ -> undefined
             end;
@@ -2573,7 +2587,7 @@ get_last_item(Host, Type, Nidx, LJID) ->
     end.
 
 get_last_items(Host, Type, Nidx, LJID, Number) ->
-    case node_action(Host, Type, get_items, [Nidx, LJID, none]) of
+    case node_action(Host, Type, get_items, [Nidx, LJID, #{}]) of
         {result, {Items, _}} -> lists:sublist(Items, Number);
         _ -> []
     end.
@@ -4164,21 +4178,32 @@ tree_action(Host, Function, Args) ->
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
-    Module = plugin(Host, Type),
-    case apply(Module, Function, Args) of
+    PluginModule = plugin(Host, Type),
+    CallModule = maybe_default_node(PluginModule, Function, Args),
+    case apply(CallModule, Function, Args) of
         {result, Result} ->
             {result, Result};
         {error, Error} ->
             {error, Error};
-        {'EXIT', {undef, Undefined}} ->
-            case Type of
-                ?STDNODE -> {error, {undef, Undefined}};
-                _ -> node_call(Host, ?STDNODE, Function, Args)
-            end;
         {'EXIT', Reason} ->
             {error, Reason};
         Result ->
             {result, Result} %% any other return value is forced as result
+    end.
+
+maybe_default_node(PluginModule, Function, Args) ->
+    case erlang:function_exported(PluginModule, Function, length(Args)) of
+        true ->
+            PluginModule;
+        _ ->
+           case gen_pubsub_node:based_on(PluginModule) of
+               none ->
+                   ?ERROR_MSG("event=undefined_function, node_plugin=~p, function=~p",
+                              [PluginModule, Function]),
+                   exit(udefined_node_plugin_function);
+               BaseModule ->
+                   maybe_default_node(BaseModule, Function, Args)
+           end
     end.
 
 node_action(Host, Type, Function, Args) ->
@@ -4354,7 +4379,7 @@ check_plugin_features_and_acc_affs(Host, PluginType, LJID, AffsAcc) ->
     end.
 
 purge_offline(Host, {User, Server, _} = _LJID, #pubsub_node{ id = Nidx, type = Type } = Node) ->
-    case node_action(Host, Type, get_items, [Nidx, service_jid(Host), none]) of
+    case node_action(Host, Type, get_items, [Nidx, service_jid(Host), #{}]) of
         {result, {[], _}} ->
             ok;
         {result, {Items, _}} ->
