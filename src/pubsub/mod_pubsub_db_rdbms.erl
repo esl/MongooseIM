@@ -36,12 +36,21 @@
          delete_all_subscriptions/2,
          update_subscription/4
         ]).
-% Items
+% Item ids in state
 -export([
          add_item/3,
          remove_items/3,
          remove_all_items/1
         ]).
+% Whole items
+-export([
+         get_items/1,
+         get_item/2,
+         set_item/1,
+         del_item/2,
+         del_items/2
+        ]).
+
 % For SQL queries
 -export([aff2int/1, sub2int/1]).
 
@@ -53,11 +62,11 @@
 
 -spec start() -> ok.
 start() ->
-    ok.
+    mod_pubsub_db_mnesia:start().
 
 -spec stop() -> ok.
 stop() ->
-    ok.
+    mod_pubsub_db_mnesia:stop().
 
 %% ------------------------ Fun execution ------------------------
 
@@ -148,6 +157,30 @@ del_state(Nidx, {LU, LS, LR}) ->
     DelItemsSQL = mod_pubsub_db_rdbms_sql:delete_node_entity_items(Nidx, LU, LS),
     {updated, _} = mongoose_rdbms:sql_query(global, DelItemsSQL),
     ok.
+
+%% ------------------------ Direct #pubsub_item access ------------------------
+
+-spec get_items(Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, {[mod_pubsub:pubsubItem()], none}}.
+get_items(Nidx) ->
+    mod_pubsub_db_mnesia:get_items(Nidx).
+
+-spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
+    {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
+get_item(Nidx, ItemId) ->
+    mod_pubsub_db_mnesia:get_item(Nidx, ItemId).
+
+-spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok | abort.
+set_item(Item) ->
+    mod_pubsub_db_mnesia:set_item(Item).
+
+-spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
+del_item(Nidx, ItemId) ->
+    mod_pubsub_db_mnesia:del_item(Nidx, ItemId).
+
+-spec del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
+del_items(Nidx, ItemIds) ->
+    mod_pubsub_db_mnesia:del_items(Nidx, ItemIds).
 
 % ------------------- Node management --------------------------------
 
