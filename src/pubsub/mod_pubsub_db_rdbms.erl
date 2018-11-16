@@ -44,7 +44,7 @@
         ]).
 % Whole items
 -export([
-         get_items/1,
+         get_items/2,
          get_item/2,
          set_item/1,
          del_item/2,
@@ -160,10 +160,10 @@ del_state(Nidx, {LU, LS, LR}) ->
 
 %% ------------------------ Direct #pubsub_item access ------------------------
 
--spec get_items(Nidx :: mod_pubsub:nodeIdx()) ->
+-spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     {ok, {[mod_pubsub:pubsubItem()], none}}.
-get_items(Nidx) ->
-    mod_pubsub_db_mnesia:get_items(Nidx).
+get_items(Nidx, Opts) ->
+    mod_pubsub_db_mnesia:get_items(Nidx, Opts).
 
 -spec get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.
@@ -281,9 +281,10 @@ update_subscription(Nidx, { LU, LS, LR }, Subscription, SubId) ->
 
 -spec add_item(Nidx :: mod_pubsub:nodeIdx(),
                LJID :: jid:ljid(),
-               ItemId :: mod_pubsub:itemId()) ->
+               Item :: mod_pubsub:pubsubItem()) ->
     ok.
-add_item(Nidx, { LU, LS, _ }, ItemId) ->
+add_item(Nidx, { LU, LS, _ }, #pubsub_item{ itemid = {ItemId, _} } = Item) ->
+    mod_pubsub_db_mnesia:set_item(Item),
     SQL = mod_pubsub_db_rdbms_sql:insert_item(Nidx, LU, LS, ItemId),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
