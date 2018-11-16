@@ -38,7 +38,7 @@
 -include("jlib.hrl").
 -include("mongoose.hrl").
 
--export([init/3, terminate/2, options/0, features/0,
+-export([based_on/0, init/3, terminate/2, options/0, features/0,
          create_node_permission/6, create_node/2, delete_node/1,
          purge_node/2, subscribe_node/8, unsubscribe_node/4,
          publish_item/9, delete_item/4, remove_extra_items/3,
@@ -50,6 +50,8 @@
          get_items_if_authorised/3, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1]).
+
+based_on() ->  none.
 
 init(_Host, _ServerHost, _Opts) ->
     pubsub_subscription:init(),

@@ -4196,7 +4196,14 @@ maybe_default_node(PluginModule, Function, Args) ->
         true ->
             PluginModule;
         _ ->
-            ?STDNODE_MODULE
+           case gen_pubsub_node:based_on(PluginModule) of
+               none ->
+                   ?ERROR_MSG("event=undefined_function, node_plugin=~p, function=~p",
+                              [PluginModule, Function]),
+                   exit(udefined_node_plugin_function);
+               BaseModule ->
+                   maybe_default_node(BaseModule, Function, Args)
+           end
     end.
 
 node_action(Host, Type, Function, Args) ->

@@ -57,7 +57,7 @@
                               max_items => undefined | non_neg_integer(),
                               item_ids => undefined | [itemId()]}).
 
--export([
+-export([based_on/1,
          terminate/3,
          options/1,
          features/1,
@@ -69,6 +69,11 @@
 %% --------------------------------------------------------
 %% Callbacks
 %% --------------------------------------------------------
+
+%% @doc
+%% This function is to call the base node module in case the target node doesn't
+%% implement an optional callback
+-callback based_on() -> node_flat | node_hometree | node_dag | node_push | node_pep | none.
 
 -callback init(Host :: binary(), ServerHost :: binary(), Opts :: [any()]) -> atom().
 
@@ -225,6 +230,8 @@
 %% --------------------------------------------------------
 %% API
 %% --------------------------------------------------------
+based_on(Mod) ->
+    Mod:based_on().
 
 terminate(Mod, Host, ServerHost) ->
     Mod:terminate(Host, ServerHost).

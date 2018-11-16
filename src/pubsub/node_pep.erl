@@ -35,12 +35,14 @@
 %%% @doc The module <strong>{@module}</strong> is the pep PubSub plugin.
 %%% <p>PubSub plugin nodes are using the {@link gen_pubsub_node} behaviour.</p>
 
--export([init/3, terminate/2, options/0, features/0,
+-export([based_on/0, init/3, terminate/2, options/0, features/0,
          create_node_permission/6, delete_node/1,
          unsubscribe_node/4, node_to_path/1,
          get_entity_affiliations/2, get_entity_affiliations/3,
          get_entity_subscriptions/2, get_entity_subscriptions/4
          ]).
+
+based_on() ->  node_flat.
 
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),

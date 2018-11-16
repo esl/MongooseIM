@@ -17,8 +17,10 @@
 -include("jlib.hrl").
 -include("pubsub.hrl").
 
--export([init/3, terminate/2, options/0, features/0,
+-export([based_on/0, init/3, terminate/2, options/0, features/0,
          publish_item/9, node_to_path/1]).
+
+based_on() ->  node_flat.
 
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
