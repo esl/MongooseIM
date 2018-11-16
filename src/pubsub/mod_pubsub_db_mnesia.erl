@@ -82,23 +82,38 @@ stop() ->
                   ErrorDebug :: map()) ->
     {result | error, any()}.
 transaction(Fun, ErrorDebug) ->
-    case mnesia:transaction(Fun) of
+    case mnesia:transaction(extra_debug_fun(Fun)) of
         {atomic, Result} ->
             Result;
-        {aborted, Reason} ->
-            mod_pubsub_db:transaction_error(Reason, ErrorDebug)
+        {aborted, ReasonData} ->
+            mod_pubsub_db:db_error(ReasonData, ErrorDebug, transaction_failed)
     end.
 
 -spec dirty(Fun :: fun(() -> {result | error, any()}),
             ErrorDebug :: map()) ->
     {result | error, any()}.
 dirty(Fun, ErrorDebug) ->
-    try mnesia:sync_dirty(Fun, []) of
+    try mnesia:sync_dirty(extra_debug_fun(Fun), []) of
         Result ->
             Result
     catch
-        C:R ->
-            mod_pubsub_db:dirty_error(C, R, erlang:get_stacktrace(), ErrorDebug)
+        _C:ReasonData ->
+            mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed)
+    end.
+
+%% transaction and sync_dirty return very truncated error data so we add extra
+%% try to gather stack trace etc.
+extra_debug_fun(Fun) ->
+    fun() ->
+            try Fun() of
+                Res -> Res
+            catch
+                C:R ->
+                    throw(#{
+                      class => C,
+                      reason => R,
+                      stacktrace => erlang:get_stacktrace()})
+            end
     end.
 
 %% ------------------------ Direct #pubsub_state access ------------------------

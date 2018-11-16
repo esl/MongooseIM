@@ -10,7 +10,7 @@
 
 -include("mongoose_logger.hrl").
 
--export([transaction_error/2, dirty_error/4]).
+-export([db_error/3]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -149,19 +149,10 @@
 
 %% These are made as separate functions to make tracing easier, just in case.
 
--spec transaction_error(Reason :: any(), ErrorDebug :: map()) ->
+-spec db_error(ReasonData :: map(), ErrorDebug :: map(), Event :: any()) ->
     {error, Details :: map()}.
-transaction_error(Reason, ErrorDebug) ->
-    {error, ErrorDebug#{ event => transaction_failure,
-                         reason => Reason }}.
-
--spec dirty_error(Class :: atom(), Reason :: any(), StackTrace :: list(), ErrorDebug :: map()) ->
-    {error, Details :: map()}.
-dirty_error(Class, Reason, StackTrace, ErrorDebug) ->
-    {error, ErrorDebug#{ event => dirty_failure,
-                         class => Class,
-                         reason => Reason,
-                         stacktrace => StackTrace}}.
+db_error(ReasonData, ErrorDebug, Event) ->
+    {error, maps:merge(ErrorDebug#{ event => Event }, ReasonData)}.
 
 %%====================================================================
 %% Internal functions
