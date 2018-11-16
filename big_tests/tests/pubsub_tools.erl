@@ -13,7 +13,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
-
+-include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
 -export([
          discover_nodes/3,
@@ -154,7 +154,7 @@ get_all_items(User, {_, NodeName} = Node, Options) ->
       fun(Response, ExpectedResult) ->
               Items = exml_query:path(Response, [{element, <<"pubsub">>},
                                                  {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName, true)
+              check_items(Items, ExpectedResult, NodeName)
       end).
 
 get_item(User, {_, NodeName} = Node, ItemId, Options) ->
@@ -165,7 +165,7 @@ get_item(User, {_, NodeName} = Node, ItemId, Options) ->
       fun(Response, ExpectedResult) ->
               Items = exml_query:path(Response, [{element, <<"pubsub">>},
                                                  {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName, true)
+              check_items(Items, ExpectedResult, NodeName)
       end).
 
 purge_all_items(User, Node, Options) ->
@@ -374,7 +374,7 @@ check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     true = escalus_pred:has_type(<<"headline">>, Response),
     Items = exml_query:path(Response, [{element, <<"event">>},
                                        {element, <<"items">>}]),
-    check_items(Items, [ItemId], NodeName, proplists:get_value(with_payload, Options, true)),
+    check_items(Items, [ItemId], NodeName),
     Response.
 
 send_request_and_receive_response(User, Request, Id, Options) ->
@@ -450,21 +450,35 @@ check_subscription(Subscr, Jid, NodeName, Options) ->
             <<"pending">> = exml_query:attr(Subscr, <<"subscription">>)
     end.
 
-check_items(ReceivedItemsElem, ExpectedItemIds, NodeName, WithPayload) ->
+check_items(ReceivedItemsElem, ExpectedItemIds, NodeName) ->
     NodeName = exml_query:attr(ReceivedItemsElem, <<"node">>),
     ReceivedItems = exml_query:subelements(ReceivedItemsElem, <<"item">>),
-    [check_item(ExpectedItemId, WithPayload, ReceivedItem) ||
+    [check_item(ExpectedItemId, ReceivedItem) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
-check_item(ExpectedItem, WithPayload, ReceivedItem) ->
-    #{id := ExpectedItemId} = ExpectedItemMap = decode_expected_item(ExpectedItem),
-    ExpectedItemId = exml_query:attr(ReceivedItem, <<"id">>),
-    Content = item_content(WithPayload),
-    ExpectedContent = maps:get(content, ExpectedItemMap, Content),
-    ExpectedContent = exml_query:subelement(ReceivedItem, <<"entry">>).
+check_item(ExpectedItem, ReceivedItem) ->
+    ExpectedItemMap = decode_expected_item(ExpectedItem),
+    maps:map(fun(K, V) ->
+                     KBin = atom_to_binary(K, utf8),
+                     check_item_field(KBin, V, ReceivedItem) end, ExpectedItemMap).
+
+check_item_field(Field = <<"entry">>, ExpectedValue, ReceivedItem) ->
+    ?assertEqual(ExpectedValue, exml_query:subelement(ReceivedItem, Field));
+check_item_field(Field, ExpectedValue, ReceivedItem) ->
+    case exml_query:attr(ReceivedItem, Field)of
+        ExpectedValue ->
+            ok;
+        Value ->
+            ct:fail("Assertion failed for key: ~p, expected value: ~p, actual: ~p", [Field, ExpectedValue, Value])
+    end.
 
 decode_expected_item(AMap) when is_map(AMap) ->
-    AMap;
+    case maps:is_key(entry, AMap) of
+        true ->
+            AMap;
+        _ ->
+            maps:put(entry, item_content(), AMap)
+    end;
 decode_expected_item(ItemId) when is_binary(ItemId) ->
     #{id => ItemId}.
 

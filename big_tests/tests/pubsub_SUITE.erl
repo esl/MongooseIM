@@ -96,6 +96,11 @@
          disable_delivery_test/1
         ]).
 
+-export([
+         get_item_with_publisher_option_test/1,
+         receive_item_notification_with_publisher_option_test/1
+        ]).
+
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
@@ -115,7 +120,8 @@ all() -> [
           {group, manage_subscriptions},
           {group, collection},
           {group, collection_config},
-          {group, debug_calls}
+          {group, debug_calls},
+          {group, pubsub_item_publisher_option}
          ].
 
 groups() ->
@@ -199,6 +205,12 @@ groups() ->
            debug_get_items_test,
            debug_get_item_test
           ]
+         },
+         {pubsub_item_publisher_option, [parallel],
+          [
+           get_item_with_publisher_option_test,
+           receive_item_notification_with_publisher_option_test
+          ]
          }
         ],
     ct_helper:repeat_all_until_all_ok(G).
@@ -217,8 +229,18 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
+init_per_group(pubsub_item_publisher_option, Config) ->
+    Config0 = dynamic_modules:save_modules(domain(), Config),
+    Args = proplists:get_value(mod_pubsub, required_modules()),
+    Args0 = [{item_publisher, true} | Args],
+    dynamic_modules:restart(domain(), mod_pubsub, Args0),
+    Config0;
+
 init_per_group(_GroupName, Config) ->
     Config.
+
+end_per_group(pubsub_item_publisher_option, Config) ->
+    dynamic_modules:restore_modules(domain(), Config);
 
 end_per_group(_GroupName, _Config) ->
     ok.
@@ -365,7 +387,7 @@ publish_with_existing_id_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, [{with_payload, NewEl}]),
               pubsub_tools:get_item(Alice, Node, <<"item1">>, [{expected_result,
                                                                 [#{id => <<"item1">>,
-                                                                   content => NewEl}]}]),
+                                                                   entry => NewEl}]}]),
 
 
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1450,7 +1472,45 @@ disable_delivery_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+%%-----------------------------------------------------------------
+%% pubsub_item_publisher_option
+%%-----------------------------------------------------------------
 
+get_item_with_publisher_option_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+
+              PublisherJID =  escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
+              A = pubsub_tools:get_item(Alice, Node, <<"item1">>,
+                                        [{expected_result, [#{id => <<"item1">>,
+                                                              publisher => PublisherJID}]}]),
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+receive_item_notification_with_publisher_option_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              pubsub_tools:subscribe(Bob, Node, []),
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+
+
+              PublisherJID =  escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
+              pubsub_tools:receive_item_notification(Bob, #{id => <<"item1">>,
+                                                            publisher => PublisherJID}, Node, []),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
