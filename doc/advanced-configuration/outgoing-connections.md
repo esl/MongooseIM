@@ -479,6 +479,11 @@ The `ConnectionOptions` list can take following parametrs as `{key, value`} pair
 * **amqp_username** (default: `"guest"`) - Defines RabbitMQ server username;
 * **amqp_password** (default: `"guest"`) - Defines RabbitMQ server password;
 * **confirms_enabled** (default: `false`) - Enables/disables one-to-one publishers confirms;
+* **max_worker_queue_len** (default: `1000`; use `infinity` to disable it) -
+Sets a limit of messages in a worker's mailbox above which the worker starts
+dropping the messages. If a worker message queue length reaches the limit,
+messages from the head of the queue are dropped until the queue length is again
+below the limit.
 
 ### Example
 
@@ -489,6 +494,7 @@ The `ConnectionOptions` list can take following parametrs as `{key, value`} pair
    {amqp_port, 5672},
    {amqp_username, "guest"},
    {amqp_password, "guest"},
-   {confirms_enabled, true}]}
+   {confirms_enabled, true},
+   {max_worker_queue_len, 100}]}
 ]}.
 ```

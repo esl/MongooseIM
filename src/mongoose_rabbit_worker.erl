@@ -37,7 +37,7 @@
                 channel :: pid() | undefined,
                 host :: binary() | undefined,
                 confirms :: boolean() | undefined,
-                max_queue_len :: non_neg_integer() | undefined}).
+                max_queue_len :: non_neg_integer() | infinity | undefined}).
 
 -type worker_opts() :: #state{}.
 
@@ -296,7 +296,9 @@ maybe_handle_request(Callback, Args, Reply) ->
             Reply
     end.
 
--spec is_msq_queue_max_limit_reached(Limit :: non_neg_integer()) -> boolean().
+-spec is_msq_queue_max_limit_reached(Limit :: infinity | non_neg_integer()) ->
+    boolean().
+is_msq_queue_max_limit_reached(infinity) -> false;
 is_msq_queue_max_limit_reached(Limit) ->
     case process_info(self(), message_queue_len) of
         {_, QueueLen} when QueueLen > Limit ->
