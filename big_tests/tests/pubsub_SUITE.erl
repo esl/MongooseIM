@@ -385,7 +385,7 @@ publish_with_existing_id_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, [{with_payload, NewEl}]),
               pubsub_tools:get_item(Alice, Node, <<"item1">>, [{expected_result,
                                                                 [#{id => <<"item1">>,
-                                                                   content => NewEl}]}]),
+                                                                   entry => NewEl}]}]),
 
 
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1457,10 +1457,10 @@ get_item_with_publisher_option_test(Config) ->
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
-
+              PublisherJID =  escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
               A = pubsub_tools:get_item(Alice, Node, <<"item1">>,
                                         [{expected_result, [#{id => <<"item1">>,
-                                                              publisher => escalus_client:full_jid(Alice)}]}]),
+                                                              publisher => PublisherJID}]}]),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
@@ -1476,8 +1476,9 @@ receive_item_notification_with_publisher_option_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
 
+              PublisherJID =  escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
               pubsub_tools:receive_item_notification(Bob, #{id => <<"item1">>,
-                                                            publisher => escalus_client:full_jid(Alice)}, Node, []),
+                                                            publisher => PublisherJID}, Node, []),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
