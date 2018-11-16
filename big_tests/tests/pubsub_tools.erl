@@ -13,7 +13,7 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
-
+-include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
 -export([
          discover_nodes/3,
@@ -459,13 +459,18 @@ check_items(ReceivedItemsElem, ExpectedItemIds, NodeName) ->
 check_item(ExpectedItem, ReceivedItem) ->
     ExpectedItemMap = decode_expected_item(ExpectedItem),
     maps:map(fun(K, V) ->
-    KBin = atom_to_binary(K, utf8),
+                     KBin = atom_to_binary(K, utf8),
                      check_item_field(KBin, V, ReceivedItem) end, ExpectedItemMap).
 
 check_item_field(Field = <<"entry">>, ExpectedValue, ReceivedItem) ->
-    ExpectedValue = exml_query:subelement(ReceivedItem, Field);
+    ?assertEqual(ExpectedValue, exml_query:subelement(ReceivedItem, Field));
 check_item_field(Field, ExpectedValue, ReceivedItem) ->
-    ExpectedValue = exml_query:attr(ReceivedItem, Field).
+    case exml_query:attr(ReceivedItem, Field)of
+        ExpectedValue ->
+            ok;
+        Value ->
+            ct:fail("Assertion failed for key: ~p, expected value: ~p, actual: ~p", [Field, ExpectedValue, Value])
+    end.
 
 decode_expected_item(AMap) when is_map(AMap) ->
     case maps:is_key(entry, AMap) of
