@@ -117,13 +117,14 @@ terminate(_Reason, #state{connection = Connection, channel = Channel,
 %%%===================================================================
 
 do_handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
-    case try_to_apply(amqp_channel, call, [Channel, Method]) of
-        {ok, _} = Res ->
-            {reply, Res, State};
-        Err ->
+    try amqp_channel:call(Channel, Method) of
+        Res ->
+            {reply, {ok, Res}, State}
+    catch
+        Error:Reason ->
             {FreshConn, FreshChann} = maybe_restart_rabbit_connection(State),
-            {reply, Err, State#state{connection = FreshConn,
-                                     channel = FreshChann}}
+            {reply, {Error, Reason}, State#state{connection = FreshConn,
+                                                 channel = FreshChann}}
     end.
 
 do_handle_cast({amqp_publish, Method, Payload}, State) ->
@@ -165,8 +166,7 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
             {noreply, Opts#state{connection = FreshConn, channel = FreshChann}};
         timeout ->
             update_messages_timeout_metrics(Host),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout",
-                         []),
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout", []),
             {noreply, Opts}
     end.
 
@@ -177,10 +177,11 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
 publish_message_and_wait_for_confirm(Method, Payload,
                                      #state{channel = Channel,
                                             confirms = IsConfirmEnabled}) ->
-    case try_to_apply(amqp_channel, call, [Channel, Method, Payload]) of
-        {ok, _} ->
-            maybe_wait_for_confirms(Channel, IsConfirmEnabled);
-        {E, R} -> {channel_exception, E, R}
+    try amqp_channel:call(Channel, Method, Payload) of
+        _Res ->
+            maybe_wait_for_confirms(Channel, IsConfirmEnabled)
+    catch
+        Error:Reason -> {channel_exception, Error, Reason}
     end.
 
 -spec maybe_wait_for_confirms(Channel :: pid(), boolean()) ->
@@ -270,17 +271,6 @@ update_failed_connections_metrics(Host) ->
 update_closed_connections_metrics(Host) ->
     mongoose_metrics:update(Host, ?CONNECTIONS_ACTIVE_METRIC, -1),
     mongoose_metrics:update(Host, ?CONNECTIONS_CLOSED_METRIC, 1).
-
--spec try_to_apply(Mod :: module(), Fun :: atom(), [term()]) ->
-    {ok, term()} | {atom(), term()}.
-try_to_apply(Mod, Fun, Args) ->
-    try erlang:apply(Mod, Fun, Args) of
-        Res ->
-            {ok, Res}
-    catch
-        Error:Reason ->
-            {Error, Reason}
-    end.
 
 -spec maybe_handle_request(Callback :: function(), Args :: [term()],
                            Reply :: term()) -> term().
