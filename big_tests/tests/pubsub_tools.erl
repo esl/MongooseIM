@@ -457,11 +457,15 @@ check_items(ReceivedItemsElem, ExpectedItemIds, NodeName, WithPayload) ->
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
 check_item(ExpectedItem, WithPayload, ReceivedItem) ->
-    #{id := ExpectedItemId} = ExpectedItemMap = decode_expected_item(ExpectedItem),
-    ExpectedItemId = exml_query:attr(ReceivedItem, <<"id">>),
-    Content = item_content(WithPayload),
-    ExpectedContent = maps:get(content, ExpectedItemMap, Content),
-    ExpectedContent = exml_query:subelement(ReceivedItem, <<"entry">>).
+    ExpectedItemMap = decode_expected_item(ExpectedItem),
+    maps:map(fun(K, V) ->
+    KBin = atom_to_binary(K, utf8),
+                     check_item_field(KBin, V, ReceivedItem) end, ExpectedItemMap).
+
+check_item_field(Field = <<"entry">>, ExpectedValue, ReceivedItem) ->
+    ExpectedValue = exml_query:subelement(ReceivedItem, Field);
+check_item_field(Field, ExpectedValue, ReceivedItem) ->
+    ExpectedValue = exml_query:attr(ReceivedItem, Field).
 
 decode_expected_item(AMap) when is_map(AMap) ->
     AMap;
