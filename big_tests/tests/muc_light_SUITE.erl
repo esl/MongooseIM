@@ -198,7 +198,7 @@ init_per_suite(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
-                           {backend, mongoose_helper:backend_by_db_enabled()},
+                           {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {rooms_in_rosters, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).

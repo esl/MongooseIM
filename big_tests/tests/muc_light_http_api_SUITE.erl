@@ -64,7 +64,7 @@ init_per_suite(Config) ->
     dynamic_modules:start(<<"localhost">>, mod_muc_light,
         [{host, binary_to_list(muc_light_domain())},
          {rooms_in_rosters, true},
-         {backend, mongoose_helper:backend_by_db_enabled()}]),
+         {backend, mongoose_helper:mnesia_or_rdbms_backend()}]),
     escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->

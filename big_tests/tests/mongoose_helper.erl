@@ -3,7 +3,7 @@
 %% API
 
 -export([is_rdbms_enabled/1,
-        backend_by_db_enabled/0]).
+        mnesia_or_rdbms_backend/0]).
 
 -export([auth_modules/0]).
 
@@ -34,8 +34,8 @@ is_rdbms_enabled(Host) ->
         _ -> false
     end.
 
--spec backend_by_db_enabled() -> atom().
-backend_by_db_enabled() ->
+-spec mnesia_or_rdbms_backend() -> atom().
+mnesia_or_rdbms_backend() ->
     Host = ct:get_config({hosts, mim, domain}),
     case mongoose_helper:is_rdbms_enabled(Host) of
         true -> rdbms;

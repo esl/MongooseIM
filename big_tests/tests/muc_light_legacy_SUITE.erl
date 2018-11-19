@@ -137,7 +137,7 @@ init_per_suite(Config) ->
     Host = domain(),
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
-                           {backend, mongoose_helper:backend_by_db_enabled()},
+                           {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).

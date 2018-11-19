@@ -294,7 +294,7 @@ required_modules() ->
      {mod_pubsub, [
                    {plugins, [<<"dag">>, <<"pep">>]},
                    {nodetree, <<"dag">>},
-                   {backend, mongoose_helper:backend_by_db_enabled()},
+                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {pep_mapping, []},
                    {host, "pubsub.@HOST@"}
                   ]}].
