@@ -1244,7 +1244,7 @@ iq_sm(From, To, Acc, #iq{type = Type, sub_el = SubEl, xmlns = XMLNS, lang = Lang
           end,
     case Res of
         {result, IQRes} -> {Acc, IQ#iq{type = result, sub_el = IQRes}};
-        {error, Error} -> {Acc, IQ#iq{type = error, sub_el = [Error, SubEl]}}
+        {error, Error} -> {Acc, make_error_reply(IQ, Error)}
     end.
 
 iq_get_vcard(Lang) ->
@@ -4344,8 +4344,8 @@ on_user_offline(Acc, _, JID, _, _) ->
     end,
     Acc.
 
-purge_offline(LJID) ->
-    Host = host(element(2, LJID)),
+purge_offline({_, LServer, _} = LJID) ->
+    Host = host(LServer),
     Plugins = plugins(Host),
     Affs = lists:foldl(
              fun (PluginType, Acc) ->
@@ -4413,6 +4413,11 @@ purge_item_of_offline_user(Host, #pubsub_node{ id = Nidx, nodeid = {_, NodeId},
 timestamp() ->
     os:timestamp().
 
+make_error_reply(#iq{ sub_el = SubEl } = IQ, #xmlel{} = ErrorEl) ->
+    IQ#iq{type = error, sub_el = [ErrorEl, SubEl]};
+make_error_reply(#iq{ sub_el = SubEl } = IQ, Error) ->
+    ?ERROR_MSG("event=pubsub_crash,details=~p", [Error]),
+    IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:internal_server_error(), SubEl]};
 make_error_reply(Packet, #xmlel{} = ErrorEl) ->
     jlib:make_error_reply(Packet, ErrorEl);
 make_error_reply(Packet, Error) ->

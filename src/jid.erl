@@ -243,8 +243,10 @@ to_lower({U, S, R}) ->
         error
     end.
 
--spec to_lus(JID :: jid()) -> error | simple_bare_jid().
+-spec to_lus(JID :: jid() | ljid()) -> simple_bare_jid().
 to_lus(#jid{luser = U, lserver = S}) ->
+    {U, S};
+to_lus({U, S, _}) ->
     {U, S}.
 
 -spec to_bare(simple_jid()  | jid()) ->

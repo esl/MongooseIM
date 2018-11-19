@@ -115,7 +115,7 @@ unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
     end.
 
 get_entity_affiliations(Host, #jid{ lserver = D } = Owner) ->
-    get_entity_affiliations(Host, D, Owner);
+    get_entity_affiliations(Host, D, jid:to_lower(Owner));
 get_entity_affiliations(Host, {_, D, _} = Owner) ->
     get_entity_affiliations(Host, D, Owner).
 
@@ -137,12 +137,13 @@ get_entity_subscriptions(Host, {_, D, R} = Owner) ->
     get_entity_subscriptions(Host, D, R, Owner).
 
 get_entity_subscriptions(Host, D, R, Owner) ->
+    LOwner = jid:to_lower(Owner),
     States = case R of
                  <<>> ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(Owner),
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(LOwner),
                      States0;
                  _ ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(Owner),
+                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(LOwner),
                      States0
              end,
     NodeTree = mod_pubsub:tree(Host),

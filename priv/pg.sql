@@ -316,3 +316,37 @@ CREATE INDEX i_inbox
     ON inbox
     USING BTREE(luser, lserver, timestamp);
 
+CREATE TABLE pubsub_affiliations (
+    nidx BIGINT             NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    aff SMALLINT            NOT NULL,
+    PRIMARY KEY(luser, lserver, nidx)
+);
+
+CREATE INDEX i_pubsub_affiliations_nidx ON pubsub_affiliations(nidx);
+
+CREATE TABLE pubsub_items (
+    nidx BIGINT             NOT NULL,
+    itemid VARCHAR(250)     NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL
+);
+
+-- we skip luser and lserver in this one as this is little chance (even impossible?)
+-- to have itemid duplication for distinct users
+CREATE INDEX i_pubsub_items_nidx_itemid ON pubsub_items(nidx, itemid);
+CREATE INDEX i_pubsub_items_lus_nidx ON pubsub_items(luser, lserver, nidx);
+
+CREATE TABLE pubsub_subscriptions (
+    nidx BIGINT             NOT NULL,
+    luser VARCHAR(250)      NOT NULL,
+    lserver VARCHAR(250)    NOT NULL,
+    lresource VARCHAR(250)  NOT NULL,
+    type SMALLINT           NOT NULL,
+    sub_id VARCHAR(125)     NOT NULL
+);
+
+CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
+CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
+

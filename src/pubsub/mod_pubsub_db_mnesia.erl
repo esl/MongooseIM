@@ -17,7 +17,11 @@
 % Direct #pubsub_state access
 -export([del_state/2, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
-         get_states_by_bare_and_full/1, get_own_nodes_states/1]).
+         get_states_by_bare_and_full/1, get_idxs_of_own_nodes_with_pending_subs/1]).
+% Node management
+-export([
+         create_node/2
+        ]).
 % Affiliations
 -export([
          set_affiliation/3,
@@ -78,32 +82,47 @@ stop() ->
                   ErrorDebug :: map()) ->
     {result | error, any()}.
 transaction(Fun, ErrorDebug) ->
-    case mnesia:transaction(Fun) of
+    case mnesia:transaction(extra_debug_fun(Fun)) of
         {atomic, Result} ->
             Result;
-        {aborted, Reason} ->
-            mod_pubsub_db:transaction_error(Reason, ErrorDebug)
+        {aborted, ReasonData} ->
+            mod_pubsub_db:db_error(ReasonData, ErrorDebug, transaction_failed)
     end.
 
 -spec dirty(Fun :: fun(() -> {result | error, any()}),
             ErrorDebug :: map()) ->
     {result | error, any()}.
 dirty(Fun, ErrorDebug) ->
-    try mnesia:sync_dirty(Fun, []) of
+    try mnesia:sync_dirty(extra_debug_fun(Fun), []) of
         Result ->
             Result
     catch
-        C:R ->
-            mod_pubsub_db:dirty_error(C, R, erlang:get_stacktrace(), ErrorDebug)
+        _C:ReasonData ->
+            mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed)
+    end.
+
+%% transaction and sync_dirty return very truncated error data so we add extra
+%% try to gather stack trace etc.
+extra_debug_fun(Fun) ->
+    fun() ->
+            try Fun() of
+                Res -> Res
+            catch
+                C:R ->
+                    throw(#{
+                      class => C,
+                      reason => R,
+                      stacktrace => erlang:get_stacktrace()})
+            end
     end.
 
 %% ------------------------ Direct #pubsub_state access ------------------------
 
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
-                JID :: jid:jid()) ->
+                LJID :: jid:ljid()) ->
     {ok, mod_pubsub:pubsubState()}.
-get_state(Nidx, JID) ->
-    get_state(Nidx, JID, read).
+get_state(Nidx, LJID) ->
+    get_state(Nidx, LJID, read).
 
 -spec get_states(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
@@ -115,135 +134,134 @@ get_states(Nidx) ->
              end,
     {ok, States}.
 
--spec get_states_by_lus(JID :: jid:jid()) ->
+-spec get_states_by_lus(LJID :: jid:ljid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
-get_states_by_lus(#jid{ luser = LUser, lserver = LServer }) ->
+get_states_by_lus({ LUser, LServer, _ }) ->
     {ok, mnesia:match_object(#pubsub_state{stateid = {{LUser, LServer, '_'}, '_'}, _ = '_'})}.
 
--spec get_states_by_bare(JID :: jid:jid()) ->
+-spec get_states_by_bare(LJID :: jid:ljid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
-get_states_by_bare(JID) ->
-    LBare = jid:to_bare(jid:to_lower(JID)),
+get_states_by_bare(LJID) ->
+    LBare = jid:to_bare(LJID),
     {ok, mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
 
--spec get_states_by_bare_and_full(JID :: jid:jid()) ->
+-spec get_states_by_bare_and_full(LJID :: jid:ljid()) ->
     {ok, [mod_pubsub:pubsubState()]}.
-get_states_by_bare_and_full(JID) ->
-    LJID = jid:to_lower(JID),
+get_states_by_bare_and_full(LJID) ->
     LBare = jid:to_bare(LJID),
     {ok, mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'})
      ++ mnesia:match_object(#pubsub_state{stateid = {LBare, '_'}, _ = '_'})}.
 
--spec get_own_nodes_states(JID :: jid:jid()) ->
-    {ok, [mod_pubsub:pubsubState()]}.
-get_own_nodes_states(JID) ->
-    LBare = jid:to_bare(jid:to_lower(JID)),
+-spec get_idxs_of_own_nodes_with_pending_subs(LJID :: jid:ljid()) ->
+    {ok, [mod_pubsub:nodeIdx()]}.
+get_idxs_of_own_nodes_with_pending_subs(LJID) ->
+    LBare = jid:to_bare(LJID),
     MyStates = mnesia:match_object(#pubsub_state{stateid = {LBare, '_'},
                                                  affiliation = owner, _ = '_'}),
     NodeIdxs = [Nidx || #pubsub_state{stateid = {_, Nidx}} <- MyStates],
-    OwnNodesStates =
-    mnesia:foldl(fun (#pubsub_state{stateid = {_, Nidx}} = PubSubState, Acc) ->
-                         case lists:member(Nidx, NodeIdxs) of
-                             true -> [PubSubState | Acc];
-                             false -> Acc
-                         end
-                 end,
-                 [], pubsub_state),
-    {ok, OwnNodesStates}.
+    ResultNidxs = mnesia:foldl(pa:bind(fun get_idxs_with_pending_subs/3, NodeIdxs),
+                               [], pubsub_state),
+    {ok, ResultNidxs}.
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                JIDorLJID :: jid:ljid() | jid:jid()) -> ok.
-del_state(Nidx, #jid{} = JID) ->
-    del_state(Nidx, jid:to_lower(JID));
+                LJID :: jid:ljid()) -> ok.
 del_state(Nidx, LJID) ->
     mnesia:delete({pubsub_state, {LJID, Nidx}}).
+
+%% ------------------------ Node management ------------------------
+
+-spec create_node(Nidx :: mod_pubsub:nodeIdx(),
+                  Owner :: jid:ljid()) ->
+    ok.
+create_node(Nidx, Owner) ->
+    set_affiliation(Nidx, Owner, owner).
 
 %% ------------------------ Affiliations ------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                      JID :: jid:jid(),
+                      LJID :: jid:ljid(),
                       Affiliation :: mod_pubsub:affiliation()) -> ok.
-set_affiliation(Nidx, JID, Affiliation) ->
-    BareJID = jid:to_bare(JID),
-    {ok, State} = get_state(Nidx, BareJID, write),
+set_affiliation(Nidx, LJID, Affiliation) ->
+    BareLJID = jid:to_bare(LJID),
+    {ok, State} = get_state(Nidx, BareLJID, write),
     case {Affiliation, State#pubsub_state.subscriptions} of
-        {none, []} -> del_state(Nidx, BareJID);
+        {none, []} -> del_state(Nidx, BareLJID);
         _ ->  mnesia:write(State#pubsub_state{ affiliation = Affiliation })
     end.
 
 -spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
-                      JID :: jid:jid()) ->
+                      LJID :: jid:ljid()) ->
     {ok, mod_pubsub:affiliation()}.
-get_affiliation(Nidx, JID) ->
-    {ok, State} = get_state(Nidx, jid:to_bare(JID), read),
+get_affiliation(Nidx, LJID) ->
+    {ok, State} = get_state(Nidx, jid:to_bare(LJID), read),
     {ok, State#pubsub_state.affiliation}.
 
 %% ------------------------ Subscriptions ------------------------
 
 -spec add_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                       JID :: jid:jid(),
+                       LJID :: jid:ljid(),
                        Sub :: mod_pubsub:subscription(),
                        SubId :: mod_pubsub:subId()) -> ok.
-add_subscription(Nidx, JID, Sub, SubId) ->
-    {ok, State} = get_state(Nidx, JID, write),
+add_subscription(Nidx, LJID, Sub, SubId) ->
+    {ok, State} = get_state(Nidx, LJID, write),
     NSubscriptions = [{Sub, SubId} | State#pubsub_state.subscriptions ],
     mnesia:write(State#pubsub_state{ subscriptions = NSubscriptions }).
 
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
-    {ok, [{Entity :: jid:jid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Entity :: jid:ljid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 get_node_subscriptions(Nidx) ->
     {ok, States} = get_states(Nidx),
     {ok, states_to_subscriptions(States)}.
 
 -spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
-                                    JID :: jid:jid()) ->
+                                    LJID :: jid:ljid()) ->
     {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
-get_node_entity_subscriptions(Nidx, JID) ->
-    {ok, State} = get_state(Nidx, JID, read),
+get_node_entity_subscriptions(Nidx, LJID) ->
+    {ok, State} = get_state(Nidx, LJID, read),
     {ok, State#pubsub_state.subscriptions}.
 
 -spec delete_subscription(
         Nidx :: mod_pubsub:nodeIdx(),
-        JID :: jid:jid(),
+        LJID :: jid:ljid(),
         SubId :: mod_pubsub:subId()) ->
     ok.
-delete_subscription(Nidx, JID, SubId) ->
-    {ok, State} = get_state(Nidx, JID, write),
+delete_subscription(Nidx, LJID, SubId) ->
+    {ok, State} = get_state(Nidx, LJID, write),
     NewSubs = lists:keydelete(SubId, 2, State#pubsub_state.subscriptions),
     case {State#pubsub_state.affiliation, NewSubs} of
-        {none, []} -> del_state(Nidx, JID);
+        {none, []} -> del_state(Nidx, LJID);
         _ -> mnesia:write(State#pubsub_state{subscriptions = NewSubs})
     end.
 
 -spec delete_all_subscriptions(
         Nidx :: mod_pubsub:nodeIdx(),
-        JID :: jid:jid()) ->
+        LJID :: jid:ljid()) ->
     ok.
-delete_all_subscriptions(Nidx, JID) ->
-    {ok, State} = get_state(Nidx, JID, write),
+delete_all_subscriptions(Nidx, LJID) ->
+    {ok, State} = get_state(Nidx, LJID, write),
     case State#pubsub_state.affiliation of
-        none -> del_state(Nidx, JID);
+        none -> del_state(Nidx, LJID);
         _ -> mnesia:write(State#pubsub_state{subscriptions = []})
     end.
 
 -spec update_subscription(Nidx :: mod_pubsub:nodeIdx(),
-                          JID :: jid:jid(),
+                          LJID :: jid:ljid(),
                           Subscription :: mod_pubsub:subscription(),
                           SubId :: mod_pubsub:subId()) ->
     ok.
-update_subscription(Nidx, JID, Subscription, SubId) ->
-    {ok, State} = get_state(Nidx, JID, write),
+update_subscription(Nidx, LJID, Subscription, SubId) ->
+    {ok, State} = get_state(Nidx, LJID, write),
     NewSubs = lists:keyreplace(SubId, 2, State#pubsub_state.subscriptions, {Subscription, SubId}),
     mnesia:write(State#pubsub_state{ subscriptions = NewSubs }).
 
 %% ------------------------ Items ------------------------
 
 -spec remove_items(Nidx :: mod_pubsub:nodeIdx(),
-                   JID :: jid:jid(),
+                   LJID :: jid:ljid(),
                    ItemIds :: [mod_pubsub:itemId()]) ->
     ok.
-remove_items(Nidx, JID, ItemIds) ->
-    {ok, State} = get_state(Nidx, jid:to_bare(JID), write),
+remove_items(Nidx, LJID, ItemIds) ->
+    {ok, State} = get_state(Nidx, jid:to_bare(LJID), write),
     NewItems = State#pubsub_state.items -- ItemIds,
     mnesia:write(State#pubsub_state{ items = NewItems }).
 
@@ -258,8 +276,8 @@ remove_all_items(Nidx) ->
                   end, States).
 
 -spec add_item(Nidx :: mod_pubsub:nodeIdx(),
-               JID :: jid:jid(),
-               ItemId :: mod_pubsub:pubsubItem()) ->
+               JID :: jid:ljid(),
+               Item :: mod_pubsub:pubsubItem()) ->
     ok.
 add_item(Nidx, JID, #pubsub_item{itemid = {ItemId, _}} = Item) ->
     set_item(Item),
@@ -316,11 +334,11 @@ del_items(Nidx, ItemIds) ->
 %%====================================================================
 
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
-                JID :: jid:jid(),
+                LJID :: jid:ljid(),
                 LockKind :: write | read) ->
     {ok, mod_pubsub:pubsubState()}.
-get_state(Nidx, JID, LockKind) ->
-    StateId = {jid:to_lower(JID), Nidx},
+get_state(Nidx, LJID, LockKind) ->
+    StateId = {LJID, Nidx},
     case catch mnesia:read(pubsub_state, StateId, LockKind) of
         [#pubsub_state{} = State] -> {ok, State};
         _ -> {ok, #pubsub_state{stateid = StateId}}
@@ -343,4 +361,21 @@ add_jid_to_subs([], _J, RStates) ->
     states_to_subscriptions(RStates);
 add_jid_to_subs([{S, SubId} | RSubs], J, RStates) ->
     [ {J, S, SubId} | add_jid_to_subs(RSubs, J, RStates) ].
+
+-spec get_idxs_with_pending_subs(NodeIdxs :: [mod_pubsub:nodeIdx()],
+                                 PubsubState :: mod_pubsub:pubsubState(),
+                                 Acc :: [mod_pubsub:nodeIdx()]) ->
+    [mod_pubsub:nodeIdx()].
+get_idxs_with_pending_subs(NodeIdxs,
+                           #pubsub_state{stateid = {_, Nidx}, subscriptions = Subs},
+                           Acc) ->
+    case lists:member(Nidx, NodeIdxs)
+         andalso lists:any(fun is_pending_sub/1, Subs) of
+        true -> [Nidx | Acc];
+        false -> Acc
+    end.
+
+is_pending_sub({pending, _}) -> true;
+is_pending_sub(pending) -> true;
+is_pending_sub(_) -> false.
 
