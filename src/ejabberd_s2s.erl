@@ -174,7 +174,7 @@ node_cleanup(Acc, Node) ->
                               end, Es)
         end,
     Res = mnesia:async_dirty(F),
-    maps:put(cleanup_result, Res, Acc).
+    maps:put(?MODULE, Res, Acc).
 
 -spec key({jid:lserver(), jid:lserver()}, binary()) ->
     binary().
