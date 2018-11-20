@@ -209,7 +209,7 @@ init([Host, Opts]) ->
     case proplists:get_value(mydbg, Opts, false) of
         true ->
             R2 = dbg:p(self(), [sos, c, m, p]),
-            dbg:tpl(mod_vcard_ldap, x),
+            dbg:tp(mod_vcard_ldap, x),
             ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok
