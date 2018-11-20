@@ -199,7 +199,7 @@ search_reported_fields(Host, Lang) ->
 
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
-    ?WARNING_MSG("mod_vcard_ldap proc=~p", [Proc]),
+    ?WARNING_MSG("mod_vcard_ldap proc=~p opts=~p", [Proc, Opts]),
     gen_server:start_link({local, Proc}, ?MODULE,
                           [Host, Opts], []).
 
