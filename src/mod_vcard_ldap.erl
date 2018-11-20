@@ -199,6 +199,7 @@ search_reported_fields(Host, Lang) ->
 
 start_link(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
+    ?WARNING_MSG("mod_vcard_ldap proc=~p", [Proc]),
     gen_server:start_link({local, Proc}, ?MODULE,
                           [Host, Opts], []).
 
@@ -208,7 +209,7 @@ init([Host, Opts]) ->
     case proplists:get_value(dbg, Opts, false) of
         true ->
             R2 = dbg:p(self(), [sos, c, m, p]),
-            dbg:tp(mod_vcard_ldap, x),
+            dbg:tpl(mod_vcard_ldap, x),
             ?WARNING_MSG("R2: ~p", [R2]);
         _ ->
             ok
