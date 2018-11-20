@@ -51,6 +51,8 @@
 -export([add/1,
          delete/1]).
 
+-export([error_running_hook/3]).
+
 -include("mongoose.hrl").
 
 -type hook() :: {atom(), jid:server() | global, module(), fun() | atom(), integer()}.
@@ -249,8 +251,7 @@ run_fold1([{_Seq, Module, Function} | Ls], Hook, Val, Args) ->
     Res = hook_apply_function(Module, Function, Val, Args),
     case Res of
         {'EXIT', Reason} ->
-            ?ERROR_MSG("~p~nrunning hook: ~p",
-                       [Reason, {Hook, Args}]),
+            error_running_hook(Reason, Hook, Args),
             run_fold1(Ls, Hook, Val, Args);
         stop ->
             stopped;
@@ -265,3 +266,5 @@ hook_apply_function(_Module, Function, Val, Args) when is_function(Function) ->
 hook_apply_function(Module, Function, Val, Args) ->
     safely:apply(Module, Function, [Val | Args]).
 
+error_running_hook(Reason, Hook, Args) ->
+    ?ERROR_MSG("~p~nrunning hook: ~p", [Reason, {Hook, Args}]).

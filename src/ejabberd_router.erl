@@ -587,9 +587,9 @@ update_tables() ->
             ok
     end.
 
--spec routes_cleanup_on_nodedown(mongoose_acc:t(), node()) -> mongoose_acc:t().
+-spec routes_cleanup_on_nodedown(map(), node()) -> map().
 routes_cleanup_on_nodedown(Acc, Node) ->
     Entries = mnesia:dirty_match_object(external_component_global,
                                         #external_component{node = Node, _ = '_'}),
     [mnesia:dirty_delete_object(external_component_global, Entry) || Entry <- Entries],
-    Acc.
+    maps:put(?MODULE, ok, Acc).

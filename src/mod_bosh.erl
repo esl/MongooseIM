@@ -149,7 +149,7 @@ stop(_Host) ->
 
 node_cleanup(Acc, Node) ->
     Res = mod_bosh_backend:node_cleanup(Node),
-    maps:put(cleanup_result, Res, Acc).
+    maps:put(?MODULE, Res, Acc).
 
 %%--------------------------------------------------------------------
 %% cowboy_loop_handler callbacks
