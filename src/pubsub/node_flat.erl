@@ -123,11 +123,7 @@ delete_node(Nodes) ->
             lists:map(fun (S) -> {J, S} end, Ss)
     end,
     Reply = lists:map(fun (#pubsub_node{id = Nidx} = PubsubNode) ->
-                    {ok, States} = mod_pubsub_db_backend:get_states(Nidx),
-                    lists:foreach(fun (#pubsub_state{stateid = {LJID, _}, items = Items}) ->
-                                del_items(Nidx, Items),
-                                mod_pubsub_db_backend:del_state(Nidx, LJID)
-                        end, States),
+                    {ok, States} = mod_pubsub_db_backend:del_node(Nidx),
                     {PubsubNode, lists:flatmap(Tr, States)}
             end, Nodes),
     {result, {default, broadcast, Reply}}.

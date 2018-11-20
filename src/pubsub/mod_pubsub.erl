@@ -298,7 +298,7 @@ init([ServerHost, Opts]) ->
     {ok, State}.
 
 init_backend(Opts) ->
-    TrackedDBFuns = [set_state, del_state, get_state, get_states,
+    TrackedDBFuns = [create_node, del_node, get_state, get_states,
                      get_states_by_lus, get_states_by_bare,
                      get_states_by_full, get_own_nodes_states,
                      get_items, get_item, set_item, del_item, del_items],

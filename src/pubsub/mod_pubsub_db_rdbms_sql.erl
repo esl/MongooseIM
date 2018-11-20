@@ -25,7 +25,8 @@
 -export([
          upsert_affiliation/4,
          get_affiliation/3,
-         delete_affiliation/3
+         delete_affiliation/3,
+         delete_all_affiliations/1
         ]).
 
 % Subscriptions
@@ -35,6 +36,7 @@
          get_node_entity_subs/4,
          delete_subscription/5,
          delete_all_subscriptions/4,
+         delete_all_subscriptions/1,
          update_subscription/6
         ]).
 
@@ -191,6 +193,11 @@ delete_affiliation(Nidx, LU, LS) ->
      " AND luser = ", esc_string(LU),
      " AND lserver = ", esc_string(LS) ].
 
+-spec delete_all_affiliations(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
+delete_all_affiliations(Nidx) ->
+    ["DELETE FROM pubsub_affiliations"
+     " WHERE nidx = ", esc_int(Nidx)].
+
 % ------------------- Subscriptions --------------------------------
 
 -spec insert_subscription(Nidx :: mod_pubsub:nodeIdx(),
@@ -249,6 +256,11 @@ delete_all_subscriptions(Nidx, LU, LS, LR) ->
      " AND luser = ", esc_string(LU),
      " AND lserver = ", esc_string(LS),
      " AND lresource = ", esc_string(LR)].
+
+-spec delete_all_subscriptions(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
+delete_all_subscriptions(Nidx) ->
+    ["DELETE FROM pubsub_subscriptions"
+     " WHERE nidx = ", esc_int(Nidx)].
 
 -spec update_subscription(Nidx :: mod_pubsub:nodeIdx(),
                           LU :: jid:luser(),
