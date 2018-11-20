@@ -35,7 +35,7 @@ Node configuration still uses the default configuration defined by the node plug
 
 #### Note about RDBMS backend
 
-Current RDBMS backend replaces `pubsub_state` Mnesia table with RDBMS equivalents.
+Current RDBMS backend replaces `pubsub_state` and `pubsub_item` Mnesia tables with RDBMS equivalents.
 Due to a fact that some data is still maintained in Mnesia, there is a certain risk of data becoming inconsistent.
 The schema used by this backend may change until it reaches stable status.
 

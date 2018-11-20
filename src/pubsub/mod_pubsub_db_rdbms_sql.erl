@@ -40,10 +40,14 @@
 
 % Items
 -export([
-         insert_item/4,
          get_entity_items/3,
          delete_item/4,
-         delete_all_items/1
+         delete_all_items/1,
+         upsert_item/11,
+         get_items/2,
+         get_item/2,
+         del_item/2,
+         del_items/2
         ]).
 
 %%====================================================================
@@ -54,7 +58,7 @@
 
 -spec get_item_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
 get_item_rows(Nidx) ->
-    ["SELECT nidx, luser, lserver, itemid FROM pubsub_items"
+    ["SELECT nidx, created_luser, created_lserver, itemid FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx)].
 
 -spec get_affiliation_rows(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
@@ -70,9 +74,9 @@ get_subscriptions_rows(Nidx) ->
 -spec get_item_rows(LU :: jid:luser(),
                     LS :: jid:lserver()) -> iolist().
 get_item_rows(LU, LS) ->
-    ["SELECT nidx, luser, lserver, itemid FROM pubsub_items"
-     " WHERE luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS)].
+    ["SELECT nidx, created_luser, created_lserver, itemid FROM pubsub_items"
+     " WHERE created_luser = ", esc_string(LU),
+     " AND created_lserver = ", esc_string(LS)].
 
 -spec get_affiliation_rows(LU :: jid:luser(),
                            LS :: jid:lserver()) -> iolist().
@@ -113,8 +117,8 @@ get_idxs_of_own_nodes_with_pending_subs(LU, LS) ->
 delete_node_entity_items(Nidx, LU, LS) ->
     ["DELETE FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS)].
+     " AND created_luser = ", esc_string(LU),
+     " AND created_lserver = ", esc_string(LS)].
 
 % ------------------- Affiliations --------------------------------
 
@@ -263,16 +267,203 @@ update_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
 
 % ------------------- Items --------------------------------
 
--spec insert_item(Nidx :: mod_pubsub:nodeIdx(),
-                  LU :: jid:luser(),
-                  LS :: jid:lserver(),
-                  ItemId :: mod_pubsub:itemId()) -> iolist().
-insert_item(Nidx, LU, LS, ItemId) ->
-    ["INSERT INTO pubsub_items (nidx, luser, lserver, itemid)"
-     " VALUES (", esc_int(Nidx), ", ",
-     esc_string(LU), ", ",
-     esc_string(LS), ", ",
-     esc_string(ItemId), ")"].
+-spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
+    iolist().
+get_items(Nidx, Opts) ->
+    MaxItems = maps:get(max_items, Opts, undefined),
+    {MySQLOrPgSQLLimit, MSSQLLimit} = maybe_result_limit(MaxItems),
+    ["SELECT ", MSSQLLimit, item_columns(), " ",
+     "FROM pubsub_items "
+     "WHERE nidx=", esc_int(Nidx),
+     maybe_item_ids_filter(maps:get(item_ids, Opts, undefined)),
+     " ORDER BY modified_at DESC",
+     MySQLOrPgSQLLimit].
+
+-spec get_item(mod_pubsub:nodeIdx(), mod_pubsub:itemId()) -> iolist().
+get_item(Nidx, ItemId) ->
+    ["SELECT ", item_columns(), " "
+     "FROM pubsub_items "
+     "WHERE nidx=", esc_int(Nidx),
+     " AND itemid=", esc_string(ItemId)].
+
+item_columns() ->
+     "nidx, itemid, created_luser, created_lserver, created_at, "
+     "modified_luser, modified_lserver, modified_lresource, modified_at, "
+     "publisher, payload".
+
+maybe_item_ids_filter(undefined) ->
+    [];
+maybe_item_ids_filter(ItemIds) ->
+    EscapedIds = [esc_string(ItemId) || ItemId <- ItemIds],
+    Ids = rdbms_queries:join(EscapedIds, ","),
+    [" AND itemid IN (", Ids, ")"].
+
+maybe_result_limit(undefined) ->
+    {[], []};
+maybe_result_limit(Limit) ->
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {MySQLorPgSQL, _} when MySQLorPgSQL =:= mysql; MySQLorPgSQL =:= pgsql ->
+            {[" LIMIT ", esc_int(Limit)], []};
+        {odbc, mssql} ->
+            {[], [" TOP ", esc_int(Limit), " "]};
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+-spec del_item(mod_pubsub:nodeIdx(), mod_pubsub:itemId()) -> iolist().
+del_item(Nidx, ItemId) ->
+    ["DELETE FROM pubsub_items "
+     "WHERE nidx=", esc_int(Nidx),
+      " AND itemid=", esc_string(ItemId)].
+
+-spec del_items(mod_pubsub:nodeIdx(), [mod_pubsub:itemId()]) -> iolist().
+del_items(Nidx, ItemIds) ->
+    EscapedIds = [esc_string(ItemId) || ItemId <- ItemIds],
+    Ids = rdbms_queries:join(EscapedIds, ", "),
+    ["DELETE FROM pubsub_items "
+     "WHERE nidx=", esc_int(Nidx),
+      " AND itemid IN (", Ids,")"].
+
+-spec upsert_item(NodeIdx :: mod_pubsub:nodeIdx(),
+                  ItemId :: mod_pubsub:itemId(),
+                  CreatedLUser :: jid:luser(),
+                  CreatedLServer :: jid:lserver(),
+                  CreatedAt :: erlang:timestamp(),
+                  ModifiedLUser :: jid:luser(),
+                  ModifiedLServer :: jid:lserver(),
+                  ModifiedLResource :: jid:lresource(),
+                  ModifiedAt :: erlang:timestamp(),
+                  Publisher :: undefined | jid:jid(),
+                  Payload :: exml:element()) -> iolist().
+upsert_item(NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
+            ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
+            Publisher, Payload) ->
+    PayloadXML = exml:to_binary(Payload),
+    EscNodeIdx = esc_int(NodeIdx),
+    EscItemId = esc_string(ItemId),
+    EscCreatedLUser = esc_string(CreatedLUser),
+    EscCreatedLServer = esc_string(CreatedLServer),
+    EscCreatedAt = esc_int(usec:from_now(CreatedAt)),
+    EscModifiedLUser = esc_string(ModifiedLUser),
+    EscModifiedLServer = esc_string(ModifiedLServer),
+    EscModifiedLResource = esc_string(ModifiedLResource),
+    EscModifiedAt = esc_int(usec:from_now(ModifiedAt)),
+    EscPublisher = null_or_bin_jid(Publisher),
+    EscPayload = esc_string(PayloadXML),
+
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {mysql, _} ->
+            upsert_item_mysql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                              EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                              EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload);
+        {pgsql, _} ->
+            upsert_item_pgsql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                              EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                              EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload);
+        {odbc, mssql} ->
+            MSSQLPayload = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(global, PayloadXML)),
+            upsert_item_mssql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                              EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                              EscModifiedLResource, EscModifiedAt, EscPublisher, MSSQLPayload);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+null_or_bin_jid(undefined) ->
+    mongoose_rdbms:use_escaped_null(mongoose_rdbms:escape_null());
+null_or_bin_jid(Jid) ->
+    esc_string(jid:to_binary(Jid)).
+
+upsert_item_mysql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                  EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                  EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+
+    Insert = mysql_and_pgsql_item_insert(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                                         EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                                         EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload),
+    OnConflict = mysql_item_conflict(EscModifiedLUser, EscModifiedLServer,
+                                     EscModifiedLResource, EscModifiedAt,
+                                     EscPublisher, EscPayload),
+    [Insert, OnConflict].
+
+upsert_item_pgsql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                  EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                  EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+
+    Insert = mysql_and_pgsql_item_insert(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                                         EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                                         EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload),
+    OnConflict = pgsql_item_conflict(EscModifiedLUser, EscModifiedLServer,
+                                     EscModifiedLResource, EscModifiedAt,
+                                     EscPublisher, EscPayload),
+    [Insert, OnConflict].
+
+upsert_item_mssql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                  EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                  EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+    ["MERGE INTO pubsub_items with (SERIALIZABLE) as target"
+     " USING (SELECT ", EscNodeIdx, " AS nidx, ",
+                        EscItemId, " AS itemid)"
+            " AS source (nidx, itemid)"
+        " ON (target.nidx = source.nidx"
+        " AND target.itemid = source.itemid)"
+     " WHEN MATCHED THEN UPDATE"
+       " SET ", update_fields_on_conflict(EscModifiedLUser, EscModifiedLServer,
+                                          EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload),
+     " WHEN NOT MATCHED THEN INSERT"
+       " (nidx, itemid, created_luser, created_lserver, created_at, "
+         "modified_luser, modified_lserver, modified_lresource, modified_at, "
+         "publisher, payload)"
+         " VALUES (",
+          EscNodeIdx, ", ",
+          EscItemId, ", ",
+          EscCreatedLUser, ", ",
+          EscCreatedLServer, ", ",
+          EscCreatedAt, ", ",
+          EscModifiedLUser, ", ",
+          EscModifiedLServer, ", ",
+          EscModifiedLResource, ", ",
+          EscModifiedAt, ", ",
+          EscPublisher, ", ",
+          EscPayload,
+          ");"].
+
+mysql_and_pgsql_item_insert(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
+                            EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
+                            EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+    ["INSERT INTO pubsub_items (nidx, itemid, created_luser, created_lserver, created_at, "
+                               "modified_luser, modified_lserver, modified_lresource, modified_at, "
+                               "publisher, payload)"
+     " VALUES (",
+     EscNodeIdx, ", ",
+     EscItemId, ", ",
+     EscCreatedLUser, ", ",
+     EscCreatedLServer, ", ",
+     EscCreatedAt, ", ",
+     EscModifiedLUser, ", ",
+     EscModifiedLServer, ", ",
+     EscModifiedLResource, ", ",
+     EscModifiedAt, ", ",
+     EscPublisher, ", ",
+     EscPayload,
+     ")"].
+
+pgsql_item_conflict(EscModifiedLUser, EscModifiedLServer, EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+    ["ON CONFLICT (nidx, itemid) DO UPDATE SET",
+     update_fields_on_conflict(EscModifiedLUser, EscModifiedLServer,
+                               EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload)].
+
+mysql_item_conflict(EscModifiedLUser, EscModifiedLServer, EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+    ["ON DUPLICATE KEY UPDATE",
+     update_fields_on_conflict(EscModifiedLUser, EscModifiedLServer,
+                               EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload)].
+
+update_fields_on_conflict(EscModifiedLUser, EscModifiedLServer,
+                          EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload) ->
+    [" modified_luser = ", EscModifiedLUser,
+     ", modified_lserver = ", EscModifiedLServer,
+     ", modified_lresource = ", EscModifiedLResource,
+     ", modified_at = ", EscModifiedAt,
+     ", publisher = ", EscPublisher,
+     ", payload = ", EscPayload].
 
 -spec get_entity_items(Nidx :: mod_pubsub:nodeIdx(),
                        LU :: jid:luser(),
@@ -281,8 +472,8 @@ get_entity_items(Nidx, LU, LS) ->
     ["SELECT itemid"
      " FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS) ].
+     " AND created_luser = ", esc_string(LU),
+     " AND created_lserver = ", esc_string(LS) ].
 
 -spec delete_item(Nidx :: mod_pubsub:nodeIdx(),
                   LU :: jid:luser(),
@@ -291,8 +482,8 @@ get_entity_items(Nidx, LU, LS) ->
 delete_item(Nidx, LU, LS, ItemId) ->
     ["DELETE FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx),
-     " AND luser = ", esc_string(LU),
-     " AND lserver = ", esc_string(LS),
+     " AND created_luser = ", esc_string(LU),
+     " AND created_lserver = ", esc_string(LS),
      " AND itemid = ", esc_string(ItemId) ].
 
 -spec delete_all_items(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
