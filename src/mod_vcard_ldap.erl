@@ -206,7 +206,7 @@ start_link(Host, Opts) ->
 init([Host, Opts]) ->
     ?WARNING_MSG("Opts: ~p", [Opts]),
     process_flag(trap_exit, true),
-    case proplists:get_value(dbg, Opts, false) of
+    case proplists:get_value(mydbg, Opts, false) of
         true ->
             R2 = dbg:p(self(), [sos, c, m, p]),
             dbg:tpl(mod_vcard_ldap, x),
