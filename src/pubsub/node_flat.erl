@@ -416,7 +416,7 @@ delete_item(Nidx, Publisher, PublishModel, ItemId) ->
 get_permition(publisher, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
 get_permition(owner, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
 get_permition(_Affiliation, open, _Nidx, _ItemId, _GenKey) -> true;
-get_permition(_Affiliation, _PublishModel, Nidx, ItemId, GenKey) -> 
+get_permition(_Affiliation, _PublishModel, Nidx, ItemId, GenKey) ->
     case get_item(Nidx, ItemId) of
         {result, #pubsub_item{creation = {_, GenKey}}} -> true;
         _ -> false
@@ -571,6 +571,9 @@ get_pending_nodes(Host, Owner) ->
 %% <p>PubSub plugins can store the items where they wants (for example in a
 %% relational database), or they can even decide not to persist any items.</p>
 get_items(Nidx, _From, Opts) ->
+    %% TODO add tests and implementation supporting RSM
+    %% when looking for node's items.
+    %% Currently the RSM attribute is ignored
     case mod_pubsub_db_backend:get_items(Nidx, Opts) of
         {ok, Result} ->
             {result, Result};

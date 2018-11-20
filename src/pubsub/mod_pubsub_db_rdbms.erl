@@ -11,7 +11,6 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
--include("mongoose_logger.hrl").
 
 -export([start/0, stop/0]).
 % Funs execution
@@ -452,7 +451,7 @@ int2sub(3) -> subscribed.
 item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
                 ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
                 PublisherIn, PayloadDB}) ->
-    PayloadXML = mongoose_rdbms:unescape_binary(CreatedLServer, PayloadDB),
+    PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
     {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
     ItemAndNodeId = {ItemId, mongoose_rdbms:result_to_integer(NodeIdx)},
     Creation = {usec:to_now(mongoose_rdbms:result_to_integer(CreatedAt)),

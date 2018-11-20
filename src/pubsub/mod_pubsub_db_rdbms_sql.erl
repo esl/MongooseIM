@@ -270,19 +270,21 @@ update_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
 -spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
     iolist().
 get_items(Nidx, Opts) ->
-    ["SELECT ", item_columns(), " ",
+    MaxItems = maps:get(max_items, Opts, undefined),
+    {MySQLOrPgSQLLimit, MSSQLLimit} = maybe_result_limit(MaxItems),
+    ["SELECT ", MSSQLLimit, item_columns(), " ",
      "FROM pubsub_items "
      "WHERE nidx=", esc_int(Nidx),
      maybe_item_ids_filter(maps:get(item_ids, Opts, undefined)),
      " ORDER BY modified_at DESC",
-     maybe_result_limit(maps:get(max_itemx, Opts, undefined))].
+     MySQLOrPgSQLLimit].
 
 -spec get_item(mod_pubsub:nodeIdx(), mod_pubsub:itemId()) -> iolist().
 get_item(Nidx, ItemId) ->
-    ["SELECT ", item_columns(), " ",
+    ["SELECT ", item_columns(), " "
      "FROM pubsub_items "
      "WHERE nidx=", esc_int(Nidx),
-      " AND itemid=", esc_string(ItemId)].
+     " AND itemid=", esc_string(ItemId)].
 
 item_columns() ->
      "nidx, itemid, created_luser, created_lserver, created_at, "
@@ -297,9 +299,15 @@ maybe_item_ids_filter(ItemIds) ->
     [" AND itemid IN (", Ids, ")"].
 
 maybe_result_limit(undefined) ->
-    [];
+    {[], []};
 maybe_result_limit(Limit) ->
-    [" LIMIT ", esc_int(Limit)].
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {MySQLorPgSQL, _} when MySQLorPgSQL =:= mysql; MySQLorPgSQL =:= pgsql ->
+            {[" LIMIT ", esc_int(Limit)], []};
+        {odbc, mssql} ->
+            {[], [" TOP ", esc_int(Limit), " "]};
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
 
 -spec del_item(mod_pubsub:nodeIdx(), mod_pubsub:itemId()) -> iolist().
 del_item(Nidx, ItemId) ->
@@ -310,7 +318,7 @@ del_item(Nidx, ItemId) ->
 -spec del_items(mod_pubsub:nodeIdx(), [mod_pubsub:itemId()]) -> iolist().
 del_items(Nidx, ItemIds) ->
     EscapedIds = [esc_string(ItemId) || ItemId <- ItemIds],
-    Ids = rdbms_queries:join(EscapedIds, ","),
+    Ids = rdbms_queries:join(EscapedIds, ", "),
     ["DELETE FROM pubsub_items "
      "WHERE nidx=", esc_int(Nidx),
       " AND itemid IN (", Ids,")"].
@@ -352,7 +360,7 @@ upsert_item(NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
                               EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
                               EscModifiedLResource, EscModifiedAt, EscPublisher, EscPayload);
         {odbc, mssql} ->
-            MSSQLPayload = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(ModifiedLServer, PayloadXML)),
+            MSSQLPayload = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(global, PayloadXML)),
             upsert_item_mssql(EscNodeIdx, EscItemId, EscCreatedLUser, EscCreatedLServer,
                               EscCreatedAt, EscModifiedLUser, EscModifiedLServer,
                               EscModifiedLResource, EscModifiedAt, EscPublisher, MSSQLPayload);
