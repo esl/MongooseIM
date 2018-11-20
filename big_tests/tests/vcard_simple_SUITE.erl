@@ -462,7 +462,26 @@ configure_ldap_vcards(Config) ->
            {ldap_search_fields, [{"Full Name","cn"},{"User","uid"}]},
            {ldap_vcard_map,[{"FN","%s",["cn"]}]}],
     dynamic_modules:start(Domain, mod_vcard, Cfg),
+    spawn(fun() ->
+              ModVcardM = erlang:monitor(process, {ejabberd_mod_vcard_localhost, mim()}),
+              ModVcardLdapM = erlang:monitor(process, {ejabberd_mod_vcard_ldap_localhost, mim()}),
+              wait_for_events(ModVcardM, ModVcardLdapM)
+          end),
+
     [{mod_vcard, CurrentVcardConfig} | Config].
+
+wait_for_events(ModVcardM, ModVcardLdapM) ->
+    receive
+      {Tag, ModVcardM, Type, Object, Info} ->
+           ct:pal("mod_vcard: tag=~p, type=~p, object=~p, info=~p",
+                  [Tag, Type, Object, Info]);
+      {Tag, ModVcardLdapM, Type, Object, Info} ->
+           ct:pal("mod_vcard: tag=~p, type=~p, object=~p, info=~p",
+                  [Tag, Type, Object, Info]);
+      Other ->
+           ct:pal("Other: ~p", [Other])
+    end,
+    wait_for_events(ModVcardM, ModVcardLdapM).
 
 restore_ldap_vcards_config(Config) ->
     OriginalConfig = ?config(mod_vcard, Config),
