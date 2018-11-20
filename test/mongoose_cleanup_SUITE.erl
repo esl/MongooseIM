@@ -1,5 +1,7 @@
 -module(mongoose_cleanup_SUITE).
 
+-include_lib("eunit/include/eunit.hrl").
+
 -export([all/0,
          init_per_suite/1, end_per_suite/1,
          init_per_testcase/2, end_per_testcase/2]).
@@ -60,6 +62,7 @@ meck_mods(_) -> [exometer, ejabberd_sm, ejabberd_local, ejabberd_config].
 %% -----------------------------------------------------
 
 cleaner_runs_hook_on_nodedown(_Config) ->
+    meck:expect(ejabberd_hooks, error_running_hook, fun(_, _, _) -> ok end),
     {ok, Cleaner} = mongoose_cleaner:start_link(),
     Self = self(),
     NotifySelf = fun (Acc, Node) -> Self ! {got_nodedown, Node}, Acc end,
@@ -72,7 +75,8 @@ cleaner_runs_hook_on_nodedown(_Config) ->
         {got_nodedown, FakeNode} -> ok
     after timer:seconds(1) ->
         ct:fail({timeout, got_nodedown})
-    end.
+    end,
+    ?assertEqual(false, meck:called(ejabberd_hooks, error_running_hook, ['_','_','_'])).
 
 auth_anonymous(_Config) ->
     ejabberd_auth_anonymous:start(?HOST),
