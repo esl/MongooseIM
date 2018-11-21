@@ -20,7 +20,8 @@
          get_states_by_bare_and_full/1, get_idxs_of_own_nodes_with_pending_subs/1]).
 % Node management
 -export([
-         create_node/2
+         create_node/2,
+         find_node/2
         ]).
 % Affiliations
 -export([
@@ -70,6 +71,10 @@ start() ->
                         [{disc_only_copies, [node()]},
                          {attributes, record_info(fields, pubsub_item)}]),
     mnesia:add_table_copy(pubsub_item, node(), disc_only_copies),
+    mnesia:create_table(pubsub_node,
+                        [{disc_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_node)}]),
+    mnesia:add_table_index(pubsub_node, id),
     ok.
 
 -spec stop() -> ok.
@@ -180,6 +185,18 @@ del_node(Nidx) ->
                           del_state(Nidx, LJID)
                   end, States),
     {ok, States}.
+
+-spec find_node(
+        Key :: mod_pubsub:hostPubsub(),
+        Node :: mod_pubsub:nodeId())
+    -> mod_pubsub:pubsubNode() | false.
+find_node(Key, Node) ->
+    case mnesia:read(pubsub_node, oid(Key, Node), read) of
+        [] -> false;
+        [NodeRec] -> NodeRec
+    end.
+
+oid(Key, Name) -> {Key, Name}.
 
 %% ------------------------ Affiliations ------------------------
 

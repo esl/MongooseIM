@@ -51,10 +51,10 @@ set_node(#pubsub_node{nodeid = {Key, _}, owners = Owners, options = Options} = N
 
 create_node(Key, Node, Type, Owner, Options, Parents) ->
     OwnerJID = jid:to_lower(jid:to_bare(Owner)),
-    case find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node(Key, Node) of
         false ->
             Nidx = pubsub_index:new(node),
-            N = #pubsub_node{nodeid = oid(Key, Node), id = Nidx,
+            N = #pubsub_node{nodeid = {Key, Node}, id = Nidx,
                     type = Type, parents = Parents, owners = [OwnerJID],
                     options = Options},
             case set_node(N) of
@@ -66,7 +66,7 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
     end.
 
 delete_node(Key, Node) ->
-    case find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node(Key, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         Record ->
@@ -91,7 +91,7 @@ get_node(Host, Node, _From) ->
     get_node(Host, Node).
 
 get_node(Host, Node) ->
-    case find_node(Host, Node) of
+    case mod_pubsub_db_backend:find_node(Host, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
@@ -106,7 +106,7 @@ get_nodes(Key) ->
     nodetree_tree:get_nodes(Key).
 
 get_parentnodes(Host, Node, _From) ->
-    case find_node(Host, Node) of
+    case mod_pubsub_db_backend:find_node(Host, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{parents = Parents} ->
@@ -131,7 +131,7 @@ get_subnodes(Host, Node, _From) ->
 get_subnodes(Host, <<>>) ->
     get_subnodes_helper(Host, <<>>);
 get_subnodes(Host, Node) ->
-    case find_node(Host, Node) of
+    case mod_pubsub_db_backend:find_node(Host, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         _ -> get_subnodes_helper(Host, Node)
     end.
@@ -163,19 +163,6 @@ get_subnodes_tree(Host, Node, From) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-oid(Key, Name) -> {Key, Name}.
-
-%% Key    = jid:jid() | host()
-%% Node = string()
--spec find_node(
-        Key :: mod_pubsub:hostPubsub(),
-        Node :: mod_pubsub:nodeId())
-    -> mod_pubsub:pubsubNode() | false.
-find_node(Key, Node) ->
-    case mnesia:read(pubsub_node, oid(Key, Node), read) of
-        [] -> false;
-        [NodeRec] -> NodeRec
-    end.
 
 %% Key     = jid:jid() | host()
 %% Default = term()
@@ -228,7 +215,7 @@ validate_parentage(Key, Owners, [[] | T]) ->
 validate_parentage(Key, Owners, [<<>> | T]) ->
     validate_parentage(Key, Owners, T);
 validate_parentage(Key, Owners, [ParentID | T]) ->
-    case find_node(Key, ParentID) of
+    case mod_pubsub_db_backend:find_node(Key, ParentID) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{owners = POwners, options = POptions} ->
