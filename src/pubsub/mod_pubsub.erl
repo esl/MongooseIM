@@ -304,10 +304,8 @@ init_backend(Opts) ->
                      get_items, get_item, set_item, del_item, del_items],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
+    pubsub_last_item:create_table(mnesia).
 
-    mnesia:create_table(pubsub_last_item,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, pubsub_last_item)}]).
 
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
     Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
@@ -4017,9 +4015,7 @@ set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
     set_cached_item(ServerHost, Nidx, ItemId, Publisher, Payload);
 set_cached_item(Host, Nidx, ItemId, Publisher, Payload) ->
     case is_last_item_cache_enabled(Host) of
-        true -> mnesia:dirty_write({pubsub_last_item, Nidx, ItemId,
-                                    {timestamp(), jid:to_lower(jid:to_bare(Publisher))},
-                                    Payload});
+        true -> pubsub_last_item:dirty_write(Nidx, ItemId, Publisher, Payload, mnesia);
         _ -> ok
     end.
 
@@ -4027,7 +4023,7 @@ unset_cached_item({_, ServerHost, _}, Nidx) ->
     unset_cached_item(ServerHost, Nidx);
 unset_cached_item(Host, Nidx) ->
     case is_last_item_cache_enabled(Host) of
-        true -> mnesia:dirty_delete({pubsub_last_item, Nidx});
+        true -> pubsub_last_item:dirty_delete(Nidx, mnesia);
         _ -> ok
     end.
 
@@ -4040,7 +4036,7 @@ get_cached_item({_, ServerHost, _}, Nidx) ->
 get_cached_item(Host, Nidx) ->
     case is_last_item_cache_enabled(Host) of
         true ->
-            case mnesia:dirty_read({pubsub_last_item, Nidx}) of
+            case pubsub_last_item:dirty_read(Nidx, mnesia) of
                 [#pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}] ->
                     #pubsub_item{itemid = {ItemId, Nidx},
                                  payload = Payload, creation = Creation,
