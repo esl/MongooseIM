@@ -45,7 +45,7 @@ terminate(Host, ServerHost) ->
 set_node(#pubsub_node{nodeid = {Key, _}, owners = Owners, options = Options} = Node) ->
     Parents = find_opt(collection, ?DEFAULT_PARENTS, Options),
     case validate_parentage(Key, Owners, Parents) of
-        true -> mnesia:write(Node#pubsub_node{parents = Parents});
+        true -> mod_pubsub_db_backend:set_node(Node#pubsub_node{parents = Parents});
         Other -> Other
     end.
 
@@ -73,10 +73,9 @@ delete_node(Key, Node) ->
             lists:foreach(fun (#pubsub_node{options = Opts} = Child) ->
                         NewOpts = remove_config_parent(Node, Opts),
                         Parents = find_opt(collection, ?DEFAULT_PARENTS, NewOpts),
-                        ok = mnesia:write(pubsub_node,
-                                Child#pubsub_node{parents = Parents,
-                                    options = NewOpts},
-                                write)
+                        ok = mod_pubsub_db_backend:set_node(
+                               Child#pubsub_node{parents = Parents,
+                                                 options = NewOpts})
                 end,
                 get_subnodes(Key, Node)),
             pubsub_index:free(node, Record#pubsub_node.id),

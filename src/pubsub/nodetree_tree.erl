@@ -59,8 +59,8 @@ terminate(_Host, _ServerHost) ->
 options() ->
     [{virtual_tree, false}].
 
-set_node(Node) when is_record(Node, pubsub_node) ->
-    mnesia:write(Node).
+set_node(Node) ->
+    mod_pubsub_db_backend:set_node(Node).
 
 get_node(Host, Node, _From) ->
     get_node(Host, Node).
@@ -143,10 +143,11 @@ create_node(Host, Node, Type, Owner, Options, Parents) ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
                     Nidx = pubsub_index:new(node),
-                    mnesia:write(#pubsub_node{nodeid = {Host, Node},
-                            id = Nidx, parents = Parents,
-                            type = Type, owners = [BJID],
-                            options = Options}),
+                    Node = #pubsub_node{nodeid = {Host, Node},
+                                        id = Nidx, parents = Parents,
+                                        type = Type, owners = [BJID],
+                                        options = Options},
+                    set_node(Node),
                     {ok, Nidx};
                 false ->
                     {error, mongoose_xmpp_errors:forbidden()}

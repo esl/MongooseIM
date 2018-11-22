@@ -21,6 +21,7 @@
 % Node management
 -export([
          create_node/2,
+         set_node/1,
          find_node/2
         ]).
 % Affiliations
@@ -185,6 +186,10 @@ del_node(Nidx) ->
                           del_state(Nidx, LJID)
                   end, States),
     {ok, States}.
+
+-spec set_node(mod_pubsub:pubsubNode()) -> ok.
+set_node(Node) when is_record(Node, pubsub_node) ->
+    mnesia:write(Node).
 
 -spec find_node(
         Key :: mod_pubsub:hostPubsub(),

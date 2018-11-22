@@ -60,13 +60,15 @@
     {ok, [mod_pubsub:nodeIdx()]}.
 
 %% ----------------------- Node management ------------------------
-
+%% TODO this is not really node creation
 -callback create_node(Nidx :: mod_pubsub:nodeIdx(),
                       Owner :: jid:ljid()) ->
     ok.
 
 -callback del_node(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
+
+-callback set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
 
 -callback find_node( Key :: mod_pubsub:hostPubsub(), Node :: mod_pubsub:nodeId()) ->
     mod_pubsub:pubsubNode() | false.
