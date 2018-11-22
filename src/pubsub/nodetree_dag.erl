@@ -86,11 +86,11 @@ delete_node(Key, Node) ->
 options() ->
     nodetree_tree:options().
 
-get_node(Host, Node, _From) ->
-    get_node(Host, Node).
+get_node(Key, Node, _From) ->
+    get_node(Key, Node).
 
-get_node(Host, Node) ->
-    case mod_pubsub_db_backend:find_node(Host, Node) of
+get_node(Key, Node) ->
+    case mod_pubsub_db_backend:find_node(Key, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
@@ -104,15 +104,15 @@ get_nodes(Key, From) ->
 get_nodes(Key) ->
     nodetree_tree:get_nodes(Key).
 
-get_parentnodes(Host, Node, _From) ->
-    case mod_pubsub_db_backend:find_node(Host, Node) of
+get_parentnodes(Key, Node, _From) ->
+    case mod_pubsub_db_backend:find_node(Key, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{parents = Parents} ->
             Q = qlc:q([N
                         || #pubsub_node{nodeid = {NHost, NNode}} = N
                             <- mnesia:table(pubsub_node),
-                            Parent <- Parents, Host == NHost, Parent == NNode]),
+                            Parent <- Parents, Key == NHost, Parent == NNode]),
             qlc:e(Q)
     end.
 

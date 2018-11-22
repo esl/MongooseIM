@@ -72,8 +72,8 @@ get_node(Host, Node) ->
     end.
 
 get_node(Nidx) ->
-    case catch mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
-        [Record] when is_record(Record, pubsub_node) -> Record;
+    case catch mod_pubsub_db_backend:find_node_by_id(Nidx) of
+        {ok, Node} -> Node;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 

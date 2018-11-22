@@ -22,6 +22,7 @@
 -export([
          create_node/2,
          set_node/1,
+         find_node_by_id/1,
          find_node/2,
          delete_node/2
         ]).
@@ -192,8 +193,18 @@ del_node(Nidx) ->
 set_node(Node) when is_record(Node, pubsub_node) ->
     mnesia:write(Node).
 
+
+-spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
+    {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
+find_node_by_id(Nidx) ->
+    case mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
+        [#pubsub_node{} = Record] -> {ok, Record};
+        [] ->
+            {error, not_found}
+    end.
+
 -spec find_node(
-        Key :: mod_pubsub:hostPubsub(),
+        Key :: mod_pubsub:hostPubsub() | jid:ljid(),
         Node :: mod_pubsub:nodeId())
     -> mod_pubsub:pubsubNode() | false.
 find_node(Key, Node) ->
@@ -205,7 +216,7 @@ find_node(Key, Node) ->
 oid(Key, Name) -> {Key, Name}.
 
 
--spec delete_node(Key :: mod_pubsub:hostPubsub(), Node :: mod_pubsub:nodeId()) -> ok.
+-spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
 delete_node(Key, Node) ->
     mnesia:delete({pubsub_node, oid(Key, Node)}).
 
