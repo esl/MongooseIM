@@ -50,6 +50,13 @@
          del_items/2
         ]).
 
+% Cashe
+-export([
+    get_pubsub_last_item/1,
+    insert_pubsub_last_item/4,
+    delete_pubsub_last_item/1
+]).
+
 %%====================================================================
 %% SQL queries
 %%====================================================================
@@ -490,6 +497,43 @@ delete_item(Nidx, LU, LS, ItemId) ->
 delete_all_items(Nidx) ->
     ["DELETE FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx)].
+
+% ------------------- Pubusub last item ------------------------------
+
+-spec get_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
+get_pubsub_last_item(Nidx) ->
+    ["SELECT * FROM pubsub_last_item"
+    " WHERE nidx = ", esc_int(Nidx)].
+
+-spec delete_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
+delete_pubsub_last_item(Nidx) ->
+    ["DELETE FROM pubsub_last_item"
+    " WHERE nidx = ", esc_int(Nidx)].
+
+-spec insert_pubsub_last_item(
+    Nidx::mod_pubsub:nodeIdx(), 
+    ItemId::mod_pubsub:itemId(),
+    Publisher::{erlang:timestamp(), jid:ljid()},  
+    Payload::mod_pubsub:payload()) -> iolist().
+
+insert_pubsub_last_item(Nidx, ItemId, {CreatedAt, {LUser, LServer, _}}, Payload) -> 
+    EscCreatedAt = esc_int(usec:from_now(CreatedAt)),
+    EscPayload = esc_string(Payload),
+    EscModifiedLUser = esc_string(LUser),
+    EscModifiedLServer = esc_string(LServer),
+    [
+        "INSERT INTO pubsub_last_item (",
+        columns(),
+        ") VALUES (",
+            esc_int(Nidx),", ",
+            esc_string(ItemId),", ",
+            EscModifiedLUser,", ",
+            EscModifiedLServer,", ",
+            EscCreatedAt,", ",
+            EscPayload,
+    ");"].
+
+columns() -> "nidx, itemid, created_luser, created_lserver, created_at, payload".
 
 %%====================================================================
 %% Helpers

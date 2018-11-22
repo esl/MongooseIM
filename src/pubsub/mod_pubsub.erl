@@ -275,7 +275,7 @@ init([ServerHost, Opts]) ->
     ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
     Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
 
-    init_backend(Opts),
+    init_backend(Opts, Host),
 
     pubsub_index:init(Host, ServerHost, Opts),
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
@@ -297,16 +297,18 @@ init([ServerHost, Opts]) ->
     {_, State} = init_send_loop(ServerHost),
     {ok, State}.
 
-init_backend(Opts) ->
+init_backend(Opts, Host) ->
     TrackedDBFuns = [set_state, del_state, get_state, get_states,
                      get_states_by_lus, get_states_by_bare,
                      get_states_by_full, get_own_nodes_states,
                      get_items, get_item, set_item, del_item, del_items],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
-    pubsub_last_item:create_table(mnesia).
-
-
+    case is_last_item_cache_enabled(Host) of
+        false -> ok;
+        DB -> pubsub_cache:create_table(DB)
+    end.
+    
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
     Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
     PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts,
@@ -4015,16 +4017,16 @@ set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
     set_cached_item(ServerHost, Nidx, ItemId, Publisher, Payload);
 set_cached_item(Host, Nidx, ItemId, Publisher, Payload) ->
     case is_last_item_cache_enabled(Host) of
-        true -> pubsub_last_item:dirty_write(Nidx, ItemId, Publisher, Payload, mnesia);
-        _ -> ok
+        false -> ok;
+        DB -> pubsub_cache:dirty_write(Nidx, ItemId, Publisher, Payload, DB)
     end.
 
 unset_cached_item({_, ServerHost, _}, Nidx) ->
     unset_cached_item(ServerHost, Nidx);
 unset_cached_item(Host, Nidx) ->
     case is_last_item_cache_enabled(Host) of
-        true -> pubsub_last_item:dirty_delete(Nidx, mnesia);
-        _ -> ok
+        false -> ok;
+        DB -> pubsub_cache:dirty_delete(Nidx, DB)
     end.
 
 -spec get_cached_item(
@@ -4035,17 +4037,16 @@ get_cached_item({_, ServerHost, _}, Nidx) ->
     get_cached_item(ServerHost, Nidx);
 get_cached_item(Host, Nidx) ->
     case is_last_item_cache_enabled(Host) of
-        true ->
-            case pubsub_last_item:dirty_read(Nidx, mnesia) of
+        false -> undefined;
+        DB ->
+            case pubsub_cache:dirty_read(Nidx, DB) of
                 [#pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}] ->
                     #pubsub_item{itemid = {ItemId, Nidx},
                                  payload = Payload, creation = Creation,
                                  modification = Creation};
                 _ ->
                     undefined
-            end;
-        _ ->
-            undefined
+            end
     end.
 
 %%%% plugin handling

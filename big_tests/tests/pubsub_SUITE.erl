@@ -211,6 +211,22 @@ groups() ->
            get_item_with_publisher_option_test,
            receive_item_notification_with_publisher_option_test
           ]
+         },
+         {pubsub_cache_with_mnesia, [],
+         [
+           send_last_published_item_test,
+           publish_test,
+           publish_with_max_items_test,
+           publish_with_existing_id_test
+         ]
+         },
+         {pubsub_cache_with_rdbms, [],
+         [
+           send_last_published_item_test,
+           publish_test,
+           publish_with_max_items_test,
+           publish_with_existing_id_test
+         ]
          }
         ],
     ct_helper:repeat_all_until_all_ok(G).
@@ -228,6 +244,14 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
+
+init_per_group(pubsub_cache_with_mnesia, Config) ->
+    Config0 = [ {last_item_cache, mnesia} | Config],
+    Config0;
+
+init_per_group(pubsub_cache_with_rdbms, Config) ->
+    Config0 = [ {last_item_cache, rdbms} | Config],
+    Config0;
 
 init_per_group(pubsub_item_publisher_option, Config) ->
     Config0 = dynamic_modules:save_modules(domain(), Config),
