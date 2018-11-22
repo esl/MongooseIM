@@ -23,6 +23,7 @@
          create_node/2,
          set_node/1,
          find_node_by_id/1,
+         find_nodes_by_key/1,
          find_node/2,
          delete_node/2
         ]).
@@ -212,6 +213,11 @@ find_node(Key, Node) ->
         [] -> false;
         [NodeRec] -> NodeRec
     end.
+
+-spec find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
+    [mod_pubsub:pubsubNode()].
+find_nodes_by_key(Key) ->
+    mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, _ = '_'}).
 
 oid(Key, Name) -> {Key, Name}.
 

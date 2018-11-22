@@ -77,11 +77,11 @@ get_node(Nidx) ->
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_nodes(Host, _From) ->
-    get_nodes(Host).
+get_nodes(Key, _From) ->
+    get_nodes(Key).
 
-get_nodes(Host) ->
-    mnesia:match_object(#pubsub_node{nodeid = {Host, '_'}, _ = '_'}).
+get_nodes(Key) ->
+    mod_pubsub_db_backend:find_nodes_by_key(Key).
 
 get_parentnodes(_Host, _Node, _From) ->
     [].
