@@ -10,6 +10,7 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -export([start/0, stop/0]).
 % Funs execution
@@ -25,7 +26,8 @@
          find_node_by_id/1,
          find_nodes_by_key/1,
          find_node/2,
-         delete_node/2
+         delete_node/2,
+         get_subnodes/2
         ]).
 % Affiliations
 -export([
@@ -226,6 +228,24 @@ oid(Key, Name) -> {Key, Name}.
 delete_node(Key, Node) ->
     mnesia:delete({pubsub_node, oid(Key, Node)}).
 
+
+-spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
+    [mod_pubsub:pubsubNode()].
+get_subnodes(Key, <<>>) ->
+    Q = qlc:q([N
+               || #pubsub_node{nodeid = {NKey, _},
+                               parents = []} = N
+                  <- mnesia:table(pubsub_node),
+                  Key == NKey]),
+    qlc:e(Q);
+get_subnodes(Key, Node) ->
+    Q = qlc:q([N
+               || #pubsub_node{nodeid = {NKey, _},
+                               parents = Parents} =
+                  N
+                  <- mnesia:table(pubsub_node),
+                    Key == NKey, lists:member(Node, Parents)]),
+    qlc:e(Q).
 
 %% ------------------------ Affiliations ------------------------
 

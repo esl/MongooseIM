@@ -128,28 +128,13 @@ get_subnodes(Host, Node, _From) ->
     get_subnodes(Host, Node).
 
 get_subnodes(Host, <<>>) ->
-    get_subnodes_helper(Host, <<>>);
+    mod_pubsub_db_backend:get_subnodes(Host, <<>>);
+
 get_subnodes(Host, Node) ->
     case mod_pubsub_db_backend:find_node(Host, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
-        _ -> get_subnodes_helper(Host, Node)
+        _ -> mod_pubsub_db_backend:get_subnodes(Host, Node)
     end.
-
-get_subnodes_helper(Host, <<>>) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                                parents = []} = N
-                       <- mnesia:table(pubsub_node),
-                   Host == NHost]),
-    qlc:e(Q);
-get_subnodes_helper(Host, Node) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                        parents = Parents} =
-                    N
-                    <- mnesia:table(pubsub_node),
-                    Host == NHost, lists:member(Node, Parents)]),
-    qlc:e(Q).
 
 get_subnodes_tree(Host, Node, From) ->
     Pred = fun (NID, #pubsub_node{parents = Parents}) ->

@@ -95,24 +95,8 @@ get_parentnodes_tree(Host, Node, _From) ->
     end.
 
 get_subnodes(Host, Node, _From) ->
-    get_subnodes(Host, Node).
+    mod_pubsub_db_backend:get_subnodes(Host, Node).
 
-get_subnodes(Host, <<>>) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                        parents = Parents} =
-                    N
-                    <- mnesia:table(pubsub_node),
-                    Host == NHost, Parents == []]),
-    qlc:e(Q);
-get_subnodes(Host, Node) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                        parents = Parents} =
-                    N
-                    <- mnesia:table(pubsub_node),
-                    Host == NHost, lists:member(Node, Parents)]),
-    qlc:e(Q).
 
 get_subnodes_tree(Host, Node, _From) ->
     get_subnodes_tree(Host, Node).

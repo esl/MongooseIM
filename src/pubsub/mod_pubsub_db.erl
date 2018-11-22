@@ -81,6 +81,9 @@
 
 -callback delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
 
+-callback get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
+    [mod_pubsub:pubsubNode()].
+
 %% ----------------------- Affiliations ------------------------
 
 -callback set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
