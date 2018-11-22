@@ -79,7 +79,7 @@ delete_node(Key, Node) ->
                 end,
                 get_subnodes(Key, Node)),
             pubsub_index:free(node, Record#pubsub_node.id),
-            mnesia:delete_object(pubsub_node, Record, write),
+            mod_pubsub_db_backend:delete_node(Key, Node),
             [Record]
     end.
 

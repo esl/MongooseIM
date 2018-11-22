@@ -178,7 +178,7 @@ delete_node(Host, Node) ->
     Removed = get_subnodes_tree(Host, Node),
     lists:foreach(fun (#pubsub_node{nodeid = {_, SubNode}, id = SubNidx}) ->
                 pubsub_index:free(node, SubNidx),
-                mnesia:delete({pubsub_node, {Host, SubNode}})
+                mod_pubsub_db_backend:delete_node(Host, SubNode)
         end,
         Removed),
     Removed.

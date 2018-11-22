@@ -22,7 +22,8 @@
 -export([
          create_node/2,
          set_node/1,
-         find_node/2
+         find_node/2,
+         delete_node/2
         ]).
 % Affiliations
 -export([
@@ -202,6 +203,12 @@ find_node(Key, Node) ->
     end.
 
 oid(Key, Name) -> {Key, Name}.
+
+
+-spec delete_node(Key :: mod_pubsub:hostPubsub(), Node :: mod_pubsub:nodeId()) -> ok.
+delete_node(Key, Node) ->
+    mnesia:delete({pubsub_node, oid(Key, Node)}).
+
 
 %% ------------------------ Affiliations ------------------------
 

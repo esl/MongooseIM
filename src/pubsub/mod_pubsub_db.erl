@@ -70,8 +70,10 @@
 
 -callback set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
 
--callback find_node( Key :: mod_pubsub:hostPubsub(), Node :: mod_pubsub:nodeId()) ->
+-callback find_node(Key :: mod_pubsub:hostPubsub(), Node :: mod_pubsub:nodeId()) ->
     mod_pubsub:pubsubNode() | false.
+
+-callback delete_node(Key :: mod_pubsub:hostPubsub(), Node :: mod_pubsub:nodeId()) -> ok.
 
 %% ----------------------- Affiliations ------------------------
 
