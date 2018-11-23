@@ -121,7 +121,9 @@ all() -> [
           {group, collection},
           {group, collection_config},
           {group, debug_calls},
-          {group, pubsub_item_publisher_option}
+          {group, pubsub_item_publisher_option},
+          {group, pubsub_cache_with_mnesia},
+          {group, pubsub_cache_with_rdbms}
          ].
 
 groups() ->
@@ -212,7 +214,7 @@ groups() ->
            receive_item_notification_with_publisher_option_test
           ]
          },
-         {pubsub_cache_with_mnesia, [],
+         {pubsub_cache_with_mnesia, [parallel],
          [
            send_last_published_item_test,
            publish_test,
@@ -220,9 +222,9 @@ groups() ->
            publish_with_existing_id_test
          ]
          },
-         {pubsub_cache_with_rdbms, [],
+         {pubsub_cache_with_rdbms, [parallel],
          [
-           send_last_published_item_test,
+            send_last_published_item_test,
            publish_test,
            publish_with_max_items_test,
            publish_with_existing_id_test
@@ -246,12 +248,16 @@ end_per_suite(Config) ->
     escalus:end_per_suite(Config).
 
 init_per_group(pubsub_cache_with_mnesia, Config) ->
-    Config0 = [ {last_item_cache, mnesia} | Config],
-    Config0;
+    Args = proplists:get_value(mod_pubsub, required_modules()),
+    Args0 = [{last_item_cache, mnesia} | Args],
+    dynamic_modules:restart(domain(), mod_pubsub, Args0),
+    Config;
 
 init_per_group(pubsub_cache_with_rdbms, Config) ->
-    Config0 = [ {last_item_cache, rdbms} | Config],
-    Config0;
+    Args = proplists:get_value(mod_pubsub, required_modules()),
+    Args0 = [{last_item_cache, rdbms} | Args],
+    dynamic_modules:restart(domain(), mod_pubsub, Args0),
+    Config;
 
 init_per_group(pubsub_item_publisher_option, Config) ->
     Config0 = dynamic_modules:save_modules(domain(), Config),
