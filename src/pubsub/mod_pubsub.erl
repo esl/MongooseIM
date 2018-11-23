@@ -1906,19 +1906,22 @@ parse_create_node_options_if_possible(_Host, _Type, InvalidConfigXEl) ->
     InvalidConfigXEl.
 
 create_node_transaction(Host, ServerHost, Node, Owner, Type, Access, NodeOptions) ->
-    Parent = case node_call(Host, Type, node_to_path, [Node]) of
-                 {result, [Node]} ->
-                     <<>>;
-                 {result, Path} ->
-                     element(2, node_call(Host, Type, path_to_node,
-                                          [lists:sublist(Path, length(Path)-1)]))
-             end,
+    Parent = get_parent(Host, Type, Node),
     case node_call(Host, Type, create_node_permission,
                    [Host, ServerHost, Node, Parent, Owner, Access]) of
         {result, true} ->
             create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions);
         _ ->
             {error, mongoose_xmpp_errors:forbidden()}
+    end.
+
+get_parent(Host, Type, Node) ->
+    case node_call(Host, Type, node_to_path, [Node]) of
+        {result, [Node]} ->
+            <<>>;
+        {result, Path} ->
+            element(2, node_call(Host, Type, path_to_node,
+                                 [lists:sublist(Path, length(Path)-1)]))
     end.
 
 create_node_authorized_transaction(Host, Node, Parent, Owner, Type, NodeOptions) ->

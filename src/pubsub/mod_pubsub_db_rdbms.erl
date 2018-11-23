@@ -28,7 +28,8 @@
          find_nodes_by_key/1,
          find_node/2,
          delete_node/2,
-         get_subnodes/2
+         get_subnodes/2,
+         get_parentnodes/2
         ]).
 % Affiliations
 -export([
@@ -252,6 +253,10 @@ delete_node(Key, Node) ->
 get_subnodes(Key, Node) ->
     mod_pubsub_db_mnesia:get_subnodes(Key, Node).
 
+-spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [mod_pubsub:pubsubNode()].
+get_parentnodes(Key, Node) ->
+    mod_pubsbu_db_mnesia:get_parentnodes(Key, Node).
 % ------------------- Affiliations --------------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),

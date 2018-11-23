@@ -27,7 +27,8 @@
          find_nodes_by_key/1,
          find_node/2,
          delete_node/2,
-         get_subnodes/2
+         get_subnodes/2,
+         get_parentnodes/2
         ]).
 % Affiliations
 -export([
@@ -247,6 +248,21 @@ get_subnodes(Key, Node) ->
                     Key == NKey, lists:member(Node, Parents)]),
     qlc:e(Q).
 
+-spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [mod_pubsub:pubsubNode()] | {error, not_found}.
+get_parentnodes(Key, Node) ->
+    case find_node(Key, Node) of
+        false ->
+            {error, not_found};
+        #pubsub_node{parents = []} ->
+            [];
+        #pubsub_node{parents = Parents} ->
+            Q = qlc:q([N
+                       || #pubsub_node{nodeid = {NHost, NNode}} = N
+                          <- mnesia:table(pubsub_node),
+                          Parent <- Parents, Key == NHost, Parent == NNode]),
+            qlc:e(Q)
+    end.
 %% ------------------------ Affiliations ------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),

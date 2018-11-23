@@ -105,15 +105,11 @@ get_nodes(Key) ->
     nodetree_tree:get_nodes(Key).
 
 get_parentnodes(Key, Node, _From) ->
-    case mod_pubsub_db_backend:find_node(Key, Node) of
-        false ->
+    case mod_pubsub_db_backend:get_parentnodes(Key, Node) of
+        {error, not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()};
-        #pubsub_node{parents = Parents} ->
-            Q = qlc:q([N
-                        || #pubsub_node{nodeid = {NHost, NNode}} = N
-                            <- mnesia:table(pubsub_node),
-                            Parent <- Parents, Key == NHost, Parent == NNode]),
-            qlc:e(Q)
+        Result when is_list(Result) ->
+            Result
     end.
 
 get_parentnodes_tree(Host, Node, _From) ->
