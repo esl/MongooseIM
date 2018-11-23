@@ -155,7 +155,7 @@ find_opt(Key, Default, Options) ->
 
 -spec traversal_helper(
         Pred    :: fun(),
-        Tr      :: fun(),
+        Transform :: fun(),
         Host    :: mod_pubsub:hostPubsub(),
         Nodes :: [mod_pubsub:nodeId(), ...])
         -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
@@ -165,11 +165,7 @@ traversal_helper(Pred, Tr, Host, Nodes) ->
 traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
     Acc;
 traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _}} = N
-                    <- mnesia:table(pubsub_node),
-                    Node <- Nodes, Host == NHost, Pred(Node, N)]),
-    NodeRecs = qlc:e(Q),
+    NodeRecs = mod_pubsub_db_backend:find_nodes_by_id_and_pred(Host, Nodes, Pred),
     IDs = lists:flatmap(Tr, NodeRecs),
     traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
 

@@ -79,6 +79,11 @@
 -callback find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
     [mod_pubsub:pubsubNode()].
 
+-callback find_nodes_by_id_and_pred(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
+                                    Nodes :: [mod_pubsub:nodeId()],
+                                    Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
+    [mod_pubsub:pubsubNode()].
+
 -callback delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
 
 -callback get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->

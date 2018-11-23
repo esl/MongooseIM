@@ -26,6 +26,7 @@
          set_node/1,
          find_node_by_id/1,
          find_nodes_by_key/1,
+         find_nodes_by_id_and_pred/3,
          find_node/2,
          delete_node/2,
          get_subnodes/2,
@@ -243,6 +244,13 @@ find_node(Key, Node) ->
     [mod_pubsub:pubsubNode()].
 find_nodes_by_key(Key) ->
     mod_pubsub_db_mnesia:find_nodes_by_key(Key).
+
+-spec find_nodes_by_id_and_pred(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
+                                    Nodes :: [mod_pubsub:nodeId()],
+                                    Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
+    [mod_pubsub:pubsubNode()].
+find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
+    mod_pubsub_db_mnesia:find_nodes_by_id_and_pred(Key, Nodes, Pred).
 
 -spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
 delete_node(Key, Node) ->
