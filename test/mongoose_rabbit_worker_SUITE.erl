@@ -99,20 +99,20 @@ worker_creates_fresh_amqp_conection_and_channel_when_amqp_call_fails(Config) ->
     %% given
     Worker = proplists:get_value(worker_pid, Config),
     Exception = exception_fun(),
-    WorkerState0 = sys:get_state(Worker),
+    ConnectionAndChannel0 = get_worker_conn_and_chann(Worker),
 
     %% when amqp_publish fails
     gen_server:cast(Worker, {amqp_publish, {Exception, [ok]}, ok}),
     %% then
-    WorkerState1 = sys:get_state(Worker),
-    ?assertNotMatch(WorkerState0, WorkerState1),
+    ConnectionAndChannel1 = get_worker_conn_and_chann(Worker),
+    ?assertNotMatch(ConnectionAndChannel0, ConnectionAndChannel1),
 
     %% when amqp_call fails
     gen_server:call(Worker, {amqp_call, {Exception, [ok]}}),
 
     %% then
-    WorkerState2 = sys:get_state(Worker),
-    ?assertNotMatch(WorkerState1, WorkerState2).
+    ConnectionAndChannel2 = get_worker_conn_and_chann(Worker),
+    ?assertNotMatch(ConnectionAndChannel1, ConnectionAndChannel2).
 
 
 worker_processes_msgs_when_queue_msg_len_limit_is_not_reached(Config) ->
@@ -199,3 +199,7 @@ exception_fun() ->
 
 exception(_) ->
     throw(exception).
+
+get_worker_conn_and_chann(Worker) ->
+    State = sys:get_state(Worker),
+    {maps:get(connection, State), maps:get(channel, State)}.
