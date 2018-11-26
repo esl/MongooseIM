@@ -3683,7 +3683,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
     end.
 
 get_default(Host, Node, _From, Lang) ->
-    Type = select_type(Host, Host, Node),
+    Type = select_type(Host, Node),
     Options = node_options(Host, Type),
     DefaultEl = #xmlel{name = <<"default">>, attrs = [],
                        children =
@@ -4104,6 +4104,12 @@ config(ServerHost, Key, Default) ->
         _ -> Default
     end.
 
+select_type(Host, Node) ->
+    select_type(serverhost(Host), Host, Node).
+
+select_type(ServerHost, Host, Node) ->
+    select_type(ServerHost, Host, Node, hd(plugins(ServerHost))).
+
 select_type(ServerHost, Host, Node, Type) ->
     SelectedType = case Host of
                        {_User, _Server, _Resource} ->
@@ -4114,14 +4120,11 @@ select_type(ServerHost, Host, Node, Type) ->
                        _ ->
                            Type
                    end,
-    ConfiguredTypes = plugins(ServerHost),
+    ConfiguredTypes = plugins(Host),
     case lists:member(SelectedType, ConfiguredTypes) of
         true -> SelectedType;
         false -> hd(ConfiguredTypes)
     end.
-
-select_type(ServerHost, Host, Node) ->
-    select_type(ServerHost, Host, Node, hd(plugins(ServerHost))).
 
 feature(<<"rsm">>) -> ?NS_RSM;
 feature(Feature) -> <<(?NS_PUBSUB)/binary, "#", Feature/binary>>.

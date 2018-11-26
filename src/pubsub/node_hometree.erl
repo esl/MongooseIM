@@ -66,11 +66,11 @@ create_node_permission(Host, _ServerHost, _Node, _ParentNode,
                        #jid{ luser = <<>>, lserver = Host, lresource = <<>> }, _Access) ->
     {result, true}; % pubsub service always allowed
 create_node_permission(_Host, ServerHost, Node, _ParentNode,
-                       #jid{ luser = User, lserver = Server } = Owner, Access) ->
+                       #jid{ luser = LUser, lserver = LServer } = Owner, Access) ->
     case acl:match_rule(ServerHost, Access, Owner) of
         allow ->
             case node_to_path(Node) of
-                [<<"home">>, Server, User | _] -> {result, true};
+                [<<"home">>, LServer, LUser | _] -> {result, true};
                 _ -> {result, false}
             end;
         _ -> {result, false}

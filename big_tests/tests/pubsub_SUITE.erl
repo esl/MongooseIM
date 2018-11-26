@@ -67,7 +67,7 @@
 -export([
          create_delete_collection_test/1,
          subscribe_unsubscribe_collection_test/1,
-         create_delete_leaf_test/1,
+         collection_delete_makes_leaf_parentless/1,
          notify_collection_test/1,
          notify_collection_leaf_and_item_test/1,
          notify_collection_bare_jid_test/1,
@@ -88,6 +88,13 @@
 -export([
          debug_get_items_test/1,
          debug_get_item_test/1
+        ]).
+
+-export([
+         can_create_node_with_existing_parent_path/1,
+         cant_create_node_with_missing_parent_path/1,
+         disco_node_children_by_path_prefix/1,
+         deleting_parent_path_deletes_children/1
         ]).
 
 %% Disabled tests - broken support in mod_pubsub
@@ -123,9 +130,11 @@ groups() ->
                    group_is_compatible(BaseGroup, NodeTree) ]
       end, [<<"dag">>, <<"tree">>]).
 
-% nodetree_tree doesn't support collections
+% nodetree_tree doesn't support collections by XEP
+% It uses implicit collections by path in nodes' names
 group_is_compatible(collection, <<"tree">>) -> false;
 group_is_compatible(collection_config, <<"tree">>) -> false;
+group_is_compatible(hometree_specific, OnlyNodetreeTree) -> OnlyNodetreeTree =:= <<"tree">>;
 group_is_compatible(_, _) -> true.
 
 base_groups() ->
@@ -137,7 +146,8 @@ base_groups() ->
          {collection, [parallel], collection_tests()},
          {collection_config, [parallel], collection_config_tests()},
          {debug_calls, [parallel], debug_calls_tests()},
-         {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()}
+         {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
+         {hometree_specific, [parallel], hometree_specific_tests()}
         ].
 %    ct_helper:repeat_all_until_all_ok(G).
 
@@ -197,7 +207,7 @@ collection_tests() ->
     [
      create_delete_collection_test,
      subscribe_unsubscribe_collection_test,
-     create_delete_leaf_test,
+     collection_delete_makes_leaf_parentless,
      notify_collection_test,
      notify_collection_leaf_and_item_test,
      notify_collection_bare_jid_test,
@@ -228,6 +238,14 @@ pubsub_item_publisher_option_tests() ->
      receive_item_notification_with_publisher_option_test
     ].
 
+hometree_specific_tests() ->
+    [
+     can_create_node_with_existing_parent_path,
+     cant_create_node_with_missing_parent_path,
+     disco_node_children_by_path_prefix,
+     deleting_parent_path_deletes_children
+    ].
+
 encode_group_name(BaseName, NodeTree) ->
     binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
 
@@ -256,9 +274,18 @@ init_per_group(ComplexName, Config) ->
 extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := pubsub_item_publisher_option }) ->
     [{nodetree, NodeTree},
+     {plugins, [plugin_by_nodetree(NodeTree)]},
      {item_publisher, true}];
+extra_options_by_group_name(#{ node_tree := NodeTree,
+                               base_name := hometree_specific }) ->
+    [{nodetree, NodeTree},
+     {plugins, [<<"hometree">>]}];
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
-    [{nodetree, NodeTree}].
+    [{nodetree, NodeTree},
+     {plugins, [plugin_by_nodetree(NodeTree)]}].
+
+plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
+plugin_by_nodetree(<<"tree">>) -> <<"flat">>.
 
 end_per_group(_GroupName, Config) ->
     dynamic_modules:restore_modules(domain(), Config).
@@ -1034,6 +1061,8 @@ create_delete_collection_test(Config) ->
               %% Request:  7.3.1 Ex.30 delete collection node
               %% Response: 7.3.2 Ex.31 success
               pubsub_tools:delete_node(Alice, Node, [])
+
+              %% Subnodes should be deleted as well
       end).
 
 subscribe_unsubscribe_collection_test(Config) ->
@@ -1055,7 +1084,7 @@ subscribe_unsubscribe_collection_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
-create_delete_leaf_test(Config) ->
+collection_delete_makes_leaf_parentless(Config) ->
     escalus:fresh_story(
       Config,
       [{alice, 1}],
@@ -1069,8 +1098,11 @@ create_delete_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:delete_node(Alice, Leaf, []),
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              % Leaf becomes an orphan
+              NewNodeConfig = pubsub_tools:get_configuration(Alice, Leaf, []),
+              {_, _, []} = lists:keyfind(<<"pubsub#collection">>, 1, NewNodeConfig)
       end).
 
 notify_collection_test(Config) ->
@@ -1529,6 +1561,69 @@ receive_item_notification_with_publisher_option_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+
+%%-----------------------------------------------------------------
+%% hometree - specific
+%%-----------------------------------------------------------------
+
+can_create_node_with_existing_parent_path(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:create_node(Alice, Parent, []),
+              pubsub_tools:create_node(Alice, Node, []),
+              
+              pubsub_tools:delete_node(Alice, Node, []),
+              pubsub_tools:delete_node(Alice, Parent, [])
+      end).
+
+cant_create_node_with_missing_parent_path(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {_Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:create_node(Alice, Node, [{expected_error_type, <<"auth">>}])
+      end).
+
+disco_node_children_by_path_prefix(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              %% Try to get children of a non-existing node
+              {Parent, {_, NodeName} = Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:discover_nodes(Bob, Parent, [{expected_error_type, <<"cancel">>}]),
+
+              pubsub_tools:create_node(Alice, Parent, []),
+              
+              pubsub_tools:discover_nodes(Bob, Parent, [{expected_result, []}]),
+              
+              pubsub_tools:create_node(Alice, Node, []),
+
+              %% Request:  5.2.1 Ex.11 Entity requests child nodes
+              %% Response: 5.2.2 Ex.12 Service returns child nodes
+              pubsub_tools:discover_nodes(Bob, Parent, [{expected_result, [NodeName]}]),
+
+              pubsub_tools:delete_node(Alice, Node, []),
+              pubsub_tools:delete_node(Alice, Parent, [])
+      end).
+
+deleting_parent_path_deletes_children(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:create_node(Alice, Parent, []),
+              pubsub_tools:create_node(Alice, Node, []),
+              
+              pubsub_tools:delete_node(Alice, Parent, []),
+              pubsub_tools:delete_node(Alice, Node, [{expected_error_type, <<"cancel">>}])
+      end).
+
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
@@ -1545,8 +1640,6 @@ rand_name(Prefix) ->
     <<Prefix/binary, "_", Suffix/binary>>.
 
 %% Generates nodetree_tree-safe names
-%% They are compatible with nodetree_dag as well.
-%% TODO: Generate proper paths and ensure existence of their parent in DB
 pubsub_node_name() ->
     Name0 = rand_name(<<"princely_musings">>),
     re:replace(Name0, "/", "_", [global, {return, binary}]).
@@ -1554,9 +1647,15 @@ pubsub_node_name() ->
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
+path_node_and_parent(Client, {NodeAddr, NodeName}) ->
+    %% TODO: Add proper JID stringprepping to escalus!!!
+    JID = escalus_ejabberd:rpc(jid, from_binary, [escalus_client:short_jid(Client)]),
+    {LUser, LServer, _} = escalus_ejabberd:rpc(jid, to_lower, [JID]),
+    Prefix = <<"/home/", LServer/binary, "/", LUser/binary>>,
+    {{NodeAddr, Prefix}, {NodeAddr, <<Prefix/binary, "/", NodeName/binary>>}}.
+
 required_modules(ExtraOpts) ->
     [{mod_pubsub, [
-                   {plugins, [<<"dag">>]},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {host, "pubsub.@HOST@"}
                    | ExtraOpts
