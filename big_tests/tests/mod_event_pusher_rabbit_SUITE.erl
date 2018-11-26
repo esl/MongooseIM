@@ -175,7 +175,7 @@ exchanges_are_created_on_module_startup(Config) ->
     start_mod_event_pusher_rabbit(ConfigWithCustomExchangeType),
     %% THEN exchanges are created
     [?assert(ensure_exchange_present(Connection, Channel, Exchange,
-                                 ?IF_EXCHANGE_EXISTS_RETRIES))
+                                     ?IF_EXCHANGE_EXISTS_RETRIES))
      || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
@@ -193,8 +193,7 @@ connected_users_push_presence_events_when_change_status(Config) ->
               %% WHEN users generate some traffic.
               send_presence_stanzas([Bob], 1),
               %% THEN  wait for presence events from Rabbit.
-              ?assertReceivedMatch({#'basic.deliver'{
-                                       routing_key = BobJID},
+              ?assertReceivedMatch({#'basic.deliver'{routing_key = BobJID},
                                     #amqp_msg{}}, timer:seconds(5))
       end).
 
@@ -468,7 +467,7 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
 wait_for_exchanges_to_be_created(Connection, Exchanges) ->
     {ok, TestChannel} = amqp_connection:open_channel(Connection),
     [ensure_exchange_present(Connection, TestChannel, Exchange,
-                         ?IF_EXCHANGE_EXISTS_RETRIES)
+                             ?IF_EXCHANGE_EXISTS_RETRIES)
      || Exchange <- Exchanges],
     ok.
 
@@ -520,8 +519,8 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                                                  queue = Queue}).
 
 -spec ensure_exchange_present(Connection :: pid(), Channel :: pid(),
-                          Exchange :: binary(),
-                          Retries :: non_neg_integer()) ->
+                              Exchange :: binary(),
+                              Retries :: non_neg_integer()) ->
     true | no_return().
 ensure_exchange_present(_Connection, Channel, {ExName, ExType}, 1) ->
     amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
