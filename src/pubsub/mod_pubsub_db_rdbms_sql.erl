@@ -52,6 +52,20 @@
          del_items/2
         ]).
 
+% Nodes
+
+-export([upsert_pubsub_node/6,
+         select_node_by_key_and_name/2,
+         select_node_by_id/1,
+         select_nodes_by_key/1,
+         select_nodes_in_list_with_key/2,
+         select_nodes_by_key_and_names_in_list_with_parents/2,
+         select_nodes_by_key_and_names_in_list_with_children/2,
+         select_subnodes/2,
+         delete_node/2,
+         set_parents/2,
+         del_parents/1]).
+
 %%====================================================================
 %% SQL queries
 %%====================================================================
@@ -502,6 +516,169 @@ delete_item(Nidx, LU, LS, ItemId) ->
 delete_all_items(Nidx) ->
     ["DELETE FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx)].
+
+
+-spec upsert_pubsub_node(Nidx :: mod_pubsub:nodeIdx(), Key :: binary(),
+                              Name :: mod_pubsub:nodeId(), Type :: binary(),
+                              Owners :: binary(), Options :: binary()) -> iolist().
+upsert_pubsub_node(Nidx, Key, Name, Type, Owners, Options) ->
+    EscNidx = esc_int(Nidx),
+    EscKey = esc_string(Key),
+    EscName = esc_string(Name),
+    EscType = esc_string(Type),
+    EscOwners = esc_string(Owners),
+    EscOptions = esc_string(Options),
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {mysql, _} ->
+            upsert_node_mysql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions);
+        {pgsql, _} ->
+            upsert_node_pgsql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions);
+        {odbc, mssql} ->
+            upsert_node_mssql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+upsert_node_pgsql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
+    Insert = mysql_and_pgsql_node_insert(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions),
+    OnConflict = pgsql_node_conflict(EscType, EscOwners, EscOptions),
+    [Insert, OnConflict].
+
+upsert_node_mysql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
+    Insert = mysql_and_pgsql_node_insert(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions),
+    OnConflict = mysql_node_conflict(EscType, EscOwners, EscOptions),
+    [Insert, OnConflict].
+
+mysql_and_pgsql_node_insert(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
+    ["INSERT INTO pubsub_nodes (nidx, p_key, name, type, owners, options) VALUES (",
+      EscNidx, ", ",
+      EscKey, ", ",
+      EscName, ", ",
+      EscType, ", ",
+      EscOwners, ", ",
+      EscOptions,
+     ")"].
+
+pgsql_node_conflict(EscType, EscOwners, EscOptions) ->
+    [" ON CONFLICT (nidx, p_key, name) DO",
+     " UPDATE SET type = ", EscType, ", "
+     " owners = ", EscOwners, ", "
+     " options = ", EscOptions].
+
+mysql_node_conflict(EscType, EscOwners, EscOptions) ->
+    [" ON DUPLICATE KEY",
+     " UPDATE type = ", EscType, ", "
+     " owners = ", EscOwners, ", "
+     " options = ", EscOptions].
+
+upsert_node_mssql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
+    ["MERGE INTO pubsub_nodes WITH (SERIALIZABLE) as target"
+     " USING (SELECT ", EscNidx, " AS nidx, ",
+                        EscKey, " AS p_key, ",
+                        EscName, " AS name)"
+              " AS source (nidx, p_key, name)"
+        " ON (target.nidx = source.nidx"
+        " AND target.p_key = source.p_key"
+        " AND target.name = source.name)"
+     " WHEN MATCHED THEN UPDATE"
+        " SET type = ", EscType, ", "
+             "owners = ", EscOwners, ", "
+             "options = ", EscOptions,
+     " WHEN NOT MATCHED THEN INSERT"
+     " (nidx, p_key, name, type, owners, options)"
+     " VALUES (",
+       EscNidx, ", ",
+       EscKey, ", ",
+       EscName, ", ",
+       EscType, ", ",
+       EscOwners, ", ",
+       EscOptions,
+     ");"].
+
+set_parents(Node, Parents) ->
+    EscNode = esc_string(Node),
+    ParentRows = [parent_row(EscNode, Parent) || Parent <- Parents],
+    ["INSERT INTO pubsub_node_collections (name, parent_name) "
+     "VALUES ", rdbms_queries:join(ParentRows, ",")].
+
+del_parents(Node) ->
+    ["DELETE FROM pubsub_node_collections ",
+     "WHERE name = ", esc_string(Node)].
+
+parent_row(EscNode, Parent) ->
+    ["(", EscNode, ", ", esc_string(Parent),")"].
+
+select_node_by_key_and_name(Key, Name) ->
+    ["SELECT ", pubsub_node_fields(), " from pubsub_nodes "
+     "WHERE p_key = ", esc_string(Key),
+     " AND name = ", esc_string(Name)].
+
+-spec select_node_by_id(mod_pubsub:nodeIdx()) -> iolist().
+select_node_by_id(Nidx) ->
+    ["SELECT ", pubsub_node_fields(), " from pubsub_nodes "
+     "WHERE nidx = ", esc_int(Nidx)].
+
+-spec select_nodes_by_key(Key :: binary()) -> iolist().
+select_nodes_by_key(Key) ->
+    ["SELECT ", pubsub_node_fields(), " from pubsub_nodes "
+     "WHERE p_key = ", esc_string(Key)].
+
+-spec select_nodes_in_list_with_key(Key :: binary(), Nodes :: [binary()]) -> iolist().
+select_nodes_in_list_with_key(Key, Nodes) ->
+    EscapedNames = [esc_string(Node) || Node <- Nodes],
+    NodeNames = rdbms_queries:join(EscapedNames, ","),
+    ["SELECT ", pubsub_node_fields(), " from pubsub_nodes "
+     "WHERE p_key = ", esc_string(Key),
+     " AND name IN (", NodeNames, ")"].
+
+-spec select_nodes_by_key_and_names_in_list_with_parents(Key :: binary(), Nodes :: [binary()]) -> iolist().
+select_nodes_by_key_and_names_in_list_with_parents(Key, Nodes) ->
+    EscapedNames = [esc_string(Node) || Node <- Nodes],
+    NodeNames = rdbms_queries:join(EscapedNames, ","),
+    ["SELECT pn.nidx, pn.name, collection.parent_name from pubsub_nodes as pn "
+     "LEFT JOIN pubsub_node_collections as collection ON "
+     "pn.name = collection.name "
+     "WHERE pn.p_key = ", esc_string(Key),
+     " AND pn.name IN (", NodeNames, ")"].
+
+-spec select_nodes_by_key_and_names_in_list_with_children(Key :: binary(), Nodes :: [binary()]) -> iolist().
+select_nodes_by_key_and_names_in_list_with_children(Key, Nodes) ->
+    EscapedNames = [esc_string(Node) || Node <- Nodes],
+    NodeNames = rdbms_queries:join(EscapedNames, ","),
+    ["SELECT pn.nidx, pn.name, collection.name from pubsub_nodes as pn "
+     "LEFT JOIN pubsub_node_collections as collection ON "
+     "pn.name = collection.parent_name "
+     "WHERE pn.p_key = ", esc_string(Key),
+     " AND pn.name IN (", NodeNames, ")"].
+
+-spec select_subnodes(Key :: binary(), Node :: binary()) -> iolist().
+%% This clause is to find top level nodes (without any parent)
+select_subnodes(Key, <<>>) ->
+    ["SELECT ", pubsub_node_fields("pn"), " from pubsub_nodes as pn "
+     "LEFT JOIN pubsub_node_collections as collection ON "
+     "pn.name = collection.name "
+     "WHERE p_key = ", esc_string(Key),
+     " AND collection.parent_name IS NULL"];
+%% This clause is to find all children of node Node
+select_subnodes(Key, Node) ->
+    ["SELECT ", pubsub_node_fields("pn"), " from pubsub_nodes as pn "
+     "INNER JOIN pubsub_node_collections as collection ON "
+     "pn.name = collection.name AND "
+     "collection.parent_name = ", esc_string(Node), " "
+     "WHERE p_key = ", esc_string(Key)].
+
+pubsub_node_fields() ->
+    "nidx, p_key, name, type, owners, options".
+
+pubsub_node_fields(Prefix) ->
+    Names = ["nidx", "p_key", "name", "type", "owners", "options"],
+    NamesWithPrefix = [ [Prefix, ".", Name] || Name <- Names],
+    rdbms_queries:join(NamesWithPrefix, ", ").
+
+-spec delete_node(Key :: binary(), Node :: binary()) -> iolist().
+delete_node(Key, Node) ->
+    ["DELETE from pubsub_nodes "
+     "WHERE p_key = ", esc_string(Key),
+     " AND name = ", esc_string(Node)].
 
 %%====================================================================
 %% Helpers

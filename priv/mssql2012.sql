@@ -474,6 +474,31 @@ GO
 CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
 GO
 
+CREATE TABLE dbo.pubsub_nodes (
+    nidx BIGINT           NOT NULL,
+    p_key NVARCHAR(250)   NOT NULL,
+    name NVARCHAR(250)    NOT NULL,
+    type NVARCHAR(250)    NOT NULL,
+    owners NVARCHAR(max)  NOT NULL,
+    options NVARCHAR(max) NOT NULL,
+    CONSTRAINT PK_pubsub_nodes PRIMARY KEY CLUSTERED(
+        nidx ASC,
+        p_key ASC,
+        name ASC
+    )
+)
+GO
+
+CREATE TABLE dbo.pubsub_node_collections (
+    name NVARCHAR(250) NOT NULL,
+    parent_name NVARCHAR(250) NOT NULL,
+    CONSTRAINT PK_pubsub_node_collections PRIMARY KEY CLUSTERED(
+        name ASC,
+        parent_name ASC
+    )
+)
+GO
+
 CREATE TABLE dbo.pubsub_affiliations (
     nidx BIGINT NOT NULL,
     luser NVARCHAR(250) NOT NULL,

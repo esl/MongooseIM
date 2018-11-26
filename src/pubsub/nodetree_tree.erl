@@ -43,7 +43,6 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
--include("mongoose_logger.hrl").
 
 -export([init/3, terminate/2, set_node/1,
          get_node/2, get_node/1, get_nodes/2,
