@@ -112,138 +112,156 @@
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
-all() -> [
-          {group, basic},
-          {group, service_config},
-          {group, node_config},
-          {group, node_affiliations},
-          {group, manage_subscriptions},
-          {group, collection},
-          {group, collection_config},
-          {group, debug_calls},
-          {group, pubsub_item_publisher_option}
-         ].
+all() ->
+    [{group, GN} || {GN, _, _} <- groups()].
 
 groups() ->
-    G = [{basic, [parallel],
-          [
-           discover_nodes_test,
-           create_delete_node_test,
-           subscribe_unsubscribe_test,
-           publish_test,
-           publish_with_max_items_test,
-           publish_with_existing_id_test,
-           notify_test,
-           request_all_items_test,
-           request_particular_item_test,
-           retract_test,
-           retract_when_user_goes_offline_test,
-           purge_all_items_test,
-           publish_only_retract_items_scope_test
-          ]
-         },
-         {service_config, [parallel],
-          [
-           max_subscriptions_test
-          ]
-         },
-         {node_config, [parallel],
-          [
-           retrieve_configuration_test,
-           set_configuration_test,
-           notify_config_test,
-           disable_notifications_test,
-           disable_payload_test,
-           disable_persist_items_test,
-           notify_only_available_users_test,
-           notify_unavailable_user_test,
-           send_last_published_item_test
-          ]
-         },
-         {node_affiliations, [parallel],
-          [
-           get_affiliations_test,
-           add_publisher_and_member_test,
-           swap_owners_test,
-           deny_no_owner_test
-          ]
-         },
-         {manage_subscriptions, [parallel],
-          [
-           retrieve_user_subscriptions_test,
-           retrieve_node_subscriptions_test,
-           modify_node_subscriptions_test,
-           process_subscription_requests_test,
-           retrieve_pending_subscription_requests_test
-          ]
-         },
-         {collection, [parallel],
-          [
-           create_delete_collection_test,
-           subscribe_unsubscribe_collection_test,
-           create_delete_leaf_test,
-           notify_collection_test,
-           notify_collection_leaf_and_item_test,
-           notify_collection_bare_jid_test,
-           notify_collection_and_leaf_test,
-           notify_collection_and_leaf_same_user_test,
-           retrieve_subscriptions_collection_test,
-           discover_top_level_nodes_test,
-           discover_child_nodes_test,
-           request_all_items_leaf_test
-          ]
-         },
-         {collection_config, [parallel],
-          [
-           disable_notifications_leaf_test,
-           disable_payload_leaf_test,
-           disable_persist_items_leaf_test
-          ]
-         },
-         {debug_calls, [parallel],
-          [
-           debug_get_items_test,
-           debug_get_item_test
-          ]
-         },
-         {pubsub_item_publisher_option, [parallel],
-          [
-           get_item_with_publisher_option_test,
-           receive_item_notification_with_publisher_option_test
-          ]
-         }
-        ],
-    ct_helper:repeat_all_until_all_ok(G).
+    lists:flatmap(
+      fun(NodeTree) ->
+              [ {encode_group_name(BaseGroup, NodeTree), Opts, Cases}
+                || {BaseGroup, Opts, Cases} <- base_groups(),
+                   group_is_compatible(BaseGroup, NodeTree) ]
+      end, [<<"dag">>, <<"tree">>]).
+
+% nodetree_tree doesn't support collections
+group_is_compatible(collection, <<"tree">>) -> false;
+group_is_compatible(collection_config, <<"tree">>) -> false;
+group_is_compatible(_, _) -> true.
+
+base_groups() ->
+    G = [{basic, [parallel], basic_tests()},
+         {service_config, [parallel], service_config_tests()},
+         {node_config, [parallel], node_config_tests()},
+         {node_affiliations, [parallel], node_affiliations_tests()},
+         {manage_subscriptions, [parallel], manage_subscriptions_tests()},
+         {collection, [parallel], collection_tests()},
+         {collection_config, [parallel], collection_config_tests()},
+         {debug_calls, [parallel], debug_calls_tests()},
+         {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()}
+        ].
+%    ct_helper:repeat_all_until_all_ok(G).
+
+basic_tests() ->
+    [
+     discover_nodes_test,
+     create_delete_node_test,
+     subscribe_unsubscribe_test,
+     publish_test,
+     publish_with_max_items_test,
+     publish_with_existing_id_test,
+     notify_test,
+     request_all_items_test,
+     request_particular_item_test,
+     retract_test,
+     retract_when_user_goes_offline_test,
+     purge_all_items_test,
+     publish_only_retract_items_scope_test
+    ].
+
+service_config_tests() ->
+    [
+     max_subscriptions_test
+    ].
+
+node_config_tests() ->
+    [
+     retrieve_configuration_test,
+     set_configuration_test,
+     notify_config_test,
+     disable_notifications_test,
+     disable_payload_test,
+     disable_persist_items_test,
+     notify_only_available_users_test,
+     notify_unavailable_user_test,
+     send_last_published_item_test
+    ].
+
+node_affiliations_tests() ->
+    [
+     get_affiliations_test,
+     add_publisher_and_member_test,
+     swap_owners_test,
+     deny_no_owner_test
+    ].
+
+manage_subscriptions_tests() ->
+    [
+     retrieve_user_subscriptions_test,
+     retrieve_node_subscriptions_test,
+     modify_node_subscriptions_test,
+     process_subscription_requests_test,
+     retrieve_pending_subscription_requests_test
+    ].
+
+collection_tests() ->
+    [
+     create_delete_collection_test,
+     subscribe_unsubscribe_collection_test,
+     create_delete_leaf_test,
+     notify_collection_test,
+     notify_collection_leaf_and_item_test,
+     notify_collection_bare_jid_test,
+     notify_collection_and_leaf_test,
+     notify_collection_and_leaf_same_user_test,
+     retrieve_subscriptions_collection_test,
+     discover_top_level_nodes_test,
+     discover_child_nodes_test,
+     request_all_items_leaf_test
+    ].
+
+collection_config_tests() ->
+    [
+     disable_notifications_leaf_test,
+     disable_payload_leaf_test,
+     disable_persist_items_leaf_test
+    ].
+
+debug_calls_tests() ->
+    [
+     debug_get_items_test,
+     debug_get_item_test
+    ].
+
+pubsub_item_publisher_option_tests() ->
+    [
+     get_item_with_publisher_option_test,
+     receive_item_notification_with_publisher_option_test
+    ].
+
+encode_group_name(BaseName, NodeTree) ->
+    binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
+
+decode_group_name(ComplexName) ->
+    [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
+    #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config2 = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(), required_modules()),
-    escalus:init_per_suite(Config2).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
-init_per_group(pubsub_item_publisher_option, Config) ->
-    Config0 = dynamic_modules:save_modules(domain(), Config),
-    Args = proplists:get_value(mod_pubsub, required_modules()),
-    Args0 = [{item_publisher, true} | Args],
-    dynamic_modules:restart(domain(), mod_pubsub, Args0),
-    Config0;
+init_per_group(ComplexName, Config) ->
+    DecodedGroupName = decode_group_name(ComplexName),
+    ExtraOptions = extra_options_by_group_name(DecodedGroupName),
+    Config2 = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), required_modules(ExtraOptions)),
+    Config2.
 
-init_per_group(_GroupName, Config) ->
-    Config.
+extra_options_by_group_name(#{ node_tree := NodeTree,
+                               base_name := pubsub_item_publisher_option }) ->
+    [{nodetree, NodeTree},
+     {item_publisher, true}];
+extra_options_by_group_name(#{ node_tree := NodeTree }) ->
+    [{nodetree, NodeTree}].
 
-end_per_group(pubsub_item_publisher_option, Config) ->
-    dynamic_modules:restore_modules(domain(), Config);
-
-end_per_group(_GroupName, _Config) ->
-    ok.
+end_per_group(_GroupName, Config) ->
+    dynamic_modules:restore_modules(domain(), Config).
 
 init_per_testcase(notify_unavailable_user_test, _Config) ->
     {skip, "mod_offline does not store events"};
@@ -1479,17 +1497,17 @@ disable_delivery_test(Config) ->
 get_item_with_publisher_option_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
+      [{alice, 1}],
+      fun(Alice) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               PublisherJID =  escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
-              A = pubsub_tools:get_item(Alice, Node, <<"item1">>,
-                                        [{expected_result, [#{id => <<"item1">>,
-                                                              publisher => PublisherJID}]}]),
+              pubsub_tools:get_item(Alice, Node, <<"item1">>,
+                                    [{expected_result, [#{id => <<"item1">>,
+                                                          publisher => PublisherJID}]}]),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
@@ -1526,18 +1544,22 @@ rand_name(Prefix) ->
     Suffix = base64:encode(crypto:strong_rand_bytes(5)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
+%% Generates nodetree_tree-safe names
+%% They are compatible with nodetree_dag as well.
+%% TODO: Generate proper paths and ensure existence of their parent in DB
 pubsub_node_name() ->
-    rand_name(<<"princely_musings">>).
+    Name0 = rand_name(<<"princely_musings">>),
+    re:replace(Name0, "/", "_", [global, {return, binary}]).
 
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
-required_modules() ->
+required_modules(ExtraOpts) ->
     [{mod_pubsub, [
                    {plugins, [<<"dag">>]},
-                   {nodetree, <<"dag">>},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {host, "pubsub.@HOST@"}
+                   | ExtraOpts
                   ]}].
 
 verify_config_fields(NodeConfig) ->
