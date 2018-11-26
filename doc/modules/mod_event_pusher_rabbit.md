@@ -145,9 +145,9 @@ There are no guarantees. The current implementation uses "best effort" approach
 which means that we don't care if a message is delivered to a RabbitMQ server.
 If [`publisher confirms`](#publisher-confirms) are enabled and a message
 couldn't be delivered to the server for some reason (the server sent negative
-acknowledgement/didn't sent it at all or there was a channel exception)
-the module just updates appropriate metrics and print some log messages. Notice
-that there might be situations when a message silenty gets lost.
+acknowledgment/didn't sent it at all or there was a channel exception)
+the module just updates appropriate metrics and prints some log messages. Notice
+that there might be situations when a message silently gets lost.
 
 ### Type of exchanges
 
@@ -155,15 +155,15 @@ By default all the exchanges used are of type `topic`. Using topic exchanges
 gives a lot of flexibility when binding queues to such an exchange by using
 `#` and `*` in binding keys. But flexibility comes at the cost of performance -
 imagine a scenario where there are thousands of users and AMQP consumers use
-bindig keys for particular users which looks like `user_N@host.#`. In such
+binding keys for particular users which look like `user_N@host.#`. In such
 case RabbitMQ has to go through all the users in order to find out where
 a message should be sent to. This operations is proved to be costly. In a load
 test with 100k users a delay caused by this operation was substantial (about an
-order of magnitue higher than compared to a load test with 60k users).
+order of magnitude higher than compared to a load test with 60k users).
 
-If perfromance is a top priority go for `direct` exchanges. Using this type of
+If performance is a top priority go for `direct` exchanges. Using this type of
 exchanges is proved to work efficiently with 100k users. Keep in mind it gives
-up flexibility over perfromance.
+up flexibility over performance.
 
 ### Publisher confirms
 
@@ -174,19 +174,19 @@ section). When a worker sends a message to a RabbitMQ server it waits for a
 confirmation from the server before it starts to process next message. This
 approach allows to introduce backpressure on a RabbitMQ server connection cause
 the server can reject/not confirm messages when it's overloaded. On the other
-hand it can cause performance degratation.
+hand it can cause performance degradation.
 
 ### Worker selection strategy
 
 The module uses `mongoose_wpool` (which in turn uses `wpool` underneath) for
 managing worker processes  and [`best_worker` strategy](https://github.com/inaka/worker_pool#best_worker),
 for choosing a worker, is in use by default. Different strategies imply different
-behaviours of the system.
+behaviors of the system.
 
-#### Event messages queueing
+#### Event messages queuing
 
 When `available_worker` strategy is in use all the event messages are queued in
-single worker pool manager process state. When diffrenet strategy is set e.g
+single worker pool manager process state. When different strategy is set e.g
 `best_worker` those messages are placed in worker processes inboxes. Worker
 selection strategy can be set in `rabbit` pool configuration.
 

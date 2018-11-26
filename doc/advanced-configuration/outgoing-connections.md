@@ -472,7 +472,7 @@ The `Tag` parameter must be set to `event_pusher` in order to be able to use
 the pool for [`mod_event_pusher_rabbit`](../modules/mod_event_pusher_rabbit.md).
 Any other `Tag` can be used for any other RabbitMQ connection pool.
 
-The `ConnectionOptions` list can take following parametrs as `{key, value`} pairs:
+The `ConnectionOptions` list can take following parameters as `{key, value`} pairs:
 
 * **amqp_host** (default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address; both as a string);
 * **amqp_port** (default: `5672`) - Defines RabbitMQ server AMQP port;
