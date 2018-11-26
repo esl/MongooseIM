@@ -32,14 +32,14 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2]).
 
--record(state, {amqp_client_opts :: mongoose_amqp:network_params() | undefined,
-                connection :: pid() | undefined,
-                channel :: pid() | undefined,
-                host :: binary() | undefined,
-                confirms :: boolean() | undefined,
-                max_queue_len :: non_neg_integer() | infinity | undefined}).
+-type state() :: #{amqp_client_opts := mongoose_amqp:network_params(),
+                   connection := pid(),
+                   channel := pid(),
+                   host := binary(),
+                   confirms := boolean(),
+                   max_queue_len := non_neg_integer() | infinity}.
 
--type worker_opts() :: #state{}.
+-type worker_opts() :: state().
 
 -define(REPLY_REQ_DROPPED(State), {reply, request_dropped, State}).
 -define(NOREPLY_REQ_DROPPED(State), {noreply, State}).
@@ -91,7 +91,7 @@ list_metrics() ->
 init(Opts) ->
     process_flag(trap_exit, true),
     self() ! {init, Opts},
-    {ok, #state{}}.
+    {ok, #{}}.
 
 handle_call(Req, From, State) ->
     maybe_handle_request(fun do_handle_call/3, [Req, From, State],
@@ -107,8 +107,8 @@ handle_info(Req, State) ->
     maybe_handle_request(fun do_handle_info/2, [Req, State],
                          ?NOREPLY_REQ_DROPPED(State)).
 
-terminate(_Reason, #state{connection = Connection, channel = Channel,
-                          host = Host}) ->
+terminate(_Reason, #{connection := Connection, channel := Channel,
+                     host := Host}) ->
     close_rabbit_connection(Connection, Channel, Host),
     ok.
 
@@ -116,15 +116,15 @@ terminate(_Reason, #state{connection = Connection, channel = Channel,
 %%% Internal functions
 %%%===================================================================
 
-do_handle_call({amqp_call, Method}, _From, State = #state{channel = Channel}) ->
+do_handle_call({amqp_call, Method}, _From, State = #{channel := Channel}) ->
     try amqp_channel:call(Channel, Method) of
         Res ->
             {reply, {ok, Res}, State}
     catch
         Error:Reason ->
             {FreshConn, FreshChann} = maybe_restart_rabbit_connection(State),
-            {reply, {Error, Reason}, State#state{connection = FreshConn,
-                                                 channel = FreshChann}}
+            {reply, {Error, Reason}, State#{connection := FreshConn,
+                                            channel := FreshChann}}
     end.
 
 do_handle_cast({amqp_publish, Method, Payload}, State) ->
@@ -136,15 +136,15 @@ do_handle_info({init, Opts}, State) ->
     {Connection, Channel} = establish_rabbit_connection(AMQPClientOpts, Host),
     IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
     MaxMsgQueueLen = proplists:get_value(max_queue_len, Opts),
-    {noreply, State#state{host = Host, amqp_client_opts = AMQPClientOpts,
-                          connection = Connection, channel = Channel,
-                          confirms = IsConfirmEnabled,
-                          max_queue_len = MaxMsgQueueLen}}.
+    {noreply, State#{host => Host, amqp_client_opts => AMQPClientOpts,
+                     connection => Connection, channel => Channel,
+                     confirms => IsConfirmEnabled,
+                     max_queue_len => MaxMsgQueueLen}}.
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
                           Opts :: worker_opts()) -> {noreply, worker_opts()}.
-handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
+handle_amqp_publish(Method, Payload, Opts = #{host := Host}) ->
     {PublishTime, Result} =
         timer:tc(fun publish_message_and_wait_for_confirm/3,
                  [Method, Payload, Opts]),
@@ -163,7 +163,7 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=~1000p:~1000p",
                          [Error, Reason]),
             {FreshConn, FreshChann} = maybe_restart_rabbit_connection(Opts),
-            {noreply, Opts#state{connection = FreshConn, channel = FreshChann}};
+            {noreply, Opts#{connection := FreshConn, channel := FreshChann}};
         timeout ->
             update_messages_timeout_metrics(Host),
             ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout", []),
@@ -175,8 +175,8 @@ handle_amqp_publish(Method, Payload, Opts = #state{host = Host}) ->
                                            worker_opts()) ->
     boolean() | timeout | channel_exception.
 publish_message_and_wait_for_confirm(Method, Payload,
-                                     #state{channel = Channel,
-                                            confirms = IsConfirmEnabled}) ->
+                                     #{channel := Channel,
+                                       confirms := IsConfirmEnabled}) ->
     try amqp_channel:call(Channel, Method, Payload) of
         _Res ->
             maybe_wait_for_confirms(Channel, IsConfirmEnabled)
@@ -191,9 +191,8 @@ maybe_wait_for_confirms(Channel, true) ->
 maybe_wait_for_confirms(_, _) -> true.
 
 -spec maybe_restart_rabbit_connection(worker_opts()) -> {pid(), pid()}.
-maybe_restart_rabbit_connection(#state{connection = Conn, channel = Chann,
-                                       host = Host,
-                                       amqp_client_opts = AMQPOpts}) ->
+maybe_restart_rabbit_connection(#{connection := Conn, channel := Chann,
+                                  host := Host, amqp_client_opts := AMQPOpts}) ->
     case is_process_alive(Conn) of
         true ->
             {Conn, amqp_connection:open_channel(Conn)};
@@ -276,13 +275,14 @@ update_closed_connections_metrics(Host) ->
                            Reply :: term()) -> term().
 maybe_handle_request(Callback, Args, Reply) ->
     State = lists:last(Args),
-    case is_msq_queue_max_limit_reached(State#state.max_queue_len) of
+    Limit = maps:get(max_queue_len, State),
+    case is_msq_queue_max_limit_reached(Limit) of
         false ->
             apply(Callback, Args);
         true ->
             ?WARNING_MSG("event=rabbit_worker_request_dropped "
                          ++ "reason=queue_message_length_limit_reached "
-                         ++ "limit=~p", [State#state.max_queue_len]),
+                         ++ "limit=~p", [Limit]),
             Reply
     end.
 
