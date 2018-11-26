@@ -29,7 +29,9 @@
          find_node/2,
          delete_node/2,
          get_subnodes/2,
-         get_parentnodes/2
+         get_parentnodes/2,
+         get_parentnodes_tree/2,
+         get_subnodes_tree/2
         ]).
 % Affiliations
 -export([
@@ -275,6 +277,44 @@ get_parentnodes(Key, Node) ->
                           Parent <- Parents, Key == NHost, Parent == NNode]),
             qlc:e(Q)
     end.
+
+-spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+get_parentnodes_tree(Key, Node) ->
+    Pred = fun (NID, #pubsub_node{nodeid = {_, NNode}}) ->
+            NID == NNode
+    end,
+    Tr = fun (#pubsub_node{parents = Parents}) -> Parents
+    end,
+    traversal_helper(Pred, Tr, Key, [Node]).
+
+-spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+get_subnodes_tree(Key, Node) ->
+    Pred = fun (NID, #pubsub_node{parents = Parents}) ->
+            lists:member(NID, Parents)
+    end,
+    Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
+    traversal_helper(Pred, Tr, 1, Key, [Node],
+        [{0, [find_node(Key, Node)]}]).
+
+
+-spec traversal_helper(
+        Pred    :: fun(),
+        Transform :: fun(),
+        Host    :: mod_pubsub:hostPubsub(),
+        Nodes :: [mod_pubsub:nodeId(), ...])
+        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+traversal_helper(Pred, Tr, Host, Nodes) ->
+    traversal_helper(Pred, Tr, 0, Host, Nodes, []).
+
+traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
+    Acc;
+traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
+    NodeRecs = find_nodes_by_id_and_pred(Host, Nodes, Pred),
+    IDs = lists:flatmap(Tr, NodeRecs),
+    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
+
 %% ------------------------ Affiliations ------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),

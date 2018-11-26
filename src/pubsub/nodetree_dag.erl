@@ -112,13 +112,8 @@ get_parentnodes(Key, Node, _From) ->
             Result
     end.
 
-get_parentnodes_tree(Host, Node, _From) ->
-    Pred = fun (NID, #pubsub_node{nodeid = {_, NNode}}) ->
-            NID == NNode
-    end,
-    Tr = fun (#pubsub_node{parents = Parents}) -> Parents
-    end,
-    traversal_helper(Pred, Tr, Host, [Node]).
+get_parentnodes_tree(Key, Node, _From) ->
+    mod_pubsub_db_backend:get_parentnodes_tree(Key, Node).
 
 get_subnodes(Host, Node, _From) ->
     get_subnodes(Host, Node).
@@ -132,13 +127,8 @@ get_subnodes(Host, Node) ->
         _ -> mod_pubsub_db_backend:get_subnodes(Host, Node)
     end.
 
-get_subnodes_tree(Host, Node, From) ->
-    Pred = fun (NID, #pubsub_node{parents = Parents}) ->
-            lists:member(NID, Parents)
-    end,
-    Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
-    traversal_helper(Pred, Tr, 1, Host, [Node],
-        [{0, [get_node(Host, Node, From)]}]).
+get_subnodes_tree(Host, Node, _From) ->
+    mod_pubsub_db_backend:get_subnodes_tree(Host, Node).
 
 %%====================================================================
 %% Internal functions
@@ -152,22 +142,6 @@ find_opt(Key, Default, Options) ->
         {value, {Key, Val}} -> Val;
         _ -> Default
     end.
-
--spec traversal_helper(
-        Pred    :: fun(),
-        Transform :: fun(),
-        Host    :: mod_pubsub:hostPubsub(),
-        Nodes :: [mod_pubsub:nodeId(), ...])
-        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
-traversal_helper(Pred, Tr, Host, Nodes) ->
-    traversal_helper(Pred, Tr, 0, Host, Nodes, []).
-
-traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
-    Acc;
-traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
-    NodeRecs = mod_pubsub_db_backend:find_nodes_by_id_and_pred(Host, Nodes, Pred),
-    IDs = lists:flatmap(Tr, NodeRecs),
-    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
 
 remove_config_parent(Node, Options) ->
     remove_config_parent(Node, Options, []).
