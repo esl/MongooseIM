@@ -163,11 +163,6 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
                                [], pubsub_state),
     {ok, ResultNidxs}.
 
--spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-               LJID :: jid:ljid()) -> ok.
-del_state(Nidx, LJID) ->
-    mnesia:delete({pubsub_state, {LJID, Nidx}}).
-
 %% ------------------------ Node management ------------------------
 
 -spec create_node(Nidx :: mod_pubsub:nodeIdx(),
@@ -342,6 +337,11 @@ del_items(Nidx, ItemIds) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+-spec del_state(Nidx :: mod_pubsub:nodeIdx(),
+               LJID :: jid:ljid()) -> ok.
+del_state(Nidx, LJID) ->
+    mnesia:delete({pubsub_state, {LJID, Nidx}}).
 
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
                 LJID :: jid:ljid(),

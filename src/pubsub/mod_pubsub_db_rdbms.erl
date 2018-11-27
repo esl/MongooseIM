@@ -151,13 +151,6 @@ get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
     {selected, Rows} = mongoose_rdbms:sql_query(global, IdxsSQL),
     {ok, [ mongoose_rdbms:result_to_integer(Nidx) || {Nidx} <- Rows ]}.
 
--spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                LJID :: jid:ljid()) -> ok.
-del_state(Nidx, {LU, LS, LR}) ->
-    delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR),
-    delete_affiliation_wo_subs_check(Nidx, LU, LS),
-    ok.
-
 %% ------------------------ Direct #pubsub_item access ------------------------
 
 -spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
@@ -354,6 +347,13 @@ remove_all_items(Nidx) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+-spec del_state(Nidx :: mod_pubsub:nodeIdx(),
+                LJID :: jid:ljid()) -> ok.
+del_state(Nidx, {LU, LS, LR}) ->
+    delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR),
+    delete_affiliation_wo_subs_check(Nidx, LU, LS),
+    ok.
 
 -spec delete_all_subscriptions_wo_aff_check(Nidx :: mod_pubsub:nodeIdx(),
                                             LU :: jid:luser(),
