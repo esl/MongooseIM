@@ -374,6 +374,7 @@ check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     true = escalus_pred:has_type(<<"headline">>, Response),
     Items = exml_query:path(Response, [{element, <<"event">>},
                                        {element, <<"items">>}]),
+    check_collection_header(Response, Options),
     check_items(Items, [ItemId], NodeName),
     Response.
 
@@ -427,6 +428,40 @@ check_notification(Stanza, NodeAddr) ->
     true = escalus_pred:is_stanza_from(NodeAddr, Stanza),
     true = escalus_pred:is_message(Stanza),
     Stanza.
+
+check_collection_header(Stanza, Options) ->
+    case {lists:member(no_collection_shim, Options), proplists:get_value(collection, Options)} of
+        {true, _} ->
+            assert_no_collection_shim(Stanza);
+        {_, undefined} ->
+            ok;
+        {_, {_, CollectionName}} ->
+            assert_collection_shim(Stanza, CollectionName)
+    end.
+
+assert_no_collection_shim(Stanza) ->
+    HeadersEl = exml_query:subelement(Stanza, <<"headers">>),
+    % We naively assume that there is only one <headers/> element,
+    % as it is very unlikely to find other than SHIM one
+    case exml_query:path(Stanza, [{element, <<"headers">>}, {attr, <<"xmlns">>}]) of
+        ?NS_SHIM ->
+            false =
+            lists:any(fun(HeaderEl) ->
+                              <<"Collection">> =:= exml_query:attr(HeaderEl, <<"name">>)
+                      end, exml_query:subelements(HeadersEl, <<"header">>));
+        _ ->
+            ok
+    end.
+
+assert_collection_shim(Stanza, CollectionName) ->
+    #xmlel{} = HeadersEl = exml_query:subelement(Stanza, <<"headers">>),
+    ?NS_SHIM = exml_query:attr(HeadersEl, <<"xmlns">>),
+    true =
+    lists:any(fun(HeaderEl) ->
+                      <<"Collection">> =:= exml_query:attr(HeaderEl, <<"name">>)
+                      andalso
+                      CollectionName =:= exml_query:cdata(HeaderEl)
+              end, exml_query:subelements(HeadersEl, <<"header">>)).
 
 receive_stanza(User, Options) ->
     case proplists:get_value(stanza, Options) of

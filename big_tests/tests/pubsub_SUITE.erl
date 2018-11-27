@@ -1065,8 +1065,6 @@ create_delete_collection_test(Config) ->
               %% Request:  7.3.1 Ex.30 delete collection node
               %% Response: 7.3.2 Ex.31 success
               pubsub_tools:delete_node(Alice, Node, [])
-
-              %% Subnodes should be deleted as well
       end).
 
 subscribe_unsubscribe_collection_test(Config) ->
@@ -1128,9 +1126,9 @@ notify_collection_test(Config) ->
               %% Publish to leaf nodes, Bob should get notifications
               %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
               pubsub_tools:publish(Alice, <<"item2">>, Leaf2, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item2">>, Leaf2, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item2">>, Leaf2, [{collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Leaf2, []),
@@ -1158,7 +1156,7 @@ notify_collection_leaf_and_item_test(Config) ->
 
               %% Publish to leaf node, Bob should get notified
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1181,12 +1179,14 @@ notify_collection_bare_jid_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Bob subscribed with resource
-              pubsub_tools:receive_item_notification(Bob1, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob1, <<"item1">>, Leaf, [{collection, Node}]),
               escalus_assert:has_no_stanzas(Bob2),
 
               %% Geralt subscribed without resource
-              pubsub_tools:receive_item_notification(Geralt1, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Geralt2, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Geralt1, <<"item1">>, Leaf,
+                                                     [{collection, Node}]),
+              pubsub_tools:receive_item_notification(Geralt2, <<"item1">>, Leaf,
+                                                     [{collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1209,8 +1209,10 @@ notify_collection_and_leaf_test(Config) ->
 
               %% Publish to leaf nodes, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{collection, Node}]),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf,
+                                                     [no_collection_shim]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1233,7 +1235,7 @@ notify_collection_and_leaf_same_user_test(Config) ->
 
               %% Bob should get only one notification
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
               escalus_assert:has_no_stanzas(Bob),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
@@ -1260,8 +1262,10 @@ notify_collections_with_same_leaf_test(Config) ->
 
               %% Publish to leaf node, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{collection, Collection1}]),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf,
+                                                     [{collection, Collection2}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Collection1, []),
@@ -1292,8 +1296,10 @@ notify_nested_collections_test(Config) ->
 
               %% Publish to leaf node, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{collection, MiddleCollection}]),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf,
+                                                     [{collection, TopCollection}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, MiddleCollection, []),
@@ -1464,8 +1470,8 @@ disable_payload_leaf_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Payloads disabled
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>,
-                                                     Leaf, [{with_payload, false}]),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{with_payload, false}, {collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1489,7 +1495,7 @@ disable_persist_items_leaf_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications should work
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
 
               %% No items should be stored
               pubsub_tools:get_all_items(Bob, Leaf, [{expected_result, []}]),
