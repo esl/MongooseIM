@@ -37,11 +37,6 @@
 
 %% ----------------------- Direct #pubsub_state access ------------------------
 
-%% TODO: Replace with del_node when it is fully possible from backend
-%%       i.e. when pubsub_item is migrated to RDBMS as well
--callback del_state(Nidx :: mod_pubsub:nodeIdx(),
-                    LJID :: jid:ljid()) -> ok.
-
 %% When a state is not found, returns empty state.
 %% Maybe can be removed completely later?
 -callback get_state(Nidx :: mod_pubsub:nodeIdx(),
@@ -69,6 +64,9 @@
 -callback create_node(Nidx :: mod_pubsub:nodeIdx(),
                       Owner :: jid:ljid()) ->
     ok.
+
+-callback del_node(Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
 
 %% ----------------------- Affiliations ------------------------
 

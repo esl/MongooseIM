@@ -16,12 +16,13 @@
 % Funs execution
 -export([transaction/2, dirty/2]).
 % Direct #pubsub_state access
--export([del_state/2, get_state/2,
+-export([get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
          get_states_by_bare_and_full/1, get_idxs_of_own_nodes_with_pending_subs/1]).
 % Node management
 -export([
-         create_node/2
+         create_node/2,
+         del_node/1
         ]).
 % Affiliations
 -export([
@@ -150,15 +151,6 @@ get_idxs_of_own_nodes_with_pending_subs({ LU, LS, _ }) ->
     {selected, Rows} = mongoose_rdbms:sql_query(global, IdxsSQL),
     {ok, [ mongoose_rdbms:result_to_integer(Nidx) || {Nidx} <- Rows ]}.
 
--spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                LJID :: jid:ljid()) -> ok.
-del_state(Nidx, {LU, LS, LR}) ->
-    delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR),
-    delete_affiliation_wo_subs_check(Nidx, LU, LS),
-    DelItemsSQL = mod_pubsub_db_rdbms_sql:delete_node_entity_items(Nidx, LU, LS),
-    {updated, _} = mongoose_rdbms:sql_query(global, DelItemsSQL),
-    ok.
-
 %% ------------------------ Direct #pubsub_item access ------------------------
 
 -spec get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
@@ -213,6 +205,19 @@ del_items(Nidx, ItemIds) ->
 -spec create_node(Nidx :: mod_pubsub:nodeIdx(), Owner :: jid:ljid()) -> ok.
 create_node(Nidx, LJID) ->
     set_affiliation(Nidx, LJID, owner).
+
+-spec del_node(Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+del_node(Nidx) ->
+    {ok, States} = get_states(Nidx),
+    DelAllSubsQ = mod_pubsub_db_rdbms_sql:delete_all_subscriptions(Nidx),
+    {updated, _} = mongoose_rdbms:sql_query(global, DelAllSubsQ),
+    DelAllItemsQ = mod_pubsub_db_rdbms_sql:delete_all_items(Nidx),
+    {updated, _} = mongoose_rdbms:sql_query(global, DelAllItemsQ),
+    DelAllAffsQ = mod_pubsub_db_rdbms_sql:delete_all_affiliations(Nidx),
+    {updated, _} = mongoose_rdbms:sql_query(global, DelAllAffsQ),
+    {ok, States}.
+
 
 % ------------------- Affiliations --------------------------------
 
@@ -342,6 +347,13 @@ remove_all_items(Nidx) ->
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+-spec del_state(Nidx :: mod_pubsub:nodeIdx(),
+                LJID :: jid:ljid()) -> ok.
+del_state(Nidx, {LU, LS, LR}) ->
+    delete_all_subscriptions_wo_aff_check(Nidx, LU, LS, LR),
+    delete_affiliation_wo_subs_check(Nidx, LU, LS),
+    ok.
 
 -spec delete_all_subscriptions_wo_aff_check(Nidx :: mod_pubsub:nodeIdx(),
                                             LU :: jid:luser(),

@@ -15,7 +15,7 @@
 % Funs execution
 -export([transaction/2, dirty/2]).
 % Direct #pubsub_state access
--export([del_state/2, get_state/2,
+-export([del_node/1, get_state/2,
          get_states/1, get_states_by_lus/1, get_states_by_bare/1,
          get_states_by_bare_and_full/1, get_idxs_of_own_nodes_with_pending_subs/1]).
 % Node management
@@ -163,11 +163,6 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
                                [], pubsub_state),
     {ok, ResultNidxs}.
 
--spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                LJID :: jid:ljid()) -> ok.
-del_state(Nidx, LJID) ->
-    mnesia:delete({pubsub_state, {LJID, Nidx}}).
-
 %% ------------------------ Node management ------------------------
 
 -spec create_node(Nidx :: mod_pubsub:nodeIdx(),
@@ -175,6 +170,16 @@ del_state(Nidx, LJID) ->
     ok.
 create_node(Nidx, Owner) ->
     set_affiliation(Nidx, Owner, owner).
+
+-spec del_node(Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, [mod_pubsub:pubsubState()]}.
+del_node(Nidx) ->
+    {ok, States} = get_states(Nidx),
+    lists:foreach(fun (#pubsub_state{stateid = {LJID, _}, items = Items}) ->
+                          del_items(Nidx, Items),
+                          del_state(Nidx, LJID)
+                  end, States),
+    {ok, States}.
 
 %% ------------------------ Affiliations ------------------------
 
@@ -332,6 +337,11 @@ del_items(Nidx, ItemIds) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+-spec del_state(Nidx :: mod_pubsub:nodeIdx(),
+               LJID :: jid:ljid()) -> ok.
+del_state(Nidx, LJID) ->
+    mnesia:delete({pubsub_state, {LJID, Nidx}}).
 
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
                 LJID :: jid:ljid(),
