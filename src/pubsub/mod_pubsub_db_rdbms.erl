@@ -26,7 +26,7 @@
          set_node/1,
          find_node_by_id/1,
          find_nodes_by_key/1,
-         find_node/2,
+         find_node_by_name/2,
          delete_node/2,
          get_subnodes/2,
          get_parentnodes/2,
@@ -236,10 +236,11 @@ set_node(Node) ->
 find_node_by_id(Nidx) ->
     mod_pubsub_db_mnesia:find_node_by_id(Nidx).
 
--spec find_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+-spec find_node_by_name(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
+                        Node :: mod_pubsub:nodeId()) ->
     mod_pubsub:pubsubNode() | false.
-find_node(Key, Node) ->
-    mod_pubsub_db_mnesia:find_node(Key, Node).
+find_node_by_name(Key, Node) ->
+    mod_pubsub_db_mnesia:find_node_by_name(Key, Node).
 
 -spec find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
     [mod_pubsub:pubsubNode()].

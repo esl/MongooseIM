@@ -73,7 +73,7 @@
 -callback find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
 
--callback find_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+-callback find_node_by_name(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     mod_pubsub:pubsubNode() | false.
 
 -callback find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->

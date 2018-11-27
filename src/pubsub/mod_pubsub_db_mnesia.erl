@@ -25,8 +25,7 @@
          set_node/1,
          find_node_by_id/1,
          find_nodes_by_key/1,
-         find_nodes_by_id_and_pred/3,
-         find_node/2,
+         find_node_by_name/2,
          delete_node/2,
          get_subnodes/2,
          get_parentnodes/2,
@@ -210,11 +209,11 @@ find_node_by_id(Nidx) ->
             {error, not_found}
     end.
 
--spec find_node(
+-spec find_node_by_name(
         Key :: mod_pubsub:hostPubsub() | jid:ljid(),
-        Node :: mod_pubsub:nodeId())
-    -> mod_pubsub:pubsubNode() | false.
-find_node(Key, Node) ->
+        Node :: mod_pubsub:nodeId()) ->
+    mod_pubsub:pubsubNode() | false.
+find_node_by_name(Key, Node) ->
     case mnesia:read(pubsub_node, oid(Key, Node), read) of
         [] -> false;
         [NodeRec] -> NodeRec
@@ -226,8 +225,8 @@ find_nodes_by_key(Key) ->
     mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, _ = '_'}).
 
 -spec find_nodes_by_id_and_pred(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
-                                    Nodes :: [mod_pubsub:nodeId()],
-                                    Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
+                                Nodes :: [mod_pubsub:nodeId()],
+                                Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
     [mod_pubsub:pubsubNode()].
 find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
     Q = qlc:q([N
@@ -265,7 +264,7 @@ get_subnodes(Key, Node) ->
 -spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [mod_pubsub:pubsubNode()] | {error, not_found}.
 get_parentnodes(Key, Node) ->
-    case find_node(Key, Node) of
+    case find_node_by_name(Key, Node) of
         false ->
             {error, not_found};
         #pubsub_node{parents = []} ->
@@ -296,7 +295,7 @@ get_subnodes_tree(Key, Node) ->
     end,
     Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
     traversal_helper(Pred, Tr, 1, Key, [Node],
-        [{0, [find_node(Key, Node)]}]).
+        [{0, [find_node_by_name(Key, Node)]}]).
 
 
 -spec traversal_helper(

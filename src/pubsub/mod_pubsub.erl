@@ -303,7 +303,7 @@ init_backend(Opts) ->
                      get_states_by_full, get_own_nodes_states,
                      get_items, get_item, set_item, del_item, del_items,
                      set_node, find_node_by_id, find_nodes_by_key,
-                     find_node, delete_node, get_subnodes, get_parentnodes,
+                     find_node_by_name, delete_node, get_subnodes, get_parentnodes,
                      get_subnodes_tree, get_parentnodes_tree
                      ],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),

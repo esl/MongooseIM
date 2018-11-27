@@ -66,7 +66,7 @@ get_node(Host, Node, _From) ->
     get_node(Host, Node).
 
 get_node(Host, Node) ->
-    case catch mod_pubsub_db_backend:find_node(Host, Node) of
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
         #pubsub_node{} = Record -> Record;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
@@ -89,7 +89,7 @@ get_parentnodes(_Host, _Node, _From) ->
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
 get_parentnodes_tree(Host, Node, _From) ->
-    case catch mod_pubsub_db_backend:find_node(Host, Node) of
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
         #pubsub_node{} = Record -> [{0, [Record]}];
         _ -> []
     end.
@@ -122,7 +122,7 @@ get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
 
 create_node(Host, Node, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mod_pubsub_db_backend:find_node(Host, Node) of
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
         false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
@@ -147,7 +147,7 @@ check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
 check_parent_and_its_owner_list(_Host, [], _BJID) ->
     true;
 check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
-    case catch mod_pubsub_db_backend:find_node(Host, Parent) of
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Parent) of
         #pubsub_node{owners = [{[], Host, []}]} ->
             true;
         #pubsub_node{owners = Owners} ->

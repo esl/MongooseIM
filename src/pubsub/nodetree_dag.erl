@@ -51,7 +51,7 @@ set_node(#pubsub_node{nodeid = {Key, _}, owners = Owners, options = Options} = N
 
 create_node(Key, Node, Type, Owner, Options, Parents) ->
     OwnerJID = jid:to_lower(jid:to_bare(Owner)),
-    case mod_pubsub_db_backend:find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false ->
             Nidx = pubsub_index:new(node),
             N = #pubsub_node{nodeid = {Key, Node}, id = Nidx,
@@ -66,7 +66,7 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
     end.
 
 delete_node(Key, Node) ->
-    case mod_pubsub_db_backend:find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         Record ->
@@ -90,7 +90,7 @@ get_node(Key, Node, _From) ->
     get_node(Key, Node).
 
 get_node(Key, Node) ->
-    case mod_pubsub_db_backend:find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
@@ -122,7 +122,7 @@ get_subnodes(Host, <<>>) ->
     mod_pubsub_db_backend:get_subnodes(Host, <<>>);
 
 get_subnodes(Host, Node) ->
-    case mod_pubsub_db_backend:find_node(Host, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Host, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         _ -> mod_pubsub_db_backend:get_subnodes(Host, Node)
     end.
@@ -165,7 +165,7 @@ validate_parentage(Key, Owners, [[] | T]) ->
 validate_parentage(Key, Owners, [<<>> | T]) ->
     validate_parentage(Key, Owners, T);
 validate_parentage(Key, Owners, [ParentID | T]) ->
-    case mod_pubsub_db_backend:find_node(Key, ParentID) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, ParentID) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{owners = POwners, options = POptions} ->
