@@ -1697,12 +1697,17 @@ deleting_parent_path_deletes_children(Config) ->
       Config,
       [{alice, 1}],
       fun(Alice) ->
-              {Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
+              {{_, ParentName} = Parent, {_, NodeName} = Node}
+              = path_node_and_parent(Alice, pubsub_node()),
+
               pubsub_tools:create_node(Alice, Parent, []),
               pubsub_tools:create_node(Alice, Node, []),
               
               pubsub_tools:delete_node(Alice, Parent, []),
-              pubsub_tools:delete_node(Alice, Node, [{expected_error_type, <<"cancel">>}])
+
+              pubsub_tools:discover_nodes(Alice, node_addr(),
+                                          [{expected_result, [{no, ParentName}, {no, NodeName}]}]),
+              pubsub_tools:discover_nodes(Alice, Node, [{expected_error_type, <<"cancel">>}])
       end).
 
 %%-----------------------------------------------------------------
