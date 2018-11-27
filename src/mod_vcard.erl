@@ -164,6 +164,7 @@ start(VHost, Opts) ->
 
 stop(VHost) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
+    gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
 
 %%--------------------------------------------------------------------
