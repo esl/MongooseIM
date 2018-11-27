@@ -73,6 +73,8 @@
          notify_collection_bare_jid_test/1,
          notify_collection_and_leaf_test/1,
          notify_collection_and_leaf_same_user_test/1,
+         notify_collections_with_same_leaf_test/1,
+         notify_nested_collections_test/1,
          retrieve_subscriptions_collection_test/1,
          discover_top_level_nodes_test/1,
          discover_child_nodes_test/1,
@@ -148,8 +150,8 @@ base_groups() ->
          {debug_calls, [parallel], debug_calls_tests()},
          {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
          {hometree_specific, [parallel], hometree_specific_tests()}
-        ].
-%    ct_helper:repeat_all_until_all_ok(G).
+        ],
+    ct_helper:repeat_all_until_all_ok(G).
 
 basic_tests() ->
     [
@@ -213,6 +215,8 @@ collection_tests() ->
      notify_collection_bare_jid_test,
      notify_collection_and_leaf_test,
      notify_collection_and_leaf_same_user_test,
+     notify_collections_with_same_leaf_test,
+     notify_nested_collections_test,
      retrieve_subscriptions_collection_test,
      discover_top_level_nodes_test,
      discover_child_nodes_test,
@@ -1236,6 +1240,66 @@ notify_collection_and_leaf_same_user_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
+notify_collections_with_same_leaf_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              {_, CollectionName1} = Collection1 = pubsub_node(),
+              pubsub_tools:create_node(Alice, Collection1, [{config, CollectionConfig}]),
+              {_, CollectionName2} = Collection2 = pubsub_node(),
+              pubsub_tools:create_node(Alice, Collection2, [{config, CollectionConfig}]),
+
+              LeafConfig = [{<<"pubsub#collection">>, <<"text-multi">>,
+                             [CollectionName1, CollectionName2]}],
+              Leaf = pubsub_leaf(),
+              pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
+              pubsub_tools:subscribe(Bob, Collection1, []),
+              pubsub_tools:subscribe(Geralt, Collection2, []),
+
+              %% Publish to leaf node, Bob and Geralt should get notifications
+              pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf, []),
+
+              pubsub_tools:delete_node(Alice, Leaf, []),
+              pubsub_tools:delete_node(Alice, Collection1, []),
+              pubsub_tools:delete_node(Alice, Collection2, [])
+      end).
+
+notify_nested_collections_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              TopCollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              {_, TopCollectionName} = TopCollection = pubsub_node(),
+              pubsub_tools:create_node(Alice, TopCollection, [{config, TopCollectionConfig}]),
+
+              MiddleCollectionConfig = [
+                                        {<<"pubsub#node_type">>, <<"collection">>},
+                                        {<<"pubsub#collection">>, TopCollectionName}
+                                       ],
+              {_, MiddleCollectionName} = MiddleCollection = pubsub_node(),
+              pubsub_tools:create_node(Alice, MiddleCollection, [{config, MiddleCollectionConfig}]),
+
+              LeafConfig = [{<<"pubsub#collection">>, MiddleCollectionName}],
+              Leaf = pubsub_leaf(),
+              pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
+              pubsub_tools:subscribe(Bob, MiddleCollection, []),
+              pubsub_tools:subscribe(Geralt, TopCollection, []),
+
+              %% Publish to leaf node, Bob and Geralt should get notifications
+              pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf, []),
+
+              pubsub_tools:delete_node(Alice, Leaf, []),
+              pubsub_tools:delete_node(Alice, MiddleCollection, []),
+              pubsub_tools:delete_node(Alice, TopCollection, [])
+      end).
+ 
 retrieve_subscriptions_collection_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -1267,19 +1331,29 @@ discover_top_level_nodes_test(Config) ->
       Config,
       [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
+              % This one is visible at top level
+
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, CollectionConfig}]),
 
-              NodeConfig = [{<<"pubsub#collection">>, NodeName}],
+              % This one is not
+
+              LeafConfig = [{<<"pubsub#collection">>, NodeName}],
               Leaf = pubsub_leaf(),
-              pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
+              pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
+
+              % This one is visible, as it is not associated with any collection
+              {_, CollectionlessName} = Collectionless = pubsub_node(),
+              pubsub_tools:create_node(Alice, Collectionless, []),
 
               %% Discover top-level nodes, only the collection expected
-              pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
+              pubsub_tools:discover_nodes(Bob, node_addr(),
+                                          [{expected_result, [NodeName, CollectionlessName]}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+              pubsub_tools:delete_node(Alice, Collectionless, [])
       end).
 
 discover_child_nodes_test(Config) ->
