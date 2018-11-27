@@ -319,13 +319,17 @@ check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedNodes) ->
     [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
     ReceivedNodes = [exml_query:attr(Item, <<"node">>) || Item <- Items],
     ReceivedSet = ordsets:from_list(ReceivedNodes),
-    case ExpectedNodes of
-        {no, NoNodeName} ->
-            false = ordsets:is_element(NoNodeName, ReceivedSet);
-        _ ->
-            ExpectedSet = ordsets:from_list(ExpectedNodes),
-            true = ordsets:is_subset(ExpectedSet, ReceivedSet)
-    end,
+    {MustHaveNodes, MustNotHaveNodes}
+    = lists:splitwith(fun({no, _}) -> false;
+                         (_) -> true
+                      end, ExpectedNodes),
+
+    MustHaveSet = ordsets:from_list(MustHaveNodes),
+    true = ordsets:is_subset(MustHaveSet, ReceivedSet),
+
+    MustNotHaveSet = ordsets:from_list([HeWhoMustNotBeNamed
+                                        || {no, HeWhoMustNotBeNamed} <- MustNotHaveNodes]),
+    [] = ordsets:intersection(MustNotHaveSet, ReceivedSet),
 
     Response.
 

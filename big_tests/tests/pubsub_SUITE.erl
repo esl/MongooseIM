@@ -328,7 +328,7 @@ discover_nodes_test(Config) ->
               %% Response:     Ex.10 Service returns all first-level nodes
               %% it shouldn't contain the Node which will be created in a moment
               {_, NodeName} = Node = pubsub_node(),
-              pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, {no, NodeName}}]),
+              pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, [{no, NodeName}]}]),
 
               pubsub_tools:create_node(Alice, Node, []),
               pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
@@ -1346,7 +1346,7 @@ discover_top_level_nodes_test(Config) ->
               % This one is not
 
               LeafConfig = [{<<"pubsub#collection">>, NodeName}],
-              Leaf = pubsub_leaf(),
+              {_, LeafName} = Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
 
               % This one is visible, as it is not associated with any collection
@@ -1355,7 +1355,8 @@ discover_top_level_nodes_test(Config) ->
 
               %% Discover top-level nodes, only the collection expected
               pubsub_tools:discover_nodes(Bob, node_addr(),
-                                          [{expected_result, [NodeName, CollectionlessName]}]),
+                                          [{expected_result, [NodeName, CollectionlessName,
+                                                              {no, LeafName}]}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, []),
@@ -1374,7 +1375,7 @@ discover_child_nodes_test(Config) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               pubsub_tools:create_node(Alice, Node, [{config, CollectionConfig}]),
 
-              pubsub_tools:discover_nodes(Bob, Node, [{expected_result, {no, NodeName}}]),
+              pubsub_tools:discover_nodes(Bob, Node, [{expected_result, [{no, NodeName}]}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               {_, LeafName} = Leaf = pubsub_leaf(),
