@@ -304,10 +304,7 @@ init_backend(Opts, Host) ->
                      get_items, get_item, set_item, del_item, del_items],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
-    case is_last_item_cache_enabled(Host) of
-        false -> ok;
-        DB -> pubsub_cache:create_table(DB)
-    end.
+    maybe_start_cache_module(Opts).
     
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
     Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
@@ -4007,47 +4004,45 @@ get_max_subscriptions_node(Host) ->
     config(serverhost(Host), max_subscriptions_node, undefined).
 
 %%%% last item cache handling
+maybe_start_cache_module(Opts) ->
+    case proplists:get_value(last_item_cache, Opts, false) of
+        false ->
+            ok;
+        Backend ->
+           gen_mod:start_backend_module(mod_pubsub_cache, [{backend, Backend}],
+                [create_table, delete_table, insert_last_item, delete_last_item, get_last_item]),
+           mod_pubsub_cache_backend:start(),
+           T = mod_pubsub_cache_backend:create_table(),
+           ?ERROR_MSG("backend response: ~p", [T])
+    end.
 
-is_last_item_cache_enabled({_, ServerHost, _}) ->
-    is_last_item_cache_enabled(ServerHost);
+
 is_last_item_cache_enabled(Host) ->
-    config(serverhost(Host), last_item_cache, false).
+    Opts = gen_mod:get_module_opts(Host, mod_pubsub),
+    proplists:get_value(last_item_cache, Opts, false).
 
-set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
-    set_cached_item(ServerHost, Nidx, ItemId, Publisher, Payload);
-set_cached_item(Host, Nidx, ItemId, Publisher, Payload) ->
-    case is_last_item_cache_enabled(Host) of
-        false -> ok;
-        DB -> pubsub_cache:dirty_write(Nidx, ItemId, Publisher, Payload, DB)
-    end.
+set_cached_item({_, Host, _}, Nidx, ItemId, Publisher, Payload) ->
+    is_last_item_cache_enabled(Host) andalso 
+        mod_pubsub_cache_backend:insert_last_item(Nidx, ItemId, Publisher, Payload).
 
-unset_cached_item({_, ServerHost, _}, Nidx) ->
-    unset_cached_item(ServerHost, Nidx);
-unset_cached_item(Host, Nidx) ->
-    case is_last_item_cache_enabled(Host) of
-        false -> ok;
-        DB -> pubsub_cache:dirty_delete(Nidx, DB)
-    end.
+unset_cached_item({_, Host, _}, Nidx) ->
+    is_last_item_cache_enabled(Host) andalso 
+        mod_pubsub_cache_backend:delete_last_item(Nidx).
 
 -spec get_cached_item(
         Host    :: mod_pubsub:host(),
           Nidx :: mod_pubsub:nodeIdx())
         -> undefined | mod_pubsub:pubsubItem().
-get_cached_item({_, ServerHost, _}, Nidx) ->
-    get_cached_item(ServerHost, Nidx);
-get_cached_item(Host, Nidx) ->
-    case is_last_item_cache_enabled(Host) of
-        false -> undefined;
-        DB ->
-            case pubsub_cache:dirty_read(Nidx, DB) of
+get_cached_item({_, Host, _}, Nidx) ->
+    is_last_item_cache_enabled(Host) andalso 
+        case mod_pubsub_cache_backend:get_last_item(Nidx) of
                 [#pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}] ->
                     #pubsub_item{itemid = {ItemId, Nidx},
                                  payload = Payload, creation = Creation,
                                  modification = Creation};
                 _ ->
                     undefined
-            end
-    end.
+        end.
 
 %%%% plugin handling
 
