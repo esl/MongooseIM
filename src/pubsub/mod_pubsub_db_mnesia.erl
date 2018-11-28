@@ -10,6 +10,7 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -export([start/0, stop/0]).
 % Funs execution
@@ -20,7 +21,16 @@
          get_states_by_bare_and_full/1, get_idxs_of_own_nodes_with_pending_subs/1]).
 % Node management
 -export([
-         create_node/2
+         create_node/2,
+         set_node/1,
+         find_node_by_id/1,
+         find_nodes_by_key/1,
+         find_node_by_name/2,
+         delete_node/2,
+         get_subnodes/2,
+         get_parentnodes/2,
+         get_parentnodes_tree/2,
+         get_subnodes_tree/2
         ]).
 % Affiliations
 -export([
@@ -70,6 +80,10 @@ start() ->
                         [{disc_only_copies, [node()]},
                          {attributes, record_info(fields, pubsub_item)}]),
     mnesia:add_table_copy(pubsub_item, node(), disc_only_copies),
+    mnesia:create_table(pubsub_node,
+                        [{disc_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_node)}]),
+    mnesia:add_table_index(pubsub_node, id),
     ok.
 
 -spec stop() -> ok.
@@ -180,6 +194,125 @@ del_node(Nidx) ->
                           del_state(Nidx, LJID)
                   end, States),
     {ok, States}.
+
+-spec set_node(mod_pubsub:pubsubNode()) -> ok.
+set_node(Node) when is_record(Node, pubsub_node) ->
+    mnesia:write(Node).
+
+
+-spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
+    {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
+find_node_by_id(Nidx) ->
+    case mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
+        [#pubsub_node{} = Record] -> {ok, Record};
+        [] ->
+            {error, not_found}
+    end.
+
+-spec find_node_by_name(
+        Key :: mod_pubsub:hostPubsub() | jid:ljid(),
+        Node :: mod_pubsub:nodeId()) ->
+    mod_pubsub:pubsubNode() | false.
+find_node_by_name(Key, Node) ->
+    case mnesia:read(pubsub_node, oid(Key, Node), read) of
+        [] -> false;
+        [NodeRec] -> NodeRec
+    end.
+
+-spec find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
+    [mod_pubsub:pubsubNode()].
+find_nodes_by_key(Key) ->
+    mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, _ = '_'}).
+
+-spec find_nodes_by_id_and_pred(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
+                                Nodes :: [mod_pubsub:nodeId()],
+                                Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
+    [mod_pubsub:pubsubNode()].
+find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
+    Q = qlc:q([N
+                || #pubsub_node{nodeid = {NHost, _}} = N
+                    <- mnesia:table(pubsub_node),
+                    Node <- Nodes, Key == NHost, Pred(Node, N)]),
+    qlc:e(Q).
+
+oid(Key, Name) -> {Key, Name}.
+
+
+-spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
+delete_node(Key, Node) ->
+    mnesia:delete({pubsub_node, oid(Key, Node)}).
+
+
+-spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
+    [mod_pubsub:pubsubNode()].
+get_subnodes(Key, <<>>) ->
+    Q = qlc:q([N
+               || #pubsub_node{nodeid = {NKey, _},
+                               parents = []} = N
+                  <- mnesia:table(pubsub_node),
+                  Key == NKey]),
+    qlc:e(Q);
+get_subnodes(Key, Node) ->
+    Q = qlc:q([N
+               || #pubsub_node{nodeid = {NKey, _},
+                               parents = Parents} =
+                  N
+                  <- mnesia:table(pubsub_node),
+                    Key == NKey, lists:member(Node, Parents)]),
+    qlc:e(Q).
+
+-spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [mod_pubsub:pubsubNode()] | {error, not_found}.
+get_parentnodes(Key, Node) ->
+    case find_node_by_name(Key, Node) of
+        false ->
+            {error, not_found};
+        #pubsub_node{parents = []} ->
+            [];
+        #pubsub_node{parents = Parents} ->
+            Q = qlc:q([N
+                       || #pubsub_node{nodeid = {NHost, NNode}} = N
+                          <- mnesia:table(pubsub_node),
+                          Parent <- Parents, Key == NHost, Parent == NNode]),
+            qlc:e(Q)
+    end.
+
+-spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+get_parentnodes_tree(Key, Node) ->
+    Pred = fun (NID, #pubsub_node{nodeid = {_, NNode}}) ->
+            NID == NNode
+    end,
+    Tr = fun (#pubsub_node{parents = Parents}) -> Parents
+    end,
+    traversal_helper(Pred, Tr, Key, [Node]).
+
+-spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+get_subnodes_tree(Key, Node) ->
+    Pred = fun (NID, #pubsub_node{parents = Parents}) ->
+            lists:member(NID, Parents)
+    end,
+    Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
+    traversal_helper(Pred, Tr, 1, Key, [Node],
+        [{0, [find_node_by_name(Key, Node)]}]).
+
+
+-spec traversal_helper(
+        Pred    :: fun(),
+        Transform :: fun(),
+        Host    :: mod_pubsub:hostPubsub(),
+        Nodes :: [mod_pubsub:nodeId(), ...])
+        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+traversal_helper(Pred, Tr, Host, Nodes) ->
+    traversal_helper(Pred, Tr, 0, Host, Nodes, []).
+
+traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
+    Acc;
+traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
+    NodeRecs = find_nodes_by_id_and_pred(Host, Nodes, Pred),
+    IDs = lists:flatmap(Tr, NodeRecs),
+    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
 
 %% ------------------------ Affiliations ------------------------
 

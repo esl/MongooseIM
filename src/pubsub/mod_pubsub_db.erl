@@ -60,13 +60,38 @@
     {ok, [mod_pubsub:nodeIdx()]}.
 
 %% ----------------------- Node management ------------------------
-
+%% TODO this is not really node creation
 -callback create_node(Nidx :: mod_pubsub:nodeIdx(),
                       Owner :: jid:ljid()) ->
     ok.
 
 -callback del_node(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
+
+-callback set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
+
+-callback find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
+    {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
+
+-callback find_node_by_name(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    mod_pubsub:pubsubNode() | false.
+
+-callback find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
+    [mod_pubsub:pubsubNode()].
+
+-callback delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
+
+-callback get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
+    [mod_pubsub:pubsubNode()].
+
+-callback get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [mod_pubsub:pubsubNode()].
+
+-callback get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+
+-callback get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 
 %% ----------------------- Affiliations ------------------------
 

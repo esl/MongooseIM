@@ -45,16 +45,16 @@ terminate(Host, ServerHost) ->
 set_node(#pubsub_node{nodeid = {Key, _}, owners = Owners, options = Options} = Node) ->
     Parents = find_opt(collection, ?DEFAULT_PARENTS, Options),
     case validate_parentage(Key, Owners, Parents) of
-        true -> mnesia:write(Node#pubsub_node{parents = Parents});
+        true -> mod_pubsub_db_backend:set_node(Node#pubsub_node{parents = Parents});
         Other -> Other
     end.
 
 create_node(Key, Node, Type, Owner, Options, Parents) ->
     OwnerJID = jid:to_lower(jid:to_bare(Owner)),
-    case find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false ->
             Nidx = pubsub_index:new(node),
-            N = #pubsub_node{nodeid = oid(Key, Node), id = Nidx,
+            N = #pubsub_node{nodeid = {Key, Node}, id = Nidx,
                     type = Type, parents = Parents, owners = [OwnerJID],
                     options = Options},
             case set_node(N) of
@@ -66,32 +66,31 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
     end.
 
 delete_node(Key, Node) ->
-    case find_node(Key, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         Record ->
             lists:foreach(fun (#pubsub_node{options = Opts} = Child) ->
                         NewOpts = remove_config_parent(Node, Opts),
                         Parents = find_opt(collection, ?DEFAULT_PARENTS, NewOpts),
-                        ok = mnesia:write(pubsub_node,
-                                Child#pubsub_node{parents = Parents,
-                                    options = NewOpts},
-                                write)
+                        ok = mod_pubsub_db_backend:set_node(
+                               Child#pubsub_node{parents = Parents,
+                                                 options = NewOpts})
                 end,
                 get_subnodes(Key, Node)),
             pubsub_index:free(node, Record#pubsub_node.id),
-            mnesia:delete_object(pubsub_node, Record, write),
+            mod_pubsub_db_backend:delete_node(Key, Node),
             [Record]
     end.
 
 options() ->
     nodetree_tree:options().
 
-get_node(Host, Node, _From) ->
-    get_node(Host, Node).
+get_node(Key, Node, _From) ->
+    get_node(Key, Node).
 
-get_node(Host, Node) ->
-    case find_node(Host, Node) of
+get_node(Key, Node) ->
+    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
@@ -105,77 +104,35 @@ get_nodes(Key, From) ->
 get_nodes(Key) ->
     nodetree_tree:get_nodes(Key).
 
-get_parentnodes(Host, Node, _From) ->
-    case find_node(Host, Node) of
-        false ->
+get_parentnodes(Key, Node, _From) ->
+    case mod_pubsub_db_backend:get_parentnodes(Key, Node) of
+        {error, not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()};
-        #pubsub_node{parents = Parents} ->
-            Q = qlc:q([N
-                        || #pubsub_node{nodeid = {NHost, NNode}} = N
-                            <- mnesia:table(pubsub_node),
-                            Parent <- Parents, Host == NHost, Parent == NNode]),
-            qlc:e(Q)
+        Result when is_list(Result) ->
+            Result
     end.
 
-get_parentnodes_tree(Host, Node, _From) ->
-    Pred = fun (NID, #pubsub_node{nodeid = {_, NNode}}) ->
-            NID == NNode
-    end,
-    Tr = fun (#pubsub_node{parents = Parents}) -> Parents
-    end,
-    traversal_helper(Pred, Tr, Host, [Node]).
+get_parentnodes_tree(Key, Node, _From) ->
+    mod_pubsub_db_backend:get_parentnodes_tree(Key, Node).
 
 get_subnodes(Host, Node, _From) ->
     get_subnodes(Host, Node).
 
 get_subnodes(Host, <<>>) ->
-    get_subnodes_helper(Host, <<>>);
+    mod_pubsub_db_backend:get_subnodes(Host, <<>>);
+
 get_subnodes(Host, Node) ->
-    case find_node(Host, Node) of
+    case mod_pubsub_db_backend:find_node_by_name(Host, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
-        _ -> get_subnodes_helper(Host, Node)
+        _ -> mod_pubsub_db_backend:get_subnodes(Host, Node)
     end.
 
-get_subnodes_helper(Host, <<>>) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                                parents = []} = N
-                       <- mnesia:table(pubsub_node),
-                   Host == NHost]),
-    qlc:e(Q);
-get_subnodes_helper(Host, Node) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                        parents = Parents} =
-                    N
-                    <- mnesia:table(pubsub_node),
-                    Host == NHost, lists:member(Node, Parents)]),
-    qlc:e(Q).
-
-get_subnodes_tree(Host, Node, From) ->
-    Pred = fun (NID, #pubsub_node{parents = Parents}) ->
-            lists:member(NID, Parents)
-    end,
-    Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
-    traversal_helper(Pred, Tr, 1, Host, [Node],
-        [{0, [get_node(Host, Node, From)]}]).
+get_subnodes_tree(Host, Node, _From) ->
+    mod_pubsub_db_backend:get_subnodes_tree(Host, Node).
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
-oid(Key, Name) -> {Key, Name}.
-
-%% Key    = jid:jid() | host()
-%% Node = string()
--spec find_node(
-        Key :: mod_pubsub:hostPubsub(),
-        Node :: mod_pubsub:nodeId())
-    -> mod_pubsub:pubsubNode() | false.
-find_node(Key, Node) ->
-    case mnesia:read(pubsub_node, oid(Key, Node), read) of
-        [] -> false;
-        [NodeRec] -> NodeRec
-    end.
 
 %% Key     = jid:jid() | host()
 %% Default = term()
@@ -185,26 +142,6 @@ find_opt(Key, Default, Options) ->
         {value, {Key, Val}} -> Val;
         _ -> Default
     end.
-
--spec traversal_helper(
-        Pred    :: fun(),
-        Tr      :: fun(),
-        Host    :: mod_pubsub:hostPubsub(),
-        Nodes :: [mod_pubsub:nodeId(), ...])
-        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
-traversal_helper(Pred, Tr, Host, Nodes) ->
-    traversal_helper(Pred, Tr, 0, Host, Nodes, []).
-
-traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
-    Acc;
-traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _}} = N
-                    <- mnesia:table(pubsub_node),
-                    Node <- Nodes, Host == NHost, Pred(Node, N)]),
-    NodeRecs = qlc:e(Q),
-    IDs = lists:flatmap(Tr, NodeRecs),
-    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
 
 remove_config_parent(Node, Options) ->
     remove_config_parent(Node, Options, []).
@@ -228,7 +165,7 @@ validate_parentage(Key, Owners, [[] | T]) ->
 validate_parentage(Key, Owners, [<<>> | T]) ->
     validate_parentage(Key, Owners, T);
 validate_parentage(Key, Owners, [ParentID | T]) ->
-    case find_node(Key, ParentID) of
+    case mod_pubsub_db_backend:find_node_by_name(Key, ParentID) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         #pubsub_node{owners = POwners, options = POptions} ->

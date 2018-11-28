@@ -22,7 +22,16 @@
 % Node management
 -export([
          create_node/2,
-         del_node/1
+         del_node/1,
+         set_node/1,
+         find_node_by_id/1,
+         find_nodes_by_key/1,
+         find_node_by_name/2,
+         delete_node/2,
+         get_subnodes/2,
+         get_parentnodes/2,
+         get_parentnodes_tree/2,
+         get_subnodes_tree/2
         ]).
 % Affiliations
 -export([
@@ -218,7 +227,50 @@ del_node(Nidx) ->
     {updated, _} = mongoose_rdbms:sql_query(global, DelAllAffsQ),
     {ok, States}.
 
+-spec set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
+set_node(Node) ->
+    mod_pubsub_db_mnesia:set_node(Node).
 
+-spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
+    {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
+find_node_by_id(Nidx) ->
+    mod_pubsub_db_mnesia:find_node_by_id(Nidx).
+
+-spec find_node_by_name(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
+                        Node :: mod_pubsub:nodeId()) ->
+    mod_pubsub:pubsubNode() | false.
+find_node_by_name(Key, Node) ->
+    mod_pubsub_db_mnesia:find_node_by_name(Key, Node).
+
+-spec find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
+    [mod_pubsub:pubsubNode()].
+find_nodes_by_key(Key) ->
+    mod_pubsub_db_mnesia:find_nodes_by_key(Key).
+
+
+-spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
+delete_node(Key, Node) ->
+    mod_pubsub_db_mnesia:delete_node(Key, Node).
+
+-spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
+    [mod_pubsub:pubsubNode()].
+get_subnodes(Key, Node) ->
+    mod_pubsub_db_mnesia:get_subnodes(Key, Node).
+
+-spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [mod_pubsub:pubsubNode()].
+get_parentnodes(Key, Node) ->
+    mod_pubsub_db_mnesia:get_parentnodes(Key, Node).
+
+-spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+get_parentnodes_tree(Key, Node) ->
+    mod_pubsub_db_mnesia:get_parentnodes_tree(Key, Node).
+
+-spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
+    [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
+get_subnodes_tree(Key, Node) ->
+    mod_pubsub_db_mnesia:get_subnodes_tree(Key, Node).
 % ------------------- Affiliations --------------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
