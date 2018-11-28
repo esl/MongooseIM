@@ -67,12 +67,14 @@
 -export([
          create_delete_collection_test/1,
          subscribe_unsubscribe_collection_test/1,
-         create_delete_leaf_test/1,
+         collection_delete_makes_leaf_parentless/1,
          notify_collection_test/1,
          notify_collection_leaf_and_item_test/1,
          notify_collection_bare_jid_test/1,
          notify_collection_and_leaf_test/1,
          notify_collection_and_leaf_same_user_test/1,
+         notify_collections_with_same_leaf_test/1,
+         notify_nested_collections_test/1,
          retrieve_subscriptions_collection_test/1,
          discover_top_level_nodes_test/1,
          discover_child_nodes_test/1,
@@ -88,6 +90,13 @@
 -export([
          debug_get_items_test/1,
          debug_get_item_test/1
+        ]).
+
+-export([
+         can_create_node_with_existing_parent_path/1,
+         cant_create_node_with_missing_parent_path/1,
+         disco_node_children_by_path_prefix/1,
+         deleting_parent_path_deletes_children/1
         ]).
 
 %% Disabled tests - broken support in mod_pubsub
@@ -112,138 +121,178 @@
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
-all() -> [
-          {group, basic},
-          {group, service_config},
-          {group, node_config},
-          {group, node_affiliations},
-          {group, manage_subscriptions},
-          {group, collection},
-          {group, collection_config},
-          {group, debug_calls},
-          {group, pubsub_item_publisher_option}
-         ].
+all() ->
+    [{group, GN} || {GN, _, _} <- groups()].
 
 groups() ->
-    G = [{basic, [parallel],
-          [
-           discover_nodes_test,
-           create_delete_node_test,
-           subscribe_unsubscribe_test,
-           publish_test,
-           publish_with_max_items_test,
-           publish_with_existing_id_test,
-           notify_test,
-           request_all_items_test,
-           request_particular_item_test,
-           retract_test,
-           retract_when_user_goes_offline_test,
-           purge_all_items_test,
-           publish_only_retract_items_scope_test
-          ]
-         },
-         {service_config, [parallel],
-          [
-           max_subscriptions_test
-          ]
-         },
-         {node_config, [parallel],
-          [
-           retrieve_configuration_test,
-           set_configuration_test,
-           notify_config_test,
-           disable_notifications_test,
-           disable_payload_test,
-           disable_persist_items_test,
-           notify_only_available_users_test,
-           notify_unavailable_user_test,
-           send_last_published_item_test
-          ]
-         },
-         {node_affiliations, [parallel],
-          [
-           get_affiliations_test,
-           add_publisher_and_member_test,
-           swap_owners_test,
-           deny_no_owner_test
-          ]
-         },
-         {manage_subscriptions, [parallel],
-          [
-           retrieve_user_subscriptions_test,
-           retrieve_node_subscriptions_test,
-           modify_node_subscriptions_test,
-           process_subscription_requests_test,
-           retrieve_pending_subscription_requests_test
-          ]
-         },
-         {collection, [parallel],
-          [
-           create_delete_collection_test,
-           subscribe_unsubscribe_collection_test,
-           create_delete_leaf_test,
-           notify_collection_test,
-           notify_collection_leaf_and_item_test,
-           notify_collection_bare_jid_test,
-           notify_collection_and_leaf_test,
-           notify_collection_and_leaf_same_user_test,
-           retrieve_subscriptions_collection_test,
-           discover_top_level_nodes_test,
-           discover_child_nodes_test,
-           request_all_items_leaf_test
-          ]
-         },
-         {collection_config, [parallel],
-          [
-           disable_notifications_leaf_test,
-           disable_payload_leaf_test,
-           disable_persist_items_leaf_test
-          ]
-         },
-         {debug_calls, [parallel],
-          [
-           debug_get_items_test,
-           debug_get_item_test
-          ]
-         },
-         {pubsub_item_publisher_option, [parallel],
-          [
-           get_item_with_publisher_option_test,
-           receive_item_notification_with_publisher_option_test
-          ]
-         }
+    lists:flatmap(
+      fun(NodeTree) ->
+              [ {encode_group_name(BaseGroup, NodeTree), Opts, Cases}
+                || {BaseGroup, Opts, Cases} <- base_groups(),
+                   group_is_compatible(BaseGroup, NodeTree) ]
+      end, [<<"dag">>, <<"tree">>]).
+
+% nodetree_tree doesn't support collections by XEP
+% It uses implicit collections by path in nodes' names
+group_is_compatible(collection, <<"tree">>) -> false;
+group_is_compatible(collection_config, <<"tree">>) -> false;
+group_is_compatible(hometree_specific, OnlyNodetreeTree) -> OnlyNodetreeTree =:= <<"tree">>;
+group_is_compatible(_, _) -> true.
+
+base_groups() ->
+    G = [{basic, [parallel], basic_tests()},
+         {service_config, [parallel], service_config_tests()},
+         {node_config, [parallel], node_config_tests()},
+         {node_affiliations, [parallel], node_affiliations_tests()},
+         {manage_subscriptions, [parallel], manage_subscriptions_tests()},
+         {collection, [parallel], collection_tests()},
+         {collection_config, [parallel], collection_config_tests()},
+         {debug_calls, [parallel], debug_calls_tests()},
+         {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
+         {hometree_specific, [parallel], hometree_specific_tests()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
+
+basic_tests() ->
+    [
+     discover_nodes_test,
+     create_delete_node_test,
+     subscribe_unsubscribe_test,
+     publish_test,
+     publish_with_max_items_test,
+     publish_with_existing_id_test,
+     notify_test,
+     request_all_items_test,
+     request_particular_item_test,
+     retract_test,
+     retract_when_user_goes_offline_test,
+     purge_all_items_test,
+     publish_only_retract_items_scope_test
+    ].
+
+service_config_tests() ->
+    [
+     max_subscriptions_test
+    ].
+
+node_config_tests() ->
+    [
+     retrieve_configuration_test,
+     set_configuration_test,
+     notify_config_test,
+     disable_notifications_test,
+     disable_payload_test,
+     disable_persist_items_test,
+     notify_only_available_users_test,
+     notify_unavailable_user_test,
+     send_last_published_item_test
+    ].
+
+node_affiliations_tests() ->
+    [
+     get_affiliations_test,
+     add_publisher_and_member_test,
+     swap_owners_test,
+     deny_no_owner_test
+    ].
+
+manage_subscriptions_tests() ->
+    [
+     retrieve_user_subscriptions_test,
+     retrieve_node_subscriptions_test,
+     modify_node_subscriptions_test,
+     process_subscription_requests_test,
+     retrieve_pending_subscription_requests_test
+    ].
+
+collection_tests() ->
+    [
+     create_delete_collection_test,
+     subscribe_unsubscribe_collection_test,
+     collection_delete_makes_leaf_parentless,
+     notify_collection_test,
+     notify_collection_leaf_and_item_test,
+     notify_collection_bare_jid_test,
+     notify_collection_and_leaf_test,
+     notify_collection_and_leaf_same_user_test,
+     notify_collections_with_same_leaf_test,
+     notify_nested_collections_test,
+     retrieve_subscriptions_collection_test,
+     discover_top_level_nodes_test,
+     discover_child_nodes_test,
+     request_all_items_leaf_test
+    ].
+
+collection_config_tests() ->
+    [
+     disable_notifications_leaf_test,
+     disable_payload_leaf_test,
+     disable_persist_items_leaf_test
+    ].
+
+debug_calls_tests() ->
+    [
+     debug_get_items_test,
+     debug_get_item_test
+    ].
+
+pubsub_item_publisher_option_tests() ->
+    [
+     get_item_with_publisher_option_test,
+     receive_item_notification_with_publisher_option_test
+    ].
+
+hometree_specific_tests() ->
+    [
+     can_create_node_with_existing_parent_path,
+     cant_create_node_with_missing_parent_path,
+     disco_node_children_by_path_prefix,
+     deleting_parent_path_deletes_children
+    ].
+
+encode_group_name(BaseName, NodeTree) ->
+    binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
+
+decode_group_name(ComplexName) ->
+    [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
+    #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
 
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
 
 init_per_suite(Config) ->
-    Config2 = dynamic_modules:save_modules(domain(), Config),
-    dynamic_modules:ensure_modules(domain(), required_modules()),
-    escalus:init_per_suite(Config2).
+    escalus:init_per_suite(Config).
 
 end_per_suite(Config) ->
     escalus_fresh:clean(),
-    dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
-init_per_group(pubsub_item_publisher_option, Config) ->
-    Config0 = dynamic_modules:save_modules(domain(), Config),
-    Args = proplists:get_value(mod_pubsub, required_modules()),
-    Args0 = [{item_publisher, true} | Args],
-    dynamic_modules:restart(domain(), mod_pubsub, Args0),
-    Config0;
+init_per_group(ComplexName, Config) ->
+    DecodedGroupName = decode_group_name(ComplexName),
+    ExtraOptions = extra_options_by_group_name(DecodedGroupName),
+    Config2 = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), required_modules(ExtraOptions)),
+    Config2.
 
-init_per_group(_GroupName, Config) ->
-    Config.
+extra_options_by_group_name(#{ node_tree := NodeTree,
+                               base_name := pubsub_item_publisher_option }) ->
+    [{nodetree, NodeTree},
+     {plugins, [plugin_by_nodetree(NodeTree)]},
+     {item_publisher, true}];
+extra_options_by_group_name(#{ node_tree := NodeTree,
+                               base_name := hometree_specific }) ->
+    [{nodetree, NodeTree},
+     {plugins, [<<"hometree">>]}];
+extra_options_by_group_name(#{ node_tree := NodeTree }) ->
+    [{nodetree, NodeTree},
+     {plugins, [plugin_by_nodetree(NodeTree)]}].
 
-end_per_group(pubsub_item_publisher_option, Config) ->
-    dynamic_modules:restore_modules(domain(), Config);
+plugin_by_nodetree(<<"dag">>) -> <<"dag">>;
+plugin_by_nodetree(<<"tree">>) -> <<"flat">>.
 
-end_per_group(_GroupName, _Config) ->
-    ok.
+end_per_group(_GroupName, Config) ->
+    dynamic_modules:restore_modules(domain(), Config).
 
 init_per_testcase(notify_unavailable_user_test, _Config) ->
     {skip, "mod_offline does not store events"};
@@ -279,7 +328,7 @@ discover_nodes_test(Config) ->
               %% Response:     Ex.10 Service returns all first-level nodes
               %% it shouldn't contain the Node which will be created in a moment
               {_, NodeName} = Node = pubsub_node(),
-              pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, {no, NodeName}}]),
+              pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, [{no, NodeName}]}]),
 
               pubsub_tools:create_node(Alice, Node, []),
               pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
@@ -1037,7 +1086,7 @@ subscribe_unsubscribe_collection_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
-create_delete_leaf_test(Config) ->
+collection_delete_makes_leaf_parentless(Config) ->
     escalus:fresh_story(
       Config,
       [{alice, 1}],
@@ -1051,8 +1100,11 @@ create_delete_leaf_test(Config) ->
               Leaf = pubsub_leaf(),
               pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
 
-              pubsub_tools:delete_node(Alice, Leaf, []),
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+
+              % Leaf becomes an orphan
+              NewNodeConfig = pubsub_tools:get_configuration(Alice, Leaf, []),
+              {_, _, []} = lists:keyfind(<<"pubsub#collection">>, 1, NewNodeConfig)
       end).
 
 notify_collection_test(Config) ->
@@ -1074,9 +1126,9 @@ notify_collection_test(Config) ->
               %% Publish to leaf nodes, Bob should get notifications
               %% 5.3.1.1 Ex.5 Subscriber receives a publish notification from a collection
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
               pubsub_tools:publish(Alice, <<"item2">>, Leaf2, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item2">>, Leaf2, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item2">>, Leaf2, [{collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Leaf2, []),
@@ -1104,7 +1156,7 @@ notify_collection_leaf_and_item_test(Config) ->
 
               %% Publish to leaf node, Bob should get notified
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1127,12 +1179,14 @@ notify_collection_bare_jid_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Bob subscribed with resource
-              pubsub_tools:receive_item_notification(Bob1, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob1, <<"item1">>, Leaf, [{collection, Node}]),
               escalus_assert:has_no_stanzas(Bob2),
 
               %% Geralt subscribed without resource
-              pubsub_tools:receive_item_notification(Geralt1, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Geralt2, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Geralt1, <<"item1">>, Leaf,
+                                                     [{collection, Node}]),
+              pubsub_tools:receive_item_notification(Geralt2, <<"item1">>, Leaf,
+                                                     [{collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1155,8 +1209,10 @@ notify_collection_and_leaf_test(Config) ->
 
               %% Publish to leaf nodes, Bob and Geralt should get notifications
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{collection, Node}]),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf,
+                                                     [no_collection_shim]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1179,13 +1235,77 @@ notify_collection_and_leaf_same_user_test(Config) ->
 
               %% Bob should get only one notification
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
               escalus_assert:has_no_stanzas(Bob),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
+notify_collections_with_same_leaf_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              {_, CollectionName1} = Collection1 = pubsub_node(),
+              pubsub_tools:create_node(Alice, Collection1, [{config, CollectionConfig}]),
+              {_, CollectionName2} = Collection2 = pubsub_node(),
+              pubsub_tools:create_node(Alice, Collection2, [{config, CollectionConfig}]),
+
+              LeafConfig = [{<<"pubsub#collection">>, <<"text-multi">>,
+                             [CollectionName1, CollectionName2]}],
+              Leaf = pubsub_leaf(),
+              pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
+              pubsub_tools:subscribe(Bob, Collection1, []),
+              pubsub_tools:subscribe(Geralt, Collection2, []),
+
+              %% Publish to leaf node, Bob and Geralt should get notifications
+              pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{collection, Collection1}]),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf,
+                                                     [{collection, Collection2}]),
+
+              pubsub_tools:delete_node(Alice, Leaf, []),
+              pubsub_tools:delete_node(Alice, Collection1, []),
+              pubsub_tools:delete_node(Alice, Collection2, [])
+      end).
+
+notify_nested_collections_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              TopCollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
+              {_, TopCollectionName} = TopCollection = pubsub_node(),
+              pubsub_tools:create_node(Alice, TopCollection, [{config, TopCollectionConfig}]),
+
+              MiddleCollectionConfig = [
+                                        {<<"pubsub#node_type">>, <<"collection">>},
+                                        {<<"pubsub#collection">>, TopCollectionName}
+                                       ],
+              {_, MiddleCollectionName} = MiddleCollection = pubsub_node(),
+              pubsub_tools:create_node(Alice, MiddleCollection, [{config, MiddleCollectionConfig}]),
+
+              LeafConfig = [{<<"pubsub#collection">>, MiddleCollectionName}],
+              Leaf = pubsub_leaf(),
+              pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
+              pubsub_tools:subscribe(Bob, MiddleCollection, []),
+              pubsub_tools:subscribe(Geralt, TopCollection, []),
+
+              %% Publish to leaf node, Bob and Geralt should get notifications
+              pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{collection, MiddleCollection}]),
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Leaf,
+                                                     [{collection, TopCollection}]),
+
+              pubsub_tools:delete_node(Alice, Leaf, []),
+              pubsub_tools:delete_node(Alice, MiddleCollection, []),
+              pubsub_tools:delete_node(Alice, TopCollection, [])
+      end).
+ 
 retrieve_subscriptions_collection_test(Config) ->
     escalus:fresh_story(
       Config,
@@ -1217,19 +1337,30 @@ discover_top_level_nodes_test(Config) ->
       Config,
       [{alice, 1}, {bob, 1}],
       fun(Alice, Bob) ->
+              % This one is visible at top level
+
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, [{config, CollectionConfig}]),
 
-              NodeConfig = [{<<"pubsub#collection">>, NodeName}],
-              Leaf = pubsub_leaf(),
-              pubsub_tools:create_node(Alice, Leaf, [{config, NodeConfig}]),
+              % This one is not
+
+              LeafConfig = [{<<"pubsub#collection">>, NodeName}],
+              {_, LeafName} = Leaf = pubsub_leaf(),
+              pubsub_tools:create_node(Alice, Leaf, [{config, LeafConfig}]),
+
+              % This one is visible, as it is not associated with any collection
+              {_, CollectionlessName} = Collectionless = pubsub_node(),
+              pubsub_tools:create_node(Alice, Collectionless, []),
 
               %% Discover top-level nodes, only the collection expected
-              pubsub_tools:discover_nodes(Bob, node_addr(), [{expected_result, [NodeName]}]),
+              pubsub_tools:discover_nodes(Bob, node_addr(),
+                                          [{expected_result, [NodeName, CollectionlessName,
+                                                              {no, LeafName}]}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node, []),
+              pubsub_tools:delete_node(Alice, Collectionless, [])
       end).
 
 discover_child_nodes_test(Config) ->
@@ -1244,7 +1375,7 @@ discover_child_nodes_test(Config) ->
               CollectionConfig = [{<<"pubsub#node_type">>, <<"collection">>}],
               pubsub_tools:create_node(Alice, Node, [{config, CollectionConfig}]),
 
-              pubsub_tools:discover_nodes(Bob, Node, [{expected_result, {no, NodeName}}]),
+              pubsub_tools:discover_nodes(Bob, Node, [{expected_result, [{no, NodeName}]}]),
 
               NodeConfig = [{<<"pubsub#collection">>, NodeName}],
               {_, LeafName} = Leaf = pubsub_leaf(),
@@ -1340,8 +1471,8 @@ disable_payload_leaf_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Payloads disabled
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>,
-                                                     Leaf, [{with_payload, false}]),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf,
+                                                     [{with_payload, false}, {collection, Node}]),
 
               pubsub_tools:delete_node(Alice, Leaf, []),
               pubsub_tools:delete_node(Alice, Node, [])
@@ -1365,7 +1496,7 @@ disable_persist_items_leaf_test(Config) ->
               pubsub_tools:publish(Alice, <<"item1">>, Leaf, []),
 
               %% Notifications should work
-              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, []),
+              pubsub_tools:receive_item_notification(Bob, <<"item1">>, Leaf, [{collection, Node}]),
 
               %% No items should be stored
               pubsub_tools:get_all_items(Bob, Leaf, [{expected_result, []}]),
@@ -1479,17 +1610,17 @@ disable_delivery_test(Config) ->
 get_item_with_publisher_option_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
+      [{alice, 1}],
+      fun(Alice) ->
               Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
               pubsub_tools:publish(Alice, <<"item1">>, Node, []),
 
               PublisherJID =  escalus_utils:jid_to_lower(escalus_client:full_jid(Alice)),
-              A = pubsub_tools:get_item(Alice, Node, <<"item1">>,
-                                        [{expected_result, [#{id => <<"item1">>,
-                                                              publisher => PublisherJID}]}]),
+              pubsub_tools:get_item(Alice, Node, <<"item1">>,
+                                    [{expected_result, [#{id => <<"item1">>,
+                                                          publisher => PublisherJID}]}]),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
@@ -1511,6 +1642,74 @@ receive_item_notification_with_publisher_option_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+
+%%-----------------------------------------------------------------
+%% hometree - specific
+%%-----------------------------------------------------------------
+
+can_create_node_with_existing_parent_path(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:create_node(Alice, Parent, []),
+              pubsub_tools:create_node(Alice, Node, []),
+              
+              pubsub_tools:delete_node(Alice, Node, []),
+              pubsub_tools:delete_node(Alice, Parent, [])
+      end).
+
+cant_create_node_with_missing_parent_path(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {_Parent, Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:create_node(Alice, Node, [{expected_error_type, <<"auth">>}])
+      end).
+
+disco_node_children_by_path_prefix(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              %% Try to get children of a non-existing node
+              {Parent, {_, NodeName} = Node} = path_node_and_parent(Alice, pubsub_node()),
+              pubsub_tools:discover_nodes(Bob, Parent, [{expected_error_type, <<"cancel">>}]),
+
+              pubsub_tools:create_node(Alice, Parent, []),
+              
+              pubsub_tools:discover_nodes(Bob, Parent, [{expected_result, []}]),
+              
+              pubsub_tools:create_node(Alice, Node, []),
+
+              %% Request:  5.2.1 Ex.11 Entity requests child nodes
+              %% Response: 5.2.2 Ex.12 Service returns child nodes
+              pubsub_tools:discover_nodes(Bob, Parent, [{expected_result, [NodeName]}]),
+
+              pubsub_tools:delete_node(Alice, Node, []),
+              pubsub_tools:delete_node(Alice, Parent, [])
+      end).
+
+deleting_parent_path_deletes_children(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}],
+      fun(Alice) ->
+              {{_, ParentName} = Parent, {_, NodeName} = Node}
+              = path_node_and_parent(Alice, pubsub_node()),
+
+              pubsub_tools:create_node(Alice, Parent, []),
+              pubsub_tools:create_node(Alice, Node, []),
+              
+              pubsub_tools:delete_node(Alice, Parent, []),
+
+              pubsub_tools:discover_nodes(Alice, node_addr(),
+                                          [{expected_result, [{no, ParentName}, {no, NodeName}]}]),
+              pubsub_tools:discover_nodes(Alice, Node, [{expected_error_type, <<"cancel">>}])
+      end).
+
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
@@ -1526,18 +1725,26 @@ rand_name(Prefix) ->
     Suffix = base64:encode(crypto:strong_rand_bytes(5)),
     <<Prefix/binary, "_", Suffix/binary>>.
 
+%% Generates nodetree_tree-safe names
 pubsub_node_name() ->
-    rand_name(<<"princely_musings">>).
+    Name0 = rand_name(<<"princely_musings">>),
+    re:replace(Name0, "/", "_", [global, {return, binary}]).
 
 pubsub_node() ->
     {node_addr(), pubsub_node_name()}.
 
-required_modules() ->
+path_node_and_parent(Client, {NodeAddr, NodeName}) ->
+    %% TODO: Add proper JID stringprepping to escalus!!!
+    JID = escalus_ejabberd:rpc(jid, from_binary, [escalus_client:short_jid(Client)]),
+    {LUser, LServer, _} = escalus_ejabberd:rpc(jid, to_lower, [JID]),
+    Prefix = <<"/home/", LServer/binary, "/", LUser/binary>>,
+    {{NodeAddr, Prefix}, {NodeAddr, <<Prefix/binary, "/", NodeName/binary>>}}.
+
+required_modules(ExtraOpts) ->
     [{mod_pubsub, [
-                   {plugins, [<<"dag">>]},
-                   {nodetree, <<"dag">>},
                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {host, "pubsub.@HOST@"}
+                   | ExtraOpts
                   ]}].
 
 verify_config_fields(NodeConfig) ->

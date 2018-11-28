@@ -44,10 +44,10 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([init/3, terminate/2, options/0, set_node/1,
-         get_node/3, get_node/2, get_node/1, get_nodes/2,
-         get_nodes/1, get_parentnodes/3, get_parentnodes_tree/3,
-         get_subnodes/3, get_subnodes_tree/3, create_node/6,
+-export([init/3, terminate/2, set_node/1,
+         get_node/2, get_node/1, get_nodes/2,
+         get_parentnodes_tree/3,
+         get_subnodes/3, create_node/6,
          delete_node/2]).
 
 init(_Host, _ServerHost, _Options) ->
@@ -56,14 +56,8 @@ init(_Host, _ServerHost, _Options) ->
 terminate(_Host, _ServerHost) ->
     ok.
 
-options() ->
-    [{virtual_tree, false}].
-
 set_node(Node) ->
     mod_pubsub_db_backend:set_node(Node).
-
-get_node(Host, Node, _From) ->
-    get_node(Host, Node).
 
 get_node(Host, Node) ->
     case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
@@ -78,13 +72,7 @@ get_node(Nidx) ->
     end.
 
 get_nodes(Key, _From) ->
-    get_nodes(Key).
-
-get_nodes(Key) ->
     mod_pubsub_db_backend:find_nodes_by_key(Key).
-
-get_parentnodes(_Host, _Node, _From) ->
-    [].
 
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
@@ -97,15 +85,6 @@ get_parentnodes_tree(Host, Node, _From) ->
 get_subnodes(Host, Node, _From) ->
     mod_pubsub_db_backend:get_subnodes(Host, Node).
 
-
-get_subnodes_tree(Host, Node, _From) ->
-    get_subnodes_tree(Host, Node).
-
-get_subnodes_tree(Host, Node) ->
-    case get_node(Host, Node) of
-        {error, _} -> [];
-        NodeRec -> get_subnodes_of_existing_tree(Host, Node, NodeRec)
-    end.
 
 get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
     BasePlugin = binary_to_atom(<<"node_", (NodeRec#pubsub_node.type)/binary>>, utf8),
@@ -120,14 +99,14 @@ get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
                  end,
                  [], pubsub_node).
 
-create_node(Host, Node, Type, Owner, Options, Parents) ->
+create_node(Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, NodeName) of
         false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
                     Nidx = pubsub_index:new(node),
-                    Node = #pubsub_node{nodeid = {Host, Node},
+                    Node = #pubsub_node{nodeid = {Host, NodeName},
                                         id = Nidx, parents = Parents,
                                         type = Type, owners = [BJID],
                                         options = Options},
@@ -148,7 +127,7 @@ check_parent_and_its_owner_list(_Host, [], _BJID) ->
     true;
 check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
     case catch mod_pubsub_db_backend:find_node_by_name(Host, Parent) of
-        #pubsub_node{owners = [{[], Host, []}]} ->
+        #pubsub_node{owners = [{<<>>, Host, <<>>}]} ->
             true;
         #pubsub_node{owners = Owners} ->
             lists:member(BJID, Owners);
@@ -166,3 +145,10 @@ delete_node(Host, Node) ->
         end,
         Removed),
     Removed.
+
+get_subnodes_tree(Host, Node) ->
+    case get_node(Host, Node) of
+        {error, _} -> [];
+        NodeRec -> get_subnodes_of_existing_tree(Host, Node, NodeRec)
+    end.
+

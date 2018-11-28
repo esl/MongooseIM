@@ -3514,7 +3514,7 @@ get_options_for_subs(Nidx, Subs) ->
                         Acc
                 end, [], Subs).
 
-broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions,
+broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     NotificationType = get_option(NodeOptions, notification_type, headline),
     %% Option below is not standard, but useful
@@ -3523,7 +3523,7 @@ broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions,
     Stanza = add_message_type(BaseStanza, NotificationType),
     %% Handles explicit subscriptions
     SubIDsByJID = subscribed_nodes_by_jid(NotifyType, SubsByDepth),
-    lists:foreach(fun ({LJID, _NodeName, SubIDs}) ->
+    lists:foreach(fun ({LJID, SubNodeName, SubIDs}) ->
                           LJIDs = case BroadcastAll of
                                       true ->
                                           {U, S, _} = LJID,
@@ -3531,16 +3531,9 @@ broadcast_stanza(Host, _Node, _Nidx, _Type, NodeOptions,
                                       false ->
                                           [LJID]
                                   end,
-                          %% Determine if the stanza should have SHIM ('SubID' and 'name') headers
-                          StanzaToSend = case {SHIM, SubIDs} of
-                                             {false, _} ->
-                                                 Stanza;
-                                             %% If there's only one SubID, don't add it
-                                             {true, [_]} ->
-                                                 Stanza;
-                                             {true, SubIDs} ->
-                                                 add_shim_headers(Stanza, subid_shim(SubIDs))
-                                         end,
+                          StanzaToSend = maybe_add_shim_headers(Stanza, SHIM, SubIDs,
+                                                                Node, SubNodeName),
+
                           lists:foreach(fun(To) ->
                                                 ejabberd_router:route(From, jid:make(To),
                                                                       StanzaToSend)
@@ -3683,7 +3676,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
     end.
 
 get_default(Host, Node, _From, Lang) ->
-    Type = select_type(Host, Host, Node),
+    Type = select_type(Host, Node),
     Options = node_options(Host, Type),
     DefaultEl = #xmlel{name = <<"default">>, attrs = [],
                        children =
@@ -4104,6 +4097,12 @@ config(ServerHost, Key, Default) ->
         _ -> Default
     end.
 
+select_type(Host, Node) ->
+    select_type(serverhost(Host), Host, Node).
+
+select_type(ServerHost, Host, Node) ->
+    select_type(ServerHost, Host, Node, hd(plugins(ServerHost))).
+
 select_type(ServerHost, Host, Node, Type) ->
     SelectedType = case Host of
                        {_User, _Server, _Resource} ->
@@ -4114,14 +4113,11 @@ select_type(ServerHost, Host, Node, Type) ->
                        _ ->
                            Type
                    end,
-    ConfiguredTypes = plugins(ServerHost),
+    ConfiguredTypes = plugins(Host),
     case lists:member(SelectedType, ConfiguredTypes) of
         true -> SelectedType;
         false -> hd(ConfiguredTypes)
     end.
-
-select_type(ServerHost, Host, Node) ->
-    select_type(ServerHost, Host, Node, hd(plugins(ServerHost))).
 
 feature(<<"rsm">>) -> ?NS_RSM;
 feature(Feature) -> <<(?NS_PUBSUB)/binary, "#", Feature/binary>>.
@@ -4310,14 +4306,22 @@ add_message_type(#xmlel{name = <<"message">>, attrs = Attrs, children = Els}, Ty
 add_message_type(XmlEl, _Type) ->
     XmlEl.
 
-%% Place of <headers/> changed at the bottom of the stanza
-%% cf. http://xmpp.org/extensions/xep-0060.html#publisher-publish-success-subid
-%%
-%% "[SHIM Headers] SHOULD be included after the event notification information
-%% (i.e., as the last child of the <message/> stanza)".
-
-add_shim_headers(Stanza, HeaderEls) ->
-    add_headers(Stanza, <<"headers">>, ?NS_SHIM, HeaderEls).
+maybe_add_shim_headers(Stanza, false, _SubIDs, _OriginNode, _SubNode) ->
+    Stanza;
+maybe_add_shim_headers(Stanza, true, SubIDs, OriginNode, SubNode) ->
+    Headers1 = case SubIDs of
+                   [_OnlyOneSubID] ->
+                       [];
+                   _ ->
+                       subid_shim(SubIDs)
+               end,
+    Headers2 = case SubNode of
+                   OriginNode ->
+                       Headers1;
+                   _ ->
+                       [collection_shim(SubNode) | Headers1]
+               end,
+    add_headers(Stanza, <<"headers">>, ?NS_SHIM, Headers2).
 
 add_extended_headers(Stanza, HeaderEls) ->
     add_headers(Stanza, <<"addresses">>, ?NS_ADDRESS, HeaderEls).
@@ -4330,10 +4334,15 @@ add_headers(#xmlel{name = Name, attrs = Attrs, children = Els}, HeaderName, Head
            children = lists:append(Els, [HeaderEl])}.
 
 subid_shim(SubIds) ->
-    [#xmlel{name = <<"header">>,
-            attrs = [{<<"name">>, <<"SubId">>}],
-            children = [{xmlcdata, SubId}]}
+    [#xmlel{ name = <<"header">>,
+             attrs = [{<<"name">>, <<"SubId">>}],
+             children = [#xmlcdata{ content = SubId }]}
      || SubId <- SubIds].
+
+collection_shim(CollectionNode) ->
+    #xmlel{ name = <<"header">>,
+            attrs = [{<<"name">>, <<"Collection">>}],
+            children = [#xmlcdata{ content = CollectionNode }] }.
 
 %% The argument is a list of Jids because this function could be used
 %% with the 'pubsub#replyto' (type=jid-multi) node configuration.
