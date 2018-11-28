@@ -215,7 +215,7 @@
            access                  :: atom(),
            pep_mapping             :: [{binary(), binary()}],
            ignore_pep_from_offline :: boolean(),
-           last_item_cache         :: boolean(),
+           last_item_cache         :: mnesia | rdbms | false,
            max_items_node          :: non_neg_integer(),
            max_subscriptions_node  :: non_neg_integer()|undefined,
            default_node_config     :: [{atom(), binary()|boolean()|integer()|atom()}],
@@ -305,20 +305,17 @@ init_backend(Opts) ->
                      set_node, find_node_by_id, find_nodes_by_key,
                      find_node_by_name, delete_node, get_subnodes, get_parentnodes,
                      get_subnodes_tree, get_parentnodes_tree
-                     ],
+                    ],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
-
-    mnesia:create_table(pubsub_last_item,
-                        [{ram_copies, [node()]},
-                         {attributes, record_info(fields, pubsub_last_item)}]).
+    maybe_start_cache_module(Opts).
 
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
     Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
     PepOffline = gen_mod:get_opt(ignore_pep_from_offline, Opts,
                                  fun(A) when is_boolean(A) -> A end, true),
     LastItemCache = gen_mod:get_opt(last_item_cache, Opts,
-                                    fun(A) when is_boolean(A) -> A end, false),
+                                    fun(A) when A == rdbms orelse A == mnesia -> A end, false),
     MaxItemsNode = gen_mod:get_opt(max_items_node, Opts,
                                    fun(A) when is_integer(A) andalso A >= 0 -> A end, ?MAXITEMS),
     MaxSubsNode = gen_mod:get_opt(max_subscriptions_node, Opts,
@@ -2584,7 +2581,7 @@ get_allowed_items_call(Host, Nidx, From, Type, Options, Owners, RSM) ->
 
 get_last_item(Host, Type, Nidx, LJID) ->
     case get_cached_item(Host, Nidx) of
-        undefined ->
+        false ->
             case node_action(Host, Type, get_items, [Nidx, LJID, #{}]) of
                 {result, {[LastItem|_], _}} -> LastItem;
                 _ -> undefined
@@ -4007,50 +4004,56 @@ get_max_subscriptions_node(Host) ->
     config(serverhost(Host), max_subscriptions_node, undefined).
 
 %%%% last item cache handling
+maybe_start_cache_module(Opts) ->
+    case proplists:get_value(last_item_cache, Opts, false) of
+        false ->
+            ok;
+        Backend ->
+            start_cache_module(Backend)
+    end.
 
-is_last_item_cache_enabled({_, ServerHost, _}) ->
-    is_last_item_cache_enabled(ServerHost);
+start_cache_module(Backend) ->
+    gen_mod:start_backend_module(mod_pubsub_cache, [{backend, Backend}],
+         [upsert_last_item, delete_last_item, get_last_item]),
+    mod_pubsub_cache_backend:start().
+
 is_last_item_cache_enabled(Host) ->
-    config(serverhost(Host), last_item_cache, false).
+    case cache_backend(Host) of
+        false ->
+            false;
+        _ ->
+            true
+    end.
+
+cache_backend(Host) ->
+     gen_mod:get_module_opt(serverhost(Host), mod_pubsub, last_item_cache, false).
 
 set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
     set_cached_item(ServerHost, Nidx, ItemId, Publisher, Payload);
 set_cached_item(Host, Nidx, ItemId, Publisher, Payload) ->
-    case is_last_item_cache_enabled(Host) of
-        true -> mnesia:dirty_write({pubsub_last_item, Nidx, ItemId,
-                                    {timestamp(), jid:to_lower(jid:to_bare(Publisher))},
-                                    Payload});
-        _ -> ok
-    end.
+    is_last_item_cache_enabled(Host) andalso
+        mod_pubsub_cache_backend:upsert_last_item(Nidx, ItemId, Publisher, Payload).
 
 unset_cached_item({_, ServerHost, _}, Nidx) ->
     unset_cached_item(ServerHost, Nidx);
 unset_cached_item(Host, Nidx) ->
-    case is_last_item_cache_enabled(Host) of
-        true -> mnesia:dirty_delete({pubsub_last_item, Nidx});
-        _ -> ok
-    end.
+    is_last_item_cache_enabled(Host) andalso
+        mod_pubsub_cache_backend:delete_last_item(Nidx).
 
--spec get_cached_item(
-        Host    :: mod_pubsub:host(),
-          Nidx :: mod_pubsub:nodeIdx())
-        -> undefined | mod_pubsub:pubsubItem().
+-spec get_cached_item(ServerHost :: mod_pubsub:host(),
+                      Nidx :: mod_pubsub:nodeIdx()) -> false | mod_pubsub:pubsubItem().
 get_cached_item({_, ServerHost, _}, Nidx) ->
     get_cached_item(ServerHost, Nidx);
 get_cached_item(Host, Nidx) ->
-    case is_last_item_cache_enabled(Host) of
-        true ->
-            case mnesia:dirty_read({pubsub_last_item, Nidx}) of
+    is_last_item_cache_enabled(Host) andalso
+        case mod_pubsub_cache_backend:get_last_item(Nidx) of
                 [#pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}] ->
                     #pubsub_item{itemid = {ItemId, Nidx},
                                  payload = Payload, creation = Creation,
                                  modification = Creation};
                 _ ->
-                    undefined
-            end;
-        _ ->
-            undefined
-    end.
+                   false
+        end.
 
 %%%% plugin handling
 
