@@ -99,14 +99,14 @@ get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
                  end,
                  [], pubsub_node).
 
-create_node(Host, Node, Type, Owner, Options, Parents) ->
+create_node(Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, NodeName) of
         false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
                     Nidx = pubsub_index:new(node),
-                    Node = #pubsub_node{nodeid = {Host, Node},
+                    Node = #pubsub_node{nodeid = {Host, NodeName},
                                         id = Nidx, parents = Parents,
                                         type = Type, owners = [BJID],
                                         options = Options},
