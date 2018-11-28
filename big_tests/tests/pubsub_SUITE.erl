@@ -149,7 +149,8 @@ base_groups() ->
          {collection_config, [parallel], collection_config_tests()},
          {debug_calls, [parallel], debug_calls_tests()},
          {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
-         {hometree_specific, [parallel], hometree_specific_tests()}
+         {hometree_specific, [parallel], hometree_specific_tests()},
+         {last_item_cache, [parallel], last_item_cache_tests()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -250,6 +251,12 @@ hometree_specific_tests() ->
      deleting_parent_path_deletes_children
     ].
 
+last_item_cache_tests() ->
+    [
+     send_last_published_item_test,
+     purge_all_items_test
+    ].
+
 encode_group_name(BaseName, NodeTree) ->
     binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
 
@@ -284,6 +291,11 @@ extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := hometree_specific }) ->
     [{nodetree, NodeTree},
      {plugins, [<<"hometree">>]}];
+extra_options_by_group_name(#{ node_tree := NodeTree,
+                               base_name := last_item_cache}) ->
+    [{nodetree, NodeTree},
+     {plugins, [plugin_by_nodetree(NodeTree)]},
+     {last_item_cache, mongoose_helper:mnesia_or_rdbms_backend()}];
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
     [{nodetree, NodeTree},
      {plugins, [plugin_by_nodetree(NodeTree)]}].
