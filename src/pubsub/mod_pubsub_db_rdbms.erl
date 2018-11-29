@@ -30,7 +30,6 @@
          find_node_by_name/2,
          delete_node/2,
          get_subnodes/2,
-         get_parentnodes/2,
          get_parentnodes_tree/2,
          get_subnodes_tree/2
         ]).
@@ -316,11 +315,6 @@ get_subnodes(Key, Node) ->
     SQL = mod_pubsub_db_rdbms_sql:select_subnodes(encode_key(Key), Node),
     {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
     [decode_pubsub_node_row(Row) || Row <- Rows].
-
--spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
-    [mod_pubsub:pubsubNode()].
-get_parentnodes(Key, Node) ->
-    [].
 
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
