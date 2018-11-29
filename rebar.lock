@@ -94,7 +94,7 @@
   1},
  {<<"nkpacket">>,
   {git,"https://github.com/michalwski/nkpacket.git",
-       {ref,"b6f8c735e3778ce3d351b6564d8cf21c14fbab5e"}},
+       {ref,"f7c5349af285ec0e5c43e90b9ef7668a2d2411c8"}},
   0},
  {<<"nkservice">>,
   {git,"https://github.com/Nekso/nkservice",
