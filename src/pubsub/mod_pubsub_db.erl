@@ -118,12 +118,23 @@
                               SubId :: mod_pubsub:subId()) ->
     ok.
 
+-callback set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
+                                JID :: jid:ljid(),
+                                SubId :: mod_pubsub:subId(),
+                                Opts :: mod_pubsub:subOptions()) ->
+    ok.
+
 -callback get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
-    {ok, [{Entity :: jid:ljid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Entity :: jid:ljid(),
+           Sub :: mod_pubsub:subscription(),
+           SubId :: mod_pubsub:subId(),
+           SubOpts :: mod_pubsub:subOptions()}]}.
 
 -callback get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
                                         JID :: jid:ljid()) ->
-    {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Sub :: mod_pubsub:subscription(),
+           SubId :: mod_pubsub:subId(),
+           SubOpts :: mod_pubsub:subOptions()}]}.
 
 -callback delete_subscription(
             Nidx :: mod_pubsub:nodeIdx(),

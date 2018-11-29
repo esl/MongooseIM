@@ -36,10 +36,8 @@
 %%% Functions concerning configuration should be rewritten.
 %%%
 %%% Support for subscription-options and multi-subscribe features was
-%%% added by Brian Cully (bjc AT kublai.com). Subscriptions and options are
-%%% stored in the pubsub_subscription table, with a link to them provided
-%%% by the subscriptions field of pubsub_state. For information on
-%%% subscription-options and mulit-subscribe see XEP-0060 sections 6.1.6,
+%%% added by Brian Cully (bjc AT kublai.com). For information on
+%%% subscription-options and multi-subscribe see XEP-0060 sections 6.1.6,
 %%% 6.2.3.1, 6.2.3.5, and 6.3. For information on subscription leases see
 %%% XEP-0060 section 12.18.
 
@@ -143,7 +141,6 @@
               pubsubNode/0,
               pubsubState/0,
               pubsubItem/0,
-              pubsubSubscription/0,
               pubsubLastItem/0,
               publishOptions/0
              ]).
@@ -174,13 +171,6 @@
            creation     :: {erlang:timestamp(), jid:ljid()},
            modification :: {erlang:timestamp(), jid:ljid()},
            payload      :: mod_pubsub:payload()
-          }
-        ).
-
--type(pubsubSubscription() ::
-        #pubsub_subscription{
-           subid   :: SubId::mod_pubsub:subId(),
-           options :: [] | mod_pubsub:subOptions()
           }
         ).
 
@@ -421,19 +411,20 @@ init_plugins(Host, ServerHost, Opts) ->
     PepMapping = gen_mod:get_opt(pep_mapping, Opts,
                                  fun(A) when is_list(A) -> A end, []),
     ?DEBUG("** PEP Mapping : ~p~n", [PepMapping]),
-    PluginsOK = lists:foldl(
-                  fun (Name, Acc) ->
-                          Plugin = plugin(Host, Name),
-                          case catch apply(Plugin, init, [Host, ServerHost, Opts]) of
-                              {'EXIT', _Error} ->
-                                  Acc;
-                              _ ->
-                                  ?DEBUG("** init ~s plugin", [Name]),
-                                  [Name | Acc]
-                          end
-                  end,
-                  [], Plugins),
+    PluginsOK = lists:foldl(pa:bind(fun init_plugin/5, Host, ServerHost, Opts), [], Plugins),
     {lists:reverse(PluginsOK), TreePlugin, PepMapping}.
+
+init_plugin(Host, ServerHost, Opts, Name, Acc) ->
+    Plugin = plugin(Host, Name),
+    case catch apply(Plugin, init, [Host, ServerHost, Opts]) of
+        {'EXIT', _Error} ->
+            ?ERROR_MSG("event=pubsub_plugin_init_failed,plugin=~p,host=~s,pubsub_host=~s,opts=~p",
+                       [Plugin, ServerHost, Host, Opts]),
+            Acc;
+        _ ->
+            ?DEBUG("** init ~s plugin", [Name]),
+            [Name | Acc]
+    end.
 
 terminate_plugins(Host, ServerHost, Plugins, TreePlugin) ->
     lists:foreach(
@@ -1305,7 +1296,8 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
                 {get, <<"options">>} ->
                     iq_pubsub_get_options(Host, Node, Lang, ActionAttrs);
                 {set, <<"options">>} ->
-                    iq_pubsub_set_options(Host, Node, ActionAttrs, ActionSubEls);
+                    XEl = exml_query:subelement_with_name_and_ns(ActionEl, <<"x">>, ?NS_XDATA),
+                    iq_pubsub_set_options(Host, Node, ActionAttrs, XEl);
                 _ ->
                     {error, mongoose_xmpp_errors:feature_not_implemented()}
             end;
@@ -1359,12 +1351,10 @@ iq_pubsub_set_retract(Host, Node, From, RetractAttrs, RetractSubEls) ->
     end.
 
 iq_pubsub_set_subscribe(Host, Node, From, QueryEl, SubscribeAttrs) ->
-    Config = case exml_query:subelement(QueryEl, <<"options">>) of
-                 #xmlel{ children = C } -> C;
-                 _ -> []
-             end,
+    ConfigXForm = exml_query:path(QueryEl, [{element, <<"options">>},
+                                            {element_with_ns, <<"x">>, ?NS_XDATA}]),
     JID = xml:get_attr_s(<<"jid">>, SubscribeAttrs),
-    subscribe_node(Host, Node, From, JID, Config).
+    subscribe_node(Host, Node, From, JID, ConfigXForm).
 
 iq_pubsub_set_unsubscribe(Host, Node, From, UnsubscribeAttrs) ->
     JID = xml:get_attr_s(<<"jid">>, UnsubscribeAttrs),
@@ -1398,10 +1388,10 @@ iq_pubsub_get_options(Host, Node, Lang, GetOptionsAttrs) ->
     JID = xml:get_attr_s(<<"jid">>, GetOptionsAttrs),
     get_options(Host, Node, JID, SubId, Lang).
 
-iq_pubsub_set_options(Host, Node, SetOptionsAttrs, SetOptionsSubEls) ->
+iq_pubsub_set_options(Host, Node, SetOptionsAttrs, XForm) ->
     SubId = xml:get_attr_s(<<"subid">>, SetOptionsAttrs),
     JID = xml:get_attr_s(<<"jid">>, SetOptionsAttrs),
-    set_options(Host, Node, JID, SubId, SetOptionsSubEls).
+    set_options(Host, Node, JID, SubId, XForm).
 
 -spec iq_pubsub_owner(
         Host       :: mod_pubsub:host(),
@@ -1558,8 +1548,7 @@ send_pending_auth_events(Request, Host, Node, Owner) ->
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {N, Subs}} ->
             lists:foreach(fun
-                              ({J, pending, _SubId}) -> send_authorization_request(N, jid:make(J));
-                              ({J, pending}) -> send_authorization_request(N, jid:make(J));
+                              ({J, pending, _SubId, _}) -> send_authorization_request(N, jid:make(J));
                               (_) -> ok
                          end,
                           Subs),
@@ -1730,12 +1719,12 @@ handle_authorization_response_transaction(Host, FromLJID, Subscriber, Allow, Nod
 
 update_auth(Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
     Sub = lists:filter(fun
-                          ({pending, _}) -> true;
+                          ({pending, _, _}) -> true;
                           (_) -> false
                      end,
                       Subs),
     case Sub of
-        [{pending, SubId}] ->
+        [{pending, SubId, _}] ->
             NewSub = case Allow of
                          true -> subscribed;
                          false -> none
@@ -2057,16 +2046,16 @@ delete_node_transaction(Host, Owner, Node, #pubsub_node{type = Type, id = Nidx})
 %%</ul>
 -spec subscribe_node(
         Host          :: mod_pubsub:host(),
-          Node          :: mod_pubsub:nodeId(),
-          From          ::jid:jid(),
-          JID           :: binary(),
-          Configuration :: [exml:element()])
+        Node          :: mod_pubsub:nodeId(),
+        From          ::jid:jid(),
+        JID           :: binary(),
+        ConfigurationXForm :: exml:element() | undefined)
         -> {result, [exml:element(), ...]}
 %%%
                | {error, exml:element()}.
-subscribe_node(Host, Node, From, JID, Configuration) ->
-    SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
-                  {result, GoodSubOpts} -> GoodSubOpts;
+subscribe_node(Host, Node, From, JID, ConfigurationXForm) ->
+    SubOpts = case pubsub_form_utils:parse_sub_xform(ConfigurationXForm) of
+                  {ok, GoodSubOpts} -> GoodSubOpts;
                   _ -> invalid
               end,
     Subscriber = string_to_ljid(JID),
@@ -2161,7 +2150,7 @@ check_subs_limit(Host, Type, Nidx) ->
 
 count_subscribed(NodeSubs) ->
     lists:foldl(
-      fun ({_, subscribed, _}, Acc) -> Acc+1;
+      fun ({_JID, subscribed, _SubId, _Opts}, Acc) -> Acc+1;
           (_, Acc) -> Acc
       end, 0, NodeSubs).
 
@@ -2841,97 +2830,98 @@ get_options(Host, Node, JID, SubId, Lang) ->
 get_options_transaction(Host, Node, JID, SubId, Lang, #pubsub_node{type = Type, id = Nidx}) ->
     case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
         true ->
-            get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type);
+            get_sub_options_xml(Host, JID, Lang, Node, Nidx, SubId, Type);
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
+                            unsupported, <<"subscription-options">>)}
     end.
 
-get_options_helper(Host, JID, Lang, Node, Nidx, SubId, Type) ->
+% TODO: Support Lang at some point again
+get_sub_options_xml(Host, JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
     {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
-    SubIds = [Id || {Sub, Id} <- Subs, Sub == subscribed],
-    case {SubId, SubIds} of
+    SubscribedSubs = [{Id, Opts} || {Sub, Id, Opts} <- Subs, Sub == subscribed],
+
+    case {RequestedSubId, SubscribedSubs} of
         {_, []} ->
-            {error,
-             extended_error(mongoose_xmpp_errors:not_acceptable(), <<"not-subscribed">>)};
-        {<<>>, [SID]} ->
-            read_sub(Node, Nidx, Subscriber, SID, Lang);
+            {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"not-subscribed">>)};
+        {<<>>, [{TheOnlySID, Opts}]} ->
+            make_and_wrap_sub_xform(Opts, Node, Subscriber, TheOnlySID);
         {<<>>, _} ->
-            {error,
-             extended_error(mongoose_xmpp_errors:not_acceptable(), <<"subid-required">>)};
+            {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"subid-required">>)};
         {_, _} ->
-            case lists:member(SubId, SubIds) of
-                true ->
-                    read_sub(Node, Nidx, Subscriber, SubId, Lang);
-                false ->
-                    {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"invalid-subid">>)}
+            case lists:keyfind(RequestedSubId, 1, SubscribedSubs) of
+                {_, Opts} ->
+                    make_and_wrap_sub_xform(Opts, Node, Subscriber, RequestedSubId);
+                _ ->
+                    {error, extended_error(mongoose_xmpp_errors:not_acceptable(),
+                                           <<"invalid-subid">>)}
             end
     end.
-
-read_sub(Node, Nidx, Subscriber, SubId, Lang) ->
-    Children = case pubsub_subscription:get_subscription(Subscriber, Nidx, SubId) of
-                   {error, notfound} ->
-                       [];
-                   {result, #pubsub_subscription{options = Options}} ->
-                       {result, XdataEl} = pubsub_subscription:get_options_xform(Lang, Options),
-                       [XdataEl]
-               end,
+    
+make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
+    XForm = pubsub_form_utils:make_sub_xform(Options),
     OptionsEl = #xmlel{name = <<"options">>,
                        attrs = [{<<"jid">>, jid:to_binary(Subscriber)},
                                 {<<"subid">>, SubId}
                                 | node_attr(Node)],
-                       children = Children},
-    PubsubEl = #xmlel{name = <<"pubsub">>,
-                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
+                       children = [XForm]},
+    PubSubEl = #xmlel{name = <<"pubsub">>,
+                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}], 
                       children = [OptionsEl]},
-    {result, PubsubEl}.
+    {result, PubSubEl}.
 
-set_options(Host, Node, JID, SubId, Configuration) ->
+set_options(Host, Node, JID, SubId, ConfigXForm) ->
     Action = fun(PubSubNode) ->
-                     set_options_transaction(Host, JID, SubId, Configuration, PubSubNode)
+                     set_options_transaction(Host, JID, SubId, ConfigXForm, PubSubNode)
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, Result}} -> {result, Result};
         Error -> Error
     end.
 
-set_options_transaction(Host, JID, SubId, Configuration, #pubsub_node{type = Type, id = Nidx}) ->
+set_options_transaction(Host, JID, SubId, ConfigXForm, #pubsub_node{type = Type, id = Nidx}) ->
     case lists:member(<<"subscription-options">>, plugin_features(Host, Type)) of
         true ->
-            set_options_helper(Host, Configuration, JID, Nidx, SubId, Type);
+            validate_and_set_options_helper(Host, ConfigXForm, JID, Nidx, SubId, Type);
         false ->
             {error,
-             extended_error(mongoose_xmpp_errors:feature_not_implemented(), unsupported, <<"subscription-options">>)}
+             extended_error(mongoose_xmpp_errors:feature_not_implemented(),
+                            unsupported, <<"subscription-options">>)}
     end.
 
-set_options_helper(Host, Configuration, JID, Nidx, SubId, Type) ->
-    SubOpts = case pubsub_subscription:parse_options_xform(Configuration) of
-                  {result, GoodSubOpts} -> GoodSubOpts;
-                  _ -> invalid
-              end,
+validate_and_set_options_helper(Host, ConfigXForm, JID, Nidx, SubId, Type) ->
+    SubOpts = pubsub_form_utils:parse_sub_xform(ConfigXForm),
+    set_options_helper(Host, SubOpts, JID, Nidx, SubId, Type).
+
+set_options_helper(_Host, {error, Reason}, JID, Nidx, RequestedSubId, _Type) ->
+    % TODO: Make smarter logging (better details formatting)
+    ?DEBUG("event=invalid_pubsub_subscription_options,jid=~s,nidx=~p,subid=~s,reason=~p",
+           [jid:to_binary(JID), Nidx, RequestedSubId, Reason]),
+    {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
+set_options_helper(_Host, [], _JID, _Nidx, _RequestedSubId, _Type) ->
+    {result, []};
+set_options_helper(Host, SubOpts, JID, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
     {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
-    SubIds = [Id || {Sub, Id} <- Subs, Sub == subscribed],
-    case {SubId, SubIds} of
+    SubIds = [Id || {Sub, Id, _Opts} <- Subs, Sub == subscribed],
+    case {RequestedSubId, SubIds} of
         {_, []} ->
             {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"not-subscribed">>)};
-        {<<>>, [SID]} ->
-            write_sub(Nidx, Subscriber, SID, SubOpts);
+        {<<>>, [TheOnlySID]} ->
+            mod_pubsub_db_backend:set_subscription_opts(Nidx, Subscriber, TheOnlySID, SubOpts);
         {<<>>, _} ->
             {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"subid-required">>)};
         {_, _} ->
-            write_sub(Nidx, Subscriber, SubId, SubOpts)
-    end.
-
-write_sub(_Nidx, _Subscriber, _SubId, invalid) ->
-    {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
-write_sub(_Nidx, _Subscriber, _SubId, []) ->
-    {result, []};
-write_sub(Nidx, Subscriber, SubId, Options) ->
-    case pubsub_subscription:set_subscription(Subscriber, Nidx, SubId, Options) of
-        {result, _} -> {result, []};
-        {error, _} -> {error, extended_error(mongoose_xmpp_errors:not_acceptable(), <<"invalid-subid">>)}
+            case lists:member(RequestedSubId, SubIds) of
+                true ->
+                    mod_pubsub_db_backend:set_subscription_opts(Nidx, Subscriber, RequestedSubId,
+                                                                SubOpts);
+                false ->
+                    {error, extended_error(mongoose_xmpp_errors:not_acceptable(),
+                                           <<"invalid-subid">>)}
+            end
     end.
 
 %% @spec (Host, Node, JID, Plugins) -> {error, Reason} | {result, Response}
@@ -3027,16 +3017,9 @@ get_subscriptions(Host, Node, JID) ->
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_, Subs}} ->
             Entities =
-            lists:flatmap(fun({_, none}) ->
+            lists:flatmap(fun({_, pending, _, _}) ->
                                   [];
-                             ({_, pending, _}) ->
-                                  [];
-                             ({AJID, Sub}) ->
-                                  [#xmlel{name = <<"subscription">>,
-                                          attrs =
-                                          [{<<"jid">>, jid:to_binary(AJID)},
-                                           {<<"subscription">>, subscription_to_string(Sub)}]}];
-                             ({AJID, Sub, SubId}) ->
+                             ({AJID, Sub, SubId, _}) ->
                                   [#xmlel{name = <<"subscription">>,
                                           attrs =
                                           [{<<"jid">>, jid:to_binary(AJID)},
@@ -3189,7 +3172,6 @@ string_to_affiliation(_) -> false.
 
 string_to_subscription(<<"subscribed">>) -> subscribed;
 string_to_subscription(<<"pending">>) -> pending;
-string_to_subscription(<<"unconfigured">>) -> unconfigured;
 string_to_subscription(<<"none">>) -> none;
 string_to_subscription(_) -> false.
 
@@ -3202,7 +3184,6 @@ affiliation_to_string(_) -> <<"none">>.
 
 subscription_to_string(subscribed) -> <<"subscribed">>;
 subscription_to_string(pending) -> <<"pending">>;
-subscription_to_string(unconfigured) -> <<"unconfigured">>;
 subscription_to_string(_) -> <<"none">>.
 
 -spec service_jid(
@@ -3498,21 +3479,12 @@ get_node_subs_by_depth(Host, Node, From) ->
 
 get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
     case node_call(Host, Type, get_node_subscriptions, [Nidx]) of
-        {result, Subs} -> get_options_for_subs(Nidx, Subs);
-        Other -> Other
+        {result, Subs} ->
+            % TODO: Replace with proper DB/plugin call with sub type filter
+            [{JID, SubID, Opts} || {JID, SubType, SubID, Opts} <- Subs, SubType == subscribed];
+        Other ->
+            Other
     end.
-
-get_options_for_subs(Nidx, Subs) ->
-    lists:foldl(fun({JID, subscribed, SubID}, Acc) ->
-                        case pubsub_subscription:get_subscription(JID, Nidx, SubID) of
-                            #pubsub_subscription{options = Options} ->
-                                [{JID, SubID, Options} | Acc];
-                            {error, notfound} ->
-                                [{JID, SubID, []} | Acc]
-                        end;
-                   (_, Acc) ->
-                        Acc
-                end, [], Subs).
 
 broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
