@@ -70,8 +70,37 @@ upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {pgsql, _}) ->
     upsert_parametrized(Nidx, ItemId, Publisher, Payload, pgsql);
 upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {mysql, _}) ->
     upsert_parametrized(Nidx, ItemId, Publisher, Payload, mysql);
-upsert_pubsub_last_item(_Nidx, _ItemId, _Publisher, _Payload, {odbc, mssql}) ->
-    "TODO IMPLEMENT ME".
+upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {odbc, mssql}) ->
+    {
+     EscNidx, EscItemId,
+     EscModifiedLUser, EscModifiedLServer,
+     EscCreatedAt, EscPayload
+    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
+    PayloadXML = exml:to_binary(Payload),
+    MSSQLPayload = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(global, PayloadXML)),
+    ["MERGE INTO pubsub_last_item with (SERIALIZABLE) as target"
+     " USING (SELECT ", EscNidx, " AS nidx )"
+            " AS source (nidx)"
+        " ON target.nidx = source.nidx"
+     " WHEN MATCHED THEN UPDATE"
+       " SET ",
+        "nidx = ", EscNidx, ", "
+        "itemid = ", EscItemId, ", "
+        "created_luser = ", EscModifiedLUser, ", "
+        "created_lserver = ", EscModifiedLServer, ", "
+        "created_at = ", EscCreatedAt, ", "
+        "payload = ", MSSQLPayload,
+     " WHEN NOT MATCHED THEN INSERT (",
+        columns(),
+      ")"
+         " VALUES (",
+            EscNidx,", ",
+            EscItemId,", ",
+            EscModifiedLUser,", ",
+            EscModifiedLServer,", ",
+            EscCreatedAt,", ",
+            MSSQLPayload,
+          ");"].
 
 %%====================================================================
 %% Helpers
