@@ -67,34 +67,11 @@ delete_pubsub_last_item(Nidx) ->
     Payload::mod_pubsub:payload(),
     Backend::{atom(), atom()}) -> iolist().
 upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {pgsql, _}) ->
-    {
-        EscNidx, EscItemId,
-        EscModifiedLUser, EscModifiedLServer,
-        EscCreatedAt, EscPayload
-    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
-    [
-        "INSERT INTO pubsub_last_item (",
-        columns(),
-        ") VALUES (",
-            EscNidx,", ",
-            EscItemId,", ",
-            EscModifiedLUser,", ",
-            EscModifiedLServer,", ",
-            EscCreatedAt,", ",
-            EscPayload,
-    ") ON CONFLICT (nidx) DO UPDATE SET "
-        "nidx = ", EscNidx, ", ",
-        "itemid = ", EscItemId, ", ",
-        "created_luser = ", EscModifiedLUser, ", ",
-        "created_lserver = ", EscModifiedLServer, ", ",
-        "created_at = ", EscCreatedAt, ", ",
-        "payload = ", EscPayload,
-        ";"];
+    upsert_parametrized(Nidx, ItemId, Publisher, Payload, pgsql);
 upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {mysql, _}) ->
-    {updated, ok};
-upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {odbc, mssql}) ->
-    {updated, ok}.
-columns() -> "nidx, itemid, created_luser, created_lserver, created_at, payload".
+    upsert_parametrized(Nidx, ItemId, Publisher, Payload, mysql);
+upsert_pubsub_last_item(_Nidx, _ItemId, _Publisher, _Payload, {odbc, mssql}) ->
+    "TODO IMPLEMENT ME".
 
 %%====================================================================
 %% Helpers
@@ -119,3 +96,34 @@ esc_query_parms(Nidx, ItemId, Publisher, Payload) ->
         EscModifiedLUser, EscModifiedLServer,
         EscCreatedAt, EscPayload
     }.
+
+columns() -> "nidx, itemid, created_luser, created_lserver, created_at, payload".
+
+upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
+        {
+        EscNidx, EscItemId,
+        EscModifiedLUser, EscModifiedLServer,
+        EscCreatedAt, EscPayload
+    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
+    [
+        "INSERT INTO pubsub_last_item (",
+        columns(),
+        ") VALUES (",
+            EscNidx,", ",
+            EscItemId,", ",
+            EscModifiedLUser,", ",
+            EscModifiedLServer,", ",
+            EscCreatedAt,", ",
+            EscPayload,
+            ") ",
+        on_conflict_line(OnConflictLine),
+            "nidx = ", EscNidx, ", ",
+            "itemid = ", EscItemId, ", ",
+            "created_luser = ", EscModifiedLUser, ", ",
+            "created_lserver = ", EscModifiedLServer, ", ",
+            "created_at = ", EscCreatedAt, ", ",
+            "payload = ", EscPayload,
+            ";"].
+
+on_conflict_line(pgsql) -> "ON CONFLICT (nidx) DO UPDATE SET ";
+on_conflict_line(mysql) -> "ON DUPLICATE KEY UPDATE ".
