@@ -330,7 +330,7 @@ find_nodes_with_parents(Key, Nodes, Depth, Acc) ->
     SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_parents(
             encode_key(Key), Nodes),
     {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
-    Map = build_map(Rows, #{}),
+    Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
     MapTransformer = fun(Nidx, #{name := NodeName,
                                  next_level := Parents}, {ParentsAcc, NodesAcc}) ->
                              NewParents = [Parents | ParentsAcc],
@@ -345,21 +345,15 @@ find_nodes_with_parents(Key, Nodes, Depth, Acc) ->
     NewAcc = [{Depth, NewNodes} | Acc],
     find_nodes_with_parents(Key, lists:flatten(Parents), Depth + 1, NewAcc).
 
-build_map([], Map) ->
-    Map;
-build_map([Row | Rows], Map) ->
-    NewMap = update_nodes_map(Row, Map),
-    build_map(Rows, NewMap).
-
-update_nodes_map({NidxSQL, NodeName, NextLeveNodeName}, Map) ->
+update_nodes_map({NidxSQL, NodeName, NextLevelNodeName}, Map) ->
     Nidx = mongoose_rdbms:result_to_integer(NidxSQL),
     case maps:get(Nidx, Map, undefined) of
         undefined ->
             NewNode = #{name => NodeName,
-                        next_level => maybe_add_parent_to_list(NextLeveNodeName, [])},
+                        next_level => maybe_add_parent_to_list(NextLevelNodeName, [])},
             Map#{Nidx => NewNode};
         #{next_level := NextLevelNodes} = Node ->
-            UpdatedNode = Node#{next_level := maybe_add_parent_to_list(NextLeveNodeName, NextLevelNodes)},
+            UpdatedNode = Node#{next_level := maybe_add_parent_to_list(NextLevelNodeName, NextLevelNodes)},
             Map#{Nidx := UpdatedNode}
     end.
 
@@ -373,7 +367,7 @@ maybe_add_parent_to_list(ParentName, List) ->
 get_subnodes_tree(Key, Node) ->
     find_subnodes(Key, [Node], 0, []).
 
-find_subnodes(Key, [], _, Acc) ->
+find_subnodes(_Key, [], _, Acc) ->
     Acc;
 find_subnodes(_, _, 100, Acc) ->
     ?WARNING_MSG("event=max_depth_reached, nodes=~p", [Acc]),
@@ -382,7 +376,7 @@ find_subnodes(Key, Nodes, Depth, Acc) ->
     SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_children(
             encode_key(Key), Nodes),
     {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
-    Map = build_map(Rows, #{}),
+    Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
     MapTransformer = fun(Nidx, #{name := NodeName,
                                  next_level := Subnodes}, {SubnodesAcc, NodesAcc}) ->
                              NewSubnodes = [Subnodes | SubnodesAcc],
