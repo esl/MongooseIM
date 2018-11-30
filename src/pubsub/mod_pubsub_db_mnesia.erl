@@ -533,11 +533,7 @@ states_to_subscriptions([#pubsub_state{ stateid = {J, _}, subscriptions = Subs }
 add_jid_and_opts_to_subs([], _J, RStates) ->
     states_to_subscriptions(RStates);
 add_jid_and_opts_to_subs([{S, SubId} | RSubs], J, RStates) ->
-    Opts =
-    case mnesia:read({pubsub_subscription, SubId}) of
-        [] -> [];
-        [#pubsub_subscription{ options = Opts0 }] -> Opts0
-    end,
+    Opts = read_sub_options(SubId),
     [ {J, S, SubId, Opts} | add_jid_and_opts_to_subs(RSubs, J, RStates) ].
 
 -spec add_opts_to_subs(Subs :: [{mod_pubsub:subscription(), mod_pubsub:subId()}]) ->
@@ -545,12 +541,15 @@ add_jid_and_opts_to_subs([{S, SubId} | RSubs], J, RStates) ->
 add_opts_to_subs([]) ->
     [];
 add_opts_to_subs([{S, SubId} | RSubs]) ->
-    Opts =
+    Opts = read_sub_options(SubId),
+    [ {S, SubId, Opts} | add_opts_to_subs(RSubs) ].
+
+-spec read_sub_options(SubId :: mod_pubsub:subId()) -> mod_pubsub:subOptions().
+read_sub_options(SubId) ->
     case mnesia:read({pubsub_subscription, SubId}) of
         [] -> [];
         [#pubsub_subscription{ options = Opts0 }] -> Opts0
-    end,
-    [ {S, SubId, Opts} | add_opts_to_subs(RSubs) ].
+    end.
 
 -spec get_idxs_with_pending_subs(NodeIdxs :: [mod_pubsub:nodeIdx()],
                                  PubsubState :: mod_pubsub:pubsubState(),
