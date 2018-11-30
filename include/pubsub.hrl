@@ -85,7 +85,7 @@
      Value::binary() | [binary()] | boolean()
 }).
 
--type(subOptions() :: [mod_pubsub:subOption(),...]).
+-type(subOptions() :: [mod_pubsub:subOption()]).
 
 
 

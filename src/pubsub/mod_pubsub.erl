@@ -2861,7 +2861,7 @@ get_sub_options_xml(Host, JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
     end.
     
 make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
-    XForm = pubsub_form_utils:make_sub_xform(Options),
+    {ok, XForm} = pubsub_form_utils:make_sub_xform(Options),
     OptionsEl = #xmlel{name = <<"options">>,
                        attrs = [{<<"jid">>, jid:to_binary(Subscriber)},
                                 {<<"subid">>, SubId}
@@ -2898,11 +2898,11 @@ validate_and_set_options_helper(Host, ConfigXForm, JID, Nidx, SubId, Type) ->
 set_options_helper(_Host, {error, Reason}, JID, Nidx, RequestedSubId, _Type) ->
     % TODO: Make smarter logging (better details formatting)
     ?DEBUG("event=invalid_pubsub_subscription_options,jid=~s,nidx=~p,subid=~s,reason=~p",
-           [jid:to_binary(JID), Nidx, RequestedSubId, Reason]),
+           [JID, Nidx, RequestedSubId, Reason]),
     {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-options">>)};
-set_options_helper(_Host, [], _JID, _Nidx, _RequestedSubId, _Type) ->
+set_options_helper(_Host, {ok, []}, _JID, _Nidx, _RequestedSubId, _Type) ->
     {result, []};
-set_options_helper(Host, SubOpts, JID, Nidx, RequestedSubId, Type) ->
+set_options_helper(Host, {ok, SubOpts}, JID, Nidx, RequestedSubId, Type) ->
     Subscriber = string_to_ljid(JID),
     {result, Subs} = node_call(Host, Type, get_subscriptions, [Nidx, Subscriber]),
     SubIds = [Id || {Sub, Id, _Opts} <- Subs, Sub == subscribed],

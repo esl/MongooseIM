@@ -518,7 +518,7 @@ get_state(Nidx, LJID, LockKind) ->
     end.
 
 -spec states_to_subscriptions([mod_pubsub:pubsubState()]) ->
-    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId()}].
+    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId(), mod_pubsub:subOptions()}].
 states_to_subscriptions([]) ->
     [];
 states_to_subscriptions([#pubsub_state{ subscriptions = [] } | RStates]) ->
