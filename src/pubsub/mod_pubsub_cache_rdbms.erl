@@ -7,10 +7,10 @@
 -export([start/0, stop/0]).
 
 -export([create_table/0,
-    delete_table/0,
-    upsert_last_item/4,
-    delete_last_item/1,
-    get_last_item/1]).
+         delete_table/0,
+         upsert_last_item/4,
+         delete_last_item/2,
+         get_last_item/2]).
 %% ------------------------ Backend start/stop ------------------------
 
 -spec start() -> ok.
@@ -29,7 +29,7 @@ delete_table() -> ok.
 
 -spec upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
     ItemID :: mod_pubsub:itemId(),
-    Publisher ::jid:ljid(),
+    Publisher ::jid:jid(),
     Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 upsert_last_item(Nidx, ItemID, Publisher, Payload) ->
     Backend = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
@@ -37,26 +37,27 @@ upsert_last_item(Nidx, ItemID, Publisher, Payload) ->
     Res = mongoose_rdbms:sql_query(Publisher#jid.lserver, ReadQuerySQL),
     check_rdbms_response(Res).
 
--spec delete_last_item(Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
-delete_last_item(Nidx) ->
+-spec delete_last_item(Host :: binary(),
+                       Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
+delete_last_item(Host, Nidx) ->
     DeleteQuerySQL = delete_pubsub_last_item(Nidx),
-    {updated, _} = mongoose_rdbms:sql_query(global, DeleteQuerySQL),
-    ok.
+    Res = mongoose_rdbms:sql_query(Host, DeleteQuerySQL),
+    check_rdbms_response(Res).
 
--spec get_last_item(Nidx :: mod_pubsub:nodeIdx()) ->
+-spec get_last_item(Host :: binary(),
+                    Nidx :: mod_pubsub:nodeIdx()) ->
     [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
-get_last_item(Nidx) ->
+get_last_item(Host, Nidx) ->
     ReadQuerySQL = get_pubsub_last_item(Nidx),
-    {selected, LastItemRows} = mongoose_rdbms:sql_query(global, ReadQuerySQL),
-    LastItemRows.
-
+    Res = mongoose_rdbms:sql_query(Host, ReadQuerySQL),
+    check_rdbms_response(Res).
 
 -spec get_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
 get_pubsub_last_item(Nidx) ->
     ["SELECT * FROM pubsub_last_item"
-    " WHERE nidx = ", esc_int(Nidx), ";"].
+     " WHERE nidx = ", esc_int(Nidx), ";"].
 
- -spec delete_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
+-spec delete_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
 delete_pubsub_last_item(Nidx) ->
     ["DELETE FROM pubsub_last_item"
     " WHERE nidx = ", esc_int(Nidx), ";"].
@@ -64,7 +65,7 @@ delete_pubsub_last_item(Nidx) ->
  -spec upsert_pubsub_last_item(
     Nidx::mod_pubsub:nodeIdx(),
     ItemId::mod_pubsub:itemId(),
-    Publisher::jid:ljid(),
+    Publisher::jid:jid(),
     Payload::mod_pubsub:payload(),
     Backend::{atom(), atom()}) -> iolist().
 upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {pgsql, _}) ->
@@ -133,6 +134,8 @@ upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
 %% Helpers
 %%====================================================================
 
+check_rdbms_response({selected, LastItemRows}) ->
+    LastItemRows;
 check_rdbms_response({updated, _}) ->
     ok;
 check_rdbms_response(Response) ->

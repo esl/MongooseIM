@@ -19,7 +19,9 @@
                            Publisher::jid:ljid(),
                            Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 
--callback delete_last_item(Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
+-callback delete_last_item(Host :: binary(),
+                           Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
 
--callback get_last_item(Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
+-callback get_last_item(Host :: binary(),
+                        Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
 

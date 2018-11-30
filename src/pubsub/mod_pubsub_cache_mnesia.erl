@@ -6,11 +6,11 @@
 -export([start/0, stop/0]).
 
 -export([
-    create_table/0,
-    delete_table/0,
-    upsert_last_item/4,
-    get_last_item/1,
-    delete_last_item/1]).
+         create_table/0,
+         delete_table/0,
+         upsert_last_item/4,
+         get_last_item/2,
+         delete_last_item/2]).
 
 %% ------------------------ Backend start/stop ------------------------
 
@@ -55,16 +55,18 @@ upsert_last_item(Nidx, ItemId, Publisher, Payload) ->
         exit:{aborted, Reason} -> {error, Reason}
     end.
 
--spec get_last_item(Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
-get_last_item(Nidx) ->
+-spec get_last_item(Host :: binary(),
+                    Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
+get_last_item(_Host, Nidx) ->
     try mnesia:dirty_read({pubsub_last_item, Nidx}) of
         L when is_list(L) -> L
     catch
         exit:{aborted, Reason} -> {error, Reason}
     end.
 
--spec delete_last_item(Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
-delete_last_item(Nidx) ->
+-spec delete_last_item(Host :: binary(),
+                       Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
+delete_last_item(_Host, Nidx) ->
     try mnesia:dirty_delete({pubsub_last_item, Nidx}) of
         ok -> ok
     catch
