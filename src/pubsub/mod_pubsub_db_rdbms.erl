@@ -10,6 +10,7 @@
 -author('michal.piotrowski@erlang-solutions.com').
 
 -include("pubsub.hrl").
+-include("mongoose_logger.hrl").
 -include("jlib.hrl").
 
 -export([start/0, stop/0]).
@@ -29,7 +30,6 @@
          find_node_by_name/2,
          delete_node/2,
          get_subnodes/2,
-         get_parentnodes/2,
          get_parentnodes_tree/2,
          get_subnodes_tree/2
         ]).
@@ -228,49 +228,166 @@ del_node(Nidx) ->
     {ok, States}.
 
 -spec set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
-set_node(Node) ->
-    mod_pubsub_db_mnesia:set_node(Node).
+set_node(#pubsub_node{nodeid = {Key, Name}, id = Nidx, type = Type,
+                      owners = Owners, options = Opts, parents = Parents}) ->
+    OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
+    SQL = mod_pubsub_db_rdbms_sql:upsert_pubsub_node(Nidx, encode_key(Key), Name, Type,
+                                                     jsx:encode(OwnersJid),
+                                                     jsx:encode(Opts)),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    maybe_set_parents(Name, Parents),
+    ok.
+
+maybe_set_parents(_Name, []) ->
+    ok;
+maybe_set_parents(Name, Parents) ->
+    DelParentsSQL = mod_pubsub_db_rdbms_sql:del_parents(Name),
+    {updated, _} = mongoose_rdbms:sql_query(global, DelParentsSQL),
+    SetParentsSQL = mod_pubsub_db_rdbms_sql:set_parents(Name, Parents),
+    {updated, _} = mongoose_rdbms:sql_query(global, SetParentsSQL).
+
 
 -spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
 find_node_by_id(Nidx) ->
-    mod_pubsub_db_mnesia:find_node_by_id(Nidx).
+    SQL = mod_pubsub_db_rdbms_sql:select_node_by_id(Nidx),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, []} ->
+            {error, not_found};
+        {selected, [Row]} ->
+            {ok, decode_pubsub_node_row(Row)}
+    end.
 
 -spec find_node_by_name(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
                         Node :: mod_pubsub:nodeId()) ->
     mod_pubsub:pubsubNode() | false.
 find_node_by_name(Key, Node) ->
-    mod_pubsub_db_mnesia:find_node_by_name(Key, Node).
+    SQL = mod_pubsub_db_rdbms_sql:select_node_by_key_and_name(encode_key(Key), Node),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, [Row]} ->
+            decode_pubsub_node_row(Row);
+        {selected, []} ->
+            false
+    end.
+
+decode_pubsub_node_row({Nidx, KeySQL, Name, Type, Owners, Options}) ->
+    Key = decode_key(KeySQL),
+    DecodedOptions = [maybe_option_value_to_atom(Item) ||
+                      Item <- jsx:decode(Options, [{labels, existing_atom}])],
+    DecodedOwners = [jid:to_lower(jid:from_binary(Owner)) ||
+                     Owner <- jsx:decode(Owners)],
+    #pubsub_node{nodeid = {Key, Name},
+                 id = mongoose_rdbms:result_to_integer(Nidx),
+                 type = Type,
+                 owners = DecodedOwners,
+                 options = DecodedOptions}.
+
+maybe_option_value_to_atom({access_model, Value}) ->
+    {access_model, binary_to_existing_atom(Value, utf8)};
+maybe_option_value_to_atom({publish_model, Value}) ->
+    {publish_model, binary_to_existing_atom(Value, utf8)};
+maybe_option_value_to_atom({notification_type, Value}) ->
+    {notification_type, binary_to_existing_atom(Value, utf8)};
+maybe_option_value_to_atom({node_type, Value}) ->
+    {node_type, binary_to_existing_atom(Value, utf8)};
+maybe_option_value_to_atom({send_last_published_item, Value}) ->
+    {send_last_published_item, binary_to_existing_atom(Value, utf8)};
+maybe_option_value_to_atom(Other) ->
+    Other.
 
 -spec find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
     [mod_pubsub:pubsubNode()].
 find_nodes_by_key(Key) ->
-    mod_pubsub_db_mnesia:find_nodes_by_key(Key).
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key(encode_key(Key)),
+    {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
+    [decode_pubsub_node_row(Row) || Row <- Rows].
 
 
 -spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
 delete_node(Key, Node) ->
-    mod_pubsub_db_mnesia:delete_node(Key, Node).
+    SQL = mod_pubsub_db_rdbms_sql:delete_node(encode_key(Key), Node),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    ok.
 
 -spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
     [mod_pubsub:pubsubNode()].
 get_subnodes(Key, Node) ->
-    mod_pubsub_db_mnesia:get_subnodes(Key, Node).
-
--spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
-    [mod_pubsub:pubsubNode()].
-get_parentnodes(Key, Node) ->
-    mod_pubsub_db_mnesia:get_parentnodes(Key, Node).
+    SQL = mod_pubsub_db_rdbms_sql:select_subnodes(encode_key(Key), Node),
+    {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
+    [decode_pubsub_node_row(Row) || Row <- Rows].
 
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_parentnodes_tree(Key, Node) ->
-    mod_pubsub_db_mnesia:get_parentnodes_tree(Key, Node).
+    find_nodes_with_parents(Key, [Node], 0, []).
+
+find_nodes_with_parents(_, [], _, Acc) ->
+    Acc;
+find_nodes_with_parents(_, _, 100, Acc) ->
+    ?WARNING_MSG("event=max_depth_reached, nodes=~p", [Acc]),
+    Acc;
+find_nodes_with_parents(Key, Nodes, Depth, Acc) ->
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_parents(
+            encode_key(Key), Nodes),
+    {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
+    Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
+    MapTransformer = fun(Nidx, #{name := NodeName,
+                                 next_level := Parents}, {ParentsAcc, NodesAcc}) ->
+                             NewParents = [Parents | ParentsAcc],
+                             Node = #pubsub_node{id = Nidx,
+                                                 nodeid = {Key, NodeName},
+                                                 parents = Parents},
+                             NewNodes = [Node | NodesAcc],
+                             {NewParents, NewNodes}
+                     end,
+
+    {Parents, NewNodes} = maps:fold(MapTransformer, {[], []}, Map),
+    NewAcc = [{Depth, NewNodes} | Acc],
+    find_nodes_with_parents(Key, lists:flatten(Parents), Depth + 1, NewAcc).
+
+update_nodes_map({NidxSQL, NodeName, NextLevelNodeName}, Map) ->
+    Nidx = mongoose_rdbms:result_to_integer(NidxSQL),
+    case maps:get(Nidx, Map, undefined) of
+        undefined ->
+            NewNode = #{name => NodeName,
+                        next_level => maybe_add_parent_to_list(NextLevelNodeName, [])},
+            Map#{Nidx => NewNode};
+        #{next_level := NextLevelNodes} = Node ->
+            UpdatedNode = Node#{next_level := maybe_add_parent_to_list(NextLevelNodeName, NextLevelNodes)},
+            Map#{Nidx := UpdatedNode}
+    end.
+
+maybe_add_parent_to_list(null, List) ->
+    List;
+maybe_add_parent_to_list(ParentName, List) ->
+    [ParentName | List].
 
 -spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_subnodes_tree(Key, Node) ->
-    mod_pubsub_db_mnesia:get_subnodes_tree(Key, Node).
+    find_subnodes(Key, [Node], 0, []).
+
+find_subnodes(_Key, [], _, Acc) ->
+    Acc;
+find_subnodes(_, _, 100, Acc) ->
+    ?WARNING_MSG("event=max_depth_reached, nodes=~p", [Acc]),
+    Acc;
+find_subnodes(Key, Nodes, Depth, Acc) ->
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_key_and_names_in_list_with_children(
+            encode_key(Key), Nodes),
+    {selected, Rows} = mongoose_rdbms:sql_query(global, SQL),
+    Map = lists:foldl(fun update_nodes_map/2, #{}, Rows),
+    MapTransformer = fun(Nidx, #{name := NodeName,
+                                 next_level := Subnodes}, {SubnodesAcc, NodesAcc}) ->
+                             NewSubnodes = [Subnodes | SubnodesAcc],
+                             Node = #pubsub_node{id = Nidx,
+                                                 nodeid = {Key, NodeName}},
+                             NewNodes = [Node | NodesAcc],
+                             {NewSubnodes, NewNodes}
+                     end,
+    {Subnodes, NewNodes} = maps:fold(MapTransformer, {[], []}, Map),
+    NewAcc = [{Depth, NewNodes} | Acc],
+    find_subnodes(Key, lists:flatten(Subnodes), Depth + 1, NewAcc).
 % ------------------- Affiliations --------------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
@@ -534,7 +651,15 @@ decode_publisher(null) ->
 decode_publisher(Binary) ->
     jid:from_binary(Binary).
 
+encode_key(Key) when is_binary(Key) ->
+    Key;
+encode_key({_, _, _} = JID) ->
+    jid:to_binary(JID).
 
-%%====================================================================
-%% Helpers
-%%====================================================================
+decode_key(KeySQL) ->
+    case jid:from_binary(KeySQL) of
+        #jid{luser = <<>>, lserver = Host, lresource = <<>>} ->
+            Host;
+        #jid{luser = LUser, lserver = LServer, lresource = LResource} ->
+            {LUser, LServer, LResource}
+    end.

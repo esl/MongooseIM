@@ -84,9 +84,6 @@
 -callback get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
     [mod_pubsub:pubsubNode()].
 
--callback get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
-    [mod_pubsub:pubsubNode()].
-
 -callback get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 

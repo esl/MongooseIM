@@ -28,7 +28,6 @@
          find_node_by_name/2,
          delete_node/2,
          get_subnodes/2,
-         get_parentnodes/2,
          get_parentnodes_tree/2,
          get_subnodes_tree/2
         ]).
@@ -260,22 +259,6 @@ get_subnodes(Key, Node) ->
                   <- mnesia:table(pubsub_node),
                     Key == NKey, lists:member(Node, Parents)]),
     qlc:e(Q).
-
--spec get_parentnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
-    [mod_pubsub:pubsubNode()] | {error, not_found}.
-get_parentnodes(Key, Node) ->
-    case find_node_by_name(Key, Node) of
-        false ->
-            {error, not_found};
-        #pubsub_node{parents = []} ->
-            [];
-        #pubsub_node{parents = Parents} ->
-            Q = qlc:q([N
-                       || #pubsub_node{nodeid = {NHost, NNode}} = N
-                          <- mnesia:table(pubsub_node),
-                          Parent <- Parents, Key == NHost, Parent == NNode]),
-            qlc:e(Q)
-    end.
 
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].

@@ -85,20 +85,6 @@ get_parentnodes_tree(Host, Node, _From) ->
 get_subnodes(Host, Node, _From) ->
     mod_pubsub_db_backend:get_subnodes(Host, Node).
 
-
-get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
-    BasePlugin = binary_to_atom(<<"node_", (NodeRec#pubsub_node.type)/binary>>, utf8),
-    BasePath = gen_pubsub_node:node_to_path(BasePlugin, Node),
-    mnesia:foldl(fun (#pubsub_node{nodeid = {H, N}} = R, Acc) ->
-                         Plugin = binary_to_atom(<<"node_", (R#pubsub_node.type)/binary>>, utf8),
-                         Path = gen_pubsub_node:node_to_path(Plugin, N),
-                         case lists:prefix(BasePath, Path) and (H == Host) of
-                             true -> [R | Acc];
-                             false -> Acc
-                         end
-                 end,
-                 [], pubsub_node).
-
 create_node(Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
     case catch mod_pubsub_db_backend:find_node_by_name(Host, NodeName) of
@@ -138,17 +124,12 @@ check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
     false.
 
 delete_node(Host, Node) ->
-    Removed = get_subnodes_tree(Host, Node),
+    SubNodesTree = mod_pubsub_db_backend:get_subnodes_tree(Host, Node),
+    Removed = lists:flatten([Nodes || {_, Nodes} <- SubNodesTree]),
     lists:foreach(fun (#pubsub_node{nodeid = {_, SubNode}, id = SubNidx}) ->
                 pubsub_index:free(node, SubNidx),
                 mod_pubsub_db_backend:delete_node(Host, SubNode)
         end,
         Removed),
     Removed.
-
-get_subnodes_tree(Host, Node) ->
-    case get_node(Host, Node) of
-        {error, _} -> [];
-        NodeRec -> get_subnodes_of_existing_tree(Host, Node, NodeRec)
-    end.
 
