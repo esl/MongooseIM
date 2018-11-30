@@ -2,6 +2,7 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include("mongoose_logger.hrl").
 
 -export([start/0, stop/0]).
 
@@ -33,8 +34,8 @@ delete_table() -> ok.
 upsert_last_item(Nidx, ItemID, Publisher, Payload) ->
     Backend = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
     ReadQuerySQL = upsert_pubsub_last_item(Nidx, ItemID, Publisher, Payload, Backend),
-    {updated, _} = mongoose_rdbms:sql_query(Publisher#jid.lserver, ReadQuerySQL),
-    ok.
+    Res = mongoose_rdbms:sql_query(Publisher#jid.lserver, ReadQuerySQL),
+    check_rdbms_response(Res).
 
 -spec delete_last_item(Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
 delete_last_item(Nidx) ->
@@ -90,9 +91,8 @@ upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {odbc, mssql}) ->
         "created_lserver = ", EscModifiedLServer, ", "
         "created_at = ", EscCreatedAt, ", "
         "payload = ", MSSQLPayload,
-     " WHEN NOT MATCHED THEN INSERT (",
+     " WHEN NOT MATCHED THEN INSERT ",
         columns(),
-      ")"
          " VALUES (",
             EscNidx,", ",
             EscItemId,", ",
@@ -102,9 +102,42 @@ upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {odbc, mssql}) ->
             MSSQLPayload,
           ");"].
 
+upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
+        {
+        EscNidx, EscItemId,
+        EscModifiedLUser, EscModifiedLServer,
+        EscCreatedAt, EscPayload
+    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
+    [
+        "INSERT INTO pubsub_last_item ",
+        columns(),
+        " VALUES (",
+            EscNidx,", ",
+            EscItemId,", ",
+            EscModifiedLUser,", ",
+            EscModifiedLServer,", ",
+            EscCreatedAt,", ",
+            EscPayload,
+            ") ",
+        on_conflict_line(OnConflictLine),
+            "nidx = ", EscNidx, ", ",
+            "itemid = ", EscItemId, ", ",
+            "created_luser = ", EscModifiedLUser, ", ",
+            "created_lserver = ", EscModifiedLServer, ", ",
+            "created_at = ", EscCreatedAt, ", ",
+            "payload = ", EscPayload,
+            ";"].
+
+
 %%====================================================================
 %% Helpers
 %%====================================================================
+
+check_rdbms_response({updated, _}) ->
+    ok;
+check_rdbms_response(Response) ->
+    ?ERROR_MSG("RDBMS cache failed with: ~p", [Response]),
+    {error, pubsub_rdbms_cache_failed}.
 
 esc_string(String) ->
     mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
@@ -126,33 +159,7 @@ esc_query_parms(Nidx, ItemId, Publisher, Payload) ->
         EscCreatedAt, EscPayload
     }.
 
-columns() -> "nidx, itemid, created_luser, created_lserver, created_at, payload".
-
-upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
-        {
-        EscNidx, EscItemId,
-        EscModifiedLUser, EscModifiedLServer,
-        EscCreatedAt, EscPayload
-    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
-    [
-        "INSERT INTO pubsub_last_item (",
-        columns(),
-        ") VALUES (",
-            EscNidx,", ",
-            EscItemId,", ",
-            EscModifiedLUser,", ",
-            EscModifiedLServer,", ",
-            EscCreatedAt,", ",
-            EscPayload,
-            ") ",
-        on_conflict_line(OnConflictLine),
-            "nidx = ", EscNidx, ", ",
-            "itemid = ", EscItemId, ", ",
-            "created_luser = ", EscModifiedLUser, ", ",
-            "created_lserver = ", EscModifiedLServer, ", ",
-            "created_at = ", EscCreatedAt, ", ",
-            "payload = ", EscPayload,
-            ";"].
+columns() -> "(nidx, itemid, created_luser, created_lserver, created_at, payload)".
 
 on_conflict_line(pgsql) -> "ON CONFLICT (nidx) DO UPDATE SET ";
 on_conflict_line(mysql) -> "ON DUPLICATE KEY UPDATE ".
