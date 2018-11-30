@@ -102,7 +102,9 @@
          remove_offline_messages/3,
          create_bulk_insert_query/3]).
 
--export([join/2]).
+-export([join/2,
+         prepare_upsert/6,
+         execute_upsert/5]).
 
 %% We have only two compile time options for db queries:
 %%-define(generic, true).
@@ -209,6 +211,104 @@ update(LServer, Table, Fields, Vals, Where) ->
               [<<"insert into ">>, Table, "(", join(Fields, ", "),
                <<") values (">>, join_escaped(Vals), ");"])
     end.
+
+-spec execute_upsert(Host :: mongoose_rdbms:server(),
+                     Name :: atom(),
+                     InsertParams :: [any()],
+                     UpdateParams :: [any()],
+                     UniqueKeyValues :: [any()]) -> mongoose_rdbms:query_result().
+execute_upsert(Host, Name, InsertParams, UpdateParams, UniqueKeyValues) ->
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
+        {mysql, _} ->
+            mongoose_rdbms:execute(Host, Name, InsertParams ++ UpdateParams);
+        {pgsql, _} ->
+            mongoose_rdbms:execute(Host, Name, InsertParams ++ UpdateParams);
+        {odbc, mssql} ->
+            mongoose_rdbms:execute(Host, Name, UniqueKeyValues ++ InsertParams ++ UpdateParams);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+%% @doc
+%% This functions prepares query for inserting a row or updating it if already exists
+-spec prepare_upsert(Host :: mongoose_rdbms:server(),
+                     QueryName :: atom(),
+                     TableName :: atom(),
+                     InsertFields :: [binary()],
+                     UpdateFields :: [binary()],
+                     UniqueKeyFields :: [binary()]) ->
+    {ok, QueryName :: atom()} | {error, already_exists}.
+prepare_upsert(Host, Name, Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+    SQL = upsert_query(Host, Table, InsertFields, UpdateFields, UniqueKeyFields),
+    Query = iolist_to_binary(SQL),
+    ?DEBUG("event=upsert_query, query=~s", [Query]),
+    Fields = prepared_upsert_fields(InsertFields, UpdateFields, UniqueKeyFields),
+    mongoose_rdbms:prepare(Name, Table, Fields, Query).
+
+prepared_upsert_fields(InsertFields, UpdateFields, UniqueKeyFields) ->
+    case mongoose_rdbms_type:get() of
+        mssql ->
+            UniqueKeyFields ++ InsertFields ++ UpdateFields;
+        _ -> InsertFields ++ UpdateFields
+    end.
+
+upsert_query(Host, Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+    case {mongoose_rdbms:db_engine(Host), mongoose_rdbms_type:get()} of
+        {mysql, _} ->
+            upsert_mysql_query(Table, InsertFields, UpdateFields, UniqueKeyFields);
+        {pgsql, _} ->
+            upsert_pgsql_query(Table, InsertFields, UpdateFields, UniqueKeyFields);
+        {odbc, mssql} ->
+            upsert_mssql_query(Table, InsertFields, UpdateFields, UniqueKeyFields);
+        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
+    end.
+
+mysql_and_pgsql_insert(Table, Columns) ->
+    JoinedFields = join(Columns, <<", ">>),
+    Placeholders = lists:duplicate(length(Columns), $?),
+    ["INSERT INTO ", atom_to_binary(Table, utf8), " (",
+     JoinedFields,
+     ") VALUES (",
+     join(Placeholders, ", "),
+     ")"].
+
+upsert_mysql_query(Table, InsertFields, UpdateFields, _) ->
+    Insert = mysql_and_pgsql_insert(Table, InsertFields),
+    OnConflict = mysql_on_conflict(UpdateFields),
+    [Insert, OnConflict].
+
+upsert_pgsql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+    Insert = mysql_and_pgsql_insert(Table, InsertFields),
+    OnConflict = pgsql_on_conflict(UpdateFields, UniqueKeyFields),
+    [Insert, OnConflict].
+
+mysql_on_conflict(UpdateFields) ->
+    [" ON DUPLICATE KEY UPDATE ",
+     update_fields_on_conflict(UpdateFields)].
+
+pgsql_on_conflict(UpdateFields, UniqueKeyFields) ->
+    JoinedKeys = join(UniqueKeyFields, ", "),
+    [" ON CONFLICT (", JoinedKeys, ")"
+     " DO UPDATE SET ",
+     update_fields_on_conflict(UpdateFields)].
+
+update_fields_on_conflict(UpdateFields) ->
+    FieldsWithPlaceHolders = [[Field, " = ?"] || Field <- UpdateFields],
+    join(FieldsWithPlaceHolders, ", ").
+
+upsert_mssql_query(Table, InsertFields, UpdateFields, UniqueKeyFields) ->
+    UniqueKeysInSelect = [[" ? AS ", Key] || Key <- UniqueKeyFields],
+    UniqueConstraint = [["target.", Key, " = source.", Key] || Key <- UniqueKeyFields],
+    JoinedInsertFields = join(InsertFields, ", "),
+    Placeholders = lists:duplicate(length(InsertFields), $?),
+    ["MERGE INTO ", atom_to_binary(Table, utf8), " WITH (SERIALIZABLE) as target"
+     " USING (SELECT ", join(UniqueKeysInSelect, ", "), ")"
+            " AS source (", join(UniqueKeyFields, ", "), ")"
+        " ON (", join(UniqueConstraint, " AND "), ")"
+     " WHEN NOT MATCHED THEN INSERT"
+       " (", JoinedInsertFields, ")"
+         " VALUES (", join(Placeholders, ", "), ")"
+     " WHEN MATCHED THEN UPDATE"
+       " SET ", update_fields_on_conflict(UpdateFields),";"].
 
 %% F can be either a fun or a list of queries
 %% TODO: We should probably move the list of queries transaction
