@@ -326,6 +326,8 @@ CREATE TABLE pubsub_nodes (
     PRIMARY KEY(p_key, name, nidx)
 );
 
+CREATE INDEX i_pubsub_nodes_nidx ON pubsub_nodes(nidx);
+
 CREATE TABLE pubsub_node_collections (
     name VARCHAR(250)        NOT NULL,
     parent_name VARCHAR(250) NOT NULL,

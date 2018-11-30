@@ -364,6 +364,8 @@ CREATE TABLE pubsub_nodes (
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
+CREATE INDEX i_pubsub_nodes_nidx USING BTREE ON pubsub_nodes(nidx);
+
 CREATE TABLE pubsub_node_collections (
     name VARCHAR(250)        NOT NULL,
     parent_name VARCHAR(250) NOT NULL,

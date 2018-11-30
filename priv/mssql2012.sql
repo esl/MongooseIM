@@ -482,11 +482,14 @@ CREATE TABLE dbo.pubsub_nodes (
     owners NVARCHAR(max)  NOT NULL,
     options NVARCHAR(max) NOT NULL,
     CONSTRAINT PK_pubsub_nodes PRIMARY KEY CLUSTERED(
-        nidx ASC,
         p_key ASC,
-        name ASC
+        name ASC,
+        nidx ASC
     )
 )
+GO
+
+CREATE INDEX i_pubsub_nodes_nidx ON pubsub_nodes(nidx);
 GO
 
 CREATE TABLE dbo.pubsub_node_collections (
