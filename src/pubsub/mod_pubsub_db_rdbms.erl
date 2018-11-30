@@ -76,7 +76,22 @@
 
 -spec start() -> ok.
 start() ->
-    mod_pubsub_db_mnesia:start().
+    mod_pubsub_db_mnesia:start(),
+    rdbms_queries:prepare_upsert(global, pubsub_affliation_upsert, pubsub_affiliations,
+                                 [<<"nidx">>, <<"luser">>, <<"lserver">>, <<"aff">>],
+                                 [<<"aff">>],
+                                 [<<"nidx">>, <<"luser">>, <<"lserver">>]),
+    ItemInsertFields = [<<"nidx">>, <<"itemid">>,
+                        <<"created_luser">>, <<"created_lserver">>, <<"created_at">>,
+                        <<"modified_luser">>, <<"modified_lserver">>, <<"modified_lresource">>, <<"modified_at">>,
+                        <<"publisher">>, <<"payload">>],
+    ItemUpdateFields = [<<"modified_luser">>, <<"modified_lserver">>, <<"modified_lresource">>, <<"modified_at">>,
+                        <<"publisher">>, <<"payload">>],
+    rdbms_queries:prepare_upsert(global, pubsub_item_upsert, pubsub_items,
+                                 ItemInsertFields,
+                                 ItemUpdateFields,
+                                 [<<"nidx">>, <<"itemid">>]),
+    ok.
 
 -spec stop() -> ok.
 stop() ->
@@ -187,15 +202,23 @@ get_item(Nidx, ItemId) ->
 
 -spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok.
 set_item(#pubsub_item{itemid = {ItemId, NodeIdx},
-                      creation = {CreatedAt, {CreatedLUser, CreatedLServer, _}},
-                      modification = {ModifiedAt, {ModifiedLUser, ModifiedLServer, ModifiedLResource}},
-                      publisher = Publisher,
+                      creation = {CreatedAtNow, {CreatedLUser, CreatedLServer, _}},
+                      modification = {ModifiedAtNow, {ModifiedLUser, ModifiedLServer, ModifiedLResource}},
+                      publisher = PublisherIn,
                       payload = Payload}) ->
-    PayloadXML = #xmlel{name = <<"item">>, children = Payload},
-    SQL = mod_pubsub_db_rdbms_sql:upsert_item(NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
-                                              ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
-                                              Publisher, PayloadXML),
-    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    PayloadWrapped = #xmlel{name = <<"item">>, children = Payload},
+    PayloadXML = exml:to_binary(PayloadWrapped),
+    CreatedAt = usec:from_now(CreatedAtNow),
+    ModifiedAt = usec:from_now(ModifiedAtNow),
+    Publisher = null_or_bin_jid(PublisherIn),
+    InsertParams = [NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
+                    ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
+                    Publisher, PayloadXML],
+    UpdateParams = [ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
+                    Publisher, PayloadXML],
+    UniqueKeyValues  = [NodeIdx, ItemId],
+    {updated, _} = rdbms_queries:execute_upsert(global, pubsub_item_upsert,
+                                                InsertParams, UpdateParams, UniqueKeyValues),
     ok.
 
 -spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
@@ -411,8 +434,12 @@ set_affiliation(Nidx, { LU, LS, _ } = LJID, none) ->
             delete_affiliation_wo_subs_check(Nidx, LU, LS)
     end;
 set_affiliation(Nidx, { LU, LS, _ }, Affiliation) ->
-    SQL = mod_pubsub_db_rdbms_sql:upsert_affiliation(Nidx, LU, LS, aff2int(Affiliation)),
-    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    Aff = aff2int(Affiliation),
+    InsertParams = [Nidx, LU, LS, Aff],
+    UpdateParams = [Aff],
+    UniqueKeyValues  = [Nidx, LU, LS],
+    {updated, _} = rdbms_queries:execute_upsert(global, pubsub_affliation_upsert,
+                                                InsertParams, UpdateParams, UniqueKeyValues),
     ok.
 
 -spec get_affiliation(Nidx :: mod_pubsub:nodeIdx(),
@@ -684,3 +711,8 @@ decode_key(KeySQL) ->
         #jid{luser = LUser, lserver = LServer, lresource = LResource} ->
             {LUser, LServer, LResource}
     end.
+
+null_or_bin_jid(undefined) ->
+    null;
+null_or_bin_jid(Jid) ->
+    jid:to_binary(Jid).
