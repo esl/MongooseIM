@@ -54,7 +54,6 @@
 based_on() ->  none.
 
 init(_Host, _ServerHost, _Opts) ->
-    pubsub_subscription:init(),
     ok.
 
 terminate(_Host, _ServerHost) ->
@@ -166,7 +165,7 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
     {ok, Subscriptions} = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, Subscriber),
     Whitelisted = lists:member(Affiliation, [member, publisher, owner]),
     PendingSubscription = lists:any(fun
-                ({pending, _}) -> true;
+                ({pending, _, _}) -> true;
                 (_) -> false
             end,
             Subscriptions),
@@ -174,10 +173,10 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
                                AccessModel, PresenceSubscription, RosterGroup, Whitelisted) of
         ok ->
             {NewSub, SubId} = case Subscriptions of
-                [{subscribed, Id}|_] ->
+                [{subscribed, Id, _}|_] ->
                     {subscribed, Id};
                 [] ->
-                    Id = pubsub_subscription:make_subid(),
+                    Id = make_subid(),
                     Sub = access_model_to_subscription(AccessModel),
                     mod_pubsub_db_backend:add_subscription(Nidx, Subscriber, Sub, Id),
                     {Sub, Id}
@@ -528,10 +527,10 @@ set_subscriptions(Nidx, LOwner, Subscription, SubId) ->
                     {error,
                         ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"not-subscribed">>)};
                 _ ->
-                    NewSubId = pubsub_subscription:make_subid(),
+                    NewSubId = make_subid(),
                     mod_pubsub_db_backend:add_subscription(Nidx, LOwner, Subscription, NewSubId)
             end;
-        {<<>>, [{_, SID}]} ->
+        {<<>>, [{_, SID, _}]} ->
             case Subscription of
                 none -> mod_pubsub_db_backend:delete_subscription(Nidx, LOwner, SID);
                 _ -> mod_pubsub_db_backend:update_subscription(Nidx, LOwner, Subscription, SID)
@@ -674,8 +673,11 @@ can_fetch_item(none, Subscriptions) -> is_subscribed(Subscriptions).
 
 is_subscribed(Subscriptions) ->
     lists:any(fun
-            ({subscribed, _SubId}) -> true;
+            ({subscribed, _SubId, _}) -> true;
             (_) -> false
         end,
         Subscriptions).
+
+make_subid() ->
+    mongoose_bin:gen_from_timestamp().
 

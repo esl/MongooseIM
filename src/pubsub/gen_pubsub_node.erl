@@ -163,16 +163,13 @@
     ok | {error, exml:element()}.
 
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
-    {result,
-        [{jid:ljid(), subscription(), subId()}] |
-        [{jid:ljid(), none}, ...]
-        }.
+    {result, [{jid:ljid(), subscription(), subId(), subOptions()}]}.
 
 -callback get_entity_subscriptions(Host :: host(), Key :: jid:jid()) ->
     {result, [{pubsubNode(), subscription(), subId(), jid:ljid()}]}.
 
 -callback get_subscriptions(NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
-    {result, [{subscription(), subId()}]}.
+    {result, [{subscription(), subId(), subOptions()}]}.
 
 -callback get_pending_nodes(Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
 

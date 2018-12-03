@@ -41,6 +41,7 @@
 % Subscriptions
 -export([
          add_subscription/4,
+         set_subscription_opts/4,
          get_node_subscriptions/1,
          get_node_entity_subscriptions/2,
          delete_subscription/3,
@@ -429,21 +430,35 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId) ->
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 
+-spec set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
+                            LJID :: jid:ljid(),
+                            SubId :: mod_pubsub:subId(),
+                            Opts :: mod_pubsub:subOptions()) -> ok.
+set_subscription_opts(Nidx, LJID, SubId, Opts) ->
+    mod_pubsub_db_mnesia:set_subscription_opts(Nidx, LJID, SubId, Opts).
+
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
-    {ok, [{Entity :: jid:ljid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Entity :: jid:ljid(),
+           Sub :: mod_pubsub:subscription(),
+           SubId :: mod_pubsub:subId(),
+           SubOpts :: mod_pubsub:subOptions()}]}.
 get_node_subscriptions(Nidx) ->
     SQL = mod_pubsub_db_rdbms_sql:get_node_subs(Nidx),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
-    {ok, [{{LU, LS, LR}, sql2sub(SubInt), SubId}
+    % TODO: Add proper options retrieval
+    {ok, [{{LU, LS, LR}, sql2sub(SubInt), SubId, []}
           || {LU, LS, LR, SubInt, SubId} <- QueryResult ]}.
 
 -spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
                                     LJID :: jid:ljid()) ->
-    {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Sub :: mod_pubsub:subscription(),
+           SubId :: mod_pubsub:subId(),
+           Opts :: mod_pubsub:subOptions()}]}.
 get_node_entity_subscriptions(Nidx, { LU, LS, LR }) ->
     SQL = mod_pubsub_db_rdbms_sql:get_node_entity_subs(Nidx, LU, LS, LR),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
-    {ok, [{sql2sub(SubInt), SubId} || {SubInt, SubId} <- QueryResult ]}.
+    % TODO: Add proper options retrieval
+    {ok, [{sql2sub(SubInt), SubId, []} || {SubInt, SubId} <- QueryResult ]}.
 
 -spec delete_subscription(Nidx :: mod_pubsub:nodeIdx(),
                           LJID :: jid:ljid(),
@@ -616,7 +631,6 @@ int2aff(5) -> outcast.
 -spec sub2int(mod_pubsub:subscription()) -> integer().
 sub2int(none) -> 0;
 sub2int(pending) -> 1;
-sub2int(unconfigured) -> 2;
 sub2int(subscribed) -> 3.
 
 -spec sql2sub(integer() | binary()) -> mod_pubsub:subscription().
@@ -626,7 +640,6 @@ sql2sub(SqlInt) ->
 -spec int2sub(integer()) -> mod_pubsub:subscription().
 int2sub(0) -> none;
 int2sub(1) -> pending;
-int2sub(2) -> unconfigured;
 int2sub(3) -> subscribed.
 
 item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,

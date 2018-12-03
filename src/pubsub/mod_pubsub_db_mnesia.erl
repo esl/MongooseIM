@@ -39,6 +39,7 @@
 % Subscriptions
 -export([
          add_subscription/4,
+         set_subscription_opts/4,
          get_node_subscriptions/1,
          get_node_entity_subscriptions/2,
          delete_subscription/3,
@@ -63,6 +64,15 @@
         ]).
 
 %%====================================================================
+%% Internal records definitions
+%%====================================================================
+
+-record(pubsub_subscription, {
+          subid :: mod_pubsub:subId(),
+          options = [] :: mod_pubsub:subOptions()
+         }).
+
+%%====================================================================
 %% Behaviour callbacks
 %%====================================================================
 
@@ -83,6 +93,11 @@ start() ->
                         [{disc_copies, [node()]},
                          {attributes, record_info(fields, pubsub_node)}]),
     mnesia:add_table_index(pubsub_node, id),
+    mnesia:create_table(pubsub_subscription,
+                        [{disc_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_subscription)},
+                         {type, set}]),
+    mnesia:add_table_copy(pubsub_subscription, node(), disc_copies),
     ok.
 
 -spec stop() -> ok.
@@ -328,8 +343,18 @@ add_subscription(Nidx, LJID, Sub, SubId) ->
     NSubscriptions = [{Sub, SubId} | State#pubsub_state.subscriptions ],
     mnesia:write(State#pubsub_state{ subscriptions = NSubscriptions }).
 
+-spec set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
+                            JID :: jid:ljid(),
+                            SubId :: mod_pubsub:subId(),
+                            Opts :: mod_pubsub:subOptions()) -> ok.
+set_subscription_opts(_Nidx, _JID, SubId, Opts) ->
+    mnesia:write(#pubsub_subscription{ subid = SubId, options = Opts }).
+
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
-    {ok, [{Entity :: jid:ljid(), Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Entity :: jid:ljid(),
+           Sub :: mod_pubsub:subscription(),
+           SubId :: mod_pubsub:subId(),
+           Opts :: mod_pubsub:subOptions()}]}.
 get_node_subscriptions(Nidx) ->
     {ok, States} = get_states(Nidx),
     {ok, states_to_subscriptions(States)}.
@@ -339,7 +364,7 @@ get_node_subscriptions(Nidx) ->
     {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
 get_node_entity_subscriptions(Nidx, LJID) ->
     {ok, State} = get_state(Nidx, LJID, read),
-    {ok, State#pubsub_state.subscriptions}.
+    {ok, add_opts_to_subs(State#pubsub_state.subscriptions)}.
 
 -spec delete_subscription(
         Nidx :: mod_pubsub:nodeIdx(),
@@ -349,6 +374,7 @@ get_node_entity_subscriptions(Nidx, LJID) ->
 delete_subscription(Nidx, LJID, SubId) ->
     {ok, State} = get_state(Nidx, LJID, write),
     NewSubs = lists:keydelete(SubId, 2, State#pubsub_state.subscriptions),
+    mnesia:delete({pubsub_subscription, SubId}),
     case {State#pubsub_state.affiliation, NewSubs} of
         {none, []} -> del_state(Nidx, LJID);
         _ -> mnesia:write(State#pubsub_state{subscriptions = NewSubs})
@@ -360,6 +386,8 @@ delete_subscription(Nidx, LJID, SubId) ->
     ok.
 delete_all_subscriptions(Nidx, LJID) ->
     {ok, State} = get_state(Nidx, LJID, write),
+    lists:foreach(fun({_, SubId}) -> mnesia:delete({pubsub_subscription, SubId}) end,
+                  State#pubsub_state.subscriptions),
     case State#pubsub_state.affiliation of
         none -> del_state(Nidx, LJID);
         _ -> mnesia:write(State#pubsub_state{subscriptions = []})
@@ -457,6 +485,8 @@ del_items(Nidx, ItemIds) ->
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
                LJID :: jid:ljid()) -> ok.
 del_state(Nidx, LJID) ->
+    {ok, #pubsub_state{ subscriptions = Subs }} = get_state(Nidx, LJID, write),
+    lists:foreach(fun({_, SubId}) -> mnesia:delete({pubsub_subscription, SubId}) end, Subs),
     mnesia:delete({pubsub_state, {LJID, Nidx}}).
 
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
@@ -471,22 +501,38 @@ get_state(Nidx, LJID, LockKind) ->
     end.
 
 -spec states_to_subscriptions([mod_pubsub:pubsubState()]) ->
-    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId()}].
+    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId(), mod_pubsub:subOptions()}].
 states_to_subscriptions([]) ->
     [];
 states_to_subscriptions([#pubsub_state{ subscriptions = [] } | RStates]) ->
     states_to_subscriptions(RStates);
 states_to_subscriptions([#pubsub_state{ stateid = {J, _}, subscriptions = Subs } | RStates]) ->
-    add_jid_to_subs(Subs, J, RStates).
+    add_jid_and_opts_to_subs(Subs, J, RStates).
 
--spec add_jid_to_subs(Subs :: [{mod_pubsub:subscription(), mod_pubsub:subId()}],
-                      LJID :: jid:ljid(),
-                      RStates :: [mod_pubsub:pubsubState()]) ->
-    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId()}].
-add_jid_to_subs([], _J, RStates) ->
+-spec add_jid_and_opts_to_subs(Subs :: [{mod_pubsub:subscription(), mod_pubsub:subId()}],
+                               LJID :: jid:ljid(),
+                               RStates :: [mod_pubsub:pubsubState()]) ->
+    [{jid:ljid(), mod_pubsub:subscription(), mod_pubsub:subId(), mod_pubsub:subOptions()}].
+add_jid_and_opts_to_subs([], _J, RStates) ->
     states_to_subscriptions(RStates);
-add_jid_to_subs([{S, SubId} | RSubs], J, RStates) ->
-    [ {J, S, SubId} | add_jid_to_subs(RSubs, J, RStates) ].
+add_jid_and_opts_to_subs([{S, SubId} | RSubs], J, RStates) ->
+    Opts = read_sub_options(SubId),
+    [ {J, S, SubId, Opts} | add_jid_and_opts_to_subs(RSubs, J, RStates) ].
+
+-spec add_opts_to_subs(Subs :: [{mod_pubsub:subscription(), mod_pubsub:subId()}]) ->
+    [{mod_pubsub:subscription(), mod_pubsub:subId(), mod_pubsub:subOptions()}].
+add_opts_to_subs([]) ->
+    [];
+add_opts_to_subs([{S, SubId} | RSubs]) ->
+    Opts = read_sub_options(SubId),
+    [ {S, SubId, Opts} | add_opts_to_subs(RSubs) ].
+
+-spec read_sub_options(SubId :: mod_pubsub:subId()) -> mod_pubsub:subOptions().
+read_sub_options(SubId) ->
+    case mnesia:read({pubsub_subscription, SubId}) of
+        [] -> [];
+        [#pubsub_subscription{ options = Opts0 }] -> Opts0
+    end.
 
 -spec get_idxs_with_pending_subs(NodeIdxs :: [mod_pubsub:nodeIdx()],
                                  PubsubState :: mod_pubsub:pubsubState(),
@@ -502,6 +548,5 @@ get_idxs_with_pending_subs(NodeIdxs,
     end.
 
 is_pending_sub({pending, _}) -> true;
-is_pending_sub(pending) -> true;
 is_pending_sub(_) -> false.
 

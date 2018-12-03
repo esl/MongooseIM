@@ -85,7 +85,7 @@
      Value::binary() | [binary()] | boolean()
 }).
 
--type(subOptions() :: [mod_pubsub:subOption(),...]).
+-type(subOptions() :: [mod_pubsub:subOption()]).
 
 
 
@@ -100,7 +100,6 @@
 
 -type(subscription() :: 'none'
                       | 'pending'
-                      | 'unconfigured' % this state does not seem to be used
                       | 'subscribed'
 ).
 %% @type subscription() = 'none' | 'pending' | 'unconfigured' | 'subscribed'.
@@ -153,12 +152,6 @@
     payload      = []                % :: mod_pubsub:payload()
 }).
 
--record(pubsub_subscription,
-{
-    subid        ,% :: mod_pubsub:subId(),
-    options = [] % :: mod_pubsub:subOptions()
-}).
-
 -record(pubsub_last_item,
 {
     nodeid   ,% :: mod_pubsub:nodeIdx(),
@@ -166,3 +159,4 @@
     creation ,% :: {erlang:timestamp(), jid:ljid()},
     payload  % :: mod_pubsub:payload()
 }).
+
