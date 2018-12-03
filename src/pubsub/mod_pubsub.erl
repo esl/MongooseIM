@@ -4032,7 +4032,7 @@ set_cached_item({_, ServerHost, _}, Nidx, ItemId, Publisher, Payload) ->
     set_cached_item(ServerHost, Nidx, ItemId, Publisher, Payload);
 set_cached_item(Host, Nidx, ItemId, Publisher, Payload) ->
     is_last_item_cache_enabled(Host) andalso
-        mod_pubsub_cache_backend:upsert_last_item(Nidx, ItemId, Publisher, Payload).
+        mod_pubsub_cache_backend:upsert_last_item(serverhost(Host), Nidx, ItemId, Publisher, Payload).
 
 unset_cached_item({_, ServerHost, _}, Nidx) ->
     unset_cached_item(ServerHost, Nidx);

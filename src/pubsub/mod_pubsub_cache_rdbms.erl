@@ -7,7 +7,7 @@
 -export([start/0, stop/0]).
 
 -export([
-         upsert_last_item/4,
+         upsert_last_item/5,
          delete_last_item/2,
          get_last_item/2]).
 %% ------------------------ Backend start/stop ------------------------
@@ -20,29 +20,30 @@ stop() -> ok.
 
 %% ------------------- Pubusub last item ------------------------------
 
--spec upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
-    ItemID :: mod_pubsub:itemId(),
-    Publisher ::jid:jid(),
-    Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
-upsert_last_item(Nidx, ItemID, Publisher, Payload) ->
-    Backend = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
+-spec upsert_last_item(ServerHost :: binary(),
+                       Nidx :: mod_pubsub:nodeIdx(),
+                       ItemID :: mod_pubsub:itemId(),
+                       Publisher ::jid:jid(),
+                       Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
+upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
+    Backend = {mongoose_rdbms:db_engine(ServerHost), mongoose_rdbms_type:get()},
     ReadQuerySQL = upsert_pubsub_last_item(Nidx, ItemID, Publisher, Payload, Backend),
-    Res = mongoose_rdbms:sql_query(Publisher#jid.lserver, ReadQuerySQL),
+    Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
     check_rdbms_response(Res).
 
--spec delete_last_item(Host :: binary(),
+-spec delete_last_item(ServerHost :: binary(),
                        Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
-delete_last_item(Host, Nidx) ->
+delete_last_item(ServerHost, Nidx) ->
     DeleteQuerySQL = delete_pubsub_last_item(Nidx),
-    Res = mongoose_rdbms:sql_query(Host, DeleteQuerySQL),
+    Res = mongoose_rdbms:sql_query(ServerHost, DeleteQuerySQL),
     check_rdbms_response(Res).
 
--spec get_last_item(Host :: binary(),
+-spec get_last_item(ServerHost :: binary(),
                     Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, LastItem :: mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
-get_last_item(Host, Nidx) ->
+get_last_item(ServerHost, Nidx) ->
     ReadQuerySQL = get_pubsub_last_item(Nidx),
-    Res = mongoose_rdbms:sql_query(Host, ReadQuerySQL),
+    Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
     check_rdbms_response(Res).
 
 -spec get_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().

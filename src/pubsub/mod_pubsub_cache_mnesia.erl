@@ -6,7 +6,7 @@
 -export([start/0, stop/0]).
 
 -export([
-         upsert_last_item/4,
+         upsert_last_item/5,
          get_last_item/2,
          delete_last_item/2]).
 
@@ -20,26 +20,28 @@ start() ->
 stop() ->
     ok.
 
--spec upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
-                 ItemID :: mod_pubsub:itemId(),
-                 Publisher::jid:ljid(),
-                 Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
-upsert_last_item(Nidx, ItemId, Publisher, Payload) ->
+-spec upsert_last_item(ServerHost :: binary(),
+                       Nidx :: mod_pubsub:nodeIdx(),
+                       ItemID :: mod_pubsub:itemId(),
+                       Publisher::jid:ljid(),
+                       Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
+upsert_last_item(ServerHost, Nidx, ItemId, Publisher, Payload) ->
+    CreatedAt = os:timestamp(),
     try mnesia:dirty_write(
-        {pubsub_last_item,
-        Nidx,
-        ItemId,
-        {os:timestamp(), jid:to_lower(jid:to_bare(Publisher))},
-        Payload}
+        #pubsub_last_item{
+        nodeid = Nidx,
+        itemid = ItemId,
+        creation = {CreatedAt, {Publisher#jid.luser, ServerHost, <<>>}},
+        payload = Payload}
     ) of
         ok -> ok
     catch
         exit:{aborted, Reason} -> {error, Reason}
     end.
 
--spec get_last_item(Host :: binary(),
+-spec get_last_item(ServerHost :: binary(),
                     Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
-get_last_item(_Host, Nidx) ->
+get_last_item(_ServerHost, Nidx) ->
     try mnesia:dirty_read({pubsub_last_item, Nidx}) of
         [LastItem] -> {ok, LastItem};
         [] -> {error, no_items}
@@ -47,9 +49,9 @@ get_last_item(_Host, Nidx) ->
         exit:{aborted, Reason} -> {error, Reason}
     end.
 
--spec delete_last_item(Host :: binary(),
+-spec delete_last_item(ServerHost :: binary(),
                        Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
-delete_last_item(_Host, Nidx) ->
+delete_last_item(_ServerHost, Nidx) ->
     try mnesia:dirty_delete({pubsub_last_item, Nidx}) of
         ok -> ok
     catch

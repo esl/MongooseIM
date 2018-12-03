@@ -10,15 +10,16 @@
 
 -callback stop() -> ok.
 
--callback upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
+-callback upsert_last_item(ServerHost :: binary(),
+                           Nidx :: mod_pubsub:nodeIdx(),
                            ItemID :: mod_pubsub:itemId(),
                            Publisher::jid:ljid(),
                            Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 
--callback delete_last_item(Host :: binary(),
+-callback delete_last_item(ServerHost :: binary(),
                            Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
 
--callback get_last_item(Host :: binary(),
+-callback get_last_item(ServerHost :: binary(),
                         Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, LastItem :: mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
 
