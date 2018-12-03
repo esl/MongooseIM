@@ -6,8 +6,6 @@
 -export([start/0, stop/0]).
 
 -export([
-         create_table/0,
-         delete_table/0,
          upsert_last_item/4,
          get_last_item/2,
          delete_last_item/2]).
@@ -20,23 +18,7 @@ start() ->
 
 -spec stop() -> ok.
 stop() ->
-    delete_table().
-
--spec create_table() -> ok | {error, Reason :: term()}.
-create_table() ->
-    QueryResult = mnesia:create_table(
-        pubsub_last_item,
-        [
-            {ram_copies, [node()]},
-            {attributes, record_info(fields, pubsub_last_item)}
-        ]),
-        mnesia:add_table_copy(pubsub_last_item, node(), ram_copies),
-        process_query_result(QueryResult).
-
--spec delete_table() -> ok | {error, Reason :: term()}.
-delete_table() ->
-    QueryResult = mnesia:del_table_copy(pubsub_last_item, node()),
-    process_query_result(QueryResult).
+    ok.
 
 -spec upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
                  ItemID :: mod_pubsub:itemId(),
@@ -74,6 +56,17 @@ delete_last_item(_Host, Nidx) ->
     end.
 
 %% ------------------------ Helpers ----------------------------
+
+-spec create_table() -> ok | {error, Reason :: term()}.
+create_table() ->
+    QueryResult = mnesia:create_table(
+        pubsub_last_item,
+        [
+            {ram_copies, [node()]},
+            {attributes, record_info(fields, pubsub_last_item)}
+        ]),
+        mnesia:add_table_copy(pubsub_last_item, node(), ram_copies),
+        process_query_result(QueryResult).
 
 process_query_result({atomic, ok}) -> ok;
 process_query_result({aborted, {already_exists, pubsub_last_item}}) -> ok;

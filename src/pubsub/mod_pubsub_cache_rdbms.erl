@@ -6,8 +6,7 @@
 
 -export([start/0, stop/0]).
 
--export([create_table/0,
-         delete_table/0,
+-export([
          upsert_last_item/4,
          delete_last_item/2,
          get_last_item/2]).
@@ -20,12 +19,6 @@ start() -> ok.
 stop() -> ok.
 
 %% ------------------- Pubusub last item ------------------------------
-
--spec create_table() -> ok | {error, Reason :: term()}.
-create_table() -> ok.
-
--spec delete_table() -> ok | {error, Reason :: term()}.
-delete_table() -> ok.
 
 -spec upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
     ItemID :: mod_pubsub:itemId(),

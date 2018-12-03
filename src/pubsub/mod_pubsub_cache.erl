@@ -10,10 +10,6 @@
 
 -callback stop() -> ok.
 
--callback create_table() -> ok | {error, Reason :: term()}.
-
--callback delete_table() -> ok | {error, Reason :: term()}.
-
 -callback upsert_last_item(Nidx :: mod_pubsub:nodeIdx(),
                            ItemID :: mod_pubsub:itemId(),
                            Publisher::jid:ljid(),
