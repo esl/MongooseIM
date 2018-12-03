@@ -19,5 +19,6 @@
                            Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
 
 -callback get_last_item(Host :: binary(),
-                        Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
+                        Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, LastItem :: mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
 

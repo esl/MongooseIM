@@ -39,7 +39,7 @@ delete_last_item(Host, Nidx) ->
 
 -spec get_last_item(Host :: binary(),
                     Nidx :: mod_pubsub:nodeIdx()) ->
-    [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
+    {ok, LastItem :: mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
 get_last_item(Host, Nidx) ->
     ReadQuerySQL = get_pubsub_last_item(Nidx),
     Res = mongoose_rdbms:sql_query(Host, ReadQuerySQL),
@@ -127,8 +127,8 @@ upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
 %% Helpers
 %%====================================================================
 
-check_rdbms_response({selected, LastItemRows}) ->
-    LastItemRows;
+check_rdbms_response({selected, [LastItem]}) ->
+    {ok, LastItem};
 check_rdbms_response({updated, _}) ->
     ok;
 check_rdbms_response(Response) ->

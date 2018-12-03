@@ -4047,7 +4047,7 @@ get_cached_item({_, ServerHost, _}, Nidx) ->
 get_cached_item(Host, Nidx) ->
     is_last_item_cache_enabled(Host) andalso
         case mod_pubsub_cache_backend:get_last_item(serverhost(Host), Nidx) of
-                [#pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}] ->
+            {ok, #pubsub_last_item{itemid = ItemId, creation = Creation, payload = Payload}} ->
                     #pubsub_item{itemid = {ItemId, Nidx},
                                  payload = Payload, creation = Creation,
                                  modification = Creation};

@@ -41,7 +41,8 @@ upsert_last_item(Nidx, ItemId, Publisher, Payload) ->
                     Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
 get_last_item(_Host, Nidx) ->
     try mnesia:dirty_read({pubsub_last_item, Nidx}) of
-        L when is_list(L) -> L
+        [LastItem] -> {ok, LastItem};
+        [] -> {error, no_items}
     catch
         exit:{aborted, Reason} -> {error, Reason}
     end.
