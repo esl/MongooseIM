@@ -46,7 +46,8 @@
          disable_persist_items_test/1,
          notify_only_available_users_test/1,
          notify_unavailable_user_test/1,
-         send_last_published_item_test/1
+         send_last_published_item_test/1,
+         send_last_published_item_no_items_test/1
         ]).
 
 -export([
@@ -149,7 +150,8 @@ base_groups() ->
          {collection_config, [parallel], collection_config_tests()},
          {debug_calls, [parallel], debug_calls_tests()},
          {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
-         {hometree_specific, [parallel], hometree_specific_tests()}
+         {hometree_specific, [parallel], hometree_specific_tests()},
+         {last_item_cache, [parallel], last_item_cache_tests()}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -250,6 +252,13 @@ hometree_specific_tests() ->
      deleting_parent_path_deletes_children
     ].
 
+last_item_cache_tests() ->
+    [
+     send_last_published_item_test,
+     send_last_published_item_no_items_test,
+     purge_all_items_test
+    ].
+
 encode_group_name(BaseName, NodeTree) ->
     binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
 
@@ -284,6 +293,11 @@ extra_options_by_group_name(#{ node_tree := NodeTree,
                                base_name := hometree_specific }) ->
     [{nodetree, NodeTree},
      {plugins, [<<"hometree">>]}];
+extra_options_by_group_name(#{ node_tree := NodeTree,
+                               base_name := last_item_cache}) ->
+    [{nodetree, NodeTree},
+     {plugins, [plugin_by_nodetree(NodeTree)]},
+     {last_item_cache, mongoose_helper:mnesia_or_rdbms_backend()}];
 extra_options_by_group_name(#{ node_tree := NodeTree }) ->
     [{nodetree, NodeTree},
      {plugins, [plugin_by_nodetree(NodeTree)]}].
@@ -809,6 +823,23 @@ send_last_published_item_test(Config) ->
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+
+send_last_published_item_no_items_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              NodeConfig = [{<<"pubsub#send_last_published_item">>, <<"on_sub_and_presence">>}],
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, [{config, NodeConfig}]),
+
+              %% Note: when Bob subscribes, the last item would is sent to him
+              pubsub_tools:subscribe(Bob, Node, [{receive_response, false}]),
+              escalus_assert:has_no_stanzas(Bob),
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+
 
 %%--------------------------------------------------------------------
 %% Node affiliations management

@@ -536,6 +536,17 @@ CREATE TABLE dbo.pubsub_items (
     )
 )
 GO
+
+CREATE TABLE dbo.pubsub_last_item (
+    nidx BIGINT                      NOT NULL PRIMARY KEY,
+    itemid NVARCHAR(250)             NOT NULL,
+    created_luser NVARCHAR(250)      NOT NULL,
+    created_lserver NVARCHAR(250)    NOT NULL,
+    created_at BIGINT                NOT NULL,
+    payload VARBINARY(max)           NOT NULL
+)
+GO
+
 -- we skip luser and lserver in this one as this is little chance (even impossible?)
 -- to have itemid duplication for distinct users
 CREATE INDEX i_pubsub_items_lus_nidx ON pubsub_items(created_luser, created_lserver, nidx);

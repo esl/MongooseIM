@@ -399,6 +399,17 @@ CREATE TABLE pubsub_items (
     PRIMARY KEY(nidx, itemid)
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
+
+CREATE TABLE pubsub_last_item (
+    nidx BIGINT                      NOT NULL,
+    itemid VARCHAR(250)              NOT NULL,
+    created_luser VARCHAR(250)       NOT NULL,
+    created_lserver VARCHAR(250)     NOT NULL,
+    created_at BIGINT                NOT NULL,
+    payload TEXT                     NOT NULL,
+	PRIMARY KEY (nidx)
+);
+
 -- we skip luser and lserver in this one as this is little chance (even impossible?)
 -- to have itemid duplication for distinct users
 CREATE INDEX i_pubsub_items_nidx_itemid USING BTREE ON pubsub_items(nidx);
