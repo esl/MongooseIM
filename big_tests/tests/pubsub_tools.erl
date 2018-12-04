@@ -36,6 +36,7 @@
          subscribe/3,
          unsubscribe/3,
          get_user_subscriptions/3,
+         get_subscription_options/3,
          get_node_subscriptions/3,
          submit_subscription_response/5,
          get_pending_subscriptions/3,
@@ -195,6 +196,15 @@ unsubscribe(User, Node, Options) ->
 get_user_subscriptions(User, NodeAddr, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"user_subscriptions">>),
     Request = escalus_pubsub_stanza:get_user_subscriptions(User, Id, NodeAddr),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              check_user_subscriptions_response(User, Response, ExpectedResult)
+      end).
+
+get_subscription_options(User, {NodeAddr, NodeName}, Options) ->
+    Id = id(User, {NodeAddr, <<>>}, <<"options">>),
+    Request = escalus_pubsub_stanza:get_subscription_options(User, Id, {NodeAddr, NodeName}),
     send_request_and_receive_response(
       User, Request, Id, Options,
       fun(Response, ExpectedResult) ->

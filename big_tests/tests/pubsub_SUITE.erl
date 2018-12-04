@@ -21,6 +21,7 @@
          discover_nodes_test/1,
          create_delete_node_test/1,
          subscribe_unsubscribe_test/1,
+         subscribe_options_test/1,
          publish_test/1,
          publish_with_max_items_test/1,
          publish_with_existing_id_test/1,
@@ -160,6 +161,7 @@ basic_tests() ->
      discover_nodes_test,
      create_delete_node_test,
      subscribe_unsubscribe_test,
+     subscribe_options_test,
      publish_test,
      publish_with_max_items_test,
      publish_with_existing_id_test,
@@ -391,6 +393,20 @@ subscribe_unsubscribe_test(Config) ->
               %% Check subscriptions without resources
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
               pubsub_tools:unsubscribe(Bob, Node, [{jid_type, bare}]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+subscribe_options_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              {_, NodeName} = Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+              pubsub_tools:subscribe(Bob, Node, [{deliver, true}]),
+
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, []),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
