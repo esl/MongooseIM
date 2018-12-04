@@ -27,7 +27,8 @@ stop() -> ok.
                        Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
     Backend = {mongoose_rdbms:db_engine(ServerHost), mongoose_rdbms_type:get()},
-    ReadQuerySQL = upsert_pubsub_last_item(Nidx, ItemID, Publisher, Payload, Backend),
+    PayloadXML = #xmlel{name = <<"item">>, children = Payload},
+    ReadQuerySQL = upsert_pubsub_last_item(Nidx, ItemID, Publisher, PayloadXML, Backend),
     Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
     check_rdbms_response(Res).
 
@@ -48,7 +49,7 @@ get_last_item(ServerHost, Nidx) ->
 
 -spec get_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
 get_pubsub_last_item(Nidx) ->
-    ["SELECT * FROM pubsub_last_item"
+    ["SELECT nidx, itemid, created_luser, created_at, created_lserver, payload FROM pubsub_last_item"
      " WHERE nidx = ", esc_int(Nidx), ";"].
 
 -spec delete_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
@@ -56,11 +57,11 @@ delete_pubsub_last_item(Nidx) ->
     ["DELETE FROM pubsub_last_item"
     " WHERE nidx = ", esc_int(Nidx), ";"].
 
- -spec upsert_pubsub_last_item(
+-spec upsert_pubsub_last_item(
     Nidx::mod_pubsub:nodeIdx(),
     ItemId::mod_pubsub:itemId(),
     Publisher::jid:jid(),
-    Payload::mod_pubsub:payload(),
+    Payload::exml:element(),
     Backend::{atom(), atom()}) -> iolist().
 upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {pgsql, _}) ->
     upsert_parametrized(Nidx, ItemId, Publisher, Payload, pgsql);
@@ -128,7 +129,10 @@ upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
 %% Helpers
 %%====================================================================
 
-check_rdbms_response({selected, [LastItem]}) ->
+check_rdbms_response({selected, []}) ->
+    {error, no_items};
+check_rdbms_response({selected, [SelectedItem]}) ->
+    LastItem = item_to_record(SelectedItem),
     {ok, LastItem};
 check_rdbms_response({updated, _}) ->
     ok;
@@ -160,3 +164,13 @@ columns() -> "(nidx, itemid, created_luser, created_lserver, created_at, payload
 
 on_conflict_line(pgsql) -> "ON CONFLICT (nidx) DO UPDATE SET ";
 on_conflict_line(mysql) -> "ON DUPLICATE KEY UPDATE ".
+
+item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedAt, CreatedLServer, PayloadDB}) ->
+    PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
+    {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
+    Creation = {usec:to_now(mongoose_rdbms:result_to_integer(CreatedAt)),
+                {CreatedLUser, CreatedLServer, <<>>}},
+    #pubsub_last_item{itemid = ItemId,
+                      nodeid = NodeIdx,
+                      creation = Creation,
+                      payload = Payload}.
