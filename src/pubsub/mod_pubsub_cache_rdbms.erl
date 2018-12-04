@@ -30,14 +30,14 @@ upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
     PayloadXML = #xmlel{name = <<"item">>, children = Payload},
     ReadQuerySQL = upsert_pubsub_last_item(Nidx, ItemID, Publisher, PayloadXML, Backend),
     Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
-    check_rdbms_response(Res).
+    convert_rdbms_response(Res).
 
 -spec delete_last_item(ServerHost :: binary(),
                        Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
 delete_last_item(ServerHost, Nidx) ->
     DeleteQuerySQL = delete_pubsub_last_item(Nidx),
     Res = mongoose_rdbms:sql_query(ServerHost, DeleteQuerySQL),
-    check_rdbms_response(Res).
+    convert_rdbms_response(Res).
 
 -spec get_last_item(ServerHost :: binary(),
                     Nidx :: mod_pubsub:nodeIdx()) ->
@@ -45,7 +45,7 @@ delete_last_item(ServerHost, Nidx) ->
 get_last_item(ServerHost, Nidx) ->
     ReadQuerySQL = get_pubsub_last_item(Nidx),
     Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
-    check_rdbms_response(Res).
+    convert_rdbms_response(Res).
 
 -spec get_pubsub_last_item(mod_pubsub:nodeIdx()) -> iolist().
 get_pubsub_last_item(Nidx) ->
@@ -129,14 +129,14 @@ upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
 %% Helpers
 %%====================================================================
 
-check_rdbms_response({selected, []}) ->
+convert_rdbms_response({selected, []}) ->
     {error, no_items};
-check_rdbms_response({selected, [SelectedItem]}) ->
+convert_rdbms_response({selected, [SelectedItem]}) ->
     LastItem = item_to_record(SelectedItem),
     {ok, LastItem};
-check_rdbms_response({updated, _}) ->
+convert_rdbms_response({updated, _}) ->
     ok;
-check_rdbms_response(Response) ->
+convert_rdbms_response(Response) ->
     ?ERROR_MSG("RDBMS cache failed with: ~p", [Response]),
     {error, pubsub_rdbms_cache_failed}.
 
