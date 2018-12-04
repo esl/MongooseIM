@@ -51,7 +51,7 @@ write_to_sender_inbox(Server, Sender, Receiver, Packet) ->
     Username = Sender#jid.luser,
     RemoteBareJid = jid:to_binary(jid:to_bare(Receiver)),
     %% no unread for a user because he writes new messages which assumes he read all previous messages.
-    Count = integer_to_binary(0),
+    Count = 0,
     Timestamp = erlang:timestamp(),
     ok = mod_inbox_backend:set_inbox(Username, Server, RemoteBareJid,
                                      Content, Count, MsgId, Timestamp).

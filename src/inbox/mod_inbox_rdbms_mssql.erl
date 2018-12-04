@@ -12,7 +12,7 @@
 
 -include("mod_inbox.hrl").
 
--export([set_inbox/7, set_inbox_incr_unread/6]).
+-export([set_inbox_incr_unread/6]).
 
 -import(mod_inbox_rdbms, [esc_string/1, esc_int/1]).
 
@@ -20,24 +20,12 @@
 %% API
 %% -----------------------------------------------------------
 
--spec set_inbox(Username :: jid:luser(),
-                Server :: jid:lserver(),
-                ToBareJid :: binary(),
-                Content :: binary(),
-                Count :: binary(),
-                MsgId :: binary(),
-                Timestamp :: non_neg_integer()) -> query_result().
-set_inbox(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp) ->
-    Query = build_query(Username, Server, ToBareJid, Content, Count, MsgId, Timestamp),
-    mongoose_rdbms:sql_query(Server, Query).
-
-
 -spec set_inbox_incr_unread(Username :: jid:luser(),
                             Server :: jid:lserver(),
                             ToBareJid :: binary(),
                             Content :: binary(),
                             MsgId :: binary(),
-                            Timestamp :: non_neg_integer()) -> query_result().
+                            Timestamp :: non_neg_integer()) -> mongoose_rdbms:query_result().
 set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
     Query = build_query(Username, Server, ToBareJid, Content, increment, MsgId, Timestamp),
     mongoose_rdbms:sql_query(Server, Query).
@@ -49,10 +37,7 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
 build_query(Username, Server, ToBareJid, Content, increment, MsgId, Timestamp) ->
     CountUpdate = "target.unread_count + 1",
     build_query(Username, Server, ToBareJid, Content, MsgId,
-                Timestamp, esc_string("1"), CountUpdate);
-build_query(Username, Server, ToBareJid, Content, CountValue, MsgId, Timestamp) ->
-    ECount = esc_string(CountValue),
-    build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp, ECount, ECount).
+                Timestamp, esc_string("1"), CountUpdate).
 
 build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp, CountInsert, CountUpdate) ->
     ELUser = esc_string(Username),

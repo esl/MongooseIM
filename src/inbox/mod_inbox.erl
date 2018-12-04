@@ -34,7 +34,7 @@
                     Server :: jid:lserver(),
                     ToBareJid :: binary(),
                     Content :: binary(),
-                    Count :: binary(),
+                    Count :: integer(),
                     MsgId :: binary(),
                     Timestamp :: erlang:timestamp().
 
@@ -85,6 +85,7 @@ deps(_Host, Opts) ->
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
+    mod_inbox_backend:init(Host, Opts),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     MucTypes = get_groupchat_types(Host),
