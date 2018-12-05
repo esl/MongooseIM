@@ -4,7 +4,7 @@
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
 
--export([start/0, stop/0]).
+-export([start/1, stop/0]).
 
 -export([
          upsert_last_item/5,
@@ -12,24 +12,36 @@
          get_last_item/2]).
 %% ------------------------ Backend start/stop ------------------------
 
--spec start() -> ok.
-start() -> ok.
+-spec start(jid:lserver()) -> ok.
+start(Host) ->
+    InsertFields = [<<"nidx">>, <<"itemid">>, <<"created_luser">>,
+                    <<"created_lserver">>, <<"created_at">>, <<"payload">>],
+    UpdateFields = [<<"itemid">>, <<"created_luser">>, <<"created_lserver">>,
+                    <<"created_at">>, <<"payload">>],
+    rdbms_queries:prepare_upsert(Host, pubsub_last_item_upsert, pubsub_last_item,
+                                 InsertFields,
+                                 UpdateFields,
+                                 [<<"nidx">>]),
+    ok.
 
 -spec stop() -> ok.
 stop() -> ok.
 
 %% ------------------- Pubusub last item ------------------------------
 
--spec upsert_last_item(ServerHost :: binary(),
+-spec upsert_last_item(ServerHost :: jid:lserver(),
                        Nidx :: mod_pubsub:nodeIdx(),
                        ItemID :: mod_pubsub:itemId(),
                        Publisher ::jid:jid(),
                        Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
-    Backend = {mongoose_rdbms:db_engine(ServerHost), mongoose_rdbms_type:get()},
-    PayloadXML = #xmlel{name = <<"item">>, children = Payload},
-    ReadQuerySQL = upsert_pubsub_last_item(Nidx, ItemID, Publisher, PayloadXML, Backend),
-    Res = mongoose_rdbms:sql_query(ServerHost, ReadQuerySQL),
+    {ModifiedLUser, ModifiedLServer,
+     CreatedAt, PayloadBin} = prepare_upsert_params(Publisher, Payload),
+    InsertParams = [Nidx, ItemID, ModifiedLUser, ModifiedLServer, CreatedAt, PayloadBin],
+    UpdateParams = [ItemID, ModifiedLUser, ModifiedLServer, CreatedAt, PayloadBin],
+    UniqueKeyValues = [Nidx],
+    Res = rdbms_queries:execute_upsert(ServerHost, pubsub_last_item_upsert,
+                                       InsertParams, UpdateParams, UniqueKeyValues),
     convert_rdbms_response(Res).
 
 -spec delete_last_item(ServerHost :: binary(),
@@ -57,74 +69,6 @@ delete_pubsub_last_item(Nidx) ->
     ["DELETE FROM pubsub_last_item"
     " WHERE nidx = ", esc_int(Nidx), ";"].
 
--spec upsert_pubsub_last_item(
-    Nidx::mod_pubsub:nodeIdx(),
-    ItemId::mod_pubsub:itemId(),
-    Publisher::jid:jid(),
-    Payload::exml:element(),
-    Backend::{atom(), atom()}) -> iolist().
-upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {pgsql, _}) ->
-    upsert_parametrized(Nidx, ItemId, Publisher, Payload, pgsql);
-upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {mysql, _}) ->
-    upsert_parametrized(Nidx, ItemId, Publisher, Payload, mysql);
-upsert_pubsub_last_item(Nidx, ItemId, Publisher, Payload, {odbc, mssql}) ->
-    {
-     EscNidx, EscItemId,
-     EscModifiedLUser, EscModifiedLServer,
-     EscCreatedAt, EscPayload
-    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
-    PayloadXML = exml:to_binary(Payload),
-    MSSQLPayload = mongoose_rdbms:use_escaped_binary(mongoose_rdbms:escape_binary(global, PayloadXML)),
-    ["MERGE INTO pubsub_last_item with (SERIALIZABLE) as target"
-     " USING (SELECT ", EscNidx, " AS nidx )"
-            " AS source (nidx)"
-        " ON target.nidx = source.nidx"
-     " WHEN MATCHED THEN UPDATE"
-       " SET ",
-        "nidx = ", EscNidx, ", "
-        "itemid = ", EscItemId, ", "
-        "created_luser = ", EscModifiedLUser, ", "
-        "created_lserver = ", EscModifiedLServer, ", "
-        "created_at = ", EscCreatedAt, ", "
-        "payload = ", MSSQLPayload,
-     " WHEN NOT MATCHED THEN INSERT ",
-        columns(),
-         " VALUES (",
-            EscNidx,", ",
-            EscItemId,", ",
-            EscModifiedLUser,", ",
-            EscModifiedLServer,", ",
-            EscCreatedAt,", ",
-            MSSQLPayload,
-          ");"].
-
-upsert_parametrized(Nidx, ItemId, Publisher, Payload, OnConflictLine) ->
-        {
-        EscNidx, EscItemId,
-        EscModifiedLUser, EscModifiedLServer,
-        EscCreatedAt, EscPayload
-    } = esc_query_parms(Nidx, ItemId, Publisher, Payload),
-    [
-        "INSERT INTO pubsub_last_item ",
-        columns(),
-        " VALUES (",
-            EscNidx,", ",
-            EscItemId,", ",
-            EscModifiedLUser,", ",
-            EscModifiedLServer,", ",
-            EscCreatedAt,", ",
-            EscPayload,
-            ") ",
-        on_conflict_line(OnConflictLine),
-            "nidx = ", EscNidx, ", ",
-            "itemid = ", EscItemId, ", ",
-            "created_luser = ", EscModifiedLUser, ", ",
-            "created_lserver = ", EscModifiedLServer, ", ",
-            "created_at = ", EscCreatedAt, ", ",
-            "payload = ", EscPayload,
-            ";"].
-
-
 %%====================================================================
 %% Helpers
 %%====================================================================
@@ -140,30 +84,19 @@ convert_rdbms_response(Response) ->
     ?ERROR_MSG("RDBMS cache failed with: ~p", [Response]),
     {error, pubsub_rdbms_cache_failed}.
 
-esc_string(String) ->
-    mongoose_rdbms:use_escaped_string(mongoose_rdbms:escape_string(String)).
-
 esc_int(Int) ->
     mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
-esc_query_parms(Nidx, ItemId, Publisher, Payload) ->
-    EscNidx = esc_int(Nidx),
-    EscItemId = esc_string(ItemId),
-    EscCreatedAt = esc_int(usec:from_now(os:timestamp())),
-    BinaryPayload = exml:to_binary(Payload),
-    EscPayload = esc_string(BinaryPayload),
-    EscModifiedLUser = esc_string(Publisher#jid.luser),
-    EscModifiedLServer = esc_string(Publisher#jid.lserver),
+prepare_upsert_params(Publisher, Payload) ->
+    PayloadXML = #xmlel{name = <<"item">>, children = Payload},
+    CreatedAt = usec:from_now(os:timestamp()),
+    BinaryPayload = exml:to_binary(PayloadXML),
+    ModifiedLUser = Publisher#jid.luser,
+    ModifiedLServer = Publisher#jid.lserver,
     {
-        EscNidx, EscItemId,
-        EscModifiedLUser, EscModifiedLServer,
-        EscCreatedAt, EscPayload
+        ModifiedLUser, ModifiedLServer,
+        CreatedAt, BinaryPayload
     }.
-
-columns() -> "(nidx, itemid, created_luser, created_lserver, created_at, payload)".
-
-on_conflict_line(pgsql) -> "ON CONFLICT (nidx) DO UPDATE SET ";
-on_conflict_line(mysql) -> "ON DUPLICATE KEY UPDATE ".
 
 item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedAt, CreatedLServer, PayloadDB}) ->
     PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),

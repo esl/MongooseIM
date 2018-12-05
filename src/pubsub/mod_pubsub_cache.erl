@@ -6,7 +6,7 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--callback start() -> ok.
+-callback start(jid:lserver()) -> ok.
 
 -callback stop() -> ok.
 

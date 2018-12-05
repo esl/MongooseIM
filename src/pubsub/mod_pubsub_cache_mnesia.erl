@@ -3,7 +3,7 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([start/0, stop/0]).
+-export([start/1, stop/0]).
 
 -export([
          upsert_last_item/5,
@@ -12,8 +12,8 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--spec start() -> ok.
-start() ->
+-spec start(jid:lserver()) -> ok.
+start(_) ->
     create_table().
 
 -spec stop() -> ok.
