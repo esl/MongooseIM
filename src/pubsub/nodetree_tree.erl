@@ -91,13 +91,11 @@ create_node(Host, NodeName, Type, Owner, Options, Parents) ->
         false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
-                    Nidx = pubsub_index:new(node),
                     Node = #pubsub_node{nodeid = {Host, NodeName},
-                                        id = Nidx, parents = Parents,
+                                        parents = Parents,
                                         type = Type, owners = [BJID],
                                         options = Options},
-                    set_node(Node),
-                    {ok, Nidx};
+                    set_node(Node);
                 false ->
                     {error, mongoose_xmpp_errors:forbidden()}
             end;
@@ -126,9 +124,8 @@ check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
 delete_node(Host, Node) ->
     SubNodesTree = mod_pubsub_db_backend:get_subnodes_tree(Host, Node),
     Removed = lists:flatten([Nodes || {_, Nodes} <- SubNodesTree]),
-    lists:foreach(fun (#pubsub_node{nodeid = {_, SubNode}, id = SubNidx}) ->
-                pubsub_index:free(node, SubNidx),
-                mod_pubsub_db_backend:delete_node(Host, SubNode)
+    lists:foreach(fun (NodeToDel) ->
+                mod_pubsub_db_backend:delete_node(NodeToDel)
         end,
         Removed),
     Removed.

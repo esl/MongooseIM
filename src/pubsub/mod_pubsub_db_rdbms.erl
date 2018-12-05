@@ -28,7 +28,7 @@
          find_node_by_id/1,
          find_nodes_by_key/1,
          find_node_by_name/2,
-         delete_node/2,
+         delete_node/1,
          get_subnodes/2,
          get_parentnodes_tree/2,
          get_subnodes_tree/2
@@ -228,7 +228,10 @@ del_node(Nidx) ->
     {updated, _} = mongoose_rdbms:sql_query(global, DelAllAffsQ),
     {ok, States}.
 
--spec set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
+-spec set_node(Node :: mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
+set_node(#pubsub_node{id = undefined} = Node) ->
+    CreateNode = Node#pubsub_node{id = pubsub_index:new(node)},
+    set_node(CreateNode);
 set_node(#pubsub_node{nodeid = {Key, Name}, id = Nidx, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
@@ -237,7 +240,7 @@ set_node(#pubsub_node{nodeid = {Key, Name}, id = Nidx, type = Type,
                                                      jsx:encode(Opts)),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     maybe_set_parents(Name, Parents),
-    ok.
+    {ok, Nidx}.
 
 maybe_set_parents(_Name, []) ->
     ok;
@@ -304,8 +307,9 @@ find_nodes_by_key(Key) ->
     [decode_pubsub_node_row(Row) || Row <- Rows].
 
 
--spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
-delete_node(Key, Node) ->
+-spec delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
+delete_node(#pubsub_node{nodeid = {Key, Node}, id = NodeIdx}) ->
+    pubsub_index:free(node, NodeIdx),
     SQL = mod_pubsub_db_rdbms_sql:delete_node(encode_key(Key), Node),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.

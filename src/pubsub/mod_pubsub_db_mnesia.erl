@@ -26,7 +26,7 @@
          find_node_by_id/1,
          find_nodes_by_key/1,
          find_node_by_name/2,
-         delete_node/2,
+         delete_node/1,
          get_subnodes/2,
          get_parentnodes_tree/2,
          get_subnodes_tree/2
@@ -98,6 +98,7 @@ start() ->
                          {attributes, record_info(fields, pubsub_subscription)},
                          {type, set}]),
     mnesia:add_table_copy(pubsub_subscription, node(), disc_copies),
+    pubsub_index:init(),
     ok.
 
 -spec stop() -> ok.
@@ -209,9 +210,13 @@ del_node(Nidx) ->
                   end, States),
     {ok, States}.
 
--spec set_node(mod_pubsub:pubsubNode()) -> ok.
-set_node(Node) when is_record(Node, pubsub_node) ->
-    mnesia:write(Node).
+-spec set_node(mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
+set_node(#pubsub_node{id = undefined} = Node) ->
+    CreateNode = Node#pubsub_node{id = pubsub_index:new(node)},
+    set_node(CreateNode);
+set_node(#pubsub_node{id = Nidx} = Node) ->
+    mnesia:write(Node),
+    {ok, Nidx}.
 
 
 -spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
@@ -252,9 +257,10 @@ find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
 oid(Key, Name) -> {Key, Name}.
 
 
--spec delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
-delete_node(Key, Node) ->
-    mnesia:delete({pubsub_node, oid(Key, Node)}).
+-spec delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
+delete_node(#pubsub_node{nodeid = NodeId, id = NodeIdx}) ->
+    pubsub_index:free(node, NodeIdx),
+    mnesia:delete({pubsub_node, NodeId}).
 
 
 -spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
