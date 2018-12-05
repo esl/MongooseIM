@@ -43,6 +43,7 @@
 
 %% mod_vcards callbacks
 -export([init/2,
+         tear_down/1,
          remove_user/2,
          get_vcard/2,
          set_vcard/4,
@@ -139,6 +140,11 @@
 
 init(VHost, Options) ->
     start_link(VHost, Options),
+    ok.
+
+tear_down(LServer) ->
+    Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
+    gen_server:call(Proc, stop),
     ok.
 
 remove_user(_LUser, _LServer) ->

@@ -119,6 +119,10 @@
     VHost :: jid:lserver(),
     Lang :: binary().
 
+-callback tear_down(jid:lserver()) -> ok.
+
+-optional_callbacks([tear_down/1]).
+
 -spec default_search_fields() -> list().
 default_search_fields() ->
     [{<<"User">>, <<"user">>},
@@ -164,6 +168,14 @@ start(VHost, Opts) ->
 
 stop(VHost) ->
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),
+    try
+      mod_vcard_backend:tear_down(VHost)
+    catch
+      error:undef ->
+        %% This is expected for other backends than ldap
+        ok
+    end,
+
     gen_server:call(Proc, stop),
     ejabberd_sup:stop_child(Proc).
 
