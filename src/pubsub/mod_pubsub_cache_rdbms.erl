@@ -1,5 +1,7 @@
 -module(mod_pubsub_cache_rdbms).
 
+-behaviour(mod_pubsub_cache).
+
 -include("pubsub.hrl").
 -include("jlib.hrl").
 -include("mongoose_logger.hrl").
@@ -32,7 +34,7 @@ stop() -> ok.
 -spec upsert_last_item(ServerHost :: jid:lserver(),
                        Nidx :: mod_pubsub:nodeIdx(),
                        ItemID :: mod_pubsub:itemId(),
-                       Publisher ::jid:jid(),
+                       Publisher :: jid:jid(),
                        Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
     {ModifiedLUser, ModifiedLServer,

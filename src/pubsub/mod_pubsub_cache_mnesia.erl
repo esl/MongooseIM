@@ -1,5 +1,7 @@
 -module(mod_pubsub_cache_mnesia).
 
+-behaviour(mod_pubsub_cache).
+
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
@@ -23,15 +25,15 @@ stop() ->
 -spec upsert_last_item(ServerHost :: binary(),
                        Nidx :: mod_pubsub:nodeIdx(),
                        ItemID :: mod_pubsub:itemId(),
-                       Publisher::jid:ljid(),
+                       Publisher :: jid:jid(),
                        Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
-upsert_last_item(ServerHost, Nidx, ItemId, Publisher, Payload) ->
+upsert_last_item(_ServerHost, Nidx, ItemId, Publisher, Payload) ->
     CreatedAt = os:timestamp(),
     try mnesia:dirty_write(
         #pubsub_last_item{
         nodeid = Nidx,
         itemid = ItemId,
-        creation = {CreatedAt, {Publisher#jid.luser, ServerHost, <<>>}},
+        creation = {CreatedAt, {Publisher#jid.luser, Publisher#jid.lserver, <<>>}},
         payload = Payload}
     ) of
         ok -> ok
@@ -40,7 +42,8 @@ upsert_last_item(ServerHost, Nidx, ItemId, Publisher, Payload) ->
     end.
 
 -spec get_last_item(ServerHost :: binary(),
-                    Nidx :: mod_pubsub:nodeIdx()) -> [mod_pubsub:pubsubLastItem()] | {error, Reason :: term()}.
+                    Nidx :: mod_pubsub:nodeIdx()) ->
+    {ok, mod_pubsub:pubsubLastItem()} | {error, Reason :: term()}.
 get_last_item(_ServerHost, Nidx) ->
     try mnesia:dirty_read({pubsub_last_item, Nidx}) of
         [LastItem] -> {ok, LastItem};
