@@ -54,7 +54,8 @@
 
 % Nodes
 
--export([upsert_pubsub_node/6,
+-export([insert_pubsub_node/5,
+         update_pubsub_node/4,
          select_node_by_key_and_name/2,
          select_node_by_id/1,
          select_nodes_by_key/1,
@@ -517,82 +518,35 @@ delete_all_items(Nidx) ->
     ["DELETE FROM pubsub_items"
      " WHERE nidx = ", esc_int(Nidx)].
 
-
--spec upsert_pubsub_node(Nidx :: mod_pubsub:nodeIdx(), Key :: binary(),
-                              Name :: mod_pubsub:nodeId(), Type :: binary(),
-                              Owners :: binary(), Options :: binary()) -> iolist().
-upsert_pubsub_node(Nidx, Key, Name, Type, Owners, Options) ->
-    EscNidx = esc_int(Nidx),
+insert_pubsub_node(Key, Name, Type, Owners, Options) ->
     EscKey = esc_string(Key),
     EscName = esc_string(Name),
     EscType = esc_string(Type),
     EscOwners = esc_string(Owners),
     EscOptions = esc_string(Options),
-    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
-        {mysql, _} ->
-            upsert_node_mysql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions);
-        {pgsql, _} ->
-            upsert_node_pgsql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions);
-        {odbc, mssql} ->
-            upsert_node_mssql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions);
-        NotSupported -> erlang:error({rdbms_not_supported, NotSupported})
-    end.
+    sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions).
 
-upsert_node_pgsql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
-    Insert = mysql_and_pgsql_node_insert(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions),
-    OnConflict = pgsql_node_conflict(EscType, EscOwners, EscOptions),
-    [Insert, OnConflict].
+update_pubsub_node(Nidx, Type, Owners, Options) ->
+    EscNidx = esc_int(Nidx),
+    EscType = esc_string(Type),
+    EscOwners = esc_string(Owners),
+    EscOptions = esc_string(Options),
+    sql_node_update(EscNidx, EscType, EscOwners, EscOptions).
 
-upsert_node_mysql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
-    Insert = mysql_and_pgsql_node_insert(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions),
-    OnConflict = mysql_node_conflict(EscType, EscOwners, EscOptions),
-    [Insert, OnConflict].
-
-mysql_and_pgsql_node_insert(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
-    ["INSERT INTO pubsub_nodes (nidx, p_key, name, type, owners, options) VALUES (",
-      EscNidx, ", ",
+sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions) ->
+    ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
       EscKey, ", ",
       EscName, ", ",
       EscType, ", ",
       EscOwners, ", ",
       EscOptions,
-     ")"].
+     ") RETURNING nidx;"].
 
-pgsql_node_conflict(EscType, EscOwners, EscOptions) ->
-    [" ON CONFLICT (nidx, p_key, name) DO",
-     " UPDATE SET type = ", EscType, ", "
+sql_node_update(EscNidx, EscType, EscOwners, EscOptions) ->
+    [" UPDATE pubsub_nodes SET type = ", EscType, ", "
      " owners = ", EscOwners, ", "
-     " options = ", EscOptions].
-
-mysql_node_conflict(EscType, EscOwners, EscOptions) ->
-    [" ON DUPLICATE KEY",
-     " UPDATE type = ", EscType, ", "
-     " owners = ", EscOwners, ", "
-     " options = ", EscOptions].
-
-upsert_node_mssql(EscNidx, EscKey, EscName, EscType, EscOwners, EscOptions) ->
-    ["MERGE INTO pubsub_nodes WITH (SERIALIZABLE) as target"
-     " USING (SELECT ", EscNidx, " AS nidx, ",
-                        EscKey, " AS p_key, ",
-                        EscName, " AS name)"
-              " AS source (nidx, p_key, name)"
-        " ON (target.nidx = source.nidx"
-        " AND target.p_key = source.p_key"
-        " AND target.name = source.name)"
-     " WHEN MATCHED THEN UPDATE"
-        " SET type = ", EscType, ", "
-             "owners = ", EscOwners, ", "
-             "options = ", EscOptions,
-     " WHEN NOT MATCHED THEN INSERT"
-     " (nidx, p_key, name, type, owners, options)"
-     " VALUES (",
-       EscNidx, ", ",
-       EscKey, ", ",
-       EscName, ", ",
-       EscType, ", ",
-       EscOwners, ", ",
-       EscOptions,
-     ");"].
+     " options = ", EscOptions,
+     " WHERE nidx = ", EscNidx, ";"].
 
 set_parents(Node, Parents) ->
     EscNode = esc_string(Node),
