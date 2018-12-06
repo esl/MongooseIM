@@ -208,7 +208,7 @@ get_subscription_options(User, {NodeAddr, NodeName}, Options) ->
     send_request_and_receive_response(
       User, Request, Id, Options,
       fun(Response, ExpectedResult) ->
-              check_user_subscriptions_response(User, Response, ExpectedResult)
+          check_subscription_options_response(User, Response, ExpectedResult)
       end).
 
 get_node_subscriptions(User, Node, Options) ->
@@ -298,6 +298,13 @@ check_subscription_response(Response, User, {_, NodeName}, Options) ->
     Subscription = exml_query:path(Response, [{element, <<"pubsub">>},
                                               {element, <<"subscription">>}]),
     check_subscription(Subscription, Jid, NodeName, Options),
+    Response.
+
+check_subscription_options_response(User, Response, _ExpectedSubscriptionOptions) ->
+    SubscriptionOpts = exml_query:paths(Response, [{element, <<"pubsub">>}, {element, <<"options">>}]),
+    Jid = escalus_utils:get_jid(User),
+    [assert_ljid_equal(Jid, exml_query:attr(Opt, <<"jid">>)) || Opt <- SubscriptionOpts],
+    % TODO Finish implementation !!!
     Response.
 
 check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->

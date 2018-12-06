@@ -97,8 +97,10 @@ features() ->
         <<"retrieve-items">>,
         <<"retrieve-subscriptions">>,
         <<"subscribe">>,
-        <<"subscription-notifications">>].
-%%<<"subscription-options">>
+        <<"subscription-notifications">>,
+        <<"subscription-options">>
+    ].
+
 
 %% @doc Checks if the current user has the permission to create the requested node
 %% <p>In flat node, any unused node name is allowed. The access parameter is also
