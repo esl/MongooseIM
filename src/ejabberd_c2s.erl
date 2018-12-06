@@ -1610,23 +1610,35 @@ send_text(StateData, Text) ->
     mongoose_metrics:update(global, [data, xmpp, sent, xml_stanza_size], Size),
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
--spec maybe_send_element_from_server_jid_safe(state(), El :: exml:element()) -> any().
-maybe_send_element_from_server_jid_safe(#state{stream_mgmt = StreamMgmt} = State, El)
-  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
-    send_element_from_server_jid(State, El);
+-spec maybe_send_element_from_server_jid_safe(state(), exml:element()) -> any().
 maybe_send_element_from_server_jid_safe(State, El) ->
-    case catch send_element_from_server_jid(State, El) of
+    maybe_send_element_from_server_jid_safe(no_acc, State, El).
+
+-spec maybe_send_element_from_server_jid_safe(mongoose_acc:t() | no_acc,
+                                              state(),
+                                              exml:element()) -> any().
+maybe_send_element_from_server_jid_safe(Acc, #state{stream_mgmt = StreamMgmt} = State, El)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
+    send_element_from_server_jid(Acc, State, El);
+maybe_send_element_from_server_jid_safe(Acc, State, El) ->
+    case catch send_element_from_server_jid(Acc, State, El) of
         ok -> ok;
         _ -> error
     end.
 
 -spec send_element_from_server_jid(state(), exml:element()) -> any().
-send_element_from_server_jid(#state{server = Server} = StateData, #xmlel{} = El) ->
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              from_jid => jid:make_noprep(<<>>, Server, <<>>),
-                              to_jid => StateData#state.jid,
-                              lserver => Server,
-                              element => El }),
+send_element_from_server_jid(StateData, #xmlel{} = El) ->
+    send_element_from_server_jid(no_acc, StateData, El).
+
+-spec send_element_from_server_jid(mongoose_acc:t() | no_acc, state(), exml:element()) -> any().
+send_element_from_server_jid(no_acc, #state{server = Server} = StateData, #xmlel{} = El) ->
+    Acc = mongoose_acc:new(#{location => ?LOCATION,
+                             from_jid => jid:make_noprep(<<>>, Server, <<>>),
+                             to_jid => StateData#state.jid,
+                             lserver => Server,
+                             element => El }),
+    send_element_from_server_jid(Acc, StateData, El);
+send_element_from_server_jid(Acc, StateData, #xmlel{} = El) ->
     Acc1 = send_element(Acc, El, StateData),
     mongoose_acc:get(c2s, send_result, Acc1).
 
@@ -1702,8 +1714,9 @@ send_trailer(StateData) ->
     {ok | resume, mongoose_acc:t(), state()}.
 send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
     % to be removed
-    {SendResult, BufferedStateData} =
-        send_and_maybe_buffer_stanza({J1, J2, mod_amp:strip_amp_el_from_request(El)}, State),
+    StrippedStanza = mod_amp:strip_amp_el_from_request(El),
+    SendResult = maybe_send_element_from_server_jid_safe(Acc, State, StrippedStanza),
+    BufferedStateData = buffer_out_stanza({J1, J2, StrippedStanza}, State),
     mod_amp:check_packet(El, result_to_amp_event(SendResult)),
     case SendResult of
         ok ->
@@ -1723,13 +1736,6 @@ send_and_maybe_buffer_stanza(Acc, {J1, J2, El}, State)->
 
 result_to_amp_event(ok) -> delivered;
 result_to_amp_event(_) -> delivery_failed.
-
--spec send_and_maybe_buffer_stanza(packet(), state()) ->
-    {ok | any(), state()}.
-send_and_maybe_buffer_stanza({_, _, Stanza} = Packet, State) ->
-    SendResult = maybe_send_element_from_server_jid_safe(State, Stanza),
-    BufferedStateData = buffer_out_stanza(Packet, State),
-    {SendResult, BufferedStateData}.
 
 -spec new_id() -> binary().
 new_id() ->
@@ -2712,24 +2718,28 @@ maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_state = active} = State)
     send_and_maybe_buffer_stanza(Acc, Packet, State);
 maybe_csi_inactive_optimisation(Acc, Packet, #state{csi_buffer = Buffer} = State) ->
     NewBuffer = [Packet | Buffer],
-    NewState = flush_or_buffer_packets(State#state{csi_buffer = NewBuffer}),
+    NewState = flush_or_buffer_packets(Acc, State#state{csi_buffer = NewBuffer}),
     {ok, Acc, NewState}.
 
-flush_or_buffer_packets(State) ->
+flush_or_buffer_packets(Acc, State) ->
     MaxBuffSize = gen_mod:get_module_opt(State#state.server, mod_csi,
                                          buffer_max, 20),
     case length(State#state.csi_buffer) > MaxBuffSize of
         true ->
-            flush_csi_buffer(State);
+            flush_csi_buffer(Acc, State);
         _ ->
             State
     end.
 
 -spec flush_csi_buffer(state()) -> state().
-flush_csi_buffer(#state{csi_buffer = BufferOut} = State) ->
+flush_csi_buffer(State) ->
+    flush_csi_buffer(no_acc, State).
+
+-spec flush_csi_buffer(mongoose_acc:t() | no_acc, state()) -> state().
+flush_csi_buffer(Acc, #state{csi_buffer = BufferOut} = State) ->
     %%lists:foldr to preserve order
     F = fun(Packet, {_, OldState}) ->
-                send_and_maybe_buffer_stanza(Packet, OldState)
+                send_and_maybe_buffer_stanza(Acc, Packet, OldState)
         end,
     {_, NewState} = lists:foldr(F, {ok, State}, BufferOut),
     NewState#state{csi_buffer = []}.
