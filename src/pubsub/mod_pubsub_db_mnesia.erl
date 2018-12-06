@@ -258,8 +258,7 @@ oid(Key, Name) -> {Key, Name}.
 
 
 -spec delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
-delete_node(#pubsub_node{nodeid = NodeId, id = NodeIdx}) ->
-    pubsub_index:free(node, NodeIdx),
+delete_node(#pubsub_node{nodeid = NodeId}) ->
     mnesia:delete({pubsub_node, NodeId}).
 
 

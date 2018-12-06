@@ -33,7 +33,7 @@
 
 -include("pubsub.hrl").
 
--export([init/0, new/1, free/2]).
+-export([init/0, new/1]).
 
 init() ->
     mnesia:create_table(pubsub_index,
@@ -43,25 +43,11 @@ init() ->
 new(Index) ->
     case mnesia:read({pubsub_index, Index}) of
         [I] ->
-            case I#pubsub_index.free of
-                [] ->
-                    Id = I#pubsub_index.last + 1,
-                    mnesia:write(I#pubsub_index{last = Id}),
-                    Id;
-                [Id | Free] ->
-                    mnesia:write(I#pubsub_index{free = Free}),
-                    Id
-            end;
+            Id = I#pubsub_index.last + 1,
+            mnesia:write(I#pubsub_index{last = Id}),
+            Id;
         _ ->
             mnesia:write(#pubsub_index{index = Index, last = 1, free = []}),
             1
     end.
 
-free(Index, Id) ->
-    case mnesia:read({pubsub_index, Index}) of
-        [I] ->
-            Free = I#pubsub_index.free,
-            mnesia:write(I#pubsub_index{free = [Id | Free]});
-        _ ->
-            ok
-    end.

@@ -308,8 +308,7 @@ find_nodes_by_key(Key) ->
 
 
 -spec delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
-delete_node(#pubsub_node{nodeid = {Key, Node}, id = NodeIdx}) ->
-    pubsub_index:free(node, NodeIdx),
+delete_node(#pubsub_node{nodeid = {Key, Node}}) ->
     SQL = mod_pubsub_db_rdbms_sql:delete_node(encode_key(Key), Node),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
