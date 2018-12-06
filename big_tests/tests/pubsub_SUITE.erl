@@ -404,9 +404,14 @@ subscribe_options_test(Config) ->
       fun(Alice, Bob) ->
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
-              pubsub_tools:subscribe(Bob, Node, [{deliver, true}]),
 
-              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, []),
+              pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
+
+              pubsub_tools:subscribe(Bob, Node, [{deliver, true}]),
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_result, [<<"item1">>]}]),
+
+              pubsub_tools:subscribe(Alice, Node, []),
+              pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, []),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
