@@ -53,14 +53,10 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
     OwnerJID = jid:to_lower(jid:to_bare(Owner)),
     case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
         false ->
-            Nidx = pubsub_index:new(node),
-            N = #pubsub_node{nodeid = {Key, Node}, id = Nidx,
+            N = #pubsub_node{nodeid = {Key, Node},
                     type = Type, parents = Parents, owners = [OwnerJID],
                     options = Options},
-            case set_node(N) of
-                ok -> {ok, Nidx};
-                Other -> Other
-            end;
+            set_node(N);
         _ ->
             {error, mongoose_xmpp_errors:conflict()}
     end.
@@ -73,13 +69,12 @@ delete_node(Key, Node) ->
             lists:foreach(fun (#pubsub_node{options = Opts} = Child) ->
                         NewOpts = remove_config_parent(Node, Opts),
                         Parents = find_opt(collection, ?DEFAULT_PARENTS, NewOpts),
-                        ok = mod_pubsub_db_backend:set_node(
-                               Child#pubsub_node{parents = Parents,
-                                                 options = NewOpts})
+                        {ok, _} = mod_pubsub_db_backend:set_node(
+                                    Child#pubsub_node{parents = Parents,
+                                                      options = NewOpts})
                 end,
                 get_subnodes(Key, Node)),
-            pubsub_index:free(node, Record#pubsub_node.id),
-            mod_pubsub_db_backend:delete_node(Key, Node),
+            mod_pubsub_db_backend:delete_node(Record),
             [Record]
     end.
 

@@ -68,7 +68,7 @@
 -callback del_node(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 
--callback set_node(Node :: mod_pubsub:pubsubNode()) -> ok.
+-callback set_node(Node :: mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
 
 -callback find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
@@ -79,7 +79,7 @@
 -callback find_nodes_by_key(Key :: mod_pubsub:hostPubsub() | jid:ljid()) ->
     [mod_pubsub:pubsubNode()].
 
--callback delete_node(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) -> ok.
+-callback delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
 
 -callback get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
     [mod_pubsub:pubsubNode()].
@@ -162,7 +162,7 @@
     ok.
 
 -callback get_items(Nidx :: mod_pubsub:nodeIdx(), gen_pubsub_node:get_item_options()) ->
-    {ok, {[mod_pubsub:pubsubItem()], jlib:rsm_out()}}.
+    {ok, {[mod_pubsub:pubsubItem()], jlib:rsm_out() | none}}.
 
 -callback get_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) ->
     {ok, mod_pubsub:pubsubItem()} | {error, item_not_found}.

@@ -267,7 +267,6 @@ init([ServerHost, Opts]) ->
 
     init_backend(Opts),
 
-    pubsub_index:init(Host, ServerHost, Opts),
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
     {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
 
@@ -2856,7 +2855,7 @@ get_sub_options_xml(Host, JID, _Lang, Node, Nidx, RequestedSubId, Type) ->
                                            <<"invalid-subid">>)}
             end
     end.
-    
+
 make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
     {ok, XForm} = pubsub_form_utils:make_sub_xform(Options),
     OptionsEl = #xmlel{name = <<"options">>,
@@ -2865,7 +2864,7 @@ make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
                                 | node_attr(Node)],
                        children = [XForm]},
     PubSubEl = #xmlel{name = <<"pubsub">>,
-                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}], 
+                      attrs = [{<<"xmlns">>, ?NS_PUBSUB}],
                       children = [OptionsEl]},
     {result, PubSubEl}.
 
@@ -3865,7 +3864,7 @@ set_configure_valid_transaction(Host, #pubsub_node{ type = Type, options = Optio
         NewOpts when is_list(NewOpts) ->
             NewNode = NodeRec#pubsub_node{options = NewOpts},
             case tree_call(Host, set_node, [NewNode]) of
-                ok -> {result, NewNode};
+                {ok, _} -> {result, NewNode};
                 Err -> Err
             end;
         Error ->

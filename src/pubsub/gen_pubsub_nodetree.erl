@@ -51,7 +51,7 @@
 -callback terminate(Host :: host(), ServerHost :: binary()) -> atom().
 
 -callback set_node(PubsubNode :: pubsubNode()) ->
-    ok | {result, NodeIdx::nodeIdx()} | {error, exml:element()}.
+    {ok, NodeIdx::nodeIdx()} | {error, exml:element()}.
 
 -callback get_node(Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
 
