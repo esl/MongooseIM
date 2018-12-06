@@ -109,14 +109,28 @@ configure_s2s(Node, Certfile, StartTLS) ->
     rpc(Node, ejabberd_config, add_local_option, [s2s_use_starttls, StartTLS]).
 
 restart_s2s() ->
-    restart_s2s(mim()),
-    restart_s2s(fed()).
+    MimS2SPort = ct:get_config({hosts, mim, s2s_port}),
+    FedS2SPort = ct:get_config({hosts, fed, s2s_port}),
+    restart_s2s(mim(), MimS2SPort),
+    restart_s2s(fed(), FedS2SPort).
 
-restart_s2s(Node) ->
+restart_s2s(Node, S2SPort) ->
     Children = rpc(Node, supervisor, which_children, [ejabberd_s2s_out_sup]),
     [rpc(Node, ejabberd_s2s_out, stop_connection, [Pid]) ||
      {_, Pid, _, _} <- Children],
 
     ChildrenIn = rpc(Node, supervisor, which_children, [ejabberd_s2s_in_sup]),
     [rpc(Node, erlang, exit, [Pid, kill]) ||
-     {_, Pid, _, _} <- ChildrenIn].
+     {_, Pid, _, _} <- ChildrenIn],
+
+    Listeners = rpc(Node, ejabberd_config, get_local_option, [listen]),
+
+    [{PortIPProto, ejabberd_s2s_in, Opts}] = get_listener_opts(S2SPort, Listeners),
+
+    rpc(Node, ejabberd_listener, stop_listener, [PortIPProto, ejabberd_s2s_in]),
+    rpc(Node, ejabberd_listener, start_listener, [PortIPProto, ejabberd_s2s_in, Opts]).
+
+
+
+get_listener_opts(Port, Listeners) ->
+    [Item || {{ListenerPort, _, _}, _, _} = Item <- Listeners, ListenerPort =:= Port].
