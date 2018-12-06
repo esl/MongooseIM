@@ -56,10 +56,7 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
             N = #pubsub_node{nodeid = {Key, Node},
                     type = Type, parents = Parents, owners = [OwnerJID],
                     options = Options},
-            case set_node(N) of
-                {ok, Nidx} -> {ok, Nidx};
-                Other -> Other
-            end;
+            set_node(N);
         _ ->
             {error, mongoose_xmpp_errors:conflict()}
     end.
