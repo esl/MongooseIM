@@ -8,6 +8,8 @@
 -module(mod_pubsub_db_mnesia).
 -author('piotr.nosek@erlang-solutions.com').
 
+-behaviour(mod_pubsub_db).
+
 -include("pubsub.hrl").
 -include("jlib.hrl").
 -include_lib("stdlib/include/qlc.hrl").
@@ -366,7 +368,9 @@ get_node_subscriptions(Nidx) ->
 
 -spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
                                     LJID :: jid:ljid()) ->
-    {ok, [{Sub :: mod_pubsub:subscription(), SubId :: mod_pubsub:subId()}]}.
+    {ok, [{Sub :: mod_pubsub:subscription(),
+           SubId :: mod_pubsub:subId(),
+           Opts :: mod_pubsub:subOptions()}]}.
 get_node_entity_subscriptions(Nidx, LJID) ->
     {ok, State} = get_state(Nidx, LJID, read),
     {ok, add_opts_to_subs(State#pubsub_state.subscriptions)}.
@@ -470,7 +474,7 @@ get_item(Nidx, ItemId) ->
         _ -> {error, item_not_found}
     end.
 
--spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok | abort.
+-spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok.
 set_item(Item) ->
     mnesia:write(Item).
 

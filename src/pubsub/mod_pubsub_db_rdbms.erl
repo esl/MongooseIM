@@ -9,6 +9,8 @@
 -author('piotr.nosek@erlang-solutions.com').
 -author('michal.piotrowski@erlang-solutions.com').
 
+-behaviour(mod_pubsub_db).
+
 -include("pubsub.hrl").
 -include("mongoose_logger.hrl").
 -include("jlib.hrl").
@@ -183,7 +185,7 @@ get_item(Nidx, ItemId) ->
             {ok, item_to_record(Item)}
     end.
 
--spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok | abort.
+-spec set_item(Item :: mod_pubsub:pubsubItem()) -> ok.
 set_item(#pubsub_item{itemid = {ItemId, NodeIdx},
                       creation = {CreatedAt, {CreatedLUser, CreatedLServer, _}},
                       modification = {ModifiedAt, {ModifiedLUser, ModifiedLServer, ModifiedLResource}},
