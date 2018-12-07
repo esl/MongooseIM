@@ -470,7 +470,7 @@ stop_start_command_module(_) ->
     %% described above we test both transition from `started' to
     %% `stopped' and from `stopped' to `started'.
     {?OK, _} = gett(admin, <<"/commands">>),
-    ok = dynamic_modules:stop(host(), mod_commands),
+    {ok, _Opts} = dynamic_modules:stop(host(), mod_commands),
     {?NOT_FOUND, _} = gett(admin, <<"/commands">>),
     {ok, _} = dynamic_modules:start(host(), mod_commands, []),
     timer:sleep(200), %% give the server some time to build the paths again
