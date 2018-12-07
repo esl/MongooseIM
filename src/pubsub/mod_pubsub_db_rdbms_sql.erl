@@ -543,7 +543,20 @@ sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {pgsql, _}) ->
              EscOptions, ")",
              " RETURNING nidx;"],
     {updated, _, [{Nidx}]} = mongoose_rdbms:sql_query(global, Query),
-    {ok, binary_to_integer(Nidx)}.
+    {ok, binary_to_integer(Nidx)};
+
+sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {mysql, _}) ->
+    Queries = [["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
+             EscKey, ", ",
+             EscName, ", ",
+             EscType, ", ",
+             EscOwners, ", ",
+             EscOptions, ");"],
+               [" SELECT last_insert_id();"]],
+    %% When a list of qeries is passed, the firs encountered error will be returned.
+    %% Otherwise last statement result is returned.
+    {selected, [{Nidx}]} = mongoose_rdbms:sql_query(global, Queries),
+    {ok, Nidx}.
 
 sql_node_update(EscNidx, EscType, EscOwners, EscOptions) ->
     Query = [" UPDATE pubsub_nodes SET type = ", EscType, ", "
