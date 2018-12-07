@@ -234,22 +234,16 @@ del_node(Nidx) ->
 set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    SQL = mod_pubsub_db_rdbms_sql:insert_pubsub_node(encode_key(Key), Name, Type,
+    {ok, Nidx} = mod_pubsub_db_rdbms_sql:insert_pubsub_node(encode_key(Key), Name, Type,
                                                      jsx:encode(OwnersJid),
                                                      jsx:encode(Opts)),
-    ?ERROR_MSG("~p~n", [SQL]),
-    {updated, _, [{NidxSQL}]} = mongoose_rdbms:sql_query(global, SQL),
-    ?ERROR_MSG("~p~p~n", [NidxSQL]),
     maybe_set_parents(Name, Parents),
-    {ok, binary_to_integer(NidxSQL)};
+    {ok, Nidx};
 
 set_node(#pubsub_node{nodeid = {_, Name}, id = Nidx, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    SQL = mod_pubsub_db_rdbms_sql:update_pubsub_node(Nidx, Type, jsx:encode(OwnersJid), jsx:encode(Opts)),
-    ?ERROR_MSG("~p~n", [SQL]),
-    R = {updated, _} = mongoose_rdbms:sql_query(global, SQL),
-    ?ERROR_MSG("~p~n", [R]),
+    mod_pubsub_db_rdbms_sql:update_pubsub_node(Nidx, Type, jsx:encode(OwnersJid), jsx:encode(Opts)),
     maybe_set_parents(Name, Parents),
     {ok, Nidx}.
 
