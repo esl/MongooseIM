@@ -32,7 +32,8 @@ init_s2s(Config, CoverEnabled) when is_boolean(CoverEnabled) ->
 
     case CoverEnabled of
         true ->
-            rpc(fed(), mongoose_cover_helper, start, [[ejabberd]]);
+            rpc(fed(), mongoose_cover_helper, start, [[mongooseim]],
+                timer:seconds(120));
         _ ->
             ok
     end,
