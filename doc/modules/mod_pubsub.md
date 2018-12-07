@@ -35,16 +35,24 @@ Node configuration still uses the default configuration defined by the node plug
 
 #### Note about RDBMS backend
 
-Current RDBMS backend replaces `pubsub_state` and `pubsub_item` Mnesia tables with RDBMS equivalents.
+Current RDBMS backend replaces `pubsub_node`, `pubsub_state` and `pubsub_item` Mnesia tables with RDBMS equivalents.
 Due to a fact that some data is still maintained in Mnesia, there is a certain risk of data becoming inconsistent.
 The schema used by this backend may change until it reaches stable status.
+
+#### Cache Backend
+
+Although it is not a default setting, the cache backend can be configured
+to use Mnesia or RDBMS. It allows storing the `pubsub_last_item` table
+separately. For example you can configure `backend` to use `rdbms` and
+`last_item_cache` to use `mnesia`.
 
 ### Example Configuration
 
 ```
    {mod_pubsub, [{access_createnode, pubsub_createnode},
                  {ignore_pep_from_offline, false},
-                 {last_item_cache, true},
+                 {backend, rdbms},
+                 {last_item_cache, mnesia},
                  {max_items_node, 1000},
                  {plugins, [<<"flat">>, <<"pep">>]}
   ]},
