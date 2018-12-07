@@ -24,6 +24,7 @@ all() ->
      {group, node1_tls_required_node2_tls_optional},
 
      {group, node1_tls_required_trusted_node2_tls_optional},
+     {group, node1_tls_optional_node2_tls_required_trusted_with_cachain},
 
      {group, node1_tls_false_node2_tls_optional},
      {group, node1_tls_optional_node2_tls_false},
@@ -41,8 +42,11 @@ groups() ->
          {node1_tls_optional_node2_tls_required, [], essentials()},
          {node1_tls_required_node2_tls_optional, [], essentials()},
 
-         %% Node1 closes connection with "self-signed certificate" reason
+         %% Node1 closes connection from nodes with invalid certs
          {node1_tls_required_trusted_node2_tls_optional, [], negative()},
+
+         %% Node1 accepts connection provided the cert can be verified
+         {node1_tls_optional_node2_tls_required_trusted_with_cachain, [], essentials()},
 
          {node1_tls_false_node2_tls_optional, [], essentials()},
          {node1_tls_optional_node2_tls_false, [], essentials()},
