@@ -184,7 +184,7 @@ subscribe(User, Node, Options) ->
     send_request_and_receive_response(
       User, Request, Id, [{expected_result, true} | Options],
       fun(Response) ->
-              check_subscription_response(Response, User, Node, Options)
+        check_subscription_response(Response, User, Node, Options)
       end).
 
 unsubscribe(User, Node, Options) ->

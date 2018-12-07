@@ -405,13 +405,14 @@ subscribe_options_test(Config) ->
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
+              %% 6.3.4.2 Example 62. No such subscriber
               pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
 
-              pubsub_tools:subscribe(Bob, Node, [{deliver, true}]),
-              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_result, [<<"item1">>]}]),
+              pubsub_tools:subscribe(Alice, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
 
-              pubsub_tools:subscribe(Alice, Node, []),
-              pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, []),
+              %% 6.3.2 Example 59. Subscriber requests subscription options form
+              pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"true">>}]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
