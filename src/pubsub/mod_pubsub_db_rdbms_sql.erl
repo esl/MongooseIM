@@ -519,12 +519,13 @@ delete_all_items(Nidx) ->
      " WHERE nidx = ", esc_int(Nidx)].
 
 insert_pubsub_node(Key, Name, Type, Owners, Options) ->
+    RDBMSType = {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()},
     EscKey = esc_string(Key),
     EscName = esc_string(Name),
     EscType = esc_string(Type),
     EscOwners = esc_string(Owners),
     EscOptions = esc_string(Options),
-    sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions).
+    sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, RDBMSType).
 
 update_pubsub_node(Nidx, Type, Owners, Options) ->
     EscNidx = esc_int(Nidx),
@@ -533,20 +534,23 @@ update_pubsub_node(Nidx, Type, Owners, Options) ->
     EscOptions = esc_string(Options),
     sql_node_update(EscNidx, EscType, EscOwners, EscOptions).
 
-sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions) ->
-    ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
-      EscKey, ", ",
-      EscName, ", ",
-      EscType, ", ",
-      EscOwners, ", ",
-      EscOptions,
-     ") RETURNING nidx;"].
+sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {pgsql, _}) ->
+    Query = ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
+             EscKey, ", ",
+             EscName, ", ",
+             EscType, ", ",
+             EscOwners, ", ",
+             EscOptions, ")",
+             " RETURNING nidx;"],
+    {updated, _, [{Nidx}]} = mongoose_rdbms:sql_query(global, Query),
+    {ok, binary_to_integer(Nidx)}.
 
 sql_node_update(EscNidx, EscType, EscOwners, EscOptions) ->
-    [" UPDATE pubsub_nodes SET type = ", EscType, ", "
-     " owners = ", EscOwners, ", "
-     " options = ", EscOptions,
-     " WHERE nidx = ", EscNidx, ";"].
+    Query = [" UPDATE pubsub_nodes SET type = ", EscType, ", "
+             " owners = ", EscOwners, ", "
+             " options = ", EscOptions,
+             " WHERE nidx = ", EscNidx, ";"],
+    {updated, _} = mongoose_rdbms:sql_query(global, Query).
 
 set_parents(Node, Parents) ->
     EscNode = esc_string(Node),
