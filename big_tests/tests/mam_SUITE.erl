@@ -1071,7 +1071,7 @@ stop_module(Host, Mod) ->
     end.
 
 just_stop_module(Host, Mod) ->
-    ok = rpc_apply(gen_mod, stop_module, [Host, Mod]).
+    {ok, _Opts} = rpc_apply(gen_mod, stop_module, [Host, Mod]).
 
 %%--------------------------------------------------------------------
 %% Group name helpers
