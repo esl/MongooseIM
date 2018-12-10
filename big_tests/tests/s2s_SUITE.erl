@@ -8,6 +8,8 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("exml/include/exml.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 %%%===================================================================
@@ -46,7 +48,8 @@ groups() ->
          {node1_tls_required_trusted_node2_tls_optional, [], negative()},
 
          %% Node1 accepts connection provided the cert can be verified
-         {node1_tls_optional_node2_tls_required_trusted_with_cachain, [], essentials()},
+         {node1_tls_optional_node2_tls_required_trusted_with_cachain, [],
+          essentials() ++ connection_cases()},
 
          {node1_tls_false_node2_tls_optional, [], essentials()},
          {node1_tls_optional_node2_tls_false, [], essentials()},
@@ -64,11 +67,16 @@ all_tests() ->
 negative() ->
     [timeout_waiting_for_message].
 
+connection_cases() ->
+    [successful_external_auth_with_valid_cert].
+
 suite() ->
     s2s_helper:suite(escalus:suite()).
 
 users() ->
     [alice2, alice, bob].
+
+
 
 %%%===================================================================
 %%% Init & teardown
@@ -189,3 +197,71 @@ nonascii_addr(Config) ->
         escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
 
     end).
+
+successful_external_auth_with_valid_cert(Config) ->
+    CertFile = filename:join([path_helper:repo_dir(Config),
+				"tools", "ssl", "mongooseim", "cert.pem"]),
+    KeyFile = filename:join([path_helper:repo_dir(Config),
+				"tools", "ssl", "mongooseim", "key.pem"]),
+    ConnectionArgs = [{host, "localhost"},
+                      {to_server, "fed1"},
+                      {from_server, "localhost_bis"},
+                      {requested_name, <<"localhost">>},
+                      {starttls, required},
+                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {ssl_opts, [{certfile, CertFile},
+                                  {keyfile, KeyFile}]}
+                     ],
+    {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
+                                                       [fun s2s_start_stream/2,
+                                                        fun s2s_starttls/2,
+                                                        fun s2s_external_auth/2]),
+    escalus_connection:stop(Client).
+
+s2s_start_stream(Conn = #client{props = Props}, []) ->
+    StreamStartRep = s2s_start_stream_and_wait_for_response(Conn),
+
+    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
+    Id = proplists:get_value(<<"id">>, Attrs),
+
+    escalus_session:stream_features(Conn#client{props = [{sid, Id} | Props]}, []).
+
+s2s_start_stream_and_wait_for_response(Conn = #client{props = Props}) ->
+    {to_server, To} = lists:keyfind(to_server, 1, Props),
+    {from_server, From} = lists:keyfind(from_server, 1, Props),
+
+    StreamStart = s2s_stream_start_stanza(To, From),
+    ok = escalus_connection:send(Conn, StreamStart),
+    escalus_connection:get_stanza(Conn, wait_for_stream).
+
+s2s_stream_start_stanza(To, From) ->
+    Attrs = [{<<"to">>, To},
+             {<<"from">>, From},
+             {<<"xmlns">>, <<"jabber:server">>},
+             {<<"xmlns:stream">>,
+              <<"http://etherx.jabber.org/streams">>},
+             {<<"version">>, <<"1.0">>}],
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
+
+s2s_starttls(Client, Features) ->
+    case proplists:get_value(starttls, Features) of
+        false ->
+            ct:fail("The server does not offer STARTTLS");
+        _ ->
+            ok
+    end,
+
+    escalus_connection:send(Client, escalus_stanza:starttls()),
+    escalus_connection:get_stanza(Client, proceed),
+    escalus_connection:upgrade_to_tls(Client),
+    s2s_start_stream(Client, []).
+
+s2s_external_auth(Client = #client{props = Props}, Features) ->
+    case proplists:get_value(sasl_mechanisms, Features) of
+        [<<"EXTERNAL">>] ->
+            ok;
+        SASL ->
+            ct:fail("Server does not provide EXTERNAL auth: ~p", [SASL])
+    end,
+    escalus_auth:auth_sasl_external(Client, Props),
+    s2s_start_stream(Client, []).
