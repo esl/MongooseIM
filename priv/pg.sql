@@ -371,7 +371,8 @@ CREATE TABLE pubsub_subscriptions (
     lserver VARCHAR(250)    NOT NULL,
     lresource VARCHAR(250)  NOT NULL,
     type SMALLINT           NOT NULL,
-    sub_id VARCHAR(125)     NOT NULL
+    sub_id VARCHAR(125)     NOT NULL,
+    options JSON            NOT NULL
 );
 
 CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
