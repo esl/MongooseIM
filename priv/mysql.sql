@@ -421,7 +421,8 @@ CREATE TABLE pubsub_subscriptions (
     lserver VARCHAR(250) NOT NULL,
     lresource VARCHAR(250) NOT NULL,
     type TINYINT UNSIGNED NOT NULL,
-    sub_id VARCHAR(125) NOT NULL
+    sub_id VARCHAR(125) NOT NULL,
+    options JSON NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 

@@ -32,6 +32,7 @@
 % Subscriptions
 -export([
          insert_subscription/6,
+         update_subscription_opts/6,
          get_node_subs/1,
          get_node_entity_subs/4,
          delete_subscription/5,
@@ -222,17 +223,34 @@ delete_all_affiliations(Nidx) ->
                           SubInt :: integer(),
                           SubId :: binary()) -> iolist().
 insert_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
-    ["INSERT INTO pubsub_subscriptions (nidx, luser, lserver, lresource, type, sub_id)"
+    EmptyOptions = jsx:encode([]),
+    ["INSERT INTO pubsub_subscriptions (nidx, luser, lserver, lresource, type, sub_id, options)"
      " VALUES (", esc_int(Nidx), ", ",
-     esc_string(LU), ", ",
-     esc_string(LS), ", ",
-     esc_string(LR), ", ",
-     esc_int(SubInt), ", ",
-     esc_string(SubId), ")"].
+                  esc_string(LU), ", ",
+                  esc_string(LS), ", ",
+                  esc_string(LR), ", ",
+                  esc_int(SubInt), ", ",
+                  esc_string(SubId), ", ",
+                  esc_string(EmptyOptions), ")"].
+
+-spec update_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
+                               LU :: jid:luser(),
+                               LS :: jid:lserver(),
+                               LR :: jid:lresource(),
+                               SubId :: binary(),
+                               EncodedOpts :: binary()) -> iolist().
+update_subscription_opts(Nidx, LU, LS, LR, SubId, EncodedOpts) ->
+    ["UPDATE pubsub_subscriptions",
+     " SET options = ", esc_string(EncodedOpts),
+     " WHERE nidx = ", esc_int(Nidx),
+     " AND luser = ", esc_string(LU),
+     " AND lserver = ", esc_string(LS),
+     " AND lresource = ", esc_string(LR),
+     " AND sub_id = ", esc_string(SubId)].
 
 -spec get_node_subs(Nidx :: mod_pubsub:nodeIdx()) -> iolist().
 get_node_subs(Nidx) ->
-    ["SELECT luser, lserver, lresource, type, sub_id"
+    ["SELECT luser, lserver, lresource, type, sub_id, options"
      " FROM pubsub_subscriptions"
      " WHERE nidx = ", esc_int(Nidx)].
 
@@ -241,7 +259,7 @@ get_node_subs(Nidx) ->
                            LS :: jid:lserver(),
                            LR :: jid:lresource()) -> iolist().
 get_node_entity_subs(Nidx, LU, LS, LR) ->
-    ["SELECT type, sub_id"
+    ["SELECT type, sub_id, options"
      " FROM pubsub_subscriptions"
      " WHERE nidx = ", esc_int(Nidx),
      " AND luser = ", esc_string(LU),

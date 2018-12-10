@@ -556,7 +556,8 @@ CREATE TABLE dbo.pubsub_subscriptions (
     lserver NVARCHAR(250) NOT NULL,
     lresource NVARCHAR(250) NOT NULL,
     type TINYINT NOT NULL,
-    sub_id NVARCHAR(125) NOT NULL
+    sub_id NVARCHAR(125) NOT NULL,
+    options NVARCHAR(max) NOT NULL
 )
 GO
 

@@ -442,8 +442,11 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId) ->
                             LJID :: jid:ljid(),
                             SubId :: mod_pubsub:subId(),
                             Opts :: mod_pubsub:subOptions()) -> ok.
-set_subscription_opts(Nidx, LJID, SubId, Opts) ->
-    mod_pubsub_db_mnesia:set_subscription_opts(Nidx, LJID, SubId, Opts).
+set_subscription_opts(Nidx, { LU, LS, LR }, SubId, Opts) ->
+    EncodedOpts = jsx:encode(Opts),
+    SQL = mod_pubsub_db_rdbms_sql:update_subscription_opts(Nidx, LU, LS, LR, SubId, EncodedOpts),
+    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    ok.
 
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [{Entity :: jid:ljid(),
@@ -453,20 +456,19 @@ set_subscription_opts(Nidx, LJID, SubId, Opts) ->
 get_node_subscriptions(Nidx) ->
     SQL = mod_pubsub_db_rdbms_sql:get_node_subs(Nidx),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
-    % TODO: Add proper options retrieval
-    {ok, [{{LU, LS, LR}, sql2sub(SubInt), SubId, []}
-          || {LU, LS, LR, SubInt, SubId} <- QueryResult ]}.
+    {ok, [{{LU, LS, LR}, sql2sub(SubInt), SubId, sql_to_sub_opts(SubOpts)}
+          || {LU, LS, LR, SubInt, SubId, SubOpts} <- QueryResult ]}.
 
 -spec get_node_entity_subscriptions(Nidx :: mod_pubsub:nodeIdx(),
                                     LJID :: jid:ljid()) ->
     {ok, [{Sub :: mod_pubsub:subscription(),
            SubId :: mod_pubsub:subId(),
-           Opts :: mod_pubsub:subOptions()}]}.
+           SubOpts :: mod_pubsub:subOptions()}]}.
 get_node_entity_subscriptions(Nidx, { LU, LS, LR }) ->
     SQL = mod_pubsub_db_rdbms_sql:get_node_entity_subs(Nidx, LU, LS, LR),
     {selected, QueryResult} = mongoose_rdbms:sql_query(global, SQL),
-    % TODO: Add proper options retrieval
-    {ok, [{sql2sub(SubInt), SubId, []} || {SubInt, SubId} <- QueryResult ]}.
+    {ok, [{sql2sub(SubInt), SubId, sql_to_sub_opts(SubOpts)}
+          || {SubInt, SubId, SubOpts} <- QueryResult ]}.
 
 -spec delete_subscription(Nidx :: mod_pubsub:nodeIdx(),
                           LJID :: jid:ljid(),
@@ -649,6 +651,9 @@ sql2sub(SqlInt) ->
 int2sub(0) -> none;
 int2sub(1) -> pending;
 int2sub(3) -> subscribed.
+
+sql_to_sub_opts(SqlOpts) ->
+    jsx:decode(SqlOpts, [{labels, existing_atom}]).
 
 item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
                 ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
