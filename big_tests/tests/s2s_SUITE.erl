@@ -68,7 +68,8 @@ negative() ->
     [timeout_waiting_for_message].
 
 connection_cases() ->
-    [successful_external_auth_with_valid_cert].
+    [successful_external_auth_with_valid_cert,
+     auth_with_valid_cert_fails_for_other_mechanism_than_external].
 
 suite() ->
     s2s_helper:suite(escalus:suite()).
@@ -217,6 +218,31 @@ successful_external_auth_with_valid_cert(Config) ->
                                                         fun s2s_starttls/2,
                                                         fun s2s_external_auth/2]),
     escalus_connection:stop(Client).
+
+auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
+    CertFile = filename:join([path_helper:repo_dir(Config),
+				"tools", "ssl", "mongooseim", "cert.pem"]),
+    KeyFile = filename:join([path_helper:repo_dir(Config),
+				"tools", "ssl", "mongooseim", "key.pem"]),
+    ConnectionArgs = [{host, "localhost"},
+                      {to_server, "fed1"},
+                      {from_server, "localhost"},
+                      {requested_name, <<"localhost">>},
+                      {starttls, required},
+                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {ssl_opts, [{certfile, CertFile},
+                                  {keyfile, KeyFile}]}
+                     ],
+    {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
+                                                       [fun s2s_start_stream/2,
+                                                        fun s2s_starttls/2
+                                                       ]),
+
+    Stanza = escalus_stanza:auth(<<"ANONYMOUS">>),
+    ok = escalus_connection:send(Client, Stanza),
+    #xmlel{name = <<"failure">>} = escalus_connection:get_stanza(Client, wait_for_auth_reply),
+
+    escalus_connection:wait_for_close(Client, timer:seconds(5)).
 
 s2s_start_stream(Conn = #client{props = Props}, []) ->
     StreamStartRep = s2s_start_stream_and_wait_for_response(Conn),
