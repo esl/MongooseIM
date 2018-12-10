@@ -389,6 +389,7 @@ stream_established({invalid, From, To}, StateData) ->
                                       StateData#state.connections)},
     {next_state, stream_established, NSD};
 stream_established({xmlstreamend, _Name}, StateData) ->
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
