@@ -534,6 +534,18 @@ update_pubsub_node(Nidx, Type, Owners, Options) ->
     EscOptions = esc_string(Options),
     sql_node_update(EscNidx, EscType, EscOwners, EscOptions).
 
+sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {odbc, mssql}) ->
+    Query = ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) "
+             "OUTPUT inserted.nidx "
+             "VALUES (",
+             EscKey, ", ",
+             EscName, ", ",
+             EscType, ", ",
+             EscOwners, ", ",
+             EscOptions, ");"],
+    {selected, [{Nidx}]} = mongoose_rdbms:sql_query(global, Query),
+    {ok, binary_to_integer(Nidx)};
+
 sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {pgsql, _}) ->
     Query = ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
              EscKey, ", ",
