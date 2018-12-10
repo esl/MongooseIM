@@ -149,6 +149,7 @@
 -type rdbms_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
+                               {updated, non_neg_integer(), [tuple()]} |
                                {aborted, Reason :: term()} |
                                {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
