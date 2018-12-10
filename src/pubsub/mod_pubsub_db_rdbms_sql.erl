@@ -543,32 +543,28 @@ sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {odbc, mssql}) 
              EscType, ", ",
              EscOwners, ", ",
              EscOptions, ");"],
-    {selected, [{Nidx}]} = mongoose_rdbms:sql_query(global, Query),
-    {ok, binary_to_integer(Nidx)};
-
+    Res = mongoose_rdbms:sql_query(global, Query),
+    convert_sql_nidx(Res);
 sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {pgsql, _}) ->
-    Query = ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
-             EscKey, ", ",
-             EscName, ", ",
-             EscType, ", ",
-             EscOwners, ", ",
-             EscOptions, ")",
-             " RETURNING nidx;"],
-    {updated, _, [{Nidx}]} = mongoose_rdbms:sql_query(global, Query),
-    {ok, binary_to_integer(Nidx)};
-
+    Query = [common_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions),
+             [" RETURNING nidx;"]],
+    Res = mongoose_rdbms:sql_query(global, Query),
+    convert_sql_nidx(Res);
 sql_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions, {mysql, _}) ->
-    Queries = [["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
-             EscKey, ", ",
-             EscName, ", ",
-             EscType, ", ",
-             EscOwners, ", ",
-             EscOptions, ");"],
-               [" SELECT last_insert_id();"]],
+    Queries = [common_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions),
+               ["; SELECT last_insert_id();"]],
     %% When a list of qeries is passed, the firs encountered error will be returned.
     %% Otherwise last statement result is returned.
-    {selected, [{Nidx}]} = mongoose_rdbms:sql_query(global, Queries),
-    {ok, Nidx}.
+    Res = mongoose_rdbms:sql_query(global, Queries),
+    convert_sql_nidx(Res).
+
+common_node_insert(EscKey, EscName, EscType, EscOwners, EscOptions) ->
+    ["INSERT INTO pubsub_nodes (p_key, name, type, owners, options) VALUES (",
+     EscKey, ", ",
+     EscName, ", ",
+     EscType, ", ",
+     EscOwners, ", ",
+     EscOptions, ")"].
 
 sql_node_update(EscNidx, EscType, EscOwners, EscOptions) ->
     Query = [" UPDATE pubsub_nodes SET type = ", EscType, ", "
@@ -673,3 +669,11 @@ esc_string(String) ->
 esc_int(Int) ->
     mongoose_rdbms:use_escaped_integer(mongoose_rdbms:escape_integer(Int)).
 
+%% MSSQL and MYSQL
+convert_sql_nidx({selected, [{Nidx}]}) ->
+    {ok, mongoose_rdbms:result_to_integer(Nidx)};
+%% PGSQL
+convert_sql_nidx({updated, _, [{Nidx}]}) ->
+    {ok, mongoose_rdbms:result_to_integer(Nidx)};
+convert_sql_nidx(Res) ->
+    {error, {bad_rdbms_response, Res}}.
