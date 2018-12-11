@@ -497,8 +497,7 @@ calc_before(PoolName, UserJID, Host, Filter, MessID) ->
 calc_count(PoolName, UserJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
-    {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,
-                                              Params),
+    {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     Count.
 
 %% @doc Convert offset to index of the first entry
@@ -633,10 +632,10 @@ prepare_filter_cql(StartID, EndID) ->
         undefined -> "";
         _ -> " AND id >= :start_id"
     end ++
-        case EndID of
-            undefined -> "";
-            _ -> " AND id <= :end_id"
-        end.
+    case EndID of
+        undefined -> "";
+        _ -> " AND id <= :end_id"
+    end.
 
 filter_to_cql() ->
     [{select_filter(StartID, EndID), prepare_filter_cql(StartID, EndID)}
