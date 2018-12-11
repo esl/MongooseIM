@@ -402,8 +402,8 @@ subscribe_options_test(Config) ->
               pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
 
               %% 6.3.2 Example 59. Subscriber requests subscription options form
-              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"true">>}]}]),
-              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"false">>}]}]),
+              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"boolean">>, <<"true">>}]}]),
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"boolean">>, <<"false">>}]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
