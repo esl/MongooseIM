@@ -408,16 +408,20 @@ subscribe_options_test(Config) ->
               pubsub_tools:create_node(Alice, Node, []),
 
               %% 6.3.4.2 Example 62. No such subscriber
-              pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
-              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
-              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
+              [ pubsub_tools:get_subscription_options(Client, {node_addr(), NodeName},
+                                                      [{expected_error_type, <<"modify">>}])
+                || Client <- [Alice, Bob, Geralt] ],
 
-              pubsub_tools:subscribe(Geralt, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
-              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
+              GeraltOpts = [{<<"pubsub#deliver">>, <<"true">>}],
+              BobOpts = [{<<"pubsub#deliver">>, <<"false">>}],
+              pubsub_tools:subscribe(Geralt, Node, [{config, GeraltOpts}]),
+              pubsub_tools:subscribe(Bob, Node, [{config, BobOpts}]),
 
               %% 6.3.2 Example 59. Subscriber requests subscription options form
-              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"boolean">>, <<"true">>}]}]),
-              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"boolean">>, <<"false">>}]}]),
+              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName},
+                                                    [{expected_result, GeraltOpts}]),
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName},
+                                                    [{expected_result, BobOpts}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -720,11 +724,9 @@ set_configuration_test(Config) ->
               pubsub_tools:create_node(Alice, Node, []),
 
               ValidNodeConfig = node_config_for_test(),
-              %% TODO: Investigate why this request may take more than 1s
               pubsub_tools:set_configuration(Alice, Node, ValidNodeConfig,
                                              [{response_timeout, 10000}]),
-              NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
-              verify_config_values(NodeConfig, ValidNodeConfig),
+              pubsub_tools:get_configuration(Alice, Node, [{expected_result, ValidNodeConfig}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1921,11 +1923,6 @@ verify_config_event({NodeAddr, NodeName}, ConfigChange, Stanza) ->
     true = lists:all(fun({K, V}) ->
                              {K, V} =:= lists:keyfind(K, 1, Opts)
                      end, ConfigChange).
-
-verify_config_values(NodeConfig, ValidConfig) ->
-    lists:foreach(fun({Var, Val}) ->
-                          {{_, _, Val}, _} = {lists:keyfind(Var, 1, NodeConfig), Var}
-                  end, ValidConfig).
 
 verify_affiliations(Affiliations, ValidAffiliations) ->
     NormalisedValidAffiliations

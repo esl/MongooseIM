@@ -111,7 +111,9 @@ delete_node(User, Node, Options) ->
 get_configuration(User, Node, Options) ->
     Id = id(User, Node, <<"get_config">>),
     Request = escalus_pubsub_stanza:get_configuration(User, Id, Node),
-    decode_config_form(send_request_and_receive_response(User, Request, Id, Options)).
+    NOptions = lists:keystore(preprocess_response, 1, Options,
+                              {preprocess_response, fun decode_config_form/1}),
+    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
 
 set_configuration(User, Node, Config, Options) ->
     Id = id(User, Node, <<"set_config">>),
@@ -205,11 +207,9 @@ get_user_subscriptions(User, NodeAddr, Options) ->
 get_subscription_options(User, {NodeAddr, NodeName}, Options) ->
     Id = id(User, {NodeAddr, <<>>}, <<"options">>),
     Request = escalus_pubsub_stanza:get_subscription_options(User, Id, {NodeAddr, NodeName}),
-    send_request_and_receive_response(
-      User, Request, Id, Options,
-      fun(Response, ExpectedResult) ->
-          check_subscription_options_response(User, Response, ExpectedResult)
-      end).
+    NOptions = lists:keystore(preprocess_response, 1, Options,
+                              {preprocess_response, fun decode_options_form/1}),
+    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
 
 get_node_subscriptions(User, Node, Options) ->
     Id = id(User, Node, <<"node_subscriptions">>),
@@ -298,13 +298,6 @@ check_subscription_response(Response, User, {_, NodeName}, Options) ->
     Subscription = exml_query:path(Response, [{element, <<"pubsub">>},
                                               {element, <<"subscription">>}]),
     check_subscription(Subscription, Jid, NodeName, Options),
-    Response.
-
-check_subscription_options_response(User, Response, _ExpectedSubscriptionOptions) ->
-    SubscriptionOpts = exml_query:paths(Response, [{element, <<"pubsub">>}, {element, <<"options">>}]),
-    Jid = escalus_utils:get_jid(User),
-    [assert_ljid_equal(Jid, exml_query:attr(Opt, <<"jid">>)) || Opt <- SubscriptionOpts],
-    % TODO Finish implementation !!!
     Response.
 
 check_user_subscriptions_response(User, Response, ExpectedSubscriptions) ->
@@ -416,16 +409,23 @@ send_request_and_receive_response(User, Request, Id, Options, CheckResponseF) ->
 
 receive_and_check_response(User, Id, Options, CheckF) ->
     Response = receive_response(User, Id, Options),
+    PreppedResponse = preprocess_response(Response, Options),
     case proplists:get_value(expected_result, Options) of
-        undefined -> Response;
-        true -> CheckF(Response);
-        ExpectedResult -> CheckF(Response, ExpectedResult)
+        undefined -> PreppedResponse;
+        true -> CheckF(PreppedResponse);
+        ExpectedResult -> CheckF(PreppedResponse, ExpectedResult)
     end.
 
 receive_response(User, Id, Options) ->
     Stanza = receive_stanza(User, Options),
     check_response(Stanza, Id),
     Stanza.
+
+preprocess_response(Response, Options) ->
+    case proplists:get_value(preprocess_response, Options, false) of
+        false -> Response;
+        PrepFun -> PrepFun(Response)
+    end.
 
 check_response(Stanza, Id) ->
     true = escalus_pred:is_iq_result(Stanza),
@@ -525,7 +525,8 @@ check_item_field(Field, ExpectedValue, ReceivedItem) ->
         ExpectedValue ->
             ok;
         Value ->
-            ct:fail("Assertion failed for key: ~p, expected value: ~p, actual: ~p", [Field, ExpectedValue, Value])
+            ct:fail("Assertion failed for key: ~p, expected value: ~p, actual: ~p",
+                    [Field, ExpectedValue, Value])
     end.
 
 decode_expected_item(AMap) when is_map(AMap) ->
@@ -537,9 +538,6 @@ decode_expected_item(AMap) when is_map(AMap) ->
     end;
 decode_expected_item(ItemId) when is_binary(ItemId) ->
     #{id => ItemId}.
-
-item_content(false) -> undefined;
-item_content(true) -> item_content().
 
 bool2bin(true) -> <<"true">>;
 bool2bin(false) -> <<"false">>.
@@ -566,10 +564,16 @@ item_content() ->
            attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}]}.
 
 decode_config_form(IQResult) ->
-    PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
-    ?NS_PUBSUB_OWNER = exml_query:attr(PubSubNode, <<"xmlns">>),
+    decode_form(IQResult, ?NS_PUBSUB_OWNER, <<"configure">>).
 
-    QPath = [{element, <<"configure">>}, {element, <<"x">>}, {element, <<"field">>}],
+decode_options_form(IQResult) ->
+    decode_form(IQResult, ?NS_PUBSUB, <<"options">>).
+
+decode_form(IQResult, ExpectedNS, FormParent) ->
+    PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
+    ExpectedNS = exml_query:attr(PubSubNode, <<"xmlns">>),
+
+    QPath = [{element, FormParent}, {element, <<"x">>}, {element, <<"field">>}],
     Fields = exml_query:paths(PubSubNode, QPath),
     lists:map(fun decode_form_field/1, Fields).
 
@@ -580,6 +584,11 @@ decode_form_field(F) ->
         [Value] -> {Var, Type, Value};
         Values -> {Var, Type, Values}
     end.
+
+verify_form_values(DecodedForm, ExpectedValues) ->
+    lists:foreach(fun({Var, Val}) ->
+                          {{_, _, Val}, _} = {lists:keyfind(Var, 1, DecodedForm), Var}
+                  end, ExpectedValues).
 
 decode_affiliations(IQResult) ->
     PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
