@@ -22,6 +22,7 @@
          create_delete_node_test/1,
          subscribe_unsubscribe_test/1,
          subscribe_options_test/1,
+         subscribe_options_deliver_option_test/1,
          publish_test/1,
          publish_with_max_items_test/1,
          publish_with_existing_id_test/1,
@@ -160,6 +161,7 @@ basic_tests() ->
      create_delete_node_test,
      subscribe_unsubscribe_test,
      subscribe_options_test,
+     subscribe_options_deliver_option_test,
      publish_test,
      publish_with_max_items_test,
      publish_with_existing_id_test,
@@ -386,22 +388,47 @@ subscribe_unsubscribe_test(Config) ->
 subscribe_options_test(Config) ->
     escalus:fresh_story(
       Config,
-      [{alice, 1}, {bob, 1}],
-      fun(Alice, Bob) ->
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
               {_, NodeName} = Node = pubsub_node(),
               pubsub_tools:create_node(Alice, Node, []),
 
               %% 6.3.4.2 Example 62. No such subscriber
               pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
               pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
+              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName}, [{expected_error_type, <<"modify">>}]),
 
-              pubsub_tools:subscribe(Alice, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Geralt, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
 
               %% 6.3.2 Example 59. Subscriber requests subscription options form
-              pubsub_tools:get_subscription_options(Alice, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName}, [{expected_result, [{<<"pubsub#deliver">>, <<"false">>}]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
+
+subscribe_options_deliver_option_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              pubsub_tools:subscribe(Geralt, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
+
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+
+              %% Geralt should recive a notification
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Node, [{expected_result, true}]),
+              %% Bob should not recive a notification
+              [] = escalus:wait_for_stanzas(Bob, 1, 5000),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
 
 publish_test(Config) ->
     escalus:fresh_story(
