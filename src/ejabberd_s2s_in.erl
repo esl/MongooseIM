@@ -684,10 +684,8 @@ check_auth_domain(AuthDomain, {ok, Cert}) ->
             false;
         PCAuthDomain ->
             lists:any(
-              fun(D) ->
-                      match_domain(
-                        PCAuthDomain, D)
-              end, cert_utils:get_cert_domains(Cert))
+              fun(D) -> match_domain( PCAuthDomain, D) end,
+              cert_utils:get_cert_domains(Cert))
     end;
 check_auth_domain(_, _) ->
     false.
