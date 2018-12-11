@@ -65,16 +65,8 @@ Only one nodetree can be used per host and is shared by all node plugins.
 
 #### `<<"tree">>`
 
-Stores nodes in a database (only mnesia supported).
-
-#### `<<"virtual">>`
-
-Does not store nodes in a database.
-This saves resources on systems when the number of nodes is large.
-When using the `<<"virtual">>` nodetree, you can only enable these node plugins: `[<<“flat”>>,<<“pep”>>]` or `[<<“flat”>>]`; any other plugin configuration will not work.
-Also, all nodes will have the defaut configuration, and this can not be changed.
-
-Using the `<<“virtual”>>` nodetree requires the pubsub module to be started with a clean database, it will not work if you used the default `<<“tree”>>` nodetree before.
+Stores nodes in a database (either `mnesia` or `rdbms`).
+Allows to organise nodes in trees if the `hometree` plugin is used.
 
 #### `<<"dag">>`
 
@@ -109,7 +101,7 @@ Requires module `mod_caps` to be enabled.
 #### `<<"dag">>`
 
 Implementation of [XEP-0248 (PubSub Collection Nodes)](https://xmpp.org/extensions/xep-0248.html).
-Every node takes a place in a tree and is either a collection node (and have only sub-nodes) or a leaf node (contains only items).
+Every node takes a place in a collection and becomes either a collection node (and have only sub-nodes) or a leaf node (contains only items).
 
 #### `<<"push">>`
 
@@ -132,4 +124,18 @@ If you'd like to learn more about metrics in MongooseIM, please visit the [Mongo
 | `[global, backends, mod_pubsub_db, get_states_by_bare]` | histogram | Time to fetch nodes' states for bare JID. |
 | `[global, backends, mod_pubsub_db, get_states_by_full]` | histogram | Time to fetch nodes' states for full JID. |
 | `[global, backends, mod_pubsub_db, get_own_nodes_states]` | histogram | Time to fetch state data for user's nodes. |
-
+| `[global, backends, mod_pubsub_db, create_node, ]` | histogram | Time to set the owner after a node is created. |
+| `[global, backends, mod_pubsub_db, del_node]` | histogram | Time to delete all data related to a node being removed. |
+| `[global, backends, mod_pubsub_db, get_items]` | histogram | Time to fetch node's items. |
+| `[global, backends, mod_pubsub_db, get_item]` | histogram | Time to fetch a specific item for a node. |
+| `[global, backends, mod_pubsub_db, set_item]` | histogram | Time to insert/update item in a node. |
+| `[global, backends, mod_pubsub_db, del_item]` | histogram | Time to delete an item from a node. |
+| `[global, backends, mod_pubsub_db, del_items]` | histogram | Time to delete specified items from a node. |
+| `[global, backends, mod_pubsub_db, set_node]` | histogram | Time to create/update a node. |
+| `[global, backends, mod_pubsub_db, find_node_by_id,]` | histogram | Time to fetch a node by its id. |
+| `[global, backends, mod_pubsub_db, find_nodes_by_key]` | histogram | Time to fetch nodes by key. |
+| `[global, backends, mod_pubsub_db, find_node_by_name]` | histogram | Time to fetch a node by its name. |
+| `[global, backends, mod_pubsub_db, delete_node]` | histogram | Time to delete a node. |
+| `[global, backends, mod_pubsub_db, get_subnodes]` | histogram | Time to fetch subnodes of a node. |
+| `[global, backends, mod_pubsub_db, get_subnodes_tree]` | histogram | Time to fetch all subnodes of a node. |
+| `[global, backends, mod_pubsub_db, get_parentnodes_tre]` | histogram | Time to fetch all parents of a node. |
