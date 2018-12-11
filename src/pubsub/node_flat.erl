@@ -161,7 +161,7 @@ delete_node(Nodes) ->
 %% </p>
 %% <p>In the default plugin module, the record is unchanged.</p>
 subscribe_node(Nidx, Sender, Subscriber, AccessModel,
-            SendLast, PresenceSubscription, RosterGroup, _Options) ->
+            SendLast, PresenceSubscription, RosterGroup, Options) ->
     SenderMatchesSubscriber = jid:are_bare_equal(Sender, Subscriber),
     {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, Subscriber),
     {ok, Subscriptions} = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, Subscriber),
@@ -181,6 +181,7 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
                     Id = make_subid(),
                     Sub = access_model_to_subscription(AccessModel),
                     mod_pubsub_db_backend:add_subscription(Nidx, Subscriber, Sub, Id),
+                    mod_pubsub_db_backend:set_subscription_opts(Nidx, Subscriber, Id, Options),
                     {Sub, Id}
             end,
             case {NewSub, SendLast} of
