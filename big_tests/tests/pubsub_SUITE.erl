@@ -23,6 +23,7 @@
          subscribe_unsubscribe_test/1,
          subscribe_options_test/1,
          subscribe_options_deliver_option_test/1,
+         subscribe_options_separate_request_test/1,
          publish_test/1,
          publish_with_max_items_test/1,
          publish_with_existing_id_test/1,
@@ -162,6 +163,7 @@ basic_tests() ->
      subscribe_unsubscribe_test,
      subscribe_options_test,
      subscribe_options_deliver_option_test,
+     subscribe_options_separate_request_test,
      publish_test,
      publish_with_max_items_test,
      publish_with_existing_id_test,
@@ -433,6 +435,33 @@ subscribe_options_deliver_option_test(Config) ->
               pubsub_tools:delete_node(Alice, Node, [])
       end).
 
+subscribe_options_separate_request_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Clients = [Alice, Bob],
+              OptionAfterUpdate = {<<"pubsub#deliver">>, <<"false">>},
+              {_, NodeName} = Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Alice, Node, []),
+
+              %% 6.3.5 Example 68. Subscriber submits completed options form
+              [ pubsub_tools:upsert_subscription_options(
+                Client,
+                {node_addr(), NodeName},
+                [{subscription_options,[OptionAfterUpdate]}, {receive_response, true}])
+              || Client <- Clients ],
+
+              %% 6.3.2 Example 59. Subscriber requests subscription options form
+              [ pubsub_tools:get_subscription_options(Client, {node_addr(), NodeName},
+                                                    [{expected_result, [OptionAfterUpdate]}])
+              || Client <- Clients ],
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
 
 publish_test(Config) ->
     escalus:fresh_story(
