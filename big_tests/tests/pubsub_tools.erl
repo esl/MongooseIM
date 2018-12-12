@@ -37,6 +37,7 @@
          unsubscribe/3,
          get_user_subscriptions/3,
          get_subscription_options/3,
+         upsert_subscription_options/3,
          get_node_subscriptions/3,
          submit_subscription_response/5,
          get_pending_subscriptions/3,
@@ -210,6 +211,12 @@ get_subscription_options(User, {NodeAddr, NodeName}, Options) ->
     NOptions = lists:keystore(preprocess_response, 1, Options,
                               {preprocess_response, fun decode_options_form/1}),
     send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
+
+upsert_subscription_options(User, {NodeAddr, NodeName}, Options) ->
+    Id = id(User, {NodeAddr, <<>>}, <<"upsert_options">>),
+    SubOpts = proplists:get_value(subscription_options, Options, []),
+    Request = escalus_pubsub_stanza:set_subscription_options(User, Id, {NodeAddr, NodeName}, SubOpts),
+    send_request_and_receive_response(User, Request, Id, Options, fun (Response, _) -> Response end).
 
 get_node_subscriptions(User, Node, Options) ->
     Id = id(User, Node, <<"node_subscriptions">>),
