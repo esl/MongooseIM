@@ -119,7 +119,7 @@
                                 JID :: jid:ljid(),
                                 SubId :: mod_pubsub:subId(),
                                 Opts :: mod_pubsub:subOptions()) ->
-    ok.
+    {result, []}.
 
 -callback get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [{Entity :: jid:ljid(),
