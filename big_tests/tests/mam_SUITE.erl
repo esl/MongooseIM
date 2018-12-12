@@ -75,6 +75,8 @@
          pagination_last25_opt_count_all/1,
          pagination_offset5_opt_count/1,
          pagination_offset5_opt_count_all/1,
+         server_returns_item_not_found_for_before_filter_with_nonexistent_id/1,
+         server_returns_item_not_found_for_after_filter_with_nonexistent_id/1,
          %% complete_flag_cases tests
          before_complete_false_last5/1,
          before_complete_false_before10/1,
@@ -459,7 +461,10 @@ rsm_cases() ->
        %% opt_count cases with all messages on the page
        pagination_first25_opt_count_all,
        pagination_last25_opt_count_all,
-       pagination_offset5_opt_count_all].
+       pagination_offset5_opt_count_all,
+       %% item_not_found response for nonexistent message ID in before/after filters
+       server_returns_item_not_found_for_before_filter_with_nonexistent_id,
+       server_returns_item_not_found_for_after_filter_with_nonexistent_id].
 
 complete_flag_cases() ->
     [before_complete_false_last5,
@@ -2406,6 +2411,31 @@ pagination_last_after_id5_before_id11(Config) ->
             stanza_page_archive_request(P, <<"last_after_id5_before_id11">>, RSM)),
      %% wait_message_range(P, Client, TotalCount, Offset, FromN, ToN),
         wait_message_range(P, Alice,           5,      0,     6,  10),
+        ok
+        end,
+    parallel_story(Config, [{alice, 1}], F).
+
+server_returns_item_not_found_for_before_filter_with_nonexistent_id(Config) ->
+    NonexistentID = <<"AV25E9SCO50K">>,
+    RSM = #rsm_in{max = 5, direction = 'before', id = NonexistentID},
+    StanzaID = <<"before-nonexistent-id">>,
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+
+server_returns_item_not_found_for_after_filter_with_nonexistent_id(Config) ->
+    NonexistentID = <<"AV25E9SCO50K">>,
+    RSM = #rsm_in{max = 5, direction = 'after', id = NonexistentID},
+    StanzaID = <<"after-nonexistent-id">>,
+    server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID).
+
+server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID) ->
+    P = ?config(props, Config),
+    F = fun(Alice) ->
+        rsm_send(Config, Alice,
+                 stanza_page_archive_request(P, StanzaID, RSM)),
+        Res = escalus:wait_for_stanza(Alice),
+        ct:pal("res: ~p\n", [Res]),
+        escalus:assert(is_iq_error, Res),
+        escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res),
         ok
         end,
     parallel_story(Config, [{alice, 1}], F).
