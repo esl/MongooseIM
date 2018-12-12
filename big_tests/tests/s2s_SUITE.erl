@@ -139,14 +139,18 @@ timeout_waiting_for_message(Config) ->
             ok
     end.
 
-connections_info(_Config) ->
+connections_info(Config) ->
+    simple_message(Config),
     Node = ct:get_config({hosts, mim, node}),
+    FedDomain = ct:get_config({hosts, fed, domain}),
     S2SIn = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [in]),
     ct:pal("S2sIn: ~p", [S2SIn]),
-    [_ | _] = S2SIn, % at least one entry
+    true = lists:any(fun(PropList) -> [FedDomain] =:= proplists:get_value(domains, PropList) end,
+                     S2SIn),
     S2SOut = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [out]),
     ct:pal("S2sOut: ~p", [S2SOut]),
-    [_ | _] = S2SOut, % at least one entry
+    true = lists:any(fun(PropList) -> FedDomain =:= proplists:get_value(server, PropList) end,
+                     S2SOut),
 
     ok.
 
@@ -214,10 +218,7 @@ nonascii_addr(Config) ->
     end).
 
 successful_external_auth_with_valid_cert(Config) ->
-    CertFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "cert.pem"]),
-    KeyFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "key.pem"]),
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
     ConnectionArgs = [{host, "localhost"},
                       {to_server, "fed1"},
                       {from_server, "localhost_bis"},
@@ -234,10 +235,7 @@ successful_external_auth_with_valid_cert(Config) ->
     escalus_connection:stop(Client).
 
 only_messages_from_authenticated_domain_users_are_accepted(Config) ->
-    CertFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "cert.pem"]),
-    KeyFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "key.pem"]),
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
     ConnectionArgs = [{host, "localhost"},
                       {to_server, "fed1"},
                       {from_server, "localhost_bis"},
@@ -268,10 +266,7 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
     escalus_connection:stop(Client).
 
 auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
-    CertFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "cert.pem"]),
-    KeyFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "key.pem"]),
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
     ConnectionArgs = [{host, "localhost"},
                       {to_server, "fed1"},
                       {from_server, "some_not_in_cert_domain"},
@@ -293,10 +288,7 @@ auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
     end.
 
 auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
-    CertFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "cert.pem"]),
-    KeyFile = filename:join([path_helper:repo_dir(Config),
-				"tools", "ssl", "mongooseim", "key.pem"]),
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
     ConnectionArgs = [{host, "localhost"},
                       {to_server, "fed1"},
                       {from_server, "localhost"},
@@ -364,3 +356,13 @@ s2s_external_auth(Client = #client{props = Props}, Features) ->
     end,
     escalus_auth:auth_sasl_external(Client, Props),
     s2s_start_stream(Client, []).
+
+get_main_key_and_cert_files(Config) ->
+    CertFile = get_main_file_path(Config, "cert.pem"),
+    KeyFile = get_main_file_path(Config, "key.pem"),
+    {KeyFile, CertFile}.
+
+get_main_file_path(Config, File) ->
+    filename:join([path_helper:repo_dir(Config),
+                   "tools", "ssl", "mongooseim", File]).
+
