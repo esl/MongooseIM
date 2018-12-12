@@ -433,7 +433,7 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId) ->
 -spec set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
                             LJID :: jid:ljid(),
                             SubId :: mod_pubsub:subId(),
-                            Opts :: mod_pubsub:subOptions()) -> ok.
+                            Opts :: mod_pubsub:subOptions()) -> {result, []}.
 set_subscription_opts(Nidx, LJID, SubId, Opts) ->
     mod_pubsub_db_mnesia:set_subscription_opts(Nidx, LJID, SubId, Opts).
 
