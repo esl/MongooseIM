@@ -28,6 +28,7 @@
          set_affiliations/4,
 
          publish/4,
+         publish_without_node_attr/4,
          retract_item/4,
          get_all_items/3,
          get_item/4,
@@ -137,13 +138,24 @@ set_affiliations(User, Node, AffChange, Options) ->
 
 publish(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
-    Request = case proplists:get_value(with_payload, Options, true) of
-                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node);
-                  #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
-
-              end,
+    Request = publish_request(Id, User, ItemId, Node, Options),
     send_request_and_receive_response(User, Request, Id, Options).
+
+publish_without_node_attr(User, ItemId, Node, Options) ->
+    Id = id(User, Node, <<"publish">>),
+    Request = publish_request(Id, User, ItemId, Node, Options),
+    [PubSubEl] = Request#xmlel.children,
+    [PublishEl] = PubSubEl#xmlel.children,
+    PublishElDefect = PublishEl#xmlel{ attrs = [] },
+    RequestDefect = Request#xmlel{ children = [PubSubEl#xmlel{ children = [PublishElDefect] }] },
+    send_request_and_receive_response(User, RequestDefect, Id, Options).
+
+publish_request(Id, User, ItemId, Node, Options) ->
+    case proplists:get_value(with_payload, Options, true) of
+        true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+        false -> escalus_pubsub_stanza:publish(User, Id, Node);
+        #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
+    end.
 
 retract_item(User, Node, ItemId, Options) ->
     Id = id(User, Node, <<"retract">>),
