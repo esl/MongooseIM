@@ -36,8 +36,10 @@ Node configuration still uses the default configuration defined by the node plug
 #### Note about RDBMS backend
 
 Current RDBMS backend replaces `pubsub_node`, `pubsub_state` and `pubsub_item` Mnesia tables with RDBMS equivalents.
-Due to a fact that some data is still maintained in Mnesia, there is a certain risk of data becoming inconsistent.
-The schema used by this backend may change until it reaches stable status.
+Some of the data is still maintained in Mnesia, so there is a certain risk of it becoming inconsistent.
+Please note the schema used by this backend is still prone to changes as it has not reached a stable status.
+If `mod_pubsub` is configured to use RDBMS, management of nodes indexes is done by the database,
+so the `pubsub_index` table is not needed.
 
 #### Cache Backend
 
