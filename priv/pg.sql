@@ -317,16 +317,15 @@ CREATE INDEX i_inbox
     USING BTREE(luser, lserver, timestamp);
 
 CREATE TABLE pubsub_nodes (
-    nidx BIGINT        NOT NULL,
+    nidx               BIGSERIAL PRIMARY KEY,
     p_key VARCHAR(250) NOT NULL,
     name VARCHAR(250)  NOT NULL,
     type VARCHAR(250)  NOT NULL,
     owners JSON        NOT NULL,
-    options JSON       NOT NULL,
-    PRIMARY KEY(p_key, name, nidx)
+    options JSON       NOT NULL
 );
 
-CREATE INDEX i_pubsub_nodes_nidx ON pubsub_nodes(nidx);
+CREATE UNIQUE INDEX i_pubsub_nodes_key_name ON pubsub_nodes USING btree (p_key, name);
 
 CREATE TABLE pubsub_node_collections (
     name VARCHAR(250)        NOT NULL,

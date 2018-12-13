@@ -354,17 +354,16 @@ CREATE TABLE inbox (
 CREATE INDEX i_inbox USING BTREE ON inbox(luser, lserver, timestamp);
 
 CREATE TABLE pubsub_nodes (
-    nidx BIGINT UNSIGNED NOT NULL,
+    nidx BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     p_key VARCHAR(250)     NOT NULL,
     name VARCHAR(250)    NOT NULL,
     type VARCHAR(250)    NOT NULL,
     owners JSON          NOT NULL,
-    options JSON         NOT NULL,
-    PRIMARY KEY(p_key, name, nidx)
+    options JSON         NOT NULL
 ) CHARACTER SET utf8mb4
   ROW_FORMAT=DYNAMIC;
 
-CREATE INDEX i_pubsub_nodes_nidx USING BTREE ON pubsub_nodes(nidx);
+CREATE UNIQUE INDEX i_pubsub_nodes USING BTREE ON pubsub_nodes(p_key, name);
 
 CREATE TABLE pubsub_node_collections (
     name VARCHAR(250)        NOT NULL,

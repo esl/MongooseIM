@@ -475,21 +475,16 @@ CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
 GO
 
 CREATE TABLE dbo.pubsub_nodes (
-    nidx BIGINT           NOT NULL,
+    nidx BIGINT           IDENTITY(1,1) PRIMARY KEY,
     p_key NVARCHAR(250)   NOT NULL,
     name NVARCHAR(250)    NOT NULL,
     type NVARCHAR(250)    NOT NULL,
     owners NVARCHAR(max)  NOT NULL,
-    options NVARCHAR(max) NOT NULL,
-    CONSTRAINT PK_pubsub_nodes PRIMARY KEY CLUSTERED(
-        p_key ASC,
-        name ASC,
-        nidx ASC
-    )
+    options NVARCHAR(max) NOT NULL
 )
 GO
 
-CREATE INDEX i_pubsub_nodes_nidx ON pubsub_nodes(nidx);
+CREATE UNIQUE INDEX i_pubsub_nodes_key_name ON pubsub_nodes(p_key, name);
 GO
 
 CREATE TABLE dbo.pubsub_node_collections (

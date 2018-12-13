@@ -231,16 +231,19 @@ del_node(Nidx) ->
     {ok, States}.
 
 -spec set_node(Node :: mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
-set_node(#pubsub_node{id = undefined} = Node) ->
-    CreateNode = Node#pubsub_node{id = pubsub_index:new(node)},
-    set_node(CreateNode);
-set_node(#pubsub_node{nodeid = {Key, Name}, id = Nidx, type = Type,
+set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    SQL = mod_pubsub_db_rdbms_sql:upsert_pubsub_node(Nidx, encode_key(Key), Name, Type,
+    {ok, Nidx} = mod_pubsub_db_rdbms_sql:insert_pubsub_node(encode_key(Key), Name, Type,
                                                      jsx:encode(OwnersJid),
                                                      jsx:encode(Opts)),
-    {updated, _} = mongoose_rdbms:sql_query(global, SQL),
+    maybe_set_parents(Name, Parents),
+    {ok, Nidx};
+
+set_node(#pubsub_node{nodeid = {_, Name}, id = Nidx, type = Type,
+                      owners = Owners, options = Opts, parents = Parents}) ->
+    OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
+    mod_pubsub_db_rdbms_sql:update_pubsub_node(Nidx, Type, jsx:encode(OwnersJid), jsx:encode(Opts)),
     maybe_set_parents(Name, Parents),
     {ok, Nidx}.
 
