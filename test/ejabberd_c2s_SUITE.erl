@@ -14,7 +14,8 @@ all() -> [
           c2s_start_stop_test,
           stream_error_when_invalid_domain,
           session_established,
-          send_error_when_waiting
+          send_error_when_waiting,
+          c2s_is_killed_when_too_many_messages_in_the_queue
          ].
 
 init_per_suite(C) ->
@@ -86,6 +87,57 @@ send_error_when_waiting(_) ->
         StreamError),
     ?eq(<<"</stream:stream>">>, StreamEnd),
     ?eq(close, Close),
+    ok.
+
+c2s_is_killed_when_too_many_messages_in_the_queue(_) ->
+    meck:new(ejabberd_c2s, [passthrough]),
+    MaxQueueSize = 50,
+    Self = self(),
+    %% We simulate a long running event during which
+    %% there will be many messages put into C2S process message queue
+    meck:expect(ejabberd_c2s, handle_event,
+                fun(go_to_sleep, StateName, ProcState) ->
+                        Self ! c2s_going_to_sleep,
+                        ct:pal("going to sleep"),
+                        timer:sleep(2000),
+                        {next_state, StateName, ProcState};
+                   (Event, StateName, ProcState) ->
+                        meck:passthrough([Event, StateName, ProcState])
+                end),
+    {ok, C2SPid} = given_c2s_started([{max_fsm_queue, MaxQueueSize}]),
+
+    %% We want to monitor the c2s process and not being linked to it
+    Ref = erlang:monitor(process, C2SPid),
+    erlang:unlink(C2SPid),
+
+    p1_fsm_old:send_all_state_event(C2SPid, go_to_sleep),
+
+    receive
+        c2s_going_to_sleep ->
+            ok
+    end,
+
+    meck:unload(ejabberd_c2s),
+
+    %% We put MaxQueueSize + 1 messages to C2S Process message queue
+    %% while it is asleep
+    %% The process will be killed when it wakes up and tries to process
+    %% next message
+
+    [p1_fsm_old:send_all_state_event(C2SPid, {event, I}) ||
+     I <- lists:seq(1, MaxQueueSize + 1)],
+
+    receive
+        {'DOWN', Ref, process, C2SPid,
+         {process_limit,{max_queue, AllMessages}}} ->
+            ct:pal("C2S dead due to message_queue_length=~p, max allowed was ~p",
+                   [AllMessages, MaxQueueSize]);
+        Msg ->
+            ct:fail("Other msg: ~p", [Msg])
+    after timer:seconds(5) ->
+              ct:fail(timeout_waiting_for_c2s_exit)
+    end,
+
     ok.
 
 last_stanza() ->
@@ -183,15 +235,15 @@ setsession_stanza() ->
             []}]}.
 
 given_c2s_started() ->
-    create_c2s().
+    given_c2s_started([]).
+
+given_c2s_started(Opts) ->
+    ejabberd_c2s:start_link({ejabberd_socket, self()},
+                            Opts ++ c2s_default_opts()).
 
 when_c2s_is_stopped(Pid) ->
     stop_c2s(Pid),
     sync_c2s(Pid).
-
-
-create_c2s() ->
-    ejabberd_c2s:start_link({ejabberd_socket, self()}, c2s_default_opts()).
 
 c2s_default_opts() ->
     [{access, c2s},
