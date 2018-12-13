@@ -39,8 +39,8 @@ stop() -> ok.
 upsert_last_item(ServerHost, Nidx, ItemID, Publisher, Payload) ->
     {ModifiedLUser, ModifiedLServer,
      CreatedAt, PayloadBin} = prepare_upsert_params(Publisher, Payload),
-    InsertParams = [Nidx, ItemID, ModifiedLUser, ModifiedLServer, CreatedAt, PayloadBin],
     UpdateParams = [ItemID, ModifiedLUser, ModifiedLServer, CreatedAt, PayloadBin],
+    InsertParams = [Nidx | UpdateParams],
     UniqueKeyValues = [Nidx],
     Res = rdbms_queries:execute_upsert(ServerHost, pubsub_last_item_upsert,
                                        InsertParams, UpdateParams, UniqueKeyValues),
