@@ -446,7 +446,7 @@ set_subscription_opts(Nidx, { LU, LS, LR }, SubId, Opts) ->
     EncodedOpts = jsx:encode(Opts),
     SQL = mod_pubsub_db_rdbms_sql:update_subscription_opts(Nidx, LU, LS, LR, SubId, EncodedOpts),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
-    {result, []}.
+    ok.
 
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [{Entity :: jid:ljid(),

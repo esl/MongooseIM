@@ -2870,7 +2870,8 @@ make_and_wrap_sub_xform(Options, Node, Subscriber, SubId) ->
 
 set_options(Host, Node, JID, SubId, ConfigXForm) ->
     Action = fun(PubSubNode) ->
-                     set_options_transaction(Host, JID, SubId, ConfigXForm, PubSubNode)
+                     ok = set_options_transaction(Host, JID, SubId, ConfigXForm, PubSubNode),
+                     {result, []}
              end,
     case dirty(Host, Node, Action, ?FUNCTION_NAME) of
         {result, {_Node, Result}} -> {result, Result};

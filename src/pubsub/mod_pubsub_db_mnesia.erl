@@ -353,10 +353,9 @@ add_subscription(Nidx, LJID, Sub, SubId) ->
 -spec set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
                             JID :: jid:ljid(),
                             SubId :: mod_pubsub:subId(),
-                            Opts :: mod_pubsub:subOptions()) -> {result, []}.
+                            Opts :: mod_pubsub:subOptions()) -> ok.
 set_subscription_opts(_Nidx, _JID, SubId, Opts) ->
-    ok = mnesia:write(#pubsub_subscription{ subid = SubId, options = Opts }),
-    {result, []}.
+    mnesia:write(#pubsub_subscription{ subid = SubId, options = Opts }).
 
 -spec get_node_subscriptions(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [{Entity :: jid:ljid(),
