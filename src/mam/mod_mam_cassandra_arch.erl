@@ -388,16 +388,28 @@ lookup_messages_before_id(PoolName, Host, UserJID,
                           PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, UserJID, Host, before_id(ID, Filter), PageSize, true),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+    MessageRows = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
+                                   PageSize + 1, true),
+    case maybe_last(MessageRows) of
+        {ok, #{id := ID}} = _IntervalEndpoint ->
+            {ok, {TotalCount, Offset, rows_to_uniform_format(take(PageSize, MessageRows))}};
+        undefined ->
+            {error, item_not_found}
+    end.
 
 lookup_messages_after_id(PoolName, Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, UserJID, Host, after_id(ID, Filter), PageSize, false),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+    MessageRows0 = extract_messages(PoolName, UserJID, Host, from_id(ID, Filter),
+                                    PageSize + 1, false),
+    case MessageRows0 of
+        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
+            {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}};
+        _ ->
+            {error, item_not_found}
+    end.
 
 
 after_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
@@ -667,6 +679,11 @@ calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
 maybe_full_jid(undefined) -> <<>>;
 maybe_full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
+
+maybe_last([]) -> undefined;
+maybe_last([_|_] = L) -> {ok, lists:last(L)}.
+
+take(N, List) -> lists:sublist(List, N).
 
 %%====================================================================
 %% Internal SQL part
