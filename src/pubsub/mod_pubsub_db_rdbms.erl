@@ -42,7 +42,7 @@
         ]).
 % Subscriptions
 -export([
-         add_subscription/4,
+         add_subscription/5,
          set_subscription_opts/4,
          get_node_subscriptions/1,
          get_node_entity_subscriptions/2,
@@ -432,9 +432,12 @@ get_affiliation(Nidx, { LU, LS, _ }) ->
 -spec add_subscription(Nidx :: mod_pubsub:nodeIdx(),
                        LJID :: jid:ljid(),
                        Sub :: mod_pubsub:subscription(),
-                       SubId :: mod_pubsub:subId()) -> ok.
-add_subscription(Nidx, { LU, LS, LR }, Sub, SubId) ->
-    SQL = mod_pubsub_db_rdbms_sql:insert_subscription(Nidx, LU, LS, LR, sub2int(Sub), SubId),
+                       SubId :: mod_pubsub:subId(),
+                       SubOpts :: mod_pubsub:subOptions()) -> ok.
+add_subscription(Nidx, { LU, LS, LR }, Sub, SubId, SubOpts) ->
+    EncodedOpts = jsx:encode(SubOpts),
+    SQL = mod_pubsub_db_rdbms_sql:insert_subscription(Nidx, LU, LS, LR, sub2int(Sub),
+                                                      SubId, EncodedOpts),
     {updated, _} = mongoose_rdbms:sql_query(global, SQL),
     ok.
 

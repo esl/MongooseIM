@@ -31,7 +31,7 @@
 
 % Subscriptions
 -export([
-         insert_subscription/6,
+         insert_subscription/7,
          update_subscription_opts/6,
          get_node_subs/1,
          get_node_entity_subs/4,
@@ -221,9 +221,9 @@ delete_all_affiliations(Nidx) ->
                           LS :: jid:lserver(),
                           LR :: jid:lresource(),
                           SubInt :: integer(),
-                          SubId :: binary()) -> iolist().
-insert_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
-    EmptyOptions = jsx:encode([]),
+                          SubId :: binary(),
+                          SubOpts :: binary()) -> iolist().
+insert_subscription(Nidx, LU, LS, LR, SubInt, SubId, SubOpts) ->
     ["INSERT INTO pubsub_subscriptions (nidx, luser, lserver, lresource, type, sub_id, options)"
      " VALUES (", esc_int(Nidx), ", ",
                   esc_string(LU), ", ",
@@ -231,7 +231,7 @@ insert_subscription(Nidx, LU, LS, LR, SubInt, SubId) ->
                   esc_string(LR), ", ",
                   esc_int(SubInt), ", ",
                   esc_string(SubId), ", ",
-                  esc_string(EmptyOptions), ")"].
+                  esc_string(SubOpts), ")"].
 
 -spec update_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
                                LU :: jid:luser(),

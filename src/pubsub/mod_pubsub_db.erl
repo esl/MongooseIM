@@ -106,7 +106,8 @@
 -callback add_subscription(Nidx :: mod_pubsub:nodeIdx(),
                            JID :: jid:ljid(),
                            Sub :: mod_pubsub:subscription(),
-                           SubId :: mod_pubsub:subId()) ->
+                           SubId :: mod_pubsub:subId(),
+                           SubOpts :: mod_pubsub:subOptions()) ->
     ok.
 
 -callback update_subscription(Nidx :: mod_pubsub:nodeIdx(),

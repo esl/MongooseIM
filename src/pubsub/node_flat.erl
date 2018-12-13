@@ -180,8 +180,7 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
                 [] ->
                     Id = make_subid(),
                     Sub = access_model_to_subscription(AccessModel),
-                    mod_pubsub_db_backend:add_subscription(Nidx, Subscriber, Sub, Id),
-                    mod_pubsub_db_backend:set_subscription_opts(Nidx, Subscriber, Id, Options),
+                    mod_pubsub_db_backend:add_subscription(Nidx, Subscriber, Sub, Id, Options),
                     {Sub, Id}
             end,
             case {NewSub, SendLast} of
@@ -531,7 +530,7 @@ set_subscriptions(Nidx, LOwner, Subscription, SubId) ->
                         ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"not-subscribed">>)};
                 _ ->
                     NewSubId = make_subid(),
-                    mod_pubsub_db_backend:add_subscription(Nidx, LOwner, Subscription, NewSubId)
+                    mod_pubsub_db_backend:add_subscription(Nidx, LOwner, Subscription, NewSubId, [])
             end;
         {<<>>, [{_, SID, _}]} ->
             case Subscription of
