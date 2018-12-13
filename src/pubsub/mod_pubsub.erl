@@ -3558,7 +3558,7 @@ nodes_to_deliver(NotifyType, Depth, Node, Subs, Acc) ->
                                 JIDsToDeliver = state_can_deliver(LJID, SubOptions),
                                 process_jids_to_deliver(NodeName, SubID, JIDsToDeliver, InnerAcc);
                             false ->
-                                Acc
+                                InnerAcc
                         end
                 end, Acc, Subs).
 
