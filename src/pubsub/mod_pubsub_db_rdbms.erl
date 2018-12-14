@@ -444,7 +444,7 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId, SubOpts) ->
 -spec set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
                             LJID :: jid:ljid(),
                             SubId :: mod_pubsub:subId(),
-                            Opts :: mod_pubsub:subOptions()) -> {result, []}.
+                            Opts :: mod_pubsub:subOptions()) -> ok.
 set_subscription_opts(Nidx, { LU, LS, LR }, SubId, Opts) ->
     EncodedOpts = jsx:encode(Opts),
     SQL = mod_pubsub_db_rdbms_sql:update_subscription_opts(Nidx, LU, LS, LR, SubId, EncodedOpts),
