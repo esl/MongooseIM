@@ -36,7 +36,8 @@
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
-         apply_end_border/2]).
+         apply_end_border/2,
+         maybe_last/1]).
 
 -import(mongoose_rdbms,
         [escape_string/1,
@@ -385,18 +386,29 @@ lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
                         PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
-    TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    TotalCount   = calc_count(Host, Filter, IndexHintSQL),
+    Offset       = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    MessageRows0 = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
+    case MessageRows0 of
+        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+        _ ->
+            {error, item_not_found}
+    end;
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
                         PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    case maybe_last(MessageRows) of
+        {ok, #{id := ID}} = _IntervalEndpoint ->
+            Page = lists:sublist(MessageRows, PageSize),
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, Page)}};
+        undefined ->
+            {error, item_not_found}
+    end;
 lookup_messages_regular(Host, UserJID, RSM,
                         PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
@@ -417,6 +429,16 @@ before_id(undefined, Filter) ->
 before_id(ID, Filter) ->
     SID = escape_message_id(ID),
     [Filter, " AND id < ", use_escaped_integer(SID)].
+
+-spec from_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+from_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id >= ", use_escaped_integer(SID)].
+
+-spec to_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+to_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id <= ", use_escaped_integer(SID)].
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     [do_row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].
