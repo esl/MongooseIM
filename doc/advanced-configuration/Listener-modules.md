@@ -163,6 +163,8 @@ Please refer to the [Advanced configuration](../Advanced-configuration.md) for m
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
 * `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
+* `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
+* `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients (here server initiating S2S connection).
 
 ## XMPP components: `ejabberd_service`
 

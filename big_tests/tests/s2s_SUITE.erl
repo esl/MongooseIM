@@ -8,6 +8,8 @@
 -compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
+-include_lib("exml/include/exml.hrl").
+-include_lib("exml/include/exml_stream.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 %%%===================================================================
@@ -24,6 +26,7 @@ all() ->
      {group, node1_tls_required_node2_tls_optional},
 
      {group, node1_tls_required_trusted_node2_tls_optional},
+     {group, node1_tls_optional_node2_tls_required_trusted_with_cachain},
 
      {group, node1_tls_false_node2_tls_optional},
      {group, node1_tls_optional_node2_tls_false},
@@ -41,8 +44,12 @@ groups() ->
          {node1_tls_optional_node2_tls_required, [], essentials()},
          {node1_tls_required_node2_tls_optional, [], essentials()},
 
-         %% Node1 closes connection with "self-signed certificate" reason
+         %% Node1 closes connection from nodes with invalid certs
          {node1_tls_required_trusted_node2_tls_optional, [], negative()},
+
+         %% Node1 accepts connection provided the cert can be verified
+         {node1_tls_optional_node2_tls_required_trusted_with_cachain, [],
+          essentials() ++ connection_cases()},
 
          {node1_tls_false_node2_tls_optional, [], essentials()},
          {node1_tls_optional_node2_tls_false, [], essentials()},
@@ -55,10 +62,16 @@ essentials() ->
     [simple_message].
 
 all_tests() ->
-    essentials() ++ [nonexistent_user, unknown_domain, malformed_jid].
+    essentials() ++ [connections_info, nonexistent_user, unknown_domain, malformed_jid].
 
 negative() ->
     [timeout_waiting_for_message].
+
+connection_cases() ->
+    [successful_external_auth_with_valid_cert,
+     only_messages_from_authenticated_domain_users_are_accepted,
+     auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert,
+     auth_with_valid_cert_fails_for_other_mechanism_than_external].
 
 suite() ->
     s2s_helper:suite(escalus:suite()).
@@ -66,12 +79,14 @@ suite() ->
 users() ->
     [alice2, alice, bob].
 
+
+
 %%%===================================================================
 %%% Init & teardown
 %%%===================================================================
 
 init_per_suite(Config) ->
-    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config), true),
+    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
     escalus:create_users(Config1, escalus:get_users(users())).
 
 end_per_suite(Config) ->
@@ -123,6 +138,22 @@ timeout_waiting_for_message(Config) ->
         error:timeout_when_waiting_for_stanza ->
             ok
     end.
+
+connections_info(Config) ->
+    simple_message(Config),
+    Node = ct:get_config({hosts, mim, node}),
+    FedDomain = ct:get_config({hosts, fed, domain}),
+    S2SIn = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [in]),
+    ct:pal("S2sIn: ~p", [S2SIn]),
+    true = lists:any(fun(PropList) -> [FedDomain] =:= proplists:get_value(domains, PropList) end,
+                     S2SIn),
+    S2SOut = distributed_helper:rpc(Node, ejabberd_s2s, get_info_s2s_connections, [out]),
+    ct:pal("S2sOut: ~p", [S2SOut]),
+    true = lists:any(fun(PropList) -> FedDomain =:= proplists:get_value(server, PropList) end,
+                     S2SOut),
+
+    ok.
+
 
 nonexistent_user(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {alice2, 1}], fun(Alice1, Alice2) ->
@@ -185,3 +216,155 @@ nonascii_addr(Config) ->
         escalus:assert(is_chat_message, [<<"Miło Cię poznać">>], Stanza2)
 
     end).
+
+successful_external_auth_with_valid_cert(Config) ->
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
+    ConnectionArgs = [{host, "localhost"},
+                      {to_server, "fed1"},
+                      {from_server, "localhost_bis"},
+                      {requested_name, <<"localhost">>},
+                      {starttls, required},
+                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {ssl_opts, [{certfile, CertFile},
+                                  {keyfile, KeyFile}]}
+                     ],
+    {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
+                                                       [fun s2s_start_stream/2,
+                                                        fun s2s_starttls/2,
+                                                        fun s2s_external_auth/2]),
+    escalus_connection:stop(Client).
+
+only_messages_from_authenticated_domain_users_are_accepted(Config) ->
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
+    ConnectionArgs = [{host, "localhost"},
+                      {to_server, "fed1"},
+                      {from_server, "localhost_bis"},
+                      {requested_name, <<"localhost">>},
+                      {starttls, required},
+                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {ssl_opts, [{certfile, CertFile},
+                                  {keyfile, KeyFile}]}
+                     ],
+    {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
+                                                       [fun s2s_start_stream/2,
+                                                        fun s2s_starttls/2,
+                                                        fun s2s_external_auth/2]),
+    escalus:fresh_story(Config, [{alice2, 1}], fun(Alice) ->
+
+        UserInWrongDomain = <<"a_user@this_is_not_my.domain.com">>,
+        ChatToAliceFromUserInWrongDomain = escalus_stanza:chat(UserInWrongDomain,
+                                                               Alice, <<"Miło Cię poznać">>),
+        %% Client is a s2s connection established and authenticated for domain "localhost"
+        %% Now we try to send a message from other domain than "localhost"
+        %% over the established s2s connection
+        escalus:send(Client, ChatToAliceFromUserInWrongDomain),
+
+        %% Alice@fed1 does not receives message from a_user@this_is_not_my.domain.com
+        timer:sleep(timer:seconds(5)),
+        escalus_assert:has_no_stanzas(Alice)
+
+    end),
+
+    escalus_connection:stop(Client).
+
+auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
+    ConnectionArgs = [{host, "localhost"},
+                      {to_server, "fed1"},
+                      {from_server, "some_not_in_cert_domain"},
+                      {requested_name, <<"some_not_in_cert_domain">>},
+                      {starttls, required},
+                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {ssl_opts, [{certfile, CertFile},
+                                  {keyfile, KeyFile}]}
+                     ],
+    {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
+                                                       [fun s2s_start_stream/2,
+                                                        fun s2s_starttls/2]),
+
+    try
+        escalus_auth:auth_sasl_external(Client, Client#client.props),
+        ct:fail("Authenitcated but MUST NOT")
+    catch throw:{auth_failed, _, _} ->
+              escalus_connection:wait_for_close(Client, timer:seconds(5))
+    end.
+
+auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
+    {KeyFile, CertFile} = get_main_key_and_cert_files(Config),
+    ConnectionArgs = [{host, "localhost"},
+                      {to_server, "fed1"},
+                      {from_server, "localhost"},
+                      {requested_name, <<"localhost">>},
+                      {starttls, required},
+                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {ssl_opts, [{certfile, CertFile},
+                                  {keyfile, KeyFile}]}
+                     ],
+    {ok, Client, _Features} = escalus_connection:start(ConnectionArgs,
+                                                       [fun s2s_start_stream/2,
+                                                        fun s2s_starttls/2
+                                                       ]),
+
+    Stanza = escalus_stanza:auth(<<"ANONYMOUS">>),
+    ok = escalus_connection:send(Client, Stanza),
+    #xmlel{name = <<"failure">>} = escalus_connection:get_stanza(Client, wait_for_auth_reply),
+
+    escalus_connection:wait_for_close(Client, timer:seconds(5)).
+
+s2s_start_stream(Conn = #client{props = Props}, []) ->
+    StreamStartRep = s2s_start_stream_and_wait_for_response(Conn),
+
+    #xmlstreamstart{attrs = Attrs} = StreamStartRep,
+    Id = proplists:get_value(<<"id">>, Attrs),
+
+    escalus_session:stream_features(Conn#client{props = [{sid, Id} | Props]}, []).
+
+s2s_start_stream_and_wait_for_response(Conn = #client{props = Props}) ->
+    {to_server, To} = lists:keyfind(to_server, 1, Props),
+    {from_server, From} = lists:keyfind(from_server, 1, Props),
+
+    StreamStart = s2s_stream_start_stanza(To, From),
+    ok = escalus_connection:send(Conn, StreamStart),
+    escalus_connection:get_stanza(Conn, wait_for_stream).
+
+s2s_stream_start_stanza(To, From) ->
+    Attrs = [{<<"to">>, To},
+             {<<"from">>, From},
+             {<<"xmlns">>, <<"jabber:server">>},
+             {<<"xmlns:stream">>,
+              <<"http://etherx.jabber.org/streams">>},
+             {<<"version">>, <<"1.0">>}],
+    #xmlstreamstart{name = <<"stream:stream">>, attrs = Attrs}.
+
+s2s_starttls(Client, Features) ->
+    case proplists:get_value(starttls, Features) of
+        false ->
+            ct:fail("The server does not offer STARTTLS");
+        _ ->
+            ok
+    end,
+
+    escalus_connection:send(Client, escalus_stanza:starttls()),
+    escalus_connection:get_stanza(Client, proceed),
+    escalus_connection:upgrade_to_tls(Client),
+    s2s_start_stream(Client, []).
+
+s2s_external_auth(Client = #client{props = Props}, Features) ->
+    case proplists:get_value(sasl_mechanisms, Features) of
+        [<<"EXTERNAL">>] ->
+            ok;
+        SASL ->
+            ct:fail("Server does not provide EXTERNAL auth: ~p", [SASL])
+    end,
+    escalus_auth:auth_sasl_external(Client, Props),
+    s2s_start_stream(Client, []).
+
+get_main_key_and_cert_files(Config) ->
+    CertFile = get_main_file_path(Config, "cert.pem"),
+    KeyFile = get_main_file_path(Config, "key.pem"),
+    {KeyFile, CertFile}.
+
+get_main_file_path(Config, File) ->
+    filename:join([path_helper:repo_dir(Config),
+                   "tools", "ssl", "mongooseim", File]).
+

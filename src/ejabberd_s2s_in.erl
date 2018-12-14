@@ -142,6 +142,7 @@ init([{SockMod, Socket}, Opts]) ->
               end,
     TLSOpts2 = lists:filter(fun({protocol_options, _}) -> true;
                                ({dhfile, _}) -> true;
+                               ({cafile, _}) -> true;
                                ({ciphers, _}) -> true;
                                (_) -> false
                             end, Opts),
@@ -388,6 +389,7 @@ stream_established({invalid, From, To}, StateData) ->
                                       StateData#state.connections)},
     {next_state, stream_established, NSD};
 stream_established({xmlstreamend, _Name}, StateData) ->
+    send_text(StateData, ?STREAM_TRAILER),
     {stop, normal, StateData};
 stream_established({xmlstreamerror, _}, StateData) ->
     send_text(StateData,
@@ -682,10 +684,8 @@ check_auth_domain(AuthDomain, {ok, Cert}) ->
             false;
         PCAuthDomain ->
             lists:any(
-              fun(D) ->
-                      match_domain(
-                        PCAuthDomain, D)
-              end, cert_utils:get_cert_domains(Cert))
+              fun(D) -> match_domain( PCAuthDomain, D) end,
+              cert_utils:get_cert_domains(Cert))
     end;
 check_auth_domain(_, _) ->
     false.
