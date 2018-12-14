@@ -392,7 +392,8 @@ lookup_messages_before_id(PoolName, Host, UserJID,
                                    PageSize + 1, true),
     case maybe_last(MessageRows) of
         {ok, #{id := ID}} = _IntervalEndpoint ->
-            {ok, {TotalCount, Offset, rows_to_uniform_format(take(PageSize, MessageRows))}};
+            Page = lists:sublist(MessageRows, PageSize),
+            {ok, {TotalCount, Offset, rows_to_uniform_format(Page)}};
         undefined ->
             {error, item_not_found}
     end.
@@ -682,8 +683,6 @@ maybe_full_jid(JID) ->
 
 maybe_last([]) -> undefined;
 maybe_last([_|_] = L) -> {ok, lists:last(L)}.
-
-take(N, List) -> lists:sublist(List, N).
 
 %%====================================================================
 %% Internal SQL part
