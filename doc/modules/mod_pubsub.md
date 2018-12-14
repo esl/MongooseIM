@@ -35,11 +35,9 @@ Node configuration still uses the default configuration defined by the node plug
 
 #### Note about RDBMS backend
 
-Current RDBMS backend replaces `pubsub_node`, `pubsub_state` and `pubsub_item` Mnesia tables with RDBMS equivalents.
-Due to a fact that some data is still maintained in Mnesia, there is a certain risk of data becoming inconsistent.
+RDBMS backend is in an experimental stage.
+It is a full implementation with one exception: DB operations are not protected with transactions yet.
 The schema used by this backend may change until it reaches stable status.
-If `mod_pubsub` is configured to use RDBMS, management of nodes indexes is
-done by the database, so  the `pubsub_index` table is not needed.
 
 #### Cache Backend
 
@@ -67,8 +65,12 @@ Only one nodetree can be used per host and is shared by all node plugins.
 
 #### `<<"tree">>`
 
-Stores nodes in a database (either `mnesia` or `rdbms`).
-Allows to organise nodes in trees if the `hometree` plugin is used.
+Stores nodes in a tree structure.
+Every node name must be formatted like a UNIX path (e.g. `/top/middle/leaf`).
+When a node is created, its direct ancestor must already exist, so in order to create `/top/middle/leaf`, `/top/middle` is needed.
+A user may create any top-level node.
+A user may create a subnode of a node, only if they own it or it was created by the service.
+
 
 #### `<<"dag">>`
 
