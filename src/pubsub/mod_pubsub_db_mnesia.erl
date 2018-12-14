@@ -40,7 +40,7 @@
         ]).
 % Subscriptions
 -export([
-         add_subscription/4,
+         add_subscription/5,
          set_subscription_opts/4,
          get_node_subscriptions/1,
          get_node_entity_subscriptions/2,
@@ -344,11 +344,13 @@ get_affiliation(Nidx, LJID) ->
 -spec add_subscription(Nidx :: mod_pubsub:nodeIdx(),
                        LJID :: jid:ljid(),
                        Sub :: mod_pubsub:subscription(),
-                       SubId :: mod_pubsub:subId()) -> ok.
-add_subscription(Nidx, LJID, Sub, SubId) ->
+                       SubId :: mod_pubsub:subId(),
+                       SubOpts :: mod_pubsub:subOptions()) -> ok.
+add_subscription(Nidx, LJID, Sub, SubId, SubOpts) ->
     {ok, State} = get_state(Nidx, LJID, write),
     NSubscriptions = [{Sub, SubId} | State#pubsub_state.subscriptions ],
-    mnesia:write(State#pubsub_state{ subscriptions = NSubscriptions }).
+    mnesia:write(State#pubsub_state{ subscriptions = NSubscriptions }),
+    set_subscription_opts(Nidx, LJID, SubId, SubOpts).
 
 -spec set_subscription_opts(Nidx :: mod_pubsub:nodeIdx(),
                             JID :: jid:ljid(),

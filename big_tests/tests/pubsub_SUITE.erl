@@ -21,6 +21,9 @@
          discover_nodes_test/1,
          create_delete_node_test/1,
          subscribe_unsubscribe_test/1,
+         subscribe_options_test/1,
+         subscribe_options_deliver_option_test/1,
+         subscribe_options_separate_request_test/1,
          publish_test/1,
          publish_with_max_items_test/1,
          publish_with_existing_id_test/1,
@@ -160,6 +163,9 @@ basic_tests() ->
      discover_nodes_test,
      create_delete_node_test,
      subscribe_unsubscribe_test,
+     subscribe_options_test,
+     subscribe_options_deliver_option_test,
+     subscribe_options_separate_request_test,
      publish_test,
      publish_with_max_items_test,
      publish_with_existing_id_test,
@@ -391,6 +397,82 @@ subscribe_unsubscribe_test(Config) ->
               %% Check subscriptions without resources
               pubsub_tools:subscribe(Bob, Node, [{jid_type, bare}]),
               pubsub_tools:unsubscribe(Bob, Node, [{jid_type, bare}]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+subscribe_options_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              {_, NodeName} = Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              %% 6.3.4.2 Example 62. No such subscriber
+              [ pubsub_tools:get_subscription_options(Client, {node_addr(), NodeName},
+                                                      [{expected_error_type, <<"modify">>}])
+                || Client <- [Alice, Bob, Geralt] ],
+
+              GeraltOpts = [{<<"pubsub#deliver">>, <<"true">>}],
+              BobOpts = [{<<"pubsub#deliver">>, <<"false">>}],
+              pubsub_tools:subscribe(Geralt, Node, [{config, GeraltOpts}]),
+              pubsub_tools:subscribe(Bob, Node, [{config, BobOpts}]),
+
+              %% 6.3.2 Example 59. Subscriber requests subscription options form
+              pubsub_tools:get_subscription_options(Geralt, {node_addr(), NodeName},
+                                                    [{expected_result, GeraltOpts}]),
+              pubsub_tools:get_subscription_options(Bob, {node_addr(), NodeName},
+                                                    [{expected_result, BobOpts}]),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+subscribe_options_deliver_option_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}, {geralt, 1}],
+      fun(Alice, Bob, Geralt) ->
+              Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              pubsub_tools:subscribe(Geralt, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"false">>}]}]),
+
+              pubsub_tools:publish(Alice, <<"item1">>, Node, []),
+
+              %% Geralt should recive a notification
+              pubsub_tools:receive_item_notification(Geralt, <<"item1">>, Node, [{expected_result, true}]),
+              %% Bob should not recive a notification
+              [] = escalus:wait_for_stanzas(Bob, 1, 5000),
+
+              pubsub_tools:delete_node(Alice, Node, [])
+      end).
+
+subscribe_options_separate_request_test(Config) ->
+    escalus:fresh_story(
+      Config,
+      [{alice, 1}, {bob, 1}],
+      fun(Alice, Bob) ->
+              Clients = [Alice, Bob],
+              OptionAfterUpdate = {<<"pubsub#deliver">>, <<"false">>},
+              {_, NodeName} = Node = pubsub_node(),
+              pubsub_tools:create_node(Alice, Node, []),
+
+              pubsub_tools:subscribe(Bob, Node, [{config, [{<<"pubsub#deliver">>, <<"true">>}]}]),
+              pubsub_tools:subscribe(Alice, Node, []),
+
+              %% 6.3.5 Example 68. Subscriber submits completed options form
+              [ pubsub_tools:upsert_subscription_options(
+                Client,
+                {node_addr(), NodeName},
+                [{subscription_options,[OptionAfterUpdate]}, {receive_response, true}])
+              || Client <- Clients ],
+
+              %% 6.3.2 Example 59. Subscriber requests subscription options form
+              [ pubsub_tools:get_subscription_options(Client, {node_addr(), NodeName},
+                                                    [{expected_result, [OptionAfterUpdate]}])
+              || Client <- Clients ],
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -671,11 +753,9 @@ set_configuration_test(Config) ->
               pubsub_tools:create_node(Alice, Node, []),
 
               ValidNodeConfig = node_config_for_test(),
-              %% TODO: Investigate why this request may take more than 1s
               pubsub_tools:set_configuration(Alice, Node, ValidNodeConfig,
                                              [{response_timeout, 10000}]),
-              NodeConfig = pubsub_tools:get_configuration(Alice, Node, []),
-              verify_config_values(NodeConfig, ValidNodeConfig),
+              pubsub_tools:get_configuration(Alice, Node, [{expected_result, ValidNodeConfig}]),
 
               pubsub_tools:delete_node(Alice, Node, [])
       end).
@@ -1872,11 +1952,6 @@ verify_config_event({NodeAddr, NodeName}, ConfigChange, Stanza) ->
     true = lists:all(fun({K, V}) ->
                              {K, V} =:= lists:keyfind(K, 1, Opts)
                      end, ConfigChange).
-
-verify_config_values(NodeConfig, ValidConfig) ->
-    lists:foreach(fun({Var, Val}) ->
-                          {{_, _, Val}, _} = {lists:keyfind(Var, 1, NodeConfig), Var}
-                  end, ValidConfig).
 
 verify_affiliations(Affiliations, ValidAffiliations) ->
     NormalisedValidAffiliations

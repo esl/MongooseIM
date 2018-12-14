@@ -175,6 +175,8 @@ sub_form_options() ->
     {ok, mod_pubsub:subOptions()} | convert_from_binary_error().
 convert_fields_from_binaries([], Result, _Schema) ->
     {ok, Result};
+convert_fields_from_binaries([{<<"FORM_TYPE">>, _Values} | RData], Acc, Schema) ->
+    convert_fields_from_binaries(RData, Acc, Schema);
 convert_fields_from_binaries([{VarBin, Values} | RData], Acc, Schema) ->
     case lists:keyfind(VarBin, 1, Schema) of
         {_VBin, _Var, #{ data_type := DataType }} when Values == [] andalso DataType /= list ->

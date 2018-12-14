@@ -476,8 +476,8 @@ GO
 
 CREATE TABLE dbo.pubsub_nodes (
     nidx BIGINT           IDENTITY(1,1) PRIMARY KEY,
-    p_key NVARCHAR(250)   NOT NULL,
-    name NVARCHAR(250)    NOT NULL,
+    p_key NVARCHAR(150)   NOT NULL,
+    name NVARCHAR(150)    NOT NULL,
     type NVARCHAR(250)    NOT NULL,
     owners NVARCHAR(max)  NOT NULL,
     options NVARCHAR(max) NOT NULL
@@ -488,8 +488,8 @@ CREATE UNIQUE INDEX i_pubsub_nodes_key_name ON pubsub_nodes(p_key, name);
 GO
 
 CREATE TABLE dbo.pubsub_node_collections (
-    name NVARCHAR(250) NOT NULL,
-    parent_name NVARCHAR(250) NOT NULL,
+    name NVARCHAR(150) NOT NULL,
+    parent_name NVARCHAR(150) NOT NULL,
     CONSTRAINT PK_pubsub_node_collections PRIMARY KEY CLUSTERED(
         name ASC,
         parent_name ASC
@@ -499,8 +499,8 @@ GO
 
 CREATE TABLE dbo.pubsub_affiliations (
     nidx BIGINT NOT NULL,
-    luser NVARCHAR(250) NOT NULL,
-    lserver NVARCHAR(250) NOT NULL,
+    luser NVARCHAR(150) NOT NULL,
+    lserver NVARCHAR(150) NOT NULL,
     aff TINYINT NOT NULL,
     CONSTRAINT PK_pubsub_affiliations PRIMARY KEY CLUSTERED(
         luser ASC,
@@ -516,12 +516,12 @@ GO
 CREATE TABLE dbo.pubsub_items (
     nidx BIGINT                      NOT NULL,
     itemid NVARCHAR(250)             NOT NULL,
-    created_luser NVARCHAR(250)      NOT NULL,
-    created_lserver NVARCHAR(250)    NOT NULL,
+    created_luser NVARCHAR(150)      NOT NULL,
+    created_lserver NVARCHAR(150)    NOT NULL,
     created_at BIGINT                NOT NULL,
-    modified_luser NVARCHAR(250)     NOT NULL,
-    modified_lserver NVARCHAR(250)   NOT NULL,
-    modified_lresource NVARCHAR(250) NOT NULL,
+    modified_luser NVARCHAR(150)     NOT NULL,
+    modified_lserver NVARCHAR(150)   NOT NULL,
+    modified_lresource NVARCHAR(150) NOT NULL,
     modified_at BIGINT               NOT NULL,
     publisher NVARCHAR(max),
     payload VARBINARY(max)           NOT NULL,
@@ -552,11 +552,12 @@ GO
 
 CREATE TABLE dbo.pubsub_subscriptions (
     nidx BIGINT NOT NULL,
-    luser NVARCHAR(250) NOT NULL,
-    lserver NVARCHAR(250) NOT NULL,
-    lresource NVARCHAR(250) NOT NULL,
+    luser NVARCHAR(150) NOT NULL,
+    lserver NVARCHAR(150) NOT NULL,
+    lresource NVARCHAR(150) NOT NULL,
     type TINYINT NOT NULL,
-    sub_id NVARCHAR(125) NOT NULL
+    sub_id NVARCHAR(125) NOT NULL,
+    options NVARCHAR(max) NOT NULL
 )
 GO
 
