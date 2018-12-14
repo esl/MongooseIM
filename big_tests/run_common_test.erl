@@ -228,7 +228,7 @@ enable_preset(Name, PresetVars, Test, N, Tests) ->
     %%       A multicall requires the function to be defined on the other side, though.
     Rs = [ maybe_enable_preset_on_node(host_node(H), PresetVars,
                                        host_vars(H), host_name(H))
-           || H <- get_hosts(Test) ],
+           || H <- get_hosts_to_enable_preset(Test) ],
     [ok] = lists:usort(Rs),
     error_logger:info_msg("Configuration ~p of ~p: ~p started.~n",
                           [N, Tests, Name]).
@@ -298,7 +298,7 @@ analyze_coverage(_, _) ->
     ok.
 
 prepare(Test) ->
-    Nodes = get_ejabberd_nodes(Test),
+    Nodes = get_mongoose_nodes(Test),
     maybe_compile_cover(Nodes).
 
 maybe_compile_cover([]) ->
@@ -321,7 +321,7 @@ maybe_compile_cover(Nodes) ->
 
 analyze(Test, CoverOpts) ->
     io:format("Coverage analyzing~n"),
-    Nodes = get_ejabberd_nodes(Test),
+    Nodes = get_mongoose_nodes(Test),
     report_time("Export cover data from MongooseIM nodes", fun() ->
             multicall(Nodes, mongoose_cover_helper, analyze, [], cover_timeout())
         end),
@@ -386,15 +386,19 @@ make_html(Modules) ->
     file:write(File, row("Summary", CSum, NCSum, percent(CSum, NCSum), "#")),
     file:close(File).
 
-get_hosts(Test) ->
-    {_File, Props} = get_ct_config(Test),
-    {hosts, Hosts} = lists:keyfind(hosts, 1, Props),
+get_hosts_to_enable_preset(Test) ->
+    Hosts = get_all_hosts(Test),
     %% We apply preset options to `mim` and `reg` clusters
     Clusters = group_by(fun host_cluster/1, Hosts),
     dict:fetch(mim, Clusters) ++ dict:fetch(reg, Clusters).
 
-get_ejabberd_nodes(Test) ->
-    [ host_node(H) || H <- get_hosts(Test), is_test_host_enabled(host_name(H)) ].
+get_all_hosts(Test) ->
+    {_File, Props} = get_ct_config(Test),
+    {hosts, Hosts} = lists:keyfind(hosts, 1, Props),
+    Hosts.
+
+get_mongoose_nodes(Test) ->
+    [ host_node(H) || H <- get_all_hosts(Test), is_test_host_enabled(host_name(H)) ].
 
 percent(0, _) -> 0;
 percent(C, NC) when C /= 0; NC /= 0 -> round(C / (NC+C) * 100);
