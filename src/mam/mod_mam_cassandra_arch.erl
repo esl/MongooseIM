@@ -30,6 +30,7 @@
 -import(mod_mam_utils,
         [maybe_min/2,
          maybe_max/2,
+         maybe_last/1,
          bare_jid/1,
          full_jid/1
          ]).
@@ -680,9 +681,6 @@ calc_offset(_W, _UserJID, _LS, _F, _PS, _TC, _RSM) ->
 maybe_full_jid(undefined) -> <<>>;
 maybe_full_jid(JID) ->
     jid:to_binary(jid:to_lower(JID)).
-
-maybe_last([]) -> undefined;
-maybe_last([_|_] = L) -> {ok, lists:last(L)}.
 
 %%====================================================================
 %% Internal SQL part

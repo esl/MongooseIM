@@ -74,6 +74,7 @@
 -export([maybe_integer/2,
          maybe_min/2,
          maybe_max/2,
+         maybe_last/1,
          apply_start_border/2,
          apply_end_border/2,
          bare_jid/1,
@@ -954,6 +955,9 @@ maybe_max(X, undefined) ->
 maybe_max(X, Y) ->
     max(X, Y).
 
+-spec maybe_last([T]) -> undefined | {ok, T}.
+maybe_last([]) -> undefined;
+maybe_last([_|_] = L) -> {ok, lists:last(L)}.
 
 -spec maybe_next_id('undefined' | non_neg_integer()) -> 'undefined' | pos_integer().
 maybe_next_id(undefined) ->
