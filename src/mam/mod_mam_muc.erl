@@ -575,6 +575,8 @@ return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
+return_error_iq(IQ, item_not_found) ->
+    {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
     {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
 return_error_iq(IQ, missing_with_jid) ->
