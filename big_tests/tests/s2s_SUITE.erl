@@ -251,13 +251,15 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
                                                         fun s2s_external_auth/2]),
     escalus:fresh_story(Config, [{alice2, 1}], fun(Alice) ->
 
-        AliceInWrongDomain = <<"alice@this_is_not_my.domain.com">>,
-        ChatToBobFromUserInWrongDomain = escalus_stanza:chat(AliceInWrongDomain,
-                                                             Alice, <<"Miło Cię poznać">>),
+        UserInWrongDomain = <<"a_user@this_is_not_my.domain.com">>,
+        ChatToAliceFromUserInWrongDomain = escalus_stanza:chat(UserInWrongDomain,
+                                                               Alice, <<"Miło Cię poznać">>),
+        %% Client is a s2s connection established and authenticated for domain "localhost"
+        %% Now we try to send a message from other domain than "localhost"
+        %% over the established s2s connection
+        escalus:send(Client, ChatToAliceFromUserInWrongDomain),
 
-        escalus:send(Client, ChatToBobFromUserInWrongDomain),
-
-        %% Alice@fed1 does not receives message from Alice@localhost1
+        %% Alice@fed1 does not receives message from a_user@this_is_not_my.domain.com
         timer:sleep(timer:seconds(5)),
         escalus_assert:has_no_stanzas(Alice)
 
