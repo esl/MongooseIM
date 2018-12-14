@@ -86,7 +86,7 @@ users() ->
 %%%===================================================================
 
 init_per_suite(Config) ->
-    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config), true),
+    Config1 = s2s_helper:init_s2s(escalus:init_per_suite(Config)),
     escalus:create_users(Config1, escalus:get_users(users())).
 
 end_per_suite(Config) ->

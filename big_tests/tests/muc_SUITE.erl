@@ -371,7 +371,7 @@ init_per_group(hibernation, Config) ->
     end,
     Config;
 init_per_group(register_over_s2s, Config) ->
-    Config1 = s2s_helper:init_s2s(Config, false),
+    Config1 = s2s_helper:init_s2s(Config),
     Config2 = s2s_helper:configure_s2s(both_plain, Config1),
     [{_,AliceSpec2}|Others] = escalus:get_users([alice2, bob, kate]),
     Users = [{alice,AliceSpec2}|Others],

@@ -1,6 +1,6 @@
 -module(s2s_helper).
 -export([suite/1]).
--export([init_s2s/2]).
+-export([init_s2s/1]).
 -export([end_s2s/1]).
 -export([configure_s2s/2]).
 
@@ -24,19 +24,11 @@
 suite(Config) ->
     require_rpc_nodes([mim, fed]) ++ Config.
 
-init_s2s(Config, CoverEnabled) when is_boolean(CoverEnabled) ->
+init_s2s(Config) ->
     Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
     Node1S2SUseStartTLS = rpc(mim(), ejabberd_config, get_local_option, [s2s_use_starttls]),
     Node1S2SPort = ct:get_config({hosts, mim, s2s_port}),
     [Node1S2SListener] = get_listener_opts(mim(), Node1S2SPort),
-
-    case CoverEnabled of
-        true ->
-            rpc(fed(), mongoose_cover_helper, start, [[mongooseim]],
-                timer:seconds(120));
-        _ ->
-            ok
-    end,
 
     Node2S2SCertfile = rpc(fed(), ejabberd_config, get_local_option, [s2s_certfile]),
     Node2S2SUseStartTLS = rpc(fed(), ejabberd_config, get_local_option, [s2s_use_starttls]),
@@ -50,19 +42,12 @@ init_s2s(Config, CoverEnabled) when is_boolean(CoverEnabled) ->
                     node2_s2s_listener = Node2S2SListener},
 
     [{s2s_opts, S2S},
-     {escalus_user_db, xmpp},
-     {cover_enabled, CoverEnabled} | Config].
+     {escalus_user_db, xmpp} | Config].
 
 end_s2s(Config) ->
     S2SOrig = ?config(s2s_opts, Config),
     configure_s2s(S2SOrig),
-    CoverEnabled = ?config(cover_enabled, Config),
-    case CoverEnabled of
-        true ->
-            rpc(fed(), mongoose_cover_helper, analyze, []);
-        _ ->
-            ok
-    end.
+    ok.
 
 configure_s2s(both_plain, Config) ->
     S2S = ?config(s2s_opts, Config),
