@@ -15,6 +15,13 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
+-export([pubsub_node/0,
+         domain/0,
+         node_addr/0,
+         rand_name/1,
+         pubsub_node_name/0,
+         encode_group_name/2,
+         decode_group_name/1]).
 -export([
          discover_nodes/3,
 
@@ -618,3 +625,28 @@ decode_affiliations(IQResult) ->
 
     [ {exml_query:attr(F, <<"jid">>), exml_query:attr(F, <<"affiliation">>)} || F <- Fields ].
 
+pubsub_node() ->
+    {node_addr(), pubsub_node_name()}.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
+node_addr() ->
+    Domain = domain(),
+    <<"pubsub.", Domain/binary>>.
+
+rand_name(Prefix) ->
+    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
+    <<Prefix/binary, "_", Suffix/binary>>.
+
+%% Generates nodetree_tree-safe names
+pubsub_node_name() ->
+    Name0 = rand_name(<<"princely_musings">>),
+    re:replace(Name0, "/", "_", [global, {return, binary}]).
+
+encode_group_name(BaseName, NodeTree) ->
+    binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
+
+decode_group_name(ComplexName) ->
+    [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
+    #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.

@@ -22,9 +22,11 @@
          publish_without_node_attr_test/1
         ]).
 
--import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
-                             rpc/4]).
+-import(distributed_helper, [require_rpc_nodes/1]).
+-import(pubsub_tools, [pubsub_node/0,
+                       domain/0,
+                       encode_group_name/2,
+                       decode_group_name/1]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -51,13 +53,6 @@ basic_tests() ->
      publish_test,
      publish_without_node_attr_test
     ].
-
-encode_group_name(BaseName, NodeTree) ->
-    binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
-
-decode_group_name(ComplexName) ->
-    [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
-    #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -129,25 +124,6 @@ publish_without_node_attr_test(Config) ->
               pubsub_tools:publish_without_node_attr(Alice2, <<"item2">>, Node, [{expected_error_type, <<"cancel">>}]),
               pubsub_tools:delete_node(Alice, Node, [])
       end).
-
-pubsub_node() ->
-    {node_addr(), pubsub_node_name()}.
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
-
-node_addr() ->
-    Domain = domain(),
-    <<"pubsub.", Domain/binary>>.
-
-rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
-    <<Prefix/binary, "_", Suffix/binary>>.
-
-%% Generates nodetree_tree-safe names
-pubsub_node_name() ->
-    Name0 = rand_name(<<"princely_musings">>),
-    re:replace(Name0, "/", "_", [global, {return, binary}]).
 
 required_modules(ExtraOpts) ->
     [{mod_pubsub, [

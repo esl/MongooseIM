@@ -113,7 +113,12 @@
          get_item_with_publisher_option_test/1,
          receive_item_notification_with_publisher_option_test/1
         ]).
-
+-import(pubsub_tools, [pubsub_node/0,
+                       domain/0,
+                       node_addr/0,
+                       rand_name/1,
+                       encode_group_name/2,
+                       decode_group_name/1]).
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
                              rpc/4]).
@@ -264,14 +269,6 @@ last_item_cache_tests() ->
      send_last_published_item_no_items_test,
      purge_all_items_test
     ].
-
-encode_group_name(BaseName, NodeTree) ->
-    binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
-
-decode_group_name(ComplexName) ->
-    [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
-    #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
-
 %%--------------------------------------------------------------------
 %% Init & teardown
 %%--------------------------------------------------------------------
@@ -1824,25 +1821,6 @@ deleting_parent_path_deletes_children(Config) ->
 %%-----------------------------------------------------------------
 %% Helpers
 %%-----------------------------------------------------------------
-
-domain() ->
-    ct:get_config({hosts, mim, domain}).
-
-node_addr() ->
-    Domain = domain(),
-    <<"pubsub.", Domain/binary>>.
-
-rand_name(Prefix) ->
-    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
-    <<Prefix/binary, "_", Suffix/binary>>.
-
-%% Generates nodetree_tree-safe names
-pubsub_node_name() ->
-    Name0 = rand_name(<<"princely_musings">>),
-    re:replace(Name0, "/", "_", [global, {return, binary}]).
-
-pubsub_node() ->
-    {node_addr(), pubsub_node_name()}.
 
 path_node_and_parent(Client, {NodeAddr, NodeName}) ->
     %% TODO: Add proper JID stringprepping to escalus!!!
