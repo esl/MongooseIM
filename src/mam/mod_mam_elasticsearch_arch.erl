@@ -73,7 +73,39 @@ archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJi
             Err
     end.
 
-lookup_messages(_Result, Host, Params) ->
+lookup_messages(Result, Host, #{rsm := #rsm_in{direction = before, id = ID}} = Params) when ID =/= undefined ->
+    lookup_messages_before_id(Result, Host, ID, Params);
+lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID}} = Params) when ID =/= undefined ->
+    lookup_messages_after_id(Result, Host, ID, Params);
+lookup_messages(Result, Host, Params) ->
+    lookup_messages_(Result, Host, Params).
+
+lookup_messages_before_id(Result, Host, ID, Params) ->
+    PageSize = maps:get(page_size, Params),
+    case lookup_messages_(Result, Host, Params#{page_size := 1 + PageSize}) of
+        {error, _} = Err -> Err;
+        {ok, {TotalCount, Offset, MessagesWithEndpoint}} ->
+            case mod_mam_utils:maybe_last(MessagesWithEndpoint) of
+                {ok, {ID, _, _}} = _IntervalEndpoint ->
+                    Messages = lists:sublist(MessagesWithEndpoint, PageSize),
+                    {ok, {TotalCount, Offset, Messages}};
+                undefined ->
+                    {error, item_not_found}
+            end
+    end.
+
+lookup_messages_after_id(Result, Host, ID, Params) ->
+    PageSize = maps:get(page_size, Params),
+    case lookup_messages_(Result, Host, Params#{page_size := 1 + PageSize}) of
+        {ok, {TotalCount, Offset, [{ID, _, _} = _IntervalEndpoint | Messages]}} ->
+            {ok, {TotalCount, Offset, Messages}};
+        {ok, {_TotalCount, _Offset, [{_OtherID, _, _} | _Messages]}} ->
+            {error, item_not_found};
+        {error, _} = Err ->
+            Err
+    end.
+
+lookup_messages_(_Result, Host, Params) ->
     SearchQuery0 = build_search_query(Params),
     Sorting = [#{mam_id => #{order => determine_sorting(Params)}}],
     ResultLimit = maps:get(page_size, Params),
@@ -168,10 +200,9 @@ with_jid_filter(_) ->
 
 -spec range_filter(map()) -> [map()].
 range_filter(#{end_ts := End, start_ts := Start, borders := Borders, rsm := RSM}) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
+    {StartId, EndId} = calculate_msg_id_borders(RSM, Borders, Start, End),
     Range1 = maybe_add_end_filter(EndId, #{}),
     Range2 = maybe_add_start_filter(StartId, Range1),
-
     case maps:size(Range2) of
         0 ->
             [];
@@ -185,13 +216,13 @@ range_filter(_) ->
 maybe_add_end_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_end_filter(Value, RangeMap) ->
-    RangeMap#{lt => Value}.
+    RangeMap#{le => Value}.
 
 -spec maybe_add_start_filter(undefined | mod_mam:message_id(), map()) -> map().
 maybe_add_start_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_start_filter(Value, RangeMap) ->
-    RangeMap#{gt => Value}.
+    RangeMap#{ge => Value}.
 
 -spec build_text_search_query(map()) -> map().
 build_text_search_query(#{search_text := SearchText}) when is_binary(SearchText) ->
@@ -289,3 +320,22 @@ archive_size(Query) ->
             0
     end.
 
+%% This is a local copy of mod_mam_utils:calculate_msg_id_borders/4.
+%% It doesn't subtract/add 1 in case of before/after filters.
+-spec calculate_msg_id_borders(jlib:rsm_in() | undefined,
+                               mod_mam:borders() | undefined,
+                               mod_mam:unix_timestamp() | undefined,
+                               mod_mam:unix_timestamp() | undefined) -> R when
+      R :: {integer() | undefined, integer() | undefined}.
+calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
+    calculate_msg_id_borders(undefined, Borders, Start, End);
+calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
+    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
+    NextId = Id,
+    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
+calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
+    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
+    PrevId = Id,
+    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
+calculate_msg_id_borders(_, Borders, Start, End) ->
+    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
