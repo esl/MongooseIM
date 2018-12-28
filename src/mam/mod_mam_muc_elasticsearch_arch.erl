@@ -198,7 +198,7 @@ with_jid_filter(_) ->
 
 -spec range_filter(map()) -> [map()].
 range_filter(#{end_ts := End, start_ts := Start, borders := Borders, rsm := RSM}) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
+    {StartId, EndId} = calculate_msg_id_borders(RSM, Borders, Start, End),
     Range1 = maybe_add_end_filter(EndId, #{}),
     Range2 = maybe_add_start_filter(StartId, Range1),
 
@@ -215,13 +215,13 @@ range_filter(_) ->
 maybe_add_end_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_end_filter(Value, RangeMap) ->
-    RangeMap#{lt => Value}.
+    RangeMap#{le => Value}.
 
 -spec maybe_add_start_filter(undefined | mod_mam:message_id(), map()) -> map().
 maybe_add_start_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_start_filter(Value, RangeMap) ->
-    RangeMap#{gt => Value}.
+    RangeMap#{ge => Value}.
 
 -spec build_text_search_query(map()) -> map().
 build_text_search_query(#{search_text := SearchText}) when is_binary(SearchText) ->
