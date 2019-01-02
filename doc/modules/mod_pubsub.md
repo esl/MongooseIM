@@ -118,6 +118,45 @@ This node type **requires** `publish-options` with at least `device_id` and `ser
 
 If you'd like to learn more about metrics in MongooseIM, please visit the [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
+#### Overall PubSub action metrics
+
+For every PubSub action, like node creation, subscription, publication there are following kind of metrics:
+
+* count - number of total and in last minute actions
+* errors - number of total and in last minute errors for given action
+* time - the time it took to finish the action
+
+Below there is a table describing all metrics related to PubSub actions
+
+| Name | Description (when it gets incremented) |
+| ---- | -------------------------------------- |
+|`[HOST,pubsub,get,<<"affiliations">>,TYPE]` | When node's affiliations are read |
+|`[HOST,pubsub,get,<<"configure">>,TYPE]` | When node's configuration is read |
+|`[HOST,pubsub,get,<<"default">>,TYPE]` | When node's defaults are read |
+|`[HOST,pubsub,get,<<"items">>,TYPE]` | When node's items are read |
+|`[HOST,pubsub,get,<<"options">>,TYPE]` | When node's options are read |
+|`[HOST,pubsub,get,<<"subscriptions">>,TYPE]` | When node's subscriptions are read |
+|`[HOST,pubsub,set,<<"affiliations">>,TYPE]` | When node's subscriptions are set |
+|`[HOST,pubsub,set,<<"configure">>,TYPE]` | When node's configuration is set |
+|`[HOST,pubsub,set,<<"create">>,TYPE]` | When node is created |
+|`[HOST,pubsub,set,<<"delete">>,TYPE]` | When node is deleted |
+|`[HOST,pubsub,set,<<"options">>,TYPE]` | When node's options are set |
+|`[HOST,pubsub,set,<<"publish">>,TYPE]` | When an item is published |
+|`[HOST,pubsub,set,<<"purge">>,TYPE]` | When node's items are purged |
+|`[HOST,pubsub,set,<<"retract">>,TYPE]` | When node's items are retracted |
+|`[HOST,pubsub,set,<<"subscribe">>,TYPE]` | When a subscriber subscribes to a node |
+|`[HOST,pubsub,set,<<"subscriptions">>,TYPE]` | When a subscription is set (for instance accepted) |
+|`[HOST,pubsub,set,<<"unsubscribe">>,TYPE]` | When a subscriber unsubscribes |
+
+Where:
+
+* `HOST` is the XMPP host for which mod_pubsub is running. Can be set to `global` if all metrics are set to be global.
+* `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
+
+#### Backend operations
+
+The are also more detailed metrics measuring execution time of backend operations.
+
 | Name | Type | Description (when it gets incremented) |
 | ---- | ---- | -------------------------------------- |
 | `[global, backends, mod_pubsub_db, set_state]` | histogram | Time to update user's state for specific node. |
@@ -143,3 +182,4 @@ If you'd like to learn more about metrics in MongooseIM, please visit the [Mongo
 | `[global, backends, mod_pubsub_db, get_subnodes]` | histogram | Time to fetch subnodes of a node. |
 | `[global, backends, mod_pubsub_db, get_subnodes_tree]` | histogram | Time to fetch all subnodes of a node. |
 | `[global, backends, mod_pubsub_db, get_parentnodes_tre]` | histogram | Time to fetch all parents of a node. |
+
