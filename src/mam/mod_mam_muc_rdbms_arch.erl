@@ -307,29 +307,30 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _) ->
+                PageSize, _) when ID =/= undefined ->
     Filter       = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount   = calc_count(Host, Filter),
     Offset       = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     MessageRows0 = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
-    case MessageRows0 of
-        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+    case rows_to_uniform_format(MessageRows0, Host, RoomJID) of
+        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
+            {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}
     end;
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID, SearchText,
-                PageSize, _) ->
+                PageSize, _) when ID =/= undefined ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
     Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    MessageRows0 = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    MessageRows = rows_to_uniform_format(MessageRows0, Host, RoomJID),
     case maybe_last(MessageRows) of
-        {ok, #{id := ID}} = _IntervalEndpoint ->
+        {ok, {ID, _, _}} = _IntervalEndpoint ->
             Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Page, Host, RoomJID)}};
+            {ok, {TotalCount, Offset, Page}};
         undefined ->
             {error, item_not_found}
     end;
