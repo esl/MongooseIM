@@ -82,7 +82,7 @@
          binary_search_fields       :: [binary()],
          deref = neverDerefAliases  :: neverDerefAliases | derefInSearching
                                      | derefFindingBaseObj | derefAlways,
-         matches = 0                :: non_neg_integer()}).
+         matches = 0                :: non_neg_integer() | infinity}).
 
 -define(VCARD_MAP,
         [{<<"NICKNAME">>, <<"%u">>, []},
@@ -464,9 +464,9 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
 parse_options(Host, Opts) ->
     MyHost = gen_mod:get_opt_subhost(Host, Opts, mod_vcard:default_host()),
     Matches = eldap_utils:get_mod_opt(matches, Opts,
-                              fun(infinity) -> 0;
-                                 (I) when is_integer(I), I>0 -> I
-                              end, 30),
+                             fun(infinity) -> infinity;
+                                (I) when is_integer(I), I>=0 -> I
+                             end, 30),
     EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME), utf8),
     Cfg = eldap_utils:get_config(Host, Opts),
     UIDsTemp = eldap_utils:get_opt(
