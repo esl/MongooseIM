@@ -11,11 +11,7 @@
 %% do not remove below SUITE if testing mongoose
 {suites, "tests", mongoose_sanity_checks_SUITE}.
 
-{groups, "tests", mam_SUITE, [rsm04, muc_rsm04],
- {cases, [
-          server_returns_item_not_found_for_before_filter_with_nonexistent_id,
-          server_returns_item_not_found_for_after_filter_with_nonexistent_id
-         ]}}.
+{suites, "tests", mam_SUITE}.
 
 {config, ["test.config"]}.
 {logdir, "ct_report"}.
