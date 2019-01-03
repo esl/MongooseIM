@@ -515,7 +515,8 @@ parse_options(Host, Opts) ->
                                                iolist_to_binary(P)}
                                               || {S, P} <- Ls]
                                      end, ?SEARCH_REPORTED),
-    UIDAttrs = [UAttr || {UAttr, _} <- UIDs],
+    UIDAttrs = lists:map(fun({UID, _}) -> UID;
+                            ({UID}) -> UID end, UIDs),
     VCardMapAttrs = lists:usort(lists:append([A
                                               || {_, _, A} <- VCardMap])
                                   ++ UIDAttrs),
