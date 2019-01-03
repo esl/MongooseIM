@@ -41,7 +41,7 @@ all() ->
 %% Tests
 
 handles_unicode_messages(Config) ->
-    expect_message_entry(<<"message">>, <<"❤☀☆☂☻♞☯☭☢€"/utf8>>),
+    expect_message_entry(message, <<"❤☀☆☂☻♞☯☭☢€"/utf8>>),
     send_packet_callback(Config, <<"chat">>, <<"❤☀☆☂☻♞☯☭☢€"/utf8>>).
 
 forwards_chat_messages_to_chat_topic(Config) ->
@@ -70,13 +70,13 @@ creates_proper_sns_topic_arn(Config) ->
     ?assert(meck:called(erlcloud_sns, publish, [topic, OtherExpectedTopic, '_', '_', '_', '_'])).
 
 forwards_online_presence_to_presence_topic(Config) ->
-    expect_message_entry(<<"present">>, true),
+    expect_message_entry(present, true),
     user_present_callback(Config),
     ExpectedTopic = craft_arn("user_presence_updated-dev-1"),
     ?assert(meck:called(erlcloud_sns, publish, [topic, ExpectedTopic, '_', '_', '_', '_'])).
 
 forwards_offline_presence_to_presence_topic(Config) ->
-    expect_message_entry(<<"present">>, false),
+    expect_message_entry(present, false),
     user_not_present_callback(Config),
     ExpectedTopic = craft_arn("user_presence_updated-dev-1"),
     ?assert(meck:called(erlcloud_sns, publish, [topic, ExpectedTopic, '_', '_', '_', '_'])).
@@ -101,7 +101,7 @@ does_not_forward_presences_when_topic_is_unset(Config) ->
 calls_callback_module_to_get_user_id(Config) ->
     Module = custom_callback_module("customuserid", #{}),
     set_sns_config(#{plugin_module => Module}),
-    expect_message_entry(<<"user_id">>, "customuserid"),
+    expect_message_entry(user_id, "customuserid"),
     user_not_present_callback(Config),
     ?assert(meck:called(Module, user_guid, '_')).
 
@@ -193,8 +193,8 @@ expect_topic(ExpectedTopic) ->
 expect_message_entry(Key, Value) ->
     meck:expect(
       erlcloud_sns, publish,
-      fun(_, _, JSON, _, _, _) ->
-              MessageObject = jiffy:decode(unicode:characters_to_binary(JSON), [return_maps]),
+      fun(_, _, TupleList, _, _, _) ->
+              MessageObject = maps:from_list(TupleList),
               Value = maps:get(Key, MessageObject)
       end).
 

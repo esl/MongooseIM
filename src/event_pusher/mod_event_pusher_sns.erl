@@ -153,8 +153,7 @@ try_publish(Host, TopicARN, Content, Attributes, Retry) ->
 -spec publish(Host :: jid:lserver(), topic_arn(), Content :: jiffy:json_value(),
               attributes()) -> MessageId :: string().
 publish(Host, TopicARN, Content, Attributes) ->
-    EncodedContent = jiffy:encode(Content),
-    erlcloud_sns:publish(topic, TopicARN, unicode:characters_to_list(EncodedContent),
+    erlcloud_sns:publish(topic, TopicARN, maps:to_list(Content),
                          undefined, maps:to_list(Attributes), aws_handle(Host)).
 
 %% @doc Returns AWS SNS handle base on configured AWS credentials
