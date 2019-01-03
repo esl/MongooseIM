@@ -384,28 +384,29 @@ lookup_messages_opt_count(Host, UserJID,
 
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
-                        PageSize, Filter) ->
+                        PageSize, Filter) when ID =/= undefined ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount   = calc_count(Host, Filter, IndexHintSQL),
     Offset       = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
     MessageRows0 = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
-    case MessageRows0 of
-        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    case rows_to_uniform_format(Host, UserJID, MessageRows0) of
+        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
+            {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}
     end;
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
-                        PageSize, Filter) ->
+                        PageSize, Filter) when ID =/= undefined ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
     Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    MessageRows0 = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    MessageRows = rows_to_uniform_format(Host, UserJID, MessageRows0),
     case maybe_last(MessageRows) of
-        {ok, #{id := ID}} = _IntervalEndpoint ->
+        {ok, {ID, _, _}} = _IntervalEndpoint ->
             Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, Page)}};
+            {ok, {TotalCount, Offset, Page}};
         undefined ->
             {error, item_not_found}
     end;
