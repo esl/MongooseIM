@@ -78,7 +78,7 @@
 -export([create_node/5, create_node/7, delete_node/3,
          subscribe_node/5, unsubscribe_node/5, publish_item/6,
          delete_item/4, send_items/7, get_items/2, get_item/3,
-         get_cached_item/2, get_configure/5, set_configure/5,
+         get_cached_item/2,
          tree_action/3, node_action/4, node_call/4]).
 
 %% general helpers for plugins
@@ -1272,10 +1272,14 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
         [#xmlel{name = Name} = ActionEl | _] ->
             report_iq_action_metrics_before_result(ServerHost, IQType, Name),
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
-            {Time, Result} = timer:tc(fun iq_pubsub_action/11,
-                                      [IQType, Name, Host, ServerHost,
-                                       Plugins, Node, From, Access, ActionEl,
-                                       QueryEl, Lang]),
+            {Time, Result} = timer:tc(fun iq_pubsub_action/6,
+                                      [IQType, Name, Host, Node, From,
+                                       #{server_host => ServerHost,
+                                         plugins => Plugins,
+                                         access => Access,
+                                         action_el => ActionEl,
+                                         query_el => QueryEl,
+                                         lang => Lang}]),
             report_iq_action_metrics_after_return(ServerHost, Result, Time, IQType, Name),
             Result;
         Other ->
@@ -1283,28 +1287,28 @@ iq_pubsub(Host, ServerHost, From, IQType, #xmlel{children = SubEls} = QueryEl,
             {error, mongoose_xmpp_errors:bad_request()}
     end.
 
-iq_pubsub_action(IQType, Name, Host, ServerHost, Plugins, Node, From, Access, ActionEl, QueryEl, Lang) ->
+iq_pubsub_action(IQType, Name, Host, Node, From, ExtraArgs) ->
     case {IQType, Name} of
         {set, <<"create">>} ->
-            iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, ActionEl, QueryEl);
+            iq_pubsub_set_create(Host, Node, From, ExtraArgs);
         {set, <<"publish">>} ->
-            iq_pubsub_set_publish(Host, ServerHost, Node, From, Access, ActionEl, QueryEl);
+            iq_pubsub_set_publish(Host, Node, From, ExtraArgs);
         {set, <<"retract">>} ->
-            iq_pubsub_set_retract(Host, Node, From, ActionEl);
+            iq_pubsub_set_retract(Host, Node, From, ExtraArgs);
         {set, <<"subscribe">>} ->
-            iq_pubsub_set_subscribe(Host, Node, From, QueryEl, ActionEl);
+            iq_pubsub_set_subscribe(Host, Node, From, ExtraArgs);
         {set, <<"unsubscribe">>} ->
-            iq_pubsub_set_unsubscribe(Host, Node, From, ActionEl);
+            iq_pubsub_set_unsubscribe(Host, Node, From, ExtraArgs);
         {get, <<"items">>} ->
-            iq_pubsub_get_items(Host, Node, From, QueryEl, ActionEl);
+            iq_pubsub_get_items(Host, Node, From, ExtraArgs);
         {get, <<"subscriptions">>} ->
-            get_subscriptions(Host, Node, From, Plugins);
+            get_subscriptions(Host, Node, From, ExtraArgs);
         {get, <<"affiliations">>} ->
-            get_affiliations(Host, Node, From, Plugins);
+            get_affiliations(Host, Node, From, ExtraArgs);
         {get, <<"options">>} ->
-            iq_pubsub_get_options(Host, Node, Lang, ActionEl);
+            iq_pubsub_get_options(Host, Node, From, ExtraArgs);
         {set, <<"options">>} ->
-            iq_pubsub_set_options(Host, Node, ActionEl);
+            iq_pubsub_set_options(Host, Node, ExtraArgs);
           _ ->
             {error, mongoose_xmpp_errors:feature_not_implemented()}
     end.
@@ -1352,7 +1356,9 @@ report_iq_action_metrics_after_return(Host, Result, Time, IQType, Name) ->
             mongoose_metrics:update(Host, metric_name(IQType, Name, time), Time)
     end.
 
-iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, CreateEl, QueryEl) ->
+iq_pubsub_set_create(Host, Node, From,
+                     #{server_host := ServerHost, access := Access, plugins := Plugins,
+                       action_el := CreateEl, query_el := QueryEl}) ->
     Config = case exml_query:subelement(QueryEl, <<"configure">>) of
                  #xmlel{ children = C } -> C;
                  _ -> []
@@ -1366,7 +1372,8 @@ iq_pubsub_set_create(Host, ServerHost, Node, From, Access, Plugins, CreateEl, Qu
             create_node(Host, ServerHost, Node, From, Type, Access, Config)
     end.
 
-iq_pubsub_set_publish(Host, ServerHost, Node, From, Access, ActionEl, QueryEl) ->
+iq_pubsub_set_publish(Host, Node, From, #{server_host := ServerHost, access := Access,
+                                          action_el := ActionEl, query_el := QueryEl}) ->
     case xml:remove_cdata(ActionEl#xmlel.children) of
         [#xmlel{name = <<"item">>, attrs = ItemAttrs, children = Payload}] ->
             ItemId = xml:get_attr_s(<<"id">>, ItemAttrs),
@@ -1381,7 +1388,8 @@ iq_pubsub_set_publish(Host, ServerHost, Node, From, Access, ActionEl, QueryEl) -
             {error, extended_error(mongoose_xmpp_errors:bad_request(), <<"invalid-payload">>)}
     end.
 
-iq_pubsub_set_retract(Host, Node, From, #xmlel{attrs = RetractAttrs, children = RetractSubEls}) ->
+iq_pubsub_set_retract(Host, Node, From,
+                      #{action_el := #xmlel{attrs = RetractAttrs, children = RetractSubEls}}) ->
     ForceNotify = case xml:get_attr_s(<<"notify">>, RetractAttrs) of
                       <<"1">> -> true;
                       <<"true">> -> true;
@@ -1396,18 +1404,21 @@ iq_pubsub_set_retract(Host, Node, From, #xmlel{attrs = RetractAttrs, children = 
              extended_error(mongoose_xmpp_errors:bad_request(), <<"item-required">>)}
     end.
 
-iq_pubsub_set_subscribe(Host, Node, From, QueryEl, #xmlel{attrs = SubscribeAttrs}) ->
+iq_pubsub_set_subscribe(Host, Node, From, #{query_el := QueryEl,
+                                            action_el := #xmlel{attrs = SubscribeAttrs}}) ->
     ConfigXForm = exml_query:path(QueryEl, [{element, <<"options">>},
                                             {element_with_ns, <<"x">>, ?NS_XDATA}]),
     JID = xml:get_attr_s(<<"jid">>, SubscribeAttrs),
     subscribe_node(Host, Node, From, JID, ConfigXForm).
 
-iq_pubsub_set_unsubscribe(Host, Node, From, #xmlel{attrs = UnsubscribeAttrs}) ->
+iq_pubsub_set_unsubscribe(Host, Node, From, #{action_el := #xmlel{attrs = UnsubscribeAttrs}}) ->
     JID = xml:get_attr_s(<<"jid">>, UnsubscribeAttrs),
     SubId = xml:get_attr_s(<<"subid">>, UnsubscribeAttrs),
     unsubscribe_node(Host, Node, From, JID, SubId).
 
-iq_pubsub_get_items(Host, Node, From, QueryEl, #xmlel{attrs = GetItemsAttrs, children = GetItemsSubEls}) ->
+iq_pubsub_get_items(Host, Node, From,
+                    #{query_el := QueryEl,
+                      action_el := #xmlel{attrs = GetItemsAttrs, children = GetItemsSubEls}}) ->
     MaxItems = xml:get_attr_s(<<"max_items">>, GetItemsAttrs),
     SubId = xml:get_attr_s(<<"subid">>, GetItemsAttrs),
     ItemIds = extract_item_ids(GetItemsSubEls),
@@ -1429,12 +1440,12 @@ extract_item_id(#xmlel{name = <<"item">>} = Item, Acc) ->
 extract_item_id(_, Acc) -> Acc.
 
 
-iq_pubsub_get_options(Host, Node, Lang, #xmlel{attrs = GetOptionsAttrs}) ->
+iq_pubsub_get_options(Host, Node, Lang, #{action_el := #xmlel{attrs = GetOptionsAttrs}}) ->
     SubId = xml:get_attr_s(<<"subid">>, GetOptionsAttrs),
     JID = xml:get_attr_s(<<"jid">>, GetOptionsAttrs),
     get_options(Host, Node, JID, SubId, Lang).
 
-iq_pubsub_set_options(Host, Node, #xmlel{attrs = SetOptionsAttrs} = ActionEl) ->
+iq_pubsub_set_options(Host, Node, #{action_el := #xmlel{attrs = SetOptionsAttrs} = ActionEl}) ->
     XForm = exml_query:subelement_with_name_and_ns(ActionEl, <<"x">>, ?NS_XDATA),
     SubId = xml:get_attr_s(<<"subid">>, SetOptionsAttrs),
     JID = xml:get_attr_s(<<"jid">>, SetOptionsAttrs),
@@ -1456,9 +1467,11 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
         [#xmlel{name = Name} = ActionEl] ->
             report_iq_action_metrics_before_result(ServerHost, IQType, Name),
             Node = exml_query:attr(ActionEl, <<"node">>, <<>>),
-            {Time, Result} = timer:tc(fun iq_pubsub_owner_action/8,
-                                      [IQType, Name, Host, ServerHost,
-                                       Node, From, ActionEl, Lang]),
+            {Time, Result} = timer:tc(fun iq_pubsub_owner_action/6,
+                                      [IQType, Name, Host, From, Node,
+                                       #{server_host => ServerHost,
+                                         action_el => ActionEl,
+                                         lang => Lang}]),
             report_iq_action_metrics_after_return(ServerHost, Result, Time, IQType, Name),
             Result;
         _ ->
@@ -1466,15 +1479,14 @@ iq_pubsub_owner(Host, ServerHost, From, IQType, SubEl, Lang) ->
             {error, mongoose_xmpp_errors:bad_request()}
     end.
 
-iq_pubsub_owner_action(IQType, Name, Host, ServerHost, Node, From, ActionEl, Lang) ->
-    Els = ActionEl#xmlel.children,
+iq_pubsub_owner_action(IQType, Name, Host, From, Node, ExtraParams) ->
     case {IQType, Name} of
         {get, <<"configure">>} ->
-            get_configure(Host, ServerHost, Node, From, Lang);
+            get_configure(Host, Node, From, ExtraParams);
         {set, <<"configure">>} ->
-            set_configure(Host, Node, From, Els, Lang);
+            set_configure(Host, Node, From, ExtraParams);
         {get, <<"default">>} ->
-            get_default(Host, Node, From, Lang);
+            get_default(Host, Node, From, ExtraParams);
         {set, <<"delete">>} ->
             delete_node(Host, Node, From);
         {set, <<"purge">>} ->
@@ -1482,11 +1494,11 @@ iq_pubsub_owner_action(IQType, Name, Host, ServerHost, Node, From, ActionEl, Lan
         {get, <<"subscriptions">>} ->
             get_subscriptions(Host, Node, From);
         {set, <<"subscriptions">>} ->
-            set_subscriptions(Host, Node, From, xml:remove_cdata(Els));
+            set_subscriptions(Host, Node, From, ExtraParams);
         {get, <<"affiliations">>} ->
             get_affiliations(Host, Node, From);
         {set, <<"affiliations">>} ->
-            set_affiliations(Host, Node, From, xml:remove_cdata(Els));
+            set_affiliations(Host, Node, From, ExtraParams);
         _ ->
             {error, mongoose_xmpp_errors:feature_not_implemented()}
     end.
@@ -2689,13 +2701,13 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
 %% @doc <p>Return the list of affiliations as an XMPP response.</p>
 -spec get_affiliations(
         Host    :: mod_pubsub:host(),
-          Node    :: mod_pubsub:nodeId(),
-          JID     ::jid:jid(),
-          Plugins :: [binary()])
-        -> {result, [exml:element(), ...]}
+        Node    :: mod_pubsub:nodeId(),
+        JID     :: jid:jid(),
+        Plugins :: #{plugins := [binary()]})
+        -> {result, [exml:element()]}
 %%%
                | {error, exml:element()}.
-get_affiliations(Host, Node, JID, Plugins) when is_list(Plugins) ->
+get_affiliations(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) ->
     Result = lists:foldl(
                fun(Type, {Status, Acc}) ->
                        Features = plugin_features(Host, Type),
@@ -2777,13 +2789,14 @@ get_affiliations_transaction(Host, JID, #pubsub_node{type = Type, id = Nidx}) ->
 
 -spec set_affiliations(
         Host        :: mod_pubsub:host(),
-          Node        :: mod_pubsub:nodeId(),
-          From        ::jid:jid(),
-          EntitiesEls :: [exml:element()])
+        Node        :: mod_pubsub:nodeId(),
+        From        ::jid:jid(),
+        EntitiesEls :: #{action_el := exml:element()})
         -> {result, []} | {error, exml:element() | {exml:element(), [exml:element()]}}
 %%%
                | {error, exml:element()}.
-set_affiliations(Host, Node, From, EntitiesEls) ->
+set_affiliations(Host, Node, From, #{action_el := ActionEl} ) ->
+    EntitiesEls = xml:remove_cdata(ActionEl#xmlel.children),
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun
                                (_, error) ->
@@ -2989,7 +3002,7 @@ set_options_helper(Host, {ok, SubOpts}, JID, Nidx, RequestedSubId, Type) ->
 %%         Reason = stanzaError()
 %%         Response = [pubsubIQResponse()]
 %% @doc <p>Return the list of subscriptions as an XMPP response.</p>
-get_subscriptions(Host, Node, JID, Plugins) when is_list(Plugins) ->
+get_subscriptions(Host, Node, JID, #{plugins := Plugins}) when is_list(Plugins) ->
     Result = lists:foldl(fun (Type, {Status, Acc}) ->
                                  Features = plugin_features(Host, Type),
                                  case lists:member(<<"retrieve-subscriptions">>, Features) of
@@ -3119,7 +3132,8 @@ get_subscriptions_for_send_last(Host, PType, [JID, LJID, BJID]) ->
 get_subscriptions_for_send_last(_Host, _PType, _JIDs) ->
     [].
 
-set_subscriptions(Host, Node, From, EntitiesEls) ->
+set_subscriptions(Host, Node, From, #{action_el := ActionEl} ) ->
+    EntitiesEls = xml:remove_cdata(ActionEl#xmlel.children),
     Owner = jid:to_lower(jid:to_bare(From)),
     Entities = lists:foldl(fun(_, error) ->
                                    error;
@@ -3675,7 +3689,7 @@ user_resource(_, _, Resource) ->
 
 %%%%%%% Configuration handling
 
-get_configure(Host, ServerHost, Node, From, Lang) ->
+get_configure(Host, Node, From, #{server_host := ServerHost, lang := Lang}) ->
     Action = fun(PubSubNode) ->
                      get_configure_transaction(Host, ServerHost, Node, From, Lang, PubSubNode)
              end,
@@ -3704,7 +3718,7 @@ get_configure_transaction(Host, ServerHost, Node, From, Lang,
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
-get_default(Host, Node, _From, Lang) ->
+get_default(Host, Node, _From, #{lang := Lang}) ->
     Type = select_type(Host, Node),
     Options = node_options(Host, Type),
     DefaultEl = #xmlel{name = <<"default">>, attrs = [],
@@ -3877,8 +3891,8 @@ get_configure_xfields(_Type, Options, Lang, Groups) ->
 %%<li>The node has no configuration options.</li>
 %%<li>The specified node does not exist.</li>
 %%</ul>
-set_configure(Host, Node, From, Els, Lang) ->
-    case xml:remove_cdata(Els) of
+set_configure(Host, Node, From, #{action_el := ActionEl, lang := Lang}) ->
+    case xml:remove_cdata(ActionEl#xmlel.children) of
         [#xmlel{name = <<"x">>} = XEl] ->
             case {xml:get_tag_attr_s(<<"xmlns">>, XEl), xml:get_tag_attr_s(<<"type">>, XEl)} of
                 {?NS_XDATA, <<"cancel">>} -> {result, []};
