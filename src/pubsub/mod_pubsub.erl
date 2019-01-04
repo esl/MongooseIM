@@ -227,9 +227,8 @@ start(Host, Opts) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  transient, 1000, worker, [?MODULE]},
-    Result = ejabberd_sup:start_child(ChildSpec),
     ensure_metrics(Host),
-    Result.
+    ejabberd_sup:start_child(ChildSpec).
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
@@ -1318,25 +1317,28 @@ ensure_metrics(Host) ->
                                {time, histogram}]].
 
 all_metrics() ->
-    [{set, <<"create">>},
-     {set, <<"publish">>},
-     {set, <<"retract">>},
-     {set, <<"subscribe">>},
-     {set, <<"unsubscribe">>},
-     {get, <<"items">>},
-     {get, <<"options">>},
-     {set, <<"options">>},
-     {get, <<"configure">>},
-     {set, <<"configure">>},
-     {get, <<"default">>},
-     {set, <<"delete">>},
-     {set, <<"purge">>},
-     {get, <<"subscriptions">>},
-     {set, <<"subscriptions">>},
-     {get, <<"affiliations">>},
-     {set, <<"affiliations">>}].
+    [{set, create},
+     {set, publish},
+     {set, retract},
+     {set, subscribe},
+     {set, unsubscribe},
+     {get, items},
+     {get, options},
+     {set, options},
+     {get, configure},
+     {set, configure},
+     {get, default},
+     {set, delete},
+     {set, purge},
+     {get, subscriptions},
+     {set, subscriptions},
+     {get, affiliations},
+     {set, affiliations}].
 
-metric_name(IQType, Name, MetricSuffix) ->
+metric_name(IQType, Name, MetricSuffix) when is_binary(Name) ->
+    NameAtom = binary_to_existing_atom(Name, utf8),
+    metric_name(IQType, NameAtom, MetricSuffix);
+metric_name(IQType, Name, MetricSuffix) when is_atom(Name) ->
     [pubsub, IQType, Name, MetricSuffix].
 
 report_iq_action_metrics_before_result(Host, IQType, Name) ->

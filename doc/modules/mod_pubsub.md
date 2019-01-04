@@ -122,31 +122,31 @@ If you'd like to learn more about metrics in MongooseIM, please visit the [Mongo
 
 For every PubSub action, like node creation, subscription, publication there are following kind of metrics:
 
-* count - number of total and in last minute actions
-* errors - number of total and in last minute errors for given action
-* time - the time it took to finish the action
+* count - a spiral metric measuring number of given action invocations
+* errors - a spiral metric errors for given action
+* time - a histogram metric showing the time it took to finish the action in case of success
 
 Below there is a table describing all metrics related to PubSub actions
 
 | Name | Description (when it gets incremented) |
 | ---- | -------------------------------------- |
-|`[HOST,pubsub,get,<<"affiliations">>,TYPE]` | When node's affiliations are read |
-|`[HOST,pubsub,get,<<"configure">>,TYPE]` | When node's configuration is read |
-|`[HOST,pubsub,get,<<"default">>,TYPE]` | When node's defaults are read |
-|`[HOST,pubsub,get,<<"items">>,TYPE]` | When node's items are read |
-|`[HOST,pubsub,get,<<"options">>,TYPE]` | When node's options are read |
-|`[HOST,pubsub,get,<<"subscriptions">>,TYPE]` | When node's subscriptions are read |
-|`[HOST,pubsub,set,<<"affiliations">>,TYPE]` | When node's subscriptions are set |
-|`[HOST,pubsub,set,<<"configure">>,TYPE]` | When node's configuration is set |
-|`[HOST,pubsub,set,<<"create">>,TYPE]` | When node is created |
-|`[HOST,pubsub,set,<<"delete">>,TYPE]` | When node is deleted |
-|`[HOST,pubsub,set,<<"options">>,TYPE]` | When node's options are set |
-|`[HOST,pubsub,set,<<"publish">>,TYPE]` | When an item is published |
-|`[HOST,pubsub,set,<<"purge">>,TYPE]` | When node's items are purged |
-|`[HOST,pubsub,set,<<"retract">>,TYPE]` | When node's items are retracted |
-|`[HOST,pubsub,set,<<"subscribe">>,TYPE]` | When a subscriber subscribes to a node |
-|`[HOST,pubsub,set,<<"subscriptions">>,TYPE]` | When a subscription is set (for instance accepted) |
-|`[HOST,pubsub,set,<<"unsubscribe">>,TYPE]` | When a subscriber unsubscribes |
+|`[HOST,pubsub,get,affiliations,TYPE]` | When node's affiliations are read |
+|`[HOST,pubsub,get,configure,TYPE]` | When node's configuration is read |
+|`[HOST,pubsub,get,default,TYPE]` | When node's defaults are read |
+|`[HOST,pubsub,get,items,TYPE]` | When node's items are read |
+|`[HOST,pubsub,get,options,TYPE]` | When node's options are read |
+|`[HOST,pubsub,get,subscriptions,TYPE]` | When node's subscriptions are read |
+|`[HOST,pubsub,set,affiliations,TYPE]` | When node's subscriptions are set |
+|`[HOST,pubsub,set,configure,TYPE]` | When node's configuration is set |
+|`[HOST,pubsub,set,create,TYPE]` | When node is created |
+|`[HOST,pubsub,set,delete,TYPE]` | When node is deleted |
+|`[HOST,pubsub,set,options,TYPE]` | When node's options are set |
+|`[HOST,pubsub,set,publish,TYPE]` | When an item is published |
+|`[HOST,pubsub,set,purge,TYPE]` | When node's items are purged |
+|`[HOST,pubsub,set,retract,TYPE]` | When node's items are retracted |
+|`[HOST,pubsub,set,subscribe,TYPE]` | When a subscriber subscribes to a node |
+|`[HOST,pubsub,set,subscriptions,TYPE]` | When a subscription is set (for instance accepted) |
+|`[HOST,pubsub,set,unsubscribe,TYPE]` | When a subscriber unsubscribes |
 
 Where:
 
