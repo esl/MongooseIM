@@ -128,8 +128,6 @@ After we log in, we can start setting up the connection to the [MongooseICE](htt
 The process is shown on the screenshots below.
 
 ![Mangosta ICE settings][mangosta_ice_settings]
-![Mangosta test ICE connection][mangosta_test_ice]
-![Mangosta save ICE settings][mangosta_save_ice]
 
 On the "*Configure ICE*" screen we have to set 5 fields up:
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
@@ -194,9 +192,7 @@ Now we finally can get out phone and start streaming the video!
 In order to do that, we have to click the "*New video stream*" button as shown on the screenshots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
 
 
-![Mangosta start streaming 1][mangosta_streaming_1]
-![Mangosta start streaming 2][mangosta_streaming_2]
-![Mangosta start streaming 3][mangosta_streaming_3]
+![Mangosta start streaming][mangosta_streaming]
 
 Hopefully, now you can see the video on your own mobile device.
 
@@ -211,10 +207,6 @@ Hopefully, now you can see the video on your own mobile device.
 [ice_demo_client]: https://github.com/esl/ice_demo
 [h264_sample_video]: https://drive.google.com/file/d/0B48g-HBQ5xpxeVlUSks2bVRlLTQ/view?usp=sharing
 [mangosta_login]: ICE_tutorial/mangosta_login.png
-[mangosta_ice_settings]: ICE_tutorial/mangosta_ice_settings_1.png
-[mangosta_test_ice]: ICE_tutorial/mangosta_ice_settings_2.png
-[mangosta_save_ice]: ICE_tutorial/mangosta_ice_settings_3.png
-[mangosta_streaming_1]: ICE_tutorial/mangosta_start_stream_1.png
-[mangosta_streaming_2]: ICE_tutorial/mangosta_start_stream_2.png
-[mangosta_streaming_3]: ICE_tutorial/mangosta_start_stream_3.png
+[mangosta_ice_settings]: ICE_tutorial/mangosta_ice_settings.png
+[mangosta_streaming]: ICE_tutorial/mangosta_start_stream.png
 
