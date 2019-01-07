@@ -77,7 +77,7 @@
 -spec start() -> ok.
 start() ->
     mod_pubsub_db_mnesia:start(),
-    rdbms_queries:prepare_upsert(global, pubsub_affliation_upsert, pubsub_affiliations,
+    rdbms_queries:prepare_upsert(global, pubsub_affiliation_upsert, pubsub_affiliations,
                                  [<<"nidx">>, <<"luser">>, <<"lserver">>, <<"aff">>],
                                  [<<"aff">>],
                                  [<<"nidx">>, <<"luser">>, <<"lserver">>]),
@@ -438,7 +438,7 @@ set_affiliation(Nidx, { LU, LS, _ }, Affiliation) ->
     InsertParams = [Nidx, LU, LS, Aff],
     UpdateParams = [Aff],
     UniqueKeyValues  = [Nidx, LU, LS],
-    {updated, _} = rdbms_queries:execute_upsert(global, pubsub_affliation_upsert,
+    {updated, _} = rdbms_queries:execute_upsert(global, pubsub_affiliation_upsert,
                                                 InsertParams, UpdateParams, UniqueKeyValues),
     ok.
 

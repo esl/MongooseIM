@@ -120,6 +120,8 @@ remove_inbox_rdbms(Username, Server, ToBareJid) ->
         " and remote_bare_jid=",
         esc_string(ToBareJid), ";"]).
 
+%% This function was not refatorected to use the generic upsert helper
+%% becase this helper doesn't support parametrized queries for incremental change
 -spec set_inbox_incr_unread(Username :: binary(),
                             Server :: binary(),
                             ToBareJid :: binary(),

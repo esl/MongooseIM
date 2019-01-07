@@ -27,19 +27,15 @@
                             MsgId :: binary(),
                             Timestamp :: non_neg_integer()) -> mongoose_rdbms:query_result().
 set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
-    Query = build_query(Username, Server, ToBareJid, Content, increment, MsgId, Timestamp),
+    Query = build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp),
     mongoose_rdbms:sql_query(Server, Query).
 
 %% -----------------------------------------------------------
 %% Internal functions
 %% -----------------------------------------------------------
 
-build_query(Username, Server, ToBareJid, Content, increment, MsgId, Timestamp) ->
-    CountUpdate = "target.unread_count + 1",
-    build_query(Username, Server, ToBareJid, Content, MsgId,
-                Timestamp, esc_string("1"), CountUpdate).
-
-build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp, CountInsert, CountUpdate) ->
+build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
+    CountInsert = esc_string("1"),
     ELUser = esc_string(Username),
     ELServer = esc_string(Server),
     EToBareJid = esc_string(ToBareJid),
@@ -62,11 +58,11 @@ build_query(Username, Server, ToBareJid, Content, MsgId, Timestamp, CountInsert,
           " AND target.remote_bare_jid = source.remote_bare_jid)"
       " WHEN MATCHED THEN UPDATE"
           " SET content = ", EContent, ","
-              " unread_count = ", CountUpdate, ","
+              " unread_count =  target.unread_count + 1,"
               " msg_id = ", EMsgId, ",",
               " timestamp = ", ETimestamp,
       " WHEN NOT MATCHED THEN INSERT"
           " (luser, lserver, remote_bare_jid, content, unread_count, msg_id, timestamp)"
-      " VALUES (", ELUser, ", ", ELServer, ", ", EToBareJid, ", ", EContent, ", ",
-                CountInsert, ", ", EMsgId, ", ", ETimestamp, ");"].
+      " VALUES (", ELUser, ", ", ELServer, ", ", EToBareJid, ", ", EContent, ", 1, ",
+                 EMsgId, ", ", ETimestamp, ");"].
 
