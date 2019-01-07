@@ -122,14 +122,14 @@ If you don't want to compile this application from source, you can just install 
 Right after you start [Mangosta-Android] for the first time, you will need to login to your XMPP server.
 In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), the password (*xmpp_password*) and the server address (*2.2.2.2* or *myxmpp.com* if you've set up the domain to actually point to this IP address), and then confirm by clicking "Enter".
 
-<img src="ICE_tutorial/mangosta_login.png" width="25%">
+![Mangosta login][mangosta_login]
 
 After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/MongooseICE) server we set up before.
 The process is shown on the screenshots below.
 
-<img src="mangosta_ice_settings_1.png" width="30%">
-<img alt="Mangosta test ICE connection" src="mangosta_ice_settings_2.png" width="30%">
-<img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
+![Mangosta ICE settings][mangosta_ice_settings]
+![Mangosta test ICE connection][mangosta_test_ice]
+![Mangosta save ICE settings][mangosta_save_ice]
 
 On the "*Configure ICE*" screen we have to set 5 fields up:
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
@@ -194,9 +194,9 @@ Now we finally can get out phone and start streaming the video!
 In order to do that, we have to click the "*New video stream*" button as shown on the screenshots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
 
 
-<img alt="Mangosta start streaming" src="mangosta_start_stream_1.png" width="30%">
-<img alt="Mangosta start streaming" src="mangosta_start_stream_2.png" width="30%">
-<img alt="Mangosta start streaming" src="mangosta_start_stream_3.png" width="30%">
+![Mangosta start streaming 1][mangosta_streaming_1]
+![Mangosta start streaming 2][mangosta_streaming_2]
+![Mangosta start streaming 3][mangosta_streaming_3]
 
 Hopefully, now you can see the video on your own mobile device.
 
@@ -210,3 +210,11 @@ Hopefully, now you can see the video on your own mobile device.
 [ffmpeg]: https://ffmpeg.org
 [ice_demo_client]: https://github.com/esl/ice_demo
 [h264_sample_video]: https://drive.google.com/file/d/0B48g-HBQ5xpxeVlUSks2bVRlLTQ/view?usp=sharing
+[mangosta_login]: ICE_tutorial/mangosta_login.png
+[mangosta_ice_settings]: ICE_tutorial/mangosta_ice_settings_1.png
+[mangosta_test_ice]: ICE_tutorial/mangosta_ice_settings_2.png
+[mangosta_save_ice]: ICE_tutorial/mangosta_ice_settings_3.png
+[mangosta_streaming_1]: ICE_tutorial/mangosta_start_stream_1.png
+[mangosta_streaming_2]: ICE_tutorial/mangosta_start_stream_2.png
+[mangosta_streaming_3]: ICE_tutorial/mangosta_start_stream_3.png
+
