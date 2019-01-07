@@ -101,8 +101,8 @@ docker run -it --net=host -e "MONGOOSEICE_UDP_RELAY_IP=1.1.1.1" -e "MONGOOSEICE_
 
 This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
 There are three important configuration options we have to set via environment variables:
-* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on.
-This should be set to public IPv4 address.
+
+* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. This should be set to public IPv4 address.
 * **MONGOOSEICE\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
 * **MONGOOSEICE\_UDP\_REALM** - This is just a name for your TURN relay.
 
@@ -130,6 +130,7 @@ The process is shown on the screenshots below.
 ![Mangosta ICE settings][mangosta_ice_settings]
 
 On the "*Configure ICE*" screen we have to set 5 fields up:
+
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
 * **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/MongooseICE) it uses a default one - **3478**
 * **TURN Realm** - Realm name we have set via *MONGOOSEICE\_UDP\_REALM* variable. In our case it's "*myrelay*".
