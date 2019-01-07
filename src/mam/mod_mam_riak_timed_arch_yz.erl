@@ -236,16 +236,14 @@ lookup_messages(Host, Params) ->
 
 lookup_messages_before_id(Host, ID, Params) ->
     PageSize = maps:get(page_size, Params),
-    case lookup_messages_(Host, Params#{page_size := 1 + PageSize}) of
-        {error, _} = Err -> Err;
-        {ok, {TotalCount, Offset, MessagesWithEndpoint}} ->
-            case mod_mam_utils:maybe_last(MessagesWithEndpoint) of
-                {ok, {ID, _, _}} = _IntervalEndpoint ->
-                    Messages = lists:sublist(MessagesWithEndpoint, PageSize),
-                    {ok, {TotalCount, Offset, Messages}};
-                undefined ->
-                    {error, item_not_found}
-            end
+    {ok, {TotalCount, Offset, MessagesWithEndpoint}} =
+        lookup_messages_(Host, Params#{page_size := 1 + PageSize}),
+    case mod_mam_utils:maybe_last(MessagesWithEndpoint) of
+        {ok, {ID, _, _}} = _IntervalEndpoint ->
+            Messages = lists:sublist(MessagesWithEndpoint, PageSize),
+            {ok, {TotalCount, Offset, Messages}};
+        undefined ->
+            {error, item_not_found}
     end.
 
 lookup_messages_after_id(Host, ID, Params) ->
@@ -254,9 +252,7 @@ lookup_messages_after_id(Host, ID, Params) ->
         {ok, {TotalCount, Offset, [{ID, _, _} = _IntervalEndpoint | Messages]}} ->
             {ok, {TotalCount, Offset, Messages}};
         {ok, {_TotalCount, _Offset, [{_OtherID, _, _} | _Messages]}} ->
-            {error, item_not_found};
-        {error, _} = Err ->
-            Err
+            {error, item_not_found}
     end.
 
 lookup_messages_(Host, Params) ->
