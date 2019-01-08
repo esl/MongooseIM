@@ -72,36 +72,21 @@ archive_message(_Result, Host, MessageId, _UserId, RoomJid, _SourceJid, SourceJi
             Err
     end.
 
-lookup_messages(Result, Host, #{rsm := #rsm_in{direction = before, id = ID}} = Params) when ID =/= undefined ->
-    lookup_messages_before_id(Result, Host, ID, Params);
-lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID}} = Params) when ID =/= undefined ->
-    lookup_messages_after_id(Result, Host, ID, Params);
+lookup_messages(Result, Host, #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params)
+  when ID =/= undefined ->
+    lookup_messages_rsm(Result, Host, RSM, Params);
+lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params)
+  when ID =/= undefined ->
+    lookup_messages_rsm(Result, Host, RSM, Params);
 lookup_messages(Result, Host, Params) ->
     lookup_messages_(Result, Host, Params).
 
-lookup_messages_before_id(Result, Host, ID, Params) ->
+lookup_messages_rsm(Result, Host, RSM, Params) ->
     PageSize = maps:get(page_size, Params),
     case lookup_messages_(Result, Host, Params#{page_size := 1 + PageSize}) of
         {error, _} = Err -> Err;
-        {ok, {TotalCount, Offset, MessagesWithEndpoint}} ->
-            case mod_mam_utils:maybe_last(MessagesWithEndpoint) of
-                {ok, {ID, _, _}} = _IntervalEndpoint ->
-                    Messages = lists:sublist(MessagesWithEndpoint, PageSize),
-                    {ok, {TotalCount, Offset, Messages}};
-                undefined ->
-                    {error, item_not_found}
-            end
-    end.
-
-lookup_messages_after_id(Result, Host, ID, Params) ->
-    PageSize = maps:get(page_size, Params),
-    case lookup_messages_(Result, Host, Params#{page_size := 1 + PageSize}) of
-        {ok, {TotalCount, Offset, [{ID, _, _} = _IntervalEndpoint | Messages]}} ->
-            {ok, {TotalCount, Offset, Messages}};
-        {ok, {_TotalCount, _Offset, [{_OtherID, _, _} | _Messages]}} ->
-            {error, item_not_found};
-        {error, _} = Err ->
-            Err
+        {ok, Result} ->
+            mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result)
     end.
 
 lookup_messages_(_Result, Host, Params) ->
