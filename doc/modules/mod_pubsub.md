@@ -120,10 +120,10 @@ If you'd like to learn more about metrics in MongooseIM, please visit the [Mongo
 
 #### Overall PubSub action metrics
 
-For every PubSub action, like node creation, subscription, publication there are following kind of metrics:
+For every PubSub action, like node creation, subscription, publication the following metrics are available:
 
-* count - a spiral metric measuring number of given action invocations
-* errors - a spiral metric errors for given action
+* count - a spiral metric showing the number of given action invocations
+* errors - a spiral metric counting the errors for a given action
 * time - a histogram metric showing the time it took to finish the action in case of success
 
 Below there is a table describing all metrics related to PubSub actions
