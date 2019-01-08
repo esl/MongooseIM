@@ -2,13 +2,11 @@
 
 It's now possible to install MongooseIM from source in two modes:
 
-* `system` - it's internally used to generate RPM packages
+* `system` - it's used internally to generate Linux packages (.deb, .rpm)
 * `user`  - which is the default mode and used for testing on travis and
     in development
 
-An environment for building (as of now just RPM) packages is accessible by
-cloning ESL-internal
-[command line interface](https://gitlab.erlang-solutions.com/current-projects/necromancer-cli).
+You can also build OS specific packages by using the tools in `[MongooseIM repo root]/tools/pkg` - refer to `README.md` therein.
 
 ### Configure script
 

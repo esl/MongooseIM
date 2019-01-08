@@ -23,7 +23,6 @@ pages:
   - Migration Guide:
       - '3.1.1 to 3.2.0': 'migrations/3.1.1_3.2.0.md'
   - Platform:
-      - 'Roadmap': 'Roadmap.md'
       - 'Contributions to ecosystem': 'Contributions.md'
       - 'Differentiators': 'Differentiators.md'
       - 'History': 'History.md'

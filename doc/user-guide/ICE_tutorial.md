@@ -101,8 +101,8 @@ docker run -it --net=host -e "MONGOOSEICE_UDP_RELAY_IP=1.1.1.1" -e "MONGOOSEICE_
 
 This command starts the [MongooseICE](https://github.com/esl/MongooseICE) server in the Docker container, attaching its virtual network interface to the network interface of the host machine the Docker deamon is running on.
 There are three important configuration options we have to set via environment variables:
-* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on.
-This should be set to public IPv4 address.
+
+* **MONGOOSEICE\_UDP\_RELAY\_IP** - This is the IP address that [MongooseICE](https://github.com/esl/MongooseICE) provides data relay on. This should be set to public IPv4 address.
 * **MONGOOSEICE\_STUN\_SECRET** - This is a secret password that TURN clients need to provide to connect to this server.
 * **MONGOOSEICE\_UDP\_REALM** - This is just a name for your TURN relay.
 
@@ -122,16 +122,15 @@ If you don't want to compile this application from source, you can just install 
 Right after you start [Mangosta-Android] for the first time, you will need to login to your XMPP server.
 In order to do that, just enter the JID you have created for the phone (*phone@myxmpp.com*), the password (*xmpp_password*) and the server address (*2.2.2.2* or *myxmpp.com* if you've set up the domain to actually point to this IP address), and then confirm by clicking "Enter".
 
-<img src="ICE_tutorial/mangosta_login.png" width="25%">
+![Mangosta login][mangosta_login]
 
 After we log in, we can start setting up the connection to the [MongooseICE](https://github.com/esl/MongooseICE) server we set up before.
 The process is shown on the screenshots below.
 
-<img src="mangosta_ice_settings_1.png" width="30%">
-<img alt="Mangosta test ICE connection" src="mangosta_ice_settings_2.png" width="30%">
-<img alt="Mangosta save ICE settings" src="mangosta_ice_settings_3.png" width="30%">
+![Mangosta ICE settings][mangosta_ice_settings]
 
 On the "*Configure ICE*" screen we have to set 5 fields up:
+
 * **TURN server address** - IPv4 address of our [MongooseICE](https://github.com/esl/MongooseICE)
 * **TURN Server port** - since we did not set the port while configuring [MongooseICE](https://github.com/esl/MongooseICE) it uses a default one - **3478**
 * **TURN Realm** - Realm name we have set via *MONGOOSEICE\_UDP\_REALM* variable. In our case it's "*myrelay*".
@@ -194,9 +193,7 @@ Now we finally can get out phone and start streaming the video!
 In order to do that, we have to click the "*New video stream*" button as shown on the screenshots below, enter the JID of the RaspberryPi and confirm with the "*Stream!*" button.
 
 
-<img alt="Mangosta start streaming" src="mangosta_start_stream_1.png" width="30%">
-<img alt="Mangosta start streaming" src="mangosta_start_stream_2.png" width="30%">
-<img alt="Mangosta start streaming" src="mangosta_start_stream_3.png" width="30%">
+![Mangosta start streaming][mangosta_streaming]
 
 Hopefully, now you can see the video on your own mobile device.
 
@@ -210,3 +207,7 @@ Hopefully, now you can see the video on your own mobile device.
 [ffmpeg]: https://ffmpeg.org
 [ice_demo_client]: https://github.com/esl/ice_demo
 [h264_sample_video]: https://drive.google.com/file/d/0B48g-HBQ5xpxeVlUSks2bVRlLTQ/view?usp=sharing
+[mangosta_login]: ICE_tutorial/mangosta_login.png
+[mangosta_ice_settings]: ICE_tutorial/mangosta_ice_settings.png
+[mangosta_streaming]: ICE_tutorial/mangosta_start_stream.png
+
