@@ -83,7 +83,8 @@
          calculate_msg_id_borders/4,
          maybe_encode_compact_uuid/2,
          is_complete_result_page/4,
-         wait_shaper/3]).
+         wait_shaper/3,
+         check_for_item_not_found/3]).
 
 %% Ejabberd
 -export([send_message/3,
@@ -1126,3 +1127,34 @@ check_result_for_policy_violation(_Params, Result) ->
 
 is_policy_violation(TotalCount, Offset, MaxResultLimit, LimitPassed) ->
     TotalCount - Offset > MaxResultLimit andalso not LimitPassed.
+
+%% @doc Check for XEP-313 `item-not-found' error condition,
+%% that is if a message ID passed in a `before'/`after' query is actually present in the archive.
+%% See https://xmpp.org/extensions/xep-0313.html#query-paging for details.
+%%
+%% In a backend it's reasonable to query for PageSize + 1 messages,
+%% so that once the interval endpoint with requested ID is discarded we actually
+%% return (up to) PageSize messages.
+%% @end
+-spec check_for_item_not_found(RSM, PageSize, LookupResult) -> R when
+      RSM :: jlib:rsm_in(),
+      PageSize :: non_neg_integer(),
+      LookupResult :: mod_mam:lookup_result(),
+      R :: {ok, mod_mam:lookup_result()} | {error, item_not_found}.
+check_for_item_not_found(#rsm_in{direction = before, id = ID},
+                         PageSize, {TotalCount, Offset, MessageRows}) when ID =/= undefined ->
+    case maybe_last(MessageRows) of
+        {ok, {ID, _, _}} = _IntervalEndpoint ->
+            Page = lists:sublist(MessageRows, PageSize),
+            {ok, {TotalCount, Offset, Page}};
+        undefined ->
+            {error, item_not_found}
+    end;
+check_for_item_not_found(#rsm_in{direction = aft, id = ID},
+                         _PageSize, {TotalCount, Offset, MessageRows0}) when ID =/= undefined ->
+    case MessageRows0 of
+        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
+            {ok, {TotalCount, Offset, MessageRows}};
+        _ ->
+            {error, item_not_found}
+    end.

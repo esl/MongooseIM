@@ -30,7 +30,6 @@
 -import(mod_mam_utils,
         [maybe_min/2,
          maybe_max/2,
-         maybe_last/1,
          bare_jid/1,
          full_jid/1
          ]).
@@ -389,30 +388,20 @@ lookup_messages_before_id(PoolName, Host, UserJID,
                           PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
-                                    PageSize + 1, true),
-    MessageRows = rows_to_uniform_format(MessageRows0),
-    case maybe_last(MessageRows) of
-        {ok, {ID, _, _}} = _IntervalEndpoint ->
-            Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, Page}};
-        undefined ->
-            {error, item_not_found}
-    end.
+    MessageRows = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
+                                   PageSize + 1, true),
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, {TotalCount, Offset,
+                                                           rows_to_uniform_format(MessageRows)}).
 
 lookup_messages_after_id(PoolName, Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(PoolName, UserJID, Host, from_id(ID, Filter),
-                                    PageSize + 1, false),
-    case rows_to_uniform_format(MessageRows0) of
-        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, MessageRows}};
-        _ ->
-            {error, item_not_found}
-    end.
+    MessageRows = extract_messages(PoolName, UserJID, Host, from_id(ID, Filter),
+                                   PageSize + 1, false),
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, {TotalCount, Offset,
+                                                           rows_to_uniform_format(MessageRows)}).
 
 
 after_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
