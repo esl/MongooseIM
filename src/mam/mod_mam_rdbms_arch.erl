@@ -36,8 +36,7 @@
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
-         apply_end_border/2,
-         maybe_last/1]).
+         apply_end_border/2]).
 
 -import(mongoose_rdbms,
         [escape_string/1,
@@ -386,30 +385,20 @@ lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
                         PageSize, Filter) when ID =/= undefined ->
     IndexHintSQL = index_hint_sql(Host),
-    TotalCount   = calc_count(Host, Filter, IndexHintSQL),
-    Offset       = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
-    case rows_to_uniform_format(Host, UserJID, MessageRows0) of
-        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, MessageRows}};
-        _ ->
-            {error, item_not_found}
-    end;
+    TotalCount = calc_count(Host, Filter, IndexHintSQL),
+    Offset = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
                         PageSize, Filter) when ID =/= undefined ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
-    MessageRows = rows_to_uniform_format(Host, UserJID, MessageRows0),
-    case maybe_last(MessageRows) of
-        {ok, {ID, _, _}} = _IntervalEndpoint ->
-            Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, Page}};
-        undefined ->
-            {error, item_not_found}
-    end;
+    Offset = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID, RSM,
                         PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),

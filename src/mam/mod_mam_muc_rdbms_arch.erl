@@ -39,8 +39,7 @@
 %% Other
 -import(mod_mam_utils,
         [apply_start_border/2,
-         apply_end_border/2,
-         maybe_last/1]).
+         apply_end_border/2]).
 
 -import(mongoose_rdbms,
         [escape_string/1,
@@ -308,39 +307,29 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID, SearchText,
                 PageSize, _) when ID =/= undefined ->
-    Filter       = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
-    TotalCount   = calc_count(Host, Filter),
-    Offset       = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
-    case rows_to_uniform_format(MessageRows0, Host, RoomJID) of
-        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, MessageRows}};
-        _ ->
-            {error, item_not_found}
-    end;
+    Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
+    TotalCount = calc_count(Host, Filter),
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, Host, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID, SearchText,
                 PageSize, _) when ID =/= undefined ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
-    MessageRows = rows_to_uniform_format(MessageRows0, Host, RoomJID),
-    case maybe_last(MessageRows) of
-        {ok, {ID, _, _}} = _IntervalEndpoint ->
-            Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, Page}};
-        undefined ->
-            {error, item_not_found}
-    end;
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, Host, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID, SearchText,
                 PageSize, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     {ok, {TotalCount, Offset,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
