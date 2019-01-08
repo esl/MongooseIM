@@ -33,7 +33,6 @@
 -import(mod_mam_utils,
         [maybe_min/2,
          maybe_max/2,
-         maybe_last/1,
          apply_start_border/2,
          apply_end_border/2]).
 
@@ -444,13 +443,8 @@ lookup_messages_before_id(PoolName, Host, RoomJID,
     Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(PoolName, RoomJID, Host, to_id(ID, Filter),
                                    PageSize + 1, true),
-    case maybe_last(MessageRows) of
-        {ok, #{id := ID}} = _IntervalEndpoint ->
-            Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Page, RoomJID)}};
-        undefined ->
-            {error, item_not_found}
-    end.
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 lookup_messages_after_id(PoolName, Host, RoomJID,
                          RSM = #rsm_in{direction = aft, id = ID},
@@ -458,14 +452,10 @@ lookup_messages_after_id(PoolName, Host, RoomJID,
     PoolName = pool_name(RoomJID),
     TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
     Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows0 = extract_messages(PoolName, RoomJID, Host, from_id(ID, Filter),
-                                    PageSize + 1, false),
-    case MessageRows0 of
-        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}};
-        _ ->
-            {error, item_not_found}
-    end.
+    MessageRows = extract_messages(PoolName, RoomJID, Host, from_id(ID, Filter),
+                                   PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 
 after_id(ID, Filter = #mam_muc_ca_filter{start_id = AfterID}) ->

@@ -390,8 +390,8 @@ lookup_messages_before_id(PoolName, Host, UserJID,
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
                                    PageSize + 1, true),
-    mod_mam_utils:check_for_item_not_found(RSM, PageSize, {TotalCount, Offset,
-                                                           rows_to_uniform_format(MessageRows)}).
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 lookup_messages_after_id(PoolName, Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
@@ -400,8 +400,8 @@ lookup_messages_after_id(PoolName, Host, UserJID,
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(PoolName, UserJID, Host, from_id(ID, Filter),
                                    PageSize + 1, false),
-    mod_mam_utils:check_for_item_not_found(RSM, PageSize, {TotalCount, Offset,
-                                                           rows_to_uniform_format(MessageRows)}).
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 
 after_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
