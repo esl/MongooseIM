@@ -389,12 +389,13 @@ lookup_messages_before_id(PoolName, Host, UserJID,
                           PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
-                                   PageSize + 1, true),
+    MessageRows0 = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
+                                    PageSize + 1, true),
+    MessageRows = rows_to_uniform_format(MessageRows0),
     case maybe_last(MessageRows) of
-        {ok, #{id := ID}} = _IntervalEndpoint ->
+        {ok, {ID, _, _}} = _IntervalEndpoint ->
             Page = lists:sublist(MessageRows, PageSize),
-            {ok, {TotalCount, Offset, rows_to_uniform_format(Page)}};
+            {ok, {TotalCount, Offset, Page}};
         undefined ->
             {error, item_not_found}
     end.
@@ -406,9 +407,9 @@ lookup_messages_after_id(PoolName, Host, UserJID,
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
     MessageRows0 = extract_messages(PoolName, UserJID, Host, from_id(ID, Filter),
                                     PageSize + 1, false),
-    case MessageRows0 of
-        [#{id := ID} = _IntervalEndpoint | MessageRows] ->
-            {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}};
+    case rows_to_uniform_format(MessageRows0) of
+        [{ID, _, _} = _IntervalEndpoint | MessageRows] ->
+            {ok, {TotalCount, Offset, MessageRows}};
         _ ->
             {error, item_not_found}
     end.
