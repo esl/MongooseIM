@@ -610,11 +610,13 @@ report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
 report_issue(Reason, Issue, ArcJID, IQ) ->
     report_issue(Reason, [], Issue, ArcJID, IQ).
 
-report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+report_issue(item_not_found, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
+report_issue(missing_with_jid, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
-report_issue(missing_with_jid, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, IQ) ->
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
