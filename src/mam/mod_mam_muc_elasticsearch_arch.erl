@@ -183,7 +183,7 @@ with_jid_filter(_) ->
 
 -spec range_filter(map()) -> [map()].
 range_filter(#{end_ts := End, start_ts := Start, borders := Borders, rsm := RSM}) ->
-    {StartId, EndId} = calculate_msg_id_borders(RSM, Borders, Start, End),
+    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
     Range1 = maybe_add_end_filter(EndId, #{}),
     Range2 = maybe_add_start_filter(StartId, Range1),
 
@@ -303,23 +303,3 @@ archive_size(Query) ->
             ?ERROR_MSG("Failed to retrieve count of messages from ElasticSearch: ~p", [Err]),
             0
     end.
-
-%% This is a local copy of mod_mam_utils:calculate_msg_id_borders/4.
-%% It doesn't subtract/add 1 in case of before/after filters.
--spec calculate_msg_id_borders(jlib:rsm_in() | undefined,
-                               mod_mam:borders() | undefined,
-                               mod_mam:unix_timestamp() | undefined,
-                               mod_mam:unix_timestamp() | undefined) -> R when
-      R :: {integer() | undefined, integer() | undefined}.
-calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
-    calculate_msg_id_borders(undefined, Borders, Start, End);
-calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
-    NextId = Id,
-    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
-calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders(undefined, Borders, Start, End),
-    PrevId = Id,
-    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders(_, Borders, Start, End) ->
-    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
