@@ -55,9 +55,9 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 * `ip` (IP tuple, default: `{0,0,0,0}`) - IP address to bind to.
 * `num_acceptors` (positive integer, default: 100) - Number of acceptors.
 * `transport_options` (proplist, default: []) - Ranch-specific transport options.
- See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.5/manual/ranch/#_opt).
+ See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.7/manual/ranch/#_opt).
 * `protocol_options` (proplist, default: []) - Protocol configuration options for Cowboy.
- See [Cowboy HTTP module docs](https://ninenines.eu/docs/en/cowboy/2.4/manual/cowboy_http/).
+ See [Cowboy HTTP module docs](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_http/).
 * `ssl` (list of ssl options, required for https, no default value) - If specified, https will be used.
  Accepts all ranch_ssl options that don't take fun() parameters.
  Only `certfile` and `keyfile` are mandatory.

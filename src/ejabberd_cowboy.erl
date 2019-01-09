@@ -64,9 +64,10 @@ start_listener({Port, IP, tcp}=Listener, Opts) ->
                  transient, infinity, worker, [?MODULE]},
     {ok, Pid} = supervisor:start_child(ejabberd_listeners, ChildSpec),
     TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
-    TransportOpts2 = [{port, Port}, {ip, IP} | TransportOpts],
-    TransportOpts3 = maybe_insert_max_connections(TransportOpts2, Opts),
-    Opts2 = gen_mod:set_opt(transport_options, Opts, TransportOpts3),
+    TransportOptsMap = maps:from_list(TransportOpts),
+    TransportOptsMap2 = TransportOptsMap#{socket_opts => [{port, Port}, {ip, IP}]},
+    TransportOptsMap3 = maybe_insert_max_connections(TransportOptsMap2, Opts),
+    Opts2 = gen_mod:set_opt(transport_options, Opts, TransportOptsMap3),
     {ok, _} = start_cowboy(Ref, Opts2),
     {ok, Pid}.
 
@@ -127,12 +128,13 @@ do_start_cowboy(Ref, Opts, Retries, SleepTime) ->
 do_start_cowboy(Ref, Opts) ->
     SSLOpts = gen_mod:get_opt(ssl, Opts, undefined),
     NumAcceptors = gen_mod:get_opt(num_acceptors, Opts, 100),
-    TransportOpts = gen_mod:get_opt(transport_options, Opts, []),
+    TransportOpts0 = gen_mod:get_opt(transport_options, Opts, #{}),
+    TransportOpts = TransportOpts0#{num_acceptros => NumAcceptors},
     Modules = gen_mod:get_opt(modules, Opts),
     Dispatch = cowboy_router:compile(get_routes(Modules)),
     ProtocolOpts = [{env, [{dispatch, Dispatch}]} |
                     gen_mod:get_opt(protocol_options, Opts, [])],
-    case catch start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) of
+    case catch start_http_or_https(SSLOpts, Ref, TransportOpts, ProtocolOpts) of
         {error, {{shutdown,
                   {failed_to_start_child, ranch_acceptors_sup,
                    {{badmatch, {error, eaddrinuse}}, _ }}}, _}} ->
@@ -141,23 +143,21 @@ do_start_cowboy(Ref, Opts) ->
             Result
     end.
 
-start_http_or_https(undefined, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
-    cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts);
-start_http_or_https(SSLOpts, Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+start_http_or_https(undefined, Ref, TransportOpts, ProtocolOpts) ->
+    cowboy_start_http(Ref, TransportOpts, ProtocolOpts);
+start_http_or_https(SSLOpts, Ref, TransportOpts, ProtocolOpts) ->
     SSLOptsWithVerifyFun = maybe_set_verify_fun(SSLOpts),
     FilteredSSLOptions = filter_options(ignored_ssl_options(), SSLOptsWithVerifyFun),
-    TransportOptsWithSSL = TransportOpts ++ FilteredSSLOptions,
-    cowboy_start_https(Ref, NumAcceptors, TransportOptsWithSSL, ProtocolOpts).
+    SocketOptsWithSSL = maps:get(socket_opts, TransportOpts) ++ FilteredSSLOptions,
+    cowboy_start_https(Ref, TransportOpts#{socket_opts => SocketOptsWithSSL}, ProtocolOpts).
 
-cowboy_start_http(Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+cowboy_start_http(Ref, TransportOpts, ProtocolOpts) ->
     ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
-    TransOpts = [{num_acceptors, NumAcceptors}|TransportOpts],
-    cowboy:start_clear(Ref, TransOpts, ProtoOpts).
+    cowboy:start_clear(Ref, TransportOpts, ProtoOpts).
 
-cowboy_start_https(Ref, NumAcceptors, TransportOpts, ProtocolOpts) ->
+cowboy_start_https(Ref, TransportOpts, ProtocolOpts) ->
     ProtoOpts = make_env_map(maps:from_list(ProtocolOpts)),
-    TransOpts = [{num_acceptors, NumAcceptors}|TransportOpts],
-    cowboy:start_tls(Ref, TransOpts, ProtoOpts).
+    cowboy:start_tls(Ref, TransportOpts, ProtoOpts).
 
 make_env_map(Map = #{env := Env}) ->
     Map#{env => maps:from_list(Env)}.
@@ -253,6 +253,5 @@ maybe_insert_max_connections(TransportOpts, Opts) ->
         undefined ->
             TransportOpts;
         Value ->
-            NewTuple = {Key, Value},
-            lists:keystore(Key, 1, TransportOpts, NewTuple)
+            TransportOpts#{Key => Value}
     end.
