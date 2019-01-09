@@ -82,12 +82,12 @@ lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} 
 lookup_messages(Result, Host, Params) ->
     lookup_messages_(Result, Host, Params).
 
-lookup_messages_rsm(Result, Host, #rsm_in{id = ID} = RSM, Params) ->
+lookup_messages_rsm(AccResult, Host, #rsm_in{id = ID} = RSM, Params) ->
     PageSize = maps:get(page_size, Params),
-    case lookup_messages_(Result, Host, Params#{page_size := 1 + PageSize}) of
+    case lookup_messages_(AccResult, Host, Params#{page_size := 1 + PageSize}) of
         {error, _} = Err -> Err;
-        {ok, Result} ->
-            mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result)
+        {ok, LookupResult} ->
+            mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult)
     end.
 
 lookup_messages_(_Result, Host, Params) ->
