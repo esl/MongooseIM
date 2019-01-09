@@ -913,23 +913,24 @@ calculate_msg_id_borders(Borders, Start, End) ->
     {apply_start_border(Borders, StartID),
      apply_end_border(Borders, EndID)}.
 
--spec calculate_msg_id_borders(jlib:rsm_in() | undefined,
-                               mod_mam:borders() | undefined,
-                               mod_mam:unix_timestamp() | undefined,
-                               mod_mam:unix_timestamp() | undefined) -> R when
+-spec calculate_msg_id_borders(RSM, Borders, Start, End) -> R when
+      RSM :: jlib:rsm_in() | undefined,
+      Borders :: mod_mam:borders() | undefined,
+      Start :: mod_mam:unix_timestamp() | undefined,
+      End :: mod_mam:unix_timestamp() | undefined,
       R :: {integer() | undefined, integer() | undefined}.
+calculate_msg_id_borders(undefined, Borders, Start, End) ->
+    calculate_msg_id_borders(Borders, Start, End);
 calculate_msg_id_borders(#rsm_in{id = undefined}, Borders, Start, End) ->
-    calculate_msg_id_borders(undefined, Borders, Start, End);
-calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
-    NextId = Id + 1,
-    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
-calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
-    PrevId = Id - 1,
-    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders(_, Borders, Start, End) ->
-    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
+    calculate_msg_id_borders(Borders, Start, End);
+calculate_msg_id_borders(#rsm_in{direction = aft, id = Id}, Borders, Start, End)
+  when Id =/= undefined ->
+    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
+    {mod_mam_utils:maybe_max(StartId, Id), EndId};
+calculate_msg_id_borders(#rsm_in{direction = before, id = Id}, Borders, Start, End)
+  when Id =/= undefined ->
+    {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
+    {StartId, mod_mam_utils:maybe_min(EndId, Id)}.
 
 -spec maybe_encode_compact_uuid(mod_mam:unix_timestamp() | undefined, integer()) ->
     undefined | integer().

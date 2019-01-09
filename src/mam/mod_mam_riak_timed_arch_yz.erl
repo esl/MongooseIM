@@ -157,7 +157,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-    mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined, undefined),
+        mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
     {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
@@ -256,7 +256,7 @@ lookup_messages_(Host, Params) ->
     Start = maps:get(start_ts, Params),
     End = maps:get(end_ts, Params),
     SearchText = maps:get(search_text, Params),
-    {MsgIdStart, MsgIdEnd} = calculate_msg_id_borders_with_rsm(RSM, Borders, Start, End),
+    {MsgIdStart, MsgIdEnd} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
     {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
                                                  MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
@@ -267,7 +267,7 @@ lookup_messages_(Host, Params) ->
             {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-            mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
+            mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
             {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
@@ -459,23 +459,3 @@ stored_binary_to_packet(Host, Bin) ->
 -spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_xml).
-
-%% This is a local copy of mod_mam_utils:calculate_msg_id_borders/4.
-%% It doesn't subtract/add 1 in case of before/after filters.
--spec calculate_msg_id_borders_with_rsm(jlib:rsm_in() | undefined,
-                                        mod_mam:borders() | undefined,
-                                        mod_mam:unix_timestamp() | undefined,
-                                        mod_mam:unix_timestamp() | undefined) -> R when
-      R :: {integer() | undefined, integer() | undefined}.
-calculate_msg_id_borders_with_rsm(#rsm_in{id = undefined}, Borders, Start, End) ->
-    calculate_msg_id_borders_with_rsm(undefined, Borders, Start, End);
-calculate_msg_id_borders_with_rsm(#rsm_in{direction = aft, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders_with_rsm(undefined, Borders, Start, End),
-    NextId = Id,
-    {mod_mam_utils:maybe_max(StartId, NextId), EndId};
-calculate_msg_id_borders_with_rsm(#rsm_in{direction = before, id = Id}, Borders, Start, End) ->
-    {StartId, EndId} = calculate_msg_id_borders_with_rsm(undefined, Borders, Start, End),
-    PrevId = Id,
-    {StartId, mod_mam_utils:maybe_min(EndId, PrevId)};
-calculate_msg_id_borders_with_rsm(_, Borders, Start, End) ->
-    mod_mam_utils:calculate_msg_id_borders(Borders, Start, End).
