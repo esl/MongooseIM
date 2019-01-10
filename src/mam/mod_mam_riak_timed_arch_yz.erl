@@ -229,19 +229,19 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
 
 lookup_messages(Host, #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params)
   when ID =/= undefined ->
-    lookup_messages_rsm(Host, RSM, Params);
+    lookup_message_page(Host, RSM, Params);
 lookup_messages(Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params)
   when ID =/= undefined ->
-    lookup_messages_rsm(Host, RSM, Params);
+    lookup_message_page(Host, RSM, Params);
 lookup_messages(Host, Params) ->
-    lookup_messages_(Host, Params).
+    do_lookup_messages(Host, Params).
 
-lookup_messages_rsm(Host, RSM, Params) ->
+lookup_message_page(Host, RSM, Params) ->
     PageSize = maps:get(page_size, Params),
-    {ok, Result} = lookup_messages_(Host, Params#{page_size := 1 + PageSize}),
+    {ok, Result} = do_lookup_messages(Host, Params#{page_size := 1 + PageSize}),
     mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
-lookup_messages_(Host, Params) ->
+do_lookup_messages(Host, Params) ->
     OwnerJID = mod_mam_utils:bare_jid(maps:get(owner_jid, Params)),
     RemoteJID = mod_mam_utils:bare_jid(maps:get(with_jid, Params)),
 

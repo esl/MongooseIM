@@ -75,22 +75,22 @@ archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJi
 
 lookup_messages(Result, Host, #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params)
   when ID =/= undefined ->
-    lookup_messages_rsm(Result, Host, RSM, Params);
+    lookup_message_page(Result, Host, RSM, Params);
 lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params)
   when ID =/= undefined ->
-    lookup_messages_rsm(Result, Host, RSM, Params);
+    lookup_message_page(Result, Host, RSM, Params);
 lookup_messages(Result, Host, Params) ->
-    lookup_messages_(Result, Host, Params).
+    do_lookup_messages(Result, Host, Params).
 
-lookup_messages_rsm(AccResult, Host, #rsm_in{id = ID} = RSM, Params) ->
+lookup_message_page(AccResult, Host, #rsm_in{id = ID} = RSM, Params) ->
     PageSize = maps:get(page_size, Params),
-    case lookup_messages_(AccResult, Host, Params#{page_size := 1 + PageSize}) of
+    case do_lookup_messages(AccResult, Host, Params#{page_size := 1 + PageSize}) of
         {error, _} = Err -> Err;
         {ok, LookupResult} ->
             mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult)
     end.
 
-lookup_messages_(_Result, Host, Params) ->
+do_lookup_messages(_Result, Host, Params) ->
     SearchQuery0 = build_search_query(Params),
     Sorting = [#{mam_id => #{order => determine_sorting(Params)}}],
     ResultLimit = maps:get(page_size, Params),
