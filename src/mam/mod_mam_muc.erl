@@ -575,6 +575,8 @@ return_error_iq(IQ, {Reason, {stacktrace, _Stacktrace}}) ->
     return_error_iq(IQ, Reason);
 return_error_iq(IQ, timeout) ->
     {error, timeout, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:service_unavailable()]}};
+return_error_iq(IQ, item_not_found) ->
+    {error, item_not_found, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:item_not_found()]}};
 return_error_iq(IQ, not_implemented) ->
     {error, not_implemented, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:feature_not_implemented()]}};
 return_error_iq(IQ, missing_with_jid) ->
@@ -608,11 +610,13 @@ report_issue({Reason, {stacktrace, Stacktrace}}, Issue, ArcJID, IQ) ->
 report_issue(Reason, Issue, ArcJID, IQ) ->
     report_issue(Reason, [], Issue, ArcJID, IQ).
 
-report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+report_issue(item_not_found, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+    expected;
+report_issue(missing_with_jid, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(not_implemented, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
-report_issue(missing_with_jid, _Stacktrace, _Issue, _ArcJID, _IQ) ->
+report_issue(timeout, _Stacktrace, _Issue, _ArcJID, _IQ) ->
     expected;
 report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, IQ) ->
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",

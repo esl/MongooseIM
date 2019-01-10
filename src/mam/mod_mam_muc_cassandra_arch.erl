@@ -441,8 +441,10 @@ lookup_messages_before_id(PoolName, Host, RoomJID,
                           PageSize, Filter) ->
     TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
     Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, RoomJID, Host, before_id(ID, Filter), PageSize, true),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
+    MessageRows = extract_messages(PoolName, RoomJID, Host, to_id(ID, Filter),
+                                   PageSize + 1, true),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 lookup_messages_after_id(PoolName, Host, RoomJID,
                          RSM = #rsm_in{direction = aft, id = ID},
@@ -450,8 +452,10 @@ lookup_messages_after_id(PoolName, Host, RoomJID,
     PoolName = pool_name(RoomJID),
     TotalCount = calc_count(PoolName, RoomJID, Host, Filter),
     Offset = calc_offset(PoolName, RoomJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, RoomJID, Host, after_id(ID, Filter), PageSize, false),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)}}.
+    MessageRows = extract_messages(PoolName, RoomJID, Host, from_id(ID, Filter),
+                                   PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 
 after_id(ID, Filter = #mam_muc_ca_filter{start_id = AfterID}) ->

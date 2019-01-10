@@ -73,7 +73,24 @@ archive_message(_Result, Host, MessageId, _UserId, LocalJid, RemoteJid, SourceJi
             Err
     end.
 
-lookup_messages(_Result, Host, Params) ->
+lookup_messages(Result, Host, #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params)
+  when ID =/= undefined ->
+    lookup_message_page(Result, Host, RSM, Params);
+lookup_messages(Result, Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params)
+  when ID =/= undefined ->
+    lookup_message_page(Result, Host, RSM, Params);
+lookup_messages(Result, Host, Params) ->
+    do_lookup_messages(Result, Host, Params).
+
+lookup_message_page(AccResult, Host, #rsm_in{id = ID} = RSM, Params) ->
+    PageSize = maps:get(page_size, Params),
+    case do_lookup_messages(AccResult, Host, Params#{page_size := 1 + PageSize}) of
+        {error, _} = Err -> Err;
+        {ok, LookupResult} ->
+            mod_mam_utils:check_for_item_not_found(RSM, PageSize, LookupResult)
+    end.
+
+do_lookup_messages(_Result, Host, Params) ->
     SearchQuery0 = build_search_query(Params),
     Sorting = [#{mam_id => #{order => determine_sorting(Params)}}],
     ResultLimit = maps:get(page_size, Params),
@@ -171,7 +188,6 @@ range_filter(#{end_ts := End, start_ts := Start, borders := Borders, rsm := RSM}
     {StartId, EndId} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
     Range1 = maybe_add_end_filter(EndId, #{}),
     Range2 = maybe_add_start_filter(StartId, Range1),
-
     case maps:size(Range2) of
         0 ->
             [];
@@ -185,13 +201,13 @@ range_filter(_) ->
 maybe_add_end_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_end_filter(Value, RangeMap) ->
-    RangeMap#{lt => Value}.
+    RangeMap#{le => Value}.
 
 -spec maybe_add_start_filter(undefined | mod_mam:message_id(), map()) -> map().
 maybe_add_start_filter(undefined, RangeMap) ->
     RangeMap;
 maybe_add_start_filter(Value, RangeMap) ->
-    RangeMap#{gt => Value}.
+    RangeMap#{ge => Value}.
 
 -spec build_text_search_query(map()) -> map().
 build_text_search_query(#{search_text := SearchText}) when is_binary(SearchText) ->
@@ -288,4 +304,3 @@ archive_size(Query) ->
             ?ERROR_MSG("Failed to retrieve count of messages from ElasticSearch: ~p", [Err]),
             0
     end.
-

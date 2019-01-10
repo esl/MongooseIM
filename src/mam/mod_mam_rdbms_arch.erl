@@ -383,20 +383,22 @@ lookup_messages_opt_count(Host, UserJID,
 
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = aft, id = ID},
-                        PageSize, Filter) ->
+                        PageSize, Filter) when ID =/= undefined ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    Offset = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID,
                         RSM = #rsm_in{direction = before, id = ID},
-                        PageSize, Filter) ->
+                        PageSize, Filter) when ID =/= undefined ->
     IndexHintSQL = index_hint_sql(Host),
     TotalCount = calc_count(Host, Filter, IndexHintSQL),
-    Offset     = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)}};
+    Offset = calc_offset(Host, Filter, IndexHintSQL, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    Result = {TotalCount, Offset, rows_to_uniform_format(Host, UserJID, MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages_regular(Host, UserJID, RSM,
                         PageSize, Filter) ->
     IndexHintSQL = index_hint_sql(Host),
@@ -417,6 +419,16 @@ before_id(undefined, Filter) ->
 before_id(ID, Filter) ->
     SID = escape_message_id(ID),
     [Filter, " AND id < ", use_escaped_integer(SID)].
+
+-spec from_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+from_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id >= ", use_escaped_integer(SID)].
+
+-spec to_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+to_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id <= ", use_escaped_integer(SID)].
 
 rows_to_uniform_format(Host, UserJID, MessageRows) ->
     [do_row_to_uniform_format(Host, UserJID, Row) || Row <- MessageRows].

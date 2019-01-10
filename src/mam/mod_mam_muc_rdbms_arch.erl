@@ -306,30 +306,30 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = aft, id = ID}, Borders,
                 Start, End, _Now, WithJID, SearchText,
-                PageSize, _) ->
+                PageSize, _) when ID =/= undefined ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, after_id(ID, Filter), 0, PageSize, false),
-    {ok, {TotalCount, Offset,
-          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, from_id(ID, Filter), 0, PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, Host, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM = #rsm_in{direction = before, id = ID},
                 Borders, Start, End, _Now, WithJID, SearchText,
-                PageSize, _) ->
+                PageSize, _) when ID =/= undefined ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(Host, before_id(ID, Filter), 0, PageSize, true),
-    {ok, {TotalCount, Offset,
-          rows_to_uniform_format(MessageRows, Host, RoomJID)}};
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    MessageRows = extract_messages(Host, to_id(ID, Filter), 0, PageSize + 1, true),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows, Host, RoomJID)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result);
 lookup_messages(Host, RoomID, RoomJID = #jid{},
                 RSM, Borders,
                 Start, End, _Now, WithJID, SearchText,
                 PageSize, _) ->
     Filter = prepare_filter(RoomID, Borders, Start, End, WithJID, SearchText),
     TotalCount = calc_count(Host, Filter),
-    Offset     = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
+    Offset = calc_offset(Host, Filter, PageSize, TotalCount, RSM),
     MessageRows = extract_messages(Host, Filter, Offset, PageSize, false),
     {ok, {TotalCount, Offset,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
@@ -346,6 +346,16 @@ before_id(undefined, Filter) ->
 before_id(ID, Filter) ->
     SID = escape_message_id(ID),
     [Filter, " AND id < ", use_escaped_integer(SID)].
+
+-spec from_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+from_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id >= ", use_escaped_integer(SID)].
+
+-spec to_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
+to_id(ID, Filter) ->
+    SID = escape_message_id(ID),
+    [Filter, " AND id <= ", use_escaped_integer(SID)].
 
 
 -spec rows_to_uniform_format([raw_row()], jid:server(), jid:jid()) ->
