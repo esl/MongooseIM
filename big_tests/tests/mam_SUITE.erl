@@ -2433,7 +2433,6 @@ server_returns_item_not_found_for_nonexistent_id(Config, RSM, StanzaID) ->
         rsm_send(Config, Alice,
                  stanza_page_archive_request(P, StanzaID, RSM)),
         Res = escalus:wait_for_stanza(Alice),
-        ct:pal("res: ~p\n", [Res]),
         escalus:assert(is_iq_error, Res),
         escalus:assert(is_error, [<<"cancel">>, <<"item-not-found">>], Res),
         ok
