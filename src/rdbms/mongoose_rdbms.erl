@@ -154,7 +154,8 @@
                                {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
 -type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
--export_type([query_result/0]).
+-export_type([query_result/0,
+              server/0]).
 
 %%%----------------------------------------------------------------------
 %%% API

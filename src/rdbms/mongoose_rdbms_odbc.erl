@@ -184,10 +184,15 @@ unsplit_query([QueryHead], _ParamMappers, [], QueryAcc, ParamsAcc) ->
 unsplit_query([QueryHead | QueryRest], ParamMappers, [Param | Params], QueryAcc, ParamsAcc) ->
     {{value, Mapper}, ParamMappersTail} = queue:out(ParamMappers),
     NextParamMappers = queue:in(Mapper, ParamMappersTail),
-    {InlineQuery, ODBCParam} = Mapper(Param),
+    {InlineQuery, ODBCParam} = maybe_null(Param, Mapper),
     NewQueryAcc = [InlineQuery, QueryHead | QueryAcc],
     NewParamsAcc = ODBCParam ++ ParamsAcc,
     unsplit_query(QueryRest, NextParamMappers, Params, NewQueryAcc, NewParamsAcc).
+
+maybe_null(null, _) ->
+    {"null", []};
+maybe_null(Param, Mapper) ->
+    Mapper(Param).
 
 -spec server_type() -> atom().
 server_type() ->

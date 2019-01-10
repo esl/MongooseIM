@@ -266,7 +266,7 @@ init([ServerHost, Opts]) ->
     ?DEBUG("pubsub init ~p ~p", [ServerHost, Opts]),
     Host = gen_mod:get_opt_subhost(ServerHost, Opts, default_host()),
 
-    init_backend(Opts),
+    init_backend(ServerHost, Opts),
 
     ets:new(gen_mod:get_module_proc(ServerHost, config), [set, named_table, public]),
     {Plugins, NodeTree, PepMapping} = init_plugins(Host, ServerHost, Opts),
@@ -287,7 +287,7 @@ init([ServerHost, Opts]) ->
     {_, State} = init_send_loop(ServerHost),
     {ok, State}.
 
-init_backend(Opts) ->
+init_backend(ServerHost, Opts) ->
     TrackedDBFuns = [create_node, del_node, get_state, get_states,
                      get_states_by_lus, get_states_by_bare,
                      get_states_by_full, get_own_nodes_states,
@@ -298,7 +298,7 @@ init_backend(Opts) ->
                     ],
     gen_mod:start_backend_module(mod_pubsub_db, Opts, TrackedDBFuns),
     mod_pubsub_db_backend:start(),
-    maybe_start_cache_module(Opts).
+    maybe_start_cache_module(ServerHost, Opts).
 
 store_config_in_ets(Host, ServerHost, Opts, Plugins, NodeTree, PepMapping) ->
     Access = gen_mod:get_opt(access_createnode, Opts, fun(A) when is_atom(A) -> A end, all),
@@ -4050,18 +4050,18 @@ get_max_subscriptions_node(Host) ->
     config(serverhost(Host), max_subscriptions_node, undefined).
 
 %%%% last item cache handling
-maybe_start_cache_module(Opts) ->
+maybe_start_cache_module(ServerHost, Opts) ->
     case proplists:get_value(last_item_cache, Opts, false) of
         false ->
             ok;
         Backend ->
-            start_cache_module(Backend)
+            start_cache_module(ServerHost, Backend)
     end.
 
-start_cache_module(Backend) ->
+start_cache_module(ServerHost, Backend) ->
     gen_mod:start_backend_module(mod_pubsub_cache, [{backend, Backend}],
          [upsert_last_item, delete_last_item, get_last_item]),
-    mod_pubsub_cache_backend:start().
+    mod_pubsub_cache_backend:start(ServerHost).
 
 is_last_item_cache_enabled(Host) ->
     case cache_backend(Host) of

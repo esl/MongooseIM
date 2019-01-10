@@ -6,15 +6,15 @@
 
 %% ------------------------ Backend start/stop ------------------------
 
--callback start() -> ok.
+-callback start(jid:lserver()) -> ok.
 
 -callback stop() -> ok.
 
 -callback upsert_last_item(ServerHost :: binary(),
                            Nidx :: mod_pubsub:nodeIdx(),
                            ItemID :: mod_pubsub:itemId(),
-                           Publisher::jid:ljid(),
-                           Payload::mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
+                           Publisher:: jid:jid(),
+                           Payload :: mod_pubsub:payload()) -> ok | {error, Reason :: term()}.
 
 -callback delete_last_item(ServerHost :: binary(),
                            Nidx :: mod_pubsub:nodeIdx()) -> ok | {error, Reason :: term()}.
