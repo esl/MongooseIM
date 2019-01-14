@@ -81,6 +81,7 @@
          sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
+         sql_dirty/2,
          to_bool/1,
          db_engine/1,
          print_state/1,
@@ -146,7 +147,10 @@
 -define(CONNECT_RETRIES, 5).
 
 -type server() :: binary() | global.
--type rdbms_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
+-type rdbms_msg() :: {sql_query, _}
+                   | {sql_transaction, fun()}
+                   | {sql_dirty, fun()}
+                   | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
                                {updated, non_neg_integer(), [tuple()]} |
@@ -154,6 +158,7 @@
                                {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
 -type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
+-type dirty_result() :: any() | {error, any()}.
 -export_type([query_result/0,
               server/0]).
 
@@ -193,6 +198,10 @@ sql_transaction(Host, Queries) when is_list(Queries) ->
 %% SQL transaction, based on a erlang anonymous function (F = fun)
 sql_transaction(Host, F) when is_function(F) ->
     sql_call(Host, {sql_transaction, F}).
+
+-spec sql_dirty(server(), fun()) -> any() | {error, any()}.
+sql_dirty(Host, F) when is_function(F) ->
+    sql_call(Host, {sql_dirty, F}).
 
 %% TODO: Better spec for RPC calls
 -spec sql_call(Host :: server(), Msg :: rdbms_msg()) -> any().
@@ -484,11 +493,15 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op(rdbms_msg(), state()) -> {query_result() | transaction_result(), state()}.
+-spec outer_op(rdbms_msg(), state()) -> {query_result()
+                                         | transaction_result()
+                                         | dirty_result(), state()}.
 outer_op({sql_query, Query}, State) ->
     {sql_query_internal(Query, State), State};
 outer_op({sql_transaction, F}, State) ->
     outer_transaction(F, ?MAX_TRANSACTION_RESTARTS, "", State);
+outer_op({sql_dirty, F}, State) ->
+    {sql_dirty_internal(F), State};
 outer_op({sql_execute, Name, Params}, State) ->
     sql_execute(Name, Params, State).
 
@@ -585,6 +598,15 @@ sql_query_internal(Query, #state{db_ref = DBRef}) ->
             {updated, 0}; %% workaround for odbc bug
         Result ->
             Result
+    end.
+
+sql_dirty_internal(F) ->
+    try F() of
+        Result ->
+            Result
+    catch
+        _C:R ->
+            {error, R}
     end.
 
 -spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.

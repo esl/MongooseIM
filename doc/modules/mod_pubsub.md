@@ -36,7 +36,7 @@ Node configuration still uses the default configuration defined by the node plug
 #### Note about RDBMS backend
 
 RDBMS backend is in an experimental stage.
-It is a full implementation with one exception: DB operations are not protected with transactions yet.
+It is a complete implementation but it is still undergoing internal load tests.
 The schema used by this backend may change until it reaches stable status.
 
 #### Cache Backend

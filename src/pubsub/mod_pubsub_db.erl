@@ -10,7 +10,7 @@
 
 -include("mongoose_logger.hrl").
 
--export([db_error/3]).
+-export([db_error/3, extra_debug_fun/1]).
 
 %%====================================================================
 %% Behaviour callbacks
@@ -175,16 +175,29 @@
 -callback del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
 
 %%====================================================================
-
 %% API
 %%====================================================================
-
-%% These are made as separate functions to make tracing easier, just in case.
 
 -spec db_error(ReasonData :: map(), ErrorDebug :: map(), Event :: any()) ->
     {error, Details :: map()}.
 db_error(ReasonData, ErrorDebug, Event) ->
     {error, maps:merge(ErrorDebug#{ event => Event }, ReasonData)}.
+
+%% transaction and sync_dirty return very truncated error data so we add extra
+%% try to gather stack trace etc.
+-spec extra_debug_fun(fun()) -> fun().
+extra_debug_fun(Fun) ->
+    fun() ->
+            try Fun() of
+                Res -> Res
+            catch
+                C:R ->
+                    throw(#{
+                      class => C,
+                      reason => R,
+                      stacktrace => erlang:get_stacktrace()})
+            end
+    end.
 
 %%====================================================================
 %% Internal functions
