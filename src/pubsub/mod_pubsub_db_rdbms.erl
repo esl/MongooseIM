@@ -109,8 +109,6 @@ transaction(Fun, ErrorDebug) ->
 
 dirty(Fun, ErrorDebug) ->
     try mongoose_rdbms:sql_dirty(global, mod_pubsub_db:extra_debug_fun(Fun)) of
-        {error, ReasonData} ->
-            mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed);
         Result ->
             Result
     catch

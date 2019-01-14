@@ -4225,7 +4225,13 @@ tree_call(Host, Function, Args) ->
 tree_action(Host, Function, Args) ->
     ?DEBUG("tree_action ~p ~p ~p", [Host, Function, Args]),
     Fun = fun () -> tree_call(Host, Function, Args) end,
-    catch mnesia:sync_dirty(Fun).
+    ErrorDebug = #{
+      action => tree_action,
+      pubsub_host => Host,
+      function => Function,
+      args => Args
+     },
+    catch mod_pubsub_db_backend:dirty(Fun, ErrorDebug).
 
 %% @doc <p>node plugin call.</p>
 node_call(Host, Type, Function, Args) ->
