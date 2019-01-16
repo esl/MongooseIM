@@ -6,7 +6,6 @@
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mod_event_pusher_rabbit_SUITE).
--compile(export_all).
 
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("common_test/include/ct.hrl").
@@ -20,7 +19,23 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
--define(MUC_HOST, <<"muc.localhost">>).
+-export([suite/0, all/0, groups/0]).
+-export([init_per_suite/1, end_per_suite/1,
+         init_per_group/2, end_per_group/2,
+         init_per_testcase/2, end_per_testcase/2]).
+
+-export([exchanges_are_created_on_module_startup/1]).
+-export([connected_users_push_presence_events_when_change_status/1,
+         presence_messages_are_properly_formatted/1]).
+-export([chat_message_sent_event/1,
+         chat_message_sent_event_properly_formatted/1,
+         chat_message_received_event/1,
+         chat_message_received_event_properly_formatted/1]).
+-export([group_chat_message_sent_event/1,
+         group_chat_message_sent_event_properly_formatted/1,
+         group_chat_message_received_event/1,
+         group_chat_message_received_event_properly_formatted/1]).
+
 -define(QUEUE_NAME, <<"test_queue">>).
 -define(DEFAULT_EXCHANGE_TYPE, <<"topic">>).
 -define(PRESENCE_EXCHANGE, <<"custom_presence_exchange">>).
@@ -54,7 +69,9 @@
 -define(IF_EXCHANGE_EXISTS_RETRIES, 30).
 -define(WAIT_FOR_EXCHANGE_INTERVAL, 100). % ms
 
--type rabbit_binding() :: [{binary(), binary(), binary()}].
+-type rabbit_binding() :: {Queue :: binary(),
+                           Exchange :: binary(),
+                           RoutingKey :: binary()}.
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -109,7 +126,7 @@ init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(amqp_client),
     case is_rabbitmq_available() of
         true ->
-            muc_helper:load_muc(muc_host()),
+            muc_helper:load_muc(muc_helper:muc_host()),
             escalus:init_per_suite(Config);
         false ->
             {skip, "RabbitMQ server is not available on default port."}
@@ -143,7 +160,7 @@ end_per_group(_, Config) ->
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
     Config2 = maybe_prepare_muc(CaseName, Config1),
-    Config = Config2 ++ listen_to_rabbit(),
+    Config = Config2 ++ connect_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
@@ -164,7 +181,6 @@ end_per_testcase(CaseName, Config) ->
 exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
     Connection = proplists:get_value(rabbit_connection, Config),
-    Channel = proplists:get_value(rabbit_channel, Config),
     ExCustomType = <<"headers">>,
     Exchanges = [{?PRESENCE_EXCHANGE, ExCustomType},
                  {?CHAT_MSG_EXCHANGE, ExCustomType},
@@ -174,8 +190,7 @@ exchanges_are_created_on_module_startup(Config) ->
     %% WHEN
     start_mod_event_pusher_rabbit(ConfigWithCustomExchangeType),
     %% THEN exchanges are created
-    [?assert(ensure_exchange_present(Connection, Channel, Exchange,
-                                     ?IF_EXCHANGE_EXISTS_RETRIES))
+    [?assert(ensure_exchange_present(Connection, Exchange))
      || Exchange <- Exchanges].
 
 %%--------------------------------------------------------------------
@@ -187,8 +202,7 @@ connected_users_push_presence_events_when_change_status(Config) ->
       Config, [{bob, 1}],
       fun(Bob) ->
               %% GIVEN
-              escalus:wait_for_stanzas(Bob, 1),
-              BobJID = nick_to_jid(bob, Config),
+              BobJID = client_lower_short_jid(Bob),
               listen_to_presence_events_from_rabbit([BobJID], Config),
               %% WHEN users generate some traffic.
               send_presence_stanzas([Bob], 1),
@@ -202,9 +216,8 @@ presence_messages_are_properly_formatted(Config) ->
       Config, [{bob, 1}],
       fun(Bob) ->
               %% GIVEN
-              escalus:wait_for_stanzas(Bob, 1),
-              BobJID = nick_to_jid(bob, Config),
-              BobFullJID = nick_to_full_jid(bob, Config),
+              BobJID = client_lower_short_jid(Bob),
+              BobFullJID = client_lower_full_jid(Bob),
               listen_to_presence_events_from_rabbit([BobJID], Config),
               %% WHEN user logout
               escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
@@ -222,7 +235,7 @@ chat_message_sent_event(Config) ->
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               %% GIVEN
-              BobJID = nick_to_jid(bob, Config),
+              BobJID = client_lower_short_jid(Bob),
               BobChatMsgSentRK = chat_msg_sent_rk(BobJID),
               listen_to_chat_msg_sent_events_from_rabbit([BobJID], Config),
               %% WHEN users chat
@@ -239,7 +252,7 @@ chat_message_received_event(Config) ->
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               %% GIVEN
-              AliceJID = nick_to_jid(alice, Config),
+              AliceJID = client_lower_short_jid(Alice),
               AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
               listen_to_chat_msg_recv_events_from_rabbit([AliceJID], Config),
               %% WHEN users chat
@@ -258,9 +271,9 @@ chat_message_sent_event_properly_formatted(Config) ->
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               %% GIVEN
-              AliceJID = nick_to_jid(alice, Config),
-              AliceFullJID = nick_to_full_jid(alice, Config),
-              BobFullJID = nick_to_full_jid(bob, Config),
+              AliceJID = client_lower_short_jid(Alice),
+              AliceFullJID = client_lower_full_jid(Alice),
+              BobFullJID = client_lower_full_jid(Bob),
               AliceChatMsgSentRK = chat_msg_sent_rk(AliceJID),
               Message = <<"Hi Bob!">>,
               listen_to_chat_msg_sent_events_from_rabbit([AliceJID], Config),
@@ -278,9 +291,9 @@ chat_message_received_event_properly_formatted(Config) ->
       Config, [{bob, 1}, {alice, 1}],
       fun(Bob, Alice) ->
               %% GIVEN
-              AliceJID = nick_to_jid(alice, Config),
-              AliceFullJID = nick_to_full_jid(alice, Config),
-              BobFullJID = nick_to_full_jid(bob, Config),
+              AliceJID = client_lower_short_jid(Alice),
+              AliceFullJID = client_lower_full_jid(Alice),
+              BobFullJID = client_lower_full_jid(Bob),
               AliceChatMsgRecvRK = chat_msg_recv_rk(AliceJID),
               Message = <<"Hi Alice!">>,
               listen_to_chat_msg_recv_events_from_rabbit([AliceJID], Config),
@@ -304,12 +317,13 @@ group_chat_message_sent_event(Config) ->
       fun(Bob) ->
               %% GIVEN
               Room = ?config(room, Config),
-              RoomAddr = room_address(Room),
-              BobJID = nick_to_jid(bob, Config),
+              RoomAddr = muc_helper:room_address(Room),
+              BobJID = client_lower_short_jid(Bob),
               BobGroupChatMsgSentRK = group_chat_msg_sent_rk(BobJID),
               listen_to_group_chat_msg_sent_events_from_rabbit([BobJID], Config),
               %% WHEN users chat
-              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+              escalus:send(Bob,
+                           muc_helper:stanza_muc_enter_room(Room, nick(Bob))),
 
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr,
                                                             <<"Hi there!">>)),
@@ -326,14 +340,16 @@ group_chat_message_received_event(Config) ->
       fun(Bob, Alice) ->
               %% GIVEN
               Room = ?config(room, Config),
-              RoomAddr = room_address(Room),
-              AliceJID = nick_to_jid(alice, Config),
+              RoomAddr = muc_helper:room_address(Room),
+              AliceJID = client_lower_short_jid(Alice),
               AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
               listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID],
                                                                Config),
               %% WHEN users chat
-              escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+              escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room,
+                                                                   nick(Alice))),
+              escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room,
+                                                                 nick(Bob))),
 
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr,
                                                             <<"Hi there!">>)),
@@ -350,14 +366,15 @@ group_chat_message_sent_event_properly_formatted(Config) ->
       fun(Bob) ->
               %% GIVEN
               Room = ?config(room, Config),
-              RoomAddr = room_address(Room),
-              BobJID = nick_to_jid(bob, Config),
-              BobFullJID = nick_to_full_jid(bob, Config),
+              RoomAddr = muc_helper:room_address(Room),
+              BobJID = client_lower_short_jid(Bob),
+              BobFullJID = client_lower_full_jid(Bob),
               BobGroupChatMsgSentRK = group_chat_msg_sent_rk(BobJID),
               Message = <<"Hi there!">>,
               listen_to_group_chat_msg_sent_events_from_rabbit([BobJID], Config),
               %% WHEN a user chat
-              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+              escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room,
+                                                                 nick(Bob))),
 
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Message)),
               %% THEN
@@ -373,17 +390,19 @@ group_chat_message_received_event_properly_formatted(Config) ->
       fun(Bob, Alice) ->
               %% GIVEN
               Room = ?config(room, Config),
-              RoomAddr = room_address(Room),
+              RoomAddr = muc_helper:room_address(Room),
               BobRoomJID = user_room_jid(RoomAddr, Bob),
-              AliceJID = nick_to_jid(alice, Config),
-              AliceFullJID = nick_to_full_jid(alice, Config),
+              AliceJID = client_lower_short_jid(Alice),
+              AliceFullJID = client_lower_full_jid(Alice),
               AliceGroupChatMsgRecvRK = group_chat_msg_recv_rk(AliceJID),
               Message = <<"Hi there!">>,
               listen_to_group_chat_msg_recv_events_from_rabbit([AliceJID],
                                                                Config),
               %% WHEN users chat
-              escalus:send(Alice, stanza_muc_enter_room(Room, nick(Alice))),
-              escalus:send(Bob, stanza_muc_enter_room(Room, nick(Bob))),
+              escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room,
+                                                                   nick(Alice))),
+              escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room,
+                                                                 nick(Bob))),
 
               escalus:send(Bob, escalus_stanza:groupchat_to(RoomAddr, Message)),
               %% THEN
@@ -399,8 +418,8 @@ group_chat_message_received_event_properly_formatted(Config) ->
 %% Test helpers
 %%--------------------------------------------------------------------
 
--spec listen_to_rabbit() -> proplists:proplist().
-listen_to_rabbit() ->
+-spec connect_to_rabbit() -> proplists:proplist().
+connect_to_rabbit() ->
     {ok, Connection} =
         amqp_connection:start(#amqp_params_network{}),
     {ok, Channel} = amqp_connection:open_channel(Connection),
@@ -465,10 +484,7 @@ listen_to_events_from_rabbit(QueueBindings, Config) ->
 -spec wait_for_exchanges_to_be_created(Connection :: pid(),
                                        Exchanges :: [binary()]) -> pid().
 wait_for_exchanges_to_be_created(Connection, Exchanges) ->
-    {ok, TestChannel} = amqp_connection:open_channel(Connection),
-    [ensure_exchange_present(Connection, TestChannel, Exchange,
-                             ?IF_EXCHANGE_EXISTS_RETRIES)
-     || Exchange <- Exchanges],
+    [ensure_exchange_present(Connection, Exchange) || Exchange <- Exchanges],
     ok.
 
 -spec declare_temporary_rabbit_queue(Channel :: pid(), Queue :: binary()) -> binary().
@@ -518,29 +534,32 @@ bind_queue_to_exchange(Channel, {Queue, Exchange, RoutingKey}) ->
                                                  routing_key = RoutingKey,
                                                  queue = Queue}).
 
--spec ensure_exchange_present(Connection :: pid(), Channel :: pid(),
-                              Exchange :: binary(),
-                              Retries :: non_neg_integer()) ->
-    true | no_return().
-ensure_exchange_present(_Connection, Channel, {ExName, ExType}, 1) ->
-    amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
-                                                   type = ExType,
-                                                   %% this option allows to
-                                                   %% check if an exchange exists
-                                                   passive = true}),
-    true;
-ensure_exchange_present(Connection, Channel, Exchange = {ExName, ExType},
-                        Retries) ->
+-spec ensure_exchange_present(Connection :: pid(), Exchange :: binary()) ->
+                                     {ok, true} | {timeout, any()}.
+ensure_exchange_present(Connection, Exchange) ->
+    Opts = #{time_left => ?WAIT_FOR_EXCHANGE_INTERVAL * ?IF_EXCHANGE_EXISTS_RETRIES / 1000,
+             sleep_time => ?WAIT_FOR_EXCHANGE_INTERVAL},
+    case mongoose_helper:wait_until(fun() ->
+                                            is_exchange_present(Connection,
+                                                                Exchange)
+                                    end, true, Opts) of
+        {ok, true} -> true;
+        {timeout, _} ->
+            throw(io_lib:format("Exchange has not been created, exchange=~p",
+                                [Exchange]))
+    end.
+
+-spec is_exchange_present(Connection :: pid(), Exchange :: binary()) -> boolean().
+is_exchange_present(Connection, {ExName, ExType}) ->
+    {ok, Channel} = amqp_connection:open_channel(Connection),
     try amqp_channel:call(Channel, #'exchange.declare'{exchange = ExName,
                                                        type = ExType,
+                                                       %% this option allows to
+                                                       %% check if an exchange exists
                                                        passive = true}) of
         {'exchange.declare_ok'} -> true
     catch
-        _Error:_Reason ->
-            timer:sleep(?WAIT_FOR_EXCHANGE_INTERVAL),
-            %% The old channel `Channel` is closed.
-            {ok, NewChannel} = amqp_connection:open_channel(Connection),
-            ensure_exchange_present(Connection, NewChannel, Exchange, Retries - 1)
+        _Error:_Reason -> false
     end.
 
 -spec subscribe_to_rabbit_queue(Channel :: pid(), Queue :: binary()) -> ok.
@@ -550,7 +569,9 @@ subscribe_to_rabbit_queue(Channel, Queue) ->
     receive
         #'basic.consume_ok'{} -> ok
     after
-        5000 -> throw("Subscribe channel timeout.")
+        5000 ->
+            throw(io_lib:format("Timeout when subscribing to queue,"
+                                "channel=~p, queue=~p", [Channel, Queue]))
     end.
 
 -spec send_presence_stanzas(Users :: [binary()], NumOfMsgs :: non_neg_integer())
@@ -561,7 +582,7 @@ send_presence_stanzas(Users, NumOfMsgs) ->
 -spec send_presence_stanza(Users :: [binary()], NumOfMsgs :: non_neg_integer())
                           -> [ok] | term().
 send_presence_stanza(User, NumOfMsgs) ->
-    [escalus:send(User, escalus_stanza:presence(make_pres_stanza(X)))
+    [escalus:send(User, escalus_stanza:presence(make_pres_type(X)))
      || X <- lists:seq(1, NumOfMsgs)].
 
 -spec get_decoded_message_from_rabbit(RoutingKey :: binary()) ->
@@ -571,15 +592,13 @@ get_decoded_message_from_rabbit(RoutingKey) ->
         {#'basic.deliver'{routing_key = RoutingKey}, #amqp_msg{payload = Msg}} ->
             jiffy:decode(Msg, [return_maps])
     after
-        5000 -> ct:fail(timeout)
+        5000 -> ct:fail(io_lib:format("Timeout when decoding message, rk=~p",
+                                   [RoutingKey]))
     end.
 
 %%--------------------------------------------------------------------
 %% Utils
 %%--------------------------------------------------------------------
-
-start_mod_event_pusher_rabbit() ->
-    start_mod_event_pusher_rabbit(?MOD_EVENT_PUSHER_RABBIT_CFG).
 
 start_mod_event_pusher_rabbit(Config) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -597,15 +616,15 @@ stop_rabbit_wpool(Host) ->
     rpc(mim(), mongoose_wpool, stop, [rabbit, Host, event_pusher]).
 
 delete_exchanges() ->
-    ConnConf = listen_to_rabbit(),
+    ConnConf = connect_to_rabbit(),
     Channel  = proplists:get_value(rabbit_channel, ConnConf),
     [amqp_channel:call(Channel, #'exchange.delete'{exchange = Ex})
      || Ex <- [?PRESENCE_EXCHANGE, ?CHAT_MSG_EXCHANGE, ?GROUP_CHAT_MSG_EXCHANGE]],
     close_rabbit_connection(ConnConf).
 
-make_pres_stanza(X) when X rem 2 == 0 ->
+make_pres_type(X) when X rem 2 == 0 ->
     <<"available">>;
-make_pres_stanza(_) ->
+make_pres_type(_) ->
     <<"unavailable">>.
 
 chat_msg_sent_rk(JID) -> user_topic_routing_key(JID, ?CHAT_MSG_SENT_TOPIC).
@@ -620,14 +639,11 @@ group_chat_msg_recv_rk(JID) ->
 
 user_topic_routing_key(JID, Topic) -> <<JID/binary, ".", Topic/binary>>.
 
-%% @doc Get a binary jid of the user, that tagged with `UserName' in the config.
-nick_to_jid(UserName, Config) when is_atom(UserName) ->
-    UserSpec = escalus_users:get_userspec(Config, UserName),
-    escalus_utils:jid_to_lower(escalus_users:get_jid(Config, UserSpec)).
+client_lower_short_jid(Client) ->
+    escalus_utils:jid_to_lower(escalus_client:short_jid(Client)).
 
-nick_to_full_jid(UserName, Config) ->
-    JID = nick_to_jid(UserName, Config),
-    <<JID/binary, "/res1">>.
+client_lower_full_jid(Client) ->
+    escalus_utils:jid_to_lower(escalus_client:full_jid(Client)).
 
 nick(User) -> escalus_utils:get_username(User).
 
@@ -655,33 +671,6 @@ prepare_muc(Config) ->
 
 cleanup_muc(Config) ->
     muc_helper:destroy_room(Config).
-
-muc_host() ->
-    ?MUC_HOST.
-
-stanza_muc_enter_room(Room, Nick) ->
-    stanza_to_room(
-      escalus_stanza:presence(<<"available">>,
-                              [#xmlel{name = <<"x">>,
-                                      attrs=[{<<"xmlns">>,
-                                              <<"http://jabber.org/protocol/muc">>}]}
-                              ]),
-      Room, Nick).
-
-stanza_default_muc_room(Room, Nick) ->
-    Form = escalus_stanza:x_data_form(<<"submit">>, []),
-    Query = escalus_stanza:query_el(?NS_MUC_OWNER, [Form]),
-    IQSet = escalus_stanza:iq(<<"set">>, [Query]),
-    stanza_to_room(IQSet, Room, Nick).
-
-stanza_to_room(Stanza, Room, Nick) ->
-    escalus_stanza:to(Stanza, room_address(Room, Nick)).
-
-room_address(Room) ->
-    <<Room/binary, "@", ?MUC_HOST/binary>>.
-
-room_address(Room, Nick) ->
-    <<Room/binary, "@", ?MUC_HOST/binary, "/", Nick/binary>>.
 
 user_room_jid(RoomJID, UserJID) ->
     Nick = nick(UserJID),
