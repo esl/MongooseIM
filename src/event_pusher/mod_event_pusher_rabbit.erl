@@ -106,12 +106,9 @@ handle_user_presence_change(JID = #jid{lserver = Host}, Status) ->
     cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage}).
 
 -spec handle_user_chat_event(#chat_event{}) -> ok.
-handle_user_chat_event(#chat_event{type = normal}) -> ok;
-handle_user_chat_event(#chat_event{from = From,
-                                   to = To,
-                                   packet = Packet,
-                                   type = Type,
-                                   direction = Direction}) ->
+handle_user_chat_event(#chat_event{from = From, to = To, packet = Packet,
+                                   type = Type, direction = Direction}) when
+      Type == chat orelse Type == groupchat ->
     Host = get_host(From, To, Direction),
     UserMessage = extract_message(Packet),
     Message = chat_msg(From, To, UserMessage),
@@ -119,7 +116,8 @@ handle_user_chat_event(#chat_event{from = From,
     RoutingKey = chat_event_routing_key(Type, Direction, From, To, Host),
     PublishMethod = mongoose_amqp:basic_publish(Exchange, RoutingKey),
     AMQPMessage = mongoose_amqp:message(Message),
-    cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage}).
+    cast_rabbit_worker(Host, {amqp_publish, PublishMethod, AMQPMessage});
+handle_user_chat_event(_) -> ok.
 
 %%%===================================================================
 %%% Helpers

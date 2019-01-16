@@ -42,9 +42,6 @@
 
 -type worker_opts() :: state().
 
--define(REPLY_REQ_DROPPED(State), {reply, request_dropped, State}).
--define(NOREPLY_REQ_DROPPED(State), {noreply, State}).
-
 %%%===================================================================
 %%% Metrics
 %%%===================================================================
@@ -95,17 +92,15 @@ init(Opts) ->
 
 handle_call(Req, From, State) ->
     maybe_handle_request(fun do_handle_call/3, [Req, From, State],
-                         ?REPLY_REQ_DROPPED(State)).
+                         {reply, request_dropped, State}).
 
 handle_cast(Req, State) ->
-   maybe_handle_request(fun do_handle_cast/2, [Req, State],
-                        ?NOREPLY_REQ_DROPPED(State)).
+   maybe_handle_request(fun do_handle_cast/2, [Req, State], {noreply, State}).
 
 handle_info(Req = {init, _}, State) ->
     do_handle_info(Req, State);
 handle_info(Req, State) ->
-    maybe_handle_request(fun do_handle_info/2, [Req, State],
-                         ?NOREPLY_REQ_DROPPED(State)).
+    maybe_handle_request(fun do_handle_info/2, [Req, State], {noreply, State}).
 
 terminate(_Reason, #{connection := Connection, channel := Channel,
                      host := Host, pool_tag := PoolTag}) ->
@@ -302,8 +297,8 @@ maybe_handle_request(Callback, Args, Reply) ->
             apply(Callback, Args);
         true ->
             ?WARNING_MSG("event=rabbit_worker_request_dropped "
-                         ++ "reason=queue_message_length_limit_reached "
-                         ++ "limit=~p", [Limit]),
+                         "reason=queue_message_length_limit_reached limit=~p",
+                         [Limit]),
             Reply
     end.
 
