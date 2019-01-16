@@ -1,3 +1,7 @@
+### Current status
+
+**This module is still in an experimental phase.**
+
 ### Module Description
 
 This module is a backend of [mod_event_pusher] that enables support for the
@@ -111,33 +115,22 @@ and for "received" events:
 The module provides some metrics related to RabbitMQ connections and messages
 as well. Provided metrics:
 
-  * `connections_active` - number of active connections to a RabbitMQ
-  server
-  * `connections_opened` - number of opened connections to a RabbitMQ
-  server since module startup
-  * `connections_closed` - number of closed connections to a RabbitMQ
-  server since module startup
-  * `connections_failed` - number of failed connections to a RabbitMQ
-  server since module startup
-  * `messages_published` - number of published messages to a RabbitMQ server
-  since module startup
-  * `messages_timeout` - number of messages to a RabbitMQ server that weren't
-  confirmed by the server since module startup
-  * `messages_failed` - number of messages to a RabbitMQ server that were
-  rejected by the server since module startup
-  * `message_publish_time` - amount of time it takes to publish a message to
-  a RabbitMQ server and receive a confirmation
-  * `message_payload_size` - size of a message (in bytes) that was published to
-  a RabbitMQ server (including message properties)
+| name                             | type      | description (when it gets incremented/decremented)                                                                                               |
+| ----                             | ----      | --------------------------------------                                                                                                           |
+| [`Host`, `connections_active`]   | spiral    | A connection to a RabbitMQ server is opened(+1)/closed(-1).                                                                                      |
+| [`Host`, `connections_opened`]   | spiral    | A connection to a RabbitMQ server is opened.                                                                                                     |
+| [`Host`, `connections_closed`]   | spiral    | A connection to a RabbitMQ server is closed.                                                                                                     |
+| [`Host`, `connection_failed` ]   | spiral    | A try to open a connection to a RabbitMQ server failed.                                                                                          |
+| [`Host`, `messages_published`]   | spiral    | A message to a RabbitMQ server is published.                                                                                                     |
+| [`Host`, `messages_failed`]      | spiral    | A message to a RabbitMQ server is rejected.                                                                                                      |
+| [`Host`, `messages_timeout`]     | spiral    | A message to a RabbitMQ server timed out (weren't confirmed by the server).                                                                      |
+| [`Host`, `message_publish_time`] | histogram | Amount of time it takes to publish a message to a RabbitMQ server and receive a confirmation. It's measured only for successful messages.        |
+| [`Host`, `message_payload_size`] | histogram | Size of a message (in bytes) that was published to a RabbitMQ server (including message properties). It's measured only for successful messages. |
 
 > All the above metrics have a prefix which looks as follows:  
-> `mongooseim.<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
+> `<xmpp_host>.backends.mod_event_pusher_rabbit.<metric_name>`.
 > For example a proper metric name would look like:
-> `mongooseim.localhost.backends.mod_event_pusher_rabbit.connections_active`
-
-### Current status
-
-This module is still in an experimental phase.
+> `localhost.backends.mod_event_pusher_rabbit.connections_active`
 
 ### Guarantees
 
@@ -178,10 +171,9 @@ hand it can cause performance degradation.
 
 ### Worker selection strategy
 
-The module uses `mongoose_wpool` (which in turn uses `wpool` underneath) for
-managing worker processes  and [`best_worker` strategy](https://github.com/inaka/worker_pool#best_worker),
-for choosing a worker, is in use by default. Different strategies imply different
-behaviors of the system.
+The module uses `mongoose_wpool` for managing worker processes  and `best_worker`
+strategy, for choosing a worker, is in use by default. Different strategies
+imply different behaviors of the system.
 
 #### Event messages queuing
 
