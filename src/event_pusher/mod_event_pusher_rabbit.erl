@@ -31,6 +31,8 @@
 %%% Definitions
 %%%===================================================================
 
+-define(POOL_TAG, event_pusher).
+
 -define(DEFAULT_PRESENCE_EXCHANGE, <<"presence">>).
 -define(DEFAULT_PRESENCE_EXCHANGE_TYPE, <<"topic">>).
 -define(DEFAULT_CHAT_MSG_EXCHANGE, <<"chat_msg">>).
@@ -82,7 +84,7 @@ push_event(Acc, _, _) ->
 -spec initialize_metrics(Host :: jid:server()) -> [ok | {ok | error, term()}].
 initialize_metrics(Host) ->
     [mongoose_metrics:ensure_metric(Host, Name, Type)
-     || {Name, Type} <- mongoose_rabbit_worker:list_metrics()].
+     || {Name, Type} <- mongoose_rabbit_worker:list_metrics(?POOL_TAG)].
 
 -spec create_exchanges(Host :: jid:server()) -> ok.
 create_exchanges(Host) ->
@@ -124,11 +126,11 @@ handle_user_chat_event(#chat_event{from = From,
 
 -spec call_rabbit_worker(Host :: binary(), Msg :: term()) -> term().
 call_rabbit_worker(Host, Msg) ->
-    mongoose_wpool:call(rabbit, Host, event_pusher, Msg).
+    mongoose_wpool:call(rabbit, Host, ?POOL_TAG, Msg).
 
 -spec cast_rabbit_worker(Host :: binary(), Msg :: term()) -> ok.
 cast_rabbit_worker(Host, Msg) ->
-    mongoose_wpool:cast(rabbit, Host, event_pusher, Msg).
+    mongoose_wpool:cast(rabbit, Host, ?POOL_TAG, Msg).
 
 -spec exchanges(Host :: jid:server()) -> [{binary(), binary()}].
 exchanges(Host) ->

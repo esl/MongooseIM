@@ -16,6 +16,7 @@ start(Host, Tag, WpoolOptsIn, AMQPOpts) ->
     Worker = {mongoose_rabbit_worker,
               [{amqp_client_opts, amqp_client_opts(AMQPOpts)},
                {host, Host},
+               {pool_tag, Tag},
                {confirms, IsConfirmEnabled},
                {max_queue_len, proplists:get_value(max_worker_queue_len,
                                                    AMQPOpts,
