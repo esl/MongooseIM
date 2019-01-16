@@ -88,11 +88,12 @@ initialize_metrics(Host) ->
 
 -spec create_exchanges(Host :: jid:server()) -> ok.
 create_exchanges(Host) ->
+    Exchanges = exchanges(Host),
     Res =
         [call_rabbit_worker(Host, {amqp_call,
                                    mongoose_amqp:exchange_declare(ExName, Type)})
-         || {ExName, Type} <- exchanges(Host)],
-    verify_exchanges_were_created_or_crash(Res).
+         || {ExName, Type} <- Exchanges],
+    verify_exchanges_were_created_or_crash(Res, Exchanges).
 
 -spec handle_user_presence_change(JID :: jid:jid(), Status :: atom()) -> ok.
 handle_user_presence_change(JID = #jid{lserver = Host}, Status) ->
@@ -221,13 +222,16 @@ exchange_opt(Host, ExchangeKey, Option, Default) ->
 opt(Host, Option, Default) ->
     gen_mod:get_module_opt(Host, ?MODULE, Option, Default).
 
--spec verify_exchanges_were_created_or_crash(Res :: list()) -> ok | no_return().
-verify_exchanges_were_created_or_crash(Res) ->
+-spec verify_exchanges_were_created_or_crash(Res :: list(),
+                                             Exchanges :: [{binary(), binary()}])
+    -> ok | no_return().
+verify_exchanges_were_created_or_crash(Res, Exchanges) ->
     case lists:all(fun(E) ->
                            element(2, E) == mongoose_amqp:exchange_declare_ok()
                    end, Res) of
         true ->
             ok;
         false ->
-            erlang:error("Creating exchanges failed.")
+            erlang:error(io_lib:format("Creating exchanges failed, exchanges=~p",
+                                       [Exchanges]))
     end.

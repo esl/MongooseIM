@@ -156,22 +156,26 @@ handle_amqp_publish(Method, Payload, Opts = #{host := Host,
         true ->
             update_messages_published_metrics(Host, PoolTag, PublishTime,
                                               Payload),
-            ?DEBUG("event=rabbit_message_sent message=~1000p", [Payload]),
+            ?DEBUG("event=rabbit_message_sent method=~p message=~1000p"
+                   "worker_opts=~p", [Method, Payload, Opts]),
             {noreply, Opts};
         false ->
             update_messages_failed_metrics(Host, PoolTag),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=negative_ack",
-                         []),
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=negative_ack"
+                         "method=~p message=~1000p worker_opts=~p",
+                         [Method, Payload, Opts]),
             {noreply, Opts};
         {channel_exception, Error, Reason} ->
             update_messages_failed_metrics(Host, PoolTag),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=~1000p:~1000p",
-                         [Error, Reason]),
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=~1000p:~1000p"
+                         "method=~p message=~1000p worker_opts=~p",
+                         [Error, Reason, Method, Payload, Opts]),
             {FreshConn, FreshChann} = maybe_restart_rabbit_connection(Opts),
             {noreply, Opts#{connection := FreshConn, channel := FreshChann}};
         timeout ->
             update_messages_timeout_metrics(Host, PoolTag),
-            ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout", []),
+            ?WARNING_MSG("event=rabbit_message_sent_failed reason=timeout"
+            "method=~p message=~1000p worker_opts=~p", [Method, Payload, Opts]),
             {noreply, Opts}
     end.
 
@@ -214,11 +218,14 @@ establish_rabbit_connection(AMQPOpts, Host, PoolTag) ->
         {ok, Connection} ->
             update_success_connections_metrics(Host, PoolTag),
             {ok, Channel} = amqp_connection:open_channel(Connection),
-            ?DEBUG("event=rabbit_connection_established", []),
+            ?DEBUG("event=rabbit_connection_established host=~p pool_tag=~p"
+                   "AMQP_opts=~p", [Host, PoolTag, AMQPOpts]),
             {Connection, Channel};
         {error, Error} ->
             update_failed_connections_metrics(Host, PoolTag),
-            ?ERROR_MSG("event=rabbit_connection_failed reason=~1000p", [Error]),
+            ?ERROR_MSG("event=rabbit_connection_failed reason=~1000p"
+                       "host=~p pool_tag=~p AMQP_opts=~p",
+                       [Error, Host, PoolTag, AMQPOpts]),
             exit("connection to a Rabbit server failed")
     end.
 
