@@ -2,7 +2,8 @@
 
 %% API
 
--export([is_rdbms_enabled/1]).
+-export([is_rdbms_enabled/1,
+        mnesia_or_rdbms_backend/0]).
 
 -export([auth_modules/0]).
 
@@ -24,7 +25,6 @@
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -import(distributed_helper, [mim/0,
-                             require_rpc_nodes/1,
                              rpc/4]).
 
 -spec is_rdbms_enabled(Host :: binary()) -> boolean().
@@ -32,6 +32,14 @@ is_rdbms_enabled(Host) ->
     case rpc(mim(), mongoose_rdbms, sql_transaction, [Host, fun erlang:yield/0]) of
         {atomic, _} -> true;
         _ -> false
+    end.
+
+-spec mnesia_or_rdbms_backend() -> atom().
+mnesia_or_rdbms_backend() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    case mongoose_helper:is_rdbms_enabled(Host) of
+        true -> rdbms;
+        false -> mnesia
     end.
 
 -spec auth_modules() -> [atom()].

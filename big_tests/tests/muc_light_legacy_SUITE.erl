@@ -135,13 +135,9 @@ suite() ->
 
 init_per_suite(Config) ->
     Host = domain(),
-    Backend = case mongoose_helper:is_rdbms_enabled(Host) of
-                  true -> rdbms;
-                  false -> mnesia
-              end,
     dynamic_modules:start(Host, mod_muc_light,
                           [{host, binary_to_list(?MUCHOST)},
-                           {backend, Backend},
+                           {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                            {legacy_mode, true}]),
     Config1 = escalus:init_per_suite(Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob, kate, mike])).

@@ -214,8 +214,8 @@ mixed_requests(_Config) ->
     Responses = lists:duplicate(50, {TextPong, true, TextPong, true}).
 
 start_cowboy_returns_error_eaddrinuse(_C) ->
-    Opts = [{transport_options, [{port, 8088},
-                                 {ip, {127, 0, 0, 1}}]},
+    Opts = [{transport_options, #{socket_opts => [{port, 8088},
+                                                  {ip, {127, 0, 0, 1}}]}},
             {modules, []},
             {retries, {2, 10}}],
     {ok, _Pid} = ejabberd_cowboy:start_cowboy(a_ref, Opts),
@@ -274,7 +274,8 @@ start_cowboy() ->
                    ]}]
                 }]),
     {ok, _Pid} = cowboy:start_clear(http_listener,
-                                    [{num_acceptors, 20}, {port, 8080}],
+                                    #{num_acceptors => 20,
+                                      socket_opts => [{port, 8080}]},
                                     #{env => #{dispatch => Dispatch}}).
 
 stop_cowboy() ->

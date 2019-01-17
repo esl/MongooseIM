@@ -43,6 +43,7 @@
 
 %% mod_vcards callbacks
 -export([init/2,
+         tear_down/1,
          remove_user/2,
          get_vcard/2,
          set_vcard/4,
@@ -81,7 +82,7 @@
          binary_search_fields       :: [binary()],
          deref = neverDerefAliases  :: neverDerefAliases | derefInSearching
                                      | derefFindingBaseObj | derefAlways,
-         matches = 0                :: non_neg_integer()}).
+         matches = 0                :: non_neg_integer() | infinity}).
 
 -define(VCARD_MAP,
         [{<<"NICKNAME">>, <<"%u">>, []},
@@ -139,6 +140,11 @@
 
 init(VHost, Options) ->
     start_link(VHost, Options),
+    ok.
+
+tear_down(LServer) ->
+    Proc = gen_mod:get_module_proc(LServer, ?PROCNAME),
+    gen_server:call(Proc, stop),
     ok.
 
 remove_user(_LUser, _LServer) ->
@@ -458,9 +464,9 @@ process_pattern(Str, {User, Domain}, AttrValues) ->
 parse_options(Host, Opts) ->
     MyHost = gen_mod:get_opt_subhost(Host, Opts, mod_vcard:default_host()),
     Matches = eldap_utils:get_mod_opt(matches, Opts,
-                              fun(infinity) -> 0;
-                                 (I) when is_integer(I), I>0 -> I
-                              end, 30),
+                             fun(infinity) -> infinity;
+                                (I) when is_integer(I), I>=0 -> I
+                             end, 30),
     EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME), utf8),
     Cfg = eldap_utils:get_config(Host, Opts),
     UIDsTemp = eldap_utils:get_opt(
@@ -509,7 +515,8 @@ parse_options(Host, Opts) ->
                                                iolist_to_binary(P)}
                                               || {S, P} <- Ls]
                                      end, ?SEARCH_REPORTED),
-    UIDAttrs = [UAttr || {UAttr, _} <- UIDs],
+    UIDAttrs = lists:map(fun({UID, _}) -> UID;
+                            ({UID}) -> UID end, UIDs),
     VCardMapAttrs = lists:usort(lists:append([A
                                               || {_, _, A} <- VCardMap])
                                   ++ UIDAttrs),

@@ -1,9 +1,9 @@
 # MongooseIM platform
-[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 * Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
-* Documentation: [http://mongooseim.readthedocs.org/](http://mongooseim.readthedocs.org/)
+* Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
 
 
 ## Get to know MongooseIM
@@ -74,17 +74,18 @@ Check out our test results:
 
 See the documentation for the latest releases:
 
-* [Master](http://mongooseim.readthedocs.org/en/latest/)
-* [3.1.0](http://mongooseim.readthedocs.io/en/3.1.0/)
-* [3.0.0](http://mongooseim.readthedocs.io/en/3.0.0/)
-* [2.2.2](http://mongooseim.readthedocs.io/en/2.2.2/)
-* [2.1.1](http://mongooseim.readthedocs.io/en/2.1.1/)
-* [2.1.0](http://mongooseim.readthedocs.io/en/2.1.0/)
-* [2.0.1](http://mongooseim.readthedocs.io/en/2.0.1/)
-* [2.0.0](http://mongooseim.readthedocs.io/en/2.0.0/)
-* [1.6.2](http://mongooseim.readthedocs.io/en/1.6.2/)
-* [1.6.1](http://mongooseim.readthedocs.io/en/1.6.1/)
-* [1.6.0](http://mongooseim.readthedocs.io/en/1.6.0/)
+* [Master](https://mongooseim.readthedocs.org/en/latest/)
+* [3.2.0](https://mongooseim.readthedocs.io/en/3.2.0/)
+* [3.1.0](https://mongooseim.readthedocs.io/en/3.1.0/)
+* [3.0.0](https://mongooseim.readthedocs.io/en/3.0.0/)
+* [2.2.2](https://mongooseim.readthedocs.io/en/2.2.2/)
+* [2.1.1](https://mongooseim.readthedocs.io/en/2.1.1/)
+* [2.1.0](https://mongooseim.readthedocs.io/en/2.1.0/)
+* [2.0.1](https://mongooseim.readthedocs.io/en/2.0.1/)
+* [2.0.0](https://mongooseim.readthedocs.io/en/2.0.0/)
+* [1.6.2](https://mongooseim.readthedocs.io/en/1.6.2/)
+* [1.6.1](https://mongooseim.readthedocs.io/en/1.6.1/)
+* [1.6.0](https://mongooseim.readthedocs.io/en/1.6.0/)
 
 
 When developing new features/modules, please make sure you add basic documentation to the `doc/` directory, and add a link to your document in `doc/README.md.`

@@ -1,13 +1,115 @@
-# [MongooseIM 3.1.0](https://github.com/esl/MongooseIM/releases/tag/3.1.0) - 2018-07-24
+# [MongooseIM 3.1.0](https://github.com/esl/MongooseIM/releases/tag/3.2.0) - 2018-11-20
 
 ## Highlights
+
+- Client Certificate authentication for Websockets and BOSH
+- Inbox improvements (push notifications integration)
+- Unified outgoing connections pools
+
+## All changes
+
+### Added
+
+- Improvements in `mod_inbox`: 
+  - User can show only active/all conversations (#2017)
+  - Inbox IQ result stanza provides a total unread messages count and an active conversation count (#2047, #2056)
+  - If an inbox query is malformed, a descriptive error is returned (#2052)
+  - `mod_inbox` is integrated with `mod_event_pusher`, so push notifications now include an unread messages count (#2078)
+- SASL EXTERNAL may be used with WebSockets and BOSH (#2093)
+- `mongoose_wpool` abstraction layer (#2060, #2099, #2117)
+- `rdbms`, `redis`, `riak`, `cassandra`, `http` ,`generic` and `elasticsearch` pools are started via `outgoing_pools` config option (#2077, #2079, #2084, #2087, #2101)
+- Self-signed certificates may be used with `fast_tls` driver (#2102)
+- `mongoose_bin` module unifies random strings generation API (#2000)
+- Modules may specify "optional" dependencies to enforce the startup order (but not the startup itself) (#2029)
+- Switchable RDBMS backend for `mod_pubsub` - experimental (#2122, #2113, #2129, #2131, #2134) 
+- Changing MUC Light room configurations is possible via REST API (#2030) 
+- New Message Archive Management metrics for async writers (#2023)
+- New Makefile target to check code style with Elvis (#2111)
+
+### Changed
+
+- `ejabberd.cfg` is renamed to `mongooseim.cfg`
+- OTP versions older than 19.0 are no longer supported (#2002)
+- "ODBC" usage has been clarified and it has been renamed to RDBMS where relevant (#2053)
+- Mongoose accumulator v2.0 is more difficult to abuse and has less implicit logic (#2076)
+- Pre 1.0 XML streams are no longer supported (so is non-SASL authentication) (#1998)
+- Improvements in http backend of `mod_event_pusher` (#2100)
+- Cassandra layer uses a standard MIM worker pool instead of a custom one (#2043)
+- Deprecated `gen_fsm` is replaced by `gen_fsm_compat` (#1996)
+- Updated dependencies:
+  - `fast_tls` 1.0.23 (#2002)
+  - `worker_pool` 3.1.1 (#2002)
+  -  `esl/cqerl` `master` (#2002)
+  - `epgsql` 4.1.0 (#2002)
+  - `arcusfelis/eodbc` `master` (#2002)
+  - `tirerl` 1.1.0 (#2002)
+  - `cache_tabz 1.0.12 (#2002)
+  - `stringprep` 1.0.12 (#2002)
+  - `proper` 1.2.0 from hex.pm (#2002)
+  - `meck` 0.8.11  (#2002)
+  - `erszcz/pa` `master` (#2002)
+  - `bbmustache` 1.5.0 (#2002)
+  - `recon` 2.3.6 (#2002)
+  - `erlcloud` 3.1.12 (#2002)
+  - `jwerl` 1.0.0 (#2002)
+  - `observer_cli` 1.3.3 (#2002)
+  - `eredis` 1.1.0
+  - `lasse` 1.2.0 (#2016)
+  - `cowboy` 2.4.0 (#2016, #2088)
+  - `exml` 3.0.2 (#2050)
+  - `shotgun` `9b6c1df` (#2092)
+  - `escalus` `592deba` (#2016, #2092)
+  - `igors/eredis` `e9688a1` (#2042)
+- Implementation of MUC Light user affiliation logic is more developer-friendly (#1934)
+- Generation of codecov-compatible coverage report is extracted to `rebar3_codecov` plugin (#2073)
+- `mod_muc` uses maps instead of dictionaries ( #1986)
+- Shaper workers are organised under dedicated supervisor (#2130)
+
+### Fixed
+- Config reload in cluster had broken verification logic (#2051)
+- `fusco` clients are now properly closed in `mod_revproxy` (#2118)
+- Backend proxy modules are loaded only once (#1438)
+- Node cleaners are no longer crashing (#2135)
+- Test runner
+  - Tests are counted properly on macOS (#2004) 
+  - Appropriate error is returned, when there are no test nodes. (#2004)
+  - Improved test specs generation and autocompletion (#2036)
+- Minor fixes (#2010, #2046, #2069, #2086, #2123)
+- `rebar3` release generation with OTP 21 (update to 3.6.1) (#2037)
+- `NkSERVICE` cache dir configuration works as expected now (#2058)
+- Dialyzer job on Travis runs with Erlang/OTP 21 and returns no errors (#2075) 
+
+### Other
+
+- SASL authentication refactored (#2045)
+- Build improvements (#1015)
+- Documentation fixes and improvements ( #1527, #2024, #2038,  #2039, #2012)
+- Tests improvements and refactoring (#1448, #1990, #2007, #2048, #2061,  #2085, #2120, #2132, #2133)
+- Codecov thresholds for a failed build are now set to 0.5% (#1957)
+- Minor cleanup (#1553, #2081)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/issues?q=is%3Aclosed+milestone%3A3.2.0+sort%3Acreated-asc)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-07-25..2018-11-20%22%20)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-07-25&to=2018-11-20&type=c)
+
+Special thanks to our contributors: @getong @igors @justinba1010 !
+
+# [MongooseIM 3.1.0](https://github.com/esl/MongooseIM/releases/tag/3.1.0) - 2018-07-24
+
+## Highlights - 3.1.x
 
 - Inbox extension enters beta stage, improved with MUC, timestamps and MSSQL support
 - Test Runner - comprehensive tool for executing tests locally
 - OTP 21 support
 - ElasticSearch backend for message archive
 
-## All changes
+## Patch: 3.1.1
+
+- Updated `exml` to `3.0.2`, fixing an important security issue.
+
+## All changes - 3.1.0
 
 ### Added
 
@@ -73,7 +175,7 @@
 - [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue%20is%3Aclosed%20closed%3A%222018-05-23..2018-07-24%22%20)
 - [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-05-23&to=2018-07-24&type=c)
 
-Special thanks to our contributors: @SamuelNichols @Beisenbek @GalaxyGorilla !
+Special thanks to our contributors: @SamuelNichols @Beisenbek @GalaxyGorilla @igors !
 
 # [MongooseIM 3.0.0](https://github.com/esl/MongooseIM/releases/tag/3.0.0) - 2018-05-22
 

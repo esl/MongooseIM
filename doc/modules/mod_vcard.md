@@ -22,6 +22,9 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
  For the default setting, please see `[MongooseIM root]/src/mod_vcard_ldap.erl`, line 109.
 * `ldap_search_operator` (`or` | `and`, default: `and`): A default operator used for search query items.
 * `ldap_binary_search_fields` (list of binaries, default: `[]`): A list of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
+* `ldap_uids` (list of `{LDAPUIattr, LDAPUIformat}` or `{LDAPUIattr}`), for
+  the detailed description please see [LDAP Authentication
+module](../authentication-backends/LDAP-authentication-module.md).
 
 ### Example Configuration
 ```

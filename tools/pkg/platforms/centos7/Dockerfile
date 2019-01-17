@@ -4,8 +4,7 @@ MAINTAINER Radek Szymczyszyn <radoslaw.szymczyszyn@erlang-solutions.com>
 
 # Install the build dependencies
 RUN yum install -y wget
-RUN wget http://mirror.centos.org/centos/7/extras/x86_64/Packages/epel-release-7-9.noarch.rpm
-RUN rpm -ivh epel-release-7-9.noarch.rpm
+RUN yum install -y epel-release
 RUN wget http://packages.erlang-solutions.com/erlang-solutions-1.0-1.noarch.rpm
 RUN rpm -Uvh erlang-solutions-1.0-1.noarch.rpm
 RUN yum --setopt=obsoletes=0 install -y sudo telnet lsof vim gcc rpm-build rpm-sign make automake expat-devel \

@@ -139,7 +139,7 @@ make_result_iq_reply_attrs(Attrs) ->
 
 -spec make_error_reply(exml:element() | mongoose_acc:t(),
                        xmlcdata() | exml:element()) ->
-    exml:element() | mongoose_acc:t().
+    exml:element() | {mongoose_acc:t(), exml:element() | {error, {already_an_error, _, _}}}.
 make_error_reply(#xmlel{name = Name, attrs = Attrs,
                         children = SubTags}, Error) ->
     NewAttrs = make_error_reply_attrs(Attrs),
@@ -378,59 +378,36 @@ sub_el_to_els(#xmlel{}=E) -> [E];
 sub_el_to_els(Es) when is_list(Es) -> Es.
 
 
--spec parse_xdata_submit(exml:element()) -> 'invalid' | [{binary(), [binary()]}].
-parse_xdata_submit(El) ->
-    #xmlel{attrs = Attrs, children = Els} = El,
-    case xml:get_attr_s(<<"type">>, Attrs) of
-        <<"submit">> ->
-            parse_xdata_fields(Els);
-        _ ->
-            invalid
+-spec parse_xdata_submit(FormEl :: exml:element()) ->
+    invalid | [{VarName :: binary(), Values :: [binary()]}].
+parse_xdata_submit(FormEl) ->
+    case exml_query:attr(FormEl, <<"type">>) of
+        <<"submit">> -> parse_xdata_fields(FormEl#xmlel.children);
+        _ -> invalid
     end.
 
-
--spec parse_xdata_fields([xmlcdata() | exml:element()]) ->
-    [{binary(), [binary()]}].
-parse_xdata_fields(Els) ->
-    lists:reverse(parse_xdata_fields(Els, [])).
-
--spec parse_xdata_fields([xmlcdata() | exml:element()], [{binary(), [binary()]}]) ->
-    [{binary(), [binary()]}].
-parse_xdata_fields([], Res) ->
-    Res;
-parse_xdata_fields([#xmlel{name = Name, attrs = Attrs,
-                           children = SubEls} | Els], Res) ->
-    case Name of
-        <<"field">> ->
-            case xml:get_attr_s(<<"var">>, Attrs) of
-                <<>> ->
-                    parse_xdata_fields(Els, Res);
-                Var ->
-                    Field =
-                        {Var, lists:reverse(parse_xdata_values(SubEls, []))},
-                    parse_xdata_fields(Els, [Field | Res])
-            end;
-        _ ->
-            parse_xdata_fields(Els, Res)
+-spec parse_xdata_fields(FormChildren :: [xmlcdata() | exml:element()]) ->
+    [{VarName :: binary(), Values :: [binary()]}].
+parse_xdata_fields([]) ->
+    [];
+parse_xdata_fields([#xmlel{ name = <<"field">> } = FieldEl | REls]) ->
+    case exml_query:attr(FieldEl, <<"var">>) of
+        undefined ->
+            parse_xdata_fields(REls);
+        Var ->
+            [ {Var, parse_xdata_values(FieldEl#xmlel.children)} | parse_xdata_fields(REls) ]
     end;
-parse_xdata_fields([_ | Els], Res) ->
-    parse_xdata_fields(Els, Res).
+parse_xdata_fields([_ | REls]) ->
+    parse_xdata_fields(REls).
 
-
--spec parse_xdata_values([xmlcdata() | exml:element()], [binary()]) -> [binary()].
-parse_xdata_values([], Res) ->
-    Res;
-parse_xdata_values([#xmlel{name = Name,
-                           children = SubEls} | Els], Res) ->
-    case Name of
-        <<"value">> ->
-            Val = xml:get_cdata(SubEls),
-            parse_xdata_values(Els, [Val | Res]);
-        _ ->
-            parse_xdata_values(Els, Res)
-    end;
-parse_xdata_values([_ | Els], Res) ->
-    parse_xdata_values(Els, Res).
+-spec parse_xdata_values(VarChildren :: [xmlcdata() | exml:element()]) ->
+    Values :: [binary()].
+parse_xdata_values([]) ->
+    [];
+parse_xdata_values([#xmlel{name = <<"value">> } = ValueEl | REls]) ->
+    [exml_query:cdata(ValueEl) | parse_xdata_values(REls)];
+parse_xdata_values([_ | REls]) ->
+    parse_xdata_values(REls).
 
 -spec rsm_decode(exml:element() | iq()) -> 'none' | #rsm_in{}.
 rsm_decode(#iq{sub_el=SubEl})->

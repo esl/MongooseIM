@@ -469,6 +469,7 @@ required_modules() ->
     [
         {mod_pubsub, [
             {plugins, [<<"dag">>, <<"push">>]},
+            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
             {nodetree, <<"dag">>},
             {host, "pubsub.@HOST@"}
         ]},

@@ -388,16 +388,20 @@ lookup_messages_before_id(PoolName, Host, UserJID,
                           PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, UserJID, Host, before_id(ID, Filter), PageSize, true),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+    MessageRows = extract_messages(PoolName, UserJID, Host, to_id(ID, Filter),
+                                   PageSize + 1, true),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 lookup_messages_after_id(PoolName, Host, UserJID,
                          RSM = #rsm_in{direction = aft, id = ID},
                          PageSize, Filter) ->
     TotalCount = calc_count(PoolName, UserJID, Host, Filter),
     Offset = calc_offset(PoolName, UserJID, Host, Filter, PageSize, TotalCount, RSM),
-    MessageRows = extract_messages(PoolName, UserJID, Host, after_id(ID, Filter), PageSize, false),
-    {ok, {TotalCount, Offset, rows_to_uniform_format(MessageRows)}}.
+    MessageRows = extract_messages(PoolName, UserJID, Host, from_id(ID, Filter),
+                                   PageSize + 1, false),
+    Result = {TotalCount, Offset, rows_to_uniform_format(MessageRows)},
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
 
 
 after_id(ID, Filter = #mam_ca_filter{start_id = AfterID}) ->
@@ -497,8 +501,7 @@ calc_before(PoolName, UserJID, Host, Filter, MessID) ->
 calc_count(PoolName, UserJID, _Host, Filter) ->
     QueryName = {calc_count_query, select_filter(Filter)},
     Params = eval_filter_params(Filter),
-    {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName,
-                                              Params),
+    {ok, [#{count := Count}]} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     Count.
 
 %% @doc Convert offset to index of the first entry
@@ -633,10 +636,10 @@ prepare_filter_cql(StartID, EndID) ->
         undefined -> "";
         _ -> " AND id >= :start_id"
     end ++
-        case EndID of
-            undefined -> "";
-            _ -> " AND id <= :end_id"
-        end.
+    case EndID of
+        undefined -> "";
+        _ -> " AND id <= :end_id"
+    end.
 
 filter_to_cql() ->
     [{select_filter(StartID, EndID), prepare_filter_cql(StartID, EndID)}

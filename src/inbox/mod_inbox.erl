@@ -34,7 +34,7 @@
                     Server :: jid:lserver(),
                     ToBareJid :: binary(),
                     Content :: binary(),
-                    Count :: binary(),
+                    Count :: integer(),
                     MsgId :: binary(),
                     Timestamp :: erlang:timestamp().
 
@@ -84,7 +84,8 @@ deps(_Host, Opts) ->
 
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
-    {ok, _} = gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
+    gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
+    mod_inbox_backend:init(Host, Opts),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
     IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
     MucTypes = get_groupchat_types(Host),
@@ -285,7 +286,7 @@ text_single_form_field(Var) ->
 
 -spec text_single_form_field(Var :: binary(), DefaultValue :: binary()) -> exml:element().
 text_single_form_field(Var, DefaultValue) ->
-    #xmlel{name = <<"field">>, 
+    #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, Var}, {<<"type">>, <<"text-single">>}, {<<"value">>, DefaultValue}]}.
 
 -spec list_single_form_field(Var :: binary(),

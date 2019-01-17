@@ -48,6 +48,8 @@
                                JoiningUsers :: [jid:simple_bare_jid()],
                                LeavingUsers :: [jid:simple_bare_jid()]}.
 
+-type change_aff_success_without_users() :: {ok, NewAffUsers :: aff_users(), ChangedAffUsers :: aff_users()}.
+
 -type promotion_type() :: promote_old_member | promote_joined_member | promote_demoted_owner.
 
 -export_type([change_aff_success/0]).
@@ -321,7 +323,7 @@ apply_aff_users_change(AU, AUC) ->
                              NewAffUsers :: aff_users(),
                              AffUsersChanges :: aff_users(),
                              ChangesDone :: aff_users()) ->
-                                change_aff_success() | {error, bad_request}.
+                                change_aff_success_without_users() | {error, bad_request}.
 apply_aff_users_change([], NAU, [], CD) ->
     %% User list must be sorted ascending but acc is currently sorted descending
     {ok, lists:reverse(NAU), CD};

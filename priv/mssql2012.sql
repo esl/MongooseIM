@@ -474,6 +474,98 @@ GO
 CREATE INDEX i_inbox_ts ON inbox(luser, lserver, timestamp);
 GO
 
+CREATE TABLE dbo.pubsub_nodes (
+    nidx BIGINT           IDENTITY(1,1) PRIMARY KEY,
+    p_key NVARCHAR(150)   NOT NULL,
+    name NVARCHAR(150)    NOT NULL,
+    type NVARCHAR(250)    NOT NULL,
+    owners NVARCHAR(max)  NOT NULL,
+    options NVARCHAR(max) NOT NULL
+)
+GO
+
+CREATE UNIQUE INDEX i_pubsub_nodes_key_name ON pubsub_nodes(p_key, name);
+GO
+
+CREATE TABLE dbo.pubsub_node_collections (
+    name NVARCHAR(150) NOT NULL,
+    parent_name NVARCHAR(150) NOT NULL,
+    CONSTRAINT PK_pubsub_node_collections PRIMARY KEY CLUSTERED(
+        name ASC,
+        parent_name ASC
+    )
+)
+GO
+
+CREATE TABLE dbo.pubsub_affiliations (
+    nidx BIGINT NOT NULL,
+    luser NVARCHAR(150) NOT NULL,
+    lserver NVARCHAR(150) NOT NULL,
+    aff TINYINT NOT NULL,
+    CONSTRAINT PK_pubsub_affiliations PRIMARY KEY CLUSTERED(
+        luser ASC,
+        lserver ASC,
+        nidx ASC
+    )
+)
+GO
+
+CREATE INDEX i_pubsub_affiliations_nidx ON pubsub_affiliations(nidx);
+GO
+
+CREATE TABLE dbo.pubsub_items (
+    nidx BIGINT                      NOT NULL,
+    itemid NVARCHAR(250)             NOT NULL,
+    created_luser NVARCHAR(150)      NOT NULL,
+    created_lserver NVARCHAR(150)    NOT NULL,
+    created_at BIGINT                NOT NULL,
+    modified_luser NVARCHAR(150)     NOT NULL,
+    modified_lserver NVARCHAR(150)   NOT NULL,
+    modified_lresource NVARCHAR(150) NOT NULL,
+    modified_at BIGINT               NOT NULL,
+    publisher NVARCHAR(max),
+    payload VARBINARY(max)           NOT NULL,
+    CONSTRAINT PK_pubsub_items PRIMARY KEY CLUSTERED(
+	nidx ASC,
+	itemid ASC
+    )
+)
+GO
+
+CREATE TABLE dbo.pubsub_last_item (
+    nidx BIGINT                      NOT NULL PRIMARY KEY,
+    itemid NVARCHAR(250)             NOT NULL,
+    created_luser NVARCHAR(250)      NOT NULL,
+    created_lserver NVARCHAR(250)    NOT NULL,
+    created_at BIGINT                NOT NULL,
+    payload VARBINARY(max)           NOT NULL
+)
+GO
+
+-- we skip luser and lserver in this one as this is little chance (even impossible?)
+-- to have itemid duplication for distinct users
+CREATE INDEX i_pubsub_items_lus_nidx ON pubsub_items(created_luser, created_lserver, nidx);
+GO
+CREATE INDEX i_pubsub_items_nidx ON pubsub_items(nidx);
+GO
+
+
+CREATE TABLE dbo.pubsub_subscriptions (
+    nidx BIGINT NOT NULL,
+    luser NVARCHAR(150) NOT NULL,
+    lserver NVARCHAR(150) NOT NULL,
+    lresource NVARCHAR(150) NOT NULL,
+    type TINYINT NOT NULL,
+    sub_id NVARCHAR(125) NOT NULL,
+    options NVARCHAR(max) NOT NULL
+)
+GO
+
+CREATE INDEX i_pubsub_subscriptions_lus_nidx ON pubsub_subscriptions(luser, lserver, nidx);
+GO
+CREATE INDEX i_pubsub_subscriptions_nidx ON pubsub_subscriptions(nidx);
+GO
+
 SET ANSI_PADDING OFF
 GO
 ALTER TABLE [dbo].[offline_message] ADD  DEFAULT (NULL) FOR [expire]

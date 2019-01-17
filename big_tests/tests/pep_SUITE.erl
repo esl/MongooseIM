@@ -59,6 +59,14 @@ groups() ->
            authorize_access_model,
            unsubscribe_after_presence_unsubscription
           ]
+         },
+         {cache_tests, [parallel],
+          [
+           send_caps_after_login_test,
+           delayed_receive,
+           delayed_receive_with_sm,
+           unsubscribe_after_presence_unsubscription
+          ]
          }
         ],
     ct_helper:repeat_all_until_all_ok(G).
@@ -78,9 +86,18 @@ end_per_suite(Config) ->
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_suite(Config).
 
+init_per_group(cache_tests, Config) ->
+    Config0 = dynamic_modules:save_modules(domain(), Config),
+    NewConfig =  required_modules(cache_tests),
+    dynamic_modules:ensure_modules(domain(), NewConfig),
+    Config0;
+
 init_per_group(_GroupName, Config) ->
     dynamic_modules:ensure_modules(domain(), required_modules()),
     Config.
+
+end_per_group(cache_tests, Config) ->
+    dynamic_modules:restore_modules(domain(), Config);
 
 end_per_group(_GroupName, Config) ->
     Config.
@@ -211,6 +228,11 @@ h_ok_after_notify_test(ConfigIn) ->
       fun(Alice, Kate) ->
               escalus_story:make_all_clients_friends([Alice, Kate]),
 
+              %% TODO: Dirty fix. For some reason PEP resends item2 with <delay> element,
+              %% so probably there is some race condition that applies to becoming friends
+              %% and publishing
+              timer:sleep(1000),
+
               pubsub_tools:publish(Alice, <<"item2">>, {pep, NodeNS}, []),
               pubsub_tools:receive_item_notification(
                 Kate, <<"item2">>, {escalus_utils:get_short_jid(Alice), NodeNS}, []),
@@ -289,8 +311,19 @@ required_modules() ->
      {mod_pubsub, [
                    {plugins, [<<"dag">>, <<"pep">>]},
                    {nodetree, <<"dag">>},
+                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                    {pep_mapping, []},
                    {host, "pubsub.@HOST@"}
+                  ]}].
+required_modules(cache_tests) ->
+    [{mod_caps, []},
+     {mod_pubsub, [
+                   {plugins, [<<"dag">>, <<"pep">>]},
+                   {nodetree, <<"dag">>},
+                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+                   {pep_mapping, []},
+                   {host, "pubsub.@HOST@"},
+                   {last_item_cache, mongoose_helper:mnesia_or_rdbms_backend()}
                   ]}].
 
 send_initial_presence_with_caps(NodeNS, User) ->

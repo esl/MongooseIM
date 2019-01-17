@@ -81,6 +81,7 @@
          sql_query/2,
          sql_query_t/1,
          sql_transaction/2,
+         sql_dirty/2,
          to_bool/1,
          db_engine/1,
          print_state/1,
@@ -146,14 +147,20 @@
 -define(CONNECT_RETRIES, 5).
 
 -type server() :: binary() | global.
--type rdbms_msg() :: {sql_query, _} | {sql_transaction, fun()} | {sql_execute, atom(), iodata()}.
+-type rdbms_msg() :: {sql_query, _}
+                   | {sql_transaction, fun()}
+                   | {sql_dirty, fun()}
+                   | {sql_execute, atom(), iodata()}.
 -type single_query_result() :: {selected, [tuple()]} |
                                {updated, non_neg_integer() | undefined} |
+                               {updated, non_neg_integer(), [tuple()]} |
                                {aborted, Reason :: term()} |
                                {error, Reason :: string() | duplicate_key}.
 -type query_result() :: single_query_result() | [single_query_result()].
 -type transaction_result() :: {aborted, _} | {atomic, _} | {error, _}.
--export_type([query_result/0]).
+-type dirty_result() :: {ok, any()} | {error, any()}.
+-export_type([query_result/0,
+              server/0]).
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -192,14 +199,21 @@ sql_transaction(Host, Queries) when is_list(Queries) ->
 sql_transaction(Host, F) when is_function(F) ->
     sql_call(Host, {sql_transaction, F}).
 
+-spec sql_dirty(server(), fun()) -> any() | no_return().
+sql_dirty(Host, F) when is_function(F) ->
+    case sql_call(Host, {sql_dirty, F}) of
+        {ok, Result} -> Result;
+        {error, Error} -> throw(Error)
+    end.
+
 %% TODO: Better spec for RPC calls
 -spec sql_call(Host :: server(), Msg :: rdbms_msg()) -> any().
 sql_call(Host, Msg) ->
-    case get(?STATE_KEY) of
+    case get_state() of
         undefined -> sql_call0(Host, Msg);
         State     ->
             {Res, NewState} = nested_op(Msg, State),
-            put(?STATE_KEY, NewState),
+            put_state(NewState),
             Res
     end.
 
@@ -217,7 +231,7 @@ get_db_info(Host) ->
 
 %% This function is intended to be used from inside an sql_transaction:
 sql_query_t(Query) ->
-    sql_query_t(Query, get(?STATE_KEY)).
+    sql_query_t(Query, get_state()).
 
 sql_query_t(Query, State) ->
     QRes = sql_query_internal(Query, State),
@@ -482,11 +496,15 @@ run_sql_cmd(Command, _From, State, Timestamp) ->
     end.
 
 %% @doc Only called by handle_call, only handles top level operations.
--spec outer_op(rdbms_msg(), state()) -> query_result() | transaction_result().
+-spec outer_op(rdbms_msg(), state()) -> {query_result()
+                                         | transaction_result()
+                                         | dirty_result(), state()}.
 outer_op({sql_query, Query}, State) ->
     {sql_query_internal(Query, State), State};
 outer_op({sql_transaction, F}, State) ->
     outer_transaction(F, ?MAX_TRANSACTION_RESTARTS, "", State);
+outer_op({sql_dirty, F}, State) ->
+    sql_dirty_internal(F, State);
 outer_op({sql_execute, Name, Params}, State) ->
     sql_execute(Name, Params, State).
 
@@ -523,7 +541,7 @@ inner_transaction(F, _State) ->
                         Reason :: any(), state()) -> {transaction_result(), state()}.
 outer_transaction(F, NRestarts, _Reason, State) ->
     sql_query_internal(rdbms_queries:begin_trans(), State),
-    put(?STATE_KEY, State),
+    put_state(State),
     Result = try
                  F()
              catch
@@ -536,12 +554,12 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                                 [Class, Other, Stacktrace]),
                      {'EXIT', Other}
           end,
-    erase(?STATE_KEY), % Explicitly ignore state changed inside transaction
+    NewState = erase_state(),
     case Result of
         {aborted, Reason} when NRestarts > 0 ->
             %% Retry outer transaction upto NRestarts times.
-            sql_query_internal([<<"rollback;">>], State),
-            outer_transaction(F, NRestarts - 1, Reason, State);
+            sql_query_internal([<<"rollback;">>], NewState),
+            outer_transaction(F, NRestarts - 1, Reason, NewState);
         {aborted, #{reason := Reason, sql_query := SqlQuery}}
             when NRestarts =:= 0 ->
             %% Too many retries of outer transaction.
@@ -553,9 +571,9 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
                         iolist_to_binary(SqlQuery),
-                        erlang:get_stacktrace(), State]),
-            sql_query_internal([<<"rollback;">>], State),
-            {{aborted, Reason}, State};
+                        erlang:get_stacktrace(), NewState]),
+            sql_query_internal([<<"rollback;">>], NewState),
+            {{aborted, Reason}, NewState};
         {aborted, Reason} when NRestarts =:= 0 -> %% old format for abort
             %% Too many retries of outer transaction.
             ?ERROR_MSG("event=sql_transaction_restarts_exceeded "
@@ -564,17 +582,17 @@ outer_transaction(F, NRestarts, _Reason, State) ->
                        "stacktrace=~1000p "
                        "state=~1000p",
                        [?MAX_TRANSACTION_RESTARTS, Reason,
-                        erlang:get_stacktrace(), State]),
-            sql_query_internal([<<"rollback;">>], State),
-            {{aborted, Reason}, State};
+                        erlang:get_stacktrace(), NewState]),
+            sql_query_internal([<<"rollback;">>], NewState),
+            {{aborted, Reason}, NewState};
         {'EXIT', Reason} ->
             %% Abort sql transaction on EXIT from outer txn only.
-            sql_query_internal([<<"rollback;">>], State),
-            {{aborted, Reason}, State};
+            sql_query_internal([<<"rollback;">>], NewState),
+            {{aborted, Reason}, NewState};
         Res ->
             %% Commit successful outer txn
-            sql_query_internal([<<"commit;">>], State),
-            {{atomic, Res}, State}
+            sql_query_internal([<<"commit;">>], NewState),
+            {{atomic, Res}, NewState}
     end.
 
 sql_query_internal(Query, #state{db_ref = DBRef}) ->
@@ -584,6 +602,18 @@ sql_query_internal(Query, #state{db_ref = DBRef}) ->
         Result ->
             Result
     end.
+
+sql_dirty_internal(F, State) ->
+    put_state(State),
+    Result =
+    try F() of
+        Result0 ->
+            {ok, Result0}
+    catch
+        _C:R ->
+            {error, R}
+    end,
+    {Result, erase_state()}.
 
 -spec sql_execute(Name :: atom(), Params :: [term()], state()) -> {query_result(), state()}.
 sql_execute(Name, Params, State = #state{db_ref = DBRef}) ->
@@ -659,3 +689,14 @@ schedule_keepalive(KeepaliveInterval) ->
             ?ERROR_MSG("Wrong keepalive_interval definition '~p'~n", [Other]),
             ok
     end.
+
+%% ----- process state access, for convenient tracing
+
+put_state(State) ->
+    put(?STATE_KEY, State).
+
+erase_state() ->
+    erase(?STATE_KEY).
+
+get_state() ->
+    get(?STATE_KEY).

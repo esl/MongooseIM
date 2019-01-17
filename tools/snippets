@@ -2,11 +2,29 @@
 % Registering new users
 %------------------------------
 
-[ejabberd_auth:try_register("user" ++ integer_to_list(N), "localhost", "pass" ++ integer_to_list(N)) || N <- lists:seq(1, 120000)].
+[
+    ejabberd_auth:try_register(
+        list_to_binary("user" ++ integer_to_list(N)),
+        <<"localhost">>,
+        list_to_binary("password" ++ integer_to_list(N)))
+        || N <- lists:seq(1, 120000)
+].
 
-[ejabberd_auth:try_register("auser" ++ integer_to_list(N), "localhost", "pass" ++ integer_to_list(N)) || N <- lists:seq(1, 60000)].
+[
+    ejabberd_auth:try_register(
+        list_to_binary("auser" ++ integer_to_list(N)),
+        <<"localhost">>,
+        list_to_binary("password" ++ integer_to_list(N)))
+        || N <- lists:seq(1, 60000)
+].
 
-[ejabberd_auth:try_register("buser" ++ integer_to_list(N), "localhost", "pass" ++ integer_to_list(N)) || N <- lists:seq(1, 60000)].
+[
+    ejabberd_auth:try_register(
+        list_to_binary("buser" ++ integer_to_list(N)),
+        <<"localhost">>,
+        list_to_binary("password" ++ integer_to_list(N)))
+        || N <- lists:seq(1, 60000)
+].
 
 %------------------------------
 % Adding users to roster

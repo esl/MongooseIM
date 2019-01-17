@@ -133,27 +133,27 @@ connected_user_changes_status(Config) ->
             escalus:wait_for_stanzas(Bob, 1),
             escalus:wait_for_stanzas(Alice, 1),
             ?assertReceivedMatch(#publish{
-                topic_arn = Topic, message = #{<<"user_id">> := BobJID, <<"present">> := true}
+                topic_arn = Topic, message = #{user_id := BobJID, present := true}
             }, timer:seconds(5)),
 
             ?assertReceivedMatch(#publish{
-                topic_arn = Topic, message = #{<<"user_id">> := AliceJID, <<"present">> := true}
+                topic_arn = Topic, message = #{user_id := AliceJID, present := true}
             }, timer:seconds(5)),
 
             %% Unavailable after presence change
             escalus:send(Bob, escalus_stanza:presence(<<"unavailable">>)),
             escalus:send(Alice, escalus_stanza:presence(<<"unavailable">>)),
             ?assertReceivedMatch(#publish{
-                topic_arn = Topic, message = #{<<"user_id">> := BobJID, <<"present">> := false}
+                topic_arn = Topic, message = #{user_id := BobJID, present := false}
             }, timer:seconds(5)),
             ?assertReceivedMatch(#publish{
-                topic_arn = Topic, message = #{<<"user_id">> := AliceJID, <<"present">> := false}
+                topic_arn = Topic, message = #{user_id := AliceJID, present := false}
             }, timer:seconds(5)),
 
             %% Available after presence change
             escalus:send(Bob, escalus_stanza:presence(<<"available">>)),
             ?assertReceivedMatch(#publish{
-                topic_arn = Topic, message = #{<<"user_id">> := BobJID, <<"present">> := true}
+                topic_arn = Topic, message = #{user_id := BobJID, present := true}
             }, timer:seconds(5)),
 
             ok
@@ -171,10 +171,10 @@ disconnected_user_becomes_unavailable(Config) ->
     BobJID = nick_to_jid(bob, Config),
     AliceJID = nick_to_jid(alice, Config),
     ?assertReceivedMatch(#publish{
-        message = #{<<"user_id">> := BobJID, <<"present">> := false}
+        message = #{user_id := BobJID, present := false}
     }, timer:seconds(5)),
     ?assertReceivedMatch(#publish{
-        message = #{<<"user_id">> := AliceJID, <<"present">> := false}
+        message = #{user_id := AliceJID, present := false}
     }, timer:seconds(5)).
 
 %%--------------------------------------------------------------------
@@ -196,24 +196,24 @@ pm_messages(Config) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"OH, HAI!">>)),
             ?assertReceivedMatch(#publish{
                 topic_arn = Topic,
-                message = #{<<"from_user_id">> := AliceJID,
-                            <<"to_user_id">> := BobJID,
-                            <<"message">> := <<"OH, HAI!">>}
+                message = #{from_user_id := AliceJID,
+                            to_user_id := BobJID,
+                            message := <<"OH, HAI!">>}
             }, timer:seconds(5)),
 
             escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"Hi there!">>)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, <<"How are you?">>)),
             ?assertReceivedMatch(#publish{
                 topic_arn = Topic,
-                message = #{<<"from_user_id">> := BobJID,
-                            <<"to_user_id">> := AliceJID,
-                            <<"message">> := <<"Hi there!">>}
+                message = #{from_user_id := BobJID,
+                            to_user_id := AliceJID,
+                            message := <<"Hi there!">>}
             }, timer:seconds(5)),
             ?assertReceivedMatch(#publish{
                 topic_arn = Topic,
-                message = #{<<"from_user_id">> := BobJID,
-                            <<"to_user_id">> := AliceJID,
-                            <<"message">> := <<"How are you?">>}
+                message = #{from_user_id := BobJID,
+                            to_user_id := AliceJID,
+                            message := <<"How are you?">>}
             }, timer:seconds(5)),
 
             ok
@@ -243,9 +243,9 @@ muc_messages(Config) ->
 
             ?assertReceivedMatch(#publish{
                 topic_arn = Topic,
-                message = #{<<"from_user_id">> := BobJID,
-                            <<"to_user_id">> := RoomAddr,
-                            <<"message">> := <<"Hi there!">>}
+                message = #{from_user_id := BobJID,
+                            to_user_id := RoomAddr,
+                            message := <<"Hi there!">>}
             }, timer:seconds(5)),
 
             ok
@@ -264,7 +264,7 @@ start_publish_listener(Config) ->
         [erlcloud_sns, publish,
          fun(topic, RecipientArn, Message, Subject, Attributes, AWSConfig) ->
              TestCasePid ! #publish{topic_arn = RecipientArn,
-                                    message = jiffy:decode(Message, [return_maps]),
+                                    message = maps:from_list(Message),
                                     subject = Subject,
                                     attributes = Attributes,
                                     config = AWSConfig},

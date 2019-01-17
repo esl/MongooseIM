@@ -88,7 +88,7 @@ Serves as a storage for crypto keys for `mod_auth_token`.
 Implements [XEP-0012: Last Activity)](http://xmpp.org/extensions/xep-0012.html) for communicating information about the last activity associated with an XMPP entity (most recent presence information from an offline contact).
 
 ### [mod_mam](../modules/mod_mam.md)
-Implements [XEP-0313: Message Archive Management](http://xmpp.org/extensions/attic/xep-0313.html) ([current version](http://xmpp.org/extensions/xep-0313.html)), that defines a protocol to query and control an archive of messages stored on a server.
+Implements [XEP-0313: Message Archive Management](http://xmpp.org/extensions/xep-0313.html), that defines a protocol to query and control an archive of messages stored on a server.
 
 ### [mod_muc](../modules/mod_muc.md)
 Implements [XEP-0045: Multi-User Chat)](http://xmpp.org/extensions/xep-0045.html), for a featureful multi-user text chat (group chat), whereby multiple XMPP users can exchange messages in the context of a chat room.

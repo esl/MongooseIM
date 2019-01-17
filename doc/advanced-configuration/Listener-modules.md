@@ -16,18 +16,21 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 
 ### Configuration
 
+
 * `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
+  If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 * `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients. Won't have any effect if `verify_peer` is not enabled.
 * `crlfiles` (list of strings, default: []) - A list of paths to Certificate Revocation Lists. Not supported by `fast_tls` TLS module.
 * `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires valid `cafile`.
 * `starttls` (default: disabled) - Enables StartTLS support; requires `certfile`.
 * `starttls_required` (default: disabled) - enforces StartTLS usage.
+* `tls` (default: disabled) - When this option is set, clients must initiate a TLS session immediately after connecting, before beginning the normal XML stream.
 * `tls_module` (atom, default: `fast_tls`) - Provides a TLS library to use. `fast_tls` uses OpenSSL-based NIFs, while `just_tls` uses Erlang TLS implementation provided by OTP. They are fully interchangeable, with some exceptions (`ejabberd_c2s` options supported by only one of them are explicitly described, e.g. `crlfiles`).
-* `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/)); the limit can be disabled with an atom 'unlimited'.
-* `ciphers` (string, default: as of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` [(source)](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
- Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
+* `zlib` (atom or a positive integer, default: disabled) - Enables ZLIB support, the integer value is a limit for a decompressed output size (to prevent successful [ZLIB bomb attack](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html)); the limit can be disabled with an atom 'unlimited'.
+* `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
+ Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/man1.0.2/apps/ciphers.html) for the cipher string format.
 * `access` (atom, default: `c2s`) - Access Rule to use for C2S connections.
-* `c2s_shaper` (atom, default: `c2s_shaper`) - Connection shaper to use for incoming C2S stanzas.
+* `c2s_shaper` (atom, default: `none`) - Connection shaper to use for incoming C2S stanzas.
 * `max_stanza_size` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
  **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
 * `backlog` (positive integer, default 100) - overrides the default TCP backlog value
@@ -52,9 +55,9 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 * `ip` (IP tuple, default: `{0,0,0,0}`) - IP address to bind to.
 * `num_acceptors` (positive integer, default: 100) - Number of acceptors.
 * `transport_options` (proplist, default: []) - Ranch-specific transport options.
- See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.5/manual/ranch/#_opt).
+ See [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.7/manual/ranch/#_opt).
 * `protocol_options` (proplist, default: []) - Protocol configuration options for Cowboy.
- See [Cowboy HTTP module docs](https://ninenines.eu/docs/en/cowboy/2.4/manual/cowboy_http/).
+ See [Cowboy HTTP module docs](https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_http/).
 * `ssl` (list of ssl options, required for https, no default value) - If specified, https will be used.
  Accepts all ranch_ssl options that don't take fun() parameters.
  Only `certfile` and `keyfile` are mandatory.
@@ -79,12 +82,12 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
     * `mod_websockets` - Websocket connections as defined in [RFC 7395](https://tools.ietf.org/html/rfc7395).
     You can pass optional parameters:
-        * `{timeout, Val}` - the time after which an inactive user is disconnected.
-        * `{ping_rate, Val}` - the Ping rate points to the time between pings sent by server.
+        * `{timeout, Val}` (positive integer, default: infinity) - the time after which an inactive user is disconnected.
+        * `{ping_rate, Val}` (positive integer, default: none) - the Ping rate points to the time between pings sent by server.
 	 By declaring this field you enable server-side pinging.
         * `{max_stanza_size, Val}` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
-         **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
-        * `{ejabberd_service, Params}` - this enables external component connections over WebSockets.
+          **Warning:** this limit is checked **after** the input data parsing, so it does not apply to the input data size itself.
+        * `{ejabberd_service, Params}` (default: []) - this enables external component connections over WebSockets.
 	 See the [ejabberd_service](#ejabberd_service) section for more details how to configure it.
 
         Default declaration:
@@ -97,16 +100,19 @@ Unlike `ejabberd_c2s`, it doesn't use `ejabberd_receiver` or `ejabberd_listener`
 
             `{"localhost", "/api", mongoose_api, [{handlers, [mongoose_api_metrics]}]}`
 
-  * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands. 
-    			    It expects one optional argument:  
-      * Credentials: `{auth, {Username, Password}}`.  
-        If they're not provided, authorization is disabled.  
-        Example:  
+  * `mongoose_api_admin` -  REST API for admin commands. Exposes all mongoose_commands.
+    			    It expects one optional argument:
+      * Credentials: `{auth, {Username, Password}}`.
+        If they're not provided, authorization is disabled.
+
+     Example:
+
             `{"localhost", "/api", mongoose_api_admin, [{auth, {"ala", "makotaipsa"}}]}`
-   
-    `mongoose_api_client` - REST API for client side commands.
+
+  * `mongoose_api_client` - REST API for client side commands.
      Exposes all mongoose_commands marked as "user".
-        Example declaration:
+
+     Example:
 
             `{"localhost", "/api/contacts/{:jid}", mongoose_api_client_contacts, []}`
 
@@ -151,12 +157,14 @@ Please refer to the [Advanced configuration](../Advanced-configuration.md) for m
 
 ### Configuration
 
-* `shaper` (atom, default: `s2s_shaper`) - Connection shaper to use for incoming S2S data.
+* `shaper` (atom, default: `none`) - Connection shaper to use for incoming S2S data.
 * `max_stanza_size` (positive integer, default: infinity) - Maximum allowed incoming stanza size.
  **Warning:** this limit is checked **after** input data parsing, so it does not apply to the input data size itself.
 * `protocol_options` List of supported SSL protocols, default "no_sslv3".
  It also accepts "no_tlsv1" and "no_tlsv1_1"
 * `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
+* `ciphers` (string, default: as of OpenSSL 1.0.2 it's `ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2` [(source)](https://www.openssl.org/docs/man1.0.2/apps/ciphers.html#CIPHER_STRINGS)) - cipher suites to use with StartTLS.
+* `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients (here server initiating S2S connection).
 
 ## XMPP components: `ejabberd_service`
 
@@ -167,18 +175,17 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 ### Configuration
 
 * `access` (atom, default: `all`) - Access Rule to use for incoming component connections.
-* `hosts` (tuple: `{hosts, [Domain1, Domain2, ...], [{password, "password here"}]}`, optional when `host` present) - List of domains allowed for components, protected by specified password.
- If set, `host` is ignored.
-* `host` ( tuple: `{host, Domain, [{password, "password here"}]}`, optional when `hosts` present) - Only allowed domain for components, protected by password.
- Must be set when `hosts` are not present.
-* `shaper_rule` (atom, default: `fast`) - Connection shaper to use for incoming component traffic.
+* `password` (string) - the service is protected with this password
+* `shaper_rule` (atom, default: `none`) - Connection shaper to use for incoming component traffic.
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 * `hidden_components` (boolean, default: `false`) - All components connected to an endpoint with this option enabled will be considered "hidden" (see explanation below).
 
+According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) component's hostname should be given in the <stream:stream> element.
+
 ### Custom extension to the protocol
 
-In order to register a component for all virtual hosts served by the server, the component must add the attribute `is_subdomain="true"`to the opening stream element.
+In order to register a component for all virtual hosts served by the server (listed in global variable hosts), the component must add the attribute `is_subdomain="true"` to the opening stream element.
 This maybe helpful if someone wants to have a single instance of a component serving multiple virtual hosts.
 The `is_subdomain` attribute is optional and the default behaviour is as described in the XEP.
 

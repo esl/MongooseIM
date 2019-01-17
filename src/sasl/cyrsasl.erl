@@ -144,13 +144,11 @@ server_new(Service, ServerFQDN, UserRealm, _SecFlags, Creds) ->
                 realm = UserRealm,
                 creds = Creds}.
 
--spec server_start(sasl_state(),
-                 Mech :: mechanism(),
-                 ClientIn :: binary()) -> {ok, _}
-                                        | {ok, term(), term()}
-                                        | {error, binary()}
-                                        | {'continue', _, sasl_state()}
-                                        | {'error', binary(), jid:user()}.
+-spec server_start(sasl_state(), Mech :: mechanism(), ClientIn :: binary()) -> Result when
+      Result :: {ok, mongoose_credentials:t()}
+              | {'continue', _, sasl_state()}
+              | error().
+
 server_start(State, Mech, ClientIn) ->
     case lists:member(Mech, listmech(State#sasl_state.myname)) of
         true ->
@@ -172,12 +170,10 @@ server_start(State, Mech, ClientIn) ->
 lookup_mech(Mech) ->
     ets:lookup(sasl_mechanism, Mech).
 
--spec server_step(State :: sasl_state(), ClientIn :: binary()) ->
-                                          {'error', _}
-                                          | {'ok', [any()]}
-                                          | {'ok', [any()], term()}
-                                          | {'continue', _, sasl_state()}
-                                          | error().
+-spec server_step(State :: sasl_state(), ClientIn :: binary()) -> Result when
+      Result :: {ok, mongoose_credentials:t()}
+              | {'continue', _, sasl_state()}
+              | error().
 server_step(State, ClientIn) ->
     Module = State#sasl_state.mech_mod,
     MechState = State#sasl_state.mech_state,

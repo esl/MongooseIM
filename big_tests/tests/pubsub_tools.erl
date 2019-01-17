@@ -13,8 +13,15 @@
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
 -include_lib("exml/include/exml_stream.hrl").
-
+-include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
+-export([pubsub_node/0,
+         domain/0,
+         node_addr/0,
+         rand_name/1,
+         pubsub_node_name/0,
+         encode_group_name/2,
+         decode_group_name/1]).
 -export([
          discover_nodes/3,
 
@@ -28,13 +35,17 @@
          set_affiliations/4,
 
          publish/4,
+         publish_without_node_attr/4,
          retract_item/4,
          get_all_items/3,
+         get_item/4,
          purge_all_items/3,
 
          subscribe/3,
          unsubscribe/3,
          get_user_subscriptions/3,
+         get_subscription_options/3,
+         upsert_subscription_options/3,
          get_node_subscriptions/3,
          submit_subscription_response/5,
          get_pending_subscriptions/3,
@@ -109,7 +120,9 @@ delete_node(User, Node, Options) ->
 get_configuration(User, Node, Options) ->
     Id = id(User, Node, <<"get_config">>),
     Request = escalus_pubsub_stanza:get_configuration(User, Id, Node),
-    decode_config_form(send_request_and_receive_response(User, Request, Id, Options)).
+    NOptions = lists:keystore(preprocess_response, 1, Options,
+                              {preprocess_response, fun decode_config_form/1}),
+    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
 
 set_configuration(User, Node, Config, Options) ->
     Id = id(User, Node, <<"set_config">>),
@@ -132,11 +145,24 @@ set_affiliations(User, Node, AffChange, Options) ->
 
 publish(User, ItemId, Node, Options) ->
     Id = id(User, Node, <<"publish">>),
-    Request = case proplists:get_value(with_payload, Options, true) of
-                  true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
-                  false -> escalus_pubsub_stanza:publish(User, Id, Node)
-              end,
+    Request = publish_request(Id, User, ItemId, Node, Options),
     send_request_and_receive_response(User, Request, Id, Options).
+
+publish_without_node_attr(User, ItemId, Node, Options) ->
+    Id = id(User, Node, <<"publish">>),
+    Request = publish_request(Id, User, ItemId, Node, Options),
+    [PubSubEl] = Request#xmlel.children,
+    [PublishEl] = PubSubEl#xmlel.children,
+    PublishElDefect = PublishEl#xmlel{ attrs = [] },
+    RequestDefect = Request#xmlel{ children = [PubSubEl#xmlel{ children = [PublishElDefect] }] },
+    send_request_and_receive_response(User, RequestDefect, Id, Options).
+
+publish_request(Id, User, ItemId, Node, Options) ->
+    case proplists:get_value(with_payload, Options, true) of
+        true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+        false -> escalus_pubsub_stanza:publish(User, Id, Node);
+        #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
+    end.
 
 retract_item(User, Node, ItemId, Options) ->
     Id = id(User, Node, <<"retract">>),
@@ -151,7 +177,18 @@ get_all_items(User, {_, NodeName} = Node, Options) ->
       fun(Response, ExpectedResult) ->
               Items = exml_query:path(Response, [{element, <<"pubsub">>},
                                                  {element, <<"items">>}]),
-              check_items(Items, ExpectedResult, NodeName, true)
+              check_items(Items, ExpectedResult, NodeName)
+      end).
+
+get_item(User, {_, NodeName} = Node, ItemId, Options) ->
+    Id = id(User, Node, <<"items">>),
+    Request = escalus_pubsub_stanza:get_item(User, Id, ItemId, Node),
+    send_request_and_receive_response(
+      User, Request, Id, Options,
+      fun(Response, ExpectedResult) ->
+              Items = exml_query:path(Response, [{element, <<"pubsub">>},
+                                                 {element, <<"items">>}]),
+              check_items(Items, ExpectedResult, NodeName)
       end).
 
 purge_all_items(User, Node, Options) ->
@@ -169,7 +206,7 @@ subscribe(User, Node, Options) ->
     send_request_and_receive_response(
       User, Request, Id, [{expected_result, true} | Options],
       fun(Response) ->
-              check_subscription_response(Response, User, Node, Options)
+        check_subscription_response(Response, User, Node, Options)
       end).
 
 unsubscribe(User, Node, Options) ->
@@ -186,6 +223,19 @@ get_user_subscriptions(User, NodeAddr, Options) ->
       fun(Response, ExpectedResult) ->
               check_user_subscriptions_response(User, Response, ExpectedResult)
       end).
+
+get_subscription_options(User, {NodeAddr, NodeName}, Options) ->
+    Id = id(User, {NodeAddr, <<>>}, <<"options">>),
+    Request = escalus_pubsub_stanza:get_subscription_options(User, Id, {NodeAddr, NodeName}),
+    NOptions = lists:keystore(preprocess_response, 1, Options,
+                              {preprocess_response, fun decode_options_form/1}),
+    send_request_and_receive_response(User, Request, Id, NOptions, fun verify_form_values/2).
+
+upsert_subscription_options(User, {NodeAddr, NodeName}, Options) ->
+    Id = id(User, {NodeAddr, <<>>}, <<"upsert_options">>),
+    SubOpts = proplists:get_value(subscription_options, Options, []),
+    Request = escalus_pubsub_stanza:set_subscription_options(User, Id, {NodeAddr, NodeName}, SubOpts),
+    send_request_and_receive_response(User, Request, Id, Options, fun (Response, _) -> Response end).
 
 get_node_subscriptions(User, Node, Options) ->
     Id = id(User, Node, <<"node_subscriptions">>),
@@ -305,13 +355,17 @@ check_node_discovery_response(Response, {NodeAddr, NodeName}, ExpectedNodes) ->
     [NodeAddr = exml_query:attr(Item, <<"jid">>) || Item <- Items],
     ReceivedNodes = [exml_query:attr(Item, <<"node">>) || Item <- Items],
     ReceivedSet = ordsets:from_list(ReceivedNodes),
-    case ExpectedNodes of
-        {no, NoNodeName} ->
-            false = ordsets:is_element(NoNodeName, ReceivedSet);
-        _ ->
-            ExpectedSet = ordsets:from_list(ExpectedNodes),
-            true = ordsets:is_subset(ExpectedSet, ReceivedSet)
-    end,
+    {MustHaveNodes, MustNotHaveNodes}
+    = lists:splitwith(fun({no, _}) -> false;
+                         (_) -> true
+                      end, ExpectedNodes),
+
+    MustHaveSet = ordsets:from_list(MustHaveNodes),
+    true = ordsets:is_subset(MustHaveSet, ReceivedSet),
+
+    MustNotHaveSet = ordsets:from_list([HeWhoMustNotBeNamed
+                                        || {no, HeWhoMustNotBeNamed} <- MustNotHaveNodes]),
+    [] = ordsets:intersection(MustNotHaveSet, ReceivedSet),
 
     Response.
 
@@ -332,7 +386,7 @@ check_subscription_request(Stanza, Requester, NodeName, Options) ->
     DecodedForm =
     [ decode_form_field(F)
       || F <- exml_query:paths(Stanza, [{element, <<"x">>}, {element, <<"field">>}]) ],
-    
+
     RequesterJid = escalus_utils:jid_to_lower(
                      jid(Requester, proplists:get_value(jid_type, Options, full))),
     {_, _, RequesterJid} = lists:keyfind(<<"pubsub#subscriber_jid">>, 1, DecodedForm),
@@ -360,7 +414,8 @@ check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     true = escalus_pred:has_type(<<"headline">>, Response),
     Items = exml_query:path(Response, [{element, <<"event">>},
                                        {element, <<"items">>}]),
-    check_items(Items, [ItemId], NodeName, proplists:get_value(with_payload, Options, true)),
+    check_collection_header(Response, Options),
+    check_items(Items, [ItemId], NodeName),
     Response.
 
 send_request_and_receive_response(User, Request, Id, Options) ->
@@ -380,16 +435,23 @@ send_request_and_receive_response(User, Request, Id, Options, CheckResponseF) ->
 
 receive_and_check_response(User, Id, Options, CheckF) ->
     Response = receive_response(User, Id, Options),
+    PreppedResponse = preprocess_response(Response, Options),
     case proplists:get_value(expected_result, Options) of
-        undefined -> Response;
-        true -> CheckF(Response);
-        ExpectedResult -> CheckF(Response, ExpectedResult)
+        undefined -> PreppedResponse;
+        true -> CheckF(PreppedResponse);
+        ExpectedResult -> CheckF(PreppedResponse, ExpectedResult)
     end.
 
 receive_response(User, Id, Options) ->
     Stanza = receive_stanza(User, Options),
     check_response(Stanza, Id),
     Stanza.
+
+preprocess_response(Response, Options) ->
+    case proplists:get_value(preprocess_response, Options, false) of
+        false -> Response;
+        PrepFun -> PrepFun(Response)
+    end.
 
 check_response(Stanza, Id) ->
     true = escalus_pred:is_iq_result(Stanza),
@@ -414,6 +476,40 @@ check_notification(Stanza, NodeAddr) ->
     true = escalus_pred:is_message(Stanza),
     Stanza.
 
+check_collection_header(Stanza, Options) ->
+    case {lists:member(no_collection_shim, Options), proplists:get_value(collection, Options)} of
+        {true, _} ->
+            assert_no_collection_shim(Stanza);
+        {_, undefined} ->
+            ok;
+        {_, {_, CollectionName}} ->
+            assert_collection_shim(Stanza, CollectionName)
+    end.
+
+assert_no_collection_shim(Stanza) ->
+    HeadersEl = exml_query:subelement(Stanza, <<"headers">>),
+    % We naively assume that there is only one <headers/> element,
+    % as it is very unlikely to find other than SHIM one
+    case exml_query:path(Stanza, [{element, <<"headers">>}, {attr, <<"xmlns">>}]) of
+        ?NS_SHIM ->
+            false =
+            lists:any(fun(HeaderEl) ->
+                              <<"Collection">> =:= exml_query:attr(HeaderEl, <<"name">>)
+                      end, exml_query:subelements(HeadersEl, <<"header">>));
+        _ ->
+            ok
+    end.
+
+assert_collection_shim(Stanza, CollectionName) ->
+    #xmlel{} = HeadersEl = exml_query:subelement(Stanza, <<"headers">>),
+    ?NS_SHIM = exml_query:attr(HeadersEl, <<"xmlns">>),
+    true =
+    lists:any(fun(HeaderEl) ->
+                      <<"Collection">> =:= exml_query:attr(HeaderEl, <<"name">>)
+                      andalso
+                      CollectionName =:= exml_query:cdata(HeaderEl)
+              end, exml_query:subelements(HeadersEl, <<"header">>)).
+
 receive_stanza(User, Options) ->
     case proplists:get_value(stanza, Options) of
         undefined ->
@@ -436,19 +532,38 @@ check_subscription(Subscr, Jid, NodeName, Options) ->
             <<"pending">> = exml_query:attr(Subscr, <<"subscription">>)
     end.
 
-check_items(ReceivedItemsElem, ExpectedItemIds, NodeName, WithPayload) ->
+check_items(ReceivedItemsElem, ExpectedItemIds, NodeName) ->
     NodeName = exml_query:attr(ReceivedItemsElem, <<"node">>),
     ReceivedItems = exml_query:subelements(ReceivedItemsElem, <<"item">>),
-    [check_item(ExpectedItemId, WithPayload, ReceivedItem) ||
+    [check_item(ExpectedItemId, ReceivedItem) ||
         {ReceivedItem, ExpectedItemId} <- lists:zip(ReceivedItems, ExpectedItemIds)].
 
-check_item(ExpectedItemId, WithPayload, ReceivedItem) ->
-    ExpectedItemId = exml_query:attr(ReceivedItem, <<"id">>),
-    Content = item_content(WithPayload),
-    Content = exml_query:subelement(ReceivedItem, <<"entry">>).
+check_item(ExpectedItem, ReceivedItem) ->
+    ExpectedItemMap = decode_expected_item(ExpectedItem),
+    maps:map(fun(K, V) ->
+                     KBin = atom_to_binary(K, utf8),
+                     check_item_field(KBin, V, ReceivedItem) end, ExpectedItemMap).
 
-item_content(false) -> undefined;
-item_content(true) -> item_content().
+check_item_field(Field = <<"entry">>, ExpectedValue, ReceivedItem) ->
+    ?assertEqual(ExpectedValue, exml_query:subelement(ReceivedItem, Field));
+check_item_field(Field, ExpectedValue, ReceivedItem) ->
+    case exml_query:attr(ReceivedItem, Field)of
+        ExpectedValue ->
+            ok;
+        Value ->
+            ct:fail("Assertion failed for key: ~p, expected value: ~p, actual: ~p",
+                    [Field, ExpectedValue, Value])
+    end.
+
+decode_expected_item(AMap) when is_map(AMap) ->
+    case maps:is_key(entry, AMap) of
+        true ->
+            AMap;
+        _ ->
+            maps:put(entry, item_content(), AMap)
+    end;
+decode_expected_item(ItemId) when is_binary(ItemId) ->
+    #{id => ItemId}.
 
 bool2bin(true) -> <<"true">>;
 bool2bin(false) -> <<"false">>.
@@ -475,10 +590,16 @@ item_content() ->
            attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}]}.
 
 decode_config_form(IQResult) ->
-    PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
-    ?NS_PUBSUB_OWNER = exml_query:attr(PubSubNode, <<"xmlns">>),
+    decode_form(IQResult, ?NS_PUBSUB_OWNER, <<"configure">>).
 
-    QPath = [{element, <<"configure">>}, {element, <<"x">>}, {element, <<"field">>}],
+decode_options_form(IQResult) ->
+    decode_form(IQResult, ?NS_PUBSUB, <<"options">>).
+
+decode_form(IQResult, ExpectedNS, FormParent) ->
+    PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
+    ExpectedNS = exml_query:attr(PubSubNode, <<"xmlns">>),
+
+    QPath = [{element, FormParent}, {element, <<"x">>}, {element, <<"field">>}],
     Fields = exml_query:paths(PubSubNode, QPath),
     lists:map(fun decode_form_field/1, Fields).
 
@@ -490,6 +611,11 @@ decode_form_field(F) ->
         Values -> {Var, Type, Values}
     end.
 
+verify_form_values(DecodedForm, ExpectedValues) ->
+    lists:foreach(fun({Var, Val}) ->
+                          {{_, _, Val}, _} = {lists:keyfind(Var, 1, DecodedForm), Var}
+                  end, ExpectedValues).
+
 decode_affiliations(IQResult) ->
     PubSubNode = exml_query:subelement(IQResult, <<"pubsub">>),
     ?NS_PUBSUB_OWNER = exml_query:attr(PubSubNode, <<"xmlns">>),
@@ -499,3 +625,28 @@ decode_affiliations(IQResult) ->
 
     [ {exml_query:attr(F, <<"jid">>), exml_query:attr(F, <<"affiliation">>)} || F <- Fields ].
 
+pubsub_node() ->
+    {node_addr(), pubsub_node_name()}.
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
+node_addr() ->
+    Domain = domain(),
+    <<"pubsub.", Domain/binary>>.
+
+rand_name(Prefix) ->
+    Suffix = base64:encode(crypto:strong_rand_bytes(5)),
+    <<Prefix/binary, "_", Suffix/binary>>.
+
+%% Generates nodetree_tree-safe names
+pubsub_node_name() ->
+    Name0 = rand_name(<<"princely_musings">>),
+    re:replace(Name0, "/", "_", [global, {return, binary}]).
+
+encode_group_name(BaseName, NodeTree) ->
+    binary_to_atom(<<NodeTree/binary, $+, (atom_to_binary(BaseName, utf8))/binary>>, utf8).
+
+decode_group_name(ComplexName) ->
+    [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
+    #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.

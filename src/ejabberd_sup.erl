@@ -150,10 +150,12 @@ init([]) ->
         {mod_mam_sup,
          {mod_mam_sup, start_link, []},
          permanent, infinity, supervisor, [mod_mam_sup]},
-    ShaperSpecs = shaper_srv:child_specs(),
+    ShaperSup =
+        {ejabberd_shaper_sup,
+          {ejabberd_shaper_sup, start_link, []},
+          permanent, infinity, supervisor, [ejabberd_shaper_sup]}, 
 
     {ok, {{one_for_one, 10, 1},
-          ShaperSpecs ++
           [Hooks,
            Cleaner,
            SMBackendSupervisor,
@@ -169,7 +171,8 @@ init([]) ->
            IQSupervisor,
            Listener,
            MucIQ,
-           MAM]}}.
+           MAM,
+           ShaperSup]}}.
 
 start_child(ChildSpec) ->
     case supervisor:start_child(ejabberd_sup, ChildSpec) of

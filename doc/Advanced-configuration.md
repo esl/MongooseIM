@@ -71,7 +71,8 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Description:** Path to X509 PEM file with a certificate and a private key inside (not protected by any password). Required if `s2s_use_starttls` is enabled.
 
 * **s2s_ciphers** (global)
-    * **Description:** Defines a list of accepted SSL ciphers in **outgoing** S2S connection. Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
+    * **Description:** Defines a list of accepted SSL ciphers in **outgoing** S2S connection.
+      Please refer to the [OpenSSL documentation](http://www.openssl.org/docs/apps/ciphers.html) for the cipher string format.
     * **Default:** As of OpenSSL 1.0.0 it's `ALL:!aNULL:!eNULL` ([source](https://www.openssl.org/docs/apps/ciphers.html#CIPHER_STRINGS))
 
 * **domain_certfile** (multi, global)

@@ -90,8 +90,8 @@ process_iq_set(Val, _, _, _) ->
 -spec process_blocking_iq_set(Type :: block | unblock, Acc :: mongoose_acc:t(),
                               LUser:: binary(), LServer:: binary(),
                               CurrList :: [listitem()], Users :: [binary()]) ->
-    {ok, [binary()], [listitem()], block | unblock | unblock_all}
-    | {error, exml:element()}.
+    {mongoose_acc:t(), {ok, [binary()], [listitem()], block | unblock | unblock_all} |
+                       {error, exml:element()}}.
 %% fail if current default list could not be retrieved
 process_blocking_iq_set(_, Acc, _, _, {error, _}, _) ->
     {Acc, {error, mongoose_xmpp_errors:internal_server_error()}};

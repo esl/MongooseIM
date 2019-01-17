@@ -51,8 +51,8 @@ start_and_stop(_Config) ->
     {ok, _} = gen_mod:start_module(host(b), a_module, []),
     {error, already_started} = gen_mod:start_module(host(a), a_module, []),
     {error, already_started} = gen_mod:start_module(host(b), a_module, []),
-    ok = gen_mod:stop_module(host(a), a_module),
-    ok = gen_mod:stop_module(host(b), a_module),
+    {ok, []} = gen_mod:stop_module(host(a), a_module),
+    {ok, []} = gen_mod:stop_module(host(b), a_module),
     {error, not_loaded} = gen_mod:stop_module(host(a), a_module),
     {error, not_loaded} = gen_mod:stop_module(host(b), a_module),
     ok.

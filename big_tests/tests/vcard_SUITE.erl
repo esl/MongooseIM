@@ -52,6 +52,7 @@ all() ->
     [{group, rw},
      {group, ro_full},
      {group, ro_limited},
+     {group, params_limited_infinity},
      {group, ro_no},
      {group, ldap_only}
      ].
@@ -62,6 +63,7 @@ groups() ->
     G = [{rw, [sequence], rw_tests()},
          {ro_full, [], ro_full_search_tests()},
          {ro_limited, [], ro_limited_search_tests()},
+         {params_limited_infinity, [], rw_tests()},
          {ro_no, [sequence], ro_no_search_tests()},
          {ldap_only, [], ldap_only_tests()}
         ],
@@ -145,6 +147,9 @@ end_per_suite(Config) ->
 
 init_per_group(rw, Config) ->
     restart_vcard_mod(Config, rw),
+    Config;
+init_per_group(params_limited_infinity, Config) ->
+    restart_vcard_mod(Config, params_limited_infinity),
     Config;
 init_per_group(ldap_only, Config) ->
     VCardConfig = ?config(mod_vcard, Config),
@@ -1082,6 +1087,8 @@ vcard_rpc(JID, Stanza) ->
 
 restart_vcard_mod(Config, ro_limited) ->
     restart_mod(params_limited(Config));
+restart_vcard_mod(Config, params_limited_infinity) ->
+    restart_mod(params_limited_infinity(Config));
 restart_vcard_mod(Config, ro_no) ->
     restart_mod(params_no(Config));
 restart_vcard_mod(Config, ldap_only) ->
@@ -1109,6 +1116,10 @@ params_all(Config) ->
 
 params_limited(Config) ->
     add_backend_param([{matches, 1},
+                       {host, "directory.@HOST@"}], ?config(mod_vcard, Config)).
+
+params_limited_infinity(Config) ->
+    add_backend_param([{matches, infinity},
                        {host, "directory.@HOST@"}], ?config(mod_vcard, Config)).
 
 params_no(Config) ->

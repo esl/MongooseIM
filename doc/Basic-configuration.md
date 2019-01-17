@@ -74,4 +74,4 @@ There are 2 types of options: params and features. Unlike params, features can b
     * **Description:** Allows enabling the StartTLS feature in client-to-server XMPP connections. Just remove '%%' prefix and set path to the PEM file containing certificate and (not protected by password) private key in X.509 format.
 
 * **zlib** - feature
-    * **Description:** Controls the zlib compression feature for client-to-server XMPP connections. To enable it, remove '%%' prefix. You can define a limit for output data size to prevent killing the server with [zlib bomb](http://xmpp.org/resources/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas/). Set it to `unlimited` to bypass the check (**not recommended**).
+    * **Description:** Controls the zlib compression feature for client-to-server XMPP connections. To enable it, remove '%%' prefix. You can define a limit for output data size to prevent killing the server with [zlib bomb](https://xmpp.org/community/security-notices/uncontrolled-resource-consumption-with-highly-compressed-xmpp-stanzas.html). Set it to `unlimited` to bypass the check (**not recommended**).

@@ -9,6 +9,8 @@
 # - VERBOSE
 # - STOP_NODES
 
+# Fail on errors
+set -e
 
 USAGE=$(cat <<-END
 This script runs small and big tests for MongooseIM
@@ -538,8 +540,6 @@ if [ "$DB_FROM_PRESETS" = true ]; then
     DBS_ARRAY=( $(./tools/test_runner/presets_to_dbs.sh $FINAL_PRESET ))
 fi
 
-./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
-
 # Use env variable or default
 export SMALL_TESTS="${SMALL_TESTS:-$SMALL_TESTS_DEFAULT}"
 export COVER_ENABLED="${COVER_ENABLED:-$COVER_ENABLED_DEFAULT}"
@@ -597,6 +597,8 @@ echo ""
 ./tools/build-releases.sh
 
 ./tools/travis-build-tests.sh
+
+./tools/test_runner/selected-tests-to-test-spec.sh "${SELECTED_TESTS[@]}"
 
 ./tools/travis-setup-db.sh
 

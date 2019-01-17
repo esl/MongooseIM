@@ -63,7 +63,7 @@
 init(Req, Opts) ->
     Peer = cowboy_req:peer(Req),
     PeerCert = cowboy_req:cert(Req),
-    Req1 = cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, <<"xmpp">>, Req),
+    Req1 = add_sec_websocket_protocol_header(Req),
     ?DEBUG("cowboy init: ~p~n", [{Req, Opts}]),
     %% upgrade protocol
     {cowboy_websocket, Req1, [{peer, Peer}, {peercert, PeerCert} | Opts]}.
@@ -358,3 +358,36 @@ maybe_send_ping_request(none) ->
     ok;
 maybe_send_ping_request(PingRate) ->
     send_ping_request(PingRate).
+
+
+%%--------------------------------------------------------------------
+%% add_sec_websocket_protocol_header
+%%--------------------------------------------------------------------
+
+add_sec_websocket_protocol_header(Req) ->
+     case cowboy_req:parse_header(<<"sec-websocket-protocol">>, Req) of
+         undefined ->
+             %% Server should not set "sec-websocket-protocol" response header
+             %% if it does not present in the request
+             Req;
+         Protocols ->
+             case case_insensitive_match(<<"xmpp">>, Protocols) of
+                 {matched, MatchedProtocol} ->
+                     cowboy_req:set_resp_header(<<"Sec-WebSocket-Protocol">>, MatchedProtocol, Req);
+                 nomatch ->
+                     %% Do not agree with client, do not add a response header
+                     ?DEBUG("issue=not_supported_procol, protocol=~p", [Protocols]),
+                     Req
+             end
+     end.
+
+case_insensitive_match(LowerPattern, [Case | Cases]) ->
+    LowerCase = stringprep:tolower(Case),
+    case LowerCase of
+        LowerPattern ->
+            {matched, Case};
+        _ ->
+            case_insensitive_match(LowerPattern, Cases)
+    end;
+case_insensitive_match(_, []) ->
+    nomatch.

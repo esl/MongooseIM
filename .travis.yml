@@ -1,5 +1,5 @@
 language: erlang
-dist: trusty
+dist: xenial
 sudo: required
 addons:
     apt:
@@ -99,7 +99,7 @@ env:
 
 matrix:
   include:
-    - otp_release: 20.0
+    - otp_release: 21.1
       env: PRESET=dialyzer_only
            SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
     - otp_release: 20.0

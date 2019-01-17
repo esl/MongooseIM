@@ -1,17 +1,17 @@
 # MongooseIM platform
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM)
-[![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](http://mongooseim.readthedocs.org/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest)
 [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master)
 [![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 
-* [Getting started](http://mongooseim.readthedocs.io/en/latest/user-guide/Getting-started/)
-* [Developer's guide](http://mongooseim.readthedocs.io/en/latest/developers-guide/Testing-MongooseIM/)
+* [Getting started](https://mongooseim.readthedocs.io/en/latest/user-guide/Getting-started/)
+* [Developer's guide](https://mongooseim.readthedocs.io/en/latest/developers-guide/Testing-MongooseIM/)
 * [Packages](https://www.erlang-solutions.com/resources/download.html)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
-* Documentation: [http://mongooseim.readthedocs.org/](http://mongooseim.readthedocs.org/)
+* Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
 
 ## Get to know MongooseIM 
 MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations. 
@@ -37,7 +37,7 @@ It is brought to you by [Erlang Solutions](https://www.erlang-solutions.com/).
 
 * Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
-* Documentation: [http://mongooseim.readthedocs.org/](http://mongooseim.readthedocs.org/)
+* Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
 
 
 
@@ -62,35 +62,35 @@ Check out our test results:
 
 ## Documentation
 
-Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [http://mongooseim.readthedocs.io/en/latest/](http://mongooseim.readthedocs.io/en/latest/).
+Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://mongooseim.readthedocs.io/en/latest/](https://mongooseim.readthedocs.io/en/latest/).
 
 Latest releases:
-* [3.1.0](http://mongooseim.readthedocs.io/en/3.1.0/)
-* [3.0.0](http://mongooseim.readthedocs.io/en/3.0.0/)
-* [2.2.2](http://mongooseim.readthedocs.io/en/2.2.2/)
-* [2.1.1](http://mongooseim.readthedocs.io/en/2.1.1/)
-* [2.1.0](http://mongooseim.readthedocs.io/en/2.1.0/)
-* [2.0.1](http://mongooseim.readthedocs.io/en/2.0.1/)
-* [2.0.0](http://mongooseim.readthedocs.io/en/2.0.0/)
-* [1.6.2](http://mongooseim.readthedocs.io/en/1.6.2/)
-* [1.6.1](http://mongooseim.readthedocs.io/en/1.6.1/)
-* [1.6.0](http://mongooseim.readthedocs.io/en/1.6.0/)
+* [3.2.0](https://mongooseim.readthedocs.io/en/3.2.0/)
+* [3.1.0](https://mongooseim.readthedocs.io/en/3.1.0/)
+* [3.0.0](https://mongooseim.readthedocs.io/en/3.0.0/)
+* [2.2.2](https://mongooseim.readthedocs.io/en/2.2.2/)
+* [2.1.1](https://mongooseim.readthedocs.io/en/2.1.1/)
+* [2.1.0](https://mongooseim.readthedocs.io/en/2.1.0/)
+* [2.0.1](https://mongooseim.readthedocs.io/en/2.0.1/)
+* [2.0.0](https://mongooseim.readthedocs.io/en/2.0.0/)
+* [1.6.2](https://mongooseim.readthedocs.io/en/1.6.2/)
+* [1.6.1](https://mongooseim.readthedocs.io/en/1.6.1/)
+* [1.6.0](https://mongooseim.readthedocs.io/en/1.6.0/)
 
  
 **MongooseIM documentation highligts:**
 
 When developing new features/modules, please make sure you add basic documentation to the 'doc/' directory, and add a link to your document in 'doc/README.md.'
 
-* [Tutorials](http://mongooseim.readthedocs.io/en/latest/user-guide/How-to-build/). Learn how to:
+* [Tutorials](https://mongooseim.readthedocs.io/en/latest/user-guide/How-to-build/). Learn how to:
     * [Build MongooseIM from source code](doc/user-guide/How-to-build.md)
     * [Set up MongoosePush](doc/user-guide/Push-notifications.md)
     * [Set up MongooseICE](doc/user-guide/ICE_tutorial.md)
     * [Build an iOS messaging app](doc/user-guide/iOS_tutorial.md)
-* [User Guide](http://mongooseim.readthedocs.io/en/latest/user-guide/Get-to-know-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
-* [Platform](http://mongooseim.readthedocs.io/en/latest/Roadmap/). Get to know our roadmap, MongooseIM history and see how we contribute to third-party opensource projects.
-* [Configuration](http://mongooseim.readthedocs.io/en/latest/Basic-configuration/). Explore some of the available options including database backend configuration, access control lists, listener and extension modules.
-* [REST API](http://mongooseim.readthedocs.io/en/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](http://mongooseim.readthedocs.io/en/latest/swagger/index.html).
-* [Operation and maintenance](http://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.
+* [User Guide](https://mongooseim.readthedocs.io/en/latest/user-guide/Get-to-know-MongooseIM/). Learn all about how to use MongooseIM in your project. Explore its features, supported XEPs, RFCs and database backends, as well as its architecture and deployment strategies.
+* [Configuration](https://mongooseim.readthedocs.io/en/latest/Basic-configuration/). Explore some of the available options including database backend configuration, access control lists, listener and extension modules.
+* [REST API](https://mongooseim.readthedocs.io/en/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](https://mongooseim.readthedocs.io/en/latest/swagger/index.html).
+* [Operation and maintenance](https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.
 * [Server developer's guide](doc/developers-guide/Testing-MongooseIM.md). Get all the information you need to expand MongooseIM platform.
     
 

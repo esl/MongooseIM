@@ -153,15 +153,16 @@ push_to_many(Config) ->
         end).
 
 start_pool() ->
-    ejabberd_node_utils:call_fun(mongoose_http_client, start, [[]]),
-    ejabberd_node_utils:call_fun(mongoose_http_client,
-        start_pool,
-        [http_pool, [{server, "http://localhost:8000"}]]),
+    Pool = {http, host, http_pool,
+            [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
+            [{path_prefix, "/"}, {http_opts, []}, {server, "http://localhost:8000"}]},
+    ejabberd_node_utils:call_fun(mongoose_wpool,
+                                 start_configured_pools,
+                                 [[Pool], [<<"localhost">>]]),
     ok.
 
 stop_pool() ->
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop_pool, [http_pool]),
-    ejabberd_node_utils:call_fun(mongoose_http_client, stop, []),
+    ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]),
     ok.
 
 %%--------------------------------------------------------------------

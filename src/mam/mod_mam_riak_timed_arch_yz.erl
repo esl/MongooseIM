@@ -157,7 +157,7 @@ archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-    mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined, undefined),
+        mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
     {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
@@ -227,7 +227,21 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
 
     mongoose_riak:create_new_map(Ops).
 
+lookup_messages(Host, #{rsm := #rsm_in{direction = before, id = ID} = RSM} = Params)
+  when ID =/= undefined ->
+    lookup_message_page(Host, RSM, Params);
+lookup_messages(Host, #{rsm := #rsm_in{direction = aft, id = ID} = RSM} = Params)
+  when ID =/= undefined ->
+    lookup_message_page(Host, RSM, Params);
 lookup_messages(Host, Params) ->
+    do_lookup_messages(Host, Params).
+
+lookup_message_page(Host, RSM, Params) ->
+    PageSize = maps:get(page_size, Params),
+    {ok, Result} = do_lookup_messages(Host, Params#{page_size := 1 + PageSize}),
+    mod_mam_utils:check_for_item_not_found(RSM, PageSize, Result).
+
+do_lookup_messages(Host, Params) ->
     OwnerJID = mod_mam_utils:bare_jid(maps:get(owner_jid, Params)),
     RemoteJID = mod_mam_utils:bare_jid(maps:get(with_jid, Params)),
 
@@ -253,7 +267,7 @@ lookup_messages(Host, Params) ->
             {ok, {undefined, undefined, get_messages(Host, SortedKeys)}};
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
-            mod_mam_utils:calculate_msg_id_borders(undefined, Borders, Start, End),
+            mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
             {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),

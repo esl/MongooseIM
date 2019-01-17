@@ -297,7 +297,7 @@ get_password_internal(LUser, LServer) ->
 
 -spec get_password_cache(LUser :: jid:luser(),
                          LServer :: jid:lserver(),
-                         CacheTime :: integer()) -> false | string().
+                         CacheTime :: integer()) -> false | binary().
 get_password_cache(LUser, LServer, CacheTime) ->
     case get_last_access(LUser, LServer) of
         online ->
@@ -365,7 +365,6 @@ is_fresh_enough(TimeStampLast, CacheTime) ->
 
 %% @doc Code copied from mod_configure.erl
 %% Code copied from web/ejabberd_web_admin.erl
-%% TODO: Update time format to XEP-0202: Entity Time
 -spec get_last_access(User :: jid:user(),
                       Server :: jid:server()
                       ) -> online | never | mod_last_required | integer().

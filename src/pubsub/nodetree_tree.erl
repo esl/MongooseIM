@@ -44,119 +44,58 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([init/3, terminate/2, options/0, set_node/1,
-         get_node/3, get_node/2, get_node/1, get_nodes/2,
-         get_nodes/1, get_parentnodes/3, get_parentnodes_tree/3,
-         get_subnodes/3, get_subnodes_tree/3, create_node/6,
+-export([init/3, terminate/2, set_node/1,
+         get_node/2, get_node/1, get_nodes/2,
+         get_parentnodes_tree/3,
+         get_subnodes/3, create_node/6,
          delete_node/2]).
 
 init(_Host, _ServerHost, _Options) ->
-    mnesia:create_table(pubsub_node,
-        [{disc_copies, [node()]},
-            {attributes, record_info(fields, pubsub_node)}]),
-    mnesia:add_table_index(pubsub_node, id),
-    NodesFields = record_info(fields, pubsub_node),
-    case mnesia:table_info(pubsub_node, attributes) of
-        NodesFields -> ok;
-        _ -> ok
-    end,
     ok.
 
 terminate(_Host, _ServerHost) ->
     ok.
 
-options() ->
-    [{virtual_tree, false}].
-
-set_node(Node) when is_record(Node, pubsub_node) ->
-    mnesia:write(Node).
-
-get_node(Host, Node, _From) ->
-    get_node(Host, Node).
+set_node(Node) ->
+    mod_pubsub_db_backend:set_node(Node).
 
 get_node(Host, Node) ->
-    case catch mnesia:read({pubsub_node, {Host, Node}}) of
-        [Record] when is_record(Record, pubsub_node) -> Record;
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+        #pubsub_node{} = Record -> Record;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
 get_node(Nidx) ->
-    case catch mnesia:index_read(pubsub_node, Nidx, #pubsub_node.id) of
-        [Record] when is_record(Record, pubsub_node) -> Record;
+    case catch mod_pubsub_db_backend:find_node_by_id(Nidx) of
+        {ok, Node} -> Node;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_nodes(Host, _From) ->
-    get_nodes(Host).
-
-get_nodes(Host) ->
-    mnesia:match_object(#pubsub_node{nodeid = {Host, '_'}, _ = '_'}).
-
-get_parentnodes(_Host, _Node, _From) ->
-    [].
+get_nodes(Key, _From) ->
+    mod_pubsub_db_backend:find_nodes_by_key(Key).
 
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
 get_parentnodes_tree(Host, Node, _From) ->
-    case catch mnesia:read({pubsub_node, {Host, Node}}) of
-        [Record] when is_record(Record, pubsub_node) -> [{0, [Record]}];
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+        #pubsub_node{} = Record -> [{0, [Record]}];
         _ -> []
     end.
 
 get_subnodes(Host, Node, _From) ->
-    get_subnodes(Host, Node).
+    mod_pubsub_db_backend:get_subnodes(Host, Node).
 
-get_subnodes(Host, <<>>) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                        parents = Parents} =
-                    N
-                    <- mnesia:table(pubsub_node),
-                    Host == NHost, Parents == []]),
-    qlc:e(Q);
-get_subnodes(Host, Node) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _},
-                        parents = Parents} =
-                    N
-                    <- mnesia:table(pubsub_node),
-                    Host == NHost, lists:member(Node, Parents)]),
-    qlc:e(Q).
-
-get_subnodes_tree(Host, Node, _From) ->
-    get_subnodes_tree(Host, Node).
-
-get_subnodes_tree(Host, Node) ->
-    case get_node(Host, Node) of
-        {error, _} -> [];
-        NodeRec -> get_subnodes_of_existing_tree(Host, Node, NodeRec)
-    end.
-
-get_subnodes_of_existing_tree(Host, Node, NodeRec) ->
-    BasePlugin = binary_to_atom(<<"node_", (NodeRec#pubsub_node.type)/binary>>, utf8),
-    BasePath = gen_pubsub_node:node_to_path(BasePlugin, Node),
-    mnesia:foldl(fun (#pubsub_node{nodeid = {H, N}} = R, Acc) ->
-                         Plugin = binary_to_atom(<<"node_", (R#pubsub_node.type)/binary>>, utf8),
-                         Path = gen_pubsub_node:node_to_path(Plugin, N),
-                         case lists:prefix(BasePath, Path) and (H == Host) of
-                             true -> [R | Acc];
-                             false -> Acc
-                         end
-                 end,
-                 [], pubsub_node).
-
-create_node(Host, Node, Type, Owner, Options, Parents) ->
+create_node(Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mnesia:read({pubsub_node, {Host, Node}}) of
-        [] ->
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, NodeName) of
+        false ->
             case check_parent_and_its_owner_list(Host, Parents, BJID) of
                 true ->
-                    Nidx = pubsub_index:new(node),
-                    mnesia:write(#pubsub_node{nodeid = {Host, Node},
-                            id = Nidx, parents = Parents,
-                            type = Type, owners = [BJID],
-                            options = Options}),
-                    {ok, Nidx};
+                    Node = #pubsub_node{nodeid = {Host, NodeName},
+                                        parents = Parents,
+                                        type = Type, owners = [BJID],
+                                        options = Options},
+                    set_node(Node);
                 false ->
                     {error, mongoose_xmpp_errors:forbidden()}
             end;
@@ -171,10 +110,10 @@ check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
 check_parent_and_its_owner_list(_Host, [], _BJID) ->
     true;
 check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
-    case catch mnesia:read({pubsub_node, {Host, Parent}}) of
-        [#pubsub_node{owners = [{[], Host, []}]}] ->
+    case catch mod_pubsub_db_backend:find_node_by_name(Host, Parent) of
+        #pubsub_node{owners = [{<<>>, Host, <<>>}]} ->
             true;
-        [#pubsub_node{owners = Owners}] ->
+        #pubsub_node{owners = Owners} ->
             lists:member(BJID, Owners);
         _ ->
             false
@@ -183,10 +122,11 @@ check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
     false.
 
 delete_node(Host, Node) ->
-    Removed = get_subnodes_tree(Host, Node),
-    lists:foreach(fun (#pubsub_node{nodeid = {_, SubNode}, id = SubNidx}) ->
-                pubsub_index:free(node, SubNidx),
-                mnesia:delete({pubsub_node, {Host, SubNode}})
+    SubNodesTree = mod_pubsub_db_backend:get_subnodes_tree(Host, Node),
+    Removed = lists:flatten([Nodes || {_, Nodes} <- SubNodesTree]),
+    lists:foreach(fun (NodeToDel) ->
+                mod_pubsub_db_backend:delete_node(NodeToDel)
         end,
         Removed),
     Removed.
+

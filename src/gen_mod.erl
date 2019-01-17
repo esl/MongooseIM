@@ -63,6 +63,7 @@
 
          loaded_modules/1,
          loaded_modules_with_opts/1,
+         opts_for_module/2,
          get_module_proc/2,
          is_loaded/2,
          get_deps/3]).
@@ -190,7 +191,7 @@ is_app_running(AppName) ->
 
 %% @doc Stop the module in a host, and forget its configuration.
 -spec stop_module(jid:server(), module()) ->
-    ok | {error, not_loaded} | {error, term()}.
+    {ok, list()} | {error, not_loaded} | {error, term()}.
 stop_module(Host, Module) ->
     case is_loaded(Host, Module) of
         false -> {error, not_loaded};
@@ -199,21 +200,22 @@ stop_module(Host, Module) ->
 
 stop_module_for_host(Host, Module) ->
     case stop_module_keep_config(Host, Module) of
-        ok ->
+        {ok, Opts} ->
             case del_module_mnesia(Host, Module) of
-                {atomic, _} -> ok;
+                {atomic, _} -> {ok, Opts};
                 E -> {error, E}
             end;
-        E ->
-            E
+        {error, E} ->
+            {error, E}
     end.
 
 %% @doc Stop the module in a host, but keep its configuration. As the module
 %% configuration is kept in the Mnesia local_config table, when ejabberd is
 %% restarted the module will be started again. This function is useful when
 %% ejabberd is being stopped and it stops all modules.
--spec stop_module_keep_config(jid:server(), module()) -> {error, term()} | 'ok'.
+-spec stop_module_keep_config(jid:server(), module()) -> {error, term()} | {ok, list()}.
 stop_module_keep_config(Host, Module) ->
+    Opts = opts_for_module(Host, Module),
     case catch Module:stop(Host) of
         {'EXIT', Reason} ->
             ?ERROR_MSG("~p", [Reason]),
@@ -221,14 +223,14 @@ stop_module_keep_config(Host, Module) ->
         {wait, ProcList} when is_list(ProcList) ->
             lists:foreach(fun wait_for_process/1, ProcList),
             ets:delete(ejabberd_modules, {Module, Host}),
-            ok;
+            {ok, Opts};
         {wait, Process} ->
             wait_for_process(Process),
             ets:delete(ejabberd_modules, {Module, Host}),
-            ok;
+            {ok, Opts};
         _ ->
             ets:delete(ejabberd_modules, {Module, Host}),
-            ok
+            {ok, Opts}
     end.
 
 -spec reload_module(jid:server(), module(), [any()]) -> {ok, term()} | {error, already_started}.
@@ -265,7 +267,6 @@ wait_for_stop1(MonitorReference) ->
 get_opt(Opt, Opts) ->
     case lists:keysearch(Opt, 1, Opts) of
         false ->
-            % TODO: replace with more appropriate function
             throw({undefined_option, Opt});
         {value, {_, Val}} ->
             Val
@@ -386,6 +387,17 @@ loaded_modules_with_opts(Host) ->
                  [],
                  [{{'$1', '$2'}}]}]).
 
+-spec opts_for_module(ejabberd:server(), module()) -> list().
+opts_for_module(Host, Module) ->
+    case ets:select(ejabberd_modules,
+                    [{#ejabberd_module{_ = '_',
+                                       module_host = {Module, Host},
+                                       opts = '$1'},
+                      [],
+                      [{{'$1'}}]}]) of
+        [{Opts}] -> Opts;
+        []       -> []
+    end.
 
 -spec set_module_opts_mnesia(jid:server(), module(), [any()]
                             ) -> {'aborted', _} | {'atomic', _}.
@@ -441,7 +453,6 @@ clear_opts(Module, Opts0) ->
         _ ->
             Opts
     end.
-
 
 -spec get_deps(Host :: jid:server(), Module :: module(),
                Opts :: proplists:proplist()) -> deps_list().
