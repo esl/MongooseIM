@@ -102,27 +102,27 @@ fun_header(F, Args) ->
     [atom_to_list(F), "(", Args, ")"].
 
 time_metric(Module, Op) -> [backends, Module, Op].
-count_metric(Module, Op) -> [backends, Module, Op, count].
+calls_metric(Module, Op) -> [backends, Module, calls, Op].
 
 generate_fun_body(false, _, RealBackendModule, F, Args) ->
     ["    ", RealBackendModule, ":", fun_header(F, Args), ".\n"];
 generate_fun_body(true, BaseModule, RealBackendModule, F, Args) ->
     FS = atom_to_list(F),
     %%     returned is the following
-    %%     mongoose_metrics:update(global, count_metric(Backend, F), 1),
+    %%     mongoose_metrics:update(global, calls_metric(Backend, F), 1),
     %%     {Time, Result} = timer:tc(Backend, F, Args),
     %%     mongoose_metrics:update(global, time_metric(Backend, F), Time),
     %%     Result.
-    CountMetric = io_lib:format("~p", [count_metric(BaseModule, F)]),
+    CallsMetric = io_lib:format("~p", [calls_metric(BaseModule, F)]),
     TimeMetric = io_lib:format("~p", [time_metric(BaseModule, F)]),
-    ["    mongoose_metrics:update(global, ", CountMetric, ", 1), \n",
+    ["    mongoose_metrics:update(global, ", CallsMetric, ", 1), \n",
      "    {Time, Result} = timer:tc(", RealBackendModule, ", ", FS, ", [", Args, "]), \n",
      "    mongoose_metrics:update(global, ", TimeMetric, ", Time), \n",
      "    Result.\n"].
 
 ensure_backend_metrics(Module, Ops) ->
     EnsureFun = fun(Op) ->
-                        mongoose_metrics:ensure_metric(global, count_metric(Module, Op), spiral),
+                        mongoose_metrics:ensure_metric(global, calls_metric(Module, Op), spiral),
                         mongoose_metrics:ensure_metric(global, time_metric(Module, Op), histogram)
                 end,
     lists:foreach(EnsureFun, Ops).
