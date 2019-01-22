@@ -1,5 +1,5 @@
 {"1.1.0",
-[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.9">>},0},
+[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.11-rc.1">>},0},
  {<<"backoff">>,{pkg,<<"backoff">>,<<"1.1.3">>},1},
  {<<"base16">>,{pkg,<<"base16">>,<<"1.0.0">>},0},
  {<<"bbmustache">>,{pkg,<<"bbmustache">>,<<"1.6.1">>},0},
@@ -115,9 +115,8 @@
  {<<"pooler">>,{pkg,<<"pooler">>,<<"1.5.3">>},1},
  {<<"proper">>,{pkg,<<"proper">>,<<"1.3.0">>},0},
  {<<"quickrand">>,{pkg,<<"quickrand">>,<<"1.7.5">>},1},
- {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.9">>},1},
+ {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.11-rc.1">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},
- {<<"ranch_proxy_protocol">>,{pkg,<<"ranch_proxy_protocol">>,<<"2.1.1">>},2},
  {<<"re2">>,
   {git,"https://github.com/tuncer/re2.git",
        {ref,"2471e06ed7e548ca1af522e95b16867135afdfdc"}},
@@ -150,7 +149,7 @@
  {<<"worker_pool">>,{pkg,<<"worker_pool">>,<<"3.2.0">>},0}]}.
 [
 {pkg_hash,[
- {<<"amqp_client">>, <<"EBEF998500C31D4954E882868806258A9CEBF01DD6C76804B1A2EFDB454753FC">>},
+ {<<"amqp_client">>, <<"8F624512E0A86E6A51960D088944C538DA8B67CA2396C75AFC5A5C07FBE04FF1">>},
  {<<"backoff">>, <<"DE762C05ED6DFAE862D83DC9E58AE936792B01302B3595F5CFFE86F2D8E6C1DD">>},
  {<<"base16">>, <<"283644E2B21BD5915ACB7178BED7851FB07C6E5749B8FAD68A53C501092176D9">>},
  {<<"bbmustache">>, <<"9FB63FA60BD53AFBF47F02E6D8BD6B2BEAFC068E02E20975254DC7461FD4F397">>},
@@ -186,9 +185,8 @@
  {<<"pooler">>, <<"898CD1FA301FC42D4A8ED598CE139B71CA85B54C16AB161152B5CC5FBDCFA1A8">>},
  {<<"proper">>, <<"C1ACD51C51DA17A2FE91D7A6FC6A0C25A6A9849D8DC77093533109D1218D8457">>},
  {<<"quickrand">>, <<"E3086A153EB13A057FC19192D05E2D4C6BB2BDBB55746A699BEAE9847AC17CA8">>},
- {<<"rabbit_common">>, <<"542D2EB8EF8F76E5346B30665604D8D63B8D5CF47D1878243CEC44D1642C4435">>},
+ {<<"rabbit_common">>, <<"E2E66E5153BC50997DE5CD5F2403F82FB7C176A189712BC3FEB7B128A30202F4">>},
  {<<"ranch">>, <<"6B1FAB51B49196860B733A49C07604465A47BDB78AA10C1C16A3D199F7F8C881">>},
- {<<"ranch_proxy_protocol">>, <<"3C4723327166D2D63C0405F4914E2E471C6DE362CC844E9B203AF5763E7C9D25">>},
  {<<"recon">>, <<"901FF78B39C754FB4D6FD72DCF0DBD398967BBD2E4D59C08D4D7AA44A73DE91D">>},
  {<<"redbug">>, <<"9153EE50E42C39CE3F6EFA65EE746F4A52896DA66862CFB59E7C0F838B7B8414">>},
  {<<"riak_pb">>, <<"48FFBF66DBB3F136AB9A7134BAC4E496754BAA5EF58C4F50A61326736D996390">>},

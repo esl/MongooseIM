@@ -1,5 +1,5 @@
 {"1.1.0",
-[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.9">>},0},
+[{<<"amqp_client">>,{pkg,<<"amqp_client">>,<<"3.7.11-rc.1">>},0},
  {<<"base16">>,
   {git,"https://github.com/goj/base16.git",
        {ref,"ec420aa4ce0fb971f155274c606e00188a2ed37d"}},
@@ -77,9 +77,8 @@
   {git,"https://github.com/okeuday/quickrand.git",
        {ref,"336c0d94a6a384f307183b3c14fc2112656dac37"}},
   2},
- {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.9">>},1},
+ {<<"rabbit_common">>,{pkg,<<"rabbit_common">>,<<"3.7.11-rc.1">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.5.0">>},1},
- {<<"ranch_proxy_protocol">>,{pkg,<<"ranch_proxy_protocol">>,<<"2.1.1">>},2},
  {<<"recon">>,{pkg,<<"recon">>,<<"2.3.6">>},2},
  {<<"shotgun">>,
   {git,"https://github.com/inaka/shotgun.git",
@@ -108,7 +107,7 @@
   1}]}.
 [
 {pkg_hash,[
- {<<"amqp_client">>, <<"EBEF998500C31D4954E882868806258A9CEBF01DD6C76804B1A2EFDB454753FC">>},
+ {<<"amqp_client">>, <<"8F624512E0A86E6A51960D088944C538DA8B67CA2396C75AFC5A5C07FBE04FF1">>},
  {<<"bbmustache">>, <<"9FB63FA60BD53AFBF47F02E6D8BD6B2BEAFC068E02E20975254DC7461FD4F397">>},
  {<<"certifi">>, <<"389D4B126A47895FE96D65FCF8681F4D09ECA1153DC2243ED6BABAD0AAC1E763">>},
  {<<"chatterbox">>, <<"AF8B95EF45D5B9783B67ECEA1E23A4CCE058FCE5E950B42F84F4DF8BC7620D0B">>},
@@ -122,9 +121,8 @@
  {<<"lager">>, <<"831910109F3FCB503DEBF658CA0538836B348C58BFBF349A6D48228096CE9040">>},
  {<<"mimerl">>, <<"993F9B0E084083405ED8252B99460C4F0563E41729AB42D9074FD5E52439BE88">>},
  {<<"proper">>, <<"C1ACD51C51DA17A2FE91D7A6FC6A0C25A6A9849D8DC77093533109D1218D8457">>},
- {<<"rabbit_common">>, <<"542D2EB8EF8F76E5346B30665604D8D63B8D5CF47D1878243CEC44D1642C4435">>},
+ {<<"rabbit_common">>, <<"E2E66E5153BC50997DE5CD5F2403F82FB7C176A189712BC3FEB7B128A30202F4">>},
  {<<"ranch">>, <<"F04166F456790FEE2AC1AA05A02745CC75783C2BFB26D39FAF6AEFC9A3D3A58A">>},
- {<<"ranch_proxy_protocol">>, <<"3C4723327166D2D63C0405F4914E2E471C6DE362CC844E9B203AF5763E7C9D25">>},
  {<<"recon">>, <<"2BCAD0CF621FB277CABBB6413159CD3AA30265C2DEE42C968697988B30108604">>},
  {<<"ssl_verify_hostname">>, <<"2E73E068CD6393526F9FA6D399353D7C9477D6886BA005F323B592D389FB47BE">>}]}
 ].
