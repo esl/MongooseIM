@@ -102,9 +102,7 @@ fun_header(F, Args) ->
     [atom_to_list(F), "(", Args, ")"].
 
 time_metric(Module, Op) -> [backends, Module, Op].
-calls_metric(Module, Op) ->
-    Suffix = list_to_atom(atom_to_list(Op) ++ "_calls"),
-    [backends, Module, Suffix].
+calls_metric(Module, Op) -> [backends, Module, calls, Op].
 
 generate_fun_body(false, _, RealBackendModule, F, Args) ->
     ["    ", RealBackendModule, ":", fun_header(F, Args), ".\n"];
