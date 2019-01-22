@@ -183,6 +183,12 @@ unload_amqp() ->
 random_pid() ->
     spawn(fun() -> ok end).
 
+get_worker_conn_and_chann(Worker) ->
+    State = sys:get_state(Worker),
+    {maps:get(connection, State), maps:get(channel, State)}.
+
+%% Funs are wrapped into functions for tracing
+
 lock_fun() ->
     fun lock/1.
 
@@ -199,7 +205,3 @@ exception_fun() ->
 
 exception(_) ->
     throw(exception).
-
-get_worker_conn_and_chann(Worker) ->
-    State = sys:get_state(Worker),
-    {maps:get(connection, State), maps:get(channel, State)}.

@@ -88,7 +88,13 @@ list_metrics(Tag) ->
 init(Opts) ->
     process_flag(trap_exit, true),
     self() ! {init, Opts},
-    {ok, #{}}.
+    {ok, #{amqp_client_opts => undefined,
+           connection => undefined,
+           channel => undefined,
+           host => undefined,
+           pool_tag => undefined,
+           confirms => undefined,
+           max_queue_len => undefined}}.
 
 handle_call(Req, From, State) ->
     maybe_handle_request(fun do_handle_call/3, [Req, From, State],
@@ -133,11 +139,11 @@ do_handle_info({init, Opts}, State) ->
         establish_rabbit_connection(AMQPClientOpts, Host, PoolTag),
     IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
     MaxMsgQueueLen = proplists:get_value(max_queue_len, Opts),
-    {noreply, State#{host => Host, amqp_client_opts => AMQPClientOpts,
-                     connection => Connection, channel => Channel,
-                     confirms => IsConfirmEnabled,
-                     max_queue_len => MaxMsgQueueLen,
-                     pool_tag => PoolTag}}.
+    {noreply, State#{host := Host, amqp_client_opts := AMQPClientOpts,
+                     connection := Connection, channel := Channel,
+                     confirms := IsConfirmEnabled,
+                     max_queue_len := MaxMsgQueueLen,
+                     pool_tag := PoolTag}}.
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
