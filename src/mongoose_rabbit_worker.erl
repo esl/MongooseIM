@@ -87,14 +87,8 @@ list_metrics(Tag) ->
 
 init(Opts) ->
     process_flag(trap_exit, true),
-    self() ! {init, Opts},
-    {ok, #{amqp_client_opts => undefined,
-           connection => undefined,
-           channel => undefined,
-           host => undefined,
-           pool_tag => undefined,
-           confirms => undefined,
-           max_queue_len => undefined}}.
+    %TODO: Refactor with handle_continue when OTP 21 is minimal supported version
+    do_init(Opts).
 
 handle_call(Req, From, State) ->
     maybe_handle_request(fun do_handle_call/3, [Req, From, State],
@@ -103,8 +97,6 @@ handle_call(Req, From, State) ->
 handle_cast(Req, State) ->
    maybe_handle_request(fun do_handle_cast/2, [Req, State], {noreply, State}).
 
-handle_info(Req = {init, _}, State) ->
-    do_handle_info(Req, State);
 handle_info(Req, State) ->
     maybe_handle_request(fun do_handle_info/2, [Req, State], {noreply, State}).
 
@@ -116,6 +108,19 @@ terminate(_Reason, #{connection := Connection, channel := Channel,
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+do_init(Opts) ->
+    Host = proplists:get_value(host, Opts),
+    PoolTag = proplists:get_value(pool_tag, Opts),
+    AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
+    {Connection, Channel} =
+        establish_rabbit_connection(AMQPClientOpts, Host, PoolTag),
+    IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
+    MaxMsgQueueLen = proplists:get_value(max_queue_len, Opts),
+    {ok, #{host => Host, amqp_client_opts => AMQPClientOpts,
+           connection => Connection, channel => Channel,
+           confirms => IsConfirmEnabled, max_queue_len => MaxMsgQueueLen,
+           pool_tag => PoolTag}}.
 
 do_handle_call({amqp_call, Method}, _From, State = #{channel := Channel}) ->
     try amqp_channel:call(Channel, Method) of
@@ -131,19 +136,10 @@ do_handle_call({amqp_call, Method}, _From, State = #{channel := Channel}) ->
 do_handle_cast({amqp_publish, Method, Payload}, State) ->
     handle_amqp_publish(Method, Payload, State).
 
-do_handle_info({init, Opts}, State) ->
-    Host = proplists:get_value(host, Opts),
-    PoolTag = proplists:get_value(pool_tag, Opts),
-    AMQPClientOpts = proplists:get_value(amqp_client_opts, Opts),
-    {Connection, Channel} =
-        establish_rabbit_connection(AMQPClientOpts, Host, PoolTag),
-    IsConfirmEnabled = maybe_enable_confirms(Channel, Opts),
-    MaxMsgQueueLen = proplists:get_value(max_queue_len, Opts),
-    {noreply, State#{host := Host, amqp_client_opts := AMQPClientOpts,
-                     connection := Connection, channel := Channel,
-                     confirms := IsConfirmEnabled,
-                     max_queue_len := MaxMsgQueueLen,
-                     pool_tag := PoolTag}}.
+do_handle_info(Req, State) ->
+    ?WARNING_MSG("event=unexpected_request_received req=~1000p"
+                 "worker_state=~1000p", [Req, State]),
+    {noreply, State}.
 
 -spec handle_amqp_publish(Method :: mongoose_amqp:method(),
                           Payload :: mongoose_amqp:message(),
