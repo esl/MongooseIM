@@ -266,15 +266,17 @@ set_node(#pubsub_node{nodeid = {Key, Name}, id = undefined, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
     {ok, Nidx} = mod_pubsub_db_rdbms_sql:insert_pubsub_node(encode_key(Key), Name, Type,
-                                                     jsx:encode(OwnersJid),
-                                                     jsx:encode(Opts)),
+                                                     jiffy:encode(OwnersJid),
+                                                     jiffy:encode({Opts})),
     maybe_set_parents(Name, Parents),
     {ok, Nidx};
 
 set_node(#pubsub_node{nodeid = {_, Name}, id = Nidx, type = Type,
                       owners = Owners, options = Opts, parents = Parents}) ->
     OwnersJid = [jid:to_binary(Owner) || Owner <- Owners],
-    mod_pubsub_db_rdbms_sql:update_pubsub_node(Nidx, Type, jsx:encode(OwnersJid), jsx:encode(Opts)),
+    mod_pubsub_db_rdbms_sql:update_pubsub_node(Nidx, Type,
+                                               jiffy:encode(OwnersJid),
+                                               jiffy:encode({Opts})),
     maybe_set_parents(Name, Parents),
     {ok, Nidx}.
 
@@ -312,10 +314,11 @@ find_node_by_name(Key, Node) ->
 
 decode_pubsub_node_row({Nidx, KeySQL, Name, Type, Owners, Options}) ->
     Key = decode_key(KeySQL),
-    DecodedOptions = [maybe_option_value_to_atom(Item) ||
-                      Item <- jsx:decode(Options, [{labels, existing_atom}])],
+    {DecodedOpts} = jiffy:decode(Options),
+    DecodedOptions = [maybe_option_value_to_atom(key_to_existing_atom(Item)) ||
+                      Item <- DecodedOpts],
     DecodedOwners = [jid:to_lower(jid:from_binary(Owner)) ||
-                     Owner <- jsx:decode(Owners)],
+                     Owner <- jiffy:decode(Owners)],
     #pubsub_node{nodeid = {Key, Name},
                  id = mongoose_rdbms:result_to_integer(Nidx),
                  type = Type,
@@ -470,7 +473,7 @@ get_affiliation(Nidx, { LU, LS, _ }) ->
                        SubId :: mod_pubsub:subId(),
                        SubOpts :: mod_pubsub:subOptions()) -> ok.
 add_subscription(Nidx, { LU, LS, LR }, Sub, SubId, SubOpts) ->
-    EncodedOpts = jsx:encode(SubOpts),
+    EncodedOpts = jiffy:encode({SubOpts}),
     SQL = mod_pubsub_db_rdbms_sql:insert_subscription(Nidx, LU, LS, LR, sub2int(Sub),
                                                       SubId, EncodedOpts),
     {updated, _} = mongoose_rdbms:sql_query_t(SQL),
@@ -481,7 +484,7 @@ add_subscription(Nidx, { LU, LS, LR }, Sub, SubId, SubOpts) ->
                             SubId :: mod_pubsub:subId(),
                             Opts :: mod_pubsub:subOptions()) -> ok.
 set_subscription_opts(Nidx, { LU, LS, LR }, SubId, Opts) ->
-    EncodedOpts = jsx:encode(Opts),
+    EncodedOpts = jiffy:encode({Opts}),
     SQL = mod_pubsub_db_rdbms_sql:update_subscription_opts(Nidx, LU, LS, LR, SubId, EncodedOpts),
     {updated, _} = mongoose_rdbms:sql_query_t(SQL),
     ok.
@@ -691,7 +694,8 @@ int2sub(1) -> pending;
 int2sub(3) -> subscribed.
 
 sql_to_sub_opts(SqlOpts) ->
-    jsx:decode(SqlOpts, [{labels, existing_atom}]).
+    {Opts} = jiffy:decode(SqlOpts),
+    lists:map(fun key_to_existing_atom/1, Opts).
 
 item_to_record({NodeIdx, ItemId, CreatedLUser, CreatedLServer, CreatedAt,
                 ModifiedLUser, ModifiedLServer, ModifiedLResource, ModifiedAt,
@@ -732,3 +736,8 @@ null_or_bin_jid(undefined) ->
     null;
 null_or_bin_jid(Jid) ->
     jid:to_binary(Jid).
+
+key_to_existing_atom({Key, Value}) when is_atom(Key)->
+    {Key, Value};
+key_to_existing_atom({Key, Value}) ->
+    {binary_to_existing_atom(Key, utf8), Value}.

@@ -288,7 +288,7 @@ send_notification(User, Node, Notification, Options) ->
 
 get_mocked_request() ->
     {Req, BodyRaw} = next_rest_req(),
-    Body = jsx:decode(BodyRaw, [return_maps]),
+    Body = jiffy:decode(BodyRaw, [return_maps]),
     {Req, Body}.
 
 prepare_notification() ->
