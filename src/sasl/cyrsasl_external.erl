@@ -49,20 +49,28 @@ mech_new(_Host, Creds) ->
     maybe_extract_certs(Cert, Creds).
 
 maybe_extract_certs(no_cert, Creds) ->
-    {ok, #state{creds = Creds}};
+    {ok, #state{creds = mongoose_credentials:extend(Creds, [{cert_file, false}])}};
 maybe_extract_certs(Cert, Creds) ->
     DerCert = public_key:pkix_encode('Certificate', Cert, plain),
     PemCert = public_key:pem_encode([{'Certificate', DerCert, not_encrypted}]),
     CertFields = get_common_name(Cert) ++ get_xmpp_addresses(Cert),
-    SaslExternalCredentials = [{pem_cert, PemCert}, {der_cert, DerCert} | CertFields],
+    SaslExternalCredentials = [{cert_file, true}, {pem_cert, PemCert}, {der_cert, DerCert} | CertFields],
     {ok, #state{creds = mongoose_credentials:extend(Creds, SaslExternalCredentials)}}.
 
 
 -spec mech_step(State :: sasl_external_state(),
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()} | {error, binary()}.
-mech_step(#state{creds = Creds}, <<"">>) ->
+mech_step(#state{creds = Creds} = State, User) ->
+    case mongoose_credentials:get(Creds, cert_file) of
+        false ->
+            {error, <<"not-authorized">>};
+        true ->
+            do_mech_step(State, User)
+    end.
+
+do_mech_step(#state{creds = Creds}, <<"">>) ->
     authorize(Creds);
-mech_step(#state{creds = Creds}, User) ->
+do_mech_step(#state{creds = Creds}, User) ->
     authorize(mongoose_credentials:set(Creds, requested_name, User)).
 
 authorize(Creds) ->
