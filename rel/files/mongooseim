@@ -65,6 +65,11 @@ function exec_echo {
     exec "$@"
 }
 
+# Generate a random id
+relx_gen_id() {
+    od -t x -N 4 /dev/urandom | head -n1 | awk '{print $2}'
+}
+
 # Check the first argument for instructions
 case "$1" in
     start)
@@ -192,7 +197,7 @@ case "$1" in
         echo ""
         NAME=$(echo $NAME_ARG | awk '{print $1}')
         NODE=$(echo $NAME_ARG | awk '{print $2}')
-        TTY=$(basename `tty`)
+        id=$(relx_gen_id)
 
         ROOTDIR="$RUNNER_BASE_DIR"
         BINDIR="$ROOTDIR/erts-$ERTS_VSN/bin"
@@ -202,7 +207,7 @@ case "$1" in
         logger -t "$SCRIPT[$$]" "Starting up"
 
         # Start the VM
-        exec_echo "$BINDIR/erl" "$NAME" "debug-$TTY-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
+        exec_echo "$BINDIR/erl" "$NAME" "debug-$id-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
         ;;
 
     version)
