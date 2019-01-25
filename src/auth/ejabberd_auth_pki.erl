@@ -16,6 +16,8 @@
 -copyright("2018, Erlang Solutions Ltd.").
 -author('denys.gonchar@erlang-solutions.com').
 
+-include("jlib.hrl").
+
 -behaviour(ejabberd_gen_auth).
 
 %% ejabberd_gen_auth API
@@ -57,12 +59,31 @@ set_password(_, _, _) -> {error, not_allowed}.
 
 %%-callback authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()} | {error, any()}.
 authorize(Creds) ->
-    case get_username(Creds) of
-        {ok, UserName} ->
+    Credentials = { get_credentials(Creds, requested_name),
+                    get_credentials(Creds, xmpp_addresses),
+                    get_credentials(Creds, common_name)},
+    case do_authorize(Credentials) of
+        {error, <<"not-authorized">>} ->
+            {error, <<"not-authorized">>};
+        UserName ->
             {ok, mongoose_credentials:extend(Creds, [{username, UserName},
-                                                     {auth_module, ?MODULE}])};
-        {error, Error} -> {error, Error}
+                                                     {auth_module, ?MODULE}])}
     end.
+
+do_authorize({undefined, [OneXmppAddr], _ }) ->
+    %%  name from jid ?
+    OneXmppAddr;
+do_authorize({undefined, [], CommonName}) ->
+    %% check if CommonName is correct jid
+    CommonName;
+do_authorize({RequestedName, [], CommonName}) ->
+    %% check if RequestedName matches ComonName
+    RequestedName;
+do_authorize({RequestedName, XmppAddrList, _}) ->
+    %% check if RequestedName matches any of XmppAddrList
+    RequestedName;
+do_authorize(_) ->
+    {error, <<"not-authorized">>}.
 
 
 %%-callback try_register( User :: ejabberd:luser(),
@@ -124,9 +145,6 @@ check_password(_, _, _, _, _) -> false.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% internal functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-get_username(Cred) ->
-    case mongoose_credentials:get(Cred, common_name, no_cert) of
-        no_cert -> {error, not_authorized};
-        CN -> {ok, CN}
-    end.
+get_credentials(Cred, Key) ->
+    mongoose_credentials:get(Cred, Key, undefined).
 
