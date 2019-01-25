@@ -59,6 +59,9 @@ A framework module to build other notification-based modules on.
 #### [mod_event_pusher_sns](../modules/mod_event_pusher_sns.md)
 Allows sending online/offline notifications, chat and groupchat messages as events to [Amazon Simple Notification Service](https://aws.amazon.com/sns/).
 
+#### [mod_event_pusher_rabbit](../modules/mod_event_pusher_rabbit.md)
+Allows sending presence changes (to available/unavailable), chat and groupchat messages as events to a RabbitMQ server.
+
 #### [mod_event_pusher_push](../modules/mod_event_pusher_push.md)
 Implements [XEP-0357 Push Notifiactions](https://xmpp.org/extensions/xep-0357.html) to provide push notifications to clients that are temporary unavailable.
 

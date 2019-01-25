@@ -9,6 +9,7 @@ The interface for outgoing connections management was unified and is now availab
 * `http` - pool of connections to various HTTP(S) servers MongooseIM can talk to, in example HTTP authentication backend or HTTP notifications
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
+* `rabbit` - pool of connections to a RabbitMQ server
 * `generic` - pool of generic workers not assosiated directly with a paritcualr connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
@@ -450,3 +451,50 @@ Run the following function in the MongooseIM shell to verify that the connection
 ```
 
 Note that the output might differ based on your ElasticSearch cluster configuration.
+
+## RabbitMQ connection setup
+
+RabbitMQ backend for [`mod_event_pusher`](../modules/mod_event_pusher.md)
+requires a `rabbit` pool defined in the `outgoing_pools` option.
+They can be defined as follows:
+
+```erlang
+{ougtoing_pools, [
+ {rabbit, host, Tag, WorkersOptions, ConnectionOptions}
+]}.
+```
+
+Notice that `Host` parameter is set to atom `host`. This basically means that
+MongooseIM will start as many `rabbit` pools as XMPP hosts are served by
+the server.
+
+The `Tag` parameter must be set to `event_pusher` in order to be able to use
+the pool for [`mod_event_pusher_rabbit`](../modules/mod_event_pusher_rabbit.md).
+Any other `Tag` can be used for any other RabbitMQ connection pool.
+
+The `ConnectionOptions` list can take following parameters as `{key, value`} pairs:
+
+* **amqp_host** (default: `"localhost"`) - Defines RabbitMQ server host (domain or IP address; both as a string);
+* **amqp_port** (default: `5672`) - Defines RabbitMQ server AMQP port;
+* **amqp_username** (default: `"guest"`) - Defines RabbitMQ server username;
+* **amqp_password** (default: `"guest"`) - Defines RabbitMQ server password;
+* **confirms_enabled** (default: `false`) - Enables/disables one-to-one publishers confirms;
+* **max_worker_queue_len** (default: `1000`; use `infinity` to disable it) -
+Sets a limit of messages in a worker's mailbox above which the worker starts
+dropping the messages. If a worker message queue length reaches the limit,
+messages from the head of the queue are dropped until the queue length is again
+below the limit.
+
+### Example
+
+```erlang
+{ougtoing_pools, [
+ {rabbit, host, event_pusher, [{workers, 20}],
+  [{amqp_host, "localhost"},
+   {amqp_port, 5672},
+   {amqp_username, "guest"},
+   {amqp_password, "guest"},
+   {confirms_enabled, true},
+   {max_worker_queue_len, 100}]}
+]}.
+```
