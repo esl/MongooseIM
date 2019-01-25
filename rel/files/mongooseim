@@ -35,6 +35,14 @@ if [ -z "$NAME_ARG" ]; then
 fi
 NAME=$(echo $NAME_ARG | awk '{print $1}')
 NODE=$(echo $NAME_ARG | awk '{print $2}')
+HOST=$(echo $NODE | awk -F@ '{ print $2 }')
+if [ -z "$HOST" ]; then
+    case $NAME in
+        "-sname") HOST=$(hostname -s) ;;
+        "-name")  HOST=$(hostname -f) ;;
+    esac
+    NODE=$NODE@$HOST
+fi
 MNESIA_DIR={{mongooseim_mdb_dir}}
 
 # Extract the target cookie
@@ -195,8 +203,6 @@ case "$1" in
         echo "Press 'Enter' to continue"
         read
         echo ""
-        NAME=$(echo $NAME_ARG | awk '{print $1}')
-        NODE=$(echo $NAME_ARG | awk '{print $2}')
         id=$(relx_gen_id)
 
         ROOTDIR="$RUNNER_BASE_DIR"
