@@ -69,9 +69,21 @@ mech_step(#state{creds = Creds} = State, User) ->
     end.
 
 do_mech_step(#state{creds = Creds}, <<"">>) ->
-    authorize(Creds);
+    case mongoose_credentials:get(Creds, xmpp_addresses) of
+        [_OneXmppAddr] ->
+            authorize(Creds);
+        [] ->
+            authorize(Creds);
+        _ ->
+            {error, <<"invalid-authzid">>}
+    end;
 do_mech_step(#state{creds = Creds}, User) ->
-    authorize(mongoose_credentials:set(Creds, requested_name, User)).
+    case mongoose_credentials:get(Creds, xmpp_addresses) of
+        [_OneXmppAddr] ->
+            {error, <<"invalid-authzid">>};
+        _ ->
+            authorize(mongoose_credentials:set(Creds, requested_name, User))
+    end.
 
 authorize(Creds) ->
     %% auth backend is responsible to add username to Creds.
@@ -89,6 +101,6 @@ get_common_name(Cert) ->
 
 get_xmpp_addresses(Cert) ->
     case cert_utils:get_xmpp_addresses(Cert) of
-        [] -> [];
+        [] -> [{xmpp_addresses, []}];
         XmmpAddresses -> [{xmpp_addresses, XmmpAddresses}]
     end.
