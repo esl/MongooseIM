@@ -96,6 +96,11 @@
 
 -export([send_loop/1]).
 
+%% for mod_pubsub_router
+-export([
+    do_route/7
+]).
+
 -define(PROCNAME, ejabberd_mod_pubsub).
 -define(LOOPNAME, ejabberd_mod_pubsub_loop).
 
@@ -206,11 +211,12 @@ default_host() ->
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      Pid :: pid()) -> any().
-process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+process_packet(Acc, From, To, El, _Pid) ->
+    Msg = {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
                                                   from_jid => From,
                                                   to_jid => To,
-                                                  element => El }, Acc)}.
+                                                  element => El }, Acc)},
+    wpool:cast(?HANDLERS_POOL_NAME, Msg, random_worker).
 
 %%====================================================================
 %% gen_server callbacks
@@ -248,8 +254,13 @@ init([ServerHost, Opts]) ->
             ok
     end,
 
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
     {_, State} = init_send_loop(ServerHost),
+
+    % TODO extract to supervision tree !!
+    wpool:start(),
+
+    {ok, Pid} = wpool:start_pool(?HANDLERS_POOL_NAME, [{workers, ?HANDLERS_POOL_SIZE}, {worker, {mod_pubsub_router, [State]}}]),
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, Pid)),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->
@@ -870,14 +881,6 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Acc},
-            #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
-    Packet = mongoose_acc:element(Acc),
-    case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
-        {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
-        _ -> ok
-    end,
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
