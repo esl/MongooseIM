@@ -35,6 +35,14 @@ if [ -z "$NAME_ARG" ]; then
 fi
 NAME=$(echo $NAME_ARG | awk '{print $1}')
 NODE=$(echo $NAME_ARG | awk '{print $2}')
+HOST=$(echo $NODE | awk -F@ '{ print $2 }')
+if [ -z "$HOST" ]; then
+    case $NAME in
+        "-sname") HOST=$(hostname -s) ;;
+        "-name")  HOST=$(hostname -f) ;;
+    esac
+    NODE=$NODE@$HOST
+fi
 MNESIA_DIR={{mongooseim_mdb_dir}}
 
 # Extract the target cookie
@@ -63,6 +71,11 @@ function nodetool {
 function exec_echo {
     echo "Exec: $@"
     exec "$@"
+}
+
+# Generate a random id
+relx_gen_id() {
+    od -t x -N 4 /dev/urandom | head -n1 | awk '{print $2}'
 }
 
 # Check the first argument for instructions
@@ -190,9 +203,7 @@ case "$1" in
         echo "Press 'Enter' to continue"
         read
         echo ""
-        NAME=$(echo $NAME_ARG | awk '{print $1}')
-        NODE=$(echo $NAME_ARG | awk '{print $2}')
-        TTY=$(basename `tty`)
+        id=$(relx_gen_id)
 
         ROOTDIR="$RUNNER_BASE_DIR"
         BINDIR="$ROOTDIR/erts-$ERTS_VSN/bin"
@@ -202,7 +213,7 @@ case "$1" in
         logger -t "$SCRIPT[$$]" "Starting up"
 
         # Start the VM
-        exec_echo "$BINDIR/erl" "$NAME" "debug-$TTY-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
+        exec_echo "$BINDIR/erl" "$NAME" "debug-$id-$NODE" $COOKIE_ARG -remsh "$NODE" -hidden -args_file "$RUNNER_ETC_DIR/vm.dist.args"
         ;;
 
     version)

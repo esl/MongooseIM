@@ -2,7 +2,11 @@
 ##   -sname node@host
 ## or
 ##   -name node@fully.qualified.domain.name
-## Without @something suffix `mongooseimctl debug` breaks.
+#$
+## Without @something suffix `mongooseimctl debug` uses:
+##   - NODE@`hostname -s` if -sname
+##   - NODE@`hostname -f` if -name
+## to attach a remote shell.
 -sname {{node_name}}
 
 ## Cookie for distributed erlang
