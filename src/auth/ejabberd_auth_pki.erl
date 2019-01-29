@@ -37,27 +37,27 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3
-]).
+        ]).
 
 -export([check_password/3,
          check_password/5]).
 
-%%-callback start(Host :: ejabberd:lserver()) -> ok.
+-spec start(Host :: ejabberd:lserver()) -> ok.
 start(_) -> ok.
 
-%%-callback stop(Host :: ejabberd:lserver()) -> ok.
+-spec stop(Host :: ejabberd:lserver()) -> ok.
 stop(_) -> ok.
 
-%%-callback store_type(Host :: ejabberd:lserver()) -> scram | plain | external.
+-spec store_type(Host :: ejabberd:lserver()) -> scram | plain | external.
 store_type(_) -> scram.
 
-%%-callback set_password( User :: ejabberd:luser(),
-%%                        Server :: ejabberd:lserver(),
-%%                        Password :: binary()
-%%                      ) -> ok | {error, not_allowed | invalid_jid}.
+-spec set_password( User :: ejabberd:luser(),
+                    Server :: ejabberd:lserver(),
+                    Password :: binary()
+                  ) -> ok | {error, not_allowed | invalid_jid}.
 set_password(_, _, _) -> {error, not_allowed}.
 
-%%-callback authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()} | {error, any()}.
+-spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()} | {error, any()}.
 authorize(Creds) ->
     Credentials = { get_credentials(Creds, requested_name),
                     get_credentials(Creds, xmpp_addresses),
@@ -75,7 +75,7 @@ do_authorize({undefined, [OneXmppAddr], _ }) ->
 do_authorize({undefined, [], CommonName}) ->
     %% check if CommonName is correct jid
     case is_binary(CommonName) of
-       true ->
+        true ->
             CommonName;
         _ ->
             {error, <<"not-authorized">>}
@@ -100,55 +100,55 @@ do_authorize(_) ->
     {error, <<"not-authorized">>}.
 
 
-%%-callback try_register( User :: ejabberd:luser(),
-%%                        Server :: ejabberd:lserver(),
-%%                        Password :: binary()
-%%                      ) -> ok | {error, exists | not_allowed | term()}.
+-spec try_register( User :: ejabberd:luser(),
+                    Server :: ejabberd:lserver(),
+                    Password :: binary()
+                  ) -> ok | {error, exists | not_allowed | term()}.
 try_register(_, _, _) -> {error, not_allowed}.
 
-%%-callback dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
 dirty_get_registered_users() -> [].
 
-%%-callback get_vh_registered_users(Server :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(_) -> [].
 
-%%-callback get_vh_registered_users( Server :: ejabberd:lserver(),
-%%                                   Opts :: list()
-%%                                 ) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users( Server :: ejabberd:lserver(),
+                               Opts :: list()
+                             ) -> [ejabberd:simple_bare_jid()].
 get_vh_registered_users(_, _) -> [].
 
-%%-callback get_vh_registered_users_number(Server :: ejabberd:lserver()) -> integer().
+-spec get_vh_registered_users_number(Server :: ejabberd:lserver()) -> integer().
 get_vh_registered_users_number(_) -> 0.
 
-%%-callback get_vh_registered_users_number( Server :: ejabberd:lserver(),
-%%                                          Opts :: list()
-%%                                        ) -> integer().
+-spec get_vh_registered_users_number( Server :: ejabberd:lserver(),
+                                      Opts :: list()
+                                    ) -> integer().
 get_vh_registered_users_number(_, _) -> 0.
 
-%%-callback get_password( User :: ejabberd:luser(),
-%%                        Server :: ejabberd:lserver()
-%%                      ) -> ejabberd_auth:passterm() | false.
+-spec get_password( User :: ejabberd:luser(),
+                    Server :: ejabberd:lserver()
+                  ) -> ejabberd_auth:passterm() | false.
 get_password(_, _) -> false.
 
-%%-callback get_password_s( User :: ejabberd:luser(),
-%%                          Server :: ejabberd:lserver()
-%%                        ) -> binary().
+-spec get_password_s( User :: ejabberd:luser(),
+                      Server :: ejabberd:lserver()
+                    ) -> binary().
 get_password_s(_, _) -> <<"">>.
 
-%%-callback does_user_exist( User :: ejabberd:luser(),
-%%                           Server :: ejabberd:lserver()
-%%                         ) -> boolean() | {error, atom()}.
+-spec does_user_exist( User :: ejabberd:luser(),
+                       Server :: ejabberd:lserver()
+                     ) -> boolean() | {error, atom()}.
 does_user_exist(_, _) -> true.
 
-%%-callback remove_user( User :: ejabberd:luser(),
-%%                       Server :: ejabberd:lserver()
-%%                     ) -> ok | {error, not_allowed}.
+-spec remove_user( User :: ejabberd:luser(),
+                   Server :: ejabberd:lserver()
+                 ) -> ok | {error, not_allowed}.
 remove_user(_, _) -> {error, not_allowed}.
 
-%%-callback remove_user( User :: ejabberd:luser(),
-%%                       Server :: ejabberd:lserver(),
-%%                       Password :: binary()
-%%                     ) -> ok | {error, not_exists | not_allowed | bad_request}.
+-spec remove_user( User :: ejabberd:luser(),
+                   Server :: ejabberd:lserver(),
+                   Password :: binary()
+                 ) -> ok | {error, not_exists | not_allowed | bad_request}.
 remove_user(_, _, _) -> {error, not_allowed}.
 
 check_password(_, _, _) -> false.
