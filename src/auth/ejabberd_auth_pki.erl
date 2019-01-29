@@ -76,13 +76,18 @@ do_authorize({undefined, [], CommonName}) ->
     %% check if CommonName is correct jid
     case is_binary(CommonName) of
        true ->
-           CommonName;
-       _ ->
+            CommonName;
+        _ ->
             {error, <<"not-authorized">>}
     end;
 do_authorize({RequestedName, [], CommonName}) ->
     %% check if RequestedName matches ComonName
-    RequestedName;
+    case get_username(RequestedName) of
+        CommonName ->
+            CommonName;
+        _ ->
+            {error, <<"not-authorized">>}
+    end;
 do_authorize({RequestedName, XmppAddrList, _}) ->
     %% check if RequestedName matches any of XmppAddrList
     case lists:filter(fun(XmppAddr) -> XmppAddr == RequestedName end, XmppAddrList) of
