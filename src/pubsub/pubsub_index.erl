@@ -41,7 +41,18 @@ init() ->
                          {attributes, record_info(fields, pubsub_index)}]).
 
 new(Index) ->
-    case mnesia:read({pubsub_index, Index}) of
+    Parent = self(),
+    Ref = make_ref(),
+    F = fun() -> {atomic, Id} = mnesia:transaction(fun() -> get_next(Index) end), Parent ! {new_id_result, Ref, Id} end,
+    spawn_link(F),
+    receive
+        {new_id_result, Ref, Id} -> Id
+    after
+        5000 -> erlang:error(timeout)
+    end.
+
+get_next(Index) ->
+    case mnesia:read(pubsub_index, Index, sticky_write) of
         [I] ->
             Id = I#pubsub_index.last + 1,
             mnesia:write(I#pubsub_index{last = Id}),
@@ -50,4 +61,3 @@ new(Index) ->
             mnesia:write(#pubsub_index{index = Index, last = 1, free = []}),
             1
     end.
-
