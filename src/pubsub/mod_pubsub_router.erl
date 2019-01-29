@@ -27,7 +27,7 @@ handle_cast({route, From, To, Acc},
             #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
     Packet = mongoose_acc:element(Acc),
     case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
-        {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
+        {'EXIT', Reason} -> ?ERROR_MSG("Function do_route failed with ~p\n", [Reason]);
         _ ->
             ok
     end,
