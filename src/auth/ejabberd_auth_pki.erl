@@ -81,7 +81,12 @@ do_authorize({RequestedName, [], CommonName}) ->
     RequestedName;
 do_authorize({RequestedName, XmppAddrList, _}) ->
     %% check if RequestedName matches any of XmppAddrList
-    RequestedName;
+    case lists:filter(fun(XmppAddr) -> XmppAddr == RequestedName end, XmppAddrList) of
+        [OneAddr] ->
+            get_username(OneAddr);
+        _ ->
+            {error, <<"not-authorized">>}
+    end;
 do_authorize(_) ->
     {error, <<"not-authorized">>}.
 
@@ -148,3 +153,6 @@ check_password(_, _, _, _, _) -> false.
 get_credentials(Cred, Key) ->
     mongoose_credentials:get(Cred, Key, undefined).
 
+get_username(Jid) ->
+    JidRecord = jid:binary_to_bare(Jid),
+    JidRecord#jid.user.
