@@ -14,18 +14,21 @@ all() ->
 
 groups() ->
     G = [{fast_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
-	 {just_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
-	 {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
-	 {just_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()}],
+         {just_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
+         {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
+         {just_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
-    [cert_with_cn_xmpp_addrs_requested_correct_user,
+    [
+     cert_with_cn_xmpp_addrs_requested_correct_user,
+     cert_with_cn_no_xmpp_addrs_requested_correct_user,
      cert_with_cn_xmpp_addrs_request_name_empty,
      cert_with_cn_no_xmpp_addrs_request_name_empty,
      cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_xmpp_addrs_request_name_empty_bosh,
-     no_cert_fails_to_authenticate].
+     no_cert_fails_to_authenticate
+    ].
 
 self_signed_test_cases() ->
     [self_signed_cert_is_allowed_with_tls,
@@ -105,6 +108,14 @@ cert_with_cn_xmpp_addrs_requested_correct_user(C) ->
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
+
+cert_with_cn_no_xmpp_addrs_requested_correct_user(C) ->
+    UserSpec = [{requested_name, <<"mike@localhost">>} |
+		generate_user_tcp(C, "mike")],
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+
+    escalus_connection:stop(Client).
+
 
 cert_with_cn_xmpp_addrs_request_name_empty(C) ->
     UserSpec = generate_user_tcp(C, "bob"),
@@ -194,6 +205,7 @@ generate_certs(C) ->
 	     CertSpec <- [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
 			  #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
 			  #{cn => "john"},
+			  #{cn => "mike", xmpp_addrs => []},
 			  #{cn => "alice-self-signed", signed => self}]],
     [{certs, maps:from_list(Certs)} | C].
 
