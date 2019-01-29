@@ -192,8 +192,8 @@ create_node(Nidx, Owner) ->
 del_node(Nidx) ->
     {ok, States} = get_states(Nidx),
     lists:foreach(fun (#pubsub_state{stateid = {LJID, _}, items = Items}) ->
-                          del_items(Nidx, Items),
-                          del_state(Nidx, LJID)
+                        spawn_link(fun() -> del_items(Nidx, Items) end),
+                        spawn_link(fun() -> del_state(Nidx, LJID) end)
                   end, States),
     {ok, States}.
 
@@ -460,7 +460,9 @@ set_item(Item) ->
 
 -spec del_item(Nidx :: mod_pubsub:nodeIdx(), ItemId :: mod_pubsub:itemId()) -> ok.
 del_item(Nidx, ItemId) ->
-    mnesia:delete({pubsub_item, {ItemId, Nidx}}).
+    mnesia:transaction(fun() ->
+        mnesia:delete({pubsub_item, {ItemId, Nidx}})
+    end).
 
 -spec del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
 del_items(Nidx, ItemIds) ->
@@ -475,8 +477,15 @@ del_items(Nidx, ItemIds) ->
                LJID :: jid:ljid()) -> ok.
 del_state(Nidx, LJID) ->
     {ok, #pubsub_state{ subscriptions = Subs }} = get_state(Nidx, LJID, write),
-    lists:foreach(fun({_, SubId}) -> mnesia:delete({pubsub_subscription, SubId}) end, Subs),
-    mnesia:delete({pubsub_state, {LJID, Nidx}}).
+    lists:foreach(
+        fun({_, SubId}) ->
+            mnesia:transaction(fun() ->
+                mnesia:delete({pubsub_subscription, SubId})
+            end)
+        end, Subs),
+    mnesia:transaction(fun() ->
+        mnesia:delete({pubsub_state, {LJID, Nidx}})
+    end).
 
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),
                 LJID :: jid:ljid(),
