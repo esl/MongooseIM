@@ -235,11 +235,9 @@ find_nodes_by_key(Key) ->
                                 Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
     [mod_pubsub:pubsubNode()].
 find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _}} = N
-                    <- mnesia:table(pubsub_node),
-                    Node <- Nodes, Key == NHost, Pred(Node, N)]),
-    qlc:e(Q).
+    NodeRecs = [{Node, find_node_by_name(Key, Node)} || Node <- Nodes],
+    [NodeRec || {Node, NodeRec} <- NodeRecs, Pred(Node, NodeRec)].
+
 
 oid(Key, Name) -> {Key, Name}.
 
@@ -252,12 +250,7 @@ delete_node(#pubsub_node{nodeid = NodeId}) ->
 -spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
     [mod_pubsub:pubsubNode()].
 get_subnodes(Key, <<>>) ->
-    Q = qlc:q([N
-               || #pubsub_node{nodeid = {NKey, _},
-                               parents = []} = N
-                  <- mnesia:table(pubsub_node),
-                  Key == NKey]),
-    qlc:e(Q);
+    mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, parents = [], _ = '_'});
 get_subnodes(Key, Node) ->
     Q = qlc:q([N
                || #pubsub_node{nodeid = {NKey, _},
