@@ -71,11 +71,15 @@ authorize(Creds) ->
     end.
 
 do_authorize({undefined, [OneXmppAddr], _ }) ->
-    %%  name from jid ?
-    OneXmppAddr;
+    get_username(OneXmppAddr);
 do_authorize({undefined, [], CommonName}) ->
     %% check if CommonName is correct jid
-    CommonName;
+    case is_binary(CommonName) of
+       true ->
+           CommonName;
+       _ ->
+            {error, <<"not-authorized">>}
+    end;
 do_authorize({RequestedName, [], CommonName}) ->
     %% check if RequestedName matches ComonName
     RequestedName;
