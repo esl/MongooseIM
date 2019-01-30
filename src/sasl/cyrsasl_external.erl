@@ -27,6 +27,7 @@
 -xep([{xep, 178}, {version, "1.1"}, {comment, "partially implemented."}]).
 
 -include("mongoose.hrl").
+-include("jlib.hrl").
 
 -export([start/1, stop/0, mech_new/2, mech_step/2]).
 
@@ -60,37 +61,52 @@ maybe_extract_certs(Cert, Creds) ->
 
 -spec mech_step(State :: sasl_external_state(),
                 ClientIn :: binary()) -> {ok, mongoose_credentials:t()} | {error, binary()}.
-mech_step(#state{creds = Creds} = State, User) ->
+mech_step(#state{creds = Creds}, User) ->
     case mongoose_credentials:get(Creds, cert_file) of
         false ->
             {error, <<"not-authorized">>};
         true ->
-            do_mech_step(State, User)
+            do_mech_step(Creds, User)
+    end.
+do_mech_step(Creds, User) ->
+    XmppAddrs = mongoose_credentials:get(Creds, xmpp_addresses),
+    CommonName = mongoose_credentials:get(Creds, common_name),
+    case authorize(XmppAddrs, CommonName, User) of
+        {error, Error} ->
+            {error, Error};
+        Name ->
+            NewCreds = mongoose_credentials:extend(Creds, [{username, Name}]),
+            ejabberd_auth:authorize(NewCreds)
     end.
 
-do_mech_step(#state{creds = Creds}, <<"">>) ->
-    case mongoose_credentials:get(Creds, xmpp_addresses) of
-        [_OneXmppAddr] ->
-            authorize(Creds);
-        [] ->
-            authorize(Creds);
+authorize([], CommonName, <<"">>) ->
+    case is_binary(CommonName) of
+        true ->
+            CommonName;
         _ ->
-            {error, <<"invalid-authzid">>}
+            {error, <<"not-authorized">>}
     end;
-do_mech_step(#state{creds = Creds}, User) ->
-    case mongoose_credentials:get(Creds, xmpp_addresses) of
-        [_OneXmppAddr] ->
-            {error, <<"invalid-authzid">>};
+authorize([OneXmppAddr], _, <<"">>) ->
+    get_username(OneXmppAddr);
+authorize(_, _,  <<"">>) ->
+            {error, <<"not-authorized">>};
+authorize([], undefined,  User) ->
+    get_username(User);
+authorize([], RequestedName,  User) ->
+    case get_username(User) of
+        RequestedName ->
+            RequestedName;
         _ ->
-            authorize(mongoose_credentials:set(Creds, requested_name, User))
-    end.
-
-authorize(Creds) ->
-    %% auth backend is responsible to add username to Creds.
-    case ejabberd_auth:authorize(Creds) of
-        {ok, NewCreds} -> {ok, NewCreds};
-        {error, invalid_authid} -> {error, <<"invalid-authzid">>};
-        _ -> {error, <<"not-authorized">>}
+            {error, <<"not-authorized">>}
+    end;
+authorize([_], _,  _) ->
+             {error, <<"invalid-authzid">>};
+authorize(XmppAddrs, _,  User) ->
+    case lists:filter(fun(XmppAddr) -> XmppAddr == User end, XmppAddrs) of
+        [OneAddr] ->
+            get_username(OneAddr);
+        _ ->
+            {error, <<"not-authorized">>}
     end.
 
 get_common_name(Cert) ->
@@ -104,3 +120,12 @@ get_xmpp_addresses(Cert) ->
         [] -> [{xmpp_addresses, []}];
         XmmpAddresses -> [{xmpp_addresses, XmmpAddresses}]
     end.
+
+get_credentials(Cred, Key) ->
+    mongoose_credentials:get(Cred, Key, undefined).
+
+get_username(<<"">>) ->
+    <<"">>;
+get_username(Jid) ->
+    JidRecord = jid:binary_to_bare(Jid),
+    JidRecord#jid.user.
