@@ -22,8 +22,10 @@ groups() ->
 common_test_cases() ->
     [
      cert_with_cn_xmpp_addrs_requested_correct_user,
+     cert_with_cn_one_xmpp_addr_requested_correct_user,
      cert_with_cn_no_xmpp_addrs_requested_correct_user,
      cert_with_cn_xmpp_addrs_request_name_empty,
+     cert_with_cn_one_xmpp_addrs_request_name_empty,
      cert_with_cn_no_xmpp_addrs_request_name_empty,
      cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_xmpp_addrs_request_name_empty_bosh,
@@ -109,19 +111,35 @@ cert_with_cn_xmpp_addrs_requested_correct_user(C) ->
 
     escalus_connection:stop(Client).
 
+cert_with_cn_one_xmpp_addr_requested_correct_user(C) ->
+    UserSpec = [{requested_name, <<"bob@localhost">>} |
+		generate_user_tcp(C, "bob")],
+    cert_fails_to_authenticate(UserSpec).
+
+
 cert_with_cn_no_xmpp_addrs_requested_correct_user(C) ->
-    UserSpec = [{requested_name, <<"mike@localhost">>} |
-		generate_user_tcp(C, "mike")],
+    UserSpec = [{requested_name, <<"john@localhost">>} |
+		generate_user_tcp(C, "john")],
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
-
 cert_with_cn_xmpp_addrs_request_name_empty(C) ->
+    UserSpec = generate_user_tcp(C, "not-alice-name"),
+    cert_fails_to_authenticate(UserSpec).
+
+cert_with_cn_one_xmpp_addrs_request_name_empty(C) ->
     UserSpec = generate_user_tcp(C, "bob"),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
+
+cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
+    UserSpec = generate_user_tcp(C, "john"),
+    {ok, Client, _} = escalus_connection:start(UserSpec),
+
+    escalus_connection:stop(Client).
+
 
 cert_with_cn_xmpp_addrs_request_name_empty_ws(C) ->
     UserSpec = generate_user(C, "bob", escalus_ws),
@@ -135,12 +153,6 @@ cert_with_cn_xmpp_addrs_request_name_empty_bosh(C) ->
 
     escalus_connection:stop(Client).
 
-cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
-    UserSpec = generate_user_tcp(C, "john"),
-    {ok, Client, _} = escalus_connection:start(UserSpec),
-
-    escalus_connection:stop(Client).
-
 self_signed_cert_fails_to_authenticate_with_tls(C) ->
     self_signed_cert_fails_to_authenticate(C, escalus_tcp).
 
@@ -149,6 +161,27 @@ self_signed_cert_fails_to_authenticate_with_ws(C) ->
 
 self_signed_cert_fails_to_authenticate_with_bosh(C) ->
     self_signed_cert_fails_to_authenticate(C, escalus_bosh).
+
+cert_fails_to_authenticate(UserSpec) ->
+    Self = self(),
+    F = fun() ->
+		{ok, Client, _} = escalus_connection:start(UserSpec),
+		Self ! escalus_connected,
+		escalus_connection:stop(Client)
+	end,
+    %% We spawn the process trying to connect because otherwise the testcase may crash
+    %% due linked process crash (client's process are started with start_link)
+    Pid = spawn(F),
+    MRef = erlang:monitor(process, Pid),
+
+    receive
+	{'DOWN', MRef, process, Pid, _Reason} ->
+	    ok;
+	escalus_connected ->
+	    ct:fail(authenticated_but_should_not)
+    after 10000 ->
+	      ct:fail(timeout_waiting_for_authentication_error)
+    end.
 
 self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
     Self = self(),
@@ -202,10 +235,10 @@ no_cert_fails_to_authenticate(_C) ->
 
 generate_certs(C) ->
     Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec)} ||
-	     CertSpec <- [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
+	     CertSpec <-
+             [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
 			  #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
 			  #{cn => "john"},
-			  #{cn => "mike", xmpp_addrs => []},
 			  #{cn => "alice-self-signed", signed => self}]],
     [{certs, maps:from_list(Certs)} | C].
 
