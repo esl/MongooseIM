@@ -3558,8 +3558,17 @@ get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
             Other
     end.
 
-broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
+broadcast_stanza(Host, Node, Nidx, Type, NodeOptions,
                  SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+    %% This can reorder broadcasted stanzas, in case node is updated too often
+    F = fun() ->
+            do_broadcast_stanza(Host, Node, Nidx, Type, NodeOptions,
+                                SubsByDepth, NotifyType, BaseStanza, SHIM)
+        end,
+    proc_lib:spawn(F).
+
+do_broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
+                    SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     NotificationType = get_option(NodeOptions, notification_type, headline),
     %% Option below is not standard, but useful
     BroadcastAll = get_option(NodeOptions, broadcast_all_resources),
