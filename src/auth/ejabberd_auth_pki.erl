@@ -59,46 +59,7 @@ set_password(_, _, _) -> {error, not_allowed}.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()} | {error, any()}.
 authorize(Creds) ->
-    Credentials = { get_credentials(Creds, requested_name),
-                    get_credentials(Creds, xmpp_addresses),
-                    get_credentials(Creds, common_name)},
-    case do_authorize(Credentials) of
-        {error, <<"not-authorized">>} ->
-            {error, <<"not-authorized">>};
-        UserName ->
-            {ok, mongoose_credentials:extend(Creds, [{username, UserName},
-                                                     {auth_module, ?MODULE}])}
-    end.
-
-do_authorize({undefined, [OneXmppAddr], _ }) ->
-    get_username(OneXmppAddr);
-do_authorize({undefined, [], CommonName}) ->
-    %% check if CommonName is correct jid
-    case is_binary(CommonName) of
-        true ->
-            CommonName;
-        _ ->
-            {error, <<"not-authorized">>}
-    end;
-do_authorize({RequestedName, [], CommonName}) ->
-    %% check if RequestedName matches ComonName
-    case get_username(RequestedName) of
-        CommonName ->
-            CommonName;
-        _ ->
-            {error, <<"not-authorized">>}
-    end;
-do_authorize({RequestedName, XmppAddrList, _}) ->
-    %% check if RequestedName matches any of XmppAddrList
-    case lists:filter(fun(XmppAddr) -> XmppAddr == RequestedName end, XmppAddrList) of
-        [OneAddr] ->
-            get_username(OneAddr);
-        _ ->
-            {error, <<"not-authorized">>}
-    end;
-do_authorize(_) ->
-    {error, <<"not-authorized">>}.
-
+            {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])}.
 
 -spec try_register( User :: ejabberd:luser(),
                     Server :: ejabberd:lserver(),
@@ -159,9 +120,3 @@ check_password(_, _, _, _, _) -> false.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% internal functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-get_credentials(Cred, Key) ->
-    mongoose_credentials:get(Cred, Key, undefined).
-
-get_username(Jid) ->
-    JidRecord = jid:binary_to_bare(Jid),
-    JidRecord#jid.user.
