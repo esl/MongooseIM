@@ -27,6 +27,7 @@ common_test_cases() ->
      cert_with_cn_xmpp_addrs_request_name_empty,
      cert_with_cn_one_xmpp_addrs_request_name_empty,
      cert_with_cn_no_xmpp_addrs_request_wrong_name,
+     cert_with_cn_xmpp_addrs_request_wrong_name,
      cert_with_cn_no_xmpp_addrs_request_name_empty,
      cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_xmpp_addrs_request_name_empty_bosh,
@@ -146,6 +147,11 @@ cert_with_cn_no_xmpp_addrs_request_wrong_name(C) ->
 		generate_user_tcp(C, "not-mike-name")],
     cert_fails_to_authenticate(UserSpec).
 
+cert_with_cn_xmpp_addrs_request_wrong_name(C) ->
+    UserSpec = [{requested_name, <<"grace@localhost">>} |
+		generate_user_tcp(C, "grace-no-address")],
+    cert_fails_to_authenticate(UserSpec).
+
 cert_with_cn_xmpp_addrs_request_name_empty_ws(C) ->
     UserSpec = generate_user(C, "bob", escalus_ws),
     {ok, Client, _} = escalus_connection:start(UserSpec),
@@ -240,12 +246,12 @@ no_cert_fails_to_authenticate(_C) ->
 
 generate_certs(C) ->
     Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec)} ||
-	     CertSpec <-
-             [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
-			  #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
-			  #{cn => "john"},
-			  #{cn => "not-mike-name"},
-			  #{cn => "alice-self-signed", signed => self}]],
+             CertSpec <- [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
+                          #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
+                          #{cn => "john"},
+                          #{cn => "not-mike-name"},
+                          #{cn => "grace-no-address", xmpp_addrs => ["grace@fed1", "grace@reg1"]},
+                          #{cn => "alice-self-signed", signed => self}]],
     [{certs, maps:from_list(Certs)} | C].
 
 generate_cert(C, #{cn := User} = CertSpec) ->
