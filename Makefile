@@ -15,6 +15,7 @@ clean:
 	-rm -rf _build
 	-rm rel/configure.vars.config
 	-rm rel/vars.config
+	-rm src/eldap_filter_yecc.erl
 
 # REBAR_CT_EXTRA_ARGS comes from a test runner
 ct:
