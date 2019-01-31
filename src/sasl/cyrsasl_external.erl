@@ -45,7 +45,7 @@ stop() ->
 
 -spec mech_new(Host :: ejabberd:server(),
                Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}.
-mech_new(_Host, Creds) ->
+mech_new(Host, Creds) ->
     Cert = mongoose_credentials:get(Creds, client_cert, no_cert),
     maybe_extract_certs(Cert, Creds).
 
@@ -71,7 +71,8 @@ mech_step(#state{creds = Creds}, User) ->
 do_mech_step(Creds, User) ->
     XmppAddrs = get_credentials(Creds, xmpp_addresses),
     CommonName = get_credentials(Creds, common_name),
-    case check_auth_req(XmppAddrs, CommonName, User) of
+    Server = mongoose_credentials:lserver(Creds),
+    case check_auth_req(XmppAddrs, CommonName, User, Server) of
         {error, Error} ->
             {error, Error};
         {ok, Name} ->
@@ -79,32 +80,32 @@ do_mech_step(Creds, User) ->
             ejabberd_auth:authorize(NewCreds)
     end.
 
-check_auth_req([], CommonName, <<"">>) ->
+check_auth_req([], CommonName, <<"">>, _) ->
     case is_binary(CommonName) of
         true ->
             {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
     end;
-check_auth_req([OneXmppAddr], _, <<"">>) ->
-    {ok, get_username(OneXmppAddr)};
-check_auth_req(_, _,  <<"">>) ->
+check_auth_req([OneXmppAddr], _, <<"">>, Server) ->
+    verify_server(OneXmppAddr, Server);
+check_auth_req(_, _,  <<"">>, _) ->
     {error, <<"not-authorized">>};
-check_auth_req([], undefined,  User) ->
-    {ok, get_username(User)};
-check_auth_req([], RequestedName,  User) ->
-    case get_username(User) of
-        RequestedName ->
-            {ok, RequestedName};
+check_auth_req([], undefined,  User, Server) ->
+    verify_server(User, Server);
+check_auth_req([], CommonName,  User, Server) ->
+    case verify_server(User, Server) of
+        {ok, CommonName} ->
+            {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
     end;
-check_auth_req([_], _,  _) ->
+check_auth_req([_], _,  _, _) ->
     {error, <<"invalid-authzid">>};
-check_auth_req(XmppAddrs, _,  User) ->
-    case lists:filter(fun(XmppAddr) -> XmppAddr == User end, XmppAddrs) of
-        [OneAddr] ->
-            {ok, get_username(OneAddr)};
+check_auth_req(XmppAddrs, _,  User, Server) ->
+    case lists:member(User, XmppAddrs) of
+        true ->
+            verify_server(User, Server);
         _ ->
             {error, <<"not-authorized">>}
     end.
@@ -124,8 +125,11 @@ get_xmpp_addresses(Cert) ->
 get_credentials(Cred, Key) ->
     mongoose_credentials:get(Cred, Key, undefined).
 
-get_username(<<"">>) ->
-    <<"">>;
-get_username(Jid) ->
+verify_server(Jid, Server) ->
     JidRecord = jid:binary_to_bare(Jid),
-    JidRecord#jid.user.
+    case JidRecord#jid.lserver of
+        Server ->
+            {ok, JidRecord#jid.user};
+        _ ->
+            {error, <<"not-authorized">>}
+    end.
