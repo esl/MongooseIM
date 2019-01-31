@@ -17,20 +17,18 @@
 ]).
 
 init([State]) ->
-    io:fwrite("Worker started ~p;~p;\n", [?MODULE, self()]),
     {ok, State}.
 
-handle_call(_Msg, _From, State) ->
-    {reply, ok, State}.
+handle_call(Msg, _From, State) ->
+    {reply, Msg, State}.
 
-handle_cast({route, From, To, Acc},
-            #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
+handle_cast({route, From, To, Acc,
+            #state{server_host = ServerHost, access = Access, plugins = Plugins} = State},
+            _) ->
     Packet = mongoose_acc:element(Acc),
     case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
         {'EXIT', Reason} -> ?ERROR_MSG("Function do_route failed with ~p\n", [Reason]);
         _ ->
             ok
     end,
-    {noreply, State};
-
-handle_cast(_Msg, State) -> {noreply, State}.
+    {noreply, State}.

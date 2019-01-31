@@ -57,9 +57,6 @@
 -include("jlib.hrl").
 -include("pubsub.hrl").
 
--define(HANDLERS_POOL_NAME, my_pool).
--define(HANDLERS_POOL_SIZE, 5).
-
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/6, out_subscription/5,
@@ -198,11 +195,22 @@ start(Host, Opts) ->
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  transient, 1000, worker, [?MODULE]},
     ensure_metrics(Host),
-    ejabberd_sup:start_child(ChildSpec).
+    R = ejabberd_sup:start_child(ChildSpec),
+    %% Wpool would call mongoose_pubsub_router:init with InitOpts
+    InitOpts = [init_send_loop(Host)],
+    Worker = {mod_pubsub_router, InitOpts},
+    WpoolOptsIn = [
+        {workers, 10},
+        {worker, Worker},
+        {strategy, random_worker}
+    ],
+    mongoose_wpool:start(generic, Host, pubsub_router, WpoolOptsIn),
+    R.
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
+    mongoose_wpool:stop(generic, Host, pubsub_router),
     ejabberd_sup:stop_child(Proc).
 
 -spec default_host() -> binary().
@@ -210,13 +218,17 @@ default_host() ->
     <<"pubsub.@HOST@">>.
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     Pid :: pid()) -> any().
-process_packet(Acc, From, To, El, _Pid) ->
-    Msg = {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+                     any()) -> any().
+process_packet(Acc, From, To, El, {State, Host}) ->
+    Msg = {route,
+           From,
+           To,
+           mongoose_acc:strip(#{ lserver => From#jid.lserver,
                                                   from_jid => From,
                                                   to_jid => To,
-                                                  element => El }, Acc)},
-    wpool:cast(?HANDLERS_POOL_NAME, Msg, random_worker).
+                                                  element => El }, Acc),
+            State},
+    mongoose_wpool:cast(generic, Host, pubsub_router, Msg).
 
 %%====================================================================
 %% gen_server callbacks
@@ -255,12 +267,7 @@ init([ServerHost, Opts]) ->
     end,
 
     {_, State} = init_send_loop(ServerHost),
-
-    % TODO extract to supervision tree !!
-    wpool:start(),
-
-    {ok, Pid} = wpool:start_pool(?HANDLERS_POOL_NAME, [{workers, ?HANDLERS_POOL_SIZE}, {worker, {mod_pubsub_router, [State]}}]),
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, Pid)),
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, {State, ServerHost})),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->
