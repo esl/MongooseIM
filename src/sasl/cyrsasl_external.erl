@@ -69,42 +69,42 @@ mech_step(#state{creds = Creds}, User) ->
             do_mech_step(Creds, User)
     end.
 do_mech_step(Creds, User) ->
-    XmppAddrs = mongoose_credentials:get(Creds, xmpp_addresses),
-    CommonName = mongoose_credentials:get(Creds, common_name),
-    case authorize(XmppAddrs, CommonName, User) of
+    XmppAddrs = get_credentials(Creds, xmpp_addresses),
+    CommonName = get_credentials(Creds, common_name),
+    case check_auth_req(XmppAddrs, CommonName, User) of
         {error, Error} ->
             {error, Error};
-        Name ->
+        {ok, Name} ->
             NewCreds = mongoose_credentials:extend(Creds, [{username, Name}]),
             ejabberd_auth:authorize(NewCreds)
     end.
 
-authorize([], CommonName, <<"">>) ->
+check_auth_req([], CommonName, <<"">>) ->
     case is_binary(CommonName) of
         true ->
-            CommonName;
+            {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
     end;
-authorize([OneXmppAddr], _, <<"">>) ->
-    get_username(OneXmppAddr);
-authorize(_, _,  <<"">>) ->
-            {error, <<"not-authorized">>};
-authorize([], undefined,  User) ->
-    get_username(User);
-authorize([], RequestedName,  User) ->
+check_auth_req([OneXmppAddr], _, <<"">>) ->
+    {ok, get_username(OneXmppAddr)};
+check_auth_req(_, _,  <<"">>) ->
+    {error, <<"not-authorized">>};
+check_auth_req([], undefined,  User) ->
+    {ok, get_username(User)};
+check_auth_req([], RequestedName,  User) ->
     case get_username(User) of
         RequestedName ->
-            RequestedName;
+            {ok, RequestedName};
         _ ->
             {error, <<"not-authorized">>}
     end;
-authorize([_], _,  _) ->
-             {error, <<"invalid-authzid">>};
-authorize(XmppAddrs, _,  User) ->
+check_auth_req([_], _,  _) ->
+    {error, <<"invalid-authzid">>};
+check_auth_req(XmppAddrs, _,  User) ->
     case lists:filter(fun(XmppAddr) -> XmppAddr == User end, XmppAddrs) of
         [OneAddr] ->
-            get_username(OneAddr);
+            {ok, get_username(OneAddr)};
         _ ->
             {error, <<"not-authorized">>}
     end.
