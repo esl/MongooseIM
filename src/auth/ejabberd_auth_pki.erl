@@ -67,15 +67,15 @@ authorize(Creds) ->
                   ) -> ok | {error, exists | not_allowed | term()}.
 try_register(_, _, _) -> {error, not_allowed}.
 
--spec dirty_get_registered_users() -> [ejabberd:simple_bare_jid()].
+-spec dirty_get_registered_users() -> [jid:simple_bare_jid()].
 dirty_get_registered_users() -> [].
 
--spec get_vh_registered_users(Server :: ejabberd:lserver()) -> [ejabberd:simple_bare_jid()].
+-spec get_vh_registered_users(Server :: ejabberd:lserver()) -> [jid:simple_bare_jid()].
 get_vh_registered_users(_) -> [].
 
 -spec get_vh_registered_users( Server :: ejabberd:lserver(),
                                Opts :: list()
-                             ) -> [ejabberd:simple_bare_jid()].
+                             ) -> [jid:simple_bare_jid()].
 get_vh_registered_users(_, _) -> [].
 
 -spec get_vh_registered_users_number(Server :: ejabberd:lserver()) -> integer().
