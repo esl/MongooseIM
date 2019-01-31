@@ -26,9 +26,10 @@ common_test_cases() ->
      cert_with_cn_no_xmpp_addrs_requested_correct_user,
      cert_with_cn_xmpp_addrs_request_name_empty,
      cert_with_cn_one_xmpp_addrs_request_name_empty,
+     cert_with_cn_no_xmpp_addrs_request_name_empty,
      cert_with_cn_no_xmpp_addrs_request_wrong_name,
      cert_with_cn_xmpp_addrs_request_wrong_name,
-     cert_with_cn_no_xmpp_addrs_request_name_empty,
+     cert_with_cn_one_xmpp_addr_requested_wrong_hostname,
      cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_xmpp_addrs_request_name_empty_bosh,
      no_cert_fails_to_authenticate
@@ -150,6 +151,11 @@ cert_with_cn_no_xmpp_addrs_request_wrong_name(C) ->
 cert_with_cn_xmpp_addrs_request_wrong_name(C) ->
     UserSpec = [{requested_name, <<"grace@localhost">>} |
 		generate_user_tcp(C, "grace-no-address")],
+    cert_fails_to_authenticate(UserSpec).
+
+cert_with_cn_one_xmpp_addr_requested_wrong_hostname(C) ->
+    UserSpec = [{requested_name, <<"bob@fed1">>} |
+		generate_user_tcp(C, "bob")],
     cert_fails_to_authenticate(UserSpec).
 
 cert_with_cn_xmpp_addrs_request_name_empty_ws(C) ->
