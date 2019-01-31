@@ -239,13 +239,16 @@ stop(Host) ->
 default_host() ->
     <<"pubsub.@HOST@">>.
 
+%% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     Pid :: pid()) -> any().
-process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+                     State :: #state{}) -> any().
+process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
+    Acc2 = mongoose_acc:strip(#{ lserver => From#jid.lserver,
                                                   from_jid => From,
                                                   to_jid => To,
-                                                  element => El }, Acc)}.
+                                                  element => El }, Acc),
+    Packet = mongoose_acc:element(Acc2),
+    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
 
 %%====================================================================
 %% gen_server callbacks
@@ -282,9 +285,10 @@ init([ServerHost, Opts]) ->
         false ->
             ok
     end,
-
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
     {_, State} = init_send_loop(ServerHost),
+
+    %% Pass State as extra into ?MODULE:process_packet/5 function
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, State)),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->
@@ -894,11 +898,6 @@ handle_call(stop, _From, State) ->
 %% @private
 handle_cast(_Msg, State) -> {noreply, State}.
 
--spec handle_info(
-        _     :: {route, From::jid:jid(), To::jid:jid(), Packet::exml:element()},
-          State :: state())
-        -> {noreply, state()}.
-
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%                                       {noreply, State, Timeout} |
@@ -906,14 +905,6 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Acc},
-            #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
-    Packet = mongoose_acc:element(Acc),
-    case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
-        {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
-        _ -> ok
-    end,
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
