@@ -436,16 +436,16 @@ content_type() ->
     {<<"content-type">>, <<"text/xml; charset=utf8">>}.
 
 ac_allow_origin(Origin) ->
-    {<<"Access-Control-Allow-Origin">>, Origin}.
+    {<<"access-control-allow-origin">>, Origin}.
 
 ac_allow_methods() ->
-    {<<"Access-Control-Allow-Methods">>, <<"POST, OPTIONS, GET">>}.
+    {<<"access-control-allow-methods">>, <<"POST, OPTIONS, GET">>}.
 
 ac_allow_headers() ->
-    {<<"Access-Control-Allow-Headers">>, <<"Content-Type">>}.
+    {<<"access-control-allow-headers">>, <<"content-type">>}.
 
 ac_max_age() ->
-    {<<"Access-Control-Max-Age">>, integer_to_binary(?DEFAULT_MAX_AGE)}.
+    {<<"access-control-max-age">>, integer_to_binary(?DEFAULT_MAX_AGE)}.
 
 
 -spec ac_all('undefined' | binary()) -> headers_list().
