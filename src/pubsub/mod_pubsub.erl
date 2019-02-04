@@ -197,9 +197,13 @@ start(Host, Opts) ->
     ensure_metrics(Host),
     R = ejabberd_sup:start_child(ChildSpec),
     InitOpts = [init_send_loop(Host)],
+    WpoolSize = case proplists:get_value(backend, Opts, mnesia) of
+        mnesia -> 1;
+        _ -> proplists:get_value(worker_pool_size, Opts, 10)
+        end,
     Worker = {pubsub_router, InitOpts},
     WpoolOptsIn = [
-        {workers, 10},
+        {workers, WpoolSize},
         {worker, Worker},
         {strategy, random_worker}
     ],
