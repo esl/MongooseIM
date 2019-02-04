@@ -27,7 +27,14 @@ Please check [Listener modules](../advanced-configuration/Listener-modules.md#ht
 A `SASL EXTERNAL` authentication method is disabled by default.
 In order to enable it, please add [`sasl_mechanisms` option](../Advanced-configuration.md#authentication) to MongooseIM config file.
 Its value must include a `cyrsasl_external` item.
-Obviously the list may be longer, if the system should support both certificate and password based authentication.
+Obviously the list may be longer, if the system should support both the certificate and password based authentication.
+The `SASL EXTERNAL` authentication method requires using the digital
+certificates. If the `xmpp_addrs` fields are included in the certificate, they are always checked first.
+When no `xmpp_addrs` are specified, the `cn` (_common name_) field might be
+used, but it is optional. If there is more than one `xmpp_addrs` or both the
+list and `cn` field are empty, the client must include
+authorization entity.
+For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
 ### Enable compatible authentication backend
 
