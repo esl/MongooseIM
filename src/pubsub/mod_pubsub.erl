@@ -99,6 +99,11 @@
 
 -export([send_loop/1]).
 
+%% for pubsub_router
+-export([
+    do_route/7
+]).
+
 -define(PROCNAME, ejabberd_mod_pubsub).
 -define(LOOPNAME, ejabberd_mod_pubsub_loop).
 
@@ -228,11 +233,21 @@ start(Host, Opts) ->
     ChildSpec = {Proc, {?MODULE, start_link, [Host, Opts]},
                  transient, 1000, worker, [?MODULE]},
     ensure_metrics(Host),
-    ejabberd_sup:start_child(ChildSpec).
+    R = ejabberd_sup:start_child(ChildSpec),
+    InitOpts = [init_send_loop(Host)],
+    Worker = {pubsub_router, InitOpts},
+    WpoolOptsIn = [
+        {workers, 10},
+        {worker, Worker},
+        {strategy, random_worker}
+    ],
+    mongoose_wpool:start(generic, Host, pubsub_router, WpoolOptsIn),
+    R.
 
 stop(Host) ->
     Proc = gen_mod:get_module_proc(Host, ?PROCNAME),
     gen_server:call(Proc, stop),
+    mongoose_wpool:stop(generic, Host, pubsub_router),
     ejabberd_sup:stop_child(Proc).
 
 -spec default_host() -> binary().
@@ -240,12 +255,17 @@ default_host() ->
     <<"pubsub.@HOST@">>.
 
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     Pid :: pid()) -> any().
-process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+                     any()) -> any().
+process_packet(Acc, From, To, El, {State, Host}) ->
+    Msg = {route,
+           From,
+           To,
+           mongoose_acc:strip(#{ lserver => From#jid.lserver,
                                                   from_jid => From,
                                                   to_jid => To,
-                                                  element => El }, Acc)}.
+                                                  element => El }, Acc),
+            State},
+    mongoose_wpool:cast(generic, Host, pubsub_router, Msg).
 
 %%====================================================================
 %% gen_server callbacks
@@ -283,8 +303,8 @@ init([ServerHost, Opts]) ->
             ok
     end,
 
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
     {_, State} = init_send_loop(ServerHost),
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, {State, ServerHost})),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->
@@ -906,14 +926,6 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Acc},
-            #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
-    Packet = mongoose_acc:element(Acc),
-    case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
-        {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
-        _ -> ok
-    end,
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
