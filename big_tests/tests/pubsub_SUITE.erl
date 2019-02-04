@@ -644,11 +644,15 @@ retract_when_user_goes_offline_test(Config) ->
               pubsub_tools:publish(Bob, <<"item2">>, Node, []),
               pubsub_tools:get_all_items(Alice, Node,
                                          [{expected_result, [<<"item2">>, <<"item1">>]}]),
-
               escalus_client:stop(Config, Bob),
-              pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
+              mongoose_helper:wait_until(
+                fun() ->
+                      pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item1">>]}])
+                end,
+                [#{id => ok}],
+                #{time_left => timer:seconds(5), time_sleep => timer:seconds(1)}),
 
-              pubsub_tools:delete_node(Alice, Node, [])
+              pubsub_tools:delete_node(Alice, Node,  [])
       end).
 
 purge_all_items_test(Config) ->
