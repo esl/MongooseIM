@@ -57,12 +57,6 @@
 -include("jlib.hrl").
 -include("pubsub.hrl").
 
--define(STDTREE, <<"tree">>).
--define(STDNODE, <<"flat">>).
--define(STDNODE_MODULE, node_flat).
--define(PEPNODE, <<"pep">>).
--define(PUSHNODE, <<"push">>).
-
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/6, out_subscription/5,
@@ -186,38 +180,6 @@
            creation :: {erlang:timestamp(), jid:ljid()},
            payload  :: mod_pubsub:payload()
           }
-        ).
-
--record(state,
-        {
-          server_host,
-          host,
-          access,
-          pep_mapping             = [],
-          ignore_pep_from_offline = true,
-          last_item_cache         = false,
-          max_items_node          = ?MAXITEMS,
-          max_subscriptions_node  = undefined,
-          default_node_config     = [],
-          nodetree                = <<"nodetree_", (?STDTREE)/binary>>,
-          plugins                 = [?STDNODE]
-        }).
-
--type(state() ::
-        #state{
-           server_host             :: binary(),
-           host                    :: mod_pubsub:hostPubsub(),
-           access                  :: atom(),
-           pep_mapping             :: [{binary(), binary()}],
-           ignore_pep_from_offline :: boolean(),
-           last_item_cache         :: mnesia | rdbms | false,
-           max_items_node          :: non_neg_integer(),
-           max_subscriptions_node  :: non_neg_integer()|undefined,
-           default_node_config     :: [{atom(), binary()|boolean()|integer()|atom()}],
-           nodetree                :: binary(),
-           plugins                 :: [binary(), ...]
-          }
-
         ).
 
 
