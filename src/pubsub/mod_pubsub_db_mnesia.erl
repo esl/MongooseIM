@@ -279,12 +279,43 @@ get_subnodes(Key, Node) ->
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_parentnodes_tree(Key, Node) ->
-    Pred = fun (NID, #pubsub_node{nodeid = {_, NNode}}) ->
-            NID == NNode
+    case find_node_by_name(Key, Node) of
+        false ->
+            [ {0, []} ]; %% node not found case
+
+        #pubsub_node{parents = []} = Record ->
+            [ {0, [Record]} ];
+
+        #pubsub_node{parents = Parents} = Record ->
+            Depth = 1,
+            %% To avoid accidental cyclic issues, let's maintain the list of known nodes
+            %% which we don't expand again
+            KnownNodesSet = sets:from_list([Node]),
+            extract_parents(Key, Node, Parents, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
+    end.
+
+extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
+    ParentRecords = find_node_by_names(Key, Parents),
+    KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Parents)),
+    %% Names of parents of parents
+    PPNames = lists:usort(lists:flatmap(fun(#pubsub_node{parents = PP}) -> PP end, ParentRecords)),
+    CyclicNames = [Name || Name <- PPNames, sets:is_element(Name, KnownNodesSet1)],
+    case CyclicNames of
+        [] -> [];
+        _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
     end,
-    Tr = fun (#pubsub_node{parents = Parents}) -> Parents
-    end,
-    traversal_helper(Pred, Tr, Key, [Node]).
+    PPNamesToGet = PPNames -- CyclicNames,
+    case PPNamesToGet of
+        [] -> [];
+        _ -> extract_parents(Key, InitialNode, PPNamesToGet, Depth + 1, KnownNodesSet1)
+    end ++ [ {Depth, ParentRecords} ].
+
+find_node_by_names(Key, Nodes) ->
+    %% Contains false for missing nodes
+    MaybeRecords = [find_node_by_name(Key, Node) || Node <- Nodes],
+    %% Filter out false-s
+    [Record || Record = #pubsub_node{} <- MaybeRecords].
+
 
 -spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
@@ -295,16 +326,6 @@ get_subnodes_tree(Key, Node) ->
     Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
     traversal_helper(Pred, Tr, 1, Key, [Node],
         [{0, [find_node_by_name(Key, Node)]}]).
-
-
--spec traversal_helper(
-        Pred    :: fun(),
-        Transform :: fun(),
-        Host    :: mod_pubsub:hostPubsub(),
-        Nodes :: [mod_pubsub:nodeId(), ...])
-        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
-traversal_helper(Pred, Tr, Host, Nodes) ->
-    traversal_helper(Pred, Tr, 0, Host, Nodes, []).
 
 traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
     Acc;
