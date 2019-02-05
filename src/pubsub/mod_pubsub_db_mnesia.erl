@@ -261,12 +261,7 @@ delete_node(#pubsub_node{nodeid = NodeId}) ->
 -spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
     [mod_pubsub:pubsubNode()].
 get_subnodes(Key, <<>>) ->
-    Q = qlc:q([N
-               || #pubsub_node{nodeid = {NKey, _},
-                               parents = []} = N
-                  <- mnesia:table(pubsub_node),
-                  Key == NKey]),
-    qlc:e(Q);
+    get_nodes_without_parents(Key);
 get_subnodes(Key, Node) ->
     Q = qlc:q([N
                || #pubsub_node{nodeid = {NKey, _},
@@ -275,6 +270,10 @@ get_subnodes(Key, Node) ->
                   <- mnesia:table(pubsub_node),
                     Key == NKey, lists:member(Node, Parents)]),
     qlc:e(Q).
+
+%% Warning: this function is full table scan and can return a lot of records
+get_nodes_without_parents(Key) ->
+    mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, parents = [], _ = '_'}).
 
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
@@ -294,6 +293,7 @@ get_parentnodes_tree(Key, Node) ->
             extract_parents(Key, Node, Parents, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
     end.
 
+%% Each call extract Parents on the level and recurse to the next level
 extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
     ParentRecords = find_node_by_names(Key, Parents),
     KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Parents)),
