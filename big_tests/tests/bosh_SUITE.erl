@@ -233,7 +233,7 @@ options_request(Config) ->
     fusco_cp:stop(Client),
     {{<<"200">>, <<"OK">>}, Headers, <<>>, _, _} = Result,
     <<"1728000">> = proplists:get_value(<<"access-control-max-age">>, Headers),
-    <<"Content-Type">> = proplists:get_value(<<"access-control-allow-headers">>, Headers),
+    <<"content-type">> = proplists:get_value(<<"access-control-allow-headers">>, Headers),
     <<"POST, OPTIONS, GET">> = proplists:get_value(<<"access-control-allow-methods">>, Headers),
     Server = proplists:get_value(<<"access-control-allow-origin">>, Headers).
 
