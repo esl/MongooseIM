@@ -41,7 +41,11 @@ init() ->
                          {attributes, record_info(fields, pubsub_index)}]).
 
 new(Index) ->
-    case mnesia:read({pubsub_index, Index}) of
+    %% Create a new short lived transaction to reduce lock contention
+    spawn_and_call(fun() -> mnesia:transaction(fun() -> new_transaction(Index) end) end).
+
+new_transaction(Index) ->
+    case mnesia:wread({pubsub_index, Index}) of
         [I] ->
             Id = I#pubsub_index.last + 1,
             mnesia:write(I#pubsub_index{last = Id}),
@@ -51,3 +55,18 @@ new(Index) ->
             1
     end.
 
+spawn_and_call(F) ->
+    Ref = make_ref(),
+    Parent = self(),
+    FF = fun() -> Result = F(), Parent ! {call_result, Ref, Result} end,
+    Pid = spawn_monitor(FF),
+    receive
+        {call_result, Ref, Result} ->
+            erlang:demonitor(Ref, [flush]),
+            Result;
+        {'DOWN', Ref, process, Pid, Reason} ->
+            erlang:error({spawn_and_call_failed, Reason})
+    after 5000 ->
+            erlang:demonitor(Ref, [flush]),
+            erlang:error(spawn_and_call_timeout)
+    end.
