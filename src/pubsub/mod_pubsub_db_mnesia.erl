@@ -12,6 +12,7 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include("mongoose_logger.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -export([start/0, stop/0]).
@@ -113,9 +114,17 @@ stop() ->
                   ErrorDebug :: map()) ->
     {result | error, any()}.
 transaction(Fun, ErrorDebug) ->
+    transaction(Fun, ErrorDebug, 3).
+
+transaction(Fun, ErrorDebug, Retries) ->
     case mnesia:transaction(mod_pubsub_db:extra_debug_fun(Fun)) of
         {atomic, Result} ->
             Result;
+        {aborted, ReasonData} when Retries > 0 ->
+            ?WARNING_MSG("event=transaction_retry retries=~p reason=~p debug=~p",
+                         [Retries, ReasonData, ErrorDebug]),
+            timer:sleep(100),
+            transaction(Fun, ErrorDebug, Retries - 1);
         {aborted, ReasonData} ->
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, transaction_failed)
     end.
