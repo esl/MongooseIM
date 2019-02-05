@@ -101,11 +101,27 @@ start() ->
                          {attributes, record_info(fields, pubsub_subscription)},
                          {type, set}]),
     mnesia:add_table_copy(pubsub_subscription, node(), disc_copies),
+    CreateSubnodeTableResult = mnesia:create_table(pubsub_subnode,
+                        [{disc_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_subnode)},
+                         {type, bag}]),
+    mnesia:add_table_copy(pubsub_subnode, node(), disc_copies),
+    maybe_fill_subnode_table(CreateSubnodeTableResult),
     pubsub_index:init(),
     ok.
 
 -spec stop() -> ok.
 stop() ->
+    ok.
+
+%% If pubsub_subnode table was missing, than fill it with data
+maybe_fill_subnode_table({atomic, ok}) ->
+    F = fun(#pubsub_node{} = Node, Acc) ->
+                set_subnodes(Node, []),
+                Acc
+        end,
+    mnesia:transaction(fun() -> mnesia:foldl(F, ok, pubsub_node) end);
+maybe_fill_subnode_table(_Other) ->
     ok.
 
 %% ------------------------ Fun execution ------------------------
@@ -209,11 +225,41 @@ del_node(Nidx) ->
 -spec set_node(mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
 set_node(#pubsub_node{id = undefined} = Node) ->
     CreateNode = Node#pubsub_node{id = pubsub_index:new(node)},
-    set_node(CreateNode);
-set_node(#pubsub_node{id = Nidx} = Node) ->
+    OldParents = [],
+    set_node(CreateNode, OldParents);
+set_node(Node) ->
+    OldParents = get_parentnodes_names(Node),
+    set_node(Node, OldParents).
+
+set_node(#pubsub_node{id = Nidx} = Node, OldParents) ->
     mnesia:write(Node),
+    set_subnodes(Node, OldParents),
     {ok, Nidx}.
 
+get_parentnodes_names(#pubsub_node{nodeid = NodeId}) ->
+    case mnesia:read(pubsub_node, NodeId, write) of
+        [] ->
+            [];
+        [#pubsub_node{parents = Parents}] ->
+            Parents
+    end.
+
+set_subnodes(#pubsub_node{parents = Parents}, Parents) ->
+    ok;
+set_subnodes(#pubsub_node{nodeid = NodeId, parents = NewParents}, OldParents) ->
+    set_subnodes(NodeId, NewParents, OldParents).
+
+set_subnodes({Key, Node}, NewParents, OldParents) ->
+    Deleted = OldParents -- NewParents,
+    Added = NewParents -- OldParents,
+    DeletedObjects = names_to_subnode_records(Key, Node, Deleted),
+    AddedObjects = names_to_subnode_records(Key, Node, Added),
+    lists:foreach(fun(Object) -> mnesia:delete_object(Object) end, DeletedObjects),
+    lists:foreach(fun(Object) -> mnesia:write(Object) end, AddedObjects),
+    ok.
+
+names_to_subnode_records(Key, Node, Parents) ->
+    [#pubsub_subnode{nodeid = {Key, Parent}, subnode = Node} || Parent <- Parents].
 
 -spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
@@ -239,22 +285,12 @@ find_node_by_name(Key, Node) ->
 find_nodes_by_key(Key) ->
     mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, _ = '_'}).
 
--spec find_nodes_by_id_and_pred(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
-                                Nodes :: [mod_pubsub:nodeId()],
-                                Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
-    [mod_pubsub:pubsubNode()].
-find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _}} = N
-                    <- mnesia:table(pubsub_node),
-                    Node <- Nodes, Key == NHost, Pred(Node, N)]),
-    qlc:e(Q).
-
 oid(Key, Name) -> {Key, Name}.
 
 
 -spec delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
-delete_node(#pubsub_node{nodeid = NodeId}) ->
+delete_node(#pubsub_node{nodeid = NodeId, parents = Parents}) ->
+    set_subnodes(NodeId, [], Parents),
     mnesia:delete({pubsub_node, NodeId}).
 
 
@@ -263,16 +299,12 @@ delete_node(#pubsub_node{nodeid = NodeId}) ->
 get_subnodes(Key, <<>>) ->
     get_nodes_without_parents(Key);
 get_subnodes(Key, Node) ->
-    Q = qlc:q([N
-               || #pubsub_node{nodeid = {NKey, _},
-                               parents = Parents} =
-                  N
-                  <- mnesia:table(pubsub_node),
-                    Key == NKey, lists:member(Node, Parents)]),
-    qlc:e(Q).
+    Subnodes = get_subnodes_names(Key, Node),
+    find_nodes_by_names(Key, Subnodes).
 
 get_subnodes_names(Key, Node) ->
-    [Name || #pubsub_node{nodeid = {_, Name}} <- get_subnodes(Key, Node)].
+    MnesiaRecords = mnesia:read({pubsub_subnode, {Key, Node}}),
+    [Subnode || #pubsub_subnode{subnode = Subnode} <- MnesiaRecords].
 
 %% Warning: this function is full table scan and can return a lot of records
 get_nodes_without_parents(Key) ->
@@ -352,13 +384,6 @@ extract_subnodes(Key, InitialNode, Subnodes, Depth, KnownNodesSet) ->
         [] -> [ {Depth + 1, []} ];
         _ -> extract_subnodes(Key, InitialNode, SSNamesToGet, Depth + 1, KnownNodesSet1)
     end ++ [ {Depth, SubnodesRecords} ].
-
-traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
-    Acc;
-traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
-    NodeRecs = find_nodes_by_id_and_pred(Host, Nodes, Pred),
-    IDs = lists:flatmap(Tr, NodeRecs),
-    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
 
 %% ------------------------ Affiliations ------------------------
 

@@ -160,3 +160,8 @@
     payload  % :: mod_pubsub:payload()
 }).
 
+-record(pubsub_subnode,
+{
+    nodeid   ,% :: mod_pubsub:nodeIdx(),
+    subnode   % :: mod_pubsub:nodeId()
+}).
