@@ -1,3 +1,6 @@
+%%% XEP-0248: PubSub Collection Nodes
+%%% DAG stands for Directed Acyclic Graph
+%%%
 %%% ====================================================================
 %%% ``The contents of this file are subject to the Erlang Public License,
 %%% Version 1.1, (the "License"); you may not use this file except in
