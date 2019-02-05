@@ -271,6 +271,9 @@ get_subnodes(Key, Node) ->
                     Key == NKey, lists:member(Node, Parents)]),
     qlc:e(Q).
 
+get_subnodes_names(Key, Node) ->
+    [Name || #pubsub_node{nodeid = {_, Name}} <- get_subnodes(Key, Node)].
+
 %% Warning: this function is full table scan and can return a lot of records
 get_nodes_without_parents(Key) ->
     mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, parents = [], _ = '_'}).
@@ -295,7 +298,7 @@ get_parentnodes_tree(Key, Node) ->
 
 %% Each call extract Parents on the level and recurse to the next level
 extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
-    ParentRecords = find_node_by_names(Key, Parents),
+    ParentRecords = find_nodes_by_names(Key, Parents),
     KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Parents)),
     %% Names of parents of parents
     PPNames = lists:usort(lists:flatmap(fun(#pubsub_node{parents = PP}) -> PP end, ParentRecords)),
@@ -310,7 +313,7 @@ extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
         _ -> extract_parents(Key, InitialNode, PPNamesToGet, Depth + 1, KnownNodesSet1)
     end ++ [ {Depth, ParentRecords} ].
 
-find_node_by_names(Key, Nodes) ->
+find_nodes_by_names(Key, Nodes) ->
     %% Contains false for missing nodes
     MaybeRecords = [find_node_by_name(Key, Node) || Node <- Nodes],
     %% Filter out false-s
@@ -320,12 +323,35 @@ find_node_by_names(Key, Nodes) ->
 -spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_subnodes_tree(Key, Node) ->
-    Pred = fun (NID, #pubsub_node{parents = Parents}) ->
-            lists:member(NID, Parents)
+    case find_node_by_name(Key, Node) of
+        false ->
+            [ {1, []}, {0, [false]} ]; %% node not found case
+
+        #pubsub_node{} = Record ->
+            Subnodes = get_subnodes_names(Key, Node),
+            Depth = 1,
+            %% To avoid accidental cyclic issues, let's maintain the list of known nodes
+            %% which we don't expand again
+            KnownNodesSet = sets:from_list([Node]),
+            extract_subnodes(Key, Node, Subnodes, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
+    end.
+
+%% Each call extract Subnodes on the level and recurse to the next level
+extract_subnodes(Key, InitialNode, Subnodes, Depth, KnownNodesSet) ->
+    SubnodesRecords = find_nodes_by_names(Key, Subnodes),
+    KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Subnodes)),
+    %% Names of subnodes of subnodes
+    SSNames = lists:usort(lists:flatmap(fun(Subnode) -> get_subnodes_names(Key, Subnode) end, Subnodes)),
+    CyclicNames = [Name || Name <- SSNames, sets:is_element(Name, KnownNodesSet1)],
+    case CyclicNames of
+        [] -> [];
+        _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
     end,
-    Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
-    traversal_helper(Pred, Tr, 1, Key, [Node],
-        [{0, [find_node_by_name(Key, Node)]}]).
+    SSNamesToGet = SSNames -- CyclicNames,
+    case SSNamesToGet of
+        [] -> [ {Depth + 1, []} ];
+        _ -> extract_subnodes(Key, InitialNode, SSNamesToGet, Depth + 1, KnownNodesSet1)
+    end ++ [ {Depth, SubnodesRecords} ].
 
 traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
     Acc;
