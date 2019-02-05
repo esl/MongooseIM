@@ -10,7 +10,9 @@
 -sname {{node_name}}
 
 ## Cookie for distributed erlang
--setcookie ejabberd
+## Please make sure this is randomly generated
+## and different for all your MongooseIM or Erlang clusters.
+-setcookie {{cluster_cookie}}
 
 ## Heartbeat management; auto-restarts VM if it dies or becomes unresponsive
 ## (Disabled by default..use with caution!)

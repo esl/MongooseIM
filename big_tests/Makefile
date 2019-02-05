@@ -23,7 +23,7 @@ else
 TLS_DIST_OPTS :=
 endif
 
-COMMON_OPTS := -sname test -setcookie ejabberd -hidden \
+COMMON_OPTS := -sname test -setcookie this_is_cookie_for_dev_nodes_only_do_not_use_it_on_production -hidden \
                $(TLS_DIST_OPTS) \
                -env REPO_DIR "$(ABS_REPO_DIR)" \
                -env TEST_DIR "$(ABS_TEST_DIR)" \
