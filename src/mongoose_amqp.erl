@@ -31,7 +31,7 @@
 
 
 %%%===================================================================
-%%% Types
+%%% Types and definitions
 %%%===================================================================
 
 -type network_params() :: #amqp_params_network{}.
@@ -45,6 +45,7 @@
 
 -type message() :: #amqp_msg{}.
 
+-define(DEFAULT_PORT, 5672).
 
 %%%===================================================================
 %%% API
@@ -90,11 +91,10 @@ message(Payload) ->
 %%% Helpers
 %%%===================================================================
 
-network_params(Opts, #amqp_params_network{host = Host, port = Port,
-                                          username = UserName,
+network_params(Opts, #amqp_params_network{host = Host, username = UserName,
                                           password = Password}) ->
     #amqp_params_network{
        host = proplists:get_value(host, Opts, Host),
-       port = proplists:get_value(port, Opts, Port),
+       port = proplists:get_value(port, Opts, ?DEFAULT_PORT),
        username = proplists:get_value(username, Opts, UserName),
        password = proplists:get_value(password, Opts, Password)}.

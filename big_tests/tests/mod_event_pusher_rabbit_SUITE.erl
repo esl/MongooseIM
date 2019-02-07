@@ -24,7 +24,8 @@
          init_per_group/2, end_per_group/2,
          init_per_testcase/2, end_per_testcase/2]).
 
--export([exchanges_are_created_on_module_startup/1]).
+-export([rabbit_pool_starts_with_default_config/1,
+         exchanges_are_created_on_module_startup/1]).
 -export([connected_users_push_presence_events_when_change_status/1,
          presence_messages_are_properly_formatted/1]).
 -export([chat_message_sent_event/1,
@@ -79,7 +80,7 @@
 
 all() ->
     [
-     {group, exchange_handling},
+     {group, initialization_on_startup},
      {group, presence_status_publish},
      {group, chat_message_publish},
      {group, group_chat_message_publish}
@@ -87,8 +88,9 @@ all() ->
 
 groups() ->
     G = [
-         {exchange_handling, [],
+         {initialization_on_startup, [],
           [
+           rabbit_pool_starts_with_default_config,
            exchanges_are_created_on_module_startup
           ]},
          {presence_status_publish, [],
@@ -139,7 +141,7 @@ end_per_suite(Config) ->
     muc_helper:unload_muc(),
     escalus:end_per_suite(Config).
 
-init_per_group(exchange_handling, Config) ->
+init_per_group(initialization_on_startup, Config) ->
     Config;
 init_per_group(_, Config0) ->
     Host = ct:get_config({hosts, mim, domain}),
@@ -148,7 +150,7 @@ init_per_group(_, Config0) ->
                                    [{mod_event_pusher, ?MOD_EVENT_PUSHER_CFG}]),
     Config.
 
-end_per_group(exchange_handling, Config) ->
+end_per_group(initialization_on_startup, Config) ->
     Config;
 end_per_group(_, Config) ->
     delete_exchanges(),
@@ -157,12 +159,16 @@ end_per_group(_, Config) ->
     dynamic_modules:restore_modules(Host, Config),
     escalus:delete_users(Config, escalus:get_users([bob, alice])).
 
+init_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
+    Config;
 init_per_testcase(CaseName, Config0) ->
     Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}]),
     Config2 = maybe_prepare_muc(CaseName, Config1),
     Config = Config2 ++ connect_to_rabbit(),
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(rabbit_pool_starts_with_default_config, Config) ->
+    Config;
 end_per_testcase(exchanges_are_created_on_module_startup, Config) ->
     delete_exchanges(),
     stop_mod_event_pusher_rabbit(),
@@ -175,8 +181,22 @@ end_per_testcase(CaseName, Config) ->
 
 
 %%--------------------------------------------------------------------
-%% GROUP exchange_handling
+%% GROUP initialization_on_startup
 %%--------------------------------------------------------------------
+
+rabbit_pool_starts_with_default_config(_Config) ->
+    %% GIVEN
+    Host = ct:get_config({hosts, mim, domain}),
+    DefaultWpoolConfig = {rabbit, host, rabbit_event_pusher_default, [], []},
+    RabbitWpool = {rabbit, Host, rabbit_event_pusher_default},
+    %% WHEN
+    start_rabbit_wpool(Host, DefaultWpoolConfig),
+    %% THEN
+    Pools = rpc(mim(), mongoose_wpool, get_pools, []),
+    ?assertMatch(RabbitWpool,
+                 lists:keyfind(rabbit_event_pusher_default, 3, Pools)),
+    %% CLEANUP
+    stop_rabbit_wpool(RabbitWpool).
 
 exchanges_are_created_on_module_startup(Config) ->
     %% GIVEN
@@ -609,11 +629,16 @@ stop_mod_event_pusher_rabbit() ->
     rpc(mim(), gen_mod, stop_module, [Host, mod_event_pusher_rabbit]).
 
 start_rabbit_wpool(Host) ->
-    rpc(mim(), mongoose_wpool, ensure_started, []),
-    rpc(mim(), mongoose_wpool, start_configured_pools, [[?WPOOL_CFG], [Host]]).
+    start_rabbit_wpool(Host, ?WPOOL_CFG).
 
-stop_rabbit_wpool(Host) ->
-    rpc(mim(), mongoose_wpool, stop, [rabbit, Host, event_pusher]).
+start_rabbit_wpool(Host, WpoolConfig) ->
+    rpc(mim(), mongoose_wpool, ensure_started, []),
+    rpc(mim(), mongoose_wpool, start_configured_pools, [[WpoolConfig], [Host]]).
+
+stop_rabbit_wpool({Pool, Host, Tag}) ->
+    rpc(mim(), mongoose_wpool, stop, [Pool, Host, Tag]);
+stop_rabbit_wpool(Host)->
+    stop_rabbit_wpool({rabbit, Host, event_pusher}).
 
 delete_exchanges() ->
     ConnConf = connect_to_rabbit(),
