@@ -142,6 +142,8 @@ transaction(Fun, ErrorDebug, Retries) ->
             timer:sleep(100),
             transaction(Fun, ErrorDebug, Retries - 1);
         {aborted, ReasonData} ->
+            ?WARNING_MSG("event=transaction_failed reason=~p debug=~p",
+                         [ReasonData, ErrorDebug]),
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, transaction_failed)
     end.
 
