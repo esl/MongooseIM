@@ -410,13 +410,23 @@ check_node_creation_notification(Response, NodeName) ->
     Response.
 
 check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
+    try
+        do_check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options)
+    catch Class:Reason ->
+              ct:pal("failed to check response=~p", [Response]),
+              Stacktrace = erlang:get_stacktrace(),
+              erlang:raise(Class, Reason, Stacktrace)
+    end,
+    Response.
+
+do_check_item_notification(Response, ItemId, {NodeAddr, NodeName}, Options) ->
     check_notification(Response, NodeAddr),
     true = escalus_pred:has_type(<<"headline">>, Response),
     Items = exml_query:path(Response, [{element, <<"event">>},
                                        {element, <<"items">>}]),
     check_collection_header(Response, Options),
     check_items(Items, [ItemId], NodeName),
-    Response.
+    ok.
 
 send_request_and_receive_response(User, Request, Id, Options) ->
     send_request_and_receive_response(User, Request, Id, Options, fun(R) -> R end).
