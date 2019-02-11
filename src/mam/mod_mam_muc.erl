@@ -554,8 +554,9 @@ maybe_delete_x_user_element(false, _ReceiverJID, Packet) ->
 %% When sending out the archives to a requesting client, the 'to' of the
 %% forwarded stanza MUST be empty, and the 'from' MUST be the occupant JID
 %% of the sender of the archived message.
+%% However, Smack crashes if 'to' is present, so it is removed.
 replace_from_to_attributes(SrcJID, Packet = #xmlel{attrs = Attrs}) ->
-    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), <<>>, Attrs),
+    NewAttrs = jlib:replace_from_to_attrs(jid:to_binary(SrcJID), undefined, Attrs),
     Packet#xmlel{attrs = NewAttrs}.
 
 -spec message_row_to_ext_id(row()) -> binary().
