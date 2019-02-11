@@ -242,7 +242,7 @@ default_host() ->
 %% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
                      State :: #state{}) -> any().
-process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
+process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
     Acc2 = mongoose_acc:strip(#{ lserver => From#jid.lserver,
                                                   from_jid => From,
                                                   to_jid => To,
@@ -3190,7 +3190,7 @@ notify_subscription_change(Host, Node, JID, Sub) ->
     ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
-                                          From :: jid:ljid(),
+                                          From :: jid:jid() | jid:ljid(),
                                           Owners :: [jid:ljid(), ...],
                                           AccessModel :: mod_pubsub:accessModel(),
                                           AllowedGroups :: [binary()]) ->
