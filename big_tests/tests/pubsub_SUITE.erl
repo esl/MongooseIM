@@ -503,6 +503,8 @@ publish_with_max_items_test(Config) ->
 
               pubsub_tools:subscribe(Bob, Node, []),
 
+              %% mod_pubsub:broadcast_step/1 ensures that a publish notification for a new item
+              %% would always arrive before a retraction notification for an old item
               pubsub_tools:publish(Alice, <<"item2">>, Node, []),
               pubsub_tools:receive_item_notification(Bob, <<"item2">>, Node, []),
               verify_item_retract(Node, <<"item1">>, escalus:wait_for_stanza(Bob)),
@@ -645,7 +647,8 @@ retract_when_user_goes_offline_test(Config) ->
               pubsub_tools:get_all_items(Alice, Node,
                                          [{expected_result, [<<"item2">>, <<"item1">>]}]),
 
-              escalus_client:stop(Config, Bob),
+              mongoose_helper:logout_user(Config, Bob),
+
               pubsub_tools:get_all_items(Alice, Node, [{expected_result, [<<"item1">>]}]),
 
               pubsub_tools:delete_node(Alice, Node, [])

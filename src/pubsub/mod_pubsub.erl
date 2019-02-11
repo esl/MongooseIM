@@ -3406,10 +3406,12 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
                        [#xmlel{name = <<"items">>, attrs = node_attr(Node),
                                children = [#xmlel{name = <<"item">>, attrs = ItemAttr,
                                                   children = Content}]}]),
-            broadcast_stanza(Host, From, Node, Nidx, Type,
-                             NodeOptions, SubsByDepth, items, Stanza, true),
-            broadcast_auto_retract_notification(Host, Node, Nidx, Type,
-                                                NodeOptions, SubsByDepth, Removed),
+            broadcast_step(fun() ->
+                broadcast_stanza(Host, From, Node, Nidx, Type,
+                                 NodeOptions, SubsByDepth, items, Stanza, true),
+                broadcast_auto_retract_notification(Host, Node, Nidx, Type,
+                                                    NodeOptions, SubsByDepth, Removed)
+                end),
             {result, true};
         _ ->
             {result, false}
@@ -3444,8 +3446,10 @@ broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotif
                                        children = [#xmlel{name = <<"retract">>,
                                                           attrs = item_attr(ItemId)}
                                                    || ItemId <- ItemIds]}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, items, Stanza, true),
+                    broadcast_step(fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, items, Stanza, true)
+                        end),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3461,8 +3465,10 @@ broadcast_purge_node(Host, Node, Nidx, Type, NodeOptions) ->
                 SubsByDepth when is_list(SubsByDepth) ->
                     Stanza = event_stanza(
                                [#xmlel{name = <<"purge">>, attrs = node_attr(Node)}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_step(fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, nodes, Stanza, false)
+                        end),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3480,8 +3486,10 @@ broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
                 _ ->
                     Stanza = event_stanza(
                                [#xmlel{name = <<"delete">>, attrs = node_attr(Node)}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_step(fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, nodes, Stanza, false)
+                        end),
                     {result, true}
             end;
         _ ->
@@ -3492,7 +3500,9 @@ broadcast_created_node(_, _, _, _, _, []) ->
     {result, false};
 broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
     Stanza = event_stanza([#xmlel{name = <<"create">>, attrs = node_attr(Node)}]),
-    broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, nodes, Stanza, true),
+    broadcast_step(fun() ->
+        broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, nodes, Stanza, true)
+        end),
     {result, true}.
 
 broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
@@ -3503,8 +3513,10 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
                     Content = payload_by_option(Type, NodeOptions, Lang),
                     Stanza = event_stanza([#xmlel{name = <<"configuration">>,
                                                   attrs = node_attr(Node), children = Content}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_step(fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, nodes, Stanza, false)
+                        end),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3549,17 +3561,13 @@ get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
             Other
     end.
 
-broadcast_stanza(Host, Node, Nidx, Type, NodeOptions,
-                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
-    %% This can reorder broadcasted stanzas, in case node is updated too often
-    F = fun() ->
-            do_broadcast_stanza(Host, Node, Nidx, Type, NodeOptions,
-                                SubsByDepth, NotifyType, BaseStanza, SHIM)
-        end,
-    proc_lib:spawn(F).
+%% Execute broadcasting step in a new process
+%% F contains one or more broadcast_stanza calls, executed sequentially
+broadcast_step(F) ->
+   proc_lib:spawn(F).
 
-do_broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
-                    SubsByDepth, NotifyType, BaseStanza, SHIM) ->
+broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
+                 SubsByDepth, NotifyType, BaseStanza, SHIM) ->
     NotificationType = get_option(NodeOptions, notification_type, headline),
     %% Option below is not standard, but useful
     BroadcastAll = get_option(NodeOptions, broadcast_all_resources),
