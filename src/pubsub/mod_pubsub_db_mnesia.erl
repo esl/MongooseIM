@@ -252,10 +252,12 @@ set_subnodes(#pubsub_node{nodeid = NodeId, parents = NewParents}, OldParents) ->
     set_subnodes(NodeId, NewParents, OldParents).
 
 set_subnodes({Key, Node}, NewParents, OldParents) ->
-    Deleted = OldParents -- NewParents,
-    Added = NewParents -- OldParents,
+    OldParentsSet = sets:from_list(OldParents),
+    NewParentsSet = sets:from_list(NewParents),
+    Deleted = sets:to_list(sets:subtract(OldParentsSet, NewParentsSet)),
+    Added   = sets:to_list(sets:subtract(NewParentsSet, OldParentsSet)),
     DeletedObjects = names_to_subnode_records(Key, Node, Deleted),
-    AddedObjects = names_to_subnode_records(Key, Node, Added),
+    AddedObjects   = names_to_subnode_records(Key, Node, Added),
     lists:foreach(fun(Object) -> mnesia:delete_object(Object) end, DeletedObjects),
     lists:foreach(fun(Object) -> mnesia:write(Object) end, AddedObjects),
     ok.
