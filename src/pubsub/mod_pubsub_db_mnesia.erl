@@ -306,6 +306,7 @@ get_subnodes(Key, Node) ->
     Subnodes = get_subnodes_names(Key, Node),
     find_nodes_by_names(Key, Subnodes).
 
+%% Like get_subnodes, but returns node names instead of node records.
 get_subnodes_names(Key, Node) ->
     MnesiaRecords = mnesia:read({pubsub_subnode, {Key, Node}}),
     [Subnode || #pubsub_subnode{subnode = Subnode} <- MnesiaRecords].
@@ -314,6 +315,12 @@ get_subnodes_names(Key, Node) ->
 get_nodes_without_parents(Key) ->
     mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, parents = [], _ = '_'}).
 
+%% Return a list of {Depth, Nodes} where Nodes are parent nodes of nodes of the lower level.
+%% So, we start with {0, [NodeRecord]}, where NodeRecord is node that corresponds to Node argument.
+%% The next level is {1, Nodes1}, where Nodes1 are parent nodes of Node.
+%% The next level can be {2, Nodes2}, where Nodes2 are parents of Nodes1 (without duplicates).
+%%
+%% Each node can be returned only ones by the function.
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_parentnodes_tree(Key, Node) ->
@@ -332,7 +339,8 @@ get_parentnodes_tree(Key, Node) ->
             extract_parents(Key, Node, Parents, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
     end.
 
-%% Each call extract Parents on the level and recurse to the next level
+%% Each call extract Parents on the level and recurse to the next level.
+%% KnownNodesSet are nodes to be filtered out.
 extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
     ParentRecords = find_nodes_by_names(Key, Parents),
     KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Parents)),
@@ -343,6 +351,8 @@ extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
         [] -> [];
         _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
     end,
+    %% PPNames is ordset, so we don't need to worry about having duplicates in it.
+    %% CyclicNames is usually an empty list.
     PPNamesToGet = PPNames -- CyclicNames,
     case PPNamesToGet of
         [] -> [];
@@ -372,7 +382,8 @@ get_subnodes_tree(Key, Node) ->
             extract_subnodes(Key, Node, Subnodes, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
     end.
 
-%% Each call extract Subnodes on the level and recurse to the next level
+%% Each call extract Subnodes on the level and recurse to the next level.
+%% KnownNodesSet are nodes to be filtered out.
 extract_subnodes(Key, InitialNode, Subnodes, Depth, KnownNodesSet) ->
     SubnodesRecords = find_nodes_by_names(Key, Subnodes),
     KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Subnodes)),
