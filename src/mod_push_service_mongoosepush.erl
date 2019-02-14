@@ -141,7 +141,7 @@ make_notification(v2, Notification, Options) ->
         service => maps:get(<<"service">>, Options),
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
         alert => #{
-            body => maps:get(<<"last-message-body">>, Notification),
+            body => <<"">>,
             title => maps:get(<<"last-message-sender">>, Notification),
             tag => maps:get(<<"last-message-sender">>, Notification),
             badge => binary_to_integer(maps:get(<<"message-count">>, Notification)),
