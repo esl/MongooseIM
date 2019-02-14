@@ -234,7 +234,7 @@ rest_service_gets_correct_payload_v1(Config) ->
             ?assertMatch(#{<<"title">> := <<"senderId">>}, Body),
             ?assertMatch(#{<<"tag">> := <<"senderId">>}, Body),
             ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
-            ?assertMatch(#{<<"body">> := <<"message body 576364!!">>}, Body)
+            ?assertMatch(#{<<"alert">> := #{<<"body">> := <<"">>}}, Body)
         end).
 
 rest_service_gets_correct_payload_v2(Config) ->
@@ -246,7 +246,6 @@ rest_service_gets_correct_payload_v2(Config) ->
             send_notification(Alice, Node, Notification, Options),
             {_, Body} = get_mocked_request(),
 
-
             ?assertMatch(#{<<"service">> := <<"some_awesome_service">>}, Body),
             ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
             ?assertMatch(#{<<"topic">> := <<"some_topic">>}, Body),
@@ -255,8 +254,7 @@ rest_service_gets_correct_payload_v2(Config) ->
             ?assertMatch(#{<<"alert">> := #{<<"badge">> := 876}}, Body),
             ?assertMatch(#{<<"alert">> := #{<<"title">> := <<"senderId">>}}, Body),
             ?assertMatch(#{<<"alert">> := #{<<"tag">> := <<"senderId">>}}, Body),
-            ?assertMatch(#{<<"alert">> := #{<<"body">> := <<"message body 576364!!">>}}, Body)
-
+            ?assertMatch(#{<<"alert">> := #{<<"body">> := <<"">>}}, Body)
         end).
 
 rest_service_gets_correct_payload_silent_v2(Config) ->
