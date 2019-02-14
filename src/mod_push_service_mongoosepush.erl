@@ -133,7 +133,8 @@ make_notification(v2, Notification, Options = #{<<"silent">> := <<"true">>}) ->
         mode => maps:get(<<"mode">>, Options, <<"prod">>),
         topic => maps:get(<<"topic">>, Options, null),
         data => Notification#{<<"message-count">> => MessageCount},
-	mutable_content => true
+	    mutable_content => true,
+        sound => <<"default">>
     }};
 make_notification(v2, Notification, Options) ->
     {ok, #{
@@ -147,7 +148,8 @@ make_notification(v2, Notification, Options) ->
             click_action => maps:get(<<"click_action">>, Options, null)
         },
         topic => maps:get(<<"topic">>, Options, null),
-	mutable_content => true
+	    mutable_content => true,
+        sound => <<"default">>
     }}.
 
 -spec cast(Host :: jid:server(), M :: atom(), F :: atom(), A :: [any()]) -> any().
