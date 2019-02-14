@@ -234,7 +234,8 @@ rest_service_gets_correct_payload_v1(Config) ->
             ?assertMatch(#{<<"title">> := <<"senderId">>}, Body),
             ?assertMatch(#{<<"tag">> := <<"senderId">>}, Body),
             ?assertMatch(#{<<"mode">> := <<"selected_mode">>}, Body),
-            ?assertMatch(#{<<"body">> := <<"message body 576364!!">>}, Body)
+            #{<<"alert">> := Alert} = Body,
+            ?assert(not maps:is_key(<<"body">>, Alert))
         end).
 
 rest_service_gets_correct_payload_v2(Config) ->
@@ -255,7 +256,8 @@ rest_service_gets_correct_payload_v2(Config) ->
             ?assertMatch(#{<<"alert">> := #{<<"badge">> := 876}}, Body),
             ?assertMatch(#{<<"alert">> := #{<<"title">> := <<"senderId">>}}, Body),
             ?assertMatch(#{<<"alert">> := #{<<"tag">> := <<"senderId">>}}, Body),
-            ?assertMatch(#{<<"alert">> := #{<<"body">> := <<"message body 576364!!">>}}, Body)
+            #{<<"alert">> := Alert} = Body,
+            ?assert(not maps:is_key(<<"body">>, Alert))
 
         end).
 
