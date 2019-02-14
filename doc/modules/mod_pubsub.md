@@ -32,6 +32,7 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 * `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
  This effectively makes them an owner of this item.
+* `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process.
 
 #### Note about RDBMS backend
 
