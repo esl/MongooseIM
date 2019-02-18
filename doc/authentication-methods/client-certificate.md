@@ -33,7 +33,9 @@ certificates. If the `xmpp_addrs` fields are included in the certificate, they a
 When no `xmpp_addrs` are specified, the `cn` (_common name_) field might be
 used, but it is optional. If there is more than one `xmpp_addrs` or both the
 list and `cn` field are empty, the client must include
-authorization entity.
+authorization entity. By default _common name_ is used, however it can be
+disabled by adding `{authenticate_with_cn, false}` tuple to the list of
+`auth_opts` in MongooseIM config file.
 For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
 ### Enable compatible authentication backend
