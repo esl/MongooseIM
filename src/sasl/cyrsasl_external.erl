@@ -80,9 +80,9 @@ do_mech_step(Creds, User) ->
             ejabberd_auth:authorize(NewCreds)
     end.
 
-check_auth_req([], CommonName, <<"">>, _) ->
-    case is_binary(CommonName) of
-        true ->
+check_auth_req([], CommonName, <<"">>, Server) ->
+    case ejabberd_auth:get_opt(Server, authenticate_with_cn, true) of
+       true when is_binary(CommonName) ->
             {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
@@ -94,18 +94,24 @@ check_auth_req(_, _,  <<"">>, _) ->
 check_auth_req([], undefined,  User, Server) ->
     verify_server(User, Server);
 check_auth_req([], CommonName,  User, Server) ->
-    case verify_server(User, Server) of
-        {ok, CommonName} ->
-            {ok, CommonName};
-        _ ->
-            {error, <<"not-authorized">>}
-    end;
+    CNOption = ejabberd_auth:get_opt(Server, authenticate_with_cn, true),
+    maybe_use_common_name(CommonName, User, Server, CNOption);
 check_auth_req([_], _,  _, _) ->
     {error, <<"invalid-authzid">>};
 check_auth_req(XmppAddrs, _,  User, Server) ->
     case lists:member(User, XmppAddrs) of
         true ->
             verify_server(User, Server);
+        _ ->
+            {error, <<"not-authorized">>}
+    end.
+
+maybe_use_common_name(_, User, Server, false) ->
+     verify_server(User, Server);
+maybe_use_common_name(CommonName, User, Server, true) ->
+    case verify_server(User, Server) of
+        {ok, CommonName} ->
+            {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
     end.
