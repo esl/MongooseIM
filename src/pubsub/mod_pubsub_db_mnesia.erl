@@ -12,6 +12,7 @@
 
 -include("pubsub.hrl").
 -include("jlib.hrl").
+-include("mongoose_logger.hrl").
 -include_lib("stdlib/include/qlc.hrl").
 
 -export([start/0, stop/0]).
@@ -100,11 +101,27 @@ start() ->
                          {attributes, record_info(fields, pubsub_subscription)},
                          {type, set}]),
     mnesia:add_table_copy(pubsub_subscription, node(), disc_copies),
+    CreateSubnodeTableResult = mnesia:create_table(pubsub_subnode,
+                        [{disc_copies, [node()]},
+                         {attributes, record_info(fields, pubsub_subnode)},
+                         {type, bag}]),
+    mnesia:add_table_copy(pubsub_subnode, node(), disc_copies),
+    maybe_fill_subnode_table(CreateSubnodeTableResult),
     pubsub_index:init(),
     ok.
 
 -spec stop() -> ok.
 stop() ->
+    ok.
+
+%% If pubsub_subnode table was missing, than fill it with data
+maybe_fill_subnode_table({atomic, ok}) ->
+    F = fun(#pubsub_node{} = Node, Acc) ->
+                set_subnodes(Node, []),
+                Acc
+        end,
+    mnesia:transaction(fun() -> mnesia:foldl(F, ok, pubsub_node) end);
+maybe_fill_subnode_table(_Other) ->
     ok.
 
 %% ------------------------ Fun execution ------------------------
@@ -113,10 +130,20 @@ stop() ->
                   ErrorDebug :: map()) ->
     {result | error, any()}.
 transaction(Fun, ErrorDebug) ->
+    transaction(Fun, ErrorDebug, 3).
+
+transaction(Fun, ErrorDebug, Retries) ->
     case mnesia:transaction(mod_pubsub_db:extra_debug_fun(Fun)) of
         {atomic, Result} ->
             Result;
+        {aborted, ReasonData} when Retries > 0 ->
+            ?WARNING_MSG("event=transaction_retry retries=~p reason=~p debug=~p",
+                         [Retries, ReasonData, ErrorDebug]),
+            timer:sleep(100),
+            transaction(Fun, ErrorDebug, Retries - 1);
         {aborted, ReasonData} ->
+            ?WARNING_MSG("event=transaction_failed reason=~p debug=~p",
+                         [ReasonData, ErrorDebug]),
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, transaction_failed)
     end.
 
@@ -200,11 +227,43 @@ del_node(Nidx) ->
 -spec set_node(mod_pubsub:pubsubNode()) -> {ok, mod_pubsub:nodeIdx()}.
 set_node(#pubsub_node{id = undefined} = Node) ->
     CreateNode = Node#pubsub_node{id = pubsub_index:new(node)},
-    set_node(CreateNode);
-set_node(#pubsub_node{id = Nidx} = Node) ->
+    OldParents = [],
+    set_node(CreateNode, OldParents);
+set_node(Node) ->
+    OldParents = get_parentnodes_names(Node),
+    set_node(Node, OldParents).
+
+set_node(#pubsub_node{id = Nidx} = Node, OldParents) ->
     mnesia:write(Node),
+    set_subnodes(Node, OldParents),
     {ok, Nidx}.
 
+get_parentnodes_names(#pubsub_node{nodeid = NodeId}) ->
+    case mnesia:read(pubsub_node, NodeId, write) of
+        [] ->
+            [];
+        [#pubsub_node{parents = Parents}] ->
+            Parents
+    end.
+
+set_subnodes(#pubsub_node{parents = Parents}, Parents) ->
+    ok;
+set_subnodes(#pubsub_node{nodeid = NodeId, parents = NewParents}, OldParents) ->
+    set_subnodes(NodeId, NewParents, OldParents).
+
+set_subnodes({Key, Node}, NewParents, OldParents) ->
+    OldParentsSet = sets:from_list(OldParents),
+    NewParentsSet = sets:from_list(NewParents),
+    Deleted = sets:to_list(sets:subtract(OldParentsSet, NewParentsSet)),
+    Added   = sets:to_list(sets:subtract(NewParentsSet, OldParentsSet)),
+    DeletedObjects = names_to_subnode_records(Key, Node, Deleted),
+    AddedObjects   = names_to_subnode_records(Key, Node, Added),
+    lists:foreach(fun(Object) -> mnesia:delete_object(Object) end, DeletedObjects),
+    lists:foreach(fun(Object) -> mnesia:write(Object) end, AddedObjects),
+    ok.
+
+names_to_subnode_records(Key, Node, Parents) ->
+    [#pubsub_subnode{nodeid = {Key, Parent}, subnode = Node} || Parent <- Parents].
 
 -spec find_node_by_id(Nidx :: mod_pubsub:nodeIdx()) ->
     {error, not_found} | {ok, mod_pubsub:pubsubNode()}.
@@ -230,79 +289,116 @@ find_node_by_name(Key, Node) ->
 find_nodes_by_key(Key) ->
     mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, _ = '_'}).
 
--spec find_nodes_by_id_and_pred(Key :: mod_pubsub:hostPubsub() | jid:ljid(),
-                                Nodes :: [mod_pubsub:nodeId()],
-                                Pred :: fun((mod_pubsub:nodeId(), mod_pubsub:pubsubNode()) -> boolean())) ->
-    [mod_pubsub:pubsubNode()].
-find_nodes_by_id_and_pred(Key, Nodes, Pred) ->
-    Q = qlc:q([N
-                || #pubsub_node{nodeid = {NHost, _}} = N
-                    <- mnesia:table(pubsub_node),
-                    Node <- Nodes, Key == NHost, Pred(Node, N)]),
-    qlc:e(Q).
-
 oid(Key, Name) -> {Key, Name}.
 
 
 -spec delete_node(Node :: mod_pubsub:pubsubNode()) -> ok.
-delete_node(#pubsub_node{nodeid = NodeId}) ->
+delete_node(#pubsub_node{nodeid = NodeId, parents = Parents}) ->
+    set_subnodes(NodeId, [], Parents),
     mnesia:delete({pubsub_node, NodeId}).
 
 
 -spec get_subnodes(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId() | <<>>) ->
     [mod_pubsub:pubsubNode()].
 get_subnodes(Key, <<>>) ->
-    Q = qlc:q([N
-               || #pubsub_node{nodeid = {NKey, _},
-                               parents = []} = N
-                  <- mnesia:table(pubsub_node),
-                  Key == NKey]),
-    qlc:e(Q);
+    get_nodes_without_parents(Key);
 get_subnodes(Key, Node) ->
-    Q = qlc:q([N
-               || #pubsub_node{nodeid = {NKey, _},
-                               parents = Parents} =
-                  N
-                  <- mnesia:table(pubsub_node),
-                    Key == NKey, lists:member(Node, Parents)]),
-    qlc:e(Q).
+    Subnodes = get_subnodes_names(Key, Node),
+    find_nodes_by_names(Key, Subnodes).
 
+%% Like get_subnodes, but returns node names instead of node records.
+get_subnodes_names(Key, Node) ->
+    MnesiaRecords = mnesia:read({pubsub_subnode, {Key, Node}}),
+    [Subnode || #pubsub_subnode{subnode = Subnode} <- MnesiaRecords].
+
+%% Warning: this function is full table scan and can return a lot of records
+get_nodes_without_parents(Key) ->
+    mnesia:match_object(#pubsub_node{nodeid = {Key, '_'}, parents = [], _ = '_'}).
+
+%% Return a list of {Depth, Nodes} where Nodes are parent nodes of nodes of the lower level.
+%% So, we start with {0, [NodeRecord]}, where NodeRecord is node that corresponds to Node argument.
+%% The next level is {1, Nodes1}, where Nodes1 are parent nodes of Node.
+%% The next level can be {2, Nodes2}, where Nodes2 are parents of Nodes1 (without duplicates).
+%%
+%% Each node can be returned only ones by the function.
 -spec get_parentnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_parentnodes_tree(Key, Node) ->
-    Pred = fun (NID, #pubsub_node{nodeid = {_, NNode}}) ->
-            NID == NNode
+    case find_node_by_name(Key, Node) of
+        false ->
+            [ {0, []} ]; %% node not found case
+
+        #pubsub_node{parents = []} = Record ->
+            [ {0, [Record]} ];
+
+        #pubsub_node{parents = Parents} = Record ->
+            Depth = 1,
+            %% To avoid accidental cyclic issues, let's maintain the list of known nodes
+            %% which we don't expand again
+            KnownNodesSet = sets:from_list([Node]),
+            extract_parents(Key, Node, Parents, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
+    end.
+
+%% Each call extract Parents on the level and recurse to the next level.
+%% KnownNodesSet are nodes to be filtered out.
+extract_parents(Key, InitialNode, Parents, Depth, KnownNodesSet) ->
+    ParentRecords = find_nodes_by_names(Key, Parents),
+    KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Parents)),
+    %% Names of parents of parents
+    PPNames = lists:usort(lists:flatmap(fun(#pubsub_node{parents = PP}) -> PP end, ParentRecords)),
+    CyclicNames = [Name || Name <- PPNames, sets:is_element(Name, KnownNodesSet1)],
+    case CyclicNames of
+        [] -> [];
+        _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
     end,
-    Tr = fun (#pubsub_node{parents = Parents}) -> Parents
-    end,
-    traversal_helper(Pred, Tr, Key, [Node]).
+    %% PPNames is ordset, so we don't need to worry about having duplicates in it.
+    %% CyclicNames is usually an empty list.
+    PPNamesToGet = PPNames -- CyclicNames,
+    case PPNamesToGet of
+        [] -> [];
+        _ -> extract_parents(Key, InitialNode, PPNamesToGet, Depth + 1, KnownNodesSet1)
+    end ++ [ {Depth, ParentRecords} ].
+
+find_nodes_by_names(Key, Nodes) ->
+    %% Contains false for missing nodes
+    MaybeRecords = [find_node_by_name(Key, Node) || Node <- Nodes],
+    %% Filter out false-s
+    [Record || Record = #pubsub_node{} <- MaybeRecords].
+
 
 -spec get_subnodes_tree(Key :: mod_pubsub:hostPubsub() | jid:ljid(), Node :: mod_pubsub:nodeId()) ->
     [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
 get_subnodes_tree(Key, Node) ->
-    Pred = fun (NID, #pubsub_node{parents = Parents}) ->
-            lists:member(NID, Parents)
+    case find_node_by_name(Key, Node) of
+        false ->
+            [ {1, []}, {0, [false]} ]; %% node not found case
+
+        #pubsub_node{} = Record ->
+            Subnodes = get_subnodes_names(Key, Node),
+            Depth = 1,
+            %% To avoid accidental cyclic issues, let's maintain the list of known nodes
+            %% which we don't expand again
+            KnownNodesSet = sets:from_list([Node]),
+            extract_subnodes(Key, Node, Subnodes, Depth, KnownNodesSet) ++ [ {0, [Record]} ]
+    end.
+
+%% Each call extract Subnodes on the level and recurse to the next level.
+%% KnownNodesSet are nodes to be filtered out.
+extract_subnodes(Key, InitialNode, Subnodes, Depth, KnownNodesSet) ->
+    SubnodesRecords = find_nodes_by_names(Key, Subnodes),
+    KnownNodesSet1 = sets:union(KnownNodesSet, sets:from_list(Subnodes)),
+    %% Names of subnodes of subnodes
+    SSNames = lists:usort(lists:flatmap(fun(Subnode) -> get_subnodes_names(Key, Subnode) end, Subnodes)),
+    CyclicNames = [Name || Name <- SSNames, sets:is_element(Name, KnownNodesSet1)],
+    case CyclicNames of
+        [] -> [];
+        _ -> ?WARNING_MSG("event=cyclic_nodes_detected node=~p cyclic_names=~p", [InitialNode, CyclicNames])
     end,
-    Tr = fun (#pubsub_node{nodeid = {_, N}}) -> [N] end,
-    traversal_helper(Pred, Tr, 1, Key, [Node],
-        [{0, [find_node_by_name(Key, Node)]}]).
-
-
--spec traversal_helper(
-        Pred    :: fun(),
-        Transform :: fun(),
-        Host    :: mod_pubsub:hostPubsub(),
-        Nodes :: [mod_pubsub:nodeId(), ...])
-        -> [{Depth::non_neg_integer(), Nodes::[mod_pubsub:pubsubNode(), ...]}].
-traversal_helper(Pred, Tr, Host, Nodes) ->
-    traversal_helper(Pred, Tr, 0, Host, Nodes, []).
-
-traversal_helper(_Pred, _Tr, _Depth, _Host, [], Acc) ->
-    Acc;
-traversal_helper(Pred, Tr, Depth, Host, Nodes, Acc) ->
-    NodeRecs = find_nodes_by_id_and_pred(Host, Nodes, Pred),
-    IDs = lists:flatmap(Tr, NodeRecs),
-    traversal_helper(Pred, Tr, Depth + 1, Host, IDs, [{Depth, NodeRecs} | Acc]).
+    SSNamesToGet = SSNames -- CyclicNames,
+    case SSNamesToGet of
+        [] -> [ {Depth + 1, []} ];
+        _ -> extract_subnodes(Key, InitialNode, SSNamesToGet, Depth + 1, KnownNodesSet1)
+    end ++ [ {Depth, SubnodesRecords} ].
 
 %% ------------------------ Affiliations ------------------------
 

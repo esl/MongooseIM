@@ -239,13 +239,16 @@ stop(Host) ->
 default_host() ->
     <<"pubsub.@HOST@">>.
 
+%% State is an extra data, required for processing
 -spec process_packet(Acc :: mongoose_acc:t(), From ::jid:jid(), To ::jid:jid(), El :: exml:element(),
-                     Pid :: pid()) -> any().
-process_packet(Acc, From, To, El, Pid) ->
-    Pid ! {route, From, To, mongoose_acc:strip(#{ lserver => From#jid.lserver,
+                     State :: #state{}) -> any().
+process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Access, plugins = Plugins}) ->
+    Acc2 = mongoose_acc:strip(#{ lserver => From#jid.lserver,
                                                   from_jid => From,
                                                   to_jid => To,
-                                                  element => El }, Acc)}.
+                                                  element => El }, Acc),
+    Packet = mongoose_acc:element(Acc2),
+    do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
 
 %%====================================================================
 %% gen_server callbacks
@@ -282,9 +285,10 @@ init([ServerHost, Opts]) ->
         false ->
             ok
     end,
-
-    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, self())),
     {_, State} = init_send_loop(ServerHost),
+
+    %% Pass State as extra into ?MODULE:process_packet/5 function
+    ejabberd_router:register_route(Host, mongoose_packet_handler:new(?MODULE, State)),
     {ok, State}.
 
 init_backend(ServerHost, Opts) ->
@@ -894,11 +898,6 @@ handle_call(stop, _From, State) ->
 %% @private
 handle_cast(_Msg, State) -> {noreply, State}.
 
--spec handle_info(
-        _     :: {route, From::jid:jid(), To::jid:jid(), Packet::exml:element()},
-          State :: state())
-        -> {noreply, state()}.
-
 %%--------------------------------------------------------------------
 %% Function: handle_info(Info, State) -> {noreply, State} |
 %%                                       {noreply, State, Timeout} |
@@ -906,14 +905,6 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 %% @private
-handle_info({route, From, To, Acc},
-            #state{server_host = ServerHost, access = Access, plugins = Plugins} = State) ->
-    Packet = mongoose_acc:element(Acc),
-    case catch do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet) of
-        {'EXIT', Reason} -> ?ERROR_MSG("~p", [Reason]);
-        _ -> ok
-    end,
-    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -3199,7 +3190,7 @@ notify_subscription_change(Host, Node, JID, Sub) ->
     ejabberd_router:route(service_jid(Host), jid:make(JID), Stanza).
 
 -spec get_presence_and_roster_permissions(Host :: mod_pubsub:host(),
-                                          From :: jid:ljid(),
+                                          From :: jid:jid() | jid:ljid(),
                                           Owners :: [jid:ljid(), ...],
                                           AccessModel :: mod_pubsub:accessModel(),
                                           AllowedGroups :: [binary()]) ->
@@ -3415,10 +3406,12 @@ broadcast_publish_item(Host, Node, Nidx, Type, NodeOptions,
                        [#xmlel{name = <<"items">>, attrs = node_attr(Node),
                                children = [#xmlel{name = <<"item">>, attrs = ItemAttr,
                                                   children = Content}]}]),
-            broadcast_stanza(Host, From, Node, Nidx, Type,
-                             NodeOptions, SubsByDepth, items, Stanza, true),
-            broadcast_auto_retract_notification(Host, Node, Nidx, Type,
-                                                NodeOptions, SubsByDepth, Removed),
+            broadcast_step(Host, fun() ->
+                broadcast_stanza(Host, From, Node, Nidx, Type,
+                                 NodeOptions, SubsByDepth, items, Stanza, true),
+                broadcast_auto_retract_notification(Host, Node, Nidx, Type,
+                                                    NodeOptions, SubsByDepth, Removed)
+                end),
             {result, true};
         _ ->
             {result, false}
@@ -3453,8 +3446,10 @@ broadcast_retract_items(Host, Node, Nidx, Type, NodeOptions, ItemIds, ForceNotif
                                        children = [#xmlel{name = <<"retract">>,
                                                           attrs = item_attr(ItemId)}
                                                    || ItemId <- ItemIds]}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, items, Stanza, true),
+                    broadcast_step(Host, fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, items, Stanza, true)
+                        end),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3470,8 +3465,10 @@ broadcast_purge_node(Host, Node, Nidx, Type, NodeOptions) ->
                 SubsByDepth when is_list(SubsByDepth) ->
                     Stanza = event_stanza(
                                [#xmlel{name = <<"purge">>, attrs = node_attr(Node)}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_step(Host, fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, nodes, Stanza, false)
+                        end),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3489,8 +3486,10 @@ broadcast_removed_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
                 _ ->
                     Stanza = event_stanza(
                                [#xmlel{name = <<"delete">>, attrs = node_attr(Node)}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_step(Host, fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, nodes, Stanza, false)
+                        end),
                     {result, true}
             end;
         _ ->
@@ -3501,7 +3500,9 @@ broadcast_created_node(_, _, _, _, _, []) ->
     {result, false};
 broadcast_created_node(Host, Node, Nidx, Type, NodeOptions, SubsByDepth) ->
     Stanza = event_stanza([#xmlel{name = <<"create">>, attrs = node_attr(Node)}]),
-    broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, nodes, Stanza, true),
+    broadcast_step(Host, fun() ->
+        broadcast_stanza(Host, Node, Nidx, Type, NodeOptions, SubsByDepth, nodes, Stanza, true)
+        end),
     {result, true}.
 
 broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
@@ -3512,8 +3513,10 @@ broadcast_config_notification(Host, Node, Nidx, Type, NodeOptions, Lang) ->
                     Content = payload_by_option(Type, NodeOptions, Lang),
                     Stanza = event_stanza([#xmlel{name = <<"configuration">>,
                                                   attrs = node_attr(Node), children = Content}]),
-                    broadcast_stanza(Host, Node, Nidx, Type,
-                                     NodeOptions, SubsByDepth, nodes, Stanza, false),
+                    broadcast_step(Host, fun() ->
+                        broadcast_stanza(Host, Node, Nidx, Type,
+                                         NodeOptions, SubsByDepth, nodes, Stanza, false)
+                        end),
                     {result, true};
                 _ ->
                     {result, false}
@@ -3556,6 +3559,16 @@ get_node_subs(Host, #pubsub_node{type = Type, id = Nidx}) ->
             [{JID, SubID, Opts} || {JID, SubType, SubID, Opts} <- Subs, SubType == subscribed];
         Other ->
             Other
+    end.
+
+%% Execute broadcasting step in a new process
+%% F contains one or more broadcast_stanza calls, executed sequentially
+broadcast_step(Host, F) ->
+    case gen_mod:get_module_opt(Host, ?MODULE, sync_broadcast, false) of
+        true ->
+            F();
+        false ->
+            proc_lib:spawn(F)
     end.
 
 broadcast_stanza(Host, Node, _Nidx, _Type, NodeOptions,
