@@ -30,7 +30,7 @@ It is handled by the following modules:
 
 * `mod_carboncopy` - if the packet being sent is a message, it forwards it to all the user's resources which have carbon copying enabled
 
-* `mod_event_pusher_http` - if configured, sends selected messages to an external http service
+* `mod_event_pusher` - if configured, sends selected messages to an external service
 
 * `mod_mam` - stores outgoing messages in an archive
 

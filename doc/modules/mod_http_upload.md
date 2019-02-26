@@ -49,7 +49,7 @@ This allows users to read the uploaded files even if the bucket is private.
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_http_upload, create_slot]` | histogram | How long it took to allocate an upload slot. |
+| Backend action | Description (when it gets incremented) |
+| ---- | -------------------------------------- |
+| `create_slot` | An upload slot is allocated. |
 

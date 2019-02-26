@@ -184,5 +184,8 @@ If you'd like to learn more about metrics in MongooseIM, please visit [MongooseI
 | `[Host, mod_mam_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MAM worker. |
 | `[Host, mod_mam_muc_rdbms_async_pool_writer, per_message_flush_time]` | histogram | Average time per message insert measured in an async MUC MAM worker. |
 | `[Host, mod_mam_muc_rdbms_async_pool_writer, flush_time]` | histogram | Average time per flush of all buffered messages measured in an async MUC MAM worker. |
-| `[Host, backends, mod_mam, lookup]` | histogram | Time it took to perform a lookup in an archive. |
-| `[Host, backends, mod_mam, archive]` | histogram | Time it took to save one message in an archive. |
+
+| Backend action | Description (when it gets incremented) |
+| -------------- | ---------------------------------------|
+| `lookup` | A lookup in an archive. |
+| `archive` | One message is saved in an archive. |

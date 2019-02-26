@@ -1,7 +1,7 @@
 ## Overview
 
 Clients connected to MongooseIM may authenticate with their TLS certificates.
-This method is a combination of the `SASL EXTERNAL` mechanism and a compatible certificate-aware backend.
+This method uses `SASL EXTERNAL` mechanism.
 
 ## Server-side prerequisites
 
@@ -41,7 +41,7 @@ For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNA
 ### Enable compatible authentication backend
 
 Please modify [`auth_opts` option](../Advanced-configuration.md#authentication) in MongooseIM's config file to include proper item.
-For now, only [`pki` backend](../authentication-backends/PKI-authentication-module.md) supports `SASL EXTERNAL`.
+Also, [`pki` backend](../authentication-backends/PKI-authentication-module.md) is recommended for `SASL EXTERNAL`.
 
 ### WARNING!
 

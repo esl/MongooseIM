@@ -141,22 +141,6 @@ As a result it makes more sense to maintain a list of the most relevant or usefu
 
 Metrics specific to an extension, e.g. Message Archive Management, are described in respective module documentation pages.
 
-Below you can find a list of all modules, for which at least one metric is defined.
-
-* [`mod_csi`](../modules/mod_csi.md)
-* [`mod_event_pusher_http`](../modules/mod_event_pusher_http.md)
-* [`mod_http_upload`](../modules/mod_http_upload.md)
-* [`mod_last`](../modules/mod_last.md)
-* [`mod_mam`](../modules/mod_mam.md)
-* [`mod_muc`](../modules/mod_muc.md)
-* [`mod_muc_light`](../modules/mod_muc_light.md)
-* [`mod_offline`](../modules/mod_offline.md)
-* [`mod_privacy`](../modules/mod_privacy.md)
-* [`mod_private`](../modules/mod_private.md)
-* [`mod_register`](../modules/mod_register.md)
-* [`mod_roster`](../modules/mod_roster.md)
-* [`mod_vcard`](../modules/mod_vcard.md)
-
 ## Global metrics
 
 | Name | Type | Description (when it gets incremented) |
@@ -192,6 +176,10 @@ Below you can find a list of all modules, for which at least one metric is defin
 
 Some extension modules expose histograms with timings of calls made to their backends.
 Please check the documentation of modules that are enabled in your config file, in order to learn if they provide them.
+
+All module backend metrics names use following convention: `[global, backends, Module, BackendAction]` and `[global, backends, Module, BackendAction, count]`.
+The former is a histogram of operation times. However, the time is not recorded if a backend operation exits with an exception.
+The latter is a number of calls (spiral metric), incremented for *every* call (even a failed one).
 
 Besides these, following authentication metrics are always available:
 

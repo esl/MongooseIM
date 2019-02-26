@@ -24,15 +24,15 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_roster, read_roster_version]` | histogram | Time it takes to fetch version of a user's roster. |
-| `[global, backends, mod_roster, write_roster_version]` | histogram | Time it takes to store version of a user's roster. |
-| `[global, backends, mod_roster, get_roster]` | histogram | Time it takes to fetch a user's roster. |
-| `[global, backends, mod_roster, get_roster_entry]` | histogram | Time it takes to fetch a specific roster entry. |
-| `[global, backends, mod_roster, get_roster_entry_t]` | histogram | Time it takes to fetch a specific roster entry inside a transaction. |
-| `[global, backends, mod_roster, get_subscription_lists]` | histogram | Time it takes to fetch a subscription list of a user. |
-| `[global, backends, mod_roster, roster_subscribe_t]` | histogram | Time it takes to update the subscription status between users inside a transaction. |
-| `[global, backends, mod_roster, update_roster_t]` | histogram | Time it takes to update a roster entry in a transaction. |
-| `[global, backends, mod_roster, del_roster_t]` | histogram | Time it takes to remove a roster entry inside a transaction. |
+| Backend action | Description (when it gets incremented) |
+| ---- | -------------------------------------- |
+| `read_roster_version` | Version of a user's roster is retrieved. |
+| `write_roster_version` | Vversion of a user's roster is stored. |
+| `get_roster` | A user's roster is fetched. |
+| `get_roster_entry` | A specific roster entry is fetched. |
+| `get_roster_entry_t` | A specific roster entry is fetched inside a transaction. |
+| `get_subscription_lists` | A subscription list of a user is retrieved. |
+| `roster_subscribe_t` | A subscription status between users is updated inside a transaction. |
+| `update_roster_t` | A roster entry is updated in a transaction. |
+| `del_roster_t` | A roster entry is removed inside a transaction. |
 

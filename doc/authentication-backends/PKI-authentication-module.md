@@ -1,13 +1,7 @@
 ## Overview
 
-The PKI authentication backend is compatible only with SASL mechanisms, that are based on client certificates.
-Currently only `SASL EXTERNAL` meets that requirement.
-
-It extracts the Common Name from a certificate and returns it as a username part in JID.
-
-## Client certificate requirements
-
-Common Name must be equal to the username part of the client JID.
+It is a simple auth backend, meant to be used with SASL EXTERNAL authentication mechanism.
+It simply accepts all usernames as long as they are validated by SASL logic.
 
 ## WARNING
 

@@ -40,8 +40,8 @@ module](../authentication-backends/LDAP-authentication-module.md).
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_vcard, set_vcard]` | histogram | Time it takes to set a vCard in a DB. |
-| `[global, backends, mod_vcard, get_vcard]` | histogram | Time it takes to fetch a specific vCard from a DB. |
-| `[global, backends, mod_vcard, search]` | histogram | Time it takes to perform a vCard search in a DB. |
+| Backend action | Description (when it gets incremented) |
+| ---- | -------------------------------------- |
+| `set_vcard` | A vCard is set in a DB. |
+| `get_vcard` | A specific vCard is retrieved from a DB. |
+| `search` | A vCard search is performed. |
