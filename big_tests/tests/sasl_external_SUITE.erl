@@ -15,6 +15,8 @@ all() ->
 groups() ->
     G = [{fast_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
          {just_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
+         {fast_tls_no_common_name, no_cn_test_cases()},
+         {just_tls_no_common_name, no_cn_test_cases()},
          {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
          {just_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
@@ -33,6 +35,12 @@ common_test_cases() ->
      cert_with_cn_xmpp_addrs_request_name_empty_ws,
      cert_with_cn_xmpp_addrs_request_name_empty_bosh,
      no_cert_fails_to_authenticate
+    ].
+
+no_cn_test_cases() ->
+    [
+    cert_with_cn_no_xmpp_addrs_requested_correct_user,
+    cert_no_cn_no_xmpp_addrs_request_name_empty
     ].
 
 self_signed_test_cases() ->
@@ -69,16 +77,27 @@ init_per_group(GroupName, Config) ->
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
 				              "{verify, verify_peer}," ++ verify_mode_by_group_name(GroupName) ++
 					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
+               {authenticate_with_cn, "{authenticate_with_cn," ++ cn_by_group_name(GroupName) ++ "}"},
 		       {auth_method, "pki"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim),
-
     Config.
+
+cn_by_group_name(just_tls_no_common_name) ->
+   "false";
+cn_by_group_name(fast_tls_no_common_name) ->
+   "false";
+cn_by_group_name(_GroupName) ->
+    "true".
 
 tls_module_by_group_name(fast_tls) ->
     fast_tls;
 tls_module_by_group_name(just_tls) ->
+    just_tls;
+tls_module_by_group_name(fast_tls_no_common_name) ->
+    fast_tls;
+tls_module_by_group_name(just_tls_no_common_name) ->
     just_tls;
 tls_module_by_group_name(just_tls_allow_self_signed) ->
     just_tls;
@@ -89,6 +108,10 @@ ssl_options_by_group_name(fast_tls) ->
     "";
 ssl_options_by_group_name(just_tls) ->
     "{ssl_options, [{verify_fun, {peer, false}}]},";
+ssl_options_by_group_name(fast_tls_no_common_name) ->
+    "";
+ssl_options_by_group_name(just_tls_no_common_name) ->
+    "{ssl_options, [{verify_fun, {peer, false}}]},";
 ssl_options_by_group_name(just_tls_allow_self_signed) ->
     "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},";
 ssl_options_by_group_name(fast_tls_allow_self_signed) ->
@@ -97,6 +120,10 @@ ssl_options_by_group_name(fast_tls_allow_self_signed) ->
 verify_mode_by_group_name(fast_tls) ->
     "";
 verify_mode_by_group_name(just_tls) ->
+    "";
+verify_mode_by_group_name(fast_tls_no_common_name) ->
+    "";
+verify_mode_by_group_name(just_tls_no_common_name) ->
     "";
 verify_mode_by_group_name(just_tls_allow_self_signed) ->
     "{verify_mode, selfsigned_peer},";
@@ -142,6 +169,10 @@ cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
+
+cert_no_cn_no_xmpp_addrs_request_name_empty(C) ->
+    UserSpec = generate_user_tcp(C, "john"),
+    cert_fails_to_authenticate(UserSpec).
 
 cert_with_cn_no_xmpp_addrs_request_wrong_name(C) ->
     UserSpec = [{requested_name, <<"mike@localhost">>} |
