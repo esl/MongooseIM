@@ -106,6 +106,7 @@ ro_no_search_tests() ->
 
 ldap_only_tests() ->
     [search_some_many_fields_with_or_operator,
+     user_doesnt_exist,
      return_photo_inserted_as_binary_by_3rd_party_service].
 
 suite() ->

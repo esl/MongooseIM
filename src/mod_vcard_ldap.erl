@@ -246,8 +246,8 @@ find_ldap_user(User, State) ->
         {ok, EldapFilter} ->
             Res = eldap_pool_search(EldapID, Base, EldapFilter, State#state.deref, VCardAttrs, false),
             case Res of
-                L when is_list(L) ->
-                    hd(Res);
+                [H | _] ->
+                    H;
                 _ ->
                     Res
             end;
