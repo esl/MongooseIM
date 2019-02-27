@@ -187,8 +187,10 @@ handle_info({timeout, _TRef, {ping, JID}},
                               attrs = [{<<"xmlns">>, ?NS_PING}]}]},
     Pid = self(),
     F = fun(_From, _To, Acc, Response) ->
+                TDelta = erlang:monotonic_time(millisecond) - T0,
+                NewAcc = ejabberd_hooks:run_fold(user_ping_response, State#state.host, Acc, [JID, Response, TDelta]),
                 gen_server:cast(Pid, {iq_pong, JID, Response}),
-                Acc
+                NewAcc
         end,
     From = jid:make(<<"">>, State#state.host, <<"">>),
     Acc = mongoose_acc:new(#{ location => ?LOCATION,
