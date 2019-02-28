@@ -81,8 +81,8 @@ do_mech_step(Creds, User) ->
     end.
 
 check_auth_req([], CommonName, <<"">>, Server) ->
-    case ejabberd_auth:get_opt(Server, authenticate_with_cn, true) of
-       true when is_binary(CommonName) ->
+    case ejabberd_auth:get_opt(Server, cyrsasl_external, standard) of
+       use_common_name when is_binary(CommonName) ->
             {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
@@ -94,7 +94,7 @@ check_auth_req(_, _,  <<"">>, _) ->
 check_auth_req([], undefined,  User, Server) ->
     verify_server(User, Server);
 check_auth_req([], CommonName,  User, Server) ->
-    CNOption = ejabberd_auth:get_opt(Server, authenticate_with_cn, true),
+    CNOption = ejabberd_auth:get_opt(Server, cyrsasl_external, standard),
     maybe_use_common_name(CommonName, User, Server, CNOption);
 check_auth_req([_], _,  _, _) ->
     {error, <<"invalid-authzid">>};
@@ -106,15 +106,17 @@ check_auth_req(XmppAddrs, _,  User, Server) ->
             {error, <<"not-authorized">>}
     end.
 
-maybe_use_common_name(_, User, Server, false) ->
-     verify_server(User, Server);
-maybe_use_common_name(CommonName, User, Server, true) ->
+maybe_use_common_name(_, User, Server, allow_just_user_identity) ->
+    verify_server(User, Server);
+maybe_use_common_name(CommonName, User, Server, use_common_name) ->
     case verify_server(User, Server) of
         {ok, CommonName} ->
             {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
-    end.
+    end;
+maybe_use_common_name(_, _, _, standard) ->
+    {error, <<"not-authorized">>}.
 
 get_common_name(Cert) ->
     case cert_utils:get_common_name(Cert) of
