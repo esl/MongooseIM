@@ -15,32 +15,41 @@ all() ->
 groups() ->
     G = [{fast_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
          {just_tls, [parallel], common_test_cases() ++ no_allowed_self_signed_test_cases()},
-         {fast_tls_no_common_name, no_cn_test_cases()},
-         {just_tls_no_common_name, no_cn_test_cases()},
+         {fast_tls_use_common_name, use_common_name_test_cases()},
+         {just_tls_use_common_name, use_common_name_test_cases()},
+         {fast_tls_allow_just_user_identity, allow_just_user_identity_test_cases()},
+         {just_tls_allow_just_user_identity, allow_just_user_identity_test_cases()},
          {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
          {just_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 common_test_cases() ->
     [
-     cert_with_cn_xmpp_addrs_requested_correct_user,
-     cert_with_cn_one_xmpp_addr_requested_correct_user,
-     cert_with_cn_no_xmpp_addrs_requested_correct_user,
-     cert_with_cn_xmpp_addrs_request_name_empty,
-     cert_with_cn_one_xmpp_addrs_request_name_empty,
-     cert_with_cn_no_xmpp_addrs_request_name_empty,
-     cert_with_cn_no_xmpp_addrs_request_wrong_name,
-     cert_with_cn_xmpp_addrs_request_wrong_name,
-     cert_with_cn_one_xmpp_addr_requested_wrong_hostname,
-     cert_with_cn_xmpp_addrs_request_name_empty_ws,
-     cert_with_cn_xmpp_addrs_request_name_empty_bosh,
+     cert_no_xmpp_addrs_fails,
+     cert_no_xmpp_addrs_no_identity,
+
+     cert_one_xmpp_addr_identity_correct,
+     cert_one_xmpp_addrs_no_identity,
+     cert_one_xmpp_addr_wrong_hostname,
+
+     cert_more_xmpp_addrs_identity_correct,
+     cert_more_xmpp_addrs_no_identity_fails,
+     cert_more_xmpp_addrs_wrong_identity_fails,
+
+     cert_xmpp_addrs_request_name_empty_ws,
+     cert_xmpp_addrs_request_name_empty_bosh,
      no_cert_fails_to_authenticate
     ].
 
-no_cn_test_cases() ->
+use_common_name_test_cases() ->
     [
-    cert_with_cn_no_xmpp_addrs_requested_correct_user,
-    cert_no_cn_no_xmpp_addrs_request_name_empty
+    cert_with_cn_no_xmpp_addrs_identity_correct,
+    cert_with_cn_no_xmpp_addrs_wrong_identity_fails,
+    cert_with_cn_no_xmpp_addrs_no_identity
+    ].
+allow_just_user_identity_test_cases() ->
+    [
+     cert_no_xmpp_addrs_just_use_identity
     ].
 
 self_signed_test_cases() ->
@@ -77,27 +86,35 @@ init_per_group(GroupName, Config) ->
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
 				              "{verify, verify_peer}," ++ verify_mode_by_group_name(GroupName) ++
 					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
-               {authenticate_with_cn, "{authenticate_with_cn," ++ cn_by_group_name(GroupName) ++ "}"},
+               {cyrsasl_external, "{cyrsasl_external," ++ config_by_group_name(GroupName) ++ "}"},
 		       {auth_method, "pki"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim),
     Config.
 
-cn_by_group_name(just_tls_no_common_name) ->
-   "false";
-cn_by_group_name(fast_tls_no_common_name) ->
-   "false";
-cn_by_group_name(_GroupName) ->
-    "true".
+config_by_group_name(just_tls_use_common_name) ->
+   "use_common_name";
+config_by_group_name(fast_tls_use_common_name) ->
+   "use_common_name";
+config_by_group_name(just_tls_allow_just_user_identity) ->
+    "allow_just_user_identity";
+config_by_group_name(fast_tls_allow_just_user_identity) ->
+    "allow_just_user_identity";
+config_by_group_name(_GroupName) ->
+    "standard".
 
 tls_module_by_group_name(fast_tls) ->
     fast_tls;
 tls_module_by_group_name(just_tls) ->
     just_tls;
-tls_module_by_group_name(fast_tls_no_common_name) ->
+tls_module_by_group_name(fast_tls_use_common_name) ->
     fast_tls;
-tls_module_by_group_name(just_tls_no_common_name) ->
+tls_module_by_group_name(just_tls_use_common_name) ->
+    just_tls;
+tls_module_by_group_name(fast_tls_allow_just_user_identity) ->
+    fast_tls;
+tls_module_by_group_name(just_tls_allow_just_user_identity) ->
     just_tls;
 tls_module_by_group_name(just_tls_allow_self_signed) ->
     just_tls;
@@ -108,9 +125,13 @@ ssl_options_by_group_name(fast_tls) ->
     "";
 ssl_options_by_group_name(just_tls) ->
     "{ssl_options, [{verify_fun, {peer, false}}]},";
-ssl_options_by_group_name(fast_tls_no_common_name) ->
+ssl_options_by_group_name(fast_tls_use_common_name) ->
     "";
-ssl_options_by_group_name(just_tls_no_common_name) ->
+ssl_options_by_group_name(just_tls_use_common_name) ->
+    "{ssl_options, [{verify_fun, {peer, false}}]},";
+ssl_options_by_group_name(fast_tls_allow_just_user_identity) ->
+    "";
+ssl_options_by_group_name(just_tls_allow_just_user_identity) ->
     "{ssl_options, [{verify_fun, {peer, false}}]},";
 ssl_options_by_group_name(just_tls_allow_self_signed) ->
     "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},";
@@ -121,9 +142,13 @@ verify_mode_by_group_name(fast_tls) ->
     "";
 verify_mode_by_group_name(just_tls) ->
     "";
-verify_mode_by_group_name(fast_tls_no_common_name) ->
+verify_mode_by_group_name(fast_tls_use_common_name) ->
     "";
-verify_mode_by_group_name(just_tls_no_common_name) ->
+verify_mode_by_group_name(just_tls_use_common_name) ->
+    "";
+verify_mode_by_group_name(fast_tls_allow_just_user_identity) ->
+    "";
+verify_mode_by_group_name(just_tls_allow_just_user_identity) ->
     "";
 verify_mode_by_group_name(just_tls_allow_self_signed) ->
     "{verify_mode, selfsigned_peer},";
@@ -134,68 +159,81 @@ verify_mode_by_group_name(fast_tls_allow_self_signed) ->
 end_per_group(_, Config) ->
     Config.
 
-cert_with_cn_xmpp_addrs_requested_correct_user(C) ->
+cert_more_xmpp_addrs_identity_correct(C) ->
+    %% More than one xmpp_addr and specified identity, common_name not used
     UserSpec = [{requested_name, <<"alice@localhost">>} |
 		generate_user_tcp(C, "not-alice-name")],
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
-cert_with_cn_one_xmpp_addr_requested_correct_user(C) ->
+cert_one_xmpp_addr_identity_correct(C) ->
     UserSpec = [{requested_name, <<"bob@localhost">>} |
 		generate_user_tcp(C, "bob")],
     cert_fails_to_authenticate(UserSpec).
 
 
-cert_with_cn_no_xmpp_addrs_requested_correct_user(C) ->
+cert_no_xmpp_addrs_fails(C) ->
     UserSpec = [{requested_name, <<"john@localhost">>} |
 		generate_user_tcp(C, "john")],
+    cert_fails_to_authenticate(UserSpec).
+
+cert_no_xmpp_addrs_just_use_identity(C) ->
+    UserSpec = [{requested_name, <<"mike@localhost">>} |
+		generate_user_tcp(C, "not-mike-name")],
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
-cert_with_cn_xmpp_addrs_request_name_empty(C) ->
+cert_no_xmpp_addrs_no_identity(C) ->
+    UserSpec = generate_user_tcp(C, "john"),
+    cert_fails_to_authenticate(UserSpec).
+
+cert_more_xmpp_addrs_no_identity_fails(C) ->
     UserSpec = generate_user_tcp(C, "not-alice-name"),
     cert_fails_to_authenticate(UserSpec).
 
-cert_with_cn_one_xmpp_addrs_request_name_empty(C) ->
+cert_one_xmpp_addrs_no_identity(C) ->
     UserSpec = generate_user_tcp(C, "bob"),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
-cert_with_cn_no_xmpp_addrs_request_name_empty(C) ->
+cert_with_cn_no_xmpp_addrs_no_identity(C) ->
     UserSpec = generate_user_tcp(C, "john"),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
-cert_no_cn_no_xmpp_addrs_request_name_empty(C) ->
-    UserSpec = generate_user_tcp(C, "john"),
-    cert_fails_to_authenticate(UserSpec).
+cert_with_cn_no_xmpp_addrs_identity_correct(C) ->
+    UserSpec = [{requested_name, <<"john@localhost">>} |
+                generate_user_tcp(C, "john")],
+    {ok, Client, _} = escalus_connection:start(UserSpec),
 
-cert_with_cn_no_xmpp_addrs_request_wrong_name(C) ->
+    escalus_connection:stop(Client).
+
+cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C) ->
     UserSpec = [{requested_name, <<"mike@localhost">>} |
 		generate_user_tcp(C, "not-mike-name")],
     cert_fails_to_authenticate(UserSpec).
 
-cert_with_cn_xmpp_addrs_request_wrong_name(C) ->
+cert_more_xmpp_addrs_wrong_identity_fails(C) ->
     UserSpec = [{requested_name, <<"grace@localhost">>} |
 		generate_user_tcp(C, "grace-no-address")],
     cert_fails_to_authenticate(UserSpec).
 
-cert_with_cn_one_xmpp_addr_requested_wrong_hostname(C) ->
+cert_one_xmpp_addr_wrong_hostname(C) ->
     UserSpec = [{requested_name, <<"bob@fed1">>} |
 		generate_user_tcp(C, "bob")],
     cert_fails_to_authenticate(UserSpec).
 
-cert_with_cn_xmpp_addrs_request_name_empty_ws(C) ->
+cert_xmpp_addrs_request_name_empty_ws(C) ->
     UserSpec = generate_user(C, "bob", escalus_ws),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
 
-cert_with_cn_xmpp_addrs_request_name_empty_bosh(C) ->
+cert_xmpp_addrs_request_name_empty_bosh(C) ->
     UserSpec = generate_user(C, "bob", escalus_bosh),
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
