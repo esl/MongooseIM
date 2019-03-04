@@ -235,14 +235,14 @@ BEGIN {
     FS="[ (,]"
 }
 
-$0 ~ /ejabberd_hooks/ {
+$0 ~ /ejabberd_hooks:run/ {
     found = -1
     for (i = 1; i < NF; i++) {
-        if ($i ~ /ejabberd_hooks/) {
+        if ($i ~ /ejabberd_hooks:run/) {
             found = i
         }
     }
-    if (found != -1 && $(found+1) != "")
+    if (found != -1 && $(found+1) != "" && $(found+1) ~ /^[a-z]/)
         print $(found+1)"\n"
 }
 ```
