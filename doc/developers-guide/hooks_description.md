@@ -152,6 +152,7 @@ This is the perfect place to plug in custom security control.
 
 * adhoc_local_items
 * adhoc_sm_items
+* amp_check_condition
 * amp_check_packet
 * amp_determine_strategy
 * amp_error_action_triggered
@@ -159,6 +160,7 @@ This is the perfect place to plug in custom security control.
 * amp_verify_support
 * anonymous_purge_hook
 * auth_failed
+* c2s_broadcast_recipients
 * c2s_filter_packet
 * c2s_loop_debug
 * c2s_preprocessing_hook
@@ -180,6 +182,7 @@ This is the perfect place to plug in custom security control.
 * disco_sm_identity
 * disco_sm_items
 * ejabberd_ctl_process
+* empty
 * failed_to_store_message
 * filter_local_packet
 * filter_packet
@@ -247,6 +250,7 @@ This is the perfect place to plug in custom security control.
 * roster_get_subscription_lists
 * roster_get_versioning_feature
 * roster_groups
+* roster_in_subscription
 * roster_out_subscription
 * roster_process_item
 * roster_push
@@ -256,6 +260,7 @@ This is the perfect place to plug in custom security control.
 * s2s_loop_debug
 * s2s_receive_packet
 * s2s_send_packet
+* s2s_stream_features
 * session_cleanup
 * session_opening_allowed_for_user
 * set_presence_hook

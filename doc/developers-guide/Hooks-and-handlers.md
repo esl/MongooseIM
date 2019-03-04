@@ -209,12 +209,11 @@ Always ensure what handlers are registered for a given hook (`grep` is your frie
 
 ## Hooks list and how to extract it
 
-The following command should give you a list of all the hooks available in MongooseIM (and some garbage filtering out automatically isn't worth the effort):
+The following command should give you a list of all the hooks available in MongooseIM:
 
 ```bash
-$ find src/ -name '*.erl' -print | xargs ./find-hooks.awk \
+$ find src/ -name '*.erl' -print | xargs ./tools/find-hooks.awk \
 > | sort | uniq
-# ... snip out the ~5 lines of garbage ...
 adhoc_local_commands
 adhoc_local_items
 ...
