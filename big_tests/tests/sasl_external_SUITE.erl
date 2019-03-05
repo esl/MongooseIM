@@ -326,7 +326,7 @@ generate_certs(C) ->
                           #{cn => "john"},
                           #{cn => "not-mike-name"},
                           #{cn => "grace-no-address", xmpp_addrs => ["grace@fed1", "grace@reg1"]},
-                          #{cn => "alice-self-signed", signed => self}]],
+                          #{cn => "alice-self-signed", xmpp_addrs => ["alice@localhost"], signed => self}]],
     [{certs, maps:from_list(Certs)} | C].
 
 generate_cert(C, #{cn := User} = CertSpec) ->
