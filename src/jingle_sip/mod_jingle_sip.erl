@@ -27,7 +27,7 @@
 
 -include_lib("nklib/include/nklib.hrl").
 
--define(SERVICE, "mim_sip").
+-define(SERVICE, mim_sip).
 
 %% gen_mod callbacks
 -export([start/2, stop/1]).
@@ -62,7 +62,7 @@ start_nksip_service_or_error(Opts) ->
                        callback => jingle_sip_callbacks,
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
-    case nksip:start(?SERVICE, NkSipOpts) of
+    case nksip:start_link(?SERVICE, NkSipOpts) of
         {ok, _SrvID} ->
             ok;
         {error, already_started} ->
