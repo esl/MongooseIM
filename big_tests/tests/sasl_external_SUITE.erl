@@ -366,7 +366,7 @@ generate_self_signed_cert(C, User, UserConfig, UserKey) ->
     UserCert = filename:join(?config(priv_dir, C), User ++ "_self_signed_cert.pem"),
 
     Cmd = ["openssl", "req", "-config", UserConfig, "-newkey", "rsa:2048", "-sha256", "-nodes",
-	   "-out", UserCert, "-keyout", UserKey, "-x509", "-outform", "PEM"],
+	   "-out", UserCert, "-keyout", UserKey, "-x509", "-outform", "PEM", "-extensions", "client_req_extensions"],
     {done, 0, _Output} = erlsh:run(Cmd),
     #{key => UserKey,
       cert => UserCert}.
