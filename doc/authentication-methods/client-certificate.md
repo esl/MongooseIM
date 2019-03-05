@@ -1,7 +1,7 @@
 ## Overview
 
 Clients connected to MongooseIM may authenticate with their TLS certificates.
-This method uses `SASL EXTERNAL` mechanism.
+This method uses the `SASL EXTERNAL` mechanism.
 
 ## Server-side prerequisites
 
@@ -29,14 +29,14 @@ In order to enable it, please add [`sasl_mechanisms` option](../Advanced-configu
 Its value must include a `cyrsasl_external` item.
 Obviously the list may be longer, if the system should support both the certificate and password based authentication.
 
-The `SASL EXTERNAL` authentication method requires a client digital certificate.
+The `SASL EXTERNAL` authentication method requires a digital client certificate.
 This digital certificate should contain `xmppAddr` field(s), which is always checked first.
-If there is more than one JID specified in `xmppAddr` fields, the client must include authorisation entity which corresponds to the one of the specified JIDs.
+If there is more than one JID specified in the `xmppAddr` fields, the client must include the authorisation entity which corresponds to the one of the specified JIDs.
 
 When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional (enabled by default).
-Usage of a `cn` field can be disabled by adding `{authenticate_with_cn, false}` tuple to the list of `auth_opts` in MongooseIM config file.
+Usage of a `cn` field can be disabled by adding the `{authenticate_with_cn, false}` tuple to the list of `auth_opts` in MongooseIM config file.
 
-If the client certificate does not contain a JID, the client must provide JID in authorisation entity. 
+If the client certificate does not contain a JID, the client must provide one in authorisation entity. 
 
 For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 

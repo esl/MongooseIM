@@ -32,7 +32,7 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 * `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
  This effectively makes them an owner of this item.
-* `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in wrong order (however, the two events would have to be published at exactly the same time).
+* `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in the wrong order (however, the two events would have to be published at the exact same time).
 
 #### Note about RDBMS backend
 
@@ -43,7 +43,7 @@ It is a complete implementation but the schema used by this backend may change u
 
 Caching is disabled by default.
 You may enable it by specifying the backend it should use.
-It is not coupled with the main DB backend, so it is possible to store cached data in `mnesia`, while actual PubSub information is kept in RDBMS (and vice versa!).
+It is not coupled with the main DB backend, so it is possible to store the cached data in `mnesia`, while the actual PubSub information is kept in RDBMS (and vice versa!).
 
 ### Example Configuration
 

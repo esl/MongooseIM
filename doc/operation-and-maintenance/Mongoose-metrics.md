@@ -177,7 +177,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 Some extension modules expose histograms with timings of calls made to their backends.
 Please check the documentation of modules that are enabled in your config file, in order to learn if they provide them.
 
-All module backend metrics names use following convention: `[global, backends, Module, BackendAction]` and `[global, backends, Module, BackendAction, count]`.
+All module backend metrics names use the following convention: `[global, backends, Module, BackendAction]` and `[global, backends, Module, BackendAction, count]`.
 The former is a histogram of operation times. However, the time is not recorded if a backend operation exits with an exception.
 The latter is a number of calls (spiral metric), incremented for *every* call (even a failed one).
 
