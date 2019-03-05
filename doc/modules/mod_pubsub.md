@@ -32,20 +32,18 @@ E.g. pair `{"urn:xmpp:microblog:0", "mb"}` will use module `node_mb` instead of 
 Node configuration still uses the default configuration defined by the node plugin, and overrides any items by the value defined in this configurable list.
 * `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
  This effectively makes them an owner of this item.
-* `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process.
+* `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in the wrong order (however, the two events would have to be published at the exact same time).
 
 #### Note about RDBMS backend
 
 RDBMS backend is in an experimental stage.
-It is a complete implementation but it is still undergoing internal load tests.
-The schema used by this backend may change until it reaches stable status.
+It is a complete implementation but the schema used by this backend may change until it reaches stable status.
 
 #### Cache Backend
 
-Although it is not a default setting, the cache backend can be configured
-to use Mnesia or RDBMS. It allows storing the `pubsub_last_item` table
-separately. For example you can configure `backend` to use `rdbms` and
-`last_item_cache` to use `mnesia`.
+Caching is disabled by default.
+You may enable it by specifying the backend it should use.
+It is not coupled with the main DB backend, so it is possible to store the cached data in `mnesia`, while the actual PubSub information is kept in RDBMS (and vice versa!).
 
 ### Example Configuration
 
@@ -131,56 +129,57 @@ Below there is a table describing all metrics related to PubSub actions
 
 | Name | Description (when it gets incremented) |
 | ---- | -------------------------------------- |
-|`[HOST,pubsub,get,affiliations,TYPE]` | When node's affiliations are read |
-|`[HOST,pubsub,get,configure,TYPE]` | When node's configuration is read |
-|`[HOST,pubsub,get,default,TYPE]` | When node's defaults are read |
-|`[HOST,pubsub,get,items,TYPE]` | When node's items are read |
-|`[HOST,pubsub,get,options,TYPE]` | When node's options are read |
-|`[HOST,pubsub,get,subscriptions,TYPE]` | When node's subscriptions are read |
-|`[HOST,pubsub,set,affiliations,TYPE]` | When node's subscriptions are set |
-|`[HOST,pubsub,set,configure,TYPE]` | When node's configuration is set |
-|`[HOST,pubsub,set,create,TYPE]` | When node is created |
-|`[HOST,pubsub,set,delete,TYPE]` | When node is deleted |
-|`[HOST,pubsub,set,options,TYPE]` | When node's options are set |
-|`[HOST,pubsub,set,publish,TYPE]` | When an item is published |
-|`[HOST,pubsub,set,purge,TYPE]` | When node's items are purged |
-|`[HOST,pubsub,set,retract,TYPE]` | When node's items are retracted |
-|`[HOST,pubsub,set,subscribe,TYPE]` | When a subscriber subscribes to a node |
-|`[HOST,pubsub,set,subscriptions,TYPE]` | When a subscription is set (for instance accepted) |
-|`[HOST,pubsub,set,unsubscribe,TYPE]` | When a subscriber unsubscribes |
+|`[HOST, pubsub, get, affiliations, TYPE]` | When node's affiliations are read |
+|`[HOST, pubsub, get, configure, TYPE]` | When node's configuration is read |
+|`[HOST, pubsub, get, default, TYPE]` | When node's defaults are read |
+|`[HOST, pubsub, get, items, TYPE]` | When node's items are read |
+|`[HOST, pubsub, get, options, TYPE]` | When node's options are read |
+|`[HOST, pubsub, get, subscriptions, TYPE]` | When node's subscriptions are read |
+|`[HOST, pubsub, set, affiliations, TYPE]` | When node's subscriptions are set |
+|`[HOST, pubsub, set, configure, TYPE]` | When node's configuration is set |
+|`[HOST, pubsub, set, create, TYPE]` | When node is created |
+|`[HOST, pubsub, set, delete, TYPE]` | When node is deleted |
+|`[HOST, pubsub, set, options, TYPE]` | When node's options are set |
+|`[HOST, pubsub, set, publish, TYPE]` | When an item is published |
+|`[HOST, pubsub, set, purge, TYPE]` | When node's items are purged |
+|`[HOST, pubsub, set, retract, TYPE]` | When node's items are retracted |
+|`[HOST, pubsub, set, subscribe, TYPE]` | When a subscriber subscribes to a node |
+|`[HOST, pubsub, set, subscriptions, TYPE]` | When a subscription is set (for instance accepted) |
+|`[HOST, pubsub, set, unsubscribe, TYPE]` | When a subscriber unsubscribes |
 
 Where:
 
-* `HOST` is the XMPP host for which mod_pubsub is running. Can be set to `global` if all metrics are set to be global.
+* `HOST` is the XMPP host for which `mod_pubsub` is running. Can be set to `global` if all metrics are set to be global.
 * `TYPE` is one of the following `count`, `errors`, `time` (described above the table)
 
 #### Backend operations
 
 The are also more detailed metrics measuring execution time of backend operations.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_pubsub_db, set_state]` | histogram | Time to update user's state for specific node. |
-| `[global, backends, mod_pubsub_db, del_state]` | histogram | Time to remove user's state for specific node. |
-| `[global, backends, mod_pubsub_db, get_state]` | histogram | Time to fetch user's state for specific node. |
-| `[global, backends, mod_pubsub_db, get_states]` | histogram | Time to fetch node's states. |
-| `[global, backends, mod_pubsub_db, get_states_by_lus]` | histogram | Time to fetch nodes' states for user + domain. |
-| `[global, backends, mod_pubsub_db, get_states_by_bare]` | histogram | Time to fetch nodes' states for bare JID. |
-| `[global, backends, mod_pubsub_db, get_states_by_full]` | histogram | Time to fetch nodes' states for full JID. |
-| `[global, backends, mod_pubsub_db, get_own_nodes_states]` | histogram | Time to fetch state data for user's nodes. |
-| `[global, backends, mod_pubsub_db, create_node, ]` | histogram | Time to set the owner after a node is created. |
-| `[global, backends, mod_pubsub_db, del_node]` | histogram | Time to delete all data related to a node being removed. |
-| `[global, backends, mod_pubsub_db, get_items]` | histogram | Time to fetch node's items. |
-| `[global, backends, mod_pubsub_db, get_item]` | histogram | Time to fetch a specific item for a node. |
-| `[global, backends, mod_pubsub_db, set_item]` | histogram | Time to insert/update item in a node. |
-| `[global, backends, mod_pubsub_db, del_item]` | histogram | Time to delete an item from a node. |
-| `[global, backends, mod_pubsub_db, del_items]` | histogram | Time to delete specified items from a node. |
-| `[global, backends, mod_pubsub_db, set_node]` | histogram | Time to create/update a node. |
-| `[global, backends, mod_pubsub_db, find_node_by_id,]` | histogram | Time to fetch a node by its id. |
-| `[global, backends, mod_pubsub_db, find_nodes_by_key]` | histogram | Time to fetch nodes by key. |
-| `[global, backends, mod_pubsub_db, find_node_by_name]` | histogram | Time to fetch a node by its name. |
-| `[global, backends, mod_pubsub_db, delete_node]` | histogram | Time to delete a node. |
-| `[global, backends, mod_pubsub_db, get_subnodes]` | histogram | Time to fetch subnodes of a node. |
-| `[global, backends, mod_pubsub_db, get_subnodes_tree]` | histogram | Time to fetch all subnodes of a node. |
-| `[global, backends, mod_pubsub_db, get_parentnodes_tre]` | histogram | Time to fetch all parents of a node. |
+Metrics for these actions may be found under `mod_pubsub_db` subkey.
+
+| Backend action | Description (when it gets incremented) |
+| ---- | -------------------------------------- |
+| `get_state` |  User's state for a specific node is fetched. |
+| `get_states` | Node's states are fetched. |
+| `get_states_by_lus` | Nodes' states for user + domain are fetched. |
+| `get_states_by_bare` | Nodes' states for bare JID are fetched. |
+| `get_states_by_full` | Nodes' states for full JID are fetched. |
+| `get_own_nodes_states` | State data for user's nodes is fetched. |
+| `create_node` | A node's owner is set. |
+| `del_node` | All data related to a node is removed. |
+| `get_items` | Node's items are fetched. |
+| `get_item` | A specific item from a node is fetched. |
+| `add_item` | An item is upserted into a node. |
+| `set_item` | An item is updated in a node. |
+| `del_item` | An item is deleted from a node. |
+| `del_items` | Specified items are deleted from a node. |
+| `set_node` | A node is upserted. |
+| `find_node_by_id` | A node is fetched by its ID. |
+| `find_nodes_by_key` | Nodes are fetched by key. |
+| `find_node_by_name` | A node is fetched by its name. |
+| `del_node` | A node is deleted. |
+| `get_subnodes` | Subnodes of a node are fetched. |
+| `get_subnodes_tree` | Full tree of subnodes of a node is fetched. |
+| `get_parentnodes_tree` | All parents of a node are fetched. |
 

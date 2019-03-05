@@ -1,7 +1,7 @@
 ## Overview
 
 Clients connected to MongooseIM may authenticate with their TLS certificates.
-This method is a combination of the `SASL EXTERNAL` mechanism and a compatible certificate-aware backend.
+This method uses the `SASL EXTERNAL` mechanism.
 
 ## Server-side prerequisites
 
@@ -28,20 +28,22 @@ A `SASL EXTERNAL` authentication method is disabled by default.
 In order to enable it, please add [`sasl_mechanisms` option](../Advanced-configuration.md#authentication) to MongooseIM config file.
 Its value must include a `cyrsasl_external` item.
 Obviously the list may be longer, if the system should support both the certificate and password based authentication.
-The `SASL EXTERNAL` authentication method requires using the digital
-certificates. If the `xmpp_addrs` fields are included in the certificate, they are always checked first.
-When no `xmpp_addrs` are specified, the `cn` (_common name_) field might be
-used, but it is optional. If there is more than one `xmpp_addrs` or both the
-list and `cn` field are empty, the client must include
-authorization entity. By default _common name_ is used, however it can be
-disabled by adding `{authenticate_with_cn, false}` tuple to the list of
-`auth_opts` in MongooseIM config file.
+
+The `SASL EXTERNAL` authentication method requires a digital client certificate.
+This digital certificate should contain `xmppAddr` field(s), which is always checked first.
+If there is more than one JID specified in the `xmppAddr` fields, the client must include the authorisation entity which corresponds to the one of the specified JIDs.
+
+When no `xmppAddr` is specified, the `cn` (common name) field might be used to provide client's username, but it is optional (enabled by default).
+Usage of a `cn` field can be disabled by adding the `{authenticate_with_cn, false}` tuple to the list of `auth_opts` in MongooseIM config file.
+
+If the client certificate does not contain a JID, the client must provide one in authorisation entity. 
+
 For the details please refer to [XEP-0178 Best Practices for Use of SASL EXTERNAL with Certificates](https://xmpp.org/extensions/xep-0178.html).
 
 ### Enable compatible authentication backend
 
 Please modify [`auth_opts` option](../Advanced-configuration.md#authentication) in MongooseIM's config file to include proper item.
-For now, only [`pki` backend](../authentication-backends/PKI-authentication-module.md) supports `SASL EXTERNAL`.
+Also, [`pki` backend](../authentication-backends/PKI-authentication-module.md) is recommended for `SASL EXTERNAL`.
 
 ### WARNING!
 

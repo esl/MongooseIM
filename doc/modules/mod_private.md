@@ -6,7 +6,7 @@ This module implements [XEP-0049: Private XML Storage](http://xmpp.org/extension
 * `backend` (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms`, `riak` and `mysql` are supported . `mysql` uses MySQL-specific queries so in some cases it is more efficient than generic `rdbms`.
 
 **CAUTION:**  Riak KV backend doesn't support transactions (rollbacks), so please avoid inserting more
-than one value in one set request, otherwise you may end up with partially save data, backend returns
+than one value in a single set request, otherwise you may end up with partially saved data. Backend returns the
 first error.
 
 ### Example Configuration
@@ -18,8 +18,8 @@ first error.
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_private, multi_get_data]` | histogram | Time it takes to fetch XML data from a DB. |
-| `[global, backends, mod_private, multi_set_data]` | histogram | Time it takes to store XML data in a DB. |
+| Backend operation | Description (when it gets incremented) |
+| ---- | -------------------------------------- |
+| `multi_get_data` | XML data is fetched from a DB. |
+| `multi_set_data` | XML data is stored in a DB. |
 

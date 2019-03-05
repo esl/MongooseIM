@@ -72,17 +72,17 @@ Valid config field types are:
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.
 
-| Name | Type | Description (when it gets incremented) |
-| ---- | ---- | -------------------------------------- |
-| `[global, backends, mod_muc_light, create_room]` | histogram | Time it takes to store the new room data in a DB. |
-| `[global, backends, mod_muc_light, destroy_room]` | histogram | Time it takes to remove the room data from a DB. |
-| `[global, backends, mod_muc_light, room_exists]` | histogram | Time it takes to check if a room exists in a DB. |
-| `[global, backends, mod_muc_light, get_user_rooms]` | histogram | Time it takes to get a list of rooms the user is a participant of from a DB. |
-| `[global, backends, mod_muc_light, remove_user]` | histogram | Time it takes to remove all MUC Light related user data from a DB. |
-| `[global, backends, mod_muc_light, get_config]` | histogram | Time it takes to get the room config from a DB. |
-| `[global, backends, mod_muc_light, set_config]` | histogram | Time it takes to set the room config in a DB. |
-| `[global, backends, mod_muc_light, get_blocking]` | histogram | Time it takes to retrieve blocking data from a DB. |
-| `[global, backends, mod_muc_light, set_blocking]` | histogram | Time it takes to set blocking data in a DB. |
-| `[global, backends, mod_muc_light, get_aff_users]` | histogram | Time it takes to get an affiliated users list from a DB. |
-| `[global, backends, mod_muc_light, modify_aff_users]` | histogram | Time it takes to update affiliations in a room in a DB. |
+| Backend action | Description (when it gets incremented) |
+| | -------------------------------------- |
+| `create_room` | A new room is stored in a DB. |
+| `destroy_room` | Room data is removed from a DB. |
+| `room_exists` | A room existence is checked. |
+| `get_user_rooms` | A list of rooms the user is a participant of is retrieved from a DB. |
+| `remove_user` | All MUC Light related user data is removed from a DB. |
+| `get_config` | A room config is retrieved from a DB. |
+| `set_config` | A room config is updated in a DB. |
+| `get_blocking` | Blocking data is fetched from a DB. |
+| `set_blocking` | Blocking data is updated in a DB. |
+| `get_aff_users` | An affiliated users list is fetched from a DB. |
+| `modify_aff_users` | Affiliations in a room are updated in a DB. |
 
