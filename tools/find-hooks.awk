@@ -15,7 +15,13 @@ $0 ~ /ejabberd_hooks:run/ {
             found = i
         }
     }
-    if (found != -1 && $(found+1) != "" && $(found+1) ~ /^[a-z]/)
-        print $(found+1)"\n"
+    if (found != -1) {
+        for (j = found+1; j < NF; j++) {
+            if ($j != "" && $j ~ /^[a-z]/) {
+                print $j"\n"
+                break
+            }
+        }
+    }
 }
 
