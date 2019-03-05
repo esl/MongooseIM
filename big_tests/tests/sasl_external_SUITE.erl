@@ -9,7 +9,7 @@
 all() ->
     [{group, fast_tls},
      {group, just_tls},
-     {group, fast_tls_allow_self_signed},
+%%     {group, fast_tls_allow_self_signed},
      {group, just_tls_allow_self_signed}].
 
 groups() ->
@@ -19,7 +19,7 @@ groups() ->
          {just_tls_use_common_name, use_common_name_test_cases()},
          {fast_tls_allow_just_user_identity, allow_just_user_identity_test_cases()},
          {just_tls_allow_just_user_identity, allow_just_user_identity_test_cases()},
-         {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
+%%         {fast_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()},
          {just_tls_allow_self_signed, [parallel], common_test_cases() ++ self_signed_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -162,7 +162,7 @@ end_per_group(_, Config) ->
 cert_more_xmpp_addrs_identity_correct(C) ->
     %% More than one xmpp_addr and specified identity, common_name not used
     UserSpec = [{requested_name, <<"alice@localhost">>} |
-		generate_user_tcp(C, "not-alice-name")],
+		generate_user_tcp(C, "not-alice")],
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
@@ -180,7 +180,7 @@ cert_no_xmpp_addrs_fails(C) ->
 
 cert_no_xmpp_addrs_just_use_identity(C) ->
     UserSpec = [{requested_name, <<"mike@localhost">>} |
-		generate_user_tcp(C, "not-mike-name")],
+		generate_user_tcp(C, "not-mike")],
     {ok, Client, _} = escalus_connection:start(UserSpec),
 
     escalus_connection:stop(Client).
@@ -190,7 +190,7 @@ cert_no_xmpp_addrs_no_identity(C) ->
     cert_fails_to_authenticate(UserSpec).
 
 cert_more_xmpp_addrs_no_identity_fails(C) ->
-    UserSpec = generate_user_tcp(C, "not-alice-name"),
+    UserSpec = generate_user_tcp(C, "not-alice"),
     cert_fails_to_authenticate(UserSpec).
 
 cert_one_xmpp_addrs_no_identity(C) ->
@@ -214,12 +214,12 @@ cert_with_cn_no_xmpp_addrs_identity_correct(C) ->
 
 cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C) ->
     UserSpec = [{requested_name, <<"mike@localhost">>} |
-		generate_user_tcp(C, "not-mike-name")],
+		generate_user_tcp(C, "not-mike")],
     cert_fails_to_authenticate(UserSpec).
 
 cert_more_xmpp_addrs_wrong_identity_fails(C) ->
     UserSpec = [{requested_name, <<"grace@localhost">>} |
-		generate_user_tcp(C, "grace-no-address")],
+		generate_user_tcp(C, "grace")],
     cert_fails_to_authenticate(UserSpec).
 
 cert_one_xmpp_addr_wrong_hostname(C) ->
@@ -272,7 +272,7 @@ cert_fails_to_authenticate(UserSpec) ->
 self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
     Self = self(),
     F = fun() ->
-		UserSpec = generate_user(C, "alice-self-signed", EscalusTransport),
+		UserSpec = generate_user(C, "bob-self-signed", EscalusTransport),
 		{ok, Client, _} = escalus_connection:start(UserSpec),
 		Self ! escalus_connected,
 		escalus_connection:stop(Client)
@@ -301,7 +301,7 @@ self_signed_cert_is_allowed_with_bosh(C) ->
     self_signed_cert_is_allowed_with(escalus_bosh, C).
 
 self_signed_cert_is_allowed_with(EscalusTransport, C) ->
-    UserSpec = generate_user(C, "alice-self-signed", EscalusTransport),
+    UserSpec = generate_user(C, "bob-self-signed", EscalusTransport),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
@@ -320,13 +320,15 @@ no_cert_fails_to_authenticate(_C) ->
     ok.
 
 generate_certs(C) ->
-    Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec)} ||
-             CertSpec <- [#{cn => "not-alice-name", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
-                          #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
-                          #{cn => "john"},
-                          #{cn => "not-mike-name"},
-                          #{cn => "grace-no-address", xmpp_addrs => ["grace@fed1", "grace@reg1"]},
-                          #{cn => "alice-self-signed", xmpp_addrs => ["alice@localhost"], signed => self}]],
+    CA = [#{cn => "not-alice", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
+          #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
+          #{cn => "john"},
+          #{cn => "not-mike"},
+          #{cn => "grace", xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
+    SelfSigned = [ M#{cn => CN ++ "-self-signed", signed => self} || M = #{ cn := CN } <- CA],
+    CertSpecs = CA ++ SelfSigned,
+    ct:pal("~p~n", [CertSpecs]),
+    Certs = [{maps:get(cn, CertSpec), generate_cert(C, CertSpec)} || CertSpec <- CertSpecs],
     [{certs, maps:from_list(Certs)} | C].
 
 generate_cert(C, #{cn := User} = CertSpec) ->
