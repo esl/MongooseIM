@@ -17,25 +17,17 @@ Please follow instructions below.
 
 ### Configuration options
 
-`ejabberd_auth_http` requires some parameters to function properly.
+`ejabberd_auth_http` uses an outgoing http connection pool called `auth`.
+The pool has to be defined in outgoing_pools section (see [Outgoing-connections#/http-connections](../advanced-configuration/outgoing-connections#http-connections-setup)).
 The following options can be set in the `auth_opts` tuple in `rel/files/mongooseim.cfg`:
 
-* `host` (mandatory, `string`) - consists of protocol, hostname (or IP) and port (optional). Examples:
-    * `{host, "http://localhost:12000"}`
-    * `{host, "https://10.20.30.40"}`
-* `connection_pool_size` (`integer`, default: 10) - the number of connections open to auth service
-* `connection_opts` (default: `[]`) - extra options for hackers: http://erlang.org/doc/man/gen_tcp.html#type-connect_option
 * `basic_auth` (default: `""`) - HTTP Basic Authentication in format `"username:password"`; auth service doesn't have to require authentication for HTTP auth to work
-* `path_prefix` (default: `"/"`) - a path prefix to be inserted between `host` and method name; must be terminated with `/`
 
 #### Example
 
 ```
 {auth_opts, [
-             {host, "https://auth.mydomain.com:12345"},
-             {connection_pool_size, 5},
              {basic_auth, "mongooseim:DzviNQw3qyGJDrJDu+ClyA"},
-             {path_prefix, "mimservice/"}
             ]}.
 ```
 
