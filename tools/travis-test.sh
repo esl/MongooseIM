@@ -4,6 +4,9 @@
 # - SMALL_TESTS
 # - COVER_ENABLED
 # - STOP_NODES (default false)
+
+export VERBOSE=1
+
 set -o pipefail
 IFS=$'\n\t'
 
