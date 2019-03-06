@@ -78,7 +78,7 @@ sip_invite_unsafe(Req, _Call) ->
 
 translate_and_deliver_invite(Req, FromJID, FromBinary, ToJID, ToBinary) ->
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
-    Body = nksip_sipmsg:meta(body, Req),
+    Body = nksip_sipmsg:get_meta(body, Req),
 
     {ok, ReqID} = nksip_request:get_handle(Req),
 
@@ -108,7 +108,7 @@ sip_reinvite_unsafe(Req, _Call) ->
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
 
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
-    Body = nksip_sipmsg:meta(body, Req),
+    Body = nksip_sipmsg:get_meta(body, Req),
 
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
     RemainingAttrs = SDP#sdp.attributes,
@@ -140,7 +140,7 @@ sip_info(Req, _Call) ->
     {ToJID, ToBinary} = get_user_from_sip_msg(to, Req),
 
     CallID = nksip_sipmsg:header(<<"call-id">>, Req),
-    Body = nksip_sipmsg:meta(body, Req),
+    Body = nksip_sipmsg:get_meta(body, Req),
 
     ?INFO_MSG("event=sip_info to=~p call_id=~p body:~n~s", [ToBinary, CallID, Body]),
 
@@ -220,7 +220,7 @@ invite_resp_callback({resp, 200, SIPMsg, _Call}) ->
     {ToJID, ToBinary} = get_user_from_sip_msg(from, SIPMsg),
     {FromJID, FromBinary} = get_user_from_sip_msg(to, SIPMsg),
 
-    Body = nksip_sipmsg:meta(body, SIPMsg),
+    Body = nksip_sipmsg:get_meta(body, SIPMsg),
     CallID = nksip_sipmsg:header(<<"call-id">>, SIPMsg),
     {CodecMap, SDP} = nksip_sdp_util:extract_codec_map(Body),
     OtherEls = sip_to_jingle:parse_sdp_attributes(SDP#sdp.attributes),
@@ -286,7 +286,7 @@ send_ringing_session_info(SIPMsg) ->
     {ToJID, ToBinary} = get_user_from_sip_msg(from, SIPMsg),
     {FromJID, FromBinary} = get_user_from_sip_msg(to, SIPMsg),
 
-    DialogHandle = nksip_sipmsg:meta(dialog_handle, SIPMsg),
+    DialogHandle = nksip_sipmsg:get_meta(dialog_handle, SIPMsg),
     CallID = nksip_sipmsg:header(<<"call-id">>, SIPMsg),
 
     mod_jingle_sip_backend:set_outgoing_handle(CallID, DialogHandle, FromJID, ToJID),
@@ -304,7 +304,7 @@ send_ringing_session_info(SIPMsg) ->
     ok.
 
 get_user_from_sip_msg(Field, SIPMsg) ->
-    URI = nksip_sipmsg:meta(Field, SIPMsg),
+    URI = nksip_sipmsg:get_meta(Field, SIPMsg),
     #uri{user = ToUserIn, domain = ToDomain, path = ToPath} = URI,
 
     Resource = path_to_res(ToPath),

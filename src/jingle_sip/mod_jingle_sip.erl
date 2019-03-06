@@ -63,9 +63,11 @@ start_nksip_service_or_error(Opts) ->
                        plugins => [nksip_outbound, nksip_100rel]},
     NkSipOpts = maybe_add_udp_max_size(NkSipBasicOpts, Opts),
     case nksip:start_link(?SERVICE, NkSipOpts) of
-        {ok, _SrvID} ->
+        {ok, SrvID} ->
+            unlink(SrvID),
             ok;
-        {error, already_started} ->
+        {error, {already_started, Pid}} ->
+            unlink(Pid),
             ok;
         Other ->
             erlang:error(Other)
