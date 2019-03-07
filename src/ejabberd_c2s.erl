@@ -1035,18 +1035,15 @@ handle_info({'DOWN', Monitor, _Type, Object, _Info}, StateName,
                          [Monitor, Object]),
             fsm_next_state(StateName, StateData)
     end;
-handle_info(replaced_wait_timeout, StateName, StateData) ->
-    case StateData#state.replaced_pids of
-        [] ->
-            fsm_next_state(StateName, StateData);
-        ReplacedPids ->
-            lists:foreach(
-              fun({Monitor, Pid}) ->
-                      ?WARNING_MSG("event=replaced_wait_timeout,monitor=~p,replaced_pid=~p",
-                                   [Monitor, Pid])
-              end, ReplacedPids),
-            fsm_next_state(StateName, StateData#state{ replaced_pids = [] })
-    end;
+handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = [] } = StateData) ->
+    fsm_next_state(StateName, StateData);
+handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = ReplacedPids } = StateData) ->
+    lists:foreach(
+      fun({Monitor, Pid}) ->
+              ?WARNING_MSG("event=replaced_wait_timeout,monitor=~p,replaced_pid=~p",
+                           [Monitor, Pid])
+      end, ReplacedPids),
+    fsm_next_state(StateName, StateData#state{ replaced_pids = [] });
 handle_info(system_shutdown, StateName, StateData) ->
     case StateName of
         wait_for_stream ->
