@@ -42,9 +42,10 @@
 
 all() ->
     [
+     {group, session_replacement},
+     %% these groups must be last, as they really... complicate configuration
      {group, fast_tls},
-     {group, just_tls},
-     {group, session_replacement}
+     {group, just_tls}
     ].
 
 groups() ->
@@ -91,11 +92,13 @@ test_cases() ->
      auth_bind_pipelined_starttls_skipped_error].
 
 cipher_test_cases() ->
-    [clients_can_connect_with_advertised_ciphers,
+    [
+     clients_can_connect_with_advertised_ciphers,
      'clients_can_connect_with_DHE-RSA-AES256-SHA',
      'clients_can_connect_with_DHE-RSA-AES128-SHA',
      %% node2 accepts DHE-RSA-AES256-SHA exclusively (see mongooseim.cfg)
-     'clients_can_connect_with_DHE-RSA-AES256-SHA_only'].
+     'clients_can_connect_with_DHE-RSA-AES256-SHA_only'
+    ].
 
 
 suite() ->
@@ -576,7 +579,8 @@ same_resource_replaces_session(Config) ->
 
     ConflictError = escalus:wait_for_stanza(Alice1),
     escalus:assert(is_stream_error, [<<"conflict">>, <<>>], ConflictError),
-    false = escalus_connection:is_connected(Alice1).
+
+    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false).
 
 clean_close_of_replaced_session(Config) ->
     lager_ct_backend:capture(warning),
@@ -600,16 +604,14 @@ replaced_session_cannot_terminate(Config) ->
     % WHEN a session gets replaced ...
     {ok, _Alice2, _} = escalus_connection:start(UserSpec),
 
-    % ... and the replace wait times out
-    timer:sleep(2000),
-
     % THEN a timeout warning is logged
-    rpc(mim(), sys, resume, [C2SPid]),
-    lager_ct_backend:stop_capture(),
     FilterFun = fun(_, Msg) ->
                         re:run(Msg, "replaced_wait_timeout") /= nomatch
                 end,
-    [_] = lager_ct_backend:recv(FilterFun).
+    mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
+
+    rpc(mim(), sys, resume, [C2SPid]),
+    lager_ct_backend:stop_capture().
 
 %%--------------------------------------------------------------------
 %% Internal functions
