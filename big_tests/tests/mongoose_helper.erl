@@ -24,7 +24,7 @@
 -export([logout_user/2]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
--export([inject_module/1]).
+-export([inject_module/1, inject_module/2]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
