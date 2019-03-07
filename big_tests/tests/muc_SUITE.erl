@@ -300,8 +300,7 @@ suite() ->
 
 init_per_suite(Config) ->
     %% For mocking with unnamed functions
-    {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-    rpc(mim(), code, load_binary, [?MODULE, Filename, Binary]),
+    mongoose_helper:inject_module(?MODULE),
     Config2 = escalus:init_per_suite(Config),
     Config3 = dynamic_modules:save_modules(domain(), Config2),
     load_muc(muc_host()),

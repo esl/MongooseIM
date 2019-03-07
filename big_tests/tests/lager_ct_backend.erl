@@ -23,13 +23,7 @@
 %% ------------------------------------------------------------
 
 start() ->
-    case successful_rpc(code, is_loaded, [?MODULE]) of
-        false ->
-            {Mod, Bin, File} = code:get_object_code(?MODULE),
-            successful_rpc(code, load_binary, [Mod, File, Bin]);
-        _ ->
-            already_loaded
-    end,
+    mongoose_helper:inject_module(?MODULE, true),
     successful_rpc(gen_event, add_handler, [lager_event, ?MODULE, []]).
 
 stop() ->

@@ -24,6 +24,8 @@
 -export([logout_user/2]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
+-export([inject_module/1]).
+
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
@@ -300,4 +302,21 @@ wait_for_user(Config, User, LeftTime) ->
                                  left_time => LeftTime, 
                                  name => 'escalus_users:create_user'
                                 }).
+
+% Loads a module present in big tests into MongooseIM node 1
+-spec inject_module(Module :: module()) -> ok.
+inject_module(Module) ->
+    inject_module(Module, false).
+
+-spec inject_module(Module :: module(), CheckIfLoadedAlready :: boolean()) -> ok | already_loaded.
+inject_module(Module, true) ->
+    case successful_rpc(code, is_loaded, [Module]) of
+        false ->
+            inject_module(Module, false);
+        _ ->
+            already_loaded
+    end;
+inject_module(Module, false) ->
+    {Mod, Bin, File} = code:get_object_code(Module),
+    successful_rpc(code, load_binary, [Mod, File, Bin]).
 

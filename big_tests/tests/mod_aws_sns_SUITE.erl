@@ -69,8 +69,7 @@ init_per_suite(Config) ->
     case rpc(application, ensure_all_started, [erlcloud]) of
         {ok, _} ->
             %% For mocking with unnamed functions
-            {_Module, Binary, Filename} = code:get_object_code(?MODULE),
-            rpc(code, load_binary, [?MODULE, Filename, Binary]),
+            mongoose_helper:inject_module(?MODULE),
 
             muc_helper:load_muc(muc_host()),
             escalus:init_per_suite(Config);
