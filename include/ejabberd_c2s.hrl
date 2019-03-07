@@ -74,7 +74,8 @@
                 stream_mgmt_constraint_check_tref,
                 csi_state = active :: mod_csi:state(),
                 csi_buffer = [],
-                hibernate_after = 0 :: non_neg_integer()
+                hibernate_after = 0 :: non_neg_integer(),
+                replaced_pids = [] :: [{MonitorRef :: reference(), ReplacedPid :: pid()}]
                 }).
 -type aux_key() :: atom().
 -type aux_value() :: any().
