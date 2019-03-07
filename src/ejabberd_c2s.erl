@@ -756,7 +756,7 @@ do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = Ne
         [] ->
             ok;
         _ ->
-            Timeout = ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S}, 2000),
+            Timeout = get_replaced_wait_timeout(S),
             erlang:send_after(Timeout, self(), replaced_wait_timeout)
     end,
 
@@ -769,6 +769,13 @@ do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = Ne
                         pending_invitations = Pending,
                         privacy_list = PrivList},
     {established, Acc1, NewStateData}.
+
+get_replaced_wait_timeout(S) ->
+    ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S},
+                                                default_replaced_wait_timeout()).
+
+default_replaced_wait_timeout() ->
+    2000.
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().

@@ -569,7 +569,7 @@ bind_server_generated_resource(Config) ->
     ?assert(byte_size(Resource) > 0).
 
 same_resource_replaces_session(Config) ->
-    UserSpec = [{resource, <<"confict">>} | escalus_users:get_userspec(Config, alice)],
+    UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
     {ok, Alice1, _} = escalus_connection:start(UserSpec),
 
     {ok, _Alice2, _} = escalus_connection:start(UserSpec),
@@ -590,16 +590,20 @@ clean_close_of_replaced_session(Config) ->
     [] = lager_ct_backend:recv(FilterFun).
 
 replaced_session_cannot_terminate(Config) ->
+    % GIVEN a session that is frozen and cannot terminate
     lager_ct_backend:capture(warning),
-    UserSpec = [{resource, <<"confict">>} | escalus_users:get_userspec(Config, alice)],
+    UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
     {ok, _Alice1, _} = escalus_connection:start(UserSpec),
     [C2SPid] = children_specs_to_pids(rpc(mim(), supervisor, which_children, [ejabberd_c2s_sup])),
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
+    % WHEN a session gets replaced ...
     {ok, _Alice2, _} = escalus_connection:start(UserSpec),
 
+    % ... and the replace wait times out
     timer:sleep(2000),
 
+    % THEN a timeout warning is logged
     rpc(mim(), sys, resume, [C2SPid]),
     lager_ct_backend:stop_capture(),
     FilterFun = fun(_, Msg) ->
