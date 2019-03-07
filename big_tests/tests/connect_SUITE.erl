@@ -161,11 +161,11 @@ end_per_group(session_replacement, Config) ->
 end_per_group(_, Config) ->
     Config.
 
-init_per_testcase(replaced_session_cannot_terminate, Config) ->
+init_per_testcase(replaced_session_cannot_terminate = CN, Config) ->
     S = escalus_users:get_server(Config, alice),
     OptKey = {replaced_wait_timeout, S},
     {atomic, _} = rpc(mim(), ejabberd_config, add_local_option, [OptKey, 1]),
-    [{opt_to_del, OptKey} | Config];
+    escalus:init_per_testcase(CN, [{opt_to_del, OptKey} | Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
