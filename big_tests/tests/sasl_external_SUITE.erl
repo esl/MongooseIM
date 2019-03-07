@@ -16,7 +16,7 @@ groups() ->
           TLSMod <- [<<"just_tls">>, <<"fast_tls">>], check(TLSMod, BaseGroup, Signed)] end,
            [<<"ca_signed">>, <<"self_signed">>] ).
 
-check(<<"fast_tls">>, _,  _) -> false;
+check(<<"fast_tls">>, _,  <<"self_signed">>) -> false;
 check(_, _, _) -> true.
 
 base_groups(Signed) ->
@@ -25,7 +25,7 @@ base_groups(Signed) ->
      {standard, [parallel], standard_test_cases(Signed)},
      {use_common_name, [parallel], use_common_name_test_cases(Signed)},
      {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases(Signed)},
-     {self_signed_test_cases, [sequence], self_signed_test_cases(Signed)}
+     {self_signed_test_cases, [parallel], self_signed_test_cases(Signed)}
     ],
     ct_helper:repeat_all_until_all_ok(G).
 
