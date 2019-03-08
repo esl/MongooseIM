@@ -7,64 +7,66 @@
 -include_lib("exml/include/exml.hrl").
 
 all() ->
-    [{group, GN} || {GN, _, _} <- groups()].
+    [
+     {group, fast_tls},
+     {group, just_tls}].
 
 groups() ->
-    lists:flatmap( fun(Signed) ->
-    [ {encode_group_name(TLSMod, BaseGroup, Signed), Opts, Cases}
-      || {BaseGroup, Opts, Cases} <- base_groups(Signed),
-          TLSMod <- [<<"just_tls">>, <<"fast_tls">>], check(TLSMod, BaseGroup, Signed)] end,
-           [<<"ca_signed">>, <<"self_signed">>] ).
+    [{standard, [parallel], standard_test_cases()},
+     {use_common_name, [parallel], use_common_name_test_cases()},
+     {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases()},
+     {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
+     {self_signed_certs_not_allowed, [parallel], self_signed_certs_not_allowed_test_cases()},
+     {ca_signed, [self_signed_certs_not_allowed_group() | base_groups()]},
+     {self_signed, [self_signed_certs_allowed_group() | base_groups()]},
+     {fast_tls, [{group, ca_signed}]},
+     {just_tls, all_groups()} ].
 
-check(<<"fast_tls">>, _,  <<"self_signed">>) -> false;
-check(_, _, _) -> true.
+all_groups() ->
+    [{group, self_signed},
+     {group, ca_signed}].
 
-base_groups(Signed) ->
-    G =
+self_signed_certs_allowed_group() ->
+    {group, self_signed_certs_allowed}.
+self_signed_certs_not_allowed_group() ->
+    {group, self_signed_certs_not_allowed}.
+
+base_groups() ->
+    [{group, standard},
+     {group, use_common_name},
+     {group, allow_just_user_identity}].
+
+standard_test_cases() ->
     [
-     {standard, [parallel], standard_test_cases(Signed)},
-     {use_common_name, [parallel], use_common_name_test_cases(Signed)},
-     {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases(Signed)},
-     {self_signed_test_cases, [parallel], self_signed_test_cases(Signed)}
-    ],
-    ct_helper:repeat_all_until_all_ok(G).
+     cert_no_xmpp_addrs_fails,
+     cert_no_xmpp_addrs_no_identity,
+     cert_one_xmpp_addr_identity_correct,
+     cert_one_xmpp_addrs_no_identity,
+     cert_one_xmpp_addr_wrong_hostname,
+     cert_more_xmpp_addrs_identity_correct,
+     cert_more_xmpp_addrs_no_identity_fails,
+     cert_more_xmpp_addrs_wrong_identity_fails
+    ].
 
-encode_test_names(Signed, BaseNames) ->
-    [binary_to_atom(<<(atom_to_binary(Test, utf8))/binary, $_,
-                      Signed/binary>>, utf8) || Test <- BaseNames].
+use_common_name_test_cases() ->
+    [
+     cert_with_cn_no_xmpp_addrs_identity_correct,
+     cert_with_cn_no_xmpp_addrs_wrong_identity_fails,
+     cert_with_cn_no_xmpp_addrs_no_identity
+    ].
 
+allow_just_user_identity_test_cases() ->
+    [
+     cert_no_xmpp_addrs_just_use_identity
+    ].
 
-encode_group_name(TLSMod, BaseName, Signed) ->
-    binary_to_atom(<<TLSMod/binary, $+, (atom_to_binary(BaseName, utf8))/binary, $+, Signed/binary>>, utf8).
-
-decode_group_name(ComplexName) ->
-    [TLSMod, BaseName, Signed] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>, [global]),
-    #{tls_module => TLSMod, base_name => binary_to_atom(BaseName, utf8), signed => Signed}.
-
-standard_test_cases(Signed) ->
-    encode_test_names(Signed, [cert_no_xmpp_addrs_fails,
-                               cert_no_xmpp_addrs_no_identity,
-                               cert_one_xmpp_addr_identity_correct,
-                               cert_one_xmpp_addrs_no_identity,
-                               cert_one_xmpp_addr_wrong_hostname,
-                               cert_more_xmpp_addrs_identity_correct,
-                               cert_more_xmpp_addrs_no_identity_fails,
-                               cert_more_xmpp_addrs_wrong_identity_fails]).
-
-use_common_name_test_cases(Signed) ->
-    encode_test_names(Signed, [cert_with_cn_no_xmpp_addrs_identity_correct,
-                               cert_with_cn_no_xmpp_addrs_wrong_identity_fails,
-                               cert_with_cn_no_xmpp_addrs_no_identity]).
-
-allow_just_user_identity_test_cases(Signed) ->
-    encode_test_names(Signed, [cert_no_xmpp_addrs_just_use_identity]).
-
-self_signed_test_cases(<<"self_signed">>) ->
+self_signed_certs_allowed_test_cases() ->
     [self_signed_cert_is_allowed_with_tls,
      self_signed_cert_is_allowed_with_ws,
      self_signed_cert_is_allowed_with_bosh,
-     no_cert_fails_to_authenticate];
-self_signed_test_cases(<<"ca_signed">>) ->
+     no_cert_fails_to_authenticate].
+
+self_signed_certs_not_allowed_test_cases() ->
     [self_signed_cert_fails_to_authenticate_with_tls,
      self_signed_cert_fails_to_authenticate_with_ws,
      self_signed_cert_fails_to_authenticate_with_bosh,
@@ -83,152 +85,133 @@ end_per_suite(Config) ->
     ejabberd_node_utils:restart_application(mongooseim),
     escalus:end_per_suite(Config).
 
-init_per_group(ComplexName, Config) ->
-    DecodedGroupName = #{ tls_module := TLSModule,
-                          base_name := BaseName,
-                          signed := Signed } = decode_group_name(ComplexName),
+init_per_group(just_tls, Config) ->
+    [{tls_module, "just_tls"} | Config];
+init_per_group(fast_tls, Config) ->
+    [{tls_module, "fast_tls"} | Config];
+init_per_group(ca_signed, Config) ->
+    SSLOpts = case escalus_config:get_config(tls_module, Config) of
+                 "just_tls" ->
+                     "{ssl_options, [{verify_fun, {peer, false}}]},";
+                 "fast_tls" ->
+                     ""
+             end,
+    [{signed, ca}, {ssl_options, SSLOpts}, {verify_mode, ""} | Config];
+init_per_group(self_signed, Config) ->
+    SSLOpts = "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},",
+    [{signed, self}, {ssl_options, SSLOpts}, {verify_mode, "{verify_mode, selfsigned_peer},"} | Config];
+init_per_group(standard, Config) ->
+    modify_config_and_restart("standard", Config),
+    Config;
+init_per_group(use_common_name, Config) ->
+    modify_config_and_restart("use_common_name", Config),
+    Config;
+init_per_group(allow_just_user_identity, Config) ->
+    modify_config_and_restart("allow_just_user_identity", Config),
+    Config;
+init_per_group(self_signed_certs_allowed, Config) ->
+    modify_config_and_restart("standard", Config),
+    Config;
+init_per_group(self_signed_certs_not_allowed, Config) ->
+    modify_config_and_restart("standard", Config),
+    Config;
+init_per_group(_, Config) ->
+    Config.
+
+modify_config_and_restart(CyrsaslExternalConfig, Config) ->
+    SSLOpts = escalus_config:get_config(ssl_options, Config, ""),
+    TLSModule = escalus_config:get_config(tls_module, Config, "just_tls"),
+    VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "{certfile, \"priv/ssl/fake_server.pem\"},"
 			            "starttls, verify_peer,"
 				    "{cafile, \"" ++ CACertFile ++ "\"},"
-                                    ++ ssl_options_by_group_name(DecodedGroupName)},
-		       {tls_module, "{tls_module, " ++ binary_to_list(TLSModule) ++ "},"},
+                                    ++ SSLOpts},
+		       {tls_module, "{tls_module, " ++ TLSModule ++ "},"},
 		       {https_config,  "{ssl, [{certfile, \"priv/ssl/fake_cert.pem\"},"
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
-				              "{verify, verify_peer}," ++ verify_mode(Signed) ++
+				              "{verify, verify_peer}," ++ VerifyMode ++
 					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
-               {cyrsasl_external, "{cyrsasl_external," ++ atom_to_list(BaseName) ++ "}"},
+               {cyrsasl_external, "{cyrsasl_external," ++ CyrsaslExternalConfig ++ "}"},
 		       {auth_method, "pki"},
 		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
-    ejabberd_node_utils:restart_application(mongooseim),
-    Config.
-
-ssl_options_by_group_name(#{ tls_module := <<"fast_tls">>, signed := <<"ca_signed">> }) ->
-    "";
-ssl_options_by_group_name(#{ tls_module := <<"just_tls">>, signed := <<"ca_signed">> }) ->
-    "{ssl_options, [{verify_fun, {peer, false}}]},";
-ssl_options_by_group_name(#{ tls_module := <<"just_tls">>, signed := <<"self_signed">> }) ->
-    "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},";
-ssl_options_by_group_name(#{ tls_module := <<"fast_tls">>, signed := <<"self_signed">> }) ->
-    "{ssl_options, [{verify_fun, {selfsigned_peer, true}}]},".
-
-verify_mode(<<"ca_signed">>) ->
-    "";
-verify_mode(<<"self_signed">>) ->
-    "{verify_mode, selfsigned_peer},".
-
+    ejabberd_node_utils:restart_application(mongooseim).
 
 end_per_group(_, Config) ->
     Config.
 
-cert_more_xmpp_addrs_identity_correct_ca_signed(C) ->
-    cert_more_xmpp_addrs_identity_correct(C, "kate").
-cert_more_xmpp_addrs_identity_correct_self_signed(C) ->
-    cert_more_xmpp_addrs_identity_correct(C, "kate").
-cert_more_xmpp_addrs_identity_correct(C, User) ->
+cert_more_xmpp_addrs_identity_correct(C) ->
+    User = username("kate", C),
     %% More than one xmpp_addr and specified identity, common_name not used
     UserSpec = [{requested_name, requested_name(User)} |
 		generate_user_tcp(C, User)],
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
-cert_one_xmpp_addr_identity_correct_ca_signed(C) ->
-    cert_one_xmpp_addr_identity_correct(C, "bob").
-cert_one_xmpp_addr_identity_correct_self_signed(C) ->
-    cert_one_xmpp_addr_identity_correct(C, "bob-self-signed").
-cert_one_xmpp_addr_identity_correct(C, User) ->
+cert_one_xmpp_addr_identity_correct(C) ->
+    User = username("bob", C),
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
 
-cert_no_xmpp_addrs_fails_ca_signed(C) ->
-    cert_no_xmpp_addrs_fails(C, "john").
-cert_no_xmpp_addrs_fails_self_signed(C) ->
-    cert_no_xmpp_addrs_fails(C, "john-self-signed").
-cert_no_xmpp_addrs_fails(C, User) ->
+cert_no_xmpp_addrs_fails(C) ->
+    User = username("john", C),
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
 
-cert_no_xmpp_addrs_just_use_identity_ca_signed(C) ->
-    cert_no_xmpp_addrs_just_use_identity(C, "not-mike").
-cert_no_xmpp_addrs_just_use_identity_self_signed(C) ->
-    cert_no_xmpp_addrs_just_use_identity(C, "not-mike-self-signed").
-cert_no_xmpp_addrs_just_use_identity(C, User) ->
+cert_no_xmpp_addrs_just_use_identity(C) ->
+    User = username("not-mike", C),
     UserSpec = [{requested_name, <<"mike@localhost">>} |
 		generate_user_tcp(C, User)],
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
-cert_no_xmpp_addrs_no_identity_ca_signed(C) ->
-    cert_no_xmpp_addrs_no_identity(C, "john").
-cert_no_xmpp_addrs_no_identity_self_signed(C) ->
-    cert_no_xmpp_addrs_no_identity(C, "john-self-signed").
-cert_no_xmpp_addrs_no_identity(C, User) ->
+cert_no_xmpp_addrs_no_identity(C) ->
+    User = username("john", C),
     UserSpec = generate_user_tcp(C, User),
     cert_fails_to_authenticate(UserSpec).
 
-cert_more_xmpp_addrs_no_identity_fails_ca_signed(C) ->
-    cert_more_xmpp_addrs_no_identity_fails(C, "not-alice").
-cert_more_xmpp_addrs_no_identity_fails_self_signed(C) ->
-    cert_more_xmpp_addrs_no_identity_fails(C, "not-alice-self-signed").
-cert_more_xmpp_addrs_no_identity_fails(C, User) ->
+cert_more_xmpp_addrs_no_identity_fails(C) ->
+    User = username("not-alice", C),
     UserSpec = generate_user_tcp(C, User),
     cert_fails_to_authenticate(UserSpec).
 
-cert_one_xmpp_addrs_no_identity_ca_signed(C) ->
-    cert_one_xmpp_addrs_no_identity(C, "bob").
-cert_one_xmpp_addrs_no_identity_self_signed(C) ->
-    cert_one_xmpp_addrs_no_identity(C, "bob-self-signed").
-cert_one_xmpp_addrs_no_identity(C, User) ->
+cert_one_xmpp_addrs_no_identity(C) ->
+    User = username("bob", C),
     UserSpec = generate_user_tcp(C, User),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
-cert_with_cn_no_xmpp_addrs_no_identity_ca_signed(C) ->
-    cert_with_cn_no_xmpp_addrs_no_identity(C, "john").
-cert_with_cn_no_xmpp_addrs_no_identity_self_signed(C) ->
-    cert_with_cn_no_xmpp_addrs_no_identity(C, "john-self-signed").
-cert_with_cn_no_xmpp_addrs_no_identity(C, User) ->
+cert_with_cn_no_xmpp_addrs_no_identity(C) ->
+    User = username("john", C),
     UserSpec = generate_user_tcp(C, User),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
-cert_with_cn_no_xmpp_addrs_identity_correct_ca_signed(C) ->
-    cert_with_cn_no_xmpp_addrs_identity_correct(C, "john").
-cert_with_cn_no_xmpp_addrs_identity_correct_self_signed(C) ->
-    cert_with_cn_no_xmpp_addrs_identity_correct(C, "john-self-signed").
-cert_with_cn_no_xmpp_addrs_identity_correct(C, User) ->
+cert_with_cn_no_xmpp_addrs_identity_correct(C) ->
+    User = username("john", C),
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
 
-cert_with_cn_no_xmpp_addrs_wrong_identity_fails_ca_signed(C) ->
-    cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C, "not-mike").
-cert_with_cn_no_xmpp_addrs_wrong_identity_fails_self_signed(C) ->
-    cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C, "not-mike-self-signed").
-cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C, User) ->
+cert_with_cn_no_xmpp_addrs_wrong_identity_fails(C) ->
+    User = username("not-mike", C),
     UserSpec = [{requested_name, <<"mike@localhost">>} |
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
 
-cert_more_xmpp_addrs_wrong_identity_fails_ca_signed(C) ->
-    cert_more_xmpp_addrs_wrong_identity_fails(C, "grace").
-cert_more_xmpp_addrs_wrong_identity_fails_self_signed(C) ->
-    cert_more_xmpp_addrs_wrong_identity_fails(C, "grace-self-signed").
-cert_more_xmpp_addrs_wrong_identity_fails(C, User) ->
+cert_more_xmpp_addrs_wrong_identity_fails(C) ->
+    User = username("grace", C),
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
 
-cert_one_xmpp_addr_wrong_hostname_ca_signed(C) ->
-    cert_one_xmpp_addr_wrong_hostname(C, "bob").
-cert_one_xmpp_addr_wrong_hostname_self_signed(C) ->
-    cert_one_xmpp_addr_wrong_hostname(C, "bob-self-signed").
-cert_one_xmpp_addr_wrong_hostname(C, User) ->
+cert_one_xmpp_addr_wrong_hostname(C) ->
+    User = username("bob", C),
     UserSpec = [{requested_name, requested_name(User)} |
                 generate_user_tcp(C, User)],
     cert_fails_to_authenticate(UserSpec).
@@ -278,7 +261,7 @@ cert_fails_to_authenticate(UserSpec) ->
 self_signed_cert_fails_to_authenticate(C, EscalusTransport) ->
     Self = self(),
     F = fun() ->
-		UserSpec = generate_user(C, "bob-self-signed", EscalusTransport),
+		UserSpec = generate_user(C, "greg-self-signed", EscalusTransport),
 		{ok, Client, _} = escalus_connection:start(UserSpec),
 		Self ! escalus_connected,
 		escalus_connection:stop(Client)
@@ -329,6 +312,7 @@ generate_certs(C) ->
     CA = [#{cn => "not-alice", xmpp_addrs => ["alice@localhost", "alice@fed1"]},
     #{cn => "kate", xmpp_addrs => ["kate@localhost", "kate@fed1"]},
           #{cn => "bob", xmpp_addrs => ["bob@localhost"]},
+          #{cn => "greg", xmpp_addrs => ["greg@localhost"]},
           #{cn => "john", xmpp_addrs => undefined},
           #{cn => "not-mike", xmpp_addrs => undefined},
           #{cn => "grace", xmpp_addrs => ["grace@fed1", "grace@reg1"]}],
@@ -422,6 +406,14 @@ make_xmpp_addr_entry(Addr, I) ->
 
 requested_name(User) ->
     <<(list_to_binary(User))/binary, <<"@localhost">>/binary>>.
+
+username(Name, Config) ->
+    case escalus_config:get_config(signed, Config, ca) of
+        self ->
+            Name ++ "-self-signed";
+        ca ->
+            Name
+    end.
 
 replace_addrs(undefined) ->
     undefined;
