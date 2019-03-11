@@ -183,8 +183,7 @@ required_modules() ->
     ].
 
 inbox_opts() ->
-    [{backend, rdbms},
-     {aff_changes, true},
+    [{aff_changes, true},
      {remove_on_kicked, true},
      {groupchat, [muclight]},
      {markers, [displayed]}].
