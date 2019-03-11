@@ -57,7 +57,8 @@ parallel_test_cases() ->
      resume_session_with_wrong_sid_returns_item_not_found,
      resume_session_with_wrong_namespace_is_a_noop,
      resume_dead_session_results_in_item_not_found,
-     aggressively_pipelined_resume
+     aggressively_pipelined_resume,
+     replies_are_processed_by_resumed_session
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -83,6 +84,7 @@ init_per_suite(Config) ->
     NewConfig1 = escalus_ejabberd:setup_option(ack_freq(never), Config),
     NewConfig = escalus_ejabberd:setup_option(buffer_max(?SMALL_SM_BUFFER), NewConfig1),
     NewConfigWithSM = escalus_users:update_userspec(NewConfig, alice, stream_management, true),
+    mongoose_helper:inject_module(?MODULE),
     escalus:init_per_suite(NewConfigWithSM).
 
 end_per_suite(Config) ->
@@ -111,15 +113,21 @@ end_per_group(parallel_manual_ack, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
-init_per_testcase(server_requests_ack_freq_2, Config) ->
+init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [2]),
-    Config;
+    escalus:init_per_testcase(CN, Config);
+init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
+    register_handler(<<"localhost">>),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(server_requests_ack_freq_2, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
-    Config;
+    escalus:end_per_testcase(Config);
+end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
+    unregister_handler(<<"localhost">>),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -757,6 +765,34 @@ aggressively_pipelined_resume(Config) ->
         escalus_connection:stop(Alice)
     end).
 
+%% This is a regression test for a case when a session processes a request, which will
+%% receive a response from the server, i.e. will have the same origin SID in mongoose_acc.
+%% Without proper handling, the reply would be rejected because the resumed session
+%% has new SID.
+replies_are_processed_by_resumed_session(Config) -> 
+    %% GIVEN a session and registered special IQ handler (added in init_per_testcase),
+    %% that waits for old session process to terminate (at this point new process
+    %% has fully taken over) and then actually sends the reply.
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = connection_steps_to_enable_stream_resumption(),
+    {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+    SMID = proplists:get_value(smid, Props),
+    SMH = escalus_connection:get_sm_h(Alice),
+
+    %% WHEN a client sends IQ request to the special handler...
+    IQReq = escalus_stanza:iq_get(regression_ns(), []), 
+    escalus:send(Alice, IQReq),
+
+    %% ... goes down and session is resumed.
+    escalus_client:kill_connection(Config, Alice),
+    Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+
+    %% THEN the client receives the reply properly.
+    IQReply = escalus:wait_for_stanza(Alice2),
+    escalus:assert(is_iq_result, [IQReq], IQReply),
+    escalus_connection:stop(Alice2).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -891,3 +927,46 @@ given_fresh_user_with_spec(Spec) ->
     escalus:wait_for_stanza(User),
     JID = common_helper:get_bjid(Props),
     {User#client{jid  = JID}, Spec}.
+
+%%--------------------------------------------------------------------
+%% IQ handler necessary for reproducing "replies_are_processed_by_resumed_session"
+%%--------------------------------------------------------------------
+
+regression_ns() ->
+    <<"regression">>.
+
+register_handler(Host) ->
+    rpc(mim(), gen_iq_handler, add_iq_handler,
+        [ejabberd_sm, Host, regression_ns(), ?MODULE, regression_handler, one_queue]).
+
+unregister_handler(Host) ->
+    rpc(mim(), gen_iq_handler, remove_iq_handler, [ejabberd_sm, Host, regression_ns()]).
+
+regression_handler(_From, _To, Acc, IQ) ->
+    %% A bit of a hack - will no longer work when the SID format changes
+    {_, Pid} = mongoose_acc:get(c2s, origin_sid, undefined, Acc),
+    erlang:monitor(process, Pid),
+    receive
+        {'DOWN', _, _, _, _} ->
+            ok
+    after
+        10000 ->
+            error({c2s_not_stopped_after_timeout, Pid})
+    end,
+
+    %% We avoid another race condition - there is a short window where user session
+    %% is not registered in ejabberd_sm: between old process termination and the moment
+    %% when the new process stores new session in memory. It should be fixed separately.
+    wait_for_session(jid:to_lower(mongoose_acc:get(c2s, origin_jid, undefined, Acc)), 50, 100),
+
+    {Acc, jlib:make_result_iq_reply(IQ)}.
+
+wait_for_session({LU, LS, LR} = LJID, Retries, SleepTime) ->
+    case ejabberd_sm:get_session(LU, LS, LR) of
+        offline ->
+            timer:sleep(SleepTime),
+            wait_for_session(LJID, Retries - 1, SleepTime);
+        _ ->
+            ok
+    end.
+
