@@ -58,7 +58,8 @@ parallel_test_cases() ->
      resume_session_with_wrong_namespace_is_a_noop,
      resume_dead_session_results_in_item_not_found,
      aggressively_pipelined_resume,
-     replies_are_processed_by_resumed_session
+     replies_are_processed_by_resumed_session,
+     subscription_requests_are_buffered_properly
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -792,6 +793,55 @@ replies_are_processed_by_resumed_session(Config) ->
     IQReply = escalus:wait_for_stanza(Alice2),
     escalus:assert(is_iq_result, [IQReq], IQReply),
     escalus_connection:stop(Alice2).
+
+%% This is a regression test for a bug, which manifested in following scenario
+%% (due to improper presence sub requests buffering):
+%% 1. A is online, B is offline
+%% 2. A subscribes to B's presence;
+%% 3. B becomes online
+%% 4. B doesn't SM-ack the request, terminates the connection
+%% 5. B resumes the session
+subscription_requests_are_buffered_properly(Config) ->
+    AliceSpec = [{manual_ack, true}
+                 | escalus_fresh:create_fresh_user(Config, alice)],
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN Bob's pending subscription to Alice's presence
+        AliceUser = proplists:get_value(username, AliceSpec),
+        AliceServer = proplists:get_value(server, AliceSpec),
+        AliceJid = <<AliceUser/binary, $@, AliceServer/binary>>,
+        escalus:send(Bob, escalus_stanza:presence_direct(AliceJid, <<"subscribe">>)),
+        _RosterPushReq = escalus:wait_for_stanza(Bob),
+
+        % WHEN Alice becomes online...
+        Steps = connection_steps_to_enable_stream_resumption(),
+        {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+        SMID = proplists:get_value(smid, Props),
+        InitialPresence = escalus_stanza:presence(<<"available">>),
+        escalus_connection:send(Alice, InitialPresence),
+        Presence = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_presence, Presence),
+
+        % ...and kills connection without acking subscription request...
+        escalus_client:kill_connection(Config, Alice),
+
+        % ...and resumes session.
+        Steps2 = connection_steps_to_stream_resumption(SMID, 0),
+        {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+
+        % THEN Alice receives buffered subscription request.
+        SubReqAndInitialPresence = escalus:wait_for_stanzas(Alice2, 2),
+        escalus:assert_many([
+                             fun(S) ->
+                                     escalus_pred:is_presence_with_type(<<"subscribe">>, S)
+                             end,
+                             fun(S) ->
+                                     escalus_pred:is_presence_with_type(<<"available">>, S)
+                             end
+                            ], SubReqAndInitialPresence),
+
+        escalus_connection:stop(Alice2)
+    end).
+
 
 %%--------------------------------------------------------------------
 %% Helpers

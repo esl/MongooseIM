@@ -2335,6 +2335,9 @@ resend_subscription_requests(Acc, #state{pending_invitations = Pending} = StateD
     {NewAcc, NewState} = lists:foldl(
                  fun(XMLPacket, {A, #state{} = State}) ->
                          A1 = send_element(A, XMLPacket, State),
+                         % We retrieve From i To from a stanza, because Acc has
+                         % from_jid and to_jid that apply to 'available' stanza sent
+                         % by the client
                          {value, From} =  xml:get_tag_attr(<<"from">>, XMLPacket),
                          {value, To} = xml:get_tag_attr(<<"to">>, XMLPacket),
                          PacketTuple = {jid:from_binary(From), jid:from_binary(To), XMLPacket},
