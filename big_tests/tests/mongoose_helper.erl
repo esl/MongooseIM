@@ -310,24 +310,25 @@ wait_for_user(Config, User, LeftTime) ->
 % Loads a module present in big tests into a MongooseIM node
 -spec inject_module(Module :: module()) -> ok.
 inject_module(Module) ->
-    inject_module(Module, false).
+    inject_module(Module, no_reload).
 
--spec inject_module(Module :: module(), CheckIfLoadedAlready :: boolean()) -> ok | already_loaded.
-inject_module(Module, CheckIfLoadedAlready) ->
-    inject_module(mim(), Module, CheckIfLoadedAlready).
+-spec inject_module(Module :: module(),
+                    ReloadIfAlreadyLoaded :: no_reload | reload) -> ok | already_loaded.
+inject_module(Module, ReloadIfAlreadyLoaded) ->
+    inject_module(mim(), Module, ReloadIfAlreadyLoaded).
 
 -spec inject_module(Node :: atom(),
                     Module :: module(),
-                    CheckIfLoadedAlready :: boolean()) ->
+                    ReloadIfAlreadyLoaded :: no_reload | reload) ->
     ok | already_loaded.
-inject_module(Node, Module, true) ->
+inject_module(Node, Module, no_reload) ->
     case successful_rpc(Node, code, is_loaded, [Module]) of
         false ->
-            inject_module(Node, Module, false);
+            inject_module(Node, Module, reload);
         _ ->
             already_loaded
     end;
-inject_module(Node, Module, false) ->
+inject_module(Node, Module, reload) ->
     {Mod, Bin, File} = code:get_object_code(Module),
     successful_rpc(Node, code, load_binary, [Mod, File, Bin]).
 

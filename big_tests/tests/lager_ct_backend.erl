@@ -23,7 +23,7 @@
 %% ------------------------------------------------------------
 
 start() ->
-    mongoose_helper:inject_module(?MODULE, true),
+    mongoose_helper:inject_module(?MODULE, no_reload),
     successful_rpc(gen_event, add_handler, [lager_event, ?MODULE, []]).
 
 stop() ->

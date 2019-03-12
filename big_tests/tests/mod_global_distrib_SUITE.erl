@@ -147,7 +147,7 @@ init_per_group(rebalancing, Config) ->
 init_per_group(advertised_endpoints, Config) ->
     lists:foreach(fun({NodeName, _, _}) ->
                           Node = ct:get_config(NodeName),
-                          mongoose_helper:inject_module(Node, ?MODULE, false)
+                          mongoose_helper:inject_module(Node, ?MODULE, reload)
                   end, get_hosts()),
     mock_inet_on_each_node(),
     init_per_group(advertised_endpoints_generic,
