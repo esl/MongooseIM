@@ -329,7 +329,7 @@ There are some additional options that influence all database connections in the
     * **Example:** `{routing_modules, [mongoose_router_global, mongoose_router_localdomain]}.`
 
 * **replaced_wait_timeout** (local)
-    * **Description:** When a user session is replaced (due to a full JID conflict) by a new one, this parameter specifies time that MongooseIM waits for old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably old sessions are frozen for some reason and it should be investigated.
+    * **Description:** When a user session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
     * **Syntax:** `{replaced_wait_timeout, TimeInMilliseconds}`
     * **Default:** `2000`
 
