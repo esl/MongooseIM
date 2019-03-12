@@ -16,7 +16,7 @@ It's all about tailoring PubSub to your needs!
 * `iqdisc` (default: `one_queue`)
 * `host` (string, default: `"pubsub.@HOST@"`): Subdomain for Pubsub service to reside under.
 `@HOST@` is replaced with each served domain.
-* `backend` (atom, default: `mnesia`) - Database backend to use. `mnesia` and `rdbms` (*warning!* experimental) are supported currently.
+* `backend` (atom, default: `mnesia`) - Database backend to use. `mnesia` and `rdbms` are supported currently.
 * `access_create` (atom, default: `all`): Who is allowed to create pubsub nodes.
 * `max_items_node` (integer, default: `10`): Define the maximum number of items that can be stored in a node.
 * `max_subscriptions_node` (integer, default: `undefined` - no limitation): The maximum number of subscriptions managed by a node.
@@ -33,11 +33,6 @@ Node configuration still uses the default configuration defined by the node plug
 * `item_publisher` (boolean, default: `false`): When enabled, a JID of the publisher will be saved in the item metadata.
  This effectively makes them an owner of this item.
 * `sync_broadcast` (boolean, default: `false`): If false, routing of notifications to subscribers is done in a separate Erlang process. As a consequence, some notifications *may* arrive to the subscribers in the wrong order (however, the two events would have to be published at the exact same time).
-
-#### Note about RDBMS backend
-
-RDBMS backend is in an experimental stage.
-It is a complete implementation but the schema used by this backend may change until it reaches stable status.
 
 #### Cache Backend
 

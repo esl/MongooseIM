@@ -75,6 +75,7 @@ Check out our test results:
 See the documentation for the latest releases:
 
 * [Master](https://mongooseim.readthedocs.org/en/latest/)
+* [3.3.0](https://mongooseim.readthedocs.io/en/3.3.0/)
 * [3.2.0](https://mongooseim.readthedocs.io/en/3.2.0/)
 * [3.1.0](https://mongooseim.readthedocs.io/en/3.1.0/)
 * [3.0.0](https://mongooseim.readthedocs.io/en/3.0.0/)

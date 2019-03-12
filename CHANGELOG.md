@@ -1,4 +1,112 @@
-# [MongooseIM 3.1.0](https://github.com/esl/MongooseIM/releases/tag/3.2.0) - 2018-11-20
+# [MongooseIM 3.3.0](https://github.com/esl/MongooseIM/releases/tag/3.3.0) - 2019-03-12
+
+## Highlights
+
+- Finalised RDBMS implementation for PubSub
+- MongooseIM integration with RabbitMQ
+- PKI authentication improvements
+
+## All changes
+
+### Added
+
+- PubSub improvements
+  * RDBMS backend for `pubsub_node` table (#2145)
+  * `mod_pubsub_cache_rdbms` implementation (#2144)
+  * RDBMS support for subscription options in PubSub (#2165)
+  * Generic metrics measuring number of errors and execution time for different PubSub actions based on sent IQs (#2178)
+  * Setting subscription options for `flat_node` (#2165)
+- RabbitMQ layer (#2127, #2216)
+  * RabbitMQ backend for `event_pusher`
+  * `rabbit` worker pool (that can be used for any interaction with RabbitMQ)
+  * `mongoose_amqp` module that deals with AMQP protocol layer
+- Address best practices for using `SASL EXTERNAL` as defined by XEP-0178 (#2204, #2223, #2231)
+- Upsert API for RDBMS (#2153)
+- `gen_mod:opts_for_module/2` which allows you to selectively retrieve opts passed through config to a given module (#1027)
+- Backend functions get a new metric: number of function calls (#2177)
+- `mod_vcard` calls optional `tear_down` callback on the backend module (#2152)
+
+### Changed
+
+- Update dependencies:
+  * `lager` `3.6.7` (#2138)
+  * `cowboy` `2.6.0` (#2138)
+  * `idna` `6.0.0` (#2138)
+  * `uuid` `1.7.4` (#2138)
+  * `fast_tls` `1.0.26`(#2138, #2203)
+  * `epgsql` `4.2.1` (#2138)
+  * `cache_tab` `1.0.16` (#2138)
+  * `stringprep` `1.0.14` (#2138)
+  * `proper` `1.3.0` (#2138)
+  * `meck` `0.8.12` (#2138)
+  * `bbmustache` `1.6.1` (#2138)
+  * `erlcloud` `3.2.2` (#2138)
+  * `observer_cli` `1.4.1`(#2138)
+  * `bbmustache` `1.6.1` (#2182)
+  * `jiffy` `0.15.2` (#2182)
+  * `proper` `1.3.0` (#2182)
+  * `escalus` `4349a80` (#2182)
+  * `shotgun` `636d14e` (#2182)
+  * `recon` `2.4.0` (#2162)
+  * `nkpacket` `f7c5349` (#2147)
+- PubSub changes
+  * Extract mnesia operations around `pubsub_node` table to the backend module (#2141)
+  * Optimize the way a pubsub node is removed (#2136)
+  * Remove `pubsub_subscription` module, refactor opts forms processing and integrate option storage logic into DB backends (#2148)
+  * `mnesia` cache backend for `pubsub_last_item` extracted to a separate _cache_ backend module (#2144)
+  * Simplified `pubsub_index` API, removed `free` function (#2156)
+  * Backend modules call pubsub_index when the `id` is not passed (#2156)
+  * Use RDBMS autoincrementing index in place of `pubsub_index` (#2160)
+  * Replace Mnesia's `transaction` and `sync_dirty` calls in the RDBMS backend with proper RDBMS equivalents (#2191)
+  * Return the index when the node is created (#2160)
+  * Parallelised PubSub message broadcast (#2206)
+  * Spawn a new process in `mod_pubsub:broadcast_stanza/9`
+
+- Change `stop_module_keep_config/2` and `stop_module/2` to return module opts (#1027)
+- Update snippet to register users (#2181)
+- Use map syntax to pass `ranch` transport options (#2188)
+- Change the name of the metric responsible for the number of backend function calls (#2193)
+- Replace `jsx` with `jiffy` (#2199)
+- Make HTTP headers lowercase to avoid HTTP/2 connection errors (#2211)
+
+### Fixed
+
+- Add `mod_pubsub_db_backend:add_item` to the tracked functions (#2193)
+- `erlcloud_sns:publish` content format (#2176)
+- `infinity` mapped to `0` in the `matches` option in `mod_vcard_ldap` (#2179)
+- `mod_vcard_ldap` ignored `ldap_uids` formed as `{"attribute"}` and only parsed `{"attribute", "format"}` correctly (#2180)
+- Return MAM item-not-found IQ result when a nonexistent message ID is asked for (#2166)
+- Fix `mongooseimctl debug` command to use correct hostnames (#2201)
+- Use `mongooseim-docker` with a name flag and nodename fixes (#2205)
+- Fix compilation errors when the compilation directory has whitespaces in it (#2203)
+- Default inbox backend is set to `rdbms` (#2236)
+- `mod_vcard_ldap:eldap_pool_search/6` empty list handling (#2226)
+- lowercase HTTP headers in mod_bosh for HTTP/2 compliance (#2211)
+
+### Other
+
+- Run Travis builds on newer (not newest) Ubuntu LTS version Xenial (16.04) (#2151)
+- Update mongooseim-docker to `cc7326bfd0129943206a67e57dd861ff19c403c7` (#2190)
+- Test improvements and refactoring (#2165, #2162, #2164, #2170, #2127, #2142, #2146, #2147)
+- Fix broken or remove outdated links in docs (#2183)
+- Install the most up to date package builder epel-release for centos 7 (#2154)
+- Stabilize the `ldap` job on travis (#2140)
+- Update `find-hooks.awk` (#2225, #2232)
+- Update `escalus` to `8911491` (#2224)
+- Update documentation (#2155, #2163, #2167, #2233, #2227)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.3.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222018-11-21..2019-03-12%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-11-20&to=2019-03-12&type=c)
+
+## Special thanks to our contributors: 
+- @sstrigler 
+- @getong
+- @cogentParadigm
+
+# [MongooseIM 3.2.0](https://github.com/esl/MongooseIM/releases/tag/3.2.0) - 2018-11-20
 
 ## Highlights
 
