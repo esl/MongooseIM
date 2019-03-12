@@ -59,7 +59,8 @@ parallel_test_cases() ->
      resume_dead_session_results_in_item_not_found,
      aggressively_pipelined_resume,
      replies_are_processed_by_resumed_session,
-     subscription_requests_are_buffered_properly
+     subscription_requests_are_buffered_properly,
+     messages_are_properly_flushed_during_resumption
     ].
 
 parallel_manual_ack_test_cases() ->
@@ -842,6 +843,63 @@ subscription_requests_are_buffered_properly(Config) ->
         escalus_connection:stop(Alice2)
     end).
 
+%% This is a regression test for a bug, due to which messages sent to old session
+%% in a middle of state handover were not appended properly to SM buffer.
+%% Scenario to reproduce:
+%% 1. Online Bob and Alice
+%% 2. Alice kills the connecion
+%% 3. Alice's session is suspended
+%% 4. Alice resumes session with new connection. At this moment new session is still not
+%%    present in session table. `resume` request is stuck in old proc mailbox.
+%% 5. Bob sends a message to Alice. Only old proc is present in session table so now
+%%    old session has two messages in mailbox: `resume` and XML from Bob
+%% 6. We resume old process and it begins session handover
+%% 7. Bob's message is appended to SM buffer in "flush" step
+%% 8. With bug fixed, the message is retransmitted properly
+messages_are_properly_flushed_during_resumption(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
+        % GIVEN (online Bob) and (Alice in resume state); Alice's session is suspended
+        Steps = connection_steps_to_enable_stream_resumption(),
+        {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+        SMID = proplists:get_value(smid, Props),
+        InitialPresence = escalus_stanza:presence(<<"available">>),
+        escalus_connection:send(Alice, InitialPresence),
+        Presence = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_presence, Presence),
+        SMH = escalus_connection:get_sm_h(Alice),
+        escalus_client:kill_connection(Config, Alice),
+        {ok, C2SPid} = get_session_pid(AliceSpec, server_string("escalus-default-resource")),
+        ok = rpc(mim(), sys, suspend, [C2SPid]),
+
+        % WHEN new session requests resumption
+        % we wait until that old session has resumption request enqueued;
+        % we need it to ensure the order of messages: resume first, Bob's chat second.
+        % Actual wait and message sent by Bob is done in separate process
+        % because new client start will block until old process is resumed
+
+        MsgBody = <<"flush-regression">>,
+        spawn(fun() ->
+                      wait_for_queue_length(C2SPid, 1),
+
+                      % Bob sends a message...
+                      escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
+
+                      % ...we ensure that a message is enqueued in Alice's session...
+                      % (2 messages = resume request + Bob's message)
+                      wait_for_queue_length(C2SPid, 2),
+
+                      % ...and old process is resumed.
+                      ok = rpc(mim(), sys, resume, [C2SPid])
+              end),
+
+        Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
+        {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+
+        % THEN Alice's new session receives Bob's message
+        RecvMsg = escalus:wait_for_stanza(Alice2),
+        escalus:assert(is_chat_message, [MsgBody], RecvMsg)
+      end).
 
 %%--------------------------------------------------------------------
 %% Helpers
@@ -977,6 +1035,12 @@ given_fresh_user_with_spec(Spec) ->
     escalus:wait_for_stanza(User),
     JID = common_helper:get_bjid(Props),
     {User#client{jid  = JID}, Spec}.
+
+wait_for_queue_length(Pid, Length) ->
+    mongoose_helper:wait_until(
+      fun() ->
+              rpc(mim(), erlang, process_info, [Pid, message_queue_len])
+      end, {message_queue_len, Length}).
 
 %%--------------------------------------------------------------------
 %% IQ handler necessary for reproducing "replies_are_processed_by_resumed_session"

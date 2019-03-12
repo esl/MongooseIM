@@ -2508,8 +2508,11 @@ flush_messages() ->
     {N :: non_neg_integer(), Msgs :: [packet()]}.
 flush_messages(N, Acc) ->
     receive
-        {route, From, To, Packet} ->
-            flush_messages(N+1, [{From, To, Packet} | Acc])
+        {route, From, To, #xmlel{} = Packet} ->
+            flush_messages(N+1, [{From, To, Packet} | Acc]);
+        {route, From, To, MongooseAcc} ->
+            % TODO: SM buffer should hold acc, not xmlels
+            flush_messages(N+1, [{From, To, mongoose_acc:element(MongooseAcc)} | Acc])
     after 0 ->
               {N, Acc}
     end.
