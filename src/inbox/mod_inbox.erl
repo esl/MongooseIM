@@ -84,14 +84,20 @@ deps(_Host, Opts) ->
 
 -spec start(Host :: jid:server(), Opts :: list()) -> ok.
 start(Host, Opts) ->
-    gen_mod:start_backend_module(?MODULE, Opts, callback_funs()),
-    mod_inbox_backend:init(Host, Opts),
+    FullOpts = case lists:keyfind(backend, 2, Opts) of
+                   false ->
+                       [{backend, rdbms} | Opts];
+                   _ ->
+                       Opts
+               end,
+    gen_mod:start_backend_module(?MODULE, FullOpts, callback_funs()),
+    mod_inbox_backend:init(Host, FullOpts),
     mod_disco:register_feature(Host, ?NS_ESL_INBOX),
-    IQDisc = gen_mod:get_opt(iqdisc, Opts, no_queue),
+    IQDisc = gen_mod:get_opt(iqdisc, FullOpts, no_queue),
     MucTypes = get_groupchat_types(Host),
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(hooks(Host)),
-    store_bin_reset_markers(Host, Opts),
+    store_bin_reset_markers(Host, FullOpts),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
 
 
