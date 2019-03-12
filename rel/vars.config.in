@@ -32,7 +32,7 @@
 
 {sm_backend, "{mnesia, []}"}.
 {auth_method, "internal"}.
-{authenticate_with_cn, "{authenticate_with_cn, true}"}.
+{cyrsasl_external, "{cyrsasl_external, standard}"}.
 {ext_auth_script, "%%{extauth_program, \"/path/to/authentication/script\"}."}.
 {tls_config, "{certfile, \"priv/ssl/fake_server.pem\"}, starttls,"}.
 {tls_module, ""}.
