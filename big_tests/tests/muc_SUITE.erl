@@ -2949,10 +2949,15 @@ disco_features(Config) ->
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Room = <<"persistentroom">>,
+        Host = muc_host(),
+        ok = rpc(mim(), mod_muc, store_room, [domain(), Host, Room, []]),
+
         escalus:send(Alice, stanza_get_rooms()),
         %% we should have room room_address(<<"aliceroom">>), created in init
         Stanza = escalus:wait_for_stanza(Alice),
         has_room(room_address(<<"alicesroom">>), Stanza),
+        has_room(room_address(<<"persistentroom">>), Stanza),
         escalus:assert(is_stanza_from, [muc_host()], Stanza)
     end).
 

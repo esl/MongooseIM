@@ -1066,6 +1066,15 @@ get_vh_rooms(Host) ->
                           [{'==', {element, 2, '$1'}, Host}],
                           ['$_']}]).
 
+-spec get_all_vh_rooms(jid:server()) -> [muc_room()].
+get_all_vh_rooms(MucHost) ->
+    Host = mongoose_subhosts:get_host(MucHost),
+    case mod_muc_db_mnesia:get_rooms(Host, MucHost) of
+        {ok, List} ->
+            List;
+        {error, _} ->
+            []
+    end.
 
 -spec clean_table_from_bad_node(node()) -> any().
 clean_table_from_bad_node(Node) ->
