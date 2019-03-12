@@ -575,12 +575,14 @@ same_resource_replaces_session(Config) ->
     UserSpec = [{resource, <<"conflict">>} | escalus_users:get_userspec(Config, alice)],
     {ok, Alice1, _} = escalus_connection:start(UserSpec),
 
-    {ok, _Alice2, _} = escalus_connection:start(UserSpec),
+    {ok, Alice2, _} = escalus_connection:start(UserSpec),
 
     ConflictError = escalus:wait_for_stanza(Alice1),
     escalus:assert(is_stream_error, [<<"conflict">>, <<>>], ConflictError),
 
-    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false).
+    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Alice1) end, false),
+
+    escalus_connection:stop(Alice2).
 
 clean_close_of_replaced_session(Config) ->
     lager_ct_backend:capture(warning),
@@ -602,7 +604,7 @@ replaced_session_cannot_terminate(Config) ->
     ok = rpc(mim(), sys, suspend, [C2SPid]),
 
     % WHEN a session gets replaced ...
-    {ok, _Alice2, _} = escalus_connection:start(UserSpec),
+    {ok, Alice2, _} = escalus_connection:start(UserSpec),
 
     % THEN a timeout warning is logged
     FilterFun = fun(_, Msg) ->
@@ -611,7 +613,9 @@ replaced_session_cannot_terminate(Config) ->
     mongoose_helper:wait_until(fun() -> length(lager_ct_backend:recv(FilterFun)) end, 1),
 
     rpc(mim(), sys, resume, [C2SPid]),
-    lager_ct_backend:stop_capture().
+    lager_ct_backend:stop_capture(),
+
+    escalus_connection:stop(Alice2).
 
 %%--------------------------------------------------------------------
 %% Internal functions
