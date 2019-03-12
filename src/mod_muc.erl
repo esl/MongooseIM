@@ -809,9 +809,9 @@ iq_disco_info(Lang) ->
 
 
 -spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
-        Rsm :: none | jlib:rsm_in()) -> any().
+                     Rsm :: none | jlib:rsm_in()) -> any().
 iq_disco_items(Host, From, Lang, none) ->
-    lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
+    Online = lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
                      case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
                          {item, Desc} ->
@@ -819,11 +819,16 @@ iq_disco_items(Host, From, Lang, none) ->
                              {true,
                               #xmlel{name = <<"item">>,
                                      attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                                              {<<"name">>, Desc}]}};
+                                              {<<"name">>, Name}]}};
                          _ ->
                              false
                      end
-             end, get_vh_rooms(Host));
+             end, get_vh_rooms(Host)),
+    All = [#xmlel{name = <<"item">>,
+            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                     {<<"name">>, Name}]} ||
+     #muc_room{ name_host = { Name, _ }} <- get_all_vh_rooms(Host)],
+    lists:usort(All ++ Online);
 iq_disco_items(Host, From, Lang, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
@@ -844,7 +849,7 @@ iq_disco_items(Host, From, Lang, Rsm) ->
 
 -spec get_vh_rooms(jid:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
 get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
-    AllRooms = lists:sort(get_vh_rooms(Host)),
+    AllRooms = lists:usort(get_vh_rooms(Host)),
     Count = erlang:length(AllRooms),
     Guard = case Direction of
                 _ when Index =/= undefined ->
