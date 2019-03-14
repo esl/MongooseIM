@@ -544,6 +544,8 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:get_stanza(Alice, presence),
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus_connection:send(Alice, escalus_stanza:sm_ack(1)),
+
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
 
     % kill alice connection
