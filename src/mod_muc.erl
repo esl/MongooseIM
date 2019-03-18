@@ -832,7 +832,7 @@ iq_disco_items(Host, From, Lang, none) ->
 iq_disco_items(Host, From, Lang, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
-    lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
+    lists:zf(fun({{Name, _}, Pid}) when is_pid(Pid) ->
                      case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
                          {item, Desc} ->
@@ -843,61 +843,58 @@ iq_disco_items(Host, From, Lang, Rsm) ->
                                               {<<"name">>, Desc}]}};
                          _ ->
                              false
-                     end
+                     end;
+                 ({{ Name, _ }, _}) ->
+                     {true,
+                     #xmlel{name = <<"item">>,
+                            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                                     {<<"name">>, Name}]}
+                     }
+
              end, Rooms) ++ RsmOut.
 
-
 -spec get_vh_rooms(jid:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
-get_vh_rooms(Host, #rsm_in{max=M, direction=Direction, id=I, index=Index}) ->
-    AllRooms = lists:usort(get_vh_rooms(Host)),
-    Count = erlang:length(AllRooms),
-    Guard = case Direction of
-                _ when Index =/= undefined ->
-            [{'=:=', {element, 2, '$1'}, Host}];
-                aft ->
-            [{'=:=', {element, 2, '$1'}, Host},
-             {'>',   {element, 1, '$1'}, I}]; %% not exact here
-        before when I =/= <<>> ->
-            [{'=:=', {element, 2, '$1'}, Host},
-             {'<',   {element, 1, '$1'}, I}]; %% not exact here
-                _ ->
-            [{'=:=', {element, 2, '$1'}, Host}]
-            end,
-    L = lists:sort(
-          mnesia:dirty_select(muc_online_room,
-                              [{#muc_online_room{name_host = '$1', _ = '_'},
-                                Guard,
-                                ['$_']}])),
+get_vh_rooms(Host, #rsm_in{max=Max, direction=Direction, id=I, index=Index}) ->
+    Rooms = get_vh_rooms(Host) ++ get_all_vh_rooms(Host),
+    BareSortedRooms =
+        lists:usort(lists:map(
+            fun({_,Room,PidOrEmptyList}) -> {Room, PidOrEmptyList} end, Rooms)),
+    Count = erlang:length(BareSortedRooms),
+
     L2 = case {Index, Direction} of
-             {undefined, before} ->
-                 lists:reverse(lists:sublist(lists:reverse(L), 1, M));
-             {undefined, _} ->
-                 lists:sublist(L, 1, M);
-             {Index, _} when Index > Count orelse Index < 0 ->
-                 [];
-             _ ->
-                 lists:sublist(L, Index+1, M)
+        {undefined, undefined} when I == undefined ->
+            lists:sublist(BareSortedRooms, 1, Max);
+        {undefined, aft} ->
+            lists:dropwhile(
+                fun({{Id, _}, _}) -> Id =< I end,
+                BareSortedRooms);
+        {undefined,before} when I == <<>> ->
+            lists:reverse(lists:sublist(lists:reverse(BareSortedRooms), 1, Max));
+        {undefined, before} ->
+            L = lists:takewhile(
+                fun({{Id, _}, _}) -> Id < I end,
+                BareSortedRooms),
+            lists:reverse(lists:sublist(lists:reverse(L), 1, Max));
+        _ -> []
          end,
     case L2 of
         [] ->
             {L2, #rsm_out{count=Count}};
         _ ->
             H = hd(L2),
-            NewIndex = get_room_pos(H, AllRooms),
-            T=lists:last(L2),
-            {F, _} = H#muc_online_room.name_host,
-            {Last, _} = T#muc_online_room.name_host,
+            NewIndex = get_room_pos(H, BareSortedRooms),
+
+            {{F, _},_} = H,
+            {{Last, _}, _} = lists:last(L2),
             {L2, #rsm_out{first=F, last=Last, count=Count, index=NewIndex}}
     end.
 
 %% @doc Return the position of desired room in the list of rooms.
 %% The room must exist in the list. The count starts in 0.
--spec get_room_pos(muc_online_room(), [muc_online_room()]) -> integer().
+-spec get_room_pos({{binary(), binary()}, binary()}, [{{binary(), binary()}, binary()}]) -> non_neg_integer().
 get_room_pos(Desired, Rooms) ->
     get_room_pos(Desired, Rooms, 0).
-get_room_pos(Desired, [HeadRoom | _], HeadPosition)
-  when (Desired#muc_online_room.name_host ==
-        HeadRoom#muc_online_room.name_host) ->
+get_room_pos({{NameHost, _}, _}, [{{NameHost, _}, _} | _], HeadPosition) ->
     HeadPosition;
 get_room_pos(Desired, [_ | Rooms], HeadPosition) ->
     get_room_pos(Desired, Rooms, HeadPosition + 1).
