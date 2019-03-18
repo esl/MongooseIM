@@ -92,6 +92,7 @@
 all() -> [
           {group, disco},
           {group, disco_rsm},
+          {group, disco_rsm_with_offline},
           {group, moderator},
           {group, admin},
           {group, admin_membersonly},
@@ -132,6 +133,7 @@ groups() ->
                               disco_items_nonpublic
                              ]},
          {disco_rsm, [parallel], rsm_cases()},
+         {disco_rsm_with_offline, [parallel], rsm_cases_with_offline()},
          {moderator, [parallel], [
                                   moderator_subject,
                                   moderator_subject_unauthorized,
@@ -290,6 +292,8 @@ rsm_cases() ->
        pagination_after10,
        pagination_empty_rset].
 
+rsm_cases_with_offline() ->
+    [pagination_all_with_offline].
 suite() ->
     s2s_helper:suite(escalus:suite()).
 
@@ -343,6 +347,13 @@ init_per_group(disco_rsm, Config) ->
     mongoose_helper:ensure_muc_clean(),
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
+    start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
+
+init_per_group(disco_rsm_with_offline, Config) ->
+    mongoose_helper:ensure_muc_clean(),
+    Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
+    [Alice | _] = ?config(escalus_users, Config1),
+    ok = rpc(mim(), mod_muc, store_room, [domain(), muc_host(), <<"persistentroom">>, []]),
     start_rsm_rooms(Config1, Alice, <<"aliceonchat">>);
 
 init_per_group(G, Config) when G =:= http_auth_no_server;
@@ -411,7 +422,8 @@ end_per_group(disco, Config) ->
     destroy_room(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
-end_per_group(disco_rsm, Config) ->
+end_per_group(G, Config) when G =:= disco_rsm_with_offline;
+                              G =:= disco_rsm ->
     destroy_rsm_rooms(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
@@ -2956,8 +2968,8 @@ disco_rooms(Config) ->
         escalus:send(Alice, stanza_get_rooms()),
         %% we should have room room_address(<<"aliceroom">>), created in init
         Stanza = escalus:wait_for_stanza(Alice),
-        has_room(room_address(<<"alicesroom">>), Stanza),
-        has_room(room_address(<<"persistentroom">>), Stanza),
+        true = has_room(room_address(<<"alicesroom">>), Stanza),
+        true = has_room(room_address(<<"persistentroom">>), Stanza),
         escalus:assert(is_stanza_from, [muc_host()], Stanza)
     end).
 
@@ -3243,7 +3255,7 @@ config_cancel(Config1) ->
 
         RoomsIqResp = escalus:send_iq_and_wait_for_result(
                           Alice, stanza_room_list_request(<<"id">>, undefined)),
-        has_room(room_address(?config(room, Config)), RoomsIqResp),
+        true = has_room(room_address(?config(room, Config)), RoomsIqResp),
 
     destroy_room(Config).
 
@@ -3435,7 +3447,7 @@ cancel_iq_sent_to_unlocked_room_has_no_effect(Config) ->
         escalus:send_iq_and_wait_for_result(Alice, InstantRoomIq),
         RoomsIqResp = escalus:send_iq_and_wait_for_result(
                           Alice, stanza_room_list_request(<<"id">>, undefined)),
-        has_room(room_address(Room), RoomsIqResp),
+        true = has_room(room_address(Room), RoomsIqResp),
 
         escalus:send_iq_and_wait_for_result(Alice, stanza_cancel(Room))
     end).
@@ -3952,6 +3964,20 @@ pagination_after10(Config) ->
                       id=generate_room_name(10)},
         escalus:send(Alice, stanza_room_list_request(<<"after10">>, RSM)),
         wait_room_range(Alice, 11, 15),
+        ok
+        end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
+pagination_all_with_offline(Config) ->
+    F = fun(Alice) ->
+        RSMBefore = #rsm_in{max=10, direction=before, id=generate_room_name(10)},
+        RSMAfter = #rsm_in{max=10, direction='after', id=generate_room_name(10)},
+        escalus:send(Alice, stanza_room_list_request(<<"before10">>, RSMBefore)),
+        escalus:send(Alice, stanza_room_list_request(<<"after10">>, RSMAfter)),
+        StanzaBefore = escalus:wait_for_stanza(Alice),
+        StanzaAfter = escalus:wait_for_stanza(Alice),
+        true = has_room(room_address(<<"persistentroom">>), StanzaBefore)
+            orelse has_room(room_address(<<"persistentroom">>), StanzaAfter),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
@@ -5143,7 +5169,7 @@ has_room(JID, #xmlel{children = [ #xmlel{children = Rooms} ]}) ->
     RoomPred = fun(Item) ->
         exml_query:attr(Item, <<"jid">>) == JID
     end,
-    true = lists:any(RoomPred, Rooms).
+    lists:any(RoomPred, Rooms).
 
 count_rooms(#xmlel{children = [ #xmlel{children = Rooms} ]}, N) ->
     ?assert_equal(N, length(Rooms)).

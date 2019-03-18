@@ -814,7 +814,7 @@ iq_disco_items(Host, From, Lang, none) ->
     Online = lists:zf(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
                      case catch gen_fsm_compat:sync_send_all_state_event(
                                   Pid, {get_disco_item, From, Lang}, 100) of
-                         {item, Desc} ->
+                         {item, _Desc} ->
                              flush(),
                              {true,
                               #xmlel{name = <<"item">>,
