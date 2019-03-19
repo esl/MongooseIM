@@ -86,7 +86,7 @@ not_so_happy_cases() ->
 
 init_per_suite(Config) ->
     application:ensure_all_started(gun),
-    load_test_module(Config),
+    mongoose_helper:inject_module(?MODULE),
 
     case mam_helper:is_cassandra_enabled() of
         true ->
@@ -239,10 +239,6 @@ getenv_or_fail(EnvVar) ->
         false -> error("environment variable " ++ EnvVar ++ "not defined");
         Value -> Value
     end.
-
-load_test_module(_Config) ->
-    {Mod, Bin, File} = code:get_object_code(?MODULE),
-    call(code, load_binary, [Mod, File, Bin]).
 
 call(F, A) ->
     call(mongoose_cassandra, F, A).

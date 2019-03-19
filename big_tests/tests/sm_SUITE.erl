@@ -501,8 +501,9 @@ resume_session_state_send_message(Config) ->
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
     %% kill alice connection
+    {ok, C2SPid} = get_session_pid(AliceSpec, escalus_client:resource(Alice)),
     escalus_connection:kill(Alice),
-    ct:sleep(200), %% alice should be in resume_session_state
+    wait_for_c2s_state_change(C2SPid, resume_session),
 
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
@@ -544,6 +545,8 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:get_stanza(Alice, presence),
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    escalus_connection:send(Alice, escalus_stanza:sm_ack(1)),
+
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
 
     % kill alice connection
@@ -556,7 +559,7 @@ resume_session_state_stop_c2s(Config) ->
     %% get pid of c2s and stop him !
     C2SRef = rpc(mim(), ejabberd_sm, get_session_pid, [U, S, Res]),
     rpc(mim(), ejabberd_c2s, stop, [C2SRef] ),
-    ct:sleep(1000), %% c2s should be in resume_session_state
+    wait_for_c2s_state_change(C2SRef, resume_session),
 
     %% alice comes back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),

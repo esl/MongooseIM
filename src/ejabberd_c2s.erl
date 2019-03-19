@@ -737,46 +737,45 @@ do_open_session(Acc, JID, StateData) ->
             end
     end.
 
-do_open_session_common(Acc, JID, #state{user = U, resource = R} = NewStateData0) ->
+do_open_session_common(Acc, JID, #state{user = U, server = S, resource = R} = NewStateData0) ->
     change_shaper(NewStateData0, JID),
-    Acc1 = ejabberd_hooks:run_fold(roster_get_subscription_lists,
-                                  NewStateData0#state.server,
-                                  Acc,
-                                  [U, NewStateData0#state.server]),
+    Acc1 = ejabberd_hooks:run_fold(roster_get_subscription_lists, S, Acc, [U, S]),
     {Fs, Ts, Pending} = mongoose_acc:get(roster, subscription_lists, {[], [], []}, Acc1),
     LJID = jid:to_lower(jid:to_bare(JID)),
     Fs1 = [LJID | Fs],
     Ts1 = [LJID | Ts],
-    PrivList = ejabberd_hooks:run_fold(privacy_get_user_list,
-                                       NewStateData0#state.server,
-                                       #userlist{},
-                                       [U, NewStateData0#state.server]),
+    PrivList = ejabberd_hooks:run_fold(privacy_get_user_list, S, #userlist{}, [U, S]),
     SID = {p1_time_compat:timestamp(), self()},
     Conn = get_conn_type(NewStateData0),
     Info = [{ip, NewStateData0#state.ip}, {conn, Conn},
             {auth_module, NewStateData0#state.auth_module}],
-    ReplacedPids = ejabberd_sm:open_session(SID, U, NewStateData0#state.server, R, Info),
+    ReplacedPids = ejabberd_sm:open_session(SID, U, S, R, Info),
 
-    MonitorRefs = ordsets:from_list([{monitor(process, PID), PID} || PID <- ReplacedPids]),
-    lists:foreach(
-        fun({MonitorRef, PID}) ->
-            receive
-                {'DOWN', MonitorRef, _, _, _} -> ok
-            after 100 ->
-                ?WARNING_MSG("C2S process ~p for ~s replaced by ~p has not stopped before timeout",
-                             [PID, jid:to_binary(NewStateData0#state.jid), self()])
-            end
-        end,
-        MonitorRefs),
+    RefsAndPids = [{monitor(process, PID), PID} || PID <- ReplacedPids],
+    case RefsAndPids of
+        [] ->
+            ok;
+        _ ->
+            Timeout = get_replaced_wait_timeout(S),
+            erlang:send_after(Timeout, self(), replaced_wait_timeout)
+    end,
 
     NewStateData =
     NewStateData0#state{sid = SID,
                         conn = Conn,
+                        replaced_pids = RefsAndPids,
                         pres_f = gb_sets:from_list(Fs1),
                         pres_t = gb_sets:from_list(Ts1),
                         pending_invitations = Pending,
                         privacy_list = PrivList},
     {established, Acc1, NewStateData}.
+
+get_replaced_wait_timeout(S) ->
+    ejabberd_config:get_local_option_or_default({replaced_wait_timeout, S},
+                                                default_replaced_wait_timeout()).
+
+default_replaced_wait_timeout() ->
+    2000.
 
 -spec session_established(Item :: ejabberd:xml_stream_item(),
                           State :: state()) -> fsm_return().
@@ -1032,6 +1031,26 @@ handle_info(new_offline_messages, session_established,
 handle_info({'DOWN', Monitor, _Type, _Object, _Info}, _StateName, StateData)
   when Monitor == StateData#state.socket_monitor ->
     maybe_enter_resume_session(StateData#state.stream_mgmt_id, StateData);
+handle_info({'DOWN', Monitor, _Type, Object, _Info}, StateName,
+            #state{ replaced_pids = ReplacedPids } = StateData) ->
+    case lists:keytake(Monitor, 1, ReplacedPids) of
+        {value, {Monitor, Object}, NReplacedPids} ->
+            NStateData = StateData#state{ replaced_pids = NReplacedPids },
+            fsm_next_state(StateName, NStateData);
+        _ ->
+            ?WARNING_MSG("event=unexpected_c2s_down_info,monitor=~p,monitored_pid=~p",
+                         [Monitor, Object]),
+            fsm_next_state(StateName, StateData)
+    end;
+handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = [] } = StateData) ->
+    fsm_next_state(StateName, StateData);
+handle_info(replaced_wait_timeout, StateName, #state{ replaced_pids = ReplacedPids } = StateData) ->
+    lists:foreach(
+      fun({Monitor, Pid}) ->
+              ?WARNING_MSG("event=replaced_wait_timeout,monitor=~p,replaced_pid=~p",
+                           [Monitor, Pid])
+      end, ReplacedPids),
+    fsm_next_state(StateName, StateData#state{ replaced_pids = [] });
 handle_info(system_shutdown, StateName, StateData) ->
     case StateName of
         wait_for_stream ->

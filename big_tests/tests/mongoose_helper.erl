@@ -20,9 +20,11 @@
 
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
--export([successful_rpc/3]).
+-export([successful_rpc/3, successful_rpc/4]).
 -export([logout_user/2]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
+
+-export([inject_module/1, inject_module/2, inject_module/3]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -210,9 +212,13 @@ forget_persistent_rooms() ->
     rpc(mim(), mnesia, clear_table, [muc_registered]),
     ok.
 
--spec successful_rpc(atom(), atom(), list()) -> term().
+-spec successful_rpc(M :: atom(), F :: atom(), A :: list()) -> term().
 successful_rpc(Module, Function, Args) ->
-    case rpc(mim(), Module, Function, Args) of
+    successful_rpc(mim(), Module, Function, Args).
+
+-spec successful_rpc(Node :: atom(), M :: module(), F :: atom(), A :: list()) -> term().
+successful_rpc(Node, Module, Function, Args) ->
+    case rpc(Node, Module, Function, Args) of
         {badrpc, Reason} ->
             ct:fail({badrpc, Module, Function, Args, Reason});
         Result ->
@@ -300,4 +306,29 @@ wait_for_user(Config, User, LeftTime) ->
                                  left_time => LeftTime, 
                                  name => 'escalus_users:create_user'
                                 }).
+
+% Loads a module present in big tests into a MongooseIM node
+-spec inject_module(Module :: module()) -> ok.
+inject_module(Module) ->
+    inject_module(Module, no_reload).
+
+-spec inject_module(Module :: module(),
+                    ReloadIfAlreadyLoaded :: no_reload | reload) -> ok | already_loaded.
+inject_module(Module, ReloadIfAlreadyLoaded) ->
+    inject_module(mim(), Module, ReloadIfAlreadyLoaded).
+
+-spec inject_module(Node :: atom(),
+                    Module :: module(),
+                    ReloadIfAlreadyLoaded :: no_reload | reload) ->
+    ok | already_loaded.
+inject_module(Node, Module, no_reload) ->
+    case successful_rpc(Node, code, is_loaded, [Module]) of
+        false ->
+            inject_module(Node, Module, reload);
+        _ ->
+            already_loaded
+    end;
+inject_module(Node, Module, reload) ->
+    {Mod, Bin, File} = code:get_object_code(Module),
+    successful_rpc(Node, code, load_binary, [Mod, File, Bin]).
 
