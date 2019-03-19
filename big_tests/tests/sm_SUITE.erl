@@ -800,11 +800,26 @@ replies_are_processed_by_resumed_session(Config) ->
 %% 1. A is online, B is offline
 %% 2. A subscribes to B's presence;
 %% 3. B becomes online
-%% 4. B doesn't SM-ack the request, terminates the connection
-%% 5. B resumes the session
+%% 4. A sends a message to B
+%% 5. B doesn't SM-ack the request or message, terminates the connection
+%% 6. B reconnects but with session replace, not resume
+%% 7. Packet rerouting crashes on the buffered sub request, preventing resending whole buffer
+%% 8. B doesn't receive the buffered message
 subscription_requests_are_buffered_properly(Config) ->
     AliceSpec = [{manual_ack, true}
                  | escalus_fresh:create_fresh_user(Config, alice)],
+
+    MsgBody = <<"buffered">>,
+    SubPredFun = fun(S) ->
+                         escalus_pred:is_presence_with_type(<<"subscribe">>, S)
+                 end,
+    AvailablePredFun = fun(S) ->
+                               escalus_pred:is_presence_with_type(<<"available">>, S)
+                       end,
+    MsgPredFun = fun(S) ->
+                         escalus_pred:is_chat_message(MsgBody, S)
+                 end,
+
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         % GIVEN Bob's pending subscription to Alice's presence
         AliceUser = proplists:get_value(username, AliceSpec),
@@ -815,30 +830,32 @@ subscription_requests_are_buffered_properly(Config) ->
 
         % WHEN Alice becomes online...
         Steps = connection_steps_to_enable_stream_resumption(),
-        {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
-        SMID = proplists:get_value(smid, Props),
+        {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
         InitialPresence = escalus_stanza:presence(<<"available">>),
         escalus_connection:send(Alice, InitialPresence),
-        Presence = escalus:wait_for_stanza(Alice),
-        escalus:assert(is_presence, Presence),
+        AvailableAndSubPresences = escalus:wait_for_stanzas(Alice, 2),
+        escalus:assert_many([SubPredFun, AvailablePredFun], AvailableAndSubPresences),
 
-        % ...and kills connection without acking subscription request...
+        % ...and Bob sends a message to Alice...
+        escalus:send(Bob, escalus_stanza:chat_to(Alice, MsgBody)),
+        MsgStanza = escalus:wait_for_stanza(Alice),
+        escalus:assert(is_chat_message, [MsgBody], MsgStanza),
+
+        % ...and Alice terminates connection without acking anything...
         escalus_client:kill_connection(Config, Alice),
 
-        % ...and resumes session.
-        Steps2 = connection_steps_to_stream_resumption(SMID, 0),
-        {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+        % ...and reconnects with session replacement.
+        {ok, Alice2, _} = escalus_connection:start(AliceSpec),
 
-        % THEN Alice receives buffered subscription request.
+        % THEN Alice receives (without sending initial presence):
+        % * buffered available presence (because it's addressed to full JID)
+        % * buffered Bob's message (like above)
+        % Alice DOESN'T receive:
+        % * buffered subscription request because it is dropped by ejabberd_sm
+        %   because it's treated like repeated sub request to bare JID, so it's not
+        %   processed by any sub req handler (like mod_roster) 
         SubReqAndInitialPresence = escalus:wait_for_stanzas(Alice2, 2),
-        escalus:assert_many([
-                             fun(S) ->
-                                     escalus_pred:is_presence_with_type(<<"subscribe">>, S)
-                             end,
-                             fun(S) ->
-                                     escalus_pred:is_presence_with_type(<<"available">>, S)
-                             end
-                            ], SubReqAndInitialPresence),
+        escalus:assert_many([AvailablePredFun, MsgPredFun], SubReqAndInitialPresence),
 
         escalus_connection:stop(Alice2)
     end).
