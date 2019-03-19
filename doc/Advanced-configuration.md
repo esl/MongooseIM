@@ -20,7 +20,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `pool` and the RDBMS options can be used in the `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `listen` and `outgoing_connections` and  can be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
