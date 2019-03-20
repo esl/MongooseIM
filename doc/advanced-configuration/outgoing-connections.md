@@ -33,6 +33,7 @@ Where:
    with the following exception:
     * `strategy` - specifies the worker selection strategy for the given pool, default is `best_worker`,
       more details on this can be found in [Choosing strategy in worker_pool doc](https://github.com/inaka/worker_pool#choosing-a-strategy)
+      *WARNING:* `redis` and `riak` backends are not compatible with `available_worker` strategy.
     * `call_timeout` - specifies the timeout, in milliseconds, for a call operation to the pool
 * `ConnectionOptions` - options list passed to the `start` function of the pool type
 
@@ -227,6 +228,9 @@ They can be defined as follows:
  {redis, global, Tag, WorkersOptions, ConnectionOptions}
 ]}.
 ```
+
+*WARNING:* `redis` backend is not compatible with `available_worker` strategy.
+
 The `Tag` parameter can only be set to `default` for a session backend.
 For `mod_global_distrib` module it can take any value (default is **global_distrib**) but the name needs to be passed as:
 
@@ -262,6 +266,8 @@ It is configured with the following tuple inside the `outgoing_pools` config opt
  {riak, global, default, [{workers, 20}], [{address, "127.0.0.1"}, {port, 8087}]}
 ]}.
 ```
+
+*WARNING:* `riak` backend is not compatible with `available_worker` strategy.
 
 #### Riak SSL connection setup
 
