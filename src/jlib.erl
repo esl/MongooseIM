@@ -109,10 +109,13 @@
                        'false' | non_neg_integer()}.
 
 
--spec make_result_iq_reply(exml:element()) -> exml:element().
+-spec make_result_iq_reply(exml:element()) -> exml:element();
+                          (iq()) -> iq().
 make_result_iq_reply(XE = #xmlel{attrs = Attrs}) ->
     NewAttrs = make_result_iq_reply_attrs(Attrs),
-    XE#xmlel{attrs = NewAttrs}.
+    XE#xmlel{attrs = NewAttrs};
+make_result_iq_reply(IQ = #iq{}) ->
+    IQ#iq{ type = result }.
 
 
 -spec make_result_iq_reply_attrs([binary_pair()]) -> [binary_pair(), ...].

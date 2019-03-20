@@ -71,6 +71,7 @@
                 stream_mgmt_ack_freq = ?STREAM_MGMT_ACK_FREQ,
                 stream_mgmt_resume_timeout = ?STREAM_MGMT_RESUME_TIMEOUT,
                 stream_mgmt_resume_tref,
+                stream_mgmt_resumed_from,
                 stream_mgmt_constraint_check_tref,
                 csi_state = active :: mod_csi:state(),
                 csi_buffer = [],
