@@ -21,6 +21,7 @@ Some rudimentary verification of the stanza is done once it is received from the
 
 The hook is not run for stanzas which do not pass these basic validity checks.
 Neither are such stanzas further processed by the server.
+The hook is not run for stanzas in the `jabber:iq:privacy` or `urn:xmpp:blocking` namespaces.
 
 This hook won't be called for stanzas arriving from a user served by a federated server (i.e. on a server-to-server connection handled by `ejabberd_s2s`) intended for a user served by the relevant ejabberd instance.
 
