@@ -294,9 +294,9 @@ rsm_cases() ->
        pagination_after_index_not_all,
        pagination_after_index_all,
        pagination_after_index_all_and_more,
-       pagination_before_index_not_all,
-       pagination_before_index_all,
-       pagination_before_index_all_and_more,
+       pagination_index_out_of_range_above,
+       pagination_index_out_of_range_bellow,
+       pagination_index_out_of_range_closest,
        pagination_at_index].
 
 rsm_cases_with_offline() ->
@@ -3977,67 +3977,67 @@ pagination_after10(Config) ->
 
 pagination_at_index(Config) ->
     F = fun(Alice) ->
-        RSM = #rsm_in{index = 12},
+        RSM = #rsm_in{index = 11},
         escalus:send(Alice, stanza_room_list_request(<<"at_index">>, RSM)),
         wait_room_range(Alice, 12, 15),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
+
 pagination_after_index_not_all(Config) ->
     F = fun(Alice) ->
-        RSM = #rsm_in{index = 7, max = 4, direction='after'},
+        RSM = #rsm_in{index = 6, max = 4, direction='after'},
         escalus:send(Alice, stanza_room_list_request(<<"after_index_not_all">>, RSM)),
         wait_room_range(Alice, 7, 10),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
-pagination_before_index_not_all(Config) ->
-    F = fun(Alice) ->
-        RSM = #rsm_in{index = 7, max = 4, direction='before'},
-        escalus:send(Alice, stanza_room_list_request(<<"before_index_not_all">>, RSM)),
-        wait_room_range(Alice, 4, 7),
-        ok
-        end,
-    escalus:fresh_story(Config, [{alice, 1}], F).
-
 pagination_after_index_all(Config) ->
     F = fun(Alice) ->
-        RSM = #rsm_in{index = 11, max = 5, direction='after'},
+        RSM = #rsm_in{index = 10, max = 5, direction='after'},
         escalus:send(Alice, stanza_room_list_request(<<"after_index_all">>, RSM)),
         wait_room_range(Alice, 11, 15),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
-pagination_before_index_all(Config) ->
-    F = fun(Alice) ->
-        RSM = #rsm_in{index = 7, max = 7, direction='before'},
-        escalus:send(Alice, stanza_room_list_request(<<"before_index_all">>, RSM)),
-        wait_room_range(Alice, 1, 7),
-        ok
-        end,
-    escalus:fresh_story(Config, [{alice, 1}], F).
-
 pagination_after_index_all_and_more(Config) ->
     F = fun(Alice) ->
-        RSM = #rsm_in{index = 10, max = 20, direction='after'},
+        RSM = #rsm_in{index = 9, max = 20, direction='after'},
         escalus:send(Alice, stanza_room_list_request(<<"after_index_all_and_more">>, RSM)),
         wait_room_range(Alice, 10, 15),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
-pagination_before_index_all_and_more(Config) ->
+pagination_index_out_of_range_above(Config) ->
     F = fun(Alice) ->
-        RSM = #rsm_in{index = 10, max = 20, direction='before'},
-        escalus:send(Alice, stanza_room_list_request(<<"before_index_all_and_more">>, RSM)),
-        wait_room_range(Alice, 1, 10),
+        RSM = #rsm_in{index = 20},
+        escalus:send(Alice, stanza_room_list_request(<<"index_out_of_range_above_range">>, RSM)),
+        wait_empty_rset(Alice, 15),
         ok
         end,
     escalus:fresh_story(Config, [{alice, 1}], F).
 
+pagination_index_out_of_range_bellow(Config) ->
+    F = fun(Alice) ->
+        RSM = #rsm_in{index = -1},
+        escalus:send(Alice, stanza_room_list_request(<<"index_out_of_range_bellow_range">>, RSM)),
+        wait_empty_rset(Alice, 15),
+        ok
+        end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
+
+pagination_index_out_of_range_closest(Config) ->
+    F = fun(Alice) ->
+        RSM = #rsm_in{index = 15},
+        escalus:send(Alice, stanza_room_list_request(<<"index_out_of_range_edge">>, RSM)),
+        wait_empty_rset(Alice, 15),
+        ok
+        end,
+    escalus:fresh_story(Config, [{alice, 1}], F).
 
 pagination_all_with_offline(Config) ->
     F = fun(Alice) ->
