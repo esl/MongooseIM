@@ -2,9 +2,10 @@
 
 An LDAP authentication module.
 It provides a read-only abstraction over an LDAP directory.
-User credentials are verified by performing an LDAP bind with the username and password provided by the client.
 
-Requires the SASL PLAIN method.
+The following SASL methods are supported:
+* SASL PLAIN: user credentials are verified by performing an LDAP search followed by a bind with the user name and password provided by the client.
+* SASL EXTERNAL: user credentials are verified by performing an LDAP search with the user name provided by the client. This can be used to verify that the user is allowed to log in after the provided certificate has been verified.
 
 ## Configuration options
 
