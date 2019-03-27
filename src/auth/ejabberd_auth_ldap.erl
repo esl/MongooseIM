@@ -135,7 +135,9 @@ init(Host) ->
     {ok, State}.
 
 -spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
-supports_password_type(_, PasswordType) -> PasswordType =:= plain.
+supports_password_type(_, plain) -> true;
+supports_password_type(_, cert) -> true;
+supports_password_type(_, _) -> false.
 
 config_change(Acc, Host, ldap, _NewConfig) ->
     stop(Host),
@@ -147,7 +149,10 @@ config_change(Acc, _, _, _) ->
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
 authorize(Creds) ->
-    ejabberd_auth:authorize_with_check_password(?MODULE, Creds).
+    case mongoose_credentials:get(Creds, cert_file, false) of
+        true -> verify_user_exists(Creds);
+        false -> ejabberd_auth:authorize_with_check_password(?MODULE, Creds)
+    end.
 
 -spec check_password(LUser :: jid:luser(),
                      LServer :: jid:lserver(),
@@ -285,6 +290,21 @@ remove_user(LUser, LServer, Password) ->
 %%%----------------------------------------------------------------------
 %%% Internal functions
 %%%----------------------------------------------------------------------
+
+-spec verify_user_exists(mongoose_credentials:t()) ->
+                                {ok, mongoose_credentials:t()} | {error, not_authorized}.
+verify_user_exists(Creds) ->
+    User = mongoose_credentials:get(Creds, username),
+    case jid:nodeprep(User) of
+        error ->
+            error({nodeprep_error, User});
+        LUser ->
+            LServer = mongoose_credentials:lserver(Creds),
+            case does_user_exist(LUser, LServer) of
+                true -> {ok, mongoose_credentials:extend(Creds, [{auth_module, ?MODULE}])};
+                false -> {error, not_authorized}
+            end
+    end.
 
 -spec check_password_ldap(LUser :: jid:luser(),
                           LServer :: jid:lserver(),
