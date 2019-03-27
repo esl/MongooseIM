@@ -240,7 +240,7 @@ The table below shows the supported SASL mechanisms for each authentication back
 | rdbms     |         x        |         x         |         x        |                      |                     |
 | external  |         x        |                   |                  |                      |                     |
 | anonymous |         x        |         x         |         x        |           x          |                     |
-| ldap      |         x        |                   |                  |                      |                     |
+| ldap      |         x        |                   |                  |                      |          x          |
 | jwt       |         x        |                   |                  |                      |                     |
 | riak      |         x        |         x         |         x        |                      |                     |
 | http      |         x        |         x         |         x        |                      |                     |
