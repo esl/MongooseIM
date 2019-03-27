@@ -811,54 +811,34 @@ iq_disco_info(Lang) ->
 -spec iq_disco_items(jid:server(), jid:jid(), ejabberd:lang(),
                      Rsm :: none | jlib:rsm_in()) -> any().
 iq_disco_items(Host, From, Lang, none) ->
-    Online = lists:filtermap(fun(#muc_online_room{name_host = {Name, _Host}, pid = Pid}) ->
-                     case catch gen_fsm_compat:sync_send_all_state_event(
-                                  Pid, {get_disco_item, From, Lang}, 100) of
-                         {item, Desc} ->
-                             flush(),
-                             {true,
-                              #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                                              {<<"name">>, Desc}]}};
-                         _ ->
-                             false
-                     end
-             end, get_vh_rooms(Host)),
-    Persistent = [#xmlel{name = <<"item">>,
-            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                     {<<"name">>, get_persistent_vh_room_name(Room)}]} ||
-                     {_,{Name, _},_} = Room <- get_persistent_vh_rooms(Host)],
-    lists:ukeysort(3, Persistent ++ Online);
+    Rooms = lists:ukeysort(1, lists:map(
+        fun({_,Room,PidOrEmptyList}) -> {Room, PidOrEmptyList} end,
+        get_vh_rooms(Host) ++ get_persistent_vh_rooms(Host))),
+    BareRooms = lists:filtermap(fun(Room) -> room_to_item(Room, Host, From, Lang) end, Rooms),
+    lists:ukeysort(3, BareRooms);
 iq_disco_items(Host, From, Lang, Rsm) ->
     {Rooms, RsmO} = get_vh_rooms(Host, Rsm),
     RsmOut = jlib:rsm_encode(RsmO),
-    lists:filtermap(fun({{Name, _}, Pid}) when is_pid(Pid) ->
-                     case catch gen_fsm_compat:sync_send_all_state_event(
-                                  Pid, {get_disco_item, From, Lang}, 100) of
-                         {item, Desc} ->
-                             flush(),
-                             {true,
-                              #xmlel{name = <<"item">>,
-                                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                                              {<<"name">>, Desc}]}};
-                         _ ->
-                             false
-                     end;
-                 ({{ Name, _ }, _}) ->
-                     {true,
-                     #xmlel{name = <<"item">>,
-                            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
-                                     {<<"name">>, Name}]}
-                     }
+    lists:filtermap(fun(Room) -> room_to_item(Room, Host, From, Lang) end, Rooms) ++ RsmOut.
 
-             end, Rooms) ++ RsmOut.
-
-get_persistent_vh_room_name({_,{Name, _},PropList}) ->
-    case proplists:get_value(title, PropList) of
-        undefined -> Name;
-        <<>> -> Name;
-        RoomName when is_binary(RoomName) -> RoomName
-    end.
+room_to_item({{Name, _}, Pid}, Host, From, Lang) when is_pid(Pid) ->
+     case catch gen_fsm_compat:sync_send_all_state_event(
+                  Pid, {get_disco_item, From, Lang}, 100) of
+         {item, Desc} ->
+             flush(),
+             {true,
+              #xmlel{name = <<"item">>,
+                     attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                              {<<"name">>, Desc}]}};
+         _ ->
+             false
+     end;
+ room_to_item({{ Name, _ }, _}, Host, _, _) ->
+     {true,
+     #xmlel{name = <<"item">>,
+            attrs = [{<<"jid">>, jid:to_binary({Name, Host, <<>>})},
+                     {<<"name">>, Name}]}
+     }.
 
 -spec get_vh_rooms(jid:server(), jlib:rsm_in()) -> {list(), jlib:rsm_out()}.
 get_vh_rooms(Host, #rsm_in{max=Max, direction=Direction, id=I, index=Index}) ->
