@@ -93,8 +93,9 @@ parse_add_attr({N, List}) ->
 start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, _Opts) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
+  AnonAuth = anon_auth(Rootdn, Passwd),
   lists:foreach(fun (Host) ->
-    case catch eldap:open([maybe_b2list(Host)], [{port, Port}])
+    case catch eldap:open([maybe_b2list(Host)], [{port, Port}, {anon_auth, AnonAuth}])
     of
       {ok, Pid} ->
         ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
@@ -104,6 +105,9 @@ start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, _Opts) ->
     end
                 end,
     Hosts).
+
+anon_auth(<<>>, <<>>) -> true;
+anon_auth(_Rootdn, _Passwd) -> false.
 
 ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
   case eldap:simple_bind(Handle, maybe_b2list(Rootdn), maybe_b2list(Password)) of
