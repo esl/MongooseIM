@@ -20,7 +20,7 @@ all_tests() ->
      does_user_exist,
      get_password_returns_false_if_no_cache,
      get_password_s_returns_empty_bin_if_no_cache,
-     store_type_external
+     supported_password_types
     ].
 
 init_per_suite(C) ->
@@ -71,8 +71,9 @@ get_password_returns_false_if_no_cache(_C) ->
 get_password_s_returns_empty_bin_if_no_cache(_C) ->
     <<"">> = ?AUTH_MOD:get_password_s(random_binary(8), domain()).
 
-store_type_external(_C) ->
-    external = ?AUTH_MOD:store_type(domain()).
+supported_password_types(_C) ->
+    [true, false, false, false] =
+        [?AUTH_MOD:supports_password_type(domain(), PT) || PT <- [plain, digest, scram, cert]].
 
 given_user_registered() ->
     {U, P} = UP = gen_user(),

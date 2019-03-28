@@ -79,10 +79,10 @@ end_per_suite(Config) ->
 
 init_per_group(GroupName, Config) when
       GroupName == login_scram; GroupName == login_scram_store_plain ->
-    case get_store_type() of
-        external ->
-            {skip, "external store type requires plain password"};
-        _ ->
+    case supports_password_type(scram) of
+        false ->
+            {skip, "scram password type not supported"};
+        true ->
             config_password_format(GroupName),
             Config2 = escalus:create_users(Config, escalus:get_users([alice, bob])),
             assert_password_format(GroupName, Config2)
@@ -96,14 +96,21 @@ end_per_group(login_scram, Config) ->
 end_per_group(_GroupName, Config) ->
     escalus:delete_users(Config, escalus:get_users([alice, bob])).
 
-init_per_testcase(DigestOrScram, Config) when
-      DigestOrScram =:= log_one_digest; DigestOrScram =:= log_non_existent_digest;
-      DigestOrScram =:= log_one_scram; DigestOrScram =:= log_non_existent_scram ->
-    case get_store_type() of
-        external ->
-            {skip, "external store type requires plain password"};
-        _ ->
-            escalus:init_per_testcase(DigestOrScram, Config)
+init_per_testcase(CaseName, Config) when
+      CaseName =:= log_one_digest; CaseName =:= log_non_existent_digest ->
+    case supports_password_type(digest) of
+        false ->
+            {skip, "digest password type not supported"};
+        true ->
+            escalus:init_per_testcase(CaseName, Config)
+    end;
+init_per_testcase(CaseName, Config) when
+      CaseName =:= log_one_scram; CaseName =:= log_non_existent_scram ->
+    case supports_password_type(scram) of
+        false ->
+            {skip, "scram password type not supported"};
+        true ->
+            escalus:init_per_testcase(CaseName, Config)
     end;
 init_per_testcase(message_zlib_limit, Config) ->
     Listeners = [Listener
@@ -206,10 +213,10 @@ message_zlib_limit(Config) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-get_store_type() ->
+supports_password_type(PasswordType) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(
                    ct:get_config({hosts, mim, domain})),
-    rpc(mim(), ejabberd_auth, store_type, [XMPPDomain]).
+    rpc(mim(), ejabberd_auth, supports_password_type, [XMPPDomain, PasswordType]).
 
 set_store_password(Type) ->
     XMPPDomain = escalus_ejabberd:unify_str_arg(

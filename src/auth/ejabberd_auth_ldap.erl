@@ -50,7 +50,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1
+         supports_password_type/2
         ]).
 
 %% Internal
@@ -134,7 +134,8 @@ init(Host) ->
                           State#state.password, State#state.tls_options),
     {ok, State}.
 
-store_type(_) -> external.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, PasswordType) -> PasswordType =:= plain.
 
 config_change(Acc, Host, ldap, _NewConfig) ->
     stop(Host),

@@ -110,23 +110,12 @@ check_credentials(_State, Creds) ->
 
 -spec listmech(jid:server()) -> [mechanism()].
 listmech(Host) ->
-    Mechs = ets:select(sasl_mechanism,
-                       [{#sasl_mechanism{mechanism = '$1',
-                                         password_type = '$2',
-                                         _ = '_'},
-                         case catch ejabberd_auth:store_type(Host) of
-                             external ->
-                                 [{'==', '$2', plain}];
-                             scram ->
-                                 [{'/=', '$2', digest}];
-                             {'EXIT', {undef, [{Module, store_type, []} | _]}} ->
-                                 ?WARNING_MSG("~p doesn't implement the function store_type/0",
-                                              [Module]),
-                                 [{'/=','$2', cert}];
-                             _Else ->
-                                 [{'/=','$2', cert}]
-                         end,
-                         ['$1']}]),
+    Mechs = ets:foldl(fun(#sasl_mechanism{password_type = PasswordType, mechanism = M}, MechAcc) ->
+                              case ejabberd_auth:supports_password_type(Host, PasswordType) of
+                                  true -> [M | MechAcc];
+                                  false -> MechAcc
+                              end
+                      end, [], sasl_mechanism),
     filter_mechanisms(Host, Mechs,
                       [{<<"ANONYMOUS">>,
                         fun(H)-> ejabberd_auth_anonymous:is_sasl_anonymous_enabled(H) end},

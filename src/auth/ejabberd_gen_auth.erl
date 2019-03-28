@@ -11,7 +11,8 @@
 
 -callback stop(Host :: jid:lserver()) -> ok.
 
--callback store_type(Host :: jid:lserver()) -> scram | plain | external.
+-callback supports_password_type(Host :: jid:lserver(),
+                                 PasswordType :: cyrsasl:password_type()) -> boolean().
 
 -callback set_password(User :: jid:luser(),
                        Server :: jid:lserver(),

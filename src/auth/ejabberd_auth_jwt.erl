@@ -46,7 +46,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1
+         supports_password_type/2
         ]).
 
 
@@ -72,8 +72,8 @@ start(Host) ->
 stop(_Host) ->
     ok.
 
-store_type(_Server) ->
-    external.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, PasswordType) -> PasswordType =:= plain.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.
