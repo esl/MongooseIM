@@ -45,7 +45,8 @@ all_tests() ->
      try_register,
      get_password,
      is_user_exists,
-     remove_user
+     remove_user,
+     supported_password_types
     ].
 
 suite() ->
@@ -170,6 +171,14 @@ remove_user(_Config) ->
     false = ejabberd_auth_http:does_user_exist(<<"toremove2">>, ?DOMAIN1),
 
     {error, not_exists} = ejabberd_auth_http:remove_user(<<"toremove3">>, ?DOMAIN1, <<"wrongpass">>).
+
+supported_password_types(Config) ->
+    DigestSupported = case lists:keyfind(scram_group, 1, Config) of
+                          {_, true} -> false;
+                          _ -> true
+                      end,
+    [true, DigestSupported, true, false] =
+        [ejabberd_auth_http:supports_password_type(?DOMAIN1, PT) || PT <- [plain, digest, scram, cert]].
 
 %%--------------------------------------------------------------------
 %% Helpers
