@@ -4,19 +4,7 @@
 
 -export(
     [commands/0,
-     retrieve_all/1]).
-
--type db() :: mnesia | sql. % TODO add if needed
--type tablename() :: atom() | binary().
--type binary_table_name() :: binary().
--type table() :: {db(), tablename()}.
--type guard() :: binary() |  any().
--type entity() :: [term()].
--type entities() :: [entity()].
--type schema() :: [binary()].
--type guard_data_id() :: username. % TODO add if needed
--type gurad_data() :: #{guard_data_id() => term()}.
-
+     retrieve_all/2]).
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() -> [
@@ -30,9 +18,9 @@ commands() -> [
                        result = {records, binary}}  % TODO check if returned type is correct and convinient in use
 ].
 
--spec retrieve_all(Username :: binary()) -> RetrievedFilesInZipName :: binary().
-retrieve_all(Username) ->
-    DataFromTables = get_data_from_tables(#{username => Username}),
+-spec retrieve_all(gdpr:username(), gdpr:domain()) -> RetrievedFilesInZipName :: binary().
+retrieve_all(Username, Domain) ->
+    DataFromTables = get_data_from_tables(Username, Domain),
     CsvFiles = lists:map(
         fun({Tablename, Schema, Entitis}) ->
             to_csv_file(<<Tablename/binary, <<".csv">>/binary>>, Schema, Entitis) end,
@@ -43,13 +31,13 @@ retrieve_all(Username) ->
 %%%                       Private funs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec get_data_from_tables(gurad_data()) ->
-    [{binary_table_name(), schema(), entities()}].
-get_data_from_tables(GuardData) ->
-    TablesWithGuards = get_tables_with_guards(GuardData),
-    [get_data_from_table(Tab, Guard)|| {Tab, Guard} <- TablesWithGuards].
+-spec get_data_from_tables(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
+get_data_from_tables(Username, Domain) ->
+    Modules = get_modules(),
+    lists:flatten([M:get_personal_data(Username, Domain)|| M <- Modules]).
 
--spec to_csv_file(CsvFilename :: binary(), schema(), entities()) -> CsvFilename :: binary().
+-spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities()) -> CsvFilename :: binary().
 to_csv_file(Filename, DataSchema, DataRows) ->
     {ok, File} = file:open(Filename, [write]),
     csv_gen:row(File, DataSchema),
@@ -57,25 +45,6 @@ to_csv_file(Filename, DataSchema, DataRows) ->
     file:close(File),
     Filename.
 
--spec get_data_from_table(table(), guard()) -> {binary_table_name(), schema(), entities()}.
-get_data_from_table({sql, TableName}, Guard) ->
-    {TableName, [], sql_slelect_helper(TableName, Guard)}; % TODO implement getting schema
-
-get_data_from_table({mnesia, TableName}, Guard) ->
-    {TableName, [], mnesia:select(TableName, Guard)}.% TODO implement getting schema
-
-%% TODO list all possible tables inside the list
--spec get_tables_with_guards(gurad_data()) -> [{db(), tablename(), guard()}].
-get_tables_with_guards(_GuardData) ->
-    [],
+-spec get_modules() -> [module()].
+get_modules() ->
     erlang:error("Not implemented").
-
--spec sql_slelect_helper(binary_table_name(), guard()) -> entities().
-sql_slelect_helper(TableName, Guard) ->
-    SQL = ["SELECT * from ", TableName, " WHERE ", Guard],
-    case mongoose_rdbms:sql_query_t(SQL) of
-        {selected, []} ->
-            {error, not_found};
-        {selected, Rows} ->
-            {ok, Rows}
-    end.
