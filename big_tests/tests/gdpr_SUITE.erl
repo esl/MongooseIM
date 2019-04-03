@@ -106,7 +106,15 @@ retrieve_vcard(Config) ->
         end).
 
 retrieve_roster(Config) ->
-    ok.
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            escalus_story:make_all_clients_friends([Alice, Bob]),
+            ExpectedHeader = [],
+            ExpectedItems = [
+                             #{ "jid" => [binary_to_list(escalus_client:short_jid(Bob))] }
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "roster", ExpectedHeader, ExpectedItems)
+        end).
 
 retrieve_mam(Config) ->
     ok.
@@ -171,7 +179,9 @@ validate_personal_item(_Value, []) ->
     ok;
 validate_personal_item(Value, [{contains, String} | RConditions]) ->
     {match, _} = re:run(Value, String),
-    validate_personal_item(Value, RConditions).
+    validate_personal_item(Value, RConditions);
+validate_personal_item(ExactValue, [ExactValue | _]) ->
+    ok.
 
 retrieve_and_decode_personal_data(Alice, Config, FilePrefix) ->
     {Filename, 0} = retrieve_personal_data(Alice, Config),
