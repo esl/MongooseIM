@@ -87,7 +87,7 @@ retrieve_vcard(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
             case vcard_update:is_vcard_ldap() of
                 true ->
-                    {skip, skipped_for_simplicity_for_now};
+                    {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
                 _ ->
                     AliceFields = [{<<"FN">>, <<"Alice">>},
                                    {<<"LN">>, <<"Ecila">>}],
@@ -95,7 +95,7 @@ retrieve_vcard(Config) ->
                     = escalus:send_and_wait(Alice,
                                             escalus_stanza:vcard_update(AliceFields)),
                     escalus:assert(is_iq_result, AliceSetResultStanza),
-                    ExpectedHeader = ["vcard"],
+                    ExpectedHeader = ["vcard"], % TODO? Expand vCard into separate CSV columns?
                     ExpectedItems = [
                                      #{ "vcard" => [{contains, "Alice"},
                                                     {contains, "Ecila"}] }
@@ -108,7 +108,7 @@ retrieve_vcard(Config) ->
 retrieve_roster(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             escalus_story:make_all_clients_friends([Alice, Bob]),
-            ExpectedHeader = [],
+            ExpectedHeader = ["jid", "name", "groups"], % TODO
             ExpectedItems = [
                              #{ "jid" => [binary_to_list(escalus_client:short_jid(Bob))] }
                             ],
@@ -129,13 +129,34 @@ retrieve_pep(Config) ->
     ok.
 
 retrieve_private_xml(Config) ->
-    ok.
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+            NS = <<"alice:gdpr:ns">>,
+            Content = <<"dGhlcmUgYmUgZHJhZ29ucw==">>,
+            XML = #xmlel{ name = <<"fingerprint">>,
+                          attrs = [{<<"xmlns">>, NS}],
+                          children = [#xmlcdata{ content = Content }]},
+            PrivateStanza = escalus_stanza:private_set(XML),
+            escalus_client:send(Alice, PrivateStanza),
+            escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(Alice)),
+            ExpectedHeader = ["ns", "xml"], % TODO?
+            ExpectedItems = [
+                             #{ "xml" => [{contains, "alice:gdpr:ns"},
+                                          {contains, binary_to_list(Content)}] }
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "private", ExpectedHeader, ExpectedItems)
+        end).
 
 retrieve_inbox(Config) ->
     ok.
 
 retrieve_logs(Config) ->
-    ok.
+    mongoose_helper:successful_rpc(error_logger, error_msg,
+                                   ["event=disturbance_in_the_force, jid=sith@localhost", []]),
+    Dir = request_and_unzip_personal_data(<<"sith">>, <<"localhost">>, Config),
+    Filename = filename:join(Dir, "logs.txt"),
+    {ok, Content} = file:read_file(Filename),
+    {match, _} = re:run(Content, "disturbance_in_the_force").
 
 %% ------------------------- Data retrieval - Negative case -------------------------
 
@@ -183,19 +204,20 @@ validate_personal_item(Value, [{contains, String} | RConditions]) ->
 validate_personal_item(ExactValue, [ExactValue | _]) ->
     ok.
 
-retrieve_and_decode_personal_data(Alice, Config, FilePrefix) ->
-    {Filename, 0} = retrieve_personal_data(Alice, Config),
-    Dir = Filename ++ ".unzipped",
-    {ok, _} = zip:extract(Filename, [{cwd, Dir}]),
+retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
+    User = escalus_client:username(Client),
+    Domain = escalus_client:server(Client),
+    Dir = request_and_unzip_personal_data(User, Domain, Config),
     CSVPath = filename:join(Dir, FilePrefix ++ ".csv"),
     {ok, Content} = file:read_file(CSVPath),
     % We expect non-empty list because it must contain at least header with columns names
     [_ | _] = csv:decode_binary(Content).
 
-retrieve_personal_data(Client, Config) ->
-    User = escalus_client:username(Client),
-    Domain = escalus_client:server(Client),
-    retrieve_personal_data(User, Domain, Config).
+request_and_unzip_personal_data(User, Domain, Config) ->
+    {Filename, 0} = retrieve_personal_data(User, Domain, Config),
+    Dir = Filename ++ ".unzipped",
+    {ok, _} = zip:extract(Filename, [{cwd, Dir}]),
+    Dir.
 
 retrieve_personal_data(User, Domain, Config) ->
     Filename = random_filename(Config),
