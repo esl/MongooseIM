@@ -17,7 +17,6 @@
          retrieve_mam/1,
          retrieve_offline/1,
          retrieve_pubsub/1,
-         retrieve_pep/1,
          retrieve_private_xml/1,
          retrieve_inbox/1,
          retrieve_logs/1
@@ -49,7 +48,6 @@ groups() ->
                                    retrieve_mam,
                                    retrieve_offline,
                                    retrieve_pubsub,
-                                   retrieve_pep,
                                    retrieve_private_xml,
                                    retrieve_inbox,
                                    retrieve_logs,
@@ -59,9 +57,11 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Config1 = dynamic_modules:save_modules(domain(), Config),
+    escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
+    dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
@@ -71,11 +71,66 @@ init_per_group(_GN, Config) ->
 end_per_group(_GN, Config) ->
     Config.
 
+init_per_testcase(retrieve_inbox = CN, Config) ->
+    case (not ct_helper:is_ct_running())
+         orelse mongoose_helper:is_rdbms_enabled(domain()) of
+        true ->
+            dynamic_modules:ensure_modules(domain(), inbox_required_modules()),
+            escalus:init_per_testcase(CN, Config);
+        false ->
+            {skip, require_rdbms}
+    end;
+init_per_testcase(retrieve_vcard = CN, Config) ->
+    case vcard_update:is_vcard_ldap() of
+        true ->
+            {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
+        _ ->
+            escalus:init_per_testcase(CN, Config)
+    end;
+init_per_testcase(retrieve_mam = CN, Config) ->
+    case pick_backend_for_mam() of
+        skip ->
+            {skip, no_supported_backends};
+        Backend ->
+            dynamic_modules:ensure_modules(domain(), mam_required_modules(Backend)),
+            escalus:init_per_testcase(CN, Config)
+    end;
+init_per_testcase(retrieve_pubsub = CN, Config) ->
+    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(CN, Config) ->
     escalus:end_per_testcase(CN, Config).
+
+inbox_required_modules() ->
+    [{mod_inbox, []}].
+
+pick_backend_for_mam() ->
+    BackendsList = [
+                    {mam_helper:is_cassandra_enabled(domain()), cassandra},
+                    {mam_helper:is_riak_enabled(domain()), riak},
+                    {mam_helper:is_elasticsearch_enabled(domain()), elasticsearch},
+                    {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
+                   ], 
+    lists:foldl(fun({true, Backend}, skip) ->
+                        Backend;
+                   (_, BackendOrSkip) ->
+                        BackendOrSkip
+                end, skip, BackendsList).
+
+mam_required_modules(Backend) ->
+    [{mod_mam_meta, [{backend, Backend}, {pm, []}]}].
+
+pubsub_required_modules() ->
+    [{mod_caps, []}, {mod_pubsub, [
+                                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+                                   {host, "pubsub.@HOST@"},
+                                   {nodetree, <<"tree">>},
+                                   {plugins, [<<"flat">>, <<"pep">>]}
+                                  ]
+                     }].
 
 %% -------------------------------------------------------------
 %% Test cases
@@ -85,24 +140,17 @@ end_per_testcase(CN, Config) ->
 
 retrieve_vcard(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-            case vcard_update:is_vcard_ldap() of
-                true ->
-                    {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
-                _ ->
-                    AliceFields = [{<<"FN">>, <<"Alice">>},
-                                   {<<"LN">>, <<"Ecila">>}],
-                    AliceSetResultStanza
-                    = escalus:send_and_wait(Alice,
-                                            escalus_stanza:vcard_update(AliceFields)),
-                    escalus:assert(is_iq_result, AliceSetResultStanza),
-                    ExpectedHeader = ["vcard"], % TODO? Expand vCard into separate CSV columns?
-                    ExpectedItems = [
-                                     #{ "vcard" => [{contains, "Alice"},
-                                                    {contains, "Ecila"}] }
-                                    ],
-                    retrieve_and_validate_personal_data(
-                      Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
-            end
+            AliceFields = [{<<"FN">>, <<"Alice">>}, {<<"LN">>, <<"Ecila">>}],
+            AliceSetResultStanza
+            = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
+            escalus:assert(is_iq_result, AliceSetResultStanza),
+            ExpectedHeader = ["vcard"], % TODO? Expand vCard into separate CSV columns?
+            ExpectedItems = [
+                             #{ "vcard" => [{contains, "Alice"},
+                                            {contains, "Ecila"}] }
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
         end).
 
 retrieve_roster(Config) ->
@@ -110,7 +158,7 @@ retrieve_roster(Config) ->
             escalus_story:make_all_clients_friends([Alice, Bob]),
             ExpectedHeader = ["jid", "name", "groups"], % TODO
             ExpectedItems = [
-                             #{ "jid" => [binary_to_list(escalus_client:short_jid(Bob))] }
+                             #{ "jid" => escalus_client:short_jid(Bob) }
                             ],
             retrieve_and_validate_personal_data(
               Alice, Config, "roster", ExpectedHeader, ExpectedItems)
@@ -120,12 +168,29 @@ retrieve_mam(Config) ->
     ok.
 
 retrieve_offline(Config) ->
-    ok.
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            mongoose_helper:logout_user(Config, Alice),
+            Body = <<"Here's Johnny!">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
+            %% Well, jid_to_lower works for any binary :)
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            mongoose_helper:wait_until(
+              fun() ->
+                      mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
+                                                     [AliceU, AliceS, 1])
+              end, 1),
+            
+            BobJid = escalus_client:short_jid(Bob),
+            ExpectedHeader = ["timestamp", "from", "to", "packet"],
+            ExpectedItems = [
+                             #{ "packet" => [{contains, Body}], "from" => BobJid }
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "offline", ExpectedHeader, ExpectedItems)
+        end).
 
 retrieve_pubsub(Config) ->
-    ok.
-
-retrieve_pep(Config) ->
     ok.
 
 retrieve_private_xml(Config) ->
@@ -148,7 +213,20 @@ retrieve_private_xml(Config) ->
         end).
 
 retrieve_inbox(Config) ->
-    ok.
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Body = <<"With spam?">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
+            Msg = escalus:wait_for_stanza(Alice),
+            escalus:assert(is_chat_message, [Body], Msg),
+            
+            BobJid = escalus_client:short_jid(Bob),
+            ExpectedHeader = ["jid", "content", "unread_count", "msg_id", "timestamp"],
+            ExpectedItems = [
+                             #{ "content" => Body, "jid" => BobJid }
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "inbox", ExpectedHeader, ExpectedItems)
+        end).
 
 retrieve_logs(Config) ->
     mongoose_helper:successful_rpc(error_logger, error_msg,
@@ -167,6 +245,9 @@ data_is_not_retrieved_for_missing_user(Config) ->
 %% -------------------------------------------------------------
 %% Internal functions
 %% -------------------------------------------------------------
+
+domain() ->
+    <<"localhost">>. % TODO: Make dynamic?
 
 retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
     PersonalCSV = retrieve_and_decode_personal_data(Alice, Config, FilePrefix),
@@ -201,7 +282,7 @@ validate_personal_item(_Value, []) ->
 validate_personal_item(Value, [{contains, String} | RConditions]) ->
     {match, _} = re:run(Value, String),
     validate_personal_item(Value, RConditions);
-validate_personal_item(ExactValue, [ExactValue | _]) ->
+validate_personal_item(ExactValue, ExactValue) ->
     ok.
 
 retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
