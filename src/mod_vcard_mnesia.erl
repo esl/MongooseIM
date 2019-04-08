@@ -32,7 +32,8 @@ get_personal_data(Username, Server) ->
     US = {LUser, Server},
     Trans = fun() -> mnesia:read({Table, US}) end,
     {atomic, Records} = mnesia:transaction(Trans),
-    [{Table, Schema, Records}].
+    SerialzedRecords = lists:map(fun({T, U, Xeml}) -> {T,U,exml:to_binary(Xeml)} end, Records),
+    [{Table, Schema, SerialzedRecords}].
 
 %%--------------------------------------------------------------------
 %% mod_vcards callbacks
