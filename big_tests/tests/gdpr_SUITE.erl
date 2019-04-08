@@ -60,7 +60,7 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    Config1 = dynamic_modules:save_modules(domain(), Config),
+    Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
@@ -152,6 +152,10 @@ retrieve_vcard(Config) ->
                              #{ "vcard" => [{contains, "Alice"},
                                             {contains, "Ecila"}] }
                             ],
+            PL = proplists:get_value(event_client, element(6, Alice)),
+            Username = proplists:get_value(username, PL),
+            Server = proplists:get_value(server, PL),
+            rpc(mim(), mod_vcard_mnesia, get_personal_data, [Username, Server]),
             retrieve_and_validate_personal_data(
               Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
         end).
@@ -299,8 +303,9 @@ retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
 
 request_and_unzip_personal_data(User, Domain, Config) ->
     {Filename, 0} = retrieve_personal_data(User, Domain, Config),
+    FullPath = get_mim_cwd() ++ "/" ++ Filename,
     Dir = Filename ++ ".unzipped",
-    {ok, _} = zip:extract(Filename, [{cwd, Dir}]),
+    {ok, _} = zip:extract(FullPath, [{cwd,Dir}]),
     Dir.
 
 retrieve_personal_data(User, Domain, Config) ->
@@ -310,5 +315,8 @@ retrieve_personal_data(User, Domain, Config) ->
 
 random_filename(Config) ->
     TCName = atom_to_list(?config(tc_name, Config)),
-    "/tmp/" ++ TCName ++ "." ++ integer_to_list(erlang:system_time()) ++ ".zip".
+    TCName ++ "." ++ integer_to_list(erlang:system_time()) ++ ".zip".
 
+get_mim_cwd() ->
+    {ok, Cwd} = rpc(mim(), file, get_cwd, []),
+    Cwd.
