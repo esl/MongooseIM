@@ -32,7 +32,7 @@
 -export([start/1, stop/0]).
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
-                  private, stanza, stats, gdpr
+                  private, stanza, stats
                   %, srg %% Disabled until we add mod_shared_roster
                  ]).
 
@@ -41,7 +41,7 @@
 %%%
 
 start(Opts) ->
-    Submods = gen_mod:get_opt(submods, Opts, ?SUBMODS),
+    Submods = [gdpr | gen_mod:get_opt(submods, Opts, ?SUBMODS)],
     lists:foreach(fun(Submod) ->
                 ejabberd_commands:register_commands((mod_name(Submod)):commands())
         end, Submods).

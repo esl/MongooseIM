@@ -4,28 +4,30 @@
 
 -export(
     [commands/0,
-     retrieve_all/2]).
+     retrieve_all/3]).
 
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() -> [
-    #ejabberd_commands{name = retrieve, tags = [gdpr],
+    #ejabberd_commands{name = retrieve_personal_data, tags = [gdpr],
                        desc = "Retrieve user's presonal data.",
                        longdesc = "Retrieves all personal data from MongooseIM for a given user. Example:\n"
                        " %TODO ", % TODO add example
                        module = ?MODULE,
                        function = retrieve_all,
-                       args = [{username, binary}], % TODO add arguments if needed
-                       result = {records, binary}}  % TODO check if returned type is correct and convinient in use
+                       args = [{username, binary}, {domain, binary}, {path, binary}], % TODO add arguments if needed
+                       result = {content, binary}}  % TODO check if returned type is correct and convinient in use
 ].
 
--spec retrieve_all(gdpr:username(), gdpr:domain()) -> RetrievedFilesInZipName :: binary().
-retrieve_all(Username, Domain) ->
+-spec retrieve_all(gdpr:username(), gdpr:domain(), Path :: binary()) -> RetrievedFilesInZipName :: binary().
+retrieve_all(Username, Domain, ResultFilePath) ->
     DataFromTables = get_data_from_tables(Username, Domain),
     CsvFiles = lists:map(
         fun({Tablename, Schema, Entitis}) ->
-            to_csv_file(<<Tablename/binary, <<".csv">>/binary>>, Schema, Entitis) end,
+            BinTablename = atom_to_binary(Tablename, utf8),
+            to_csv_file(<<BinTablename/binary, <<".csv">>/binary>>, Schema, Entitis) end,
         DataFromTables),
-    zip:create(<<Username/binary, <<"retrived_data.zip">>/binary>>, CsvFiles).
+    {ok, R} = zip:create(ResultFilePath, lists:map(fun binary_to_list/1, CsvFiles)),
+    R.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%                       Private funs
@@ -41,10 +43,10 @@ get_data_from_tables(Username, Domain) ->
 to_csv_file(Filename, DataSchema, DataRows) ->
     {ok, File} = file:open(Filename, [write]),
     csv_gen:row(File, DataSchema),
-    lists:foreach(DataRows, fun(Row) -> csv_gen:row(File, Row) end),
+    lists:foreach(fun(Row) -> csv_gen:row(File, Row) end, DataRows),
     file:close(File),
     Filename.
 
 -spec get_modules() -> [module()].
 get_modules() ->
-    erlang:error("Not implemented").
+    [mod_vcard_mnesia].
