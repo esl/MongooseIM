@@ -27,6 +27,9 @@
 
 -import(ejabberdctl_helper, [ejabberdctl/3]).
 
+-import(distributed_helper, [mim/0,
+                             rpc/4]).
+
 %% -------------------------------------------------------------
 %% Common Test stuff
 %% -------------------------------------------------------------
