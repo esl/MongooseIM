@@ -28,6 +28,7 @@ pages:
       - 'History': 'History.md'
   - 'Configuration':
       - 'Basic Configuration': 'Basic-configuration.md'
+      - 'Erlang Cookie Security': 'Erlang-cookie-security.md'
       - 'Advanced Configuration': 'Advanced-configuration.md'
       - 'Database backends configuration': 'advanced-configuration/database-backends-configuration.md'
       - 'Outgoing connections': 'advanced-configuration/outgoing-connections.md'
