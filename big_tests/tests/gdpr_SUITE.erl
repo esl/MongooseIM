@@ -64,6 +64,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
+    delete_files(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
@@ -116,7 +117,7 @@ pick_backend_for_mam() ->
                     {mam_helper:is_riak_enabled(domain()), riak},
                     {mam_helper:is_elasticsearch_enabled(domain()), elasticsearch},
                     {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
-                   ], 
+                   ],
     lists:foldl(fun({true, Backend}, skip) ->
                         Backend;
                    (_, BackendOrSkip) ->
@@ -187,7 +188,7 @@ retrieve_offline(Config) ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
                                                      [AliceU, AliceS, 1])
               end, 1),
-            
+
             BobJid = escalus_client:short_jid(Bob),
             ExpectedHeader = ["timestamp", "from", "to", "packet"],
             ExpectedItems = [
@@ -225,7 +226,7 @@ retrieve_inbox(Config) ->
             escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
             Msg = escalus:wait_for_stanza(Alice),
             escalus:assert(is_chat_message, [Body], Msg),
-            
+
             BobJid = escalus_client:short_jid(Bob),
             ExpectedHeader = ["jid", "content", "unread_count", "msg_id", "timestamp"],
             ExpectedItems = [
@@ -321,3 +322,22 @@ random_filename(Config) ->
 get_mim_cwd() ->
     {ok, Cwd} = rpc(mim(), file, get_cwd, []),
     Cwd.
+
+delete_files() ->
+    Cwd = get_mim_cwd(),
+    {ok, Filenames} = rpc(mim(), file, list_dir, [Cwd]),
+    FilteredFilenames = lists:filter(
+        fun is_file_to_be_deleted/1,
+        Filenames),
+    lists:foreach(
+        fun(Filename) -> rpc(mim(), file, delete, [Cwd ++ "/" ++ Filename]) end,
+        FilteredFilenames),
+    ok.
+
+is_file_to_be_deleted(Filename) ->
+    DeletableRegexes = ["\.csv", "\.zip"],
+    lists:any(
+        fun(Regex) ->
+            re:run(Filename, Regex) =/= nomatch
+        end,
+    DeletableRegexes).
