@@ -272,12 +272,13 @@ retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, E
              })
     end.
 
-csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
+csv_to_maps(ExpectedHeader, [HeaderRow | [Rows]]) ->
     lists:foldl(fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end, [], Rows).
 
 csv_row_to_map(Header, Row) ->
-    maps:from_list(lists:zip(Header, Row)).
+    maps:from_list(lists:zip(Header, [Row])).
 
+validate_personal_maps(_, []) -> ok;
 validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
     maps:fold(fun(K, Conditions, _) ->
                       validate_personal_item(maps:get(K, Map), Conditions)
@@ -286,11 +287,11 @@ validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
 
 validate_personal_item(_Value, []) ->
     ok;
+validate_personal_item(ExactValue, ExactValue) ->
+    ok;
 validate_personal_item(Value, [{contains, String} | RConditions]) ->
     {match, _} = re:run(Value, String),
-    validate_personal_item(Value, RConditions);
-validate_personal_item(ExactValue, ExactValue) ->
-    ok.
+    validate_personal_item(Value, RConditions).
 
 retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
     User = escalus_client:username(Client),
