@@ -39,7 +39,8 @@ suite() ->
 
 all() ->
     [
-     {group, retrieve_personal_data}
+     {group, retrieve_personal_data},
+     {group, data_is_not_retrieved_for_missing_user}
     ].
 
 groups() ->
@@ -53,10 +54,11 @@ groups() ->
                                    retrieve_pubsub,
                                    retrieve_private_xml,
                                    retrieve_inbox,
-                                   retrieve_logs,
-                                   % negative
-                                   data_is_not_retrieved_for_missing_user
-                                  ]}
+                                   retrieve_logs
+                                  ]},
+    {data_is_not_retrieved_for_missing_user, [],
+        [data_is_not_retrieved_for_missing_user]
+    }
     ].
 
 init_per_suite(Config) ->
@@ -64,7 +66,6 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
-    delete_files(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
@@ -105,6 +106,9 @@ init_per_testcase(retrieve_pubsub = CN, Config) ->
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
+end_per_testcase(etrieve_vcard = CN, Config) ->
+    delete_files(),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
     escalus:end_per_testcase(CN, Config).
 

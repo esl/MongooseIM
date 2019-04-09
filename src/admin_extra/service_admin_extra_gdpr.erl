@@ -20,14 +20,18 @@ commands() -> [
 
 -spec retrieve_all(gdpr:username(), gdpr:domain(), Path :: binary()) -> RetrievedFilesInZipName :: binary().
 retrieve_all(Username, Domain, ResultFilePath) ->
-    DataFromTables = get_data_from_tables(Username, Domain),
-    CsvFiles = lists:map(
-        fun({Tablename, Schema, Entitis}) ->
-            BinTablename = atom_to_binary(Tablename, utf8),
-            to_csv_file(<<BinTablename/binary, <<".csv">>/binary>>, Schema, Entitis) end,
-        DataFromTables),
-    {ok, R} = zip:create(ResultFilePath, lists:map(fun binary_to_list/1, CsvFiles)),
-    R.
+    case user_exists(Username, Domain) of
+    true ->
+        DataFromTables = get_data_from_tables(Username, Domain),
+        CsvFiles = lists:map(
+            fun({Tablename, Schema, Entitis}) ->
+                BinTablename = atom_to_binary(Tablename, utf8),
+                to_csv_file(<<BinTablename/binary, <<".csv">>/binary>>, Schema, Entitis) end,
+            DataFromTables),
+        {ok, R} = zip:create(ResultFilePath, lists:map(fun binary_to_list/1, CsvFiles)),
+        R;
+    false -> {error, "User does not exist"}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%                       Private funs
@@ -50,3 +54,7 @@ to_csv_file(Filename, DataSchema, DataRows) ->
 -spec get_modules() -> [module()].
 get_modules() ->
     [mod_vcard_mnesia].
+
+-spec user_exists(gdpr:username(), gdpr:domain()) -> boolean().
+user_exists(Username, Domain) ->
+    ejabberd_auth:is_user_exists(Username, Domain).
