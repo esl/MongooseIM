@@ -16,7 +16,11 @@
          retrieve_roster/1,
          retrieve_mam/1,
          retrieve_offline/1,
-         retrieve_pubsub/1,
+         retrieve_pubsub_payloads/1,
+         retrieve_created_pubsub_nodes/1,
+         retrieve_all_pubsub_data/1,
+         dont_retrieve_other_user_pubsub_payload/1,
+         retrieve_pubsub_subscriptions/1,
          retrieve_private_xml/1,
          retrieve_inbox/1,
          retrieve_logs/1
@@ -40,6 +44,7 @@ suite() ->
 all() ->
     [
      {group, retrieve_personal_data},
+     {group, retrieve_personal_data_pubsub},
      {group, data_is_not_retrieved_for_missing_user}
     ].
 
@@ -51,11 +56,17 @@ groups() ->
                                    %retrieve_roster,
                                    %retrieve_mam,
                                    %retrieve_offline,
-                                   %retrieve_pubsub,
                                    %retrieve_private_xml,
                                    %retrieve_inbox,
                                    retrieve_logs
                                   ]},
+        {retrieve_personal_data_pubsub, [], [
+            retrieve_pubsub_payloads,
+            dont_retrieve_other_user_pubsub_payload,
+            retrieve_pubsub_subscriptions,
+            retrieve_created_pubsub_nodes,
+            retrieve_all_pubsub_data
+        ]},
     {data_is_not_retrieved_for_missing_user, [],
         [data_is_not_retrieved_for_missing_user]
     }
@@ -100,16 +111,15 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             dynamic_modules:ensure_modules(domain(), mam_required_modules(Backend)),
             escalus:init_per_testcase(CN, Config)
     end;
-init_per_testcase(retrieve_pubsub = CN, Config) ->
-    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
-    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
+    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(retrieve_vcard = CN, Config) ->
     delete_files(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
+    delete_files(),
     escalus:end_per_testcase(CN, Config).
 
 inbox_required_modules() ->
@@ -136,7 +146,7 @@ pubsub_required_modules() ->
                                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                    {host, "pubsub.@HOST@"},
                                    {nodetree, <<"tree">>},
-                                   {plugins, [<<"flat">>, <<"pep">>]}
+                                   {plugins, [<<"flat">>, <<"pep">>, <<"push">>]}
                                   ]
                      }].
 
@@ -202,21 +212,144 @@ retrieve_offline(Config) ->
               Alice, Config, "offline", ExpectedHeader, ExpectedItems)
         end).
 
-retrieve_pubsub(Config) ->
+retrieve_pubsub_payloads(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-            Node = pubsub_tools:pubsub_node(),
-            ItemId = <<"puczjorhendsindier">>,
-            pubsub_tools:publish(Alice, ItemId, Node, [{with_payload, true}]),
-            PepNS = <<"gdpr:pep">>,
-            PepItemId = <<"puczjorhendsap">>,
-            pubsub_tools:publish(Alice, PepItemId, {pep, PepNS}, []),
+        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
+        Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
+        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
+        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
+        {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
+        {BinOther, StringOther} = item_content(<<"OtherItemData">>),
 
-            ExpectedHeader = ["node_id", "item_id", "payload"],
-            ExpectedItems = [
-                            ],
-            retrieve_and_validate_personal_data(
-              Alice, Config, "pubsub", ExpectedHeader, ExpectedItems)
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, BinItem1}]),
+        pubsub_tools:publish(Alice, <<"Item2">>, Node1, [{with_payload, BinItem2}]),
+        pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, BinItem3}]),
+        pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
+
+        ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
+                         pubsub_payloads_row_map(NodeName1, "Item2",StringItem2),
+                         pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
+                         pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
+        retrieve_and_validate_personal_data(
+            Alice, Config, "pubsub_payloads", ["node_name", "item_id", "payload"], ExpectedItems)
+                                              end).
+
+dont_retrieve_other_user_pubsub_payload(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
+        pubsub_tools:create_node(Alice, Node1, []),
+        AffChange = [{Bob, <<"publish-only">>}],
+
+        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
+        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
+
+        pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
+        pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, {true, BinItem2}}]),
+
+        retrieve_and_validate_personal_data(
+            Alice, Config, "pubsub_payloads", ["node_name", "item_id", "payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1)]),
+
+        retrieve_and_validate_personal_data(
+            Bob, Config, "pubsub_payloads", ["node_name","item_id", "payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item2", StringItem2)]),
+
+        pubsub_tools:delete_node(Alice, Node1, [])
+                                              end).
+
+retrieve_created_pubsub_nodes(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
+        Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
+        Node3 = {_Domain, NodeName3} = pubsub_tools:pubsub_node(),
+
+        NodeNS = random_node_ns(),
+        PepNode = make_pep_node_info(Alice, NodeNS),
+        AccessModel = {<<"pubsub#access_model">>, <<"authorize">>},
+
+        pubsub_tools:create_node(Alice, Node1, []),
+        pubsub_tools:create_node(Alice, Node2, []),
+        pubsub_tools:create_node(Alice, PepNode, [{config, [AccessModel]}]),
+        pubsub_tools:create_node(Bob, Node3, [{type, <<"push">>}]),
+
+        ExpectedHeader = ["node_name", "type"],
+
+        retrieve_and_validate_personal_data(
+            Alice, Config, "pubsub_nodes", ExpectedHeader,
+            [pubsub_nodes_row_map(NodeName1, "flat"),
+             pubsub_nodes_row_map(NodeName2, "flat"),
+             pubsub_nodes_row_map(NodeNS, "pep")
+                ]),
+
+        retrieve_and_validate_personal_data(
+            Bob, Config, "pubsub_nodes", ExpectedHeader,
+            [pubsub_nodes_row_map(NodeName3, "push")]),
+
+
+        Nodes = [{Alice, Node1}, {Alice, Node2}, {Alice, PepNode}, {Bob, Node3}],
+        [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
+                                                        end).
+
+retrieve_pubsub_subscriptions(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
+            pubsub_tools:create_node(Alice, Node, []),
+            pubsub_tools:subscribe(Bob, Node, []),
+            retrieve_and_validate_personal_data(Bob, Config, "pubsub_subscriptions", ["node_name"],
+                [pubsub_subscription_row_map(NodeName)]),
+
+            pubsub_tools:delete_node(Alice, Node, [])
         end).
+
+retrieve_all_pubsub_data(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
+        Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
+        Node3 = {_Domain, NodeName3} = pubsub_tools:pubsub_node(),
+        pubsub_tools:create_node(Alice, Node1, []),
+        pubsub_tools:create_node(Alice, Node2, []),
+        pubsub_tools:create_node(Bob, Node3, []),
+        AffChange = [{Bob, <<"publish-only">>}],
+        pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
+        pubsub_tools:subscribe(Bob, Node2, []),
+
+        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
+        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
+        {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
+
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
+        pubsub_tools:publish(Alice, <<"Item2">>, Node2, [{with_payload, {true, BinItem2}}]),
+        pubsub_tools:receive_item_notification(Bob, <<"Item2">>, Node2, []),
+        pubsub_tools:publish(Bob, <<"Item3">>, Node1, [{with_payload, {true, BinItem3}}]),
+
+        %% Bob has one subscription, one node created and one payload sent
+        retrieve_and_validate_personal_data(
+            Bob, Config, "pubsub_subscriptions", ["node_name"],
+            [pubsub_subscription_row_map(NodeName2)]),
+
+        retrieve_and_validate_personal_data(
+            Bob, Config, "pubsub_nodes", ["node_name", "type"],
+            [pubsub_nodes_row_map(NodeName3, "flat")]),
+
+        retrieve_and_validate_personal_data(
+            Bob, Config, "pubsub_payloads", ["node_name", "item_id", "payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item3", StringItem3)]),
+
+        %% Alice has two nodes created and two payloads sent
+        retrieve_and_validate_personal_data(
+            Alice, Config, "pubsub_nodes", ["node_name", "type"],
+            [pubsub_nodes_row_map(NodeName1, "flat"),
+             pubsub_nodes_row_map(NodeName2, "flat")]),
+        retrieve_and_validate_personal_data(
+            Alice, Config, "pubsub_payloads", ["node_name", "item_id","payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
+             pubsub_payloads_row_map(NodeName2, "Item2", StringItem2)]),
+
+        Nodes = [{Alice, Node1}, {Alice, Node2}, {Bob, Node3}],
+        [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
+                                                        end).
+
 
 retrieve_private_xml(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -304,12 +437,15 @@ csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
 csv_row_to_map(Header, Row) ->
     maps:from_list(lists:zip(Header, Row)).
 
-validate_personal_maps(_, []) -> ok;
-validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
+validate_personal_maps(PersonalMaps, ExpectedItems) ->
+    validate_sorted_personal_maps(lists:sort(PersonalMaps), lists:sort(ExpectedItems)).
+
+validate_sorted_personal_maps(_, []) -> ok;
+validate_sorted_personal_maps([Map | RMaps], [Checks | RChecks]) ->
     maps:fold(fun(K, Conditions, _) ->
                       validate_personal_item(maps:get(K, Map), Conditions)
               end, ok, Checks),
-    validate_personal_maps(RMaps, RChecks).
+validate_sorted_personal_maps(RMaps, RChecks).
 
 validate_personal_item(_Value, []) ->
     ok;
@@ -366,3 +502,28 @@ is_file_to_be_deleted(Filename) ->
             re:run(Filename, Regex) =/= nomatch
         end,
     DeletableRegexes).
+
+pubsub_payloads_row_map(Node, ItemId, Payload) ->
+    #{"node_name" => binary_to_list(Node), "item_id" => ItemId, "payload" => Payload}.
+
+pubsub_nodes_row_map(Node, Type) ->
+    #{"node_name" => binary_to_list(Node), "type" => Type}.
+
+pubsub_subscription_row_map(Node) ->
+    #{"node_name" => binary_to_list(Node)}.
+
+make_pep_node_info(Client, NodeName) ->
+    {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
+
+random_node_ns() ->
+    base64:encode(crypto:strong_rand_bytes(16)).
+
+item_content(Data) ->
+    Bin = item_content_xml(Data),
+    {Bin, binary_to_list(exml:to_binary(Bin))}.
+
+item_content_xml(Data) ->
+    #xmlel{name = <<"entry">>,
+           attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}],
+           children = [#xmlcdata{content = Data}]}.
+

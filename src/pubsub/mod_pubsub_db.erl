@@ -174,6 +174,17 @@
 
 -callback del_items(Nidx :: mod_pubsub:nodeIdx(), [ItemId :: mod_pubsub:itemId()]) -> ok.
 
+%% ----------------------- GDPR-related ------------------------
+
+-callback get_user_payloads(LUser :: jid:luser(), LServer :: jid:lserver()) ->
+    [NodeNameItemIDAndPayload :: [binary()]].
+
+-callback get_user_nodes(LUser :: jid:luser(), LServer :: jid:lserver()) ->
+    [NodeNameAndType :: [binary()]].
+
+-callback get_user_subscriptions(LUser :: jid:luser(), LServer :: jid:lserver()) ->
+    [NodeName :: [binary()]].
+
 %%====================================================================
 %% API
 %%====================================================================

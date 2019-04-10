@@ -12,3 +12,4 @@
 
 -callback get_personal_data(jid:user(), jid:server()) ->
     [{data_group(), schema(), entries()}].
+

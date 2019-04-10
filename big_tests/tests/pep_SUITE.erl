@@ -442,3 +442,4 @@ item_content() ->
 enable_sm(User) ->
     escalus_client:send(User, escalus_stanza:enable_sm()),
     #xmlel{name = <<"enabled">>} = escalus:wait_for_stanza(User).
+
