@@ -203,7 +203,20 @@ retrieve_offline(Config) ->
         end).
 
 retrieve_pubsub(Config) ->
-    ok.
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+            Node = pubsub_tools:pubsub_node(),
+            ItemId = <<"puczjorhendsindier">>,
+            pubsub_tools:publish(Alice, ItemId, Node, [{with_payload, true}]),
+            PepNS = <<"gdpr:pep">>,
+            PepItemId = <<"puczjorhendsap">>,
+            pubsub_tools:publish(Alice, PepItemId, {pep, PepNS}, []),
+
+            ExpectedHeader = ["node_id", "item_id", "payload"],
+            ExpectedItems = [
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "pubsub", ExpectedHeader, ExpectedItems)
+        end).
 
 retrieve_private_xml(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
