@@ -110,17 +110,19 @@ check_credentials(_State, Creds) ->
 
 -spec listmech(jid:server()) -> [mechanism()].
 listmech(Host) ->
-    Mechs = ets:foldl(fun(#sasl_mechanism{password_type = PasswordType, mechanism = M}, MechAcc) ->
-                              case ejabberd_auth:supports_password_type(Host, PasswordType) of
-                                  true -> [M | MechAcc];
-                                  false -> MechAcc
-                              end
-                      end, [], sasl_mechanism),
-    filter_mechanisms(Host, Mechs,
-                      [{<<"ANONYMOUS">>,
-                        fun(H)-> ejabberd_auth_anonymous:is_sasl_anonymous_enabled(H) end},
-                       {<<"X-OAUTH">>,
-                        fun(H) -> gen_mod:is_loaded(H, mod_auth_token) end}]).
+    ets:foldl(fun(Mech, MechAcc) ->
+                      case is_mech_supported(Host, Mech) of
+                          true -> [Mech#sasl_mechanism.mechanism | MechAcc];
+                          false -> MechAcc
+                      end
+              end, [], sasl_mechanism).
+
+is_mech_supported(Host, #sasl_mechanism{mechanism = <<"ANONYMOUS">>}) ->
+    ejabberd_auth_anonymous:is_sasl_anonymous_enabled(Host);
+is_mech_supported(Host, #sasl_mechanism{mechanism = <<"X-OAUTH">>}) ->
+    gen_mod:is_loaded(Host, mod_auth_token);
+is_mech_supported(Host, #sasl_mechanism{password_type = PasswordType}) ->
+    ejabberd_auth:supports_password_type(Host, PasswordType).
 
 -spec server_new(Service :: binary(),
                  ServerFQDN :: jid:server(),
@@ -177,18 +179,6 @@ server_step(State, ClientIn) ->
         {error, Error} ->
             {error, Error}
     end.
-
-%% @doc Remove the anonymous mechanism from the list if not enabled for the
-%% given host
--spec filter_mechanisms(jid:server(), [mechanism()],
-                        [{mechanism(), fun()}]) -> [mechanism()].
-filter_mechanisms(Host, Mechanisms, UnwantedMechanisms) ->
-    lists:foldl(fun({Mechanism, FilterFun}, Acc) ->
-                        case FilterFun(Host) of
-                            true -> Acc;
-                            false -> Acc -- [Mechanism]
-                        end
-                end, Mechanisms, UnwantedMechanisms).
 
 get_mechanisms() ->
     Default = [cyrsasl_plain,
