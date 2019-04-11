@@ -185,9 +185,9 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 ### Authentication
 
 * **auth_method** (local)
-    * **Description:** Chooses an authentication module or a list of modules. Modules from a list are queried one after another until one of them replies positively.
-    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`
-    * **Warning:** `external`, `jwt` and `ldap` work only with `PLAIN` SASL mechanism.
+    * **Description:** Chooses an authentication module or a list of modules. Modules from the list are queried one after another until one of them replies positively.
+    * **Valid values:** `internal` (Mnesia), `rdbms`, `external`, `anonymous`, `ldap`, `jwt`, `riak`, `http`, `pki`
+    * **Warning:** Authentication backends support only specific SASL mechanisms, see [auth backends capabilities](#authentication-backend-capabilities).
     * **Examples:** `rdbms`, `[internal, anonymous]`
 
 * **auth_opts** (local)
@@ -213,7 +213,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
-    * **Warning:** This list is still filtered by auth backends capabilities, e.g. LDAP authentication requires a password provided via SASL PLAIN.
+    * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)
     * **Valid values:** `cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external`
     * **Default:** `[cyrsasl_plain, cyrsasl_digest, cyrsasl_scram, cyrsasl_anonymous, cyrsasl_oauth, cyrsasl_external]`
     * **Examples:** `[cyrsasl_plain]`, `[cyrsasl_anonymous, cyrsasl_scram]`
@@ -222,6 +222,24 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
     * **Description:** Specifies a number of workers serving external authentication requests.
     * **Syntax:** `{extauth_instances, Count}.`
     * **Default:** 1
+
+#### Authentication backend capabilities
+
+The table below shows the supported SASL mechanisms for each authentication backend module.
+
+|           | cyrsasl<br>plain | cyrsasl<br>digest | cyrsasl<br>scram | cyrsasl<br>anonymous | cyrsasl<br>external |
+|-----------|:----------------:|:-----------------:|:----------------:|:--------------------:|:-------------------:|
+| internal  |         x        |         x         |         x        |                      |                     |
+| rdbms     |         x        |         x         |         x        |                      |                     |
+| external  |         x        |                   |                  |                      |                     |
+| anonymous |         x        |         x         |         x        |           x          |                     |
+| ldap      |         x        |                   |                  |                      |                     |
+| jwt       |         x        |                   |                  |                      |                     |
+| riak      |         x        |         x         |         x        |                      |                     |
+| http      |         x        |         x         |         x        |                      |                     |
+| pki       |                  |                   |                  |                      |          x          |
+
+`cyrsasl_oauth` does not use the auth backends at all and requires the `mod_auth_token` module enabled instead.
 
 ### Outgoing connections setup
 
