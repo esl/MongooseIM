@@ -25,7 +25,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1,
+         supports_password_type/2,
          stop/1]).
 
 %% Pre-mongoose_credentials API
@@ -45,18 +45,11 @@
 start(_Host) ->
     ok.
 
--spec store_type(binary()) -> plain | external | scram.
-store_type(Server) ->
-    case scram:enabled(Server) of
-        false ->
-            case ejabberd_auth:get_opt(Server, is_external) of
-                true ->
-                    external;
-                _ ->
-                    plain
-            end;
-        true -> scram
-    end.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, plain) -> true;
+supports_password_type(_, scram) -> true;
+supports_password_type(Host, digest) -> not scram:enabled(Host);
+supports_password_type(_, _) -> false.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
                                            | {error, any()}.

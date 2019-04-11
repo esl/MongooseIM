@@ -23,7 +23,7 @@
 %% API
 -export([start/1,
          stop/1,
-         store_type/1,
+         supports_password_type/2,
          set_password/3,
          authorize/1,
          try_register/3,
@@ -53,12 +53,11 @@ start(_Host) ->
 stop(_Host) ->
     ok.
 
--spec store_type(jid:lserver()) -> plain | scram.
-store_type(Host) ->
-    case scram:enabled(Host) of
-        false -> plain;
-        true -> scram
-    end.
+-spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
+supports_password_type(_, plain) -> true;
+supports_password_type(_, scram) -> true;
+supports_password_type(Host, digest) -> not scram:enabled(Host);
+supports_password_type(_, _) -> false.
 
 -spec set_password(jid:luser(), jid:lserver(), binary())
         -> ok | {error, not_allowed | invalid_jid}.

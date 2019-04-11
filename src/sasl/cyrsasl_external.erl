@@ -45,7 +45,7 @@ stop() ->
 
 -spec mech_new(Host :: ejabberd:server(),
                Creds :: mongoose_credentials:t()) -> {ok, sasl_external_state()}.
-mech_new(Host, Creds) ->
+mech_new(_Host, Creds) ->
     Cert = mongoose_credentials:get(Creds, client_cert, no_cert),
     maybe_extract_certs(Cert, Creds).
 

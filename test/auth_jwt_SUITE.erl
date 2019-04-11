@@ -33,7 +33,7 @@ generic_tests() ->
      remove_user,
      get_vh_registered_users_number,
      get_vh_registered_users,
-     store_type,
+     supported_password_types,
      dirty_get_registered_users
     ].
 
@@ -137,8 +137,9 @@ get_vh_registered_users_number(_C) ->
 get_vh_registered_users(_C) ->
     [] = ejabberd_auth_jwt:get_vh_registered_users(?DOMAIN1, []).
 
-store_type(_C) ->
-    external = ejabberd_auth_jwt:store_type(?DOMAIN1).
+supported_password_types(_C) ->
+    [true, false, false, false] =
+        [ejabberd_auth_jwt:supports_password_type(?DOMAIN1, PT) || PT <- [plain, digest, scram, cert]].
 
 dirty_get_registered_users(_C) ->
     [] = ejabberd_auth_jwt:dirty_get_registered_users().
