@@ -28,7 +28,7 @@
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     Table = vcard,
-    Schema = mnesia:table_info(Table, wild_pattern),
+    Schema = ["vcard"],
     US = {LUser, Server},
     Trans = fun() -> mnesia:read({Table, US}) end,
     {atomic, Records} = mnesia:transaction(Trans),
