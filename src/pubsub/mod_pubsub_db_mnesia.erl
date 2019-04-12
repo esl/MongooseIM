@@ -66,6 +66,8 @@
          del_items/2
         ]).
 
+-export([get_personal_data/2]).
+
 %%====================================================================
 %% Internal records definitions
 %%====================================================================
@@ -158,6 +160,12 @@ dirty(Fun, ErrorDebug) ->
         _C:ReasonData ->
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed)
     end.
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    Table = pubsub_node,
+    Schema = mnesia:table_info(Table, wild_pattern),
+    [{Table, Schema, ets:tab2list(pubsub_node)}].
 
 %% ------------------------ Direct #pubsub_state access ------------------------
 
