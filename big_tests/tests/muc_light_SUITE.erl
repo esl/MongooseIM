@@ -11,6 +11,9 @@
 -export([ % entity
          disco_service/1,
          disco_features/1,
+         disco_features_with_mam/1,
+         disco_info/1,
+         disco_info_with_mam/1,
          disco_rooms/1,
          disco_rooms_empty_page_1/1,
          disco_rooms_empty_page_infinity/1,
@@ -128,6 +131,9 @@ groups() ->
          {entity, [sequence], [
                                disco_service,
                                disco_features,
+                               disco_features_with_mam,
+                               disco_info,
+                               disco_info_with_mam,
                                disco_rooms,
                                disco_rooms_rsm,
                                disco_rooms_created_page_1,
@@ -225,6 +231,13 @@ init_per_testcase(removing_users_from_server_triggers_room_destruction = CN, Con
     Config1 = escalus:create_users(Config, escalus:get_users([carol])),
     create_room(?ROOM, ?MUCHOST, carol, [], Config1, ver(1)),
     escalus:init_per_testcase(CN, Config1);
+init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                         CaseName =:= disco_info_with_mam ->
+    set_default_mod_config(),
+    dynamic_modules:start(domain(), mod_mam_muc,
+                          [{backend, rdbms},
+                           {host, binary_to_list(?MUCHOST)}]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(disco_rooms_rsm, Config) ->
     set_default_mod_config(),
     set_mod_config(rooms_per_page, 1, ?MUCHOST),
@@ -243,6 +256,11 @@ init_per_testcase(CaseName, Config) ->
     end,
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                        CaseName =:= disco_info_with_mam ->
+    muc_light_helper:clear_db(),
+    dynamic_modules:stop(domain(), mod_mam_muc),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     case lists:member(CaseName, ?CUSTOM_CONFIG_CASES) of
         true -> set_custom_config(default_schema_definition());
@@ -274,6 +292,12 @@ disco_service(Config) ->
         end).
 
 disco_features(Config) ->
+    disco_features_story(Config, false).
+
+disco_features_with_mam(Config) ->
+    disco_features_story(Config, true).
+
+disco_features_story(Config, HasMAM) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
             DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), ?MUCHOST),
             escalus:send(Alice, DiscoStanza),
@@ -281,9 +305,36 @@ disco_features(Config) ->
             <<"conference">> = exml_query:path(Stanza, [{element, <<"query">>},
                                                         {element, <<"identity">>},
                                                         {attr, <<"category">>}]),
-            ?NS_MUC_LIGHT = exml_query:path(Stanza, [{element, <<"query">>},
-                                                     {element, <<"feature">>},
-                                                     {attr, <<"var">>}]),
+            FeaturesExpected = [?NS_MUC_LIGHT] ++ case HasMAM of
+                true -> [mam_helper:mam_ns_binary_v04(),
+                         mam_helper:mam_ns_binary_v06()];
+                false -> []
+            end,
+            FeaturesExpected = exml_query:paths(Stanza, [{element, <<"query">>},
+                                                         {element, <<"feature">>},
+                                                         {attr, <<"var">>}]),
+            escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
+        end).
+
+disco_info(Config) ->
+    disco_features_story(Config, false).
+
+disco_info_with_mam(Config) ->
+    disco_features_story(Config, true).
+
+disco_info_story(Config, HasMAM) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            DiscoStanza = escalus_stanza:to(escalus_stanza:iq_get(?NS_DISCO_INFO, []), ?ROOM),
+            escalus:send(Alice, DiscoStanza),
+            Stanza = escalus:wait_for_stanza(Alice),
+            FeaturesExpected = [?NS_MUC_LIGHT] ++ case HasMAM of
+                true -> [mam_helper:mam_ns_binary_v04(),
+                         mam_helper:mam_ns_binary_v06()];
+                false -> []
+            end,
+            FeaturesExpected = exml_query:paths(Stanza, [{element, <<"query">>},
+                                                         {element, <<"feature">>},
+                                                         {attr, <<"var">>}]),
             escalus:assert(is_stanza_from, [?MUCHOST], Stanza)
         end).
 

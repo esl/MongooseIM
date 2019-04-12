@@ -43,12 +43,11 @@
          room_address/2,
          fresh_room_name/0,
          fresh_room_name/1,
-         disco_features_story/1,
+         disco_features_story/2,
          given_fresh_room/3,
          room_address/2,
          room_address/1,
          stanza_get_features/0,
-         has_features/1,
          disco_service_story/1,
          story_with_room/4
          ]).
@@ -92,6 +91,7 @@
 
 all() -> [
           {group, disco},
+          {group, disco_non_parallel},
           {group, disco_rsm},
           {group, disco_rsm_with_offline},
           {group, moderator},
@@ -133,6 +133,10 @@ groups() ->
                               disco_items,
                               disco_items_nonpublic
                              ]},
+         {disco_non_parallel, [], [
+                                  disco_features_with_mam,
+                                  disco_info_with_mam
+                                 ]},
          {disco_rsm, [parallel], rsm_cases()},
          {disco_rsm_with_offline, [parallel], rsm_cases_with_offline()},
          {moderator, [parallel], [
@@ -337,7 +341,8 @@ init_per_group(admin, Config) ->
 init_per_group(admin_membersonly, Config) ->
     Config;
 
-init_per_group(disco, Config) ->
+init_per_group(G, Config) when G =:= disco;
+                               G =:= disco_non_parallel ->
     Config1 = escalus:create_users(Config, escalus:get_users([alice, bob])),
     [Alice | _] = ?config(escalus_users, Config1),
     start_room(Config1, Alice, <<"alicesroom">>, <<"aliceonchat">>,
@@ -417,7 +422,8 @@ end_per_group(room_registration_race_condition, Config) ->
 end_per_group(admin_membersonly, Config) ->
     Config;
 
-end_per_group(disco, Config) ->
+end_per_group(G, Config) when G =:= disco;
+                              G =:= disco_non_parallel ->
     destroy_room(Config),
     escalus:delete_users(Config, escalus:get_users([alice, bob]));
 
@@ -519,6 +525,14 @@ init_per_testcase(CN, Config)
         _ ->
             {skip, "MAM works only for RDBMS as of now"}
     end;
+
+init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                         CaseName =:= disco_info_with_mam ->
+    dynamic_modules:start(domain(), mod_mam_muc,
+                          [{backend, rdbms},
+                           {host, binary_to_list(?MUC_HOST)}]),
+    escalus:init_per_testcase(CaseName, Config);
+
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
@@ -604,6 +618,11 @@ end_per_testcase(CaseName =registration_request, Config) ->
 
 end_per_testcase(CaseName =reserved_nickname_request, Config) ->
     destroy_room(Config),
+    escalus:end_per_testcase(CaseName, Config);
+
+end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                        CaseName =:= disco_info_with_mam ->
+    dynamic_modules:stop(domain(), mod_mam_muc),
     escalus:end_per_testcase(CaseName, Config);
 
 end_per_testcase(CaseName, Config) ->
@@ -2884,7 +2903,24 @@ disco_service(Config) ->
     disco_service_story(Config).
 
 disco_features(Config) ->
-    disco_features_story(Config).
+    disco_features_story(Config, [?NS_DISCO_INFO,
+                                  ?NS_DISCO_ITEMS,
+                                  ?NS_MUC,
+                                  ?NS_MUC_UNIQUE,
+                                  <<"jabber:iq:register">>,
+                                  ?NS_RSM,
+                                  <<"vcard-temp">>]).
+
+disco_features_with_mam(Config) ->
+    disco_features_story(Config, [?NS_DISCO_INFO,
+                                  ?NS_DISCO_ITEMS,
+                                  ?NS_MUC,
+                                  ?NS_MUC_UNIQUE,
+                                  <<"jabber:iq:register">>,
+                                  ?NS_RSM,
+                                  <<"vcard-temp">>,
+                                  mam_helper:mam_ns_binary_v04(),
+                                  mam_helper:mam_ns_binary_v06()]).
 
 disco_rooms(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -2901,11 +2937,24 @@ disco_rooms(Config) ->
     end).
 
 disco_info(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Stanza = escalus:send_iq_and_wait_for_result(
-                     Alice, stanza_to_room(escalus_stanza:iq_get(?NS_DISCO_INFO,[]), <<"alicesroom">>)),
-        has_feature(Stanza, <<"muc_persistent">>)
-    end).
+    muc_helper:disco_info_story(Config, [?NS_MUC,
+                                         <<"muc_public">>,
+                                         <<"muc_persistent">>,
+                                         <<"muc_open">>,
+                                         <<"muc_semianonymous">>,
+                                         <<"muc_moderated">>,
+                                         <<"muc_unsecured">>]).
+
+disco_info_with_mam(Config) ->
+    muc_helper:disco_info_story(Config, [?NS_MUC,
+                                         <<"muc_public">>,
+                                         <<"muc_persistent">>,
+                                         <<"muc_open">>,
+                                         <<"muc_semianonymous">>,
+                                         <<"muc_moderated">>,
+                                         <<"muc_unsecured">>,
+                                         mam_helper:mam_ns_binary_v04(),
+                                         mam_helper:mam_ns_binary_v06()]).
 
 disco_items(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->

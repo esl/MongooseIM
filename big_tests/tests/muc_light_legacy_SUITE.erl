@@ -8,6 +8,9 @@
 -export([
          disco_service/1,
          disco_features/1,
+         disco_features_with_mam/1,
+         disco_info/1,
+         disco_info_with_mam/1,
          disco_rooms/1,
          disco_rooms_rsm/1,
          unauthorized_stanza/1
@@ -91,6 +94,9 @@ groups() ->
          {entity, [sequence], [
                                disco_service,
                                disco_features,
+                               disco_features_with_mam,
+                               disco_info,
+                               disco_info_with_mam,
                                disco_rooms,
                                disco_rooms_rsm,
                                unauthorized_stanza
@@ -166,11 +172,23 @@ init_per_testcase(create_existing_room_deny = N, Config) ->
     set_default_mod_config(),
     create_room(?ROOM, ?MUCHOST, alice, [], Config),
     escalus:init_per_testcase(N, Config);
+init_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                         CaseName =:= disco_info_with_mam ->
+    set_default_mod_config(),
+    dynamic_modules:start(domain(), mod_mam_muc,
+                          [{backend, rdbms},
+                           {host, binary_to_list(?MUCHOST)}]),
+    escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CaseName, Config) ->
     set_default_mod_config(),
     create_room(?ROOM, ?MUCHOST, alice, [bob, kate], Config),
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CaseName, Config) when CaseName =:= disco_features_with_mam;
+                                        CaseName =:= disco_info_with_mam ->
+    clear_db(),
+    dynamic_modules:stop(domain(), mod_mam_muc),
+    escalus:end_per_testcase(CaseName, Config);
 end_per_testcase(CaseName, Config) ->
     clear_db(),
     escalus:end_per_testcase(CaseName, Config).
@@ -197,7 +215,20 @@ disco_service(Config) ->
     muc_helper:disco_service_story(Config).
 
 disco_features(Config) ->
-    muc_helper:disco_features_story(Config).
+    muc_helper:disco_features_story(Config, [?NS_MUC]).
+
+disco_features_with_mam(Config) ->
+    muc_helper:disco_features_story(Config, [?NS_MUC,
+                                             mam_helper:mam_ns_binary_v04(),
+                                             mam_helper:mam_ns_binary_v06()]).
+
+disco_info(Config) ->
+    muc_helper:disco_info_story(Config, [?NS_MUC]).
+
+disco_info_with_mam(Config) ->
+    muc_helper:disco_info_story(Config, [?NS_MUC,
+                                         mam_helper:mam_ns_binary_v04(),
+                                         mam_helper:mam_ns_binary_v06()]).
 
 disco_rooms(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
