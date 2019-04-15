@@ -41,7 +41,24 @@ retrieve_all(Username, Domain, ResultFilePath) ->
     [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
 get_data_from_tables(Username, Domain) ->
     Modules = get_modules(),
-    lists:flatten([M:get_personal_data(Username, Domain)|| M <- Modules]).
+    Tables = lists:flatten(
+        [try_get_data_from_table( M, Username, Domain)|| M <- Modules]
+    ),
+    lists:filter(
+        fun(no_table) -> false;
+            (_) -> true end,
+        Tables).
+
+try_get_data_from_table(Module, Username, Domain) ->
+    try Module:get_personal_data(Username, Domain) of
+        [{_, _, []}] ->
+            no_table;
+        Val ->
+            Val
+    catch
+        _:_ ->
+            no_table
+    end.
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities()) -> CsvFilename :: binary().
 to_csv_file(Filename, DataSchema, DataRows) ->
