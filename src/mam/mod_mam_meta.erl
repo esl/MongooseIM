@@ -135,6 +135,7 @@ valid_core_mod_opts(mod_mam) ->
 valid_core_mod_opts(mod_mam_muc) ->
     [
      is_archivable_message,
+     archive_chat_markers,
      host,
      extra_lookup_params,
      full_text_search,

@@ -511,9 +511,15 @@ parse_children_message_result_forwarded_message(#xmlel{name = <<"x">>,
     IsUser = lists:member({<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}, Attrs),
     M#forwarded_message{has_x_user_element = IsUser,
                         message_xs = [XEl | M#forwarded_message.message_xs]};
-%% Parse `<archived />' here.
-parse_children_message_result_forwarded_message(_, M) ->
-    M.
+%% Parse `<archived />' or chat markers.
+parse_children_message_result_forwarded_message(MaybeChatMarker, M) ->
+    case exml_query:attr(MaybeChatMarker, <<"xmlns">>) of
+        ?NS_CHAT_MARKERS ->
+            M#forwarded_message{ chat_marker = MaybeChatMarker#xmlel.name };
+        _ ->
+            % Not relevant
+            M
+    end.
 
 %% Num is 1-based.
 message_id(Num, Config) ->
