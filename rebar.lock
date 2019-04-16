@@ -33,7 +33,7 @@
   0},
  {<<"erl_csv_generator">>,
   {git,"https://github.com/aleklisi/erl_csv_generator.git",
-       {ref,"8bd7f219d755f9ea8721c55289a7ce7ffcc80b56"}},
+       {ref,"72a61b0f96db46bfb8905e933c8ec11e12cfd21e"}},
   0},
  {<<"erlang_pmp">>,{pkg,<<"erlang_pmp">>,<<"0.1.1">>},0},
  {<<"erlcloud">>,{pkg,<<"erlcloud">>,<<"3.2.2">>},0},
