@@ -163,9 +163,17 @@ dirty(Fun, ErrorDebug) ->
 
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
-    Table = pubsub_node,
-    Schema = mnesia:table_info(Table, wild_pattern),
-    [{Table, Schema, ets:tab2list(pubsub_node)}].
+    LServer = jid:nodeprep(Server),
+    Records = mnesia_transaction_get_states(LUser, LServer),
+    [{pubsub, ["node_id", "payload"], Records}].
+
+mnesia_transaction_get_states(LUser,LServer) ->
+    LJid = jid:to_bare({LUser, LServer, <<>>}),
+    {atomic, Recs} = mnesia:transaction(fun() ->
+      Nodes = get_all_users_nodes(LJid),
+      fill_nodes_with_payloads(LJid, Nodes)
+      end),
+    Recs.
 
 %% ------------------------ Direct #pubsub_state access ------------------------
 
@@ -213,6 +221,17 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
     ResultNidxs = mnesia:foldl(pa:bind(fun get_idxs_with_pending_subs/3, NodeIdxs),
                                [], pubsub_state),
     {ok, ResultNidxs}.
+
+get_all_users_nodes(LJID) ->
+    mnesia:match_object(#pubsub_node{owners = [LJID], _ = '_'}).
+
+fill_nodes_with_payloads(LJID, Nodes) ->
+    lists:flatten([paylods_per_node(LJID, Node) || Node <- Nodes]).
+
+paylods_per_node(LJID, Node) ->
+    Payloads = mnesia:match_object(#pubsub_state{stateid = {LJID, Node#pubsub_node.id}, _ = '_'}),
+    {_Host, NodeName} = Node#pubsub_node.nodeid,
+    [{NodeName, Payload} || #pubsub_state{items = [Payload]}  <- Payloads].
 
 %% ------------------------ Node management ------------------------
 
