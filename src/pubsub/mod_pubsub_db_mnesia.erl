@@ -170,7 +170,7 @@ get_personal_data(Username, Server) ->
 fetch_nodes_with_payloads(LUser,LServer) ->
     LJid = jid:to_bare({LUser, LServer, <<>>}),
     {atomic, Recs} = mnesia:transaction(fun() ->
-      Nodes = get_all_users_nodes(LJid),
+      Nodes = get_user_nodes(LJid),
       fill_nodes_with_payloads(LJid, Nodes)
       end),
     Recs.
@@ -222,7 +222,7 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
                                [], pubsub_state),
     {ok, ResultNidxs}.
 
-get_all_users_nodes(LJID) ->
+get_user_nodes(LJID) ->
     mnesia:match_object(#pubsub_node{owners = [LJID], _ = '_'}).
 
 fill_nodes_with_payloads(LJID, Nodes) ->

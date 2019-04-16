@@ -16,7 +16,7 @@
          retrieve_roster/1,
          retrieve_mam/1,
          retrieve_offline/1,
-         retrieve_pubsub/1,
+         retrieve_pubsub_nodes/1,
          retrieve_private_xml/1,
          retrieve_inbox/1,
          retrieve_logs/1
@@ -40,6 +40,7 @@ suite() ->
 all() ->
     [
      {group, retrieve_personal_data},
+     {group, retrieve_personal_data_pubsub},
      {group, data_is_not_retrieved_for_missing_user}
     ].
 
@@ -51,11 +52,13 @@ groups() ->
                                    retrieve_roster,
                                    retrieve_mam,
                                    retrieve_offline,
-                                   retrieve_pubsub,
                                    retrieve_private_xml,
                                    retrieve_inbox,
                                    retrieve_logs
                                   ]},
+        {retrieve_personal_data_pubsub, [], [
+            retrieve_pubsub_nodes
+        ]},
     {data_is_not_retrieved_for_missing_user, [],
         [data_is_not_retrieved_for_missing_user]
     }
@@ -70,9 +73,16 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
+%% TODO For some reason it doesnt work and had to be moved to init per testcase :O
+%%init_per_group(retrieve_personal_data_pubsub, Config) ->
+%%    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
+%%    Config;
 init_per_group(_GN, Config) ->
     Config.
 
+end_per_group(retrieve_personal_data_pubsub, Config) ->
+    delete_files(),
+    Config;
 end_per_group(_GN, Config) ->
     Config.
 
@@ -100,13 +110,13 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             dynamic_modules:ensure_modules(domain(), mam_required_modules(Backend)),
             escalus:init_per_testcase(CN, Config)
     end;
-init_per_testcase(retrieve_pubsub = CN, Config) ->
+init_per_testcase(retrieve_pubsub_nodes = CN, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
-end_per_testcase(etrieve_vcard = CN, Config) ->
+end_per_testcase(retrieve_vcard = CN, Config) ->
     delete_files(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
@@ -202,7 +212,7 @@ retrieve_offline(Config) ->
               Alice, Config, "offline", ExpectedHeader, ExpectedItems)
         end).
 
-retrieve_pubsub(Config) ->
+retrieve_pubsub_nodes(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
             Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
             ItemId = <<"put_your_hands_in_the_air">>,
@@ -296,12 +306,15 @@ csv_to_maps(ExpectedHeader, [_HeaderRow | Rows]) ->
 csv_row_to_map(Header, Row) ->
     maps:from_list(lists:zip(Header, Row)).
 
-validate_personal_maps(_, []) -> ok;
-validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
+validate_personal_maps(PersonalMaps, ExpectedItems) ->
+    validate_sorted_personal_maps(lists:sort(PersonalMaps), lists:sort(ExpectedItems)).
+
+validate_sorted_personal_maps(_, []) -> ok;
+validate_sorted_personal_maps([Map | RMaps], [Checks | RChecks]) ->
     maps:fold(fun(K, Conditions, _) ->
                       validate_personal_item(maps:get(K, Map), Conditions)
               end, ok, Checks),
-    validate_personal_maps(RMaps, RChecks).
+validate_sorted_personal_maps(RMaps, RChecks).
 
 validate_personal_item(_Value, []) ->
     ok;
