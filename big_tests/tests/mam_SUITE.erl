@@ -1795,7 +1795,9 @@ muc_archive_request(Config) ->
                            message_to=MsgTo, message_from=MsgFrom} =
             parse_forwarded_message(ArcMsg),
         %% XEP: the 'to' of the forwarded stanza MUST be empty
-        ?assert_equal_extra(<<>>, MsgTo, message_to),
+        %% However, Smack crashes if it is present, so it is removed
+        ?assert_equal_extra(undefined, MsgTo, message_to),
+
         %% XEP: the 'from' MUST be the occupant JID of the sender of the archived message
         ?assert_equal_extra(escalus_utils:jid_to_lower(room_address(Room, nick(Alice))),
                             escalus_utils:jid_to_lower(MsgFrom), message_from),

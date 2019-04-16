@@ -253,11 +253,16 @@ make_voice_approval_form(From, Nick, Role) ->
         ]}.
 
 
--spec replace_from_to_attrs(From :: binary(), To :: binary(), [binary_pair()]) -> [binary_pair()].
+-spec replace_from_to_attrs(From :: binary(),
+                            To :: binary() | undefined,
+                            [binary_pair()]) -> [binary_pair()].
 replace_from_to_attrs(From, To, Attrs) ->
     Attrs1 = lists:keydelete(<<"to">>, 1, Attrs),
     Attrs2 = lists:keydelete(<<"from">>, 1, Attrs1),
-    Attrs3 = [{<<"to">>, To} | Attrs2],
+    Attrs3 = case To of
+                 undefined -> Attrs2;
+                 _ -> [{<<"to">>, To} | Attrs2]
+             end,
     Attrs4 = [{<<"from">>, From} | Attrs3],
     Attrs4.
 
