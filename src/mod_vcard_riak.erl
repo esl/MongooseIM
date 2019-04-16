@@ -14,7 +14,9 @@
 %% limitations under the License.
 %%==============================================================================
 -module(mod_vcard_riak).
+
 -behaviour(mod_vcard).
+-behaviour(gdpr).
 
 %% API
 -export([init/2,
@@ -32,6 +34,28 @@
 
 -define(BUCKET_TYPE, <<"vcard">>).
 -define(YZ_VCARD_INDEX, <<"vcard">>).
+
+%%--------------------------------------------------------------------
+%% gdpr callbacks
+%%--------------------------------------------------------------------
+
+-export([get_personal_data/2]).
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Table = vcard,
+    Schema = ["vcard"],
+    {ok, Record} = get_vcard(LUser, LServer),
+    SerialzedRecord = exml:to_binary(Record),
+    [{Table, Schema, [[SerialzedRecord]]}].
+
+%%--------------------------------------------------------------------
+%% mod_vcards callbacks
+%%--------------------------------------------------------------------
 
 -spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->
