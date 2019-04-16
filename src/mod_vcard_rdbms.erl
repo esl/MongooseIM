@@ -27,6 +27,7 @@
 -module(mod_vcard_rdbms).
 
 -behaviour(mod_vcard).
+-behaviour(gdpr).
 
 %% mod_vcards callbacks
 -export([init/2,
@@ -40,6 +41,24 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
+
+%%--------------------------------------------------------------------
+%% gdpr callbacks
+%%--------------------------------------------------------------------
+
+-export([get_personal_data/2]).
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Table = vcard,
+    Schema = ["vcard"],
+    {ok, Record} = get_vcard(LUser, LServer),
+    SerialzedRecord = exml:to_binary(Record),
+    [{Table, Schema, [[SerialzedRecord]]}].
 
 %%--------------------------------------------------------------------
 %% mod_vcards callbacks
