@@ -204,16 +204,16 @@ retrieve_offline(Config) ->
 
 retrieve_pubsub(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-            Node = pubsub_tools:pubsub_node(),
+            Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
             ItemId = <<"put_your_hands_in_the_air">>,
             pubsub_tools:publish(Alice, ItemId, Node, [{with_payload, true}]),
             PepNS = <<"gdpr:pep">>,
             PepItemId = <<"put_your_hands_up">>,
             pubsub_tools:publish(Alice, PepItemId, {pep, PepNS}, []),
 
-            ExpectedHeader = ["node_id", "item_id", "payload"],
-            ExpectedItems = [
-                            ],
+            ExpectedHeader = ["node_id", "payload"],
+            ExpectedItems = [#{"node_id" => binary_to_list(PepNS), "payload" => "put_your_hands_up"},
+                             #{"node_id" => binary_to_list(NodeName), "payload" => "put_your_hands_in_the_air"}],
             retrieve_and_validate_personal_data(
               Alice, Config, "pubsub", ExpectedHeader, ExpectedItems)
         end).
@@ -290,11 +290,11 @@ retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, E
              })
     end.
 
-csv_to_maps(ExpectedHeader, [HeaderRow | [Rows]]) ->
+csv_to_maps(ExpectedHeader, [_HeaderRow | Rows]) ->
     lists:foldl(fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end, [], Rows).
 
 csv_row_to_map(Header, Row) ->
-    maps:from_list(lists:zip(Header, [Row])).
+    maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(_, []) -> ok;
 validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
