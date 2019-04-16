@@ -164,10 +164,10 @@ dirty(Fun, ErrorDebug) ->
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
-    Records = mnesia_transaction_get_states(LUser, LServer),
+    Records = fetch_nodes_with_payloads(LUser, LServer),
     [{pubsub, ["node_id", "payload"], Records}].
 
-mnesia_transaction_get_states(LUser,LServer) ->
+fetch_nodes_with_payloads(LUser,LServer) ->
     LJid = jid:to_bare({LUser, LServer, <<>>}),
     {atomic, Recs} = mnesia:transaction(fun() ->
       Nodes = get_all_users_nodes(LJid),
