@@ -175,3 +175,15 @@ has_features(#xmlel{children = [ Query ]}) ->
     <<"conference">> = exml_query:attr(Identity, <<"category">>),
     true = lists:member(?NS_MUC, exml_query:paths(Query, [{element, <<"feature">>},
                                                           {attr, <<"var">>}])).
+
+assert_valid_affiliation(<<"owner">>) -> ok;
+assert_valid_affiliation(<<"admin">>) -> ok;
+assert_valid_affiliation(<<"member">>) -> ok;
+assert_valid_affiliation(<<"outcast">>) -> ok;
+assert_valid_affiliation(<<"none">>) -> ok.
+
+assert_valid_role(<<"moderator">>) -> ok;
+assert_valid_role(<<"participant">>) -> ok;
+assert_valid_role(<<"visitor">>) -> ok;
+assert_valid_role(<<"none">>) -> ok.
+
