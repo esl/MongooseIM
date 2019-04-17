@@ -151,16 +151,19 @@ retrieve_vcard(Config) ->
             AliceFields = [{<<"FN">>, <<"Alice">>}, {<<"LN">>, <<"Ecila">>}],
             AliceSetResultStanza
             = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
             escalus:assert(is_iq_result, AliceSetResultStanza),
-            ExpectedHeader = ["vcard"], % TODO? Expand vCard into separate CSV columns?
+            ExpectedHeader = ["jid", "vcard"],
             ExpectedItems = [
-                             #{ "vcard" => [{contains, "Alice"},
-                                            {contains, "Ecila"}] }
-                            ],
-            PL = proplists:get_value(event_client, element(6, Alice)),
-            Username = proplists:get_value(username, PL),
-            Server = proplists:get_value(server, PL),
-            rpc(mim(), mod_vcard_mnesia, get_personal_data, [Username, Server]),
+                #{ "jid" => [
+                    {contains, AliceU},
+                    {contains, AliceS}],
+                   "vcard" => [
+                       {contains, "Alice"},
+                       {contains, "Ecila"}] }
+                ],
+            rpc(mim(), mod_vcard_mnesia, get_personal_data, [AliceU, AliceS]),
             retrieve_and_validate_personal_data(
               Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
         end).
