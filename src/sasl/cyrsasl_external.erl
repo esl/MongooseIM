@@ -1,5 +1,5 @@
 %%%=============================================================================
-%%% @copyright (C) 1999-2018, Erlang Solutions Ltd
+%%% @copyright (C) 1999-2019, Erlang Solutions Ltd
 %%% @author Denys Gonchar <denys.gonchar@erlang-solutions.com>
 %%% @doc SASL EXTERNAL implementation (XEP178)
 %%%
@@ -11,13 +11,11 @@
 %%% the next extra fields are added to mongoose_credentials record:
 %%%   * pem_cert        - certificate in PEM format
 %%%   * der_cert        - certificate in DER format
-%%%   * common_name     - CN field (bitstring) of client's cert (if available)
-%%%   * xmpp_addresses  - list of "id-on-xmppAddr" fields (bitstrings) of
-%%%                       client's certificate (if available)
-%%%   * requested_name  - authorization identity (if requested by the client)
+%%%   * common_name     - CN field (bitstring) of the client's cert (if available)
+%%%   * xmpp_addresses  - list of provided "xmppAddr" fields (bare jids) provided in
+%%%                       the client's certificate (empty list if not available)
+%%%   * auth_id         - authorization identity (bare jid, if provided by the client)
 %%%
-%%% note that it's auth. backend responsibility to add clients "username" field
-%%% to mongoose_credentials record (this one is mandatory for auth.).
 %%% @end
 %%%=============================================================================
 -module(cyrsasl_external).
@@ -33,14 +31,26 @@
 
 -behaviour(cyrsasl).
 
+
+-callback verify_creds(Creds :: mongoose_credentials:t()) ->
+    {ok, Username :: binary()} | {error, Error :: binary()}.
+
+-type ignored() :: any().
+-callback start() -> ignored().
+-callback stop() -> ignored().
+-optional_callbacks([start/0, stop/0]).
+
+
 -record(state, {creds :: mongoose_credentials:t()}).
 -type sasl_external_state() :: #state{}.
 
 start(_Opts) ->
     cyrsasl:register_mechanism(<<"EXTERNAL">>, ?MODULE, cert),
+    start_all_modules(),
     ok.
 
 stop() ->
+    stop_all_modules(),
     ok.
 
 -spec mech_new(Host :: ejabberd:server(),
@@ -66,57 +76,33 @@ mech_step(#state{creds = Creds}, User) ->
         false ->
             {error, <<"not-authorized">>};
         true ->
-            do_mech_step(Creds, User)
-    end.
-do_mech_step(Creds, User) ->
-    XmppAddrs = get_credentials(Creds, xmpp_addresses),
-    CommonName = get_credentials(Creds, common_name),
-    Server = mongoose_credentials:lserver(Creds),
-    case check_auth_req(XmppAddrs, CommonName, User, Server) of
-        {error, Error} ->
-            {error, Error};
-        {ok, Name} ->
-            NewCreds = mongoose_credentials:extend(Creds, [{username, Name}]),
-            ejabberd_auth:authorize(NewCreds)
+            NewCreds = maybe_add_auth_id(Creds, User),
+            do_mech_step(NewCreds)
     end.
 
-check_auth_req([], CommonName, <<"">>, Server) ->
-    case ejabberd_auth:get_opt(Server, cyrsasl_external, standard) of
-       use_common_name when is_binary(CommonName) ->
-            {ok, CommonName};
-        _ ->
-            {error, <<"not-authorized">>}
-    end;
-check_auth_req([OneXmppAddr], _, <<"">>, Server) ->
-    verify_server(OneXmppAddr, Server);
-check_auth_req(_, _,  <<"">>, _) ->
-    {error, <<"not-authorized">>};
-check_auth_req([], undefined,  User, Server) ->
-    verify_server(User, Server);
-check_auth_req([], CommonName,  User, Server) ->
-    CNOption = ejabberd_auth:get_opt(Server, cyrsasl_external, standard),
-    maybe_use_common_name(CommonName, User, Server, CNOption);
-check_auth_req([_], _,  _, _) ->
-    {error, <<"invalid-authzid">>};
-check_auth_req(XmppAddrs, _,  User, Server) ->
-    case lists:member(User, XmppAddrs) of
-        true ->
-            verify_server(User, Server);
-        _ ->
-            {error, <<"not-authorized">>}
-    end.
+%%%=============================================================================
+%%%  local functions
+%%%=============================================================================
+start_all_modules() ->
+    Modules = [M || H <- ?MYHOSTS, {mod, M} <- get_verification_list(H)],
+    case code:ensure_modules_loaded(Modules) of
+        {error, Error} -> error(Error);
+        _ -> ok
+    end,
+    lists:map(fun start_module/1, Modules).
 
-maybe_use_common_name(_, User, Server, allow_just_user_identity) ->
-    verify_server(User, Server);
-maybe_use_common_name(CommonName, User, Server, use_common_name) ->
-    case verify_server(User, Server) of
-        {ok, CommonName} ->
-            {ok, CommonName};
-        _ ->
-            {error, <<"not-authorized">>}
-    end;
-maybe_use_common_name(_, _, _, standard) ->
-    {error, <<"not-authorized">>}.
+stop_all_modules() ->
+    [stop_module(M) || H <- ?MYHOSTS, {mod, M} <- get_verification_list(H)].
+
+start_module(Module) -> run_module_fn(Module, start).
+
+stop_module(Module) -> run_module_fn(Module, stop).
+
+run_module_fn(Module, Fn) ->
+    case erlang:function_exported(Module, Fn, 0) of
+        true -> Module:Fn();
+        _ -> ok
+    end.
 
 get_common_name(Cert) ->
     case cert_utils:get_common_name(Cert) of
@@ -130,9 +116,110 @@ get_xmpp_addresses(Cert) ->
         XmmpAddresses -> [{xmpp_addresses, XmmpAddresses}]
     end.
 
+maybe_add_auth_id(Creds, <<"">>) ->
+    Creds;
+maybe_add_auth_id(Creds, User) ->
+    mongoose_credentials:set(Creds, auth_id, User).
+
+do_mech_step(Creds) ->
+    Server = mongoose_credentials:lserver(Creds),
+    VerificationList = get_verification_list(Server),
+    case verification_loop(VerificationList, Creds) of
+        {error, Error} ->
+            {error, Error};
+        {ok, Name} ->
+            NewCreds = mongoose_credentials:extend(Creds, [{username, Name}]),
+            ejabberd_auth:authorize(NewCreds)
+    end.
+
+get_verification_list(Server) ->
+    case ejabberd_auth:get_opt(Server, cyrsasl_external, [standard]) of
+        [] -> [standard];
+        List when is_list(List) -> List;
+        standard -> [standard];
+        use_common_name -> [standard, common_name];
+        allow_just_user_identity -> [standard, auth_id]
+    end.
+
+verification_loop([VerificationFn | T], Creds) ->
+    case verify_creds(VerificationFn, Creds) of
+        {error, Error} when T =:= [] ->
+            {error, Error};
+        {error, _} ->
+            verification_loop(T, Creds);
+        {ok, Name} ->
+            {ok, Name}
+    end.
+
+verify_creds(standard, Creds) ->
+    standard_verification(Creds);
+verify_creds(common_name, Creds) ->
+    common_name_verification(Creds);
+verify_creds(auth_id, Creds) ->
+    auth_id_verification(Creds);
+verify_creds({mod, Mod}, Creds) ->
+    custom_verification(Mod, Creds).
+
+
+standard_verification(Creds) ->
+    Server = mongoose_credentials:lserver(Creds),
+    XmppAddrs = get_credentials(Creds, xmpp_addresses),
+    AuthId = get_credentials(Creds, auth_id),
+    XmppAddr = case {XmppAddrs, AuthId} of
+                   {[OneXmppAddr], undefined} ->
+                       OneXmppAddr;
+                   {[_], _} ->
+                       {error, <<"invalid-authzid">>};
+                   {[_, _ | _], undefined} ->
+                       {error, <<"invalid-authzid">>};
+                   _ ->
+                       case lists:member(AuthId, XmppAddrs) of
+                           true ->
+                               AuthId;
+                           _ ->
+                               {error, <<"not-authorized">>}
+                       end
+               end,
+    verify_server(XmppAddr, Server).
+
+common_name_verification(Creds) ->
+    Server = mongoose_credentials:lserver(Creds),
+    AuthId = get_credentials(Creds, auth_id),
+    CommonName = get_credentials(Creds, common_name),
+    case AuthId of
+        undefined when is_binary(CommonName) ->
+            {ok, CommonName};
+        _ ->
+            case verify_server(AuthId, Server) of
+                {ok, CommonName} -> {ok, CommonName};
+                _ -> {error, <<"invalid-authzid">>}
+            end
+    end.
+
+auth_id_verification(Creds) ->
+    Server = mongoose_credentials:lserver(Creds),
+    AuthId = get_credentials(Creds, auth_id),
+    verify_server(AuthId, Server).
+
+custom_verification(Module, Creds) ->
+    %% erlang:function_exported/3 returns false if module
+    %% is not loaded. assuming that all the modules are
+    %% loaded at startup. see start_all_modules/0 function
+    case erlang:function_exported(Module, verify_creds, 1) of
+        true ->
+            Module:verify_creds(Creds);
+        _ ->
+            ?ERROR_MSG("verify_cert is not exported mod:~p", [Module]),
+            {error, <<"not-authorized">>}
+    end.
+
 get_credentials(Cred, Key) ->
     mongoose_credentials:get(Cred, Key, undefined).
 
+verify_server(undefined, _Server) ->
+    {error, <<"not-authorized">>};
+verify_server({error, Error}, _Server) ->
+    {error, Error};
 verify_server(Jid, Server) ->
     JidRecord = jid:binary_to_bare(Jid),
     case JidRecord#jid.lserver of
@@ -141,3 +228,4 @@ verify_server(Jid, Server) ->
         _ ->
             {error, <<"not-authorized">>}
     end.
+
