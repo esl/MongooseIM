@@ -293,11 +293,14 @@ retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, E
              })
     end.
 
-csv_to_maps(ExpectedHeader, [HeaderRow | [Rows]]) ->
-    lists:foldl(fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end, [], Rows).
+csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
+    lists:foldl(
+        fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end,
+        [],
+        Rows).
 
 csv_row_to_map(Header, Row) ->
-    maps:from_list(lists:zip(Header, [Row])).
+    maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(_, []) -> ok;
 validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
