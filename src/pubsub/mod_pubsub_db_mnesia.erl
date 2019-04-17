@@ -229,9 +229,9 @@ fill_nodes_with_payloads(LJID, Nodes) ->
     lists:flatten([paylods_per_node(LJID, Node) || Node <- Nodes]).
 
 paylods_per_node(LJID, Node) ->
-    Payloads = mnesia:match_object(#pubsub_state{stateid = {LJID, Node#pubsub_node.id}, _ = '_'}),
+    [PubsubState] = mnesia:match_object(#pubsub_state{stateid = {LJID, Node#pubsub_node.id}, _ = '_'}),
     {_Host, NodeName} = Node#pubsub_node.nodeid,
-    [{NodeName, Payload} || #pubsub_state{items = [Payload]}  <- Payloads].
+    [{NodeName, P} || P <- PubsubState#pubsub_state.items].
 
 %% ------------------------ Node management ------------------------
 

@@ -121,6 +121,12 @@ init_per_testcase(retrieve_pubsub_multiple_paylopads_per_node = CN, Config) ->
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
+end_per_testcase(retrieve_pubsub_nodes = CN, Config) ->
+    delete_files(),
+    escalus:end_per_testcase(CN, Config);
+end_per_testcase(retrieve_pubsub_multiple_paylopads_per_node = CN, Config) ->
+    delete_files(),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(retrieve_vcard = CN, Config) ->
     delete_files(),
     escalus:end_per_testcase(CN, Config);
