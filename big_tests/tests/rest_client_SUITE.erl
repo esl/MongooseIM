@@ -68,9 +68,12 @@ muc_test_cases() ->
       msg_is_sent_and_delivered_in_room,
       sending_message_with_wrong_body_results_in_bad_request,
       sending_message_with_no_body_results_in_bad_request,
+      sending_markable_message_with_no_body_results_in_bad_request,
       sending_message_not_in_JSON_results_in_bad_request,
       sending_message_by_not_room_member_results_in_forbidden,
       messages_are_archived_in_room,
+      chat_markers_are_archived_in_room,
+      markable_property_is_archived_in_room,
       only_room_participant_can_read_messages,
       messages_can_be_paginated_in_room,
       room_msg_is_sent_and_delivered_over_sse,
@@ -145,6 +148,8 @@ init_per_testcase(TC, Config) ->
                     messages_with_user_are_archived,
                     messages_can_be_paginated,
                     messages_are_archived_in_room,
+                    chat_markers_are_archived_in_room,
+                    markable_property_is_archived_in_room,
                     only_room_participant_can_read_messages,
                     messages_can_be_paginated_in_room,
                     messages_can_be_sent_and_fetched_by_room_jid,
@@ -410,8 +415,17 @@ sending_message_with_no_body_results_in_bad_request(Config) ->
         Sender = {alice, Alice},
         RoomID = given_new_room_with_users(Sender, []),
         Result = given_message_sent_to_room(RoomID, Sender, #{no_body => <<"This should be in body element">>}),
-        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"There is no body in the JSON">>}, Result)
+        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"No valid message elements">>}, Result)
     end).
+
+sending_markable_message_with_no_body_results_in_bad_request(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Sender = {alice, Alice},
+        RoomID = given_new_room_with_users(Sender, []),
+        Result = given_message_sent_to_room(RoomID, Sender, #{markable => true}),
+        ?assertMatch({{<<"400">>, <<"Bad Request">>}, <<"No valid message elements">>}, Result)
+    end).
+
 sending_message_not_in_JSON_results_in_bad_request(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Sender = {alice, Alice},
@@ -431,6 +445,49 @@ messages_are_archived_in_room(Config) ->
         <<"member">> = maps:get(affiliation, Aff),
         BobJID = escalus_utils:jid_to_lower(escalus_client:short_jid(Bob)),
         BobJID = maps:get(user, Aff)
+    end).
+
+chat_markers_are_archived_in_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % GIVEN 3 different chat markers that are sent via HTTP and received via XMPP
+        MarkedID = <<"RagnarokIsComing">>,
+        MarkerTypes = [<<"received">>, <<"displayed">>, <<"acknowledged">>],
+        Markers = [#{ chat_marker => #{ type => Type, id => MarkedID } } || Type <- MarkerTypes ],
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        lists:foreach(fun(Marker) ->
+                              {{<<"200">>, <<"OK">>}, {_Result}} =
+                              given_message_sent_to_room(RoomID, {bob, Bob}, Marker),
+                              [ escalus:wait_for_stanza(Client) || Client <- [Alice, Bob] ]
+                      end, Markers),
+        mam_helper:maybe_wait_for_archive(Config),
+
+        % WHEN an archive is queried via HTTP
+        {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
+
+        % THEN these markers are retrieved and in proper order and with valid payload
+        % (we discard remaining msg fields, they are tested by other cases)
+        [_Aff | ReceivedMarkers] = rest_helper:decode_maplist(Result),
+        Markers = [ maps:with([chat_marker], RecvMarker) || RecvMarker <- ReceivedMarkers ]
+    end).
+
+% Combo test case which verifies both the translation of "markable" element
+% (JSON -> XML -> JSON) and if it's preserved properly in the archive
+markable_property_is_archived_in_room(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        % GIVEN a markable message is sent in the room
+        MarkableMsg = #{ markable => true, body => <<"Floor is lava!">> },
+        RoomID = given_new_room_with_users({alice, Alice}, [{bob, Bob}]),
+        {{<<"200">>, <<"OK">>}, {_Result}}
+        = given_message_sent_to_room(RoomID, {bob, Bob}, MarkableMsg),
+        [ escalus:wait_for_stanza(Client) || Client <- [Alice, Bob] ],
+        mam_helper:maybe_wait_for_archive(Config),
+
+        % WHEN an archive is queried via HTTP
+        {{<<"200">>, <<"OK">>}, Result} = get_room_messages({alice, Alice}, RoomID),
+
+        % THEN the retrieved message has markable property
+        [_Aff, Msg] = rest_helper:decode_maplist(Result),
+        true = maps:get(markable, Msg, undefined)
     end).
 
 only_room_participant_can_read_messages(Config) ->
