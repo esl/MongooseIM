@@ -164,15 +164,25 @@ dirty(Fun, ErrorDebug) ->
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
-    Records = fetch_nodes_with_payloads(LUser, LServer),
-    [{pubsub, ["node_id", "payload"], Records}].
+    Payloads = fetch_nodes_with_payloads(LUser, LServer),
+    Nodes = fetch_users_nodes(LUser, LServer),
+
+    [{pubsub_payloads, ["node_id", "payload"], Payloads},
+     {pubsub_nodes, ["node_id", "type"], Nodes}].
 
 fetch_nodes_with_payloads(LUser,LServer) ->
     LJid = jid:to_bare({LUser, LServer, <<>>}),
     {atomic, Recs} = mnesia:transaction(fun() ->
-      Nodes = get_user_nodes(LJid),
-      fill_nodes_with_payloads(LJid, Nodes)
+        get_all_published_payloads(LJid)
       end),
+    Recs.
+
+fetch_users_nodes(LUser, LServer) ->
+    LJid = jid:to_bare({LUser, LServer, <<>>}),
+    {atomic, Recs} = mnesia:transaction(fun() ->
+          Nodes = get_user_nodes(LJid),
+          fetch_nodes_names_and_attrs(Nodes)
+                                        end),
     Recs.
 
 %% ------------------------ Direct #pubsub_state access ------------------------
@@ -225,13 +235,17 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
 get_user_nodes(LJID) ->
     mnesia:match_object(#pubsub_node{owners = [LJID], _ = '_'}).
 
-fill_nodes_with_payloads(LJID, Nodes) ->
-    lists:flatten([paylods_per_node(LJID, Node) || Node <- Nodes]).
+fetch_nodes_names_and_attrs(Nodes) ->
+    [{NodeName, Type} || #pubsub_node{nodeid = {_, NodeName}, type = Type} <- Nodes].
 
-paylods_per_node(LJID, Node) ->
-    [PubsubState] = mnesia:match_object(#pubsub_state{stateid = {LJID, Node#pubsub_node.id}, _ = '_'}),
-    {_Host, NodeName} = Node#pubsub_node.nodeid,
-    [{NodeName, P} || P <- PubsubState#pubsub_state.items].
+get_all_published_payloads(LJID) ->
+    States = mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'}),
+    NodeIdsWithPayloads = [{NodeId, Payloads} || #pubsub_state{items = Payloads, stateid = {LJID, NodeId}} <- States],
+    NodesWithPayloads = [{mnesia:match_object(#pubsub_node{id = NodeId, _ = '_'}), Payloads} || {NodeId, Payloads} <- NodeIdsWithPayloads],
+    NodeNamesWithPayloads = [{NodeName, Payloads} || {[#pubsub_node{nodeid = {LJID, NodeName}}], Payloads} <- NodesWithPayloads],
+    %% Payloads is a list of items so for each item we create a row
+    lists:flatten(lists:foldl(fun({NodeName, Payloads}, Acc) -> [{NodeName, P} || P <- Payloads] ++ Acc end, [], NodeNamesWithPayloads)).
+
 
 %% ------------------------ Node management ------------------------
 
