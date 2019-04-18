@@ -49,9 +49,10 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Table = roster,
-    Schema = ["jid", "name", "groups"],
-    Record = get_roster(LUser, LServer),
-    [{Table, Schema, Record}].
+    Schema = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
+    Records = get_roster(LUser, LServer),
+    SerializedRecords = [mod_roster:record_to_list_without_first(Record) || Record <- Records],
+    [{Table, Schema, SerializedRecords}].
 
 %%--------------------------------------------------------------------
 %% mod_rosters callbacks

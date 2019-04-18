@@ -50,12 +50,8 @@ get_personal_data(Username, Server) ->
     Table = roster,
     Schema = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
     Records = get_roster(LUser, LServer),
-    SerializedRecords = [record_to_list_without_first(Record) || Record <- Records],
+    SerializedRecords = [mod_roster:record_to_list_without_first(Record) || Record <- Records],
     [{Table, Schema, SerializedRecords}].
-
-
-record_to_list_without_first(Record) ->
-    [ element(I,Record) || I <- lists:seq(2,tuple_size(Record)) ].
 
 %%--------------------------------------------------------------------
 %% mod_rosters callbacks
