@@ -1,5 +1,4 @@
 #!/usr/bin/env escript
-%%!  -s inets start
 %% -*- erlang -*-
 %%
 %% Example usage:
@@ -45,16 +44,21 @@ match_zeros(Number) when Number > 9 ->
 match_zeros(Number) ->
     ["000", integer_to_list(Number)].
 
--spec main(list(iolist())) -> ok | no_return().
-main([Command, InDir]) ->
+main(Args) ->
+    {ok, _} = application:ensure_all_started(ssl),
+    {ok, _} = application:ensure_all_started(inets),
+    run(Args).
+
+-spec run(list(iolist())) -> ok | no_return().
+run([Command, InDir]) ->
     code:set_path(code:get_path() ++ [InDir]),
     do(Command, ?FILE_NAME);
 
-main([Command, InDir, Output]) ->
+run([Command, InDir, Output]) ->
     code:set_path(code:get_path() ++ [InDir]),
     do(Command, Output);
 
-main(_) ->
+run(_) ->
     usage().
 
 -spec usage() -> no_return().

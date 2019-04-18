@@ -56,7 +56,7 @@ $(DEVNODES): certs configure.out rel/vars.config
 certs:
 	cd tools/ssl && $(MAKE)
 
-xeplist: escript
+xeplist:
 	escript $(XEP_TOOL)/xep_tool.escript markdown $(EBIN)
 
 install: configure.out rel
