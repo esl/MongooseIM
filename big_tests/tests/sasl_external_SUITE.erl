@@ -12,7 +12,10 @@ all() ->
      {group, just_tls}].
 
 groups() ->
-    [{standard, [parallel], standard_test_cases()},
+    [{standard_keep_auth, [{group, registered}, {group, not_registered}]},
+     {registered, [parallel], [cert_one_xmpp_addrs_no_identity]},
+     {not_registered, [parallel], [cert_one_xmpp_addrs_no_identity_not_registered]},
+     {standard, [parallel], standard_test_cases()},
      {use_common_name, [parallel], use_common_name_test_cases()},
      {allow_just_user_identity, [parallel], allow_just_user_identity_test_cases()},
      {self_signed_certs_allowed, [parallel], self_signed_certs_allowed_test_cases()},
@@ -33,6 +36,7 @@ self_signed_certs_not_allowed_group() ->
 
 base_groups() ->
     [{group, standard},
+     {group, standard_keep_auth},
      {group, use_common_name},
      {group, allow_just_user_identity}].
 
@@ -103,6 +107,15 @@ init_per_group(self_signed, Config) ->
 init_per_group(standard, Config) ->
     modify_config_and_restart("standard", Config),
     Config;
+init_per_group(standard_keep_auth, Config) ->
+    Config1 = [{auth_methods, []} | Config],
+    modify_config_and_restart("standard", Config1),
+    case supports_password_type(cert) of
+        false -> {skip, "cert password type not supported"};
+        true -> Config1
+    end;
+init_per_group(registered, Config) ->
+    escalus:create_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
 init_per_group(use_common_name, Config) ->
     modify_config_and_restart("use_common_name", Config),
     Config;
@@ -122,6 +135,7 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
     SSLOpts = escalus_config:get_config(ssl_options, Config, ""),
     TLSModule = escalus_config:get_config(tls_module, Config, "just_tls"),
     VerifyMode = escalus_config:get_config(verify_mode, Config, ""),
+    AuthMethods = escalus_config:get_config(auth_methods, Config, [{auth_method, "pki"}]),
     CACertFile = filename:join([path_helper:repo_dir(Config),
                                 "tools", "ssl", "ca-clients", "cacert.pem"]),
     NewConfigValues = [{tls_config, "{certfile, \"priv/ssl/fake_server.pem\"},"
@@ -133,14 +147,15 @@ modify_config_and_restart(CyrsaslExternalConfig, Config) ->
 			                      "{keyfile, \"priv/ssl/fake_key.pem\"}, {password, \"\"},"
 				              "{verify, verify_peer}," ++ VerifyMode ++
 					      "{cacertfile, \"" ++ CACertFile ++ "\"}]},"},
-               {cyrsasl_external, "{cyrsasl_external," ++ CyrsaslExternalConfig ++ "}"},
-		       {auth_method, "pki"},
-		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."}],
+                       {cyrsasl_external, "{cyrsasl_external," ++ CyrsaslExternalConfig ++ "}"},
+		       {sasl_mechanisms, "{sasl_mechanisms, [cyrsasl_external]}."} | AuthMethods],
     ejabberd_node_utils:modify_config_file(NewConfigValues, Config),
     ejabberd_node_utils:restart_application(mongooseim).
 
-end_per_group(_, Config) ->
-    Config.
+end_per_group(registered, Config) ->
+    escalus:delete_users(Config, [{bob, generate_user_tcp(Config, username("bob", Config))}]);
+end_per_group(_, _Config) ->
+    ok.
 
 cert_more_xmpp_addrs_identity_correct(C) ->
     User = username("kate", C),
@@ -184,6 +199,11 @@ cert_one_xmpp_addrs_no_identity(C) ->
     UserSpec = generate_user_tcp(C, User),
     {ok, Client, _} = escalus_connection:start(UserSpec),
     escalus_connection:stop(Client).
+
+cert_one_xmpp_addrs_no_identity_not_registered(C) ->
+    User = username("bob", C),
+    UserSpec = generate_user_tcp(C, User),
+    cert_fails_to_authenticate(UserSpec).
 
 cert_with_cn_no_xmpp_addrs_no_identity(C) ->
     User = username("john", C),
@@ -420,3 +440,7 @@ replace_addrs(undefined) ->
 replace_addrs(Addresses) ->
     lists:map( fun(Addr) -> [User, Hostname] = binary:split(list_to_binary(Addr), <<"@">>),
                             binary_to_list(<<User/binary, <<"-self-signed@">>/binary, Hostname/binary>>) end, Addresses).
+
+supports_password_type(PasswordType) ->
+    distributed_helper:rpc(distributed_helper:mim(), ejabberd_auth, supports_password_type,
+                           [<<"localhost">>, PasswordType]).
