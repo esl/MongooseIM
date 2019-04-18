@@ -164,31 +164,29 @@ dirty(Fun, ErrorDebug) ->
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
-    Payloads = fetch_nodes_with_payloads(LUser, LServer),
-    Nodes = fetch_users_nodes(LUser, LServer),
-    Subscriptions = fetch_users_subscriptions(LUser, LServer),
+    LJid = jid:to_bare({LUser, LServer, <<>>}),
+    Payloads = fetch_nodes_with_payloads(LJid),
+    Nodes = fetch_users_nodes(LJid),
+    Subscriptions = fetch_users_subscriptions(LJid),
 
-    [{pubsub_payloads, ["node_id", "payload"], Payloads},
+    [{pubsub_payloads, ["node_id", "item_id", "payload"], Payloads},
      {pubsub_nodes, ["node_id", "type"], Nodes},
      {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
-fetch_nodes_with_payloads(LUser,LServer) ->
-    LJid = jid:to_bare({LUser, LServer, <<>>}),
+fetch_nodes_with_payloads(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
         get_all_published_payloads(LJid)
       end),
     Recs.
 
-fetch_users_nodes(LUser, LServer) ->
-    LJid = jid:to_bare({LUser, LServer, <<>>}),
+fetch_users_nodes(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
           Nodes = get_user_nodes(LJid),
           fetch_nodes_names_and_attrs(Nodes)
                                         end),
     Recs.
 
-fetch_users_subscriptions(LUser, LServer) ->
-    LJid = jid:to_bare({LUser, LServer, <<>>}),
+fetch_users_subscriptions(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
         get_users_subscriptions(LJid)
                                         end),
@@ -247,9 +245,8 @@ get_user_nodes(LJID) ->
 get_users_subscriptions(LJID) ->
     {Username, Domain, _Resource} = LJID,
     UserMatchSpec = {Username, Domain, '_'},
-    SubscriptionStates = mnesia:match_object(#pubsub_state{stateid = {UserMatchSpec, '_'}, subscriptions = [{subscribed, '_'}], _ = '_'}),
-    Nodes =
-        lists:flatten([mnesia:match_object(#pubsub_node{id = NodeId, _ = '_'}) || #pubsub_state{stateid = {UserMatchSpec, NodeId}} <- SubscriptionStates]),
+    SubscriptionStates = pubsub_get_subscription(UserMatchSpec),
+    Nodes = lists:flatten([pubsub_get_node(NodeId) || #pubsub_state{stateid = {UserMatchSpec, NodeId}} <- SubscriptionStates]),
     [ {NodeName} || #pubsub_node{nodeid = {_, NodeName}} <- Nodes].
 
 
@@ -257,12 +254,32 @@ fetch_nodes_names_and_attrs(Nodes) ->
     [{NodeName, Type} || #pubsub_node{nodeid = {_, NodeName}, type = Type} <- Nodes].
 
 get_all_published_payloads(LJID) ->
-    States = mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'}),
-    NodeIdsWithPayloads = [{NodeId, Payloads} || #pubsub_state{items = Payloads, stateid = {LJID, NodeId}} <- States],
-    NodesWithPayloads = [{mnesia:match_object(#pubsub_node{id = NodeId, _ = '_'}), Payloads} || {NodeId, Payloads} <- NodeIdsWithPayloads],
-    NodeNamesWithPayloads = [{NodeName, Payloads} || {[#pubsub_node{nodeid = {LJID, NodeName}}], Payloads} <- NodesWithPayloads],
-    %% Payloads is a list of items so for each item we create a row
-    lists:flatten(lists:foldl(fun({NodeName, Payloads}, Acc) -> [{NodeName, P} || P <- Payloads] ++ Acc end, [], NodeNamesWithPayloads)).
+    States = pubsub_get_state(LJID),
+    NodeIdsWithItems = [{NodeId, Items} || #pubsub_state{items = Items, stateid = {LJID, NodeId}} <- States],
+    NodesWithItems = [{pubsub_get_node(NodeId), Items} || {NodeId, Items} <- NodeIdsWithItems],
+    NodeNamesWithIdsAndItems = [{NodeName, NodeId, Items} || {[#pubsub_node{nodeid = {LJID, NodeName}, id = NodeId}], Items} <- NodesWithItems],
+    NodeNamesIdsItemsUnfolded = lists:foldl(fun({NodeName, Id, Items}, Acc) -> [{NodeName, Id, I} || I <- Items] ++ Acc end, [], NodeNamesWithIdsAndItems),
+    [{NodeName, I, pubsub_get_payload(I,Id)} || {NodeName, Id, I} <- NodeNamesIdsItemsUnfolded].
+
+
+pubsub_get_payload(ItemId, Idx) ->
+    Matched = mnesia:match_object(#pubsub_item{itemid = {ItemId, Idx}, _ = '_'}),
+    Payload = [PubsubItem#pubsub_item.payload || PubsubItem <- Matched],
+    strip_list([exml:to_binary(P) || P <- Payload]).
+
+pubsub_get_node(NodeId) ->
+    mnesia:match_object(#pubsub_node{id = NodeId, _ = '_'}).
+
+pubsub_get_state(LJID) ->
+    mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'}).
+
+pubsub_get_subscription(UserMatchSpec) ->
+    mnesia:match_object(#pubsub_state{stateid = {UserMatchSpec, '_'}, subscriptions = [{subscribed, '_'}], _ = '_'}).
+
+strip_list([El]) -> El;
+strip_list([]) -> [];
+strip_list(Other) -> Other.
+
 
 
 %% ------------------------ Node management ------------------------

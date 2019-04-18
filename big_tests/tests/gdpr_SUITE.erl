@@ -120,6 +120,8 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(CN, Config) ->
+    %% TODO move to init per group
+    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(retrieve_vcard = CN, Config) ->
@@ -221,31 +223,37 @@ retrieve_offline(Config) ->
 retrieve_pubsub_nodes_with_payload(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
-        pubsub_tools:publish(Alice, <<"Item">>, Node, [{with_payload, true}]),
-        pubsub_tools:publish(Alice, <<"PepItem">>, {pep, <<"gdpr:pep">>}, []),
+        {BinData, StringData} = item_content(<<"ItemData">>),
+        {BinPepData, StringPepData} = item_content(<<"ItemData">>),
+        pubsub_tools:publish(Alice, <<"Item">>, Node, [{with_payload, {true, BinData}}]),
+        pubsub_tools:publish(Alice, <<"PepItem">>, {pep, <<"gdpr:pep">>}, [{with_payload, {true, BinPepData}}]),
 
         ExpectedItems = [
-            pubsub_payloads_row_map(NodeName, "Item"),
-            pubsub_payloads_row_map(<<"gdpr:pep">>, "PepItem")],
+            pubsub_payloads_row_map(NodeName, "Item", StringData),
+            pubsub_payloads_row_map(<<"gdpr:pep">>, "PepItem", StringPepData)],
         retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_id", "payload"], ExpectedItems)
+            Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], ExpectedItems)
                                               end).
 
 retrieve_pubsub_multiple_paylopads_per_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
         Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, true}]),
-        pubsub_tools:publish(Alice, <<"Item2">>, Node1, [{with_payload, true}]),
-        pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, true}]),
-        pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, true}]),
+        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
+        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
+        {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
+        {BinOther, StringOther} = item_content(<<"OtherItemData">>),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, BinItem1}]),
+        pubsub_tools:publish(Alice, <<"Item2">>, Node1, [{with_payload, BinItem2}]),
+        pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, BinItem3}]),
+        pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
 
-        ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1"),
-            pubsub_payloads_row_map(NodeName1, "Item2"),
-            pubsub_payloads_row_map(NodeName1, "Item3"),
-            pubsub_payloads_row_map(NodeName2, "OtherItem")],
+        ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
+            pubsub_payloads_row_map(NodeName1, "Item2",StringItem2),
+            pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
+            pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
         retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_id", "payload"], ExpectedItems)
+            Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], ExpectedItems)
                                               end).
 
 retrieve_only_published_data(Config) ->
@@ -253,14 +261,18 @@ retrieve_only_published_data(Config) ->
         Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
         pubsub_tools:create_node(Alice, Node1, []),
         AffChange = [{Bob, <<"publish-only">>}],
+
+        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
+        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
+
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, true}]),
-        pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, true}]),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
+        pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, {true, BinItem2}}]),
 
         retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item1")]),
+            Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1)]),
         retrieve_and_validate_personal_data(
-            Bob, Config, "pubsub_payloads", ["node_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item2")]),
+            Bob, Config, "pubsub_payloads", ["node_id","item_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item2", StringItem2)]),
 
         pubsub_tools:delete_node(Alice, Node1, [])
                                               end).
@@ -322,28 +334,36 @@ retrieve_all_pubsub_data(Config) ->
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
         pubsub_tools:subscribe(Bob, Node2, []),
 
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, true}]),
-        pubsub_tools:publish(Alice, <<"Item2">>, Node2, [{with_payload, true}]),
+        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
+        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
+        {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
+        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
+        pubsub_tools:publish(Alice, <<"Item2">>, Node2, [{with_payload, {true, BinItem2}}]),
         pubsub_tools:receive_item_notification(Bob, <<"Item2">>, Node2, []),
-        pubsub_tools:publish(Bob, <<"Item3">>, Node1, [{with_payload, true}]),
+        pubsub_tools:publish(Bob, <<"Item3">>, Node1, [{with_payload, {true, BinItem3}}]),
 
         %% Bob has one subscription, one node created and one payload sent
         retrieve_and_validate_personal_data(
-            Bob, Config, "pubsub_subscriptions", ["node_id"], [pubsub_subscription_row_map(NodeName2)]),
+            Bob, Config, "pubsub_subscriptions", ["node_id"],
+            [pubsub_subscription_row_map(NodeName2)]),
 
         retrieve_and_validate_personal_data(
-            Bob, Config, "pubsub_nodes", ["node_id", "type"], [pubsub_nodes_row_map(NodeName3, "flat")]),
+            Bob, Config, "pubsub_nodes", ["node_id", "type"],
+            [pubsub_nodes_row_map(NodeName3, "flat")]),
 
         retrieve_and_validate_personal_data(
-            Bob, Config, "pubsub_payloads", ["node_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item3")]),
+            Bob, Config, "pubsub_payloads", ["node_id", "item_id", "payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item3", StringItem3)]),
 
         %% Alice has two nodes created and two payloads sent
         retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_nodes", ["node_id", "type"], [pubsub_nodes_row_map(NodeName1, "flat"),
-                                                                pubsub_nodes_row_map(NodeName2, "flat")]),
+            Alice, Config, "pubsub_nodes", ["node_id", "type"],
+            [pubsub_nodes_row_map(NodeName1, "flat"),
+             pubsub_nodes_row_map(NodeName2, "flat")]),
         retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item1"),
-                                                            pubsub_payloads_row_map(NodeName2, "Item2")]),
+            Alice, Config, "pubsub_payloads", ["node_id", "item_id","payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
+             pubsub_payloads_row_map(NodeName2, "Item2", StringItem2)]),
 
         pubsub_tools:delete_node(Alice, Node1, []),
         pubsub_tools:delete_node(Alice, Node2, []),
@@ -495,8 +515,8 @@ is_file_to_be_deleted(Filename) ->
         end,
     DeletableRegexes).
 
-pubsub_payloads_row_map(Node, Payload) ->
-    #{"node_id" => binary_to_list(Node), "payload" => Payload}.
+pubsub_payloads_row_map(Node, ItemId, Payload) ->
+    #{"node_id" => binary_to_list(Node), "item_id" => ItemId, "payload" => Payload}.
 
 pubsub_nodes_row_map(Node, Type) ->
     #{"node_id" => binary_to_list(Node), "type" => Type}.
@@ -509,3 +529,11 @@ make_pep_node_info(Client, NodeName) ->
 
 random_node_ns() ->
     base64:encode(crypto:strong_rand_bytes(16)).
+
+item_content(Data) ->
+    Bin = item_content_xml(Data),
+    {Bin, binary_to_list(exml:to_binary(Bin))}.
+
+item_content_xml(Data) ->
+    #xmlel{name = <<"entry">>,
+        attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}], children = [#xmlcdata{content = Data}]}.
