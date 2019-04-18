@@ -287,7 +287,9 @@ retrieve_only_published_data(Config) ->
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ExpectedHeader, [pubsub_payload_row_map(NodeName1, "Item1")]),
         retrieve_and_validate_personal_data(
-            Bob, Config, "pubsub_payloads", ExpectedHeader, [pubsub_payload_row_map(NodeName1, "Item2")])
+            Bob, Config, "pubsub_payloads", ExpectedHeader, [pubsub_payload_row_map(NodeName1, "Item2")]),
+
+        pubsub_tools:delete_node(Alice, Node1, [])
                                               end).
 
 retrieve_created_nodes(Config) ->
@@ -316,23 +318,23 @@ retrieve_created_nodes(Config) ->
 
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_nodes", ExpectedHeader,
-            [pubsub_nodes_row_map(NodeName3, "push")])
+            [pubsub_nodes_row_map(NodeName3, "push")]),
+
+        pubsub_tools:delete_node(Alice, Node1, []),
+        pubsub_tools:delete_node(Alice, Node2, []),
+        pubsub_tools:delete_node(Alice, PepNode, []),
+        pubsub_tools:delete_node(Bob, Node3, [])
                                                         end).
 
 retrieve_pubsub_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
             pubsub_tools:create_node(Alice, Node, []),
-            pubsub_tools:subscribe(Bob, Node, [])
-%%            ExpectedHeader = ["node_id", "subscriptions"],
-%%            ExpectedItems = [pubsub_subscription_row_map(NodeName, "Item1"),
-%%                pubsub_subscription_row_map(NodeName, "Item2"),
-%%                pubsub_subscription_row_map(NodeName, "Item3"),
-%%                pubsub_subscription_row_map(NodeName, "OtherItem")],
-%%        retrieve_and_validate_personal_data(
-%%            Alice, Config, "pubsub", ExpectedHeader, ExpectedItems),
+            pubsub_tools:subscribe(Bob, Node, []),
+        retrieve_and_validate_personal_data(
+            Bob, Config, "pubsub_subscriptions", ["node_id"], [pubsub_subscription_row_map(NodeName)]),
 
-%%            pubsub_tools:delete_node(Alice, Node, [])
+            pubsub_tools:delete_node(Alice, Node, [])
         end).
 
 
@@ -450,7 +452,7 @@ request_and_unzip_personal_data(User, Domain, Config) ->
 
 retrieve_personal_data(User, Domain, Config) ->
     Filename = random_filename(Config),
-    {_, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
+    {E, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
     {Filename, Code}.
 
 random_filename(Config) ->
@@ -486,8 +488,8 @@ pubsub_payload_row_map(Node, Payload) ->
 pubsub_nodes_row_map(Node, Payload) ->
     #{"node_id" => binary_to_list(Node), "type" => Payload}.
 
-pubsub_subscription_row_map(Node, Payload) ->
-    #{"node_id" => binary_to_list(Node), "subscription" => Payload}.
+pubsub_subscription_row_map(Node) ->
+    #{"node_id" => binary_to_list(Node)}.
 
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.

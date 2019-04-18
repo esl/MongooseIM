@@ -166,9 +166,11 @@ get_personal_data(Username, Server) ->
     LServer = jid:nodeprep(Server),
     Payloads = fetch_nodes_with_payloads(LUser, LServer),
     Nodes = fetch_users_nodes(LUser, LServer),
+    Subscriptions = fetch_users_subscriptions(LUser, LServer),
 
     [{pubsub_payloads, ["node_id", "payload"], Payloads},
-     {pubsub_nodes, ["node_id", "type"], Nodes}].
+     {pubsub_nodes, ["node_id", "type"], Nodes},
+     {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
 fetch_nodes_with_payloads(LUser,LServer) ->
     LJid = jid:to_bare({LUser, LServer, <<>>}),
@@ -182,6 +184,13 @@ fetch_users_nodes(LUser, LServer) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
           Nodes = get_user_nodes(LJid),
           fetch_nodes_names_and_attrs(Nodes)
+                                        end),
+    Recs.
+
+fetch_users_subscriptions(LUser, LServer) ->
+    LJid = jid:to_bare({LUser, LServer, <<>>}),
+    {atomic, Recs} = mnesia:transaction(fun() ->
+        get_users_subscriptions(LJid)
                                         end),
     Recs.
 
@@ -234,6 +243,15 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
 
 get_user_nodes(LJID) ->
     mnesia:match_object(#pubsub_node{owners = [LJID], _ = '_'}).
+
+get_users_subscriptions(LJID) ->
+    {Username, Domain, _Resource} = LJID,
+    UserMatchSpec = {Username, Domain, '_'},
+    SubscriptionStates = mnesia:match_object(#pubsub_state{stateid = {UserMatchSpec, '_'}, subscriptions = [{subscribed, '_'}], _ = '_'}),
+    Nodes =
+        lists:flatten([mnesia:match_object(#pubsub_node{id = NodeId, _ = '_'}) || #pubsub_state{stateid = {UserMatchSpec, NodeId}} <- SubscriptionStates]),
+    [ {NodeName} || #pubsub_node{nodeid = {_, NodeName}} <- Nodes].
+
 
 fetch_nodes_names_and_attrs(Nodes) ->
     [{NodeName, Type} || #pubsub_node{nodeid = {_, NodeName}, type = Type} <- Nodes].
