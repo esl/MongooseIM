@@ -1603,7 +1603,7 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
 
 muc_light_chat_markers_are_archived_if_enabled(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-            Room = <<"testroom">>,
+            Room = <<"testroom_markers">>,
             given_muc_light_room(Room, Alice, [{Bob, member}]),
 
             %% Alice sends 3 chat markers
