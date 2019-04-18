@@ -256,13 +256,13 @@ retrieve_inbox(Config) ->
 retrieve_logs(Config) ->
     escalus:fresh_story(Config, [{alice, 1}],
         fun(Alice) ->
-            User = escalus_client:username(Alice),
-            Domain = escalus_client:server(Alice),
-            JID = binary_to_list(User) ++ "@" ++ binary_to_list(Domain),
+            User = string:lowercase(escalus_client:username(Alice)),
+            Domain = string:lowercase(escalus_client:server(Alice)),
+            JID = string:uppercase(escalus_client:short_jid(Alice)),
             MIM2Node = distributed_helper:mim2(),
             mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2Node]),
             mongoose_helper:successful_rpc(MIM2Node, error_logger, error_msg,
-                                           ["event=disturbance_in_the_force, jid=" ++ JID, []]),
+                                           ["event=disturbance_in_the_force, jid=~s", [JID]]),
             Dir = request_and_unzip_personal_data(User, Domain, Config),
             Filename = filename:join(Dir, "logs-" ++ atom_to_list(MIM2Node) ++ ".txt"),
             {ok, Content} = file:read_file(Filename),

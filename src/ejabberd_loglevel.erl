@@ -121,3 +121,4 @@ clear_custom(Module) when is_atom(Module) ->
 
 get_log_files() ->
     [lager_util:expand_path(File) || {{lager_file_backend, File}, _, _} <- lager_config:global_get(handlers)].
+

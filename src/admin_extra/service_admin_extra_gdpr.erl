@@ -6,6 +6,8 @@
          retrieve_all/3,
          retrieve_logs/2]).
 
+-define(CMD_TIMEOUT, 300000).
+
 -spec commands() -> [ejabberd_commands:cmd()].
 commands() -> [
         #ejabberd_commands{name = retrieve_personal_data, tags = [gdpr],
@@ -108,7 +110,7 @@ get_logs(Username, Domain, TmpDir) ->
     FileName = "logs-" ++ atom_to_list(node()) ++ ".txt",
     FilePath = TmpDir ++ "/" ++ FileName,
     Args = [FilePath, Username, Domain | FileList],
-    0 = run(Cmd, Args, 300000),
+    0 = run(Cmd, Args, ?CMD_TIMEOUT),
     FileName.
 
 -spec get_logs_from_node(node(), gdpr:username(), gdpr:domain(), file:name()) -> file:name().
