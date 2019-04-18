@@ -54,11 +54,12 @@
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
+    Jid = jid:to_binary({LUser, LServer}),
     Table = vcard,
     Schema = ["jid", "vcard"],
     {ok, Record} = get_vcard(LUser, LServer),
     SerialzedRecord = exml:to_binary(Record),
-    [{Table, Schema, [[SerialzedRecord]]}].
+    [{Table, Schema, [[Jid, SerialzedRecord]]}].
 
 %%--------------------------------------------------------------------
 %% mod_vcards callbacks
