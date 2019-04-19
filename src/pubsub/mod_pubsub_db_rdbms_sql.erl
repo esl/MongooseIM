@@ -337,7 +337,7 @@ get_user_items(LU, LS) ->
     " INNER JOIN pubsub_nodes"
     " ON pubsub_items.nidx = pubsub_nodes.nidx"
     " WHERE created_luser = ", esc_string(LU),
-        " AND created_lserver = ", esc_string(LS) ].
+    " AND created_lserver = ", esc_string(LS) ].
 
 -spec get_user_subscriptions(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
 get_user_subscriptions(LU, LS) ->
@@ -346,7 +346,7 @@ get_user_subscriptions(LU, LS) ->
     " INNER JOIN pubsub_nodes"
     " ON pubsub_subscriptions.nidx = pubsub_nodes.nidx"
     " WHERE luser = ", esc_string(LU),
-        " AND lserver = ", esc_string(LS) ].
+    " AND lserver = ", esc_string(LS) ].
 
 -spec delete_item(Nidx :: mod_pubsub:nodeIdx(),
                   LU :: jid:luser(),

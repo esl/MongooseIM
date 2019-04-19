@@ -249,9 +249,9 @@ fetch_user_nodes(LJID) ->
 
 fetch_users_subscriptions(LJID) ->
     {Username, Domain, _Resource} = LJID,
-    UserMatchSpec = {Username, Domain, '_'},
-    SubscriptionStates = pubsub_get_subscription(UserMatchSpec),
-    Nodes = lists:flatten([pubsub_get_node(NodeId) || #pubsub_state{stateid = {UserMatchSpec, NodeId}} <- SubscriptionStates]),
+    BareUserMatchSpec = {Username, Domain, '_'},
+    SubscriptionStates = pubsub_get_subscription(BareUserMatchSpec),
+    Nodes = lists:flatten([pubsub_get_node(Nidx) || #pubsub_state{stateid = {BareUserMatchSpec, Nidx}} <- SubscriptionStates]),
     [ {NodeName} || #pubsub_node{nodeid = {_, NodeName}} <- Nodes].
 
 
@@ -259,24 +259,18 @@ node_names_and_types(Nodes) ->
     [{NodeName, Type} || #pubsub_node{nodeid = {_, NodeName}, type = Type} <- Nodes].
 
 fetch_users_payloads(LJID) ->
-    States = pubsub_get_state(LJID),
-    NodeIdsWithItems = [{NodeId, Items} || #pubsub_state{items = Items, stateid = {LJID, NodeId}} <- States],
-    NodesWithItems = [{pubsub_get_node(NodeId), Items} || {NodeId, Items} <- NodeIdsWithItems],
-    NodeNamesWithIdsAndItems = [{NodeName, NodeId, Items} || {[#pubsub_node{nodeid = {LJID, NodeName}, id = NodeId}], Items} <- NodesWithItems],
-    NodeNamesIdsItemsUnfolded = lists:foldl(fun({NodeName, Id, Items}, Acc) -> [{NodeName, Id, I} || I <- Items] ++ Acc end, [], NodeNamesWithIdsAndItems),
-    [{NodeName, I, pubsub_get_payload(I,Id)} || {NodeName, Id, I} <- NodeNamesIdsItemsUnfolded].
+    {Username, Domain, _Resource} = LJID,
+    BareUserMatchSpec = {'_', {Username, Domain, '_'}},
+    Items = mnesia:match_object(#pubsub_item{creation = BareUserMatchSpec, _ = '_'}),
+    [{node_name(Nidx), ItemId, strip_list([exml:to_binary(P) || P <- Payload])} ||
+        #pubsub_item{itemid = {ItemId, Nidx}, payload = Payload} <- Items].
 
+node_name(Nidx) ->
+    MaybeNode = pubsub_get_node(Nidx),
+    strip_list([NodeName || #pubsub_node{nodeid = {_, NodeName}} <- MaybeNode]).
 
-pubsub_get_payload(ItemId, Idx) ->
-    Matched = mnesia:match_object(#pubsub_item{itemid = {ItemId, Idx}, _ = '_'}),
-    Payload = [PubsubItem#pubsub_item.payload || PubsubItem <- Matched],
-    strip_list([exml:to_binary(P) || P <- Payload]).
-
-pubsub_get_node(NodeId) ->
-    mnesia:match_object(#pubsub_node{id = NodeId, _ = '_'}).
-
-pubsub_get_state(LJID) ->
-    mnesia:match_object(#pubsub_state{stateid = {LJID, '_'}, _ = '_'}).
+pubsub_get_node(Nidx) ->
+    mnesia:match_object(#pubsub_node{id = Nidx, _ = '_'}).
 
 pubsub_get_subscription(UserMatchSpec) ->
     mnesia:match_object(#pubsub_state{stateid = {UserMatchSpec, '_'}, subscriptions = [{subscribed, '_'}], _ = '_'}).
@@ -284,9 +278,6 @@ pubsub_get_subscription(UserMatchSpec) ->
 strip_list([El]) -> El;
 strip_list([]) -> [];
 strip_list(Other) -> Other.
-
-
-
 %% ------------------------ Node management ------------------------
 
 -spec create_node(Nidx :: mod_pubsub:nodeIdx(),
