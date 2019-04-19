@@ -73,7 +73,8 @@ get_modules() ->
     [mod_vcard_riak,
      mod_vcard_mnesia,
      mod_vcard_rdbms,
-     mod_pubsub_db_mnesia
+     mod_pubsub_db_mnesia,
+     mod_pubsub_db_rdbms
  ].
 
 -spec user_exists(gdpr:username(), gdpr:domain()) -> boolean().

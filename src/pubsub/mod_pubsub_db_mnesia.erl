@@ -66,6 +66,7 @@
          del_items/2
         ]).
 
+% GDPR related
 -export([get_personal_data/2]).
 
 %%====================================================================
@@ -165,7 +166,7 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
     LJid = jid:to_bare({LUser, LServer, <<>>}),
-    Payloads = fetch_nodes_with_payloads(LJid),
+    Payloads = fetch_payloads(LJid),
     Nodes = fetch_users_nodes(LJid),
     Subscriptions = fetch_users_subscriptions(LJid),
 
@@ -173,7 +174,7 @@ get_personal_data(Username, Server) ->
      {pubsub_nodes, ["node_id", "type"], Nodes},
      {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
-fetch_nodes_with_payloads(LJid) ->
+fetch_payloads(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
         get_all_published_payloads(LJid)
       end),

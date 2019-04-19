@@ -65,6 +65,9 @@
          del_items/2
         ]).
 
+%%GDPR related
+-export([get_personal_data/2]).
+
 % For SQL queries
 -export([aff2int/1, sub2int/1]).
 
@@ -117,6 +120,16 @@ dirty(Fun, ErrorDebug) ->
     end.
 
 %% ------------------------ Direct #pubsub_state access ------------------------
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Server),
+    Payloads = fetch_payloads(LUser, LServer),
+    Nodes = fetch_users_nodes(LUser, LServer),
+    Subscriptions = fetch_users_subscriptions(LUser, LServer),
+
+    [{pubsub_payloads, ["node_id", "item_id", "payload"], Payloads},
+     {pubsub_nodes, ["node_id", "type"], Nodes},
+     {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
 %% TODO: Functions for direct #pubsub_access are currently inefficient for RDBMS
 %%       - refactor them or remove as many of them as possible from the API at some point
@@ -741,3 +754,30 @@ key_to_existing_atom({Key, Value}) when is_atom(Key)->
     {Key, Value};
 key_to_existing_atom({Key, Value}) ->
     {binary_to_existing_atom(Key, utf8), Value}.
+
+fetch_payloads(LUser, LServer) ->
+    SQL = mod_pubsub_db_rdbms_sql:get_user_items(LUser, LServer),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, Items} ->
+            [{NodeName, ItemId, strip_payload(PayloadDB)} || {NodeName, ItemId, PayloadDB} <- Items]
+    end.
+
+fetch_users_nodes(LUser, LServer) ->
+    LJID = jid:to_binary({LUser, LServer, <<>>}),
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_owner(LJID),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, Nodes} ->
+            Nodes
+    end.
+
+fetch_users_subscriptions(LUser, LServer) ->
+    SQL = mod_pubsub_db_rdbms_sql:get_user_subscriptions(LUser, LServer),
+    case mongoose_rdbms:sql_query(global, SQL) of
+        {selected, Nodes} ->
+            Nodes
+    end.
+
+strip_payload(PayloadDB) ->
+    PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
+    {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
+    exml:to_binary(Payload).
