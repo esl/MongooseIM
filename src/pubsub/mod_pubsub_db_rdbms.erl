@@ -119,7 +119,10 @@ dirty(Fun, ErrorDebug) ->
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed)
     end.
 
-%% ------------------------ Direct #pubsub_state access ------------------------
+%% ------------------------GDPR retrieval ------------------------
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
@@ -128,9 +131,10 @@ get_personal_data(Username, Server) ->
     Subscriptions = fetch_users_subscriptions(LUser, LServer),
 
     [{pubsub_payloads, ["node_id", "item_id", "payload"], Payloads},
-     {pubsub_nodes, ["node_id", "type"], Nodes},
-     {pubsub_subscriptions, ["node_id"], Subscriptions}].
+        {pubsub_nodes, ["node_id", "type"], Nodes},
+        {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
+%% ------------------------ Direct #pubsub_state access ------------------------
 %% TODO: Functions for direct #pubsub_access are currently inefficient for RDBMS
 %%       - refactor them or remove as many of them as possible from the API at some point
 -spec get_state(Nidx :: mod_pubsub:nodeIdx(),

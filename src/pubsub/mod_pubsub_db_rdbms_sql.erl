@@ -339,6 +339,7 @@ get_user_items(LU, LS) ->
     " WHERE created_luser = ", esc_string(LU),
         " AND created_lserver = ", esc_string(LS) ].
 
+-spec get_user_subscriptions(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
 get_user_subscriptions(LU, LS) ->
     ["SELECT name"
     " FROM pubsub_subscriptions"
@@ -446,6 +447,7 @@ select_nodes_by_key(Key) ->
     ["SELECT ", pubsub_node_fields(), " from pubsub_nodes "
      "WHERE p_key = ", esc_string(Key)].
 
+-spec select_nodes_by_owner(LJID :: binary()) -> iolist().
 select_nodes_by_owner(LJID) ->
     ["SELECT name, type"
     " FROM pubsub_nodes"

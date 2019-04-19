@@ -162,6 +162,10 @@ dirty(Fun, ErrorDebug) ->
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed)
     end.
 
+%% ------------------------GDPR retrieval ------------------------
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),

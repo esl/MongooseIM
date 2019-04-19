@@ -44,9 +44,9 @@ suite() ->
 
 all() ->
     [
-%%     {group, retrieve_personal_data},
-     {group, retrieve_personal_data_pubsub}
-%%     {group, data_is_not_retrieved_for_missing_user}
+     {group, retrieve_personal_data},
+     {group, retrieve_personal_data_pubsub},
+     {group, data_is_not_retrieved_for_missing_user}
     ].
 
 groups() ->
@@ -120,8 +120,6 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(CN, Config) ->
-    %% TODO move to init per group
-    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(retrieve_vcard = CN, Config) ->
@@ -485,7 +483,7 @@ request_and_unzip_personal_data(User, Domain, Config) ->
 
 retrieve_personal_data(User, Domain, Config) ->
     Filename = random_filename(Config),
-    {E, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
+    {_, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
     {Filename, Code}.
 
 random_filename(Config) ->

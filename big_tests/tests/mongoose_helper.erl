@@ -39,7 +39,7 @@ is_rdbms_enabled(Host) ->
 -spec mnesia_or_rdbms_backend() -> atom().
 mnesia_or_rdbms_backend() ->
     Host = ct:get_config({hosts, mim, domain}),
-    Res = case mongoose_helper:is_rdbms_enabled(Host) of
+    case mongoose_helper:is_rdbms_enabled(Host) of
         true -> rdbms;
         false -> mnesia
     end.
