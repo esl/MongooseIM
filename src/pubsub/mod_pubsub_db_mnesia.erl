@@ -251,7 +251,8 @@ fetch_users_subscriptions(LJID) ->
     {Username, Domain, _Resource} = LJID,
     BareUserMatchSpec = {Username, Domain, '_'},
     SubscriptionStates = pubsub_get_subscription(BareUserMatchSpec),
-    Nodes = lists:flatten([pubsub_get_node(Nidx) || #pubsub_state{stateid = {BareUserMatchSpec, Nidx}} <- SubscriptionStates]),
+    Nodes = lists:flatten([pubsub_get_node(Nidx) ||
+        #pubsub_state{stateid = {BareUserMatchSpec, Nidx}} <- SubscriptionStates]),
     [ {NodeName} || #pubsub_node{nodeid = {_, NodeName}} <- Nodes].
 
 

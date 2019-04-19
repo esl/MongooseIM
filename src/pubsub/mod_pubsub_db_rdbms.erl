@@ -131,8 +131,8 @@ get_personal_data(Username, Server) ->
     Subscriptions = fetch_users_subscriptions(LUser, LServer),
 
     [{pubsub_payloads, ["node_id", "item_id", "payload"], Payloads},
-        {pubsub_nodes, ["node_id", "type"], Nodes},
-        {pubsub_subscriptions, ["node_id"], Subscriptions}].
+     {pubsub_nodes, ["node_id", "type"], Nodes},
+     {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
 %% ------------------------ Direct #pubsub_state access ------------------------
 %% TODO: Functions for direct #pubsub_access are currently inefficient for RDBMS

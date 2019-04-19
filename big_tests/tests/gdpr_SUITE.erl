@@ -230,9 +230,9 @@ retrieve_pubsub_payloads(Config) ->
         pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
 
         ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
-            pubsub_payloads_row_map(NodeName1, "Item2",StringItem2),
-            pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
-            pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
+                         pubsub_payloads_row_map(NodeName1, "Item2",StringItem2),
+                         pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
+                         pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], ExpectedItems)
                                               end).
@@ -251,9 +251,12 @@ dont_retrieve_other_user_payload(Config) ->
         pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, {true, BinItem2}}]),
 
         retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1)]),
+            Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1)]),
+
         retrieve_and_validate_personal_data(
-            Bob, Config, "pubsub_payloads", ["node_id","item_id", "payload"], [pubsub_payloads_row_map(NodeName1, "Item2", StringItem2)]),
+            Bob, Config, "pubsub_payloads", ["node_id","item_id", "payload"],
+            [pubsub_payloads_row_map(NodeName1, "Item2", StringItem2)]),
 
         pubsub_tools:delete_node(Alice, Node1, [])
                                               end).
@@ -318,6 +321,7 @@ retrieve_all_pubsub_data(Config) ->
         {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
         {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
         {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
+
         pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
         pubsub_tools:publish(Alice, <<"Item2">>, Node2, [{with_payload, {true, BinItem2}}]),
         pubsub_tools:receive_item_notification(Bob, <<"Item2">>, Node2, []),
