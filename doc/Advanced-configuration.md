@@ -146,28 +146,15 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 * **ldap_encrypt**
     * **Description:** Enable connection encryption with your LDAP server.
-        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
+        The value `tls` enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
     * **Values:** `none`, `tls`
     * **Default:** `none`
 
-* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled.
-    When `hard` is enabled mongooseim doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled mongooseim proceeds even if the check fails.
-    `False` means no checks are performed.
-    * **Values:** `soft`, `hard`, `false`
-    * **Default:** `false`
-
-* **ldap_tls_cacertfile**
-    * **Description:** Path to a file containing PEM encoded CA certificates.
-    * **Values:** Path
-    * **Default:** This option is needed (and required) when TLS verification is enabled.
-
-* **ldap_tls_depth**
-    * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
-         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
-         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
-    * **Values:** Integer
-    * **Default:** 1
+* **ldap_tls_options**
+    * **Description:** Specifies TLS connection options. Requires `{ldap_encrypt, tls}` (see above).
+    * **Value:** List of `ssl:tls_client_option()`. More details can be found in the [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+    * **Default:** `[]` - empty list, no options
+    * **Example:** `{ldap_tls_options, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}`
 
 * **ldap_port**
     * **Description:** Port to connect to your LDAP server.

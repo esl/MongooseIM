@@ -69,7 +69,7 @@
         servers = []           :: [jid:lserver()],
         backups = []           :: [binary()],
         port = ?LDAP_PORT      :: inet:port_number(),
-        tls_options = []       :: list(),
+        tls_options            :: tlsopts(),
         dn = <<"">>            :: binary(),
         password = <<"">>      :: binary(),
         base = <<"">>          :: binary(),

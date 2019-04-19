@@ -279,18 +279,10 @@ get_config(Host, Opts) ->
                       end, []),
     Encrypt = get_opt({ldap_encrypt, Host}, Opts,
                       fun(tls) -> tls;
-                         (starttls) -> starttls;
                          (none) -> none
                       end, none),
-    TLSVerify = get_opt({ldap_tls_verify, Host}, Opts,
-                        fun(hard) -> hard;
-                           (soft) -> soft;
-                           (false) -> false
-                        end, false),
-    TLSCAFile = get_opt({ldap_tls_cacertfile, Host}, Opts,
-                        fun iolist_to_binary/1),
-    TLSDepth = get_opt({ldap_tls_depth, Host}, Opts,
-                       fun(I) when is_integer(I), I>=0 -> I end),
+    TLSOptions = get_opt({ldap_tls_options, Host}, Opts,
+                        fun(L) when is_list(L) -> L end, []),
     Port = get_opt({ldap_port, Host}, Opts,
                    fun(I) when is_integer(I), I>0 -> I end,
                    case Encrypt of
@@ -315,10 +307,7 @@ get_config(Host, Opts) ->
                                 end, neverDerefAliases),
     #eldap_config{servers = Servers,
                   backups = Backups,
-                  tls_options = [{encrypt, Encrypt},
-                                 {tls_verify, TLSVerify},
-                                 {tls_cacertfile, TLSCAFile},
-                                 {tls_depth, TLSDepth}],
+                  tls_options = #{encrypt => Encrypt, options => TLSOptions},
                   port = Port,
                   dn = RootDN,
                   password = Password,
