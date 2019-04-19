@@ -90,12 +90,13 @@ parse_add_atrs(Attrs) ->
 parse_add_attr({N, List}) ->
   {maybe_b2list(N), [maybe_b2list(L) || L <- List]}.
 
-start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, _Opts) ->
+start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, TLSOptions) ->
   PoolName = make_id(Name),
   pg2:create(PoolName),
   AnonAuth = anon_auth(Rootdn, Passwd),
+  SSLConfig = ssl_options(TLSOptions),
   lists:foreach(fun (Host) ->
-    case catch eldap:open([maybe_b2list(Host)], [{port, Port}, {anon_auth, AnonAuth}])
+    case catch eldap:open([maybe_b2list(Host)], [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig)
     of
       {ok, Pid} ->
         ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
@@ -108,6 +109,9 @@ start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, _Opts) ->
 
 anon_auth(<<>>, <<>>) -> true;
 anon_auth(_Rootdn, _Passwd) -> false.
+
+ssl_options(#{encrypt := tls, options := Options}) -> [{ssl, true}, {sslopts, Options}];
+ssl_options(#{encrypt := none}) -> [{ssl, false}].
 
 ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
   case eldap:simple_bind(Handle, maybe_b2list(Rootdn), maybe_b2list(Password)) of
