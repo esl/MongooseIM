@@ -16,11 +16,10 @@
          retrieve_roster/1,
          retrieve_mam/1,
          retrieve_offline/1,
-         retrieve_pubsub_nodes_with_payload/1,
-         retrieve_pubsub_multiple_paylopads_per_node/1,
+         retrieve_pubsub_payloads/1,
          retrieve_created_nodes/1,
          retrieve_all_pubsub_data/1,
-         retrieve_only_published_data/1,
+         dont_retrieve_other_user_payload/1,
          retrieve_pubsub_subscriptions/1,
          retrieve_private_xml/1,
          retrieve_inbox/1,
@@ -62,9 +61,8 @@ groups() ->
                                    retrieve_logs
                                   ]},
         {retrieve_personal_data_pubsub, [], [
-            retrieve_pubsub_nodes_with_payload,
-            retrieve_pubsub_multiple_paylopads_per_node,
-            retrieve_only_published_data,
+            retrieve_pubsub_payloads,
+            dont_retrieve_other_user_payload,
             retrieve_pubsub_subscriptions,
             retrieve_created_nodes,
             retrieve_all_pubsub_data
@@ -218,22 +216,7 @@ retrieve_offline(Config) ->
               Alice, Config, "offline", ExpectedHeader, ExpectedItems)
         end).
 
-retrieve_pubsub_nodes_with_payload(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
-        {BinData, StringData} = item_content(<<"ItemData">>),
-        {BinPepData, StringPepData} = item_content(<<"ItemData">>),
-        pubsub_tools:publish(Alice, <<"Item">>, Node, [{with_payload, {true, BinData}}]),
-        pubsub_tools:publish(Alice, <<"PepItem">>, {pep, <<"gdpr:pep">>}, [{with_payload, {true, BinPepData}}]),
-
-        ExpectedItems = [
-            pubsub_payloads_row_map(NodeName, "Item", StringData),
-            pubsub_payloads_row_map(<<"gdpr:pep">>, "PepItem", StringPepData)],
-        retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], ExpectedItems)
-                                              end).
-
-retrieve_pubsub_multiple_paylopads_per_node(Config) ->
+retrieve_pubsub_payloads(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
         Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
@@ -254,7 +237,7 @@ retrieve_pubsub_multiple_paylopads_per_node(Config) ->
             Alice, Config, "pubsub_payloads", ["node_id", "item_id", "payload"], ExpectedItems)
                                               end).
 
-retrieve_only_published_data(Config) ->
+dont_retrieve_other_user_payload(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
         Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
         pubsub_tools:create_node(Alice, Node1, []),
