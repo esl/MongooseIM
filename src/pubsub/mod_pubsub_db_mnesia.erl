@@ -170,30 +170,30 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
     LJid = jid:to_bare({LUser, LServer, <<>>}),
-    Payloads = fetch_payloads(LJid),
-    Nodes = fetch_users_nodes(LJid),
-    Subscriptions = fetch_users_subscriptions(LJid),
+    Payloads = fetch_users_payloads_transaction(LJid),
+    Nodes = fetch_users_nodes_transaction(LJid),
+    Subscriptions = fetch_users_subscriptions_transaction(LJid),
 
     [{pubsub_payloads, ["node_id", "item_id", "payload"], Payloads},
      {pubsub_nodes, ["node_id", "type"], Nodes},
      {pubsub_subscriptions, ["node_id"], Subscriptions}].
 
-fetch_payloads(LJid) ->
+fetch_users_payloads_transaction(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
-        get_all_published_payloads(LJid)
+        fetch_users_payloads(LJid)
       end),
     Recs.
 
-fetch_users_nodes(LJid) ->
+fetch_users_nodes_transaction(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
-          Nodes = get_user_nodes(LJid),
-          fetch_nodes_names_and_attrs(Nodes)
+        Nodes = fetch_user_nodes(LJid),
+        node_names_and_types(Nodes)
                                         end),
     Recs.
 
-fetch_users_subscriptions(LJid) ->
+fetch_users_subscriptions_transaction(LJid) ->
     {atomic, Recs} = mnesia:transaction(fun() ->
-        get_users_subscriptions(LJid)
+        fetch_users_subscriptions(LJid)
                                         end),
     Recs.
 
@@ -244,10 +244,10 @@ get_idxs_of_own_nodes_with_pending_subs(LJID) ->
                                [], pubsub_state),
     {ok, ResultNidxs}.
 
-get_user_nodes(LJID) ->
+fetch_user_nodes(LJID) ->
     mnesia:match_object(#pubsub_node{owners = [LJID], _ = '_'}).
 
-get_users_subscriptions(LJID) ->
+fetch_users_subscriptions(LJID) ->
     {Username, Domain, _Resource} = LJID,
     UserMatchSpec = {Username, Domain, '_'},
     SubscriptionStates = pubsub_get_subscription(UserMatchSpec),
@@ -255,10 +255,10 @@ get_users_subscriptions(LJID) ->
     [ {NodeName} || #pubsub_node{nodeid = {_, NodeName}} <- Nodes].
 
 
-fetch_nodes_names_and_attrs(Nodes) ->
+node_names_and_types(Nodes) ->
     [{NodeName, Type} || #pubsub_node{nodeid = {_, NodeName}, type = Type} <- Nodes].
 
-get_all_published_payloads(LJID) ->
+fetch_users_payloads(LJID) ->
     States = pubsub_get_state(LJID),
     NodeIdsWithItems = [{NodeId, Items} || #pubsub_state{items = Items, stateid = {LJID, NodeId}} <- States],
     NodesWithItems = [{pubsub_get_node(NodeId), Items} || {NodeId, Items} <- NodeIdsWithItems],

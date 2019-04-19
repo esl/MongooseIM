@@ -126,7 +126,7 @@ dirty(Fun, ErrorDebug) ->
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
-    Payloads = fetch_payloads(LUser, LServer),
+    Payloads = fetch_users_payloads(LUser, LServer),
     Nodes = fetch_users_nodes(LUser, LServer),
     Subscriptions = fetch_users_subscriptions(LUser, LServer),
 
@@ -759,7 +759,7 @@ key_to_existing_atom({Key, Value}) when is_atom(Key)->
 key_to_existing_atom({Key, Value}) ->
     {binary_to_existing_atom(Key, utf8), Value}.
 
-fetch_payloads(LUser, LServer) ->
+fetch_users_payloads(LUser, LServer) ->
     SQL = mod_pubsub_db_rdbms_sql:get_user_items(LUser, LServer),
     case mongoose_rdbms:sql_query(global, SQL) of
         {selected, Items} ->
@@ -769,17 +769,13 @@ fetch_payloads(LUser, LServer) ->
 fetch_users_nodes(LUser, LServer) ->
     LJID = jid:to_binary({LUser, LServer, <<>>}),
     SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_owner(LJID),
-    case mongoose_rdbms:sql_query(global, SQL) of
-        {selected, Nodes} ->
-            Nodes
-    end.
+    {selected, Nodes} =  mongoose_rdbms:sql_query(global, SQL),
+    Nodes.
 
 fetch_users_subscriptions(LUser, LServer) ->
     SQL = mod_pubsub_db_rdbms_sql:get_user_subscriptions(LUser, LServer),
-    case mongoose_rdbms:sql_query(global, SQL) of
-        {selected, Nodes} ->
-            Nodes
-    end.
+    {selected, Nodes} =  mongoose_rdbms:sql_query(global, SQL),
+    Nodes.
 
 strip_payload(PayloadDB) ->
     PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
