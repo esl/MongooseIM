@@ -23,17 +23,16 @@
 -export([get_personal_data/2]).
 
 -spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
+    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
 
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
-    Table = vcard,
-    Schema = ["vcard"],
+    Schema = ["jid", "vcard"],
     US = {LUser, Server},
-    Trans = fun() -> mnesia:read({Table, US}) end,
+    Trans = fun() -> mnesia:read({vcard, US}) end,
     {atomic, Records} = mnesia:transaction(Trans),
-    SerialzedRecords = lists:map(fun({T, U, Xeml}) -> {T,U,exml:to_binary(Xeml)} end, Records),
-    [{Table, Schema, SerialzedRecords}].
+    SerialzedRecords = lists:map(fun({_T, U, Xeml}) -> {U,exml:to_binary(Xeml)} end, Records),
+    [{vcard, Schema, SerialzedRecords}].
 
 %%--------------------------------------------------------------------
 %% mod_vcards callbacks

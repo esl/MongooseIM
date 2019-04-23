@@ -49,16 +49,20 @@
 -export([get_personal_data/2]).
 
 -spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
+    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
 
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
-    Table = vcard,
-    Schema = ["vcard"],
-    {ok, Record} = get_vcard(LUser, LServer),
-    SerialzedRecord = exml:to_binary(Record),
-    [{Table, Schema, [[SerialzedRecord]]}].
+    Jid = jid:to_binary({LUser, LServer}),
+    Schema = ["jid", "vcard"],
+    Entitis = case get_vcard(LUser, LServer) of
+        {ok, Record} ->
+            SerialzedRecord = exml:to_binary(Record),
+            [{Jid, SerialzedRecord}];
+         _ -> []
+        end,
+        [{vcard, Schema, Entitis}].
 
 %%--------------------------------------------------------------------
 %% mod_vcards callbacks
