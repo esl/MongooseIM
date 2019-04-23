@@ -113,7 +113,21 @@ end_per_testcase(CN, Config) ->
     escalus:end_per_testcase(CN, Config).
 
 inbox_required_modules() ->
-    [{mod_inbox, []}].
+    [
+     {mod_muc_light, [{host, binary_to_list(muclight_domain())},
+                      {backend, rdbms}]},
+     {mod_inbox, inbox_opts()}
+    ].
+
+inbox_opts() ->
+    [{aff_changes, true},
+     {remove_on_kicked, true},
+     {groupchat, [muclight]},
+     {markers, [displayed]}].
+
+muclight_domain() ->
+    Domain = inbox_helper:domain(),
+    <<"muclight.", Domain/binary>>.
 
 pick_backend_for_mam() ->
     BackendsList = [
@@ -176,7 +190,7 @@ retrieve_roster(Config) ->
               Alice, Config, "roster", ExpectedHeader, ExpectedItems)
         end).
 
-retrieve_mam(Config) ->
+retrieve_mam(_Config) ->
     ok.
 
 retrieve_offline(Config) ->
@@ -240,14 +254,17 @@ retrieve_private_xml(Config) ->
 retrieve_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Body = <<"With spam?">>,
+            BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+            BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
             Msg = escalus:wait_for_stanza(Alice),
             escalus:assert(is_chat_message, [Body], Msg),
-
-            BobJid = escalus_client:short_jid(Bob),
-            ExpectedHeader = ["jid", "content", "unread_count", "msg_id", "timestamp"],
+            ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
             ExpectedItems = [
-                             #{ "content" => Body, "jid" => BobJid }
+                             #{ "content" => [{contains, Body}],
+                                "jid" => [{contains, BobS},
+                                          {contains, BobU}],
+                                "unread_count" => "1" }
                             ],
             retrieve_and_validate_personal_data(
               Alice, Config, "inbox", ExpectedHeader, ExpectedItems)
@@ -290,11 +307,11 @@ retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, E
              })
     end.
 
-csv_to_maps(ExpectedHeader, [HeaderRow | [Rows]]) ->
+csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
     lists:foldl(fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end, [], Rows).
 
 csv_row_to_map(Header, Row) ->
-    maps:from_list(lists:zip(Header, [Row])).
+    maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(_, []) -> ok;
 validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
