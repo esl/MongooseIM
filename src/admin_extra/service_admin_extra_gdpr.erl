@@ -18,7 +18,7 @@ commands() -> [
                        result = {content, binary}}  % TODO check if returned type is correct and convinient in use
 ].
 
--spec retrieve_all(gdpr:username(), gdpr:domain(), Path :: binary()) -> RetrievedFilesInZipName :: binary().
+-spec retrieve_all(gdpr:username(), gdpr:domain(), Path :: binary()) -> binary() | {error, Reason :: any()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
     case user_exists(Username, Domain) of
     true ->
