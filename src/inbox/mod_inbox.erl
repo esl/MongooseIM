@@ -78,6 +78,33 @@
 
 -export_type([get_inbox_params/0]).
 
+%%--------------------------------------------------------------------
+%% gdpr callbacks
+%%--------------------------------------------------------------------
+
+-behaviour(gdpr).
+
+-export([get_personal_data/2]).
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Schema = ["jid", "content", "unread_count", "timestamp"],
+    InboxParams = #{
+        start => {0,0,0},
+        'end' => erlang:timestamp(),
+        order => asc,
+        hidden_read => false
+       },
+    Record = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
+    [{inbox, Schema, Record}].
+
+%%--------------------------------------------------------------------
+%% inbox callbacks
+%%--------------------------------------------------------------------
+
 -spec deps(jid:lserver(), list()) -> list().
 deps(_Host, Opts) ->
     groupchat_deps(Opts).
