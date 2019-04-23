@@ -43,7 +43,7 @@ suite() ->
 
 all() ->
     [
-     {group, retrieve_personal_data},
+%     {group, retrieve_personal_data},
      {group, retrieve_personal_data_pubsub},
      {group, data_is_not_retrieved_for_missing_user}
     ].
