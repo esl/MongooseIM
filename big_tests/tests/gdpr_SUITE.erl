@@ -106,7 +106,7 @@ init_per_testcase(retrieve_pubsub = CN, Config) ->
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
-end_per_testcase(etrieve_vcard = CN, Config) ->
+end_per_testcase(retrieve_vcard = CN, Config) ->
     delete_files(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
@@ -152,15 +152,15 @@ retrieve_vcard(Config) ->
             AliceSetResultStanza
             = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
             escalus:assert(is_iq_result, AliceSetResultStanza),
-            ExpectedHeader = ["vcard"], % TODO? Expand vCard into separate CSV columns?
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            ExpectedHeader = ["jid", "vcard"],
             ExpectedItems = [
-                             #{ "vcard" => [{contains, "Alice"},
+                             #{ "jid" => [{contains, AliceU},
+                                          {contains, AliceS}],
+                                "vcard" => [{contains, "Alice"},
                                             {contains, "Ecila"}] }
                             ],
-            PL = proplists:get_value(event_client, element(6, Alice)),
-            Username = proplists:get_value(username, PL),
-            Server = proplists:get_value(server, PL),
-            rpc(mim(), mod_vcard_mnesia, get_personal_data, [Username, Server]),
             retrieve_and_validate_personal_data(
               Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
         end).
@@ -176,7 +176,7 @@ retrieve_roster(Config) ->
               Alice, Config, "roster", ExpectedHeader, ExpectedItems)
         end).
 
-retrieve_mam(Config) ->
+retrieve_mam(_Config) ->
     ok.
 
 retrieve_offline(Config) ->
@@ -290,11 +290,11 @@ retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, E
              })
     end.
 
-csv_to_maps(ExpectedHeader, [HeaderRow | [Rows]]) ->
+csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
     lists:foldl(fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end, [], Rows).
 
 csv_row_to_map(Header, Row) ->
-    maps:from_list(lists:zip(Header, [Row])).
+    maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(_, []) -> ok;
 validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
