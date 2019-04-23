@@ -67,6 +67,7 @@
          ]).
 
 -export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
+-export([record_to_list_without_first/1]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -1033,3 +1034,5 @@ item_to_map(#roster{} = Roster) ->
     #{jid => ContactJid, name => ContactName, subscription => Subs,
       groups => Groups, ask => Ask}.
 
+record_to_list_without_first(Record) ->
+    [ element(I,Record) || I <- lists:seq(2,tuple_size(Record)) ].
