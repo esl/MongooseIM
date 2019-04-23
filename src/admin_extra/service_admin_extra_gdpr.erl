@@ -18,7 +18,7 @@ commands() -> [
                        result = {content, binary}}  % TODO check if returned type is correct and convinient in use
 ].
 
--spec retrieve_all(gdpr:username(), gdpr:domain(), Path :: binary()) -> RetrievedFilesInZipName :: binary().
+-spec retrieve_all(gdpr:username(), gdpr:domain(), Path :: binary()) -> RetrievedFilesInZipName :: binary() | {error, Reason :: any()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
     case user_exists(Username, Domain) of
     true ->
@@ -72,7 +72,10 @@ to_csv_file(Filename, DataSchema, DataRows) ->
 get_modules() ->
     [mod_vcard_riak,
      mod_vcard_mnesia,
-     mod_vcard_rdbms].
+     mod_vcard_rdbms,
+     mod_roster_rdbms,
+     mod_roster_riak,
+     mod_roster_mnesia].
 
 -spec user_exists(gdpr:username(), gdpr:domain()) -> boolean().
 user_exists(Username, Domain) ->

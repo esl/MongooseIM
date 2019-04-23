@@ -168,15 +168,17 @@ retrieve_vcard(Config) ->
 retrieve_roster(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             escalus_story:make_all_clients_friends([Alice, Bob]),
-            ExpectedHeader = ["jid", "name", "groups"], % TODO
+            BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+            BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
+            ExpectedHeader = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
             ExpectedItems = [
-                             #{ "jid" => escalus_client:short_jid(Bob) }
+                             #{ "jid" => [{contains,  BobU}, {contains, BobS}] }
                             ],
             retrieve_and_validate_personal_data(
-              Alice, Config, "roster", ExpectedHeader, ExpectedItems)
+                Alice, Config, "roster", ExpectedHeader, ExpectedItems)
         end).
 
-retrieve_mam(Config) ->
+retrieve_mam(_Config) ->
     ok.
 
 retrieve_offline(Config) ->
@@ -290,11 +292,11 @@ retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, E
              })
     end.
 
-csv_to_maps(ExpectedHeader, [HeaderRow | [Rows]]) ->
+csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
     lists:foldl(fun(Row, Maps) -> [ csv_row_to_map(ExpectedHeader, Row) | Maps ] end, [], Rows).
 
 csv_row_to_map(Header, Row) ->
-    maps:from_list(lists:zip(Header, [Row])).
+    maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(_, []) -> ok;
 validate_personal_maps([Map | RMaps], [Checks | RChecks]) ->
