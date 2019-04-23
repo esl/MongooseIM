@@ -220,13 +220,13 @@ retrieve_pubsub_payloads(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
         Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
         Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
-        {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
-        {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
-        {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
+        Node1Items = [{_, StringItem1} = item_content(<<"Item1Data">>),
+            {_, StringItem2} = item_content(<<"Item2Data">>),
+            {_, StringItem3} = item_content(<<"Item3Data">>)],
         {BinOther, StringOther} = item_content(<<"OtherItemData">>),
-        pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, BinItem1}]),
-        pubsub_tools:publish(Alice, <<"Item2">>, Node1, [{with_payload, BinItem2}]),
-        pubsub_tools:publish(Alice, <<"Item3">>, Node1, [{with_payload, BinItem3}]),
+
+        [ pubsub_tools:publish(Alice, Item, Node1, [{with_payload, BinItem}]) ||
+            {Item, BinItem, _} <- Node1Items ],
         pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
 
         ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
@@ -289,10 +289,9 @@ retrieve_created_nodes(Config) ->
             Bob, Config, "pubsub_nodes", ExpectedHeader,
             [pubsub_nodes_row_map(NodeName3, "push")]),
 
-        pubsub_tools:delete_node(Alice, Node1, []),
-        pubsub_tools:delete_node(Alice, Node2, []),
-        pubsub_tools:delete_node(Alice, PepNode, []),
-        pubsub_tools:delete_node(Bob, Node3, [])
+
+        Nodes = [{Alice, Node1}, {Alice, Node1}, {Alice, PepNode}, {Bob, Node3}],
+        [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
                                                         end).
 
 retrieve_pubsub_subscriptions(Config) ->
@@ -350,9 +349,8 @@ retrieve_all_pubsub_data(Config) ->
             [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
              pubsub_payloads_row_map(NodeName2, "Item2", StringItem2)]),
 
-        pubsub_tools:delete_node(Alice, Node1, []),
-        pubsub_tools:delete_node(Alice, Node2, []),
-        pubsub_tools:delete_node(Bob, Node3, [])
+        Nodes = [{Alice, Node1}, {Alice, Node2}, {Bob, Node3}],
+        [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
                                                         end).
 
 
