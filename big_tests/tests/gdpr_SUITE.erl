@@ -81,15 +81,9 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
 
-init_per_group(retrieve_personal_data_pubsub, Config) ->
-    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
-    Config;
 init_per_group(_GN, Config) ->
     Config.
 
-end_per_group(retrieve_personal_data_pubsub, Config) ->
-    delete_files(),
-    Config;
 end_per_group(_GN, Config) ->
     Config.
 
@@ -118,12 +112,14 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(CN, Config) ->
+    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(retrieve_vcard = CN, Config) ->
     delete_files(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
+    delete_files(),
     escalus:end_per_testcase(CN, Config).
 
 inbox_required_modules() ->
