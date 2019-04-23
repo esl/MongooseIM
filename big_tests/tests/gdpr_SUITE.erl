@@ -254,12 +254,20 @@ retrieve_inbox(Config) ->
         end).
 
 retrieve_logs(Config) ->
-    mongoose_helper:successful_rpc(error_logger, error_msg,
-                                   ["event=disturbance_in_the_force, jid=sith@localhost", []]),
-    Dir = request_and_unzip_personal_data(<<"sith">>, <<"localhost">>, Config),
-    Filename = filename:join(Dir, "logs.txt"),
-    {ok, Content} = file:read_file(Filename),
-    {match, _} = re:run(Content, "disturbance_in_the_force").
+    escalus:fresh_story(Config, [{alice, 1}],
+        fun(Alice) ->
+            User = string:lowercase(escalus_client:username(Alice)),
+            Domain = string:lowercase(escalus_client:server(Alice)),
+            JID = string:uppercase(escalus_client:short_jid(Alice)),
+            MIM2Node = distributed_helper:mim2(),
+            mongoose_helper:successful_rpc(net_kernel, connect_node, [MIM2Node]),
+            mongoose_helper:successful_rpc(MIM2Node, error_logger, error_msg,
+                                           ["event=disturbance_in_the_force, jid=~s", [JID]]),
+            Dir = request_and_unzip_personal_data(User, Domain, Config),
+            Filename = filename:join(Dir, "logs-" ++ atom_to_list(MIM2Node) ++ ".txt"),
+            {ok, Content} = file:read_file(Filename),
+            {match, _} = re:run(Content, "disturbance_in_the_force")
+        end).
 
 %% ------------------------- Data retrieval - Negative case -------------------------
 
