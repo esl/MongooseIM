@@ -112,8 +112,8 @@ and in [Modules configuration](../advanced-configuration/Modules.md)
 
 Now we are registering both users in MongooseIM by calling the following commands:
 
-    bin/mongooseimctl register xmpp.user xmpp.example test_pass
-    bin/mongooseimctl register sip.user sip.example test_pass
+    bin/mongooseimctl register_identified xmpp.user xmpp.example test_pass
+    bin/mongooseimctl register_identified sip.user sip.example test_pass
 
 Yes, we need to have the `sip.user@sip.example` registered in MongooseIM.
 This is needed because a Jingle call can be initiated by a regular XMPP client only when the app knows the other user's full JID.
