@@ -15,6 +15,10 @@
 -include("mongoose.hrl").
 -include("mongoose_logger.hrl").
 
+-behaviour(gdpr).
+
+-export([get_personal_data/2]).
+
 -export([start/2, stop/1, deps/2]).
 -export([process_iq/4, user_send_packet/4, filter_packet/1, inbox_unread_count/2]).
 -export([clear_inbox/2]).
@@ -82,12 +86,8 @@
 %% gdpr callbacks
 %%--------------------------------------------------------------------
 
--behaviour(gdpr).
-
--export([get_personal_data/2]).
-
 -spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
+    [{gdpr:table(), gdpr:schema(), gdpr:entities()}].
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
@@ -98,8 +98,8 @@ get_personal_data(Username, Server) ->
         order => asc,
         hidden_read => false
        },
-    Record = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
-    [{inbox, Schema, Record}].
+    Entries = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
+    [{inbox, Schema, Entries}].
 
 %%--------------------------------------------------------------------
 %% inbox callbacks
