@@ -37,6 +37,7 @@
 -xep([{xep, 55}, {version, "1.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(gdpr).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -73,6 +74,8 @@
 
 -export([config_change/4]).
 
+-export([get_personal_data/2]).
+
 -define(PROCNAME, ejabberd_mod_vcard).
 
 -record(state, {search           :: boolean(),
@@ -82,9 +85,6 @@
 
 -type error() :: error | {error, any()}.
 
-%%--------------------------------------------------------------------
-%% backend callbacks
-%%--------------------------------------------------------------------
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
@@ -122,6 +122,22 @@
 -callback tear_down(jid:lserver()) -> ok.
 
 -optional_callbacks([tear_down/1]).
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:table(), gdpr:schema(), gdpr:entities()}].
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Jid = jid:to_binary({LUser, LServer}),
+    Schema = ["jid", "vcard"],
+    Entities = case mod_vcard_backend:get_vcard(LUser, LServer) of
+        {ok, Record} ->
+            SerializedRecords = exml:to_binary(Record),
+            [{Jid, SerializedRecords}];
+         _ -> []
+        end,
+    [{vcard, Schema, Entities}].
 
 -spec default_search_fields() -> list().
 default_search_fields() ->

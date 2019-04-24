@@ -16,7 +16,6 @@
 -module(mod_vcard_riak).
 
 -behaviour(mod_vcard).
--behaviour(gdpr).
 
 %% API
 -export([init/2,
@@ -34,32 +33,6 @@
 
 -define(BUCKET_TYPE, <<"vcard">>).
 -define(YZ_VCARD_INDEX, <<"vcard">>).
-
-%%--------------------------------------------------------------------
-%% gdpr callbacks
-%%--------------------------------------------------------------------
-
--export([get_personal_data/2]).
-
--spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
-
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
-    Jid = jid:to_binary({LUser, LServer}),
-    Schema = ["jid", "vcard"],
-    Entitis = case get_vcard(LUser, LServer) of
-        {ok, Record} ->
-            SerialzedRecord = exml:to_binary(Record),
-            [{Jid, SerialzedRecord}];
-         _ -> []
-        end,
-        [{vcard, Schema, Entitis}].
-
-%%--------------------------------------------------------------------
-%% mod_vcards callbacks
-%%--------------------------------------------------------------------
 
 -spec init(jid:lserver(), list()) -> ok.
 init(_Host, _Opts) ->

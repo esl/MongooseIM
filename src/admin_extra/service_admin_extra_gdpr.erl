@@ -70,9 +70,7 @@ to_csv_file(Filename, DataSchema, DataRows) ->
 
 -spec get_modules() -> [module()].
 get_modules() ->
-    [mod_vcard_riak,
-     mod_vcard_mnesia,
-     mod_vcard_rdbms].
+    [mod_vcard].
 
 -spec user_exists(gdpr:username(), gdpr:domain()) -> boolean().
 user_exists(Username, Domain) ->

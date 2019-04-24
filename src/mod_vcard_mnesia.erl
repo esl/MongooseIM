@@ -1,7 +1,6 @@
 -module(mod_vcard_mnesia).
 
 -behaviour(mod_vcard).
--behaviour(gdpr).
 
 %% mod_vcards callbacks
 -export([init/2,
@@ -15,28 +14,6 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_vcard.hrl").
-
-%%--------------------------------------------------------------------
-%% gdpr callbacks
-%%--------------------------------------------------------------------
-
--export([get_personal_data/2]).
-
--spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
-
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    Schema = ["jid", "vcard"],
-    US = {LUser, Server},
-    Trans = fun() -> mnesia:read({vcard, US}) end,
-    {atomic, Records} = mnesia:transaction(Trans),
-    SerialzedRecords = lists:map(fun({_T, U, Xeml}) -> {U,exml:to_binary(Xeml)} end, Records),
-    [{vcard, Schema, SerialzedRecords}].
-
-%%--------------------------------------------------------------------
-%% mod_vcards callbacks
-%%--------------------------------------------------------------------
 
 init(_VHost, _Options) ->
     prepare_db(),
