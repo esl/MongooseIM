@@ -912,14 +912,12 @@ simple_register(Config) ->
     {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
     {R1, 0} = ejabberdctl("registered_users", [Domain], Config),
-    {match, ResList1} = re:run(R1, "(.+)", [global]),
-    Before = length(ResList1),
+    Before = length(string:tokens(R1, "\n")),
     {_, 0} = ejabberdctl("register", [Domain, Password], Config),
     {_, 0} = ejabberdctl("register", [Domain, Password], Config),
 
     {R2, 0} = ejabberdctl("registered_users", [Domain], Config),
-    {match, ResList2} = re:run(R2, "(.+)", [global]),
-    After = length(ResList2),
+    After = length(string:tokens(R2, "\n")),
     %% then
     2 = After - Before.
 
