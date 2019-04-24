@@ -39,6 +39,7 @@
 -xep([{xep, 83}, {version, "1.0"}]).
 -xep([{xep, 93}, {version, "1.2"}]).
 -behaviour(gen_mod).
+-behaviour(gdpr).
 
 -export([start/2,
          stop/1,
@@ -67,7 +68,8 @@
          ]).
 
 -export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
--export([record_to_list_without_first/1]).
+
+ -export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -157,6 +159,23 @@
     Item :: term(),
     Result :: error | roster().
 
+%%--------------------------------------------------------------------
+%% gdpr callbacks
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(gdpr:username(), gdpr:domain()) ->
+    [{gdpr:table(), gdpr:schema(), gdpr:entities()}].
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Schema = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
+    Records = mod_roster_backend:get_roster(LUser, LServer),
+    SerializedRecords = [record_to_list_without_first(Record) || Record <- Records],
+    [{roster, Schema, SerializedRecords}].
+
+%%--------------------------------------------------------------------
+%% mod_roster's callbacks
+%%--------------------------------------------------------------------
 
 start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
@@ -1035,4 +1054,13 @@ item_to_map(#roster{} = Roster) ->
       groups => Groups, ask => Ask}.
 
 record_to_list_without_first(Record) ->
-    [ element(I,Record) || I <- lists:seq(2,tuple_size(Record)) ].
+    #roster{usj = USJ,
+                 us = US,
+                 jid = JID,
+                 name = Name,
+                 subscription = Subscription,
+                 ask = Ask,
+                 groups = Groups,
+                 askmessage = AskMessage,
+                 xs = XS} = Record,
+    [USJ, US, JID, Name, Subscription, Ask, Groups, AskMessage, XS].

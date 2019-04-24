@@ -14,7 +14,6 @@
 -include("mongoose.hrl").
 
 -behaviour(mod_roster).
--behaviour(gdpr).
 
 %% API
 -export([init/2,
@@ -35,26 +34,6 @@
 
 -define(ROSTER_BUCKET(LServer), {<<"rosters">>, LServer}).
 -define(VER_BUCKET(LServer), {<<"roster_versions">>, LServer}).
-
-%%--------------------------------------------------------------------
-%% gdpr callbacks
-%%--------------------------------------------------------------------
-
- -export([get_personal_data/2]).
-
--spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:table_name(), gdpr:schema(), gdpr:entities()}].
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
-    Schema = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
-    Records = get_roster(LUser, LServer),
-    SerializedRecords = [mod_roster:record_to_list_without_first(Record) || Record <- Records],
-    [{roster, Schema, SerializedRecords}].
-
- %%--------------------------------------------------------------------
-%% mod_rosters callbacks
-%%--------------------------------------------------------------------
 
 -spec init(jid:server(), list()) -> ok.
 init(_Host, _Opts) ->
