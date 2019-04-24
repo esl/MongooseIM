@@ -451,8 +451,7 @@ select_nodes_by_key(Key) ->
 select_nodes_by_owner(LJID) ->
     ["SELECT name, type"
     " FROM pubsub_nodes"
-    " WHERE owners ::json->>0 like ", esc_string(LJID),
-    " AND JSON_ARRAY_LENGTH(owners) = 1"
+    " WHERE owners ::text like [\"", esc_string(LJID), "\"]"
     ].
 
 -spec select_nodes_in_list_with_key(Key :: binary(), Nodes :: [binary()]) -> iolist().
