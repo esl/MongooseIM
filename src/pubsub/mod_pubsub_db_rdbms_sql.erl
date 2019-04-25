@@ -449,21 +449,24 @@ select_nodes_by_key(Key) ->
 
 -spec select_nodes_by_owner(LJID :: binary()) -> iolist().
 select_nodes_by_owner(LJID) ->
+    %% TODO I wrote that code in tears in my eyes. Its super inefficient,
+    %% there should be separate table for many-to-many relation and index
     case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
         {mysql, _} ->
             ["SELECT name, type"
                 " FROM pubsub_nodes"
-                " WHERE owners = convert(\"[",  esc_string(LJID), "\"], JSON)"
+                " WHERE owners = convert(", esc_string(iolist_to_binary(["[\"", LJID, "\"]"])), ", JSON);"
             ];
         {pgsql, _}  ->
             ["SELECT name, type"
-             " FROM pubsub_nodes"
-             " WHERE owners ::text like [\"", esc_string(LJID), "\"]"
+            " FROM pubsub_nodes"
+            " WHERE owners ::json->>0 like ", esc_string(LJID),
+                " AND JSON_ARRAY_LENGTH(owners) = 1"
             ];
         {odbc, mssql} ->
             ["SELECT name, type"
             " FROM pubsub_nodes"
-            " WHERE owners = convert(\"[",  esc_string(LJID), "\"], JSON)"
+            " WHERE cast(owners as varchar) = ", esc_string(iolist_to_binary(["[\"", LJID, "\"]"]))
             ]
     end.
 
