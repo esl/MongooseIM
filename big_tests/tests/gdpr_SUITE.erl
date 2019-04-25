@@ -54,7 +54,7 @@ groups() ->
     [
      {retrieve_personal_data, [], [
                                            retrieve_vcard,
-                                           %retrieve_roster,
+                                           retrieve_roster,
                                            %retrieve_mam,
                                            %retrieve_offline,
                                            %retrieve_private_xml,
@@ -190,7 +190,8 @@ retrieve_roster(Config) ->
             escalus_story:make_all_clients_friends([Alice, Bob]),
             BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
             BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
-            ExpectedHeader = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
+            ExpectedHeader = ["usj", "us", "jid", "name", "subscription",
+                              "ask", "groups", "askmessage", "xs"],
             ExpectedItems = [
                              #{ "jid" => [{contains,  BobU}, {contains, BobS}] }
                             ],
