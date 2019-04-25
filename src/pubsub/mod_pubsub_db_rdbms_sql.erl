@@ -449,10 +449,23 @@ select_nodes_by_key(Key) ->
 
 -spec select_nodes_by_owner(LJID :: binary()) -> iolist().
 select_nodes_by_owner(LJID) ->
-    ["SELECT name, type"
-    " FROM pubsub_nodes"
-    " WHERE owners ::text like [\"", esc_string(LJID), "\"]"
-    ].
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {mysql, _} ->
+            ["SELECT name, type"
+                " FROM pubsub_nodes"
+                " WHERE owners = convert(\"[",  esc_string(LJID), "\"], JSON)"
+            ];
+        {pgsql, _}  ->
+            ["SELECT name, type"
+             " FROM pubsub_nodes"
+             " WHERE owners ::text like [\"", esc_string(LJID), "\"]"
+            ];
+        {odbc, mssql} ->
+            ["SELECT name, type"
+            " FROM pubsub_nodes"
+            " WHERE owners = convert(\"[",  esc_string(LJID), "\"], JSON)"
+            ]
+    end.
 
 -spec select_nodes_in_list_with_key(Key :: binary(), Nodes :: [binary()]) -> iolist().
 select_nodes_in_list_with_key(Key, Nodes) ->
