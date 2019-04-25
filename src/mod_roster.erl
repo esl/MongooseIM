@@ -69,7 +69,7 @@
 
 -export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
 
- -export([get_personal_data/2]).
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -160,18 +160,31 @@
     Result :: error | roster().
 
 %%--------------------------------------------------------------------
-%% gdpr callbacks
+%% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:table(), gdpr:schema(), gdpr:entities()}].
+-spec get_personal_data(jid:user(), jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
-    Schema = ["usj", "us", "jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
+    Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
     Records = mod_roster_backend:get_roster(LUser, LServer),
-    SerializedRecords = [record_to_list_without_first(Record) || Record <- Records],
+    SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
     [{roster, Schema, SerializedRecords}].
+
+roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
+                                     subscription = Subscription, ask = Ask, groups = Groups,
+                                     askmessage = AskMessage, xs = XS }) ->
+    [
+     jid:to_binary(JID),
+     Name,
+     atom_to_binary(Subscription, utf8),
+     atom_to_binary(Ask, utf8),
+     string:join([ unicode:characters_to_list(G) || G <- Groups ], ", "),
+     AskMessage,
+     << <<(exml:to_binary(X))>> || X <- XS >>
+    ].
 
 %%--------------------------------------------------------------------
 %% mod_roster's callbacks
@@ -1053,5 +1066,3 @@ item_to_map(#roster{} = Roster) ->
     #{jid => ContactJid, name => ContactName, subscription => Subs,
       groups => Groups, ask => Ask}.
 
-record_to_list_without_first(Record) ->
-    [ element(I,Record) || I <- lists:seq(2,tuple_size(Record)) ].
