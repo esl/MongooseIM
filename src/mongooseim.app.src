@@ -48,7 +48,8 @@
                   uuid,
                   xmerl,
                   worker_pool,
-                  gen_fsm_compat
+                  gen_fsm_compat,
+                  erl_csv_generator
                  ]},
   {env, []},
   {mod, {ejabberd_app, []}}]}.

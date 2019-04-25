@@ -54,6 +54,8 @@
 -export([config_state/0]).
 -export([config_states/0]).
 
+-export([other_cluster_nodes/0]).
+
 -import(mongoose_config_parser, [can_be_ignored/1]).
 
 -export([apply_reloading_change/1]).

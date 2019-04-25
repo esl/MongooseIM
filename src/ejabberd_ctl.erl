@@ -152,7 +152,7 @@ process(["status"]) ->
                                  {mongoose_status, MongooseStatus},
                                  {os_pid, os:getpid()}, get_uptime(),
                                  {dist_proto, get_dist_proto()},
-                                 {logs, get_log_files()}])]),
+                                 {logs, ejabberd_loglevel:get_log_files()}])]),
     case MongooseStatus of
         not_running -> ?STATUS_ERROR;
         {running, _, _Version} -> ?STATUS_SUCCESS
@@ -923,17 +923,3 @@ get_dist_proto() ->
         _ -> "inet_tcp"
     end.
 
-%%-----------------------------
-%% Lager specific helpers
-%%-----------------------------
-
-get_log_files() ->
-    Handlers = case catch sys:get_state(lager_event) of
-                   {'EXIT', _} -> [];
-                   Hs when is_list(Hs) -> Hs
-               end,
-    [ file_backend_path(State)
-      || {lager_file_backend, _File, State} <- Handlers ].
-
-file_backend_path(LagerFileBackendState) when element(1, LagerFileBackendState) =:= state ->
-    element(2, LagerFileBackendState).
