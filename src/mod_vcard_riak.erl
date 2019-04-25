@@ -16,7 +16,6 @@
 -module(mod_vcard_riak).
 
 -behaviour(mod_vcard).
--behaviour(gdpr).
 
 %% API
 -export([init/2,

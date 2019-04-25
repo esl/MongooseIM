@@ -27,7 +27,6 @@
 -module(mod_vcard_rdbms).
 
 -behaviour(mod_vcard).
--behaviour(gdpr).
 
 %% mod_vcards callbacks
 -export([init/2,
