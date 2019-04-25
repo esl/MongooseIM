@@ -23,7 +23,7 @@
 -export([get_personal_data/2]).
 
 -spec get_personal_data(gdpr:username(), gdpr:domain()) ->
-    [{gdpr:binary_table_name(), gdpr:schema(), gdpr:entities()}].
+    [{atom(), any(), any()}].
 
 get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
