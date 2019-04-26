@@ -57,7 +57,7 @@ groups() ->
                                            retrieve_roster,
                                            %retrieve_mam,
                                            %retrieve_offline,
-                                           %retrieve_private_xml,
+                                           retrieve_private_xml,
                                            %retrieve_inbox,
                                            retrieve_logs,
                                            {group, retrieve_personal_data_pubsub}
