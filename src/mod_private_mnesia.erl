@@ -36,6 +36,8 @@
          multi_get_data/3,
          remove_user/2]).
 
+-export([get_all_nss/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -65,6 +67,13 @@ set_data_t(LUser, LServer, NS, XML) ->
 
 multi_get_data(LUser, LServer, NS2Def) ->
     [get_data(LUser, LServer, NS, Default) || {NS, Default} <- NS2Def].
+
+get_all_nss(LUser, LServer) ->
+    F = fun() ->
+        select_namespaces_t(LUser, LServer)
+    end,
+    {atomic, NSs} = mnesia:transaction(F),
+    NSs.
 
 %% @doc Return stored value or default.
 get_data(LUser, LServer, NS, Default) ->

@@ -28,12 +28,15 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_mod).
+-behaviour(gdpr).
 
 -export([start/2,
          stop/1,
          process_sm_iq/4,
          remove_user/3,
          remove_user/2]).
+
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -66,6 +69,28 @@
 -callback remove_user(LUser, LServer) -> any() when
     LUser   :: binary(),
     LServer :: binary().
+
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-callback get_all_nss(LUser, LServer) -> NS when
+    LUser   :: binary(),
+    LServer :: binary(),
+    NS      :: binary().
+
+-spec get_personal_data(jid:user(), jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Schema = ["ns", "xml"],
+    NSs = mod_private_backend:get_all_nss(LUser, LServer),
+    Entitis = lists:map(
+        fun(NS) ->
+            { NS, exml:to_binary(mod_private_backend:multi_get_data(LUser, LServer, [{NS, default}])) }
+        end, NSs),
+    [{private, Schema, Entitis}].
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
