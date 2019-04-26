@@ -272,7 +272,7 @@ retrieve_logs(Config) ->
 %% ------------------------- Data retrieval - Negative case -------------------------
 
 data_is_not_retrieved_for_missing_user(Config) ->
-    {Filename, 1} = retrieve_personal_data("non-person", "oblivion", Config),
+    {Filename, 1, _} = retrieve_personal_data("non-person", "oblivion", Config),
     {error, _} = file:read_file_info(Filename).
 
 %% -------------------------------------------------------------
@@ -329,7 +329,7 @@ retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
     [_ | _] = csv:decode_binary(Content).
 
 request_and_unzip_personal_data(User, Domain, Config) ->
-    {Filename, 0} = retrieve_personal_data(User, Domain, Config),
+    {Filename, 0, _} = retrieve_personal_data(User, Domain, Config),
     FullPath = get_mim_cwd() ++ "/" ++ Filename,
     Dir = Filename ++ ".unzipped",
     {ok, _} = zip:extract(FullPath, [{cwd,Dir}]),
@@ -337,8 +337,8 @@ request_and_unzip_personal_data(User, Domain, Config) ->
 
 retrieve_personal_data(User, Domain, Config) ->
     Filename = random_filename(Config),
-    {_, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
-    {Filename, Code}.
+    {CommandOutput, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
+    {Filename, Code, CommandOutput}.
 
 random_filename(Config) ->
     TCName = atom_to_list(?config(tc_name, Config)),
