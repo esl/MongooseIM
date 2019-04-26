@@ -34,7 +34,7 @@
          status/0,
          send_service_message_all_mucs/2,
          %% Accounts
-         register/3, unregister/2,
+         register/3, register/2, unregister/2,
          registered_users/1,
          import_users/1,
          %% Purge DB
@@ -86,6 +86,11 @@ commands() ->
                         result = {res, restuple}},
      #ejabberd_commands{name = register, tags = [accounts],
                         desc = "Register a user",
+                        module = ?MODULE, function = register,
+                        args = [{host, binary}, {password, binary}],
+                        result = {res, restuple}},
+    #ejabberd_commands{name = register_identified, tags = [accounts],
+                        desc = "Register a user with a specific jid",
                         module = ?MODULE, function = register,
                         args = [{user, binary}, {host, binary}, {password, binary}],
                         result = {res, restuple}},
@@ -314,6 +319,14 @@ send_service_message_all_mucs(Subject, AnnouncementText) ->
 %%% Account management
 %%%
 
+-spec register(Host :: jid:server(),
+               Password :: binary()) -> {'cannot_register', io_lib:chars()}
+                                      | {'exists', io_lib:chars()}
+                                      | {'ok', io_lib:chars()}.
+register(Host, Password) ->
+    User = generate_user(),
+    register(User, Host, Password).
+
 -spec register(User :: jid:user(),
                Host :: jid:server(),
                Password :: binary()) -> {'cannot_register', io_lib:chars()}
@@ -332,6 +345,11 @@ register(User, Host, Password) ->
         _ ->
             {ok, io_lib:format("User ~s@~s successfully registered", [User, Host])}
     end.
+
+generate_user() ->
+    mongoose_bin:join([mongoose_bin:gen_from_timestamp(),
+                      mongoose_bin:gen_from_crypto()],
+                      $-).
 
 
 -spec unregister(User :: jid:user(),

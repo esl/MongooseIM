@@ -78,8 +78,8 @@ For this demo we need two users: *movie@myxmpp.com* and *phone@myxmpp.com*, for 
 In order to do that, type:
 
 ```bash
-$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register phone myxmpp.com xmpp_password
-$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register movie myxmpp.com xmpp_password
+$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register_identified phone myxmpp.com xmpp_password
+$REPO/_build/prod/rel/mongooseim/bin/mongooseimctl register_identified movie myxmpp.com xmpp_password
 ```
 
 on the machine that has [MongooseIM] installed.

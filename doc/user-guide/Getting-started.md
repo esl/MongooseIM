@@ -67,10 +67,14 @@ The default XMPP domain served by MongooseIM right after installation is `localh
 Users on a different computer can register using the server’s IP address.
 
 You can register a user with the `mongooseimctl` utility.
-The following command registers the user `user@domain` using password `password`.
-
+This command registers a user with a random username part of the jid.
 ```
-mongooseimctl register user domain password
+mongooseimctl register domain password
+```
+
+And the following one registers the user `user@domain` using password `password`.
+```
+mongooseimctl register_identified user domain password
 ```
 
 ## Connecting with an XMPP client

@@ -172,6 +172,10 @@ end_per_group(Rosters, Config) when (Rosters == roster) or (Rosters == roster_ad
 end_per_group(_GroupName, Config) ->
     Config.
 
+get_registered_users() ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Users = rpc(mim(), ejabberd_auth, get_vh_registered_users, [Host]).
+
 init_per_testcase(CaseName, Config)
   % these cases are incompatible with domainless rdbms schema
   when CaseName == delete_old_users_vhost
@@ -305,7 +309,7 @@ delete_old_users_vhost(Config) ->
     Now = Mega*1000000+Secs,
     set_last(AliceName, Domain, Now-86400*30),
 
-    {_, 0} = ejabberdctl("register", [KateName, SecDomain, KatePass], Config),
+    {_, 0} = ejabberdctl("register_identified", [KateName, SecDomain, KatePass], Config),
     {_, 0} = ejabberdctl("check_account", [KateName, SecDomain], Config),
     {_, 0} = ejabberdctl("delete_old_users_vhost", [SecDomain, "10"], Config),
     {_, 0} = ejabberdctl("check_account", [AliceName, Domain], Config),
@@ -907,10 +911,15 @@ simple_register(Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     {Name, Password} = {<<"tyler">>, <<"durden">>},
     %% when
-    {_, 0} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {R1, 0} = ejabberdctl("registered_users", [Domain], Config),
+    Before = length(string:tokens(R1, "\n")),
+    {_, 0} = ejabberdctl("register", [Domain, Password], Config),
+    {_, 0} = ejabberdctl("register", [Domain, Password], Config),
+
     {R2, 0} = ejabberdctl("registered_users", [Domain], Config),
+    After = length(string:tokens(R2, "\n")),
     %% then
-    {match, _} = re:run(R2, ".*(" ++ binary_to_list(Name) ++ ").*").
+    2 = After - Before.
 
 simple_unregister(Config) ->
     %% given
@@ -927,8 +936,8 @@ register_twice(Config) ->
     Domain = ct:get_config({hosts, mim, domain}),
     {Name,  Password} = {<<"tyler">>, <<"durden">>},
     %% when
-    {_, 0} = ejabberdctl("register", [Name, Domain, Password], Config),
-    {R, Code} = ejabberdctl("register", [Name, Domain, Password], Config),
+    {_, 0} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
+    {R, Code} = ejabberdctl("register_identified", [Name, Domain, Password], Config),
     %% then
     {match, _} = re:run(R, ".*(already registered).*"),
     true = (Code =/= 0),
@@ -1110,10 +1119,9 @@ set_last(User, Domain, TStamp) ->
 
 delete_users(Config) ->
     Users = escalus_users:get_users([alice, bob, kate, mike]),
-    lists:foreach(fun({_User, UserSpec}) ->
-                {Username, Domain, _Pass} = get_user_data(UserSpec, Config),
-                rpc(mim(), ejabberd_auth, remove_user, [Username, Domain])
-        end, Users).
+    lists:foreach(fun({User, Domain}) ->
+                rpc(mim(), ejabberd_auth, remove_user, [User, Domain])
+        end, get_registered_users()).
 
 %%-----------------------------------------------------------------
 %% Predicates
