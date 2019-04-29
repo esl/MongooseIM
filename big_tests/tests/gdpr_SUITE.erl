@@ -228,10 +228,14 @@ retrieve_mam(_Config) ->
     ok.
 
 retrieve_offline(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             mongoose_helper:logout_user(Config, Alice),
-            Body = <<"Here's Johnny!">>,
-            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body)),
+            Body1 = <<"Hey!">>,
+            Body2 = <<"Here is Johnny!">>,
+            Body3 = <<"Where is Johnny ?">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body1)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body2)),
+            escalus:send(Kate, escalus_stanza:chat_to(Alice, Body3)),
             %% Well, jid_to_lower works for any binary :)
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
@@ -239,12 +243,25 @@ retrieve_offline(Config) ->
               fun() ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
                                                      [AliceU, AliceS, 1])
-              end, 1),
+              end, 3),
 
             BobJid = escalus_client:short_jid(Bob),
+            AliceJid = escalus_client:short_jid(Alice),
+            KateJid = escalus_client:short_jid(Kate),
             ExpectedHeader = ["timestamp", "from", "to", "packet"],
             ExpectedItems = [
-                             #{ "packet" => [{contains, Body}], "from" => BobJid }
+                             #{ "packet" => [{contains, Body1}],
+                                 "from" => binary_to_list(BobJid),
+                                 "to" => binary_to_list(AliceJid),
+                                 "timestamp" => [{validate, fun validate_datetime/1}]},
+                             #{ "packet" => [{contains, Body2}],
+                                 "from" => binary_to_list(BobJid),
+                                 "to" => binary_to_list(AliceJid),
+                                 "timestamp" => [{validate, fun validate_datetime/1}]},
+                             #{ "packet" => [{contains, Body3}],
+                                 "from" => binary_to_list(KateJid),
+                                 "to" => binary_to_list(AliceJid),
+                                 "timestamp" => [{validate, fun validate_datetime/1}]}
                             ],
             maybe_stop_and_unload_module(mod_offline, mod_offline_backend, Config),
             retrieve_and_validate_personal_data(
@@ -567,7 +584,7 @@ validate_sorted_personal_maps([Map | RMaps], [Checks | RChecks]) ->
     maps:fold(fun(K, Conditions, _) ->
                       validate_personal_item(maps:get(K, Map), Conditions)
               end, ok, Checks),
-validate_sorted_personal_maps(RMaps, RChecks).
+    validate_sorted_personal_maps(RMaps, RChecks).
 
 validate_personal_item(_Value, []) ->
     ok;
@@ -575,6 +592,9 @@ validate_personal_item(ExactValue, ExactValue) ->
     ok;
 validate_personal_item(Value, [{contains, String} | RConditions]) ->
     {match, _} = re:run(Value, String),
+    validate_personal_item(Value, RConditions);
+validate_personal_item(Value, [{validate, Validator} | RConditions]) when is_function(Validator) ->
+    true = Validator(Value),
     validate_personal_item(Value, RConditions).
 
 retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
@@ -661,4 +681,26 @@ send_and_assert_is_chat_message(UserFrom, UserTo, Body) ->
     escalus:send(UserFrom, escalus_stanza:chat_to(UserTo, Body)),
     Msg = escalus:wait_for_stanza(UserTo),
     escalus:assert(is_chat_message, [Body], Msg).
+
+validate_datetime(TimeStr) ->
+    [Date, Time] = string:tokens(TimeStr, "T"),
+    validate_date(Date),
+    validate_time(Time).
+
+validate_date(Date) ->
+    [Y, M, D] = string:tokens(Date, "-"),
+    Date1 = {list_to_integer(Y), list_to_integer(M), list_to_integer(D)},
+    calendar:valid_date(Date1).
+
+validate_time(Time) ->
+  [T | _] = string:tokens(Time, "Z"),
+  validate_time1(T).
+
+
+validate_time1(Time) ->
+    [H, M, S] = string:tokens(Time, ":"),
+    check_list([{H, 24}, {M, 60}, {S, 60}]).
+
+check_list(List) ->
+    lists:all(fun({V, L}) -> I = list_to_integer(V), I >= 0 andalso I < L end, List).
 
