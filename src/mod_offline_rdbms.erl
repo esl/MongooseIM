@@ -34,6 +34,8 @@
          remove_old_messages/2,
          remove_user/2]).
 
+-export([get_personal_data/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
@@ -151,3 +153,23 @@ maybe_encode_timestamp(never) ->
     mongoose_rdbms:escape_null();
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Server),
+    SUser = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
+    TimeStamp = p1_time_compat:timestamp(),
+    STimeStamp = encode_timestamp(TimeStamp),
+    User = jid:to_binary({LUser, LServer}),
+    {atomic, {selected, Rows}} =  rdbms_queries:fetch_offline_messages(LServer, SUser, SServer, STimeStamp),
+    [{offline, ["timestamp", "from", "to", "packet"], rows_to_gdpr_format(User, Rows)}].
+
+
+rows_to_gdpr_format(User, Rows) ->
+    [row_to_gdpr_format(User, Row) || Row <- Rows].
+
+row_to_gdpr_format(User, {STimeStamp, SFrom, SPacket}) ->
+    [STimeStamp, SFrom, User, SPacket].
+
+

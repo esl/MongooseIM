@@ -170,12 +170,12 @@ get_personal_data(Username, Server) ->
     LServer = jid:nodeprep(Server),
     US = {LUser, LServer},
     {atomic, Messages} = mnesia:transaction(fun() -> mnesia:wread({offline_msg, US}) end),
-    [{offline, ["timestamp", "from", "to", "packet"], process_offline_messages(Messages)}].
+    [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(Messages)}].
 
-process_offline_messages(MsgList) ->
-    [process_offline_msg(Msg) || Msg <- MsgList].
+offline_messages_to_gdpr_format(MsgList) ->
+    [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
 
-process_offline_msg(#offline_msg{timestamp = Timestamp, from = From, to = To, packet = Packet}) ->
+offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From, to = To, packet = Packet}) ->
     NowUniversal = calendar:now_to_universal_time(Timestamp),
     {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
     UTC = list_to_binary(UTCTime ++ UTCDiff),

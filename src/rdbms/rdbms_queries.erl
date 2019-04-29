@@ -97,6 +97,7 @@
          prepare_offline_message/6,
          push_offline_messages/2,
          pop_offline_messages/4,
+         fetch_offline_messages/4,
          count_offline_messages/4,
          remove_old_offline_messages/2,
          remove_expired_offline_messages/2,
@@ -902,6 +903,9 @@ pop_offline_messages(LServer, SUser, SServer, STimeStamp) ->
           Res
         end,
     mongoose_rdbms:sql_transaction(LServer, F).
+
+fetch_offline_messages(LServer, SUser, SServer, STimeStamp) ->
+    mongoose_rdbms:sql_query(LServer, select_offline_messages_sql(SUser, SServer, STimeStamp)).
 
 select_offline_messages_sql(SUser, SServer, STimeStamp) ->
     [<<"select timestamp, from_jid, packet from offline_message "
