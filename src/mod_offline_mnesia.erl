@@ -36,6 +36,8 @@
          remove_old_messages/2,
          remove_user/2]).
 
+-export([get_personal_data/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
@@ -162,3 +164,19 @@ remove_old_message(TimeStamp, Rec) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Server),
+    US = {LUser, LServer},
+    {atomic, Messages} = mnesia:transaction(fun() -> mnesia:wread({offline_msg, US}) end),
+    [{offline, ["timestamp", "from", "to", "packet"], process_offline_messages(Messages)}].
+
+process_offline_messages(MsgList) ->
+    [process_offline_msg(Msg) || Msg <- MsgList].
+
+process_offline_msg(#offline_msg{timestamp = Timestamp, from = From, to = To, packet = Packet}) ->
+    NowUniversal = calendar:now_to_universal_time(Timestamp),
+    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
+    UTC = list_to_binary(UTCTime ++ UTCDiff),
+    {UTC, jid:to_binary(jid:to_bare(From)), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
