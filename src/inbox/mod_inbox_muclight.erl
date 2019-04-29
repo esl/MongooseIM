@@ -138,8 +138,7 @@ write_to_inbox(Server, RoomUser, Remote, _Sender, Packet) ->
                          Packet :: exml:element()) -> boolean().
 is_system_message(Sender, Receiver, Packet) ->
     ReceiverDomain = Receiver#jid.lserver,
-    MUCLightDomain = list_to_binary(gen_mod:get_module_opt(ReceiverDomain, mod_muc_light,
-                                                           host, undefined)),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(ReceiverDomain, mod_muc_light, undefined),
     case {Sender#jid.lserver, Sender#jid.lresource} of
         {MUCLightDomain, <<>>} ->
             true;
