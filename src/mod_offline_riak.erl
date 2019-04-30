@@ -31,6 +31,7 @@
 -export([remove_old_messages/2]).
 -export([remove_user/2]).
 -export([count_offline_messages/3]).
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -183,4 +184,38 @@ maybe_decode_timestamp(?INFINITY) ->
     never;
 maybe_decode_timestamp(TS) ->
     usec:to_now(TS).
+
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Server),
+    [{offline, ["timestamp", "from", "to", "packet"], []}].
+
+fetch_messages(LUser, LServer) ->
+    Keys = read_user_idx(LUser, LServer),
+    To = jid:to_binary(jid:make(LUser, LServer, <<>>)),
+    Msgs = [fetch_msg(Key, LServer, To) || Key <- Keys],
+    {ok, lists:flatten(Msgs)}.
+
+fetch_msg(Key, LServer, To) ->
+    try
+        {ok, Obj} = mongoose_riak:get(bucket_type(LServer), Key),
+
+        PacketRaw = riakc_obj:get_value(Obj),
+        {ok, Packet} = exml:parse(PacketRaw),
+        MD = riakc_obj:get_update_metadata(Obj),
+        [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
+        From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
+
+        NowUniversal = calendar:now_to_universal_time(usec:to_now(Timestamp)),
+        {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
+        UTC = list_to_binary(UTCTime ++ UTCDiff),
+        {UTC, jid:to_binary(jid:binary_to_bare(From)), To, exml:to_binary(Packet)}
+
+    catch
+        Error:Reason ->
+            ?WARNING_MSG("issue=~p, action=reading_key, host=~s, reason=~p, stack_trace=~p",
+                [Error, LServer, Reason, erlang:get_stacktrace()]),
+            []
+    end.
 

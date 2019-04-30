@@ -242,7 +242,7 @@ retrieve_offline(Config) ->
             mongoose_helper:wait_until(
               fun() ->
                       mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
-                                                     [AliceU, AliceS, 1])
+                                                     [AliceU, AliceS, 10])
               end, 3),
 
             BobJid = escalus_client:short_jid(Bob),
