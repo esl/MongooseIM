@@ -54,7 +54,7 @@ fun() ->
         end
 end,
 
-RequiredApps = fun() -> [mongooseim, inets, tools] end,
+RequiredApps = fun() -> [mongooseim, inets, os_mon, tools] end,
 EnvApps = GetEnvApps(),
 
 SetupIncludedApps =
