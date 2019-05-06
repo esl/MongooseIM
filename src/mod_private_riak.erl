@@ -23,6 +23,8 @@
          multi_get_data/3,
          remove_user/2]).
 
+-export([get_all_nss/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -61,6 +63,16 @@ remove_user(LUser, LServer) ->
 set_private_data(LUser, LServer, NS, XML) ->
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), exml:to_binary(XML)),
     mongoose_riak:put(Obj).
+
+get_all_nss(LUser, LServer) ->
+    {ok, KeysWithUsername} = mongoose_riak:list_keys(bucket_type(LServer)),
+    lists:map(
+        fun(Key) ->
+            [LUser, ResultKey] = binary:split(Key, <<"/">>),
+            ResultKey
+        end,
+        KeysWithUsername
+    ).
 
 get_private_data(LUser, LServer, NS, Default) ->
     case mongoose_riak:get(bucket_type(LServer), key(LUser, NS)) of
