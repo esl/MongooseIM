@@ -144,6 +144,4 @@ get_logs(Username, Domain, TmpDir) ->
 get_logs_from_node(Node, Username, Domain, TmpDir) ->
     {ok, ZippedData} = rpc:call(Node, ?MODULE, retrieve_logs, [Username, Domain]),
     {ok, [File]} = zip:unzip(ZippedData, [{cwd, TmpDir}]),
-    string:prefix(File, TmpDir ++ "/").
-
-
+    filename:basename(File).
