@@ -161,19 +161,19 @@ get_personal_data(Username, Server) ->
     SServer = mongoose_rdbms:escape_string(LServer),
     TimeStamp = p1_time_compat:timestamp(),
     STimeStamp = encode_timestamp(TimeStamp),
-    User = jid:to_binary({Username, LServer}),
+    ToJid = jid:to_binary({Username, LServer}),
     {selected, Rows} = rdbms_queries:fetch_offline_messages(LServer, SUser, SServer, STimeStamp),
-    [{offline, ["timestamp", "from", "to", "packet"], rows_to_gdpr_format(User, Rows)}].
+    [{offline, ["timestamp", "from", "to", "packet"], rows_to_gdpr_format(ToJid, Rows)}].
 
 
-rows_to_gdpr_format(User, Rows) ->
-    [row_to_gdpr_format(User, Row) || Row <- Rows].
+rows_to_gdpr_format(ToJid, Rows) ->
+    [row_to_gdpr_format(ToJid, Row) || Row <- Rows].
 
-row_to_gdpr_format(User, {STimeStamp, SFrom, SPacket}) ->
+row_to_gdpr_format(ToJid, {STimeStamp, SFrom, SPacket}) ->
     Timestamp = usec:to_now(mongoose_rdbms:result_to_integer(STimeStamp)),
     NowUniversal = calendar:now_to_universal_time(Timestamp),
     {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
     UTC = list_to_binary(UTCTime ++ UTCDiff),
-    [UTC, jid:to_binary(jid:binary_to_bare(SFrom)), User, SPacket].
+    [UTC, jid:to_binary(jid:binary_to_bare(SFrom)), ToJid, SPacket].
 
 
