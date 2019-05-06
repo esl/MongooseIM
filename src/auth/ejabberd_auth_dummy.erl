@@ -22,7 +22,7 @@
          does_user_exist/2,
          remove_user/2,
          remove_user/3,
-         store_type/1,
+         supports_password_type/2,
          scram_passwords/0]).
 
 -include("mongoose.hrl").
@@ -103,8 +103,8 @@ remove_user(_User, _Server, _Password) ->
     %% in fact not_supported
     bad_request.
 
-store_type(_) ->
-    plain.
+supports_password_type(_, plain) -> true;
+supports_password_type(_, _) -> false.
 
 scram_passwords() ->
     not_supported.
