@@ -187,15 +187,15 @@ maybe_decode_timestamp(TS) ->
 
 
 get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Server),
-    [{offline, ["timestamp", "from", "to", "packet"], []}].
+    [{offline, ["timestamp", "from", "to", "packet"], fetch_messages(Username, LServer)}].
 
-fetch_messages(LUser, LServer) ->
+fetch_messages(Username, LServer) ->
+    LUser = jid:nodeprep(Username),
     Keys = read_user_idx(LUser, LServer),
-    To = jid:to_binary(jid:make(LUser, LServer, <<>>)),
-    Msgs = [fetch_msg(Key, LServer, To) || Key <- Keys],
-    {ok, lists:flatten(Msgs)}.
+    User = jid:to_binary({Username, LServer}),
+    Msgs = [fetch_msg(Key, LServer, User) || Key <- Keys],
+    lists:flatten(Msgs).
 
 fetch_msg(Key, LServer, To) ->
     try
