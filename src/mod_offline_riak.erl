@@ -193,16 +193,15 @@ get_personal_data(Username, Server) ->
 fetch_messages(Username, LServer) ->
     LUser = jid:nodeprep(Username),
     Keys = read_user_idx(LUser, LServer),
-    User = jid:to_binary({Username, LServer}),
-    Msgs = [fetch_msg(Key, LServer, User) || Key <- Keys],
+    ToJid = jid:to_binary({Username, LServer}),
+    Msgs = [fetch_msg(Key, LServer, ToJid) || Key <- Keys],
     lists:flatten(Msgs).
 
-fetch_msg(Key, LServer, To) ->
+fetch_msg(Key, LServer, ToJid) ->
     try
         {ok, Obj} = mongoose_riak:get(bucket_type(LServer), Key),
 
         PacketRaw = riakc_obj:get_value(Obj),
-        {ok, Packet} = exml:parse(PacketRaw),
         MD = riakc_obj:get_update_metadata(Obj),
         [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
         From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
@@ -210,7 +209,7 @@ fetch_msg(Key, LServer, To) ->
         NowUniversal = calendar:now_to_universal_time(usec:to_now(Timestamp)),
         {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
         UTC = list_to_binary(UTCTime ++ UTCDiff),
-        {UTC, jid:to_binary(jid:binary_to_bare(From)), To, exml:to_binary(Packet)}
+        {UTC, jid:to_binary(jid:binary_to_bare(From)), ToJid, PacketRaw}
 
     catch
         Error:Reason ->
