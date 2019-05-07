@@ -258,7 +258,7 @@ process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Acce
 %%====================================================================
 
 -spec get_personal_data(Username :: jid:user(), Server :: jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entities()}].
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
 get_personal_data(Username, Server) ->
      LUser = jid:nodeprep(Username),
      LServer = jid:nodeprep(Server),
