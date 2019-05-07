@@ -44,6 +44,7 @@
 -module(mod_pubsub).
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(gdpr).
 -behaviour(mongoose_packet_handler).
 -author('christophe.romain@process-one.net').
 
@@ -93,6 +94,8 @@
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 -export([default_host/0]).
+
+-export([get_personal_data/2]).
 
 %% packet handler export
 -export([process_packet/5]).
@@ -249,6 +252,23 @@ process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Acce
                                                   element => El }, Acc),
     Packet = mongoose_acc:element(Acc2),
     do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
+
+%%====================================================================
+%% GDPR callback
+%%====================================================================
+
+-spec get_personal_data(Username :: jid:user(), Server :: jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+get_personal_data(Username, Server) ->
+     LUser = jid:nodeprep(Username),
+     LServer = jid:nodeprep(Server),
+     Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
+     Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
+     Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
+
+     [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
+      {pubsub_nodes, ["node_name", "type"], Nodes},
+      {pubsub_subscriptions, ["node_name"], Subscriptions}].
 
 %%====================================================================
 %% gen_server callbacks
