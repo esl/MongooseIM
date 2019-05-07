@@ -22,6 +22,7 @@
          dont_retrieve_other_user_pubsub_payload/1,
          retrieve_pubsub_subscriptions/1,
          retrieve_private_xml/1,
+         retrieve_multiple_private_xmls/1,
          retrieve_inbox/1,
          retrieve_logs/1
         ]).
@@ -58,6 +59,7 @@ groups() ->
                                            %retrieve_mam,
                                            %retrieve_offline,
                                            retrieve_private_xml,
+                                           retrieve_multiple_private_xmls,
                                            %retrieve_inbox,
                                            retrieve_logs,
                                            {group, retrieve_personal_data_pubsub}
@@ -377,7 +379,7 @@ retrieve_private_xml(Config) ->
             PrivateStanza = escalus_stanza:private_set(XML),
             escalus_client:send(Alice, PrivateStanza),
             escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(Alice)),
-            ExpectedHeader = ["ns", "xml"], % TODO?
+            ExpectedHeader = ["ns", "xml"],
             ExpectedItems = [
                              #{ "xml" => [{contains, "alice:gdpr:ns"},
                                           {contains, binary_to_list(Content)}] }
@@ -385,6 +387,46 @@ retrieve_private_xml(Config) ->
             retrieve_and_validate_personal_data(
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
+
+
+retrieve_multiple_private_xmls(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+            NSs =
+                [<<"alice:gdpr:ns1">>,
+                 <<"alice:gdpr:ns2">>,
+                 <<"alice:gdpr:ns3">>,
+                 <<"alice:gdpr:ns4">>,
+                 <<"alice:gdpr:ns5">>],
+            Contents =
+                [<<"You do not talk about FIGHT CLUB.">>,
+                 <<"You do not talk about FIGHT CLUB.">>,
+                 <<"If someone says \"stop\" or goes limp, taps out the fight is over.">>,
+                 <<"Only two guys to a fight.">>,
+                 <<"One fight at a time.">>],
+            lists:map(
+                fun({NS, Content}) ->
+                    send_and_assert_private_stanza(Alice, NS, Content)
+                end,
+                lists:zip(NSs, Contents)),
+            ExpectedHeader = ["ns", "xml"],
+            ExpectedItems = lists:map(
+                fun({NS, Content}) ->
+                    #{ "ns" => binary_to_list(NS),
+                        "xml" => [{contains, binary_to_list(NS)},
+                                  {contains, binary_to_list(Content)}]}
+                end, lists:zip(NSs, Contents)),
+
+            retrieve_and_validate_personal_data(
+              Alice, Config, "private", ExpectedHeader, ExpectedItems)
+        end).
+
+send_and_assert_private_stanza(User, NS, Content) ->
+    XML = #xmlel{ name = <<"fingerprint">>,
+                          attrs = [{<<"xmlns">>, NS}],
+                          children = [#xmlcdata{ content = Content }]},
+            PrivateStanza = escalus_stanza:private_set(XML),
+            escalus_client:send(User, PrivateStanza),
+            escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(User)).
 
 retrieve_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
