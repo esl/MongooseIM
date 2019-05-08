@@ -520,9 +520,7 @@ pop_messages(LUser, LServer) ->
     end.
 
 get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Server),
-    {ok, Messages} = mod_offline_backend:fetch_messages(LUser, LServer),
+    {ok, Messages} = mod_offline_backend:fetch_messages(Username, Server),
     [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(Messages)}].
 
 offline_messages_to_gdpr_format(MsgList) ->

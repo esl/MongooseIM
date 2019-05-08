@@ -66,7 +66,9 @@ pop_messages(LUser, LServer) ->
             {error, Reason}
     end.
 
-fetch_messages(LUser, LServer) ->
+fetch_messages(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
     US = {LUser, LServer},
     F = fun() -> mnesia:wread({offline_msg, US}) end,
     case mnesia:transaction(F) of

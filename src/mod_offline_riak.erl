@@ -186,9 +186,11 @@ maybe_decode_timestamp(TS) ->
     usec:to_now(TS).
 
 
-fetch_messages(LUser, LServer) ->
+fetch_messages(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
     Keys = read_user_idx(LUser, LServer),
-    To = jid:make({LUser, LServer, <<>>}),
+    To = jid:make({User, LServer, <<>>}),
     {ok, [fetch_msg(Key, LUser, LServer, To) || Key <- Keys]}.
 
 fetch_msg(Key, LUser, LServer, To) ->
