@@ -440,7 +440,9 @@ csv_row_to_map(Header, Row) ->
 validate_personal_maps(PersonalMaps, ExpectedItems) ->
     validate_sorted_personal_maps(lists:sort(PersonalMaps), lists:sort(ExpectedItems)).
 
-validate_sorted_personal_maps(_, []) -> ok;
+validate_sorted_personal_maps([], []) -> ok;
+validate_sorted_personal_maps(UnexpectedRecords, []) ->
+    erlang:error("Unexpected records left ~p", [UnexpectedRecords]);
 validate_sorted_personal_maps([Map | RMaps], [Checks | RChecks]) ->
     maps:fold(fun(K, Conditions, _) ->
                       validate_personal_item(maps:get(K, Map), Conditions)
