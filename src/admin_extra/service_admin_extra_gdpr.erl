@@ -3,8 +3,7 @@
 -include("ejabberd_commands.hrl").
 -include("mongoose_logger.hrl").
 
--export([commands/0,
-         retrieve_all/3]).
+-export([commands/0, retrieve_all/3, remove_all/2]).
 
 % Exported for RPC call
 -export([retrieve_logs/2]).
@@ -16,16 +15,22 @@ commands() -> [
         #ejabberd_commands{name = retrieve_personal_data, tags = [gdpr],
             desc = "Retrieve user's presonal data.",
             longdesc = "Retrieves all personal data from MongooseIM for a given user. Example:\n"
-                       " mongooseimctl alice localhost /home/mim/alice.smith.zip ",
+                       " mongooseimctl retrieve_personal_data alice localhost /home/mim/alice.smith.zip ",
             module = ?MODULE,
             function = retrieve_all,
             args = [{username, binary}, {domain, binary}, {path, binary}],
+            result = {res, rescode}},
+        #ejabberd_commands{name = remove_personal_data, tags = [gdpr],
+            desc = "Remove all user's presonal data.",
+            longdesc = "Removes all personal data from MongooseIM for a given user. Example:\n"
+                      " mongooseimctl remove_personal_data alice localhost ",
+            module = ?MODULE,
+            function = remove_all,
+            args = [{username, binary}, {domain, binary}],
             result = {res, rescode}}
-
     ].
 
--spec retrieve_all(jid:user(), jid:server(), Path :: binary()) ->
-    RetrievedFilesInZipName :: binary() | {error, Reason :: any()}.
+-spec retrieve_all(jid:user(), jid:server(), Path :: binary()) -> ok | {error, Reason :: any()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
     case user_exists(Username, Domain) of
         true ->
@@ -51,6 +56,15 @@ retrieve_all(Username, Domain, ResultFilePath) ->
             {error, "User does not exist"}
     end.
 
+-spec remove_all(jid:user(), jid:server()) -> ok | {error, Reason :: any()}.
+remove_all(Username, Domain) ->
+    case user_exists(Username, Domain) of
+        true ->
+            remove_data_from_modules(Username, Domain);
+        false ->
+            {error, "User does not exist"}
+    end.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%                       Private funs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -66,9 +80,8 @@ get_data_from_modules(Username, Domain) ->
     lists:flatmap(fun(M) -> try_get_data_from_module(M, Username, Domain) end, Modules).
 
 try_get_data_from_module(Module, Username, Domain) ->
-    try Module:get_personal_data(Username, Domain) of
-        [{_, _, []}] -> [];
-        Val -> Val
+    try
+        Module:get_personal_data(Username, Domain)
     catch
         C:R ->
             ?WARNING_MSG("event=cannot_retrieve_personal_data,"
@@ -76,6 +89,13 @@ try_get_data_from_module(Module, Username, Domain) ->
                          [Module, C, R, erlang:get_stacktrace()]),
             []
     end.
+
+-spec remove_data_from_modules(jid:user(), jid:server()) -> ok.
+remove_data_from_modules(Username, Domain) ->
+%%TODO: when all modules ready use the one from below
+%%    Modules = modules_with_personal_data(),
+    Modules = [mod_vcard],
+    lists:foreach(fun(M) -> M:remove_personal_data(Username, Domain) end, Modules).
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.
 to_csv_file(Filename, DataSchema, DataRows, TmpDir) ->
