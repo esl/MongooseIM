@@ -532,7 +532,7 @@ offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From, to =
     NowUniversal = calendar:now_to_universal_time(Timestamp),
     {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
     UTC = list_to_binary(UTCTime ++ UTCDiff),
-    {UTC, jid:to_binary(jid:to_bare(From)), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
+    {UTC, jid:to_binary(From), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
 
 skip_expired_messages(TimeStamp, Rs) ->
     [R || R <- Rs, not is_expired_message(TimeStamp, R)].

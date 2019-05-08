@@ -245,9 +245,9 @@ retrieve_offline(Config) ->
                                                      [AliceU, AliceS, 10])
               end, 3),
 
-            BobJid = escalus_client:short_jid(Bob),
+            BobJid = escalus_client:full_jid(Bob),
             AliceJid = escalus_client:short_jid(Alice),
-            KateJid = escalus_client:short_jid(Kate),
+            KateJid = escalus_client:full_jid(Kate),
             ExpectedHeader = ["timestamp", "from", "to", "packet"],
             ExpectedItems = [
                              #{ "packet" => [{contains, Body1}],
