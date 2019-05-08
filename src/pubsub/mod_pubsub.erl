@@ -262,13 +262,23 @@ process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Acce
 get_personal_data(Username, Server) ->
      LUser = jid:nodeprep(Username),
      LServer = jid:nodeprep(Server),
-     Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
-     Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
-     Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
+     Backends = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
+     Payloads = get_personal_data_group(LUser, LServer, Backends, get_user_payloads),
+     Nodes = get_personal_data_group(LUser, LServer, Backends, get_user_nodes),
+     Subscriptions = get_personal_data_group(LUser, LServer, Backends, get_user_subscriptions),
 
      [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
       {pubsub_nodes, ["node_name", "type"], Nodes},
       {pubsub_subscriptions, ["node_name"], Subscriptions}].
+
+get_personal_data_group(LUser, LServer, Backends, FunctionName) ->
+    lists:flatmap(fun(B) -> try B:FunctionName(LUser, LServer) of
+                                Result when is_list(Result) -> Result;
+                                _ -> []
+                            catch
+                                _:_ -> []
+                            end
+                  end, Backends).
 
 %%====================================================================
 %% gen_server callbacks
