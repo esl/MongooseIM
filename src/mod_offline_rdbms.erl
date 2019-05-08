@@ -35,8 +35,6 @@
          remove_old_messages/2,
          remove_user/2]).
 
--export([get_personal_data/2]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include("mod_offline.hrl").
