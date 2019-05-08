@@ -26,12 +26,12 @@
 
 -export([init/2]).
 -export([pop_messages/2]).
+-export([fetch_messages/2]).
 -export([write_messages/3]).
 -export([remove_expired_messages/1]).
 -export([remove_old_messages/2]).
 -export([remove_user/2]).
 -export([count_offline_messages/3]).
--export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -186,30 +186,29 @@ maybe_decode_timestamp(TS) ->
     usec:to_now(TS).
 
 
-get_personal_data(Username, Server) ->
-    LServer = jid:nodeprep(Server),
-    [{offline, ["timestamp", "from", "to", "packet"], fetch_messages(Username, LServer)}].
-
-fetch_messages(Username, LServer) ->
-    LUser = jid:nodeprep(Username),
+fetch_messages(LUser, LServer) ->
     Keys = read_user_idx(LUser, LServer),
-    ToJid = jid:to_binary({Username, LServer}),
-    Msgs = [fetch_msg(Key, LServer, ToJid) || Key <- Keys],
+    To = jid:make({LUser, LServer, <<>>}),
+    Msgs = [fetch_msg(Key, LUser, LServer, To) || Key <- Keys],
     lists:flatten(Msgs).
 
-fetch_msg(Key, LServer, ToJid) ->
+fetch_msg(Key, LUser, LServer, To) ->
     try
         {ok, Obj} = mongoose_riak:get(bucket_type(LServer), Key),
 
         PacketRaw = riakc_obj:get_value(Obj),
+        {ok, Packet} = exml:parse(PacketRaw),
         MD = riakc_obj:get_update_metadata(Obj),
         [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
         From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
+        [Expire] = riakc_obj:get_secondary_index(MD, ?EXPIRE_IDX),
 
-        NowUniversal = calendar:now_to_universal_time(usec:to_now(Timestamp)),
-        {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
-        UTC = list_to_binary(UTCTime ++ UTCDiff),
-        {UTC, jid:to_binary(jid:binary_to_bare(From)), ToJid, PacketRaw}
+        #offline_msg{us = {LUser, LServer},
+            timestamp = usec:to_now(Timestamp),
+            expire = maybe_decode_timestamp(Expire),
+            from = jid:from_binary(From),
+            to = To,
+            packet = Packet}
 
     catch
         Error:Reason ->

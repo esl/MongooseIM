@@ -30,13 +30,12 @@
 -behaviour(mod_offline).
 -export([init/2,
          pop_messages/2,
+         fetch_messages/2,
          write_messages/3,
          count_offline_messages/3,
          remove_expired_messages/1,
          remove_old_messages/2,
          remove_user/2]).
-
--export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -60,6 +59,16 @@ pop_messages(LUser, LServer) ->
                 mnesia:delete({offline_msg, US}),
                 Rs
         end,
+    case mnesia:transaction(F) of
+        {atomic, Rs} ->
+            {ok, Rs};
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
+
+fetch_messages(LUser, LServer) ->
+    US = {LUser, LServer},
+    F = fun() -> mnesia:wread({offline_msg, US}) end,
     case mnesia:transaction(F) of
         {atomic, Rs} ->
             {ok, Rs};
@@ -164,19 +173,3 @@ remove_old_message(TimeStamp, Rec) ->
 
 is_old_message(MaxAllowedTimeStamp, #offline_msg{timestamp=TimeStamp}) ->
     TimeStamp < MaxAllowedTimeStamp.
-
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Server),
-    US = {LUser, LServer},
-    {atomic, Messages} = mnesia:transaction(fun() -> mnesia:wread({offline_msg, US}) end),
-    [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(Messages)}].
-
-offline_messages_to_gdpr_format(MsgList) ->
-    [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
-
-offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From, to = To, packet = Packet}) ->
-    NowUniversal = calendar:now_to_universal_time(Timestamp),
-    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
-    UTC = list_to_binary(UTCTime ++ UTCDiff),
-    {UTC, jid:to_binary(jid:to_bare(From)), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.

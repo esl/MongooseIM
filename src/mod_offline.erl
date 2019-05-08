@@ -32,6 +32,7 @@
 -xep([{xep, 22}, {version, "1.4"}]).
 -xep([{xep, 85}, {version, "2.1"}]).
 -behaviour(gen_mod).
+-behaviour(gdpr).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -56,6 +57,9 @@
 
 %% helpers to be used from backend moudules
 -export([is_expired_message/2]).
+
+%% GDPR related
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -90,6 +94,11 @@
     Host :: binary(),
     Opts :: list().
 -callback pop_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
+    LUser :: jid:luser(),
+    LServer :: jid:lserver(),
+    Reason :: term(),
+    Result :: list(#offline_msg{}).
+-callback fetch_messages(LUser, LServer) -> {ok, Result} | {error, Reason} when
     LUser :: jid:luser(),
     LServer :: jid:lserver(),
     Reason :: term(),
@@ -509,6 +518,21 @@ pop_messages(LUser, LServer) ->
         Other ->
             Other
     end.
+
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Server),
+    {ok, Messages} = mod_offline_backend:fetch_messages(LUser, LServer),
+    [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(Messages)}].
+
+offline_messages_to_gdpr_format(MsgList) ->
+    [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
+
+offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From, to = To, packet = Packet}) ->
+    NowUniversal = calendar:now_to_universal_time(Timestamp),
+    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
+    UTC = list_to_binary(UTCTime ++ UTCDiff),
+    {UTC, jid:to_binary(jid:to_bare(From)), jid:to_binary(jid:to_bare(To)), exml:to_binary(Packet)}.
 
 skip_expired_messages(TimeStamp, Rs) ->
     [R || R <- Rs, not is_expired_message(TimeStamp, R)].

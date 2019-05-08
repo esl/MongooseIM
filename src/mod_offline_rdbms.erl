@@ -28,6 +28,7 @@
 -behaviour(mod_offline).
 -export([init/2,
          pop_messages/2,
+         fetch_messages/2,
          write_messages/3,
          count_offline_messages/3,
          remove_expired_messages/1,
@@ -57,6 +58,20 @@ pop_messages(LUser, LServer) ->
             {ok, rows_to_records(US, To, Rows)};
         {aborted, Reason} ->
             {error, Reason};
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+fetch_messages(LUser, LServer) ->
+    US = {LUser, LServer},
+    To = jid:make(LUser, LServer, <<>>),
+    TimeStamp = p1_time_compat:timestamp(),
+    SUser = mongoose_rdbms:escape_string(LUser),
+    SServer = mongoose_rdbms:escape_string(LServer),
+    STimeStamp = encode_timestamp(TimeStamp),
+    case rdbms_queries:fetch_offline_messages(LServer, SUser, SServer, STimeStamp) of
+        {selected, Rows} ->
+            {ok, rows_to_records(US, To, Rows)};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -153,27 +168,3 @@ maybe_encode_timestamp(never) ->
     mongoose_rdbms:escape_null();
 maybe_encode_timestamp(TimeStamp) ->
     encode_timestamp(TimeStamp).
-
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Server),
-    SUser = mongoose_rdbms:escape_string(LUser),
-    SServer = mongoose_rdbms:escape_string(LServer),
-    TimeStamp = p1_time_compat:timestamp(),
-    STimeStamp = encode_timestamp(TimeStamp),
-    ToJid = jid:to_binary({Username, LServer}),
-    {selected, Rows} = rdbms_queries:fetch_offline_messages(LServer, SUser, SServer, STimeStamp),
-    [{offline, ["timestamp", "from", "to", "packet"], rows_to_gdpr_format(ToJid, Rows)}].
-
-
-rows_to_gdpr_format(ToJid, Rows) ->
-    [row_to_gdpr_format(ToJid, Row) || Row <- Rows].
-
-row_to_gdpr_format(ToJid, {STimeStamp, SFrom, SPacket}) ->
-    Timestamp = usec:to_now(mongoose_rdbms:result_to_integer(STimeStamp)),
-    NowUniversal = calendar:now_to_universal_time(Timestamp),
-    {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
-    UTC = list_to_binary(UTCTime ++ UTCDiff),
-    [UTC, jid:to_binary(jid:binary_to_bare(SFrom)), ToJid, SPacket].
-
-
