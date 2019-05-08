@@ -22,6 +22,7 @@
          dont_retrieve_other_user_pubsub_payload/1,
          retrieve_pubsub_subscriptions/1,
          retrieve_private_xml/1,
+         dont_retrieve_orher_user_private_xml/1,
          retrieve_multiple_private_xmls/1,
          retrieve_inbox/1,
          retrieve_logs/1
@@ -58,11 +59,10 @@ groups() ->
                                            retrieve_roster,
                                            %retrieve_mam,
                                            %retrieve_offline,
-                                           retrieve_private_xml,
-                                           retrieve_multiple_private_xmls,
                                            %retrieve_inbox,
                                            retrieve_logs,
-                                           {group, retrieve_personal_data_pubsub}
+                                           {group, retrieve_personal_data_pubsub},
+                                           {group, retrieve_personal_data_private_xml}
                                           ]},
      {retrieve_personal_data_pubsub, [], [
                                           retrieve_pubsub_payloads,
@@ -77,6 +77,11 @@ groups() ->
                                                       retrieve_roster,
                                                       retrieve_all_pubsub_data
                                                      ]},
+     {retrieve_personal_data_private_xml, [], [
+                                               retrieve_private_xml,
+                                               dont_retrieve_orher_user_private_xml,
+                                               retrieve_multiple_private_xmls
+                                              ]},
      {retrieve_negative, [], [
                               data_is_not_retrieved_for_missing_user
                              ]}
@@ -131,6 +136,8 @@ init_per_testcase(retrieve_mam = CN, Config) ->
 init_per_testcase(retrieve_private_xml = CN, Config) ->
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(retrieve_multiple_private_xmls = CN, Config) ->
+    escalus:init_per_testcase(CN, Config);
+init_per_testcase(dont_retrieve_orher_user_private_xml = CN, Config) ->
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
@@ -377,21 +384,32 @@ retrieve_private_xml(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
             NS = <<"alice:gdpr:ns">>,
             Content = <<"dGhlcmUgYmUgZHJhZ29ucw==">>,
-            XML = #xmlel{ name = <<"fingerprint">>,
-                          attrs = [{<<"xmlns">>, NS}],
-                          children = [#xmlcdata{ content = Content }]},
-            PrivateStanza = escalus_stanza:private_set(XML),
-            escalus_client:send(Alice, PrivateStanza),
-            escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(Alice)),
+            send_and_assert_private_stanza(Alice, NS, Content),
             ExpectedHeader = ["ns", "xml"],
-            ExpectedItems = [
-                             #{ "xml" => [{contains, "alice:gdpr:ns"},
+            ExpectedItems = [#{ "ns" => binary_to_list(NS),
+                                "xml" => [{contains, binary_to_list(NS)},
                                           {contains, binary_to_list(Content)}] }
                             ],
             retrieve_and_validate_personal_data(
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
 
+dont_retrieve_orher_user_private_xml(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            AliceNS = <<"alice:gdpr:ns">>,
+            AliceContent = <<"To be or not to be">>,
+            BobNS = <<"bob:gdpr:ns">>,
+            BobContent = <<"This is the winter of our discontent">>,
+            send_and_assert_private_stanza(Alice, AliceNS, AliceContent),
+            send_and_assert_private_stanza(Bob, BobNS, BobContent),
+            ExpectedHeader = ["ns", "xml"],
+            ExpectedItems = [#{ "ns" => binary_to_list(AliceNS),
+                                "xml" => [{contains, binary_to_list(AliceNS)},
+                                          {contains, binary_to_list(AliceContent)}] }
+                            ],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "private", ExpectedHeader, ExpectedItems)
+        end).
 
 retrieve_multiple_private_xmls(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -423,14 +441,6 @@ retrieve_multiple_private_xmls(Config) ->
             retrieve_and_validate_personal_data(
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
-
-send_and_assert_private_stanza(User, NS, Content) ->
-    XML = #xmlel{ name = <<"fingerprint">>,
-                          attrs = [{<<"xmlns">>, NS}],
-                          children = [#xmlcdata{ content = Content }]},
-            PrivateStanza = escalus_stanza:private_set(XML),
-            escalus_client:send(User, PrivateStanza),
-            escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(User)).
 
 retrieve_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -601,3 +611,10 @@ item_content_xml(Data) ->
            attrs = [{<<"xmlns">>, <<"http://www.w3.org/2005/Atom">>}],
            children = [#xmlcdata{content = Data}]}.
 
+send_and_assert_private_stanza(User, NS, Content) ->
+    XML = #xmlel{ name = <<"fingerprint">>,
+                          attrs = [{<<"xmlns">>, NS}],
+                          children = [#xmlcdata{ content = Content }]},
+            PrivateStanza = escalus_stanza:private_set(XML),
+            escalus_client:send(User, PrivateStanza),
+            escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(User)).
