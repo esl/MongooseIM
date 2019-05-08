@@ -128,6 +128,10 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             dynamic_modules:ensure_modules(domain(), mam_required_modules(Backend)),
             escalus:init_per_testcase(CN, Config)
     end;
+init_per_testcase(retrieve_private_xml = CN, Config) ->
+    escalus:init_per_testcase(CN, Config);
+init_per_testcase(retrieve_multiple_private_xmls = CN, Config) ->
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
@@ -400,7 +404,7 @@ retrieve_multiple_private_xmls(Config) ->
             Contents =
                 [<<"You do not talk about FIGHT CLUB.">>,
                  <<"You do not talk about FIGHT CLUB.">>,
-                 <<"If someone says \"stop\" or goes limp, taps out the fight is over.">>,
+                 <<"If someone says stop or goes limp, taps out the fight is over.">>,
                  <<"Only two guys to a fight.">>,
                  <<"One fight at a time.">>],
             lists:map(

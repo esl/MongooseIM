@@ -74,10 +74,10 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--callback get_all_nss(LUser, LServer) -> NS when
+-callback get_all_nss(LUser, LServer) -> NSs when
     LUser   :: binary(),
     LServer :: binary(),
-    NS      :: binary().
+    NSs      :: [binary()].
 
 -spec get_personal_data(jid:user(), jid:server()) ->
     [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].

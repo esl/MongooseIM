@@ -78,14 +78,9 @@ get_data(LUser, LServer, NS, Default) ->
     end.
 
 get_all_nss(LUser, LServer) ->
-    SLUser = mongoose_rdbms:escape_string(LUser),
-    lager:error("LUser = ~p\n", [LUser]),
-    lager:error("LServer = ~p\n", [LServer]),
-    {selected, Res} = mongoose_rdbms:sql_query(
-      LServer,
-      [<<"select namespace from private_storage where username=">>, mongoose_rdbms:use_escaped_string(SLUser)]),
+    EscLUser = mongoose_rdbms:escape_string(LUser),
+    {selected, Res} = rdbms_queries:get_all_roster_namespaces(LServer, EscLUser),
     Keys = lists:map(fun({R}) -> R end, Res),
-    lager:error("Keys = ~p\n", [Keys]),
     Keys.
 
 remove_user(LUser, LServer) ->
