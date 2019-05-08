@@ -77,6 +77,7 @@ init_per_suite(Config) ->
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
+    delete_files(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
     escalus:end_per_suite(Config).
@@ -115,11 +116,7 @@ init_per_testcase(CN, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     escalus:init_per_testcase(CN, Config).
 
-end_per_testcase(retrieve_vcard = CN, Config) ->
-    delete_files(),
-    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
-    delete_files(),
     escalus:end_per_testcase(CN, Config).
 
 inbox_required_modules() ->
