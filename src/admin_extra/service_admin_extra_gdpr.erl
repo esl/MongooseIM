@@ -56,10 +56,7 @@ retrieve_all(Username, Domain, ResultFilePath) ->
 
 -spec modules_with_personal_data() -> [module()].
 modules_with_personal_data() ->
-    [
-     mod_vcard,
-     mod_pubsub
-    ].
+    mongoose_lib:find_behaviour_implementations(gdpr).
 
 -spec get_data_from_modules(jid:user(), jid:server()) ->
     [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
