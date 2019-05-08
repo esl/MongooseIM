@@ -13,6 +13,8 @@
 -export([init_per_testcase/2, end_per_testcase/2]).
 -export([
          retrieve_vcard/1,
+         remove_vcard/1,
+         try_remove_data_of_non_existing_user/1,
          retrieve_roster/1,
          retrieve_mam_pm/1,
          retrieve_mam_muc_light/1,
@@ -51,7 +53,8 @@ all() ->
     [
      {group, retrieve_personal_data},
      {group, retrieve_personal_data_with_mods_disabled},
-     {group, retrieve_negative}
+     {group, retrieve_negative},
+     {group, remove_personal_data}
     ].
 
 groups() ->
@@ -103,7 +106,10 @@ groups() ->
      {retrieve_personal_data_mam_rdbms, [], mam_testcases()},
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
-     {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]}
+     {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]},
+     {remove_personal_data, [parallel], [
+      try_remove_data_of_non_existing_user,
+      remove_vcard]}
     ].
 
 mam_testcases() ->
@@ -160,6 +166,13 @@ init_per_testcase(retrieve_inbox = CN, Config) ->
 init_per_testcase(retrieve_inbox_for_multiple_messages = CN, Config) ->
     init_inbox(CN, Config);
 init_per_testcase(retrieve_vcard = CN, Config) ->
+    case vcard_update:is_vcard_ldap() of
+        true ->
+            {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
+        _ ->
+            escalus:init_per_testcase(CN, Config)
+    end;
+init_per_testcase(remove_vcard = CN, Config) ->
     case vcard_update:is_vcard_ldap() of
         true ->
             {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
@@ -242,6 +255,8 @@ pubsub_required_modules() ->
 %% -------------------------------------------------------------
 
 %% ------------------------- Data retrieval - per type verification -------------------------
+try_remove_data_of_non_existing_user(Config) ->
+    {"Error: \"User does not exist\"\n", 1} = ejabberdctl("remove_personal_data", [<<"user_not_exist">>, <<"localhost">>], Config).
 
 retrieve_vcard(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -261,6 +276,17 @@ retrieve_vcard(Config) ->
             maybe_stop_and_unload_module(mod_vcard, mod_vcard_backend, Config),
             retrieve_and_validate_personal_data(
               Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
+        end).
+
+remove_vcard(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceFields = [{<<"FN">>, <<"Alice">>}, {<<"LN">>, <<"Ecila">>}],
+        AliceSetResultStanza
+            = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
+        escalus:assert(is_iq_result, AliceSetResultStanza),
+
+        {0, _} = remove_personal_data(Alice, Config),
+        retrieve_and_validate_personal_data(Alice, Config, "vcard", ["jid", "vcard"], [])
         end).
 
 retrieve_roster(Config) ->
@@ -918,6 +944,12 @@ retrieve_personal_data(User, Domain, Config) ->
     {CommandOutput, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
     {Filename, Code, CommandOutput}.
 
+remove_personal_data(Client, Config) ->
+    User = escalus_client:username(Client),
+    Domain = escalus_client:server(Client),
+    {CommandOutput, Code} = ejabberdctl("remove_personal_data", [User, Domain], Config),
+    {Code, CommandOutput}.
+
 random_filename(Config) ->
     TCName = atom_to_list(?config(tc_name, Config)),
     TCName ++ "." ++ integer_to_list(erlang:system_time()) ++ ".zip".
@@ -956,9 +988,6 @@ pubsub_subscription_row_map(Node) ->
 
 make_pep_node_info(Client, NodeName) ->
     {escalus_utils:jid_to_lower(escalus_utils:get_short_jid(Client)), NodeName}.
-
-random_node_ns() ->
-    base64:encode(crypto:strong_rand_bytes(16)).
 
 item_content(Data) ->
     Bin = item_content_xml(Data),

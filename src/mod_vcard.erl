@@ -74,7 +74,8 @@
 
 -export([config_change/4]).
 
--export([get_personal_data/2]).
+%% GDPR related
+-export([get_personal_data/2, remove_personal_data/2]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
 
@@ -146,6 +147,21 @@ get_personal_data(Username, Server) ->
                                     end
                             end, mongoose_lib:find_behaviour_implementations(mod_vcard)),
     [{vcard, Schema, Entries}].
+
+-spec remove_personal_data(jid:user(), jid:server()) -> ok.
+remove_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    lists:foreach(fun(B) -> try_remove_personal_data(LUser, LServer, B) end, mongoose_lib:find_behaviour_implementations(mod_vcard)).
+
+try_remove_personal_data(LUser, LServer, Module) ->
+    try
+        Module:remove_user(LUser, LServer)
+    catch
+        _:_ ->
+            ok
+    end.
+
 
 -spec default_search_fields() -> list().
 default_search_fields() ->
