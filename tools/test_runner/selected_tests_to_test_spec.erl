@@ -12,7 +12,7 @@ main([]) ->
 main(AtomArgs) ->
     io:format("AtomArgs ~p~n", [AtomArgs]),
     SmallSpecs = small_specs(AtomArgs),
-    BigSpecs = AtomArgs -- SmallSpecs,
+    BigSpecs = big_specs(AtomArgs),
     io:format("SmallSpecs ~p~n", [SmallSpecs]),
     io:format("BigSpecs ~p~n", [BigSpecs]),
     write_small_tests_spec(SmallSpecs),
@@ -22,9 +22,17 @@ main(AtomArgs) ->
 small_specs(AtomArgs) ->
     lists:filter(fun is_small_spec/1, AtomArgs).
 
+big_specs(AtomArgs) ->
+    lists:filter(fun is_big_spec/1, AtomArgs).
+
 is_small_spec(Atom) ->
     FileName = atom_to_list(spec_to_module(Atom)) ++ ".erl",
     Path = filename:join("test", FileName),
+    does_file_exist(Path).
+
+is_big_spec(Atom) ->
+    FileName = atom_to_list(spec_to_module(Atom)) ++ ".erl",
+    Path = filename:join("big_tests/tests", FileName),
     does_file_exist(Path).
 
 spec_to_module(Atom) ->

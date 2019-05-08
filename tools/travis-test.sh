@@ -120,6 +120,19 @@ print_running_nodes() {
     "$EPMDS" -names
 }
 
+maybe_pause_before_test() {
+  if [ "$PAUSE_BEFORE_BIG_TESTS" -gt 0 ] 2>/dev/null; then
+    local read_ret_val
+    tools/print-dots.sh start_countdown "$PAUSE_BEFORE_BIG_TESTS" "continue in" $$
+    read -es -p $'press enter to pause before the big_tests\n' -t "$PAUSE_BEFORE_BIG_TESTS"
+    read_ret_val="$?"
+    tools/print-dots.sh stop
+    [ "$read_ret_val" -ne 0 ] && { echo; return; }
+    echo "[PAUSED]"
+    read -es -p $'press enter to continue\n'
+  fi
+}
+
 run_tests() {
   maybe_run_small_tests
   SMALL_STATUS=$?
@@ -129,7 +142,9 @@ run_tests() {
   echo "Running big tests (big_tests)"
   echo "############################"
 
-  time ${TOOLS}/start-nodes.sh
+  time ${TOOLS}/start-nodes.sh || { echo "Failed to start MongooseIM nodes"; return 1; }
+
+  maybe_pause_before_test
 
   run_test_preset
   BIG_STATUS=$?
@@ -208,3 +223,4 @@ else
   [ x"$TLS_DIST" == xyes ] && enable_tls_dist
   run_tests
 fi
+

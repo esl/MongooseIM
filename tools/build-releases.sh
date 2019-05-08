@@ -12,7 +12,7 @@ set -eu
 DEV_NODES="${DEV_NODES-devrel}"
 
 # "make devrel", but for a list of dev nodes
-if [ -z "$DEV_NODES" ]; then
+if [ -z "$DEV_NODES" ] || [ "$BUILD_MIM" = false ]; then
     echo "Skip make devrel"
 else
     echo "Build $DEV_NODES"
