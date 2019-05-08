@@ -26,6 +26,8 @@ Options:
 --skip-small-tests    -- disable small tests
 --skip-big-tests      -- disable big tests
 --skip-build-tests    -- disable big test compilation
+--skip-build-mim      -- disable MIM nodes compilation
+--skip-start-nodes    -- do not start nodes before big tests
 --skip-stop-nodes     -- do not stop nodes after big tests
 --skip-setup-db       -- do not start any databases, the same as "--db --" option
 --tls-dist            -- enable encryption between nodes in big tests
@@ -285,6 +287,8 @@ PRESET_ENABLED_DEFAULT=true
 
 BIG_TESTS=true
 BUILD_TESTS=true
+BUILD_MIM=true
+START_NODES=true
 STOP_NODES=true
 TLS_DIST=no
 
@@ -416,6 +420,17 @@ case $key in
         BUILD_TESTS=false
     ;;
 
+    --skip-build-mim)
+        shift # past argument
+        BUILD_MIM=false
+    ;;
+
+    --skip-start-nodes)
+        shift # past argument
+        START_NODES=false
+        BUILD_MIM=false
+    ;;
+
     --skip-stop-nodes)
         shift # past argument
         STOP_NODES=false
@@ -526,6 +541,7 @@ if [ "$BIG_TESTS" = false ]; then
     DB=""
     DEV_NODES=""
     BUILD_TESTS=false
+    BUILD_MIM=false
 fi
 
 if [ "$DB_FROM_PRESETS" = true ]; then
@@ -567,6 +583,7 @@ export DB="${DB-$DBS_DEFAULT}"
 export DEV_NODES="${DEV_NODES-$DEV_NODES_DEFAULT}"
 export TEST_HOSTS="${TEST_HOSTS-$TEST_HOSTS_DEFAULT}"
 export BUILD_TESTS="$BUILD_TESTS"
+export BUILD_MIM="$BUILD_MIM"
 export TLS_DIST="$TLS_DIST"
 # Pass extra arguments from tools/test_runner/selected-tests-to-test-spec.sh
 # to rebar3 in Makefile
@@ -576,6 +593,7 @@ else
     export REBAR_CT_EXTRA_ARGS=""
 fi
 export TESTSPEC="auto_big_tests.spec"
+export START_NODES="$START_NODES"
 export STOP_NODES="$STOP_NODES"
 
 # Debug printing
@@ -588,9 +606,11 @@ echo "    SMALL_TESTS=$SMALL_TESTS"
 echo "    COVER_ENABLED=$COVER_ENABLED"
 echo "    PRESET_ENABLED=$PRESET_ENABLED"
 echo "    BUILD_TESTS=$BUILD_TESTS"
+echo "    BUILD_MIM=$BUILD_MIM"
 echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
 echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
+echo "    START_NODES=$START_NODES"
 echo "    STOP_NODES=$STOP_NODES"
 echo ""
 

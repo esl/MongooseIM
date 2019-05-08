@@ -129,7 +129,7 @@ run_tests() {
   echo "Running big tests (big_tests)"
   echo "############################"
 
-  time ${TOOLS}/start-nodes.sh
+  time ${TOOLS}/start-nodes.sh || { echo "Failed to start MongooseIM nodes"; return 1; }
 
   run_test_preset
   BIG_STATUS=$?

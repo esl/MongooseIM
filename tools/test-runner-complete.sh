@@ -109,8 +109,10 @@ _run_all_tests() {
                           --skip-big-tests \
                           --skip-small-tests \
                           --skip-build-tests \
+                          --skip-build-mim \
                           --skip-preset \
                           --skip-cover \
+                          --skip-start-nodes \
                           --skip-stop-nodes \
                           --skip-setup-db \
                           --tls-dist \
