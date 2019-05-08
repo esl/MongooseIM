@@ -18,11 +18,12 @@
 -spec find_behaviour_implementations(Behaviour :: module()) -> [module()].
 find_behaviour_implementations(Behaviour) ->
     {ok, EbinFiles} = file:list_dir(code:lib_dir(mongooseim, ebin)),
-    Mods = [ list_to_existing_atom(filename:rootname(File))
+    Mods = [ list_to_atom(filename:rootname(File))
              || File <- EbinFiles, filename:extension(File) == ".beam" ],
     lists:filter(fun(M) ->
                          try lists:keyfind([Behaviour], 2, M:module_info(attributes)) of
-                             {Key, _} when Key == behaviour; Key == behavior -> true;
+                             {behavior, _} -> true;
+                             {behaviour, _} -> true;
                              _ -> false
                          catch
                              _:_ -> false
