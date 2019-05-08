@@ -189,8 +189,7 @@ maybe_decode_timestamp(TS) ->
 fetch_messages(LUser, LServer) ->
     Keys = read_user_idx(LUser, LServer),
     To = jid:make({LUser, LServer, <<>>}),
-    Msgs = [fetch_msg(Key, LUser, LServer, To) || Key <- Keys],
-    lists:flatten(Msgs).
+    {ok, [fetch_msg(Key, LUser, LServer, To) || Key <- Keys]}.
 
 fetch_msg(Key, LUser, LServer, To) ->
     try
