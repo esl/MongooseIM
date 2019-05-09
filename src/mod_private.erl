@@ -70,14 +70,14 @@
     LUser   :: binary(),
     LServer :: binary().
 
-%%--------------------------------------------------------------------
-%% gdpr callback
-%%--------------------------------------------------------------------
-
 -callback get_all_nss(LUser, LServer) -> NSs when
     LUser   :: binary(),
     LServer :: binary(),
     NSs      :: [binary()].
+
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
 
 -spec get_personal_data(jid:user(), jid:server()) ->
     [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
