@@ -66,12 +66,14 @@ set_private_data(LUser, LServer, NS, XML) ->
 
 get_all_nss(LUser, LServer) ->
     {ok, KeysWithUsername} = mongoose_riak:list_keys(bucket_type(LServer)),
-    lists:map(
-        fun(Key) ->
-            [LUser, ResultKey] = binary:split(Key, <<"/">>),
-            ResultKey
+    lists:foldl(
+        fun(Key, Acc) ->
+            case binary:split(Key, <<"/">>) of
+                [LUser, ResultKey] -> [ResultKey | Acc];
+                _ -> Acc
+            end
         end,
-        KeysWithUsername
+        [], KeysWithUsername
     ).
 
 get_private_data(LUser, LServer, NS, Default) ->
