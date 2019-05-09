@@ -22,7 +22,7 @@
          dont_retrieve_other_user_pubsub_payload/1,
          retrieve_pubsub_subscriptions/1,
          retrieve_private_xml/1,
-         dont_retrieve_orher_user_private_xml/1,
+         dont_retrieve_other_user_private_xml/1,
          retrieve_multiple_private_xmls/1,
          retrieve_inbox/1,
          retrieve_logs/1
@@ -79,7 +79,7 @@ groups() ->
                                                      ]},
      {retrieve_personal_data_private_xml, [], [
                                                retrieve_private_xml,
-                                               dont_retrieve_orher_user_private_xml,
+                                               dont_retrieve_other_user_private_xml,
                                                retrieve_multiple_private_xmls
                                               ]},
      {retrieve_negative, [], [
@@ -133,12 +133,6 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             dynamic_modules:ensure_modules(domain(), mam_required_modules(Backend)),
             escalus:init_per_testcase(CN, Config)
     end;
-init_per_testcase(retrieve_private_xml = CN, Config) ->
-    escalus:init_per_testcase(CN, Config);
-init_per_testcase(retrieve_multiple_private_xmls = CN, Config) ->
-    escalus:init_per_testcase(CN, Config);
-init_per_testcase(dont_retrieve_orher_user_private_xml = CN, Config) ->
-    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
@@ -394,7 +388,7 @@ retrieve_private_xml(Config) ->
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
 
-dont_retrieve_orher_user_private_xml(Config) ->
+dont_retrieve_other_user_private_xml(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             AliceNS = <<"alice:gdpr:ns">>,
             AliceContent = <<"To be or not to be">>,
