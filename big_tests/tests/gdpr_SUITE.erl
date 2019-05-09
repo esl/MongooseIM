@@ -431,6 +431,7 @@ maybe_stop_and_unload_module(Module, BackendProxy, Config) ->
     case proplists:get_value(disable_module, Config) of
         true ->
             dynamic_modules:stop(domain(), Module),
+            mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
             true = mongoose_helper:successful_rpc(code, delete, [BackendProxy]);
         _ ->
             ok
