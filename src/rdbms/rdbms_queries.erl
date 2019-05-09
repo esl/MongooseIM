@@ -67,7 +67,7 @@
          get_subscription_t/3,
          set_private_data/4,
          set_private_data_sql/3,
-         get_all_roster_namespaces/2,
+         get_all_private_namespaces/2,
          get_private_data/3,
          multi_get_private_data/3,
          multi_set_private_data/3,
@@ -642,7 +642,7 @@ set_private_data_sql(Username, LXMLNS, SData) ->
                       mongoose_rdbms:use_escaped_string(LXMLNS), ", ",
                       mongoose_rdbms:use_escaped_string(SData), ");"]].
 
-get_all_roster_namespaces(LServer, Username) ->
+get_all_private_namespaces(LServer, Username) ->
     mongoose_rdbms:sql_query(
       LServer,
       [<<"select namespace from private_storage where username=">>,

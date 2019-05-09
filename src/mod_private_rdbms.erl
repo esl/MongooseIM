@@ -79,9 +79,8 @@ get_data(LUser, LServer, NS, Default) ->
 
 get_all_nss(LUser, LServer) ->
     EscLUser = mongoose_rdbms:escape_string(LUser),
-    {selected, Res} = rdbms_queries:get_all_roster_namespaces(LServer, EscLUser),
-    Keys = lists:map(fun({R}) -> R end, Res),
-    Keys.
+    {selected, Res} = rdbms_queries:get_all_private_namespaces(LServer, EscLUser),
+    lists:map(fun({R}) -> R end, Res).
 
 remove_user(LUser, LServer) ->
     SLUser = mongoose_rdbms:escape_string(LUser),

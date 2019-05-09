@@ -408,30 +408,25 @@ dont_retrieve_other_user_private_xml(Config) ->
 
 retrieve_multiple_private_xmls(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-            NSs =
-                [<<"alice:gdpr:ns1">>,
-                 <<"alice:gdpr:ns2">>,
-                 <<"alice:gdpr:ns3">>,
-                 <<"alice:gdpr:ns4">>,
-                 <<"alice:gdpr:ns5">>],
-            Contents =
-                [<<"You do not talk about FIGHT CLUB.">>,
-                 <<"You do not talk about FIGHT CLUB.">>,
-                 <<"If someone says stop or goes limp, taps out the fight is over.">>,
-                 <<"Only two guys to a fight.">>,
-                 <<"One fight at a time.">>],
-            lists:map(
+            NSsAndContents = [
+                              {<<"alice:gdpr:ns1">>, <<"You do not talk about FIGHT CLUB.">>},
+                              {<<"alice:gdpr:ns2">>, <<"You do not talk about FIGHT CLUB.">>},
+                              {<<"alice:gdpr:ns3">>, <<"If someone says stop or goes limp,"
+                                                       " taps out the fight is over.">>},
+                              {<<"alice:gdpr:ns4">>, <<"Only two guys to a fight.">>},
+                              {<<"alice:gdpr:ns5">>, <<"One fight at a time.">>}
+                             ],
+            lists:foreach(
                 fun({NS, Content}) ->
                     send_and_assert_private_stanza(Alice, NS, Content)
-                end,
-                lists:zip(NSs, Contents)),
+                end, NSsAndContents),
             ExpectedHeader = ["ns", "xml"],
             ExpectedItems = lists:map(
                 fun({NS, Content}) ->
                     #{ "ns" => binary_to_list(NS),
-                        "xml" => [{contains, binary_to_list(NS)},
-                                  {contains, binary_to_list(Content)}]}
-                end, lists:zip(NSs, Contents)),
+                       "xml" => [{contains, binary_to_list(NS)},
+                                 {contains, binary_to_list(Content)}]}
+                end, NSsAndContents),
 
             maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
             retrieve_and_validate_personal_data(
@@ -609,8 +604,9 @@ item_content_xml(Data) ->
 
 send_and_assert_private_stanza(User, NS, Content) ->
     XML = #xmlel{ name = <<"fingerprint">>,
-                          attrs = [{<<"xmlns">>, NS}],
-                          children = [#xmlcdata{ content = Content }]},
-            PrivateStanza = escalus_stanza:private_set(XML),
-            escalus_client:send(User, PrivateStanza),
-            escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(User)).
+                  attrs = [{<<"xmlns">>, NS}],
+                  children = [#xmlcdata{ content = Content }]},
+    PrivateStanza = escalus_stanza:private_set(XML),
+    escalus_client:send(User, PrivateStanza),
+    escalus:assert(is_iq_result, [PrivateStanza], escalus_client:wait_for_stanza(User)).
+

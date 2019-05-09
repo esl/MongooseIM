@@ -73,7 +73,7 @@
 -callback get_all_nss(LUser, LServer) -> NSs when
     LUser   :: binary(),
     LServer :: binary(),
-    NSs      :: [binary()].
+    NSs     :: [binary()].
 
 %%--------------------------------------------------------------------
 %% gdpr callback
