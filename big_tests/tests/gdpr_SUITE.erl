@@ -72,6 +72,7 @@ groups() ->
      {retrieve_personal_data_with_mods_disabled, [], [
                                                       retrieve_vcard,
                                                       retrieve_logs,
+                                                      retrieve_roster,
                                                       retrieve_all_pubsub_data
                                                      ]},
      {retrieve_negative, [], [

@@ -1,6 +1,7 @@
 -module(service_admin_extra_gdpr).
 
 -include("ejabberd_commands.hrl").
+-include("mongoose_logger.hrl").
 
 -export([commands/0,
          retrieve_all/3]).
@@ -69,7 +70,11 @@ try_get_data_from_module(Module, Username, Domain) ->
         [{_, _, []}] -> [];
         Val -> Val
     catch
-        _:_ -> []
+        C:R ->
+            ?WARNING_MSG("event=cannot_retrieve_personal_data,"
+                         "module=~p,class=~p,reason=~p,stacktrace=~p",
+                         [Module, C, R, erlang:get_stacktrace()]),
+            []
     end.
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.

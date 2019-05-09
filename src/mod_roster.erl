@@ -169,7 +169,17 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
-    Records = mod_roster_backend:get_roster(LUser, LServer),
+    Records =
+    lists:flatmap(fun(B) ->
+                          try B:get_roster(LUser, LServer) of
+                              Entries when is_list(Entries) -> Entries;
+                              _ -> []
+                          catch
+                              C:R ->
+                                  log_get_personal_data_warning(B, C, R, erlang:get_stacktrace()),
+                                  []
+                          end
+                  end, mongoose_lib:find_behaviour_implementations(mod_roster)),
     SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
     [{roster, Schema, SerializedRecords}].
 
@@ -185,6 +195,10 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
      AskMessage,
      << <<(exml:to_binary(X))>> || X <- XS >>
     ].
+
+log_get_personal_data_warning(Backend, Class, Reason, StackTrace) ->
+    ?WARNING_MSG("event=cannot_retrieve_personal_data,backend=~p,class=~p,reason=~p,stacktrace=~p",
+                 [Backend, Class, Reason, StackTrace]).
 
 %%--------------------------------------------------------------------
 %% mod_roster's callbacks
