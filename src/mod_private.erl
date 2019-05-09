@@ -85,12 +85,26 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Schema = ["ns", "xml"],
-    NSs = mod_private_backend:get_all_nss(LUser, LServer),
-    Entitis = lists:map(
-        fun(NS) ->
-            { NS, exml:to_binary(mod_private_backend:multi_get_data(LUser, LServer, [{NS, default}])) }
-        end, NSs),
-    [{private, Schema, Entitis}].
+    Entries =
+    lists:flatmap(fun(B) ->
+                          get_personal_data_from_backend(B, LUser, LServer)
+                  end, mongoose_lib:find_behaviour_implementations(mod_private)),
+    [{private, Schema, Entries}].
+
+get_personal_data_from_backend(Backend, LUser, LServer) ->
+    try
+        NSs = Backend:get_all_nss(LUser, LServer),
+        lists:map(
+          fun(NS) ->
+                  { NS, exml:to_binary(Backend:multi_get_data(LUser, LServer, [{NS, default}])) }
+          end, NSs)
+    catch
+        C:R ->
+            ?WARNING_MSG("event=cannot_retrieve_personal_data,"
+                         "backend=~p,class=~p,reason=~p,stacktrace=~p",
+                         [Backend, C, R, erlang:get_stacktrace()]),
+            []
+    end.
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks

@@ -75,7 +75,8 @@ groups() ->
                                                       retrieve_vcard,
                                                       retrieve_logs,
                                                       retrieve_roster,
-                                                      retrieve_all_pubsub_data
+                                                      retrieve_all_pubsub_data,
+                                                      retrieve_multiple_private_xmls
                                                      ]},
      {retrieve_personal_data_private_xml, [], [
                                                retrieve_private_xml,
@@ -432,6 +433,7 @@ retrieve_multiple_private_xmls(Config) ->
                                   {contains, binary_to_list(Content)}]}
                 end, lists:zip(NSs, Contents)),
 
+            maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
             retrieve_and_validate_personal_data(
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
