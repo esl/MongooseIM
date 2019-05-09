@@ -134,12 +134,17 @@ get_personal_data(Username, Server) ->
     LServer = jid:nameprep(Server),
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
-    Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of
-        {ok, Record} ->
-            SerializedRecords = exml:to_binary(Record),
-            [{Jid, SerializedRecords}];
-         _ -> []
-        end,
+    Entries = lists:flatmap(fun(B) ->
+                                    try B:get_vcard(LUser, LServer) of
+                                        {ok, Record} ->
+                                            SerializedRecords = exml:to_binary(Record),
+                                            [{Jid, SerializedRecords}];
+                                        _ -> []
+                                    catch
+                                        _:_ ->
+                                            []
+                                    end
+                            end, mongoose_lib:find_behaviour_implementations(mod_vcard)),
     [{vcard, Schema, Entries}].
 
 -spec default_search_fields() -> list().
