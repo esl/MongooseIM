@@ -36,6 +36,8 @@
          multi_get_data/3,
          remove_user/2]).
 
+-export([get_all_nss/2]).
+
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
@@ -74,6 +76,11 @@ get_data(LUser, LServer, NS, Default) ->
         _ ->
             Default
     end.
+
+get_all_nss(LUser, LServer) ->
+    EscLUser = mongoose_rdbms:escape_string(LUser),
+    {selected, Res} = rdbms_queries:get_all_private_namespaces(LServer, EscLUser),
+    lists:map(fun({R}) -> R end, Res).
 
 remove_user(LUser, LServer) ->
     SLUser = mongoose_rdbms:escape_string(LUser),

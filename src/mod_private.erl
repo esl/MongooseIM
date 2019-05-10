@@ -28,12 +28,15 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_mod).
+-behaviour(gdpr).
 
 -export([start/2,
          stop/1,
          process_sm_iq/4,
          remove_user/3,
          remove_user/2]).
+
+-export([get_personal_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -66,6 +69,48 @@
 -callback remove_user(LUser, LServer) -> any() when
     LUser   :: binary(),
     LServer :: binary().
+
+-callback get_all_nss(LUser, LServer) -> NSs when
+    LUser   :: binary(),
+    LServer :: binary(),
+    NSs     :: [binary()].
+
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(jid:user(), jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Schema = ["ns", "xml"],
+    %% TODO: Replace separate `mod_private_mysql` backend with a switch for `rdbms` one
+    %% or simply always use dedicated queries when the RDBMS backend type is `mysql`
+    %%
+    %% We remove `mod_private_mysql` from the list because calling all possible backends resulted
+    %% in duplicate entries with RDBMS.
+    Backends = mongoose_lib:find_behaviour_implementations(mod_private) -- [mod_private_mysql],
+    Entries =
+    lists:flatmap(fun(B) ->
+                          get_personal_data_from_backend(B, LUser, LServer)
+                  end, Backends),
+    [{private, Schema, Entries}].
+
+get_personal_data_from_backend(Backend, LUser, LServer) ->
+    try
+        NSs = Backend:get_all_nss(LUser, LServer),
+        lists:map(
+          fun(NS) ->
+                  { NS, exml:to_binary(Backend:multi_get_data(LUser, LServer, [{NS, default}])) }
+          end, NSs)
+    catch
+        C:R ->
+            ?WARNING_MSG("event=cannot_retrieve_personal_data,"
+                         "backend=~p,class=~p,reason=~p,stacktrace=~p",
+                         [Backend, C, R, erlang:get_stacktrace()]),
+            []
+    end.
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
