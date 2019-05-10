@@ -59,7 +59,7 @@ groups() ->
                                            retrieve_vcard,
                                            retrieve_roster,
                                            %retrieve_mam,
-                                           %retrieve_offline,
+                                           retrieve_offline,
                                            retrieve_inbox,
                                            retrieve_inbox_for_multiple_messages,
                                            retrieve_logs,
