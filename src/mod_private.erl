@@ -85,11 +85,17 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Schema = ["ns", "xml"],
+    %% TODO: Replace separate `mysql` backend with a switch for `rdbms` one
+    %% or simply always use dedicated queries when the RDBMS backend type is `mysql`
+    %%
+    %% We remove `mysql` from the list because calling all possible backends resulted
+    %% in duplicate entries with RDBMS.
+    Backends = mongoose_lib:find_behaviour_implementations(mod_private) -- [mysql],
     Entries =
     lists:flatmap(fun(B) ->
                           get_personal_data_from_backend(B, LUser, LServer)
-                  end, mongoose_lib:find_behaviour_implementations(mod_private)),
-    [{private, Schema, lists:usort(Entries)}].
+                  end, Backends),
+    [{private, Schema, Entries}].
 
 get_personal_data_from_backend(Backend, LUser, LServer) ->
     try
