@@ -54,7 +54,7 @@ groups() ->
     [
      {retrieve_personal_data, [], [
                                            retrieve_vcard,
-                                           %retrieve_roster,
+                                           retrieve_roster,
                                            %retrieve_mam,
                                            %retrieve_offline,
                                            %retrieve_private_xml,
@@ -72,6 +72,7 @@ groups() ->
      {retrieve_personal_data_with_mods_disabled, [], [
                                                       retrieve_vcard,
                                                       retrieve_logs,
+                                                      retrieve_roster,
                                                       retrieve_all_pubsub_data
                                                      ]},
      {retrieve_negative, [], [
@@ -188,13 +189,16 @@ retrieve_vcard(Config) ->
 retrieve_roster(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             escalus_story:make_all_clients_friends([Alice, Bob]),
-            ExpectedHeader = ["jid", "name", "groups"], % TODO
+            BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+            BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
+            ExpectedHeader = ["jid", "name", "subscription",
+                              "ask", "groups", "askmessage", "xs"],
             ExpectedItems = [
-                             #{ "jid" => escalus_client:short_jid(Bob) }
+                             #{ "jid" => [{contains,  BobU}, {contains, BobS}] }
                             ],
             maybe_stop_and_unload_module(mod_roster, mod_roster_backend, Config),
             retrieve_and_validate_personal_data(
-              Alice, Config, "roster", ExpectedHeader, ExpectedItems)
+                Alice, Config, "roster", ExpectedHeader, ExpectedItems)
         end).
 
 retrieve_mam(_Config) ->
