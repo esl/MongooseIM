@@ -12,6 +12,8 @@
 -include("mongoose.hrl").
 -include("mod_inbox.hrl").
 
+-behaviour(mod_inbox).
+
 %% API
 -export([get_inbox/3,
          init/2,

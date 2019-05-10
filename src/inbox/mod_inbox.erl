@@ -98,10 +98,23 @@ get_personal_data(Username, Server) ->
         order => asc,
         hidden_read => false
        },
-    Entries = mod_inbox_backend:get_inbox(LUser, LServer, InboxParams),
+      Entries = lists:flatmap(fun(B) ->
+                          try B:get_inbox(LUser, LServer, InboxParams) of
+                              Entries when is_list(Entries) -> Entries;
+                              _ -> []
+                          catch
+                              C:R ->
+                                  log_get_personal_data_warning(B, C, R, erlang:get_stacktrace()),
+                                  []
+                          end
+                  end, mongoose_lib:find_behaviour_implementations(mod_inbox)),
     ProcessedEntries = [{ RemJID, Content, UnreadCount, jlib:now_to_utc_string(Timestamp) } ||
                         { RemJID, Content, UnreadCount, Timestamp } <- Entries],
     [{inbox, Schema, ProcessedEntries}].
+
+log_get_personal_data_warning(Backend, Class, Reason, StackTrace) ->
+    ?WARNING_MSG("event=cannot_retrieve_personal_data,backend=~p,class=~p,reason=~p,stacktrace=~p",
+                 [Backend, Class, Reason, StackTrace]).
 
 %%--------------------------------------------------------------------
 %% inbox callbacks
