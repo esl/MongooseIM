@@ -14,7 +14,6 @@
 -export([
          retrieve_vcard/1,
          remove_vcard/1,
-         try_remove_data_of_non_existing_user/1,
          retrieve_roster/1,
          retrieve_mam/1,
          retrieve_offline/1,
@@ -51,7 +50,8 @@ all() ->
      {group, retrieve_personal_data},
      {group, retrieve_personal_data_with_mods_disabled},
      {group, retrieve_negative},
-     {group, remove_personal_data}
+     {group, remove_personal_data},
+     {group, remove_personal_data_with_mods_disabled}
     ].
 
 groups() ->
@@ -93,9 +93,12 @@ groups() ->
      {retrieve_negative, [], [
                               data_is_not_retrieved_for_missing_user
                              ]},
-        {remove_personal_data, [parallel], [
+        {remove_personal_data, [], [
             % per type
-            try_remove_data_of_non_existing_user,
+            remove_vcard
+        ]},
+        {remove_personal_data_with_mods_disabled, [], [
+            % per type
             remove_vcard
         ]}
     ].
@@ -112,6 +115,8 @@ end_per_suite(Config) ->
 
 init_per_group(retrieve_personal_data_with_mods_disabled, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
+    [{disable_module, true} | Config];
+init_per_group(remove_personal_data_with_mods_disabled, Config) ->
     [{disable_module, true} | Config];
 init_per_group(retrieve_personal_data_pubsub, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
@@ -138,6 +143,7 @@ init_per_testcase(remove_vcard = CN, Config) ->
         true ->
             {skip, skipped_for_simplicity_for_now}; % TODO: Fix the case for LDAP as well
         _ ->
+            vcard_started(),
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(retrieve_mam = CN, Config) ->
@@ -190,6 +196,9 @@ pick_backend_for_mam() ->
 mam_required_modules(Backend) ->
     [{mod_mam_meta, [{backend, Backend}, {pm, []}]}].
 
+vcard_required_modules() ->
+    [{mod_vcard, [{backend, mnesia}]}].
+
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
                                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
@@ -199,13 +208,14 @@ pubsub_required_modules() ->
                                   ]
                      }].
 
+vcard_started() ->
+    dynamic_modules:ensure_modules(domain(), vcard_required_modules()).
+
 %% -------------------------------------------------------------
 %% Test cases
 %% -------------------------------------------------------------
 
 %% ------------------------- Data retrieval - per type verification -------------------------
-try_remove_data_of_non_existing_user(Config) ->
-    {"Error: \"User does not exist\"\n", 1} = ejabberdctl("remove_personal_data", [<<"user_not_exist">>, <<"localhost">>], Config).
 
 retrieve_vcard(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
@@ -233,9 +243,18 @@ remove_vcard(Config) ->
         AliceSetResultStanza
             = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
         escalus:assert(is_iq_result, AliceSetResultStanza),
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
 
-        {0, _} = remove_personal_data(Alice, Config),
-        retrieve_and_validate_personal_data(Alice, Config, "vcard", ["jid", "vcard"], [])
+        maybe_stop_and_unload_module(mod_vcard, mod_vcard_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        mongoose_helper:wait_until(
+            fun() ->
+                mongoose_helper:successful_rpc(mod_vcard, get_personal_data,
+                    [AliceU, AliceS])
+            end, [{vcard,["jid","vcard"],[]}])
+
         end).
 
 retrieve_roster(Config) ->
@@ -643,10 +662,10 @@ retrieve_personal_data(User, Domain, Config) ->
     {CommandOutput, Code} = ejabberdctl("retrieve_personal_data", [User, Domain, Filename], Config),
     {Filename, Code, CommandOutput}.
 
-remove_personal_data(Client, Config) ->
+unregister(Client, Config) ->
     User = escalus_client:username(Client),
     Domain = escalus_client:server(Client),
-    {CommandOutput, Code} = ejabberdctl("remove_personal_data", [User, Domain], Config),
+    {CommandOutput, Code} = ejabberdctl("unregister", [User, Domain], Config),
     {Code, CommandOutput}.
 
 random_filename(Config) ->
