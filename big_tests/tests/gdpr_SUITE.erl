@@ -255,7 +255,7 @@ retrieve_pubsub_payloads(Config) ->
                          pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
                          pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
 
-        maybe_stop_and_unload_module(mod_vcard, mod_vcard_backend, Config),
+        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ["node_name", "item_id", "payload"], ExpectedItems)
                                               end).
