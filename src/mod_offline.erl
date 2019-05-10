@@ -520,8 +520,17 @@ pop_messages(LUser, LServer) ->
     end.
 
 get_personal_data(Username, Server) ->
-    {ok, Messages} = mod_offline_backend:fetch_messages(Username, Server),
-    [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(Messages)}].
+    AllMessages = lists:flatmap(fun(B) ->
+        try B:fetch_messages(Username, Server) of
+            {ok, Messages} ->
+                Messages;
+            _ -> []
+        catch
+            _:_ ->
+                []
+        end
+                            end, mongoose_lib:find_behaviour_implementations(mod_offline)),
+    [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(AllMessages)}].
 
 offline_messages_to_gdpr_format(MsgList) ->
     [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
