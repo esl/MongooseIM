@@ -89,7 +89,7 @@ get_personal_data(Username, Server) ->
     lists:flatmap(fun(B) ->
                           get_personal_data_from_backend(B, LUser, LServer)
                   end, mongoose_lib:find_behaviour_implementations(mod_private)),
-    [{private, Schema, Entries}].
+    [{private, Schema, lists:usort(Entries)}].
 
 get_personal_data_from_backend(Backend, LUser, LServer) ->
     try
