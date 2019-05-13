@@ -884,8 +884,17 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Acc1 = send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    R = mod_roster_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {User, Server}),
+    lists:foreach(fun(Backend) ->
+            try
+                Backend:remove_user(LUser, LServer)
+            catch
+                Class:Reason ->
+                    StackTrace = erlang:get_stacktrace(),
+                    ?WARNING_MSG("event=cannot_delete_personal_data,"
+                        "backend=~p,class=~p,reason=~p,stacktrace=~p",
+                        [Backend, Class, Reason, StackTrace])
+            end
+        end, mongoose_lib:find_behaviour_implementations(mod_roster)),
     Acc1.
 
 %% For each contact with Subscription:
