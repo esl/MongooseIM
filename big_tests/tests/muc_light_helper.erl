@@ -42,10 +42,14 @@ given_muc_light_room(Name, Creator, InitOccupants) ->
     CreateStanza = stanza_create_room(Name, [], InitOccupants),
     escalus:send(Creator, CreateStanza),
     Affiliations = [{Creator, owner} | InitOccupants],
-    verify_aff_bcast(Affiliations, Affiliations),
+    AffVerFn=aff_msg_verify_fun(Affiliations),
+    AffMsg=escalus:wait_for_stanza(Creator),
+    AffVerFn(AffMsg),
+    muc_helper:foreach_recipient(
+        [ User || {User, _} <- InitOccupants ], AffVerFn),
     IQResult = escalus:wait_for_stanza(Creator),
     escalus:assert(is_iq_result, IQResult),
-    exml_query:attr(IQResult, <<"from">>).
+    exml_query:attr(AffMsg, <<"from">>).
 
 when_muc_light_message_is_sent(Sender, Room, Body, Id) ->
     RoomJid = room_bin_jid(Room),
