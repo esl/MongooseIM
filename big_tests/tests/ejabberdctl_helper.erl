@@ -16,6 +16,8 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
+-spec ejabberdctl(Cmd :: string(), Args :: [binary() | string()], Config :: list()) ->
+    {Data :: iolist(), ExitStatus :: integer()} | no_return().
 ejabberdctl(Cmd, Args, Config) ->
     Node = mim(),
     ejabberdctl(Node, Cmd, Args, Config).

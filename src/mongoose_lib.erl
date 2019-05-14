@@ -1,6 +1,7 @@
 -module(mongoose_lib).
--export([bin_to_int/1, log_if_backend_error/4]).
 
+-export([find_behaviour_implementations/1]).
+-export([log_if_backend_error/4]).
 %% Maps
 -export([maps_append/3]).
 -export([maps_foreach/2]).
@@ -9,15 +10,29 @@
 
 -include("mongoose.hrl").
 
-%% @doc string:to_integer/1 for binaries
-bin_to_int(Bin) ->
-    bin_to_int(Bin, 0).
+%% ------------------------------------------------------------------
+%% Behaviour util
+%% ------------------------------------------------------------------
 
-bin_to_int(<<H, T/binary>>, X) when $0 =< H, H =< $9 ->
-    bin_to_int(T, (X*10)+(H-$0));
-bin_to_int(Bin, X) ->
-    {X, Bin}.
+%% WARNING! For simplicity, this function searches only MongooseIM code dir
+-spec find_behaviour_implementations(Behaviour :: module()) -> [module()].
+find_behaviour_implementations(Behaviour) ->
+    {ok, EbinFiles} = file:list_dir(code:lib_dir(mongooseim, ebin)),
+    Mods = [ list_to_atom(filename:rootname(File))
+             || File <- EbinFiles, filename:extension(File) == ".beam" ],
+    lists:filter(fun(M) ->
+                         try lists:keyfind([Behaviour], 2, M:module_info(attributes)) of
+                             {behavior, _} -> true;
+                             {behaviour, _} -> true;
+                             _ -> false
+                         catch
+                             _:_ -> false
+                         end
+                 end, Mods).
 
+%% ------------------------------------------------------------------
+%% Logging
+%% ------------------------------------------------------------------
 
 %% @doc Database backends for various modules return ok, {atomic, ok}
 %% or {atomic, []} on success, and usually {error, ...} on failure.

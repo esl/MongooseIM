@@ -44,6 +44,7 @@
 -module(mod_pubsub).
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(gdpr).
 -behaviour(mongoose_packet_handler).
 -author('christophe.romain@process-one.net').
 
@@ -93,6 +94,8 @@
          handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 -export([default_host/0]).
+
+-export([get_personal_data/2]).
 
 %% packet handler export
 -export([process_packet/5]).
@@ -249,6 +252,33 @@ process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Acce
                                                   element => El }, Acc),
     Packet = mongoose_acc:element(Acc2),
     do_route(ServerHost, Access, Plugins, To#jid.lserver, From, To, Packet).
+
+%%====================================================================
+%% GDPR callback
+%%====================================================================
+
+-spec get_personal_data(Username :: jid:user(), Server :: jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+get_personal_data(Username, Server) ->
+     LUser = jid:nodeprep(Username),
+     LServer = jid:nodeprep(Server),
+     Backends = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
+     Payloads = get_personal_data_group(LUser, LServer, Backends, get_user_payloads),
+     Nodes = get_personal_data_group(LUser, LServer, Backends, get_user_nodes),
+     Subscriptions = get_personal_data_group(LUser, LServer, Backends, get_user_subscriptions),
+
+     [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
+      {pubsub_nodes, ["node_name", "type"], Nodes},
+      {pubsub_subscriptions, ["node_name"], Subscriptions}].
+
+get_personal_data_group(LUser, LServer, Backends, FunctionName) ->
+    lists:flatmap(fun(B) -> try B:FunctionName(LUser, LServer) of
+                                Result when is_list(Result) -> Result;
+                                _ -> []
+                            catch
+                                _:_ -> []
+                            end
+                  end, Backends).
 
 %%====================================================================
 %% gen_server callbacks

@@ -57,13 +57,19 @@
         ]).
 
 % Whole Items
-
 -export([
          get_items/2,
          get_item/2,
          set_item/1,
          del_item/2,
          del_items/2
+        ]).
+
+% GDPR
+-export([
+         get_user_payloads/2,
+         get_user_nodes/2,
+         get_user_subscriptions/2
         ]).
 
 %%====================================================================
@@ -157,6 +163,49 @@ dirty(Fun, ErrorDebug) ->
     catch
         _C:ReasonData ->
             mod_pubsub_db:db_error(ReasonData, ErrorDebug, dirty_failed)
+    end.
+
+%% ------------------------ GDPR-related ------------------------
+
+-spec get_user_payloads(LUser :: jid:luser(), LServer :: jid:lserver()) ->
+     [NodeNameItemIDAndPayload :: [binary()]].
+get_user_payloads(LUser, LServer) ->
+    {atomic, Recs} = mnesia:transaction(fun() -> get_user_payloads_t(LUser, LServer) end),
+    Recs.
+
+get_user_payloads_t(LUser, LServer) ->
+    BareUserMatchSpec = {'_', {LUser, LServer, '_'}},
+    Items = mnesia:match_object(#pubsub_item{creation = BareUserMatchSpec, _ = '_'}),
+    [[node_name(Nidx), ItemId, << <<(exml:to_binary(P))/binary>> || P <- Payload >>] ||
+        #pubsub_item{itemid = {ItemId, Nidx}, payload = Payload} <- Items].
+
+-spec get_user_nodes(LUser :: jid:luser(), LServer :: jid:lserver()) ->
+     [NodeNameAndType :: [binary()]].
+get_user_nodes(LUser, LServer) ->
+    LJID = {LUser, LServer, <<>>},
+    {atomic, Recs} = mnesia:transaction(fun() ->
+        Nodes = mnesia:match_object(#pubsub_node{owners = [LJID], _ = '_'}),
+        [[NodeName, Type] || #pubsub_node{nodeid = {_, NodeName}, type = Type} <- Nodes]
+      end),
+    Recs.
+
+-spec get_user_subscriptions(LUser :: jid:luser(), LServer :: jid:lserver()) ->
+     [NodeName :: [binary()]].
+get_user_subscriptions(LUser, LServer) ->
+    {atomic, Recs} = mnesia:transaction(fun() -> get_user_subscriptions_t(LUser, LServer) end),
+    Recs.
+
+get_user_subscriptions_t(LUser, LServer) ->
+    UserMatchSpec = {LUser, LServer, '_'},
+    SubscriptionStates
+    = mnesia:match_object(#pubsub_state{stateid = {UserMatchSpec, '_'},
+                                        subscriptions = [{subscribed, '_'}], _ = '_'}),
+    [ [node_name(Nidx)] || #pubsub_state{stateid = {_, Nidx}} <- SubscriptionStates].
+
+node_name(Nidx) ->
+    case find_node_by_id(Nidx) of
+        {ok, #pubsub_node{ nodeid = {_, NodeName} }} -> NodeName;
+        _ -> <<>>
     end.
 
 %% ------------------------ Direct #pubsub_state access ------------------------

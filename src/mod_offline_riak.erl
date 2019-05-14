@@ -26,6 +26,7 @@
 
 -export([init/2]).
 -export([pop_messages/2]).
+-export([fetch_messages/2]).
 -export([write_messages/3]).
 -export([remove_expired_messages/1]).
 -export([remove_old_messages/2]).
@@ -183,4 +184,37 @@ maybe_decode_timestamp(?INFINITY) ->
     never;
 maybe_decode_timestamp(TS) ->
     usec:to_now(TS).
+
+
+fetch_messages(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
+    Keys = read_user_idx(LUser, LServer),
+    To = jid:make({User, LServer, <<>>}),
+    {ok, [fetch_msg(Key, LUser, LServer, To) || Key <- Keys]}.
+
+fetch_msg(Key, LUser, LServer, To) ->
+    try
+        {ok, Obj} = mongoose_riak:get(bucket_type(LServer), Key),
+
+        PacketRaw = riakc_obj:get_value(Obj),
+        {ok, Packet} = exml:parse(PacketRaw),
+        MD = riakc_obj:get_update_metadata(Obj),
+        [Timestamp] = riakc_obj:get_secondary_index(MD, ?TIMESTAMP_IDX),
+        From = riakc_obj:get_user_metadata_entry(MD, <<"from">>),
+        [Expire] = riakc_obj:get_secondary_index(MD, ?EXPIRE_IDX),
+
+        #offline_msg{us = {LUser, LServer},
+            timestamp = usec:to_now(Timestamp),
+            expire = maybe_decode_timestamp(Expire),
+            from = jid:from_binary(From),
+            to = To,
+            packet = Packet}
+
+    catch
+        Error:Reason ->
+            ?WARNING_MSG("issue=~p, action=reading_key, host=~s, reason=~p, stack_trace=~p",
+                [Error, LServer, Reason, erlang:get_stacktrace()]),
+            []
+    end.
 

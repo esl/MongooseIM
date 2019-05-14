@@ -37,6 +37,7 @@
 -xep([{xep, 55}, {version, "1.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
+-behaviour(gdpr).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -73,6 +74,8 @@
 
 -export([config_change/4]).
 
+-export([get_personal_data/2]).
+
 -define(PROCNAME, ejabberd_mod_vcard).
 
 -record(state, {search           :: boolean(),
@@ -82,9 +85,6 @@
 
 -type error() :: error | {error, any()}.
 
-%%--------------------------------------------------------------------
-%% backend callbacks
-%%--------------------------------------------------------------------
 -callback init(Host, Opts) -> ok when
     Host :: binary(),
     Opts :: list().
@@ -123,6 +123,30 @@
 
 -optional_callbacks([tear_down/1]).
 
+%%--------------------------------------------------------------------
+%% gdpr callback
+%%--------------------------------------------------------------------
+
+-spec get_personal_data(jid:user(), jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+get_personal_data(Username, Server) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nameprep(Server),
+    Jid = jid:to_binary({LUser, LServer}),
+    Schema = ["jid", "vcard"],
+    Entries = lists:flatmap(fun(B) ->
+                                    try B:get_vcard(LUser, LServer) of
+                                        {ok, Record} ->
+                                            SerializedRecords = exml:to_binary(Record),
+                                            [{Jid, SerializedRecords}];
+                                        _ -> []
+                                    catch
+                                        _:_ ->
+                                            []
+                                    end
+                            end, mongoose_lib:find_behaviour_implementations(mod_vcard)),
+    [{vcard, Schema, Entries}].
+
 -spec default_search_fields() -> list().
 default_search_fields() ->
     [{<<"User">>, <<"user">>},
@@ -159,6 +183,7 @@ default_host() ->
 %%--------------------------------------------------------------------
 %% gen_mod callbacks
 %%--------------------------------------------------------------------
+
 start(VHost, Opts) ->
     gen_mod:start_backend_module(?MODULE, Opts, [set_vcard, get_vcard, search]),
     Proc = gen_mod:get_module_proc(VHost, ?PROCNAME),

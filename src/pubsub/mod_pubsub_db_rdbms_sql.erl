@@ -66,6 +66,11 @@
          set_parents/2,
          del_parents/1]).
 
+% GDPR
+-export([get_user_items/2,
+         select_nodes_by_owner/1,
+         get_user_subscriptions/2]).
+
 %%====================================================================
 %% SQL queries
 %%====================================================================
@@ -325,6 +330,24 @@ get_entity_items(Nidx, LU, LS) ->
      " AND created_luser = ", esc_string(LU),
      " AND created_lserver = ", esc_string(LS) ].
 
+-spec get_user_items(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
+get_user_items(LU, LS) ->
+    ["SELECT name, itemid, payload"
+    " FROM pubsub_items"
+    " INNER JOIN pubsub_nodes"
+    " ON pubsub_items.nidx = pubsub_nodes.nidx"
+    " WHERE created_luser = ", esc_string(LU),
+    " AND created_lserver = ", esc_string(LS) ].
+
+-spec get_user_subscriptions(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
+get_user_subscriptions(LU, LS) ->
+    ["SELECT name"
+    " FROM pubsub_subscriptions"
+    " INNER JOIN pubsub_nodes"
+    " ON pubsub_subscriptions.nidx = pubsub_nodes.nidx"
+    " WHERE luser = ", esc_string(LU),
+    " AND lserver = ", esc_string(LS) ].
+
 -spec delete_item(Nidx :: mod_pubsub:nodeIdx(),
                   LU :: jid:luser(),
                   LS :: jid:lserver(),
@@ -423,6 +446,29 @@ select_node_by_id(Nidx) ->
 select_nodes_by_key(Key) ->
     ["SELECT ", pubsub_node_fields(), " from pubsub_nodes "
      "WHERE p_key = ", esc_string(Key)].
+
+-spec select_nodes_by_owner(LJID :: binary()) -> iolist().
+select_nodes_by_owner(LJID) ->
+    %% TODO I wrote that code in tears in my eyes. Its super inefficient,
+    %% there should be separate table for many-to-many relation and index
+    case {mongoose_rdbms:db_engine(global), mongoose_rdbms_type:get()} of
+        {mysql, _} ->
+            ["SELECT name, type"
+                " FROM pubsub_nodes"
+                " WHERE owners = convert(", esc_string(iolist_to_binary(["[\"", LJID, "\"]"])), ", JSON);"
+            ];
+        {pgsql, _}  ->
+            ["SELECT name, type"
+            " FROM pubsub_nodes"
+            " WHERE owners ::json->>0 like ", esc_string(LJID),
+                " AND JSON_ARRAY_LENGTH(owners) = 1"
+            ];
+        {odbc, mssql} ->
+            ["SELECT name, type"
+            " FROM pubsub_nodes"
+            " WHERE cast(owners as varchar) = ", esc_string(iolist_to_binary(["[\"", LJID, "\"]"]))
+            ]
+    end.
 
 -spec select_nodes_in_list_with_key(Key :: binary(), Nodes :: [binary()]) -> iolist().
 select_nodes_in_list_with_key(Key, Nodes) ->

@@ -18,7 +18,7 @@
 
 -type get_inbox_res() :: list(inbox_res()).
 
--type inbox_res() :: {RemoteUser :: username(),
+-type inbox_res() :: {RemoteBinJID :: binary(),
                       MsgContent :: content(),
                       UnreadCount :: count_bin(),
                       Timestamp :: erlang:timestamp()}.

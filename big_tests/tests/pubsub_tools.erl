@@ -160,6 +160,7 @@ publish_without_node_attr(User, ItemId, Node, Options) ->
 publish_request(Id, User, ItemId, Node, Options) ->
     case proplists:get_value(with_payload, Options, true) of
         true -> escalus_pubsub_stanza:publish(User, ItemId, item_content(), Id, Node);
+        {true, Payload} -> escalus_pubsub_stanza:publish(User, ItemId, Payload, Id, Node);
         false -> escalus_pubsub_stanza:publish(User, Id, Node);
         #xmlel{} = El -> escalus_pubsub_stanza:publish(User, ItemId, El, Id, Node)
     end.
