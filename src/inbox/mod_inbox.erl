@@ -161,7 +161,7 @@ process_iq(_From, _To, Acc, #iq{type = get, sub_el = SubEl} = IQ) ->
     Form = build_inbox_form(),
     SubElWithForm = SubEl#xmlel{ children = [Form] },
     {Acc, IQ#iq{type = result, sub_el = SubElWithForm}};
-process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
+process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) ->
     Username = From#jid.luser,
     Host = From#jid.lserver,
     case form_to_params(exml_query:subelement_with_ns(QueryEl, ?NS_XDATA)) of
@@ -169,7 +169,7 @@ process_iq(From, To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ) 
             {Acc, IQ#iq{ type = error, sub_el = [ mongoose_xmpp_errors:bad_request(<<"en">>, Msg) ] }};
         Params ->
             List = mod_inbox_backend:get_inbox(Username, Host, Params),
-            forward_messages(List, QueryId, To),
+            forward_messages(List, QueryId, From),
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.

@@ -28,6 +28,7 @@
 -export([msg_sent_stored_in_inbox/1,
          user_has_empty_inbox/1,
          user_has_two_unread_messages/1,
+         other_resources_do_not_interfere/1,
          reset_unread_counter/1,
          try_to_reset_unread_counter_with_bad_marker/1,
          user_has_two_conversations/1,
@@ -117,6 +118,7 @@ groups() ->
            msg_sent_to_offline_user,
            msg_sent_to_not_existing_user,
            user_has_two_unread_messages,
+           other_resources_do_not_interfere,
            reset_unread_counter,
            try_to_reset_unread_counter_with_bad_marker,
            user_has_only_unread_messages_or_only_read,
@@ -495,6 +497,20 @@ user_has_two_unread_messages(Config) ->
         %% Kate has one conv in her inbox (no unread messages)
         check_inbox(Kate, [#conv{unread = 0, from = Kate, to = Mike, content = <<"How are you">>}])
       end).
+
+other_resources_do_not_interfere(Config) ->
+    %% regression test
+    escalus:story(Config, [{kate, 2}, {mike, 1}], fun(Kate, Kate2, Mike) ->
+        Prio = #xmlel{name = <<"priority">>, children = [#xmlcdata{content = <<"100">>}]},
+        escalus_client:send(Kate2, escalus_stanza:presence(<<"available">>, [Prio])),
+        escalus_client:wait_for_stanza(Kate),
+        inbox_helper:send_msg(Kate, Mike, "Hello"),
+        inbox_helper:send_msg(Kate, Mike, "How are you"),
+        %% Mike has two unread messages in conversation with Kate
+        check_inbox(Mike, [#conv{unread = 2, from = Kate, to = Mike, content = <<"How are you">>}]),
+        %% Kate has one conv in her inbox (no unread messages)
+        check_inbox(Kate, [#conv{unread = 0, from = Kate, to = Mike, content = <<"How are you">>}])
+                                                  end).
 
 reset_unread_counter(Config) ->
     escalus:story(Config, [{kate, 1}, {mike, 1}], fun(Kate, Mike) ->
