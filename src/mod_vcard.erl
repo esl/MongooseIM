@@ -419,7 +419,11 @@ remove_user(User, Server) ->
         try
             B:remove_user(LUser, LServer)
         catch
-            _:_ ->
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
                 ok
         end end, mongoose_lib:find_behaviour_implementations(mod_vcard)).
 
