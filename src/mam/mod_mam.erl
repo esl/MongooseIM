@@ -52,6 +52,10 @@
          determine_amp_strategy/5,
          sm_filter_offline_message/4]).
 
+%% gdpr callbacks
+-behaviour(gdpr).
+-export([get_personal_data/2]).
+
 %%private
 -export([archive_message/8]).
 -export([lookup_messages/2]).
@@ -143,6 +147,23 @@
 
 %% ----------------------------------------------------------------------
 %% API
+
+-spec get_personal_data(jid:user(), jid:server()) ->
+    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+get_personal_data(Username, Server) ->
+    Schema = ["id", "message"],
+    Entries = lists:flatmap(
+        fun(B) ->
+            try B:get_mam_pm_gdpr_data(Username, Server) of
+                {ok, GdprData} ->
+                    GdprData;
+                _ -> []
+            catch
+                _:_ ->
+                    []
+            end
+        end, mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)),
+    [{mam_pm, Schema, Entries}].
 
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(Server, User)
