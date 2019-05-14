@@ -196,8 +196,16 @@ pick_backend_for_mam() ->
 mam_required_modules(Backend) ->
     [{mod_mam_meta, [{backend, Backend}, {pm, []}]}].
 
+pick_backend_for_vcard() ->
+    BackendsList = [
+        {mam_helper:is_riak_enabled(domain()), riak},
+        {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
+    ],
+    proplists:get_value(true, BackendsList, mnesia).
+
+
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, mnesia}]}].
+    [{mod_vcard, [{backend, pick_backend_for_vcard()}]}].
 
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
