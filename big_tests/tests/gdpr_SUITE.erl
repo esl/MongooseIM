@@ -49,8 +49,7 @@ all() ->
     [
      {group, retrieve_personal_data},
      {group, retrieve_personal_data_with_mods_disabled},
-     {group, retrieve_negative},
-     {group, retrieve_personal_data_mam}
+     {group, retrieve_negative}
     ].
 
 groups() ->
@@ -58,15 +57,16 @@ groups() ->
     %% in parallel is broken!
     [
      {retrieve_personal_data, [], [
-                                           retrieve_vcard,
-                                           retrieve_roster,
-                                           retrieve_offline,
-                                           retrieve_inbox,
-                                           retrieve_inbox_for_multiple_messages,
-                                           retrieve_logs,
-                                           {group, retrieve_personal_data_pubsub},
-                                           {group, retrieve_personal_data_private_xml}
-                                          ]},
+                                   retrieve_vcard,
+                                   retrieve_roster,
+                                   retrieve_offline,
+                                   retrieve_inbox,
+                                   retrieve_inbox_for_multiple_messages,
+                                   retrieve_logs,
+                                   {group, retrieve_personal_data_pubsub},
+                                   {group, retrieve_personal_data_private_xml},
+                                   {group, retrieve_personal_data_mam}
+                                  ]},
      {retrieve_personal_data_pubsub, [], [
                                           retrieve_pubsub_payloads,
                                           dont_retrieve_other_user_pubsub_payload,
@@ -81,7 +81,8 @@ groups() ->
                                                       retrieve_logs,
                                                       retrieve_roster,
                                                       retrieve_all_pubsub_data,
-                                                      retrieve_multiple_private_xmls
+                                                      retrieve_multiple_private_xmls,
+                                                      {group, retrieve_personal_data_mam}
                                                      ]},
      {retrieve_personal_data_private_xml, [], [
                                                retrieve_private_xml,
@@ -266,13 +267,30 @@ retrieve_mam_pm(Config) ->
 retrieve_mam_muc_light(Config) ->
     F = fun(Alice, Bob) ->
             RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}]),
-            [Room, Domain] = string:split(RoomJid, <<"@">>),
-            M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room,
-                                                                 <<"some simple muc message">>, <<"Id1">>),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice,Bob], M1),
-            mam_helper:wait_for_room_archive_size(Domain, Room, 1)
-            %% TODO:
-            %%    add some retrieve_and_validate_personal_data() call here
+            [Room, Domain] = binary:split(RoomJid, <<"@">>),
+            Body1 = <<"some simple muc message">>,
+            Body2 = <<"another one">>,
+            Stanza1 = muc_light_stanza(Room, Body1, <<"Id1">>),
+            Stanza2 = muc_light_stanza(Room, Body2, <<"Id2">>),
+            escalus:send(Alice, Stanza1),
+            escalus:send(Alice, Stanza2),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice,Bob], {Room, Body1, <<"Id1">>}),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice,Bob], {Room, Body2, <<"Id2">>}),
+
+            mam_helper:wait_for_room_archive_size(Domain, Room, 3),
+
+            ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
+                                  #{"message" => [{contains, binary_to_list(Body2)}]}],
+            BackendModule = case proplists:get_value(mam_backend, Config) of
+                                rdbms -> mod_mam_muc_rdbms_arch;
+                                riak -> mod_mam_riak_timed_arch_yz;
+                                cassandra -> mod_mam_muc_cassandra_arch;
+                                elasticsearch -> mod_mam_muc_elasticsearch_arch
+                            end,
+            maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
+
+            retrieve_and_validate_personal_data(Alice, Config, "mam_muc", ["id", "message"], ExpectedItemsAlice),
+            refute_personal_data(Bob, Config, "mam_muc")
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -298,7 +316,7 @@ retrieve_offline(Config) ->
             AliceJid = escalus_client:short_jid(Alice),
             KateJid = escalus_client:full_jid(Kate),
             ExpectedHeader = ["timestamp", "from", "to", "packet"],
-            Expected = [{Body1, BobJid, AliceJid},  {Body2, BobJid, AliceJid}, {Body3, KateJid, AliceJid}],
+            Expected = [{Body2, BobJid, AliceJid},  {Body1, BobJid, AliceJid}, {Body3, KateJid, AliceJid}],
 
             ExpectedItems = lists:map(fun({Body, From ,To}) ->
                 #{ "packet" => [{contains, Body}],
@@ -363,11 +381,11 @@ dont_retrieve_other_user_pubsub_payload(Config) ->
 
 retrieve_created_pubsub_nodes(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
-        Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
-        Node3 = {_Domain, NodeName3} = pubsub_tools:pubsub_node(),
+        Node1 = {_Domain, NodeName1} = {pubsub_tools:node_addr(), <<"node1">>},
+        Node2 = {_Domain, NodeName2} = {pubsub_tools:node_addr(), <<"node2">>},
+        Node3 = {_Domain, NodeName3} = {pubsub_tools:node_addr(), <<"node3">>},
 
-        NodeNS = random_node_ns(),
+        NodeNS = <<"myns">>,
         PepNode = make_pep_node_info(Alice, NodeNS),
         AccessModel = {<<"pubsub#access_model">>, <<"authorize">>},
 
@@ -380,17 +398,16 @@ retrieve_created_pubsub_nodes(Config) ->
 
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_nodes", ExpectedHeader,
-            [pubsub_nodes_row_map(NodeName1, "flat"),
-             pubsub_nodes_row_map(NodeName2, "flat"),
-             pubsub_nodes_row_map(NodeNS, "pep")
-                ]),
+            [pubsub_nodes_row_map(NodeNS, "pep"),
+             pubsub_nodes_row_map(NodeName1, "flat"),
+             pubsub_nodes_row_map(NodeName2, "flat")]),
 
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_nodes", ExpectedHeader,
             [pubsub_nodes_row_map(NodeName3, "push")]),
 
 
-        Nodes = [{Alice, Node1}, {Alice, Node2}, {Alice, PepNode}, {Bob, Node3}],
+        Nodes = [{Alice, PepNode}, {Alice, Node1}, {Alice, Node2}, {Bob, Node3}],
         [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
                                                         end).
 
@@ -407,9 +424,9 @@ retrieve_pubsub_subscriptions(Config) ->
 
 retrieve_all_pubsub_data(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
-        Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
-        Node3 = {_Domain, NodeName3} = pubsub_tools:pubsub_node(),
+        Node1 = {_Domain, NodeName1} = {pubsub_tools:node_addr(), <<"node1xx">>},
+        Node2 = {_Domain, NodeName2} = {pubsub_tools:node_addr(), <<"node2xx">>},
+        Node3 = {_Domain, NodeName3} = {pubsub_tools:node_addr(), <<"node3xx">>},
         pubsub_tools:create_node(Alice, Node1, []),
         pubsub_tools:create_node(Alice, Node2, []),
         pubsub_tools:create_node(Bob, Node3, []),
@@ -448,7 +465,11 @@ retrieve_all_pubsub_data(Config) ->
         retrieve_and_validate_personal_data(
             Alice, Config, "pubsub_payloads", ["node_name", "item_id","payload"],
             [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
-             pubsub_payloads_row_map(NodeName2, "Item2", StringItem2)])
+             pubsub_payloads_row_map(NodeName2, "Item2", StringItem2)]),
+
+        dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
+        Nodes = [{Alice, Node1}, {Alice, Node2}, {Bob, Node3}],
+        [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
       end).
 
 
@@ -620,7 +641,7 @@ csv_row_to_map(Header, Row) ->
     maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(PersonalMaps, ExpectedItems) ->
-    validate_sorted_personal_maps(lists:sort(PersonalMaps), lists:sort(ExpectedItems)).
+    validate_sorted_personal_maps(lists:sort(PersonalMaps), ExpectedItems).
 
 validate_sorted_personal_maps([], []) -> ok;
 validate_sorted_personal_maps(UnexpectedRecords, []) ->
@@ -643,19 +664,27 @@ validate_personal_item(Value, [{validate, Validator} | RConditions]) when is_fun
     validate_personal_item(Value, RConditions).
 
 retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
-    User = escalus_client:username(Client),
-    Domain = escalus_client:server(Client),
-    Dir = request_and_unzip_personal_data(User, Domain, Config),
+    Dir = retrieve_all_personal_data(Client, Config),
     CSVPath = filename:join(Dir, FilePrefix ++ ".csv"),
     {ok, Content} = file:read_file(CSVPath),
     % We expect non-empty list because it must contain at least header with columns names
     [_ | _] = csv:decode_binary(Content).
 
+refute_personal_data(Client, Config, FilePrefix) ->
+    Dir = retrieve_all_personal_data(Client, Config),
+    CSVPath = filename:join(Dir, FilePrefix ++ ".csv"),
+    false = filelib:is_regular(CSVPath).
+
+retrieve_all_personal_data(Client, Config) ->
+    User = escalus_client:username(Client),
+    Domain = escalus_client:server(Client),
+    request_and_unzip_personal_data(User, Domain, Config).
+
 request_and_unzip_personal_data(User, Domain, Config) ->
     {Filename, 0, _} = retrieve_personal_data(User, Domain, Config),
     FullPath = get_mim_cwd() ++ "/" ++ Filename,
-    Dir = Filename ++ ".unzipped",
-    {ok, _} = zip:extract(FullPath, [{cwd,Dir}]),
+    Dir = Filename ++ "." ++ binary_to_list(User) ++ ".unzipped",
+    {ok, _} = zip:extract(FullPath, [{cwd, Dir}]),
     Dir.
 
 retrieve_personal_data(User, Domain, Config) ->
@@ -748,4 +777,9 @@ validate_time1(Time) ->
 
 check_list(List) ->
     lists:all(fun({V, L}) -> I = list_to_integer(V), I >= 0 andalso I < L end, List).
+
+muc_light_stanza(Room, Body, Id) ->
+    RoomJid = muc_light_helper:room_bin_jid(Room),
+    escalus_stanza:set_id(
+        escalus_stanza:groupchat_to(RoomJid, Body), Id).
 
