@@ -545,7 +545,7 @@ do_remove_user(LUser, LServer) ->
                               element => undefined }),
     ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
     %% We need to take care about cleaning the data in modules that are currently disabled.
-    %% Mich duplicate Module:remove_user/2 calls for enabled modules
+    %% Might duplicate Module:remove_user/2 calls for enabled modules
     gdpr_remove_user_from_all_modules(LUser, LServer),
     ok.
 
