@@ -254,10 +254,12 @@ elif [ "$db" = 'cassandra' ]; then
 elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
     ELASTICSEARCH_PORT=9200
-    ELASTICSEARCH_NAME=mongoooseim-elasticsearch
+    ELASTICSEARCH_NAME=mongooseim-elasticsearch
 
     echo $ELASTICSEARCH_IMAGE
     docker image pull $ELASTICSEARCH_IMAGE
+    docker rm -f  $ELASTICSEARCH_NAME || echo "Skip removing previous container"
+
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
     docker run -d $RM_FLAG \
            -p $ELASTICSEARCH_PORT:9200 \
