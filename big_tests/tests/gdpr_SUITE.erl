@@ -257,10 +257,30 @@ retrieve_roster(Config) ->
 
 retrieve_mam_pm(Config) ->
     F = fun(Alice, Bob) ->
-            escalus:send(Alice, escalus_stanza:chat_to(Bob, <<"some simple pm message">>)),
-            mam_helper:wait_for_archive_size(Alice, 1)
-            %% TODO:
-            %%    add some retrieve_and_validate_personal_data() call here
+            Msg1 = <<"some simple pm message">>,
+            Msg2 = <<"another simple pm message">>,
+            Msg3 = <<"third simple pm message">>,
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg1)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg2)),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg3)),
+            mam_helper:wait_for_archive_size(Alice, 3),
+
+            ExpectedHeader = ["id", "message"],
+            ExpectedItems = [
+                                #{"message" => [{contains, Msg1}]},
+                                #{"message" => [{contains, Msg3}]}
+                            ],
+
+            BackendModule = case proplists:get_value(mam_backend, Config) of
+                                rdbms -> mod_mam_rdbms_arch;
+                                riak -> mod_mam_riak_timed_arch_yz;
+                                cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_arch_params];
+                                elasticsearch -> mod_mam_elasticsearch_arch
+                            end,
+            maybe_stop_and_unload_module(mod_muc, BackendModule, Config),
+
+            retrieve_and_validate_personal_data(
+                Alice, Config, "mam_pm", ExpectedHeader, ExpectedItems)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -281,10 +301,11 @@ retrieve_mam_muc_light(Config) ->
 
             ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
                                   #{"message" => [{contains, binary_to_list(Body2)}]}],
+
             BackendModule = case proplists:get_value(mam_backend, Config) of
                                 rdbms -> mod_mam_muc_rdbms_arch;
                                 riak -> mod_mam_riak_timed_arch_yz;
-                                cassandra -> mod_mam_muc_cassandra_arch;
+                                cassandra -> [mod_mam_muc_cassandra_arch, mod_mam_muc_cassandra_arch_params];
                                 elasticsearch -> mod_mam_muc_elasticsearch_arch
                             end,
             maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
@@ -608,15 +629,20 @@ data_is_not_retrieved_for_missing_user(Config) ->
 domain() ->
     <<"localhost">>. % TODO: Make dynamic?
 
-maybe_stop_and_unload_module(Module, BackendProxy, Config) ->
+maybe_stop_and_unload_module(Module, Backends, Config) when is_list(Backends)->
     case proplists:get_value(disable_module, Config) of
         true ->
             dynamic_modules:stop(domain(), Module),
-            mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
-            true = mongoose_helper:successful_rpc(code, delete, [BackendProxy]);
+            [delete_backend(B) || B<-Backends];
         _ ->
             ok
-    end.
+    end;
+maybe_stop_and_unload_module(Module, BackendProxy, Config) ->
+    maybe_stop_and_unload_module(Module, [BackendProxy], Config).
+
+delete_backend(BackendProxy)->
+    mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
+    true = mongoose_helper:successful_rpc(code, delete, [BackendProxy]).
 
 retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
     PersonalCSV = retrieve_and_decode_personal_data(Alice, Config, FilePrefix),

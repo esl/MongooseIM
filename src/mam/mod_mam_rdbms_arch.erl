@@ -23,6 +23,8 @@
          lookup_messages/3,
          remove_archive/4]).
 
+-export([get_mam_pm_gdpr_data/2]).
+
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
 
@@ -108,6 +110,21 @@ stop(Host) ->
             ok
     end.
 
+-spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+get_mam_pm_gdpr_data(User, Host) ->
+    case mod_mam_rdbms_user:get_archive_id(User, Host) of
+        undefined -> {ok, []};
+        ArchiveID ->
+            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
+            %% NB: decoding implementation is the same in
+            %% mam_message_eterm & mam_message_compressed_eterm
+            {ok, [{BMessID, begin
+                                Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+                                Message = mam_message_eterm:decode(Data),
+                                exml:to_binary(Message)
+                            end} || {BMessID, SDataRaw} <- Rows]}
+    end.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -493,6 +510,16 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
       ["SELECT id, from_jid, message "
        "FROM mam_message ",
        Filter, Order, LimitSQL, Offset]).
+
+extract_gdpr_messages(Host, ArchiveID) ->
+    Direction = encode_direction(outgoing),
+    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID)),
+              " AND direction=", use_escaped_string(escape_string(Direction))],
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, message "
+         "FROM mam_message ",
+         Filter, " ORDER BY id"]).
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
 %%
