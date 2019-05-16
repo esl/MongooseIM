@@ -33,6 +33,7 @@ Options:
 --tls-dist            -- enable encryption between nodes in big tests
 --verbose             -- print script output
 --colors              -- force colors in help and examples commands
+--pause [SECONDS]     -- pause before big_tests execution
 
 Test specifications:
 -- [SUITE]
@@ -285,6 +286,7 @@ SMALL_TESTS_DEFAULT=true
 COVER_ENABLED_DEFAULT=true
 PRESET_ENABLED_DEFAULT=true
 
+PAUSE_BEFORE_BIG_TESTS=0
 BIG_TESTS=true
 BUILD_TESTS=true
 BUILD_MIM=true
@@ -304,6 +306,15 @@ do
 key="$1"
 
 case $key in
+    --pause)
+        shift # past argument
+        PAUSE_BEFORE_BIG_TESTS=15
+        if [ "$1" -gt 0 ] 2>/dev/null; then
+            PAUSE_BEFORE_BIG_TESTS="$1"
+            shift
+        fi
+    ;;
+
     --db)
         shift # past argument
         unset DB # We ignore env variable value
@@ -595,6 +606,7 @@ fi
 export TESTSPEC="auto_big_tests.spec"
 export START_NODES="$START_NODES"
 export STOP_NODES="$STOP_NODES"
+export PAUSE_BEFORE_BIG_TESTS="$PAUSE_BEFORE_BIG_TESTS"
 
 # Debug printing
 echo "Variables:"

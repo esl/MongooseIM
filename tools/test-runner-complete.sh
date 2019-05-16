@@ -106,6 +106,7 @@ _run_all_tests() {
                           --dev-nodes \
                           --test-hosts \
                           --one-node \
+                          --pause \
                           --skip-big-tests \
                           --skip-small-tests \
                           --skip-build-tests \
