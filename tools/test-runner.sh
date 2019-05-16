@@ -104,6 +104,10 @@ Script examples:
     Sets dev-nodes and test-hosts to empty lists
     Reruns mam_SUITE
 
+./tools/test-runner.sh --preset mysql_redis --skip-small-tests --skip-cover --one-node --kill-old-nodes -- rdbms
+    Runs rdbms_SUITE
+    Stops currently running MongooseIM nodes (useful to ensure that the latest code is being tested)
+
 ./tools/test-runner.sh --rerun-big-tests -- mam
     The same command as above
 
@@ -286,6 +290,7 @@ PRESET_ENABLED_DEFAULT=true
 BIG_TESTS=true
 BUILD_TESTS=true
 STOP_NODES=true
+KILL_OLD_NODES=false
 TLS_DIST=no
 
 SELECTED_TESTS=()
@@ -419,6 +424,11 @@ case $key in
     --skip-stop-nodes)
         shift # past argument
         STOP_NODES=false
+    ;;
+
+    --kill-old-nodes)
+        shift # past argument
+        KILL_OLD_NODES=true # poor nodes :(
     ;;
 
     --tls-dist)
@@ -592,7 +602,17 @@ echo "    REBAR_CT_EXTRA_ARGS=$REBAR_CT_EXTRA_ARGS"
 echo "    TESTSPEC=$TESTSPEC"
 echo "    TLS_DIST=$TLS_DIST"
 echo "    STOP_NODES=$STOP_NODES"
+echo "    KILL_OLD_NODES=$KILL_OLD_NODES"
 echo ""
+
+
+if [ "$KILL_OLD_NODES" = true ] && [ ! -z "$TEST_HOSTS" ]
+then
+    NODES_TO_STOP=$(./tools/test_runner/hosts_to_nodes.sh $TEST_HOSTS)
+    echo "Ensure that $NODES_TO_STOP nodes are not running"
+    ./tools/test_runner/kill_nodes.sh $NODES_TO_STOP
+fi
+
 
 ./tools/build-releases.sh
 

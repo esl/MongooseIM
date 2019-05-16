@@ -121,6 +121,7 @@ _run_all_tests() {
                           --show-small-reports \
                           --show-big-reports \
                           --rerun-big-tests \
+                          --kill-old-nodes \
                           --colors \
                           '"$SUGGESTIONS"' \
                           '"$SUITES"' \
