@@ -16,6 +16,7 @@
          retrieve_roster/1,
          retrieve_mam_pm/1,
          retrieve_mam_muc_light/1,
+         retrieve_mam_pm_and_muc_light_dont_interfere/1,
          retrieve_offline/1,
          retrieve_pubsub_payloads/1,
          retrieve_created_pubsub_nodes/1,
@@ -94,7 +95,7 @@ groups() ->
                              ]},
      {retrieve_personal_data_mam, [], [
                                        {group, retrieve_personal_data_mam_rdbms},
-                                       %{group, retrieve_personal_data_mam_riak},
+                                       {group, retrieve_personal_data_mam_riak},
                                        {group, retrieve_personal_data_mam_cassandra},
                                        {group, retrieve_personal_data_mam_elasticsearch}
                                       ]},
@@ -105,8 +106,11 @@ groups() ->
     ].
 
 mam_testcases() ->
-    [retrieve_mam_pm,
-     retrieve_mam_muc_light].
+    [
+        retrieve_mam_pm,
+        retrieve_mam_muc_light,
+        retrieve_mam_pm_and_muc_light_dont_interfere
+    ].
 
 init_per_suite(Config) ->
     Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
@@ -161,11 +165,13 @@ init_per_testcase(retrieve_vcard = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
+                                   CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                    CN =:= retrieve_mam_pm ->
     case proplists:get_value(mam_backend, Config, skip) of
         skip ->
             {skip, no_mam_backend_configured};
         Backend ->
+            dynamic_modules:restore_modules(domain(), Config),
             RequiredModules = mam_required_modules(CN, Backend),
             dynamic_modules:ensure_modules(domain(), RequiredModules),
             escalus:init_per_testcase(CN, [{mam_modules, RequiredModules} | Config])
@@ -199,7 +205,8 @@ inbox_opts() ->
 mam_required_modules(retrieve_mam_pm, Backend) ->
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, false}]}]}];
-mam_required_modules(retrieve_mam_muc_light, Backend) ->
+mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
+                                       CN =:= retrieve_mam_muc_light ->
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, false}]},
                      {muc, [{host, "muclight.@HOST@"}]}]},
@@ -263,54 +270,97 @@ retrieve_mam_pm(Config) ->
             escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg1)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg2)),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg3)),
-            mam_helper:wait_for_archive_size(Alice, 3),
+            [mam_helper:wait_for_archive_size(User, 3) || User <- [Alice, Bob]],
+
 
             ExpectedHeader = ["id", "message"],
-            ExpectedItems = [
+            ExpectedItems1 = [
                                 #{"message" => [{contains, Msg1}]},
                                 #{"message" => [{contains, Msg3}]}
                             ],
+            ExpectedItems2 = [#{"message" => [{contains, Msg2}]}],
 
-            BackendModule = case proplists:get_value(mam_backend, Config) of
-                                rdbms -> mod_mam_rdbms_arch;
-                                riak -> mod_mam_riak_timed_arch_yz;
-                                cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_arch_params];
-                                elasticsearch -> mod_mam_elasticsearch_arch
-                            end,
+            BackendModule = choose_mam_backend(Config, mam),
             maybe_stop_and_unload_module(mod_mam, BackendModule, Config),
 
             retrieve_and_validate_personal_data(
-                Alice, Config, "mam_pm", ExpectedHeader, ExpectedItems)
+                Alice, Config, "mam_pm", ExpectedHeader, ExpectedItems1),
+            retrieve_and_validate_personal_data(
+                Bob, Config, "mam_pm", ExpectedHeader, ExpectedItems2)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 retrieve_mam_muc_light(Config) ->
-    F = fun(Alice, Bob) ->
-            RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}]),
+    F = fun(Alice, Bob, Kate) ->
+            RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}, {Kate, member}]),
             [Room, Domain] = binary:split(RoomJid, <<"@">>),
             Body1 = <<"some simple muc message">>,
             Body2 = <<"another one">>,
+            Body3 = <<"third message">>,
 
             M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, Body1, <<"Id1">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M1),
             M2 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, Body2, <<"Id2">>),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M1),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M2),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M2),
+            M3 = muc_light_helper:when_muc_light_message_is_sent(Bob, Room, Body3, <<"Id3">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M3),
 
-            mam_helper:wait_for_room_archive_size(Domain, Room, 3),
+
+            mam_helper:wait_for_room_archive_size(Domain, Room, 4),
 
             ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
                                   #{"message" => [{contains, binary_to_list(Body2)}]}],
 
-            BackendModule = case proplists:get_value(mam_backend, Config) of
-                                rdbms -> mod_mam_muc_rdbms_arch;
-                                riak -> mod_mam_riak_timed_arch_yz;
-                                cassandra -> [mod_mam_muc_cassandra_arch, mod_mam_muc_cassandra_arch_params];
-                                elasticsearch -> mod_mam_muc_elasticsearch_arch
-                            end,
+            ExpectedItemsBob = [#{"message" => [{contains, binary_to_list(Body3)}]}],
+
+            BackendModule = choose_mam_backend(Config, mam_muc),
             maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
 
             retrieve_and_validate_personal_data(Alice, Config, "mam_muc", ["id", "message"], ExpectedItemsAlice),
-            refute_personal_data(Bob, Config, "mam_muc")
+            retrieve_and_validate_personal_data(Bob, Config, "mam_muc", ["id", "message"], ExpectedItemsBob),
+            refute_personal_data(Kate, Config, "mam_muc")
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
+    F = fun(Alice, Bob) ->
+            RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}]),
+            [Room, Domain] = binary:split(RoomJid, <<"@">>),
+            BodyMucAlice = <<"some simple muc message from Alice">>,
+            BodyMucBob = <<"some simple muc message from Bob">>,
+            BodyPmAlice = <<"some simple pm message from Alice">>,
+            BodyPmBob = <<"some simple pm message from Bob">>,
+
+            M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, BodyMucAlice, <<"Id1">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M1),
+            M2 = muc_light_helper:when_muc_light_message_is_sent(Bob, Room, BodyMucBob, <<"Id2">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M2),
+
+            mam_helper:wait_for_room_archive_size(Domain, Room, 3),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, BodyPmAlice)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, BodyPmBob)),
+
+            [mam_helper:wait_for_archive_size(User, 2) || User <- [Alice, Bob]],
+
+
+            MamBackends = choose_mam_backend(Config, mam),
+            MamMucBackends = choose_mam_backend(Config, mam_muc),
+            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
+            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
+
+            AliceDir = retrieve_all_personal_data(Alice, Config),
+            BobDir = retrieve_all_personal_data(Bob, Config),
+
+            validate_personal_data(AliceDir, "mam_muc", ["id", "message"],
+                                   [#{"message" => [{contains, binary_to_list(BodyMucAlice)}]}]),
+            validate_personal_data(BobDir, "mam_muc", ["id", "message"],
+                                   [#{"message" => [{contains, binary_to_list(BodyMucBob)}]}]),
+
+            validate_personal_data(AliceDir, "mam_pm", ["id", "message"],
+                                   [#{"message" => [{contains, BodyPmAlice}]}]),
+            validate_personal_data(BobDir, "mam_pm", ["id", "message"],
+                                   [#{"message" => [{contains, BodyPmBob}]}])
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -644,20 +694,25 @@ delete_backend(BackendProxy)->
     mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
     true = mongoose_helper:successful_rpc(code, delete, [BackendProxy]).
 
-retrieve_and_validate_personal_data(Alice, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
-    PersonalCSV = retrieve_and_decode_personal_data(Alice, Config, FilePrefix),
+retrieve_and_validate_personal_data(User, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
+    Dir = retrieve_all_personal_data(User, Config),
+    validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems).
+
+
+validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems) ->
+    PersonalCSV = decode_personal_data(Dir, FilePrefix),
     PersonalMaps = csv_to_maps(ExpectedHeader, PersonalCSV),
     try validate_personal_maps(PersonalMaps, ExpectedItems) of
         _ -> ok
     catch
         C:R ->
             ct:fail(#{
-              class => C,
-              reason => R,
-              stacktrace => erlang:get_stacktrace(),
-              personal_maps => PersonalMaps,
-              expected_items => ExpectedItems
-             })
+                        class => C,
+                        reason => R,
+                        stacktrace => erlang:get_stacktrace(),
+                        personal_maps => PersonalMaps,
+                        expected_items => ExpectedItems
+                    })
     end.
 
 csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
@@ -689,8 +744,7 @@ validate_personal_item(Value, [{validate, Validator} | RConditions]) when is_fun
     true = Validator(Value),
     validate_personal_item(Value, RConditions).
 
-retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
-    Dir = retrieve_all_personal_data(Client, Config),
+decode_personal_data(Dir, FilePrefix) ->
     CSVPath = filename:join(Dir, FilePrefix ++ ".csv"),
     {ok, Content} = file:read_file(CSVPath),
     % We expect non-empty list because it must contain at least header with columns names
@@ -698,6 +752,9 @@ retrieve_and_decode_personal_data(Client, Config, FilePrefix) ->
 
 refute_personal_data(Client, Config, FilePrefix) ->
     Dir = retrieve_all_personal_data(Client, Config),
+    refute_personal_data(Dir, FilePrefix).
+
+refute_personal_data(Dir, FilePrefix) ->
     CSVPath = filename:join(Dir, FilePrefix ++ ".csv"),
     false = filelib:is_regular(CSVPath).
 
@@ -710,6 +767,7 @@ request_and_unzip_personal_data(User, Domain, Config) ->
     {Filename, 0, _} = retrieve_personal_data(User, Domain, Config),
     FullPath = get_mim_cwd() ++ "/" ++ Filename,
     Dir = make_dir_name(Filename, User),
+    ct:log("extracting logs ~s", [Dir]),
     {ok, _} = zip:extract(FullPath, [{cwd, Dir}]),
     Dir.
 
@@ -808,4 +866,19 @@ validate_time1(Time) ->
 
 check_list(List) ->
     lists:all(fun({V, L}) -> I = list_to_integer(V), I >= 0 andalso I < L end, List).
+
+choose_mam_backend(Config, mam) ->
+    case proplists:get_value(mam_backend, Config) of
+            rdbms -> mod_mam_rdbms_arch;
+            riak -> mod_mam_riak_timed_arch_yz;
+            cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_arch_params];
+            elasticsearch -> mod_mam_elasticsearch_arch
+    end;
+choose_mam_backend(Config, mam_muc) ->
+    case proplists:get_value(mam_backend, Config) of
+            rdbms -> mod_mam_muc_rdbms_arch;
+            riak -> mod_mam_riak_timed_arch_yz;
+            cassandra -> [mod_mam_muc_cassandra_arch, mod_mam_muc_cassandra_arch_params];
+            elasticsearch -> mod_mam_muc_elasticsearch_arch
+    end.
 
