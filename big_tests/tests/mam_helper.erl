@@ -812,19 +812,12 @@ wait_for_archive_size_or_warning(Server, Username, ExpectedSize) ->
     end.
 
 wait_for_room_archive_size(Server, Username, ExpectedSize) ->
-    try mongoose_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
-                                   ExpectedSize,
-                                   #{
-                                     time_left => timer:seconds(20),
-                                     name => room_archive_size
-                                    }) of
-        {ok, ExpectedSize} ->
-            ExpectedSize
-    catch
-        _Error:Reason ->
-            ct:pal("issue=wait_for_room_archive_size, expected_size=~p, log=~p",
-                   [ExpectedSize, Reason])
-    end.
+    {ok, ExpectedSize} = mongoose_helper:wait_until(fun() -> room_archive_size(Server, Username) end,
+                                                    ExpectedSize,
+                                                    #{
+                                                        time_left => timer:seconds(20),
+                                                        name => room_archive_size
+                                                    }).
 
 
 archive_size(Server, Username) ->
@@ -1018,8 +1011,7 @@ muc_bootstrap_archive(Config) ->
     put_muc_msgs(Msgs),
 
     maybe_wait_for_archive(Config),
-    ?assert_equal(length(Msgs),
-                  wait_for_room_archive_size(Domain, Room, length(Msgs))),
+    wait_for_room_archive_size(Domain, Room, length(Msgs)),
 
     [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
 

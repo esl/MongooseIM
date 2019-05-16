@@ -44,6 +44,8 @@
 -export([create_obj/5, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
+-export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
+
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
 -define(YZ_SEARCH_INDEX, <<"mam">>).
@@ -317,6 +319,54 @@ get_message2(Host, MsgId, Bucket, Key) ->
         _ ->
             []
     end.
+-spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+get_mam_pm_gdpr_data(Username, Host) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Host),
+    Jid = jid:make({LUser, LServer, <<>>}),
+    {ok, {_, _, Messages}} = lookup_messages([], Host,
+        #{
+            with_jid => undefined,
+            owner_jid => Jid,
+            rsm => undefined,
+            page_size => undefined,
+            borders => undefined,
+            start_ts => undefined,
+            end_ts => undefined,
+            search_text => undefined,
+            is_simple => true} ),
+
+    Filtered = lists:filter(fun(El) -> is_message_from_jid(Jid, El) end, Messages),
+    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
+
+is_message_from_jid(BareJid, {_MsgId, SourceFullJid, _Packet}) ->
+    BareJid == jid:to_bare(SourceFullJid).
+
+
+-spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+get_mam_muc_gdpr_data(Username, Host) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Host),
+    Jid = jid:make({LUser, LServer, <<>>}),
+    {ok, {_, _, Messages}} = lookup_messages([], Host,
+        #{
+            with_jid => Jid,
+            owner_jid => undefined,
+            rsm => undefined,
+            page_size => undefined,
+            borders => undefined,
+            start_ts => undefined,
+            end_ts => undefined,
+            search_text => undefined,
+            is_simple => true} ),
+
+    Filtered = lists:filter(fun(El) -> is_muclight_message(Jid, El) end, Messages),
+    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
+
+is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet}) -> false;
+is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
 
 remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveID, ArchiveJID),
@@ -427,6 +477,8 @@ search_text_filter(SearchText) ->
 
 jid_filters(LocalJid, undefined) ->
     <<"_yz_rk:", LocalJid/binary, "*">>;
+jid_filters(undefined, RemoteJid) ->
+    <<"_yz_rk:*/", RemoteJid/binary, "*">>;
 jid_filters(LocalJid, RemoteJid) ->
     <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
 
