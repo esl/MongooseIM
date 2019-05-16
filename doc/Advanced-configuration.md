@@ -306,6 +306,12 @@ There are some additional options that influence all database connections in the
     * **Default:** no value, i.e. `Cowboy` is used as a header value
     * **Example:** `{cowboy_server_name, "Apache"}`
 
+* **hide_service_name** (local)
+    * **Description:** According to RFC 6210, even when a client sends invalid data after opening a connection, the server must open XML stream and return stream error anyway. For extra security, this option may be enabled. It changes MIM behaviour to simply close the connection without any errors returned (effectively hiding server's identity).
+    * **Syntax:** `{hide_service_name, Boolean}`
+    * **Default:** `false`
+    * **Example:** `{hide_service_name, true}`
+
 ### Modules
 
 For a specific configuration, please refer to [Modules](advanced-configuration/Modules.md) page.
