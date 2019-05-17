@@ -7,24 +7,16 @@
 -include_lib("common_test/include/ct.hrl").
 
 -import(rest_helper,
-        [assert_inlist/2,
-         assert_notinlist/2,
-         decode_maplist/1,
-         gett/2,
+        [decode_maplist/1,
          gett/3,
-         post/3,
          post/4,
-         putt/3,
          putt/4,
-         delete/2,
          delete/3,
          delete/4]
          ).
 
 -import(muc_light_helper,
         [set_mod_config/3]).
-
--import(escalus_ejabberd, [rpc/3]).
 
 -define(PRT(X, Y), ct:pal("~p: ~p", [X, Y])).
 -define(OK, {<<"200">>, <<"OK">>}).
@@ -33,21 +25,28 @@
 -define(ERROR, {<<"500">>, _}).
 -define(NOT_FOUND, {<<"404">>, _}).
 -define(NOT_IMPLEMENTED, {<<"501">>, _}).
+-define(UNAUTHORIZED, {<<"401">>, <<"Unauthorized">>}).
 -define(MUCHOST, <<"muclight.localhost">>).
+
+%% --------------------------------------------------------------------
+%% Common Test stuff
+%% --------------------------------------------------------------------
 
 all() ->
     [{group, messages},
      {group, muc},
      {group, muc_config},
      {group, roster},
-     {group, messages_with_props}].
+     {group, messages_with_props},
+     {group, security}].
 
 groups() ->
     G = [{messages_with_props, [parallel], message_with_props_test_cases()},
          {messages, [parallel], message_test_cases()},
          {muc, [pararell], muc_test_cases()},
          {muc_config, [], muc_config_cases()},
-         {roster, [parallel], roster_test_cases()}],
+         {roster, [parallel], roster_test_cases()},
+         {security, [], security_test_cases()}],
     ct_helper:repeat_all_until_all_ok(G).
 
 message_test_cases() ->
@@ -106,6 +105,12 @@ message_with_props_test_cases() ->
      msg_with_malformed_props_is_sent_and_delivered_over_xmpp
      ].
 
+security_test_cases() ->
+    [
+     default_http_server_name_is_returned_if_not_changed,
+     non_default_http_server_name_is_returned_if_configured
+    ].
+
 init_per_suite(C) ->
     application:ensure_all_started(shotgun),
     Host = ct:get_config({hosts, mim, domain}),
@@ -157,6 +162,10 @@ end_per_testcase(config_can_be_changed_by_all = CaseName, Config) ->
 
 end_per_testcase(TC, C) ->
     escalus:end_per_testcase(TC, C).
+
+%% --------------------------------------------------------------------
+%% Test cases
+%% --------------------------------------------------------------------
 
 msg_is_sent_and_delivered_over_xmpp(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -581,7 +590,6 @@ msg_with_malformed_props_can_be_parsed(Config) ->
 
     end).
 
-
 assert_room_messages(RecvMsg, {_ID, _GenFrom, GenMsg}) ->
     escalus:assert(is_chat_message, [maps:get(body, RecvMsg)], GenMsg),
     ok.
@@ -652,7 +660,7 @@ when_config_change(User, RoomID, NewName, NewSubject) ->
     Creds = credentials(User),
     Config = #{name => NewName, subject => NewSubject},
     Path = <<"/rooms/", RoomID/binary, "/config">>,
-    rest_helper:putt(client, Path, Config, Creds).
+    putt(client, Path, Config, Creds).
 
 maybe_wait_for_aff_stanza(#client{} = Client, Invitee) ->
     Stanza = escalus:wait_for_stanza(Client),
@@ -690,7 +698,7 @@ send_message(User, From, To) ->
     BobJID = user_jid(To),
     M = #{to => BobJID, body => <<"hello, ", BobJID/binary, " it's me">>},
     Cred = credentials({User, From}),
-    {{<<"200">>, <<"OK">>}, {Result}} = rest_helper:post(client, <<"/messages">>, M, Cred),
+    {{<<"200">>, <<"OK">>}, {Result}} = post(client, <<"/messages">>, M, Cred),
     ID = proplists:get_value(<<"id">>, Result),
     M#{id => ID, from => AliceJID}.
 
@@ -762,7 +770,7 @@ create_room_with_id_request(Creds, RoomName, Subject, RoomID) ->
     Room = #{name => RoomName,
              subject => Subject},
     Path = <<"/rooms/", RoomID/binary>>,
-    rest_helper:putt(client, Path, Room, Creds).
+    putt(client, Path, Room, Creds).
 
 get_my_rooms(User) ->
     Creds = credentials(User),
@@ -1163,3 +1171,26 @@ room_jid(RoomID, Config) ->
 
 domain(Config) ->
     ?config(muc_light_host, Config).
+
+default_http_server_name_is_returned_if_not_changed(_Config) ->
+    %% GIVEN MIM1 uses default name
+    verify_server_name_in_header(distributed_helper:mim(), <<"Cowboy">>).
+
+non_default_http_server_name_is_returned_if_configured(_Config) ->
+    %% GIVEN MIM2 uses name "Classified"
+    verify_server_name_in_header(distributed_helper:mim2(), <<"Classified">>).
+
+verify_server_name_in_header(Server, ExpectedName) ->
+    % WHEN unathenticated user makes a request to nonexistent path
+    ReqParams = #{
+      role => client,
+      method => <<"GET">>,
+      path => "/contacts/zorro@localhost",
+      body => <<>>,
+      return_headers => true,
+      server => Server
+     },           
+    {?UNAUTHORIZED, Headers2, _} = rest_helper:make_request(ReqParams),
+    % THEN expected server name is returned
+    ExpectedName = proplists:get_value(<<"server">>, Headers2).
+
