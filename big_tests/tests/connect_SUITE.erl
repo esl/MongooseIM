@@ -655,7 +655,7 @@ close_connection_if_service_type_is_hidden(_Config) ->
                             end,
     Connection = escalus_tcp:connect(#{ on_reply => FailIfAnyDataReturned }),
     Ref = monitor(process, Connection),
-    escalus_tcp:send(Connection, "malformed"),
+    escalus_tcp:send(Connection, <<"malformed">>),
     receive
         {'DOWN', Ref, _, _, _} -> ok
     after
