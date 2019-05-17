@@ -20,7 +20,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
 ## Options
 
-* All options except `hosts`, `host`, `host_config`, `listen` and `outgoing_connections` and  can be used in the `host_config` tuple.
+* All options except `hosts`, `host`, `host_config`, `listen` and `outgoing_connections` may be used in the `host_config` tuple.
 
 * There are two kinds of local options - those that are kept separately for each domain in the config file (defined inside `host_config`) and the options local for a node in the cluster.
 
@@ -350,6 +350,12 @@ There are some additional options that influence all database connections in the
     * **Description:** When a user session is replaced (due to a full JID conflict) by a new one, this parameter specifies the time MongooseIM waits for the old sessions to close. The default value is sufficient in most cases. If you observe `replaced_wait_timeout` warning in logs, then most probably the old sessions are frozen for some reason and it should be investigated.
     * **Syntax:** `{replaced_wait_timeout, TimeInMilliseconds}`
     * **Default:** `2000`
+
+* **cowboy_server_name** (local)
+    * **Description:** If configured, replaces Cowboy's default name returned in `server` HTTP response header. It may be use for extra security, as it makes harder for the malicious user harder to learn what HTTP software is running under specific port. This option applies to **all** listeners started by `ejabberd_cowboy` module.
+    * **Syntax:** `{cowboy_server_name, NewName}`
+    * **Default:** no value, i.e. `Cowboy` is used as a header value
+    * **Example:** `{cowboy_server_name, "Apache"}`
 
 ### Modules
 
