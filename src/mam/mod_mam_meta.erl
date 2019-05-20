@@ -19,7 +19,7 @@
 
 -type deps() :: #{module() => proplists:proplist()}.
 
--export([start/2, stop/1, deps/2]).
+-export([start/2, stop/1, deps/2, get_mam_module_params/3]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -45,6 +45,21 @@ deps(_Host, Opts0) ->
 
     [{Dep, Args, hard} || {Dep, Args} <- maps:to_list(DepsWithPmAndMuc)].
 
+get_mam_module_params(Host, MamModule, DefaultValue) ->
+    Modules = ejabberd_config:get_local_option(modules, Host),
+    case proplists:get_value(MamModule, Modules) of
+        undefined ->
+            case proplists:get_value(?MODULE, Modules) of
+                undefined -> DefaultValue;
+                MamMetaParams ->
+                    Deps = deps(Host, MamMetaParams),
+                    case lists:keyfind(MamModule, 1, Deps) of
+                        {MamModule, Params, _} -> Params;
+                        _ -> DefaultValue
+                    end
+            end;
+        Params -> Params
+    end.
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------

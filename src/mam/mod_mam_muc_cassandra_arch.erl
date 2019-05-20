@@ -539,30 +539,24 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) -> {ok, mod_mam:messages()}.
 get_mam_muc_gdpr_data(Username, Host) ->
-    ensure_params_loaded(),
+    ensure_params_loaded(Host),
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
     Jid = jid:make({LUser, LServer, <<>>}),
     BinJid = jid:to_binary(Jid),
     PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
-    FilterMap = #{
-        room_jid  => undefined,
-        nick_name  => BinJid,
-        with_nick => undefined,
-        start_id  => undefined,
-        end_id    => undefined
-    },
+    FilterMap = #{nick_name  => BinJid},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),
     RemoveDups = [Row || Row = #{with_nick := J, nick_name := J} <- Rows],
     Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))} || #{message := Data, id:= Id} <- RemoveDups],
     {ok, Messages}.
 
 
-
-ensure_params_loaded() ->
+ensure_params_loaded(Host) ->
     case code:is_loaded(mod_mam_muc_cassandra_arch_params) of
         false ->
-            compile_params_module([]);
+            Params = mod_mam_meta:get_mam_module_params(Host, ?MODULE, []),
+            compile_params_module(Params);
         _ -> ok
     end.
 
