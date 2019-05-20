@@ -883,7 +883,7 @@ remove_user(User, Server) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Acc1 = maybe_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
+    Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
     Backends = mongoose_lib:find_behaviour_implementations(mod_roster),
     lists:foreach(fun(Backend) ->
             try
@@ -898,7 +898,7 @@ remove_user(Acc, User, Server) ->
         end, Backends),
     Acc1.
 
-maybe_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
+try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
     try
         send_unsubscription_to_rosteritems(Acc, LUser, LServer)
     catch
