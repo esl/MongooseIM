@@ -14,6 +14,7 @@
 -export([
          retrieve_vcard/1,
          remove_vcard/1,
+         remove_private/1,
          retrieve_roster/1,
          remove_roster/1,
          retrieve_mam/1,
@@ -99,13 +100,15 @@ groups() ->
             % per type
             remove_vcard,
             remove_roster,
-            remove_offline
+            remove_offline,
+            remove_private
         ]},
         {remove_personal_data_with_mods_disabled, [], [
             % per type
             remove_vcard,
             remove_roster,
-            remove_offline
+            remove_offline,
+            remove_private
         ]}
     ].
 
@@ -155,6 +158,9 @@ init_per_testcase(remove_vcard = CN, Config) ->
             vcard_started(),
             escalus:init_per_testcase(CN, Config)
     end;
+init_per_testcase(remove_private = CN, Config) ->
+    private_started(),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(retrieve_mam = CN, Config) ->
     case pick_backend_for_mam() of
         skip ->
@@ -164,7 +170,7 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(remove_roster = CN, Config) ->
-    Backend = pick_backend_as_riak_or_rdbms(),
+    Backend = pick_enabled_backend(),
     dynamic_modules:ensure_modules(domain(), [{mod_roster, [{backend, Backend}]}]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
@@ -210,7 +216,7 @@ pick_backend_for_mam() ->
 mam_required_modules(Backend) ->
     [{mod_mam_meta, [{backend, Backend}, {pm, []}]}].
 
-pick_backend_as_riak_or_rdbms() ->
+pick_enabled_backend() ->
     BackendsList = [
         {mam_helper:is_riak_enabled(domain()), riak},
         {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
@@ -218,10 +224,10 @@ pick_backend_as_riak_or_rdbms() ->
     proplists:get_value(true, BackendsList, mnesia).
 
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, pick_backend_as_riak_or_rdbms()}]}].
+    [{mod_vcard, [{backend, pick_enabled_backend()}]}].
 
 offline_required_modules() ->
-    [{mod_offline, [{backend, pick_backend_as_riak_or_rdbms()}]}].
+    [{mod_offline, [{backend, pick_enabled_backend()}]}].
 
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
@@ -237,6 +243,12 @@ vcard_started() ->
 
 offline_started() ->
     dynamic_modules:ensure_modules(domain(), offline_required_modules()).
+
+private_required_modules() ->
+    [{mod_private, [{backend, pick_enabled_backend()}]}].
+
+private_started() ->
+    dynamic_modules:ensure_modules(domain(), private_required_modules()).
 
 %% -------------------------------------------------------------
 %% Test cases
@@ -281,6 +293,45 @@ remove_vcard(Config) ->
                 mongoose_helper:successful_rpc(mod_vcard, get_personal_data,
                     [AliceU, AliceS])
             end, [{vcard,["jid","vcard"],[]}])
+
+        end).
+
+remove_private(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+
+        %% Add some private data for Alice
+        Element = #xmlel{name = <<"item">>,
+                         attrs = [{<<"xmlns">>, <<"alice:private_remove:ns">>}],
+                         children = [#xmlcdata{ content = <<"Something to declare">> }]},
+        SetPrivateResult = escalus:send_and_wait(Alice,
+                             escalus_stanza:private_set(Element)),
+        ct:log("SetPrivateResult: ~p", [SetPrivateResult]),
+        escalus:assert(is_iq_result, SetPrivateResult),
+
+        %% Verify the data is stored
+        ct:log("Verify the data is stored", []),
+        mongoose_helper:wait_until(
+            fun() ->
+                mongoose_helper:successful_rpc(mod_private, get_personal_data,
+                    [AliceU, AliceS])
+            end, [{private, ["ns","xml"],
+                   [{<<"alice:private_remove:ns">>,
+                     <<"<item xmlns='alice:private_remove:ns'>Something to declare</item>">>}]}]),
+
+        maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
+
+        %% Remove Alice
+        {0, _} = unregister(Alice, Config),
+
+        %% Expect her data to be gone
+        ct:log("Expect her data to be gone", []),
+        mongoose_helper:wait_until(
+            fun() ->
+                mongoose_helper:successful_rpc(mod_private, get_personal_data,
+                    [AliceU, AliceS])
+            end, [{private, ["ns","xml"], []}])
 
         end).
 
