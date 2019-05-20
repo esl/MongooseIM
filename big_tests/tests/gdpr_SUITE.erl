@@ -290,12 +290,11 @@ retrieve_mam_muc_light(Config) ->
             [Room, Domain] = binary:split(RoomJid, <<"@">>),
             Body1 = <<"some simple muc message">>,
             Body2 = <<"another one">>,
-            Stanza1 = muc_light_stanza(Room, Body1, <<"Id1">>),
-            Stanza2 = muc_light_stanza(Room, Body2, <<"Id2">>),
-            escalus:send(Alice, Stanza1),
-            escalus:send(Alice, Stanza2),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice,Bob], {Room, Body1, <<"Id1">>}),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice,Bob], {Room, Body2, <<"Id2">>}),
+
+            M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, Body1, <<"Id1">>),
+            M2 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, Body2, <<"Id2">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M1),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M2),
 
             mam_helper:wait_for_room_archive_size(Domain, Room, 3),
 
@@ -641,6 +640,7 @@ maybe_stop_and_unload_module(Module, BackendProxy, Config) ->
     maybe_stop_and_unload_module(Module, [BackendProxy], Config).
 
 delete_backend(BackendProxy)->
+    dynamic_modules:stop(domain(), BackendProxy),
     mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
     true = mongoose_helper:successful_rpc(code, delete, [BackendProxy]).
 
@@ -803,9 +803,4 @@ validate_time1(Time) ->
 
 check_list(List) ->
     lists:all(fun({V, L}) -> I = list_to_integer(V), I >= 0 andalso I < L end, List).
-
-muc_light_stanza(Room, Body, Id) ->
-    RoomJid = muc_light_helper:room_bin_jid(Room),
-    escalus_stanza:set_id(
-        escalus_stanza:groupchat_to(RoomJid, Body), Id).
 
