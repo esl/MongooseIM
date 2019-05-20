@@ -197,8 +197,8 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
             escalus:init_per_testcase(CN, [{mam_modules, RequiredModules} | Config])
     end;
 init_per_testcase(remove_roster = CN, Config) ->
-    dynamic_modules:ensure_modules(domain(), [{mod_roster, []}]),
-    escalus_fresh:clean(),
+    Backend = pick_backend_for_roster(),
+    dynamic_modules:ensure_modules(domain(), [{mod_roster, [{backend, Backend}]}]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
@@ -209,6 +209,7 @@ end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
     muc_light_helper:clear_db(),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_testcase(CN, Config).
 
 init_inbox(CN, Config) ->
@@ -247,6 +248,14 @@ mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
                      {muc, [{host, "muclight.@HOST@"}]}]},
      {mod_muc_light, [{host, "muclight.@HOST@"}]}].
 
+pick_backend_for_roster() ->
+    IsRiak = mam_helper:is_riak_enabled(domain()),
+    IsRdbms = mongoose_helper:is_rdbms_enabled(domain()),
+    if
+        IsRiak -> riak;
+        IsRdbms -> rdbms;
+        true -> mnesia
+    end.
 
 pick_backend_for_vcard() ->
     BackendsList = [
