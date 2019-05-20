@@ -21,6 +21,7 @@
          retrieve_mam_pm_and_muc_light_dont_interfere/1,
          remove_roster/1,
          retrieve_offline/1,
+         remove_offline/1,
          retrieve_pubsub_payloads/1,
          retrieve_created_pubsub_nodes/1,
          retrieve_all_pubsub_data/1,
@@ -108,8 +109,8 @@ groups() ->
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]},
-     {remove_personal_data, [], [remove_vcard, remove_roster]},
-     {remove_personal_data_with_mods_disabled, [], [remove_vcard, remove_roster]}
+     {remove_personal_data, [], [remove_vcard, remove_roster, remove_offline]},
+     {remove_personal_data_with_mods_disabled, [], [remove_vcard, remove_roster, remove_offline]}
     ].
 
 mam_testcases() ->
@@ -165,6 +166,9 @@ end_per_group(_GN, Config) ->
 
 init_per_testcase(retrieve_inbox = CN, Config) ->
     init_inbox(CN, Config);
+init_per_testcase(remove_offline = CN, Config) ->
+    offline_started(),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(retrieve_inbox_for_multiple_messages = CN, Config) ->
     init_inbox(CN, Config);
 init_per_testcase(retrieve_vcard = CN, Config) ->
@@ -257,16 +261,16 @@ pick_backend_for_roster() ->
         true -> mnesia
     end.
 
-pick_backend_for_vcard() ->
-    BackendsList = [
-        {mam_helper:is_riak_enabled(domain()), riak},
-        {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
-    ],
+pick_backend_for_vcard_or_offline() ->
+    BackendsList = [{mam_helper:is_riak_enabled(domain()), riak},
+                    {mongoose_helper:is_rdbms_enabled(domain()), rdbms}],
     proplists:get_value(true, BackendsList, mnesia).
 
-
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, pick_backend_for_vcard()}]}].
+    [{mod_vcard, [{backend, pick_backend_for_vcard_or_offline()}]}].
+
+offline_required_modules() ->
+    [{mod_offline, [{backend, pick_backend_for_vcard_or_offline()}]}].
 
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
@@ -279,6 +283,9 @@ pubsub_required_modules() ->
 
 vcard_started() ->
     dynamic_modules:ensure_modules(domain(), vcard_required_modules()).
+
+offline_started() ->
+    dynamic_modules:ensure_modules(domain(), offline_required_modules()).
 
 %% -------------------------------------------------------------
 %% Test cases
@@ -575,6 +582,34 @@ retrieve_offline(Config) ->
 
             retrieve_and_validate_personal_data(
               Alice, Config, "offline", ExpectedHeader, ExpectedItems, ["packet"])
+        end).
+
+remove_offline(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            mongoose_helper:logout_user(Config, Alice),
+            Body1 = <<"Hey!">>,
+            Body2 = <<"Here is Johnny!">>,
+            Body3 = <<"Where is Johnny ?">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body1)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body2)),
+            escalus:send(Kate, escalus_stanza:chat_to(Alice, Body3)),
+            %% Well, jid_to_lower works for any binary :)
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            mongoose_helper:wait_until(
+              fun() ->
+                      mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
+                                                     [AliceU, AliceS, 10])
+              end, 3),
+
+            maybe_stop_and_unload_module(mod_offline, mod_offline_backend, Config),
+            {0, _} = unregister(Alice, Config),
+
+            mongoose_helper:wait_until(
+                fun() ->
+                    mongoose_helper:successful_rpc(mod_offline, get_personal_data,
+                        [AliceU, AliceS])
+                end, [{offline, ["timestamp","from", "to", "packet"],[]}])
         end).
 
 retrieve_pubsub_payloads(Config) ->
