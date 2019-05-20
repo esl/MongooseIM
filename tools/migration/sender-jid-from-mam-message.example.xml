@@ -1,0 +1,12 @@
+427
+<message xmlns='jabber:client'
+        from='coven@chat.shakespeare.lit/firstwitch'
+        id='162BEBB1-F6DB-4D9A-9BD8-CFDCC801A0B2'
+        type='groupchat'>
+        <body>Zażółć gęślą jaźń</body>
+        <x xmlns='http://jabber.org/protocol/muc#user'>
+          <item affiliation='none'
+                jid='gżegżółka@brzęczyszczykiewicz.pl'
+                role='participant' />
+        </x>
+      </message>
