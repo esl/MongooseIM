@@ -156,7 +156,7 @@ insert_query_cql() ->
         "VALUES (?, ?, ?, ?, ?)".
 
 archive_message(Result, Host, MessID, _RoomID,
-                LocJID, NickName, NickName, Dir, Packet) ->
+                LocJID, _FromJID, NickName, Dir, Packet) ->
     try
         archive_message2(Result, Host, MessID,
                          LocJID, NickName, NickName, Dir, Packet)
