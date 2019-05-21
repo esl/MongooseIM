@@ -434,7 +434,8 @@ row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
--spec get_mam_pm_gdpr_data(jid:username(), jid:server()) -> {ok, mod_mam:messages()}.
+-spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
 get_mam_pm_gdpr_data(Username, Host) ->
     ensure_params_loaded(Host),
     LUser = jid:nodeprep(Username),
