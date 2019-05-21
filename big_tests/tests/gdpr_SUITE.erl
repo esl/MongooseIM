@@ -15,6 +15,7 @@
          retrieve_vcard/1,
          remove_vcard/1,
          retrieve_roster/1,
+         remove_roster/1,
          retrieve_mam/1,
          retrieve_offline/1,
          retrieve_pubsub_payloads/1,
@@ -95,11 +96,13 @@ groups() ->
                              ]},
         {remove_personal_data, [], [
             % per type
-            remove_vcard
+            remove_vcard,
+            remove_roster
         ]},
         {remove_personal_data_with_mods_disabled, [], [
             % per type
-            remove_vcard
+            remove_vcard,
+            remove_roster
         ]}
     ].
 
@@ -154,10 +157,15 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             dynamic_modules:ensure_modules(domain(), mam_required_modules(Backend)),
             escalus:init_per_testcase(CN, Config)
     end;
+init_per_testcase(remove_roster = CN, Config) ->
+    Backend = pick_backend_for_roster(),
+    dynamic_modules:ensure_modules(domain(), [{mod_roster, [{backend, Backend}]}]),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(CN, Config) ->
+    escalus_fresh:clean(),
     escalus:end_per_testcase(CN, Config).
 
 init_inbox(CN, Config) ->
@@ -179,6 +187,15 @@ inbox_opts() ->
      {remove_on_kicked, true},
      {groupchat, [muclight]},
      {markers, [displayed]}].
+
+pick_backend_for_roster() ->
+    IsRiak = mam_helper:is_riak_enabled(domain()),
+    IsRdbms = mongoose_helper:is_rdbms_enabled(domain()),
+    if
+        IsRiak -> riak;
+        IsRdbms -> rdbms;
+        true -> mnesia
+    end.
 
 pick_backend_for_mam() ->
     BackendsList = [
@@ -270,14 +287,35 @@ retrieve_roster(Config) ->
             escalus_story:make_all_clients_friends([Alice, Bob]),
             BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
             BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
-            ExpectedHeader = ["jid", "name", "subscription",
-                              "ask", "groups", "askmessage", "xs"],
             ExpectedItems = [
                              #{ "jid" => [{contains,  BobU}, {contains, BobS}] }
                             ],
             maybe_stop_and_unload_module(mod_roster, mod_roster_backend, Config),
             retrieve_and_validate_personal_data(
-                Alice, Config, "roster", ExpectedHeader, ExpectedItems)
+                Alice, Config, "roster", expected_header(mod_roster), ExpectedItems)
+        end).
+
+remove_roster(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        escalus_story:make_all_clients_friends([Alice, Bob]),
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        ExpectedItems = [
+                         #{ "jid" => [{contains,  AliceU}, {contains, AliceS}] }
+                        ],
+
+        maybe_stop_and_unload_module(mod_roster, mod_roster_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        mongoose_helper:wait_until(
+            fun() ->
+                mongoose_helper:successful_rpc(mod_roster, get_personal_data,
+                    [AliceU, AliceS])
+            end,
+            [{roster, expected_header(mod_roster), []}]),
+            retrieve_and_validate_personal_data(
+                Bob, Config, "roster", expected_header(mod_roster), ExpectedItems)
+
         end).
 
 retrieve_mam(_Config) ->
@@ -762,3 +800,5 @@ validate_time1(Time) ->
 check_list(List) ->
     lists:all(fun({V, L}) -> I = list_to_integer(V), I >= 0 andalso I < L end, List).
 
+expected_header(mod_roster) -> ["jid", "name", "subscription",
+                              "ask", "groups", "askmessage", "xs"].

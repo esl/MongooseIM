@@ -883,10 +883,31 @@ remove_user(User, Server) ->
 remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Acc1 = send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    R = mod_roster_backend:remove_user(LUser, LServer),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {User, Server}),
+    Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
+    Backends = mongoose_lib:find_behaviour_implementations(mod_roster),
+    lists:foreach(fun(Backend) ->
+            try
+                Backend:remove_user(LUser, LServer)
+            catch
+                Class:Reason ->
+                    StackTrace = erlang:get_stacktrace(),
+                    ?WARNING_MSG("event=cannot_delete_personal_data,backends = ~p,"
+                        "backend=~p,class=~p,reason=~p,stacktrace=~p",
+                        [Backends, Backend, Class, Reason, StackTrace])
+            end
+        end, Backends),
     Acc1.
+
+try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
+    try
+        send_unsubscription_to_rosteritems(Acc, LUser, LServer)
+    catch
+        E:R ->
+            S = erlang:get_stacktrace(),
+            ?WARNING_MSG("event=cannot_send_unsubscription_to_rosteritems,"
+                         "class=~p,reason=~p,stacktrace=~p", [E, R, S]),
+            Acc
+    end.
 
 %% For each contact with Subscription:
 %% Both or From, send a "unsubscribed" presence stanza;
