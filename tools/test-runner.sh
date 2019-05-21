@@ -283,6 +283,8 @@ TEST_HOSTS_ARRAY=(
     reg
 )
 
+ALL_TEST_HOSTS="${TEST_HOSTS_ARRAY[@]}"
+
 SMALL_TESTS_DEFAULT=true
 COVER_ENABLED_DEFAULT=true
 PRESET_ENABLED_DEFAULT=true
@@ -608,9 +610,12 @@ echo ""
 
 if [ "$KILL_OLD_NODES" = true ] && [ ! -z "$TEST_HOSTS" ]
 then
-    NODES_TO_STOP=$(./tools/test_runner/hosts_to_nodes.sh $TEST_HOSTS)
-    echo "Ensure that $NODES_TO_STOP nodes are not running"
-    ./tools/test_runner/kill_nodes.sh $NODES_TO_STOP
+    # Stop all known nodes
+    NODES_TO_STOP=$(./tools/test_runner/hosts_to_nodes.sh $ALL_TEST_HOSTS)
+    # Replace new lines with whitespaces
+    NODES_TO_STOP_ONE_LINER="${NODES_TO_STOP//$'\n'/ }"
+    echo "Ensure that nodes are not running: $NODES_TO_STOP_ONE_LINER"
+    ./tools/test_runner/kill_nodes.sh $NODES_TO_STOP_ONE_LINER
 fi
 
 
