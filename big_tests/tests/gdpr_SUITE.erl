@@ -164,7 +164,7 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(remove_roster = CN, Config) ->
-    Backend = pick_backend_for_roster(),
+    Backend = pick_backend_as_riak_or_rdbms(),
     dynamic_modules:ensure_modules(domain(), [{mod_roster, [{backend, Backend}]}]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
@@ -194,15 +194,6 @@ inbox_opts() ->
      {groupchat, [muclight]},
      {markers, [displayed]}].
 
-pick_backend_for_roster() ->
-    IsRiak = mam_helper:is_riak_enabled(domain()),
-    IsRdbms = mongoose_helper:is_rdbms_enabled(domain()),
-    if
-        IsRiak -> riak;
-        IsRdbms -> rdbms;
-        true -> mnesia
-    end.
-
 pick_backend_for_mam() ->
     BackendsList = [
                     {mam_helper:is_cassandra_enabled(domain()), cassandra},
@@ -219,7 +210,7 @@ pick_backend_for_mam() ->
 mam_required_modules(Backend) ->
     [{mod_mam_meta, [{backend, Backend}, {pm, []}]}].
 
-pick_backend_for_vcard_or_offline() ->
+pick_backend_as_riak_or_rdbms() ->
     BackendsList = [
         {mam_helper:is_riak_enabled(domain()), riak},
         {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
@@ -227,10 +218,10 @@ pick_backend_for_vcard_or_offline() ->
     proplists:get_value(true, BackendsList, mnesia).
 
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, pick_backend_for_vcard_or_offline()}]}].
+    [{mod_vcard, [{backend, pick_backend_as_riak_or_rdbms()}]}].
 
 offline_required_modules() ->
-    [{mod_offline, [{backend, pick_backend_for_vcard_or_offline()}]}].
+    [{mod_offline, [{backend, pick_backend_as_riak_or_rdbms()}]}].
 
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
