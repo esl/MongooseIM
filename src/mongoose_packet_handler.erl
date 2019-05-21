@@ -34,7 +34,7 @@
 %% API
 %%----------------------------------------------------------------------
 
--export([new/1, new/2, process/5]).
+-export([new/1, new/2, process/5, to_map/1]).
 
 -spec new(Module :: module()) -> t().
 new(Module) ->
@@ -52,3 +52,5 @@ new(Module, Extra) when is_atom(Module) ->
 process(#packet_handler{ module = Module, extra = Extra }, Acc, From, To, El) ->
     Module:process_packet(Acc, From, To, El, Extra).
 
+to_map(#packet_handler{ module = Module, extra = Extra }) ->
+    #{ module => Module, extra => Extra }.

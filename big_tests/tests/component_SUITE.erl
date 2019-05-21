@@ -80,7 +80,8 @@ xep0114_tests() ->
      try_registering_with_wrong_password,
      try_registering_component_twice,
      try_registering_existing_host,
-     disco_components
+     disco_components,
+     kick_old_component_on_conflict
      ].
 
 %%--------------------------------------------------------------------
@@ -148,7 +149,10 @@ register_one_component(Config) ->
     %% Given one connected component
     CompOpts = ?config(component1, Config),
     {Component, ComponentAddr, _} = connect_component(CompOpts),
+    verify_component(Config, Component, ComponentAddr),
+    disconnect_component(Component, ComponentAddr).
 
+verify_component(Config, Component, ComponentAddr) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
                 %% When Alice sends a message to the component
                 Msg1 = escalus_stanza:chat_to(ComponentAddr, <<"Hi!">>),
@@ -165,9 +169,7 @@ register_one_component(Config) ->
                 Reply2 = escalus:wait_for_stanza(Alice),
                 escalus:assert(is_chat_message, [<<"Oh hi!">>], Reply2),
                 escalus:assert(is_stanza_from, [ComponentAddr], Reply2)
-        end),
-
-    disconnect_component(Component, ComponentAddr).
+        end).
 
 register_two_components(Config) ->
     %% Given two connected components
@@ -256,6 +258,24 @@ try_registering_existing_host(Config) ->
         %% Then it should fail since vjud service already exists on the server
         ok
     end.
+
+%% When conflict_behaviour is kick_old, then:
+%% - stop old connections by sending stream:error with reason "conflict"
+kick_old_component_on_conflict(Config) ->
+    CompOpts1 = spec(kicking_component, Config),
+    {Comp1, Addr, _} = connect_component(CompOpts1),
+
+    %% When trying to connect the second one
+    {Comp2, Addr, _} = connect_component(CompOpts1),
+
+    %% First connection is disconnected
+    #xmlel{name = <<"stream:error">>, children = [ReasonElem]} = escalus:wait_for_stanza(Comp1),
+    #xmlel{name = <<"conflict">>} = ReasonElem,
+
+    %% New connection is usable
+    verify_component(Config, Comp2, Addr),
+
+    disconnect_component(Comp2, Addr).
 
 disco_components(Config) ->
     %% Given two connected components

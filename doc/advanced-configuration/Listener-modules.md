@@ -180,6 +180,7 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 * `hidden_components` (boolean, default: `false`) - All components connected to an endpoint with this option enabled will be considered "hidden" (see explanation below).
+* `conflict_behaviour` (`disconnect`, `kick_old`, default: `disconnect`) - Stop previous connection, if there is a routing conflict. (see explanation below).
 
 According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) component's hostname should be given in the <stream:stream> element.
 
@@ -196,4 +197,19 @@ Alone, it doesn't change the server behaviour in any way, but it may be used by 
 An example would be [`mod_disco`](../modules/mod_disco.md), which may be configured to filter out hidden components from disco results, so they won't be discoverable by clients.
 A reason to do so could be reduced traffic - systems with many components could return very long disco responses.
 Also, some deployments would like to avoid revealing some services; not because it is a security threat (this method does not prevent clients from communicating with hidden components), but rather because they are not meant to interact with clients directly (e.g. helper components for other components).
+
+## Conflict behaviour
+
+By default, when a component tries to connect and a registration conflict occures, we drop such connection by sending:
+
+```xml
+<stream:error>
+  <conflict xmlns='urn:ietf:params:xml:ns:xmpp-streams'/>
+</stream:error>
+</stream:stream>
+```
+
+It makes implementing reconnection logic difficult, because an old connection would not allow any other connections.
+
+By setting `conflict_behaviour=kick_old`, we drop any old connections registered at the same host, before accepting new ones.
 
