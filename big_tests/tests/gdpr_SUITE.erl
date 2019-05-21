@@ -18,6 +18,7 @@
          remove_roster/1,
          retrieve_mam/1,
          retrieve_offline/1,
+         remove_offline/1,
          retrieve_pubsub_payloads/1,
          retrieve_created_pubsub_nodes/1,
          retrieve_all_pubsub_data/1,
@@ -97,12 +98,14 @@ groups() ->
         {remove_personal_data, [], [
             % per type
             remove_vcard,
-            remove_roster
+            remove_roster,
+            remove_offline
         ]},
         {remove_personal_data_with_mods_disabled, [], [
             % per type
             remove_vcard,
-            remove_roster
+            remove_roster,
+            remove_offline
         ]}
     ].
 
@@ -132,6 +135,9 @@ end_per_group(_GN, Config) ->
 
 init_per_testcase(retrieve_inbox = CN, Config) ->
     init_inbox(CN, Config);
+init_per_testcase(remove_offline = CN, Config) ->
+    offline_started(),
+    escalus:init_per_testcase(CN, Config);
 init_per_testcase(retrieve_inbox_for_multiple_messages = CN, Config) ->
     init_inbox(CN, Config);
 init_per_testcase(retrieve_vcard = CN, Config) ->
@@ -158,7 +164,7 @@ init_per_testcase(retrieve_mam = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(remove_roster = CN, Config) ->
-    Backend = pick_backend_for_roster(),
+    Backend = pick_backend_as_riak_or_rdbms(),
     dynamic_modules:ensure_modules(domain(), [{mod_roster, [{backend, Backend}]}]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
@@ -188,15 +194,6 @@ inbox_opts() ->
      {groupchat, [muclight]},
      {markers, [displayed]}].
 
-pick_backend_for_roster() ->
-    IsRiak = mam_helper:is_riak_enabled(domain()),
-    IsRdbms = mongoose_helper:is_rdbms_enabled(domain()),
-    if
-        IsRiak -> riak;
-        IsRdbms -> rdbms;
-        true -> mnesia
-    end.
-
 pick_backend_for_mam() ->
     BackendsList = [
                     {mam_helper:is_cassandra_enabled(domain()), cassandra},
@@ -213,16 +210,18 @@ pick_backend_for_mam() ->
 mam_required_modules(Backend) ->
     [{mod_mam_meta, [{backend, Backend}, {pm, []}]}].
 
-pick_backend_for_vcard() ->
+pick_backend_as_riak_or_rdbms() ->
     BackendsList = [
         {mam_helper:is_riak_enabled(domain()), riak},
         {mongoose_helper:is_rdbms_enabled(domain()), rdbms}
     ],
     proplists:get_value(true, BackendsList, mnesia).
 
-
 vcard_required_modules() ->
-    [{mod_vcard, [{backend, pick_backend_for_vcard()}]}].
+    [{mod_vcard, [{backend, pick_backend_as_riak_or_rdbms()}]}].
+
+offline_required_modules() ->
+    [{mod_offline, [{backend, pick_backend_as_riak_or_rdbms()}]}].
 
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
@@ -235,6 +234,9 @@ pubsub_required_modules() ->
 
 vcard_started() ->
     dynamic_modules:ensure_modules(domain(), vcard_required_modules()).
+
+offline_started() ->
+    dynamic_modules:ensure_modules(domain(), offline_required_modules()).
 
 %% -------------------------------------------------------------
 %% Test cases
@@ -356,6 +358,34 @@ retrieve_offline(Config) ->
 
             retrieve_and_validate_personal_data(
               Alice, Config, "offline", ExpectedHeader, ExpectedItems)
+        end).
+
+remove_offline(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
+            mongoose_helper:logout_user(Config, Alice),
+            Body1 = <<"Hey!">>,
+            Body2 = <<"Here is Johnny!">>,
+            Body3 = <<"Where is Johnny ?">>,
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body1)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Body2)),
+            escalus:send(Kate, escalus_stanza:chat_to(Alice, Body3)),
+            %% Well, jid_to_lower works for any binary :)
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            mongoose_helper:wait_until(
+              fun() ->
+                      mongoose_helper:successful_rpc(mod_offline_backend, count_offline_messages,
+                                                     [AliceU, AliceS, 10])
+              end, 3),
+
+            maybe_stop_and_unload_module(mod_offline, mod_offline_backend, Config),
+            {0, _} = unregister(Alice, Config),
+
+            mongoose_helper:wait_until(
+                fun() ->
+                    mongoose_helper:successful_rpc(mod_offline, get_personal_data,
+                        [AliceU, AliceS])
+                end, [{offline, ["timestamp","from", "to", "packet"],[]}])
         end).
 
 retrieve_pubsub_payloads(Config) ->
