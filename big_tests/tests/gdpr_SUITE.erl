@@ -131,7 +131,7 @@ groups() ->
      {retrieve_personal_data_mam_rdbms, [], mam_testcases()},
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
-     {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]},
+     {retrieve_personal_data_mam_elasticsearch, [], mam_testcases()},
      {remove_personal_data, [], removal_testcases()},
      {remove_personal_data_with_mods_disabled, [], removal_testcases()},
      {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]}].

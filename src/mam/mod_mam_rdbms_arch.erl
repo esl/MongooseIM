@@ -20,6 +20,7 @@
 
 -export([archive_size/4,
          archive_message/9,
+         archive_message_muc/9,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -164,7 +165,7 @@ start_muc(Host, _Opts) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
+            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50)
     end,
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
@@ -178,7 +179,7 @@ stop_muc(Host) ->
         true ->
             ok;
         false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message, 50)
+            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50)
     end,
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
@@ -208,6 +209,14 @@ index_hint_sql(Host) ->
         _ ->
             ""
     end.
+
+
+-spec archive_message_muc(_Result, Host :: jid:server(),
+                          MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
+                          LocJID :: jid:jid(), RemJID :: jid:jid(),
+                          SrcJID :: jid:jid(), Dir :: atom(), Packet :: any()) -> ok.
+archive_message_muc(Result, Host, MessID, UserID, LocJID, _RemJID, SrcJID, Dir, Packet) ->
+    archive_message(Result, Host, MessID, UserID, LocJID, SrcJID, SrcJID, Dir, Packet).
 
 
 -spec archive_message(_Result, Host :: jid:server(),
