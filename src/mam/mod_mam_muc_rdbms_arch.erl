@@ -334,7 +334,8 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     {ok, {TotalCount, Offset,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
 
--spec get_mam_muc_gdpr_data(jid:username(), jid:server()) -> {ok, mod_mam:messages()}.
+-spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
