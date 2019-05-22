@@ -141,7 +141,17 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_private_backend:remove_user(LUser, LServer).
+    lists:foreach(fun(B) ->
+        try
+            B:remove_user(LUser, LServer)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(mod_private)).
 
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},
