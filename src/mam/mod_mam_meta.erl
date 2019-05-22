@@ -46,6 +46,10 @@ deps(_Host, Opts0) ->
     [{Dep, Args, hard} || {Dep, Args} <- maps:to_list(DepsWithPmAndMuc)].
 
 get_mam_module_params(Host, MamModule, DefaultValue) ->
+    %% modules can be stopped using gen_mod:stop_module_keep_config/2
+    %% so to extract current module configuration it's more preferable
+    %% to use ejabberd_config:get_local_option/2 rather than
+    %% gen_mod:get_module_opts/2 interface
     Modules = ejabberd_config:get_local_option(modules, Host),
     case proplists:get_value(MamModule, Modules) of
         undefined ->
