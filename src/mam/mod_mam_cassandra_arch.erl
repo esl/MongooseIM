@@ -435,7 +435,7 @@ row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
 -spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
 get_mam_pm_gdpr_data(Username, Host) ->
     ensure_params_loaded(Host),
     LUser = jid:nodeprep(Username),
@@ -445,19 +445,11 @@ get_mam_pm_gdpr_data(Username, Host) ->
     PoolName = mod_mam_cassandra_arch_params:pool_name(),
     FilterMap = #{user_jid => BinJid, with_jid => <<"">>},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),
-    Messages = lists:filtermap(rows_to_gdpr_mam_message(BinJid), Rows),
+    Messages = lists:map(fun rows_to_gdpr_mam_message/1, Rows),
     {ok, Messages}.
 
-rows_to_gdpr_mam_message(BinJid) ->
-    N = erlang:bit_size(BinJid),
-    fun(#{message := Data, id:= Id, from_jid:=FromJid}) ->
-        case FromJid of
-            <<BinJid:N/bitstring, _/bitstring>> ->
-                {true, {Id, exml:to_binary(stored_binary_to_packet(Data))}};
-            _ ->
-                false
-        end
-    end.
+rows_to_gdpr_mam_message(#{message := Data, id:= Id, from_jid:=FromJid}) ->
+    {Id, FromJid, exml:to_binary(stored_binary_to_packet(Data))}.
 
 ensure_params_loaded(Host) ->
     case code:is_loaded(mod_mam_cassandra_arch_params) of

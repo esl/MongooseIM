@@ -16,6 +16,7 @@
          retrieve_roster/1,
          retrieve_mam_pm/1,
          retrieve_mam_muc_light/1,
+         retrieve_mam_pm_and_muc_light_interfere/1,
          retrieve_mam_pm_and_muc_light_dont_interfere/1,
          retrieve_offline/1,
          retrieve_pubsub_payloads/1,
@@ -109,6 +110,7 @@ mam_testcases() ->
     [
         retrieve_mam_pm,
         retrieve_mam_muc_light,
+        retrieve_mam_pm_and_muc_light_interfere,
         retrieve_mam_pm_and_muc_light_dont_interfere
     ].
 
@@ -165,6 +167,7 @@ init_per_testcase(retrieve_vcard = CN, Config) ->
             escalus:init_per_testcase(CN, Config)
     end;
 init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
+                                   CN =:= retrieve_mam_pm_and_muc_light_interfere;
                                    CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                    CN =:= retrieve_mam_pm ->
     case proplists:get_value(mam_backend, Config, skip) of
@@ -174,12 +177,14 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
             dynamic_modules:restore_modules(domain(), Config),
             RequiredModules = mam_required_modules(CN, Backend),
             dynamic_modules:ensure_modules(domain(), RequiredModules),
+            ct:log("required modules: ~p~n", [RequiredModules]),
             escalus:init_per_testcase(CN, [{mam_modules, RequiredModules} | Config])
     end;
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
 end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
+                                  CN =:= retrieve_mam_pm_and_muc_light_interfere;
                                   CN =:= retrieve_mam_pm_and_muc_light_dont_interfere ->
     muc_light_helper:clear_db(),
     escalus:end_per_testcase(CN, Config);
@@ -214,7 +219,14 @@ mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, false}]},
                      {muc, [{host, "muclight.@HOST@"}]}]},
+     {mod_muc_light, [{host, "muclight.@HOST@"}]}];
+mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
+    [{mod_mam_meta, [{backend, Backend},
+                     {rdbms_message_format, simple}, %% ignored for any other than rdbms backend
+                     {pm, [{archive_groupchats, true}]},
+                     {muc, [{host, "muclight.@HOST@"}]}]},
      {mod_muc_light, [{host, "muclight.@HOST@"}]}].
+
 
 pubsub_required_modules() ->
     [{mod_caps, []}, {mod_pubsub, [
@@ -268,29 +280,30 @@ retrieve_roster(Config) ->
 
 retrieve_mam_pm(Config) ->
     F = fun(Alice, Bob) ->
-            Msg1 = <<"some simple pm message">>,
-            Msg2 = <<"another simple pm message">>,
-            Msg3 = <<"third simple pm message">>,
+            Msg1 = <<"1some simple pm message">>,
+            Msg2 = <<"2another simple pm message">>,
+            Msg3 = <<"3third simple pm message">>,
             escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg1)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg2)),
             escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg3)),
             [mam_helper:wait_for_archive_size(User, 3) || User <- [Alice, Bob]],
+            AliceJID = escalus_client:full_jid(Alice),
+            BobJID = escalus_client:full_jid(Bob),
 
-
-            ExpectedHeader = ["id", "message"],
-            ExpectedItems1 = [
-                                #{"message" => [{contains, Msg1}]},
-                                #{"message" => [{contains, Msg3}]}
+            ExpectedHeader = ["id", "from", "message"],
+            ExpectedItems = [
+                                #{"message" => [{contains, Msg1}], "from" => [{jid, AliceJID}]},
+                                #{"message" => [{contains, Msg3}], "from" => [{jid, AliceJID}]},
+                                #{"message" => [{contains, Msg2}], "from" => [{jid, BobJID}]}
                             ],
-            ExpectedItems2 = [#{"message" => [{contains, Msg2}]}],
 
             BackendModule = choose_mam_backend(Config, mam),
             maybe_stop_and_unload_module(mod_mam, BackendModule, Config),
 
             retrieve_and_validate_personal_data(
-                Alice, Config, "mam_pm", ExpectedHeader, ExpectedItems1),
+                Alice, Config, "mam_pm", ExpectedHeader, ExpectedItems, ["from", "message"]),
             retrieve_and_validate_personal_data(
-                Bob, Config, "mam_pm", ExpectedHeader, ExpectedItems2)
+                Bob, Config, "mam_pm", ExpectedHeader, ExpectedItems, ["from", "message"])
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
@@ -298,9 +311,9 @@ retrieve_mam_muc_light(Config) ->
     F = fun(Alice, Bob, Kate) ->
             RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}, {Kate, member}]),
             [Room, Domain] = binary:split(RoomJid, <<"@">>),
-            Body1 = <<"some simple muc message">>,
-            Body2 = <<"another one">>,
-            Body3 = <<"third message">>,
+            Body1 = <<"1some simple muc message">>,
+            Body2 = <<"2another one">>,
+            Body3 = <<"3third message">>,
 
             M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, Body1, <<"Id1">>),
             muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M1),
@@ -312,6 +325,7 @@ retrieve_mam_muc_light(Config) ->
 
             mam_helper:wait_for_room_archive_size(Domain, Room, 4),
 
+
             ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
                                   #{"message" => [{contains, binary_to_list(Body2)}]}],
 
@@ -320,15 +334,18 @@ retrieve_mam_muc_light(Config) ->
             BackendModule = choose_mam_backend(Config, mam_muc),
             maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
 
-            retrieve_and_validate_personal_data(Alice, Config, "mam_muc", ["id", "message"], ExpectedItemsAlice),
-            retrieve_and_validate_personal_data(Bob, Config, "mam_muc", ["id", "message"], ExpectedItemsBob),
+            retrieve_and_validate_personal_data(
+                Alice, Config, "mam_muc", ["id", "message"], ExpectedItemsAlice, ["message"]),
+            retrieve_and_validate_personal_data(
+                Bob, Config, "mam_muc", ["id", "message"], ExpectedItemsBob, ["message"]),
             refute_personal_data(Kate, Config, "mam_muc")
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
-    F = fun(Alice, Bob) ->
-            RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}]),
+    F = fun(Alice, Bob, Kate) ->
+            RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice,
+                                                            [{Bob, member}, {Kate, member}]),
             [Room, Domain] = binary:split(RoomJid, <<"@">>),
             BodyMucAlice = <<"some simple muc message from Alice">>,
             BodyMucBob = <<"some simple muc message from Bob">>,
@@ -336,9 +353,9 @@ retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
             BodyPmBob = <<"some simple pm message from Bob">>,
 
             M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, BodyMucAlice, <<"Id1">>),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M1),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M1),
             M2 = muc_light_helper:when_muc_light_message_is_sent(Bob, Room, BodyMucBob, <<"Id2">>),
-            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], M2),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M2),
 
             mam_helper:wait_for_room_archive_size(Domain, Room, 3),
 
@@ -353,27 +370,98 @@ retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
             maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
             maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
 
+            false = mongoose_helper:successful_rpc(mod_mam_meta, get_mam_module_opt,
+                                                   [domain(), mod_mam, archive_groupchats, undefined]),
+
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),
+            KateDir = retrieve_all_personal_data(Kate, Config),
 
-            validate_personal_data(AliceDir, "mam_muc", ["id", "message"],
-                                   [#{"message" => [{contains, binary_to_list(BodyMucAlice)}]}]),
-            validate_personal_data(BobDir, "mam_muc", ["id", "message"],
-                                   [#{"message" => [{contains, binary_to_list(BodyMucBob)}]}]),
+            validate_personal_data(
+                AliceDir, "mam_muc", ["id", "message"],
+                [#{"message" => [{contains, binary_to_list(BodyMucAlice)}]}], []),
+            validate_personal_data(
+                BobDir, "mam_muc", ["id", "message"],
+                [#{"message" => [{contains, binary_to_list(BodyMucBob)}]}], []),
 
-            validate_personal_data(AliceDir, "mam_pm", ["id", "message"],
-                                   [#{"message" => [{contains, BodyPmAlice}]}]),
-            validate_personal_data(BobDir, "mam_pm", ["id", "message"],
-                                   [#{"message" => [{contains, BodyPmBob}]}])
+            PM = [#{"message" => [{contains, BodyPmAlice}],
+                    "from" => [{jid, escalus_client:full_jid(Alice)}]},
+                  #{"message" => [{contains, BodyPmBob}],
+                    "from" => [{jid, escalus_client:full_jid(Bob)}]}],
+            validate_personal_data(AliceDir, "mam_pm", ["id", "from", "message"], PM, ["from", "message"]),
+            validate_personal_data(BobDir, "mam_pm", ["id", "from", "message"], PM, ["from", "message"]),
+            refute_personal_data(KateDir, "mam_pm"),
+            refute_personal_data(KateDir, "mam_muc")
         end,
-    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+retrieve_mam_pm_and_muc_light_interfere(Config) ->
+    F = fun(Alice, Bob, Kate) ->
+            RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice,
+                                                            [{Bob, member}, {Kate, member}]),
+            [Room, Domain] = binary:split(RoomJid, <<"@">>),
+            BodyMucAlice = <<"some simple muc message from Alice">>,
+            BodyMucBob = <<"some simple muc message from Bob">>,
+            BodyPmAlice = <<"some simple pm message from Alice">>,
+            BodyPmBob = <<"some simple pm message from Bob">>,
+
+            M1 = muc_light_helper:when_muc_light_message_is_sent(Alice, Room, BodyMucAlice, <<"Id1">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M1),
+            M2 = muc_light_helper:when_muc_light_message_is_sent(Bob, Room, BodyMucBob, <<"Id2">>),
+            muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M2),
+
+            mam_helper:wait_for_room_archive_size(Domain, Room, 3),
+
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, BodyPmAlice)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, BodyPmBob)),
+
+            [mam_helper:wait_for_archive_size(User, 5) || User <- [Alice, Bob]],
+            mam_helper:wait_for_archive_size(Kate, 3),
+
+            MamBackends = choose_mam_backend(Config, mam),
+            MamMucBackends = choose_mam_backend(Config, mam_muc),
+            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
+            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
+
+            true = mongoose_helper:successful_rpc(mod_mam_meta, get_mam_module_opt,
+                                                   [domain(), mod_mam, archive_groupchats, undefined]),
+
+            AliceDir = retrieve_all_personal_data(Alice, Config),
+            BobDir = retrieve_all_personal_data(Bob, Config),
+            KateDir = retrieve_all_personal_data(Kate, Config),
+
+            validate_personal_data(
+                AliceDir, "mam_muc", ["id", "message"],
+                [#{"message" => [{contains, binary_to_list(BodyMucAlice)}]}], []),
+            validate_personal_data(
+                BobDir, "mam_muc", ["id", "message"],
+                [#{"message" => [{contains, binary_to_list(BodyMucBob)}]}], []),
+
+            AliceRoomJid = <<RoomJid/bitstring, "/", (escalus_client:short_jid(Alice))/bitstring>>,
+            BobRoomJid = <<RoomJid/bitstring, "/", (escalus_client:short_jid(Bob))/bitstring>>,
+
+            MucPM = [#{"message" => [{contains, "urn:xmpp:muclight:0#affiliations"}],
+                       "from" => [{jid, RoomJid}]},
+                     #{"message" => [{contains, BodyMucAlice}], "from" => [{jid, AliceRoomJid}]},
+                     #{"message" => [{contains, BodyMucBob}], "from" => [{jid, BobRoomJid}]}],
+            AllPM = MucPM ++ [#{"message" => [{contains, BodyPmAlice}],
+                                "from" => [{jid, escalus_client:full_jid(Alice)}]},
+                              #{"message" => [{contains, BodyPmBob}],
+                                    "from" => [{jid, escalus_client:full_jid(Bob)}]}],
+            SortFn = muc_msg_first(RoomJid),
+            validate_personal_data(AliceDir, "mam_pm", ["id", "from", "message"], AllPM, SortFn),
+            validate_personal_data(BobDir, "mam_pm", ["id", "from", "message"], AllPM, SortFn),
+            validate_personal_data(KateDir, "mam_pm", ["id", "from", "message"], MucPM, SortFn),
+            refute_personal_data(KateDir, "mam_muc")
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
 retrieve_offline(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
             mongoose_helper:logout_user(Config, Alice),
-            Body1 = <<"Hey!">>,
-            Body2 = <<"Here is Johnny!">>,
-            Body3 = <<"Where is Johnny ?">>,
+            Body1 = <<"1Hey!">>,
+            Body2 = <<"2Here is Johnny!">>,
+            Body3 = <<"3Where is Johnny ?">>,
             escalus:send(Bob, escalus_stanza:chat_to(Alice, Body1)),
             escalus:send(Bob, escalus_stanza:chat_to(Alice, Body2)),
             escalus:send(Kate, escalus_stanza:chat_to(Alice, Body3)),
@@ -390,7 +478,7 @@ retrieve_offline(Config) ->
             AliceJid = escalus_client:short_jid(Alice),
             KateJid = escalus_client:full_jid(Kate),
             ExpectedHeader = ["timestamp", "from", "to", "packet"],
-            Expected = [{Body2, BobJid, AliceJid},  {Body1, BobJid, AliceJid}, {Body3, KateJid, AliceJid}],
+            Expected = [{Body1, BobJid, AliceJid}, {Body2, BobJid, AliceJid}, {Body3, KateJid, AliceJid}],
 
             ExpectedItems = lists:map(fun({Body, From ,To}) ->
                 #{ "packet" => [{contains, Body}],
@@ -402,7 +490,7 @@ retrieve_offline(Config) ->
             maybe_stop_and_unload_module(mod_offline, mod_offline_backend, Config),
 
             retrieve_and_validate_personal_data(
-              Alice, Config, "offline", ExpectedHeader, ExpectedItems)
+              Alice, Config, "offline", ExpectedHeader, ExpectedItems, ["packet"])
         end).
 
 retrieve_pubsub_payloads(Config) ->
@@ -420,13 +508,14 @@ retrieve_pubsub_payloads(Config) ->
         pubsub_tools:publish(Alice, <<"OtherItem">>, Node2, [{with_payload, BinOther}]),
 
         ExpectedItems = [pubsub_payloads_row_map(NodeName1, "Item1", StringItem1),
-                         pubsub_payloads_row_map(NodeName1, "Item2",StringItem2),
+                         pubsub_payloads_row_map(NodeName1, "Item2", StringItem2),
                          pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
                          pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
 
         maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
-        retrieve_and_validate_personal_data(
-            Alice, Config, "pubsub_payloads", ["node_name", "item_id", "payload"], ExpectedItems)
+        retrieve_and_validate_personal_data(Alice, Config, "pubsub_payloads",
+                                            ["node_name", "item_id", "payload"],
+                                            ExpectedItems, ["item_id"])
                                               end).
 
 dont_retrieve_other_user_pubsub_payload(Config) ->
@@ -700,12 +789,16 @@ delete_backend(BackendProxy)->
 
 retrieve_and_validate_personal_data(User, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
     Dir = retrieve_all_personal_data(User, Config),
-    validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems).
+    validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems, ExpectedHeader).
 
+retrieve_and_validate_personal_data(User, Config, FilePrefix, ExpectedHeader, ExpectedItems, SortBy) ->
+    Dir = retrieve_all_personal_data(User, Config),
+    validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems, SortBy).
 
-validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems) ->
+validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems, SortBy) ->
     PersonalCSV = decode_personal_data(Dir, FilePrefix),
-    PersonalMaps = csv_to_maps(ExpectedHeader, PersonalCSV),
+    UnsortedMaps = csv_to_maps(ExpectedHeader, PersonalCSV),
+    PersonalMaps = lists:sort(get_sort_fn(SortBy), UnsortedMaps),
     try validate_personal_maps(PersonalMaps, ExpectedItems) of
         _ -> ok
     catch
@@ -714,9 +807,42 @@ validate_personal_data(Dir, FilePrefix, ExpectedHeader, ExpectedItems) ->
                         class => C,
                         reason => R,
                         stacktrace => erlang:get_stacktrace(),
+                        sorted_by => SortBy,
                         personal_maps => PersonalMaps,
                         expected_items => ExpectedItems
                     })
+    end.
+
+
+get_sort_fn(SortBy) when is_list(SortBy) ->
+    %% if SortBy is [], than original list remains unsorted.
+    fun(Map1, Map2) -> compare_maps(SortBy, Map1, Map2) end;
+get_sort_fn(SortFn) when is_function(SortFn, 2) ->
+    SortFn.
+
+compare_maps([], _, _) -> true;
+compare_maps([Key | T], Map1, Map2) ->
+    #{Key:=Val1} = Map1,
+    #{Key:=Val2} = Map2,
+    if
+        Val1 =:= Val2 -> compare_maps(T, Map1, Map2);
+        Val1 > Val2 -> false;
+        Val1 < Val2 -> true
+    end.
+
+muc_msg_first(MucJid) ->
+    N = erlang:bit_size(MucJid),
+    fun(#{"from" := JID1}, #{"from" := JID2}) ->
+        case {JID1, JID2} of
+            {<<MucJid:N/bitstring, _/bitstring>>, <<MucJid:N/bitstring, _/bitstring>>} ->
+                JID1 =< JID2;
+            {<<MucJid:N/bitstring, _/bitstring>>, _} ->
+                true;
+            {_, <<MucJid:N/bitstring, _/bitstring>>} ->
+                false;
+            {_, _} ->
+                JID1 =< JID2
+        end
     end.
 
 csv_to_maps(ExpectedHeader, [ExpectedHeader | Rows]) ->
@@ -726,7 +852,7 @@ csv_row_to_map(Header, Row) ->
     maps:from_list(lists:zip(Header, Row)).
 
 validate_personal_maps(PersonalMaps, ExpectedItems) ->
-    validate_sorted_personal_maps(lists:sort(PersonalMaps), ExpectedItems).
+    validate_sorted_personal_maps(PersonalMaps, ExpectedItems).
 
 validate_sorted_personal_maps([], []) -> ok;
 validate_sorted_personal_maps(UnexpectedRecords, []) ->
@@ -741,7 +867,12 @@ validate_personal_item(_Value, []) ->
     ok;
 validate_personal_item(ExactValue, ExactValue) ->
     ok;
+validate_personal_item(Value, [{jid, ExpectedValue} | RConditions]) ->
+    %ct:log("string:equal(~p, ~p, true)",[Value, ExpectedValue]),
+    true = string:equal(Value, ExpectedValue, true),
+    validate_personal_item(Value, RConditions);
 validate_personal_item(Value, [{contains, String} | RConditions]) ->
+    %ct:log("re:run(~p, ~p)",[Value, String]),
     {match, _} = re:run(Value, String),
     validate_personal_item(Value, RConditions);
 validate_personal_item(Value, [{validate, Validator} | RConditions]) when is_function(Validator) ->

@@ -19,12 +19,14 @@
 
 -type purge_single_message_result() :: ok | {error, 'not-allowed' | 'not-found' | term()}.
 
--type mam_gdpr_data() :: [{MessageID::bitstring(), Message::bitstring()}].
+-type mam_pm_gdpr_data() :: [{MessageID :: bitstring(), FromJID :: bitstring(), Message :: bitstring()}].
 
--export_type([purge_single_message_result/0, mam_gdpr_data/0]).
+-type mam_muc_gdpr_data() :: [{MessageID :: bitstring(), Message :: bitstring()}].
 
--callback get_mam_pm_gdpr_data(jid:user(), jid:server()) -> {ok, mam_gdpr_data()}.
+-export_type([purge_single_message_result/0, mam_pm_gdpr_data/0, mam_muc_gdpr_data/0]).
 
--callback get_mam_muc_gdpr_data(jid:user(), jid:server()) -> {ok, mam_gdpr_data()}.
+-callback get_mam_pm_gdpr_data(jid:user(), jid:server()) -> {ok, mam_pm_gdpr_data()}.
+
+-callback get_mam_muc_gdpr_data(jid:user(), jid:server()) -> {ok, mam_muc_gdpr_data()}.
 
 -optional_callbacks([get_mam_pm_gdpr_data/2, get_mam_muc_gdpr_data/2]).

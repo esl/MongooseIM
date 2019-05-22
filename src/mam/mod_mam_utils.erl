@@ -792,47 +792,64 @@ has_full_text_search(Module, Host) ->
 %% JID serialization
 
 -spec jid_to_opt_binary(UserJID :: jid:jid(), JID :: jid:jid()
-                        ) -> jid:literal_jid().
-jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
-                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+                       ) -> jid:literal_jid().
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = <<>>, lresource = <<>>}) ->
+    <<$:>>;
+jid_to_opt_binary(#jid{lserver = LServer, luser = LUser},
+                  #jid{lserver = LServer, luser = LUser, lresource = <<>>}) ->
     <<>>;
-jid_to_opt_binary(#jid{lserver=LServer, luser=LUser},
-                  #jid{lserver=LServer, luser=LUser, lresource= LResource}) ->
+jid_to_opt_binary(#jid{lserver = LServer, luser = LUser},
+                  #jid{lserver = LServer, luser = LUser, lresource = LResource}) ->
     <<$/, LResource/binary>>;
-jid_to_opt_binary(#jid{lserver=LServer},
-                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = LUser, lresource = <<>>}) ->
     %% Both clients are on the same server.
     <<LUser/binary>>;
-jid_to_opt_binary(#jid{lserver=LServer},
-                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = <<>>, lresource = LResource}) ->
+    %% Both clients are on the same server.
+    <<$:, $/, LResource/binary>>;
+jid_to_opt_binary(#jid{lserver = LServer},
+                  #jid{lserver = LServer, luser = LUser, lresource = LResource}) ->
     %% Both clients are on the same server.
     <<LUser/binary, $/, LResource/binary>>;
 jid_to_opt_binary(_,
-                  #jid{lserver=LServer, luser=LUser, lresource= <<>>}) ->
+                  #jid{lserver = LServer, luser = LUser, lresource = <<>>}) ->
     <<LServer/binary, $:, LUser/binary>>;
 jid_to_opt_binary(_,
-                  #jid{lserver=LServer, luser=LUser, lresource=LResource}) ->
+                  #jid{lserver = LServer, luser = LUser, lresource = LResource}) ->
     <<LServer/binary, $@, LUser/binary, $/, LResource/binary>>.
 
 
 -spec expand_minified_jid(UserJID :: jid:jid(),
                           OptJID :: jid:literal_jid()) -> jid:literal_jid().
-expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<>>) ->
+expand_minified_jid(#jid{lserver = LServer, luser = LUser}, <<>>) ->
     <<LUser/binary, $@, LServer/binary>>;
-expand_minified_jid(#jid{lserver=LServer, luser=LUser}, <<$/, LResource/binary>>) ->
+expand_minified_jid(#jid{lserver = LServer, luser = <<>>}, <<$/, LResource/binary>>) ->
+    <<LServer/binary, $/, LResource/binary>>;
+expand_minified_jid(#jid{lserver = LServer, luser = LUser}, <<$/, LResource/binary>>) ->
     <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;
 expand_minified_jid(UserJID, Encoded) ->
     Part = binary:match(Encoded, [<<$@>>, <<$/>>, <<$:>>]),
     expand_minified_jid(Part, UserJID, Encoded).
 
--spec expand_minified_jid('nomatch' | {non_neg_integer(), 1},
-            jid:jid(), Encoded :: jid:luser() | binary()) -> binary().
-expand_minified_jid(nomatch,  #jid{lserver=ThisServer}, LUser) ->
+-spec expand_minified_jid('nomatch' | {non_neg_integer(), 1}, jid:jid(),
+                           Encoded :: jid:luser() | binary()) -> binary().
+expand_minified_jid(nomatch, #jid{lserver = ThisServer}, LUser) ->
     <<LUser/binary, $@, ThisServer/binary>>;
-expand_minified_jid({Pos, 1}, #jid{lserver=ThisServer}, Encoded) ->
+expand_minified_jid({Pos, 1}, #jid{lserver = ThisServer}, Encoded) ->
     case Encoded of
+        <<$:, $/, LResource/binary>> ->
+            <<ThisServer/binary, $/, LResource/binary>>;
+        <<$:>> ->
+            ThisServer;
+        <<LServer:Pos/binary, $:>> ->
+            <<LServer/binary>>;
         <<LServer:Pos/binary, $:, LUser/binary>> ->
             <<LUser/binary, $@, LServer/binary>>;
+        <<LServer:Pos/binary, $@, $/, LResource/binary>> ->
+            <<LServer/binary, $/, LResource/binary>>;
         <<LServer:Pos/binary, $@, Tail/binary>> ->
             [LUser, LResource] = binary:split(Tail, <<$/>>),
             <<LUser/binary, $@, LServer/binary, $/, LResource/binary>>;

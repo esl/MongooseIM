@@ -320,32 +320,25 @@ get_message2(Host, MsgId, Bucket, Key) ->
             []
     end.
 -spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
 get_mam_pm_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
     Jid = jid:make({LUser, LServer, <<>>}),
-    {ok, {_, _, Messages}} = lookup_messages([], Host,
-        #{
-            with_jid => undefined,
-            owner_jid => Jid,
-            rsm => undefined,
-            page_size => undefined,
-            borders => undefined,
-            start_ts => undefined,
-            end_ts => undefined,
-            search_text => undefined,
-            is_simple => true} ),
-
-    Filtered = lists:filter(fun(El) -> is_message_from_jid(Jid, El) end, Messages),
-    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
-
-is_message_from_jid(BareJid, {_MsgId, SourceFullJid, _Packet}) ->
-    BareJid == jid:to_bare(SourceFullJid).
-
+    LookupParams = #{with_jid => undefined,
+                     owner_jid => Jid,
+                     rsm => undefined,
+                     page_size => undefined,
+                     borders => undefined,
+                     start_ts => undefined,
+                     end_ts => undefined,
+                     search_text => undefined,
+                     is_simple => true},
+    {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
+    {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages]}.
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
