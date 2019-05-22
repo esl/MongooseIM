@@ -352,7 +352,7 @@ There are some additional options that influence all database connections in the
     * **Default:** `2000`
 
 * **cowboy_server_name** (local)
-    * **Description:** If configured, replaces Cowboy's default name returned in `server` HTTP response header. It may be use for extra security, as it makes harder for the malicious user harder to learn what HTTP software is running under specific port. This option applies to **all** listeners started by `ejabberd_cowboy` module.
+    * **Description:** If configured, replaces Cowboy's default name returned in the `server` HTTP response header. It may be used for extra security, as it makes it harder for the malicious user to learn what HTTP software is running under a specific port. This option applies to **all** listeners started by the `ejabberd_cowboy` module.
     * **Syntax:** `{cowboy_server_name, NewName}`
     * **Default:** no value, i.e. `Cowboy` is used as a header value
     * **Example:** `{cowboy_server_name, "Apache"}`
