@@ -19,7 +19,7 @@
 
 -type deps() :: #{module() => proplists:proplist()}.
 
--export([start/2, stop/1, deps/2, get_mam_module_configuration/3]).
+-export([start/2, stop/1, deps/2, get_mam_module_configuration/3, get_mam_module_opt/4]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -75,6 +75,12 @@ get_mam_module_configuration(Host, MamModule, DefaultValue) ->
                     end
             end;
         Params -> Params
+    end.
+
+get_mam_module_opt(Host, MamModule, Opt, DefaultValue) ->
+    case get_mam_module_configuration(Host, MamModule, undefined) of
+        undefined -> DefaultValue;
+        Configuration -> proplists:get_value(Opt, Configuration, DefaultValue)
     end.
 
 %%--------------------------------------------------------------------

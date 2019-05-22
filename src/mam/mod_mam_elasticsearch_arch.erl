@@ -56,7 +56,7 @@ stop(Host) ->
     ok.
 
 -spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
 get_mam_pm_gdpr_data(User, Host) ->
     Owner = jid:make(User, Host, <<"">>),
     BinOwner = mod_mam_utils:bare_jid(Owner),
@@ -66,7 +66,7 @@ get_mam_pm_gdpr_data(User, Host) ->
                     sort => Sorting},
     case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         {ok, #{<<"hits">> := #{<<"hits">> := Hits}}} ->
-            Messages = lists:filtermap(hit_to_gdpr_mam_message(BinOwner), Hits),
+            Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
             {ok, Messages};
         {error, _} ->
             {ok, []}
@@ -277,17 +277,11 @@ hit_to_mam_message(#{<<"_source">> := JSON}) ->
     {ok, Stanza} = exml:parse(Packet),
     {MessageId, jid:from_binary(SourceBinJid), Stanza}.
 
-hit_to_gdpr_mam_message(BinOwner) ->
-    N = erlang:bit_size(BinOwner),
-    fun(#{<<"_source">> := JSON}) ->
-        case maps:get(<<"source_jid">>, JSON) of
-            <<BinOwner:N/bitstring, _/bitstring>> ->
-                MessageId = maps:get(<<"mam_id">>, JSON),
-                Packet = maps:get(<<"message">>, JSON),
-                {true, {integer_to_binary(MessageId), Packet}};
-            _ -> false
-        end
-    end.
+hit_to_gdpr_mam_message(#{<<"_source">> := JSON}) ->
+    MessageId = maps:get(<<"mam_id">>, JSON),
+    Packet = maps:get(<<"message">>, JSON),
+    SourceBinJid = maps:get(<<"source_jid">>, JSON),
+    {integer_to_binary(MessageId), SourceBinJid, Packet}.
 
 %% Usage of RSM affects the `"total"' value returned by ElasticSearch. Per RSM spec, the count
 %% returned by the query should represent the size of the whole result set, which in case of MAM

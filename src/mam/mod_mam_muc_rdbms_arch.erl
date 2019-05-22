@@ -335,7 +335,7 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
@@ -348,13 +348,7 @@ get_mam_muc_gdpr_data(Username, Host) ->
         ["SELECT id, message "
          "FROM mam_muc_message ",
          Filter, " ORDER BY id"]),
-    %% NB: decoding implementation is the same in
-    %% mam_message_eterm & mam_message_compressed_eterm
-    Messages = [{BMessID, begin
-                              Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-                              Message = mam_message_eterm:decode(Data),
-                              exml:to_binary(Message)
-                          end} || {BMessID, SDataRaw} <- Rows],
+    Messages = [{BMessID, gdpr_decode_packet(Host, SDataRaw)} || {BMessID, SDataRaw} <- Rows],
     {ok, Messages}.
 
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
@@ -651,3 +645,11 @@ stored_binary_to_packet(Host, Bin) ->
 -spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+
+
+gdpr_decode_packet(Host, SDataRaw) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
+                                            mam_message_compressed_eterm),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = mam_message:decode(Codec, Data),
+    exml:to_binary(Message).

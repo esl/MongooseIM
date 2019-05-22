@@ -111,19 +111,15 @@ stop(Host) ->
     end.
 
 -spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
 get_mam_pm_gdpr_data(User, Host) ->
     case mod_mam_rdbms_user:get_archive_id(User, Host) of
         undefined -> {ok, []};
         ArchiveID ->
             {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
-            %% NB: decoding implementation is the same in
-            %% mam_message_eterm & mam_message_compressed_eterm
-            {ok, [{BMessID, begin
-                                Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
-                                Message = mam_message_eterm:decode(Data),
-                                exml:to_binary(Message)
-                            end} || {BMessID, SDataRaw} <- Rows]}
+            UserJid = jid:make(User, Host, <<"">>),
+            {ok, [{BMessID, gdpr_decode_jid(Host, UserJid, FromJID), gdpr_decode_packet(Host, SDataRaw)}
+                  || {BMessID, FromJID, SDataRaw} <- Rows]}
     end.
 
 %% ----------------------------------------------------------------------
@@ -512,12 +508,10 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
        Filter, Order, LimitSQL, Offset]).
 
 extract_gdpr_messages(Host, ArchiveID) ->
-    Direction = encode_direction(outgoing),
-    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID)),
-              " AND direction=", use_escaped_string(escape_string(Direction))],
+    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
     mod_mam_utils:success_sql_query(
         Host,
-        ["SELECT id, message "
+        ["SELECT id, from_jid, message "
          "FROM mam_message ",
          Filter, " ORDER BY id"]).
 
@@ -702,3 +696,16 @@ db_jid_codec(Host) ->
 -spec db_message_codec(jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+
+%gdpr helpers
+gdpr_decode_jid(Host, UserJID, BSrcJID) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini),
+    JID = mam_jid:decode(Codec, UserJID, BSrcJID),
+    jid:to_binary(JID).
+
+gdpr_decode_packet(Host, SDataRaw) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
+                                            mam_message_compressed_eterm),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = mam_message:decode(Codec, Data),
+    exml:to_binary(Message).

@@ -151,7 +151,7 @@
 -spec get_personal_data(jid:user(), jid:server()) ->
     [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
 get_personal_data(Username, Server) ->
-    Schema = ["id", "message"],
+    Schema = ["id", "from", "message"],
     Entries = lists:flatmap(
         fun(B) ->
             try B:get_mam_pm_gdpr_data(Username, Server) of

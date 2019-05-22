@@ -538,7 +538,7 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
     ok.
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_gdpr_data()}.
+    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
     ensure_params_loaded(Host),
     LUser = jid:nodeprep(Username),
