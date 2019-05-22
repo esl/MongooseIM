@@ -28,8 +28,12 @@ all: mongooseim/cert.pem mongooseim/key.pem \
 %/privkey.pem: %/key.pem
 	openssl rsa -in $< -out $@
 
+# About dsaparam argument
+# It speeds up generation of dhparam
+# Speed is useful for fake certificates
+# https://security.stackexchange.com/questions/95178/diffie-hellman-parameters-still-calculating-after-24-hours
 %/dh_server.pem:
-	openssl dhparam -outform PEM -out $@ 1024
+	openssl dhparam -outform PEM -out $@ 1024 -dsaparam
 
 %/index.txt:
 	mkdir -p $(@D)
