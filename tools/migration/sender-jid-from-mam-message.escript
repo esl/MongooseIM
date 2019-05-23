@@ -1,6 +1,7 @@
 #!/usr/bin/env escript
 
 -mode(compile).
+-compile(nowarn_deprecated_function).
 
 -include_lib("xmerl/include/xmerl.hrl").
 
