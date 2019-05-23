@@ -350,11 +350,9 @@ remove_private(Config) ->
                          children = [#xmlcdata{ content = <<"Something to declare">> }]},
         SetPrivateResult = escalus:send_and_wait(Alice,
                              escalus_stanza:private_set(Element)),
-        ct:log("SetPrivateResult: ~p", [SetPrivateResult]),
         escalus:assert(is_iq_result, SetPrivateResult),
 
         %% Verify the data is stored
-        ct:log("Verify the data is stored", []),
         mongoose_helper:wait_until(
             fun() ->
                 mongoose_helper:successful_rpc(mod_private, get_personal_data,
@@ -369,7 +367,6 @@ remove_private(Config) ->
         {0, _} = unregister(Alice, Config),
 
         %% Expect her data to be gone
-        ct:log("Expect her data to be gone", []),
         mongoose_helper:wait_until(
             fun() ->
                 mongoose_helper:successful_rpc(mod_private, get_personal_data,
