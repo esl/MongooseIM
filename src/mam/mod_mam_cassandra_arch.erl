@@ -462,7 +462,7 @@ rows_to_gdpr_mam_message(BinJid) ->
 ensure_params_loaded(Host) ->
     case code:is_loaded(mod_mam_cassandra_arch_params) of
         false ->
-            Params = mod_mam_meta:get_mam_module_params(Host, ?MODULE, []),
+            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
             compile_params_module(Params);
         _ -> ok
     end.

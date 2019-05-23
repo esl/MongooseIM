@@ -19,7 +19,7 @@
 
 -type deps() :: #{module() => proplists:proplist()}.
 
--export([start/2, stop/1, deps/2, get_mam_module_params/3]).
+-export([start/2, stop/1, deps/2, get_mam_module_configuration/3]).
 
 %%--------------------------------------------------------------------
 %% API
@@ -45,11 +45,23 @@ deps(_Host, Opts0) ->
 
     [{Dep, Args, hard} || {Dep, Args} <- maps:to_list(DepsWithPmAndMuc)].
 
-get_mam_module_params(Host, MamModule, DefaultValue) ->
-    %% modules can be stopped using gen_mod:stop_module_keep_config/2
-    %% so to extract current module configuration it's more preferable
-    %% to use ejabberd_config:get_local_option/2 rather than
-    %% gen_mod:get_module_opts/2 interface
+get_mam_module_configuration(Host, MamModule, DefaultValue) ->
+    %% Modules' configuration is stored in 2 different places:
+    %%
+    %%   * ejabberd_modules ETS table - managed by the gen_mod module.
+    %%     initialised on module startup but can be changed runtime via
+    %%     gen_mod interfaces. removed when module is stopped.
+    %%
+    %%   * local_config mnesia table  - managed by ejabberd_config, but
+    %%     it's only gen_mod changing stored configuration of the modules.
+    %%     changes are done in the next way: configuration is stored when
+    %%     module is started, removed - when stopped, updated on module
+    %%     restart.
+    %%
+    %% None of the MAM modules changes its configuration dynamically via
+    %% gen_mod interfaces and also (theoretically) modules can be stopped
+    %% using gen_mod:stop_module_keep_config/2 interface, so local_config
+    %% mnesia table is more preferable source of the configuration.
     Modules = ejabberd_config:get_local_option(modules, Host),
     case proplists:get_value(MamModule, Modules) of
         undefined ->
@@ -64,6 +76,7 @@ get_mam_module_params(Host, MamModule, DefaultValue) ->
             end;
         Params -> Params
     end.
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------

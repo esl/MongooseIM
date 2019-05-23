@@ -16,17 +16,17 @@ all() -> [
           handles_cassandra_config,
           example_muc_only_no_pref_good_performance,
           example_pm_only_good_performance,
-          get_mam_module_params
+          get_mam_module_configuration
          ].
 
 %% Tests
 
-init_per_testcase(get_mam_module_params, Config) ->
+init_per_testcase(get_mam_module_configuration, Config) ->
     meck_config(),
     Config;
 init_per_testcase(_, Config) -> Config.
 
-end_per_testcase(get_mam_module_params, Config) ->
+end_per_testcase(get_mam_module_configuration, Config) ->
     meck_cleanup(),
     Config;
 end_per_testcase(_CaseName, Config) -> Config.
@@ -155,16 +155,16 @@ example_pm_only_good_performance(_Config) ->
                       {mod_mam, []}
                      ], Deps).
 
-get_mam_module_params(_Config) ->
+get_mam_module_configuration(_Config) ->
     %% see mocked values at meck_config/0
     ?assertEqual(unique_value_1,
-                 get_params(<<"no_config">>, mod_mam, unique_value_1)),
+                 get_config(<<"no_config">>, mod_mam, unique_value_1)),
     ?assertEqual([here, is, some, config],
-                 get_params(<<"mod_mam_config">>, mod_mam, [])),
+                 get_config(<<"mod_mam_config">>, mod_mam, [])),
     ?assertEqual(unique_value_2,
-                 get_params(<<"meta_no_mod_mam_config">>, mod_mam, unique_value_2)),
+                 get_config(<<"meta_no_mod_mam_config">>, mod_mam, unique_value_2)),
     ?assertEqual([{archive_groupchats, true}],
-                 get_params(<<"meta_valid_mod_mam_config">>, mod_mam, [])).
+                 get_config(<<"meta_valid_mod_mam_config">>, mod_mam, [])).
 
 %% Helpers
 
@@ -172,7 +172,7 @@ meck_config() ->
     meck:new(ejabberd_config),
     meck:expect(ejabberd_config, get_local_option,
                 fun(modules, <<"no_config">>) ->
-                    [];
+                       [];
                    (modules, <<"mod_mam_config">>) ->
                        [{mod_mam, [here, is, some, config]}];
                    (modules, <<"meta_no_mod_mam_config">>) ->
@@ -212,8 +212,8 @@ check_has_args(Mod, Args, Deps) ->
     ?assert(ordsets:is_subset(
               ordsets:from_list(Args), ordsets:from_list(ActualArgs))).
 
-get_params(Host, Mod, Def) ->
-    mod_mam_meta:get_mam_module_params(Host, Mod, Def).
+get_config(Host, Mod, Def) ->
+    mod_mam_meta:get_mam_module_configuration(Host, Mod, Def).
 
 deps(Args) ->
     mod_mam_meta:deps(<<"host">>, Args).
