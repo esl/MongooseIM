@@ -58,7 +58,7 @@ sender_jid_from_mam_muc_data_stream(Port, PayloadConverterFun) ->
                           script_helper:write(Port, PayloadConverterFun(MsgBin)),
                           JID = script_helper:read(Port)
                   end, [<<"alice@localhost">>, <<"zażółćgęśląjaźń@localhost2"/utf8>>,
-                        <<"kate@remotehost">>]).
+                        <<"kate@kędzierzyn.koźle.pl"/utf8>>]).
 
 sender_jid_from_mam_muc_doesnt_crash_on_unsupported_eterm_input(_Config) ->
     Port = script_helper:start("tools/migration/sender-jid-from-mam-message.escript", ["eterm"]),

@@ -15,16 +15,17 @@ It doesn't depend on any MongooseIM code or library, so it may be used as a stan
 
 ## How to use?
 
-`sender-jid-from-mam-message.escript (eterm | xml)
+`sender-jid-from-mam-message.escript (eterm | xml)`
 
 The only parameter required by the script is the input format.
-If your MongooseIM by default uses "eterm" message format in MAM DB.
-It means you should use this option if:
+
+You should use `eterm` if (in MongooseIM config file):
 
 * You haven't set `db_message_format` option for MAM at all.
 * `db_message_format` is set to `mam_message_compressed_eterm` or `mam_message_eterm`
 
-You should use `xml` option if `db_message_format` is set to `mam_message_xml`.
+You should use `xml` option if:
+* `db_message_format` is set to `mam_message_xml`.
 
 Once started, script will run in an infinite loop (until killed or interrupted), expecting a stream of inputs.
 For every provided payload, a JID will be returned immediately.
@@ -39,10 +40,8 @@ The high-level overview is:
 LENGTH\nPAYLOAD
 ```
 
-* `LENGTH` is a `PAYLOAD` length in bytes
-** if data retrieved from a DBMS is an Unicode string, `LENGTH` is equal to the number of bytes used to encode this string
-* `PAYLOAD` is a sequence of bytes
-** if a DBMS returns binary data encoded as hex, then it has to be decoded to raw bytes
+* `LENGTH` is a `PAYLOAD` length in bytes; if the data retrieved from a DBMS is an Unicode string, `LENGTH` is equal to the number of bytes used to encode this string
+* `PAYLOAD` is a sequence of bytes; if a DBMS returns binary data encoded as hex, then it has to be decoded to raw bytes
 * `LENGTH` and `PAYLOAD` are separated with newline character (ASCII code 10 / 0x0a)
 
 ### Output format
@@ -56,6 +55,9 @@ LENGTH\nJID
 * LENGTH is a number of bytes in `JID`
 * JID is a sequence of bytes, which encode an Unicode string
 * `LENGTH` and `PAYLOAD` are separated with newline character (ASCII code 10 / 0x0a)
+
+If JID couldn't be extracted for some reason (and it's not a critical error, like I/O failure), the script will continue to work and will return `-1\n`.
+It's `-1` for `LENGTH`, followed by newline character and no `PAYLOAD` part (or 0-length `PAYLOAD` if you like).
 
 ## Examples
 

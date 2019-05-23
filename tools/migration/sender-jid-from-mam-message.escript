@@ -1,6 +1,9 @@
 #!/usr/bin/env escript
 
 -mode(compile).
+%% I've added the directive below to avoid warnings about deprecated erlang:get_stacktrace/0
+%% on OTP 21 and above. It is printed on script startup on stdio, effectively messing with
+%% the tests and potential 3rd party code using this script.
 -compile(nowarn_deprecated_function).
 
 -include_lib("xmerl/include/xmerl.hrl").
@@ -33,27 +36,11 @@ print_usage() ->
     io:format("\t\t xml - if MIM stores messages in plain XML~n"),
     io:format("\t\t Please check documentation to learn about IO format.~n~n").
 
-loop("eterm") ->
-    eterm_loop();
-loop("xml") ->
-    xml_loop();
+loop("eterm") -> common_loop(fun jid_from_eterm/1);
+loop("xml") -> common_loop(fun jid_from_xml/1);
 loop(_) -> print_usage().
 
-eterm_loop() ->
-    common_loop(fun eterm_loop/0, fun jid_from_eterm/1).
-
-jid_from_eterm(ETerm) ->
-    {xmlel, <<"message">>, _, MsgChildren} = binary_to_term(ETerm),
-    {xmlel, <<"x">>, _, XChildren} =
-        lists:keyfind([{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}], 3, MsgChildren),
-    {xmlel, _, ItemAttrs, _} = lists:keyfind(<<"item">>, 2, XChildren),
-    {_, JID} = lists:keyfind(<<"jid">>, 1, ItemAttrs),
-    JID.
-
-xml_loop() ->
-    common_loop(fun xml_loop/0, fun jid_from_xml/1).
-
-common_loop(LoopFun, ExtractionFun) ->
+common_loop(ExtractionFun) ->
     case file:read_line(standard_io) of
         eof ->
             ok;
@@ -62,8 +49,16 @@ common_loop(LoopFun, ExtractionFun) ->
             InLen = binary_to_integer(binary:part(InLenBin, 0, byte_size(InLenBin) - 1)),
             {ok, Data} = file:read(standard_io, InLen),
             safe_jid_extraction(ExtractionFun, Data), 
-            LoopFun()
+            common_loop(ExtractionFun)
     end.
+
+jid_from_eterm(ETerm) ->
+    {xmlel, <<"message">>, _, MsgChildren} = binary_to_term(ETerm),
+    {xmlel, <<"x">>, _, XChildren} =
+        lists:keyfind([{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}], 3, MsgChildren),
+    {xmlel, _, ItemAttrs, _} = lists:keyfind(<<"item">>, 2, XChildren),
+    {_, JID} = lists:keyfind(<<"jid">>, 1, ItemAttrs),
+    JID.
 
 jid_from_xml(XML) ->
     XmerlFriendlyXML = "<?xml version='1.0' encoding='utf-8'?>" ++ binary_to_list(XML),
