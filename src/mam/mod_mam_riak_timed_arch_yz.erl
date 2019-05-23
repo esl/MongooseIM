@@ -338,14 +338,10 @@ get_mam_pm_gdpr_data(Username, Host) ->
             is_simple => true} ),
 
     Filtered = lists:filter(fun(El) -> is_message_from_jid(Jid, El) end, Messages),
-    {ok, [{MsgId, Packet} || {MsgId, _, Packet} <- Filtered]}.
+    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
 
 is_message_from_jid(BareJid, {_MsgId, SourceFullJid, _Packet}) ->
     BareJid == jid:to_bare(SourceFullJid).
-
-is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet}) -> false;
-is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
-
 
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
@@ -367,8 +363,10 @@ get_mam_muc_gdpr_data(Username, Host) ->
             is_simple => true} ),
 
     Filtered = lists:filter(fun(El) -> is_muclight_message(Jid, El) end, Messages),
-    {ok, [{MsgId, Packet} || {MsgId, _, Packet} <- Filtered]}.
+    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
 
+is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet}) -> false;
+is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
 
 remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveID, ArchiveJID),
