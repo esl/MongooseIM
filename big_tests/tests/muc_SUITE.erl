@@ -381,7 +381,7 @@ init_per_group(hibernation, Config) ->
         rdbms ->
     dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc]),
     dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
-    dynamic_modules:start(domain(), mod_mam_rdbms_user, [muc]),
+    dynamic_modules:start(domain(), mod_mam_rdbms_user, [pm, muc]),
             dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
         _ ->
             ok
