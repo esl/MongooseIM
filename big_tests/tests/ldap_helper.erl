@@ -2,31 +2,13 @@
 
 -behaviour(escalus_user_db).
 
-% copied from ejabberd_auth_ldap
--type deref() :: never | searching | finding | always.
--record(state, {host = <<"">>          :: jid:server(),
-                eldap_id = <<"">>      :: binary(),
-                bind_eldap_id = <<"">> :: binary(),
-                servers = []           :: [jid:server()],
-                backups = []           :: [binary()],
-                port = 389             :: inet:port_number(),
-                tls_options = []       :: list(),
-                dn = <<"">>            :: binary(),
-                password = <<"">>      :: binary(),
-                base = <<"">>          :: binary(),
-                uids = []              :: [{binary()} | {binary(), binary()}],
-                ufilter = <<"">>       :: binary(),
-                sfilter = <<"">>       :: binary(),
-                lfilter                :: {any(), any()},
-                deref =   never        :: deref(),
-                dn_filter              :: binary(),
-                dn_filter_attrs = []   :: [binary()]}).
-
 %% API
 -export([start/1,
          stop/1,
          create_users/2,
-         delete_users/2]).
+         delete_users/2,
+         get_ldap_base/1,
+         call_ldap/3]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -53,16 +35,16 @@ delete_users(Config, Users) ->
 
 create_user({_User, Spec}) ->
     {User, Server, Password} = get_usp(Spec),
-    {ok, State} = rpc(mim(), eldap_utils, get_state, [Server, ejabberd_auth_ldap]),
     UserStr=binary_to_list(User),
-    DN = "cn=" ++ UserStr ++ "," ++ binary_to_list(State#state.base),
+    Base = get_ldap_base(Server),
+    DN = "cn=" ++ UserStr ++ "," ++ binary_to_list(Base),
     Attrs = [{"objectclass", ["inetOrgPerson"]},
              {"cn", [UserStr]},
              {"sn", [UserStr]},
              {"userPassword", [binary_to_list(Password)]},
              {"ou", ["shared_group"]},
              {"uid", [UserStr]}],
-    rpc(mim(), eldap_pool, add, [State#state.eldap_id, DN, Attrs]).
+    call_ldap(Server, add, [DN, Attrs]).
 
 delete_user({_Name, Spec}) ->
     {User, Server, _Password} = get_usp(Spec),
@@ -73,3 +55,9 @@ get_usp(Spec) ->
     Server = proplists:get_value(server, Spec),
     Password = proplists:get_value(password, Spec),
     {Username, Server, Password}.
+
+get_ldap_base(Server) ->
+    list_to_binary(rpc(mim(), gen_mod, get_module_opt, [Server, mod_vcard, ldap_base, ""])).
+
+call_ldap(Server, F, Args) ->
+    rpc(mim(), mongoose_wpool, call, [ldap, Server, default, {F, Args}]).
