@@ -9,7 +9,8 @@
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
-                             rpc/4]).
+                             rpc/4,
+                             rpc/5]).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -235,7 +236,7 @@ stanza_aff_set(Room, AffUsers) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
 
 clear_db() ->
-    rpc(mim(), mod_muc_light_db_backend, force_clear, []).
+    rpc(mim(), mod_muc_light_db_backend, force_clear, [], timer:seconds(15)).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->
