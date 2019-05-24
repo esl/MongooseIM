@@ -110,8 +110,10 @@ check_credentials(_State, Creds) ->
 
 -spec listmech(jid:server()) -> [mechanism()].
 listmech(Host) ->
+    HostMechs = get_mechanisms(Host),
     ets:foldl(fun(Mech, MechAcc) ->
-                      case is_mech_supported(Host, Mech) of
+                      case lists:member(Mech#sasl_mechanism.module, HostMechs)
+                          andalso is_mech_supported(Host, Mech) of
                           true -> [Mech#sasl_mechanism.mechanism | MechAcc];
                           false -> MechAcc
                       end
@@ -180,10 +182,20 @@ server_step(State, ClientIn) ->
             {error, Error}
     end.
 
+-spec get_mechanisms() -> [sasl_module()].
 get_mechanisms() ->
-    Default = [cyrsasl_plain,
-               cyrsasl_digest,
-               cyrsasl_scram,
-               cyrsasl_anonymous,
-               cyrsasl_oauth],
-    ejabberd_config:get_local_option_or_default(sasl_mechanisms, Default).
+    lists:usort(lists:flatmap(fun get_mechanisms/1, ?MYHOSTS)).
+
+-spec get_mechanisms(jid:server()) -> [sasl_module()].
+get_mechanisms(Host) ->
+    case ejabberd_config:get_local_option({sasl_mechanisms, Host}) of
+        undefined -> ejabberd_config:get_local_option_or_default(sasl_mechanisms, default_mechanisms());
+        Mechs -> Mechs
+    end.
+
+default_mechanisms() ->
+    [cyrsasl_plain,
+     cyrsasl_digest,
+     cyrsasl_scram,
+     cyrsasl_anonymous,
+     cyrsasl_oauth].

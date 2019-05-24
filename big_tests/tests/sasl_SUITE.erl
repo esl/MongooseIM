@@ -51,9 +51,17 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    escalus:init_per_suite(Config).
+    Domain = ct:get_config({hosts, mim, domain}),
+    Mechs = rpc(mim(), ejabberd_config, get_local_option, [{sasl_mechanisms, Domain}]),
+    rpc(mim(), ejabberd_config, add_local_option, [{sasl_mechanisms, Domain}, [?MODULE]]),
+    escalus:init_per_suite([{mechs, Mechs} | Config]).
 
 end_per_suite(Config) ->
+    Domain = ct:get_config({hosts, mim, domain}),
+    case ?config(mechs, Config) of
+        undefined -> rpc(mim(), ejabberd_config, del_local_option, [{sasl_mechanisms, Domain}]);
+        Mechs -> rpc(mim(), ejabberd_config, add_local_option, [{sasl_mechanisms, Domain}, Mechs])
+    end,
     escalus:end_per_suite(Config).
 
 init_per_group(_GroupName, Config) ->
