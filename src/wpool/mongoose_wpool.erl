@@ -38,7 +38,7 @@
 -export([expand_pools/2]).
 
 -type type() :: redis | riak | http | rdbms | cassandra | elastic | generic
-              | rabbit.
+              | rabbit | ldap.
 -type host() :: global | host | jid:lserver().
 -type tag() :: atom().
 -type name() :: atom().
