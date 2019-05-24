@@ -154,16 +154,15 @@ stop_worker(Proc) ->
     supervisor:terminate_child(mod_mam_sup, Proc),
     supervisor:delete_child(mod_mam_sup, Proc).
 
-
--spec archive_message(_, Host :: jid:server(), MessID :: mod_mam:message_id(),
-                      ArcID :: mod_mam:archive_id(), LocJID :: jid:jid(),
-                      RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: atom(),
+-spec archive_message(_Result, Host :: jid:server(), MessID :: mod_mam:message_id(),
+                      RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
+                      SenderJID :: jid:jid(), UserRoomJID :: jid:jid(), Dir :: atom(),
                       Packet :: packet()) -> ok | {error, timeout}.
-archive_message(_Result, Host,
-                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
-    Row = mod_mam_muc_rdbms_arch:prepare_message(Host,
-                                                MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet),
-    Worker = select_worker(Host, ArcID),
+archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
+                SenderJID = #jid{}, UserRoomJID = #jid{}, _Dir, Packet) ->
+    Row = mod_mam_muc_rdbms_arch:prepare_message(Host, MessID, RoomID,
+                                                 SenderJID, UserRoomJID, Packet),
+    Worker = select_worker(Host, RoomID),
     WorkerPid = whereis(Worker),
     %% Send synchronously if queue length is too long.
     case is_overloaded(WorkerPid) of

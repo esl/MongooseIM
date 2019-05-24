@@ -539,11 +539,11 @@ lookup_messages_without_policy_violation_check(Host, #{search_text := SearchText
 
 -spec archive_message(jid:server(), MessId :: mod_mam:message_id(),
                       ArcId :: mod_mam:archive_id(), LocJID :: jid:jid(),
-                      RemJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
+                      SenderJID :: jid:jid(), SrcJID :: jid:jid(), Dir :: 'incoming',
                       packet()) -> any().
-archive_message(Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet) ->
+archive_message(Host, MessID, ArcID, LocJID, SenderJID, SrcJID, Dir, Packet) ->
     ejabberd_hooks:run_fold(mam_muc_archive_message, Host, ok,
-                            [Host, MessID, ArcID, LocJID, RemJID, SrcJID, Dir, Packet]).
+                            [Host, MessID, ArcID, LocJID, SenderJID, SrcJID, Dir, Packet]).
 
 %% ----------------------------------------------------------------------
 %% Helpers
