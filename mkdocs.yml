@@ -22,6 +22,7 @@ pages:
       - 'How to Set up Jingle/SIP': 'user-guide/Jingle-SIP-setup.md'
   - Migration Guide:
       - '3.1.1 to 3.2.0': 'migrations/3.1.1_3.2.0.md'
+      - 'MAM MUC migration helper': 'migrations/jid-from-mam-muc-script.md'
   - Platform:
       - 'Contributions to ecosystem': 'Contributions.md'
       - 'Differentiators': 'Differentiators.md'
