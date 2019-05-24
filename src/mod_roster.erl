@@ -67,7 +67,10 @@
          roster_version/2
          ]).
 
--export([remove_test_user/2, transaction/2, process_subscription_transaction/6]). % for testing
+-export([remove_test_user/2,
+         transaction/2,
+         process_subscription_transaction/6,
+         get_user_rosters_length/2]). % for testing
 
 -export([get_personal_data/2]).
 
@@ -872,6 +875,9 @@ in_auto_reply(_, _, _) -> none.
 
 remove_test_user(User, Server) ->
     mod_roster_backend:remove_user(User, Server).
+
+get_user_rosters_length(User, Server) ->
+    length(get_roster_old(User, Server)).
 
 %% Used only by tests
 remove_user(User, Server) ->

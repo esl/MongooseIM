@@ -382,7 +382,18 @@ disco_rooms_rsm(Config) ->
 
 rooms_in_rosters(Config) ->
     escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
             escalus:send(Alice, escalus_stanza:roster_get()),
+            mongoose_helper:wait_until(
+                fun() ->
+                    distributed_helper:rpc(
+                        distributed_helper:mim(),
+                        mod_roster,
+                        get_user_rosters_length,
+                        [AliceU, AliceS])
+                end,
+                1),
             RosterResult = escalus:wait_for_stanza(Alice),
             escalus_assert:is_roster_result(RosterResult),
 
