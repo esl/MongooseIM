@@ -64,14 +64,8 @@
 
 -record(state,
        {host = <<"">>          :: jid:lserver(),
-        eldap_id = <<"">>      :: binary(),
-        bind_eldap_id = <<"">> :: binary(),
-        servers = []           :: [jid:lserver()],
-        backups = []           :: [binary()],
-        port = ?LDAP_PORT      :: inet:port_number(),
-        tls_options            :: tlsopts(),
-        dn = <<"">>            :: binary(),
-        password = <<"">>      :: binary(),
+        eldap_id               :: {jid:lserver(), binary()},
+        bind_eldap_id          :: {jid:lserver(), binary()},
         base = <<"">>          :: binary(),
         uids = []              :: [{binary()} | {binary(), binary()}],
         ufilter = <<"">>       :: binary(),
@@ -124,14 +118,6 @@ terminate(_Reason, _State) -> ok.
 -spec init(Host :: jid:lserver()) -> {'ok', state()}.
 init(Host) ->
     State = parse_options(Host),
-    eldap_pool:start_link(State#state.eldap_id,
-                          State#state.servers, State#state.backups,
-                          State#state.port, State#state.dn,
-                          State#state.password, State#state.tls_options),
-    eldap_pool:start_link(State#state.bind_eldap_id,
-                          State#state.servers, State#state.backups,
-                          State#state.port, State#state.dn,
-                          State#state.password, State#state.tls_options),
     {ok, State}.
 
 -spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
@@ -384,8 +370,6 @@ is_user_exists_ldap(LUser, LServer) ->
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
 handle_call(stop, _From, State) ->
-    eldap_pool:stop(State#state.eldap_id),
-    eldap_pool:stop(State#state.bind_eldap_id),
     {stop, normal, ok, State};
 handle_call(_Request, _From, State) ->
     {reply, bad_request, State}.
@@ -510,68 +494,23 @@ result_attrs(#state{uids = UIDs,
 
 -spec parse_options(Host :: jid:lserver()) -> state().
 parse_options(Host) ->
-    Cfg = eldap_utils:get_config(Host, []),
-    EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?MODULE), utf8),
-    BindEldapID = atom_to_binary(
-                      gen_mod:get_module_proc(Host, bind_ejabberd_auth_ldap), utf8),
-    UIDsTemp = eldap_utils:get_opt(
-                 {ldap_uids, Host}, [],
-                 fun(Us) ->
-                         lists:map(
-                           fun({U, P}) ->
-                                   {iolist_to_binary(U),
-                                    iolist_to_binary(P)};
-                              ({U}) ->
-                                   {iolist_to_binary(U)};
-                              (U) ->
-                                   {iolist_to_binary(U)}
-                           end, lists:flatten(Us))
-                 end, [{<<"uid">>, <<"%u">>}]),
-    UIDs = eldap_utils:uids_domain_subst(Host, UIDsTemp),
-    SubFilter = eldap_utils:generate_subfilter(UIDs),
-    UserFilter = case eldap_utils:get_opt(
-                        {ldap_filter, Host}, [],
-                        fun check_filter/1, <<"">>) of
-                     <<"">> ->
-                         SubFilter;
-                     F ->
-                         <<"(&", SubFilter/binary, F/binary, ")">>
-                 end,
-    SearchFilter = eldap_filter:do_sub(UserFilter,
-                                       [{<<"%u">>, <<"*">>}]),
-    {DNFilter, DNFilterAttrs} =
-        eldap_utils:get_opt({ldap_dn_filter, Host}, [],
-                            fun({DNF, DNFA}) ->
-                                    NewDNFA = case DNFA of
-                                                  undefined ->
-                                                      [];
-                                                  _ ->
-                                                      [iolist_to_binary(A)
-                                                       || A <- DNFA]
-                                              end,
-                                    NewDNF = check_filter(DNF),
-                                    {NewDNF, NewDNFA}
-                            end, {undefined, []}),
-    LocalFilter = eldap_utils:get_opt(
-                    {ldap_local_filter, Host}, [], fun(V) -> V end),
-    #state{host = Host, eldap_id = EldapID,
-           bind_eldap_id = BindEldapID,
-           servers = Cfg#eldap_config.servers,
-           backups = Cfg#eldap_config.backups,
-           port = Cfg#eldap_config.port,
-           tls_options = Cfg#eldap_config.tls_options,
-           dn = Cfg#eldap_config.dn,
-           password = Cfg#eldap_config.password,
-           base = Cfg#eldap_config.base,
-           deref = Cfg#eldap_config.deref,
+    Opts = ejabberd_config:get_local_option_or_default({auth_opts, Host}, []),
+    EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
+                                      fun(A) when is_atom(A) -> A end, default),
+    BindEldapID = eldap_utils:get_mod_opt(ldap_bind_pool_tag, Opts,
+                                          fun(A) when is_atom(A) -> A end, bind),
+    Base = eldap_utils:get_base(Opts),
+    DerefAliases = eldap_utils:get_deref_aliases(Opts),
+    UIDs = eldap_utils:get_uids(Host, Opts),
+    UserFilter = eldap_utils:get_user_filter(UIDs, Opts),
+    SearchFilter = eldap_utils:get_search_filter(UserFilter),
+    {DNFilter, DNFilterAttrs} = eldap_utils:get_dn_filter_with_attrs(Opts),
+    LocalFilter = eldap_utils:get_mod_opt(ldap_local_filter, Opts),
+    #state{host = Host,
+           eldap_id = {Host, EldapID},
+           bind_eldap_id = {Host, BindEldapID},
+           base = Base,
+           deref = DerefAliases,
            uids = UIDs, ufilter = UserFilter,
            sfilter = SearchFilter, lfilter = LocalFilter,
            dn_filter = DNFilter, dn_filter_attrs = DNFilterAttrs}.
-
-
--spec check_filter(F :: iolist()) -> binary().
-check_filter(F) ->
-    NewF = iolist_to_binary(F),
-    {ok, _} = eldap_filter:parse(NewF),
-    NewF.
-

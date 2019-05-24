@@ -29,8 +29,7 @@
 -author('xram@jabber.ru').
 
 %% API
--export([start_link/7, stop/1, bind/3, search/2, delete/2, add/3,
-         modify_passwd/3]).
+-export([bind/3, search/2, delete/2, add/3, modify_passwd/3]).
 -import(eldap_utils, [maybe_b2list/1]).
 -include("mongoose.hrl").
 -include("eldap.hrl").
@@ -80,7 +79,6 @@ delete(PoolName, DN) ->
     R -> R
   end.
 
-
 add(PoolName, DN, Attrs) ->
   do_request(PoolName, {add, [maybe_b2list(DN), parse_add_atrs(Attrs)]}).
 
@@ -90,66 +88,10 @@ parse_add_atrs(Attrs) ->
 parse_add_attr({N, List}) ->
   {maybe_b2list(N), [maybe_b2list(L) || L <- List]}.
 
-start_link(Name, Hosts, _Backups, Port, Rootdn, Passwd, TLSOptions) ->
-  PoolName = make_id(Name),
-  pg2:create(PoolName),
-  AnonAuth = anon_auth(Rootdn, Passwd),
-  SSLConfig = ssl_options(TLSOptions),
-  lists:foreach(fun (Host) ->
-    case catch eldap:open([maybe_b2list(Host)], [{port, Port}, {anon_auth, AnonAuth}] ++ SSLConfig)
-    of
-      {ok, Pid} ->
-        ldap_authenticate(Pid, Rootdn, Passwd, PoolName);
-      {error, Err} ->
-        ?ERROR_MSG("LDAP connection failed with reason: ~p", [Err]),
-        error
-    end
-                end,
-    Hosts).
-
-anon_auth(<<>>, <<>>) -> true;
-anon_auth(_Rootdn, _Passwd) -> false.
-
-ssl_options(#{encrypt := tls, options := Options}) -> [{ssl, true}, {sslopts, Options}];
-ssl_options(#{encrypt := none}) -> [{ssl, false}].
-
-ldap_authenticate(Handle, Rootdn, Password, PoolName) ->
-  case eldap:simple_bind(Handle, maybe_b2list(Rootdn), maybe_b2list(Password)) of
-    ok ->
-      ?INFO_MSG("LDAP authentication successful for Rootdn ~p~n", [Rootdn]),
-      pg2:join(PoolName, Handle);
-    {error, Reason} = Err ->
-      ?ERROR_MSG("LDAP authentication unsuccessful with reason: ~p", [Reason]),
-      Err
-  end.
-
-stop(Name) ->
-  Pids = pg2:get_local_members(make_id(Name)),
-  lists:foreach(fun (P) ->
-    ok = pg2:leave(make_id(Name), P),
-    eldap:close(P)
-                end, Pids).
-
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-do_request(Name, {F, Args}) ->
-  case pg2:get_closest_pid(make_id(Name)) of
-    Pid when is_pid(Pid) ->
-      case catch apply(eldap, F, [Pid | Args]) of
-        {'EXIT', {timeout, _}} ->
-          ?ERROR_MSG("LDAP request failed: timed out", []);
-        {'EXIT', Reason} ->
-          ?ERROR_MSG("LDAP request failed: eldap:~p(~p)~nReason: ~p",
-            [F, Args, Reason]),
-          {error, Reason};
-        Reply -> Reply
-      end;
-    Err -> Err
-  end.
-
-
-make_id(Name) ->
-  binary_to_atom(<<"eldap_pool_", Name/binary>>, utf8).
+do_request({Host, PoolTag}, Request) ->
+    mongoose_wpool:call(ldap, Host, PoolTag, Request).
