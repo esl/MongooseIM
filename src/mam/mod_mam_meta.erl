@@ -179,7 +179,7 @@ parse_backend_opts(rdbms, Type, Opts0, Deps0) ->
         end,
 
     Deps1 = add_dep(ModRDBMSArch, [Type], Deps0),
-    Deps = add_dep(mod_mam_rdbms_user, [Type], Deps1),
+    Deps = add_dep(mod_mam_rdbms_user, user_db_types(Type), Deps1),
 
     lists:foldl(
       pa:bind(fun parse_rdbms_opt/5, Type, ModRDBMSArch, ModAsyncWriter),
@@ -198,6 +198,11 @@ parse_backend_opts(elasticsearch, Type, Opts, Deps0) ->
         mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
         _ -> Deps
     end.
+
+% muc backend requires both pm and muc user DB to populate sender_id column
+-spec user_db_types(pm | muc) -> [pm | muc].
+user_db_types(pm) -> [pm];
+user_db_types(muc) -> [pm, muc].
 
 -spec normalize(proplists:proplist()) -> [{atom(), term()}].
 normalize(Opts) ->

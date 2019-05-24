@@ -138,7 +138,7 @@ example_muc_only_no_pref_good_performance(_Config) ->
                 ]),
 
     check_equal_deps([
-                      {mod_mam_rdbms_user, [muc]},
+                      {mod_mam_rdbms_user, [muc, pm]},
                       {mod_mam_cache_user, [muc]},
                       %% 'muc' argument is ignored by the module
                       {mod_mam_muc_rdbms_arch, [muc, no_writer]},
