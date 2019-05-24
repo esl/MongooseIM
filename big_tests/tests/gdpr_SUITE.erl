@@ -15,6 +15,8 @@
          retrieve_vcard/1,
          remove_vcard/1,
          remove_private/1,
+         remove_multiple_private_xmls/1,
+         dont_remove_other_user_private_xml/1,
          retrieve_roster/1,
          retrieve_mam_pm/1,
          retrieve_mam_muc_light/1,
@@ -100,7 +102,6 @@ groups() ->
      {retrieve_negative, [], [
                               data_is_not_retrieved_for_missing_user
                              ]},
-<<<<<<< 84b24fdb4fa2f190d706d9ff4f59fc356cb9d7e3
      {retrieve_personal_data_mam, [], [
                                        {group, retrieve_personal_data_mam_rdbms},
                                        {group, retrieve_personal_data_mam_riak},
@@ -111,8 +112,20 @@ groups() ->
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]},
-     {remove_personal_data, [], [remove_vcard, remove_roster, remove_offline, remove_private]},
-     {remove_personal_data_with_mods_disabled, [], [remove_vcard, remove_roster, remove_offline, remove_private]}
+     {remove_personal_data, [],
+         [remove_vcard,
+          remove_roster,
+          remove_offline,
+          remove_private,
+          remove_multiple_private_xmls,
+          dont_remove_other_user_private_xml]},
+     {remove_personal_data_with_mods_disabled, [],
+         [remove_vcard,
+          remove_roster,
+          remove_offline,
+          remove_private,
+          remove_multiple_private_xmls,
+          dont_remove_other_user_private_xml]}
     ].
 
 mam_testcases() ->
@@ -188,7 +201,9 @@ init_per_testcase(remove_vcard = CN, Config) ->
             vcard_started(),
             escalus:init_per_testcase(CN, Config)
     end;
-init_per_testcase(remove_private = CN, Config) ->
+init_per_testcase(CN, Config) when CN == remove_private;
+                                   CN == dont_remove_other_user_private_xml;
+                                   CN == remove_multiple_private_xmls ->
     private_started(),
     escalus:init_per_testcase(CN, Config);
 
@@ -366,7 +381,7 @@ remove_private(Config) ->
         %% Remove Alice
         {0, _} = unregister(Alice, Config),
 
-        %% Expect her data to be gone
+        %% Expect Alice's data to be gone
         mongoose_helper:wait_until(
             fun() ->
                 mongoose_helper:successful_rpc(mod_private, get_personal_data,
@@ -374,6 +389,83 @@ remove_private(Config) ->
             end, [{private, ["ns","xml"], []}])
 
         end).
+
+dont_remove_other_user_private_xml(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+
+        %% Add some private data for Alice and Bob
+        AliceNS = <<"alice:private:ns">>,
+        AliceContent = <<"To be or not to be">>,
+        BobNS = <<"bob:private:ns">>,
+        BobContent = <<"This is the winter of our discontent">>,
+        send_and_assert_private_stanza(Alice, AliceNS, AliceContent),
+        send_and_assert_private_stanza(Bob, BobNS, BobContent),
+
+        maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
+
+        %% Remove Alice
+        {0, _} = unregister(Alice, Config),
+
+        %% Expect Alice's data to be gone
+        mongoose_helper:wait_until(
+            fun() ->
+                mongoose_helper:successful_rpc(mod_private, get_personal_data,
+                    [AliceU, AliceS])
+            end, [{private, ["ns","xml"], []}]),
+
+        %% Verify that Bob's data is left intact
+        ExpectedHeader = ["ns", "xml"],
+        ExpectedItems = [#{ "ns" => binary_to_list(BobNS),
+                            "xml" => [{contains, binary_to_list(BobNS)},
+                                      {contains, binary_to_list(BobContent)}] }
+                        ],
+        retrieve_and_validate_personal_data(
+            Bob, Config, "private", ExpectedHeader, ExpectedItems)
+
+    end).
+
+remove_multiple_private_xmls(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+
+        %% Add some private data for Alice for multiple keys
+        NSsAndContents = [
+                          {<<"alice:private:ns1">>, <<"Some text">>},
+                          {<<"alice:private:ns2">>, <<"Other text for another key">>},
+                          {<<"alice:private:ns3">>, <<"Even more of text">>}
+                         ],
+        lists:foreach(
+            fun({NS, Content}) ->
+                send_and_assert_private_stanza(Alice, NS, Content)
+            end, NSsAndContents),
+        ExpectedHeader = ["ns", "xml"],
+        ExpectedItems = lists:map(
+            fun({NS, Content}) ->
+                #{ "ns" => binary_to_list(NS),
+                   "xml" => [{contains, binary_to_list(NS)},
+                         {contains, binary_to_list(Content)}]}
+            end, NSsAndContents),
+
+        maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
+
+        %% Verify the data is stored
+        retrieve_and_validate_personal_data(
+          Alice, Config, "private", ExpectedHeader, ExpectedItems),
+
+        %% Remove Alice
+        {0, _} = unregister(Alice, Config),
+
+        %% Expect all of Alice's data to be gone
+        mongoose_helper:wait_until(
+        fun() ->
+            mongoose_helper:successful_rpc(mod_private, get_personal_data,
+                [AliceU, AliceS])
+        end, [{private, ["ns","xml"], []}])
+
+     end).
 
 retrieve_roster(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
