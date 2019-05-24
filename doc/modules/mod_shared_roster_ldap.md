@@ -6,6 +6,9 @@ It might get quite complicated to configure it properly, so fasten your seatbelt
 When a default value for an option is defined with "top-level/XXX", it means that the default value is equal to a top-level parameter in `mongooseim.cfg` of the same name. 
 If it is not defined, XXX becomes the default value.
 
+### Options: general
+
+* `ldap_pool_tag`, `ldap_base`, `ldap_deref`: these options are the same as for the [LDAP authentication module](../authentication-backends/LDAP-authentication-module.md#configuration-options).
 
 ### Options: attributes
 

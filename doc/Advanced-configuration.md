@@ -138,44 +138,6 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
       Requires redis pool defined in `outgoing_pools`: <br/> `{redis, global, default, ..., ...}`.
       See [redis section in outgoing connections doc](./advanced-configuration/outgoing-connections.md#redis-connection-setup)
 
-### LDAP Connection
-* **ldap_servers**
-    * **Description:** List of IP addresses or DNS names of your LDAP servers.
-    * **Values:** `[Servers, ...]`
-    * **Default:**  no default value. This option is required when setting up an LDAP connection.
-
-* **ldap_encrypt**
-    * **Description:** Enable connection encryption with your LDAP server.
-        The value `tls` enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
-    * **Values:** `none`, `tls`
-    * **Default:** `none`
-
-* **ldap_tls_options**
-    * **Description:** Specifies TLS connection options. Requires `{ldap_encrypt, tls}` (see above).
-    * **Value:** List of `ssl:tls_client_option()`. More details can be found in the [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
-    * **Default:** `[]` - empty list, no options
-    * **Example:** `{ldap_tls_options, [{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]}`
-
-* **ldap_port**
-    * **Description:** Port to connect to your LDAP server.
-    * **Values:** Integer
-    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
-
-* **ldap_rootdn**
-    * **Description:** Bind DN
-    * **Values:** String
-    * **Default:** empty string which is `anonymous connection`
-
-* **ldap_password**
-    * **Description:** Bind password
-    * **Values:** String
-    * **Default:** empty string
-
-* **ldap_deref**
-    * **Description:** Whether or not to dereference aliases
-    * **Values:** `never`, `always`, `finding`, `searching`
-    * **Default:** `never`
-
 ### Authentication
 
 * **auth_method** (local)
@@ -203,7 +165,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
 
-* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `mongooseim.cfg` file.
+        * [`ldap` backend options](authentication-backends/LDAP-authentication-module.md#configuration-options)
 
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).

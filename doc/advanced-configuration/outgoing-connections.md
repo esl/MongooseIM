@@ -10,11 +10,12 @@ The interface for outgoing connections management was unified and is now availab
 * `elastic` - pool of connections to ElasticSearch server
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
-* `generic` - pool of generic workers not assosiated directly with a paritcualr connection (SNS, PushNotifications)
+* `ldap` - pool of connections to an LDAP server
+* `generic` - pool of generic workers not assosiated directly with a particular connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
 
-Every entry in the `outgoing_pools` is a 5 element tuple:
+Every entry in the `outgoing_pools` is a 5-element tuple:
 
 ```erlang
 {Type, Host, Tag, PoolOptions, ConnectionOptions}
@@ -499,5 +500,69 @@ below the limit.
    {amqp_password, "guest"},
    {confirms_enabled, true},
    {max_worker_queue_len, 100}]}
+]}.
+```
+
+## LDAP connection setup
+
+To configure a pool of connections to an LDAP server, use the following syntax:
+
+```erlang
+{ldap, Host, Tag, PoolOptions, ConnectionOptions}
+```
+
+### Connection options
+
+The following options can be specify in the `ConnectionOptions` list:
+
+* **servers**
+    * **Description:** List of IP addresses or DNS names of your LDAP servers. They are tried sequentially until the connection succeeds.
+    * **Value:** A list of strings
+    * **Default:** `["localhost"]`
+    * **Example:** `["primary-ldap-server.example.com", "secondary-ldap-server.example.com"]`
+
+* **encrypt**
+    * **Description:** Enable connection encryption with your LDAP server.
+        The value `tls` enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
+    * **Values:** `none`, `tls`
+    * **Default:** `none`
+
+* **tls_options**
+    * **Description:** Specifies TLS connection options. Requires `{encrypt, tls}` (see above).
+    * **Value:** List of `ssl:tls_client_option()`. More details can be found in the [official Erlang ssl documentation](http://erlang.org/doc/man/ssl.html).
+    * **Default:** no options
+    * **Example:** `[{verify, verify_peer}, {cacertfile, "path/to/cacert.pem"}]`
+
+* **port**
+    * **Description:** Port to connect to your LDAP server.
+    * **Values:** Integer
+    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
+
+* **rootdn**
+    * **Description:** Bind DN
+    * **Values:** String
+    * **Default:** empty string which is `anonymous connection`
+
+* **password**
+    * **Description:** Bind password
+    * **Values:** String
+    * **Default:** empty string
+
+* **connect_interval**
+    * **Description:** Interval between consecutive connection attempts in case of connection failure
+    * **Value:** Integer (milliseconds)
+    * **Default:** 10000
+
+### Example
+
+A pool started for each host with the `default` tag and 5 workers. The LDAP server is at `ldap-server.example.com:389`. MongooseIM will authenticate as `cn=admin,dc=example,dc=com` with the provided password.
+
+```erlang
+{outgoing_pools, [
+ {ldap, host, default, [{workers, 5}],
+  [{servers, ["ldap-server.example.com"]},
+   {rootdn, "cn=admin,dc=example,dc=com"},
+   {password, "ldap-admin-password"}]
+ }
 ]}.
 ```
