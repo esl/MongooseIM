@@ -35,11 +35,15 @@
          make_filter/3,
          get_state/2,
          case_insensitive_match/2,
-         get_opt/3,
-         get_opt/4,
+         get_mod_opt/2,
          get_mod_opt/3,
          get_mod_opt/4,
-         get_config/2,
+         get_base/1,
+         get_deref_aliases/1,
+         get_uids/2,
+         get_user_filter/2,
+         get_search_filter/1,
+         get_dn_filter_with_attrs/1,
          decode_octet_string/3,
          uids_domain_subst/2,
          singleton_value/1,
@@ -194,6 +198,17 @@ get_state(Server, Module) ->
     Proc = gen_mod:get_module_proc(Server, Module),
     gen_server:call(Proc, get_state).
 
+process_uids(Uids) ->
+    lists:map(
+      fun({U, P}) ->
+              {iolist_to_binary(U),
+               iolist_to_binary(P)};
+         ({U}) ->
+              {iolist_to_binary(U)};
+         (U) ->
+              {iolist_to_binary(U)}
+      end, lists:flatten(Uids)).
+
 
 %% @doc From the list of uids attribute: we look from alias domain (%d) and make
 %% the substitution with the actual host domain. This helps when you need to
@@ -207,26 +222,9 @@ uids_domain_subst(Host, UIDs) ->
               end,
               UIDs).
 
-
--spec get_opt({atom(), binary()}, list(), fun()) -> any().
-get_opt({Key, Host}, Opts, F) ->
-    get_opt({Key, Host}, Opts, F, undefined).
-
-
--spec get_opt({atom(), binary()}, list(), fun(), any()) -> any().
-get_opt({Key, Host}, Opts, F, Default) ->
-    case gen_mod:get_opt(Key, Opts, undefined) of
-        undefined ->
-            case ejabberd_config:get_local_option({Key, Host}) of
-                undefined ->
-                    Default;
-                Val ->
-                    prepare_opt_val(Key, Val, F, Default)
-            end;
-        Val ->
-            prepare_opt_val(Key, Val, F, Default)
-    end.
-
+-spec get_mod_opt(atom(), list()) -> any().
+get_mod_opt(Key, Opts) ->
+    get_mod_opt(Key, Opts, fun(Val) -> Val end).
 
 -spec get_mod_opt(atom(), list(), fun()) -> any().
 get_mod_opt(Key, Opts, F) ->
@@ -266,53 +264,48 @@ prepare_opt_val(Opt, Val, F, Default) ->
             Res
     end.
 
+get_base(Opts) ->
+    get_mod_opt(ldap_base, Opts, fun iolist_to_binary/1, <<"">>).
 
--spec get_config(binary(), list()) -> eldap:eldap_config().
-get_config(Host, Opts) ->
-    Servers = get_opt({ldap_servers, Host}, Opts,
-                      fun(L) ->
-                              [iolist_to_binary(H) || H <- L]
-                      end, [<<"localhost">>]),
-    Backups = get_opt({ldap_backups, Host}, Opts,
-                      fun(L) ->
-                              [iolist_to_binary(H) || H <- L]
-                      end, []),
-    Encrypt = get_opt({ldap_encrypt, Host}, Opts,
-                      fun(tls) -> tls;
-                         (none) -> none
-                      end, none),
-    TLSOptions = get_opt({ldap_tls_options, Host}, Opts,
-                        fun(L) when is_list(L) -> L end, []),
-    Port = get_opt({ldap_port, Host}, Opts,
-                   fun(I) when is_integer(I), I>0 -> I end,
-                   case Encrypt of
-                       tls -> ?LDAPS_PORT;
-                       starttls -> ?LDAP_PORT;
-                       _ -> ?LDAP_PORT
-                   end),
-    RootDN = get_opt({ldap_rootdn, Host}, Opts,
-                     fun iolist_to_binary/1,
-                     <<"">>),
-    Password = get_opt({ldap_password, Host}, Opts,
-                 fun iolist_to_binary/1,
-                 <<"">>),
-    Base = get_opt({ldap_base, Host}, Opts,
-                   fun iolist_to_binary/1,
-                   <<"">>),
-    DerefAliases = get_opt({deref, Host}, Opts,
-                               fun(never) -> neverDerefAliases;
-                                    (searching) -> derefInSearching;
-                                    (finding) -> derefFindingBaseObj;
-                                    (always) -> derefAlways
-                                end, neverDerefAliases),
-    #eldap_config{servers = Servers,
-                  backups = Backups,
-                  tls_options = #{encrypt => Encrypt, options => TLSOptions},
-                  port = Port,
-                  dn = RootDN,
-                  password = Password,
-                  base = Base,
-                  deref = DerefAliases}.
+get_deref_aliases(Opts) ->
+    get_mod_opt(ldap_deref, Opts, fun(never) -> neverDerefAliases;
+                                     (searching) -> derefInSearching;
+                                     (finding) -> derefFindingBaseObj;
+                                     (always) -> derefAlways
+                                  end, neverDerefAliases).
+
+get_uids(Host, Opts) ->
+    UIDsTemp = get_mod_opt(ldap_uids, Opts, fun process_uids/1, [{<<"uid">>, <<"%u">>}]),
+    uids_domain_subst(Host, UIDsTemp).
+
+get_user_filter(UIDs, Opts) ->
+    SubFilter = generate_subfilter(UIDs),
+    case get_mod_opt(ldap_filter, Opts, fun check_filter/1, <<"">>) of
+        <<"">> ->
+            SubFilter;
+        F ->
+            <<"(&", SubFilter/binary, F/binary, ")">>
+    end.
+
+get_search_filter(UserFilter) ->
+    eldap_filter:do_sub(UserFilter, [{<<"%u">>, <<"*">>}]).
+
+get_dn_filter_with_attrs(Opts) ->
+    get_mod_opt(ldap_dn_filter, Opts,
+                fun({DNF, DNFA}) ->
+                        NewDNFA = case DNFA of
+                                      undefined -> [];
+                                      _ -> [iolist_to_binary(A) || A <- DNFA]
+                                  end,
+                        NewDNF = check_filter(DNF),
+                        {NewDNF, NewDNFA}
+                end, {undefined, []}).
+
+-spec check_filter(F :: iolist()) -> binary().
+check_filter(F) ->
+    NewF = iolist_to_binary(F),
+    {ok, _} = eldap_filter:parse(NewF),
+    NewF.
 
 -spec singleton_value(list()) -> {binary(), binary()} | false.
 singleton_value([{K, [V]}]) ->

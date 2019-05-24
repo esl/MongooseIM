@@ -62,12 +62,7 @@
 -record(state,
         {serverhost = <<"">>        :: binary(),
          myhost = <<"">>            :: binary(),
-         eldap_id = <<"">>          :: binary(),
-         servers = []               :: [binary()],
-         backups = []               :: [binary()],
-         port = ?LDAP_PORT          :: inet:port_number(),
-         tls_options                :: tlsopts(),
-         dn = <<"">>                :: binary(),
+         eldap_id                   :: {jid:lserver(), binary()},
          base = <<"">>              :: binary(),
          password = <<"">>          :: binary(),
          uids = []                  :: [{binary()} | {binary(), binary()}],
@@ -211,10 +206,6 @@ start_link(Host, Opts) ->
 init([Host, Opts]) ->
     process_flag(trap_exit, true),
     State = parse_options(Host, Opts),
-    eldap_pool:start_link(State#state.eldap_id,
-                          State#state.servers, State#state.backups,
-                          State#state.port, State#state.dn,
-                          State#state.password, State#state.tls_options),
     {ok, State}.
 
 handle_info(_Info, State) ->
@@ -231,8 +222,8 @@ handle_cast(_Request, State) -> {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-terminate(_Reason, State) ->
-    eldap_pool:stop(State#state.eldap_id).
+terminate(_Reason, _State) ->
+    ok.
 
 %%--------------------------------------------------------------------
 %% Internal
@@ -467,32 +458,14 @@ parse_options(Host, Opts) ->
                              fun(infinity) -> infinity;
                                 (I) when is_integer(I), I>=0 -> I
                              end, 30),
-    EldapID = atom_to_binary(gen_mod:get_module_proc(Host, ?PROCNAME), utf8),
-    Cfg = eldap_utils:get_config(Host, Opts),
-    UIDsTemp = eldap_utils:get_opt(
-                 {ldap_uids, Host}, Opts,
-                 fun(Us) ->
-                         lists:map(
-                           fun({U, P}) ->
-                                   {iolist_to_binary(U),
-                                    iolist_to_binary(P)};
-                              ({U}) ->
-                                   {iolist_to_binary(U)}
-                           end, Us)
-                 end, [{<<"uid">>, <<"%u">>}]),
-    UIDs = eldap_utils:uids_domain_subst(Host, UIDsTemp),
-    SubFilter = eldap_utils:generate_subfilter(UIDs),
-    UserFilter = case eldap_utils:get_opt(
-                        {ldap_filter, Host}, Opts,
-                        fun check_filter/1, <<"">>) of
-                     <<"">> ->
-                         SubFilter;
-                     F ->
-                         <<"(&", SubFilter/binary, F/binary, ")">>
-                 end,
+    EldapID = eldap_utils:get_mod_opt(ldap_pool_tag, Opts,
+                                      fun(A) when is_atom(A) -> A end, default),
+    Base = eldap_utils:get_base(Opts),
+    DerefAliases = eldap_utils:get_deref_aliases(Opts),
+    UIDs = eldap_utils:get_uids(Host, Opts),
+    UserFilter = eldap_utils:get_user_filter(UIDs, Opts),
     {ok, SearchFilter} =
-        eldap_filter:parse(eldap_filter:do_sub(UserFilter,
-                                               [{<<"%u">>, <<"*">>}])),
+        eldap_filter:parse(eldap_utils:get_search_filter(UserFilter)),
     VCardMap = eldap_utils:get_mod_opt(ldap_vcard_map, Opts,
                                fun(Ls) ->
                                        lists:map(
@@ -537,16 +510,11 @@ parse_options(Host, Opts) ->
                                              SearchOperatorFun, 'and'),
     BinaryFields = eldap_utils:get_mod_opt(ldap_binary_search_fields, Opts,
                                            fun(X) -> X end, []),
-    #state{serverhost = Host, myhost = MyHost,
-           eldap_id = EldapID,
-           servers = Cfg#eldap_config.servers,
-           backups = Cfg#eldap_config.backups,
-           port = Cfg#eldap_config.port,
-           tls_options = Cfg#eldap_config.tls_options,
-           dn = Cfg#eldap_config.dn,
-           password = Cfg#eldap_config.password,
-           base = Cfg#eldap_config.base,
-           deref = Cfg#eldap_config.deref,
+    #state{serverhost = Host,
+           myhost = MyHost,
+           eldap_id = {Host, EldapID},
+           base = Base,
+           deref = DerefAliases,
            uids = UIDs, vcard_map = VCardMap,
            vcard_map_attrs = VCardMapAttrs,
            user_filter = UserFilter, search_filter = SearchFilter,
@@ -556,8 +524,3 @@ parse_options(Host, Opts) ->
            search_reported_attrs = SearchReportedAttrs,
            search_operator = SearchOperator,
            matches = Matches}.
-
-check_filter(F) ->
-    NewF = iolist_to_binary(F),
-    {ok, _} = eldap_filter:parse(NewF),
-    NewF.
