@@ -73,7 +73,7 @@ The server may use one of the following strategies to handle incoming stanzas:
   be handled
 * `{queues, N}` spawns **N** processes. Every incoming stanza will be then
   handled by one of those processes
-* `pararell` registers the handler without spawning a new process, a new process
+* `parallel` registers the handler without spawning a new process, a new process
   will be spawned for each incoming stanza
 
 
