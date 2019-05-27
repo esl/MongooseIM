@@ -138,12 +138,14 @@ mam_testcases() ->
 
 init_per_suite(Config) ->
     Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
+    mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr, true]),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     delete_files(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
+    mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr, false]),
     escalus:end_per_suite(Config).
 
 init_per_group(retrieve_personal_data_with_mods_disabled, Config) ->

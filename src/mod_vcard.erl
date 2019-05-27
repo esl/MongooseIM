@@ -145,7 +145,8 @@ get_personal_data(Username, Server) ->
             _:_ ->
                 []
         end
-                                                                              end),
+                                                                              end,
+        fun() -> [] end),
     [{vcard, Schema, Entries}].
 
 -spec default_search_fields() -> list().
@@ -415,6 +416,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
+    RemoveFromBackendFun = fun() -> mod_vcard_backend:remove_user(LUser, LServer) end,
     mongoose_lib:maybe_process_bahaviour_implementations(mod_vcard, fun(B) ->
         try
             B:remove_user(LUser, LServer)
@@ -423,10 +425,9 @@ remove_user(User, Server) ->
                 Stack = erlang:get_stacktrace(),
                 ?WARNING_MSG("issue=remove_user_failed "
                 "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end),
-    ok.
+                "stacktrace=~1000p ", [E, R, Stack])
+        end, [] end, RemoveFromBackendFun),
+    [].
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->

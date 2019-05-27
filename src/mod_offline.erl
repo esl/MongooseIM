@@ -529,7 +529,7 @@ get_personal_data(Username, Server) ->
             _:_ ->
                 []
         end
-                                                                                    end),
+                                                                                    end, fun() -> [] end),
     [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(AllMessages)}].
 
 offline_messages_to_gdpr_format(MsgList) ->
@@ -584,6 +584,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
+    RemoveFromBackendFun = fun() -> mod_offline_backend:remove_user(User, Server) end,
     mongoose_lib:maybe_process_bahaviour_implementations(mod_offline, fun(B) ->
         try
             B:remove_user(LUser, LServer)
@@ -592,10 +593,9 @@ remove_user(User, Server) ->
                 Stack = erlang:get_stacktrace(),
                 ?WARNING_MSG("issue=remove_user_failed "
                 "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end),
-    ok.
+                "stacktrace=~1000p ", [E, R, Stack])
+        end, [] end, RemoveFromBackendFun),
+    [].
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Acc, Msgs) ->

@@ -181,7 +181,7 @@ get_personal_data(Username, Server) ->
                 log_get_personal_data_warning(B, C, R, erlang:get_stacktrace()),
                 []
         end
-                                                                     end),
+                                                                     end, fun() -> [] end),
     SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
     [{roster, Schema, SerializedRecords}].
 
@@ -889,6 +889,7 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
+    RemoveFromBackendFun = fun() -> mod_roster_backend:remove_user(LUser, LServer) end,
     mongoose_lib:maybe_process_bahaviour_implementations(mod_roster, fun(B) ->
         try
             B:remove_user(LUser, LServer)
@@ -897,9 +898,8 @@ remove_user(Acc, User, Server) ->
                 Stack = erlang:get_stacktrace(),
                 ?WARNING_MSG("issue=remove_user_failed "
                 "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end),
+                "stacktrace=~1000p ", [E, R, Stack])
+        end, [] end, RemoveFromBackendFun),
     Acc1.
 
 try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
