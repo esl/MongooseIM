@@ -550,15 +550,15 @@ do_remove_user(LUser, LServer) ->
     ok.
 
 maybe_gdpr_remove_user_from_all_modules(LUser, LServer) ->
-    case is_gdpr_support_for_disabled_modules_enabled() of
+    case is_gdpr_support_for_disabled_modules() of
         true->
             Modules = mongoose_lib:find_behaviour_implementations(gdpr),
             lists:foreach(fun(M) -> try_remove_user_from_module(M, LUser, LServer) end, Modules);
         _ -> ok
      end.
 
--spec is_gdpr_support_for_disabled_modules_enabled() -> boolean().
-is_gdpr_support_for_disabled_modules_enabled() ->
+-spec is_gdpr_support_for_disabled_modules() -> boolean().
+is_gdpr_support_for_disabled_modules() ->
     case ejabberd_config:get_global_option(gdpr_removal_for_disabled_modules) of
         true -> true;
         _ -> false
