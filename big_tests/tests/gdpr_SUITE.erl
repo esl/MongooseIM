@@ -179,6 +179,10 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
+end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
+                                  CN =:= retrieve_mam_pm_and_muc_light_dont_interfere ->
+    muc_light_helper:clear_db(),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
     escalus:end_per_testcase(CN, Config).
 
