@@ -890,17 +890,17 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    RemoveFromBackendFun = fun() -> mod_roster_backend:remove_user(LUser, LServer) end,
-    mongoose_lib:maybe_process_bahaviour_implementations(mod_roster, fun(B) ->
+    lists:foreach(fun(Backend) ->
         try
-            B:remove_user(LUser, LServer)
+            Backend:remove_user(LUser, LServer)
         catch
-            E:R ->
-                Stack = erlang:get_stacktrace(),
-                ?WARNING_MSG("issue=remove_user_failed "
-                "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack])
-        end, [] end, RemoveFromBackendFun),
+            Class:Reason ->
+                StackTrace = erlang:get_stacktrace(),
+                ?WARNING_MSG("event=cannot_delete_personal_data,"
+                "backend=~p,class=~p,reason=~p,stacktrace=~p",
+                    [Backend, Class, Reason, StackTrace])
+        end
+                  end, mongoose_lib:find_behaviour_implementations(mod_roster)),
     Acc1.
 
 try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->

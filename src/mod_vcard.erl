@@ -415,18 +415,13 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    RemoveFromBackendFun = fun() -> mod_vcard_backend:remove_user(LUser, LServer) end,
-    mongoose_lib:maybe_process_bahaviour_implementations(mod_vcard, fun(B) ->
+    lists:foreach(fun(B) ->
         try
             B:remove_user(LUser, LServer)
         catch
-            E:R ->
-                Stack = erlang:get_stacktrace(),
-                ?WARNING_MSG("issue=remove_user_failed "
-                "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack])
-        end, [] end, RemoveFromBackendFun),
-    [].
+            _:_ ->
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(mod_vcard)).
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->

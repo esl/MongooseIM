@@ -546,12 +546,23 @@ do_remove_user(LUser, LServer) ->
     ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
     %% We need to take care about cleaning the data in modules that are currently disabled.
     %% Might duplicate Module:remove_user/2 calls for enabled modules
-    gdpr_remove_user_from_all_modules(LUser, LServer),
+    maybe_gdpr_remove_user_from_all_modules(LUser, LServer),
     ok.
 
-gdpr_remove_user_from_all_modules(LUser, LServer) ->
-    Modules = mongoose_lib:find_behaviour_implementations(gdpr),
-    lists:foreach(fun(M) -> try_remove_user_from_module(M, LUser, LServer) end, Modules).
+maybe_gdpr_remove_user_from_all_modules(LUser, LServer) ->
+    case is_gdpr_support_for_disabled_modules_enabled() of
+        true->
+            Modules = mongoose_lib:find_behaviour_implementations(gdpr),
+            lists:foreach(fun(M) -> try_remove_user_from_module(M, LUser, LServer) end, Modules);
+        _ -> ok
+     end.
+
+-spec is_gdpr_support_for_disabled_modules_enabled() -> boolean().
+is_gdpr_support_for_disabled_modules_enabled() ->
+    case ejabberd_config:get_global_option(gdpr_removal_for_disabled_modules) of
+        true -> true;
+        _ -> false
+    end.
 
 try_remove_user_from_module(Module, LUser, LServer) ->
     try

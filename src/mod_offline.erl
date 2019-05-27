@@ -583,8 +583,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    RemoveFromBackendFun = fun() -> mod_offline_backend:remove_user(User, Server) end,
-    mongoose_lib:maybe_process_bahaviour_implementations(mod_offline, fun(B) ->
+    lists:foreach(fun(B) ->
         try
             B:remove_user(LUser, LServer)
         catch
@@ -592,9 +591,9 @@ remove_user(User, Server) ->
                 Stack = erlang:get_stacktrace(),
                 ?WARNING_MSG("issue=remove_user_failed "
                 "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack])
-        end, [] end, RemoveFromBackendFun),
-    [].
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(mod_offline)).
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Acc, Msgs) ->
