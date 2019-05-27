@@ -51,6 +51,16 @@
 -define(YZ_SEARCH_INDEX, <<"mam">>).
 -define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
+-define(DUMMY_LOOKUP_PARAMETERS, #{with_jid => undefined,
+                                   owner_jid => undefined,
+                                   rsm => undefined,
+                                   page_size => undefined,
+                                   borders => undefined,
+                                   start_ts => undefined,
+                                   end_ts => undefined,
+                                   search_text => undefined,
+                                   is_simple => true}).
+
 %% @doc Start module
 %%
 %% Options:
@@ -325,15 +335,7 @@ get_mam_pm_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
     Jid = jid:make({LUser, LServer, <<>>}),
-    LookupParams = #{with_jid => undefined,
-                     owner_jid => Jid,
-                     rsm => undefined,
-                     page_size => undefined,
-                     borders => undefined,
-                     start_ts => undefined,
-                     end_ts => undefined,
-                     search_text => undefined,
-                     is_simple => true},
+    LookupParams = ?DUMMY_LOOKUP_PARAMETERS#{owner_jid := Jid},
     {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
     {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages]}.
 
@@ -343,22 +345,12 @@ get_mam_muc_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
     Jid = jid:make({LUser, LServer, <<>>}),
-    {ok, {_, _, Messages}} = lookup_messages([], Host,
-        #{
-            with_jid => Jid,
-            owner_jid => undefined,
-            rsm => undefined,
-            page_size => undefined,
-            borders => undefined,
-            start_ts => undefined,
-            end_ts => undefined,
-            search_text => undefined,
-            is_simple => true} ),
-
+    LookupParams = ?DUMMY_LOOKUP_PARAMETERS#{with_jid := Jid},
+    {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
     Filtered = lists:filter(fun(El) -> is_muclight_message(Jid, El) end, Messages),
     {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
 
-is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet}) -> false;
+is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet})    -> false;
 is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
 
 remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
@@ -471,6 +463,7 @@ search_text_filter(SearchText) ->
 jid_filters(LocalJid, undefined) ->
     <<"_yz_rk:", LocalJid/binary, "*">>;
 jid_filters(undefined, RemoteJid) ->
+    %%added only for gdpr data retrieval, don't use for other purposes
     <<"_yz_rk:*/", RemoteJid/binary, "*">>;
 jid_filters(LocalJid, RemoteJid) ->
     <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.

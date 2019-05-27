@@ -131,13 +131,13 @@ init_per_group(retrieve_personal_data_pubsub, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     Config;
 init_per_group(retrieve_personal_data_mam_rdbms, Config) ->
-    try_backend_for_mam(Config,rdbms);
+    try_backend_for_mam(Config, rdbms);
 init_per_group(retrieve_personal_data_mam_riak, Config) ->
-    try_backend_for_mam(Config,riak);
+    try_backend_for_mam(Config, riak);
 init_per_group(retrieve_personal_data_mam_cassandra, Config) ->
-    try_backend_for_mam(Config,cassandra);
+    try_backend_for_mam(Config, cassandra);
 init_per_group(retrieve_personal_data_mam_elasticsearch, Config) ->
-    try_backend_for_mam(Config,elasticsearch);
+    try_backend_for_mam(Config, elasticsearch);
 init_per_group(_GN, Config) ->
     Config.
 
@@ -437,8 +437,8 @@ retrieve_mam_pm_and_muc_light_interfere(Config) ->
                 BobDir, "mam_muc", ["id", "message"],
                 [#{"message" => [{contains, binary_to_list(BodyMucBob)}]}], []),
 
-            AliceRoomJid = <<RoomJid/bitstring, "/", (escalus_client:short_jid(Alice))/bitstring>>,
-            BobRoomJid = <<RoomJid/bitstring, "/", (escalus_client:short_jid(Bob))/bitstring>>,
+            AliceRoomJid = <<RoomJid/binary, "/", (escalus_client:short_jid(Alice))/binary>>,
+            BobRoomJid = <<RoomJid/binary, "/", (escalus_client:short_jid(Bob))/binary>>,
 
             MucPM = [#{"message" => [{contains, "urn:xmpp:muclight:0#affiliations"}],
                        "from" => [{jid, RoomJid}]},
@@ -775,7 +775,7 @@ maybe_stop_and_unload_module(Module, Backends, Config) when is_list(Backends)->
     case proplists:get_value(disable_module, Config) of
         true ->
             dynamic_modules:stop(domain(), Module),
-            [delete_backend(B) || B<-Backends];
+            [delete_backend(B) || B <- Backends];
         _ ->
             ok
     end;
@@ -831,14 +831,14 @@ compare_maps([Key | T], Map1, Map2) ->
     end.
 
 muc_msg_first(MucJid) ->
-    N = erlang:bit_size(MucJid),
+    N = erlang:byte_size(MucJid),
     fun(#{"from" := JID1}, #{"from" := JID2}) ->
         case {JID1, JID2} of
-            {<<MucJid:N/bitstring, _/bitstring>>, <<MucJid:N/bitstring, _/bitstring>>} ->
+            {<<MucJid:N/binary, _/binary>>, <<MucJid:N/binary, _/binary>>} ->
                 JID1 =< JID2;
-            {<<MucJid:N/bitstring, _/bitstring>>, _} ->
+            {<<MucJid:N/binary, _/binary>>, _} ->
                 true;
-            {_, <<MucJid:N/bitstring, _/bitstring>>} ->
+            {_, <<MucJid:N/binary, _/binary>>} ->
                 false;
             {_, _} ->
                 JID1 =< JID2
@@ -868,16 +868,18 @@ validate_personal_item(_Value, []) ->
 validate_personal_item(ExactValue, ExactValue) ->
     ok;
 validate_personal_item(Value, [{jid, ExpectedValue} | RConditions]) ->
-    %ct:log("string:equal(~p, ~p, true)",[Value, ExpectedValue]),
-    true = string:equal(Value, ExpectedValue, true),
+    JID = escalus_utils:jid_to_lower(to_binary(Value)),
+    JID = escalus_utils:jid_to_lower(to_binary(ExpectedValue)),
     validate_personal_item(Value, RConditions);
 validate_personal_item(Value, [{contains, String} | RConditions]) ->
-    %ct:log("re:run(~p, ~p)",[Value, String]),
     {match, _} = re:run(Value, String),
     validate_personal_item(Value, RConditions);
 validate_personal_item(Value, [{validate, Validator} | RConditions]) when is_function(Validator) ->
     true = Validator(Value),
     validate_personal_item(Value, RConditions).
+
+to_binary(List) when is_list(List)       -> list_to_binary(List);
+to_binary(Binary) when is_binary(Binary) -> Binary.
 
 decode_personal_data(Dir, FilePrefix) ->
     CSVPath = filename:join(Dir, FilePrefix ++ ".csv"),

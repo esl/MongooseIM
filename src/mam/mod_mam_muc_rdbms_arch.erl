@@ -340,7 +340,6 @@ get_mam_muc_gdpr_data(Username, Host) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
     WithJID = jid:to_binary({LUser, LServer}),
-    %% TODO What is PageSize ?
     SWithNick = mongoose_rdbms:escape_string(WithJID),
     Filter = make_filter_nickname_only(SWithNick),
     {selected, Rows} = mod_mam_utils:success_sql_query(

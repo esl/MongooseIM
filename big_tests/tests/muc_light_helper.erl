@@ -43,8 +43,8 @@ given_muc_light_room(Name, Creator, InitOccupants) ->
     CreateStanza = stanza_create_room(Name, [], InitOccupants),
     escalus:send(Creator, CreateStanza),
     Affiliations = [{Creator, owner} | InitOccupants],
-    AffVerFn=aff_msg_verify_fun(Affiliations),
-    AffMsg=escalus:wait_for_stanza(Creator),
+    AffVerFn = aff_msg_verify_fun(Affiliations),
+    AffMsg = escalus:wait_for_stanza(Creator),
     AffVerFn(AffMsg),
     muc_helper:foreach_recipient(
         [ User || {User, _} <- InitOccupants ], AffVerFn),
