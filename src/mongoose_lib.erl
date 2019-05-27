@@ -31,9 +31,9 @@ find_behaviour_implementations(Behaviour) ->
                          end
                  end, Mods).
 
--spec is_gdpr_support_enabled() -> boolean().
-is_gdpr_support_enabled() ->
-    case ejabberd_config:get_global_option(gdpr) of
+-spec is_gdpr_support_for_disabled_modules_enabled() -> boolean().
+is_gdpr_support_for_disabled_modules_enabled() ->
+    case ejabberd_config:get_global_option(gdpr_removal_for_disabled_modules) of
         true -> true;
         _ -> false
     end.
@@ -41,7 +41,7 @@ is_gdpr_support_enabled() ->
 -type behaviour() :: atom().
 -spec maybe_process_bahaviour_implementations(behaviour(), fun((behaviour()) -> list()), fun(() -> any())) -> any().
 maybe_process_bahaviour_implementations(Behaviour, Fun, OtherwiseFun) ->
-    case is_gdpr_support_enabled() of
+    case is_gdpr_support_for_disabled_modules_enabled() of
         true -> lists:flatmap(fun(B) -> Fun(B) end, mongoose_lib:find_behaviour_implementations(Behaviour));
         false -> OtherwiseFun()
     end.

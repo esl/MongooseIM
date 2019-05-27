@@ -138,15 +138,18 @@ mam_testcases() ->
 
 init_per_suite(Config) ->
     Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
-    mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr, true]),
+    gdpr_removal_for_disabled_modules(true),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
     delete_files(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
-    mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr, false]),
+    gdpr_removal_for_disabled_modules(false),
     escalus:end_per_suite(Config).
+
+gdpr_removal_for_disabled_modules(Flag) ->
+    mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr_removal_for_disabled_modules, Flag]).
 
 init_per_group(retrieve_personal_data_with_mods_disabled, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
