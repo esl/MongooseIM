@@ -1,6 +1,7 @@
 -module(mongoose_lib).
 
 -export([find_behaviour_implementations/1]).
+-export([maybe_process_bahaviour_implementations/2]).
 -export([log_if_backend_error/4]).
 %% Maps
 -export([maps_append/3]).
@@ -30,6 +31,17 @@ find_behaviour_implementations(Behaviour) ->
                          end
                  end, Mods).
 
+%%-spec is_gdpr_support_enabled() -> boolean().
+%%is_gdpr_support_enabled() ->
+%%    case get_global_option(gdpr) of
+%%        true -> true;
+%%        _ -> false
+%%    end.
+
+-type behaviour() :: atom().
+-spec maybe_process_bahaviour_implementations(behaviour(), fun((behaviour()) -> list()) ) -> any().
+maybe_process_bahaviour_implementations(Behaviour, Fun) ->
+    lists:flatmap(fun(B) -> Fun(B) end, mongoose_lib:find_behaviour_implementations(Behaviour)).
 %% ------------------------------------------------------------------
 %% Logging
 %% ------------------------------------------------------------------

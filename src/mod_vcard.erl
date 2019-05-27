@@ -135,17 +135,17 @@ get_personal_data(Username, Server) ->
     LServer = jid:nameprep(Server),
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
-    Entries = lists:flatmap(fun(B) ->
-                                    try B:get_vcard(LUser, LServer) of
-                                        {ok, Record} ->
-                                            SerializedRecords = exml:to_binary(Record),
-                                            [{Jid, SerializedRecords}];
-                                        _ -> []
-                                    catch
-                                        _:_ ->
-                                            []
-                                    end
-                            end, mongoose_lib:find_behaviour_implementations(mod_vcard)),
+    Entries = mongoose_lib:maybe_process_bahaviour_implementations(mod_vcard, fun(B) ->
+        try B:get_vcard(LUser, LServer) of
+            {ok, Record} ->
+                SerializedRecords = exml:to_binary(Record),
+                [{Jid, SerializedRecords}];
+            _ -> []
+        catch
+            _:_ ->
+                []
+        end
+                                                                              end),
     [{vcard, Schema, Entries}].
 
 -spec default_search_fields() -> list().
@@ -415,7 +415,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    lists:foreach(fun(B) ->
+    mongoose_lib:maybe_process_bahaviour_implementations(mod_vcard, fun(B) ->
         try
             B:remove_user(LUser, LServer)
         catch
@@ -425,7 +425,8 @@ remove_user(User, Server) ->
                 "reason=~p:~p "
                 "stacktrace=~1000p ", [E, R, Stack]),
                 ok
-        end end, mongoose_lib:find_behaviour_implementations(mod_vcard)).
+        end end),
+    ok.
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->

@@ -520,7 +520,7 @@ pop_messages(LUser, LServer) ->
     end.
 
 get_personal_data(Username, Server) ->
-    AllMessages = lists:flatmap(fun(B) ->
+    AllMessages = mongoose_lib:maybe_process_bahaviour_implementations(mod_offline, fun(B) ->
         try B:fetch_messages(Username, Server) of
             {ok, Messages} ->
                 Messages;
@@ -529,7 +529,7 @@ get_personal_data(Username, Server) ->
             _:_ ->
                 []
         end
-                            end, mongoose_lib:find_behaviour_implementations(mod_offline)),
+                                                                                    end),
     [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(AllMessages)}].
 
 offline_messages_to_gdpr_format(MsgList) ->
@@ -584,7 +584,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    lists:foreach(fun(B) ->
+    mongoose_lib:maybe_process_bahaviour_implementations(mod_offline, fun(B) ->
         try
             B:remove_user(LUser, LServer)
         catch
@@ -594,7 +594,8 @@ remove_user(User, Server) ->
                 "reason=~p:~p "
                 "stacktrace=~1000p ", [E, R, Stack]),
                 ok
-        end end, mongoose_lib:find_behaviour_implementations(mod_offline)).
+        end end),
+    ok.
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Acc, Msgs) ->

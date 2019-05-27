@@ -172,17 +172,16 @@ get_personal_data(Username, Server) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
-    Records =
-    lists:flatmap(fun(B) ->
-                          try B:get_roster(LUser, LServer) of
-                              Entries when is_list(Entries) -> Entries;
-                              _ -> []
-                          catch
-                              C:R ->
-                                  log_get_personal_data_warning(B, C, R, erlang:get_stacktrace()),
-                                  []
-                          end
-                  end, mongoose_lib:find_behaviour_implementations(mod_roster)),
+    Records = mongoose_lib:maybe_process_bahaviour_implementations(mod_roster, fun(B) ->
+        try B:get_roster(LUser, LServer) of
+            Entries when is_list(Entries) -> Entries;
+            _ -> []
+        catch
+            C:R ->
+                log_get_personal_data_warning(B, C, R, erlang:get_stacktrace()),
+                []
+        end
+                                                                     end),
     SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
     [{roster, Schema, SerializedRecords}].
 
@@ -890,18 +889,17 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    Backends = mongoose_lib:find_behaviour_implementations(mod_roster),
-    lists:foreach(fun(Backend) ->
-            try
-                Backend:remove_user(LUser, LServer)
-            catch
-                Class:Reason ->
-                    StackTrace = erlang:get_stacktrace(),
-                    ?WARNING_MSG("event=cannot_delete_personal_data,backends = ~p,"
-                        "backend=~p,class=~p,reason=~p,stacktrace=~p",
-                        [Backends, Backend, Class, Reason, StackTrace])
-            end
-        end, Backends),
+    mongoose_lib:maybe_process_bahaviour_implementations(mod_roster, fun(B) ->
+        try
+            B:remove_user(LUser, LServer)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end),
     Acc1.
 
 try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->
