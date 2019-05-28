@@ -49,7 +49,8 @@ multi_get_data(LUser, LServer, NS2Def) ->
 -spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
     Bucket = bucket_type(LServer),
-    [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(LUser, LServer)].
+    [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(LUser, LServer)],
+    ok.
 
 set_private_data(LUser, LServer, NS, XML) ->
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), exml:to_binary(XML)),
