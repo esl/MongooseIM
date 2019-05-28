@@ -194,12 +194,6 @@ init_per_group(remove_personal_data_inbox = GN, Config) ->
 init_per_group(_GN, Config) ->
     Config.
 
-end_per_group(remove_personal_data_inbox, Config) ->
-    inbox_helper:clear_inbox_all(),
-    Config;
-end_per_group(retrieve_personal_data_inbox, Config) ->
-    inbox_helper:clear_inbox_all(),
-    Config;
 end_per_group(_GN, Config) ->
     Config.
 
@@ -225,13 +219,11 @@ init_per_testcase(CN, Config) when
       CN =:= remove_inbox_muclight;
       CN =:= retrieve_inbox_muclight ->
     Config1 = init_inbox(CN, Config, muclight),
-    inbox_helper:clear_inbox_all(),
     Config1;
 init_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
                                    CN =:= remove_inbox_muc ->
     muc_helper:load_muc(muc_domain()),
     Config0 = init_inbox(CN, Config, muc),
-    inbox_helper:clear_inbox_all(),
     Config0;
 
 init_per_testcase(retrieve_vcard = CN, Config) ->
