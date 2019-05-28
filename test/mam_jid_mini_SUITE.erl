@@ -16,6 +16,8 @@ init_per_suite(Config) ->
             {skip,nif_not_loaded}
     end.
 
+end_per_suite(Config) -> Config.
+
 test_encode_decode_functionality(_Config) ->
     PossibleDomainNames = [<<"a">>, <<"b">>, <<"c">>, <<"d">>, <<"e">>, <<"f">>],
     PossibleUserNames = [<<"">> | PossibleDomainNames],
