@@ -20,7 +20,7 @@
          purge_multiple_messages/9]).
 
 %% mongoose_cassandra callbacks
--export([prepared_queries/0]).
+-export([prepared_queries/0, get_mam_muc_gdpr_data/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -122,6 +122,7 @@ prepared_queries() ->
      {insert_offset_hint_query, insert_offset_hint_query_cql()},
      {prev_offset_query, prev_offset_query_cql()},
      {insert_query, insert_query_cql()},
+     {fetch_user_messages_query, fetch_user_messages_cql()},
      {delete_query, delete_query_cql()},
      {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
@@ -536,6 +537,29 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
      || #{id := Id} <- Rows],
     ok.
 
+-spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
+get_mam_muc_gdpr_data(Username, Host) ->
+    ensure_params_loaded(Host),
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Host),
+    Jid = jid:make({LUser, LServer, <<>>}),
+    BinJid = jid:to_binary(Jid),
+    PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
+    FilterMap = #{nick_name  => BinJid},
+    Rows = fetch_user_messages(PoolName, Jid, FilterMap),
+    RemoveDups = [Row || Row = #{with_nick := J, nick_name := J} <- Rows],
+    Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))} || #{message := Data, id:= Id} <- RemoveDups],
+    {ok, Messages}.
+
+
+ensure_params_loaded(Host) ->
+    case code:is_loaded(mod_mam_muc_cassandra_arch_params) of
+        false ->
+            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
+            compile_params_module(Params);
+        _ -> ok
+    end.
 
 %% Offset is not supported
 %% Each record is a tuple of form
@@ -561,6 +585,11 @@ extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
     QueryName = {extract_messages_r_query, select_filter(Filter)},
     Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, RoomJID, ?MODULE, QueryName, Params),
+    lists:reverse(Rows).
+
+fetch_user_messages(PoolName, UserJID, FilterMap) ->
+    QueryName = fetch_user_messages_query,
+    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, FilterMap),
     lists:reverse(Rows).
 
 
@@ -819,6 +848,15 @@ extract_messages_r_cql(Filter) ->
     "SELECT id, nick_name, message FROM mam_muc_message "
         "WHERE room_jid = ? AND with_nick = ? " ++
         Filter ++ " ORDER BY id DESC LIMIT ?".
+
+%% Be careful. Super inefficient because of full scan.
+%% Cannot even set where clause on "with_nick" field because of error:
+%% 'Partition key parts: room_jid must be restricted as other parts are'. Hence needs to change the schema.
+%% So... the results are TWICE much bigger (for each message there are two copies)
+%% and filtering must be done on Erlang level.
+fetch_user_messages_cql() ->
+    "SELECT id, nick_name, with_nick, message FROM mam_muc_message "
+    "WHERE nick_name = ? ALLOW FILTERING".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "

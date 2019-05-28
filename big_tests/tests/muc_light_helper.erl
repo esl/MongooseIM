@@ -9,7 +9,8 @@
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
-                             rpc/4]).
+                             rpc/4,
+                             rpc/5]).
 
 -type ct_aff_user() :: {EscalusClient :: escalus:client(), Aff :: atom()}.
 -type ct_aff_users() :: [ct_aff_user()].
@@ -42,10 +43,14 @@ given_muc_light_room(Name, Creator, InitOccupants) ->
     CreateStanza = stanza_create_room(Name, [], InitOccupants),
     escalus:send(Creator, CreateStanza),
     Affiliations = [{Creator, owner} | InitOccupants],
-    verify_aff_bcast(Affiliations, Affiliations),
+    AffVerFn = aff_msg_verify_fun(Affiliations),
+    AffMsg = escalus:wait_for_stanza(Creator),
+    AffVerFn(AffMsg),
+    muc_helper:foreach_recipient(
+        [ User || {User, _} <- InitOccupants ], AffVerFn),
     IQResult = escalus:wait_for_stanza(Creator),
     escalus:assert(is_iq_result, IQResult),
-    exml_query:attr(IQResult, <<"from">>).
+    exml_query:attr(AffMsg, <<"from">>).
 
 when_muc_light_message_is_sent(Sender, Room, Body, Id) ->
     RoomJid = room_bin_jid(Room),
@@ -231,7 +236,7 @@ stanza_aff_set(Room, AffUsers) ->
     escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_AFFILIATIONS, Items), room_bin_jid(Room)).
 
 clear_db() ->
-    rpc(mim(), mod_muc_light_db_backend, force_clear, []).
+    rpc(mim(), mod_muc_light_db_backend, force_clear, [], timer:seconds(15)).
 
 -spec ver(Int :: integer()) -> binary().
 ver(Int) ->

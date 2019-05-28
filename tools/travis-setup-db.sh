@@ -113,6 +113,7 @@ if [ "$db" = 'mysql' ]; then
     docker rm -f mongooseim-mysql || echo "Skip removing previous container"
     cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
     openssl rsa -in ${SSLDIR}/mongooseim/key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
+    chmod a+r ${SQL_TEMP_DIR}/fake_key.pem
     # mysql_native_password is needed until mysql-otp implements caching-sha2-password
     # https://github.com/mysql-otp/mysql-otp/issues/83
     docker run -d \
@@ -253,10 +254,12 @@ elif [ "$db" = 'cassandra' ]; then
 elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
     ELASTICSEARCH_PORT=9200
-    ELASTICSEARCH_NAME=mongoooseim-elasticsearch
+    ELASTICSEARCH_NAME=mongooseim-elasticsearch
 
     echo $ELASTICSEARCH_IMAGE
     docker image pull $ELASTICSEARCH_IMAGE
+    docker rm -f  $ELASTICSEARCH_NAME || echo "Skip removing previous container"
+
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
     docker run -d $RM_FLAG \
            -p $ELASTICSEARCH_PORT:9200 \

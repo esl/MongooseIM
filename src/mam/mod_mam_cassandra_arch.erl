@@ -23,6 +23,9 @@
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0]).
 
+%gdpr
+-export([get_mam_pm_gdpr_data/2]).
+
 %% ----------------------------------------------------------------------
 %% Imports
 
@@ -113,6 +116,7 @@ prepared_queries() ->
      {insert_offset_hint_query, insert_offset_hint_query_cql()},
      {prev_offset_query, prev_offset_query_cql()},
      {insert_query, insert_query_cql()},
+     {fetch_user_messages_query, fetch_user_messages_cql()},
      {select_for_removal_query, select_for_removal_query_cql()},
      {remove_archive_query, remove_archive_query_cql()},
      {remove_archive_offsets_query, remove_archive_offsets_query_cql()}
@@ -430,6 +434,31 @@ row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
+-spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
+get_mam_pm_gdpr_data(Username, Host) ->
+    ensure_params_loaded(Host),
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Host),
+    Jid = jid:make({LUser, LServer, <<>>}),
+    BinJid = jid:to_binary(Jid),
+    PoolName = mod_mam_cassandra_arch_params:pool_name(),
+    FilterMap = #{user_jid => BinJid, with_jid => <<"">>},
+    Rows = fetch_user_messages(PoolName, Jid, FilterMap),
+    Messages = lists:map(fun rows_to_gdpr_mam_message/1, Rows),
+    {ok, Messages}.
+
+rows_to_gdpr_mam_message(#{message := Data, id:= Id, from_jid:=FromJid}) ->
+    {Id, FromJid, exml:to_binary(stored_binary_to_packet(Data))}.
+
+ensure_params_loaded(Host) ->
+    case code:is_loaded(mod_mam_cassandra_arch_params) of
+        false ->
+            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
+            compile_params_module(Params);
+        _ -> ok
+    end.
+
 %% Offset is not supported
 %% Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<"res1">>, <<binary>>}'.
@@ -455,6 +484,11 @@ extract_messages(PoolName, UserJID, _Host, Filter, IMax, true) ->
     Params = maps:put('[limit]', IMax, eval_filter_params(Filter)),
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, Params),
     lists:reverse(Rows).
+
+fetch_user_messages(PoolName, UserJID, FilterMap) ->
+    QueryName = fetch_user_messages_query,
+    {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, FilterMap),
+    Rows.
 
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
@@ -710,6 +744,12 @@ list_message_ids_cql(Filter) ->
     "SELECT id FROM mam_message "
         "WHERE user_jid = ? AND with_jid = ? " ++ Filter ++
         " ORDER BY id LIMIT ?".
+
+fetch_user_messages_cql() ->
+    "SELECT id, from_jid, message FROM mam_message "
+    "WHERE user_jid = ? AND with_jid = ? "
+    "ORDER BY id".
+
 
 
 %% ----------------------------------------------------------------------

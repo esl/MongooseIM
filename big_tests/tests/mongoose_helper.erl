@@ -273,12 +273,12 @@ wait_until(Fun, ExpectedValue, Opts) ->
                  name => timeout},
     do_wait_until(Fun, ExpectedValue, maps:merge(Defaults, Opts)).
 
-do_wait_until(_Fun, _ExpectedValue, #{
+do_wait_until(_Fun, ExpectedValue, #{
                                       time_left := TimeLeft,
                                       history := History,
                                       name := Name
                                      }) when TimeLeft =< 0 ->
-    error({Name, lists:reverse(History)});
+    error({Name, ExpectedValue, lists:reverse(History)});
 
 do_wait_until(Fun, ExpectedValue, Opts) ->
     try Fun() of

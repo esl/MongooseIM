@@ -23,6 +23,8 @@
          lookup_messages/3,
          remove_archive/4]).
 
+-export([get_mam_pm_gdpr_data/2]).
+
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
 
@@ -108,6 +110,17 @@ stop(Host) ->
             ok
     end.
 
+-spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
+get_mam_pm_gdpr_data(User, Host) ->
+    case mod_mam_rdbms_user:get_archive_id(User, Host) of
+        undefined -> {ok, []};
+        ArchiveID ->
+            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
+            UserJid = jid:make(User, Host, <<"">>),
+            {ok, [{BMessID, gdpr_decode_jid(Host, UserJid, FromJID), gdpr_decode_packet(Host, SDataRaw)}
+                  || {BMessID, FromJID, SDataRaw} <- Rows]}
+    end.
 
 %% ----------------------------------------------------------------------
 %% Add hooks for mod_mam
@@ -494,6 +507,14 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
        "FROM mam_message ",
        Filter, Order, LimitSQL, Offset]).
 
+extract_gdpr_messages(Host, ArchiveID) ->
+    Filter = ["WHERE user_id=", use_escaped_integer(escape_user_id(ArchiveID))],
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, from_jid, message "
+         "FROM mam_message ",
+         Filter, " ORDER BY id"]).
+
 %% @doc Calculate a zero-based index of the row with UID in the result test.
 %%
 %% If the element does not exists, the ID of the next element will
@@ -675,3 +696,16 @@ db_jid_codec(Host) ->
 -spec db_message_codec(jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+
+%gdpr helpers
+gdpr_decode_jid(Host, UserJID, BSrcJID) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_jid_format, mam_jid_mini),
+    JID = mam_jid:decode(Codec, UserJID, BSrcJID),
+    jid:to_binary(JID).
+
+gdpr_decode_packet(Host, SDataRaw) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
+                                            mam_message_compressed_eterm),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = mam_message:decode(Codec, Data),
+    exml:to_binary(Message).

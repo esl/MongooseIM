@@ -26,7 +26,7 @@
          purge_multiple_messages/9]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/8, prepare_insert/2]).
+-export([prepare_message/8, prepare_insert/2, get_mam_muc_gdpr_data/2]).
 
 
 %% ----------------------------------------------------------------------
@@ -334,6 +334,22 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     {ok, {TotalCount, Offset,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
 
+-spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
+    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
+get_mam_muc_gdpr_data(Username, Host) ->
+    LUser = jid:nodeprep(Username),
+    LServer = jid:nodeprep(Host),
+    WithJID = jid:to_binary({LUser, LServer}),
+    SWithNick = mongoose_rdbms:escape_string(WithJID),
+    Filter = make_filter_nickname_only(SWithNick),
+    {selected, Rows} = mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, message "
+         "FROM mam_muc_message ",
+         Filter, " ORDER BY id"]),
+    Messages = [{BMessID, gdpr_decode_packet(Host, SDataRaw)} || {BMessID, SDataRaw} <- Rows],
+    {ok, Messages}.
+
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
     SID = escape_message_id(ID),
@@ -544,6 +560,9 @@ make_filter(RoomID, StartID, EndID, SWithNick, SearchText) ->
      end
     ].
 
+make_filter_nickname_only(SWithNick) ->
+    ["WHERE nick_name=", use_escaped_string(SWithNick)].
+
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".
 prepare_search_filters(SearchText) ->
@@ -625,3 +644,11 @@ stored_binary_to_packet(Host, Bin) ->
 -spec db_message_codec(Host :: jid:server()) -> module().
 db_message_codec(Host) ->
     gen_mod:get_module_opt(Host, ?MODULE, db_message_format, mam_message_compressed_eterm).
+
+
+gdpr_decode_packet(Host, SDataRaw) ->
+    Codec = mod_mam_meta:get_mam_module_opt(Host, ?MODULE, db_message_format,
+                                            mam_message_compressed_eterm),
+    Data = mongoose_rdbms:unescape_binary(Host, SDataRaw),
+    Message = mam_message:decode(Codec, Data),
+    exml:to_binary(Message).
