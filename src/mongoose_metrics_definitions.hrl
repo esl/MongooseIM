@@ -77,6 +77,9 @@
            eval, ?EX_EVAL_SINGLE_VALUE}},
          {nodeUpTime,
           {function, mongoose_metrics, get_up_time, [],
+           tagged, [value]}},
+         {clusterState,
+          {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
            tagged, [value]}}
         ]
 ).

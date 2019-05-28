@@ -38,6 +38,7 @@
          get_rdbms_data_stats/1,
          get_dist_data_stats/0,
          get_up_time/0,
+         get_mnesia_running_db_nodes_count/0,
          remove_host_metrics/1,
          remove_all_metrics/0,
          get_report_interval/0,
@@ -161,6 +162,10 @@ get_dist_data_stats() ->
 -spec get_up_time() -> {value, integer()}.
 get_up_time() ->
     {value, erlang:round(element(1, erlang:statistics(wall_clock))/1000)}.
+
+-spec get_mnesia_running_db_nodes_count() -> {value, non_neg_integer()}.
+get_mnesia_running_db_nodes_count() ->
+    {value, length(mnesia:system_info(running_db_nodes))}.
 
 remove_host_metrics(Host) ->
     lists:foreach(fun remove_metric/1, exometer:find_entries([Host])).
