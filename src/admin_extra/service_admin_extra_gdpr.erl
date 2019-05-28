@@ -63,8 +63,9 @@ get_data_from_modules(Username, Domain) ->
     lists:flatmap(fun(M) -> try_get_data_from_module(M, Username, Domain) end, Modules).
 
 try_get_data_from_module(Module, Username, Domain) ->
-    try
-        Module:get_personal_data(Username, Domain)
+    try Module:get_personal_data(Username, Domain) of
+        [{_, _, []}] -> [];
+        Val -> Val
     catch
         C:R ->
             ?WARNING_MSG("event=cannot_retrieve_personal_data,"
