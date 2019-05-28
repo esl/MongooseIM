@@ -111,22 +111,21 @@ groups() ->
      {retrieve_personal_data_mam_rdbms, [], mam_testcases()},
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
-     {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]},
-     {remove_personal_data, [],
-         [remove_vcard,
-          remove_roster,
-          remove_offline,
-          remove_private,
-          remove_multiple_private_xmls,
-          dont_remove_other_user_private_xml]},
-     {remove_personal_data_with_mods_disabled, [],
-         [remove_vcard,
-          remove_roster,
-          remove_offline,
-          remove_private,
-          remove_multiple_private_xmls,
-          dont_remove_other_user_private_xml]}
+     {retrieve_personal_data_mam_elasticsearch, [], mam_testcases()},
+     {remove_personal_data, [], removal_testcases()},
+     {remove_personal_data_with_mods_disabled, [], removal_testcases()}
     ].
+
+removal_testcases() ->
+    [
+        remove_vcard,
+        remove_roster,
+        remove_offline,
+        remove_private,
+        remove_multiple_private_xmls,
+        dont_remove_other_user_private_xml
+    ].
+
 
 mam_testcases() ->
     [
@@ -151,10 +150,9 @@ end_per_suite(Config) ->
 gdpr_removal_for_disabled_modules(Flag) ->
     mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr_removal_for_disabled_modules, Flag]).
 
-init_per_group(retrieve_personal_data_with_mods_disabled, Config) ->
+init_per_group(GN, Config) when GN =:= retrieve_personal_data_with_mods_disabled;
+                                GN =:= remove_personal_data_with_mods_disabled->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
-    [{disable_module, true} | Config];
-init_per_group(remove_personal_data_with_mods_disabled, Config) ->
     [{disable_module, true} | Config];
 init_per_group(retrieve_personal_data_pubsub, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
@@ -206,9 +204,9 @@ init_per_testcase(remove_vcard = CN, Config) ->
             vcard_started(),
             escalus:init_per_testcase(CN, Config)
     end;
-init_per_testcase(CN, Config) when CN == remove_private;
-                                   CN == dont_remove_other_user_private_xml;
-                                   CN == remove_multiple_private_xmls ->
+init_per_testcase(CN, Config) when CN =:= remove_private;
+                                   CN =:= dont_remove_other_user_private_xml;
+                                   CN =:= remove_multiple_private_xmls ->
     private_started(),
     escalus:init_per_testcase(CN, Config);
 
