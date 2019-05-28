@@ -566,7 +566,7 @@ retrieve_mam_muc_light(Config) ->
                 Alice, Config, "mam_muc", ["id", "message"], ExpectedItemsAlice, ["message"]),
             retrieve_and_validate_personal_data(
                 Bob, Config, "mam_muc", ["id", "message"], ExpectedItemsBob, ["message"]),
-            refute_personal_data(Kate, Config, "mam_muc", ["id", "message"])
+            refute_personal_data(Kate, Config, "mam_muc")
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
@@ -1143,7 +1143,7 @@ decode_personal_data(Dir, FilePrefix) ->
     % We expect non-empty list because it must contain at least header with columns names
     [_ | _] = csv:decode_binary(Content).
 
-refute_personal_data(Client, Config, FilePrefix, Schema) ->
+refute_personal_data(Client, Config, FilePrefix) ->
     Dir = retrieve_all_personal_data(Client, Config),
     refute_personal_data(Dir, FilePrefix).
 
