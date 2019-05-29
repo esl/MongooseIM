@@ -24,6 +24,7 @@
          retrieve_mam_muc/1,
          retrieve_mam_muc_private_msg/1,
          retrieve_mam_muc_store_pm/1,
+         remove_mam_pm/1,
          retrieve_mam_muc_light/1,
          retrieve_mam_pm_and_muc_light_interfere/1,
          retrieve_mam_pm_and_muc_light_dont_interfere/1,
@@ -137,7 +138,12 @@ groups() ->
      {retrieve_personal_data_mam_elasticsearch, [], all_mam_testcases()},
      {remove_personal_data, [], removal_testcases()},
      {remove_personal_data_with_mods_disabled, [], removal_testcases()},
-     {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]}].
+     {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]},
+     {remove_personal_data_mam, [], [
+                                     {group, remove_personal_data_mam_rdbms}
+                                    ]},
+     {remove_personal_data_mam_rdbms, [], mam_removal_testcases()}].
+
 
 removal_testcases() ->
     [
@@ -147,7 +153,13 @@ removal_testcases() ->
         remove_private,
         remove_multiple_private_xmls,
         dont_remove_other_user_private_xml,
-        {group, remove_personal_data_inbox}
+        {group, remove_personal_data_inbox},
+        {group, remove_personal_data_mam}
+    ].
+
+mam_removal_testcases() ->
+    [
+     remove_mam_pm
     ].
 
 
@@ -190,7 +202,8 @@ init_per_group(GN, Config) when GN =:= retrieve_personal_data_with_mods_disabled
 init_per_group(retrieve_personal_data_pubsub, Config) ->
     dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
     Config;
-init_per_group(retrieve_personal_data_mam_rdbms, Config) ->
+init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
+                                GN =:= retrieve_personal_data_mam_rdbms ->
     try_backend_for_mam(Config, rdbms);
 init_per_group(retrieve_personal_data_mam_riak, Config) ->
     try_backend_for_mam(Config, riak);
@@ -264,7 +277,8 @@ init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc;
                                    CN =:= retrieve_mam_muc_light;
                                    CN =:= retrieve_mam_pm_and_muc_light_interfere;
                                    CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
-                                   CN =:= retrieve_mam_pm ->
+                                   CN =:= retrieve_mam_pm;
+                                   CN =:= remove_mam_pm ->
     case proplists:get_value(mam_backend, Config, skip) of
         skip ->
             {skip, no_mam_backend_configured};
@@ -333,7 +347,8 @@ muclight_domain() ->
     Domain = inbox_helper:domain(),
     <<"muclight.", Domain/binary>>.
 
-mam_required_modules(retrieve_mam_pm, Backend) ->
+mam_required_modules(CN, Backend) when CN =:= remove_mam_pm;
+                                       CN =:= retrieve_mam_pm->
     [{mod_mam_meta, [{backend, Backend},
                      {pm, [{archive_groupchats, false}]}]}];
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
@@ -787,6 +802,42 @@ retrieve_mam_muc_store_pm(Config) ->
             muc_helper:destroy_room(RoomCfg)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+remove_mam_pm(Config) ->
+    F = fun(Alice, Bob) ->
+            Msg1 = <<"1remove_mam_pm message">>,
+            Msg2 = <<"2remove_mam_pm message message">>,
+            Msg3 = <<"3remove_mam_pm message message">>,
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg1)),
+            escalus:send(Bob, escalus_stanza:chat_to(Alice, Msg2)),
+            escalus:send(Alice, escalus_stanza:chat_to(Bob, Msg3)),
+            [mam_helper:wait_for_archive_size(User, 3) || User <- [Alice, Bob]],
+            AliceJID = escalus_client:full_jid(Alice),
+            BobJID = escalus_client:full_jid(Bob),
+
+            ExpectedHeader = ["id", "from", "message"],
+            ExpectedItems = [
+                                #{"message" => [{contains, Msg1}], "from" => [{jid, AliceJID}]},
+                                #{"message" => [{contains, Msg3}], "from" => [{jid, AliceJID}]},
+                                #{"message" => [{contains, Msg2}], "from" => [{jid, BobJID}]}
+                            ],
+
+            BackendModule = choose_mam_backend(Config, mam),
+            maybe_stop_and_unload_module(mod_mam, BackendModule, Config),
+            {0, _} = unregister(Alice, Config),
+
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            mongoose_helper:wait_until(
+              fun() ->
+                      mongoose_helper:successful_rpc(mod_mam, get_personal_data,
+                                                     [AliceU, AliceS])
+              end, [{mam_pm, ExpectedHeader, []}]),
+
+            retrieve_and_validate_personal_data(
+                Bob, Config, "mam_pm", ExpectedHeader, ExpectedItems, ["from", "message"])
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
 retrieve_mam_muc_light(Config) ->
     F = fun(Alice, Bob, Kate) ->
