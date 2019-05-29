@@ -6,6 +6,8 @@
 -include_lib("escalus/include/escalus.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 -include_lib("exml/include/exml.hrl").
+-include("inbox.hrl").
+-include("muc_light.hrl").
 
 -export([suite/0, all/0, groups/0]).
 -export([init_per_suite/1, end_per_suite/1]).
@@ -34,7 +36,12 @@
          dont_retrieve_other_user_private_xml/1,
          retrieve_multiple_private_xmls/1,
          retrieve_inbox/1,
+         remove_inbox/1,
          retrieve_inbox_for_multiple_messages/1,
+         retrieve_inbox_muclight/1,
+         retrieve_inbox_muc/1,
+         remove_inbox_muclight/1,
+         remove_inbox_muc/1,
          retrieve_logs/1
         ]).
 -export([
@@ -45,6 +52,13 @@
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
+
+-import(muc_light_helper, [room_bin_jid/1, stanza_destroy_room/1]).
+
+-define(ROOM, <<"tt1">>).
+
+-define(MUCLIGHTHOST, <<"muclight.@HOST@">>).
+-define(MUCHOST, <<"muc.@HOST@">>).
 
 %% -------------------------------------------------------------
 %% Common Test stuff
@@ -71,12 +85,18 @@ groups() ->
                                    retrieve_roster,
                                    retrieve_offline,
                                    retrieve_inbox,
-                                   retrieve_inbox_for_multiple_messages,
                                    retrieve_logs,
                                    {group, retrieve_personal_data_pubsub},
                                    {group, retrieve_personal_data_private_xml},
-                                   {group, retrieve_personal_data_mam}
+                                   {group, retrieve_personal_data_mam},
+                                   {group, retrieve_personal_data_inbox}
                                   ]},
+    {retrieve_personal_data_inbox, [],[
+        retrieve_inbox,
+        retrieve_inbox_for_multiple_messages,
+        retrieve_inbox_muclight,
+        retrieve_inbox_muc
+    ]},
      {retrieve_personal_data_pubsub, [], [
                                           retrieve_pubsub_payloads,
                                           dont_retrieve_other_user_pubsub_payload,
@@ -86,7 +106,7 @@ groups() ->
                                          ]},
      {retrieve_personal_data_with_mods_disabled, [], [
                                                       retrieve_vcard,
-                                                      retrieve_inbox,
+                                                      {group, retrieve_personal_data_inbox},
                                                       retrieve_offline,
                                                       retrieve_logs,
                                                       retrieve_roster,
@@ -113,8 +133,8 @@ groups() ->
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], [retrieve_mam_pm]},
      {remove_personal_data, [], removal_testcases()},
-     {remove_personal_data_with_mods_disabled, [], removal_testcases()}
-    ].
+     {remove_personal_data_with_mods_disabled, [], removal_testcases()},
+     {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]}].
 
 removal_testcases() ->
     [
@@ -123,7 +143,8 @@ removal_testcases() ->
         remove_offline,
         remove_private,
         remove_multiple_private_xmls,
-        dont_remove_other_user_private_xml
+        dont_remove_other_user_private_xml,
+        {group, remove_personal_data_inbox}
     ].
 
 
@@ -138,6 +159,7 @@ mam_testcases() ->
 init_per_suite(Config) ->
     Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
     gdpr_removal_for_disabled_modules(true),
+    muc_helper:load_muc(muc_domain()),
     escalus:init_per_suite(Config1).
 
 end_per_suite(Config) ->
@@ -165,8 +187,16 @@ init_per_group(retrieve_personal_data_mam_cassandra, Config) ->
     try_backend_for_mam(Config, cassandra);
 init_per_group(retrieve_personal_data_mam_elasticsearch, Config) ->
     try_backend_for_mam(Config, elasticsearch);
+init_per_group(retrieve_personal_data_inbox = GN, Config) ->
+    init_inbox(GN, Config, muclight);
+init_per_group(remove_personal_data_inbox = GN, Config) ->
+    init_inbox(GN, Config, muclight);
 init_per_group(_GN, Config) ->
     Config.
+
+end_per_group(_GN, Config) ->
+    Config.
+
 
 try_backend_for_mam( Config,Backend) ->
     case is_backend_enabled(Backend) of
@@ -179,16 +209,23 @@ is_backend_enabled(riak)          -> mam_helper:is_riak_enabled(domain());
 is_backend_enabled(cassandra)     -> mam_helper:is_cassandra_enabled(domain());
 is_backend_enabled(elasticsearch) -> mam_helper:is_elasticsearch_enabled(domain()).
 
-end_per_group(_GN, Config) ->
-    Config.
 
-init_per_testcase(retrieve_inbox = CN, Config) ->
-    init_inbox(CN, Config);
 init_per_testcase(remove_offline = CN, Config) ->
     offline_started(),
     escalus:init_per_testcase(CN, Config);
-init_per_testcase(retrieve_inbox_for_multiple_messages = CN, Config) ->
-    init_inbox(CN, Config);
+init_per_testcase(CN, Config) when
+      CN =:= remove_inbox;
+      CN =:= retrieve_inbox;
+      CN =:= remove_inbox_muclight;
+      CN =:= retrieve_inbox_muclight ->
+    Config1 = init_inbox(CN, Config, muclight),
+    Config1;
+init_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
+                                   CN =:= remove_inbox_muc ->
+    muc_helper:load_muc(muc_domain()),
+    Config0 = init_inbox(CN, Config, muc),
+    Config0;
+
 init_per_testcase(retrieve_vcard = CN, Config) ->
     case vcard_update:is_vcard_ldap() of
         true ->
@@ -231,34 +268,56 @@ init_per_testcase(remove_roster = CN, Config) ->
 init_per_testcase(CN, Config) ->
     escalus:init_per_testcase(CN, Config).
 
+
 end_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
                                   CN =:= retrieve_mam_pm_and_muc_light_interfere;
                                   CN =:= retrieve_mam_pm_and_muc_light_dont_interfere ->
     muc_light_helper:clear_db(),
     escalus:end_per_testcase(CN, Config);
+%% mod_inbox
+end_per_testcase(CN, Config) when
+      CN =:= remove_inbox;
+      CN =:= retrieve_inbox;
+      CN =:= remove_inbox_muclight;
+      CN =:= retrieve_inbox_muclight ->
+    muc_light_helper:clear_db(),
+    escalus:end_per_testcase(CN, Config);
+end_per_testcase(CN, Config) when CN =:= retrieve_inbox_muc;
+                                  CN =:= remove_inbox_muc ->
+    muc_helper:unload_muc(),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) ->
     escalus_fresh:clean(),
     escalus:end_per_testcase(CN, Config).
 
-init_inbox(CN, Config) ->
+init_inbox(CN, Config, GroupChatType) ->
     case (not ct_helper:is_ct_running())
          orelse mongoose_helper:is_rdbms_enabled(domain()) of
         true ->
-            dynamic_modules:ensure_modules(domain(), inbox_required_modules()),
+            dynamic_modules:ensure_modules(domain(), inbox_required_modules(GroupChatType)),
             escalus:init_per_testcase(CN, Config);
         false ->
             {skip, require_rdbms}
     end.
-inbox_required_modules() ->
-    [
-     {mod_inbox, inbox_opts()}
-    ].
+inbox_required_modules(Type) ->
+    GroupChatModules = groupchat_module(Type),
+    Inbox = {mod_inbox, [{aff_changes, true},
+                         {remove_on_kicked, true},
+                         {groupchat, [Type]},
+                         {markers, [displayed]}]},
+     GroupChatModules ++ [Inbox] .
 
-inbox_opts() ->
-    [{aff_changes, true},
-     {remove_on_kicked, true},
-     {groupchat, [muclight]},
-     {markers, [displayed]}].
+groupchat_module(muc) ->
+    [];
+groupchat_module(muclight) ->
+    [{mod_muc_light,
+     [{host, binary_to_list(?MUCLIGHTHOST)},
+      {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+      {rooms_in_rosters, true}]}].
+
+muclight_domain() ->
+    Domain = inbox_helper:domain(),
+    <<"muclight.", Domain/binary>>.
 
 mam_required_modules(retrieve_mam_pm, Backend) ->
     [{mod_mam_meta, [{backend, Backend},
@@ -950,6 +1009,65 @@ retrieve_multiple_private_xmls(Config) ->
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
 
+retrieve_inbox_muclight(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        muc_light_helper:given_muc_light_room(?ROOM, Alice, [{Bob, member}]),
+        Domain = muclight_domain(),
+
+        Body = <<"Are you sure?">>,
+        Res = muc_light_helper:when_muc_light_message_is_sent(Alice, ?ROOM, Body, <<"9128">>),
+        muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], Res),
+        ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
+        ExpectedAliceItems = [#{ "jid" => [{contains, <<?ROOM/binary, $@, Domain/binary>>}],
+                                 "unread_count" => "0" }],
+        %% MUC Light affiliations are also stored in inbox
+        ExpectedBobItems = [#{ "jid" => [{contains, <<?ROOM/binary, $@, Domain/binary>>}],
+                               "unread_count" => "2" }],
+
+        retrieve_and_validate_personal_data(
+          Alice, Config, "inbox", ExpectedHeader, ExpectedAliceItems),
+        retrieve_and_validate_personal_data(
+          Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems),
+
+        StanzaDestroy = escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []), room_bin_jid(?ROOM)),
+        escalus:send(Alice, StanzaDestroy),
+        ok
+        end).
+
+retrieve_inbox_muc(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        {ok, Room} = given_fresh_muc_room(Alice#client.props, []),
+        Users = [Alice, Bob],
+        Msg = <<"Hi Room!">>,
+        Id = <<"MyID">>,
+        RoomAddr = muc_helper:room_address(Room),
+
+        inbox_helper:enter_room(Room, Users),
+        inbox_helper:make_members(Room, Alice, [Bob]),
+        Stanza = escalus_stanza:set_id(
+          escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
+        escalus:send(Bob, Stanza),
+        inbox_helper:wait_for_groupchat_msg(Users),
+
+        ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
+
+        ExpectedBobItems = [#{
+                                "content" => [{contains, Msg}],
+                                "jid" => [{contains, RoomAddr}],
+                                "unread_count" => "0" }],
+
+         retrieve_and_validate_personal_data(
+           Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems),
+        ExpectedAliceItems = [#{
+                                "content" => [{contains, Msg}],
+                                "jid" => [{contains, RoomAddr}],
+                                "unread_count" => "1" }],
+
+         retrieve_and_validate_personal_data(
+           Alice, Config, "inbox", ExpectedHeader, ExpectedAliceItems),
+        ok
+      end).
+
 retrieve_inbox(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
@@ -959,12 +1077,38 @@ retrieve_inbox(Config) ->
             Body = <<"With spam?">>,
             send_and_assert_is_chat_message(Bob, Alice, Body),
             ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
-            ExpectedAliceItems = [
-                             #{ "content" => [{contains, Body}],
-                                "jid" => [{contains, BobS},
-                                          {contains, BobU}],
-                                "unread_count" => "1" }
-                            ],
+            ExpectedAliceItems = [#{ "content" => [{contains, Body}],
+                                     "jid" => [{contains, BobS},
+                                               {contains, BobU}],
+                                     "unread_count" => "1" }],
+            ExpectedBobItems = [#{ "content" => [{contains, Body}],
+                                    "jid" => [{contains, AliceS},
+                                              {contains, AliceU}],
+                                    "unread_count" => "0" }],
+            retrieve_and_validate_personal_data(
+              Alice, Config, "inbox", ExpectedHeader, ExpectedAliceItems),
+            retrieve_and_validate_personal_data(
+              Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems)
+        end).
+
+remove_inbox(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+            Body = <<"With spam?">>,
+            send_and_assert_is_chat_message(Bob, Alice, Body),
+
+            ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
+
+            maybe_stop_and_unload_module(mod_inbox, mod_inbox_backend, Config),
+            {0, _} = unregister(Alice, Config),
+
+            mongoose_helper:wait_until(
+              fun() ->
+                      mongoose_helper:successful_rpc(mod_inbox, get_personal_data,
+                                                     [AliceU, AliceS])
+              end, [{inbox, ExpectedHeader, []}]),
+
             ExpectedBobItems = [
                              #{ "content" => [{contains, Body}],
                                 "jid" => [{contains, AliceS},
@@ -972,10 +1116,88 @@ retrieve_inbox(Config) ->
                                 "unread_count" => "0" }
                             ],
             retrieve_and_validate_personal_data(
-              Alice, Config, "inbox", ExpectedHeader, ExpectedAliceItems),
-            retrieve_and_validate_personal_data(
               Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems)
         end).
+
+remove_inbox_muclight(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        Domain = muclight_domain(),
+        Room = <<"ttt2">>,
+        muc_light_helper:given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+        Body = <<"Are you sure?">>,
+        Res = muc_light_helper:when_muc_light_message_is_sent(Alice, Room , Body, <<"9128">>),
+        muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob], Res),
+
+        ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
+
+        muc_light_helper:user_leave(Room, Bob, [{Alice, owner}]),
+        maybe_stop_and_unload_module(mod_inbox, mod_inbox_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        %% MUC Light affiliations are also stored in inbox
+        ExpectedBobItems = [#{
+                                "jid" => [{contains, <<Room/binary, $@, Domain/binary>>}],
+                                "unread_count" => "3" }
+                           ],
+
+         retrieve_and_validate_personal_data(
+           Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems),
+
+        mongoose_helper:wait_until(
+          fun() ->
+                  mongoose_helper:successful_rpc(mod_inbox, get_personal_data,
+                                                 [AliceU, AliceS])
+          end, [{inbox, ExpectedHeader, []}]),
+
+        timer:sleep(5000),
+        StanzaDestroy = escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []),
+                                      room_bin_jid(Room)),
+        escalus:send(Alice, StanzaDestroy),
+        ok
+        end).
+
+remove_inbox_muc(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        {ok, Room} = given_fresh_muc_room(Alice#client.props, []),
+
+        Users = [Alice, Bob],
+        Msg = <<"Hi Room!">>,
+        Id = <<"MyID">>,
+        RoomAddr = muc_helper:room_address(Room),
+
+        inbox_helper:enter_room(Room, Users),
+        inbox_helper:make_members(Room, Alice, [Bob]),
+        Stanza = escalus_stanza:set_id(
+          escalus_stanza:groupchat_to(RoomAddr, Msg), Id),
+        escalus:send(Bob, Stanza),
+        inbox_helper:wait_for_groupchat_msg(Users),
+
+        ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
+
+        maybe_stop_and_unload_module(mod_inbox, mod_inbox_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        escalus:wait_for_stanza(Bob),
+        mongoose_helper:wait_until(
+        fun() ->
+                mongoose_helper:successful_rpc(mod_inbox, get_personal_data,
+                                               [AliceU, AliceS])
+        end, [{inbox, ExpectedHeader, []}]),
+
+        ExpectedBobItems = [#{
+                                "content" => [{contains, Msg}],
+                                "jid" => [{contains, RoomAddr}],
+                                "unread_count" => "0" }],
+
+         retrieve_and_validate_personal_data(
+           Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems),
+        ok
+      end).
 
 retrieve_inbox_for_multiple_messages(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
@@ -988,12 +1210,10 @@ retrieve_inbox_for_multiple_messages(Config) ->
             BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
 
             ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
-            ExpectedAliceItems = [
-                             #{ "content" => [{contains, lists:last(Bodies)}],
-                                "jid" => [{contains, BobS},
-                                          {contains, BobU}],
-                                "unread_count" => integer_to_list(length(Bodies)) }
-                            ],
+            ExpectedAliceItems = [#{ "content" => [{contains, lists:last(Bodies)}],
+                                     "jid" => [{contains, BobS},
+                                               {contains, BobU}],
+                                     "unread_count" => integer_to_list(length(Bodies)) }],
             retrieve_and_validate_personal_data(
               Alice, Config, "inbox", ExpectedHeader, ExpectedAliceItems)
         end).
@@ -1026,6 +1246,13 @@ data_is_not_retrieved_for_missing_user(Config) ->
 
 domain() ->
     <<"localhost">>. % TODO: Make dynamic?
+
+
+
+
+muc_domain() ->
+    Domain = inbox_helper:domain(),
+    <<"muc.", Domain/binary>>.
 
 maybe_stop_and_unload_module(Module, Backends, Config) when is_list(Backends)->
     case proplists:get_value(disable_module, Config) of
@@ -1280,3 +1507,10 @@ choose_mam_backend(Config, mam_muc) ->
 
 expected_header(mod_roster) -> ["jid", "name", "subscription",
                               "ask", "groups", "askmessage", "xs"].
+
+given_fresh_muc_room(UserSpec, RoomOpts) ->
+    Username = proplists:get_value(username, UserSpec),
+    RoomName = muc_helper:fresh_room_name(Username),
+    From = muc_helper:generate_rpc_jid({user, UserSpec}),
+    muc_helper:create_instant_room(<<"localhost">>, RoomName, From, Username, RoomOpts),
+    {ok, RoomName}.
