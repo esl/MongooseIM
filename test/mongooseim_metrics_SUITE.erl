@@ -18,7 +18,7 @@ all() ->
 
 groups() ->
     [
-     {ordinary_mode, [], ?ALL_CASES},
+     {ordinary_mode, [], [dots_in_host_are_turned_to_underscore | ?ALL_CASES]},
      {all_metrics_are_global, [], ?ALL_CASES}
     ].
 
@@ -82,6 +82,13 @@ no_skip_metric(_C) ->
 subscriptions_initialised(_C) ->
     mongoose_metrics:init(),
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).
+
+dots_in_host_are_turned_to_underscore(_C) ->
+    mongoose_metrics:init(),
+    mongoose_metrics:ensure_metric(<<"host.with.dots">>, [a, metric, value], histogram),
+    mongoose_metrics:update(<<"host.with.dots">>, [a, metric, value], 10),
+    {ok, _} = exometer:get_value([<<"host_with_dots">>, a, metric, value]).
+
 
 wait_for_update({ok, [{count,X}]}, 0) ->
     X > 0;
