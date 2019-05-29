@@ -140,9 +140,13 @@ groups() ->
      {remove_personal_data_with_mods_disabled, [], removal_testcases()},
      {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]},
      {remove_personal_data_mam, [], [
-                                     {group, remove_personal_data_mam_rdbms}
+                                     {group, remove_personal_data_mam_rdbms},
+                                     {group, remove_personal_data_mam_riak},
+                                     {group, remove_personal_data_mam_cassandra}
                                     ]},
-     {remove_personal_data_mam_rdbms, [], mam_removal_testcases()}].
+     {remove_personal_data_mam_rdbms, [], mam_removal_testcases()},
+     {remove_personal_data_mam_riak, [], mam_removal_testcases()},
+     {remove_personal_data_mam_cassandra, [], mam_removal_testcases()}].
 
 
 removal_testcases() ->
@@ -205,9 +209,11 @@ init_per_group(retrieve_personal_data_pubsub, Config) ->
 init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
                                 GN =:= retrieve_personal_data_mam_rdbms ->
     try_backend_for_mam(Config, rdbms);
-init_per_group(retrieve_personal_data_mam_riak, Config) ->
+init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_riak;
+                                GN =:= remove_personal_data_mam_riak ->
     try_backend_for_mam(Config, riak);
-init_per_group(retrieve_personal_data_mam_cassandra, Config) ->
+init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_cassandra;
+                                GN =:= remove_personal_data_mam_cassandra->
     try_backend_for_mam(Config, cassandra);
 init_per_group(retrieve_personal_data_mam_elasticsearch, Config) ->
     try_backend_for_mam(Config, elasticsearch);
