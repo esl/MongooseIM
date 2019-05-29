@@ -74,6 +74,7 @@
 
 -export([config_change/4]).
 
+%% GDPR related
 -export([get_personal_data/2]).
 
 -define(PROCNAME, ejabberd_mod_vcard).
@@ -135,15 +136,15 @@ get_personal_data(Username, Server) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
     Entries = lists:flatmap(fun(B) ->
-                                    try B:get_vcard(LUser, LServer) of
-                                        {ok, Record} ->
-                                            SerializedRecords = exml:to_binary(Record),
-                                            [{Jid, SerializedRecords}];
-                                        _ -> []
-                                    catch
-                                        _:_ ->
-                                            []
-                                    end
+        try B:get_vcard(LUser, LServer) of
+            {ok, Record} ->
+                SerializedRecords = exml:to_binary(Record),
+                [{Jid, SerializedRecords}];
+            _ -> []
+        catch
+            _:_ ->
+                []
+        end
                             end, mongoose_lib:find_behaviour_implementations(mod_vcard)),
     [{vcard, Schema, Entries}].
 
@@ -414,7 +415,17 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    mod_vcard_backend:remove_user(LUser, LServer).
+    lists:foreach(fun(B) ->
+        try
+            B:remove_user(LUser, LServer)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(mod_vcard)).
 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->

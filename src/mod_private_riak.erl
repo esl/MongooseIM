@@ -48,17 +48,9 @@ multi_get_data(LUser, LServer, NS2Def) ->
 
 -spec remove_user(jid:luser(), jid:lserver()) -> ok.
 remove_user(LUser, LServer) ->
-    KeyFilter = [[<<"starts_with">>, LUser]],
     Bucket = bucket_type(LServer),
-    case mongoose_riak:mapred([{Bucket, KeyFilter}], []) of
-        {ok, []} ->
-            ok;
-        {ok, [{0, BucketKeys} | _]} ->
-            [mongoose_riak:delete(Bucket1, Key) || {{Bucket1, Key}, _} <- BucketKeys];
-        Error ->
-            ?WARNING_MSG("Error reading keys to remove: ~p", [Error]),
-            {error, Error}
-    end.
+    [mongoose_riak:delete(Bucket, key(LUser, NS)) || NS <- get_all_nss(LUser, LServer)],
+    ok.
 
 set_private_data(LUser, LServer, NS, XML) ->
     Obj = riakc_obj:new(bucket_type(LServer), key(LUser, NS), exml:to_binary(XML)),

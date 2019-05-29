@@ -528,8 +528,7 @@ get_personal_data(Username, Server) ->
         catch
             _:_ ->
                 []
-        end
-                            end, mongoose_lib:find_behaviour_implementations(mod_offline)),
+        end end, mongoose_lib:find_behaviour_implementations(mod_offline)),
     [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(AllMessages)}].
 
 offline_messages_to_gdpr_format(MsgList) ->
@@ -576,13 +575,25 @@ remove_old_messages(Host, Days) ->
     mod_offline_backend:remove_old_messages(Host, Timestamp).
 
 %% #rh
+
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    remove_user(User, Server),
     Acc.
 
 remove_user(User, Server) ->
-    mod_offline_backend:remove_user(User, Server).
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
+    lists:foreach(fun(B) ->
+        try
+            B:remove_user(LUser, LServer)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(mod_offline)).
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Acc, Msgs) ->

@@ -3,8 +3,7 @@
 -include("ejabberd_commands.hrl").
 -include("mongoose_logger.hrl").
 
--export([commands/0,
-         retrieve_all/3]).
+-export([commands/0, retrieve_all/3]).
 
 % Exported for RPC call
 -export([retrieve_logs/2]).
@@ -16,16 +15,14 @@ commands() -> [
         #ejabberd_commands{name = retrieve_personal_data, tags = [gdpr],
             desc = "Retrieve user's presonal data.",
             longdesc = "Retrieves all personal data from MongooseIM for a given user. Example:\n"
-                       " mongooseimctl alice localhost /home/mim/alice.smith.zip ",
+                       " mongooseimctl retrieve_personal_data alice localhost /home/mim/alice.smith.zip ",
             module = ?MODULE,
             function = retrieve_all,
             args = [{username, binary}, {domain, binary}, {path, binary}],
             result = {res, rescode}}
-
     ].
 
--spec retrieve_all(jid:user(), jid:server(), Path :: binary()) ->
-    RetrievedFilesInZipName :: binary() | {error, Reason :: any()}.
+-spec retrieve_all(jid:user(), jid:server(), Path :: binary()) -> ok | {error, Reason :: any()}.
 retrieve_all(Username, Domain, ResultFilePath) ->
     case user_exists(Username, Domain) of
         true ->

@@ -20,7 +20,8 @@
 -export([get_personal_data/2]).
 
 -export([start/2, stop/1, deps/2]).
--export([process_iq/4, user_send_packet/4, filter_packet/1, inbox_unread_count/2]).
+-export([process_iq/4, user_send_packet/4, filter_packet/1,
+         inbox_unread_count/2, remove_user/2, remove_user/3]).
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
@@ -227,6 +228,25 @@ filter_packet({From, To, Acc, Msg = #xmlel{name = <<"message">>}}) ->
 filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
+remove_user(Acc, User, Server) ->
+    remove_user(User, Server),
+    Acc.
+
+remove_user(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nodeprep(Server),
+    lists:foreach(fun(B) ->
+        try
+            B:clear_inbox(LUser, LServer)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(mod_inbox)).
+
 -spec maybe_process_message(Host :: host(),
                             From :: jid:jid(),
                             To :: jid:jid(),
@@ -373,6 +393,7 @@ get_inbox_unread(undefined, Acc, To) ->
 
 hooks(Host) ->
     [
+     {remove_user, Host, ?MODULE, remove_user, 50},
      {user_send_packet, Host, ?MODULE, user_send_packet, 70},
      {filter_local_packet, Host, ?MODULE, filter_packet, 90},
      {inbox_unread_count, Host, ?MODULE, inbox_unread_count, 80}

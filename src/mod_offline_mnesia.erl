@@ -110,9 +110,7 @@ count_offline_messages(LUser, LServer, _MaxNeeded) ->
         _ -> 0
     end.
 
-remove_user(User, Server) ->
-    LUser = jid:nodeprep(User),
-    LServer = jid:nameprep(Server),
+remove_user(LUser, LServer) ->
     US = {LUser, LServer},
     F = fun() ->
                 mnesia:delete({offline_msg, US})
