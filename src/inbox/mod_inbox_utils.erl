@@ -16,7 +16,9 @@
 
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
--export([reset_unread_count/3,
+-export([maybe_reset_unread_count/4,
+         reset_unread_count/3,
+         maybe_write_to_inbox/5,
          write_to_sender_inbox/4,
          write_to_receiver_inbox/4,
          clear_inbox/1,
@@ -31,6 +33,18 @@
          reset_marker_to_bin/1,
          get_inbox_unread/2]).
 
+-spec maybe_reset_unread_count(Server :: host(),
+                               User :: jid:jid(),
+                               Remote :: jid:jid(),
+                               Packet :: exml:element()) -> ok.
+maybe_reset_unread_count(Server, User, Remote, Packet) ->
+    ResetMarkers = mod_inbox_utils:get_reset_markers(Server),
+    case mod_inbox_utils:if_chat_marker_get_id(Packet, ResetMarkers) of
+        undefined ->
+            ok;
+        Id ->
+            mod_inbox_utils:reset_unread_count(User, Remote, Id)
+    end.
 
 -spec reset_unread_count(User :: jid:jid(),
                          Remote :: jid:jid(),
@@ -105,11 +119,30 @@ if_chat_marker_get_id(Packet, Marker) ->
             undefined
     end.
 -spec has_chat_marker(Packet :: exml:element(), list(marker())) -> boolean().
-has_chat_marker(_Packet, []) -> false;
-has_chat_marker(Packet, [Marker | R]) ->
-    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS) of
-        #xmlel{name = Marker} -> true;
-        _ -> has_chat_marker(Packet, R)
+has_chat_marker(Packet, Markers) ->
+    case exml_query:subelement_with_ns(Packet, ?NS_CHAT_MARKERS, no_marker) of
+        no_marker ->
+            false;
+        #xmlel{name = Marker} ->
+            lists:member(Marker, Markers)
+    end.
+
+-spec maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) -> ok | {ok, integer()} when
+      Host :: host(),
+      User :: jid:jid(),
+      Remote :: jid:jid(),
+      Packet :: exml:element(),
+      %% WriteF is write_to_receiver_inbox/4 or write_to_sender_inbox/4
+      WriteF :: fun().
+maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) ->
+    AllMarkers = [<<"received">>, <<"displayed">>, <<"acknowledged">>],
+    case mod_inbox_utils:has_chat_marker(Packet, AllMarkers) of
+        true ->
+            ok;
+        false ->
+            FromBin = jid:to_binary(User),
+            Packet2 = mod_inbox_utils:fill_from_attr(Packet, FromBin),
+            WriteF(Host, User, Remote, Packet2)
     end.
 
 -spec get_msg_id(Msg :: exml:element()) -> binary().
