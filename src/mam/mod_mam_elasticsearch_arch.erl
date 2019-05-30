@@ -28,7 +28,8 @@
 %% ejabberd_gen_mam_archive callbacks
 -export([archive_message/9]).
 -export([lookup_messages/3]).
--export([remove_archive/4]).
+-export([remove_archive/3,
+         remove_archive/4]).
 -export([archive_size/4]).
 
 -export([get_mam_pm_gdpr_data/2]).
@@ -137,7 +138,11 @@ archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
                      Host :: jid:server(),
                      ArchiveId :: mod_mam:archive_id(),
                      OwnerJid :: jid:jid()) -> Acc when Acc :: map().
-remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
+remove_archive(Acc, Host, ArchiveId, OwnerJid) ->
+    remove_archive(Host, ArchiveId, OwnerJid),
+    Acc.
+
+remove_archive(Host, _ArchiveId, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         ok ->
@@ -146,8 +151,7 @@ remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
             ?ERROR_MSG("event=remove_archive_failed server=~s user=~s reason=~1000p",
                        [Host, jid:to_binary(OwnerJid), Err]),
             ok
-    end,
-    Acc.
+    end.
 
 %%-------------------------------------------------------------------
 %% Helpers
