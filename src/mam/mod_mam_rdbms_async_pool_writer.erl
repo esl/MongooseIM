@@ -28,6 +28,7 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
+         remove_archive/3,
          remove_archive/4]).
 
 %% Helpers for debugging
@@ -237,6 +238,9 @@ lookup_messages(Result, Host, #{archive_id := ArcID, end_ts := End, now := Now})
 remove_archive(Acc, Host, ArcID, _ArcJID)
     when is_integer(ArcID) ->
     Acc.
+
+remove_archive(_Host, _ArcID, _ArcJID) ->
+    ok.
 
 %%====================================================================
 %% Internal functions
