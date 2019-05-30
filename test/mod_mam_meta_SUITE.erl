@@ -98,11 +98,17 @@ produces_valid_configurations(_Config) ->
 
 
 handles_riak_config(_Config) ->
-    Deps = deps([{backend, riak}, {pm, [{user_prefs_store, mnesia}]}, {muc, []}]),
+    Deps = deps([
+                 {backend, riak},
+                 {db_message_format, some_format},
+                 {pm, [{user_prefs_store, mnesia}]},
+                 {muc, []}
+                ]),
 
     ?assert(lists:keymember(mod_mam, 1, Deps)),
     ?assert(lists:keymember(mod_mam_muc, 1, Deps)),
     check_has_args(mod_mam_riak_timed_arch_yz, [pm, muc], Deps),
+    check_has_args(mod_mam_riak_timed_arch_yz, [{db_message_format, some_format}], Deps),
     check_has_args(mod_mam_mnesia_prefs, [pm], Deps),
     check_has_no_args(mod_mam_mnesia_prefs, [muc], Deps).
 
@@ -110,14 +116,17 @@ handles_riak_config(_Config) ->
 handles_cassandra_config(_Config) ->
     Deps = deps([
                  {backend, cassandra},
-                 {pm, [{user_prefs_store, cassandra}]},
-                 {muc, [{user_prefs_store, mnesia}]}
+                 simple,
+                 {pm, [{user_prefs_store, cassandra}, {db_message_format, some_format}]},
+                 {muc, [{user_prefs_store, mnesia}, {pool_name, some_poolname}]}
                 ]),
 
-    ?assert(lists:keymember(mod_mam_cassandra_arch, 1, Deps)),
-    ?assert(lists:keymember(mod_mam_muc_cassandra_arch, 1, Deps)),
     check_has_args(mod_mam_mnesia_prefs, [muc], Deps),
-    check_has_args(mod_mam_cassandra_prefs, [pm], Deps).
+    check_has_args(mod_mam_cassandra_prefs, [pm], Deps),
+    check_has_args(mod_mam_cassandra_arch, [{db_message_format, some_format}, {simple, true}], Deps),
+    check_has_args(mod_mam_muc_cassandra_arch, [{pool_name, some_poolname}, {simple, true}], Deps),
+    check_has_no_args(mod_mam_cassandra_arch, [{pool_name, some_poolname}], Deps),
+    check_has_no_args(mod_mam_muc_cassandra_arch, [{db_message_format, some_format}], Deps).
 
 
 example_muc_only_no_pref_good_performance(_Config) ->

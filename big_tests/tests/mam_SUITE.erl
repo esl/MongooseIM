@@ -689,7 +689,7 @@ init_modules(rdbms, muc_all, Config) ->
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_simple, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_rdbms_arch, [muc, simple]),
+    init_module(host(), mod_mam_muc_rdbms_arch, [muc, rdbms_simple_opts()]),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
@@ -750,7 +750,7 @@ init_modules(rdbms, C, Config) ->
     Config;
 init_modules(rdbms_simple, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, simple]),
+    init_module(host(), mod_mam_rdbms_arch, [pm, rdbms_simple_opts()]),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
@@ -814,6 +814,9 @@ init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config.
+
+rdbms_simple_opts() ->
+    [{db_jid_format, mam_jid_rfc}, {db_message_format, mam_message_xml}].
 
 init_modules_for_muc_light(BackendType, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),

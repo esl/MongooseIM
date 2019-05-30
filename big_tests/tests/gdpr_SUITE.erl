@@ -325,12 +325,14 @@ mam_required_modules(retrieve_mam_pm, Backend) ->
 mam_required_modules(CN, Backend) when CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                        CN =:= retrieve_mam_muc_light ->
     [{mod_mam_meta, [{backend, Backend},
+                     {db_message_format, mam_message_eterm}, %% used only by riak & cassandra backends
                      {pm, [{archive_groupchats, false}]},
                      {muc, [{host, "muclight.@HOST@"}]}]},
      {mod_muc_light, [{host, "muclight.@HOST@"}]}];
 mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
     [{mod_mam_meta, [{backend, Backend},
                      {rdbms_message_format, simple}, %% ignored for any other than rdbms backend
+                     {db_message_format, mam_message_xml}, %% used only by riak & cassandra backends
                      {pm, [{archive_groupchats, true}]},
                      {muc, [{host, "muclight.@HOST@"}]}]},
      {mod_muc_light, [{host, "muclight.@HOST@"}]}].

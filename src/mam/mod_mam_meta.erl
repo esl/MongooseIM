@@ -102,24 +102,23 @@ handle_nested_opts(Key, RootOpts, Default, Deps) ->
 -spec parse_opts(Type :: pm | muc, Opts :: proplists:proplist(), deps()) -> deps().
 parse_opts(Type, Opts, Deps) ->
     CoreMod = mam_type_to_core_mod(Type),
-
-    CoreModOpts =
-        lists:filtermap(
-          fun(Key) ->
-                  case proplists:lookup(Key, Opts) of
-                      none -> false;
-                      Opt -> {true, Opt}
-                  end
-          end, valid_core_mod_opts(CoreMod)),
-
+    CoreModOpts = filter_opts(Opts, valid_core_mod_opts(CoreMod)),
     WithCoreDeps = add_dep(CoreMod, CoreModOpts, Deps),
     Backend = proplists:get_value(backend, Opts, rdbms),
-
     parse_backend_opts(Backend, Type, Opts, WithCoreDeps).
 
 -spec mam_type_to_core_mod(atom()) -> module().
 mam_type_to_core_mod(pm) -> mod_mam;
 mam_type_to_core_mod(muc) -> mod_mam_muc.
+
+filter_opts(Opts, ValidOpts) ->
+    lists:filtermap(
+        fun(Key) ->
+            case proplists:lookup(Key, Opts) of
+                none -> false;
+                Opt -> {true, Opt}
+            end
+        end, ValidOpts).
 
 -spec valid_core_mod_opts(module()) -> [atom()].
 valid_core_mod_opts(mod_mam) ->
@@ -152,7 +151,8 @@ parse_backend_opts(cassandra, Type, Opts, Deps0) ->
             muc -> mod_mam_muc_cassandra_arch
         end,
 
-    Deps = add_dep(ModArch, Deps0),
+    Opts1 = filter_opts(Opts, [db_message_format, pool_name, simple]),
+    Deps = add_dep(ModArch, Opts1, Deps0),
 
     case proplists:get_value(user_prefs_store, Opts, false) of
         cassandra -> add_dep(mod_mam_cassandra_prefs, [Type], Deps);
@@ -161,7 +161,8 @@ parse_backend_opts(cassandra, Type, Opts, Deps0) ->
     end;
 
 parse_backend_opts(riak, Type, Opts, Deps0) ->
-    Deps = add_dep(mod_mam_riak_timed_arch_yz, [Type], Deps0),
+    Opts1 = filter_opts(Opts, [db_message_format]),
+    Deps = add_dep(mod_mam_riak_timed_arch_yz, [Type | Opts1], Deps0),
 
     case proplists:get_value(user_prefs_store, Opts, false) of
         mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
@@ -181,25 +182,17 @@ parse_backend_opts(rdbms, Type, Opts0, Deps0) ->
     Deps = add_dep(mod_mam_rdbms_user, [Type], Deps1),
 
     lists:foldl(
-      pa:bind(fun parse_backend_opt/5, Type, ModRDBMSArch, ModAsyncWriter),
+      pa:bind(fun parse_rdbms_opt/5, Type, ModRDBMSArch, ModAsyncWriter),
       Deps, Opts);
 
 parse_backend_opts(elasticsearch, Type, Opts, Deps0) ->
-    ExtraOpts =
-        case proplists:get_value(elasticsearch_index_name, Opts) of
-            IndexName when is_binary(IndexName) ->
-                [{index_name, IndexName}];
-            _ ->
-                []
-        end,
-
     ModArch =
         case Type of
             pm -> mod_mam_elasticsearch_arch;
             muc -> mod_mam_muc_elasticsearch_arch
         end,
 
-    Deps = add_dep(ModArch, ExtraOpts, Deps0),
+    Deps = add_dep(ModArch, Deps0),
 
     case proplists:get_value(user_prefs_store, Opts, false) of
         mnesia -> add_dep(mod_mam_mnesia_prefs, [Type], Deps);
@@ -219,7 +212,7 @@ add_dep(Dep, Deps) ->
 -spec add_dep(Dep :: module(), Args :: proplists:proplist(), deps()) -> deps().
 add_dep(Dep, Args, Deps) ->
     PrevArgs = maps:get(Dep, Deps, []),
-    NewArgs = Args ++ PrevArgs,
+    NewArgs = lists:usort(Args ++ PrevArgs),
     maps:put(Dep, NewArgs, Deps).
 
 
@@ -236,9 +229,9 @@ add_default_rdbms_opts(Opts) ->
       [{cache_users, true}, {async_writer, true}]).
 
 
--spec parse_backend_opt(Type :: pm | muc, module(), module(),
+-spec parse_rdbms_opt(Type :: pm | muc, module(), module(),
                         Option :: {module(), term()}, deps()) -> deps().
-parse_backend_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
+parse_rdbms_opt(Type, ModRDBMSArch, ModAsyncWriter, Option, Deps) ->
     case Option of
         {cache_users, true} ->
             add_dep(mod_mam_cache_user, [Type], Deps);

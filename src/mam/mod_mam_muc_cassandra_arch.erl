@@ -898,7 +898,7 @@ expand_simple_param(Params) ->
                   end, Params).
 
 simple_params() ->
-    [{db_message_format, mam_muc_message_xml}].
+    [{db_message_format, mam_message_xml}].
 
 params_helper(Params) ->
     binary_to_list(iolist_to_binary(io_lib:format(
