@@ -603,30 +603,24 @@ retrieve_mam_pm(Config) ->
 
 retrieve_mam_muc(Config) ->
     F = fun(Alice, Bob, Kate) ->
-            Room = muc_helper:fresh_room_name(),
-            RoomJid = muc_helper:room_address(Room),
             AliceUserCfg = escalus_users:get_user_by_name(alice),
-            Cfg = muc_helper:start_room([], AliceUserCfg, Room, <<"someroom">>, []),
-            [Room, Domain] = binary:split(RoomJid, <<"@">>),
+            RoomCfg = muc_helper:start_fresh_room([], AliceUserCfg, <<"someroom">>, []),
+            [Room, Domain] = [proplists:get_value(Key, RoomCfg) || Key <- [room, muc_host]],
+            AllRoomMembers = [Alice, Bob, Kate],
 
-            escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room, <<"Nancy">>)),
-            escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room, <<"Sid">>)),
-            escalus:send(Kate, muc_helper:stanza_muc_enter_room(Room, <<"Johnny">>)),
-
-            %receive 3 presences and 1 room's subject message.
-            [ct:log("~p messages: ~n~p~n", [escalus_client:username(User),
-                                            escalus:wait_for_stanzas(User, 4)])
-             || User <- [Alice, Bob, Kate]],
+            muc_helper:enter_room(RoomCfg, [{Alice, <<"Nancy">>},
+                                            {Bob, <<"Sid">>},
+                                            {Kate, <<"Johnny">>}]),
 
             Body1 = <<"1some simple muc message">>,
             Body2 = <<"2another one">>,
             Body3 = <<"3third message">>,
-            escalus:send(Alice, escalus_stanza:groupchat_to(RoomJid, Body1)),
-            muc_helper:foreach_recipient([Alice, Bob, Kate], muc_msg_verify(RoomJid, <<"Nancy">>, Body1)),
-            escalus:send(Alice, escalus_stanza:groupchat_to(RoomJid, Body2)),
-            muc_helper:foreach_recipient([Alice, Bob, Kate], muc_msg_verify(RoomJid, <<"Nancy">>, Body2)),
-            escalus:send(Bob, escalus_stanza:groupchat_to(RoomJid, Body3)),
-            muc_helper:foreach_recipient([Alice, Bob, Kate], muc_msg_verify(RoomJid, <<"Sid">>, Body3)),
+            muc_helper:send_to_room(RoomCfg, Alice, Body1),
+            muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Nancy">>, Body1),
+            muc_helper:send_to_room(RoomCfg, Alice, Body2),
+            muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Nancy">>, Body2),
+            muc_helper:send_to_room(RoomCfg, Bob, Body3),
+            muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Sid">>, Body3),
 
             mam_helper:wait_for_room_archive_size(Domain, Room, 3),
 
@@ -644,7 +638,7 @@ retrieve_mam_muc(Config) ->
                 Bob, Config, "mam_muc", ["id", "message"], ExpectedItemsBob, ["message"]),
             refute_personal_data(Kate, Config, "mam_muc"),
 
-            muc_helper:destroy_room(Cfg)
+            muc_helper:destroy_room(RoomCfg)
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
 
@@ -1569,8 +1563,3 @@ given_fresh_muc_room(UserSpec, RoomOpts) ->
     muc_helper:create_instant_room(<<"localhost">>, RoomName, From, Username, RoomOpts),
     {ok, RoomName}.
 
-muc_msg_verify(RoomBareJID, NickName, MsgText) ->
-    fun(Msg) ->
-        escalus:assert(is_groupchat_message, [MsgText], Msg),
-        [RoomBareJID, NickName] = binary:split(exml_query:attr(Msg, <<"from">>), <<"/">>)
-    end.
