@@ -379,7 +379,7 @@ init_per_group(G, Config) when G =:= http_auth_no_server;
 init_per_group(hibernation, Config) ->
     case mam_helper:backend() of
         rdbms ->
-    dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc, simple]),
+    dynamic_modules:start(domain(), mod_mam_muc_rdbms_arch, [muc]),
     dynamic_modules:start(domain(), mod_mam_rdbms_prefs, [muc]),
     dynamic_modules:start(domain(), mod_mam_rdbms_user, [muc]),
             dynamic_modules:start(domain(), mod_mam_muc, [{host, "muc.@HOST@"}]);
