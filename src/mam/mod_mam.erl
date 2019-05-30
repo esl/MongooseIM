@@ -347,6 +347,8 @@ remove_user(User, Server) ->
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
+    Backends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)
+    ++ mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_prefs),
     lists:foreach(fun(B) ->
         try
             B:remove_archive(Host, ArcID, ArcJID)
@@ -357,7 +359,7 @@ remove_user(User, Server) ->
                 "reason=~p:~p "
                 "stacktrace=~1000p ", [E, R, Stack]),
                 ok
-        end end, mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)).
+        end end, Backends).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...

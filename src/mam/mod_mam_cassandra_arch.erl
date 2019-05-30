@@ -206,12 +206,12 @@ remove_archive(Acc, Host, UserID, UserJID) ->
     remove_archive(Host, UserID, UserJID),
     Acc.
 
-remove_archive(_Host, _UserID, UserJID) ->
+remove_archive(Host, _UserID, UserJID) ->
+    ensure_params_loaded(Host),
+    PoolName = mod_mam_cassandra_arch_params:pool_name(),
     BUserJID = bare_jid(UserJID),
-    PoolName = pool_name(UserJID),
     Params = #{user_jid => BUserJID},
     %% Wait until deleted
-
     DeleteFun =
         fun(Rows, _AccIn) ->
                 mongoose_cassandra:cql_write(PoolName, UserJID, ?MODULE,
