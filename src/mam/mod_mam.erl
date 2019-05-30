@@ -47,6 +47,7 @@
 %% ejabberd handlers
 -export([process_mam_iq/4,
          user_send_packet/4,
+         remove_user/2,
          remove_user/3,
          filter_packet/1,
          determine_amp_strategy/5,
@@ -341,6 +342,22 @@ process_incoming_packet(From, To, Packet) ->
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
+
+remove_user(User, Server) ->
+    ArcJID = jid:make(User, Server, <<>>),
+    Host = server_host(ArcJID),
+    ArcID = archive_id_int(Host, ArcJID),
+    lists:foreach(fun(B) ->
+        try
+            B:remove_archive(Host, ArcID, ArcJID)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...
