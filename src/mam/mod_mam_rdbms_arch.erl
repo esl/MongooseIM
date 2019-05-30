@@ -22,6 +22,7 @@
          archive_message/9,
          archive_message_muc/9,
          lookup_messages/3,
+         remove_archive/3,
          remove_archive/4]).
 
 -export([get_mam_pm_gdpr_data/2]).
@@ -472,13 +473,16 @@ row_to_message_id({BMessID, _, _}) ->
 -spec remove_archive(Acc :: map(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
                      RoomJID :: jid:jid()) -> map().
-remove_archive(Acc, Host, UserID, _UserJID) ->
+remove_archive(Acc, Host, UserID, UserJID) ->
+    remove_archive(Host, UserID, UserJID),
+    Acc.
+
+remove_archive(Host, UserID, _UserJID) ->
     {updated, _} =
     mod_mam_utils:success_sql_query(
       Host,
       ["DELETE FROM mam_message "
-       "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]),
-    Acc.
+       "WHERE user_id = ", use_escaped_integer(escape_user_id(UserID))]).
 
 %% @doc Each record is a tuple of form
 %% `{<<"13663125233">>, <<"bob@localhost">>, <<binary>>}'.
