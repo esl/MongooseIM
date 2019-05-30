@@ -31,6 +31,7 @@
          stop/1,
          archive_size/4,
          lookup_messages/2,
+         remove_archive/3,
          remove_archive/4]).
 
 -export([archive_message/9,
