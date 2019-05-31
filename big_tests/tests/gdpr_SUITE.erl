@@ -142,11 +142,13 @@ groups() ->
      {remove_personal_data_mam, [], [
                                      {group, remove_personal_data_mam_rdbms},
                                      {group, remove_personal_data_mam_riak},
-                                     {group, remove_personal_data_mam_cassandra}
+                                     {group, remove_personal_data_mam_cassandra},
+                                     {group, remove_personal_data_mam_elasticsearch}
                                     ]},
      {remove_personal_data_mam_rdbms, [], mam_removal_testcases()},
      {remove_personal_data_mam_riak, [], mam_removal_testcases()},
-     {remove_personal_data_mam_cassandra, [], mam_removal_testcases()}].
+     {remove_personal_data_mam_cassandra, [], mam_removal_testcases()},
+     {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()}].
 
 
 removal_testcases() ->
@@ -215,7 +217,8 @@ init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_riak;
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_cassandra;
                                 GN =:= remove_personal_data_mam_cassandra->
     try_backend_for_mam(Config, cassandra);
-init_per_group(retrieve_personal_data_mam_elasticsearch, Config) ->
+init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_elasticsearch;
+                                GN =:= remove_personal_data_mam_elasticsearch ->
     try_backend_for_mam(Config, elasticsearch);
 init_per_group(retrieve_personal_data_inbox = GN, Config) ->
     init_inbox(GN, Config, muclight);
