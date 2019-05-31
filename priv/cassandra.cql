@@ -26,6 +26,10 @@ CREATE TABLE mam_message_offset(
 CREATE TABLE mam_muc_message(
   id bigint,
   room_jid varchar,
+  // One of:
+  // - Sender JID (if with_nick is empty)
+  // - empty
+  from_jid varchar,
   nick_name varchar,
   // One of:
   // - nick_name
@@ -53,4 +57,6 @@ CREATE TABLE mam_config(
 
 CREATE INDEX ON mongooseim.mam_message (user_jid);
 CREATE INDEX ON mongooseim.mam_muc_message (room_jid);
+CREATE INDEX ON mongooseim.mam_muc_message (from_jid);
+
 
