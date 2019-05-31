@@ -83,6 +83,8 @@ start(Host, Opts) ->
     end,
     case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
         true ->
+            ?ERROR_MSG("muc option is deprecated for mod_mam_rdbms_arch backend, "
+                       "mod_mam_muc_rdbms_arch should be used instead",[]),
             start_muc(Host, Opts);
         false ->
             ok
