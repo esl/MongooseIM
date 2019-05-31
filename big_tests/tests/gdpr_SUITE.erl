@@ -133,7 +133,7 @@ groups() ->
                                       ]},
      {retrieve_personal_data_mam_rdbms, [], mam_testcases()},
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
-     {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
+     {retrieve_personal_data_mam_cassandra, [], all_mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], all_mam_testcases()},
      {remove_personal_data, [], removal_testcases()},
      {remove_personal_data_with_mods_disabled, [], removal_testcases()},

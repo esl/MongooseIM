@@ -52,6 +52,7 @@
 -record(mam_muc_message, {
           id :: non_neg_integer(),
           room_jid :: binary(),
+          from_jid :: binary() | undefined,
           nick_name :: binary(),
           with_nick :: binary(),
           message :: binary() | undefined
@@ -152,31 +153,33 @@ archive_size(Size, Host, _RoomID, RoomJID) when is_integer(Size) ->
 
 insert_query_cql() ->
     "INSERT INTO mam_muc_message "
-        "(id, room_jid, nick_name, with_nick, message) "
-        "VALUES (?, ?, ?, ?, ?)".
+        "(id, room_jid, from_jid, nick_name, with_nick, message) "
+        "VALUES (?, ?, ?, ?, ?, ?)".
 
 archive_message(Result, Host, MessID, _RoomID,
-                LocJID, _FromJID, NickName, Dir, Packet) ->
+                LocJID, FromJID, NickName, Dir, Packet) ->
     try
-        archive_message2(Result, Host, MessID,
-                         LocJID, NickName, NickName, Dir, Packet)
+        archive_message2(Result, Host, MessID, LocJID,
+                         FromJID, NickName, Dir, Packet)
     catch _Type:Reason ->
             {error, Reason}
     end.
 
 archive_message2(_Result, _Host, MessID,
                  LocJID = #jid{},
-                 _RemJID = #jid{},
+                 FromJID = #jid{},
                  _SrcJID = #jid{lresource = BNick}, _Dir, Packet) ->
     BLocJID = mod_mam_utils:bare_jid(LocJID),
+    BFromJID = mod_mam_utils:bare_jid(FromJID),
     BPacket = packet_to_stored_binary(Packet),
     Messages = [#mam_muc_message{
                  id        = MessID,
                  room_jid  = BLocJID,
+                 from_jid  = BWithFromJID,
                  nick_name = BNick,
                  message   = BPacket,
                  with_nick = BWithNick
-                } || BWithNick <- [<<>>, BNick]],
+                } || {BWithNick, BWithFromJID} <- [{<<>>, BFromJID}, {BNick, <<>>}]],
     PoolName = pool_name(LocJID),
     write_messages(PoolName, Messages).
 
@@ -188,12 +191,13 @@ write_messages(RoomJID, Messages) ->
 message_to_params(#mam_muc_message{
                      id        = MessID,
                      room_jid  = BLocJID,
+                     from_jid  = BFromJID,
                      nick_name = BNick,
                      with_nick = BWithNick,
                      message   = BPacket
                     }) ->
-    #{id => MessID, room_jid => BLocJID, nick_name => BNick,
-      with_nick => BWithNick, message => BPacket}.
+    #{id => MessID, room_jid => BLocJID, from_jid => BFromJID,
+      nick_name => BNick, with_nick => BWithNick, message => BPacket}.
 
 
 %% ----------------------------------------------------------------------
@@ -546,10 +550,9 @@ get_mam_muc_gdpr_data(Username, Host) ->
     Jid = jid:make({LUser, LServer, <<>>}),
     BinJid = jid:to_binary(Jid),
     PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
-    FilterMap = #{nick_name  => BinJid},
+    FilterMap = #{from_jid  => BinJid},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),
-    RemoveDups = [Row || Row = #{with_nick := J, nick_name := J} <- Rows],
-    Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))} || #{message := Data, id:= Id} <- RemoveDups],
+    Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))} || #{message := Data, id:= Id} <- Rows],
     {ok, Messages}.
 
 
@@ -590,7 +593,7 @@ extract_messages(PoolName, RoomJID, _Host, Filter, IMax, true) ->
 fetch_user_messages(PoolName, UserJID, FilterMap) ->
     QueryName = fetch_user_messages_query,
     {ok, Rows} = mongoose_cassandra:cql_read(PoolName, UserJID, ?MODULE, QueryName, FilterMap),
-    lists:reverse(Rows).
+    lists:sort(Rows).
 
 
 %% @doc Calculate a zero-based index of the row with UID in the result test.
@@ -849,14 +852,11 @@ extract_messages_r_cql(Filter) ->
         "WHERE room_jid = ? AND with_nick = ? " ++
         Filter ++ " ORDER BY id DESC LIMIT ?".
 
-%% Be careful. Super inefficient because of full scan.
-%% Cannot even set where clause on "with_nick" field because of error:
-%% 'Partition key parts: room_jid must be restricted as other parts are'. Hence needs to change the schema.
-%% So... the results are TWICE much bigger (for each message there are two copies)
-%% and filtering must be done on Erlang level.
 fetch_user_messages_cql() ->
-    "SELECT id, nick_name, with_nick, message FROM mam_muc_message "
-    "WHERE nick_name = ? ALLOW FILTERING".
+    %% attempt to order results in the next error:
+    %%    "ORDER BY with 2ndary indexes is not supported."
+    "SELECT id, message FROM mam_muc_message "
+    "WHERE from_jid = ?".
 
 calc_count_cql(Filter) ->
     "SELECT COUNT(*) FROM mam_muc_message "
