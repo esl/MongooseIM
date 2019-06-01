@@ -466,15 +466,10 @@ routes_info_to_pids(RoutesInfo) ->
     {_Hosts, ExtComponentsPerHost} = lists:unzip(RoutesInfo),
     %% Flatten the list of lists
     ExtComponents = lists:append(ExtComponentsPerHost),
-    Handlers = lists:map(fun external_component_to_handler/1, ExtComponents),
-    lists:map(fun handler_to_pid/1, Handlers).
-
-external_component_to_handler(#external_component{handler = Handler}) ->
-    Handler.
-
-handler_to_pid(Handler) ->
-    #{ module := ?MODULE, extra := Pid } = mongoose_packet_handler:to_map(Handler),
-    Pid.
+    %% Ignore handlers from other modules
+    [mongoose_packet_handler:extra(H)
+     || #external_component{handler = H} <- ExtComponents,
+        mongoose_packet_handler:module(H) =:= ?MODULE].
 
 handle_registration_conflict(kick_old, RoutesInfo, StateData, Retries) when Retries > 0 ->
     Pids = routes_info_to_pids(RoutesInfo),

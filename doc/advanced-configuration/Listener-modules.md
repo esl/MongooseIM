@@ -211,5 +211,5 @@ By default, when a component tries to connect and a registration conflict occure
 
 It makes implementing reconnection logic difficult, because an old connection would not allow any other connections.
 
-By setting `conflict_behaviour=kick_old`, we drop any old connections registered at the same host, before accepting new ones.
+By setting `{conflict_behaviour, kick_old}`, we drop any old connections registered at the same host, before accepting new ones.
 

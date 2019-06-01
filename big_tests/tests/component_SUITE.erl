@@ -269,8 +269,8 @@ kick_old_component_on_conflict(Config) ->
     {Comp2, Addr, _} = connect_component(CompOpts1),
 
     %% First connection is disconnected
-    #xmlel{name = <<"stream:error">>, children = [ReasonElem]} = escalus:wait_for_stanza(Comp1),
-    #xmlel{name = <<"conflict">>} = ReasonElem,
+    Stanza = escalus:wait_for_stanza(Comp1),
+    escalus:assert(is_stream_error, [<<"conflict">>, <<"">>], Stanza),
 
     %% New connection is usable
     verify_component(Config, Comp2, Addr),
