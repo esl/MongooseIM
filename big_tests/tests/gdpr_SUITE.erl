@@ -1747,9 +1747,9 @@ check_list(List) ->
 
 choose_mam_backend(Config, mam) ->
     case proplists:get_value(mam_backend, Config) of
-        rdbms -> [mod_mam_rdbms_arch, mod_mam_rdbms_user, mod_mam_cache_user];
+        rdbms -> [mod_mam_rdbms_arch, mod_mam_rdbms_prefs, mod_mam_rdbms_user, mod_mam_cache_user];
         riak -> mod_mam_riak_timed_arch_yz;
-        cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_arch_params];
+        cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_prefs, mod_mam_cassandra_arch_params];
         elasticsearch -> mod_mam_elasticsearch_arch
     end;
 choose_mam_backend(Config, mam_muc) ->
