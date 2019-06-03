@@ -114,11 +114,11 @@ A body can be missing in the first data chunk read from a socket, leading to str
 
 ### Method `get_certs`
 
-* **Description** Provides a list of certificates corresponding to a given user. Works like third party Certificate Authority service. The certificates must be given in `PEM` format.
+* **Description** Provides a list of certificates corresponding to a given user. Works like a third party Certificate Authority service. The certificates must be given in a `PEM` format.
 * **HTTP method** GET
 * **Type**: mandatory when verification with `ejabberd_auth_http` is used
 * **Return values**:
-  * `200`, when user exists, body consists of a list of certificates corresponding to user
+  * `200`, when a user exists, the body consists of a list of certificates corresponding to them
   * anything else - `get_certs` will fail
 
 ### Method `set_password`

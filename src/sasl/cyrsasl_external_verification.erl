@@ -3,10 +3,10 @@
 %%% @author Denys Gonchar <denys.gonchar@erlang-solutions.com>
 %%% @doc cyrsasl external verification backend
 %%%
-%%% This is experimental prototype module for demo & testing purposes only.
-%%% It allows to get a list of certificates from third party Certificate Authority service.
-%%% The certificates must be given in `PEM` format.
-%%% If user certificate matches any of the certificates form the list,
+%%% This is an experimental prototype module for demo & testing purposes only.
+%%% It allows to get a list of certificates from a third party Certificate Authority service.
+%%% The certificates must be given in a `PEM` format.
+%%% If the user certificate matches any of the certificates form the list,
 %%% authentication is successful, otherwise if fails.
 %%%
 %%% the next extra fields are added to mongoose_credentials record by cyrsasl_external:
