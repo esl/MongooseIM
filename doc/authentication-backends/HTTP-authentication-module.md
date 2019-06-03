@@ -112,6 +112,15 @@ A body can be missing in the first data chunk read from a socket, leading to str
     * 200, `true` or `false` in body
     * anything else - will be treated as `false`
 
+### Method `get_certs`
+
+* **Description** Provides a list of certificates corresponding to a given user. Works like third party Certificate Authority service. The certificates must be given in `PEM` format.
+* **HTTP method** GET
+* **Type**: mandatory when verification with `ejabberd_auth_http` is used
+* **Return values**:
+  * `200`, when user exists, body consists of a list of certificates corresponding to user
+  * anything else - `get_certs` will fail
+
 ### Method `set_password`
 
 * **Description:** Must set user's password in the internal database to a provided value.
