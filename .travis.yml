@@ -77,8 +77,7 @@ branches:
                 - stable
                 - /^rel\-\d+\.\d+$/
                 - /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
-                - gdpr-retrieve-clean
-                - gdpr-remove-vcard
+                - gdpr_mam_muc_schema_change
 
 otp_release:
         - 20.3
