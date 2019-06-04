@@ -132,10 +132,10 @@ archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Pa
             {error, Reason}
     end.
 
-archive_message_muc(_Result, Host, MessId, _UserID, LocJID, _FromJID, SrcJID, _Dir, Packet) ->
-    RemJIDMuc = maybe_muc_jid(SrcJID),
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Dir, Packet) ->
+    BareFromJID = jid:to_bare(FromJID),
     try
-        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, Packet, muc)
+        archive_message(Host, MessId, LocJID, BareFromJID, SrcJID, Packet, muc)
     catch _Type:Reason ->
         ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
                      [{Reason, erlang:get_stacktrace()}]),
@@ -337,7 +337,7 @@ get_mam_pm_gdpr_data(Username, Host) ->
     Jid = jid:make({LUser, LServer, <<>>}),
     LookupParams = ?DUMMY_LOOKUP_PARAMETERS#{owner_jid := Jid},
     {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
-    {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages]}.
+    {ok, [{Id, jid:to_binary(Jid2), exml:to_binary(Packet)} || {Id, Jid2, Packet} <- Messages]}.
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
     {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
@@ -347,11 +347,14 @@ get_mam_muc_gdpr_data(Username, Host) ->
     Jid = jid:make({LUser, LServer, <<>>}),
     LookupParams = ?DUMMY_LOOKUP_PARAMETERS#{with_jid := Jid},
     {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
-    Filtered = lists:filter(fun(El) -> is_muclight_message(Jid, El) end, Messages),
+    Filtered = lists:filter(fun({_,_,Msg}) -> is_groupchat_message(Msg) end, Messages),
     {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
 
-is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet})    -> false;
-is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
+is_groupchat_message(Msg) ->
+    case exml_query:attr(Msg, <<"type">>, undefined) of
+        <<"groupchat">> -> true;
+        _ -> false
+    end.
 
 remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveID, ArchiveJID),
