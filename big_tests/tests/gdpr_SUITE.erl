@@ -21,6 +21,9 @@
          dont_remove_other_user_private_xml/1,
          retrieve_roster/1,
          retrieve_mam_pm/1,
+         retrieve_mam_muc/1,
+         retrieve_mam_muc_private_msg/1,
+         retrieve_mam_muc_store_pm/1,
          retrieve_mam_muc_light/1,
          retrieve_mam_pm_and_muc_light_interfere/1,
          retrieve_mam_pm_and_muc_light_dont_interfere/1,
@@ -131,7 +134,7 @@ groups() ->
      {retrieve_personal_data_mam_rdbms, [], mam_testcases()},
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], mam_testcases()},
-     {retrieve_personal_data_mam_elasticsearch, [], mam_testcases()},
+     {retrieve_personal_data_mam_elasticsearch, [], all_mam_testcases()},
      {remove_personal_data, [], removal_testcases()},
      {remove_personal_data_with_mods_disabled, [], removal_testcases()},
      {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]}].
@@ -154,6 +157,14 @@ mam_testcases() ->
         retrieve_mam_muc_light,
         retrieve_mam_pm_and_muc_light_interfere,
         retrieve_mam_pm_and_muc_light_dont_interfere
+    ].
+
+all_mam_testcases() ->
+    [
+        retrieve_mam_muc,
+        retrieve_mam_muc_private_msg,
+        retrieve_mam_muc_store_pm
+        | mam_testcases()
     ].
 
 init_per_suite(Config) ->
@@ -247,7 +258,10 @@ init_per_testcase(CN, Config) when CN =:= remove_private;
     private_started(),
     escalus:init_per_testcase(CN, Config);
 
-init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc_light;
+init_per_testcase(CN, Config) when CN =:= retrieve_mam_muc;
+                                   CN =:= retrieve_mam_muc_private_msg;
+                                   CN =:= retrieve_mam_muc_store_pm;
+                                   CN =:= retrieve_mam_muc_light;
                                    CN =:= retrieve_mam_pm_and_muc_light_interfere;
                                    CN =:= retrieve_mam_pm_and_muc_light_dont_interfere;
                                    CN =:= retrieve_mam_pm ->
@@ -334,7 +348,18 @@ mam_required_modules(retrieve_mam_pm_and_muc_light_interfere, Backend) ->
                      simple, %% used only by cassandra backend
                      {pm, [{archive_groupchats, true}]},
                      {muc, [{host, "muclight.@HOST@"}]}]},
-     {mod_muc_light, [{host, "muclight.@HOST@"}]}].
+     {mod_muc_light, [{host, "muclight.@HOST@"}]}];
+mam_required_modules(CN, Backend) when CN =:= retrieve_mam_muc_private_msg;
+                                       CN =:= retrieve_mam_muc ->
+    [{mod_mam_meta, [{backend, Backend},
+                     {pm, [{archive_groupchats, false}]},
+                     {muc, [{host, "muc.@HOST@"}]}]},
+     {mod_muc, [{host, "muc.@HOST@"}]}];
+mam_required_modules(retrieve_mam_muc_store_pm, Backend) ->
+    [{mod_mam_meta, [{backend, Backend},
+                     {pm, [{archive_groupchats, true}]},
+                     {muc, [{host, "muc.@HOST@"}]}]},
+     {mod_muc, [{host, "muc.@HOST@"}]}].
 
 pick_enabled_backend() ->
     BackendsList = [
@@ -595,6 +620,174 @@ retrieve_mam_pm(Config) ->
         end,
     escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
 
+retrieve_mam_muc(Config) ->
+    F = fun(Alice, Bob, Kate) ->
+        AliceUserCfg = escalus_users:get_user_by_name(alice),
+        RoomCfg = muc_helper:start_fresh_room([], AliceUserCfg, <<"someroom">>, []),
+        [Room, Domain] = [proplists:get_value(Key, RoomCfg) || Key <- [room, muc_host]],
+        AllRoomMembers = [Alice, Bob, Kate],
+
+        muc_helper:enter_room(RoomCfg, [{Alice, <<"Nancy">>},
+                                        {Bob, <<"Sid">>},
+                                        {Kate, <<"Johnny">>}]),
+
+        Body1 = <<"1some simple muc message">>,
+        Body2 = <<"2another one">>,
+        Body3 = <<"3third message">>,
+        muc_helper:send_to_room(RoomCfg, Alice, Body1),
+        muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Nancy">>, Body1),
+        muc_helper:send_to_room(RoomCfg, Alice, Body2),
+        muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Nancy">>, Body2),
+        muc_helper:send_to_room(RoomCfg, Bob, Body3),
+        muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Sid">>, Body3),
+
+        mam_helper:wait_for_room_archive_size(Domain, Room, 3),
+
+        ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
+                              #{"message" => [{contains, binary_to_list(Body2)}]}],
+
+        ExpectedItemsBob = [#{"message" => [{contains, binary_to_list(Body3)}]}],
+
+        BackendModule = choose_mam_backend(Config, mam_muc),
+        maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
+
+        AliceDir = retrieve_all_personal_data(Alice, Config),
+        BobDir = retrieve_all_personal_data(Bob, Config),
+        KateDir = retrieve_all_personal_data(Kate, Config),
+
+        validate_personal_data(
+            AliceDir, "mam_muc", ["id", "message"], ExpectedItemsAlice, ["message"]),
+        validate_personal_data(
+            BobDir, "mam_muc", ["id", "message"], ExpectedItemsBob, ["message"]),
+        refute_personal_data(KateDir, "mam_muc"),
+
+        [refute_personal_data(Dir, "mam_pm") || Dir <- [AliceDir, BobDir, KateDir]],
+
+        muc_helper:destroy_room(RoomCfg)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
+retrieve_mam_muc_private_msg(Config) ->
+    F = fun(Alice, Bob) ->
+            AliceUserCfg = escalus_users:get_user_by_name(alice),
+            RoomCfg = muc_helper:start_fresh_room([], AliceUserCfg, <<"someroom">>, []),
+            [Room, Domain] = [proplists:get_value(Key, RoomCfg) || Key <- [room, muc_host]],
+
+            muc_helper:enter_room(RoomCfg, [{Alice, <<"Nancy">>}, {Bob, <<"Sid">>}]),
+
+            PMBody = <<"Hi, Bob!">>,
+            {PrivAddrAlice, _} = send_recieve_muc_private_message(
+                Room, Domain, {Alice, <<"Nancy">>}, {Bob, <<"Sid">>}, PMBody),
+
+            [mam_helper:wait_for_archive_size(User, 1) || User <- [Alice, Bob]],
+
+            PMExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(PMBody)}],
+                                      "from" => [{jid, escalus_client:full_jid(Alice)}]}],
+            PMExpectedItemsBob = [#{"message" => [{contains, binary_to_list(PMBody)}],
+                                    "from" => [{jid, PrivAddrAlice}]}],
+
+            MamBackends = choose_mam_backend(Config, mam),
+            MamMucBackends = choose_mam_backend(Config, mam_muc),
+            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
+            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
+
+            AliceDir = retrieve_all_personal_data(Alice, Config),
+            BobDir = retrieve_all_personal_data(Bob, Config),
+
+            validate_personal_data(
+                AliceDir, "mam_pm", ["id", "from", "message"], PMExpectedItemsAlice, []),
+            validate_personal_data(
+                BobDir, "mam_pm", ["id", "from", "message"], PMExpectedItemsBob, []),
+
+            refute_personal_data(AliceDir, "mam_muc"),
+            refute_personal_data(BobDir, "mam_muc"),
+
+            muc_helper:destroy_room(RoomCfg)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}], F).
+
+
+
+retrieve_mam_muc_store_pm(Config) ->
+    F = fun(Alice, Bob, Kate) ->
+            AliceUserCfg = escalus_users:get_user_by_name(alice),
+            RoomCfg = muc_helper:start_fresh_room([], AliceUserCfg, <<"someroom">>, []),
+            [Room, Domain] = [proplists:get_value(Key, RoomCfg) || Key <- [room, muc_host]],
+            AllRoomMembers = [Alice, Bob, Kate],
+
+            muc_helper:enter_room(RoomCfg, [{Alice, <<"Nancy">>},
+                                            {Bob, <<"Sid">>},
+                                            {Kate, <<"Johnny">>}]),
+
+            Body1 = <<"1some simple muc message">>,
+            Body2 = <<"2another one">>,
+            Body3 = <<"3third message">>,
+            muc_helper:send_to_room(RoomCfg, Alice, Body1),
+            muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Nancy">>, Body1),
+            muc_helper:send_to_room(RoomCfg, Alice, Body2),
+            muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Nancy">>, Body2),
+            muc_helper:send_to_room(RoomCfg, Bob, Body3),
+            muc_helper:verify_message_received(RoomCfg, AllRoomMembers, <<"Sid">>, Body3),
+
+            PMBody = <<"4Hi, Bob!">>,
+            {PrivAddrAlice, PrivAddrBob} = send_recieve_muc_private_message(
+                Room, Domain, {Alice, <<"Nancy">>}, {Bob, <<"Sid">>}, PMBody),
+
+            mam_helper:wait_for_room_archive_size(Domain, Room, 3),
+            mam_helper:wait_for_archive_size(Kate, 4),
+            [mam_helper:wait_for_archive_size(User, 5) || User <- [Alice, Bob]],
+
+            MamBackends = choose_mam_backend(Config, mam),
+            MamMucBackends = choose_mam_backend(Config, mam_muc),
+            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
+            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
+
+            AliceDir = retrieve_all_personal_data(Alice, Config),
+            BobDir = retrieve_all_personal_data(Bob, Config),
+            KateDir = retrieve_all_personal_data(Kate, Config),
+
+            ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
+                                  #{"message" => [{contains, binary_to_list(Body2)}]}],
+            ExpectedItemsBob = [#{"message" => [{contains, binary_to_list(Body3)}]}],
+
+            validate_personal_data(
+                AliceDir, "mam_muc", ["id", "message"], ExpectedItemsAlice, ["message"]),
+            validate_personal_data(
+                BobDir, "mam_muc", ["id", "message"], ExpectedItemsBob, ["message"]),
+            refute_personal_data(KateDir, "mam_muc"),
+
+            RoomJID = <<Room/binary, "@", Domain/binary>>,
+            MsgFromAliceToRoom = #{"message" => [{contains, "<body>[1,2]"}],
+                                   "from" => [{jid, PrivAddrAlice}]},
+            PMExpectedItemsKate = [#{"message" => [{contains, "<body/>"}],
+                                     "from" => [{jid, RoomJID}]},
+                                   MsgFromAliceToRoom, MsgFromAliceToRoom,
+                                   #{"message" => [{contains, binary_to_list(Body3)}],
+                                     "from" => [{jid, PrivAddrBob}]}
+                                  ],
+            PMExpectedItemsAlice = PMExpectedItemsKate ++
+                                   [#{"message" => [{contains, binary_to_list(PMBody)}],
+                                      "from" => [{jid, escalus_client:full_jid(Alice)}]}],
+            MsgFromAlice = #{"message" => [{contains, "<body>[1,2,4]"}],
+                             "from" => [{jid, PrivAddrAlice}]},
+            PMExpectedItemsBob = [#{"message" => [{contains, "<body/>"}],
+                                    "from" => [{jid, RoomJID}]},
+                                  MsgFromAlice, MsgFromAlice, MsgFromAlice,
+                                  #{"message" => [{contains, binary_to_list(Body3)}],
+                                    "from" => [{jid, PrivAddrBob}]}
+                                 ],
+            SortFn = muc_msg_first(RoomJID),
+            validate_personal_data(
+                KateDir, "mam_pm", ["id", "from", "message"], PMExpectedItemsKate, SortFn),
+            validate_personal_data(
+                AliceDir, "mam_pm", ["id", "from", "message"], PMExpectedItemsAlice, SortFn),
+            validate_personal_data(
+                BobDir, "mam_pm", ["id", "from", "message"], PMExpectedItemsBob, SortFn),
+
+            muc_helper:destroy_room(RoomCfg)
+        end,
+    escalus_fresh:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], F).
+
 retrieve_mam_muc_light(Config) ->
     F = fun(Alice, Bob, Kate) ->
             RoomJid = muc_light_helper:given_muc_light_room(undefined, Alice, [{Bob, member}, {Kate, member}]),
@@ -610,9 +803,7 @@ retrieve_mam_muc_light(Config) ->
             M3 = muc_light_helper:when_muc_light_message_is_sent(Bob, Room, Body3, <<"Id3">>),
             muc_light_helper:then_muc_light_message_is_received_by([Alice, Bob, Kate], M3),
 
-
             mam_helper:wait_for_room_archive_size(Domain, Room, 4),
-
 
             ExpectedItemsAlice = [#{"message" => [{contains, binary_to_list(Body1)}]},
                                   #{"message" => [{contains, binary_to_list(Body2)}]}],
@@ -1315,17 +1506,20 @@ compare_maps([Key | T], Map1, Map2) ->
     end.
 
 muc_msg_first(MucJid) ->
-    N = erlang:byte_size(MucJid),
+    MucJidNormalized = escalus_utils:jid_to_lower(to_binary(MucJid)),
+    N = erlang:byte_size(MucJidNormalized),
     fun(#{"from" := JID1}, #{"from" := JID2}) ->
-        case {JID1, JID2} of
-            {<<MucJid:N/binary, _/binary>>, <<MucJid:N/binary, _/binary>>} ->
-                JID1 =< JID2;
-            {<<MucJid:N/binary, _/binary>>, _} ->
+        Jid1Normalized = escalus_utils:jid_to_lower(to_binary(JID1)),
+        Jid2Normalized = escalus_utils:jid_to_lower(to_binary(JID2)),
+        case {Jid1Normalized, Jid2Normalized} of
+            {<<MucJidNormalized:N/binary, _/binary>>, <<MucJidNormalized:N/binary, _/binary>>} ->
+                Jid1Normalized =< Jid2Normalized;
+            {<<MucJidNormalized:N/binary, _/binary>>, _} ->
                 true;
-            {_, <<MucJid:N/binary, _/binary>>} ->
+            {_, <<MucJidNormalized:N/binary, _/binary>>} ->
                 false;
             {_, _} ->
-                JID1 =< JID2
+                Jid1Normalized =< Jid2Normalized
         end
     end.
 
@@ -1493,17 +1687,17 @@ check_list(List) ->
 
 choose_mam_backend(Config, mam) ->
     case proplists:get_value(mam_backend, Config) of
-            rdbms -> mod_mam_rdbms_arch;
-            riak -> mod_mam_riak_timed_arch_yz;
-            cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_arch_params];
-            elasticsearch -> mod_mam_elasticsearch_arch
+        rdbms -> [mod_mam_rdbms_arch, mod_mam_rdbms_user, mod_mam_cache_user];
+        riak -> mod_mam_riak_timed_arch_yz;
+        cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_arch_params];
+        elasticsearch -> mod_mam_elasticsearch_arch
     end;
 choose_mam_backend(Config, mam_muc) ->
     case proplists:get_value(mam_backend, Config) of
-            rdbms -> mod_mam_muc_rdbms_arch;
-            riak -> mod_mam_riak_timed_arch_yz;
-            cassandra -> [mod_mam_muc_cassandra_arch, mod_mam_muc_cassandra_arch_params];
-            elasticsearch -> mod_mam_muc_elasticsearch_arch
+        rdbms -> [mod_mam_muc_rdbms_arch, mod_mam_rdbms_user, mod_mam_cache_user];
+        riak -> mod_mam_riak_timed_arch_yz;
+        cassandra -> [mod_mam_muc_cassandra_arch, mod_mam_muc_cassandra_arch_params];
+        elasticsearch -> mod_mam_muc_elasticsearch_arch
     end.
 
 expected_header(mod_roster) -> ["jid", "name", "subscription",
@@ -1515,3 +1709,15 @@ given_fresh_muc_room(UserSpec, RoomOpts) ->
     From = muc_helper:generate_rpc_jid({user, UserSpec}),
     muc_helper:create_instant_room(<<"localhost">>, RoomName, From, Username, RoomOpts),
     {ok, RoomName}.
+
+send_recieve_muc_private_message(Room, Domain, {User1, Nickname1}, {User2, Nickname2}, Text) ->
+    RoomPrivAddrUser1 = <<Room/binary, "@", Domain/binary, "/", Nickname1/binary>>,
+    RoomPrivAddrUser2 = <<Room/binary, "@", Domain/binary, "/", Nickname2/binary>>,
+    Msg = escalus_stanza:chat_to(RoomPrivAddrUser2, Text),
+    escalus:send(User1, Msg),
+    PMStanza = escalus:wait_for_stanza(User2),
+    escalus:assert(is_chat_message_from_to,
+                   [RoomPrivAddrUser1, escalus_client:full_jid(User2), Text], PMStanza),
+    {RoomPrivAddrUser1, RoomPrivAddrUser2}.
+
+
