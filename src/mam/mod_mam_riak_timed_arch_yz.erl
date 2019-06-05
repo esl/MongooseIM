@@ -351,10 +351,7 @@ get_mam_muc_gdpr_data(Username, Host) ->
     {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
 
 is_groupchat_message(Msg) ->
-    case exml_query:attr(Msg, <<"type">>, undefined) of
-        <<"groupchat">> -> true;
-        _ -> false
-    end.
+    <<"groupchat">> == exml_query:attr(Msg, <<"type">>, <<"not_a_groupchat">>).
 
 remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveID, ArchiveJID),
