@@ -29,3 +29,9 @@ nsComment                   = "Fake Dev-Only Certificate"
 [ alternate_names ]
 
 DNS.1       = localhost
+DNS.2       = 127.0.0.1
+DNS.3       = mongooseim@localhost
+DNS.4       = ejabberd2@localhost
+DNS.5       = fed1@localhost
+DNS.6       = reg1@localhost
+DNS.7       = mongooseim3@localhost
