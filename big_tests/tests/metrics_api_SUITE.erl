@@ -18,6 +18,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-import(distributed_helper, [mim/0, rpc/4]).
+
 -define(assert_equal(E, V), (
     [ct:fail("assert_equal(~s, ~s)~n\tExpected ~p~n\tValue ~p~n",
              [(??E), (??V), (E), (V)])
@@ -336,7 +338,7 @@ get_diffs(L1, L2) ->
     lists:zip(L1, L2).
 
 ensure_nodes_not_clustered(Config) ->
-    Nodes = mnesia:system_info(running_db_nodes),
+    Nodes = rpc(mim(), mnesia, system_info, [running_db_nodes]),
     [distributed_helper:remove_node_from_cluster(N, Config) || N <- Nodes],
     Config ++ [{nodes_clustered, Nodes}].
 
