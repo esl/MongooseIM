@@ -45,10 +45,10 @@
 -include("jlib.hrl").
 
 -export([init/3, terminate/2, set_node/1,
-         get_node/2, get_node/1, get_nodes/2,
+         get_node/3, get_node/2, get_nodes/3,
          get_parentnodes_tree/3,
          get_subnodes/3, create_node/6,
-         delete_node/2]).
+         delete_node/3]).
 
 init(_Host, _ServerHost, _Options) ->
     ok.
@@ -59,20 +59,20 @@ terminate(_Host, _ServerHost) ->
 set_node(Node) ->
     mod_pubsub_db_backend:set_node(Node).
 
-get_node(Host, Node) ->
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+get_node(Backend, Host, Node) ->
+    case catch Backend:find_node_by_name(Host, Node) of
         #pubsub_node{} = Record -> Record;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_node(Nidx) ->
-    case catch mod_pubsub_db_backend:find_node_by_id(Nidx) of
+get_node(Backend, Nidx) ->
+    case catch Backend:find_node_by_id(Nidx) of
         {ok, Node} -> Node;
         _ -> {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_nodes(Key, _From) ->
-    mod_pubsub_db_backend:find_nodes_by_key(Key).
+get_nodes(Backend, Key, _From) ->
+    Backend:find_nodes_by_key(Key).
 
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
@@ -121,11 +121,11 @@ check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
 check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
     false.
 
-delete_node(Host, Node) ->
-    SubNodesTree = mod_pubsub_db_backend:get_subnodes_tree(Host, Node),
+delete_node(Backend, Host, Node) ->
+    SubNodesTree = Backend:get_subnodes_tree(Host, Node),
     Removed = lists:flatten([Nodes || {_, Nodes} <- SubNodesTree]),
     lists:foreach(fun (NodeToDel) ->
-                mod_pubsub_db_backend:delete_node(NodeToDel)
+                Backend:delete_node(NodeToDel)
         end,
         Removed),
     Removed.

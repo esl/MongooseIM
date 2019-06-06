@@ -30,10 +30,10 @@
 -include("jlib.hrl").
 
 -export([init/3, terminate/2, set_node/1,
-         get_node/2, get_node/1, get_nodes/2,
+         get_node/3, get_node/2, get_nodes/3,
          get_parentnodes_tree/3,
          get_subnodes/3, create_node/6,
-         delete_node/2]).
+         delete_node/3]).
 
 -define(DEFAULT_NODETYPE, leaf).
 -define(DEFAULT_PARENTS, []).
@@ -64,8 +64,8 @@ create_node(Key, Node, Type, Owner, Options, Parents) ->
             {error, mongoose_xmpp_errors:conflict()}
     end.
 
-delete_node(Key, Node) ->
-    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
+delete_node(Backend, Key, Node) ->
+    case Backend:find_node_by_name(Key, Node) of
         false ->
             {error, mongoose_xmpp_errors:item_not_found()};
         Record ->
@@ -77,21 +77,21 @@ delete_node(Key, Node) ->
                                                       options = NewOpts})
                 end,
                 get_subnodes(Key, Node)),
-            mod_pubsub_db_backend:delete_node(Record),
+            Backend:delete_node(Record),
             [Record]
     end.
 
-get_node(Key, Node) ->
-    case mod_pubsub_db_backend:find_node_by_name(Key, Node) of
+get_node(Backend, Key, Node) ->
+    case Backend:find_node_by_name(Key, Node) of
         false -> {error, mongoose_xmpp_errors:item_not_found()};
         Record -> Record
     end.
 
-get_node(Node) ->
-    nodetree_tree:get_node(Node).
+get_node(Backend, Node) ->
+    nodetree_tree:get_node(Backend, Node).
 
-get_nodes(Key, From) ->
-    nodetree_tree:get_nodes(Key, From).
+get_nodes(Backend, Key, From) ->
+    nodetree_tree:get_nodes(Backend, Key, From).
 
 get_parentnodes_tree(Key, Node, _From) ->
     mod_pubsub_db_backend:get_parentnodes_tree(Key, Node).

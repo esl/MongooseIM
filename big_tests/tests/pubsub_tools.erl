@@ -50,7 +50,11 @@
          submit_subscription_response/5,
          get_pending_subscriptions/3,
          get_pending_subscriptions/4,
-         modify_node_subscriptions/4
+         modify_node_subscriptions/4,
+
+         create_node_names/1,
+         create_node_name/1,
+         create_nodes/1
         ]).
 
 %% Receive notification or response
@@ -661,3 +665,22 @@ encode_group_name(BaseName, NodeTree) ->
 decode_group_name(ComplexName) ->
     [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
     #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
+
+create_node_name(Num) ->
+    {pubsub_tools:node_addr(), <<"node",
+                                 (integer_to_binary(Num))/binary, "_",
+                                 (base64:encode(crypto:strong_rand_bytes(6)))/binary>>}.
+
+create_node_names(Count) ->
+    create_node_names([], Count).
+create_node_names(Acc, 0) ->
+    Acc;
+create_node_names(Acc, Count) when Count > 0 ->
+    Node = create_node_name(Count),
+    create_node_names([Node | Acc], Count - 1).
+
+create_nodes(List) ->
+    lists:map(fun({User, Node, Opts}) ->
+                      pubsub_tools:create_node(User, Node, Opts)
+              end, List).
+

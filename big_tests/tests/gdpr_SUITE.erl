@@ -46,7 +46,12 @@
          retrieve_inbox_muc/1,
          remove_inbox_muclight/1,
          remove_inbox_muc/1,
-         retrieve_logs/1
+         retrieve_logs/1,
+         remove_pubsub_all_data/1,
+         remove_pubsub_subscriptions/1,
+         remove_pubsub_not_flat_node/1,
+         remove_pubsub_push_node/1,
+         remove_pubsub_pep_node/1
         ]).
 -export([
          data_is_not_retrieved_for_missing_user/1
@@ -114,7 +119,7 @@ groups() ->
                                                       retrieve_offline,
                                                       retrieve_logs,
                                                       retrieve_roster,
-                                                      retrieve_all_pubsub_data,
+                                                      {group, retrieve_personal_data_pubsub},
                                                       retrieve_multiple_private_xmls,
                                                       {group, retrieve_personal_data_mam}
                                                      ]},
@@ -148,8 +153,15 @@ groups() ->
      {remove_personal_data_mam_rdbms, [], mam_removal_testcases()},
      {remove_personal_data_mam_riak, [], mam_removal_testcases()},
      {remove_personal_data_mam_cassandra, [], mam_removal_testcases()},
-     {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()}].
-
+     {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()},
+     {remove_personal_data_pubsub, [], [
+                                        remove_pubsub_subscriptions,
+                                        remove_pubsub_not_flat_node,
+                                        remove_pubsub_push_node,
+                                        remove_pubsub_pep_node,
+                                        remove_pubsub_all_data
+                                       ]}
+    ].
 
 removal_testcases() ->
     [
@@ -160,6 +172,7 @@ removal_testcases() ->
         remove_multiple_private_xmls,
         dont_remove_other_user_private_xml,
         {group, remove_personal_data_inbox},
+        {group, remove_personal_data_pubsub},
         {group, remove_personal_data_mam}
     ].
 
@@ -201,16 +214,18 @@ end_per_suite(Config) ->
 gdpr_removal_for_disabled_modules(Flag) ->
     mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr_removal_for_disabled_modules, Flag]).
 
+init_per_group(GN, Config) when GN =:= retrieve_personal_data;
+                                GN =:= remove_personal_data ->
+    lists:keystore(disable_module, 1, Config, {disable_module, false});
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_with_mods_disabled;
                                 GN =:= remove_personal_data_with_mods_disabled->
-    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
-    [{disable_module, true} | Config];
-init_per_group(retrieve_personal_data_pubsub, Config) ->
-    dynamic_modules:ensure_modules(domain(), pubsub_required_modules()),
-    Config;
+    lists:keystore(disable_module, 1, Config, {disable_module, true});
 init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
                                 GN =:= retrieve_personal_data_mam_rdbms ->
     try_backend_for_mam(Config, rdbms);
+init_per_group(GN, Config) when GN =:= retrieve_personal_data_pubsub;
+                                GN =:= remove_personal_data_pubsub ->
+    [{group, GN} | Config];
 init_per_group(GN, Config) when GN =:= retrieve_personal_data_mam_riak;
                                 GN =:= remove_personal_data_mam_riak ->
     try_backend_for_mam(Config, riak);
@@ -243,6 +258,11 @@ is_backend_enabled(cassandra)     -> mam_helper:is_cassandra_enabled(domain());
 is_backend_enabled(elasticsearch) -> mam_helper:is_elasticsearch_enabled(domain()).
 
 
+init_per_testcase(retrieve_logs = CN, Config) ->
+    case mim2_started() of
+        false -> {skip, not_running_in_distributed};
+        _ -> escalus:init_per_testcase(CN, Config)
+    end;
 init_per_testcase(remove_offline = CN, Config) ->
     offline_started(),
     escalus:init_per_testcase(CN, Config);
@@ -303,6 +323,15 @@ init_per_testcase(remove_roster = CN, Config) ->
     dynamic_modules:ensure_modules(domain(), [{mod_roster, [{backend, Backend}]}]),
     escalus:init_per_testcase(CN, Config);
 init_per_testcase(CN, Config) ->
+    GN = proplists:get_value(group, Config),
+    IsPubSub = lists:member(GN, [retrieve_personal_data_pubsub, remove_personal_data_pubsub]),
+    ct:log("IsPubSub: ~p~n", [IsPubSub]),
+    case IsPubSub of
+        true ->
+            dynamic_modules:ensure_modules(domain(), pubsub_required_modules());
+        _ ->
+            ok
+    end,
     escalus:init_per_testcase(CN, Config).
 
 
@@ -400,13 +429,22 @@ offline_required_modules() ->
     [{mod_offline, [{backend, pick_enabled_backend()}]}].
 
 pubsub_required_modules() ->
+    pubsub_required_modules([<<"flat">>, <<"pep">>, <<"push">>]).
+pubsub_required_modules(Plugins) ->
     [{mod_caps, []}, {mod_pubsub, [
                                    {backend, mongoose_helper:mnesia_or_rdbms_backend()},
                                    {host, "pubsub.@HOST@"},
                                    {nodetree, <<"tree">>},
-                                   {plugins, [<<"flat">>, <<"pep">>, <<"push">>]}
+                                   {plugins, Plugins}
                                   ]
                      }].
+
+mim2_started() ->
+    Node = distributed_helper:mim2(),
+    case net_adm:ping(Node) of
+        pong -> true;
+        _ -> false
+    end.
 
 vcard_started() ->
     dynamic_modules:ensure_modules(domain(), vcard_required_modules()).
@@ -1066,8 +1104,7 @@ remove_offline(Config) ->
 
 retrieve_pubsub_payloads(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
-        Node2 = {_Domain, NodeName2} = pubsub_tools:pubsub_node(),
+        [Node1={_,NodeName1}, Node2={_,NodeName2}] = pubsub_tools:create_node_names(2),
         {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
         {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
         {BinItem3, StringItem3} = item_content(<<"Item3Data">>),
@@ -1091,13 +1128,13 @@ retrieve_pubsub_payloads(Config) ->
 
 dont_retrieve_other_user_pubsub_payload(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_Domain, NodeName1} = pubsub_tools:pubsub_node(),
-        pubsub_tools:create_node(Alice, Node1, []),
-        AffChange = [{Bob, <<"publish-only">>}],
+        [Node1={_,NodeName1}] = pubsub_tools:create_node_names(1),
+        pubsub_tools:create_nodes([{Alice, Node1, []}]),
 
         {BinItem1, StringItem1} = item_content(<<"Item1Data">>),
         {BinItem2, StringItem2} = item_content(<<"Item2Data">>),
 
+        AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
         pubsub_tools:publish(Alice, <<"Item1">>, Node1, [{with_payload, {true, BinItem1}}]),
         pubsub_tools:publish(Bob, <<"Item2">>, Node1, [{with_payload, {true, BinItem2}}]),
@@ -1115,18 +1152,19 @@ dont_retrieve_other_user_pubsub_payload(Config) ->
 
 retrieve_created_pubsub_nodes(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_Domain, NodeName1} = {pubsub_tools:node_addr(), <<"node1">>},
-        Node2 = {_Domain, NodeName2} = {pubsub_tools:node_addr(), <<"node2">>},
-        Node3 = {_Domain, NodeName3} = {pubsub_tools:node_addr(), <<"node3">>},
+        [Node1={_,NodeName1}, Node2={_,NodeName2}, Node3={_,NodeName3}] =
+        pubsub_tools:create_node_names(3),
 
         NodeNS = <<"myns">>,
         PepNode = make_pep_node_info(Alice, NodeNS),
         AccessModel = {<<"pubsub#access_model">>, <<"authorize">>},
 
-        pubsub_tools:create_node(Alice, Node1, []),
-        pubsub_tools:create_node(Alice, Node2, []),
-        pubsub_tools:create_node(Alice, PepNode, [{config, [AccessModel]}]),
-        pubsub_tools:create_node(Bob, Node3, [{type, <<"push">>}]),
+        pubsub_tools:create_nodes([
+                      {Alice, Node1, []},
+                      {Alice, Node2, []},
+                      {Alice, PepNode, [{config, [AccessModel]}]},
+                      {Bob, Node3, [{type, <<"push">>}]}
+                     ]),
 
         ExpectedHeader = ["node_name", "type"],
 
@@ -1145,6 +1183,28 @@ retrieve_created_pubsub_nodes(Config) ->
         [pubsub_tools:delete_node(User, Node, []) || {User, Node} <- Nodes]
                                                         end).
 
+remove_pubsub_subscriptions(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Node = pubsub_tools:pubsub_node(),
+            pubsub_tools:create_node(Alice, Node, []),
+            pubsub_tools:subscribe(Bob, Node, []),
+
+            BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+            BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
+            maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
+            {0, _} = unregister(Bob, Config),
+
+            mongoose_helper:wait_until(
+                fun() ->
+                    mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
+                        [BobU, BobS])
+                end,
+                [{pubsub_payloads,["node_name","item_id","payload"],[]},
+                 {pubsub_nodes,["node_name","type"],[]},
+                 {pubsub_subscriptions,["node_name"],[]}]
+             )
+        end).
+
 retrieve_pubsub_subscriptions(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
             Node = {_Domain, NodeName} = pubsub_tools:pubsub_node(),
@@ -1156,14 +1216,157 @@ retrieve_pubsub_subscriptions(Config) ->
             pubsub_tools:delete_node(Alice, Node, [])
         end).
 
+remove_pubsub_not_flat_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        Node1 = {_,NodeName} = pubsub_tools:create_node_name(1),
+        pubsub_tools:create_nodes([{Alice, Node1, []}]),
+
+        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        mongoose_helper:wait_until(
+          fun() ->
+                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
+                                                 [AliceU, AliceS])
+          end,
+          [{pubsub_payloads,["node_name","item_id","payload"],[]},
+           {pubsub_nodes,["node_name","type"],[[NodeName, <<"flat">>]]},
+           {pubsub_subscriptions,["node_name"],[]}]
+         )
+        end).
+
+remove_pubsub_push_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        [Node] = pubsub_tools:create_node_names(1),
+        pubsub_tools:create_nodes([{Alice, Node, [{type, <<"push">>}]}]),
+
+        Content = [
+                   {<<"message-count">>, <<"1">>},
+                   {<<"last-message-sender">>, <<"senderId">>},
+                   {<<"last-message-body">>, <<"message body">>}
+                  ],
+        Options = [
+                   {<<"device_id">>, <<"sometoken">>},
+                   {<<"service">>, <<"apns">>}
+                  ],
+
+        PublishIQ = push_pubsub_SUITE:publish_iq(Bob, Node, Content, Options),
+        escalus:send(Bob, PublishIQ),
+        escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
+
+        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        mongoose_helper:wait_until(
+          fun() ->
+                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
+                                                 [AliceU, AliceS])
+          end,
+          [{pubsub_payloads,["node_name","item_id","payload"],[]},
+           {pubsub_nodes,["node_name","type"],[]},
+           {pubsub_subscriptions,["node_name"],[]}])
+        end).
+
+remove_pubsub_pep_node(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
+        NodeName = <<"myns">>,
+        PepNode = make_pep_node_info(Alice, NodeName),
+
+        pubsub_tools:create_nodes([
+                      {Alice, PepNode, []}
+                     ]),
+
+        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        mongoose_helper:wait_until(
+          fun() ->
+                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
+                                                 [AliceU, AliceS])
+          end,
+          [{pubsub_payloads,["node_name","item_id","payload"],[]},
+           {pubsub_nodes,["node_name","type"],[]},
+           {pubsub_subscriptions,["node_name"],[]}]
+         )
+        end).
+
+remove_pubsub_all_data(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        [Node1={_,Name1}, Node2={_,Name2}, Node3={_,Name3}, Node4={_,Name4}]
+            = pubsub_tools:create_node_names(4),
+        PepNode = make_pep_node_info(Alice, <<"myns">>),
+        pubsub_tools:create_nodes([
+                      {Alice, Node1, []},
+                      {Alice, Node2, []},
+                      {Alice, PepNode, []},
+                      {Bob, Node3, []},
+                      {Bob, Node4, [{type, <<"push">>}]}
+                     ]),
+
+        AffChange = [{Bob, <<"publish-only">>}],
+        pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
+        pubsub_tools:subscribe(Bob, Node2, []),
+        pubsub_tools:subscribe(Alice, Node3, []),
+
+        {BinItem1, _} = item_content(<<"Item1Data">>),
+        {BinItem2, _} = item_content(<<"Item2Data">>),
+        {BinItem3, _} = item_content(<<"Item3Data">>),
+        {BinItem4, _} = item_content(<<"Item4Data">>),
+        AliceToNode1 = <<"Alice publishes to Node1, but nobody is subscribed">>,
+        AliceToNode2 = <<"Alice published to Node2, so Bob receives it">>,
+        BobToNode1 = <<"Bob publishes to Node1, but nobody is subscribed">>,
+        BobToNode3 = <<"Bob publishes to Node3, so Alice receives it">>,
+
+        pubsub_tools:publish(Alice, AliceToNode1, Node1, [{with_payload, {true, BinItem1}}]),
+
+        pubsub_tools:publish(Alice, AliceToNode2, Node2, [{with_payload, {true, BinItem2}}]),
+        pubsub_tools:receive_item_notification(Bob, AliceToNode2, Node2, []),
+
+        pubsub_tools:publish(Bob, BobToNode1, Node1, [{with_payload, {true, BinItem3}}]),
+
+        pubsub_tools:publish(Bob, BobToNode3, Node3, [{with_payload, {true, BinItem4}}]),
+        pubsub_tools:receive_item_notification(Alice, BobToNode3, Node3, []),
+
+        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
+        {0, _} = unregister(Alice, Config),
+
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        [{pubsub_payloads,["node_name","item_id","payload"], AlicePayloads},
+         {pubsub_nodes,["node_name","type"], AliceNodes},
+         {pubsub_subscriptions, ["node_name"], AliceSubs}] = mongoose_helper:successful_rpc(mod_pubsub, get_personal_data, [AliceU, AliceS]),
+        XmlBinItem1 = exml:to_binary(BinItem1),
+        XmlBinItem2 = exml:to_binary(BinItem2),
+        [[Name1, AliceToNode1, XmlBinItem1],
+         [Name2, AliceToNode2, XmlBinItem2]] = lists:sort(AlicePayloads),
+        [[Name1, <<"flat">>], [Name2, <<"flat">>]] = lists:sort(AliceNodes),
+        [] = AliceSubs,
+
+        BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
+        BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
+        [{pubsub_payloads,["node_name","item_id","payload"], Payloads},
+         {pubsub_nodes,["node_name","type"], Nodes},
+         {pubsub_subscriptions, ["node_name"], Subs}] = mongoose_helper:successful_rpc(mod_pubsub, get_personal_data, [BobU, BobS]),
+        XmlBinItem3 = exml:to_binary(BinItem3),
+        XmlBinItem4 = exml:to_binary(BinItem4),
+        [[Name1, BobToNode1, XmlBinItem3],
+         [Name3, BobToNode3, XmlBinItem4]] = lists:sort(Payloads),
+        [[Name3, <<"flat">>], [Name4, <<"push">>]] = lists:sort(Nodes),
+        [[Name2]] = Subs
+      end).
+
 retrieve_all_pubsub_data(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_Domain, NodeName1} = {pubsub_tools:node_addr(), <<"node1xx">>},
-        Node2 = {_Domain, NodeName2} = {pubsub_tools:node_addr(), <<"node2xx">>},
-        Node3 = {_Domain, NodeName3} = {pubsub_tools:node_addr(), <<"node3xx">>},
-        pubsub_tools:create_node(Alice, Node1, []),
-        pubsub_tools:create_node(Alice, Node2, []),
-        pubsub_tools:create_node(Bob, Node3, []),
+        [Node1={_,NodeName1}, Node2={_,NodeName2}, Node3={_,NodeName3}] =
+        pubsub_tools:create_node_names(3),
+        pubsub_tools:create_nodes([{Alice, Node1, []}, {Alice, Node2, []}, {Bob, Node3, []}]),
+
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
         pubsub_tools:subscribe(Bob, Node2, []),

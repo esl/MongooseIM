@@ -124,7 +124,8 @@
     {result, {default, pending, subId()}} |
     {error, exml:element()}.
 
--callback unsubscribe_node(NodeIdx :: nodeIdx(),
+-callback unsubscribe_node(Backend :: atom(),
+		NodeIdx :: nodeIdx(),
         Sender :: jid:jid(),
         Subscriber :: jid:jid(),
         SubId :: subId()) ->
@@ -165,7 +166,7 @@
 -callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
     {result, [{jid:ljid(), subscription(), subId(), subOptions()}]}.
 
--callback get_entity_subscriptions(Host :: host(), Key :: jid:jid()) ->
+-callback get_entity_subscriptions(Backend :: atom(), Host :: host(), Key :: jid:jid()) ->
     {result, [{pubsubNode(), subscription(), subId(), jid:ljid()}]}.
 
 -callback get_subscriptions(NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
@@ -204,7 +205,7 @@
                      delete_node/1,
                      purge_node/2,
                      subscribe_node/8,
-                     unsubscribe_node/4,
+                     unsubscribe_node/5,
                      publish_item/9,
                      delete_item/4,
                      remove_extra_items/3,
@@ -213,7 +214,7 @@
                      get_affiliation/2,
                      set_affiliation/3,
                      get_node_subscriptions/1,
-                     get_entity_subscriptions/2,
+                     get_entity_subscriptions/3,
                      get_subscriptions/2,
                      get_pending_nodes/2,
                      get_items_if_authorised/3,

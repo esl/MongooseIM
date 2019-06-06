@@ -39,12 +39,12 @@
 -include("mongoose.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         create_node_permission/6, create_node/2, delete_node/1,
-         purge_node/2, subscribe_node/8, unsubscribe_node/4,
+         create_node_permission/6, create_node/2, delete_node/2,
+         purge_node/2, subscribe_node/8, unsubscribe_node/5,
          publish_item/9, delete_item/4, remove_extra_items/3,
-         get_entity_affiliations/2, get_node_affiliations/1,
-         get_affiliation/2, set_affiliation/3,
-         get_entity_subscriptions/2, get_node_subscriptions/1,
+         get_entity_affiliations/3, get_node_affiliations/1,
+         get_affiliation/3, set_affiliation/4,
+         get_entity_subscriptions/3, get_node_subscriptions/2,
          get_subscriptions/2, set_subscriptions/4,
          get_pending_nodes/2,
          get_items_if_authorised/3, get_items/3, get_item/7,
@@ -119,12 +119,12 @@ create_node(Nidx, Owner) ->
     mod_pubsub_db_backend:create_node(Nidx, jid:to_lower(Owner)),
     {result, {default, broadcast}}.
 
-delete_node(Nodes) ->
+delete_node(Backend, Nodes) ->
     Tr = fun (#pubsub_state{stateid = {J, _}, subscriptions = Ss}) ->
             lists:map(fun (S) -> {J, S} end, Ss)
     end,
     Reply = lists:map(fun (#pubsub_node{id = Nidx} = PubsubNode) ->
-                    {ok, States} = mod_pubsub_db_backend:del_node(Nidx),
+                    {ok, States} = Backend:del_node(Nidx),
                     {PubsubNode, lists:flatmap(Tr, States)}
             end, Nodes),
     {result, {default, broadcast, Reply}}.
@@ -230,9 +230,9 @@ authorize_subscription(_SenderMatchesSubscriber, _Affiliation, _PendingSubscript
     ok.
 
 %% @doc <p>Unsubscribe the <tt>Subscriber</tt> from the <tt>Node</tt>.</p>
-unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
+unsubscribe_node(Backend, Nidx, Sender, Subscriber, SubId) ->
     SenderMatchesSubscriber = jid:are_bare_equal(Subscriber, Sender),
-    {ok, Subscriptions} = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, Subscriber),
+    {ok, Subscriptions} = Backend:get_node_entity_subscriptions(Nidx, Subscriber),
     SubIdExists = case SubId of
                       <<>> -> false;
                       Binary when is_binary(Binary) -> true;
@@ -246,14 +246,14 @@ unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
                      ?ERR_EXTENDED((mongoose_xmpp_errors:unexpected_request_cancel()),
                                    <<"not-subscribed">>)};
                 _S ->
-                    mod_pubsub_db_backend:delete_subscription(Nidx, Subscriber, SubId),
+                    Backend:delete_subscription(Nidx, Subscriber, SubId),
                     {result, default}
             end;
         remove_all_subs ->
-            mod_pubsub_db_backend:delete_all_subscriptions(Nidx, Subscriber),
+            Backend:delete_all_subscriptions(Nidx, Subscriber),
             {result, default};
         remove_only_sub ->
-            mod_pubsub_db_backend:delete_all_subscriptions(Nidx, Subscriber),
+            Backend:delete_all_subscriptions(Nidx, Subscriber),
             {result, default}
     end.
 
@@ -457,13 +457,13 @@ purge_node(Nidx, Owner) ->
             {error, mongoose_xmpp_errors:forbidden()}
     end.
 
-get_entity_affiliations(Host, #jid{} = Owner) ->
-    get_entity_affiliations(Host, jid:to_lower(Owner));
-get_entity_affiliations(Host, LOwner) ->
-    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(LOwner),
+get_entity_affiliations(Backend, Host, #jid{} = Owner) ->
+    get_entity_affiliations(Backend, Host, jid:to_lower(Owner));
+get_entity_affiliations(Backend, Host, LOwner) ->
+    {ok, States} = Backend:get_states_by_bare(LOwner),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
-                                case gen_pubsub_nodetree:get_node(NodeTree, N) of
+                                case gen_pubsub_nodetree:get_node(Backend, NodeTree, N) of
                                     #pubsub_node{nodeid = {Host, _}} = Node -> [{Node, A} | Acc];
                                     _ -> Acc
                                 end
@@ -476,40 +476,40 @@ get_node_affiliations(Nidx) ->
     Tr = fun (#pubsub_state{stateid = {J, _}, affiliation = A}) -> {J, A} end,
     {result, lists:map(Tr, States)}.
 
-get_affiliation(Nidx, Owner) ->
-    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Owner)),
+get_affiliation(Backend, Nidx, Owner) ->
+    {ok, Affiliation} = Backend:get_affiliation(Nidx, jid:to_lower(Owner)),
     {result, Affiliation}.
 
-set_affiliation(Nidx, JID, Affiliation) ->
-    mod_pubsub_db_backend:set_affiliation(Nidx, JID, Affiliation).
+set_affiliation(Backend, Nidx, JID, Affiliation) ->
+    Backend:set_affiliation(Nidx, JID, Affiliation).
 
-get_entity_subscriptions(Host, Owner) ->
+get_entity_subscriptions(Backend, Host, Owner) ->
     LOwner = jid:to_lower(Owner),
     States = case Owner#jid.lresource of
                  <<>> ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(LOwner),
+                     {ok, States0} = Backend:get_states_by_lus(LOwner),
                      States0;
                  _ ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(LOwner),
+                     {ok, States0} = Backend:get_states_by_bare_and_full(LOwner),
                      States0
              end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (PubSubState, Acc) ->
-                                get_entity_subscriptions_loop(NodeTree, PubSubState, Acc)
+                                get_entity_subscriptions_loop(Backend, NodeTree, PubSubState, Acc)
                         end,
                         [], States),
     {result, Reply}.
 
-get_entity_subscriptions_loop(NodeTree, #pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
-    case gen_pubsub_nodetree:get_node(NodeTree, N) of
+get_entity_subscriptions_loop(Backend, NodeTree, #pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
+    case gen_pubsub_nodetree:get_node(Backend, NodeTree, N) of
         #pubsub_node{} = Node ->
             lists:foldl(fun ({Sub, SubId}, Acc2) -> [{Node, Sub, SubId, J} | Acc2] end, Acc, Ss);
         _ ->
             Acc
     end.
 
-get_node_subscriptions(Nidx) ->
-    {ok, Subscriptions} = mod_pubsub_db_backend:get_node_subscriptions(Nidx),
+get_node_subscriptions(Backend, Nidx) ->
+    {ok, Subscriptions} = Backend:get_node_subscriptions(Nidx),
     {result, Subscriptions}.
 
 get_subscriptions(Nidx, #jid{} = Owner) ->
@@ -555,7 +555,7 @@ get_pending_nodes(Host, Owner) ->
     NodeTree = mod_pubsub:tree(Host),
     {result,
      lists:foldl(fun(N, Acc) ->
-                         case gen_pubsub_nodetree:get_node(NodeTree, N) of
+                         case gen_pubsub_nodetree:get_node(mod_pubsub_db_backend, NodeTree, N) of
                              #pubsub_node{nodeid = {_, Node}} -> [Node | Acc];
                              _ -> Acc
                          end

@@ -36,10 +36,10 @@
 %%% <p>PubSub plugin nodes are using the {@link gen_pubsub_node} behaviour.</p>
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         create_node_permission/6, delete_node/1,
-         unsubscribe_node/4, node_to_path/1,
-         get_entity_affiliations/2, get_entity_affiliations/3,
-         get_entity_subscriptions/2, get_entity_subscriptions/4
+         create_node_permission/6, delete_node/2,
+         unsubscribe_node/5, node_to_path/1,
+         get_entity_affiliations/3, get_entity_affiliations/4,
+         get_entity_subscriptions/3, get_entity_subscriptions/5
          ]).
 
 based_on() ->  node_flat.
@@ -104,26 +104,26 @@ create_node_permission(Host, ServerHost, _Node, _ParentNode,
             {result, false}
     end.
 
-delete_node(Nodes) ->
-    {result, {_, _, Result}} = node_flat:delete_node(Nodes),
+delete_node(Backend, Nodes) ->
+    {result, {_, _, Result}} = node_flat:delete_node(Backend, Nodes),
     {result, {[], Result}}.
 
-unsubscribe_node(Nidx, Sender, Subscriber, SubId) ->
-    case node_flat:unsubscribe_node(Nidx, Sender, Subscriber, SubId) of
+unsubscribe_node(Backend, Nidx, Sender, Subscriber, SubId) ->
+    case node_flat:unsubscribe_node(Backend, Nidx, Sender, Subscriber, SubId) of
         {error, Error} -> {error, Error};
         {result, _} -> {result, []}
     end.
 
-get_entity_affiliations(Host, #jid{ lserver = D } = Owner) ->
-    get_entity_affiliations(Host, D, jid:to_lower(Owner));
-get_entity_affiliations(Host, {_, D, _} = Owner) ->
-    get_entity_affiliations(Host, D, Owner).
+get_entity_affiliations(Backend, Host, #jid{ lserver = D } = Owner) ->
+    get_entity_affiliations(Backend, Host, D, jid:to_lower(Owner));
+get_entity_affiliations(Backend, Host, {_, D, _} = Owner) ->
+    get_entity_affiliations(Backend, Host, D, Owner).
 
-get_entity_affiliations(Host, D, Owner) ->
-    {ok, States} = mod_pubsub_db_backend:get_states_by_bare(Owner),
+get_entity_affiliations(Backend, Host, D, Owner) ->
+    {ok, States} = Backend:get_states_by_bare(Owner),
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {_, N}, affiliation = A}, Acc) ->
-                    case gen_pubsub_nodetree:get_node(NodeTree, N) of
+                    case gen_pubsub_nodetree:get_node(Backend, NodeTree, N) of
                         #pubsub_node{nodeid = {{_, D, _}, _}} = Node -> [{Node, A} | Acc];
                         _ -> Acc
                     end
@@ -131,24 +131,24 @@ get_entity_affiliations(Host, D, Owner) ->
             [], States),
     {result, Reply}.
 
-get_entity_subscriptions(Host, #jid{ lserver = D, lresource = R } = Owner) ->
-    get_entity_subscriptions(Host, D, R, Owner);
-get_entity_subscriptions(Host, {_, D, R} = Owner) ->
-    get_entity_subscriptions(Host, D, R, Owner).
+get_entity_subscriptions(Backend, Host, #jid{ lserver = D, lresource = R } = Owner) ->
+    get_entity_subscriptions(Backend, Host, D, R, Owner);
+get_entity_subscriptions(Backend, Host, {_, D, R} = Owner) ->
+    get_entity_subscriptions(Backend, Host, D, R, Owner).
 
-get_entity_subscriptions(Host, D, R, Owner) ->
+get_entity_subscriptions(Backend, Host, D, R, Owner) ->
     LOwner = jid:to_lower(Owner),
     States = case R of
                  <<>> ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_lus(LOwner),
+                     {ok, States0} = Backend:get_states_by_lus(LOwner),
                      States0;
                  _ ->
-                     {ok, States0} = mod_pubsub_db_backend:get_states_by_bare_and_full(LOwner),
+                     {ok, States0} = Backend:get_states_by_bare_and_full(LOwner),
                      States0
              end,
     NodeTree = mod_pubsub:tree(Host),
     Reply = lists:foldl(fun (#pubsub_state{stateid = {J, N}, subscriptions = Ss}, Acc) ->
-                    case gen_pubsub_nodetree:get_node(NodeTree, N) of
+                    case gen_pubsub_nodetree:get_node(Backend, NodeTree, N) of
                         #pubsub_node{nodeid = {{_, D, _}, _}} = Node ->
                             accumulate_entity_subscriptions(J, Node, Ss, Acc);
                         _ ->

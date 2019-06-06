@@ -47,7 +47,7 @@ create_node_permission(_Host, _ServerHost, _Node, _ParentNode, _Owner, _Access) 
 
 publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
              PublishOptions) ->
-    case nodetree_dag:get_node(Nidx) of
+    case nodetree_dag:get_node(mod_pubsub_db_backend, Nidx) of
         #pubsub_node{options = Options} ->
             case find_opt(node_type, Options) of
                 collection ->

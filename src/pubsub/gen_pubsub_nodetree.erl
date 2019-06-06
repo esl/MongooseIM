@@ -32,9 +32,9 @@
 
 -include("jlib.hrl").
 
--export([init/4, terminate/3, set_node/2, get_node/3, get_node/2,
-         get_nodes/3, get_parentnodes_tree/4,
-         get_subnodes/4, create_node/7, delete_node/3]).
+-export([init/4, terminate/3, set_node/2, get_node/4, get_node/3,
+         get_nodes/4, get_parentnodes_tree/4,
+         get_subnodes/4, create_node/7, delete_node/4]).
 
 -type(host() :: mod_pubsub:host()).
 -type(nodeId() :: mod_pubsub:nodeId()).
@@ -53,11 +53,11 @@
 -callback set_node(PubsubNode :: pubsubNode()) ->
     {ok, NodeIdx::nodeIdx()} | {error, exml:element()}.
 
--callback get_node(Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
+-callback get_node(Backend :: atom(), Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
 
--callback get_node(NodeIdx :: nodeIdx()) -> pubsubNode() | {error, exml:element()}.
+-callback get_node(Backend :: atom(), NodeIdx :: nodeIdx()) -> pubsubNode() | {error, exml:element()}.
 
--callback get_nodes(Host :: host(), From :: jid:jid()) -> [pubsubNode()].
+-callback get_nodes(Backend :: atom(), Host :: host(), From :: jid:jid()) -> [pubsubNode()].
 
 -callback get_parentnodes_tree(Host :: host(), NodeId :: nodeId(), From :: jid:jid()) ->
     [{0, [pubsubNode(), ...]}].
@@ -72,7 +72,7 @@
                       Parents :: [nodeId()]) ->
     {ok, NodeIdx::nodeIdx()} | {error, exml:element()} | {error, {virtual, {host(), nodeId()}}}.
 
--callback delete_node(Host :: host(), NodeId :: nodeId()) -> [pubsubNode()].
+-callback delete_node(Backend :: atom(), Host :: host(), NodeId :: nodeId()) -> [pubsubNode()].
 
 %% ---------------------------------------------------------------
 %% API
@@ -87,14 +87,14 @@ terminate(Mod, Host, ServerHost) ->
 set_node(Mod, PubsubNode) ->
     Mod:set_node(PubsubNode).
 
-get_node(Mod, Host, NodeId) ->
-   Mod:get_node(Host, NodeId).
+get_node(Backend, Mod, Host, NodeId) ->
+   Mod:get_node(Backend, Host, NodeId).
 
-get_node(Mod, NodeIdx) ->
-    Mod:get_node(NodeIdx).
+get_node(Backend, Mod, NodeIdx) ->
+    Mod:get_node(Backend, NodeIdx).
 
-get_nodes(Mod, Host, From) ->
-    Mod:get_nodes(Host, From).
+get_nodes(Backend, Mod, Host, From) ->
+    Mod:get_nodes(Backend, Host, From).
 
 get_parentnodes_tree(Mod, Host, NodeId, From) ->
     Mod:get_parentnodes_tree(Host, NodeId, From).
@@ -105,6 +105,6 @@ get_subnodes(Mod, Host, NodeId, From) ->
 create_node(Mod, Host, NodeId, Type, Owner, Options, Parents) ->
     Mod:create_node(Host, NodeId, Type, Owner, Options, Parents).
 
-delete_node(Mod, Host, NodeId) ->
-    Mod:delete_node(Host, NodeId).
+delete_node(Backend, Mod, Host, NodeId) ->
+    Mod:delete_node(Backend, Host, NodeId).
 
