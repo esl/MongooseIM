@@ -1496,7 +1496,7 @@ muc_querying_for_all_messages_with_jid(Config) ->
     P = ?config(props, Config),
     F = fun(Alice, Bob) ->
         Room = ?config(room, Config),
-        BWithJID = room_address(Room, nick(Bob)),
+        BWithJID = room_address(Room, nick(bob)),
 
         MucMsgs = ?config(pre_generated_muc_msgs, Config),
         WithJID = [1 || {_, _, {JID, _, _}, _, _} <- MucMsgs, JID == BWithJID],
