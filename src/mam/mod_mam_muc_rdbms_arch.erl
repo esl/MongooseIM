@@ -327,18 +327,13 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
     {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Host),
-    WithJID = jid:to_binary({LUser, LServer}),
-    SWithNick = mongoose_rdbms:escape_string(WithJID),
-    Filter = make_filter_nickname_only(SWithNick),
-    {selected, Rows} = mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT id, message "
-         "FROM mam_muc_message ",
-         Filter, " ORDER BY id"]),
-    Messages = [{BMessID, gdpr_decode_packet(Host, SDataRaw)} || {BMessID, SDataRaw} <- Rows],
-    {ok, Messages}.
+    case mod_mam_rdbms_user:get_archive_id(Host, Username) of
+        undefined -> {ok, []};
+        ArchiveID ->
+            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
+            {ok, [{BMessID, gdpr_decode_packet(Host, SDataRaw)}
+                  || {BMessID,  SDataRaw} <- Rows]}
+    end.
 
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
@@ -467,6 +462,14 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
        "FROM mam_muc_message ",
        Filter, Order, LimitSQL, Offset]).
 
+extract_gdpr_messages(Host, ArchiveID) ->
+    Filter = ["WHERE sender_id = ", use_escaped_integer(escape_integer(ArchiveID))],
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, message "
+         "FROM mam_muc_message ",
+         Filter, " ORDER BY id"]).
+
 %% @doc Zero-based index of the row with UMessID in the result test.
 %% If the element does not exists, the MessID of the next element will
 %% be returned instead.
@@ -549,9 +552,6 @@ make_filter(RoomID, StartID, EndID, SWithNick, SearchText) ->
          _         -> prepare_search_filters(SearchText)
      end
     ].
-
-make_filter_nickname_only(SWithNick) ->
-    ["WHERE nick_name=", use_escaped_string(SWithNick)].
 
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".
