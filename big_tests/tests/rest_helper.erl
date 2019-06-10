@@ -274,7 +274,7 @@ to_list(V) when is_list(V) ->
     V.
 
 maybe_enable_mam(rdbms, Host, Config) ->
-    init_module(Host, mod_mam_rdbms_arch, [muc, pm, simple]),
+    init_module(Host, mod_mam_rdbms_arch, [muc, pm]),
     init_module(Host, mod_mam_rdbms_prefs, [muc, pm]),
     init_module(Host, mod_mam_rdbms_user, [muc, pm]),
     init_module(Host, mod_mam, []),

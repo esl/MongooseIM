@@ -17,6 +17,11 @@
 %% WARNING! For simplicity, this function searches only MongooseIM code dir
 -spec find_behaviour_implementations(Behaviour :: module()) -> [module()].
 find_behaviour_implementations(Behaviour) ->
+    LookupFN = fun() -> {ok, find_implementations(Behaviour)} end,
+    {ok, Modules} = service_cache:lookup({behaviour, Behaviour}, LookupFN),
+    Modules.
+
+find_implementations(Behaviour) ->
     {ok, EbinFiles} = file:list_dir(code:lib_dir(mongooseim, ebin)),
     Mods = [ list_to_atom(filename:rootname(File))
              || File <- EbinFiles, filename:extension(File) == ".beam" ],

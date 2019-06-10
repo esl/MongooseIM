@@ -132,8 +132,8 @@ archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Pa
             {error, Reason}
     end.
 
-archive_message_muc(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
-    RemJIDMuc = maybe_muc_jid(RemJID),
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, _FromJID, SrcJID, _Dir, Packet) ->
+    RemJIDMuc = maybe_muc_jid(SrcJID),
     try
         archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, Packet, muc)
     catch _Type:Reason ->

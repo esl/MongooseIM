@@ -70,7 +70,62 @@ muc_host() ->
 start_room(Config, User, Room, Nick, Opts) ->
     From = generate_rpc_jid(User),
     create_instant_room(<<"localhost">>, Room, From, Nick, Opts),
-    [{nick, Nick}, {room, Room} | Config].
+    RoomJID = room_address(Room),
+    [{nick, Nick}, {room, Room}, {room_jid, RoomJID}, {muc_host, muc_host()} | Config].
+
+start_fresh_room(Config, User, Nick, Opts) ->
+    Room = fresh_room_name(),
+    start_room(Config, User, Room, Nick, Opts).
+
+enter_room(Config, UsersAndNicks) ->
+    [Room, RoomJid] = [proplists:get_value(Key, Config) || Key <- [room, room_jid]],
+    lists:foldl(fun({User, Nick}, Acc) ->
+                        escalus:send(User, stanza_muc_enter_room(Room, Nick)),
+                        wait_for_presence(RoomJid, User, length(Acc)),
+                        foreach_recipient([User | Acc],
+                                          fun(Stanza) ->
+                                                  validate_presence(Stanza,
+                                                                    RoomJid,
+                                                                    Nick)
+                                          end),
+                        Subject = escalus:wait_for_stanza(User),
+                        validate_subject_message(Subject, RoomJid),
+                        [User | Acc]
+                end,
+                [],UsersAndNicks).
+
+wait_for_presence(_, _, 0) ->
+    ok;
+wait_for_presence(RoomJid, User, N) ->
+    Stanza = escalus:wait_for_stanza(User),
+    validate_presence(Stanza, RoomJid),
+    wait_for_presence(RoomJid, User, N - 1).
+
+validate_presence(Stanza, RoomJid) ->
+    escalus:assert(is_presence, [], Stanza),
+    [RoomJid, _] = binary:split(exml_query:attr(Stanza, <<"from">>), <<"/">>).
+
+validate_presence(Stanza, RoomJid, Nick) ->
+    [RoomJid, Nick] = validate_presence(Stanza, RoomJid).
+
+validate_subject_message(Stanza, RoomJid) ->
+    RoomJid = exml_query:attr(Stanza, <<"from">>),
+    #xmlel{} = exml_query:subelement(Stanza, <<"subject">>).
+
+verify_message_received(Config, Users, Nick, TextBody) ->
+    RoomJid = proplists:get_value(room_jid, Config),
+    foreach_recipient(Users, muc_msg_verify(RoomJid, Nick, TextBody)).
+
+muc_msg_verify(RoomBareJID, NickName, MsgText) ->
+    fun(Msg) ->
+        escalus:assert(is_groupchat_message, [MsgText], Msg),
+        [RoomBareJID, NickName] = binary:split(exml_query:attr(Msg, <<"from">>), <<"/">>)
+    end.
+
+send_to_room(RoomCfg, User, TextBody) ->
+    RoomJid = proplists:get_value(room_jid, RoomCfg),
+    Stanza = escalus_stanza:groupchat_to(RoomJid, TextBody),
+    escalus:send(User, Stanza).
 
 generate_rpc_jid({_,User}) ->
     {username, Username} = lists:keyfind(username, 1, User),
