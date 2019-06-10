@@ -182,6 +182,17 @@ remove_all_metrics() ->
 all_metrics_are_global() ->
     ejabberd_config:get_local_option(all_metrics_are_global).
 
+extra_metrics_options() ->
+    Opts = ejabberd_config:get_local_option_or_default(extra_metrics_options, []),
+    patch_opts(Opts).
+
+patch_opts([{min_heap_size,0}|Opts]) ->
+    [{min_heap_size,1}|patch_opts(Opts)];
+patch_opts([Opt|Opts]) ->
+    [Opt|patch_opts(Opts)];
+patch_opts([]) ->
+    [].
+
 pick_by_all_metrics_are_global(WhenGlobal, WhenNot) ->
     case all_metrics_are_global() of
         true -> WhenGlobal;
@@ -375,9 +386,10 @@ ensure_metric(Host, Metric, Type, ShortType) when is_atom(Metric) ->
 ensure_metric(Host, Metric, Type, probe = ShortType) ->
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
     {ShortType, Opts} = Type,
+    ExtraOpts = extra_metrics_options(),
     case exometer:info(PrefixedMetric, type) of
         undefined ->
-            ExometerOpts = [{module, mongoose_metrics_probe}, {type, ShortType}] ++ Opts,
+            ExometerOpts = [{module, mongoose_metrics_probe}, {type, ShortType}] ++ Opts ++ ExtraOpts,
             do_create_metric(PrefixedMetric, ad_hoc, ExometerOpts);
         _ ->
         {ok, already_present}
@@ -388,7 +400,8 @@ ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
     case exometer:info(PrefixedMetric, type) of
         undefined ->
-            do_create_metric(PrefixedMetric, Type, []);
+            ExtraOpts = extra_metrics_options(),
+            do_create_metric(PrefixedMetric, Type, ExtraOpts);
         ShortType -> {ok, already_present}
     end.
 
