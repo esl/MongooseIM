@@ -200,7 +200,9 @@ rsm_send1(Config, User, Packet) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
-nick(User) -> escalus_utils:get_username(User).
+nick(User) ->
+    Name = escalus_utils:get_username(User),
+    <<"unique_", Name/binary, "_nickname">>.
 
 mam_ns_binary() -> mam_ns_binary_v03().
 mam_ns_binary_v03() -> <<"urn:xmpp:mam:0">>.
@@ -989,8 +991,10 @@ archive_message(Args) ->
 muc_bootstrap_archive(Config) ->
     Room = ?config(room, Config),
 
-    A = room_address(Room, nick(alice)),
-    B = room_address(Room, nick(bob)),
+    AliceNick = nick(alice),
+    BobNick = nick(bob),
+    A = room_address(Room, AliceNick),
+    B = room_address(Room, BobNick),
     R = room_address(Room),
 
     AliceName   = escalus_users:get_username(Config, alice),
@@ -1004,16 +1008,18 @@ muc_bootstrap_archive(Config) ->
               rpc_apply(mod_mam_muc, archive_id, [Domain, Room])},
     Msgs = generate_msgs_for_days(ArcJID,
                                  [{B, make_jid(BobName, BobServer, <<"res1">>),
-                                  rpc_apply(jid, replace_resource, [RoomJid, nick(bob)])},
+                                  rpc_apply(jid, replace_resource, [RoomJid, BobNick])},
                                   {A, make_jid(AliceName, AliceServer, <<"res1">>),
-                                   rpc_apply(jid, replace_resource, [RoomJid, nick(alice)])}], 16),
+                                   rpc_apply(jid, replace_resource, [RoomJid, AliceNick])}], 16),
 
     put_muc_msgs(Msgs),
 
     maybe_wait_for_archive(Config),
     wait_for_room_archive_size(Domain, Room, length(Msgs)),
 
-    [{pre_generated_muc_msgs, sort_msgs(Msgs)} | Config].
+    [{pre_generated_muc_msgs, sort_msgs(Msgs)},
+     {alice_nickname, AliceNick},
+     {bob_nickname, BobNick} | Config].
 
 put_muc_msgs(Msgs) ->
     Host = host(),
