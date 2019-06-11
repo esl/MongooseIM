@@ -74,6 +74,7 @@ services:
 
 branches:
         only:
+                - deps_upgrade_erl_22
                 - master
                 - stable
                 - /^rel\-\d+\.\d+$/
@@ -130,11 +131,11 @@ cache:
         directories:
                 - $HOME/.cache/rebar3
 
-deploy:
-  provider: releases
-  api-key: $GITHUB_TOKEN
-  skip_cleanup: true
-  file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
-  on:
-    tags: true
-    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
+# deploy:
+#   provider: releases
+#   api-key: $GITHUB_TOKEN
+#   skip_cleanup: true
+#   file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+#   on:
+#     tags: true
+#     condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
