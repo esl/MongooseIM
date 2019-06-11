@@ -133,9 +133,9 @@ archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Pa
     end.
 
 archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Dir, Packet) ->
-    BareFromJID = jid:to_bare(FromJID),
+    ArchiveJID = jid:replace_resource(FromJID, SrcJID#jid.resource),
     try
-        archive_message(Host, MessId, LocJID, BareFromJID, SrcJID, Packet, muc)
+        archive_message(Host, MessId, LocJID, ArchiveJID, SrcJID, Packet, muc)
     catch _Type:Reason ->
         ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
                      [{Reason, erlang:get_stacktrace()}]),
@@ -143,10 +143,8 @@ archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Di
         {error, Reason}
     end.
 
-maybe_muc_jid(#jid{lresource = RemRes}) ->
-    {<<>>, RemRes, <<>>};
-maybe_muc_jid(Other) ->
-    Other.
+make_jid_resource_as_server(#jid{lresource = RemRes}) ->
+    {<<>>, RemRes, <<>>}.
 
 
 lookup_messages({error, _Reason} = Result, _Host, _Params) ->
@@ -161,7 +159,7 @@ lookup_messages(_Result, Host, Params) ->
 
 
 lookup_messages_muc(Result, Host, #{with_jid := WithJID} = Params) ->
-    WithJIDMuc = maybe_muc_jid(WithJID),
+    WithJIDMuc = make_jid_resource_as_server(WithJID),
     lookup_messages(Result, Host, Params#{with_jid => WithJIDMuc}).
 
 
@@ -205,7 +203,7 @@ remove_bucket(Bucket) ->
 
 archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
     LocalJID = mod_mam_utils:bare_jid(LocJID),
-    RemoteJID = mod_mam_utils:bare_jid(RemJID),
+    RemoteJID = mod_mam_utils:full_jid(RemJID),
     SourceJID = mod_mam_utils:full_jid(SrcJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
@@ -312,7 +310,7 @@ calculate_offset(_, _TotalCount, _PageSize, _) ->
     0.
 
 get_msg_id_key(Bucket, Key, Msgs) ->
-    [_, _, MsgId] = decode_key(Key),
+    [_, _, _, MsgId] = decode_key(Key),
     Item = {binary_to_integer(MsgId), Bucket, Key},
     [Item | Msgs].
 
@@ -466,7 +464,19 @@ jid_filters(undefined, RemoteJid) ->
     %%added only for gdpr data retrieval, don't use for other purposes
     <<"_yz_rk:*/", RemoteJid/binary, "*">>;
 jid_filters(LocalJid, RemoteJid) ->
-    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
+    case is_jid_or_nickname(RemoteJid) of
+        jid ->
+            <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "/*/*">>;
+        nickname ->
+            <<"_yz_rk:", LocalJid/binary, "/*/", RemoteJid/binary, "/*">>
+    end.
+
+-spec is_jid_or_nickname(binary()) -> jid | nickname.
+is_jid_or_nickname(JID) ->
+    case jid:from_binary(JID) of
+        #jid{luser = <<>>} -> nickname;
+        _ -> jid
+    end.
 
 id_filters(undefined, undefined) ->
     undefined;
