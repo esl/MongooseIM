@@ -132,7 +132,7 @@ archive_id(ArcID, _Host, _ArcJID) ->
 
 -spec get_archive_id(jid:server(), jid:user()) -> undefined | mod_mam:archive_id().
 get_archive_id(Host, User) ->
-    #jid{lserver = Server, luser = UserName} = jid:make(Host, User, <<"">>),
+    #jid{lserver = Server, luser = UserName} = jid:make(User, Host, <<"">>),
     SServer = mongoose_rdbms:escape_string(Server),
     SUserName = mongoose_rdbms:escape_string(UserName),
     DbType = mongoose_rdbms_type:get(),

@@ -89,6 +89,7 @@ GO
 CREATE TABLE [dbo].[mam_muc_message](
 	[id] [bigint] NOT NULL,
 	[room_id] [bigint] NOT NULL,
+	[sender_id] [bigint] NOT NULL,
 	[nick_name] [nvarchar](250) NOT NULL,
 	[message] [varbinary](max) NOT NULL,
 	[search_body] [nvarchar](max) NOT NULL,
@@ -98,8 +99,11 @@ CREATE TABLE [dbo].[mam_muc_message](
 	[id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-
 GO
+
+CREATE INDEX i_mam_muc_message_sender_id ON mam_muc_message(sender_id);
+GO
+
 SET ANSI_PADDING OFF
 GO
 /****** Object:  Table [dbo].[mam_server_user]    Script Date: 9/17/2014 6:20:03 AM ******/

@@ -116,7 +116,7 @@ stop(Host) ->
 -spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
     {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
 get_mam_pm_gdpr_data(User, Host) ->
-    case mod_mam_rdbms_user:get_archive_id(User, Host) of
+    case mod_mam_rdbms_user:get_archive_id(Host,User) of
         undefined -> {ok, []};
         ArchiveID ->
             {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),

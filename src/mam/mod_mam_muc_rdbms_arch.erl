@@ -26,8 +26,10 @@
          purge_multiple_messages/9]).
 
 %% Called from mod_mam_rdbms_async_writer
--export([prepare_message/8, prepare_insert/2, get_mam_muc_gdpr_data/2]).
+-export([prepare_message/6, prepare_insert/2]).
 
+%gdpr
+-export([get_mam_muc_gdpr_data/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -42,8 +44,7 @@
          apply_end_border/2]).
 
 -import(mongoose_rdbms,
-        [escape_string/1,
-         escape_integer/1,
+        [escape_integer/1,
          use_escaped_string/1,
          use_escaped_integer/1]).
 
@@ -138,46 +139,35 @@ archive_size(Size, Host, RoomID, _RoomJID) when is_integer(Size) ->
 
 -spec archive_message(_Result, jid:server(), MessID :: mod_mam:message_id(),
                       RoomID :: mod_mam:archive_id(), _LocJID :: jid:jid(),
-                      _RemJID :: jid:jid(),
-                      _SrcJID :: jid:jid(), incoming, Packet :: packet()) -> ok.
-archive_message(_Result, Host, MessID, RoomID,
-                _LocJID=#jid{},
-                _RemJID=#jid{},
-                _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
+                      SenderJID :: jid:jid(),
+                      UserRoomJID :: jid:jid(), incoming, Packet :: packet()) -> ok.
+archive_message(_Result, Host, MessID, RoomID, _LocJID = #jid{},
+                SenderJID = #jid{}, UserRoomJID = #jid{}, incoming, Packet) ->
     try
-        archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet)
+        Row = prepare_message(Host, MessID, RoomID, SenderJID, UserRoomJID, Packet),
+        {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row),
+        ok
     catch _Type:Reason ->
             ?ERROR_MSG("event=archive_message_failed mess_id=~p room_id=~p "
                        "from_nick=~p reason='~p' stacktrace=~p",
-                       [MessID, RoomID, FromNick, Reason, erlang:get_stacktrace()]),
+                       [MessID, RoomID, UserRoomJID#jid.lresource, Reason, erlang:get_stacktrace()]),
             {error, Reason}
     end.
 
--spec archive_message_unsafe(jid:server(), mod_mam:message_id(), mod_mam:archive_id(),
-                             FromNick :: jid:user(), packet()) -> ok.
-archive_message_unsafe(Host, MessID, RoomID, FromNick, Packet) ->
-    Row = prepare_message(Host, MessID, RoomID, FromNick, Packet),
-    {updated, 1} = mod_mam_utils:success_sql_execute(Host, insert_mam_muc_message, Row),
-    ok.
-
--spec prepare_message(jid:server(), mod_mam:message_id(), mod_mam:archive_id(),
-                      _LocJID :: jid:jid(), _RemJID :: jid:jid(),
-                      _SrcJID :: jid:jid(), incoming, packet()) -> list().
-prepare_message(Host, MessID, RoomID,
-                _LocJID=#jid{},
-                _RemJID=#jid{},
-                _SrcJID=#jid{lresource=FromNick}, incoming, Packet) ->
-    prepare_message(Host, MessID, RoomID, FromNick, Packet).
-
-prepare_message(Host, MessID, RoomID, FromNick, Packet) ->
+-spec prepare_message(Host :: jid:server(), MessID :: mod_mam:message_id(),
+                      RoomID :: mod_mam:archive_id(), SenderJID :: jid:jid(),
+                      UserRoomJID :: jid:jid(), Packet :: packet()) -> [binary() | integer()].
+prepare_message(Host, MessID, RoomID, SenderJID, #jid{ lresource = FromNick }, Packet) ->
+    BareSenderJID = jid:to_bare(SenderJID),
     Data = packet_to_stored_binary(Host, Packet),
     TextBody = mod_mam_utils:packet_to_search_body(mod_mam_muc, Host, Packet),
-    [MessID, RoomID, FromNick, Data, TextBody].
+    SenderID = mod_mam:archive_id_int(Host, BareSenderJID),
+    [MessID, RoomID, SenderID, FromNick, Data, TextBody].
 
 -spec prepare_insert(Name :: atom(), NumRows :: pos_integer()) -> ok.
 prepare_insert(Name, NumRows) ->
     Table = mam_muc_message,
-    Fields = [id, room_id, nick_name, message, search_body],
+    Fields = [id, room_id, sender_id, nick_name, message, search_body],
     Query = rdbms_queries:create_bulk_insert_query(Table, Fields, NumRows),
     mongoose_rdbms:prepare(Name, Table, Fields, Query),
     ok.
@@ -337,18 +327,13 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
     {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Host),
-    WithJID = jid:to_binary({LUser, LServer}),
-    SWithNick = mongoose_rdbms:escape_string(WithJID),
-    Filter = make_filter_nickname_only(SWithNick),
-    {selected, Rows} = mod_mam_utils:success_sql_query(
-        Host,
-        ["SELECT id, message "
-         "FROM mam_muc_message ",
-         Filter, " ORDER BY id"]),
-    Messages = [{BMessID, gdpr_decode_packet(Host, SDataRaw)} || {BMessID, SDataRaw} <- Rows],
-    {ok, Messages}.
+    case mod_mam_rdbms_user:get_archive_id(Host, Username) of
+        undefined -> {ok, []};
+        ArchiveID ->
+            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
+            {ok, [{BMessID, gdpr_decode_packet(Host, SDataRaw)}
+                  || {BMessID,  SDataRaw} <- Rows]}
+    end.
 
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
 after_id(ID, Filter) ->
@@ -477,6 +462,14 @@ do_extract_messages(Host, Filter, IOffset, IMax, Order) ->
        "FROM mam_muc_message ",
        Filter, Order, LimitSQL, Offset]).
 
+extract_gdpr_messages(Host, ArchiveID) ->
+    Filter = ["WHERE sender_id = ", use_escaped_integer(escape_integer(ArchiveID))],
+    mod_mam_utils:success_sql_query(
+        Host,
+        ["SELECT id, message "
+         "FROM mam_muc_message ",
+         Filter, " ORDER BY id"]).
+
 %% @doc Zero-based index of the row with UMessID in the result test.
 %% If the element does not exists, the MessID of the next element will
 %% be returned instead.
@@ -559,9 +552,6 @@ make_filter(RoomID, StartID, EndID, SWithNick, SearchText) ->
          _         -> prepare_search_filters(SearchText)
      end
     ].
-
-make_filter_nickname_only(SWithNick) ->
-    ["WHERE nick_name=", use_escaped_string(SWithNick)].
 
 %% Constructs a separate LIKE filter for each word.
 %% SearchText example is "word1%word2%word3".

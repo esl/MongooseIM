@@ -131,7 +131,7 @@ groups() ->
                                        {group, retrieve_personal_data_mam_cassandra},
                                        {group, retrieve_personal_data_mam_elasticsearch}
                                       ]},
-     {retrieve_personal_data_mam_rdbms, [], mam_testcases()},
+     {retrieve_personal_data_mam_rdbms, [], all_mam_testcases()},
      {retrieve_personal_data_mam_riak, [], mam_testcases()},
      {retrieve_personal_data_mam_cassandra, [], all_mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], all_mam_testcases()},

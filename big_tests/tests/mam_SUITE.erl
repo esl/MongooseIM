@@ -685,32 +685,32 @@ init_modules(elasticsearch, muc_all, Config) ->
 init_modules(rdbms, muc_all, Config) ->
     init_module(host(), mod_mam_rdbms_arch, [muc]),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_simple, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, [muc, rdbms_simple_opts()]),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_async_pool, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_mnesia, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
@@ -718,14 +718,14 @@ init_modules(rdbms_async_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_muc_rdbms_async_pool_writer, [{flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_mnesia_muc_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
@@ -734,7 +734,7 @@ init_modules(rdbms_mnesia_muc_cache, _, _Config) ->
 init_modules(rdbms_mnesia_cache, muc_all, Config) ->
     init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [muc]),
-    init_module(host(), mod_mam_rdbms_user, [muc]),
+    init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_cache_user, [muc]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
@@ -1494,22 +1494,23 @@ muc_querying_for_all_messages(Config) ->
 
 muc_querying_for_all_messages_with_jid(Config) ->
     P = ?config(props, Config),
-    F = fun(Alice, Bob) ->
-        Room = ?config(room, Config),
-        BWithJID = room_address(Room, nick(bob)),
+    F = fun(Alice) ->
+            Room = ?config(room, Config),
+            BobNick = ?config(bob_nickname, Config),
+            BWithJID = room_address(Room, BobNick),
 
-        MucMsgs = ?config(pre_generated_muc_msgs, Config),
-        WithJID = [1 || {_, _, {JID, _, _}, _, _} <- MucMsgs, JID == BWithJID],
-        Len = lists:sum(WithJID),
+            MucMsgs = ?config(pre_generated_muc_msgs, Config),
+            WithJID = [1 || {_, _, {JID, _, _}, _, _} <- MucMsgs, JID == BWithJID],
+            Len = lists:sum(WithJID),
 
-        IQ = stanza_filtered_by_jid_request(P, BWithJID),
-        escalus:send(Alice, stanza_to_room(IQ, Room)),
-        Result = wait_archive_respond(P, Alice),
+            IQ = stanza_filtered_by_jid_request(P, BWithJID),
+            escalus:send(Alice, stanza_to_room(IQ, Room)),
+            Result = wait_archive_respond(P, Alice),
 
-        assert_respond_size(Len, Result),
-        ok
+            assert_respond_size(Len, Result),
+            ok
         end,
-    escalus:story(Config, [{alice, 1}, {bob, 1}], F).
+    escalus:story(Config, [{alice, 1}], F).
 
 muc_light_simple(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
