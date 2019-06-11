@@ -5,6 +5,9 @@
 {s2s_default_policy, deny}.
 {outgoing_s2s_port, 5269}.
 {node_name, "mongooseim@localhost"}.
+% More processes and more ports.
+% But it increases memory usage.
+{highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.
 {ejabberd_c2s_port, 5222}.
 {ejabberd_s2s_in_port, 5269}.
 {cowboy_port, 5280}.
