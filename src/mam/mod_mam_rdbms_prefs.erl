@@ -17,7 +17,8 @@
 -export([get_behaviour/5,
          get_prefs/4,
          set_prefs/7,
-         remove_archive/4]).
+         remove_archive/4,
+         remove_archive/3]).
 
 -import(mongoose_rdbms,
         [escape_string/1,
@@ -236,16 +237,15 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
 %% #rh
 -spec remove_archive(map(), jid:server(), mod_mam:archive_id(),
                      jid:jid()) -> map().
-remove_archive(Acc, Host, UserID, _ArcJID) ->
+remove_archive(Acc, Host, UserID, ArcJID) ->
+    remove_archive(Host, UserID, ArcJID),
+    Acc.
+
+remove_archive(Host, UserID, _ArcJID) ->
     SUserID = escape_integer(UserID),
     {updated, _} =
     mod_mam_utils:success_sql_query(
-      Host,
-      ["DELETE "
-       "FROM mam_config "
-       "WHERE user_id=", use_escaped_integer(SUserID)]),
-    Acc.
-
+      Host, ["DELETE FROM mam_config WHERE user_id=", use_escaped_integer(SUserID)]).
 
 -spec query_behaviour(jid:server(),
                       SUserID :: mongoose_rdbms:escaped_integer(),

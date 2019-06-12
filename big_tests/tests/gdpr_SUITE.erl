@@ -1499,9 +1499,6 @@ data_is_not_retrieved_for_missing_user(Config) ->
 domain() ->
     <<"localhost">>. % TODO: Make dynamic?
 
-
-
-
 muc_domain() ->
     Domain = inbox_helper:domain(),
     <<"muc.", Domain/binary>>.
@@ -1518,9 +1515,19 @@ maybe_stop_and_unload_module(Module, BackendProxy, Config) ->
     maybe_stop_and_unload_module(Module, [BackendProxy], Config).
 
 delete_backend(BackendProxy)->
-    dynamic_modules:stop(domain(), BackendProxy),
-    mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
-    true = mongoose_helper:successful_rpc(code, delete, [BackendProxy]).
+    try
+        dynamic_modules:stop(domain(), BackendProxy),
+        mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
+        mongoose_helper:successful_rpc(code, delete, [BackendProxy]),
+        false = mongoose_helper:successful_rpc(code, is_loaded, [BackendProxy])
+    catch
+        C:R ->
+            ct:fail(#{ class => C,
+                       reason => R,
+                       stacktrace => erlang:get_stacktrace(),
+                       event => cannot_delete_backend,
+                       backend => BackendProxy })
+    end.
 
 retrieve_and_validate_personal_data(User, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
     Dir = retrieve_all_personal_data(User, Config),
