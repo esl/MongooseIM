@@ -19,7 +19,8 @@
 %% ejabberd handlers
 -export([cached_archive_id/3,
          store_archive_id/3,
-         remove_archive/4]).
+         remove_archive/4,
+         remove_archive/3]).
 
 %% API
 -export([clean_cache/1]).
@@ -176,6 +177,9 @@ store_archive_id(UserID, _Host, ArcJID) ->
 remove_archive(Acc, _Host, _UserID, ArcJID) ->
     clean_cache(ArcJID),
     Acc.
+
+remove_archive(_Host, _UserID, ArcJID) ->
+    clean_cache(ArcJID).
 
 %%====================================================================
 %% Internal functions

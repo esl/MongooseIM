@@ -173,7 +173,7 @@ delete_archive(Server, User)
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    remove_archive(Host, ArcID, ArcJID),
+    remove_archive_hook(Host, ArcID, ArcJID),
     ok.
 
 
@@ -337,7 +337,7 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
-%% @doc A ejabberd's callback with diferent order of arguments.
+%% @doc A ejabberd's callback with different order of arguments.
 -spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
@@ -346,7 +346,7 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
-    ArcID = archive_id_int(Host, ArcJID),
+    ArcID = try_archive_id_int(Host, ArcJID),
     Backends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)
     ++ mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_prefs),
     lists:foreach(fun(B) ->
@@ -359,7 +359,24 @@ remove_user(User, Server) ->
                 "reason=~p:~p "
                 "stacktrace=~1000p ", [E, R, Stack]),
                 ok
-        end end, Backends).
+        end end, [mod_mam_cache_user | Backends]).
+
+try_archive_id_int(Host, #jid{ luser = LUser } = _ArcJID) ->
+    UserIDBackends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_user),
+    lists:foldl(fun(M, undefined) ->
+                        try M:get_archive_id(Host, LUser) of
+                            Return -> Return
+                        catch
+                            E:R ->
+                                Stack = erlang:get_stacktrace(),
+                                ?WARNING_MSG("issue=retrieve_archive_id_failed "
+                                             "reason=~p:~p "
+                                             "stacktrace=~1000p ", [E, R, Stack]),
+                                undefined
+                        end;
+                   (_, ID) ->
+                        ID
+                end, undefined, UserIDBackends).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...
@@ -614,8 +631,8 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
                             [Host, ArcID, ArcJID]).
 
 
--spec remove_archive(jid:server(), archive_id(), jid:jid()) -> 'ok'.
-remove_archive(Host, ArcID, ArcJID=#jid{}) ->
+-spec remove_archive_hook(jid:server(), archive_id(), jid:jid()) -> 'ok'.
+remove_archive_hook(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 
