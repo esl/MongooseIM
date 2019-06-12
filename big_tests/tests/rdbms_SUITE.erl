@@ -69,15 +69,10 @@ suite() ->
 %% Init & teardown
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    try not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(host()) of
-        false -> {skip, bad_configuration};
+    case not ct_helper:is_ct_running() orelse mongoose_helper:is_rdbms_enabled(host()) of
+        false -> {skip, rdbms_or_ct_not_running};
         true -> escalus:init_per_suite(Config)
-    catch
-        E:Err ->
-            ct:log("ERROR: ~p : ~p", [E, Err]),
-            {skip, init_error}
     end.
-
 
 end_per_suite(Config) ->
     escalus:end_per_suite(Config).
