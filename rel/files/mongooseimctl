@@ -96,6 +96,11 @@ stop ()
     "$RUNNER_SCRIPT_DIR"/mongooseim stop
 }
 
+force_stop ()
+{
+    "$RUNNER_SCRIPT_DIR"/mongooseim force_stop
+}
+
 # attach to server
 debug ()
 {
@@ -275,6 +280,7 @@ done
 case $1 in
     'start') start;;
     'stop') stop;;
+    'force_stop') force_stop;;
     'join_cluster') join_cluster;;
     'leave_cluster') leave_cluster;;
     'remove_from_cluster') remove_from_cluster;;
