@@ -13,7 +13,7 @@
 -export([post_end_per_suite/4,
          post_end_per_group/4,
          post_end_per_testcase/4]).
--record(state, { file, truncated_counter_file, suite, group, limit }).
+-record(state, { file, summary_file, truncated_counter_file, suite, group, limit }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -24,9 +24,11 @@ id(_Opts) ->
 init(_Id, _Opts) ->
     File = "/tmp/ct_markdown",
     TrFile = "/tmp/ct_markdown_truncated",
+    SummaryFile = "/tmp/ct_summary",
     file:write_file(File, ""),
+    file:write_file(SummaryFile, ""),
     file:delete(TrFile),
-    {ok, #state{ file = File, truncated_counter_file = TrFile, limit = 25 }}.
+    {ok, #state{ file = File, summary_file = SummaryFile, truncated_counter_file = TrFile, limit = 25 }}.
 
 post_init_per_suite(SuiteName, Config, Return, State) ->
     State2 = handle_return(SuiteName, '', init_per_suite, Return, Config, State),
@@ -69,6 +71,7 @@ handle_return_unsafe(SuiteName, GroupName, Place, Return, Config, State) ->
         ok ->
             State;
         Error ->
+            log_summary(SuiteName, GroupName, Place, State),
             F = fun() ->
                 log_error(SuiteName, GroupName, Place, Error, Config, State)
                 end,
@@ -93,7 +96,12 @@ old_truncated_counter_value(TrFile) ->
             0
     end.
 
-log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File}) ->
+log_summary(SuiteName, GroupName, Place, #state{summary_file = SummaryFile}) ->
+    SummaryText = make_summary_text(SuiteName, GroupName, Place),
+    file:write_file(SummaryFile, [SummaryText, $\n], [append]),
+    ok.
+
+log_error(SuiteName, GroupName, Place, Error, Config, #state{file = File, summary_file = SummaryFile}) ->
     MaybeLogLink = make_log_link(Config),
     LogLink = make_log_link(Config),
     %% Spoler syntax
