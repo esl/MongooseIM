@@ -180,7 +180,7 @@ Interface for XMPP components ([XEP-0114: Jabber Component Protocol](http://xmpp
 * `service_check_from` (boolean, default: `true`) - Checks whether the server should verify the "from" field in stanzas from the component
 * `max_fsm_queue` (positive integer, the value of this option set global) - message queue limit to prevent resource exhaustion; overrides the global value of this option
 * `hidden_components` (boolean, default: `false`) - All components connected to an endpoint with this option enabled will be considered "hidden" (see explanation below).
-* `conflict_behaviour` (`disconnect`, `kick_old`, default: `disconnect`) - Stop previous connection, if there is a routing conflict. (see explanation below).
+* `conflict_behaviour` (`disconnect`, `kick_old`, default: `disconnect`) - If set to `kick_old`, in case of a routing conflict it stops the previous connection (see the explanation below). 
 
 According to ([XEP-0114: Jabber Component Protocol](http://xmpp.org/extensions/xep-0114.html)) component's hostname should be given in the <stream:stream> element.
 
@@ -209,7 +209,7 @@ By default, when a component tries to connect and a registration conflict occure
 </stream:stream>
 ```
 
-It makes implementing reconnection logic difficult, because an old connection would not allow any other connections.
+It makes implementing the reconnection logic difficult, because the old connection would not allow any other connections.
 
 By setting `{conflict_behaviour, kick_old}`, we drop any old connections registered at the same host, before accepting new ones.
 
