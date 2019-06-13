@@ -11,6 +11,8 @@ RUNNER_LOG_DIR="{{mongooseim_log_dir}}"
 PIPE_DIR=/tmp/mongooseim_pipe_`whoami`/
 RUNNER_USER={{mongooseim_runner_user}}
 
+EJABBERD_PID_PATH="${EJABBERD_PID_PATH:-$RUNNER_BASE_DIR/var/pid}"
+
 EJABBERD_SO_PATH=`ls -dt "$RUNNER_BASE_DIR"/lib/mongooseim-*/priv/lib | head -1`
 EJABBERD_CONFIG_PATH="$RUNNER_ETC_DIR"/mongooseim.cfg
 export EJABBERD_SO_PATH
@@ -90,28 +92,15 @@ case "$1" in
         HEART_COMMAND="$RUNNER_BASE_DIR/bin/$SCRIPT start"
         export HEART_COMMAND
         mkdir -p "$PIPE_DIR"
+        mkdir -p $(dirname "$EJABBERD_PID_PATH") || echo "Failed to create directory for $EJABBERD_PID_PATH"
+
         shift # remove $1
         "$ERTS_PATH"/run_erl -daemon "$PIPE_DIR" "$RUNNER_LOG_DIR" "exec \"$RUNNER_BASE_DIR/bin/$SCRIPT\" console $@" 2>&1
         ;;
 
     stop|force_stop)
         # Wait for the node to completely stop...
-        case `uname -s` in
-            Linux|Darwin|FreeBSD|DragonFly|NetBSD|OpenBSD)
-                # PID COMMAND
-                PID=`ps ax -o pid= -o command=|\
-                    grep "$RUNNER_BASE_DIR/.*/[b]eam"|awk '{print $1}'`
-                ;;
-            SunOS)
-                # PID COMMAND
-                PID=`ps -ef -o pid= -o args=|\
-                    grep "$RUNNER_BASE_DIR/.*/[b]eam"|awk '{print $1}'`
-                ;;
-            CYGWIN*)
-                # UID PID PPID TTY STIME COMMAND
-                PID=`ps -efW|grep "$RUNNER_BASE_DIR/.*/[b]eam"|awk '{print $2}'`
-                ;;
-        esac
+        PID=$(cat "$EJABBERD_PID_PATH")
         nodetool stop
         DURATION=0
         while `kill -0 $PID 2>/dev/null`;
@@ -181,6 +170,8 @@ case "$1" in
         export ROOTDIR
         export BINDIR
         export PROGNAME
+
+        mkdir -p $(dirname "$EJABBERD_PID_PATH") || echo "Failed to create directory for $EJABBERD_PID_PATH"
 
         # Dump environment info for logging purposes
         echo "Root: $ROOTDIR"
