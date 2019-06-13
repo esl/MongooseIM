@@ -126,6 +126,8 @@ spec(component_duplicate, Config) ->
     [{component, <<"another_service">>}] ++ common(Config, 8899);
 spec(hidden_component, Config) ->
     [{component, <<"hidden_component">>}] ++ common(Config, 8189);
+spec(kicking_component, Config) ->
+    [{component, <<"kicking_component">>}] ++ common(Config, 8666);
 spec(Other, Config) ->
     [name(Other) | proplists:get_value(Other, Config, [])].
 
@@ -143,4 +145,6 @@ name(component1) ->
 name(component2) ->
     {component, <<"another_service">>};
 name(vjud_component) ->
-    {component, <<"vjud">>}.
+    {component, <<"vjud">>};
+name(kicking_component) ->
+    {component, <<"kicking_component">>}.
