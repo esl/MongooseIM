@@ -81,6 +81,25 @@ relx_gen_id() {
     od -t x -N 4 /dev/urandom | head -n1 | awk '{print $2}'
 }
 
+wait_for_pid_exit() {
+    local PID=$2
+    DURATION=0
+    while `kill -0 $PID 2>/dev/null`;
+    do
+        sleep 1
+        echo "Waiting for $PID for $DURATION seconds"
+        DURATION=$(($DURATION + 1))
+        if [ "$1" = "force_stop" ] && [ "$DURATION" = 30 ]; then
+            echo "Force kill $PID using SIGTERM"
+            kill -15 "$PID"
+        fi
+        if [ "$1" = "force_stop" ] && [ "$DURATION" = 60 ]; then
+            echo "Force kill $PID using SIGKILL"
+            kill -9 "$PID"
+        fi
+    done
+}
+
 # Check the first argument for instructions
 case "$1" in
     start)
@@ -101,24 +120,13 @@ case "$1" in
 
     stop|force_stop)
         # Wait for the node to completely stop...
-        PID=$(cat "$EJABBERD_PID_PATH")
+        PID=$(cat "$EJABBERD_PID_PATH" || echo "no_pid")
         nodetool stop
-        DURATION=0
-        while `kill -0 $PID 2>/dev/null`;
-        do
-            sleep 1
-            echo "Waiting for $PID for $DURATION seconds"
-            DURATION=$(($DURATION + 1))
-            if [ "$1" = "force_stop" ] && [ "$DURATION" = 30 ]; then
-                echo "Force kill $PID using SIGTERM"
-                kill -15 "$PID"
-            fi
-            if [ "$1" = "force_stop" ] && [ "$DURATION" = 60 ]; then
-                echo "Force kill $PID using SIGKILL"
-                kill -9 "$PID"
-                exit 0
-            fi
-        done
+        if [ "$PID" = "no_pid" ]; then
+            echo "Pid file $EJABBERD_PID_PATH is missing! The node can still be running though."
+        else
+            wait_for_pid_exit "$1" "$PID"
+        fi
         ;;
     restart)
         ## Restart the VM without exiting the process
