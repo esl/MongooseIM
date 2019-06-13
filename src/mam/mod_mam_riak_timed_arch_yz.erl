@@ -481,9 +481,9 @@ search_text_filter(SearchText) ->
     <<"search_text_register:", NormText/binary, "~1">>.
 
 jid_filters(LocalJid, undefined) ->
-    <<"_yz_rk:", LocalJid/binary, "*">>;
+    <<"_yz_rk:", LocalJid/binary, "/*/*">>;
 jid_filters(LocalJid, RemoteJid) ->
-    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
+    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "/*">>.
 
 id_filters(undefined, undefined) ->
     undefined;
