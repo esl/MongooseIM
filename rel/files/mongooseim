@@ -81,6 +81,13 @@ relx_gen_id() {
     od -t x -N 4 /dev/urandom | head -n1 | awk '{print $2}'
 }
 
+is_zombie() {
+    local PID=$1
+    # PROCESS STATE CODES from "man ps"
+    # Z    defunct ("zombie") process, terminated but not reaped by its parent.
+    ps aux | awk '$8 ~ /Z/ { printf("%s, PID = %d\n", $8, $2); }' | grep "$PID"
+}
+
 wait_for_pid_exit() {
     local PID=$2
     DURATION=0
@@ -96,6 +103,10 @@ wait_for_pid_exit() {
         if [ "$1" = "force_stop" ] && [ "$DURATION" = 60 ]; then
             echo "Force kill $PID using SIGKILL"
             kill -9 "$PID"
+        fi
+        if is_zombie $PID ; then
+            echo "$PID is zombie (defunct), stop waiting"
+            exit 0
         fi
     done
 }
