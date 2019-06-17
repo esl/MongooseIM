@@ -41,7 +41,7 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/5, read_archive/7, bucket/1,
+-export([create_obj/6, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
 -export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
@@ -122,9 +122,12 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ok.
 
+%% LocJID - archive owner's JID
+%% RemJID - interlocutor's JID
+%% SrcJID - "Real" sender JID
 archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Packet) ->
     try
-        archive_message(Host, MessId, LocJID, RemJID, SrcJID, Packet, pm)
+        archive_message(Host, MessId, LocJID, RemJID, SrcJID, LocJID, Packet, pm)
     catch _Type:Reason ->
             ?WARNING_MSG("Could not write message to archive, reason: ~p",
                          [{Reason, erlang:get_stacktrace()}]),
@@ -132,10 +135,13 @@ archive_message(_Result, Host, MessId, _UserID, LocJID, RemJID, SrcJID, _Dir, Pa
             {error, Reason}
     end.
 
-archive_message_muc(_Result, Host, MessId, _UserID, LocJID, _FromJID, SrcJID, _Dir, Packet) ->
+%% LocJID - MUC/MUC Light room's JID
+%% FromJID - "Real" sender JID
+%% SrcJID - Full JID of user within room (room@domain/user)
+archive_message_muc(_Result, Host, MessId, _UserID, LocJID, FromJID, SrcJID, _Dir, Packet) ->
     RemJIDMuc = maybe_muc_jid(SrcJID),
     try
-        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, Packet, muc)
+        archive_message(Host, MessId, LocJID, RemJIDMuc, SrcJID, FromJID, Packet, muc)
     catch _Type:Reason ->
         ?WARNING_MSG("Could not write MUC message to archive, reason: ~p",
                      [{Reason, erlang:get_stacktrace()}]),
@@ -203,22 +209,34 @@ remove_bucket(Bucket) ->
     {ok, Keys} = mongoose_riak:list_keys(Bucket),
     [mongoose_riak:delete(Bucket, Key) || Key <- Keys].
 
-archive_message(Host, MessID, LocJID, RemJID, SrcJID, Packet, Type) ->
+
+%% PM:
+%%  * LocJID - archive owner's JID
+%%  * RemJID - interlocutor's JID
+%%  * SrcJID - "Real" sender JID
+%%  * OwnerJID - Same as LocJID
+%% MUC / MUC Light:
+%%  * LocJID - MUC/MUC Light room's JID
+%%  * RemJID - Nickname of JID of destination
+%%  * SrcJID - Full JID of user within room (room@domain/user)
+%%  * OwnerJID - "Real" sender JID (not room specific)
+archive_message(Host, MessID, LocJID, RemJID, SrcJID, OwnerJID, Packet, Type) ->
     LocalJID = mod_mam_utils:bare_jid(LocJID),
     RemoteJID = mod_mam_utils:bare_jid(RemJID),
     SourceJID = mod_mam_utils:full_jid(SrcJID),
+    BareOwnerJID = mod_mam_utils:bare_jid(OwnerJID),
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
     Bucket = bucket(MessID),
 
-    RiakMap = create_obj(Host, MsgId, SourceJID, Packet, Type),
+    RiakMap = create_obj(Host, MsgId, SourceJID, BareOwnerJID, Packet, Type),
     case mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)) of
         ok -> ok;
         Other -> throw(Other)
     end.
 
-create_obj(Host, MsgId, SourceJID, Packet, Type) ->
+create_obj(Host, MsgId, SourceJID, BareOwnerJID, Packet, Type) ->
     ModMAM =
         case Type of
             pm -> mod_mam;
@@ -231,6 +249,10 @@ create_obj(Host, MsgId, SourceJID, Packet, Type) ->
             fun(R) -> riakc_register:set(MsgId, R) end},
            {{<<"source_jid">>, register},
             fun(R) -> riakc_register:set(SourceJID, R) end},
+           {{<<"msg_owner_jid">>, register},
+            fun(R) -> riakc_register:set(BareOwnerJID, R) end},
+           {{<<"mam_type">>, register},
+            fun(R) -> riakc_register:set(atom_to_binary(Type, latin1), R) end},
            {{<<"packet">>, register},
             fun(R) -> riakc_register:set(packet_to_stored_binary(Host, Packet), R) end},
            {{<<"search_text">>, register},
@@ -332,26 +354,24 @@ get_message2(Host, MsgId, Bucket, Key) ->
 -spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
     {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
 get_mam_pm_gdpr_data(Username, Host) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Host),
-    Jid = jid:make({LUser, LServer, <<>>}),
-    LookupParams = ?DUMMY_LOOKUP_PARAMETERS#{owner_jid := Jid},
-    {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
+    Messages = get_mam_gdpr_data(Username, Host, <<"pm">>),
     {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages]}.
 
 -spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
     {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
 get_mam_muc_gdpr_data(Username, Host) ->
+    Messages = get_mam_gdpr_data(Username, Host, <<"muc">>),
+    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Messages]}.
+
+get_mam_gdpr_data(Username, Host, Type) ->
     LUser = jid:nodeprep(Username),
     LServer = jid:nodeprep(Host),
-    Jid = jid:make({LUser, LServer, <<>>}),
-    LookupParams = ?DUMMY_LOOKUP_PARAMETERS#{with_jid := Jid},
-    {ok, {_, _, Messages}} = lookup_messages([], Host, LookupParams),
-    Filtered = lists:filter(fun(El) -> is_muclight_message(Jid, El) end, Messages),
-    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Filtered]}.
-
-is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet})    -> false;
-is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
+    BareJid = jid:make({LUser, LServer, <<>>}),
+    BareJidBin = jid:to_binary(BareJid),
+    Query = <<"msg_owner_jid_register:", BareJidBin/binary, " AND mam_type_register:", Type/binary>>,
+    SearchOpts = [],
+    {ok, _Cnt, _, MsgIds} = fold_archive(fun get_msg_id_key/3, Query, SearchOpts, []),
+    get_messages(Host, MsgIds).
 
 remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveID, ArchiveJID),
@@ -461,12 +481,9 @@ search_text_filter(SearchText) ->
     <<"search_text_register:", NormText/binary, "~1">>.
 
 jid_filters(LocalJid, undefined) ->
-    <<"_yz_rk:", LocalJid/binary, "*">>;
-jid_filters(undefined, RemoteJid) ->
-    %%added only for gdpr data retrieval, don't use for other purposes
-    <<"_yz_rk:*/", RemoteJid/binary, "*">>;
+    <<"_yz_rk:", LocalJid/binary, "/*/*">>;
 jid_filters(LocalJid, RemoteJid) ->
-    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "*">>.
+    <<"_yz_rk:", LocalJid/binary, "/", RemoteJid/binary, "/*">>.
 
 id_filters(undefined, undefined) ->
     undefined;
