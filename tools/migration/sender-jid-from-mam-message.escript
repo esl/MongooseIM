@@ -48,21 +48,45 @@ common_loop(ExtractionFun) ->
             % We skip trailing \n
             InLen = binary_to_integer(binary:part(InLenBin, 0, byte_size(InLenBin) - 1)),
             {ok, Data} = file:read(standard_io, InLen),
-            safe_jid_extraction(ExtractionFun, Data), 
+            safe_jid_extraction(ExtractionFun, Data),
             common_loop(ExtractionFun)
     end.
 
 jid_from_eterm(ETerm) ->
-    {xmlel, <<"message">>, _, MsgChildren} = binary_to_term(ETerm),
-    {xmlel, <<"x">>, _, XChildren} =
-        lists:keyfind([{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}], 3, MsgChildren),
-    {xmlel, _, ItemAttrs, _} = lists:keyfind(<<"item">>, 2, XChildren),
-    {_, JID} = lists:keyfind(<<"jid">>, 1, ItemAttrs),
-    JID.
+    {xmlel, <<"message">>, MsgAttrs, MsgChildren} = binary_to_term(ETerm),
+    case lists:keyfind(<<"type">>, 1, MsgAttrs) of
+        {_, <<"groupchat">>} -> ok;
+        _ -> throw(not_muc_message)
+    end,
+    case lists:keyfind([{<<"xmlns">>, <<"http://jabber.org/protocol/muc#user">>}], 3, MsgChildren) of
+        {xmlel, <<"x">>, _, XChildren} ->
+            {xmlel, _, ItemAttrs, _} = lists:keyfind(<<"item">>, 2, XChildren),
+            {_, JID} = lists:keyfind(<<"jid">>, 1, ItemAttrs),
+            JID;
+        _ ->
+            throw(not_muc_message)
+    end.
+
 
 jid_from_xml(XML) ->
     XmerlFriendlyXML = "<?xml version='1.0' encoding='utf-8'?>" ++ binary_to_list(XML),
     {Doc, _} = xmerl_scan:string(XmerlFriendlyXML),
+    case xmerl_xpath:string("/message/@type", Doc) of
+        [#xmlAttribute{ value = "groupchat" }] ->
+            ok;
+        _ ->
+            throw(not_muc_message)
+    end,
+    Xs = xmerl_xpath:string("/message/x", Doc),
+    IsMUC =
+        lists:any(fun
+            (#xmlElement{ namespace = #xmlNamespace{ default = 'http://jabber.org/protocol/muc#user' }}) ->
+                true;
+            (_Elem) ->
+                false
+        end, Xs),
+    IsMUC orelse throw(not_muc_message),
+
     [#xmlAttribute{ value = JID }] = xmerl_xpath:string("/message/x/item/@jid", Doc),
     unicode:characters_to_binary(JID).
 
@@ -73,6 +97,10 @@ safe_jid_extraction(JIDExtractorFun, Data) ->
             OutLenBin = integer_to_binary(OutLen),
             ok = file:write(standard_io, <<OutLenBin/binary, $\n, JID/binary>>)
     catch
+        throw:R ->
+            Extra = #{ type => invalid_message_type, data => Data },
+            debug(throw, R, erlang:get_stacktrace(), Extra),
+            ok = io:put_chars("-2\n");
         C:R ->
             Extra = #{ type => cannot_extract_jid, data => Data },
             debug(C, R, erlang:get_stacktrace(), Extra),
