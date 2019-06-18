@@ -28,11 +28,10 @@
 %% ejabberd_gen_mam_archive callbacks
 -export([archive_message/9]).
 -export([lookup_messages/3]).
--export([remove_archive/3,
-         remove_archive/4]).
+-export([remove_archive/4]).
 -export([archive_size/4]).
 
--export([get_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
@@ -134,15 +133,20 @@ archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     archive_size(SearchQuery).
 
+-spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
+remove_mam_pm_gdpr_data(User, Server) ->
+    #jid{ lserver = Host } = OwnerJid = jid:make(User, Server, <<>>),
+    remove_archive(Host, OwnerJid).
+
 -spec remove_archive(Acc :: mongoose_acc:t(),
                      Host :: jid:server(),
                      ArchiveId :: mod_mam:archive_id(),
                      OwnerJid :: jid:jid()) -> Acc when Acc :: map().
-remove_archive(Acc, Host, ArchiveId, OwnerJid) ->
-    remove_archive(Host, ArchiveId, OwnerJid),
+remove_archive(Acc, Host, _ArchiveId, OwnerJid) ->
+    remove_archive(Host, OwnerJid),
     Acc.
 
-remove_archive(Host, _ArchiveId, OwnerJid) ->
+remove_archive(Host, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     case mongoose_elasticsearch:delete_by_query(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         ok ->

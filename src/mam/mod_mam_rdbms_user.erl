@@ -10,8 +10,6 @@
 %%%-------------------------------------------------------------------
 -module(mod_mam_rdbms_user).
 
--behaviour(ejabberd_gen_mam_user).
-
 %% gen_mod handlers
 -export([start/2, stop/1]).
 

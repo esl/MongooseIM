@@ -13,3 +13,6 @@
 -callback get_prefs(mod_mam:preference(), _Host :: jid:server(),
         ArcId :: mod_mam:archive_id(), ArcJID :: jid:jid())
             -> mod_mam:preference().
+
+-callback remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
+
