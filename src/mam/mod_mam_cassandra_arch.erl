@@ -18,14 +18,13 @@
 -export([archive_size/4,
          archive_message/9,
          lookup_messages/3,
-         remove_archive/3,
          remove_archive/4]).
 
 %% mongoose_cassandra callbacks
 -export([prepared_queries/0]).
 
 %gdpr
--export([get_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -202,11 +201,16 @@ remove_archive_offsets_query_cql() ->
 select_for_removal_query_cql() ->
     "SELECT DISTINCT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
 
-remove_archive(Acc, Host, UserID, UserJID) ->
-    remove_archive(Host, UserID, UserJID),
+-spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
+remove_mam_pm_gdpr_data(User, Server) ->
+    #jid{ luser = Host } = UserJID = jid:make(User, Server, <<>>),
+    remove_archive(Host, UserJID).
+
+remove_archive(Acc, Host, _UserID, UserJID) ->
+    remove_archive(Host, UserJID),
     Acc.
 
-remove_archive(Host, _UserID, UserJID) ->
+remove_archive(Host, UserJID) ->
     ensure_params_loaded(Host),
     PoolName = mod_mam_cassandra_arch_params:pool_name(),
     BUserJID = bare_jid(UserJID),
@@ -453,14 +457,6 @@ get_mam_pm_gdpr_data(Username, Host) ->
 
 rows_to_gdpr_mam_message(#{message := Data, id:= Id, from_jid:=FromJid}) ->
     {Id, FromJid, exml:to_binary(stored_binary_to_packet(Data))}.
-
-ensure_params_loaded(Host) ->
-    case code:is_loaded(mod_mam_cassandra_arch_params) of
-        false ->
-            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
-            compile_params_module(Params);
-        _ -> ok
-    end.
 
 %% Offset is not supported
 %% Each record is a tuple of form
@@ -770,6 +766,14 @@ stored_binary_to_packet(Bin) ->
 
 %% ----------------------------------------------------------------------
 %% Dynamic params module
+
+ensure_params_loaded(Host) ->
+    case code:is_loaded(mod_mam_cassandra_arch_params) of
+        false ->
+            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
+            compile_params_module(Params);
+        _ -> ok
+    end.
 
 %% compile_params_module([
 %%      {db_message_format, module()}

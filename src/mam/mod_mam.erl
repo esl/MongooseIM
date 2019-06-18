@@ -337,21 +337,20 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
-%% @doc A ejabberd's callback with different order of arguments.
+%% This one is a hook handler...
 -spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
 
+%% ... while this one is a GDPR callback
+-spec remove_user(jid:user(), jid:server()) -> ok.
 remove_user(User, Server) ->
-    ArcJID = jid:make(User, Server, <<>>),
-    Host = server_host(ArcJID),
-    ArcID = try_archive_id_int(Host, ArcJID),
     Backends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)
     ++ mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_prefs),
     lists:foreach(fun(B) ->
         try
-            B:remove_archive(Host, ArcID, ArcJID)
+            B:remove_mam_pm_gdpr_data(User, Server)
         catch
             E:R ->
                 Stack = erlang:get_stacktrace(),
@@ -359,24 +358,7 @@ remove_user(User, Server) ->
                 "reason=~p:~p "
                 "stacktrace=~1000p ", [E, R, Stack]),
                 ok
-        end end, [mod_mam_cache_user | Backends]).
-
-try_archive_id_int(Host, #jid{ luser = LUser } = _ArcJID) ->
-    UserIDBackends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_user),
-    lists:foldl(fun(M, undefined) ->
-                        try M:get_archive_id(Host, LUser) of
-                            Return -> Return
-                        catch
-                            E:R ->
-                                Stack = erlang:get_stacktrace(),
-                                ?WARNING_MSG("issue=retrieve_archive_id_failed "
-                                             "reason=~p:~p "
-                                             "stacktrace=~1000p ", [E, R, Stack]),
-                                undefined
-                        end;
-                   (_, ID) ->
-                        ID
-                end, undefined, UserIDBackends).
+        end end, Backends).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...

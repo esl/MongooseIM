@@ -31,7 +31,6 @@
          stop/1,
          archive_size/4,
          lookup_messages/2,
-         remove_archive/3,
          remove_archive/4]).
 
 -export([archive_message/9,
@@ -45,7 +44,7 @@
 -export([create_obj/5, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
--export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
+-export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
@@ -354,11 +353,16 @@ get_mam_muc_gdpr_data(Username, Host) ->
 is_muclight_message(_BareJid, {_MsgId, #jid{lresource = <<>>}, _Packet})    -> false;
 is_muclight_message(BareJid, {_MsgId, #jid{lresource = Resource}, _Packet}) -> jid:to_binary(BareJid) == Resource.
 
-remove_archive(Acc, Host, ArchiveID, ArchiveJID) ->
-    remove_archive(Host, ArchiveID, ArchiveJID),
+-spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
+remove_mam_pm_gdpr_data(User, Server) ->
+    #jid{ lserver = Host } = ArchiveJID = jid:make(User, Server, <<>>),
+    remove_archive(Host, ArchiveJID).
+
+remove_archive(Acc, Host, _ArchiveID, ArchiveJID) ->
+    remove_archive(Host, ArchiveJID),
     Acc.
 
-remove_archive(Host, _ArchiveID, ArchiveJID) ->
+remove_archive(Host, ArchiveJID) ->
     {ok, TotalCount, _, _} = R = remove_chunk(Host, ArchiveJID, 0),
     Result = do_remove_archive(100, R, Host, ArchiveJID),
     case Result of

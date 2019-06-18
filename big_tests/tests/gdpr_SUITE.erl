@@ -837,11 +837,8 @@ remove_mam_pm(Config) ->
 
             AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
             AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-            mongoose_helper:wait_until(
-              fun() ->
-                      mongoose_helper:successful_rpc(mod_mam, get_personal_data,
-                                                     [AliceU, AliceS])
-              end, [{mam_pm, ExpectedHeader, []}]),
+            [{mam_pm, ExpectedHeader, []}] =
+            mongoose_helper:successful_rpc(mod_mam, get_personal_data, [AliceU, AliceS]),
 
             retrieve_and_validate_personal_data(
                 Bob, Config, "mam_pm", ExpectedHeader, ExpectedItems, ["from", "message"])
