@@ -201,7 +201,7 @@ select_for_removal_query_cql() ->
 
 -spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
 remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ luser = Host } = UserJID = jid:make(User, Server, <<>>),
+    #jid{ lserver = Host } = UserJID = jid:make(User, Server, <<>>),
     remove_archive(Host, UserJID).
 
 remove_archive(Acc, Host, _UserID, UserJID) ->
@@ -806,3 +806,4 @@ db_message_format() ->
 -spec pool_name() -> term().
 pool_name() ->
     mod_mam_cassandra_arch_params:pool_name().
+
