@@ -130,10 +130,9 @@ prepared_queries() ->
 %% Internal functions and callbacks
 
 archive_size(Size, Host, _UserID, UserJID) when is_integer(Size) ->
-    PoolName = pool_name(UserJID),
     Borders = Start = End = WithJID = undefined,
     Filter = prepare_filter(UserJID, Borders, Start, End, WithJID),
-    calc_count(PoolName, UserJID, Host, Filter).
+    calc_count(pool_name(), UserJID, Host, Filter).
 
 
 %% ----------------------------------------------------------------------
@@ -174,9 +173,8 @@ archive_message2(_Result, _Host, MessID,
     write_messages(LocJID, Messages).
 
 write_messages(UserJID, Messages) ->
-    PoolName = pool_name(UserJID),
     MultiParams = [message_to_params(M) || M <- Messages],
-    mongoose_cassandra:cql_write_async(PoolName, UserJID, ?MODULE, insert_query, MultiParams).
+    mongoose_cassandra:cql_write_async(pool_name(), UserJID, ?MODULE, insert_query, MultiParams).
 
 message_to_params(#mam_message{
                      id         = MessID,
@@ -212,7 +210,7 @@ remove_archive(Acc, Host, _UserID, UserJID) ->
 
 remove_archive(Host, UserJID) ->
     ensure_params_loaded(Host),
-    PoolName = mod_mam_cassandra_arch_params:pool_name(),
+    PoolName = pool_name(),
     BUserJID = bare_jid(UserJID),
     Params = #{user_jid => BUserJID},
     %% Wait until deleted
@@ -241,8 +239,7 @@ lookup_messages(_Result, Host,
                   search_text := undefined, page_size := PageSize,
                   is_simple := IsSimple}) ->
     try
-        PoolName = pool_name(UserJID),
-        lookup_messages2(PoolName, Host,
+        lookup_messages2(pool_name(), Host,
                          UserJID, RSM, Borders,
                          Start, End, WithJID,
                          PageSize, IsSimple)
@@ -449,9 +446,8 @@ get_mam_pm_gdpr_data(Username, Host) ->
     LServer = jid:nodeprep(Host),
     Jid = jid:make({LUser, LServer, <<>>}),
     BinJid = jid:to_binary(Jid),
-    PoolName = mod_mam_cassandra_arch_params:pool_name(),
     FilterMap = #{user_jid => BinJid, with_jid => <<"">>},
-    Rows = fetch_user_messages(PoolName, Jid, FilterMap),
+    Rows = fetch_user_messages(pool_name(), Jid, FilterMap),
     Messages = lists:map(fun rows_to_gdpr_mam_message/1, Rows),
     {ok, Messages}.
 
@@ -807,6 +803,6 @@ params_helper(Params) ->
 db_message_format() ->
     mod_mam_cassandra_arch_params:db_message_format().
 
--spec pool_name(jid:jid()) -> term().
-pool_name(_UserJid) ->
+-spec pool_name() -> term().
+pool_name() ->
     mod_mam_cassandra_arch_params:pool_name().
