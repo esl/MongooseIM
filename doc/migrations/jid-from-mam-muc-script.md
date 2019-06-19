@@ -57,8 +57,11 @@ LENGTH\nJID
 * `JID` is a sequence of bytes, which encodes a Unicode string
 * `LENGTH` and `PAYLOAD` are separated with a newline character (ASCII code 10 / 0x0a)
 
-If JID couldn't be extracted for some reason (and it's not a critical error, like I/O failure), the script will continue to work and will return `-1\n`.
-It's `-1` for `LENGTH`, followed by a newline character and no `PAYLOAD` part (or 0-length `PAYLOAD` if you like).
+In case of an error (that is not a critical error, like I/O failure), script will print `-N\n` (where `N` is an error code) and will continue to work.
+Technically it's `-N` for `LENGTH`, followed by a newline character and no `PAYLOAD` part (or 0-length `PAYLOAD` if you like).
+The following error codes are supported:
+* `-1\n` - Unknown error. Something went wrong with the JID extraction (most likely malformed input).
+* `-2\n` - Invalid message type. The message / stanza has been decoded successfully, but it's not a groupchat message.
 
 ## Examples
 
