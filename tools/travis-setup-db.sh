@@ -33,7 +33,7 @@ echo "DATA_ON_VOLUME is $DATA_ON_VOLUME"
 CASSANDRA_VERSION=${CASSANDRA_VERSION:-3.9}
 
 # Default ElasticSearch version
-ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-7.1.1}
+ELASTICSEARCH_VERSION=${ELASTICSEARCH_VERSION:-5.6.9}
 
 # There is one odbc.ini for both mssql and pgsql
 # Allows to run both in parallel
