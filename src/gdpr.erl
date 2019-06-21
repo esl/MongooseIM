@@ -16,3 +16,7 @@
 -callback remove_user(jid:user(), jid:server()) ->
     ok.
 
+%% Sometimes personal data must not be removed,
+%% because a user is no longer the only owner of it
+-optional_callbacks([remove_user/2]).
+

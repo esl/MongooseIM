@@ -238,7 +238,8 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
 -spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
 remove_mam_pm_gdpr_data(User, Server) ->
     ArcID = mod_mam_rdbms_user:get_archive_id(Server, User),
-    remove_archive(jid:nameprep(Server), ArcID).
+    remove_archive(jid:nameprep(Server), ArcID),
+    ok.
 
 -spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().

@@ -202,7 +202,8 @@ select_for_removal_query_cql() ->
 -spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
 remove_mam_pm_gdpr_data(User, Server) ->
     #jid{ lserver = Host } = UserJID = jid:make(User, Server, <<>>),
-    remove_archive(Host, UserJID).
+    remove_archive(Host, UserJID),
+    ok.
 
 remove_archive(Acc, Host, _UserID, UserJID) ->
     remove_archive(Host, UserJID),
