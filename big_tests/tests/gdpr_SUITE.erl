@@ -259,7 +259,7 @@ is_backend_enabled(elasticsearch) -> mam_helper:is_elasticsearch_enabled(domain(
 
 
 init_per_testcase(retrieve_logs = CN, Config) ->
-    case mim2_started() of
+    case is_mim2_started() of
         false -> {skip, not_running_in_distributed};
         _ -> escalus:init_per_testcase(CN, Config)
     end;
@@ -325,7 +325,6 @@ init_per_testcase(remove_roster = CN, Config) ->
 init_per_testcase(CN, Config) ->
     GN = proplists:get_value(group, Config),
     IsPubSub = lists:member(GN, [retrieve_personal_data_pubsub, remove_personal_data_pubsub]),
-    ct:log("IsPubSub: ~p~n", [IsPubSub]),
     case IsPubSub of
         true ->
             dynamic_modules:ensure_modules(domain(), pubsub_required_modules());
@@ -439,7 +438,7 @@ pubsub_required_modules(Plugins) ->
                                   ]
                      }].
 
-mim2_started() ->
+is_mim2_started() ->
     Node = distributed_helper:mim2(),
     case net_adm:ping(Node) of
         pong -> true;
@@ -1340,13 +1339,12 @@ remove_pubsub_all_data(Config) ->
         AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
         [{pubsub_payloads,["node_name","item_id","payload"], AlicePayloads},
          {pubsub_nodes,["node_name","type"], AliceNodes},
-         {pubsub_subscriptions, ["node_name"], AliceSubs}] = mongoose_helper:successful_rpc(mod_pubsub, get_personal_data, [AliceU, AliceS]),
+         {pubsub_subscriptions, ["node_name"], []}] = mongoose_helper:successful_rpc(mod_pubsub, get_personal_data, [AliceU, AliceS]),
         XmlBinItem1 = exml:to_binary(BinItem1),
         XmlBinItem2 = exml:to_binary(BinItem2),
         [[Name1, AliceToNode1, XmlBinItem1],
          [Name2, AliceToNode2, XmlBinItem2]] = lists:sort(AlicePayloads),
         [[Name1, <<"flat">>], [Name2, <<"flat">>]] = lists:sort(AliceNodes),
-        [] = AliceSubs,
 
         BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
         BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
