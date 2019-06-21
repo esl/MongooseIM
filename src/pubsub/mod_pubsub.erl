@@ -885,7 +885,8 @@ remove_user(User, Server) ->
     spawn(fun() -> lists:foreach(
                      fun(PType) ->
                              catch remove_user_per_plugin(PType, Host, Entity, HomeTreeBase)
-                     end, plugins(Host)) end).
+                     end, plugins(Host)) end),
+    ok.
 
 remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
     {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
