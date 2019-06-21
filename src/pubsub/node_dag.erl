@@ -25,7 +25,7 @@
 -include("jlib.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         create_node_permission/6, publish_item/9, node_to_path/1,
+         create_node_permission/6, publish_item/10, node_to_path/1,
          path_to_node/1]).
 
 based_on() -> node_hometree.
@@ -45,16 +45,16 @@ features() ->
 create_node_permission(_Host, _ServerHost, _Node, _ParentNode, _Owner, _Access) ->
     {result, true}.
 
-publish_item(ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
+publish_item(Backend, ServerHost, Nidx, Publisher, Model, MaxItems, ItemId, ItemPublisher, Payload,
              PublishOptions) ->
-    case nodetree_dag:get_node(mod_pubsub_db_backend, Nidx) of
+    case nodetree_dag:get_node(Backend, Nidx) of
         #pubsub_node{options = Options} ->
             case find_opt(node_type, Options) of
                 collection ->
                     {error,
                         ?ERR_EXTENDED((mongoose_xmpp_errors:not_allowed()), <<"publish">>)};
                 _ ->
-                    node_flat:publish_item(ServerHost, Nidx, Publisher, Model, MaxItems,
+                    node_flat:publish_item(Backend, ServerHost, Nidx, Publisher, Model, MaxItems,
                                            ItemId, ItemPublisher, Payload, PublishOptions)
             end;
         Err -> Err

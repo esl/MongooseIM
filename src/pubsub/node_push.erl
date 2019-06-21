@@ -18,7 +18,7 @@
 -include("pubsub.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         publish_item/9, node_to_path/1]).
+         publish_item/10, node_to_path/1]).
 
 based_on() ->  node_flat.
 
@@ -60,9 +60,9 @@ features() ->
         <<"retrieve-affiliations">>
     ].
 
-publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublisher, Payload,
+publish_item(Backend, ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublisher, Payload,
              PublishOptions) ->
-    Affiliation = mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Publisher)),
+    Affiliation = Backend:get_affiliation(Nidx, jid:to_lower(Publisher)),
     ElPayload = [El || #xmlel{} = El <- Payload],
 
     case is_allowed_to_publish(Model, Affiliation) of

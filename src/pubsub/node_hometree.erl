@@ -41,8 +41,9 @@ based_on() ->  node_flat.
 init(Host, ServerHost, Opts) ->
     node_flat:init(Host, ServerHost, Opts),
     Owner = mod_pubsub:service_jid(Host),
-    mod_pubsub:create_node(Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
-    mod_pubsub:create_node(Host, ServerHost, <<"/home/", ServerHost/binary>>,
+    Backend = gen_mod:get_opt(proxy_backend, Opts),
+    mod_pubsub:create_node(Backend, Host, ServerHost, <<"/home">>, Owner, <<"hometree">>),
+    mod_pubsub:create_node(Backend, Host, ServerHost, <<"/home/", ServerHost/binary>>,
                            Owner, <<"hometree">>),
     ok.
 

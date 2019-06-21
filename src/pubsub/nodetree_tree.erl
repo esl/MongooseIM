@@ -44,10 +44,10 @@
 -include("pubsub.hrl").
 -include("jlib.hrl").
 
--export([init/3, terminate/2, set_node/1,
+-export([init/3, terminate/2, set_node/2,
          get_node/3, get_node/2, get_nodes/3,
-         get_parentnodes_tree/3,
-         get_subnodes/3, create_node/6,
+         get_parentnodes_tree/4,
+         get_subnodes/4, create_node/7,
          delete_node/3]).
 
 init(_Host, _ServerHost, _Options) ->
@@ -56,8 +56,8 @@ init(_Host, _ServerHost, _Options) ->
 terminate(_Host, _ServerHost) ->
     ok.
 
-set_node(Node) ->
-    mod_pubsub_db_backend:set_node(Node).
+set_node(Backend, Node) ->
+    Backend:set_node(Node).
 
 get_node(Backend, Host, Node) ->
     case catch Backend:find_node_by_name(Host, Node) of
@@ -76,26 +76,26 @@ get_nodes(Backend, Key, _From) ->
 
 %% @doc <p>Default node tree does not handle parents, return a list
 %% containing just this node.</p>
-get_parentnodes_tree(Host, Node, _From) ->
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Node) of
+get_parentnodes_tree(Backend, Host, Node, _From) ->
+    case catch Backend:find_node_by_name(Host, Node) of
         #pubsub_node{} = Record -> [{0, [Record]}];
         _ -> []
     end.
 
-get_subnodes(Host, Node, _From) ->
-    mod_pubsub_db_backend:get_subnodes(Host, Node).
+get_subnodes(Backend, Host, Node, _From) ->
+    Backend:get_subnodes(Host, Node).
 
-create_node(Host, NodeName, Type, Owner, Options, Parents) ->
+create_node(Backend, Host, NodeName, Type, Owner, Options, Parents) ->
     BJID = jid:to_lower(jid:to_bare(Owner)),
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, NodeName) of
+    case catch Backend:find_node_by_name(Host, NodeName) of
         false ->
-            case check_parent_and_its_owner_list(Host, Parents, BJID) of
+            case check_parent_and_its_owner_list(Backend, Host, Parents, BJID) of
                 true ->
                     Node = #pubsub_node{nodeid = {Host, NodeName},
                                         parents = Parents,
                                         type = Type, owners = [BJID],
                                         options = Options},
-                    set_node(Node);
+                    set_node(Backend, Node);
                 false ->
                     {error, mongoose_xmpp_errors:forbidden()}
             end;
@@ -103,14 +103,14 @@ create_node(Host, NodeName, Type, Owner, Options, Parents) ->
             {error, mongoose_xmpp_errors:conflict()}
     end.
 
-check_parent_and_its_owner_list({_U, _S, _R}, _Parents, _BJID) ->
+check_parent_and_its_owner_list(_Backend, {_U, _S, _R}, _Parents, _BJID) ->
     %% This is special case for PEP handling
     %% PEP does not uses hierarchy
     true;
-check_parent_and_its_owner_list(_Host, [], _BJID) ->
+check_parent_and_its_owner_list(_Backend, _Host, [], _BJID) ->
     true;
-check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
-    case catch mod_pubsub_db_backend:find_node_by_name(Host, Parent) of
+check_parent_and_its_owner_list(Backend, Host, [Parent | _], BJID) ->
+    case catch Backend:find_node_by_name(Host, Parent) of
         #pubsub_node{owners = [{<<>>, Host, <<>>}]} ->
             true;
         #pubsub_node{owners = Owners} ->
@@ -118,7 +118,7 @@ check_parent_and_its_owner_list(Host, [Parent | _], BJID) ->
         _ ->
             false
     end;
-check_parent_and_its_owner_list(_Host, _Parents, _BJID) ->
+check_parent_and_its_owner_list(_Backend, _Host, _Parents, _BJID) ->
     false.
 
 delete_node(Backend, Host, Node) ->

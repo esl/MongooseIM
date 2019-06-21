@@ -39,16 +39,16 @@
 -include("mongoose.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         create_node_permission/6, create_node/2, delete_node/2,
-         purge_node/2, subscribe_node/8, unsubscribe_node/5,
-         publish_item/9, delete_item/4, remove_extra_items/3,
-         get_entity_affiliations/3, get_node_affiliations/1,
+         create_node_permission/6, create_node/3, delete_node/2,
+         purge_node/3, subscribe_node/9, unsubscribe_node/5,
+         publish_item/10, delete_item/5, remove_extra_items/4,
+         get_entity_affiliations/3, get_node_affiliations/2,
          get_affiliation/3, set_affiliation/4,
          get_entity_subscriptions/3, get_node_subscriptions/2,
-         get_subscriptions/2, set_subscriptions/4,
-         get_pending_nodes/2,
-         get_items_if_authorised/3, get_items/3, get_item/7,
-         get_item/2, set_item/1, get_item_name/3, node_to_path/1,
+         get_subscriptions/3, set_subscriptions/5,
+         get_pending_nodes/3,
+         get_items_if_authorised/4, get_items/4, get_item/8,
+         get_item/3, set_item/2, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1]).
 
 based_on() ->  none.
@@ -115,8 +115,8 @@ create_node_permission(Host, ServerHost, _Node, _ParentNode, Owner, Access) ->
     end,
     {result, Allowed}.
 
-create_node(Nidx, Owner) ->
-    mod_pubsub_db_backend:create_node(Nidx, jid:to_lower(Owner)),
+create_node(Backend, Nidx, Owner) ->
+    Backend:create_node(Nidx, jid:to_lower(Owner)),
     {result, {default, broadcast}}.
 
 delete_node(Backend, Nodes) ->
@@ -160,11 +160,11 @@ delete_node(Backend, Nodes) ->
 %%   to completly disable persistance.</li></ul>
 %% </p>
 %% <p>In the default plugin module, the record is unchanged.</p>
-subscribe_node(Nidx, Sender, Subscriber, AccessModel,
+subscribe_node(Backend, Nidx, Sender, Subscriber, AccessModel,
             SendLast, PresenceSubscription, RosterGroup, Options) ->
     SenderMatchesSubscriber = jid:are_bare_equal(Sender, Subscriber),
-    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, Subscriber),
-    {ok, Subscriptions} = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, Subscriber),
+    {ok, Affiliation} = Backend:get_affiliation(Nidx, Subscriber),
+    {ok, Subscriptions} = Backend:get_node_entity_subscriptions(Nidx, Subscriber),
     Whitelisted = lists:member(Affiliation, [member, publisher, owner]),
     PendingSubscription = lists:any(fun
                 ({pending, _, _}) -> true;
@@ -180,7 +180,7 @@ subscribe_node(Nidx, Sender, Subscriber, AccessModel,
                 [] ->
                     Id = make_subid(),
                     Sub = access_model_to_subscription(AccessModel),
-                    mod_pubsub_db_backend:add_subscription(Nidx, Subscriber, Sub, Id, Options),
+                    Backend:add_subscription(Nidx, Subscriber, Sub, Id, Options),
                     {Sub, Id}
             end,
             case {NewSub, SendLast} of
@@ -305,21 +305,21 @@ authenticate_unsubscribe(_SenderMatchesSubscriber, _Subscriptions, _SubIdExists,
 %%   to completly disable persistance.</li></ul>
 %% </p>
 %% <p>In the default plugin module, the record is unchanged.</p>
-publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemPublisher,
+publish_item(Backend, _ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemPublisher,
              Payload, _PublishOptions) ->
     %% vvvvvvvvvvvv
     BarePublisher = jid:to_bare(Publisher),
     SubKey = jid:to_lower(Publisher),
     GenKey = jid:to_lower(BarePublisher),
-    {ok, GenState} = mod_pubsub_db_backend:get_state(Nidx, GenKey),
+    {ok, GenState} = Backend:get_state(Nidx, GenKey),
     SubState = case Publisher#jid.lresource of
                    <<>> ->
                        GenState;
                    _ ->
-                       {ok, SubState0} = mod_pubsub_db_backend:get_state(Nidx, SubKey),
+                       {ok, SubState0} = Backend:get_state(Nidx, SubKey),
                        SubState0
                end,
-    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, GenKey),
+    {ok, Affiliation} = Backend:get_affiliation(Nidx, GenKey),
     Subscribed = case PublishModel of
         subscribers -> is_subscribed(GenState#pubsub_state.subscriptions) orelse
                        is_subscribed(SubState#pubsub_state.subscriptions);
@@ -340,21 +340,21 @@ publish_item(_ServerHost, Nidx, Publisher, PublishModel, MaxItems, ItemId, ItemP
             case MaxItems > 0 of
                true ->
                    Now = os:timestamp(),
-                   Item = make_pubsub_item(Nidx, ItemId, Now, SubKey, GenKey,
+                   Item = make_pubsub_item(Backend, Nidx, ItemId, Now, SubKey, GenKey,
                                            Payload, Publisher, ItemPublisher),
                    Items = [ItemId | GenState#pubsub_state.items -- [ItemId]],
-                   {result, {_NI, OI}} = remove_extra_items(Nidx, MaxItems, Items),
-                   mod_pubsub_db_backend:add_item(Nidx, GenKey, Item),
-                   mod_pubsub_db_backend:remove_items(Nidx, GenKey, OI),
+                   {result, {_NI, OI}} = remove_extra_items(Backend, Nidx, MaxItems, Items),
+                   Backend:add_item(Nidx, GenKey, Item),
+                   Backend:remove_items(Nidx, GenKey, OI),
                    {result, {default, broadcast, OI}};
                false ->
                    {result, {default, broadcast, []}}
             end
     end.
 
-make_pubsub_item(Nidx, ItemId, Now, SubKey, GenKey, Payload, Publisher, ItemPublisher) ->
+make_pubsub_item(Backend, Nidx, ItemId, Now, SubKey, GenKey, Payload, Publisher, ItemPublisher) ->
     PubId = {Now, SubKey},
-    case get_item(Nidx, ItemId) of
+    case get_item(Backend, Nidx, ItemId) of
         {result, OldItem} ->
             OldItem#pubsub_item{modification = PubId,
                                 payload = Payload};
@@ -380,55 +380,55 @@ make_pubsub_item(Nidx, ItemId, Now, SubKey, GenKey, Payload, Publisher, ItemPubl
 %% plugin is using the default pubsub storage), it can implements this function like this:
 %% ```remove_extra_items(Nidx, MaxItems, ItemIds) ->
 %%           node_default:remove_extra_items(Nidx, MaxItems, ItemIds).'''</p>
-remove_extra_items(_Nidx, unlimited, ItemIds) ->
+remove_extra_items(_Backend, _Nidx, unlimited, ItemIds) ->
     {result, {ItemIds, []}};
-remove_extra_items(Nidx, MaxItems, ItemIds) ->
+remove_extra_items(Backend, Nidx, MaxItems, ItemIds) ->
     NewItems = lists:sublist(ItemIds, MaxItems),
     OldItems = lists:nthtail(length(NewItems), ItemIds),
-    del_items(Nidx, OldItems),
+    del_items(Backend, Nidx, OldItems),
     {result, {NewItems, OldItems}}.
 
 %% @doc <p>Triggers item deletion.</p>
 %% <p>Default plugin: The user performing the deletion must be the node owner
 %% or a publisher, or PublishModel being open.</p>
-delete_item(Nidx, Publisher, PublishModel, ItemId) ->
+delete_item(Backend, Nidx, Publisher, PublishModel, ItemId) ->
     GenKey = jid:to_bare(jid:to_lower(Publisher)),
-    {ok, GenState} = mod_pubsub_db_backend:get_state(Nidx, GenKey),
+    {ok, GenState} = Backend:get_state(Nidx, GenKey),
     #pubsub_state{affiliation = Affiliation, items = Items} = GenState,
-    Allowed = get_permition(Affiliation, PublishModel, Nidx, ItemId, GenKey),
+    Allowed = get_permition(Backend, Affiliation, PublishModel, Nidx, ItemId, GenKey),
     case Allowed of
         false ->
             {error, mongoose_xmpp_errors:forbidden()};
         true ->
             case lists:member(ItemId, Items) of
                 true ->
-                    del_item(Nidx, ItemId),
-                    mod_pubsub_db_backend:remove_items(Nidx, GenKey, [ItemId]),
+                    del_item(Backend, Nidx, ItemId),
+                    Backend:remove_items(Nidx, GenKey, [ItemId]),
                     {result, {default, broadcast}};
                 false ->
-                    delete_foreign_item(Nidx, ItemId, Affiliation)
+                    delete_foreign_item(Backend, Nidx, ItemId, Affiliation)
             end
     end.
 
-get_permition(publisher, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
-get_permition(owner, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
-get_permition(_Affiliation, open, _Nidx, _ItemId, _GenKey) -> true;
-get_permition(_Affiliation, _PublishModel, Nidx, ItemId, GenKey) ->
-    case get_item(Nidx, ItemId) of
+get_permition(_Backend, publisher, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
+get_permition(_Backend, owner, _PublishModel, _Nidx, _ItemId, _GenKey) -> true;
+get_permition(_Backend, _Affiliation, open, _Nidx, _ItemId, _GenKey) -> true;
+get_permition(Backend, _Affiliation, _PublishModel, Nidx, ItemId, GenKey) ->
+    case get_item(Backend, Nidx, ItemId) of
         {result, #pubsub_item{creation = {_, GenKey}}} -> true;
         _ -> false
     end.
 
 %% Delete an item that does not belong to the user
 %% TODO: Whole function should be moved to DB layer but we need to migrate pubsub_item first
-delete_foreign_item(Nidx, ItemId, owner) ->
-    {ok, States} = mod_pubsub_db_backend:get_states(Nidx),
+delete_foreign_item(Backend, Nidx, ItemId, owner) ->
+    {ok, States} = Backend:get_states(Nidx),
     lists:foldl(fun
                     (#pubsub_state{stateid = {User, _}, items = PI}, Res) ->
                         case lists:member(ItemId, PI) of
                             true ->
-                                del_item(Nidx, ItemId),
-                                mod_pubsub_db_backend:remove_items(Nidx, User, [ItemId]),
+                                del_item(Backend, Nidx, ItemId),
+                                Backend:remove_items(Nidx, User, [ItemId]),
                                 {result, {default, broadcast}};
                             false ->
                                 Res
@@ -437,21 +437,21 @@ delete_foreign_item(Nidx, ItemId, owner) ->
                         Res
                 end,
                 {error, mongoose_xmpp_errors:item_not_found()}, States);
-delete_foreign_item(_Nidx, _ItemId, _Affiliation) ->
+delete_foreign_item(_Backend, _Nidx, _ItemId, _Affiliation) ->
     {error, mongoose_xmpp_errors:item_not_found()}.
 
-purge_node(Nidx, Owner) ->
-    case mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Owner)) of
+purge_node(Backend, Nidx, Owner) ->
+    case Backend:get_affiliation(Nidx, jid:to_lower(Owner)) of
         {ok, owner} ->
-            {ok, States} = mod_pubsub_db_backend:get_states(Nidx),
+            {ok, States} = Backend:get_states(Nidx),
             lists:foreach(fun
                     (#pubsub_state{items = []}) ->
                         ok;
                     (#pubsub_state{items = Items}) ->
-                        del_items(Nidx, Items)
+                        del_items(Backend, Nidx, Items)
                 end,
                 States),
-            mod_pubsub_db_backend:remove_all_items(Nidx),
+            Backend:remove_all_items(Nidx),
             {result, {default, broadcast}};
         _ ->
             {error, mongoose_xmpp_errors:forbidden()}
@@ -471,8 +471,8 @@ get_entity_affiliations(Backend, Host, LOwner) ->
                         [], States),
     {result, Reply}.
 
-get_node_affiliations(Nidx) ->
-    {ok, States} = mod_pubsub_db_backend:get_states(Nidx),
+get_node_affiliations(Backend, Nidx) ->
+    {ok, States} = Backend:get_states(Nidx),
     Tr = fun (#pubsub_state{stateid = {J, _}, affiliation = A}) -> {J, A} end,
     {result, lists:map(Tr, States)}.
 
@@ -512,16 +512,16 @@ get_node_subscriptions(Backend, Nidx) ->
     {ok, Subscriptions} = Backend:get_node_subscriptions(Nidx),
     {result, Subscriptions}.
 
-get_subscriptions(Nidx, #jid{} = Owner) ->
-    get_subscriptions(Nidx, jid:to_lower(Owner));
-get_subscriptions(Nidx, LOwner) ->
-    {ok, Subscriptions} = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, LOwner),
+get_subscriptions(Backend, Nidx, #jid{} = Owner) ->
+    get_subscriptions(Backend, Nidx, jid:to_lower(Owner));
+get_subscriptions(Backend, Nidx, LOwner) ->
+    {ok, Subscriptions} = Backend:get_node_entity_subscriptions(Nidx, LOwner),
     {result, Subscriptions}.
 
-set_subscriptions(Nidx, #jid{} = Owner, Subscription, SubId) ->
-    set_subscriptions(Nidx, jid:to_lower(Owner), Subscription, SubId);
-set_subscriptions(Nidx, LOwner, Subscription, SubId) ->
-    {ok, Subscriptions} = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, LOwner),
+set_subscriptions(Backend, Nidx, #jid{} = Owner, Subscription, SubId) ->
+    set_subscriptions(Backend, Nidx, jid:to_lower(Owner), Subscription, SubId);
+set_subscriptions(Backend, Nidx, LOwner, Subscription, SubId) ->
+    {ok, Subscriptions} = Backend:get_node_entity_subscriptions(Nidx, LOwner),
     case {SubId, Subscriptions} of
         {_, []} ->
             case Subscription of
@@ -530,32 +530,32 @@ set_subscriptions(Nidx, LOwner, Subscription, SubId) ->
                         ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"not-subscribed">>)};
                 _ ->
                     NewSubId = make_subid(),
-                    mod_pubsub_db_backend:add_subscription(Nidx, LOwner, Subscription, NewSubId, [])
+                    Backend:add_subscription(Nidx, LOwner, Subscription, NewSubId, [])
             end;
         {<<>>, [{_, SID, _}]} ->
             case Subscription of
-                none -> mod_pubsub_db_backend:delete_subscription(Nidx, LOwner, SID);
-                _ -> mod_pubsub_db_backend:update_subscription(Nidx, LOwner, Subscription, SID)
+                none -> Backend:delete_subscription(Nidx, LOwner, SID);
+                _ -> Backend:update_subscription(Nidx, LOwner, Subscription, SID)
             end;
         {<<>>, [_ | _]} ->
             {error,
                 ?ERR_EXTENDED((mongoose_xmpp_errors:bad_request()), <<"subid-required">>)};
         _ ->
             case Subscription of
-                none -> mod_pubsub_db_backend:delete_subscription(Nidx, LOwner, SubId);
-                _ -> mod_pubsub_db_backend:update_subscription(Nidx, LOwner, Subscription, SubId)
+                none -> Backend:delete_subscription(Nidx, LOwner, SubId);
+                _ -> Backend:update_subscription(Nidx, LOwner, Subscription, SubId)
             end
     end.
 
 %% @doc <p>Returns a list of Owner's nodes on Host with pending
 %% subscriptions.</p>
-get_pending_nodes(Host, Owner) ->
+get_pending_nodes(Backend, Host, Owner) ->
     LOwner = jid:to_lower(Owner),
-    {ok, Nidxs} = mod_pubsub_db_backend:get_idxs_of_own_nodes_with_pending_subs(LOwner),
+    {ok, Nidxs} = Backend:get_idxs_of_own_nodes_with_pending_subs(LOwner),
     NodeTree = mod_pubsub:tree(Host),
     {result,
      lists:foldl(fun(N, Acc) ->
-                         case gen_pubsub_nodetree:get_node(mod_pubsub_db_backend, NodeTree, N) of
+                         case gen_pubsub_nodetree:get_node(Backend, NodeTree, N) of
                              #pubsub_node{nodeid = {_, Node}} -> [Node | Acc];
                              _ -> Acc
                          end
@@ -567,27 +567,27 @@ get_pending_nodes(Host, Owner) ->
 %% mod_pubsub module.</p>
 %% <p>PubSub plugins can store the items where they wants (for example in a
 %% relational database), or they can even decide not to persist any items.</p>
-get_items(Nidx, _From, Opts) ->
+get_items(Backend, Nidx, _From, Opts) ->
     %% TODO add tests and implementation supporting RSM
     %% when looking for node's items.
     %% Currently the RSM attribute is ignored
-    case mod_pubsub_db_backend:get_items(Nidx, Opts) of
+    case Backend:get_items(Nidx, Opts) of
         {ok, Result} ->
             {result, Result};
         {error, item_not_found} ->
             {error, mongoose_xmpp_errors:item_not_found()}
     end.
 
-get_items_if_authorised(Nidx, JID, #{access_model := AccessModel,
+get_items_if_authorised(Backend, Nidx, JID, #{access_model := AccessModel,
                                      presence_permission := PresenceSubscription,
                                      roster_permission := RosterGroup,
                                      rsm := RSM} = Opts) ->
     LJID = jid:to_lower(JID),
-    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, LJID),
+    {ok, Affiliation} = Backend:get_affiliation(Nidx, LJID),
     {ok, BareSubscriptions}
-    = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, jid:to_bare(LJID)),
+    = Backend:get_node_entity_subscriptions(Nidx, jid:to_bare(LJID)),
     {ok, FullSubscriptions}
-    = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, LJID),
+    = Backend:get_node_entity_subscriptions(Nidx, LJID),
     Whitelisted = can_fetch_item(Affiliation, BareSubscriptions) orelse
                   can_fetch_item(Affiliation, FullSubscriptions),
     case authorize_get_item(Affiliation, AccessModel, PresenceSubscription,
@@ -596,28 +596,28 @@ get_items_if_authorised(Nidx, JID, #{access_model := AccessModel,
             LowLevelOpts = #{rsm => RSM,
                              max_items => maps:get(max_items, Opts, undefined),
                              item_ids => maps:get(item_ids, Opts, undefined)},
-            get_items(Nidx, JID, LowLevelOpts);
+            get_items(Backend, Nidx, JID, LowLevelOpts);
         {error, _} = Err -> Err
     end.
 
 %% @doc <p>Returns an item (one item list), given its reference.</p>
 
-get_item(Nidx, ItemId) ->
-    case mod_pubsub_db_backend:get_item(Nidx, ItemId) of
+get_item(Backend, Nidx, ItemId) ->
+    case Backend:get_item(Nidx, ItemId) of
         {ok, Item} ->
             {result, Item};
         {error, Error} ->
             {error, Error}
     end.
 
-get_item(Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
-    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, JID),
+get_item(Backend, Nidx, ItemId, JID, AccessModel, PresenceSubscription, RosterGroup, _SubId) ->
+    {ok, Affiliation} = Backend:get_affiliation(Nidx, JID),
     {ok, Subscriptions}
-    = mod_pubsub_db_backend:get_node_entity_subscriptions(Nidx, jid:to_bare(JID)),
+    = Backend:get_node_entity_subscriptions(Nidx, jid:to_bare(JID)),
     Whitelisted = can_fetch_item(Affiliation, Subscriptions),
     case authorize_get_item(Affiliation, AccessModel, PresenceSubscription,
                            RosterGroup, Whitelisted) of
-        ok -> get_item(Nidx, ItemId);
+        ok -> get_item(Backend, Nidx, ItemId);
         {error, _} = Err -> Err
     end.
 
@@ -636,16 +636,16 @@ authorize_get_item(_Affiliation, _AccessModel, _PresenceSubscription, _RosterGro
     ok.
 
 %% @doc <p>Write an item into database.</p>
-set_item(Item) when is_record(Item, pubsub_item) ->
-    mod_pubsub_db_backend:set_item(Item).
+set_item(Backend, Item) when is_record(Item, pubsub_item) ->
+    Backend:set_item(Item).
 %set_item(_) -> {error, mongoose_xmpp_errors:internal_server_error()}.
 
 %% @doc <p>Delete an item from database.</p>
-del_item(Nidx, ItemId) ->
-    mod_pubsub_db_backend:del_item(Nidx, ItemId).
+del_item(Backend, Nidx, ItemId) ->
+    Backend:del_item(Nidx, ItemId).
 
-del_items(Nidx, ItemIds) ->
-    mod_pubsub_db_backend:del_items(Nidx, ItemIds).
+del_items(Backend, Nidx, ItemIds) ->
+    Backend:del_items(Nidx, ItemIds).
 
 get_item_name(_Host, _Node, Id) ->
     Id.

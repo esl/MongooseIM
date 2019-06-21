@@ -91,9 +91,9 @@
                                  Access :: atom()) ->
     {result, boolean()}.
 
--callback create_node(NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, {default, broadcast}}.
+-callback create_node(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, {default, broadcast}}.
 
--callback delete_node(Nodes :: [pubsubNode(), ...]) ->
+-callback delete_node(Backend :: atom(), Nodes :: [pubsubNode(), ...]) ->
     {result,
         {default, broadcast,
             [{pubsubNode(),
@@ -108,10 +108,11 @@
             }
         }.
 
--callback purge_node(NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
+-callback purge_node(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
     {result, {default, broadcast}} | {error, exml:element()}.
 
--callback subscribe_node(NodeIdx :: nodeIdx(),
+-callback subscribe_node(Backend :: atom(),
+        NodeIdx :: nodeIdx(),
         Sender :: jid:jid(),
         Subscriber :: jid:ljid(),
         AccessModel :: accessModel(),
@@ -131,7 +132,8 @@
         SubId :: subId()) ->
     {result, default} | {error, exml:element()}.
 
--callback publish_item(ServerHost :: jid:server(),
+-callback publish_item(Backend :: atom(),
+        ServerHost :: jid:server(),
         NodeId :: nodeIdx(),
         Publisher :: jid:jid(),
         PublishModel :: publishModel(),
@@ -142,45 +144,48 @@
         PublishOptions :: publishOptions()) ->
     {result, {default, broadcast, [itemId()]}} | {error, exml:element()}.
 
--callback delete_item(NodeIdx :: nodeIdx(),
+-callback delete_item(Backend :: atom(),
+        NodeIdx :: nodeIdx(),
         Publisher :: jid:jid(),
         PublishModel :: publishModel(),
         ItemId :: <<>> | itemId()) ->
     {result, {default, broadcast}} | {error, exml:element()}.
 
--callback remove_extra_items(NodeIdx :: nodeIdx(),
+-callback remove_extra_items(Backend :: atom(),
+        NodeIdx :: nodeIdx(),
         MaxItems :: unlimited | non_neg_integer(),
         ItemIds :: [itemId()]) ->
     {result, {[itemId()], [itemId()]}}.
 
--callback get_node_affiliations(NodeIdx :: nodeIdx()) -> {result, [{jid:ljid(), affiliation()}]}.
+-callback get_node_affiliations(Backend :: atom(), NodeIdx :: nodeIdx()) -> {result, [{jid:ljid(), affiliation()}]}.
 
--callback get_entity_affiliations(Host :: host(), Owner :: jid:jid()) ->
+-callback get_entity_affiliations(Backend :: atom(), Host :: host(), Owner :: jid:jid()) ->
     {result, [{pubsubNode(), affiliation()}]}.
 
--callback get_affiliation(NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, affiliation()}.
+-callback get_affiliation(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, affiliation()}.
 
--callback set_affiliation(NodeIdx :: nodeIdx(), Owner :: jid:jid(), Affiliation :: affiliation()) ->
+-callback set_affiliation(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid(), Affiliation :: affiliation()) ->
     ok | {error, exml:element()}.
 
--callback get_node_subscriptions(NodeIdx :: nodeIdx()) ->
+-callback get_node_subscriptions(Backend :: atom(), NodeIdx :: nodeIdx()) ->
     {result, [{jid:ljid(), subscription(), subId(), subOptions()}]}.
 
 -callback get_entity_subscriptions(Backend :: atom(), Host :: host(), Key :: jid:jid()) ->
     {result, [{pubsubNode(), subscription(), subId(), jid:ljid()}]}.
 
--callback get_subscriptions(NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
+-callback get_subscriptions(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
     {result, [{subscription(), subId(), subOptions()}]}.
 
--callback get_pending_nodes(Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
+-callback get_pending_nodes(Backend :: atom(), Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
 
--callback get_items_if_authorised(NodeIdx :: nodeIdx(), JID :: jid:jid(), get_authorised_item_options()) ->
+-callback get_items_if_authorised(Backend :: atom(), NodeIdx :: nodeIdx(), JID :: jid:jid(), get_authorised_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, exml:element()}.
 
--callback get_items(NodeIdx :: nodeIdx(), From :: jid:jid(), get_item_options()) ->
+-callback get_items(Backend :: atom(), NodeIdx :: nodeIdx(), From :: jid:jid(), get_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}}.
 
--callback get_item(NodeIdx :: nodeIdx(),
+-callback get_item(Backend :: atom(),
+        NodeIdx :: nodeIdx(),
         ItemId :: itemId(),
         JID :: jid:jid(),
         AccessModel :: accessModel(),
@@ -189,10 +194,10 @@
         SubId :: subId()) ->
     {result, pubsubItem()} | {error, exml:element()}.
 
--callback get_item(NodeIdx :: nodeIdx(), ItemId :: itemId()) ->
+-callback get_item(Backend :: atom(), NodeIdx :: nodeIdx(), ItemId :: itemId()) ->
     {result, pubsubItem()} | {error, exml:element()}.
 
--callback set_item(Item :: pubsubItem()) -> ok.
+-callback set_item(Backend :: atom(), Item :: pubsubItem()) -> ok.
 
 -callback get_item_name(Host :: host(), ServerHost :: binary(), Node :: nodeId()) -> itemId().
 
@@ -201,27 +206,27 @@
 -callback path_to_node(Path :: [nodeId()]) -> nodeId().
 
 -optional_callbacks([create_node_permission/6,
-                     create_node/2,
-                     delete_node/1,
-                     purge_node/2,
-                     subscribe_node/8,
+                     create_node/3,
+                     delete_node/2,
+                     purge_node/3,
+                     subscribe_node/9,
                      unsubscribe_node/5,
-                     publish_item/9,
-                     delete_item/4,
-                     remove_extra_items/3,
-                     get_node_affiliations/1,
-                     get_entity_affiliations/2,
-                     get_affiliation/2,
-                     set_affiliation/3,
-                     get_node_subscriptions/1,
+                     publish_item/10,
+                     delete_item/5,
+                     remove_extra_items/4,
+                     get_node_affiliations/2,
+                     get_entity_affiliations/3,
+                     get_affiliation/3,
+                     set_affiliation/4,
+                     get_node_subscriptions/2,
                      get_entity_subscriptions/3,
-                     get_subscriptions/2,
-                     get_pending_nodes/2,
-                     get_items_if_authorised/3,
-                     get_items/3,
-                     get_item/7,
-                     get_item/2,
-                     set_item/1,
+                     get_subscriptions/3,
+                     get_pending_nodes/3,
+                     get_items_if_authorised/4,
+                     get_items/4,
+                     get_item/8,
+                     get_item/3,
+                     set_item/2,
                      get_item_name/3,
                      path_to_node/1]).
 
