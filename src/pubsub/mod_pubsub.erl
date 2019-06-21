@@ -879,13 +879,12 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
     PluginModules = mongoose_lib:find_behaviour_implementations(gen_pubsub_node),
     BackendModules = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
-    [remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer, HomeTreeBase) ||
-          Plugin <- PluginModules, Backend <- BackendModules] .
+    [remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer) ||
+          Plugin <- PluginModules, Backend <- BackendModules].
 
-remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer, HomeTreeBase) ->
+remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer) ->
     Entity = jid:make(LUser, LServer, <<>>),
     Host = host(LServer),
     DbErrorCall = #{
@@ -895,71 +894,47 @@ remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer, HomeTreeBase
      },
 	try
         remove_user_subscriptions_per_plugin_and_backend(Backend, Plugin, Host, Entity, DbErrorCall),
-        remove_user_affiliations_per_plugin_and_backend(Backend, Plugin, Host,
-                                                        Entity, HomeTreeBase, DbErrorCall)
+        remove_user_affiliations_per_plugin_and_backend(Backend, Plugin, Host, Entity, DbErrorCall)
 	catch
 		Error:Reason -> {Error, Reason}
 	end.
 
 remove_user_subscriptions_per_plugin_and_backend(Backend, Plugin, Host, Entity, DbErrorCall) ->
     Subs = get_requested_data_per_plugin_and_backend(get_entity_subscriptions, Backend, Plugin, Host, Entity, DbErrorCall),
-    lists:foreach(fun(S) ->
-                          unsubscribe_pubsub_node_per_plugin_and_backend(Backend,
-                                                                         Plugin,
-                                                                         Entity,
-                                                                         DbErrorCall,
-                                                                         S)
-                  end, Subs).
+    [unsubscribe_pubsub_node_per_plugin_and_backend(Backend, Plugin, Entity, DbErrorCall, S) || S <- Subs].
 
-remove_user_affiliations_per_plugin_and_backend(Backend, Plugin, Host, Entity,
-                                                HomeTreeBase, DbErrorCall) ->
+remove_user_affiliations_per_plugin_and_backend(Backend, Plugin, Host, Entity, DbErrorCall) ->
     Affs = get_requested_data_per_plugin_and_backend(get_entity_affiliations, Backend, Plugin, Host, Entity, DbErrorCall),
-    lists:foreach(remove_affiliations_per_plugin_and_backend(Backend,
-                                                             Plugin,
-                                                             Entity,
-                                                             HomeTreeBase,
-                                                             DbErrorCall)
-                  , Affs).
+    [remove_affiliations_per_plugin_and_backend(Backend, Plugin, Entity, DbErrorCall, A) || A <- Affs].
 
 unsubscribe_pubsub_node_per_plugin_and_backend(Backend, Plugin, Entity, Err, {#pubsub_node{id = Nidx}, _, _, JID}) ->
-    ErrorDebug = Err#{
-      action => unsubscribe_node,
-      args => [Backend, Nidx, Entity, JID, all]
+    ErrorDebug = Err#{action => unsubscribe_node,
+                      args => [Backend, Nidx, Entity, JID, all]
      },
-    Backend:dirty(fun() -> Plugin:unsubscribe_node(Backend, Nidx, Entity, JID, all) end, ErrorDebug);
-unsubscribe_pubsub_node_per_plugin_and_backend(_DB, _Plug, _Entity, _Err, _) ->
-    ok.
-
+    Backend:dirty(fun() -> Plugin:unsubscribe_node(Backend, Nidx, Entity, JID, all) end, ErrorDebug).
 
 get_requested_data_per_plugin_and_backend(Request, Backend, Plugin, Host, Entity, Err) ->
     {result, Data} = Backend:dirty(fun() -> Plugin:Request(Backend, Host, Entity) end,
                        Err#{action => Request, args => [Backend, Host, Entity]}),
     Data.
 
-remove_affiliations_per_plugin_and_backend(Backend, Plugin, Entity,
-                                           HomeTreeBase, Err) ->
-    fun
-        ({#pubsub_node{id = Nidx, type = <<"flat">>}, owner}) ->
-            ErrorDebug = Err#{
-                           action => set_affiliation,
-                           args => [Backend, Nidx, Entity, none]
-                          },
-            Backend:dirty(fun() -> Plugin:set_affiliation(Backend, Nidx, Entity, none) end, ErrorDebug);
-        ({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
-            delete_node(Backend, H, N, Entity);
-        ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
-          when N == HomeTreeBase, Type == <<"hometree">> ->
-            delete_node(Backend, H, N, Entity);
-        ({#pubsub_node{id = Nidx}, publisher}) ->
-            ErrorDebug = Err#{
-                           action => set_affiliation,
-                           args => [Backend, Nidx, Entity, none]
-                          },
-            Backend:dirty(fun() -> Plugin:set_affiliation(Backend, Nidx, Entity, none) end, ErrorDebug);
-        (Node) ->
-            ?INFO_MSG("Node remove_user_per_plugin ~p~n", [Node]),
-            ok
+remove_affiliations_per_plugin_and_backend(Backend, Plugin, Entity, ErrorDebug, PubSubNode) ->
+    LServer = Entity#jid.lserver,
+    LUser = Entity#jid.luser,
+    HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
+    case should_delete_node(PubSubNode, HomeTreeBase) of
+        {true, {H, N}} -> delete_node(Backend, H, N, Entity);
+        {false, Nidx} -> Backend:dirty(fun() -> Plugin:set_affiliation(Backend, Nidx, Entity, none) end, ErrorDebug)
     end.
+
+should_delete_node({#pubsub_node{id = Nidx, type = <<"flat">>}, owner}, _) ->
+    {false, Nidx};
+should_delete_node({#pubsub_node{nodeid = {H, N}, parents = []}, owner}, _) ->
+    {true, {H, N}};
+should_delete_node({#pubsub_node{nodeid = {H, HomeTreeBase}, type = <<"hometree">>}, owner}, HomeTreeBase) ->
+    {true, {H, HomeTreeBase}};
+should_delete_node({#pubsub_node{id = Nidx}, publisher}, _) ->
+    {false, Nidx}.
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
