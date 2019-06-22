@@ -533,7 +533,7 @@ get_nodes_for_sending_last_item(Host, NodeOwnerJID) ->
 
 get_nodes_owned_by(Host, OwnerJID) ->
     OwnerBLJID = jid:to_bare(jid:to_lower(OwnerJID)),
-    tree_action(Host, get_nodes, [OwnerBLJID, OwnerJID]).
+    tree_action(Host, get_nodes, [mod_pubsub_db_backend, OwnerBLJID, OwnerJID]).
 
 send_last_item_to_jid(NodeOwner, #pubsub_node{nodeid = {_, Node}, type = NodeType,
                                               id = Nidx, options = NodeOptions}, RecipientJID) ->
