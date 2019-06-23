@@ -48,6 +48,7 @@
          remove_inbox_muc/1,
          retrieve_logs/1,
          remove_pubsub_all_data/1,
+         remove_pubsub_dont_remove_publisher/1,
          remove_pubsub_subscriptions/1,
          remove_pubsub_not_flat_node/1,
          remove_pubsub_push_node/1,
@@ -156,6 +157,7 @@ groups() ->
      {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()},
      {remove_personal_data_pubsub, [], [
                                         remove_pubsub_subscriptions,
+                                        remove_pubsub_dont_remove_publisher,
                                         remove_pubsub_not_flat_node,
                                         remove_pubsub_push_node,
                                         remove_pubsub_pep_node,
@@ -1291,6 +1293,30 @@ remove_pubsub_pep_node(Config) ->
           end,
           [{pubsub_payloads,["node_name","item_id","payload"],[]},
            {pubsub_nodes,["node_name","type"],[]},
+           {pubsub_subscriptions,["node_name"],[]}]
+         )
+        end).
+
+remove_pubsub_dont_remove_publisher(Config) ->
+    escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+        Node1 = {_,NodeName} = pubsub_tools:create_node_name(1),
+        pubsub_tools:create_nodes([{Alice, Node1, []}]),
+
+        AffChange = [{Bob, <<"publish-only">>}],
+        pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
+
+        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
+        {0, _} = unregister(Bob, Config),
+
+        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
+        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
+        mongoose_helper:wait_until(
+          fun() ->
+                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
+                                                 [AliceU, AliceS])
+          end,
+          [{pubsub_payloads,["node_name","item_id","payload"],[]},
+           {pubsub_nodes,["node_name","type"],[[NodeName, <<"flat">>]]},
            {pubsub_subscriptions,["node_name"],[]}]
          )
         end).
