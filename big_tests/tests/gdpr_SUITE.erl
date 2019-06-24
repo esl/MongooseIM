@@ -48,9 +48,9 @@
          remove_inbox_muc/1,
          retrieve_logs/1,
          remove_pubsub_all_data/1,
-         remove_pubsub_dont_remove_publisher/1,
+         remove_pubsub_dont_remove_node_when_only_publisher/1,
          remove_pubsub_subscriptions/1,
-         remove_pubsub_not_flat_node/1,
+         remove_pubsub_dont_remove_flat_pubsub_node/1,
          remove_pubsub_push_node/1,
          remove_pubsub_pep_node/1
         ]).
@@ -157,8 +157,8 @@ groups() ->
      {remove_personal_data_mam_elasticsearch, [], mam_removal_testcases()},
      {remove_personal_data_pubsub, [], [
                                         remove_pubsub_subscriptions,
-                                        remove_pubsub_dont_remove_publisher,
-                                        remove_pubsub_not_flat_node,
+                                        remove_pubsub_dont_remove_node_when_only_publisher,
+                                        remove_pubsub_dont_remove_flat_pubsub_node,
                                         remove_pubsub_push_node,
                                         remove_pubsub_pep_node,
                                         remove_pubsub_all_data
@@ -1217,9 +1217,9 @@ retrieve_pubsub_subscriptions(Config) ->
             pubsub_tools:delete_node(Alice, Node, [])
         end).
 
-remove_pubsub_not_flat_node(Config) ->
+remove_pubsub_dont_remove_flat_pubsub_node(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        Node1 = {_,NodeName} = pubsub_tools:create_node_name(1),
+        Node1 = {_,NodeName} = pubsub_tools:pubsub_node(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
 
         maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
@@ -1297,9 +1297,9 @@ remove_pubsub_pep_node(Config) ->
          )
         end).
 
-remove_pubsub_dont_remove_publisher(Config) ->
+remove_pubsub_dont_remove_node_when_only_publisher(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        Node1 = {_,NodeName} = pubsub_tools:create_node_name(1),
+        Node1 = {_,NodeName} = pubsub_tools:pubsub_node(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
 
         AffChange = [{Bob, <<"publish-only">>}],
