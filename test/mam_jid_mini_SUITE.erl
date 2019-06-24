@@ -5,16 +5,8 @@
 all() -> [test_encode_decode_functionality].
 
 init_per_suite(Config) ->
-    try
-    JID1 = jid:make(<<"a">>, <<"b">>, <<"c">>),
-    JID2 = jid:make(<<"d">>, <<"e">>, <<"f">>),
-    EncodedJID = mam_jid_mini:encode(JID1, JID2),
-    JID2 = mam_jid_mini:decode(JID1, EncodedJID),
-    Config
-    catch
-        error:nif_not_loaded ->
-            {skip,nif_not_loaded}
-    end.
+    ok = stringprep:start(),
+    Config.
 
 end_per_suite(Config) -> Config.
 
