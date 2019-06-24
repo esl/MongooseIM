@@ -15,7 +15,6 @@
 
 %% ejabberd handlers
 -export([archive_id/3,
-         remove_archive/3,
          remove_archive/4]).
 
 %% gdpr functions
