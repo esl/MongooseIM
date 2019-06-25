@@ -146,7 +146,11 @@ get_archive_id(Host, User) ->
 -spec remove_archive(Acc :: map(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),
                      ArchiveJID :: jid:jid()) -> map().
-remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
+remove_archive(Acc, Host, ArcID, ArcJID) ->
+    remove_archive(Host, ArcID, ArcJID),
+    Acc.
+
+remove_archive(Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserName}) ->
     SUserName = mongoose_rdbms:escape_string(UserName),
     SServer   = mongoose_rdbms:escape_string(Server),
     {updated, _} =
@@ -154,8 +158,7 @@ remove_archive(Acc, Host, _ArcID, _ArcJID=#jid{lserver = Server, luser = UserNam
       Host,
       ["DELETE FROM mam_server_user "
        "WHERE server = ", mongoose_rdbms:use_escaped_string(SServer),
-            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName)]),
-    Acc.
+            " AND user_name = ", mongoose_rdbms:use_escaped_string(SUserName)]).
 
 %%====================================================================
 %% Internal functions

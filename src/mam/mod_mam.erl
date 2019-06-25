@@ -47,6 +47,7 @@
 %% ejabberd handlers
 -export([process_mam_iq/4,
          user_send_packet/4,
+         remove_user/2,
          remove_user/3,
          filter_packet/1,
          determine_amp_strategy/5,
@@ -172,7 +173,7 @@ delete_archive(Server, User)
     ArcJID = jid:make(User, Server, <<>>),
     Host = server_host(ArcJID),
     ArcID = archive_id_int(Host, ArcJID),
-    remove_archive(Host, ArcID, ArcJID),
+    remove_archive_hook(Host, ArcID, ArcJID),
     ok.
 
 
@@ -336,11 +337,28 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
-%% @doc A ejabberd's callback with diferent order of arguments.
+%% This one is a hook handler...
 -spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
+
+%% ... while this one is a GDPR callback
+-spec remove_user(jid:user(), jid:server()) -> ok.
+remove_user(User, Server) ->
+    Backends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)
+    ++ mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_prefs),
+    lists:foreach(fun(B) ->
+        try
+            B:remove_mam_pm_gdpr_data(User, Server)
+        catch
+            E:R ->
+                Stack = erlang:get_stacktrace(),
+                ?WARNING_MSG("issue=remove_user_failed "
+                "reason=~p:~p "
+                "stacktrace=~1000p ", [E, R, Stack]),
+                ok
+        end end, Backends).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...
@@ -595,8 +613,8 @@ get_prefs(Host, ArcID, ArcJID, GlobalDefaultMode) ->
                             [Host, ArcID, ArcJID]).
 
 
--spec remove_archive(jid:server(), archive_id(), jid:jid()) -> 'ok'.
-remove_archive(Host, ArcID, ArcJID=#jid{}) ->
+-spec remove_archive_hook(jid:server(), archive_id(), jid:jid()) -> 'ok'.
+remove_archive_hook(Host, ArcID, ArcJID=#jid{}) ->
     ejabberd_hooks:run(mam_remove_archive, Host, [Host, ArcID, ArcJID]),
     ok.
 

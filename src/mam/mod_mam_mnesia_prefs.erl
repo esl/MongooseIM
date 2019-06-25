@@ -20,8 +20,9 @@
 -export([get_behaviour/5,
          get_prefs/4,
          set_prefs/7,
-         remove_archive/4,
-         remove_archive/3]).
+         remove_archive/4]).
+
+-export([remove_mam_pm_gdpr_data/2]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -205,16 +206,20 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
             {DefaultMode, AlwaysJIDs, NeverJIDs}
     end.
 
-%% #rh
-remove_archive(Host, ArcID, ArcJID) ->
-    remove_archive(ok, Host, ArcID, ArcJID).
+-spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
+remove_mam_pm_gdpr_data(User, Server) ->
+    ArcJID = jid:make(User, Server, <<>>),
+    remove_archive(ArcJID).
 
 remove_archive(Acc, _Host, _ArcID, ArcJID) ->
+    remove_archive(ArcJID),
+    Acc.
+
+remove_archive(ArcJID) ->
     SU = su_key(ArcJID),
     mnesia:sync_dirty(fun() ->
             mnesia:delete(mam_prefs, SU, write)
-        end),
-    Acc.
+        end).
 
 %% ----------------------------------------------------------------------
 %% Helpers
