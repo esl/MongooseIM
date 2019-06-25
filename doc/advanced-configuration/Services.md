@@ -34,13 +34,13 @@ Provides additional commands to mongooseimctl script.
 ### Example configuration
 ` {service_admin_extra, [{submods, [node, accounts, sessions]}]} `
 
-Module `service_admin_extra` depens on `service_cache`(see below) as cache is efficiently used for `gdpr` submodule and GDPR compilant account removal.
+Module `service_admin_extra` depends on `service_cache`(see below) as the cache speeds up GDPR data retrieval and removal.
 
 ### service_cache
 
-Implementation of cache storage.
-Module expose one function `lookup/2` with parameters `Key` and `Fun`.
-When called and the key `Key` exists in cache, the related value is returned.
+The implementation of cache storage.
+Module exposes one function `lookup/2` with parameters `Key` and `Fun`.
+When the function is called and the key `Key` exists in cache, the related value is returned.
 Otherwise, it evaluates `Fun` and stores the result under `Key`.
 Function `Fun` is expected to return either `{ok, Value}` or `error`.
 
