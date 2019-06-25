@@ -92,7 +92,8 @@ jid_from_xml(XML) ->
 
 safe_jid_extraction(JIDExtractorFun, Data) ->
     try JIDExtractorFun(Data) of
-        JID ->
+        JID0 ->
+            JID = bare_jid(JID0),
             OutLen = byte_size(JID),
             OutLenBin = integer_to_binary(OutLen),
             ok = file:write(standard_io, <<OutLenBin/binary, $\n, JID/binary>>)
@@ -106,6 +107,10 @@ safe_jid_extraction(JIDExtractorFun, Data) ->
             debug(C, R, erlang:get_stacktrace(), Extra),
             ok = io:put_chars("-1\n")
     end.
+
+bare_jid(JID) ->
+    [BareJID | _] = string:split(string:lowercase(JID), "/"),
+    BareJID.
 
 debug(Class, Reason, StackTrace, Extra) ->
     case get(debug_file) of
