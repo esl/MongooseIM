@@ -16,6 +16,7 @@
 -include_lib("eunit/include/eunit.hrl").
 %% Send request, receive (optional) response
 -export([pubsub_node/0,
+         pubsub_node/1,
          domain/0,
          node_addr/0,
          rand_name/1,
@@ -50,7 +51,10 @@
          submit_subscription_response/5,
          get_pending_subscriptions/3,
          get_pending_subscriptions/4,
-         modify_node_subscriptions/4
+         modify_node_subscriptions/4,
+
+         create_node_names/1,
+         create_nodes/1
         ]).
 
 %% Receive notification or response
@@ -636,8 +640,11 @@ decode_affiliations(IQResult) ->
 
     [ {exml_query:attr(F, <<"jid">>), exml_query:attr(F, <<"affiliation">>)} || F <- Fields ].
 
-pubsub_node() ->
-    {node_addr(), pubsub_node_name()}.
+pubsub_node() -> pubsub_node(1).
+pubsub_node(Num) ->
+    {pubsub_tools:node_addr(), <<"node",
+                                 (integer_to_binary(Num))/binary, "_",
+                                 (base64:encode(crypto:strong_rand_bytes(6)))/binary>>}.
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
@@ -661,3 +668,12 @@ encode_group_name(BaseName, NodeTree) ->
 decode_group_name(ComplexName) ->
     [NodeTree, BaseName] = binary:split(atom_to_binary(ComplexName, utf8), <<"+">>),
     #{node_tree => NodeTree, base_name => binary_to_atom(BaseName, utf8)}.
+
+create_node_names(Count) ->
+    [pubsub_node(N) || N <- lists:seq(1, Count)].
+
+create_nodes(List) ->
+    lists:map(fun({User, Node, Opts}) ->
+                      pubsub_tools:create_node(User, Node, Opts)
+              end, List).
+

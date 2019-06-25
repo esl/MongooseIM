@@ -69,7 +69,9 @@
 -export([
          get_user_payloads/2,
          get_user_nodes/2,
-         get_user_subscriptions/2
+         get_user_subscriptions/2,
+         delete_user_subscriptions/1,
+         find_nodes_by_affiliated_user/1
         ]).
 
 % For SQL queries
@@ -437,6 +439,7 @@ find_subnodes(Key, Nodes, Depth, Acc) ->
     {Subnodes, NewNodes} = maps:fold(MapTransformer, {[], []}, Map),
     NewAcc = [{Depth, NewNodes} | Acc],
     find_subnodes(Key, lists:flatten(Subnodes), Depth + 1, NewAcc).
+
 % ------------------- Affiliations --------------------------------
 
 -spec set_affiliation(Nidx :: mod_pubsub:nodeIdx(),
@@ -609,6 +612,21 @@ strip_payload(PayloadDB) ->
     PayloadXML = mongoose_rdbms:unescape_binary(global, PayloadDB),
     {ok, #xmlel{children = Payload}} = exml:parse(PayloadXML),
     exml:to_binary(Payload).
+
+-spec delete_user_subscriptions(jid:ljid()) -> ok.
+delete_user_subscriptions({ LU, LS, _ }) ->
+    SQL = mod_pubsub_db_rdbms_sql:delete_user_subscriptions(LU, LS),
+    {updated, _} = mongoose_rdbms:sql_query_t(SQL),
+    ok.
+
+find_nodes_by_affiliated_user({ LU, LS, _ }) ->
+    SQL = mod_pubsub_db_rdbms_sql:select_nodes_by_affiliated_user(LU, LS),
+    {selected, NodesWithAffs} = mongoose_rdbms:sql_query(global, SQL),
+    lists:map(fun decode_pubsub_node_with_aff_row/1, NodesWithAffs).
+
+decode_pubsub_node_with_aff_row(Row) ->
+    [Aff | NodeRow] = tuple_to_list(Row),
+    {decode_pubsub_node_row(list_to_tuple(NodeRow)), sql2aff(Aff)}.
 
 %%====================================================================
 %% Helpers

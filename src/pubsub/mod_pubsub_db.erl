@@ -185,6 +185,12 @@
 -callback get_user_subscriptions(LUser :: jid:luser(), LServer :: jid:lserver()) ->
     [NodeName :: [binary()]].
 
+-callback find_nodes_by_affiliated_user(JID :: jid:ljid()) ->
+    [{mod_pubsub:pubsubNode(), mod_pubsub:affiliation()}].
+
+-callback delete_user_subscriptions(JID :: jid:ljid()) ->
+    ok.
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -192,7 +198,7 @@
 -spec db_error(ReasonData :: map(), ErrorDebug :: map(), Event :: any()) ->
     {error, Details :: map()}.
 db_error(ReasonData, ErrorDebug, Event) ->
-    {error, maps:merge(ErrorDebug#{ event => Event }, ReasonData)}.
+    {error, maps:merge(ErrorDebug#{ event => Event }, sanitize_reason(ReasonData))}.
 
 %% transaction and sync_dirty return very truncated error data so we add extra
 %% try to gather stack trace etc.
@@ -213,4 +219,9 @@ extra_debug_fun(Fun) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+sanitize_reason(Map) when is_map(Map) ->
+    Map;
+sanitize_reason(Other) ->
+    #{ unexpected_reason => Other }.
 

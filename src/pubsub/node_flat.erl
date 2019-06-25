@@ -49,7 +49,8 @@
          get_pending_nodes/2,
          get_items_if_authorised/3, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
-         path_to_node/1, can_fetch_item/2, is_subscribed/1]).
+         path_to_node/1, can_fetch_item/2, is_subscribed/1,
+         should_delete_when_owner_removed/0]).
 
 based_on() ->  none.
 
@@ -664,6 +665,8 @@ path_to_node(Path) ->
         % default case (used by PEP for example)
         _ -> iolist_to_binary(Path)
     end.
+
+should_delete_when_owner_removed() -> false.
 
 can_fetch_item(owner, _) -> true;
 can_fetch_item(member, _) -> true;
