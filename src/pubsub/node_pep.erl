@@ -39,7 +39,8 @@
          create_node_permission/6, delete_node/1,
          unsubscribe_node/4, node_to_path/1,
          get_entity_affiliations/2, get_entity_affiliations/3,
-         get_entity_subscriptions/2, get_entity_subscriptions/4
+         get_entity_subscriptions/2, get_entity_subscriptions/4,
+         should_delete_when_owner_removed/0
          ]).
 
 based_on() ->  node_flat.
@@ -170,6 +171,8 @@ accumulate_entity_subscriptions(J, Node, Ss, Acc) ->
 
 node_to_path(Node) ->
     node_flat:node_to_path(Node).
+
+should_delete_when_owner_removed() -> true.
 
 %%%
 %%% Internal

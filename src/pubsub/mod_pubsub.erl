@@ -879,35 +879,45 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Entity = jid:make(LUser, LServer, <<>>),
-    Host = host(LServer),
-    HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
-    spawn(fun() -> lists:foreach(
-                     fun(PType) ->
-                             catch remove_user_per_plugin(PType, Host, Entity, HomeTreeBase)
-                     end, plugins(Host)) end),
-    ok.
 
-remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
-    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{id = Nidx}, _, _, JID}) ->
-                          node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]);
-                     (_) ->
-                          ok
-                  end, Subs),
-    {result, Affs} = node_action(Host, PType, get_entity_affiliations, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
-                       when N == HomeTreeBase, Type == <<"hometree">> ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{id = Nidx}, publisher}) ->
-                          node_action(Host, PType,
-                                      set_affiliation,
-                                      [Nidx, Entity, none]);
-                     (_) ->
-                          ok
-                  end, Affs).
+    BackendModules = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
+    lists:foreach(fun(Backend) ->
+                          remove_user_per_backend_safe(LUser, LServer, Backend)
+                  end, BackendModules).
+
+remove_user_per_backend_safe(LUser, LServer, Backend) ->
+    try
+        ok = Backend:dirty(fun() -> remove_user_per_backend(LUser, LServer, Backend) end, #{})
+    catch
+        Class:Reason ->
+            StackTrace = erlang:get_stacktrace(),
+            ?WARNING_MSG("event=cannot_delete_pubsub_user,"
+                         "luser=~s,lserver=~s,backend=~p,class=~p,reason=~p,stacktrace=~p",
+                         [LUser, LServer, Backend, Class, Reason, StackTrace])
+    end.
+
+remove_user_per_backend(LUser, LServer, Backend) ->
+    LJID = {LUser, LServer, <<>>},
+    Backend:delete_user_subscriptions(LJID),
+    Nodes = Backend:find_nodes_by_affiliated_user(LJID),
+    %% We don't broadcast any node deletion notifications to subscribers because:
+    %% * PEP nodes do not broadcast anything upon deletion
+    %% * Push nodes do not have (should not have) any subscribers
+    %% * Remaining nodes are not deleted when the owner leaves
+    lists:foreach(fun({#pubsub_node{ id = Nidx, type = Type } = Node, owner}) ->
+                          Plugin = plugin(Type),
+                          MaybeBasePlugin
+                          = maybe_default_node(Plugin, should_delete_when_owner_removed, []),
+                          case MaybeBasePlugin:should_delete_when_owner_removed() of
+                              true ->
+                                  % Oh my, we do have a mess in the API, don't we?
+                                  Backend:delete_node(Node),
+                                  Backend:del_node(Nidx);
+                              _ -> Backend:set_affiliation(Nidx, LJID, none)
+                          end;
+                     ({#pubsub_node{ id = Nidx }, _}) ->
+                          Backend:set_affiliation(Nidx, LJID, none)
+                  end, Nodes).
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
@@ -4174,6 +4184,9 @@ tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
 plugin(_Host, Name) ->
+    plugin(Name).
+
+plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->

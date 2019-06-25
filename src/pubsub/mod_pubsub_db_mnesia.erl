@@ -69,7 +69,9 @@
 -export([
          get_user_payloads/2,
          get_user_nodes/2,
-         get_user_subscriptions/2
+         get_user_subscriptions/2,
+         delete_user_subscriptions/1,
+         find_nodes_by_affiliated_user/1
         ]).
 
 %%====================================================================
@@ -207,6 +209,15 @@ node_name(Nidx) ->
         {ok, #pubsub_node{ nodeid = {_, NodeName} }} -> NodeName;
         _ -> <<>>
     end.
+
+-spec find_nodes_by_affiliated_user(JID :: jid:ljid()) ->
+    [{mod_pubsub:pubsubNode(), mod_pubsub:affiliation()}].
+find_nodes_by_affiliated_user(LJID) ->
+    {ok, States} = get_states_by_lus(LJID),
+    lists:map(fun(#pubsub_state{ stateid = {_, Nidx}, affiliation = Aff }) ->
+                      {ok, Node} = find_node_by_id(Nidx),
+                      {Node, Aff}
+              end, States).
 
 %% ------------------------ Direct #pubsub_state access ------------------------
 
@@ -527,10 +538,19 @@ delete_subscription(Nidx, LJID, SubId) ->
     ok.
 delete_all_subscriptions(Nidx, LJID) ->
     {ok, State} = get_state(Nidx, LJID, write),
+    delete_all_subscriptions_by_state(State).
+
+-spec delete_user_subscriptions(jid:ljid()) -> ok.
+delete_user_subscriptions(LJID) ->
+    {ok, States} = get_states_by_lus(LJID),
+    lists:foreach(fun delete_all_subscriptions_by_state/1, States).
+
+-spec delete_all_subscriptions_by_state(mod_pubsub:pubsubState()) -> ok.
+delete_all_subscriptions_by_state(State) ->
     lists:foreach(fun({_, SubId}) -> mnesia:delete({pubsub_subscription, SubId}) end,
                   State#pubsub_state.subscriptions),
     case State#pubsub_state.affiliation of
-        none -> del_state(Nidx, LJID);
+        none -> del_state(State);
         _ -> mnesia:write(State#pubsub_state{subscriptions = []})
     end.
 
@@ -624,9 +644,13 @@ del_items(Nidx, ItemIds) ->
 %%====================================================================
 
 -spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-               LJID :: jid:ljid()) -> ok.
+                LJID :: jid:ljid()) -> ok.
 del_state(Nidx, LJID) ->
-    {ok, #pubsub_state{ subscriptions = Subs }} = get_state(Nidx, LJID, write),
+    {ok, State} = get_state(Nidx, LJID, write),
+    del_state(State).
+
+-spec del_state(mod_pubsub:pubsubState()) -> ok.
+del_state(#pubsub_state{ stateid = {LJID, Nidx}, subscriptions = Subs }) ->
     lists:foreach(fun({_, SubId}) -> mnesia:delete({pubsub_subscription, SubId}) end, Subs),
     mnesia:delete({pubsub_state, {LJID, Nidx}}).
 

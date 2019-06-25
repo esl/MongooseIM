@@ -199,6 +199,8 @@
 
 -callback path_to_node(Path :: [nodeId()]) -> nodeId().
 
+-callback should_delete_when_owner_removed() -> boolean().
+
 -optional_callbacks([create_node_permission/6,
                      create_node/2,
                      delete_node/1,
@@ -222,7 +224,8 @@
                      get_item/2,
                      set_item/1,
                      get_item_name/3,
-                     path_to_node/1]).
+                     path_to_node/1,
+                     should_delete_when_owner_removed/0]).
 
 %% --------------------------------------------------------
 %% API
