@@ -882,7 +882,8 @@ remove_user(User, Server) ->
     PluginModules = mongoose_lib:find_behaviour_implementations(gen_pubsub_node),
     BackendModules = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
     [remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer) ||
-          Plugin <- PluginModules, Backend <- BackendModules].
+          Plugin <- PluginModules, Backend <- BackendModules],
+    ok.
 
 remove_user_per_plugin_and_backend(Plugin, Backend, LUser, LServer) ->
     Entity = jid:make(LUser, LServer, <<>>),
