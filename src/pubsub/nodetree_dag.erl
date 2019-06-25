@@ -132,7 +132,7 @@ remove_config_parent(Node, [H | T], Acc) ->
     remove_config_parent(Node, T, [H | Acc]).
 
 -spec validate_parentage(
-        Backend :: atom(), 
+        Backend :: module(), 
         Key            :: mod_pubsub:hostPubsub(),
         Owners         :: [jid:ljid(), ...],
         ParentNodes    :: [mod_pubsub:nodeId()])

@@ -91,9 +91,9 @@
                                  Access :: atom()) ->
     {result, boolean()}.
 
--callback create_node(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, {default, broadcast}}.
+-callback create_node(Backend :: module(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, {default, broadcast}}.
 
--callback delete_node(Backend :: atom(), Nodes :: [pubsubNode(), ...]) ->
+-callback delete_node(Backend :: module(), Nodes :: [pubsubNode(), ...]) ->
     {result,
         {default, broadcast,
             [{pubsubNode(),
@@ -108,10 +108,10 @@
             }
         }.
 
--callback purge_node(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
+-callback purge_node(Backend :: module(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
     {result, {default, broadcast}} | {error, exml:element()}.
 
--callback subscribe_node(Backend :: atom(),
+-callback subscribe_node(Backend :: module(),
         NodeIdx :: nodeIdx(),
         Sender :: jid:jid(),
         Subscriber :: jid:ljid(),
@@ -125,14 +125,14 @@
     {result, {default, pending, subId()}} |
     {error, exml:element()}.
 
--callback unsubscribe_node(Backend :: atom(),
+-callback unsubscribe_node(Backend :: module(),
 		NodeIdx :: nodeIdx(),
         Sender :: jid:jid(),
         Subscriber :: jid:jid(),
         SubId :: subId()) ->
     {result, default} | {error, exml:element()}.
 
--callback publish_item(Backend :: atom(),
+-callback publish_item(Backend :: module(),
         ServerHost :: jid:server(),
         NodeId :: nodeIdx(),
         Publisher :: jid:jid(),
@@ -144,47 +144,47 @@
         PublishOptions :: publishOptions()) ->
     {result, {default, broadcast, [itemId()]}} | {error, exml:element()}.
 
--callback delete_item(Backend :: atom(),
+-callback delete_item(Backend :: module(),
         NodeIdx :: nodeIdx(),
         Publisher :: jid:jid(),
         PublishModel :: publishModel(),
         ItemId :: <<>> | itemId()) ->
     {result, {default, broadcast}} | {error, exml:element()}.
 
--callback remove_extra_items(Backend :: atom(),
+-callback remove_extra_items(Backend :: module(),
         NodeIdx :: nodeIdx(),
         MaxItems :: unlimited | non_neg_integer(),
         ItemIds :: [itemId()]) ->
     {result, {[itemId()], [itemId()]}}.
 
--callback get_node_affiliations(Backend :: atom(), NodeIdx :: nodeIdx()) -> {result, [{jid:ljid(), affiliation()}]}.
+-callback get_node_affiliations(Backend :: module(), NodeIdx :: nodeIdx()) -> {result, [{jid:ljid(), affiliation()}]}.
 
--callback get_entity_affiliations(Backend :: atom(), Host :: host(), Owner :: jid:jid()) ->
+-callback get_entity_affiliations(Backend :: module(), Host :: host(), Owner :: jid:jid()) ->
     {result, [{pubsubNode(), affiliation()}]}.
 
--callback get_affiliation(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, affiliation()}.
+-callback get_affiliation(Backend :: module(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) -> {result, affiliation()}.
 
--callback set_affiliation(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid(), Affiliation :: affiliation()) ->
+-callback set_affiliation(Backend :: module(), NodeIdx :: nodeIdx(), Owner :: jid:jid(), Affiliation :: affiliation()) ->
     ok | {error, exml:element()}.
 
--callback get_node_subscriptions(Backend :: atom(), NodeIdx :: nodeIdx()) ->
+-callback get_node_subscriptions(Backend :: module(), NodeIdx :: nodeIdx()) ->
     {result, [{jid:ljid(), subscription(), subId(), subOptions()}]}.
 
--callback get_entity_subscriptions(Backend :: atom(), Host :: host(), Key :: jid:jid()) ->
+-callback get_entity_subscriptions(Backend :: module(), Host :: host(), Key :: jid:jid()) ->
     {result, [{pubsubNode(), subscription(), subId(), jid:ljid()}]}.
 
--callback get_subscriptions(Backend :: atom(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
+-callback get_subscriptions(Backend :: module(), NodeIdx :: nodeIdx(), Owner :: jid:jid()) ->
     {result, [{subscription(), subId(), subOptions()}]}.
 
--callback get_pending_nodes(Backend :: atom(), Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
+-callback get_pending_nodes(Backend :: module(), Host :: host(), Owner :: jid:jid()) -> {result, [nodeId()]}.
 
--callback get_items_if_authorised(Backend :: atom(), NodeIdx :: nodeIdx(), JID :: jid:jid(), get_authorised_item_options()) ->
+-callback get_items_if_authorised(Backend :: module(), NodeIdx :: nodeIdx(), JID :: jid:jid(), get_authorised_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}} | {error, exml:element()}.
 
--callback get_items(Backend :: atom(), NodeIdx :: nodeIdx(), From :: jid:jid(), get_item_options()) ->
+-callback get_items(Backend :: module(), NodeIdx :: nodeIdx(), From :: jid:jid(), get_item_options()) ->
     {result, {[pubsubItem()], none | jlib:rsm_out()}}.
 
--callback get_item(Backend :: atom(),
+-callback get_item(Backend :: module(),
         NodeIdx :: nodeIdx(),
         ItemId :: itemId(),
         JID :: jid:jid(),
@@ -194,10 +194,10 @@
         SubId :: subId()) ->
     {result, pubsubItem()} | {error, exml:element()}.
 
--callback get_item(Backend :: atom(), NodeIdx :: nodeIdx(), ItemId :: itemId()) ->
+-callback get_item(Backend :: module(), NodeIdx :: nodeIdx(), ItemId :: itemId()) ->
     {result, pubsubItem()} | {error, exml:element()}.
 
--callback set_item(Backend :: atom(), Item :: pubsubItem()) -> ok.
+-callback set_item(Backend :: module(), Item :: pubsubItem()) -> ok.
 
 -callback get_item_name(Host :: host(), ServerHost :: binary(), Node :: nodeId()) -> itemId().
 

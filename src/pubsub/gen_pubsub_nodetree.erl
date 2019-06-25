@@ -50,21 +50,21 @@
 
 -callback terminate(Host :: host(), ServerHost :: binary()) -> atom().
 
--callback set_node(Backend :: atom(), PubsubNode :: pubsubNode()) ->
+-callback set_node(Backend :: module(), PubsubNode :: pubsubNode()) ->
     {ok, NodeIdx::nodeIdx()} | {error, exml:element()}.
 
--callback get_node(Backend :: atom(), Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
+-callback get_node(Backend :: module(), Host :: host(), NodeId :: nodeId()) -> pubsubNode() | {error, exml:element()}.
 
--callback get_node(Backend :: atom(), NodeIdx :: nodeIdx()) -> pubsubNode() | {error, exml:element()}.
+-callback get_node(Backend :: module(), NodeIdx :: nodeIdx()) -> pubsubNode() | {error, exml:element()}.
 
--callback get_nodes(Backend :: atom(), Host :: host(), From :: jid:jid()) -> [pubsubNode()].
+-callback get_nodes(Backend :: module(), Host :: host(), From :: jid:jid()) -> [pubsubNode()].
 
--callback get_parentnodes_tree(Backend :: atom(), Host :: host(), NodeId :: nodeId(), From :: jid:jid()) ->
+-callback get_parentnodes_tree(Backend :: module(), Host :: host(), NodeId :: nodeId(), From :: jid:jid()) ->
     [{0, [pubsubNode(), ...]}].
 
--callback get_subnodes(Backend :: atom(), Host :: host(), NodeId :: nodeId(), From :: jid:jid()) -> [pubsubNode()].
+-callback get_subnodes(Backend :: module(), Host :: host(), NodeId :: nodeId(), From :: jid:jid()) -> [pubsubNode()].
 
--callback create_node(Backend :: atom(),
+-callback create_node(Backend :: module(),
                       Host :: host(),
                       NodeId :: nodeId(),
                       Type :: binary(),
@@ -73,7 +73,7 @@
                       Parents :: [nodeId()]) ->
     {ok, NodeIdx::nodeIdx()} | {error, exml:element()} | {error, {virtual, {host(), nodeId()}}}.
 
--callback delete_node(Backend :: atom(), Host :: host(), NodeId :: nodeId()) -> [pubsubNode()].
+-callback delete_node(Backend :: module(), Host :: host(), NodeId :: nodeId()) -> [pubsubNode()].
 
 %% ---------------------------------------------------------------
 %% API

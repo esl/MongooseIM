@@ -587,7 +587,6 @@ is_subscribed(Recipient, NodeOwner, NodeOptions) ->
 %% disco hooks handling functions
 %%
 
-%% EXPORTED FOR REAL
 -spec disco_local_identity(
         Acc    :: [exml:element()],
           _From  ::jid:jid(),
@@ -621,7 +620,6 @@ disco_local_identity(Acc, Host, <<>>, _Lang) ->
 disco_local_identity(Acc, _Host, _Node, _Lang) ->
     Acc.
 
-%% EXPORTED FOR REAL
 -spec disco_local_features(
         Acc    :: [exml:element()],
           _From  ::jid:jid(),
@@ -639,11 +637,9 @@ disco_local_features(Acc, _From, To, <<>>, _Lang) ->
 disco_local_features(Acc, _From, _To, _Node, _Lang) ->
     Acc.
 
-%% EXPORTED FOR REAL
 disco_local_items(Acc, _From, _To, <<>>, _Lang) -> Acc;
 disco_local_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
-%% EXPORTED FOR REAL
 -spec disco_sm_identity(
         Acc  :: empty | [exml:element()],
           From ::jid:jid(),
@@ -687,7 +683,6 @@ disco_identity(Backend, Host, Node, From) ->
         _ -> []
     end.
 
-%% EXPORTED FOR REAL
 -spec disco_sm_features(
         Acc  :: empty | {result, Features::[Feature::binary()]},
           From ::jid:jid(),
@@ -723,7 +718,6 @@ disco_features(Backend, Host, Node, From) ->
         _ -> []
     end.
 
-%% EXPORTED FOR REAL
 -spec disco_sm_items(Acc :: empty | {result, [exml:element()]},
                      From ::jid:jid(),
                      To ::jid:jid(),
@@ -737,7 +731,7 @@ disco_sm_items({result, OtherItems}, From, To, Node, _Lang) ->
 disco_sm_items(Acc, _From, _To, _Node, _Lang) -> Acc.
 
 -spec disco_items(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host :: mod_pubsub:host(),
         Node :: mod_pubsub:nodeId(),
         From :: jid:jid())
@@ -796,7 +790,6 @@ disco_items(Backend, Host, Node, From) ->
 %% callback that prevents routing subscribe authorizations back to the sender
 %%
 
-%% EXPORTED FOR REAL
 handle_pep_authorization_response({From, To, Acc, #xmlel{ name = Name } = Packet}) ->
     Type = mongoose_acc:stanza_type(Acc),
     handle_pep_authorization_response(mod_pubsub_db_backend, Name, Type, From, To, Acc, Packet).
@@ -819,12 +812,10 @@ handle_pep_authorization_response(_Backend, _, _, From, To, Acc, Packet) ->
 %% presence hooks handling functions
 %%
 
-%% EXPORTED FOR REAL
 caps_recognised(Acc, #jid{ lserver = S } = JID, Pid, _Features) ->
     notify_send_loop(S, {send_last_pep_items, JID, Pid}),
     Acc.
 
-%% EXPORTED FOR REAL
 presence_probe(Acc, #jid{luser = _U, lserver = S, lresource = _R} = JID, JID, _Pid) ->
     notify_send_loop(S, {send_last_pubsub_items, _Recipient = JID}),
     Acc;
@@ -842,7 +833,6 @@ notify_send_loop(ServerHost, Action) ->
 %% subscription hooks handling functions
 %%
 
-%% EXPORTED FOR REAL
 -spec out_subscription(Acc:: mongoose_acc:t(),
                        User :: binary(),
                        Server :: binary(),
@@ -861,7 +851,6 @@ out_subscription(Acc, User, Server, JID, subscribed) ->
 out_subscription(Acc, _, _, _, _) ->
     Acc.
 
-%% EXPORTED FOR REAL
 -spec in_subscription(Acc:: mongoose_acc:t(),
                       User :: binary(),
                       Server :: binary(),
@@ -914,12 +903,10 @@ unsubscribe_user_per_plugin(Backend, Host, Entity, BJID, PType) ->
 %% user remove hook handling function
 %%
 
-%% EXPORTED FOR REAL
 remove_user(Acc, User, Server) ->
     remove_user(User, Server),
     Acc.
 
-%% EXPORTED FOR REAL
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
@@ -1054,7 +1041,7 @@ terminate(_Reason, #state{host = Host, server_host = ServerHost,
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -spec do_route(
-        Backend :: atom(),
+        Backend :: module(),
         ServerHost :: binary(),
         Access     :: atom(),
         Plugins    :: [binary(), ...],
@@ -1251,7 +1238,7 @@ iq_disco_info(Backend, Host, SNode, From, Lang) ->
     end.
 
 -spec iq_disco_items(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host   :: mod_pubsub:host(),
         Node   :: <<>> | mod_pubsub:nodeId(),
         From   ::jid:jid(),
@@ -1325,7 +1312,6 @@ iq_disco_items_transaction(Backend, Host, From, Node, RSM,
                       NodeItems),
     {result, Nodes ++ Items ++ jlib:rsm_encode(RsmOut)}.
 
-%% EXPORTED FOR REAL
 -spec iq_sm(From ::jid:jid(),
             To   ::jid:jid(),
             Acc :: mongoose_acc:t(),
@@ -1355,7 +1341,7 @@ iq_get_vcard(Lang) ->
      #xmlel{name = <<"DESC">>, attrs = [],
             children = [#xmlcdata{content = Desc}]}].
 
--spec iq_pubsub(Backend :: atom(), 
+-spec iq_pubsub(Backend :: module(), 
                 Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
                 From ::jid:jid(),
@@ -1365,7 +1351,7 @@ iq_get_vcard(Lang) ->
 iq_pubsub(Backend, Host, ServerHost, From, IQType, QueryEl, Lang) ->
     iq_pubsub(Backend, Host, ServerHost, From, IQType, QueryEl, Lang, all, plugins(ServerHost)).
 
--spec iq_pubsub(Backend :: atom(),
+-spec iq_pubsub(Backend :: module(),
                 Host :: mod_pubsub:host(),
                 ServerHost :: binary(),
                 From ::jid:jid(),
@@ -1560,7 +1546,7 @@ iq_pubsub_set_options(Backend, Host, Node, #{action_el := #xmlel{attrs = SetOpti
     set_options(Backend, Host, Node, JID, SubId, XForm).
 
 -spec iq_pubsub_owner(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host       :: mod_pubsub:host(),
         ServerHost :: binary(),
         From       ::jid:jid(),
@@ -1994,7 +1980,7 @@ update_auth(Backend, Host, Node, Type, Nidx, Subscriber, Allow, Subs) ->
 %%<li>node plugin create_node just sets default affiliation/subscription</li>
 %%</ul>
 -spec create_node(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host          :: mod_pubsub:host(),
         ServerHost    :: binary(),
         Node        :: <<>> | mod_pubsub:nodeId(),
@@ -2137,7 +2123,7 @@ create_node_make_reply(Node) ->
 %%<li>The specified node does not exist.</li>
 %%</ul>
 -spec delete_node(
-        Backend :: atom(),
+        Backend :: module(),
         Host  :: mod_pubsub:host(),
           Node  :: mod_pubsub:nodeId(),
           Owner :: jid:jid())
@@ -2612,7 +2598,7 @@ delete_item_transaction(Backend, Host, Publisher, ItemId,
 %%<li>The specified node does not exist.</li>
 %%</ul>
 -spec purge_node(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host  :: mod_pubsub:host(),
         Node  :: mod_pubsub:nodeId(),
         Owner :: jid:jid())
@@ -2662,7 +2648,7 @@ purge_node_transaction(Backend, Host, Owner, #pubsub_node{options = Options, typ
 %% <p>The permission are not checked in this function.</p>
 %% @todo We probably need to check that the user doing the query has the right
 %% to read the items.
--spec get_items(Backend :: atom(),
+-spec get_items(Backend :: module(),
                 Host :: mod_pubsub:host(),
                 Node :: mod_pubsub:nodeId(),
                 From ::jid:jid(),
@@ -2836,7 +2822,7 @@ dispatch_items(From, To, _Node, Options, Stanza) ->
 
 %% @doc <p>Return the list of affiliations as an XMPP response.</p>
 -spec get_affiliations(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host    :: mod_pubsub:host(),
         Node    :: mod_pubsub:nodeId(),
         JID     :: jid:jid(),
@@ -2885,7 +2871,7 @@ get_affiliations(Backend, Host, Node, JID, #{plugins := Plugins}) when is_list(P
     end.
 
 -spec get_affiliations(
-        Backend :: atom(),
+        Backend :: module(),
         Host :: mod_pubsub:host(),
         Node :: mod_pubsub:nodeId(),
         JID :: jid:jid()) ->
@@ -2930,7 +2916,7 @@ get_affiliations_transaction(Backend, Host, JID, #pubsub_node{type = Type, id = 
     end.
 
 -spec set_affiliations(
-        Backend :: atom(), 
+        Backend :: module(), 
         Host        :: mod_pubsub:host(),
         Node        :: mod_pubsub:nodeId(),
         From        ::jid:jid(),
@@ -4584,7 +4570,6 @@ extended_headers(Jids) ->
             attrs = [{<<"type">>, <<"replyto">>}, {<<"jid">>, Jid}]}
      || Jid <- Jids].
 
-%% EXPORTED FOR REAL
 on_user_offline(Acc, _, JID, _, _) ->
     {User, Server, Resource} = jid:to_lower(JID),
     case user_resources(User, Server) of
