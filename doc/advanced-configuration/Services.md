@@ -32,3 +32,23 @@ Provides additional commands to mongooseimctl script.
 
 ### Example configuration
 ` {service_admin_extra, [{submods, [node, accounts, sessions]}]} `
+
+
+### service_cache
+
+Implementation of cache storage.
+Module expose one function `lookup/2` with parameters `Key` and `Fun`.
+When called and the key `Key` exists in cache, the related value is returned.
+Otherwise, it evaluates `Fun` and stores the result under `Key`.
+Function `Fun` is expected to return either `{ok, Value}` or `error`.
+
+
+### Example configuration
+` {service_cache, []} `
+
+### Example usage
+```erl
+LookupFN = fun() -> {ok, find_implementations(Behaviour)} end,
+{ok, Modules} = service_cache:lookup({behaviour, Behaviour}, LookupFN),
+
+```
