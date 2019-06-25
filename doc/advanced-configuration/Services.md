@@ -29,6 +29,28 @@ Provides additional commands to mongooseimctl script.
     * `stanza`: Adds `send_message_chat`, `send_message_headline`, `send_stanza_c2s`
     * `stats`: Adds `stats`, `stats_host`
     * `vcard`: Adds `get_vcard`, `get_vcard2`, `get_vcard2_multi`, `set_vcard`, `set_vcard2`, `set_vcard2_multi`
+    * `gdpr`: Adds `retrieve_personal_data`
 
 ### Example configuration
 ` {service_admin_extra, [{submods, [node, accounts, sessions]}]} `
+
+The `service_admin_extra` module depends on the `service_cache`(see below) as the cache speeds up GDPR data retrieval and removal.
+
+### service_cache
+
+The implementation of cache storage.
+The module exposes a function `lookup/2` with parameters `Key` and `Fun`.
+When the function is called and the key `Key` exists in cache, the related value is returned.
+Otherwise, it evaluates `Fun` and stores the result under `Key`.
+Function `Fun` is expected to return either `{ok, Value}` or `error`.
+
+
+### Example configuration
+` {service_cache, []} `
+
+### Example usage
+```erl
+LookupFN = fun() -> {ok, find_implementations(Behaviour)} end,
+{ok, Modules} = service_cache:lookup({behaviour, Behaviour}, LookupFN),
+
+```
