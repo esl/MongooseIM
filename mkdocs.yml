@@ -60,6 +60,7 @@ pages:
       - 'Reloading configuration on a running system': 'operation-and-maintenance/Reloading-configuration-on-a-running-system.md'
       - 'Metrics': 'operation-and-maintenance/Mongoose-metrics.md'
       - 'Distribution over TLS': 'operation-and-maintenance/tls-distribution.md'
+      - 'Known issues': 'operation-and-maintenance/known-issues.md'
   - "Developer's guide":
       - 'Testing MongooseIM': 'developers-guide/Testing-MongooseIM.md'
       - 'Logging': 'developers-guide/logging.md'
