@@ -1,5 +1,7 @@
 # Test runner
 
+**Warning: Some examples in this guide use the MySQL database. Please keep in mind that MongooseIM cannot connect to [MySQL via TLS on OTP 20.3](../operation-and-maintenance/known-issues.md).**
+
 The test runner script is used to compile MongooseIM and run tests.
 
 The help command prints a list of supported options.

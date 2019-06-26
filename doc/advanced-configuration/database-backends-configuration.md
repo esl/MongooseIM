@@ -62,6 +62,8 @@ Persistent Data:
 
 **Setup**
 
+**Warning: MongooseIM cannot connect to [MySQL over TLS with OTP 20.3](../operation-and-maintenance/known-issues.md).**
+
 The schema files can be found in the `priv` directory.
 The default schema is defined in the `mysql.sql` file.
 
@@ -85,7 +87,9 @@ innodb_file_format=BARRACUDA
 innodb_file_format_max=BARRACUDA
 innodb_file_per_table=true
 ```
+
 For versions `5.7.9` and newer, all of the above options are set correctly by default.
+
 ## PostgreSQL
 
 **Can be used for:**
