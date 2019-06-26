@@ -18,7 +18,7 @@
 -include("pubsub.hrl").
 
 -export([based_on/0, init/3, terminate/2, options/0, features/0,
-         publish_item/9, node_to_path/1]).
+         publish_item/9, node_to_path/1, should_delete_when_owner_removed/0]).
 
 based_on() ->  node_flat.
 
@@ -89,6 +89,8 @@ do_publish_item(_ServerHost, _PublishOptions, _Payload) ->
 
 node_to_path(Node) ->
     node_flat:node_to_path(Node).
+
+should_delete_when_owner_removed() -> true.
 
 %%%
 %%% Internal

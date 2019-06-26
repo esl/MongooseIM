@@ -86,7 +86,7 @@
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, tree/2, plugin/2, plugins/1, config/3,
+         tree/1, tree/2, plugin/2, plugin/1, plugins/1, plugin_call/3, config/3,
          host/1, serverhost/1]).
 
 %% API and gen_server callbacks
@@ -879,35 +879,26 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    Entity = jid:make(LUser, LServer, <<>>),
-    Host = host(LServer),
-    HomeTreeBase = <<"/home/", LServer/binary, "/", LUser/binary>>,
-    spawn(fun() -> lists:foreach(
-                     fun(PType) ->
-                             catch remove_user_per_plugin(PType, Host, Entity, HomeTreeBase)
-                     end, plugins(Host)) end),
+
+    BackendModules = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
+    PluginModules = mongoose_lib:find_behaviour_implementations(gen_pubsub_node),
+    % The line below will currently lead to unnecessary DB selects,
+    % because plugins don't really filter DB data by type.
+    % TODO: This should be optimised during GDPR load tests.
+    [ remove_user_per_backend_and_plugin_safe(LUser, LServer, Plugin, Backend)
+      || Plugin <- PluginModules, Backend <- BackendModules ],
     ok.
 
-remove_user_per_plugin(PType, Host, Entity, HomeTreeBase) ->
-    {result, Subs} = node_action(Host, PType, get_entity_subscriptions, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{id = Nidx}, _, _, JID}) ->
-                          node_action(Host, PType, unsubscribe_node, [Nidx, Entity, JID, all]);
-                     (_) ->
-                          ok
-                  end, Subs),
-    {result, Affs} = node_action(Host, PType, get_entity_affiliations, [Host, Entity]),
-    lists:foreach(fun({#pubsub_node{nodeid = {H, N}, parents = []}, owner}) ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{nodeid = {H, N}, type = Type}, owner})
-                       when N == HomeTreeBase, Type == <<"hometree">> ->
-                          delete_node(H, N, Entity);
-                     ({#pubsub_node{id = Nidx}, publisher}) ->
-                          node_action(Host, PType,
-                                      set_affiliation,
-                                      [Nidx, Entity, none]);
-                     (_) ->
-                          ok
-                  end, Affs).
+remove_user_per_backend_and_plugin_safe(LUser, LServer, Plugin, Backend) ->
+    try
+        plugin_call(Plugin, remove_user, [LUser, LServer, Backend])
+    catch
+        Class:Reason ->
+            StackTrace = erlang:get_stacktrace(),
+            ?WARNING_MSG("event=cannot_delete_pubsub_user,"
+                         "luser=~s,lserver=~s,backend=~p,class=~p,reason=~p,stacktrace=~p",
+                         [LUser, LServer, Backend, Class, Reason, StackTrace])
+    end.
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
@@ -4174,6 +4165,9 @@ tree(_Host, Name) ->
     binary_to_atom(<<"nodetree_", Name/binary>>, utf8).
 
 plugin(_Host, Name) ->
+    plugin(Name).
+
+plugin(Name) ->
     binary_to_atom(<<"node_", Name/binary>>, utf8).
 
 plugins(Host) ->
@@ -4282,6 +4276,9 @@ tree_action(Host, Function, Args) ->
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
     PluginModule = plugin(Host, Type),
+    plugin_call(PluginModule, Function, Args).
+
+plugin_call(PluginModule, Function, Args) ->
     CallModule = maybe_default_node(PluginModule, Function, Args),
     case apply(CallModule, Function, Args) of
         {result, Result} ->

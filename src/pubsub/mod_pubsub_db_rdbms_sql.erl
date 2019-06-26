@@ -37,6 +37,7 @@
          delete_subscription/5,
          delete_all_subscriptions/4,
          delete_all_subscriptions/1,
+         delete_user_subscriptions/2,
          update_subscription/6
         ]).
 
@@ -61,6 +62,7 @@
          select_nodes_in_list_with_key/2,
          select_nodes_by_key_and_names_in_list_with_parents/2,
          select_nodes_by_key_and_names_in_list_with_children/2,
+         select_nodes_by_affiliated_user/2,
          select_subnodes/2,
          delete_node/2,
          set_parents/2,
@@ -246,6 +248,12 @@ delete_all_subscriptions(Nidx, LU, LS, LR) ->
 delete_all_subscriptions(Nidx) ->
     ["DELETE FROM pubsub_subscriptions"
      " WHERE nidx = ", esc_int(Nidx)].
+
+-spec delete_user_subscriptions(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
+delete_user_subscriptions(LU, LS) ->
+    ["DELETE FROM pubsub_subscriptions"
+     " WHERE luser = ", esc_string(LU),
+     " AND lserver = ", esc_string(LS)].
 
 -spec update_subscription(Nidx :: mod_pubsub:nodeIdx(),
                           LU :: jid:luser(),
@@ -469,6 +477,14 @@ select_nodes_by_owner(LJID) ->
             " WHERE cast(owners as varchar) = ", esc_string(iolist_to_binary(["[\"", LJID, "\"]"]))
             ]
     end.
+
+-spec select_nodes_by_affiliated_user(LU :: jid:luser(), LS :: jid:lserver()) -> iolist().
+select_nodes_by_affiliated_user(LU, LS) ->
+    ["SELECT aff, ", pubsub_node_fields("pn"),
+     " FROM pubsub_affiliations AS pa"
+     " INNER JOIN pubsub_nodes AS pn ON pa.nidx = pn.nidx"
+     " WHERE luser = ", esc_string(LU),
+       " AND lserver = ", esc_string(LS)].
 
 -spec select_nodes_in_list_with_key(Key :: binary(), Nodes :: [binary()]) -> iolist().
 select_nodes_in_list_with_key(Key, Nodes) ->
