@@ -201,6 +201,8 @@
 
 -callback should_delete_when_owner_removed() -> boolean().
 
+-callback remove_user(LUser :: jid:luser(), LServer :: jid:lserver(), Backend :: module()) -> any().
+
 -optional_callbacks([create_node_permission/6,
                      create_node/2,
                      delete_node/1,
@@ -225,7 +227,8 @@
                      set_item/1,
                      get_item_name/3,
                      path_to_node/1,
-                     should_delete_when_owner_removed/0]).
+                     should_delete_when_owner_removed/0,
+                     remove_user/3]).
 
 %% --------------------------------------------------------
 %% API

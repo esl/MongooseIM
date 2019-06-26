@@ -280,7 +280,7 @@ del_node(Nidx) ->
     {ok, States} = get_states(Nidx),
     lists:foreach(fun (#pubsub_state{stateid = {LJID, _}, items = Items}) ->
                           del_items(Nidx, Items),
-                          del_state(Nidx, LJID)
+                          del_state_by_idx_and_ljid(Nidx, LJID)
                   end, States),
     {ok, States}.
 
@@ -469,7 +469,7 @@ set_affiliation(Nidx, LJID, Affiliation) ->
     BareLJID = jid:to_bare(LJID),
     {ok, State} = get_state(Nidx, BareLJID, write),
     case {Affiliation, State#pubsub_state.subscriptions} of
-        {none, []} -> del_state(Nidx, BareLJID);
+        {none, []} -> del_state_by_idx_and_ljid(Nidx, BareLJID);
         _ ->  mnesia:write(State#pubsub_state{ affiliation = Affiliation })
     end.
 
@@ -528,7 +528,7 @@ delete_subscription(Nidx, LJID, SubId) ->
     NewSubs = lists:keydelete(SubId, 2, State#pubsub_state.subscriptions),
     mnesia:delete({pubsub_subscription, SubId}),
     case {State#pubsub_state.affiliation, NewSubs} of
-        {none, []} -> del_state(Nidx, LJID);
+        {none, []} -> del_state_by_idx_and_ljid(Nidx, LJID);
         _ -> mnesia:write(State#pubsub_state{subscriptions = NewSubs})
     end.
 
@@ -643,9 +643,9 @@ del_items(Nidx, ItemIds) ->
 %% Internal functions
 %%====================================================================
 
--spec del_state(Nidx :: mod_pubsub:nodeIdx(),
-                LJID :: jid:ljid()) -> ok.
-del_state(Nidx, LJID) ->
+-spec del_state_by_idx_and_ljid(Nidx :: mod_pubsub:nodeIdx(),
+                                LJID :: jid:ljid()) -> ok.
+del_state_by_idx_and_ljid(Nidx, LJID) ->
     {ok, State} = get_state(Nidx, LJID, write),
     del_state(State).
 

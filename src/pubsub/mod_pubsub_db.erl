@@ -195,7 +195,9 @@
 %% API
 %%====================================================================
 
--spec db_error(ReasonData :: map(), ErrorDebug :: map(), Event :: any()) ->
+% ReasonData may either be a debug map provided by mod_pubsub
+% or some other term if the crash is serious enough to lose the debug map somewhere.
+-spec db_error(ReasonData :: map() | any(), ErrorDebug :: map(), Event :: any()) ->
     {error, Details :: map()}.
 db_error(ReasonData, ErrorDebug, Event) ->
     {error, maps:merge(ErrorDebug#{ event => Event }, sanitize_reason(ReasonData))}.

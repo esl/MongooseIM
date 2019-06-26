@@ -86,7 +86,7 @@
 -export([subscription_to_string/1, affiliation_to_string/1,
          string_to_subscription/1, string_to_affiliation/1,
          extended_error/2, extended_error/3, service_jid/1,
-         tree/1, tree/2, plugin/2, plugins/1, config/3,
+         tree/1, tree/2, plugin/2, plugin/1, plugins/1, plugin_call/3, config/3,
          host/1, serverhost/1]).
 
 %% API and gen_server callbacks
@@ -881,13 +881,17 @@ remove_user(User, Server) ->
     LServer = jid:nameprep(Server),
 
     BackendModules = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
-    lists:foreach(fun(Backend) ->
-                          remove_user_per_backend_safe(LUser, LServer, Backend)
-                  end, BackendModules).
+    PluginModules = mongoose_lib:find_behaviour_implementations(gen_pubsub_node),
+    % The line below will currently lead to unnecessary DB selects,
+    % because plugins don't really filter DB data by type.
+    % TODO: This should be optimised during GDPR load tests.
+    [ remove_user_per_backend_and_plugin_safe(LUser, LServer, Plugin, Backend)
+      || Plugin <- PluginModules, Backend <- BackendModules ],
+    ok.
 
-remove_user_per_backend_safe(LUser, LServer, Backend) ->
+remove_user_per_backend_and_plugin_safe(LUser, LServer, Plugin, Backend) ->
     try
-        ok = Backend:dirty(fun() -> remove_user_per_backend(LUser, LServer, Backend) end, #{})
+        plugin_call(Plugin, remove_user, [LUser, LServer, Backend])
     catch
         Class:Reason ->
             StackTrace = erlang:get_stacktrace(),
@@ -895,29 +899,6 @@ remove_user_per_backend_safe(LUser, LServer, Backend) ->
                          "luser=~s,lserver=~s,backend=~p,class=~p,reason=~p,stacktrace=~p",
                          [LUser, LServer, Backend, Class, Reason, StackTrace])
     end.
-
-remove_user_per_backend(LUser, LServer, Backend) ->
-    LJID = {LUser, LServer, <<>>},
-    Backend:delete_user_subscriptions(LJID),
-    Nodes = Backend:find_nodes_by_affiliated_user(LJID),
-    %% We don't broadcast any node deletion notifications to subscribers because:
-    %% * PEP nodes do not broadcast anything upon deletion
-    %% * Push nodes do not have (should not have) any subscribers
-    %% * Remaining nodes are not deleted when the owner leaves
-    lists:foreach(fun({#pubsub_node{ id = Nidx, type = Type } = Node, owner}) ->
-                          Plugin = plugin(Type),
-                          MaybeBasePlugin
-                          = maybe_default_node(Plugin, should_delete_when_owner_removed, []),
-                          case MaybeBasePlugin:should_delete_when_owner_removed() of
-                              true ->
-                                  % Oh my, we do have a mess in the API, don't we?
-                                  Backend:delete_node(Node),
-                                  Backend:del_node(Nidx);
-                              _ -> Backend:set_affiliation(Nidx, LJID, none)
-                          end;
-                     ({#pubsub_node{ id = Nidx }, _}) ->
-                          Backend:set_affiliation(Nidx, LJID, none)
-                  end, Nodes).
 
 handle_call(server_host, _From, State) ->
     {reply, State#state.server_host, State};
@@ -4295,6 +4276,9 @@ tree_action(Host, Function, Args) ->
 node_call(Host, Type, Function, Args) ->
     ?DEBUG("node_call ~p ~p ~p", [Type, Function, Args]),
     PluginModule = plugin(Host, Type),
+    plugin_call(PluginModule, Function, Args).
+
+plugin_call(PluginModule, Function, Args) ->
     CallModule = maybe_default_node(PluginModule, Function, Args),
     case apply(CallModule, Function, Args) of
         {result, Result} ->
