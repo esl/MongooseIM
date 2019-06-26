@@ -1,3 +1,48 @@
+# [MongooseIM 3.4.0](https://github.com/esl/MongooseIM/releases/tag/3.4.0) - 2019-06-26
+
+## Highlights
+
+- GDPR data retrieval and removal
+
+## All changes
+
+### Added
+
+- GDPR data retrieval and removal (#2260, #2285, #2286, #2288, #2289, #2293, #2294, #2295, #2296, #2297, #2298, #2299, #2300, #2301, #2302, #2303, #2309, #2310, #2312, #2313, #2314, #2316, #2320, #2323, #2326, #2327, #2328, #2336, #2339, #2341, #2345, #2347, #2349)
+- CLI `register` function now generates a safe, random username for a new account (#2262)
+- It is possible now to change the server name returned in HTTP responses (#2308)
+- A new behaviour in case of conflicting component connections: `kick_old` (#2315)
+
+### Changed
+
+- When a session gets replaced, the new one waits longer for the old one to close before reporting an error (#2054)
+- Authentication backends no longer use a `store_type/1` function (#2254)
+- Default certificates are now generated faster (#2305)
+
+### Fixed
+
+- Some race conditions in Stream Management (#2049)
+- faulty script execution of `xep_tools` (#2252)
+- MUC messages are now archived without an empty `to` attribute (#2220)
+- "Offline" classic MUC rooms are now properly reported in disco results (#2238)
+- Inbox responses are now properly routed to the original requester (#2276)
+- Resolved issues with TLS on OTP 20.x (#2332)
+
+### Other
+
+- Updated `escalus` to `4.1.0` (#2337)
+- Test improvements and refactoring (#2319)
+- Update documentation (#2246, #2259, #2261, #2307, #2346)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.4.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222019-03-13..2019-06-26%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2019-03-13&to=2019-06-26&type=c)
+
+## Special thanks to our contributor:
+- @varnerac
+
 # [MongooseIM 3.3.0](https://github.com/esl/MongooseIM/releases/tag/3.3.0) - 2019-03-12
 
 ## Highlights
