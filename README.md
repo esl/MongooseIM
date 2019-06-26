@@ -65,6 +65,7 @@ Check out our test results:
 Up-to-date documentation for the MongooseIM master branch can be found on ReadTheDocs: [https://mongooseim.readthedocs.io/en/latest/](https://mongooseim.readthedocs.io/en/latest/).
 
 Latest releases:
+* [3.4.0](https://mongooseim.readthedocs.io/en/3.4.0/)
 * [3.3.0](https://mongooseim.readthedocs.io/en/3.3.0/)
 * [3.2.0](https://mongooseim.readthedocs.io/en/3.2.0/)
 * [3.1.0](https://mongooseim.readthedocs.io/en/3.1.0/)
