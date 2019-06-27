@@ -394,7 +394,8 @@ is_presence_subscribed(#jid{luser=User, lserver=Server} = From,
                             element => undefined }),
     A2 = ejabberd_hooks:run_fold(roster_get, Server, A, [{User, Server}]),
     Roster = mongoose_acc:get(roster, items, [], A2),
-    lists:any(fun({roster, _, _, {TUser, TServer, _}, _, S, _, _, _, _}) ->
+    lists:any(fun({roster, _, _, JID, _, S, _, _, _, _}) ->
+                      {TUser, TServer} = jid:to_lus(JID),
                       LUser == TUser andalso LServer == TServer andalso S /= none
               end,
               Roster)
