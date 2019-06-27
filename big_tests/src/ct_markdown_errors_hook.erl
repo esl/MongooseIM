@@ -13,7 +13,7 @@
 -export([post_end_per_suite/4,
          post_end_per_group/4,
          post_end_per_testcase/4]).
--record(state, { file, summary_file, truncated_counter_file, suite, group, limit }).
+-record(state, { file, summary_file, truncated_counter_file, suite, limit }).
 
 %% @doc Return a unique id for this CTH.
 id(_Opts) ->
@@ -31,34 +31,32 @@ init(_Id, _Opts) ->
     {ok, #state{ file = File, summary_file = SummaryFile, truncated_counter_file = TrFile, limit = 25 }}.
 
 post_init_per_suite(SuiteName, Config, Return, State) ->
-    State2 = handle_return(SuiteName, '', init_per_suite, Return, Config, State),
-    {Return, State2#state{group = '', suite = SuiteName}}.
+    State2 = handle_return(SuiteName, init_per_suite, Return, Config, State),
+    {Return, State2#state{suite = SuiteName}}.
 
 post_init_per_group(GroupName, Config, Return, State=#state{suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, init_per_group, Return, Config, State),
-    {Return, State2#state{group = GroupName}}.
+    State2 = handle_return(SuiteName, init_per_group, Return, Config, State),
+    {Return, State2#state{}}.
 
-post_init_per_testcase(TC, Config, Return, State=#state{group = GroupName,
-                                                         suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, TC, Return, Config, State),
+post_init_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
+    State2 = handle_return(SuiteName, TC, Return, Config, State),
     {Return, State2}.
 
 post_end_per_suite(SuiteName, Config, Return, State) ->
-    State2 = handle_return(SuiteName, '', end_per_suite, Return, Config, State),
-    {Return, State2#state{suite = '', group = ''}}.
+    State2 = handle_return(SuiteName, end_per_suite, Return, Config, State),
+    {Return, State2#state{suite = ''}}.
 
 post_end_per_group(GroupName, Config, Return, State=#state{suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, end_per_group, Return, Config, State),
-    {Return, State2#state{group = ''}}.
+    State2 = handle_return(SuiteName, end_per_group, Return, Config, State),
+    {Return, State2#state{}}.
 
 %% @doc Called after each test case.
-post_end_per_testcase(TC, Config, Return, State=#state{group = GroupName,
-                                                        suite = SuiteName}) ->
-    State2 = handle_return(SuiteName, GroupName, TC, Return, Config, State),
+post_end_per_testcase(TC, Config, Return, State=#state{suite = SuiteName}) ->
+    State2 = handle_return(SuiteName, TC, Return, Config, State),
     {Return, State2}.
 
-handle_return(SuiteName, GroupName, Place, Return, Config, State) ->
-    try handle_return_unsafe(SuiteName, GroupName, Place, Return, Config, State)
+handle_return(SuiteName, Place, Return, Config, State) ->
+    try handle_return_unsafe(SuiteName, Place, Return, Config, State)
     catch Class:Error ->
         Stacktrace = erlang:get_stacktrace(),
         ct:pal("issue=handle_return_unsafe_failed reason=~p:~p~n"
@@ -66,14 +64,15 @@ handle_return(SuiteName, GroupName, Place, Return, Config, State) ->
         State
     end.
 
-handle_return_unsafe(SuiteName, GroupName, Place, Return, Config, State) ->
+handle_return_unsafe(SuiteName, Place, Return, Config, State) ->
     case to_error_message(Return) of
         ok ->
             State;
         Error ->
-            log_summary(SuiteName, GroupName, Place, State),
+            FullGroupName = full_group_name(Config),
+            log_summary(SuiteName, FullGroupName, Place, State),
             F = fun() ->
-                log_error(SuiteName, GroupName, Place, Error, Config, State)
+                log_error(SuiteName, FullGroupName, Place, Error, Config, State)
                 end,
             exec_limited_number_of_times(F, State)
     end.
@@ -169,3 +168,24 @@ reindent(Bin) ->
     %% Use 2 whitespaces instead of 4 for indention
     %% to make more compact look
     binary:replace(Bin, <<"    ">>, <<"  ">>, [global]).
+
+
+get_group_names(Config) ->
+    %% tc_group_path contains something like:
+    %% [[{name,muc_rsm_all},parallel],
+    %%  [{name,rdbms_muc_all},{repeat_until_all_ok,3},parallel]]
+    %% Where muc_rsm_all is subgroup of rdbms_muc_all.
+    Path = proplists:get_value(tc_group_path, Config, []),
+    TopGroup = proplists:get_value(tc_group_properties, Config, []),
+    Names = [ proplists:get_value(name, Props) || Props <- lists:reverse([TopGroup|Path]) ],
+    %% Just in case drop undefined
+    [Name || Name <- Names, Name =/= undefined].
+
+full_group_name(Config) ->
+    %% Groups path, example [main_group, sub_group1, sub_sub_group...]
+    Groups = get_group_names(Config),
+    join_atoms(Groups).
+
+join_atoms(Atoms) ->
+    Strings = [atom_to_list(A) || A <- Atoms],
+    list_to_atom(string:join(Strings, ":")).
