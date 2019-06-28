@@ -179,6 +179,7 @@ get_mam_module_configuration(_Config) ->
 
 meck_config() ->
     meck:new(ejabberd_config),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_local_option,
                 fun(modules, <<"no_config">>) ->
                        [];

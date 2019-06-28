@@ -43,6 +43,7 @@ setup() ->
                 fun default_local_option/1),
     meck:expect(ejabberd_config, get_global_option,
                 fun default_global_option/1),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(acl, match_rule, fun(_, _, _) -> allow end),
 
     meck:new(mongoose_bin, [passthrough]),

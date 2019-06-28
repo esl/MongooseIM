@@ -132,6 +132,7 @@ set_meck() ->
     meck:expect(ejabberd_config, get_global_option,
                 fun(hosts) -> [global_host(), local_host()] end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
 
     meck:new(mongoose_metrics, []),
     meck:expect(mongoose_metrics, update, fun(_, _, _) -> ok end),

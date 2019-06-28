@@ -264,6 +264,7 @@ given_clean_config() ->
     %% skip loading part
     meck:new(ejabberd_config, [no_link, unstick, passthrough]),
     meck:expect(ejabberd_config, load_file, fun(_File) -> ok end),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     ejabberd_config:start(),
     mnesia:clear_table(config),
     mnesia:clear_table(local_config),

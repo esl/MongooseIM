@@ -33,6 +33,7 @@ init_per_testcase(_, Config) ->
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
     meck:expect(ejabberd_config, add_local_option, fun(_, _) -> {atomic, ok} end),
     meck:expect(ejabberd_config, del_local_option, fun(_) -> {atomic, ok} end),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:new(a_module, [non_strict]),
     meck:expect(a_module, start, fun(_, _) -> ok end),
     meck:expect(a_module, stop, fun(_) -> ok end),

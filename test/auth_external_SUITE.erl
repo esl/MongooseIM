@@ -88,6 +88,7 @@ domain() ->
 setup_meck(_G, Config) ->
     DataDir = ?config(data_dir, Config),
     meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_local_option,
                 fun(auth_opts, _Host) ->
                         [{extauth_program, DataDir ++ "sample_external_auth.py"}]

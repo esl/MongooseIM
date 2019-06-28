@@ -178,6 +178,7 @@ setup_meck([ejabberd_config | R]) ->
                     (_) -> undefined
                 end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     setup_meck(R);
 setup_meck([ejabberd_commands | R]) ->
     meck:new(ejabberd_commands),

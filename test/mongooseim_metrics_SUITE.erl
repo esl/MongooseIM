@@ -138,6 +138,7 @@ wait_for_update({ok, [{count,0}]}, N) ->
 
 setup_meck(Group) ->
     meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_global_option, fun(hosts) -> [<<"localhost">>] end),
     meck:expect(ejabberd_config, get_local_option,
                 fun (all_metrics_are_global) -> Group =:= all_metrics_are_global;

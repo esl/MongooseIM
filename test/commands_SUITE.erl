@@ -87,6 +87,7 @@ stop_helper_proc(C) ->
 
 init_per_testcase(_, C) ->
     meck:new(ejabberd_config),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_local_option, fun glo/1),
     meck:expect(ejabberd_config, get_global_option, fun ggo/1),
     meck:new(ejabberd_auth_dummy, [non_strict]),

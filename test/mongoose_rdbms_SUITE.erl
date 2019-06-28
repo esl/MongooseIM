@@ -130,6 +130,7 @@ meck_unload_rand() ->
 
 meck_config(Server) ->
     meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_local_option,
                 fun(max_fsm_queue) -> 1024;
                    (all_metrics_are_global) -> false

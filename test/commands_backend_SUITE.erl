@@ -103,6 +103,7 @@ setup(Module) ->
     meck:expect(ejabberd_hooks, add, fun(_, _, _, _, _) -> ok end),
     meck:expect(ejabberd_hooks, run_fold, fun(_, _, _, _) -> ok end),
     meck:expect(ejabberd_config, get_local_option, fun(_) -> undefined end),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     spawn(fun mc_holder/0),
     meck:expect(supervisor, start_child,
         fun(ejabberd_listeners, {_, {_, start_link, [_]}, transient,

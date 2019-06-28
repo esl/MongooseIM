@@ -46,6 +46,7 @@ init_per_suite(Config) ->
     ok = meck:new(wpool, [no_link, passthrough]),
     ok = meck:new(mongoose_wpool, [no_link, passthrough]),
     ok = meck:new(ejabberd_config, [no_link]),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_global_option,
                 fun(hosts) -> [<<"a.com">>, <<"b.com">>, <<"c.eu">>] end),
     Self = self(),

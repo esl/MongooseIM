@@ -190,6 +190,7 @@ meck_config(Config) ->
                     _ -> []
                 end,
     meck:new(ejabberd_config),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     meck:expect(ejabberd_config, get_local_option,
                 fun(auth_opts, _Host) ->
                         [

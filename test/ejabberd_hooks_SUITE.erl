@@ -265,6 +265,7 @@ given_hooks_started() ->
     error_logger:tty(false),
     Fun = fun(all_metrics_are_global) -> false end,
     given_module(ejabberd_config, get_local_option, Fun),
+    meck:expect(ejabberd_config, get_local_option_or_default, fun(_, Default) -> Default end),
     ejabberd_hooks:start_link().
 
 given_hook_added(HookName, ModName, FunName, Prio) ->
