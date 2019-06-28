@@ -1,0 +1,324 @@
+version: 2.1
+
+
+orbs:
+  mim:
+    commands:
+      install_erlang:
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+        steps:
+        - run:
+            name: Install Erlang
+            command: |
+              wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb
+              sudo dpkg -i erlang-solutions_1.0_all.deb
+              sudo apt-get update
+              sudo apt-get install -y esl-erlang=<<parameters.otp>>
+      fetch_packages:
+        steps:
+        - run:
+            name: Install basic packages
+            command: |
+              sudo apt install unixodbc-dev
+              sudo apt install unixodbc
+              sudo apt install tdsodbc
+
+    jobs:
+      build_and_small_tests:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          rel_config:
+            type: string
+            description: Rel config type
+            default: with-all
+          build_releases:
+            type: string
+            description: build releases
+            default: "1"
+
+        environment:
+          SKIP_RELEASE: 1
+          REL_CONFIG: <<parameters.rel_config>>
+          SKIP_COV: 0
+          PRESET: small_tests
+        working_directory: ~/app
+
+        steps:
+          - checkout
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+          - restore_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - fetch_packages
+          - run:
+              name: Get deps
+              command: |
+                sudo apt install python-pip
+                tools/configure $REL_CONFIG
+                ./rebar3 get-deps
+          - save_cache:
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+              paths:
+                - ~/.cache/rebar3
+                - _build/default/lib
+          - run:
+              name: Compile
+              command: |
+                ./rebar3 compile
+          - run:
+              name: Make Certs
+              command: |
+                make certs
+          - run:
+              name: Run Small tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+          - run:
+              name: Install Releases
+              command: |
+                test 0 = <<parameters.build_releases>> || make devrel
+          - run:
+              name: Build big tests
+              command: |
+                tools/travis-build-tests.sh
+          - save_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+              paths: ./
+
+
+      dialyzer:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - run:
+              name: Run Dialyzer
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
+
+## TODO push docker image job
+#      push_image:
+#        parameters:
+#          otp_version:
+#            type: string
+#            description: erlang version to use
+#        docker:
+#          - image: circleci/erlang:<<parameters.otp_version>>
+#        working_directory: ~/app
+#        steps:
+#          - checkout
+#          - fetch_packages
+#          - run:
+#              name: Run small tests
+#              command: |
+#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+
+      package:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        working_directory: ~/app
+        parameters:
+          platform:
+            type: string
+            description: pkg platform type
+        environment:
+          pkg_PLATFORM: <<parameters.platform>>
+          PRESET: pkg
+        steps:
+          - checkout
+          - run:
+              name: Build package
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
+
+      big_tests:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          preset:
+            type: string
+            description: preset
+            default: internal_mnesia
+          db:
+            type: string
+            description: db
+            default: mnesia
+        environment:
+          MIX_ENV: test
+          PRESET: <<parameters.preset>>
+          DB: <<parameters.db>>
+          ELASTICSEARCH_VERSION: 5.6.9
+          CASSANDRA_VERSION: 3.9
+          TEST_SPEC: mam.spec
+          REDIS_VERSION: 3.2.10
+        steps:
+          - checkout
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - fetch_packages
+          - run:
+          ## For Travis' scripts compatibility
+              name: Setup Environment Variables
+              command: |
+                echo 'export TRAVIS_BUILD_NUMBER="$CIRCLE_BUILD_NUM"' >> $BASH_ENV
+                echo 'export TRAVIS_BRANCH="$CIRCLE_BRANCH"' >> $BASH_ENV
+                echo 'export TRAVIS_PULL_REQUEST="$CI_PULL_REQUEST"' >> $BASH_ENV
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+          - run:
+              name: Echo Travis OTP
+              command: |
+                echo $TRAVIS_BUILD_NUMBER
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Setup database
+              command: |
+                tools/travis-setup-db.sh
+                if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
+                if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; tools/setup-redis.sh; fi
+                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+          - run:
+              name: Coverage
+              when: on_success
+              command: |
+                echo "Success!"
+                sudo pip install codecov && codecov
+                ./rebar3 codecov analyze
+                codecov --disable=gcov --env PRESET
+                DEBUG=1 ./rebar3 coveralls send
+          - run:
+              name: Build Failed - Logs
+              when: on_fail
+              command: |
+                echo "Failure!"
+                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+
+## Uncomment when setup all required secret envs
+#          - run:
+#              name: Upload results
+#              command: |
+#                  tools/travis-prepare-log-dir.sh
+#                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+#                  tools/travis-publish-github-comment.sh
+#                  if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+#                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - mim/package:
+          name: centos7
+          platform: centos7
+      - mim/package:
+          name: debian_stretch
+          platform: debian_stretch
+      - mim/build_and_small_tests:
+          name: otp_20_3_small_tests
+          otp: 1:20.3.8.22-1
+      - mim/build_and_small_tests:
+          name: otp_21_3_small_tests
+          otp: 1:21.3.8.4-1
+          context: Mongooseim
+      - mim/build_and_small_tests:
+          name: otp_22_small_tests
+          otp: 1:22.0.4-1
+          build_releases: "0"
+      - mim/dialyzer:
+          name: dialyzer
+          otp: 1:22.0.4-1
+          requires:
+            - otp_22_small_tests
+      - mim/big_tests:
+          name: mysql_redis
+          otp: 1:20.3.8.22-1
+          preset: mysql_redis
+          db: mysql
+          requires:
+            - otp_20_3_small_tests
+      - mim/big_tests:
+          name: mssql_mnesia
+          otp: 1:20.3.8.22-1
+          preset: odbc_mssql_mnesia
+          db: mssql
+          requires:
+            - otp_20_3_small_tests
+      - mim/big_tests:
+          name: ldap_mnesia
+          otp: 1:21.3.8.4-1
+          preset: ldap_mnesia
+          db: mnesia
+          context: Mongooseim
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: internal_mnesia
+          otp: 1:21.3.8.4-1
+          preset: internal_mnesia
+          db: mnesia
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: elasticsearch_and_cassandra
+          otp: 1:21.3.8.4-1
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: pgsql_mnesia
+          otp: 1:21.3.8.4-1
+          preset: pgsql_mnesia
+          db: pgsql
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: riak_mnesia
+          otp: 1:21.3.8.4-1
+          preset: riak_mnesia
+          db: riak
+          requires:
+            - otp_21_3_small_tests

@@ -38,5 +38,7 @@ for dev_node_logs_path in `find _build -name log -type d`; do
 	cp ${dev_node_logs_path}/* ${LOG_DIR}
 done
 
+echo ${LOG_DIR_ROOT}
+ls .
 cp *.log ${LOG_DIR_ROOT}
 cp big_tests/*.log ${LOG_DIR_ROOT}
