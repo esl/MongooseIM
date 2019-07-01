@@ -1,16 +1,41 @@
-version: 2
+version: 2.1
 jobs:
   build:
     docker:
-      - image: debian:stretch
+      - image: circleci/erlang:22
+        environment:
+          MIX_ENV: test
+          SKIP_RELEASE: 0
+          REL_CONFIG: with-all
+          SKIP_COMPILE: 0
+          SKIP_BUILD_TESTS: 0
+          SKIP_COV: 0
+
+    working_directory: ~/app
 
     steps:
       - checkout
-
       - run:
-          name: Greeting
-          command: echo Hello, world.
-
+          name: fetch code
+          command: |
+            sudo apt install unixodbc-dev
+            test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
+            git config --global url."git://github".insteadOf https://github
+            test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
       - run:
-          name: Print the Current Time
-          command: date
+          name: compile
+          command: |
+            test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+            test 1 = "$SKIP_COMPILE" || make certs
+            test 1 = "$SKIP_RELEASE" || make devrel
+            test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+            test 1 = "$SKIP_COV" || pip install --user codecov
+
+      - save_cache:
+          key: plt-cache-{{ checksum ".version_file"  }}
+          paths:
+            - _build
+            - deps
+      - save_cache:
+          key: build-cache-{{ .Branch }}-{{ .Revision }}
+          paths: "_build"
