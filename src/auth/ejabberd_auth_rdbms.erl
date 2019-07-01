@@ -87,7 +87,7 @@ stop(_Host) ->
 -spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
 supports_password_type(_, plain) -> true;
 supports_password_type(_, scram) -> true;
-supports_password_type(Host, digest) -> not scram:enabled(Host);
+supports_password_type(Host, digest) -> not mongoose_scram:enabled(Host);
 supports_password_type(_, _) -> false.
 
 -spec authorize(mongoose_credentials:t()) -> {ok, mongoose_credentials:t()}
@@ -115,9 +115,9 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         {selected, [{Passwd, null}]} ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, Passwd);
         {selected, [{_Passwd, PassDetails}]} ->
-            case scram:deserialize(PassDetails) of
+            case mongoose_scram:deserialize(PassDetails) of
                 {ok, #scram{} = Scram} ->
-                    scram:check_digest(Scram, Digest, DigestGen, Password);
+                    mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
                 _ ->
                     false
             end;
@@ -147,9 +147,9 @@ check_password_wo_escape(LUser, Username, LServer, Password) ->
         {selected, [{_Password2, null}]} ->
             false;
         {selected, [{_Password2, PassDetails}]} ->
-            case scram:deserialize(PassDetails) of
+            case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
-                    scram:check_password(Password, Scram);
+                    mongoose_scram:check_password(Password, Scram);
                 _ ->
                     false %% Password is not correct
             end;
@@ -291,9 +291,9 @@ get_password(LUser, LServer) ->
         {selected, [{Password, null}]} ->
             Password; %%Plain password
         {selected, [{_Password, PassDetails}]} ->
-            case scram:deserialize(PassDetails) of
+            case mongoose_scram:deserialize(PassDetails) of
                 {ok, Scram} ->
-                    scram:scram_to_tuple(Scram);
+                    mongoose_scram:scram_to_tuple(Scram);
                 _ ->
                     false
             end;
@@ -393,8 +393,8 @@ remove_user(LUser, LServer, Password) ->
 -spec prepare_scrammed_password(Iterations :: pos_integer(), Password :: binary()) ->
     prepared_scrammed_password().
 prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = scram:password_to_scram(Password, Iterations),
-    PassDetails = scram:serialize(Scram),
+    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+    PassDetails = mongoose_scram:serialize(Scram),
     PassDetailsEscaped = mongoose_rdbms:escape_string(PassDetails),
     EmptyPassword = mongoose_rdbms:escape_string(<<>>),
     #{password => EmptyPassword,
@@ -403,9 +403,9 @@ prepare_scrammed_password(Iterations, Password) when is_integer(Iterations) ->
 -spec prepare_password(Server :: jid:server(), Password :: binary()) ->
     PreparedPassword :: prepared_password().
 prepare_password(Server, Password) ->
-    case scram:enabled(Server) of
+    case mongoose_scram:enabled(Server) of
         true ->
-            prepare_scrammed_password(scram:iterations(Server), Password);
+            prepare_scrammed_password(mongoose_scram:iterations(Server), Password);
         _ ->
             mongoose_rdbms:escape_string(Password)
     end.

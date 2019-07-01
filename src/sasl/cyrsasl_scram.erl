@@ -86,13 +86,13 @@ mech_step(#state{step = 2} = State, ClientIn) ->
                                                    TempSalt =
                                                    crypto:strong_rand_bytes(?SALT_LENGTH),
                                                    SaltedPassword =
-                                                   scram:salted_password(Ret,
-                                                                         TempSalt,
-                                                                         scram:iterations()),
-                                                   {scram:stored_key(scram:client_key(SaltedPassword)),
-                                                    scram:server_key(SaltedPassword),
+                                                   mongoose_scram:salted_password(Ret,
+                                                                                  TempSalt,
+                                                                                  mongoose_scram:iterations()),
+                                                   {mongoose_scram:stored_key(mongoose_scram:client_key(SaltedPassword)),
+                                                    mongoose_scram:server_key(SaltedPassword),
                                                     TempSalt,
-                                                    scram:iterations()}
+                                                    mongoose_scram:iterations()}
                                             end,
                                             {NStart, _} = binary:match(ClientIn, <<"n=">>),
                                             ClientFirstMessageBare = binary:part(ClientIn,
@@ -149,15 +149,15 @@ mech_step(#state{step = 4} = State, ClientIn) ->
                                                             binary:part(ClientIn, 0, PStart)
                                                            ]),
                                            ClientSignature =
-                                           scram:client_signature(State#state.stored_key,
-                                                                  AuthMessage),
-                                           ClientKey = scram:client_key(ClientProof,
-                                                                        ClientSignature),
-                                           CompareStoredKey = scram:stored_key(ClientKey),
+                                           mongoose_scram:client_signature(State#state.stored_key,
+                                                                           AuthMessage),
+                                           ClientKey = mongoose_scram:client_key(ClientProof,
+                                                                                 ClientSignature),
+                                           CompareStoredKey = mongoose_scram:stored_key(ClientKey),
                                            if CompareStoredKey == State#state.stored_key ->
                                                   ServerSignature =
-                                                  scram:server_signature(State#state.server_key,
-                                                                         AuthMessage),
+                                                  mongoose_scram:server_signature(State#state.server_key,
+                                                                                  AuthMessage),
                                                   R = [{username, State#state.username},
                                                        {sasl_success_response,
                                                         <<"v=", (jlib:encode_base64(ServerSignature))/binary>>},

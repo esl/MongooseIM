@@ -56,7 +56,7 @@ stop(_Host) ->
 -spec supports_password_type(jid:lserver(), cyrsasl:password_type()) -> boolean().
 supports_password_type(_, plain) -> true;
 supports_password_type(_, scram) -> true;
-supports_password_type(Host, digest) -> not scram:enabled(Host);
+supports_password_type(Host, digest) -> not mongoose_scram:enabled(Host);
 supports_password_type(_, _) -> false.
 
 -spec set_password(jid:luser(), jid:lserver(), binary())
@@ -81,7 +81,7 @@ check_password(LUser, LServer, Password) ->
         false ->
             false;
         #scram{} = Scram ->
-            scram:check_password(Password, Scram);
+            mongoose_scram:check_password(Password, Scram);
         Password when is_binary(Password) ->
             Password /= <<"">>;
         _ ->
@@ -98,7 +98,7 @@ check_password(LUser, LServer, Password, Digest, DigestGen) ->
         false ->
             false;
         #scram{} = Scram ->
-            scram:check_digest(Scram, Digest, DigestGen, Password);
+            mongoose_scram:check_digest(Scram, Digest, DigestGen, Password);
         PassRiak when is_binary(PassRiak) ->
             ejabberd_auth:check_digest(Digest, DigestGen, Password, PassRiak)
     end.
@@ -147,7 +147,7 @@ get_password(LUser, LServer) ->
         false ->
             false;
         #scram{} = Scram ->
-            scram:scram_to_tuple(Scram);
+            mongoose_scram:scram_to_tuple(Scram);
         Password ->
             Password
     end.
@@ -224,14 +224,14 @@ do_set_password({ok, Map}, LUser, LServer, Password) ->
     mongoose_riak:update_type(bucket_type(LServer), LUser, riakc_map:to_op(UpdateMap)).
 
 prepare_password(Iterations, Password) when is_integer(Iterations) ->
-    Scram = scram:password_to_scram(Password, Iterations),
-    PassDetails = scram:serialize(Scram),
+    Scram = mongoose_scram:password_to_scram(Password, Iterations),
+    PassDetails = mongoose_scram:serialize(Scram),
     {<<"">>, PassDetails};
 
 prepare_password(Server, Password) ->
-    case scram:enabled(Server) of
+    case mongoose_scram:enabled(Server) of
         true ->
-            prepare_password(scram:iterations(Server), Password);
+            prepare_password(mongoose_scram:iterations(Server), Password);
         _ ->
             Password
     end.
@@ -249,9 +249,9 @@ extract_password(Map) ->
             Password
     end.
 
--spec maybe_extract_scram_password({ok, binary()} | error) -> scram:scram() | false.
+-spec maybe_extract_scram_password({ok, binary()} | error) -> mongoose_scram:scram() | false.
 maybe_extract_scram_password({ok, ScramSerialised}) ->
-    case scram:deserialize(ScramSerialised) of
+    case mongoose_scram:deserialize(ScramSerialised) of
         {ok, Scram} ->
             Scram;
         _ ->
