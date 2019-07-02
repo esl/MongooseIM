@@ -15,21 +15,35 @@ jobs:
 
     steps:
       - checkout
+      - restore_cache:
+          key: deps-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "rebar.lock" }}
       - run:
-          name: fetch code
+          name: Get deps
           command: |
             sudo apt install unixodbc-dev
             test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
             git config --global url."git://github".insteadOf https://github
             test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
+      - save_cache:
+          key: deps-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "rebar.lock" }}
+          paths: deps
       - run:
-          name: compile
+          name: Compile
           command: |
             test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+      - run:
+          name: Make certs
+          command: |
             test 1 = "$SKIP_COMPILE" || make certs
+      - run:
+          name: Make devrel
+          command: |
             test 1 = "$SKIP_RELEASE" || make devrel
             test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
             test 1 = "$SKIP_COV" || pip install --user codecov
+      - save_cache:
+          key: build-cache-{{ .Branch }}-{{ .Revision }}
+          paths: _build
 
       - save_cache:
           key: plt-cache-{{ checksum ".version_file"  }}
