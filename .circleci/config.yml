@@ -16,7 +16,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "rebar.lock" }}
+          key: deps-cache--{{ checksum "rebar.lock" }}
       - run:
           name: Get deps
           command: |
@@ -25,16 +25,21 @@ jobs:
             git config --global url."git://github".insteadOf https://github
             test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
       - save_cache:
-          key: deps-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "rebar.lock" }}
-          paths: deps
+          key: deps-cache--{{ checksum "rebar.lock" }}
+          paths: ~/.cache/rebar3
       - run:
           name: Compile
           command: |
             test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+      - restore_cache:
+          key: certs-cache--{{ .Branch }}-{{ .Revision }}
       - run:
           name: Make certs
           command: |
             test 1 = "$SKIP_COMPILE" || make certs
+      - save_cache:
+          key: certs-cache--{{ .Branch }}-{{ .Revision }}
+          paths: tools/ssl
       - run:
           name: Make devrel
           command: |
