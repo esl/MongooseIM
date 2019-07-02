@@ -9,6 +9,7 @@ jobs:
           REL_CONFIG: with-all
           SKIP_COMPILE: 0
           SKIP_BUILD_TESTS: 0
+          PRESET: internal_mnesia
           SKIP_COV: 0
 
     working_directory: ~/app
@@ -16,7 +17,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-cache--{{ .Branch }}-{{ .Revision }}--{{ checksum "rebar.lock" }}
+          key: deps-cache--{{ .Branch }}
       - run:
           name: Get deps
           command: |
@@ -26,25 +27,20 @@ jobs:
             git config --global url."git://github".insteadOf https://github
             test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
       - save_cache:
-          key: deps-cache--{{ .Branch }}-{{ .Revision }}--{{ checksum "rebar.lock" }}
+          key: deps-cache--{{ .Branch }}
           paths: ~/.cache/rebar3
+      - restore_cache:
+          key: build-cache-{{ .Branch }}-{{ .Revision }}
       - run:
           name: Compile
           command: |
             test 1 = "$SKIP_COMPILE" || ./rebar3 compile
-#      - restore_cache:
-#          key: certs-cache--{{ .Branch }}-{{ .Revision }}
       - run:
           name: Make certs
           command: |
             test 1 = "$SKIP_COMPILE" || make certs
-#      - save_cache:
-#          key: certs-cache--{{ .Branch }}-{{ .Revision }}
-#          paths: tools/ssl
-      - restore_cache:
-          key: build-cache-{{ .Branch }}-{{ .Revision }}
       - run:
-          name: Make devrel
+          name: Install
           command: |
             test 1 = "$SKIP_RELEASE" || make devrel
             test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
@@ -52,3 +48,9 @@ jobs:
       - save_cache:
           key: build-cache-{{ .Branch }}-{{ .Revision }}
           paths: _build
+      - run:
+          name: Setup database
+          command: |
+            tools/travis-setup-db.sh
+            if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+            if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
