@@ -26,7 +26,8 @@ groups() ->
 
 all_metrics_list() ->
     [
-     tcp_connections_detected
+     tcp_connections_detected,
+     up_time_positive
     ].
 
 init_per_suite(C) ->
@@ -84,9 +85,12 @@ end_per_group(_Name, C) ->
     meck:unload(),
     C.
 
+up_time_positive(_C) ->
+    {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, nodeUpTime),
+    ?assert(X > 0).
 
 tcp_connections_detected(_C) ->
-    {ok, [{value, X}]} = mongoose_metrics:get_metric_value( global, tcpCountConnections),
+    {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, tcpCountConnections),
     ?assert(X > 0).
 
 no_skip_metric(_C) ->
