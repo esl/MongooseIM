@@ -24,7 +24,6 @@ jobs:
             sudo apt install unixodbc-dev
             test 1 = "$SKIP_COV" || sudo apt install python-pip
             test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
-            git config --global url."git://github".insteadOf https://github
             test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
       - save_cache:
           key: deps-cache--{{ .Branch }}
@@ -54,3 +53,26 @@ jobs:
             tools/travis-setup-db.sh
             if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
             if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+
+  small_tests:
+    docker:
+      - image: circleci/erlang:22
+        environment:
+          MIX_ENV: test
+          PRESET: internal_mnesia
+    steps:
+      - run:
+          name: Setup database
+          command: |
+            KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s true
+
+
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - small_tests:
+          requires:
+            - build
