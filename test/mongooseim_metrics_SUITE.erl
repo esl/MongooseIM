@@ -11,7 +11,8 @@
 all() ->
     [
      {group, ordinary_mode},
-     {group, all_metrics_are_global}
+     {group, all_metrics_are_global},
+     {group, all_metrics}
     ].
 
 -define(ALL_CASES, [no_skip_metric, subscriptions_initialised]).
@@ -19,16 +20,16 @@ all() ->
 groups() ->
     [
      {ordinary_mode, [], ?ALL_CASES},
-     {all_metrics_are_global, [], ?ALL_CASES}
+     {all_metrics_are_global, [], ?ALL_CASES},
+     {all_metrics, [parallel], all_metrics_list()}
+    ].
+
+all_metrics_list() ->
+    [
+     tcp_connections_detected
     ].
 
 init_per_suite(C) ->
-    C.
-
-end_per_suite(C) ->
-    C.
-
-init_per_group(Group, C) ->
     application:load(exometer_core),
     application:set_env(exometer_core, mongooseim_report_interval, 1000),
     {Port, Socket} = carbon_cache_server:start(1, 0),
@@ -59,28 +60,40 @@ init_per_group(Group, C) ->
     application:set_env(exometer_core, report, Reporters),
     PortServer = carbon_cache_server:wait_for_accepting(),
     {ok, _Apps} = application:ensure_all_started(exometer_core),
-    setup_meck(Group),
     exometer:new([carbon, packets], spiral),
     [{carbon_port, Port}, {test_sup, Sup}, {carbon_server, PortServer}, {carbon_socket, Socket} | C].
 
-end_per_group(Name, C) ->
+end_per_suite(C) ->
     Sup = ?config(test_sup, C),
     Sup ! stop,
     CarbonServer = ?config(carbon_server, C),
     erlang:exit(CarbonServer, kill),
     CarbonSocket = ?config(carbon_socket, C),
     gen_tcp:close(CarbonSocket),
-    meck:unload(),
     application:stop(exometer_core),
     C.
+
+init_per_group(Group, C) ->
+    setup_meck(Group),
+    mongoose_metrics:init(),
+    C.
+
+end_per_group(_Name, C) ->
+    mongoose_metrics:remove_host_metrics(<<"localhost">>),
+    mongoose_metrics:remove_host_metrics(global),
+    meck:unload(),
+    C.
+
+
+tcp_connections_detected(_C) ->
+    {ok, [{value, X}]} = mongoose_metrics:get_metric_value( global, tcpCountConnections),
+    ?assert(X > 0).
 
 no_skip_metric(_C) ->
     ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
     undefined = exometer:info([<<"localhost">>, sm_register_connection_hook]).
 
-
 subscriptions_initialised(_C) ->
-    mongoose_metrics:init(),
     true = wait_for_update(exometer:get_value([carbon, packets], count), 60).
 
 wait_for_update({ok, [{count,X}]}, 0) ->

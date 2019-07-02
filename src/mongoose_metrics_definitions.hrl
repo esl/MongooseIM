@@ -80,6 +80,9 @@
            tagged, [value]}},
          {clusterSize,
           {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
+           tagged, [value]}},
+         {tcpCountConnections,
+          {function, mongoose_metrics, tcp_ports, [],
            tagged, [value]}}
         ]
 ).
