@@ -247,12 +247,12 @@ cluster_size(Config) ->
       ?assert_equal(1, SingleNodeClusterState2).
 
 tcp_connections_increases_with_user_connection(Config) ->
-    InitialTcpCount = fetch_global_incrementing_gauge_value(tcpCountConnections, Config),
+    InitialTcpCount = fetch_global_incrementing_gauge_value(tcpPortsUsed, Config),
     escalus:story(Config, [{alice, 1}],
                  fun(_Alice) ->
                          NewTcpCount =
-                         fetch_global_incrementing_gauge_value(tcpCountConnections, Config),
-                         assert_counter_inc(tcpCountConnections, 1,
+                         fetch_global_incrementing_gauge_value(tcpPortsUsed, Config),
+                         assert_counter_inc(tcpPortsUsed, 1,
                                             [InitialTcpCount], [NewTcpCount])
                  end).
 

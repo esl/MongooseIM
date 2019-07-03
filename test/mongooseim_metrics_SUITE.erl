@@ -90,7 +90,7 @@ up_time_positive(_C) ->
     ?assert(X > 0).
 
 tcp_connections_detected(_C) ->
-    {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, tcpCountConnections),
+    {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, tcpPortsUsed),
     ?assert(X > 0).
 
 no_skip_metric(_C) ->
