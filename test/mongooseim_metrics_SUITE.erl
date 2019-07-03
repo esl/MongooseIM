@@ -11,21 +11,19 @@
 all() ->
     [
      {group, ordinary_mode},
-     {group, all_metrics_are_global},
-     {group, all_metrics}
+     {group, all_metrics_are_global}
     ].
-
--define(ALL_CASES, [no_skip_metric, subscriptions_initialised]).
 
 groups() ->
     [
-     {ordinary_mode, [], ?ALL_CASES},
-     {all_metrics_are_global, [], ?ALL_CASES},
-     {all_metrics, [parallel], all_metrics_list()}
+     {ordinary_mode, [], all_metrics_list()},
+     {all_metrics_are_global, [], all_metrics_list()}
     ].
 
 all_metrics_list() ->
     [
+     no_skip_metric,
+     subscriptions_initialised,
      tcp_connections_detected,
      up_time_positive
     ].
