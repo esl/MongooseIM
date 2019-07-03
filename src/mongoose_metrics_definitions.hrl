@@ -78,7 +78,7 @@
          {nodeUpTime,
           {function, mongoose_metrics, get_up_time, [],
            tagged, [value]}},
-         {clusterState,
+         {clusterSize,
           {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
            tagged, [value]}}
         ]
