@@ -55,10 +55,6 @@ jobs:
             tools/travis-setup-db.sh
             if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
             if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
-      - run:
-          name: Run tests
-          command: |
-            KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
   small_tests:
     docker:
@@ -90,6 +86,6 @@ workflows:
   build_and_test:
     jobs:
       - build
-#      - small_tests:
-#          requires:
-#            - build
+      - small_tests:
+          requires:
+            - build
