@@ -47,8 +47,8 @@ jobs:
       - save_cache:
           key: build-cache-{{ .Branch }}-{{ .Revision }}
           paths:
+            - tools/ssl/mongooseim
             - _build
-            - tools/ssl
       - run:
           name: Setup database
           command: |
@@ -76,6 +76,8 @@ jobs:
       - restore_cache:
           keys:
             - build-cache-{{ .Branch }}-{{ .Revision }}
+
+      - run: cat tools/ssl/mongooseim/privkey.pem
       - run:
           name: Run tests
           command: |
