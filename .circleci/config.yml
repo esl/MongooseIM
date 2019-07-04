@@ -63,6 +63,7 @@ jobs:
         environment:
           MIX_ENV: test
           PRESET: small_tests
+    working_directory: ~/app
     steps:
       - checkout
       - run:
