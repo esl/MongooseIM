@@ -73,7 +73,7 @@ jobs:
           keys:
             - build-cache-{{ .Branch }}-{{ .Revision }}
 
-      - run: cat tools/ssl/mongooseim/privkey.pem
+      - run: cat /home/circleci/app/tools/ssl/mongooseim/privkey.pem
       - run:
           name: Run tests
           command: |
