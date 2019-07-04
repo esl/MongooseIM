@@ -9,7 +9,7 @@ jobs:
           REL_CONFIG: with-all
           SKIP_COMPILE: 0
           SKIP_BUILD_TESTS: 0
-          PRESET: internal_mnesia
+          PRESET: small_tests
           SKIP_COV: 0
 
     working_directory: ~/app
