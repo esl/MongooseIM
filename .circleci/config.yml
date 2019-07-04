@@ -55,6 +55,11 @@ jobs:
             tools/travis-setup-db.sh
             if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
             if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+            echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+      - run:
+          name: Run tests
+          command: |
+            KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
   small_tests:
     docker:
@@ -73,8 +78,6 @@ jobs:
       - restore_cache:
           keys:
             - build-cache-{{ .Branch }}-{{ .Revision }}
-
-      - run: cat /home/circleci/app/tools/ssl/mongooseim/privkey.pem
       - run:
           name: Run tests
           command: |
@@ -87,6 +90,6 @@ workflows:
   build_and_test:
     jobs:
       - build
-      - small_tests:
-          requires:
-            - build
+#      - small_tests:
+#          requires:
+#            - build
