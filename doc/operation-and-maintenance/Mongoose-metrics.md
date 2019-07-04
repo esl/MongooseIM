@@ -151,6 +151,7 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, uniqueSessionCount]` | value | A number of unique users connected to a MongooseIM cluster (e.g. 3 sessions of the same user will be counted as 1 in this metric). |
 | `[global, cache, unique_sessions_number]` | gauge | A cached value of `uniqueSessionCount`. It is automatically updated when a unique session count is calculated. |
 | `[global nodeUpTime]` | value | Node uptime. |
+| `[global, clusterSize]` | value | A number of nodes in a MongooseIM cluster seen by a given MongooseIM node. |
 
 ### Data metrics
 

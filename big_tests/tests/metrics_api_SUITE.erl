@@ -18,6 +18,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 
+-import(distributed_helper, [mim/0, rpc/4]).
+
 -define(assert_equal(E, V), (
     [ct:fail("assert_equal(~s, ~s)~n\tExpected ~p~n\tValue ~p~n",
              [(??E), (??V), (E), (V)])
@@ -57,7 +59,8 @@ groups() ->
          {metrics, [], ?METRICS_CASES},
          {all_metrics_are_global, [], ?METRICS_CASES},
          {global, [], [session_counters,
-                       node_uptime]}
+                       node_uptime,
+                       cluster_size]}
         ],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -77,9 +80,15 @@ init_per_group(GroupName, Config) ->
 end_per_group(GroupName, Config) ->
     metrics_helper:finalise_by_all_metrics_are_global(Config, GroupName =:= all_metrics_are_global).
 
+init_per_testcase(cluster_size = CN, Config) ->
+    Config1 = ensure_nodes_not_clustered(Config),
+    escalus:init_per_testcase(CN, Config1);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(cluster_size = CN, Config) ->
+    Config1 = ensure_nodes_clustered(Config),
+    escalus:end_per_testcase(CN, Config1);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -220,6 +229,21 @@ node_uptime(Config) ->
       Y = fetch_global_incrementing_gauge_value(nodeUpTime, Config),
       ?assert_equal_extra(true, Y > X, [{counter, nodeUpTime}, {first, X}, {second, Y}]).
 
+cluster_size(Config) ->
+      SingleNodeClusterState =
+            fetch_global_incrementing_gauge_value(clusterSize, Config),
+      ?assert_equal(1, SingleNodeClusterState),
+
+      distributed_helper:add_node_to_cluster(Config),
+      TwoNodesClusterState =
+            fetch_global_incrementing_gauge_value(clusterSize, Config),
+      ?assert_equal(2, TwoNodesClusterState),
+
+      distributed_helper:remove_node_from_cluster(Config),
+      SingleNodeClusterState2 =
+            fetch_global_incrementing_gauge_value(clusterSize, Config),
+      ?assert_equal(1, SingleNodeClusterState2).
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -312,3 +336,15 @@ assert_counter_inc(_Name, Inc, Counter1, Counter2) when Counter1 + Inc =:= Count
 
 get_diffs(L1, L2) ->
     lists:zip(L1, L2).
+
+ensure_nodes_not_clustered(Config) ->
+    Nodes1 = rpc(mim(), mnesia, system_info, [running_db_nodes]),
+    Nodes = [Node || Node <- Nodes1, Node =/= mim()],
+    [distributed_helper:remove_node_from_cluster(N, Config) || N <- Nodes],
+    Config ++ [{nodes_clustered, Nodes}].
+
+ensure_nodes_clustered(Config) ->
+    NodesToBeClustered = proplists:get_value(nodes_clustered, Config),
+    [distributed_helper:add_node_to_cluster(N, Config)
+     || N <- NodesToBeClustered],
+    Config.
