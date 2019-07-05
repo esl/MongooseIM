@@ -2,7 +2,7 @@ version: 2.1
 
 
 orbs:
-  mongooseim:
+  mim:
     commands:
       install_erlang:
         parameters:
@@ -130,16 +130,12 @@ orbs:
           - run:
               name: Run tests
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
 
       tests:
-        docker:
-        ## See https://circleci.com/docs/2.0/custom-images/
-          - image: circleci/erlang:22
-            environment:
-              MIX_ENV: test
-              PRESET: small_tests
-        working_directory: ~/app
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
         parameters:
           otp:
             type: string
@@ -156,6 +152,7 @@ orbs:
             type: string
             description: Rel config type
             default: with-all
+
         environment:
           MIX_ENV: test
           SKIP_RELEASE: 0
@@ -165,7 +162,8 @@ orbs:
           PRESET: <<parameters.preset>>
           DB: <<parameters.db>>
           SKIP_COV: 0
-
+          
+        working_directory: ~/app
         steps:
           - checkout
           - run:
@@ -187,35 +185,28 @@ orbs:
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
-#          - run:
-#              name: Setup Postgres Docker
-#              command: |
-#                  cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
-#                  cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
-#                  cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
-#                  cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
-#                  cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
-#          - run:
-#              name: Run tests
-#              command: |
-#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
-
 
 
 workflows:
   version: 2
   build_and_test:
     jobs:
-      - mongooseim/build:
+      - mim/build:
           otp: 1:20.3.8.22-1
           preset: pgsql_mnesia
           db: pgsql
-      - mongooseim/tests:
+      - mim/tests:
           requires:
-            - mongooseim/build
+            - mim/build
           otp: 1:20.3.8.22-1
           preset: pgsql_mnesia
           db: pgsql
+      - mim/tests:
+          requires:
+            - mim/build
+          otp: 1:20.3.8.22-1
+          preset: internal_mnesia
+          db: mnesia
 #          rel_config: with-all
 #      - build
 #      - small_tests:
