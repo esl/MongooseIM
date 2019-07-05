@@ -69,7 +69,6 @@ orbs:
           PRESET: <<parameters.preset>>
           DB: <<parameters.db>>
           SKIP_COV: 0
-
         working_directory: ~/app
 
         steps:
@@ -107,7 +106,7 @@ orbs:
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}
               paths:
-                - tools/ssl/mongooseim
+                - tools/ssl
                 - _build
 
       small_tests:
@@ -126,6 +125,7 @@ orbs:
                 sudo apt install unixodbc-dev
           - restore_cache:
               keys:
+                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
                 - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Run tests
@@ -162,7 +162,7 @@ orbs:
           PRESET: <<parameters.preset>>
           DB: <<parameters.db>>
           SKIP_COV: 0
-          
+
         working_directory: ~/app
         steps:
           - checkout
@@ -172,6 +172,7 @@ orbs:
                 sudo apt install unixodbc-dev
           - restore_cache:
               keys:
+                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
                 - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Setup database
