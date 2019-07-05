@@ -1,88 +1,181 @@
 version: 2.1
-jobs:
-  build:
-    machine:
-      image: circleci/erlang:20.3
-  environment:
-    MIX_ENV: test
-    SKIP_RELEASE: 0
-    REL_CONFIG: with-all
-    SKIP_COMPILE: 0
-    SKIP_BUILD_TESTS: 0
-    PRESET: pgsql_mnesia
-    DB: pgsql
-    SKIP_COV: 0
 
-    working_directory: ~/app
 
-    steps:
-      - checkout
-      - restore_cache:
-          key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-      - run:
-          name: Get deps
-          command: |
-            sudo apt install unixodbc-dev
-            test 1 = "$SKIP_COV" || sudo apt install python-pip
-            test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
-            test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
-      - save_cache:
-          key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-          paths: ~/.cache/rebar3
-      - restore_cache:
-          key: build-cache-{{ .Branch }}-{{ .Revision }}
-      - run:
-          name: Compile
-          command: |
-            test 1 = "$SKIP_COMPILE" || ./rebar3 compile
-      - run:
-          name: Make certs
-          command: |
-            test 1 = "$SKIP_COMPILE" || make certs
-      - run:
-          name: Install
-          command: |
-            test 1 = "$SKIP_RELEASE" || make devrel
-            test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-            test 1 = "$SKIP_COV" || pip install --user codecov
-      - save_cache:
-          key: build-cache-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - tools/ssl/mongooseim
-            - _build
-      - run:
-          name: Setup database
-          command: |
-            tools/travis-setup-db.sh
-            if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-            if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
-            echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-      - run:
-          name: Run tests
-          command: |
-            KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+orbs:
+  mongooseim:
+    commands:
+      install_erlang:
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          preset:
+            type: string
+            description: Preset type
+            default: internal_mnesia
+          db:
+            type: string
+            description: Preset type
+            default: mnesia
+          rel_config:
+            type: string
+            description: Rel config type
+            default: with-all
+        steps:
+        - run:
+            name: Install Erlang
+            command: |
+              wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb
+              sudo dpkg -i erlang-solutions_1.0_all.deb
+              sudo apt-get update
+              sudo apt-get install -y esl-erlang=<<parameters.otp>>
+    executors:
+      erlang_image:
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+        docker:
+          - image: circleci/erlang:<<parameters.opt>>
 
-  small_tests:
-    docker:
-    ## See https://circleci.com/docs/2.0/custom-images/
-      - image: circleci/erlang:22
-        environment:
-          MIX_ENV: test
-          PRESET: small_tests
-    working_directory: ~/app
-    steps:
-      - checkout
-      - run:
-          name: Get packages
-          command: |
-            sudo apt install unixodbc-dev
-      - restore_cache:
-          keys:
-            - build-cache-{{ .Branch }}-{{ .Revision }}
-      - run:
-          name: Run tests
-          command: |
-            KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+    jobs:
+      build:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          preset:
+            type: string
+            description: Preset type
+            default: internal_mnesia
+          db:
+            type: string
+            description: Preset type
+            default: mnesia
+          rel_config:
+            type: string
+            description: Rel config type
+            default: with-all
+
+    #        environment:
+    #          MIX_ENV: test
+    #          SKIP_RELEASE: 0
+    #          REL_CONFIG: with-all
+    #          SKIP_COMPILE: 0
+    #          SKIP_BUILD_TESTS: 0
+    #          PRESET: pgsql_mnesia
+    #          DB: pgsql
+    #          SKIP_COV: 0
+
+    #    working_directory: ~/app
+
+        steps:
+          - checkout
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - restore_cache:
+              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+          - run:
+              name: Get deps
+              command: |
+                sudo apt install unixodbc-dev
+                test 1 = "$SKIP_COV" || sudo apt install python-pip
+                test 1 = "$SKIP_RELEASE" || tools/configure <<parameters.rel_config>>
+                test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
+          - save_cache:
+              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+              paths: ~/.cache/rebar3
+          - restore_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}
+          - run:
+              name: Compile
+              command: |
+                test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+          - run:
+              name: Make certs
+              command: |
+                test 1 = "$SKIP_COMPILE" || make certs
+          - run:
+              name: Install
+              command: |
+                test 1 = "$SKIP_RELEASE" || make devrel
+                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+                test 1 = "$SKIP_COV" || pip install --user codecov
+          - save_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}
+              paths:
+                - tools/ssl/mongooseim
+                - _build
+          - run:
+              name: Setup database
+              command: |
+                tools/travis-setup-db.sh
+                if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+                if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+          - run:
+              name: Echo preset
+              command: |
+                echo $PRESET
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p <<parameters.preset>> -s false
+
+      small_tests:
+        docker:
+        ## See https://circleci.com/docs/2.0/custom-images/
+          - image: circleci/erlang:22
+            environment:
+              MIX_ENV: test
+              PRESET: small_tests
+        working_directory: ~/app
+        steps:
+          - checkout
+          - run:
+              name: Get packages
+              command: |
+                sudo apt install unixodbc-dev
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+
+      pgsql_mnesia:
+        docker:
+        ## See https://circleci.com/docs/2.0/custom-images/
+          - image: circleci/erlang:22
+            environment:
+              MIX_ENV: test
+              PRESET: small_tests
+        working_directory: ~/app
+        steps:
+          - checkout
+          - run:
+              name: Get packages
+              command: |
+                sudo apt install unixodbc-dev
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}
+          - run:
+              name: Setup Postgres Docker
+              command: |
+                  cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
+                  cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
+                  cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
+                  cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
+                  cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
 
 
@@ -90,7 +183,11 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - build
+      - mongooseim/build:
+          otp: 1:20.3.8.22-1
+#          preset: internal_mnesia
+#          rel_config: with-all
+#      - build
 #      - small_tests:
 #          requires:
 #            - build
