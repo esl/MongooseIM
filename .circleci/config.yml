@@ -60,17 +60,17 @@ orbs:
             description: Rel config type
             default: with-all
 
-    #        environment:
-    #          MIX_ENV: test
-    #          SKIP_RELEASE: 0
-    #          REL_CONFIG: with-all
-    #          SKIP_COMPILE: 0
-    #          SKIP_BUILD_TESTS: 0
-    #          PRESET: pgsql_mnesia
-    #          DB: pgsql
-    #          SKIP_COV: 0
+        environment:
+          MIX_ENV: test
+          SKIP_RELEASE: 0
+          REL_CONFIG: <<parameters.rel_config>>
+          SKIP_COMPILE: 0
+          SKIP_BUILD_TESTS: 0
+          PRESET: <<parameters.preset>>
+          DB: <<parameters.db>>
+          SKIP_COV: 0
 
-    #    working_directory: ~/app
+        working_directory: ~/app
 
         steps:
           - checkout
@@ -90,6 +90,10 @@ orbs:
               paths: ~/.cache/rebar3
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}
+          - run:
+              name: Run tests
+              command: |
+                    echo $PRESET
           - run:
               name: Compile
               command: |
@@ -113,13 +117,9 @@ orbs:
               name: Setup database
               command: |
                 PRESET=<<parameters.preset>> DB=<<parameters.db>> tools/travis-setup-db.sh
-                if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-                if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+                PRESET=<<parameters.preset>> DB=<<parameters.db>> if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+                PRESET=<<parameters.preset>> DB=<<parameters.db>> if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
                 echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-          - run:
-              name: Echo preset
-              command: |
-                echo $PRESET
           - run:
               name: Run tests
               command: |
