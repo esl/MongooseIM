@@ -112,7 +112,7 @@ orbs:
           - run:
               name: Setup database
               command: |
-                tools/travis-setup-db.sh
+                PRESET=<<parameters.preset>> DB=<<parameters.db>> tools/travis-setup-db.sh
                 if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
                 if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
                 echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
