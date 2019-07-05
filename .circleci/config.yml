@@ -29,6 +29,27 @@ orbs:
               sudo dpkg -i erlang-solutions_1.0_all.deb
               sudo apt-get update
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
+#      setup_db_and_run_tests:
+#        parameters:
+#          preset:
+#            type: string
+#            description: which preset to use
+#          db:
+#            type: string
+#            description: which db to use
+#        steps:
+#        - run:
+#            name: Setup database
+#            command: |
+#              tools/travis-setup-db.sh
+#              if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+#              if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+#              echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+#        - run:
+#            name: Run tests
+#            command: |
+#              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+
     executors:
       erlang_image:
         parameters:
@@ -47,27 +68,16 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
-          preset:
-            type: string
-            description: Preset type
-            default: internal_mnesia
-          db:
-            type: string
-            description: Preset type
-            default: mnesia
           rel_config:
             type: string
             description: Rel config type
             default: with-all
 
         environment:
-          MIX_ENV: test
           SKIP_RELEASE: 0
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COMPILE: 0
           SKIP_BUILD_TESTS: 0
-          PRESET: <<parameters.preset>>
-          DB: <<parameters.db>>
           SKIP_COV: 0
         working_directory: ~/app
 
@@ -126,6 +136,8 @@ orbs:
           - restore_cache:
               keys:
                 - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+          - restore_cache:
+              keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Run tests
@@ -173,6 +185,8 @@ orbs:
           - restore_cache:
               keys:
                 - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+          - restore_cache:
+              keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Setup database
@@ -187,15 +201,13 @@ orbs:
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
 
-
+##TODO use reusable commands instead of jobs
 workflows:
   version: 2
   build_and_test:
     jobs:
       - mim/build:
           otp: 1:20.3.8.22-1
-          preset: pgsql_mnesia
-          db: pgsql
       - mim/tests:
           requires:
             - mim/build
