@@ -29,6 +29,7 @@ orbs:
               sudo dpkg -i erlang-solutions_1.0_all.deb
               sudo apt-get update
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
+
 #      setup_db_and_run_tests:
 #        parameters:
 #          preset:
@@ -41,14 +42,14 @@ orbs:
 #        - run:
 #            name: Setup database
 #            command: |
-#              tools/travis-setup-db.sh
-#              if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-#              if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+#              DB=<<parameters.preset>> tools/travis-setup-db.sh
+#              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+#              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
 #              echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
 #        - run:
 #            name: Run tests
 #            command: |
-#              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+#              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p <<parameters.preset>> -s false
 
     executors:
       erlang_image:
@@ -111,8 +112,6 @@ orbs:
               name: Install
               command: |
                 test 1 = "$SKIP_RELEASE" || make devrel
-                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-                test 1 = "$SKIP_COV" || pip install --user codecov
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}
               paths:
@@ -188,6 +187,11 @@ orbs:
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}
+          - run:
+              name: Build tests
+              command: |
+                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+                test 1 = "$SKIP_COV" || pip install --user codecov
           - run:
               name: Setup database
               command: |
