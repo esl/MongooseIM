@@ -109,17 +109,6 @@ orbs:
               paths:
                 - tools/ssl/mongooseim
                 - _build
-          - run:
-              name: Setup database
-              command: |
-                tools/travis-setup-db.sh
-                if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-                if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
-                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-          - run:
-              name: Run tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
       small_tests:
         docker:
@@ -143,23 +132,61 @@ orbs:
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
-#      pgsql_mnesia:
-#        docker:
-#        ## See https://circleci.com/docs/2.0/custom-images/
-#          - image: circleci/erlang:22
-#            environment:
-#              MIX_ENV: test
-#              PRESET: small_tests
-#        working_directory: ~/app
-#        steps:
-#          - checkout
-#          - run:
-#              name: Get packages
-#              command: |
-#                sudo apt install unixodbc-dev
-#          - restore_cache:
-#              keys:
-#                - build-cache-{{ .Branch }}-{{ .Revision }}
+      tests:
+        docker:
+        ## See https://circleci.com/docs/2.0/custom-images/
+          - image: circleci/erlang:22
+            environment:
+              MIX_ENV: test
+              PRESET: small_tests
+        working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          preset:
+            type: string
+            description: Preset type
+            default: internal_mnesia
+          db:
+            type: string
+            description: Preset type
+            default: mnesia
+          rel_config:
+            type: string
+            description: Rel config type
+            default: with-all
+        environment:
+          MIX_ENV: test
+          SKIP_RELEASE: 0
+          REL_CONFIG: <<parameters.rel_config>>
+          SKIP_COMPILE: 0
+          SKIP_BUILD_TESTS: 0
+          PRESET: <<parameters.preset>>
+          DB: <<parameters.db>>
+          SKIP_COV: 0
+
+        steps:
+          - checkout
+          - run:
+              name: Get packages
+              command: |
+                sudo apt install unixodbc-dev
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}
+          - run:
+              name: Setup database
+              command: |
+                tools/travis-setup-db.sh
+                if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+                if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+
 #          - run:
 #              name: Setup Postgres Docker
 #              command: |
@@ -180,6 +207,12 @@ workflows:
   build_and_test:
     jobs:
       - mongooseim/build:
+          otp: 1:20.3.8.22-1
+          preset: pgsql_mnesia
+          db: pgsql
+      - mongooseim/tests:
+          requires:
+            - mongooseim/build
           otp: 1:20.3.8.22-1
           preset: pgsql_mnesia
           db: pgsql
