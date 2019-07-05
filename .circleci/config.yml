@@ -147,35 +147,35 @@ orbs:
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
-      pgsql_mnesia:
-        docker:
-        ## See https://circleci.com/docs/2.0/custom-images/
-          - image: circleci/erlang:22
-            environment:
-              MIX_ENV: test
-              PRESET: small_tests
-        working_directory: ~/app
-        steps:
-          - checkout
-          - run:
-              name: Get packages
-              command: |
-                sudo apt install unixodbc-dev
-          - restore_cache:
-              keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}
-          - run:
-              name: Setup Postgres Docker
-              command: |
-                  cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
-                  cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
-                  cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
-                  cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
-                  cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
-          - run:
-              name: Run tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+#      pgsql_mnesia:
+#        docker:
+#        ## See https://circleci.com/docs/2.0/custom-images/
+#          - image: circleci/erlang:22
+#            environment:
+#              MIX_ENV: test
+#              PRESET: small_tests
+#        working_directory: ~/app
+#        steps:
+#          - checkout
+#          - run:
+#              name: Get packages
+#              command: |
+#                sudo apt install unixodbc-dev
+#          - restore_cache:
+#              keys:
+#                - build-cache-{{ .Branch }}-{{ .Revision }}
+#          - run:
+#              name: Setup Postgres Docker
+#              command: |
+#                  cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
+#                  cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
+#                  cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
+#                  cp ${DB_CONF_DIR}/pg_hba.conf ${SQL_TEMP_DIR}/.
+#                  cp ${MIM_PRIV_DIR}/pg.sql ${SQL_TEMP_DIR}/.
+#          - run:
+#              name: Run tests
+#              command: |
+#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
 
 
@@ -185,7 +185,8 @@ workflows:
     jobs:
       - mongooseim/build:
           otp: 1:20.3.8.22-1
-#          preset: internal_mnesia
+          preset: pgsql_mnesia
+          db: pgsql
 #          rel_config: with-all
 #      - build
 #      - small_tests:
