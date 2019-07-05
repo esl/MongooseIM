@@ -83,17 +83,13 @@ orbs:
               command: |
                 sudo apt install unixodbc-dev
                 test 1 = "$SKIP_COV" || sudo apt install python-pip
-                test 1 = "$SKIP_RELEASE" || tools/configure <<parameters.rel_config>>
+                test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
           - save_cache:
               key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
               paths: ~/.cache/rebar3
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}
-          - run:
-              name: Run tests
-              command: |
-                    echo $PRESET
           - run:
               name: Compile
               command: |
@@ -116,14 +112,14 @@ orbs:
           - run:
               name: Setup database
               command: |
-                PRESET=<<parameters.preset>> DB=<<parameters.db>> tools/travis-setup-db.sh
-                PRESET=<<parameters.preset>> DB=<<parameters.db>> if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-                PRESET=<<parameters.preset>> DB=<<parameters.db>> if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+                tools/travis-setup-db.sh
+                if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+                if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
                 echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
           - run:
               name: Run tests
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p <<parameters.preset>> -s false
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
       small_tests:
         docker:
