@@ -177,6 +177,8 @@ orbs:
         working_directory: ~/app
         steps:
           - checkout
+          - install_erlang:
+              otp: <<parameters.otp>>
           - run:
               name: Get packages
               command: |
