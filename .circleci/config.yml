@@ -57,7 +57,7 @@ orbs:
         - run:
             name: Run tests
             command: |
-              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 
     executors:
       erlang_image:
@@ -232,19 +232,39 @@ jobs:
     environment:
       MIX_ENV: test
       SKIP_RELEASE: 0
+      RUN_SMALL_TESTS: false
       SKIP_COMPILE: 0
       SKIP_BUILD_TESTS: 0
       PRESET: internal_mnesia
       DB: mnesia
       SKIP_COV: 0
-
     steps:
       - checkout
       - mim/install_erlang:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  otp_20_3_pgsql:
+  otp_20_3_small_tests:
+    parallelism: 1
+    machine:
+      docker_layer_caching: true
+    working_directory: ~/app
+    environment:
+      MIX_ENV: test
+      SKIP_RELEASE: 1
+      RUN_SMALL_TESTS: true
+      SKIP_COMPILE: 0
+      SKIP_BUILD_TESTS: 1
+      PRESET: small_tests
+      DB: mnesia
+      SKIP_COV: 0
+    steps:
+      - checkout
+      - mim/install_erlang:
+          otp: 1:20.3.8.22-1
+      - mim/setup_db_and_run_tests
+###############################
+  otp_20_3_mssql_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -252,19 +272,19 @@ jobs:
     environment:
       MIX_ENV: test
       SKIP_RELEASE: 0
+      RUN_SMALL_TESTS: true
       SKIP_COMPILE: 0
       SKIP_BUILD_TESTS: 0
-      PRESET: pgsql_mnesia
-      DB: pgsql
+      PRESET: odbc_mssql_mnesia
+      DB: mssql
       SKIP_COV: 0
-
     steps:
       - checkout
       - mim/install_erlang:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  otp_20_3_riak:
+  otp_20_3_ldap_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -272,18 +292,41 @@ jobs:
     environment:
       MIX_ENV: test
       SKIP_RELEASE: 0
+      RUN_SMALL_TESTS: true
       SKIP_COMPILE: 0
       SKIP_BUILD_TESTS: 0
-      PRESET: riak_mnesia
-      DB: riak
+      PRESET: ldap_mnesia
+      DB: mnesia
       SKIP_COV: 0
-
     steps:
       - checkout
       - mim/install_erlang:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
-
+###############################
+  otp_20_3_elasticsearch_cassandra:
+    parallelism: 1
+    machine:
+      docker_layer_caching: true
+    working_directory: ~/app
+    environment:
+      MIX_ENV: test
+      SKIP_RELEASE: 0
+      RUN_SMALL_TESTS: true
+      SKIP_COMPILE: 0
+      SKIP_BUILD_TESTS: 0
+      PRESET: elasticsearch_and_cassandra_mnesia
+      DB: "elasticsearch cassandra"
+      ELASTICSEARCH_VERSION: 5.6.9
+      CASSANDRA_VERSION: 3.9
+      TEST_SPEC: mam.spec
+      SKIP_COV: 0
+    steps:
+      - checkout
+      - mim/install_erlang:
+          otp: 1:20.3.8.22-1
+      - mim/setup_db_and_run_tests
+##################################
 workflows:
   version: 2
   build_and_test:
@@ -294,9 +337,15 @@ workflows:
       - otp_20_3_mnesia:
           requires:
             - otp_20_3
-      - otp_20_3_pgsql:
+      - otp_20_3_small_tests:
           requires:
             - otp_20_3
-      - otp_20_3_riak:
+      - otp_20_3_mssql_mnesia:
+          requires:
+            - otp_20_3
+      - otp_20_3_ldap_mnesia:
+          requires:
+            - otp_20_3
+      - otp_20_3_elasticsearch_cassandra:
           requires:
             - otp_20_3
