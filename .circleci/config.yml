@@ -39,10 +39,6 @@ orbs:
             keys:
               - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
         - run:
-            name: ECHO PRESET
-            command: |
-              echo $PRESET
-        - run:
             name: Build tests
             command: |
               test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
@@ -133,6 +129,8 @@ orbs:
 
       big_tests:
         parallelism: 1
+#        docker:
+#          - image: redis
         machine:
           docker_layer_caching: true
         working_directory: ~/app
@@ -198,7 +196,7 @@ orbs:
                 then tools/travis-build-and-push-docker.sh;
                 fi
           - run:
-              name: Build Failed
+              name: Build Failed - Logs
               when: on_fail
               command: |
                 echo "Failure!"
