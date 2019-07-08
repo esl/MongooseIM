@@ -117,7 +117,7 @@ orbs:
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}
               paths:
-                - tools/ssl
+                - tools
                 - _build
 
       small_tests:
