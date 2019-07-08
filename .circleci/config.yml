@@ -51,7 +51,7 @@ orbs:
             name: Setup database
             command: |
               tools/travis-setup-db.sh
-              if [ $PRESET= ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
+              if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
               if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; fi
               echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
         - run:
@@ -128,39 +128,92 @@ orbs:
                 - tools
                 - priv
                 - rel
-#          - persist_to_workspace:
-#              root: ~/app
-#              paths:
-#                - _build
-#                - tools
-#                - priv
-#                - rel
 
-#      small_tests:
-#        docker:
-#        ## See https://circleci.com/docs/2.0/custom-images/
-#          - image: circleci/erlang:22
-#            environment:
-#              MIX_ENV: test
-#              PRESET: small_tests
+#      test:
+#        parallelism: 1
+#        machine:
+#          docker_layer_caching: true
 #        working_directory: ~/app
+#        parameters:
+#          skip_release:
+#            type: string
+#            description: skip release
+#            default: 0
+#          run_small_tests:
+#            type: string
+#            description: run small tests
+#            default: false
+#          skip_compile:
+#            type: string
+#            description: skip compile
+#            default: 0
+#          skip_build_tests:
+#            type: string
+#            description: skip compile
+#            default: 0
+#          preset:
+#            type: string
+#            description: preset
+#            default: internal_mnesia
+#          db:
+#            type: string
+#            description: db
+#            default: mnesia
+#          skip_cov:
+#            type: string
+#            description: skip cov
+#            default: 0
+#        environment:
+#          MIX_ENV: test
+#          SKIP_RELEASE: <<parameters.skip_release>>
+#          RUN_SMALL_TESTS: <<parameters.run_small_tests>>
+#          SKIP_COMPILE: <<parameters.skip_compile>>
+#          SKIP_BUILD_TESTS: <<parameters.skip_build_tests>>
+#          PRESET: <<parameters.preset>>
+#          DB: <<parameters.db>>
+#          SKIP_COV: <<parameters.skip_cov>>
 #        steps:
 #          - checkout
+#          - mim/install_erlang:
+#              otp: 1:20.3.8.22-1
+#          - mim/setup_db_and_run_tests
 #          - run:
-#              name: Get packages
+#              name: Build Success
+#              when: on_success
+#              ## TODO what is travis OTP RELEASE
 #              command: |
-#                sudo apt install unixodbc-dev
-#          - restore_cache:
-#              keys:
-##                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-#                - deps-cache--{{ .Branch }}-{{ .Revision }}
-##          - restore_cache:
-##              keys:
-##                - build-cache-{{ .Branch }}-{{ .Revision }}
-#          - run:
-#              name: Run tests
-#              command: |
-#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+#                echo "Success!"
+#                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
+#                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
+#                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
+#                if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
+#                then tools/travis-build-and-push-docker.sh;
+#                fi
+#        - run:
+#            name: Build Failed
+#            when: on_fail
+#            command: |
+#              echo "Failure!"
+#              cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
+#              if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+#              if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+#              tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+#              tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+#        - run:
+#                    # Upload logs to s3 for debugging
+#            name: Upload results
+#            command: |
+#              test 1 = "$SKIP_REPORT_UPLOAD" ||
+#                tools/travis-prepare-log-dir.sh
+#              test 1 = "$SKIP_REPORT_UPLOAD" ||
+#                if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+#              test 1 = "$SKIP_REPORT_UPLOAD" ||
+#                tools/travis-publish-github-comment.sh
+#              test 1 = "$SKIP_REPORT_UPLOAD" ||
+#                if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+#              test 1 = "$SKIP_REPORT_UPLOAD" ||
+#                tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
+
 
 #      tests:
 #        parallelism: 1
@@ -332,23 +385,23 @@ workflows:
   build_and_test:
     jobs:
       - mim/build:
-          name: otp_20_3
+          name: mim_otp_20_3
           otp: 1:20.3.8.22-1
       - mim/build:
-          name: otp_21_3
+          name: mim_otp_21_3
           otp: 1:21.3.8.4
       - internal_mnesia:
           requires:
-            - otp_20_3
+            - mim_otp_20_3
       - small_tests:
           requires:
-            - otp_20_3
+            - mim_otp_20_3
       - mssql_mnesia:
           requires:
-            - otp_20_3
+            - mim_otp_20_3
       - ldap_mnesia:
           requires:
-            - otp_20_3
+            - mim_otp_20_3
       - elasticsearch_cassandra:
           requires:
-            - otp_20_3
+            - mim_otp_20_3
