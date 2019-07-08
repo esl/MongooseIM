@@ -134,7 +134,8 @@ orbs:
                 sudo apt install unixodbc-dev
           - restore_cache:
               keys:
-                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+#                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+                - deps-cache--{{ .Branch }}-{{ .Revision }}
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}
@@ -185,7 +186,8 @@ orbs:
                 sudo apt install unixodbc-dev
           - restore_cache:
               keys:
-                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+#                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+                - deps-cache--{{ .Branch }}-{{ .Revision }}
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}
@@ -214,12 +216,6 @@ workflows:
     jobs:
       - mim/build:
           otp: 1:20.3.8.22-1
-#      - mim/tests:
-#          requires:
-#            - mim/build
-#          otp: 1:20.3.8.22-1
-#          preset: pgsql_mnesia
-#          db: pgsql
       - mim/tests:
           requires:
             - mim/build
