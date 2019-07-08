@@ -129,90 +129,96 @@ orbs:
                 - priv
                 - rel
 
-#      test:
-#        parallelism: 1
-#        machine:
-#          docker_layer_caching: true
-#        working_directory: ~/app
-#        parameters:
-#          skip_release:
-#            type: string
-#            description: skip release
-#            default: 0
-#          run_small_tests:
-#            type: string
-#            description: run small tests
-#            default: false
-#          skip_compile:
-#            type: string
-#            description: skip compile
-#            default: 0
-#          skip_build_tests:
-#            type: string
-#            description: skip compile
-#            default: 0
-#          preset:
-#            type: string
-#            description: preset
-#            default: internal_mnesia
-#          db:
-#            type: string
-#            description: db
-#            default: mnesia
-#          skip_cov:
-#            type: string
-#            description: skip cov
-#            default: 0
-#        environment:
-#          MIX_ENV: test
-#          SKIP_RELEASE: <<parameters.skip_release>>
-#          RUN_SMALL_TESTS: <<parameters.run_small_tests>>
-#          SKIP_COMPILE: <<parameters.skip_compile>>
-#          SKIP_BUILD_TESTS: <<parameters.skip_build_tests>>
-#          PRESET: <<parameters.preset>>
-#          DB: <<parameters.db>>
-#          SKIP_COV: <<parameters.skip_cov>>
-#        steps:
-#          - checkout
-#          - mim/install_erlang:
-#              otp: 1:20.3.8.22-1
-#          - mim/setup_db_and_run_tests
-#          - run:
-#              name: Build Success
-#              when: on_success
-#              ## TODO what is travis OTP RELEASE
-#              command: |
-#                echo "Success!"
-#                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
-#                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
-#                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
-#                if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
-#                then tools/travis-build-and-push-docker.sh;
-#                fi
-#        - run:
-#            name: Build Failed
-#            when: on_fail
-#            command: |
-#              echo "Failure!"
-#              cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
-#              if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
-#              if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-#              tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
-#              tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
-#        - run:
-#                    # Upload logs to s3 for debugging
-#            name: Upload results
-#            command: |
-#              test 1 = "$SKIP_REPORT_UPLOAD" ||
-#                tools/travis-prepare-log-dir.sh
-#              test 1 = "$SKIP_REPORT_UPLOAD" ||
-#                if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
-#              test 1 = "$SKIP_REPORT_UPLOAD" ||
-#                tools/travis-publish-github-comment.sh
-#              test 1 = "$SKIP_REPORT_UPLOAD" ||
-#                if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
-#              test 1 = "$SKIP_REPORT_UPLOAD" ||
-#                tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
+      big_tests:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          skip_release:
+            type: string
+            description: skip release
+            default: "0"
+          run_small_tests:
+            type: string
+            description: run small tests
+            default: "false"
+          skip_compile:
+            type: string
+            description: skip compile
+            default: "0"
+          skip_build_tests:
+            type: string
+            description: skip compile
+            default: "0"
+          preset:
+            type: string
+            description: preset
+            default: internal_mnesia
+          db:
+            type: string
+            description: db
+            default: mnesia
+          skip_cov:
+            type: string
+            description: skip cov
+            default: "0"
+        environment:
+          MIX_ENV: test
+          SKIP_RELEASE: <<parameters.skip_release>>
+          RUN_SMALL_TESTS: <<parameters.run_small_tests>>
+          SKIP_COMPILE: <<parameters.skip_compile>>
+          SKIP_BUILD_TESTS: <<parameters.skip_build_tests>>
+          PRESET: <<parameters.preset>>
+          DB: <<parameters.db>>
+          SKIP_COV: <<parameters.skip_cov>>
+          ELASTICSEARCH_VERSION: 5.6.9
+          CASSANDRA_VERSION: 3.9
+          TEST_SPEC: mam.spec
+        steps:
+          - checkout
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - setup_db_and_run_tests
+          - run:
+              name: Build Success
+              when: on_success
+              ## TODO what is travis OTP RELEASE
+              command: |
+                echo "Success!"
+                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
+                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
+                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
+                if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
+                then tools/travis-build-and-push-docker.sh;
+                fi
+          - run:
+              name: Build Failed
+              when: on_fail
+              command: |
+                echo "Failure!"
+                cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
+                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+          - run:
+                      # Upload logs to s3 for debugging
+              name: Upload results
+              command: |
+                test 1 = "$SKIP_REPORT_UPLOAD" ||
+                  tools/travis-prepare-log-dir.sh
+                test 1 = "$SKIP_REPORT_UPLOAD" ||
+                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+                test 1 = "$SKIP_REPORT_UPLOAD" ||
+                  tools/travis-publish-github-comment.sh
+                test 1 = "$SKIP_REPORT_UPLOAD" ||
+                  if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+                test 1 = "$SKIP_REPORT_UPLOAD" ||
+                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 
 #      tests:
@@ -277,7 +283,7 @@ orbs:
 
 jobs:
 ###############################
-  internal_mnesia:
+  internal_mnesia2:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -297,7 +303,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  small_tests:
+  small_tests2:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -317,7 +323,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  mssql_mnesia:
+  mssql_mnesia2:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -337,7 +343,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  ldap_mnesia:
+  ldap_mnesia2:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -357,7 +363,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  elasticsearch_cassandra:
+  elasticsearch_cassandra2:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -387,21 +393,39 @@ workflows:
       - mim/build:
           name: mim_otp_20_3
           otp: 1:20.3.8.22-1
-      - mim/build:
-          name: mim_otp_21_3
-          otp: 1:21.3.8.4
-      - internal_mnesia:
+#      - mim/big_tests:
+#          name: internal_mnesia
+#          otp: 1:20.3.8.22-1
+#          preset: internal_mnesia
+#          db: mnesia
+#          requires:
+#            - mim_otp_20_3
+      - mim/big_tests:
+          name: mssql_mnesia
+          otp: 1:20.3.8.22-1
+          preset: mssql_mnesia
+          db: mssql
           requires:
             - mim_otp_20_3
-      - small_tests:
+      - mim/big_tests:
+          name: ldap_mnesia
+          otp: 1:20.3.8.22-1
+          preset: ldap_mnesia
+          db: mnesia
           requires:
             - mim_otp_20_3
-      - mssql_mnesia:
-          requires:
-            - mim_otp_20_3
-      - ldap_mnesia:
-          requires:
-            - mim_otp_20_3
-      - elasticsearch_cassandra:
-          requires:
-            - mim_otp_20_3
+#      - internal_mnesia:
+#          requires:
+#            - mim_otp_20_3
+#      - small_tests:
+#          requires:
+#            - mim_otp_20_3
+#      - mssql_mnesia:
+#          requires:
+#            - mim_otp_20_3
+#      - ldap_mnesia:
+#          requires:
+#            - mim_otp_20_3
+#      - elasticsearch_cassandra:
+#          requires:
+#            - mim_otp_20_3
