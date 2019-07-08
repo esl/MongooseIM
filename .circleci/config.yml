@@ -120,16 +120,13 @@ orbs:
 #              paths:
 #                - tools
 #                - _build
-          - run:
-              name: Ls
-              command: |
-                ls /home/circleci/app/_build/mim1/rel/mongooseim/lib/mongooseim-*/priv
           - persist_to_workspace:
               root: ~/app
               paths:
                 - _build
                 - tools
                 - priv
+                - rel
 
 #      small_tests:
 #        docker:
@@ -213,14 +210,6 @@ orbs:
                 if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
                 if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
                 echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-          - run:
-              name: Ls
-              command: |
-                ls /home/circleci/app/_build/mim1/rel/mongooseim/lib/mongooseim-*/priv
-          - run:
-              name: Ls 2
-              command: |
-                ls _build/mim1/lib/mongooseim/priv
           - run:
               name: Run tests
               command: |
