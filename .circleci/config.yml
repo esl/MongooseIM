@@ -46,7 +46,7 @@ orbs:
             name: Build tests
             command: |
               test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-              test 1 = "$SKIP_COV" || pip install --user codecov
+              test 1 = "$SKIP_COV" || sudo pip install --user codecov
         - run:
             name: Setup database
             command: |
@@ -128,6 +128,8 @@ orbs:
                 - tools
                 - priv
                 - rel
+                - asngen
+                - asn1
 
       big_tests:
         parallelism: 1
@@ -200,7 +202,6 @@ orbs:
               when: on_fail
               command: |
                 echo "Failure!"
-                cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
                 if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
                 if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
                 tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
@@ -403,7 +404,7 @@ workflows:
       - mim/big_tests:
           name: mssql_mnesia
           otp: 1:20.3.8.22-1
-          preset: mssql_mnesia
+          preset: odbc_mssql_mnesia
           db: mssql
           requires:
             - mim_otp_20_3
