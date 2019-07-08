@@ -43,8 +43,8 @@ orbs:
             name: Setup database
             command: |
               DB=<<parameters.preset>> tools/travis-setup-db.sh
-              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+              DB=<<parameters.preset>> if [ <<parameters.preset>> = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
+              DB=<<parameters.preset>> if [ <<parameters.preset>> = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; fi
               echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
         - run:
             name: Run tests
@@ -154,65 +154,65 @@ orbs:
 #              command: |
 #                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
 
-      tests:
-        parallelism: 1
-        machine:
-          docker_layer_caching: true
-        parameters:
-          otp:
-            type: string
-            description: Version of the Erlang package to install
-          preset:
-            type: string
-            description: Preset type
-            default: internal_mnesia
-          db:
-            type: string
-            description: Preset type
-            default: mnesia
-
-        environment:
-          MIX_ENV: test
-          SKIP_RELEASE: 0
-          SKIP_COMPILE: 0
-          SKIP_BUILD_TESTS: 0
-          PRESET: <<parameters.preset>>
-          DB: <<parameters.db>>
-          SKIP_COV: 0
-
-        working_directory: ~/app
-        steps:
-          - checkout
-          - install_erlang:
-              otp: <<parameters.otp>>
-          - run:
-              name: Get packages
-              command: |
-                sudo apt install unixodbc-dev
-#          - attach_workspace:
-#               at: ~/app
-          - restore_cache:
-              keys:
-                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-          - restore_cache:
-              keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}
-          - run:
-              name: Build tests
-              command: |
-                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-                test 1 = "$SKIP_COV" || pip install --user codecov
-          - run:
-              name: Setup database
-              command: |
-                tools/travis-setup-db.sh
-                if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-                if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
-                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-          - run:
-              name: Run tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+#      tests:
+#        parallelism: 1
+#        machine:
+#          docker_layer_caching: true
+#        parameters:
+#          otp:
+#            type: string
+#            description: Version of the Erlang package to install
+#          preset:
+#            type: string
+#            description: Preset type
+#            default: internal_mnesia
+#          db:
+#            type: string
+#            description: Preset type
+#            default: mnesia
+#
+#        environment:
+#          MIX_ENV: test
+#          SKIP_RELEASE: 0
+#          SKIP_COMPILE: 0
+#          SKIP_BUILD_TESTS: 0
+#          PRESET: <<parameters.preset>>
+#          DB: <<parameters.db>>
+#          SKIP_COV: 0
+#
+#        working_directory: ~/app
+#        steps:
+#          - checkout
+#          - install_erlang:
+#              otp: <<parameters.otp>>
+#          - run:
+#              name: Get packages
+#              command: |
+#                sudo apt install unixodbc-dev
+##          - attach_workspace:
+##               at: ~/app
+#          - restore_cache:
+#              keys:
+#                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+#          - restore_cache:
+#              keys:
+#                - build-cache-{{ .Branch }}-{{ .Revision }}
+#          - run:
+#              name: Build tests
+#              command: |
+#                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+#                test 1 = "$SKIP_COV" || pip install --user codecov
+#          - run:
+#              name: Setup database
+#              command: |
+#                tools/travis-setup-db.sh
+#                if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+#                if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+#                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+#          - run:
+#              name: Run tests
+#              command: |
+#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
 jobs:
 ###############################
@@ -295,15 +295,3 @@ workflows:
       - otp_20_3_riak:
           requires:
             - otp_20_3
-#      - mim/tests:
-#          requires:
-#            - mim/build
-#          otp: 1:20.3.8.22-1
-#          preset: internal_mnesia
-#          db: mnesia
-#      - mim/tests:
-#          requires:
-#            - mim/build
-#          otp: 1:20.3.8.22-1
-#          preset: pgsql_mnesia
-#          db: pgsql
