@@ -50,6 +50,16 @@ orbs:
               if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
               if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; fi
               echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+        ## Seems its needed
+        - run:
+            name: install redis
+            command: |
+              pushd /tmp
+              wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
+              tar xzf redis-$REDIS_VERSION.tar.gz
+              cd redis-$REDIS_VERSION && make
+              src/redis-server --daemonize yes
+              popd
         - run:
             name: Run tests
             command: |
@@ -178,6 +188,7 @@ orbs:
           ELASTICSEARCH_VERSION: 5.6.9
           CASSANDRA_VERSION: 3.9
           TEST_SPEC: mam.spec
+          REDIS_VERSION: 3.2.10
         steps:
           - checkout
           - install_erlang:
