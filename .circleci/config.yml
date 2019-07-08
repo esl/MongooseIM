@@ -126,6 +126,8 @@ orbs:
                 - _build
                 - tools
                 - c_src
+                - asngen
+                - asn1
 
       small_tests:
         docker:
