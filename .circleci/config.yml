@@ -215,6 +215,7 @@ orbs:
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
 jobs:
+###############################
   otp_20_3_mnesia:
     parallelism: 1
     machine:
@@ -235,6 +236,48 @@ jobs:
       - mim/setup_db_and_run_tests:
           preset: internal_mnesia
           db: mnesia
+###############################
+  otp_20_3_pgsql:
+    parallelism: 1
+    machine:
+      docker_layer_caching: true
+    environment:
+      MIX_ENV: test
+      SKIP_RELEASE: 0
+      SKIP_COMPILE: 0
+      SKIP_BUILD_TESTS: 0
+      PRESET: pgsql_mnesia
+      DB: pgsql
+      SKIP_COV: 0
+
+    steps:
+      - checkout
+      - mim/install_erlang:
+          otp: 1:20.3.8.22-1
+      - mim/setup_db_and_run_tests:
+          preset: pgsql_mnesia
+          db: pgsql
+###############################
+  otp_20_3_riak:
+    parallelism: 1
+    machine:
+      docker_layer_caching: true
+    environment:
+      MIX_ENV: test
+      SKIP_RELEASE: 0
+      SKIP_COMPILE: 0
+      SKIP_BUILD_TESTS: 0
+      PRESET: riak_mnesia
+      DB: riak
+      SKIP_COV: 0
+
+    steps:
+      - checkout
+      - mim/install_erlang:
+          otp: 1:20.3.8.22-1
+      - mim/setup_db_and_run_tests:
+          preset: riak_mnesia
+          db: riak
 
 workflows:
   version: 2
@@ -244,6 +287,12 @@ workflows:
           name: otp_20_3
           otp: 1:20.3.8.22-1
       - otp_20_3_mnesia:
+          requires:
+            - otp_20_3
+      - otp_20_3_pgsql:
+          requires:
+            - otp_20_3
+      - otp_20_3_riak:
           requires:
             - otp_20_3
 #      - mim/tests:
