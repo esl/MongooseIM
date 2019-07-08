@@ -224,7 +224,7 @@ orbs:
 
 jobs:
 ###############################
-  otp_20_3_mnesia:
+  internal_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -244,7 +244,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  otp_20_3_small_tests:
+  small_tests:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -264,7 +264,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  otp_20_3_mssql_mnesia:
+  mssql_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -284,7 +284,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  otp_20_3_ldap_mnesia:
+  ldap_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -304,7 +304,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  otp_20_3_elasticsearch_cassandra:
+  elasticsearch_cassandra:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -336,19 +336,19 @@ workflows:
           otp: 1:20.3.8.22-1
       - mim/build:
           name: otp_21_3
-          otp: 1:21.3.8.22-1
-      - otp_20_3_mnesia:
+          otp: 1:21.3.8.4
+      - internal_mnesia:
           requires:
             - otp_20_3
-      - otp_20_3_small_tests:
+      - small_tests:
           requires:
             - otp_20_3
-      - otp_20_3_mssql_mnesia:
+      - mssql_mnesia:
           requires:
             - otp_20_3
-      - otp_20_3_ldap_mnesia:
+      - ldap_mnesia:
           requires:
             - otp_20_3
-      - otp_20_3_elasticsearch_cassandra:
+      - elasticsearch_cassandra:
           requires:
             - otp_20_3
