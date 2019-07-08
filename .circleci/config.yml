@@ -220,7 +220,7 @@ orbs:
           - run:
               name: Ls 2
               command: |
-                ls _build/mim1/lib/mongooseim
+                ls _build/mim1/lib/mongooseim/priv
           - run:
               name: Run tests
               command: |
