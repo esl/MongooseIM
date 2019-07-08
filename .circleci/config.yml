@@ -31,13 +31,6 @@ orbs:
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
 
       setup_db_and_run_tests:
-        parameters:
-          preset:
-            type: string
-            description: which preset to use
-          db:
-            type: string
-            description: which db to use
         steps:
         - run:
             name: Setup database
@@ -50,7 +43,7 @@ orbs:
         - run:
             name: Run tests
             command: |
-              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p <<parameters.preset>> -s false
+              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
     executors:
       erlang_image:
@@ -234,9 +227,7 @@ jobs:
       - checkout
       - mim/install_erlang:
           otp: 1:20.3.8.22-1
-      - mim/setup_db_and_run_tests:
-          preset: internal_mnesia
-          db: mnesia
+      - mim/setup_db_and_run_tests
 ###############################
   otp_20_3_pgsql:
     parallelism: 1
@@ -255,9 +246,7 @@ jobs:
       - checkout
       - mim/install_erlang:
           otp: 1:20.3.8.22-1
-      - mim/setup_db_and_run_tests:
-          preset: pgsql_mnesia
-          db: pgsql
+      - mim/setup_db_and_run_tests
 ###############################
   otp_20_3_riak:
     parallelism: 1
@@ -276,9 +265,7 @@ jobs:
       - checkout
       - mim/install_erlang:
           otp: 1:20.3.8.22-1
-      - mim/setup_db_and_run_tests:
-          preset: riak_mnesia
-          db: riak
+      - mim/setup_db_and_run_tests
 
 workflows:
   version: 2
