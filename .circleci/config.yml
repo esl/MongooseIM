@@ -82,6 +82,7 @@ orbs:
           SKIP_COV: 0
         working_directory: ~/app
 
+
         steps:
           - checkout
           - install_erlang:
@@ -100,8 +101,8 @@ orbs:
 #              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
               key: deps-cache--{{ .Branch }}-{{ .Revision }}
               paths: ~/.cache/rebar3
-          - restore_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}
+#          - restore_cache:
+#              key: build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Compile
               command: |
@@ -114,11 +115,16 @@ orbs:
               name: Install
               command: |
                 test 1 = "$SKIP_RELEASE" || make devrel
-          - save_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}
+#          - save_cache:
+#              key: build-cache-{{ .Branch }}-{{ .Revision }}
+#              paths:
+#                - tools
+#                - _build
+          - persist_to_workspace:
+              root: ~/app
               paths:
-                - tools
                 - _build
+                - tools
 
       small_tests:
         docker:
@@ -138,9 +144,9 @@ orbs:
               keys:
 #                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
                 - deps-cache--{{ .Branch }}-{{ .Revision }}
-          - restore_cache:
-              keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}
+#          - restore_cache:
+#              keys:
+#                - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Run tests
               command: |
@@ -186,13 +192,15 @@ orbs:
               name: Get packages
               command: |
                 sudo apt install unixodbc-dev
+          - attach_workspace:
+               at: ~/app
           - restore_cache:
               keys:
 #                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
                 - deps-cache--{{ .Branch }}-{{ .Revision }}
-          - restore_cache:
-              keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}
+#          - restore_cache:
+#              keys:
+#                - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Build tests
               command: |
