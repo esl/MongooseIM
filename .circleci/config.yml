@@ -30,26 +30,26 @@ orbs:
               sudo apt-get update
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
 
-#      setup_db_and_run_tests:
-#        parameters:
-#          preset:
-#            type: string
-#            description: which preset to use
-#          db:
-#            type: string
-#            description: which db to use
-#        steps:
-#        - run:
-#            name: Setup database
-#            command: |
-#              DB=<<parameters.preset>> tools/travis-setup-db.sh
-#              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-#              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
-#              echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-#        - run:
-#            name: Run tests
-#            command: |
-#              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p <<parameters.preset>> -s false
+      setup_db_and_run_tests:
+        parameters:
+          preset:
+            type: string
+            description: which preset to use
+          db:
+            type: string
+            description: which db to use
+        steps:
+        - run:
+            name: Setup database
+            command: |
+              DB=<<parameters.preset>> tools/travis-setup-db.sh
+              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
+              DB=<<parameters.preset>> if [ <<parameters.preset>> = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
+              echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+        - run:
+            name: Run tests
+            command: |
+              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p <<parameters.preset>> -s false
 
     executors:
       erlang_image:
@@ -88,8 +88,7 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - restore_cache:
-#              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-              key: deps-cache--{{ .Branch }}-{{ .Revision }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
           - run:
               name: Get deps
               command: |
@@ -98,11 +97,10 @@ orbs:
                 test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
           - save_cache:
-#              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-              key: deps-cache--{{ .Branch }}-{{ .Revision }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
               paths: ~/.cache/rebar3
-#          - restore_cache:
-#              key: build-cache-{{ .Branch }}-{{ .Revision }}
+          - restore_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Compile
               command: |
@@ -115,18 +113,20 @@ orbs:
               name: Install
               command: |
                 test 1 = "$SKIP_RELEASE" || make devrel
-#          - save_cache:
-#              key: build-cache-{{ .Branch }}-{{ .Revision }}
-#              paths:
-#                - tools
-#                - _build
-          - persist_to_workspace:
-              root: ~/app
+          - save_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}
               paths:
                 - _build
                 - tools
                 - priv
                 - rel
+#          - persist_to_workspace:
+#              root: ~/app
+#              paths:
+#                - _build
+#                - tools
+#                - priv
+#                - rel
 
 #      small_tests:
 #        docker:
@@ -189,15 +189,14 @@ orbs:
               name: Get packages
               command: |
                 sudo apt install unixodbc-dev
-          - attach_workspace:
-               at: ~/app
+#          - attach_workspace:
+#               at: ~/app
           - restore_cache:
               keys:
-#                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-                - deps-cache--{{ .Branch }}-{{ .Revision }}
-#          - restore_cache:
-#              keys:
-#                - build-cache-{{ .Branch }}-{{ .Revision }}
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}
           - run:
               name: Build tests
               command: |
@@ -215,23 +214,37 @@ orbs:
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 
+jobs:
+  otp_20_3_mnesia:
+    parallelism: 1
+    machine:
+      docker_layer_caching: true
+    steps:
+      - checkout
+      - mim/install_erlang:
+          otp: 1:20.3.8.22-1
+      - mim/setup_db_and_run_tests:
+          preset: internal_mnesia
+          db: mnesia
 
-##TODO use reusable commands instead of jobs
 workflows:
   version: 2
   build_and_test:
     jobs:
       - mim/build:
           otp: 1:20.3.8.22-1
-      - mim/tests:
+      - otp_20_3_mnesia:
           requires:
             - mim/build
-          otp: 1:20.3.8.22-1
-          preset: internal_mnesia
-          db: mnesia
-      - mim/tests:
-          requires:
-            - mim/build
-          otp: 1:20.3.8.22-1
-          preset: pgsql_mnesia
-          db: pgsql
+#      - mim/tests:
+#          requires:
+#            - mim/build
+#          otp: 1:20.3.8.22-1
+#          preset: internal_mnesia
+#          db: mnesia
+#      - mim/tests:
+#          requires:
+#            - mim/build
+#          otp: 1:20.3.8.22-1
+#          preset: pgsql_mnesia
+#          db: pgsql
