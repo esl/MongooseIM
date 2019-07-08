@@ -219,6 +219,15 @@ jobs:
     parallelism: 1
     machine:
       docker_layer_caching: true
+    environment:
+      MIX_ENV: test
+      SKIP_RELEASE: 0
+      SKIP_COMPILE: 0
+      SKIP_BUILD_TESTS: 0
+      PRESET: internal_mnesia
+      DB: mnesia
+      SKIP_COV: 0
+
     steps:
       - checkout
       - mim/install_erlang:
@@ -232,10 +241,11 @@ workflows:
   build_and_test:
     jobs:
       - mim/build:
+          name: otp_20_3
           otp: 1:20.3.8.22-1
       - otp_20_3_mnesia:
           requires:
-            - mim/build
+            - otp_20_3
 #      - mim/tests:
 #          requires:
 #            - mim/build
