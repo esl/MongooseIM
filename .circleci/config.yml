@@ -35,6 +35,13 @@ orbs:
         - restore_cache:
             keys:
               - build-cache-{{ .Branch }}-{{ .Revision }}
+        - restore_cache:
+            keys:
+              - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+        - run:
+            name: ECHO PRESET
+            command: |
+              echo $PRESET
         - run:
             name: Build tests
             command: |
@@ -44,7 +51,6 @@ orbs:
             name: Setup database
             command: |
               tools/travis-setup-db.sh
-              echo $PRESET
               if [ $PRESET= ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
               if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; fi
               echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
