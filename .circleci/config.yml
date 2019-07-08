@@ -173,15 +173,10 @@ orbs:
             type: string
             description: Preset type
             default: mnesia
-          rel_config:
-            type: string
-            description: Rel config type
-            default: with-all
 
         environment:
           MIX_ENV: test
           SKIP_RELEASE: 0
-          REL_CONFIG: <<parameters.rel_config>>
           SKIP_COMPILE: 0
           SKIP_BUILD_TESTS: 0
           PRESET: <<parameters.preset>>
@@ -245,8 +240,9 @@ workflows:
           otp: 1:20.3.8.22-1
           preset: internal_mnesia
           db: mnesia
-#          rel_config: with-all
-#      - build
-#      - small_tests:
-#          requires:
-#            - build
+      - mim/tests:
+          requires:
+            - mim/build
+          otp: 1:20.3.8.22-1
+          preset: pgsql_mnesia
+          db: pgsql
