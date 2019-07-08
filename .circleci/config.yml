@@ -334,6 +334,9 @@ workflows:
       - mim/build:
           name: otp_20_3
           otp: 1:20.3.8.22-1
+      - mim/build:
+          name: otp_21_3
+          otp: 1:21.3.8.22-1
       - otp_20_3_mnesia:
           requires:
             - otp_20_3
