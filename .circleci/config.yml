@@ -87,7 +87,8 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - restore_cache:
-              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+#              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+              key: deps-cache--{{ .Branch }}-{{ .Revision }}
           - run:
               name: Get deps
               command: |
@@ -96,7 +97,8 @@ orbs:
                 test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
           - save_cache:
-              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+#              key: deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+              key: deps-cache--{{ .Branch }}-{{ .Revision }}
               paths: ~/.cache/rebar3
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}
