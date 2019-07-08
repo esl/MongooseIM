@@ -125,6 +125,7 @@ orbs:
               paths:
                 - _build
                 - tools
+                - c_src
 
       small_tests:
         docker:
