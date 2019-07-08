@@ -32,6 +32,14 @@ orbs:
 
       setup_db_and_run_tests:
         steps:
+        - restore_cache:
+            keys:
+              - build-cache-{{ .Branch }}-{{ .Revision }}
+        - run:
+            name: Build tests
+            command: |
+              test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+              test 1 = "$SKIP_COV" || pip install --user codecov
         - run:
             name: Setup database
             command: |
