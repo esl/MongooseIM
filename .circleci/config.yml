@@ -214,12 +214,12 @@ workflows:
     jobs:
       - mim/build:
           otp: 1:20.3.8.22-1
-      - mim/tests:
-          requires:
-            - mim/build
-          otp: 1:20.3.8.22-1
-          preset: pgsql_mnesia
-          db: pgsql
+#      - mim/tests:
+#          requires:
+#            - mim/build
+#          otp: 1:20.3.8.22-1
+#          preset: pgsql_mnesia
+#          db: pgsql
       - mim/tests:
           requires:
             - mim/build
