@@ -120,6 +120,10 @@ orbs:
 #              paths:
 #                - tools
 #                - _build
+          - run:
+              name: Ls
+              command: |
+                ls /home/circleci/app/_build/mim1/rel/mongooseim/lib/mongooseim-*/priv
           - persist_to_workspace:
               root: ~/app
               paths:
@@ -129,31 +133,31 @@ orbs:
                 - asngen
                 - asn1
 
-      small_tests:
-        docker:
-        ## See https://circleci.com/docs/2.0/custom-images/
-          - image: circleci/erlang:22
-            environment:
-              MIX_ENV: test
-              PRESET: small_tests
-        working_directory: ~/app
-        steps:
-          - checkout
-          - run:
-              name: Get packages
-              command: |
-                sudo apt install unixodbc-dev
-          - restore_cache:
-              keys:
-#                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-                - deps-cache--{{ .Branch }}-{{ .Revision }}
+#      small_tests:
+#        docker:
+#        ## See https://circleci.com/docs/2.0/custom-images/
+#          - image: circleci/erlang:22
+#            environment:
+#              MIX_ENV: test
+#              PRESET: small_tests
+#        working_directory: ~/app
+#        steps:
+#          - checkout
+#          - run:
+#              name: Get packages
+#              command: |
+#                sudo apt install unixodbc-dev
 #          - restore_cache:
 #              keys:
-#                - build-cache-{{ .Branch }}-{{ .Revision }}
-          - run:
-              name: Run tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+##                - deps-cache--{{ .Branch }}--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+#                - deps-cache--{{ .Branch }}-{{ .Revision }}
+##          - restore_cache:
+##              keys:
+##                - build-cache-{{ .Branch }}-{{ .Revision }}
+#          - run:
+#              name: Run tests
+#              command: |
+#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
 
       tests:
         parallelism: 1
