@@ -216,7 +216,7 @@ orbs:
           - run:
               name: Ls
               command: |
-                ls /home/circleci/app/_build/mim1/rel/mongooseim/lib/
+                ls /home/circleci/app/_build/mim1/rel/mongooseim/lib/mongooseim-*
           - run:
               name: Ls 2
               command: |
