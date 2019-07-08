@@ -283,7 +283,7 @@ orbs:
 
 jobs:
 ###############################
-  internal_mnesia2:
+  internal_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -303,7 +303,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  small_tests2:
+  small_tests:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -323,7 +323,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  mssql_mnesia2:
+  mssql_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -343,7 +343,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  ldap_mnesia2:
+  ldap_mnesia:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -363,7 +363,7 @@ jobs:
           otp: 1:20.3.8.22-1
       - mim/setup_db_and_run_tests
 ###############################
-  elasticsearch_cassandra2:
+  elasticsearch_cassandra:
     parallelism: 1
     machine:
       docker_layer_caching: true
@@ -411,6 +411,13 @@ workflows:
           name: ldap_mnesia
           otp: 1:20.3.8.22-1
           preset: ldap_mnesia
+          db: mnesia
+          requires:
+            - mim_otp_20_3
+      - mim/big_tests:
+          name: internal_mnesia
+          otp: 1:20.3.8.22-1
+          preset: internal_mnesia
           db: mnesia
           requires:
             - mim_otp_20_3
