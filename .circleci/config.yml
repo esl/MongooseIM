@@ -214,6 +214,10 @@ orbs:
                 if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
                 echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
           - run:
+              name: Ls
+              command: |
+                ls /home/circleci/app/_build/mim2/rel/mongooseim/lib/
+          - run:
               name: Run tests
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
