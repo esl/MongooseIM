@@ -129,9 +129,7 @@ orbs:
               paths:
                 - _build
                 - tools
-                - c_src
-                - asngen
-                - asn1
+                - priv
 
 #      small_tests:
 #        docker:
