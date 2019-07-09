@@ -30,7 +30,7 @@
 -define(SECURE_USER, secure_joe).
 -define(CERT_FILE, "priv/ssl/fake_server.pem").
 -define(DH_FILE, "priv/ssl/fake_dh_server.pem").
--define(TLS_VERSIONS, ["tlsv1", "tlsv1.1", "tlsv1.2"]).
+-define(TLS_VERSIONS, ["tlsv1.2"]).
 
 -import(distributed_helper, [mim/0,
                              require_rpc_nodes/1,
@@ -246,12 +246,6 @@ should_fail_with_sslv3(Config) ->
         error:_ ->
             ok
     end.
-
-should_pass_with_tlsv1(Config) ->
-    should_pass_with_tls(tlsv1, Config).
-
-'should_pass_with_tlsv1.1'(Config) ->
-    should_pass_with_tls('tlsv1.1', Config).
 
 'should_pass_with_tlsv1.2'(Config) ->
     should_pass_with_tls('tlsv1.2', Config).
