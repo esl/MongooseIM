@@ -209,15 +209,15 @@ orbs:
 #                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
 #                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
 #                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
-#          - run:
-#              name: Build Failed - Logs
-#              when: on_fail
-#              command: |
-#                echo "Failure!"
-#                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
-#                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-#                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
-#                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+          - run:
+              name: Build Failed - Logs
+              when: on_fail
+              command: |
+                echo "Failure!"
+                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 #          - run:
 #                      # Upload logs to s3 for debugging
 #              name: Upload results
@@ -325,14 +325,14 @@ workflows:
           name: mim_otp_20_3
           otp: 1:20.3.8.22-1
           otp_str: "203"
-      - mim/big_tests:
-          name: small_tests
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: small_tests
-          run_small_tests: "true"
-          requires:
-            - mim_otp_20_3
+#      - mim/big_tests:
+#          name: small_tests
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: small_tests
+#          run_small_tests: "true"
+#          requires:
+#            - mim_otp_20_3
       - mim/big_tests:
           name: mssql_mnesia
           otp: 1:20.3.8.22-1
@@ -341,22 +341,22 @@ workflows:
           db: mssql
           requires:
             - mim_otp_20_3
-      - mim/big_tests:
-          name: ldap_mnesia
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: ldap_mnesia
-          db: mnesia
-          requires:
-            - mim_otp_20_3
-      - mim/big_tests:
-          name: internal_mnesia
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: internal_mnesia
-          db: mnesia
-          requires:
-            - mim_otp_20_3
+#      - mim/big_tests:
+#          name: ldap_mnesia
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: ldap_mnesia
+#          db: mnesia
+#          requires:
+#            - mim_otp_20_3
+#      - mim/big_tests:
+#          name: internal_mnesia
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: internal_mnesia
+#          db: mnesia
+#          requires:
+#            - mim_otp_20_3
       - mim/big_tests:
           name: elasticsearch_and_cassandra
           otp: 1:20.3.8.22-1
@@ -369,14 +369,14 @@ workflows:
           name: mim_otp_21_3
           otp: 1:21.3.8.4-1
           otp_str: "213"
-      - mim/big_tests:
-          name: pgsql_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: pgsql_mnesia
-          db: pgsql
-          requires:
-            - mim_otp_21_3
+#      - mim/big_tests:
+#          name: pgsql_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: pgsql_mnesia
+#          db: pgsql
+#          requires:
+#            - mim_otp_21_3
       - mim/big_tests:
           name: mysql_redis
           otp: 1:21.3.8.4-1
@@ -385,11 +385,11 @@ workflows:
           db: mysql
           requires:
             - mim_otp_21_3
-      - mim/big_tests:
-          name: riak_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: riak_mnesia
-          db: riak
-          requires:
-            - mim_otp_21_3
+#      - mim/big_tests:
+#          name: riak_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: riak_mnesia
+#          db: riak
+#          requires:
+#            - mim_otp_21_3
