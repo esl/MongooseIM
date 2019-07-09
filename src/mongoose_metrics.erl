@@ -292,6 +292,33 @@ merge_stats_fun(_, V1, V2) ->
 inet_stats(Port) when is_port(Port) ->
     {ok, Stats} = inet:getstat(Port, ?INET_STATS),
     Stats;
+%% TLS dist is operated by PID, not PORT directly, so we need to find the relevant port
+inet_stats(Pid) when is_pid(Pid) ->
+    {links, Links} = erlang:process_info(Pid, links),
+    %% In case of TLS, controlling process of a TCP port is one of the linked proceses
+    %% so we should check all links of all processes linked to givan one
+    RelatedPidsAndPorts =
+        lists:map(fun(LinkedPid) ->
+            {links, SubLinks} = erlang:process_info(LinkedPid, links),
+            SubLinks
+        end, [Pid | Links]),
+
+    PortsTCP = lists:filter(
+        fun(Link) ->
+            case Link of
+                Port when is_port(Port) ->
+                    {name, "tcp_inet"} == erlang:port_info(Port, name);
+                _ ->
+                    false
+            end
+        end, lists:flatten(RelatedPidsAndPorts)),
+
+    case PortsTCP of
+        [Port | _] ->
+            inet_stats(Port);
+        _ ->
+            ?EMPTY_INET_STATS
+    end;
 inet_stats(_) ->
     ?EMPTY_INET_STATS.
 
