@@ -34,10 +34,10 @@ orbs:
         steps:
         - restore_cache:
             keys:
-              - build-cache-{{ .Branch }}-{{ .Revision }}
+              - build-cache-{{ .Branch }}-{{ .Revision }}--{{ parameters.otp }}
         - restore_cache:
             keys:
-              - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+              - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ parameters.otp }}
         - run:
             name: Build tests
             command: |
@@ -106,7 +106,7 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ parameters.otp }}
           - run:
               name: Get deps
               command: |
@@ -115,10 +115,10 @@ orbs:
                 test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
           - save_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ parameters.otp }}
               paths: ~/.cache/rebar3
           - restore_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ parameters.otp }}
           - run:
               name: Compile
               command: |
@@ -132,7 +132,7 @@ orbs:
               command: |
                 test 1 = "$SKIP_RELEASE" || make devrel
           - save_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ parameters.otp }}
               paths:
                 - _build
                 - tools
@@ -407,16 +407,6 @@ workflows:
       - mim/build:
           name: mim_otp_20_3
           otp: 1:20.3.8.22-1
-      - mim/build:
-          name: mim_otp_21_3
-          otp: 1:21.3.8.4-1
-#      - mim/big_tests:
-#          name: internal_mnesia
-#          otp: 1:20.3.8.22-1
-#          preset: internal_mnesia
-#          db: mnesia
-#          requires:
-#            - mim_otp_20_3
       - mim/big_tests:
           name: small_tests
           otp: 1:20.3.8.22-1
@@ -452,6 +442,9 @@ workflows:
           db: "elasticsearch cassandra"
           requires:
             - mim_otp_20_3
+      - mim/build:
+          name: mim_otp_21_3
+          otp: 1:21.3.8.4-1
       - mim/big_tests:
           name: pgsql_mnesia
           otp: 1:21.3.8.4-1
@@ -473,18 +466,3 @@ workflows:
           db: riak
           requires:
             - mim_otp_21_3
-#      - internal_mnesia:
-#          requires:
-#            - mim_otp_20_3
-#      - small_tests:
-#          requires:
-#            - mim_otp_20_3
-#      - mssql_mnesia:
-#          requires:
-#            - mim_otp_20_3
-#      - ldap_mnesia:
-#          requires:
-#            - mim_otp_20_3
-#      - elasticsearch_cassandra:
-#          requires:
-#            - mim_otp_20_3
