@@ -42,7 +42,7 @@ orbs:
             name: Build tests
             command: |
               test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-              test 1 = "$SKIP_COV" || sudo pip install --user codecov
+              test 1 = "$SKIP_COV" || sudo pip install codecov
         - run:
             name: Setup database
             command: |
