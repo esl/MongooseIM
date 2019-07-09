@@ -105,6 +105,8 @@ orbs:
               name: Get deps
               command: |
                 sudo apt install unixodbc-dev
+                sudo apt install unixodbc
+                sudo apt install tdsodbc
                 test 1 = "$SKIP_COV" || sudo apt install python-pip
                 test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
@@ -358,10 +360,10 @@ workflows:
 #          db: "elasticsearch cassandra"
 #          requires:
 #            - mim_otp_20_3
-#      - mim/build:
-#          name: mim_otp_21_3
-#          otp: 1:21.3.8.4-1
-#          otp_str: "213"
+      - mim/build:
+          name: mim_otp_21_3
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
 #      - mim/big_tests:
 #          name: pgsql_mnesia
 #          otp: 1:21.3.8.4-1
@@ -370,13 +372,13 @@ workflows:
 #          db: pgsql
 #          requires:
 #            - mim_otp_21_3
-#      - mim/big_tests:
-#          name: mysql_redis
-#          otp: 1:21.3.8.4-1
-#          otp_str: "213"
-#          preset: mysql_redis
-#          db: mysql
-#          requires:
+      - mim/big_tests:
+          name: mysql_redis
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
+          preset: mysql_redis
+          db: mysql
+          requires:
 #            - mim_otp_21_3
 #      - mim/big_tests:
 #          name: riak_mnesia
