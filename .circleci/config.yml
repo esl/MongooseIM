@@ -52,6 +52,10 @@ orbs:
               echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
         ## Seems its needed
         - run:
+            name: Docker PS
+            command: |
+              docker ps -a
+        - run:
             name: install redis
             command: |
               pushd /tmp
