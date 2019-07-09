@@ -383,3 +383,21 @@ workflows:
           db: riak
           requires:
             - mim_otp_21_3
+      - mim/build:
+          name: mim_otp_22
+          otp: 1:22.0.4-1
+          otp_str: "22"
+          requires:
+            - internal_mnesia
+      - mim/big_tests:
+          name: dialyzer_only
+          otp: 1:22.0.4-1
+          otp_str: "2"
+          preset: dialyzer_only
+          db: mnesia
+          skip_release: 1
+          skip_build_tests: 1
+          skip_cov: 1
+          requires:
+            - mim_otp_22
+
