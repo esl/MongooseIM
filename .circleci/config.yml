@@ -25,6 +25,14 @@ orbs:
               sudo dpkg -i erlang-solutions_1.0_all.deb
               sudo apt-get update
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
+      fetch_packages:
+        steps:
+        - run:
+            name: Get deps
+            command: |
+              sudo apt install unixodbc-dev
+              sudo apt install unixodbc
+              sudo apt install tdsodbc
 
       setup_db_and_run_tests:
         parameters:
@@ -96,12 +104,10 @@ orbs:
               otp: <<parameters.otp>>
           - restore_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+          - fetch_packages
           - run:
               name: Get deps
               command: |
-                sudo apt install unixodbc-dev
-                sudo apt install unixodbc
-                sudo apt install tdsodbc
                 test 1 = "$SKIP_COV" || sudo apt install python-pip
                 test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
@@ -191,6 +197,7 @@ orbs:
           - checkout
           - install_erlang:
               otp: <<parameters.otp>>
+          - fetch_packages
           - setup_db_and_run_tests:
               otp_str: <<parameters.otp_str>>
 #          - run:
@@ -395,9 +402,9 @@ workflows:
           otp_str: "2"
           preset: dialyzer_only
           db: mnesia
-          skip_release: 1
-          skip_build_tests: 1
-          skip_cov: 1
+          skip_release: "1"
+          skip_build_tests: "1"
+          skip_cov: "1"
           requires:
             - mim_otp_22
 
