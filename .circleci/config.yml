@@ -320,14 +320,14 @@ workflows:
           name: mim_otp_20_3
           otp: 1:20.3.8.22-1
           otp_str: "203"
-#      - mim/big_tests:
-#          name: small_tests
-#          otp: 1:20.3.8.22-1
-#          otp_str: "203"
-#          preset: small_tests
-#          run_small_tests: "true"
-#          requires:
-#            - mim_otp_20_3
+      - mim/big_tests:
+          name: small_tests
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+          preset: small_tests
+          run_small_tests: "true"
+          requires:
+            - mim_otp_20_3
       - mim/big_tests:
           name: mssql_mnesia
           otp: 1:20.3.8.22-1
@@ -336,42 +336,42 @@ workflows:
           db: mssql
           requires:
             - mim_otp_20_3
-#      - mim/big_tests:
-#          name: ldap_mnesia
-#          otp: 1:20.3.8.22-1
-#          otp_str: "203"
-#          preset: ldap_mnesia
-#          db: mnesia
-#          requires:
-#            - mim_otp_20_3
-#      - mim/big_tests:
-#          name: internal_mnesia
-#          otp: 1:20.3.8.22-1
-#          otp_str: "203"
-#          preset: internal_mnesia
-#          db: mnesia
-#          requires:
-#            - mim_otp_20_3
-#      - mim/big_tests:
-#          name: elasticsearch_and_cassandra
-#          otp: 1:20.3.8.22-1
-#          otp_str: "203"
-#          preset: elasticsearch_and_cassandra_mnesia
-#          db: "elasticsearch cassandra"
-#          requires:
-#            - mim_otp_20_3
+      - mim/big_tests:
+          name: ldap_mnesia
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+          preset: ldap_mnesia
+          db: mnesia
+          requires:
+            - mim_otp_20_3
+      - mim/big_tests:
+          name: internal_mnesia
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+          preset: internal_mnesia
+          db: mnesia
+          requires:
+            - mim_otp_20_3
+      - mim/big_tests:
+          name: elasticsearch_and_cassandra
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          requires:
+            - mim_otp_20_3
       - mim/build:
           name: mim_otp_21_3
           otp: 1:21.3.8.4-1
           otp_str: "213"
-#      - mim/big_tests:
-#          name: pgsql_mnesia
-#          otp: 1:21.3.8.4-1
-#          otp_str: "213"
-#          preset: pgsql_mnesia
-#          db: pgsql
-#          requires:
-#            - mim_otp_21_3
+      - mim/big_tests:
+          name: pgsql_mnesia
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
+          preset: pgsql_mnesia
+          db: pgsql
+          requires:
+            - mim_otp_21_3
       - mim/big_tests:
           name: mysql_redis
           otp: 1:21.3.8.4-1
@@ -380,11 +380,11 @@ workflows:
           db: mysql
           requires:
             - mim_otp_21_3
-#      - mim/big_tests:
-#          name: riak_mnesia
-#          otp: 1:21.3.8.4-1
-#          otp_str: "213"
-#          preset: riak_mnesia
-#          db: riak
-#          requires:
-#            - mim_otp_21_3
+      - mim/big_tests:
+          name: riak_mnesia
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
+          preset: riak_mnesia
+          db: riak
+          requires:
+            - mim_otp_21_3
