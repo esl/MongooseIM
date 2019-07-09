@@ -79,7 +79,7 @@ from_json(Req, #{user := User, jid := JID, room := Room} = State) ->
         JSONData = jiffy:decode(Body, [return_maps]),
         prepare_message_and_route_to_room(User, JID, Room, State, Req2, JSONData)
     catch
-        throw:_R ->
+        error:_R ->
             Req3 = cowboy_req:set_resp_body(<<"Request body is not a valid JSON">>, Req2),
             mongoose_client_api:bad_request(Req3, State)
     end.
