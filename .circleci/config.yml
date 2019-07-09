@@ -200,27 +200,24 @@ orbs:
               otp: <<parameters.otp>>
           - setup_db_and_run_tests:
               otp_str: <<parameters.otp_str>>
-#          - run:
-#              name: Build Success
-#              when: on_success
-#              ## TODO what is travis OTP RELEASE
-#              command: |
-#                echo "Success!"
-#                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
-#                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
-#                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
-#                if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
-#                then tools/travis-build-and-push-docker.sh;
-#                fi
-#          - run:
-#              name: Build Failed - Logs
-#              when: on_fail
-#              command: |
-#                echo "Failure!"
-#                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
-#                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-#                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
-#                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+          - run:
+              name: Build Success
+              when: on_success
+              ## TODO push docker image
+              command: |
+                echo "Success!"
+                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
+                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
+                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
+          - run:
+              name: Build Failed - Logs
+              when: on_fail
+              command: |
+                echo "Failure!"
+                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
+                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
+                tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
+                tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
           - run:
                       # Upload logs to s3 for debugging
               name: Upload results
