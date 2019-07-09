@@ -50,20 +50,15 @@ orbs:
               if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
               if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; fi
               echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-        ## Seems its needed
-        - run:
-            name: Docker PS
-            command: |
-              docker ps -a
-        - run:
-            name: install redis
-            command: |
-              pushd /tmp
-              wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
-              tar xzf redis-$REDIS_VERSION.tar.gz
-              cd redis-$REDIS_VERSION && make
-              src/redis-server --daemonize yes
-              popd
+#        - run:
+#            name: install redis
+#            command: |
+#              pushd /tmp
+#              wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
+#              tar xzf redis-$REDIS_VERSION.tar.gz
+#              cd redis-$REDIS_VERSION && make
+#              src/redis-server --daemonize yes
+#              popd
         - run:
             name: Run tests
             command: |
