@@ -34,10 +34,10 @@ orbs:
         steps:
         - restore_cache:
             keys:
-              - build-cache-{{ .Branch }}-{{ .Revision }}--{{ parameters.otp }}
+              - build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp>> }}
         - restore_cache:
             keys:
-              - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ parameters.otp }}
+              - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp>> }}
         - run:
             name: Build tests
             command: |
@@ -106,7 +106,7 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ parameters.otp }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp>> }}
           - run:
               name: Get deps
               command: |
@@ -115,10 +115,10 @@ orbs:
                 test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
                 test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
           - save_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ parameters.otp }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp>> }}
               paths: ~/.cache/rebar3
           - restore_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ parameters.otp }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp>> }}
           - run:
               name: Compile
               command: |
@@ -132,7 +132,7 @@ orbs:
               command: |
                 test 1 = "$SKIP_RELEASE" || make devrel
           - save_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ parameters.otp }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp>> }}
               paths:
                 - _build
                 - tools
