@@ -210,10 +210,7 @@ orbs:
               when: on_fail
               command: |
                 echo "Failure!"
-#                if [ -s _build/mim1/rel/mongooseim/log/crash.log ]; then cat _build/mim1/rel/mongooseim/log/crash.log; fi
-#                if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
-                tail -300 _build/mim1/rel/mongooseim/log/ejabberd.log
-#                tail -300 _build/mim2/rel/mongooseim/log/ejabberd.log
+                tail -500 _build/mim1/rel/mongooseim/log/ejabberd.log
 #          - run:
 #                      # Upload logs to s3 for debugging
 #              name: Upload results
