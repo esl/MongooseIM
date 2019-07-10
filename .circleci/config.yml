@@ -61,12 +61,14 @@ orbs:
         - run:
             name: install redis
             command: |
-              pushd /tmp
-              wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
-              tar xzf redis-$REDIS_VERSION.tar.gz
-              cd redis-$REDIS_VERSION && make
-              src/redis-server --daemonize yes
-              popd
+              tools/setup-redis.sh
+#            command: |
+#              pushd /tmp
+#              wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
+#              tar xzf redis-$REDIS_VERSION.tar.gz
+#              cd redis-$REDIS_VERSION && make
+#              src/redis-server --daemonize yes
+#              popd
         - run:
             name: Run tests
             command: |
