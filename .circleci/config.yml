@@ -128,6 +128,25 @@ orbs:
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
 
+      package:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        working_directory: ~/app
+        parameters:
+          platform:
+            type: string
+            description: pkg platform type
+        environment:
+          pkg_PLATFORM: <<parameters.platform>>
+          PRESET: pkg
+        steps:
+          - checkout
+          - run:
+              name: Build package
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
+
       big_tests:
         parallelism: 1
         machine:
@@ -237,78 +256,84 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - mim/build_and_small_tests:
-          name: otp_20_3_small_tests
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-      - mim/build_and_small_tests:
-          name: otp_21_3_small_tests
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-      - mim/build_and_small_tests:
-          name: otp_22_small_tests
-          otp: 1:22.0.4-1
-          otp_str: "22"
-          build_releases: "0"
-      - mim/dialyzer:
-          name: dialyzer
-          otp: 1:22.0.4-1
-          otp_str: "213"
-          requires:
-            - otp_22_small_tests
-      - mim/big_tests:
-          name: mysql_redis
-          otp: 1:22.0.4-1
-          otp_str: "22"
-          preset: mysql_redis
-          db: mysql
-          requires:
-            - otp_20_3_small_tests
-      - mim/big_tests:
-          name: mssql_mnesia
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: odbc_mssql_mnesia
-          db: mssql
-          requires:
-            - otp_20_3_small_tests
-      - mim/big_tests:
-          name: ldap_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: ldap_mnesia
-          db: mnesia
-          requires:
-            - otp_21_3_small_tests
-      - mim/big_tests:
-          name: internal_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: internal_mnesia
-          db: mnesia
-          requires:
-            - otp_21_3_small_tests
-      - mim/big_tests:
-          name: elasticsearch_and_cassandra
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: elasticsearch_and_cassandra_mnesia
-          db: "elasticsearch cassandra"
-          requires:
-            - otp_21_3_small_tests
-      - mim/big_tests:
-          name: pgsql_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: pgsql_mnesia
-          db: pgsql
-          requires:
-            - otp_21_3_small_tests
-      - mim/big_tests:
-          name: riak_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: riak_mnesia
-          db: riak
-          requires:
-            - otp_21_3_small_tests
+      - mim/package:
+          name: centos7
+          platform: centos7
+      - mim/package:
+          name: debian_stretch
+          platform: debian_stretch
+#      - mim/build_and_small_tests:
+#          name: otp_20_3_small_tests
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#      - mim/build_and_small_tests:
+#          name: otp_21_3_small_tests
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#      - mim/build_and_small_tests:
+#          name: otp_22_small_tests
+#          otp: 1:22.0.4-1
+#          otp_str: "22"
+#          build_releases: "0"
+#      - mim/dialyzer:
+#          name: dialyzer
+#          otp: 1:22.0.4-1
+#          otp_str: "213"
+#          requires:
+#            - otp_22_small_tests
+#      - mim/big_tests:
+#          name: mysql_redis
+#          otp: 1:22.0.4-1
+#          otp_str: "22"
+#          preset: mysql_redis
+#          db: mysql
+#          requires:
+#            - otp_20_3_small_tests
+#      - mim/big_tests:
+#          name: mssql_mnesia
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: odbc_mssql_mnesia
+#          db: mssql
+#          requires:
+#            - otp_20_3_small_tests
+#      - mim/big_tests:
+#          name: ldap_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: ldap_mnesia
+#          db: mnesia
+#          requires:
+#            - otp_21_3_small_tests
+#      - mim/big_tests:
+#          name: internal_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: internal_mnesia
+#          db: mnesia
+#          requires:
+#            - otp_21_3_small_tests
+#      - mim/big_tests:
+#          name: elasticsearch_and_cassandra
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: elasticsearch_and_cassandra_mnesia
+#          db: "elasticsearch cassandra"
+#          requires:
+#            - otp_21_3_small_tests
+#      - mim/big_tests:
+#          name: pgsql_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: pgsql_mnesia
+#          db: pgsql
+#          requires:
+#            - otp_21_3_small_tests
+#      - mim/big_tests:
+#          name: riak_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: riak_mnesia
+#          db: riak
+#          requires:
+#            - otp_21_3_small_tests
