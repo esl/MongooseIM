@@ -107,6 +107,13 @@ orbs:
         machine:
           docker_layer_caching: true
         working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          otp_str:
+            type: string
+            description: simpliefied version
         steps:
           - checkout
           - install_erlang:
@@ -235,6 +242,8 @@ workflows:
           otp_str: "213"
       - mim/dialyzer:
           name: dialyzer
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
           requires:
             - otp_20_3_small_tests
 #      - mim/small_tests:
@@ -288,14 +297,14 @@ workflows:
 #          db: pgsql
 #          requires:
 #            - mim_otp_21_3
-#      - mim/big_tests:
-#          name: mysql_redis
-#          otp: 1:21.3.8.4-1
-#          otp_str: "213"
-#          preset: mysql_redis
-#          db: mysql
-#          requires:
-#            - mim_otp_21_3
+      - mim/big_tests:
+          name: mysql_redis
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+          preset: mysql_redis
+          db: mysql
+          requires:
+            - otp_20_3_small_tests
 #      - mim/big_tests:
 #          name: riak_mnesia
 #          otp: 1:21.3.8.4-1
