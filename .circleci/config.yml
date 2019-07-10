@@ -34,46 +34,6 @@ orbs:
               sudo apt install unixodbc
               sudo apt install tdsodbc
 
-      setup_db_and_run_tests:
-        parameters:
-          otp_str:
-            type: string
-            description: simplified version
-        steps:
-        - restore_cache:
-            keys:
-              - build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
-        - restore_cache:
-            keys:
-              - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
-        - run:
-            name: Build tests
-            command: |
-              test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-              test 1 = "$SKIP_COV" || sudo pip install codecov
-        - run:
-            name: Setup database
-            command: |
-              tools/travis-setup-db.sh
-              if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
-              if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; fi
-              echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-        - run:
-            name: install redis
-            command: |
-              tools/setup-redis.sh
-#            command: |
-#              pushd /tmp
-#              wget http://download.redis.io/releases/redis-$REDIS_VERSION.tar.gz
-#              tar xzf redis-$REDIS_VERSION.tar.gz
-#              cd redis-$REDIS_VERSION && make
-#              src/redis-server --daemonize yes
-#              popd
-        - run:
-            name: Run tests
-            command: |
-              KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
-
     jobs:
       build:
         parallelism: 1
@@ -140,10 +100,45 @@ orbs:
                 - asngen
                 - asn1
 
+      small_tests:
+        parallelism: 1
+        machine:
+          docker_layer_caching: true
+        working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+          otp_str:
+            type: string
+            description: simpliefied version
+        environment:
+          MIX_ENV: test
+          SKIP_RELEASE: 1
+          SKIP_COMPILE: 0
+          SKIP_BUILD_TESTS: 1
+          PRESET: small_tests
+          DB: mnesia
+          SKIP_COV: 0
+        steps:
+          - checkout
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - fetch_packages
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+
+
       big_tests:
         parallelism: 1
-#        docker:
-#          - image: redis
         machine:
           docker_layer_caching: true
         working_directory: ~/app
@@ -200,8 +195,28 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - fetch_packages
-          - setup_db_and_run_tests:
-              otp_str: <<parameters.otp_str>>
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+          - run:
+              name: Build tests
+              command: |
+                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
+                test 1 = "$SKIP_COV" || sudo pip install codecov
+          - run:
+              name: Setup database
+              command: |
+                tools/travis-setup-db.sh
+                if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
+                if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; tools/setup-redis.sh; fi
+                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
+          - run:
+              name: Run tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 #          - run:
 #              name: Build Success
 #              when: on_success
@@ -232,90 +247,6 @@ orbs:
 #                test 1 = "$SKIP_REPORT_UPLOAD" ||
 #                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
-
-#      tests:
-#        parallelism: 1
-#        machine:
-#          docker_layer_caching: true
-#        parameters:
-#          otp:
-#            type: string
-#            description: Version of the Erlang package to install
-#          preset:
-#            type: string
-#            description: Preset type
-#            default: internal_mnesia
-#          db:
-#            type: string
-#            description: Preset type
-#            default: mnesia
-#
-#        environment:
-#          MIX_ENV: test
-#          SKIP_RELEASE: 0
-#          SKIP_COMPILE: 0
-#          SKIP_BUILD_TESTS: 0
-#          PRESET: <<parameters.preset>>
-#          DB: <<parameters.db>>
-#          SKIP_COV: 0
-#
-#        working_directory: ~/app
-#        steps:
-#          - checkout
-#          - install_erlang:
-#              otp: <<parameters.otp>>
-#          - run:
-#              name: Get packages
-#              command: |
-#                sudo apt install unixodbc-dev
-##          - attach_workspace:
-##               at: ~/app
-#          - restore_cache:
-#              keys:
-#                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}
-#          - restore_cache:
-#              keys:
-#                - build-cache-{{ .Branch }}-{{ .Revision }}
-#          - run:
-#              name: Build tests
-#              command: |
-#                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-#                test 1 = "$SKIP_COV" || pip install --user codecov
-#          - run:
-#              name: Setup database
-#              command: |
-#                tools/travis-setup-db.sh
-#                if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
-#                if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
-#                echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
-#          - run:
-#              name: Run tests
-#              command: |
-#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
-
-jobs:
-###############################
-  internal_mnesia:
-    parallelism: 1
-    machine:
-      docker_layer_caching: true
-    working_directory: ~/app
-    environment:
-      MIX_ENV: test
-      SKIP_RELEASE: 0
-      RUN_SMALL_TESTS: false
-      SKIP_COMPILE: 0
-      SKIP_BUILD_TESTS: 0
-      PRESET: internal_mnesia
-      DB: mnesia
-      SKIP_COV: 0
-    steps:
-      - checkout
-      - mim/install_erlang:
-          otp: 1:20.3.8.22-1
-      - mim/setup_db_and_run_tests:
-        otp_str: "203"
-##################################
 workflows:
   version: 2
   build_and_test:
@@ -324,89 +255,86 @@ workflows:
           name: mim_otp_20_3
           otp: 1:20.3.8.22-1
           otp_str: "203"
-      - mim/big_tests:
-          name: small_tests
+      - mim/small_tests:
           otp: 1:20.3.8.22-1
           otp_str: "203"
-          preset: small_tests
-          run_small_tests: "true"
           requires:
             - mim_otp_20_3
-      - mim/big_tests:
-          name: mssql_mnesia
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: odbc_mssql_mnesia
-          db: mssql
-          requires:
-            - mim_otp_20_3
-      - mim/big_tests:
-          name: ldap_mnesia
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: ldap_mnesia
-          db: mnesia
-          requires:
-            - mim_otp_20_3
-      - mim/big_tests:
-          name: internal_mnesia
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: internal_mnesia
-          db: mnesia
-          requires:
-            - mim_otp_20_3
-      - mim/big_tests:
-          name: elasticsearch_and_cassandra
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: elasticsearch_and_cassandra_mnesia
-          db: "elasticsearch cassandra"
-          requires:
-            - mim_otp_20_3
-      - mim/build:
-          name: mim_otp_21_3
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-      - mim/big_tests:
-          name: pgsql_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: pgsql_mnesia
-          db: pgsql
-          requires:
-            - mim_otp_21_3
-      - mim/big_tests:
-          name: mysql_redis
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: mysql_redis
-          db: mysql
-          requires:
-            - mim_otp_21_3
-      - mim/big_tests:
-          name: riak_mnesia
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          preset: riak_mnesia
-          db: riak
-          requires:
-            - mim_otp_21_3
-      - mim/build:
-          name: mim_otp_22
-          otp: 1:22.0.4-1
-          otp_str: "22"
-          requires:
-            - internal_mnesia
-      - mim/big_tests:
-          name: dialyzer_only
-          otp: 1:22.0.4-1
-          otp_str: "2"
-          preset: dialyzer_only
-          db: mnesia
-          skip_release: "1"
-          skip_build_tests: "1"
-          skip_cov: "1"
-          requires:
-            - mim_otp_22
+#      - mim/big_tests:
+#          name: mssql_mnesia
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: odbc_mssql_mnesia
+#          db: mssql
+#          requires:
+#            - mim_otp_20_3
+#      - mim/big_tests:
+#          name: ldap_mnesia
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: ldap_mnesia
+#          db: mnesia
+#          requires:
+#            - mim_otp_20_3
+#      - mim/big_tests:
+#          name: internal_mnesia
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: internal_mnesia
+#          db: mnesia
+#          requires:
+#            - mim_otp_20_3
+#      - mim/big_tests:
+#          name: elasticsearch_and_cassandra
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          preset: elasticsearch_and_cassandra_mnesia
+#          db: "elasticsearch cassandra"
+#          requires:
+#            - mim_otp_20_3
+#      - mim/build:
+#          name: mim_otp_21_3
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#      - mim/big_tests:
+#          name: pgsql_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: pgsql_mnesia
+#          db: pgsql
+#          requires:
+#            - mim_otp_21_3
+#      - mim/big_tests:
+#          name: mysql_redis
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: mysql_redis
+#          db: mysql
+#          requires:
+#            - mim_otp_21_3
+#      - mim/big_tests:
+#          name: riak_mnesia
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
+#          preset: riak_mnesia
+#          db: riak
+#          requires:
+#            - mim_otp_21_3
+#      - mim/build:
+#          name: mim_otp_22
+#          otp: 1:22.0.4-1
+#          otp_str: "22"
+#          requires:
+#            - internal_mnesia
+#      - mim/big_tests:
+#          name: dialyzer_only
+#          otp: 1:22.0.4-1
+#          otp_str: "2"
+#          preset: dialyzer_only
+#          db: mnesia
+#          skip_release: "1"
+#          skip_build_tests: "1"
+#          skip_cov: "1"
+#          requires:
+#            - mim_otp_22
 
