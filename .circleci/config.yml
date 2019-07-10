@@ -121,6 +121,7 @@ orbs:
             description: simpliefied version
         steps:
           - checkout
+          - fetch_packages
           - install_erlang:
               otp: <<parameters.otp>>
           - run:
