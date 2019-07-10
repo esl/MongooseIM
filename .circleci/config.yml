@@ -54,6 +54,10 @@ orbs:
             type: string
             description: build releases
             default: "1"
+          build_big_tests:
+            type: string
+            description: build big tests
+            default: "1"
 
         environment:
           SKIP_RELEASE: 1
@@ -97,6 +101,10 @@ orbs:
               name: Install Releases
               command: |
                 test 0 = <<parameters.build_releases>> || make devrel
+          - run:
+              name: Build big tests
+              command: |
+                test 0 = <<parameters.build_big_tests>> || tools/travis-build-tests.sh
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
               paths:
@@ -106,6 +114,7 @@ orbs:
                 - rel
                 - asngen
                 - asn1
+                - big_tests
 
       dialyzer:
         parallelism: 1
@@ -207,11 +216,10 @@ orbs:
           - restore_cache:
               keys:
                 - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
-          - run:
-              name: Build tests
-              command: |
-                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
-                test 1 = "$SKIP_COV" || sudo pip install codecov
+#          - run:
+#              name: Build tests
+#              command: |
+#                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
           - run:
               name: Setup database
               command: |
@@ -228,6 +236,7 @@ orbs:
               when: on_success
               command: |
                 echo "Success!"
+                test 1 = "$SKIP_COV" || sudo pip install codecov
                 test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
                 test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
                 test 1 = "$SKIP_COV" || ./rebar3 coveralls send
@@ -267,17 +276,18 @@ workflows:
           name: otp_21_3_small_tests
           otp: 1:21.3.8.4-1
           otp_str: "213"
-      - mim/build_and_small_tests:
-          name: otp_22_small_tests
-          otp: 1:22.0.4-1
-          otp_str: "22"
-          build_releases: "0"
-      - mim/dialyzer:
-          name: dialyzer
-          otp: 1:22.0.4-1
-          otp_str: "213"
-          requires:
-            - otp_22_small_tests
+#      - mim/build_and_small_tests:
+#          name: otp_22_small_tests
+#          otp: 1:22.0.4-1
+#          otp_str: "22"
+#          build_releases: "0"
+#          build_big_tests: "0"
+#      - mim/dialyzer:
+#          name: dialyzer
+#          otp: 1:22.0.4-1
+#          otp_str: "213"
+#          requires:
+#            - otp_22_small_tests
 #      - mim/big_tests:
 #          name: mysql_redis
 #          otp: 1:22.0.4-1
