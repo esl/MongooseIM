@@ -9,14 +9,6 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
-          preset:
-            type: string
-            description: Preset type
-            default: internal_mnesia
-          db:
-            type: string
-            description: Preset type
-            default: mnesia
         steps:
         - run:
             name: Install Erlang
@@ -25,6 +17,7 @@ orbs:
               sudo dpkg -i erlang-solutions_1.0_all.deb
               sudo apt-get update
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
+      ## TODO create custom image with erlang and packages included
       fetch_packages:
         steps:
         - run:
@@ -54,15 +47,10 @@ orbs:
             type: string
             description: build releases
             default: "1"
-          build_big_tests:
-            type: string
-            description: build big tests
-            default: "1"
 
         environment:
           SKIP_RELEASE: 1
           REL_CONFIG: <<parameters.rel_config>>
-          SKIP_COMPILE: 0
           SKIP_COV: 0
           PRESET: small_tests
         working_directory: ~/app
@@ -77,9 +65,9 @@ orbs:
           - run:
               name: Get deps
               command: |
-                test 1 = "$SKIP_COV" || sudo apt install python-pip
-                test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
-                test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
+                sudo apt install python-pip
+                tools/configure $REL_CONFIG
+                ./rebar3 get-deps
           - save_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
               paths: ~/.cache/rebar3
@@ -88,11 +76,11 @@ orbs:
           - run:
               name: Compile
               command: |
-                test 1 = "$SKIP_COMPILE" || ./rebar3 compile
+                ./rebar3 compile
           - run:
               name: Make Certs
               command: |
-                test 1 = "$SKIP_COMPILE" || make certs
+                make certs
           - run:
               name: Run Small tests
               command: |
@@ -104,7 +92,8 @@ orbs:
           - run:
               name: Build big tests
               command: |
-                test 0 = <<parameters.build_big_tests>> || tools/travis-build-tests.sh
+                tools/travis-build-tests.sh
+          ## TODO cache only what you need (e.g not whole big_tests but artifacts only)
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
               paths:
@@ -169,18 +158,6 @@ orbs:
           otp_str:
             type: string
             description: simpliefied version
-          skip_release:
-            type: string
-            description: skip release
-            default: "0"
-          skip_compile:
-            type: string
-            description: skip compile
-            default: "0"
-          skip_build_tests:
-            type: string
-            description: skip compile
-            default: "0"
           preset:
             type: string
             description: preset
@@ -189,18 +166,10 @@ orbs:
             type: string
             description: db
             default: mnesia
-          skip_cov:
-            type: string
-            description: skip cov
-            default: "0"
         environment:
           MIX_ENV: test
-          SKIP_RELEASE: <<parameters.skip_release>>
-          SKIP_COMPILE: <<parameters.skip_compile>>
-          SKIP_BUILD_TESTS: <<parameters.skip_build_tests>>
           PRESET: <<parameters.preset>>
           DB: <<parameters.db>>
-          SKIP_COV: <<parameters.skip_cov>>
           ELASTICSEARCH_VERSION: 5.6.9
           CASSANDRA_VERSION: 3.9
           TEST_SPEC: mam.spec
@@ -216,10 +185,6 @@ orbs:
           - restore_cache:
               keys:
                 - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
-#          - run:
-#              name: Build tests
-#              command: |
-#                test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
           - run:
               name: Setup database
               command: |
@@ -236,10 +201,10 @@ orbs:
               when: on_success
               command: |
                 echo "Success!"
-                test 1 = "$SKIP_COV" || sudo pip install codecov
-                test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
-                test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
-                test 1 = "$SKIP_COV" || ./rebar3 coveralls send
+                sudo pip install codecov
+                ./rebar3 codecov analyze
+                codecov --disable=gcov --env PRESET
+                ./rebar3 coveralls send
           - run:
               name: Build Failed - Logs
               when: on_fail
