@@ -292,10 +292,15 @@ workflows:
 #          db: "elasticsearch cassandra"
 #          requires:
 #            - mim_otp_20_3
-#      - mim/build:
-#          name: mim_otp_21_3
-#          otp: 1:21.3.8.4-1
-#          otp_str: "213"
+      - mim/build:
+          name: mim_otp_21_3
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
+      - mim/small_tests:
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
+          requires:
+            - mim_otp_21_3
 #      - mim/big_tests:
 #          name: pgsql_mnesia
 #          otp: 1:21.3.8.4-1
