@@ -137,6 +137,10 @@ orbs:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
               paths: ~/.cache/rebar3
           - run:
+              name: Make certs
+              command: |
+                test 1 = "$SKIP_COMPILE" || make certs
+          - run:
               name: Compile
               command: |
                 test 1 = "$SKIP_COMPILE" || ./rebar3 compile
