@@ -52,10 +52,9 @@ orbs:
             default: with-all
 
         environment:
-          SKIP_RELEASE: 0
+          SKIP_RELEASE: 1
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COMPILE: 0
-          SKIP_BUILD_TESTS: 0
           SKIP_COV: 0
         working_directory: ~/app
 
@@ -92,7 +91,7 @@ orbs:
           - run:
               name: Install Releases
               command: |
-                test 1 = "$SKIP_RELEASE" || make devrel
+                make devrel
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
               paths:
