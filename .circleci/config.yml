@@ -50,12 +50,17 @@ orbs:
             type: string
             description: Rel config type
             default: with-all
+          build_releases:
+            type: string
+            description: build releases
+            default: "1"
 
         environment:
           SKIP_RELEASE: 1
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COMPILE: 0
           SKIP_COV: 0
+          PRESET: small_tests
         working_directory: ~/app
 
         steps:
@@ -91,7 +96,7 @@ orbs:
           - run:
               name: Install Releases
               command: |
-                make devrel
+                test 1 = <<parameters.build_releases>> || make devrel
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
               paths:
@@ -240,25 +245,38 @@ workflows:
           name: otp_21_3_small_tests
           otp: 1:21.3.8.4-1
           otp_str: "213"
+      - mim/build_and_small_tests:
+          name: otp_22_small_tests
+          otp: 1:22.0.4-1
+          otp_str: "22"
+          build_releases: "0"
       - mim/dialyzer:
           name: dialyzer
-          otp: 1:21.3.8.4-1
+          otp: 1:22.0.4-1
           otp_str: "213"
           requires:
-            - otp_20_3_small_tests
+            - otp_22_small_tests
 #      - mim/small_tests:
 #          otp: 1:20.3.8.22-1
 #          otp_str: "203"
 #          requires:
 #            - mim_otp_20_3
-#      - mim/big_tests:
-#          name: mssql_mnesia
-#          otp: 1:20.3.8.22-1
-#          otp_str: "203"
-#          preset: odbc_mssql_mnesia
-#          db: mssql
-#          requires:
-#            - mim_otp_20_3
+      - mim/big_tests:
+          name: mysql_redis
+          otp: 1:20.3.8.22-1
+          otp_str: "20"
+          preset: mysql_redis
+          db: mysql
+          requires:
+            - otp_20_3_small_tests
+      - mim/big_tests:
+          name: mssql_mnesia
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+          preset: odbc_mssql_mnesia
+          db: mssql
+          requires:
+            - otp_20_3_small_tests
 #      - mim/big_tests:
 #          name: ldap_mnesia
 #          otp: 1:20.3.8.22-1
@@ -297,14 +315,6 @@ workflows:
 #          db: pgsql
 #          requires:
 #            - mim_otp_21_3
-      - mim/big_tests:
-          name: mysql_redis
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          preset: mysql_redis
-          db: mysql
-          requires:
-            - otp_20_3_small_tests
 #      - mim/big_tests:
 #          name: riak_mnesia
 #          otp: 1:21.3.8.4-1
