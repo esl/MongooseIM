@@ -126,11 +126,20 @@ orbs:
               otp: <<parameters.otp>>
           - fetch_packages
           - restore_cache:
-              keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
-          - restore_cache:
-              keys:
-                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+          - run:
+              name: Get deps
+              command: |
+                test 1 = "$SKIP_COV" || sudo apt install python-pip
+                test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
+                test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
+          - save_cache:
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+              paths: ~/.cache/rebar3
+          - run:
+              name: Compile
+              command: |
+                test 1 = "$SKIP_COMPILE" || ./rebar3 compile
           - run:
               name: Run tests
               command: |
@@ -153,10 +162,6 @@ orbs:
             type: string
             description: skip release
             default: "0"
-          run_small_tests:
-            type: string
-            description: run small tests
-            default: "false"
           skip_compile:
             type: string
             description: skip compile
@@ -180,7 +185,6 @@ orbs:
         environment:
           MIX_ENV: test
           SKIP_RELEASE: <<parameters.skip_release>>
-          RUN_SMALL_TESTS: <<parameters.run_small_tests>>
           SKIP_COMPILE: <<parameters.skip_compile>>
           SKIP_BUILD_TESTS: <<parameters.skip_build_tests>>
           PRESET: <<parameters.preset>>
@@ -216,7 +220,7 @@ orbs:
           - run:
               name: Run tests
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
 #          - run:
 #              name: Build Success
 #              when: on_success
@@ -251,15 +255,15 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - mim/build:
-          name: mim_otp_20_3
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-      - mim/small_tests:
-          otp: 1:20.3.8.22-1
-          otp_str: "203"
-          requires:
-            - mim_otp_20_3
+#      - mim/build:
+#          name: mim_otp_20_3
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#      - mim/small_tests:
+#          otp: 1:20.3.8.22-1
+#          otp_str: "203"
+#          requires:
+#            - mim_otp_20_3
 #      - mim/big_tests:
 #          name: mssql_mnesia
 #          otp: 1:20.3.8.22-1
@@ -292,15 +296,15 @@ workflows:
 #          db: "elasticsearch cassandra"
 #          requires:
 #            - mim_otp_20_3
-      - mim/build:
-          name: mim_otp_21_3
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
+#      - mim/build:
+#          name: mim_otp_21_3
+#          otp: 1:21.3.8.4-1
+#          otp_str: "213"
       - mim/small_tests:
           otp: 1:21.3.8.4-1
           otp_str: "213"
-          requires:
-            - mim_otp_21_3
+#          requires:
+#            - mim_otp_21_3
 #      - mim/big_tests:
 #          name: pgsql_mnesia
 #          otp: 1:21.3.8.4-1
