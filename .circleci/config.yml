@@ -96,7 +96,7 @@ orbs:
           - run:
               name: Install Releases
               command: |
-                test 1 = <<parameters.build_releases>> || make devrel
+                test 0 = <<parameters.build_releases>> || make devrel
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
               paths:
@@ -279,7 +279,7 @@ workflows:
           preset: ldap_mnesia
           db: mnesia
           requires:
-            - mim_otp_21_3
+            - otp_21_3_small_tests
       - mim/big_tests:
           name: internal_mnesia
           otp: 1:21.3.8.4-1
@@ -287,7 +287,7 @@ workflows:
           preset: internal_mnesia
           db: mnesia
           requires:
-            - mim_otp_21_3_small_tests
+            - otp_21_3_small_tests
       - mim/big_tests:
           name: elasticsearch_and_cassandra
           otp: 1:21.3.8.4-1
@@ -295,13 +295,7 @@ workflows:
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
           requires:
-            - mim_otp_21_3_small_tests
-      - mim/build:
-          name: mim_otp_21_3
-          otp: 1:21.3.8.4-1
-          otp_str: "213"
-          requires:
-            - mim_otp_21_3_small_tests
+            - otp_21_3_small_tests
       - mim/big_tests:
           name: pgsql_mnesia
           otp: 1:21.3.8.4-1
@@ -309,7 +303,7 @@ workflows:
           preset: pgsql_mnesia
           db: pgsql
           requires:
-            - mim_otp_21_3_small_tests
+            - otp_21_3_small_tests
       - mim/big_tests:
           name: riak_mnesia
           otp: 1:21.3.8.4-1
@@ -317,4 +311,4 @@ workflows:
           preset: riak_mnesia
           db: riak
           requires:
-            - mim_otp_21_3_small_tests
+            - otp_21_3_small_tests
