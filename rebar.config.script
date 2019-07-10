@@ -37,7 +37,7 @@ end,
 
 MaybeConfigureCoveralls =
 fun(Config) ->
-        case os:getenv("TRAVIS") of
+        case os:getenv("CI") of
             "true" ->
                 JobId   = os:getenv("TRAVIS_JOB_ID", os:getenv("CIRCLE_WORKFLOW_ID")),
                 lists:keystore(coveralls_service_job_id, 1, Config, {coveralls_service_job_id, JobId});

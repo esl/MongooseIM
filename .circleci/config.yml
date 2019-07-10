@@ -53,7 +53,6 @@ orbs:
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COV: 0
           PRESET: small_tests
-          TRAVIS_JOB_ID: unique
         working_directory: ~/app
 
         steps:
@@ -175,7 +174,6 @@ orbs:
           CASSANDRA_VERSION: 3.9
           TEST_SPEC: mam.spec
           REDIS_VERSION: 3.2.10
-          TRAVIS_JOB_ID: unique
         steps:
           - checkout
           - install_erlang:
@@ -199,9 +197,6 @@ orbs:
 #              command: |
 #                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
           - run:
-              command:
-                echo $TRAVIS_JOB_ID
-          - run:
               name: Coverage
               when: on_success
               command: |
@@ -209,7 +204,7 @@ orbs:
                 sudo pip install codecov
                 ./rebar3 codecov analyze
                 codecov --disable=gcov --env PRESET
-                ./rebar3 coveralls send
+#                DEBUG=1 ./rebar3 coveralls send
           - run:
               name: Build Failed - Logs
               when: on_fail
