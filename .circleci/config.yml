@@ -35,7 +35,7 @@ orbs:
               sudo apt install tdsodbc
 
     jobs:
-      build:
+      build_and_small_tests:
         parallelism: 1
         machine:
           docker_layer_caching: true
@@ -59,7 +59,6 @@ orbs:
           SKIP_COV: 0
         working_directory: ~/app
 
-
         steps:
           - checkout
           - install_erlang:
@@ -83,11 +82,15 @@ orbs:
               command: |
                 test 1 = "$SKIP_COMPILE" || ./rebar3 compile
           - run:
-              name: Make certs
+              name: Make Certs
               command: |
                 test 1 = "$SKIP_COMPILE" || make certs
           - run:
-              name: Install
+              name: Run Small tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+          - run:
+              name: Install Releases
               command: |
                 test 1 = "$SKIP_RELEASE" || make devrel
           - save_cache:
@@ -99,55 +102,6 @@ orbs:
                 - rel
                 - asngen
                 - asn1
-
-      small_tests:
-        parallelism: 1
-        machine:
-          docker_layer_caching: true
-        working_directory: ~/app
-        parameters:
-          otp:
-            type: string
-            description: Version of the Erlang package to install
-          otp_str:
-            type: string
-            description: simpliefied version
-        environment:
-          MIX_ENV: test
-          SKIP_RELEASE: 1
-          SKIP_COMPILE: 0
-          SKIP_BUILD_TESTS: 1
-          PRESET: small_tests
-          DB: mnesia
-          SKIP_COV: 0
-        steps:
-          - checkout
-          - install_erlang:
-              otp: <<parameters.otp>>
-          - fetch_packages
-          - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
-          - run:
-              name: Get deps
-              command: |
-                test 1 = "$SKIP_COV" || sudo apt install python-pip
-                test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
-                test 1 = "$SKIP_COMPILE" || ./rebar3 get-deps
-          - save_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
-              paths: ~/.cache/rebar3
-          - run:
-              name: Make certs
-              command: |
-                test 1 = "$SKIP_COMPILE" || make certs
-          - run:
-              name: Compile
-              command: |
-                test 1 = "$SKIP_COMPILE" || ./rebar3 compile
-          - run:
-              name: Run tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
 
 
       big_tests:
@@ -259,10 +213,14 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-#      - mim/build:
-#          name: mim_otp_20_3
-#          otp: 1:20.3.8.22-1
-#          otp_str: "203"
+      - mim/build_and_small_tests:
+          name: otp_20_3_small_tests
+          otp: 1:20.3.8.22-1
+          otp_str: "203"
+      - mim/build_and_small_tests:
+          name: otp_21_3_small_tests
+          otp: 1:21.3.8.4-1
+          otp_str: "213"
 #      - mim/small_tests:
 #          otp: 1:20.3.8.22-1
 #          otp_str: "203"
