@@ -104,6 +104,7 @@ orbs:
                 - asngen
                 - asn1
                 - big_tests
+                - src/XmppAddr.erl
 
 
       dialyzer:
