@@ -127,6 +127,21 @@ orbs:
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
 
+      push_image:
+        parameters:
+          otp_version:
+            type: string
+            description: erlang version to use
+        docker:
+          - image: circleci:erlang:<<parameters.otp_version>>
+        working_directory: ~/app
+        steps:
+          - checkout
+          - run:
+              name: Run small tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+
       package:
         parallelism: 1
         machine:
@@ -239,6 +254,11 @@ workflows:
           name: otp_20_3_small_tests
           otp: 1:20.3.8.22-1
           otp_str: "203"
+
+      - mim/push_image:
+          otp_version: "20.3"
+          requires:
+            - otp_20_3_small_tests
 #      - mim/build_and_small_tests:
 #          name: otp_21_3_small_tests
 #          otp: 1:21.3.8.4-1
