@@ -203,6 +203,7 @@ orbs:
                 echo "Success!"
                 sudo pip install codecov
                 ./rebar3 codecov analyze
+                ls _build/
                 codecov --disable=gcov --env PRESET
                 DEBUG=1 ./rebar3 coveralls send
           - run:
