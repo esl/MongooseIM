@@ -222,6 +222,7 @@ orbs:
                 sudo pip install codecov && codecov
                 ./rebar3 codecov analyze
                 codecov --disable=gcov --env PRESET
+                ls /home/circleci/app/_build/default/lib/mongooseim/src
                 DEBUG=1 ./rebar3 coveralls send
           - run:
               name: Build Failed - Logs
