@@ -137,6 +137,7 @@ orbs:
         working_directory: ~/app
         steps:
           - checkout
+          - fetch_packages
           - run:
               name: Run small tests
               command: |
