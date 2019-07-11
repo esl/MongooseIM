@@ -81,10 +81,10 @@ orbs:
               name: Make Certs
               command: |
                 make certs
-#          - run:
-#              name: Run Small tests
-#              command: |
-#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+          - run:
+              name: Run Small tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
           - run:
               name: Install Releases
               command: |
@@ -193,7 +193,7 @@ orbs:
           CASSANDRA_VERSION: 3.9
           TEST_SPEC: mam.spec
           REDIS_VERSION: 3.2.10
-          COVERALLS_REPO_TOKEN: qmm8eZ4TFz0daY80t0A9gxRtqqVGaBeal
+#          COVERALLS_REPO_TOKEN: qmm8eZ4TFz0daY80t0A9gxRtqqVGaBeal
         steps:
           - checkout
           - install_erlang:
