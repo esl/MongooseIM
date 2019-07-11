@@ -231,6 +231,7 @@ orbs:
                 if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
                 tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
                 tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
+                
 #          - run:
 #              name: Upload results
 #              command: |
