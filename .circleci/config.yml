@@ -96,6 +96,7 @@ orbs:
           ## TODO cache only what you need (e.g not whole big_tests but artifacts only)
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
+          ## TODO in src directory there are generated files XmppAddr.erl and eldap_filter_yecc.erl
               paths:
                 - _build
                 - tools
@@ -104,8 +105,7 @@ orbs:
                 - asngen
                 - asn1
                 - big_tests
-                - src/XmppAddr.erl
-                - src/eldap_filter_yecc.erl
+                - src
 
 
       dialyzer:
@@ -224,7 +224,6 @@ orbs:
                 sudo pip install codecov && codecov
                 ./rebar3 codecov analyze
                 codecov --disable=gcov --env PRESET
-                ls /home/circleci/app/_build/default/lib/mongooseim/src
                 DEBUG=1 ./rebar3 coveralls send
           - run:
               name: Build Failed - Logs
