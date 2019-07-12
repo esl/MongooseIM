@@ -193,7 +193,7 @@ orbs:
           CASSANDRA_VERSION: 3.9
           TEST_SPEC: mam.spec
           REDIS_VERSION: 3.2.10
-#          COVERALLS_REPO_TOKEN: qmm8eZ4TFz0daY80t0A9gxRtqqVGaBeal
+          COVERALLS_REPO_TOKEN: qmm8eZ4TFz0daY80t0A9gxRtqqVGaBeal
         steps:
           - checkout
           - install_erlang:
@@ -234,14 +234,14 @@ orbs:
                 if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
                 tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
                 tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
-          - run:
-              name: Upload results
-              command: |
-                  tools/travis-prepare-log-dir.sh
-                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
-                  tools/travis-publish-github-comment.sh
-                  if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
-                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
+#          - run:
+#              name: Upload results
+#              command: |
+#                  tools/travis-prepare-log-dir.sh
+#                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+#                  tools/travis-publish-github-comment.sh
+#                  if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+#                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 workflows:
   version: 2
