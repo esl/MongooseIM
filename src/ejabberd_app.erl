@@ -42,6 +42,7 @@ start(normal, _Args) ->
     init_log(),
     mongoose_fips:notify(),
     write_pid_file(),
+    update_status_file(starting),
     db_init(),
     application:start(cache_tab),
 
@@ -72,6 +73,7 @@ start(normal, _Args) ->
     mongoose_metrics:init(),
     ejabberd_listener:start_listeners(),
     ejabberd_admin:start(),
+    update_status_file(started),
     ?INFO_MSG("ejabberd ~s is started in the node ~p", [?MONGOOSE_VERSION, node()]),
     Sup;
 start(_, _) ->
@@ -96,6 +98,7 @@ prep_stop(State) ->
 stop(_State) ->
     ?INFO_MSG("ejabberd ~s is stopped in the node ~p", [?MONGOOSE_VERSION, node()]),
     delete_pid_file(),
+    update_status_file(stopped),
     %%ejabberd_debug:stop(),
     ok.
 
@@ -201,6 +204,14 @@ write_pid_file(Pid, PidFilename) ->
         {error, Reason} ->
             ?ERROR_MSG("Cannot write PID file ~s~nReason: ~p", [PidFilename, Reason]),
             throw({cannot_write_pid_file, PidFilename, Reason})
+    end.
+
+update_status_file(Status) ->
+    case ejabberd:get_status_file() of
+        false ->
+            ok;
+        StatusFilename ->
+            file:write_file(StatusFilename, atom_to_list(Status))
     end.
 
 -spec delete_pid_file() -> 'ok' | {'error', atom()}.
