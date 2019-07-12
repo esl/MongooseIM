@@ -186,6 +186,7 @@ orbs:
           TEST_SPEC: mam.spec
           REDIS_VERSION: 3.2.10
           COVERALLS_REPO_TOKEN: qmm8eZ4TFz0daY80t0A9gxRtqqVGaBeal
+          OTP_STR: ./tools/circleci-otp-to-str.sh <<parameters.otp>>
 
           ## For travis scripts compatibility
           TRAVIS_BUILD_NUMBER: $CIRCLE_BUILD_NUM
