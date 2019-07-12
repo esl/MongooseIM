@@ -60,6 +60,8 @@ orbs:
           - restore_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
           - fetch_packages
+          - restore_cache:
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
           - run:
               name: Get deps
               command: |
@@ -69,8 +71,6 @@ orbs:
           - save_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
               paths: ~/.cache/rebar3
-          - restore_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
           - run:
               name: Compile
               command: |
