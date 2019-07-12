@@ -36,9 +36,6 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
-          otp_str:
-            type: string
-            description: simplified version
           rel_config:
             type: string
             description: Rel config type
@@ -53,6 +50,7 @@ orbs:
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COV: 0
           PRESET: small_tests
+          OTP_STR: ./tools/circleci-otp-to-str.sh <<parameters.otp>>
         working_directory: ~/app
 
         steps:
@@ -60,7 +58,7 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
           - fetch_packages
           - run:
               name: Get deps
@@ -69,10 +67,10 @@ orbs:
                 tools/configure $REL_CONFIG
                 ./rebar3 get-deps
           - save_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
               paths: ~/.cache/rebar3
           - restore_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
           - run:
               name: Compile
               command: |
@@ -81,10 +79,10 @@ orbs:
               name: Make Certs
               command: |
                 make certs
-          - run:
-              name: Run Small tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+#          - run:
+#              name: Run Small tests
+#              command: |
+#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
           - run:
               name: Install Releases
               command: |
@@ -95,7 +93,7 @@ orbs:
                 tools/travis-build-tests.sh
           ## TODO cache only what you need (e.g not whole big_tests but artifacts only)
           - save_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR> }}
           ## TODO in src directory there are generated files XmppAddr.erl and eldap_filter_yecc.erl
               paths:
                 - _build
@@ -117,9 +115,6 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
-          otp_str:
-            type: string
-            description: simpliefied version
         steps:
           - checkout
           - fetch_packages
@@ -174,9 +169,6 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
-          otp_str:
-            type: string
-            description: simpliefied version
           preset:
             type: string
             description: preset
@@ -197,7 +189,7 @@ orbs:
 
           ## For travis scripts compatibility
           TRAVIS_BUILD_NUMBER: $CIRCLE_BUILD_NUM
-          TRAVIS_OTP_RELEASE: <<parameters.otp_str>>
+          TRAVIS_OTP_RELEASE: ./tools/circleci-otp-to-str.sh <<parameters.otp>>
           TRAVIS_BRANCH: $CIRCLE_BRANCH
           TRAVIS_PULL_REQUEST: $CI_PULL_REQUEST
         steps:
@@ -207,10 +199,10 @@ orbs:
           - fetch_packages
           - restore_cache:
               keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ <<parameters.otp_str>> }}
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
           - restore_cache:
               keys:
-                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ <<parameters.otp_str>> }}
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{$OTP_STR }}
           - run:
               name: Setup database
               command: |
@@ -262,26 +254,21 @@ workflows:
 #      - mim/build_and_small_tests:
 #          name: otp_20_3_small_tests
 #          otp: 1:20.3.8.22-1
-#          otp_str: "203"
       - mim/build_and_small_tests:
           name: otp_21_3_small_tests
           otp: 1:21.3.8.4-1
-          otp_str: "213"
 #      - mim/build_and_small_tests:
 #          name: otp_22_small_tests
 #          otp: 1:22.0.4-1
-#          otp_str: "22"
 #          build_releases: "0"
 #      - mim/dialyzer:
 #          name: dialyzer
 #          otp: 1:22.0.4-1
-#          otp_str: "213"
 #          requires:
 #            - otp_22_small_tests
 #      - mim/big_tests:
 #          name: mysql_redis
 #          otp: 1:20.3.8.22-1
-#          otp_str: "203"
 #          preset: mysql_redis
 #          db: mysql
 #          requires:
@@ -289,7 +276,6 @@ workflows:
 #      - mim/big_tests:
 #          name: mssql_mnesia
 #          otp: 1:20.3.8.22-1
-#          otp_str: "203"
 #          preset: odbc_mssql_mnesia
 #          db: mssql
 #          requires:
@@ -297,7 +283,6 @@ workflows:
       - mim/big_tests:
           name: ldap_mnesia
           otp: 1:21.3.8.4-1
-          otp_str: "213"
           preset: ldap_mnesia
           db: mnesia
           requires:
@@ -305,7 +290,6 @@ workflows:
 #      - mim/big_tests:
 #          name: internal_mnesia
 #          otp: 1:21.3.8.4-1
-#          otp_str: "213"
 #          preset: internal_mnesia
 #          db: mnesia
 #          requires:
@@ -313,7 +297,6 @@ workflows:
 #      - mim/big_tests:
 #          name: elasticsearch_and_cassandra
 #          otp: 1:21.3.8.4-1
-#          otp_str: "213"
 #          preset: elasticsearch_and_cassandra_mnesia
 #          db: "elasticsearch cassandra"
 #          requires:
@@ -321,7 +304,6 @@ workflows:
 #      - mim/big_tests:
 #          name: pgsql_mnesia
 #          otp: 1:21.3.8.4-1
-#          otp_str: "213"
 #          preset: pgsql_mnesia
 #          db: pgsql
 #          requires:
@@ -329,7 +311,6 @@ workflows:
 #      - mim/big_tests:
 #          name: riak_mnesia
 #          otp: 1:21.3.8.4-1
-#          otp_str: "213"
 #          preset: riak_mnesia
 #          db: riak
 #          requires:
