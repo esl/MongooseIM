@@ -50,7 +50,7 @@ orbs:
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COV: 0
           PRESET: small_tests
-          BASH_ENV: ~/.bashrc
+#          BASH_ENV: ~/.bashrc
         working_directory: ~/app
 
         steps:
