@@ -50,20 +50,24 @@ orbs:
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COV: 0
           PRESET: small_tests
-          OTP_STR: ./tools/circleci-otp-to-str.sh <<parameters.otp>>
+          BASH_ENV: ~/.bashrc
         working_directory: ~/app
 
         steps:
           - checkout
           - install_erlang:
               otp: <<parameters.otp>>
-          - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
-          - fetch_packages
+          - run:
+              name: Set Envs
+              command: |
+                echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> ~/.bashrc
           - run:
               name: echo
               command: |
                 echo $OTP_STR
+          - restore_cache:
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
+          - fetch_packages
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
           - run:
@@ -190,7 +194,6 @@ orbs:
           TEST_SPEC: mam.spec
           REDIS_VERSION: 3.2.10
           COVERALLS_REPO_TOKEN: qmm8eZ4TFz0daY80t0A9gxRtqqVGaBeal
-          OTP_STR: ./tools/circleci-otp-to-str.sh <<parameters.otp>>
 
           ## For travis scripts compatibility
           TRAVIS_BUILD_NUMBER: $CIRCLE_BUILD_NUM
