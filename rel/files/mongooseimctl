@@ -245,8 +245,12 @@ wait_for_status()
     # return: 0 OK, 1 KO
     timeout=$2
     status=4
+    times=0
     while [ $status -ne $1 ]; do
-        sleep $3
+        # Skip first sleep
+        if [ $times -ne 0 ]; then
+            sleep $3
+        fi
         timeout=$(($timeout - 1))
         [ $timeout -eq 0 ] && {
             status=$1
@@ -254,6 +258,7 @@ wait_for_status()
             ctl status > /dev/null
             status=$?
         }
+        times=$(($times + 1))
     done
     [ $timeout -eq 0 ] && {
         status=1
@@ -262,7 +267,6 @@ wait_for_status()
     }
     return $status
 }
-
 
 # parse command line parameters
 ARGS=""; QUOTED_ARGS=""
