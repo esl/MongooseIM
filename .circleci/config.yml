@@ -100,17 +100,7 @@ orbs:
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           ## TODO in src directory there are generated files XmppAddr.erl and eldap_filter_yecc.erl
-              paths:
-                - _build
-                - tools
-                - priv
-                - rel
-                - asngen
-                - asn1
-                - big_tests
-                - src
-                - otp_version
-                - *.log
+              paths: ./
 
 
       dialyzer:
