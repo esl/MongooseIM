@@ -96,10 +96,8 @@ orbs:
               name: Build big tests
               command: |
                 tools/travis-build-tests.sh
-          ## TODO cache only what you need (e.g not whole big_tests but artifacts only)
           - save_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
-          ## TODO in src directory there are generated files XmppAddr.erl and eldap_filter_yecc.erl
               paths: ./
 
 
