@@ -243,54 +243,54 @@ orbs:
                 if [ -s _build/mim2/rel/mongooseim/log/crash.log ]; then cat _build/mim2/rel/mongooseim/log/crash.log; fi
                 tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
                 tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
-          - run:
-              name: Upload results
-              command: |
-                  tools/travis-prepare-log-dir.sh
-                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
-                  tools/travis-publish-github-comment.sh
-                  if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
-                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
+#          - run:
+#              name: Upload results
+#              command: |
+#                  tools/travis-prepare-log-dir.sh
+#                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/travis-upload-to-s3.sh; fi
+#                  tools/travis-publish-github-comment.sh
+#                  if [ -n "${GDRIVE_SERVICE_ACCOUNT_CREDENTIALS}" ]; then tools/travis-upload-to-gdrive.sh; fi
+#                  tools/travis-secure-erase.sh /tmp/serviceAccountCredentials
 
 workflows:
   version: 2
   build_and_test:
     jobs:
-#      - mim/package:
-#          name: centos7
-#          platform: centos7
-#      - mim/package:
-#          name: debian_stretch
-#          platform: debian_stretch
-#      - mim/build_and_small_tests:
-#          name: otp_20_3_small_tests
-#          otp: 1:20.3.8.22-1
+      - mim/package:
+          name: centos7
+          platform: centos7
+      - mim/package:
+          name: debian_stretch
+          platform: debian_stretch
+      - mim/build_and_small_tests:
+          name: otp_20_3_small_tests
+          otp: 1:20.3.8.22-1
       - mim/build_and_small_tests:
           name: otp_21_3_small_tests
           otp: 1:21.3.8.4-1
-#      - mim/build_and_small_tests:
-#          name: otp_22_small_tests
-#          otp: 1:22.0.4-1
-#          build_releases: "0"
-#      - mim/dialyzer:
-#          name: dialyzer
-#          otp: 1:22.0.4-1
-#          requires:
-#            - otp_22_small_tests
-#      - mim/big_tests:
-#          name: mysql_redis
-#          otp: 1:20.3.8.22-1
-#          preset: mysql_redis
-#          db: mysql
-#          requires:
-#            - otp_20_3_small_tests
-#      - mim/big_tests:
-#          name: mssql_mnesia
-#          otp: 1:20.3.8.22-1
-#          preset: odbc_mssql_mnesia
-#          db: mssql
-#          requires:
-#            - otp_20_3_small_tests
+      - mim/build_and_small_tests:
+          name: otp_22_small_tests
+          otp: 1:22.0.4-1
+          build_releases: "0"
+      - mim/dialyzer:
+          name: dialyzer
+          otp: 1:22.0.4-1
+          requires:
+            - otp_22_small_tests
+      - mim/big_tests:
+          name: mysql_redis
+          otp: 1:20.3.8.22-1
+          preset: mysql_redis
+          db: mysql
+          requires:
+            - otp_20_3_small_tests
+      - mim/big_tests:
+          name: mssql_mnesia
+          otp: 1:20.3.8.22-1
+          preset: odbc_mssql_mnesia
+          db: mssql
+          requires:
+            - otp_20_3_small_tests
       - mim/big_tests:
           name: ldap_mnesia
           otp: 1:21.3.8.4-1
@@ -298,31 +298,31 @@ workflows:
           db: mnesia
           requires:
             - otp_21_3_small_tests
-#      - mim/big_tests:
-#          name: internal_mnesia
-#          otp: 1:21.3.8.4-1
-#          preset: internal_mnesia
-#          db: mnesia
-#          requires:
-#            - otp_21_3_small_tests
-#      - mim/big_tests:
-#          name: elasticsearch_and_cassandra
-#          otp: 1:21.3.8.4-1
-#          preset: elasticsearch_and_cassandra_mnesia
-#          db: "elasticsearch cassandra"
-#          requires:
-#            - otp_21_3_small_tests
-#      - mim/big_tests:
-#          name: pgsql_mnesia
-#          otp: 1:21.3.8.4-1
-#          preset: pgsql_mnesia
-#          db: pgsql
-#          requires:
-#            - otp_21_3_small_tests
-#      - mim/big_tests:
-#          name: riak_mnesia
-#          otp: 1:21.3.8.4-1
-#          preset: riak_mnesia
-#          db: riak
-#          requires:
-#            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: internal_mnesia
+          otp: 1:21.3.8.4-1
+          preset: internal_mnesia
+          db: mnesia
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: elasticsearch_and_cassandra
+          otp: 1:21.3.8.4-1
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: pgsql_mnesia
+          otp: 1:21.3.8.4-1
+          preset: pgsql_mnesia
+          db: pgsql
+          requires:
+            - otp_21_3_small_tests
+      - mim/big_tests:
+          name: riak_mnesia
+          otp: 1:21.3.8.4-1
+          preset: riak_mnesia
+          db: riak
+          requires:
+            - otp_21_3_small_tests
