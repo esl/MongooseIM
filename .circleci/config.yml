@@ -60,15 +60,11 @@ orbs:
               name: Set Envs
               command: |
                 echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> $BASH_ENV
-          - run:
-              name: echo
-              command: |
-                echo $OTP_STR
           - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ .Environment.OTP_STR }}
           - fetch_packages
           - restore_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ .Environment.OTP_STR }}
           - run:
               name: Get deps
               command: |
@@ -76,7 +72,7 @@ orbs:
                 tools/configure $REL_CONFIG
                 ./rebar3 get-deps
           - save_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ $OTP_STR }}
+              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ .Environment.OTP_STR }}
               paths: ~/.cache/rebar3
           - run:
               name: Compile
@@ -100,7 +96,7 @@ orbs:
                 tools/travis-build-tests.sh
           ## TODO cache only what you need (e.g not whole big_tests but artifacts only)
           - save_cache:
-              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR> }}
+              key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ .Environment.OTP_STR }}
           ## TODO in src directory there are generated files XmppAddr.erl and eldap_filter_yecc.erl
               paths:
                 - _build
@@ -204,12 +200,16 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - fetch_packages
+          - run:
+              name: Set Envs
+              command: |
+                echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> $BASH_ENV
           - restore_cache:
               keys:
-                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ $OTP_STR }}
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ .Environment.OTP_STR }}
           - restore_cache:
               keys:
-                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{$OTP_STR }}
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ .Environment.OTP_STR }}
           - run:
               name: Setup database
               command: |
