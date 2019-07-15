@@ -70,7 +70,8 @@ orbs:
               name: Echos
               command: |
                 echo $TRAVIS_BUILD_NUMBER
-                echo $$CIRCLE_BUILD_NUM
+                echo $CIRCLE_BUILD_NUM
+                echo $CI_PULL_REQUEST
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           - restore_cache:
@@ -226,7 +227,7 @@ orbs:
           - run:
               name: Echo Travis OTP
               command: |
-                echo $TRAVIS_PULL_REQUEST
+                echo $TRAVIS_BUILD_NUMBER
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
