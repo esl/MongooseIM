@@ -84,10 +84,10 @@ orbs:
               name: Make Certs
               command: |
                 make certs
-          - run:
-              name: Run Small tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+#          - run:
+#              name: Run Small tests
+#              command: |
+#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
           - run:
               name: Install Releases
               command: |
@@ -202,6 +202,12 @@ orbs:
           - install_erlang:
               otp: <<parameters.otp>>
           - fetch_packages
+          - run:
+              name: Setup Environment Variables
+              command: |
+                echo 'export TRAVIS_BUILD_NUMBER="$CIRCLE_BUILD_NUM"' >> $BASH_ENV
+                echo 'export TRAVIS_BRANCH="$CIRCLE_BRANCH"' >> $BASH_ENV
+                echo 'export TRAVIS_PULL_REQUEST="$CI_PULL_REQUEST"' >> $BASH_ENV
           - run:
               name: Prepare for cache
               command: |
