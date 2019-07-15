@@ -60,7 +60,6 @@ orbs:
               name: Prepare for cache
               command: |
                 ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
-                echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> $BASH_ENV
           - restore_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
           - fetch_packages
