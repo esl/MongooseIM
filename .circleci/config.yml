@@ -61,7 +61,7 @@ orbs:
               command: |
                 ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
           - restore_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+              key: deps-cache2--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
           - fetch_packages
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
@@ -72,7 +72,7 @@ orbs:
                 tools/configure $REL_CONFIG
                 ./rebar3 get-deps
           - save_cache:
-              key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+              key: deps-cache2--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
               paths:
                 - ~/.cache/rebar3
                 - _build/default/lib
@@ -215,13 +215,13 @@ orbs:
           - run:
               name: Echo Travis OTP
               command: |
-                echo $TRAVIS_OTP_RELEASE
+                echo $TRAVIS_PULL_REQUEST
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           - restore_cache:
               keys:
-                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+                - deps-cache2--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
           - run:
               name: Setup database
               command: |
