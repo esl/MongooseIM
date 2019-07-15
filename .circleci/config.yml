@@ -50,7 +50,6 @@ orbs:
           REL_CONFIG: <<parameters.rel_config>>
           SKIP_COV: 0
           PRESET: small_tests
-          BASH_ENV: ~/.bashrc
         working_directory: ~/app
 
         steps:
@@ -60,7 +59,7 @@ orbs:
           - run:
               name: Set Envs
               command: |
-                echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> ~/.bashrc
+                echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> $BASH_ENV
           - run:
               name: echo
               command: |
