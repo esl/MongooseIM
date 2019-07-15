@@ -83,7 +83,9 @@
            tagged, [value]}},
          {tcpPortsUsed,
           {function, mongoose_metrics, tcp_ports, [],
-           tagged, [value]}}
+           tagged, [value]}},
+         {processQueueLengths,
+          {module, metrics_probe_queue_lengths, [{sample_interval, timer:seconds(30)}]}}
         ]
 ).
 

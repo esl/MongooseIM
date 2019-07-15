@@ -380,18 +380,32 @@ create_metrics(Host) ->
 
 ensure_metric(Host, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(Host, [Metric], Type, ShortType);
+
+ensure_metric(Host, Metric, Type, module = ShortType) ->
+    PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
+    {ShortType, Mod, Opts} = Type,
+    case exometer:info(PrefixedMetric, type) of
+        undefined ->
+            ExometerOpts = [{module, Mod}, {type, ShortType}] ++ Opts,
+            do_create_metric(PrefixedMetric, ad_hoc, ExometerOpts);
+        _ ->
+        {ok, already_present}
+    end;
 ensure_metric(Host, Metric, Type, ShortType) when is_list(Metric) ->
     %% the split into ShortType and Type is needed because function metrics are
     %% defined as tuples (that is Type), while exometer:info returns only 'function'
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
     case exometer:info(PrefixedMetric, type) of
-        ShortType -> {ok, already_present};
         undefined ->
-            case catch exometer:new(PrefixedMetric, Type) of
-                {'EXIT', {exists, _}} -> {ok, already_present};
-                ok -> ok;
-                {'EXIT', Error} -> {error, Error}
-            end
+            do_create_metric(PrefixedMetric, Type, []);
+        ShortType -> {ok, already_present}
+    end.
+
+do_create_metric(PrefixedMetric, ExometerType, ExometerOpts) ->
+    case catch exometer:new(PrefixedMetric, ExometerType, ExometerOpts) of
+        {'EXIT', {exists, _}} -> {ok, already_present};
+        ok -> ok;
+        {'EXIT', Error} -> {error, Error}
     end.
 
 -spec metrics_hooks('add' | 'delete', jid:server()) -> 'ok'.
