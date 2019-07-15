@@ -204,7 +204,6 @@ orbs:
               name: Prepare for cache
               command: |
                 ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
-                echo 'export TRAVIS_OTP_RELEASE=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> $BASH_ENV
           - run:
               name: Echo Travis OTP
               command: |
