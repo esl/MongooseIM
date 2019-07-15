@@ -73,7 +73,9 @@ orbs:
                 ./rebar3 get-deps
           - save_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-              paths: ~/.cache/rebar3
+              paths:
+                - ~/.cache/rebar3
+                - _build/default/lib
           - run:
               name: Compile
               command: |
