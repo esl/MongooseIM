@@ -84,10 +84,10 @@ orbs:
               name: Make Certs
               command: |
                 make certs
-#          - run:
-#              name: Run Small tests
-#              command: |
-#                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
+          - run:
+              name: Run Small tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
           - run:
               name: Install Releases
               command: |
