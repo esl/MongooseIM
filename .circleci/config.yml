@@ -110,6 +110,7 @@ orbs:
                 - big_tests
                 - src
                 - otp_version
+                - *.log
 
 
       dialyzer:
