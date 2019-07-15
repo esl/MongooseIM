@@ -59,7 +59,7 @@ orbs:
           - run:
               name: Set Envs
               command: |
-                echo 'export OTP_STR=$(<<parameters.otp>>)' >> $BASH_ENV
+                echo 'export OTP_STR=$(eval ./tools/circleci-otp-to-str.sh <<parameters.otp>>)' >> $BASH_ENV
           - run:
               name: echo
               command: |
