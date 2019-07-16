@@ -47,7 +47,7 @@ behaviour() ->
     probe.
 
 probe_init(_Name, _Type, _Opts) ->
-    {ok, #state{datapoints = ?DATAPOINTS, data = []}}.
+    {ok, #state{datapoints = ?DATAPOINTS, data = #{}}}.
 
 probe_terminate(_) -> ok.
 
