@@ -124,9 +124,9 @@ init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(server_requests_ack_freq_2, Config) ->
+end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
-    escalus:end_per_testcase(Config);
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
     unregister_handler(<<"localhost">>),
     escalus:end_per_testcase(CN, Config);
