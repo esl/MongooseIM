@@ -25,7 +25,8 @@ all_metrics_list() ->
      no_skip_metric,
      subscriptions_initialised,
      tcp_connections_detected,
-     up_time_positive
+     up_time_positive,
+     queued_messages_increase
     ].
 
 init_per_suite(C) ->
@@ -83,6 +84,19 @@ end_per_group(_Name, C) ->
     meck:unload(),
     C.
 
+init_per_testcase(queued_messages_increase, C) ->
+    exometer:setopts([global, processQueueLengths], [{sample_interval, 50}]),
+    exometer:repair([global, processQueueLengths]),
+    C;
+init_per_testcase(_N, C) ->
+    C.
+
+end_per_testcase(queued_messages_increase, C) ->
+    exometer:setopts([global, processQueueLengths], [{sample_interval, 60000}]),
+    C;
+end_per_testcase(_N, C) ->
+    C.
+
 up_time_positive(_C) ->
     {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, nodeUpTime),
     ?assert(X > 0).
@@ -90,6 +104,15 @@ up_time_positive(_C) ->
 tcp_connections_detected(_C) ->
     {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, tcpPortsUsed),
     ?assert(X > 0).
+
+queued_messages_increase(_C) ->
+    Pids = [spawn(fun() -> receive die -> ok end end) || _ <- lists:seq(1,5)],
+    lists:foreach(fun(Pid) -> Pid ! undefined end, Pids),
+    timer:sleep(60),
+    {ok, L} = mongoose_metrics:get_metric_value(global, processQueueLengths),
+    [Pid ! die || Pid <- Pids],
+    X = proplists:get_value(regular, L),
+    ?assert(X >= 5).
 
 no_skip_metric(_C) ->
     ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
