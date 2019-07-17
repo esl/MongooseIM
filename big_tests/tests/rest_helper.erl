@@ -164,7 +164,7 @@ decode(RespBody) ->
     try
         jiffy:decode(RespBody)
     catch
-        throw:_ ->
+        error:_ ->
             RespBody
     end.
 

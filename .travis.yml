@@ -50,6 +50,7 @@ after_success:
         - test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
         - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
         - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
+
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
             then tools/travis-build-and-push-docker.sh;
           fi
@@ -73,13 +74,15 @@ services:
 
 branches:
         only:
+                - deps_upgrade_erl_22
                 - master
                 - stable
                 - /^rel\-\d+\.\d+$/
                 - /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
 
 otp_release:
-        - 20.3
+        - 22.0
+
 env:
   global:
     - RUN_SMALL_TESTS=false
@@ -128,11 +131,11 @@ cache:
         directories:
                 - $HOME/.cache/rebar3
 
-deploy:
-  provider: releases
-  api-key: $GITHUB_TOKEN
-  skip_cleanup: true
-  file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
-  on:
-    tags: true
-    condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
+# deploy:
+#   provider: releases
+#   api-key: $GITHUB_TOKEN
+#   skip_cleanup: true
+#   file: mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+#   on:
+#     tags: true
+#     condition: "$PRESET.$TRAVIS_OTP_RELEASE = internal_mnesia.18.3"
