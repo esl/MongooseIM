@@ -108,7 +108,7 @@ init_per_group(_GroupName, Config) ->
 end_per_group(manual_ack_freq_long_session_timeout, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
     Config;
-end_per_group(parallel_manual_ack, Config) ->
+end_per_group(parallel_manual_ack_freq_1, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
     rpc(mim(), ?MOD_SM, set_resume_timeout, [600]),
     Config;
