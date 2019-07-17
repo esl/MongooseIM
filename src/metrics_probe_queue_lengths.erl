@@ -16,6 +16,8 @@
 -module(metrics_probe_queue_lengths).
 -behaviour(exometer_probe).
 
+-include("mongoose_logger.hrl").
+
 %% exometer_entry callbacks
 %% exometer_probe callbacks
 -export(
@@ -83,8 +85,8 @@ probe_setopts(_Entry, Opts, S) ->
 
 probe_handle_msg({'DOWN', Ref, _, _, {sample, Data}}, #state{ref = Ref} = S) ->
     {ok, S#state{ref = undefined, data = Data}};
-probe_handle_msg({'DOWN', Ref, _, _, _}, #state{ref = Ref} = S) ->
-    % TODO: sampling failed here, we probably should log something here
+probe_handle_msg({'DOWN', Ref, _, _, Reason}, #state{ref = Ref} = S) ->
+    ?WARNING_MSG("Probe sampling died with reason ~p: ", [Reason]),
     {ok, S#state{ref = undefined}};
 
 probe_handle_msg(_, S) ->
