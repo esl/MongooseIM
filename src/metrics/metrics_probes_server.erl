@@ -47,8 +47,14 @@ behaviour() ->
     probe.
 
 probe_init(_Name, _Type, Opts) ->
-    FunSampling = proplists:get_value(sampling, Opts, error_no_sampling_given),
-    DataPoints = proplists:get_value(datapoints, Opts, error_no_datapoints_given),
+    FunSampling = case proplists:get_value(sampling, Opts) of
+                      F when is_function(F) -> F;
+                      F -> error({invalid_sampling_fun_given, F})
+                  end,
+    DataPoints = case proplists:get_value(datapoints, Opts) of
+                      D when is_list(D) -> D;
+                      D -> error({invalid_datapoints_given, D})
+                  end,
     {ok, #state{datapoints = DataPoints,
                 sampling = FunSampling,
                 data = #{}}}.
