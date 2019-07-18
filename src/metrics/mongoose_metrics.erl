@@ -372,12 +372,12 @@ create_metrics(Host) ->
 ensure_metric(Host, Metric, Type, ShortType) when is_atom(Metric) ->
     ensure_metric(Host, [Metric], Type, ShortType);
 
-ensure_metric(Host, Metric, Type, module = ShortType) ->
+ensure_metric(Host, Metric, Type, probe = ShortType) ->
     PrefixedMetric = name_by_all_metrics_are_global(Host, Metric),
-    {ShortType, Mod, Opts} = Type,
+    {ShortType, Opts} = Type,
     case exometer:info(PrefixedMetric, type) of
         undefined ->
-            ExometerOpts = [{module, Mod}, {type, ShortType}] ++ Opts,
+            ExometerOpts = [{module, metrics_probes_server}, {type, ShortType}] ++ Opts,
             do_create_metric(PrefixedMetric, ad_hoc, ExometerOpts);
         _ ->
         {ok, already_present}

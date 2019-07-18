@@ -82,13 +82,13 @@
           {function, mongoose_metrics, get_mnesia_running_db_nodes_count, [],
            tagged, [value]}},
          {tcpPortsUsed,
-          {module, metrics_probes,
-           [{sampling, do_sample_tcp_connections},
+          {probe,
+           [{sampling, fun metrics_probes:do_sample_tcp_connections/0},
             {datapoints, [value]},
             {sample_interval, timer:seconds(30)}]}},
          {processQueueLengths,
-          {module, metrics_probes,
-           [{sampling, do_sample_queue_lengths},
+          {probe,
+           [{sampling, fun metrics_probes:do_sample_queue_lengths/0},
             {datapoints, [regular, fsm, total]},
             {sample_interval, timer:seconds(30)}]}}
         ]
