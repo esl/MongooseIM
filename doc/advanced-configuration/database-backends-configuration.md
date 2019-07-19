@@ -121,6 +121,8 @@ Please refer to the [Advanced configuration/Database setup](../Advanced-configur
 
 Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
+**Warning: MongooseIM may connect to MSSQL [only on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).**
+
 **Can be used for:**
 
 * users (credentials)
@@ -134,25 +136,32 @@ Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
 **Setup**
 
-MSSQL can be used from MongooseIM through the ODBC layer, so you need to have it installed in your system.
-Moreover, your Erlang/OTP as well as MongooseIM must be built with support for ODBC.
+MSSQL can be used from MongooseIM through the ODBC layer with FreeTDS driver, so you need them installed in your system.
 
-You can configure MongooseIM appropriately by using the following command (assuming you're in the top-level directory of the checked out repository):
+```bash
+# Ubuntu
+$ sudo apt install freetds-dev tdsodbc
 
-```sh
-./tools/configure with-odbc
+# CentOS
+$ sudo yum install freetds
+
+# macOS
+$ brew install freetds
 ```
 
-You also need FreeTDS (an ODBC driver for MSSQL) installed in your system.
+Then you need to configure the connection.
+Add your database (`mongooseim` here) to the `/etc/odbc.ini` or `$HOME/.odbc.ini` file:
 
-Then you need to configure the ODBC and FreeTDS drivers.
-You can find an example configuration for CentOS, given that unixODBC and freetds packages have been installed.
-
-Add your database (``mongooseim`` here) to the ``/etc/odbc.ini`` or ``$HOME/.odbc.ini`` file:
 ```ini
 [mongoose-mssql]
+; Ubuntu
 Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
 Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
+; CentOS
+; Driver      = /usr/lib64/libtdsodbc.so.0
+; Setup       = /usr/lib64/libtdsS.so
+; macOS
+; Driver      = /usr/local/Cellar/freetds/[current version]/lib/libtdsodbc.so
 Server      = 127.0.0.1
 Port        = 1433
 Database    = mongooseim
@@ -161,8 +170,12 @@ TDS_Version = 7.2
 client_charset = UTF-8
 ```
 
+Please amend the paths above to match your current OS if necessary.
+
 For more details please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm) and
 [unixodbc documentation](http://www.unixodbc.org/odbcinst.html).
+
+MongooseIM is built with ODBC support by default.
 
 **Deadlocks notice**
 
@@ -177,7 +190,7 @@ This property can be set by the following `ALTER DATABASE` query:
 ALTER DATABASE $name_of_your_db SET READ_COMMITTED_SNAPSHOT ON
 ```
 
-The above command may take some time.
+The command above may take some time.
 
 Then you need to import the SQL schema from either ``mssql2012.sql`` or ``azuresql.sql`` file depending on which database you are using.
 You can use a Microsoft's GUI tool (the provided .sql files should work with it) or isql, but after a slight modification of the dump file:
