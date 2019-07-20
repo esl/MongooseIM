@@ -261,8 +261,9 @@ too_many_unacked_stanzas(Config) ->
     {Bob, _} = given_fresh_user(Config, bob),
     {Alice, _} = given_fresh_user(Config, alice),
     escalus:wait_for_stanza(Alice), %% wait for ack request
-    Msg = escalus_stanza:chat_to(Alice, <<"Hi, Alice!">>),
-    [escalus:send(Bob, Msg) || _ <- lists:seq(1,?SMALL_SM_BUFFER)],
+    [escalus:send(Bob, escalus_stanza:chat_to(Alice,
+        <<(integer_to_binary(N))/binary, ": Hi, Alice!">>))
+     || N <- lists:seq(1,?SMALL_SM_BUFFER)],
     escalus:wait_for_stanzas(Alice, ?SMALL_SM_BUFFER * 2), % messages and ack requests
     escalus:assert(is_stream_error, [<<"resource-constraint">>,
                                      <<"too many unacked stanzas">>],
