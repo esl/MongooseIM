@@ -17,7 +17,7 @@
 
 -import(escalus_stanza, [setattr/3]).
 
--define(SHORT_RESUME_TIMEOUT, 5).
+-define(SHORT_RESUME_TIMEOUT, 3).
 -define(SMALL_SM_BUFFER, 3).
 
 %%--------------------------------------------------------------------
@@ -469,8 +469,8 @@ resend_unacked_after_resume_timeout(Config) ->
     U = proplists:get_value(username, AliceSpec),
     S = proplists:get_value(server, AliceSpec),
     1 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
-    %% wait 2 times longer to be sure that c2s is dead
-    ct:sleep({seconds, 2 * ?SHORT_RESUME_TIMEOUT}),
+    %% wait a bit longer to be sure that c2s is dead
+    ct:sleep({seconds, ?SHORT_RESUME_TIMEOUT + 1}),
     %% ensure there is no session
     0 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
 
