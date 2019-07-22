@@ -377,7 +377,7 @@ ensure_metric(Host, Metric, Type, probe = ShortType) ->
     {ShortType, Opts} = Type,
     case exometer:info(PrefixedMetric, type) of
         undefined ->
-            ExometerOpts = [{module, metrics_probes_server}, {type, ShortType}] ++ Opts,
+            ExometerOpts = [{module, mongoose_metrics_probe}, {type, ShortType}] ++ Opts,
             do_create_metric(PrefixedMetric, ad_hoc, ExometerOpts);
         _ ->
         {ok, already_present}

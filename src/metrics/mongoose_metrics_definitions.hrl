@@ -83,13 +83,11 @@
            tagged, [value]}},
          {tcpPortsUsed,
           {probe,
-           [{sampling, fun metrics_probes:do_sample_tcp_connections/0},
-            {datapoints, [value]},
+           [{callback_module, mongoose_metrics_probe_tcp},
             {sample_interval, timer:seconds(30)}]}},
          {processQueueLengths,
           {probe,
-           [{sampling, fun metrics_probes:do_sample_queue_lengths/0},
-            {datapoints, [regular, fsm, total]},
+           [{callback_module, mongoose_metrics_probe_queues},
             {sample_interval, timer:seconds(30)}]}}
         ]
 ).

@@ -13,7 +13,7 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%==============================================================================
--module(metrics_probes_server).
+-module(mongoose_metrics_probe).
 -behaviour(exometer_probe).
 
 -include("mongoose_logger.hrl").
@@ -35,10 +35,13 @@
         ]).
 
 -type datapoint() :: atom().
+-callback datapoints() -> [datapoint()].
+-callback sample() -> #{datapoint() => integer()}.
+
 -record(state, {
+    callback_module :: atom(),
     datapoints = [] :: [datapoint()],
     data = #{} :: #{datapoint() => integer()},
-    sampling :: function(),
     ref :: reference() | undefined
 }).
 
@@ -47,25 +50,18 @@ behaviour() ->
     probe.
 
 probe_init(_Name, _Type, Opts) ->
-    FunSampling = case proplists:get_value(sampling, Opts) of
-                      F when is_function(F) -> F;
-                      F -> error({invalid_sampling_fun_given, F})
-                  end,
-    DataPoints = case proplists:get_value(datapoints, Opts) of
-                      D when is_list(D) -> D;
-                      D -> error({invalid_datapoints_given, D})
-                  end,
-    {ok, #state{datapoints = DataPoints,
-                sampling = FunSampling,
+    Mod = case proplists:get_value(callback_module, Opts) of
+              M when is_atom(M) -> M;
+              M -> error({invalid_callback_module, M})
+          end,
+    {ok, #state{datapoints = Mod:datapoints(),
+                callback_module = Mod,
                 data = #{}}}.
 
 probe_terminate(_) -> ok.
 
 probe_get_value(DPs, #state{data = Data} = S) ->
-    {ok, probe_get_value_(Data, DPs), S}.
-
-probe_get_value_(Data, DPs) ->
-    maps:to_list(maps:with(DPs, Data)).
+    {ok, maps:to_list(maps:with(DPs, Data)), S}.
 
 probe_get_datapoints(#state{datapoints = DPs}) ->
     {ok, DPs}.
@@ -77,26 +73,24 @@ probe_reset(S) ->
     {ok, S#state{data = #{}}}.
 
 
-probe_sample(#state{sampling = Fun, ref = undefined} = S) ->
+probe_sample(#state{callback_module = Mod, ref = undefined} = S) ->
     {_Pid, Ref} =
         spawn_monitor(
             fun() ->
-                exit({sample, Fun()})
+                exit({sample, Mod:sample()})
             end),
     {ok, S#state{ref = Ref}};
 probe_sample(#state{} = S) ->
     {ok, S}.
 
-probe_setopts(_Entry, Opts, S) ->
-    DPs = proplists:get_value(datapoints, Opts, S#state.datapoints),
-    {ok, S#state{datapoints = DPs}}.
+probe_setopts(_Entry, _Opts, _S) ->
+    {error, not_supported}.
 
 probe_handle_msg({'DOWN', Ref, _, _, {sample, Data}}, #state{ref = Ref} = S) ->
     {ok, S#state{ref = undefined, data = Data}};
-probe_handle_msg({'DOWN', Ref, _, _, Reason}, #state{sampling = Fun, ref = Ref} = S) ->
-    ?WARNING_MSG("Probe sampling ~p died with reason ~p: ", [Fun, Reason]),
+probe_handle_msg({'DOWN', Ref, _, _, Reason}, #state{callback_module = Mod, ref = Ref} = S) ->
+    ?WARNING_MSG("Probe callback_module ~p died with reason ~p: ", [Mod, Reason]),
     {ok, S#state{ref = undefined}};
-
 probe_handle_msg(_, S) ->
     {ok, S}.
 

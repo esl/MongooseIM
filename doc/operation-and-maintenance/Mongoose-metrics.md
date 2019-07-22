@@ -156,8 +156,9 @@ Metrics specific to an extension, e.g. Message Archive Management, are described
 | `[global, processQueueLengths]` | probe | The number of queued messages in the
 internal message queue of every erlang process, and the internal queue of every
 fsm (ejabberd\_c2s). This is sampled every 30 seconds asynchronously. It is a
-good indicator of an overloaded system: if too many messages are queued at once,
-the system is not being able to process the data at the rate it is being created. |
+good indicator of an overloaded system: if too many messages are queued at the
+same time, the system is not able to process the data at the rate it was
+designed for. |
 
 ### Data metrics
 

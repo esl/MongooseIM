@@ -92,7 +92,7 @@ init_per_testcase(_N, C) ->
     C.
 
 end_per_testcase(queued_messages_increase, C) ->
-    exometer:setopts([global, processQueueLengths], [{sample_interval, 60000}]),
+    exometer:setopts([global, processQueueLengths], [{sample_interval, 30000}]),
     C;
 end_per_testcase(_N, C) ->
     C.
