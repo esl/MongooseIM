@@ -12,7 +12,7 @@ if [ ! -d "${CT_REPORTS}" ]; then
 fi
 
 echo "Uploading test results to s3"
-echo $(circleci_direct_s3_url ${CT_REPORTS})
+echo $(circleci_s3_url ${CT_REPORTS})
 
 
 # XXX please, reduce number of files
