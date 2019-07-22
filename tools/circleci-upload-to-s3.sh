@@ -25,7 +25,7 @@ sudo pip install awscli --upgrade --user
 sudo aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
 sudo aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
 sudo aws configure set default.region $AWS_DEFAULT_REGION
-time aws s3 cp ${CT_REPORTS} s3://circleci-mim-results/${CT_REPORTS} --acl public-read --debug --recursive
+time aws s3 cp ${CT_REPORTS} s3://circleci-mim-results/${CT_REPORTS} --acl public-read --recursive
 
 
 
