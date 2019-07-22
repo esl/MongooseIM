@@ -29,3 +29,4 @@ circleci_direct_s3_url() {
   local CT_REPORTS=${1:-}
   echo "https://circleci-mim-results.s3.eu-central-1.amazonaws.com/${CT_REPORTS}"
 }
+
