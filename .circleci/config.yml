@@ -200,6 +200,7 @@ orbs:
                 tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
           - run:
               name: Upload results
+              when: always
               command: |
                   tools/circleci-prepare-log-dir.sh
                   if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi

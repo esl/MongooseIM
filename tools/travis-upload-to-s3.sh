@@ -35,4 +35,3 @@ AWS_BUCKET="${AWS_BUCKET:-mongooseim-ct-results}"
 # 64 processes works better for our case, than 32 and 8 (default).
 time tools/s3-parallel-put --quiet --processes=64 --put=stupid \
     --bucket_region=$AWS_DEFAULT_REGION --bucket=$AWS_BUCKET --prefix=${CT_REPORTS} ${CT_REPORTS}
-    
