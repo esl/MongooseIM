@@ -25,13 +25,11 @@ orbs:
               sudo apt-get install unixodbc -y
               sudo apt-get install tdsodbc -y
               sudo apt-get install python-pip -y
-    executors:
-      mim_machine:
-        machine:
-          - image: ubuntu-1604:201903-01
     jobs:
       build_and_small_tests:
-        executor: mim_machine
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
         parameters:
           otp:
             type: string
@@ -94,7 +92,8 @@ orbs:
 
       dialyzer:
         parallelism: 1
-        executor: mim_machine
+        machine:
+          image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
           otp:
@@ -112,7 +111,8 @@ orbs:
                 
       package:
         parallelism: 1
-        executor: mim_machine
+        machine:
+          image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
           platform:
@@ -130,7 +130,7 @@ orbs:
       big_tests:
         parallelism: 1
         machine:
-          docker_layer_caching: false
+          image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
           otp:
