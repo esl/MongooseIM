@@ -7,7 +7,7 @@ Instructions provided in this page are verified for:
 * Ubuntu 18.04 LTS (Bionic)
 * macOS 10.14 (Mojave)
 
-For remaining OS versions the instructions should work as well, however some steps or file paths may be different.
+For any other OS versions, the instructions should still work, however, some steps or file paths may be different.
 
 ## Requirements
 
@@ -79,7 +79,7 @@ Now, please proceed to the "Building" section.
 
 ## Preparing CentOS environment
 
-Please install required dependencies:
+Please install the required dependencies:
 
 ```bash
 $ sudo yum install git make zlib-devel unixODBC-devel gcc gcc-c++ erlang
@@ -89,7 +89,7 @@ Now, please proceed to the "Building" section.
 
 ## Preparing Ubuntu environment
 
-Please install required dependencies:
+Please install the required dependencies:
 
 ```bash
 $ sudo apt install git make zlib1g-dev unixodbc-dev gcc g++ erlang

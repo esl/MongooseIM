@@ -121,9 +121,9 @@ Please refer to the [Advanced configuration/Database setup](../Advanced-configur
 
 Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
-**Warning: MongooseIM may connect to MSSQL [only on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).**
+**Warning: MongooseIM can only connect to MSSQL [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).**
 
-**Can be used for:**
+**This can be used for:**
 
 * users (credentials)
 * vcards
@@ -136,7 +136,7 @@ Microsoft SQL Server, sometimes called MSSQL, or Azure SQL Database.
 
 **Setup**
 
-MSSQL can be used from MongooseIM through the ODBC layer with FreeTDS driver, so you need them installed in your system.
+MSSQL can be used from MongooseIM through the ODBC layer with FreeTDS driver, so you need them installed on your system.
 
 ```bash
 # Ubuntu
@@ -172,7 +172,7 @@ client_charset = UTF-8
 
 Please amend the paths above to match your current OS if necessary.
 
-For more details please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm) and
+For more details, please refer to the [freetds.conf documentation](http://www.freetds.org/userguide/freetdsconf.htm) and
 [unixodbc documentation](http://www.unixodbc.org/odbcinst.html).
 
 MongooseIM is built with ODBC support by default.

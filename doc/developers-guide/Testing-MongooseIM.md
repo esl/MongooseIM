@@ -5,7 +5,7 @@ The test runner script is used to compile MongooseIM and run tests.
 ## IMPORTANT!
 
 * Some examples in this guide use the MySQL database. Please keep in mind that MongooseIM cannot connect to [MySQL via TLS on OTP 20.3](../operation-and-maintenance/known-issues.md).
-* ODBC preset may be tested [only on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
+* ODBC preset can only be tested [on Ubuntu Xenial x64](../operation-and-maintenance/known-issues.md).
 * SELinux may prevent containers from accessing the disk. Please either disable it or add proper rules to the policy.
 
 ## Requirements
@@ -31,7 +31,7 @@ $ sudo yum install freetds
 $ brew install freetds
 ```
 
-Then, please modify `tools/travis-setup-db.sh` script to use proper FreeTDS paths.
+Then, please modify `tools/travis-setup-db.sh` script to use the proper FreeTDS paths.
 Find a configuration block starting with `[mongoose-mssql]`.
 
 * In case of Ubuntu, you don't need to change anything.
