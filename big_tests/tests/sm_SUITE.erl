@@ -801,19 +801,11 @@ replies_are_processed_by_resumed_session(Config) ->
 %% 7. Packet rerouting crashes on the buffered sub request, preventing resending whole buffer
 %% 8. B doesn't receive the buffered message
 subscription_requests_are_buffered_properly(Config) ->
-    AliceSpec = [{manual_ack, true}
-                 | escalus_fresh:create_fresh_user(Config, alice)],
-
+    AliceSpec = [{manual_ack, true} | escalus_fresh:create_fresh_user(Config, alice)],
     MsgBody = <<"buffered">>,
-    SubPredFun = fun(S) ->
-                         escalus_pred:is_presence_with_type(<<"subscribe">>, S)
-                 end,
-    AvailablePredFun = fun(S) ->
-                               escalus_pred:is_presence_with_type(<<"available">>, S)
-                       end,
-    MsgPredFun = fun(S) ->
-                         escalus_pred:is_chat_message(MsgBody, S)
-                 end,
+    SubPredFun = fun(S) -> escalus_pred:is_presence_with_type(<<"subscribe">>, S) end,
+    AvailablePredFun = fun(S) -> escalus_pred:is_presence_with_type(<<"available">>, S) end,
+    MsgPredFun = fun(S) -> escalus_pred:is_chat_message(MsgBody, S) end,
 
     escalus:fresh_story(Config, [{bob, 1}], fun(Bob) ->
         % GIVEN Bob's pending subscription to Alice's presence
@@ -840,7 +832,7 @@ subscription_requests_are_buffered_properly(Config) ->
         escalus_client:kill_connection(Config, Alice),
 
         % ...and reconnects with session replacement.
-        {ok, Alice2, _} = escalus_connection:start(AliceSpec),
+        {ok, Alice2, _} = escalus_connection:start(AliceSpec, connection_steps_to_session()),
 
         % THEN Alice receives (without sending initial presence):
         % * buffered available presence (because it's addressed to full JID)
