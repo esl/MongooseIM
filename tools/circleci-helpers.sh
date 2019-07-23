@@ -20,12 +20,12 @@ ct_reports_dir() {
 # Works for directories only
 # Allows to list directories content
 
-circleci_s3_url() {
+s3_url() {
   local CT_REPORTS=${1:-}
   echo "http://esl.github.io/circleci-mim-results/s3_reports.html?prefix=${CT_REPORTS}"
 }
 
-circleci_direct_s3_url() {
+direct_s3_url() {
   local CT_REPORTS=${1:-}
   echo "https://circleci-mim-results.s3.eu-central-1.amazonaws.com/${CT_REPORTS}"
 }

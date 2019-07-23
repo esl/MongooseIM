@@ -12,7 +12,7 @@ if [ ! -d "${CT_REPORTS}" ]; then
 fi
 
 echo "Uploading test results to s3"
-echo $(circleci_s3_url ${CT_REPORTS})
+echo $(s3_url ${CT_REPORTS})
 
 
 # XXX please, reduce number of files
@@ -25,7 +25,6 @@ sudo pip install awscli --upgrade --user
 aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
 aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
 aws configure set default.region $AWS_DEFAULT_REGION
-time aws s3 cp ${CT_REPORTS} s3://circleci-mim-results/${CT_REPORTS} --acl public-read --recursive
-
+time aws s3 cp ${CT_REPORTS} s3://circleci-mim-results/${CT_REPORTS} --acl public-read --recursive --quiet
 
 
