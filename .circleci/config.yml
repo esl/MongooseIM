@@ -117,7 +117,7 @@ orbs:
         parameters:
           platform:
             type: enum
-            enum: ['centos7', 'debian_stretch']
+            enum: [centos7, debian_stretch]
             description: Platform type
         environment:
           pkg_PLATFORM: <<parameters.platform>>
