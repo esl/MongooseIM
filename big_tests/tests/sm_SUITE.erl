@@ -437,7 +437,7 @@ receive_all_ordered(Conn, N) ->
             NN = case Stanza#xmlel.name of
                      <<"message">> ->
                          %ct:pal("~p~n", [Stanza]),
-                         escalus:assert(is_chat_message, [list_to_binary(integer_to_list(N))], Stanza),
+                         escalus:assert(is_chat_message, [integer_to_binary(N)], Stanza),
                          N + 1;
                      _ ->
                          N
@@ -467,13 +467,9 @@ resend_unacked_after_resume_timeout(Config) ->
     %% kill alice connection
     escalus_connection:kill(Alice),
 
-    U = proplists:get_value(username, AliceSpec),
-    S = proplists:get_value(server, AliceSpec),
-    1 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
-    %% wait a bit longer to be sure that c2s is dead
-    ct:sleep({seconds, ?SHORT_RESUME_TIMEOUT + 1}),
     %% ensure there is no session
-    0 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
+    wait_until_disconnected(AliceSpec),
+    0 = length(get_user_alive_resources(AliceSpec)),
 
     %% alice come back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
@@ -513,9 +509,7 @@ resume_session_state_send_message(Config) ->
     escalus_connection:kill(Alice),
     wait_for_c2s_state_change(C2SPid, resume_session),
 
-    U = proplists:get_value(username, AliceSpec),
-    S = proplists:get_value(server, AliceSpec),
-    1 = length(rpc(mim(), ejabberd_sm, get_user_resources, [U, S])),
+    1 = length(get_user_alive_resources(AliceSpec)),
 
     %% send some messages and check if c2s can handle it
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-2">>)),
@@ -559,15 +553,12 @@ resume_session_state_stop_c2s(Config) ->
 
     % kill alice connection
     escalus_connection:kill(Alice),
-    ct:sleep(1000), %% alice should be in resume_session_state
     % session should be alive
-    U = proplists:get_value(username, AliceSpec),
-    S = proplists:get_value(server, AliceSpec),
-    [Res] = rpc(mim(), ejabberd_sm, get_user_resources, [U, S]),
+    1 = length(get_user_alive_resources(AliceSpec)),
     %% get pid of c2s and stop him !
-    C2SRef = rpc(mim(), ejabberd_sm, get_session_pid, [U, S, Res]),
-    rpc(mim(), ejabberd_c2s, stop, [C2SRef] ),
-    wait_for_c2s_state_change(C2SRef, resume_session),
+    {ok, C2SPid} = get_session_pid(AliceSpec, escalus_client:resource(Alice)),
+    rpc(mim(), ejabberd_c2s, stop, [C2SPid] ),
+    wait_for_c2s_state_change(C2SPid, resume_session),
 
     %% alice comes back and receives unacked message
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, ConnSteps),
@@ -639,7 +630,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
         escalus:assert(is_stream_error, [<<"policy-violation">>,
                                          <<"h attribute too big">>], Resumed),
 
-        [] = get_user_resources(AliceSpec),
+        [] = get_user_present_resources(AliceSpec),
         [] = get_sid_by_stream_id(SMID),
         escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end).
@@ -655,7 +646,7 @@ resume_session_with_wrong_namespace_is_a_noop(Config) ->
     Attrs2 = lists:keyreplace(<<"xmlns">>, 1, Attrs, {<<"xmlns">>, <<"not-stream-mgnt">>}),
     escalus_connection:send(Alice, Resume#xmlel{attrs = Attrs2}),
     escalus_assert:has_no_stanzas(Alice),
-    [] = get_user_resources(AliceSpec),
+    [] = get_user_present_resources(AliceSpec),
     true = escalus_connection:is_connected(Alice),
     escalus_connection:stop(Alice).
 
@@ -671,7 +662,7 @@ session_resumption_expects_item_not_found(Config, SMID) ->
     {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
     Resumed = try_to_resume_stream(Alice, SMID, 2),
     escalus:assert(is_sm_failed, [<<"item-not-found">>], Resumed),
-    [] = get_user_resources(AliceSpec),
+    [] = get_user_present_resources(AliceSpec),
     true = escalus_connection:is_connected(Alice),
     escalus_connection:stop(Alice).
 
@@ -978,8 +969,8 @@ extract_state_name(SysStatus) ->
     proplists:get_value("StateName", FSMData).
 
 wait_until_disconnected(UserSpec) ->
-    mongoose_helper:wait_until(fun() -> get_user_resources(UserSpec) =:= [] end, true,
-                               #{name => get_user_resources}).
+    mongoose_helper:wait_until(fun() -> get_user_alive_resources(UserSpec) =:= [] end, true,
+                               #{name => get_user_alive_resources}).
 
 monitor_session(Client) ->
     UserSpec = Client#client.props,
@@ -1005,7 +996,11 @@ get_session_pid(UserSpec, Resource) ->
             {ok, C2SPid}
     end.
 
-get_user_resources(UserSpec) ->
+get_user_alive_resources(UserSpec) ->
+    {U, S} = get_us_from_spec(UserSpec),
+    rpc(mim(), ejabberd_sm, get_user_resources, [U, S]).
+
+get_user_present_resources(UserSpec) ->
     {U, S} = get_us_from_spec(UserSpec),
     rpc(mim(), ejabberd_sm, get_user_present_resources, [U, S]).
 
