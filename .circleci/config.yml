@@ -172,7 +172,7 @@ orbs:
               command: |
                 tools/travis-setup-db.sh
                 if [ $PRESET = ldap_mnesia ]; then sudo tools/travis-setup-ldap.sh; fi
-                if [ $PRESET = mysql_redis ]; then sudo tools/travis-setup-rmq.sh; tools/setup-redis.sh; fi
+                sudo tools/travis-setup-rmq.sh; tools/setup-redis.sh
                 echo '127.0.0.1 muc.localhost' | sudo tee -a /etc/hosts
           - run:
               name: Run Big Tests
