@@ -35,9 +35,9 @@ orbs:
             type: string
             description: Version of the Erlang package to install
           build_releases:
-            type: string
+            type: boolean
             description: Flag to build release or not
-            default: "1"
+            default: true
 
         environment:
           SKIP_RELEASE: 1
@@ -74,13 +74,13 @@ orbs:
               command: |
                 make certs
           - run:
-              name: Run Small tests
+              name: Run Small Tests
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
           - run:
               name: Install Releases
               command: |
-                test 0 = <<parameters.build_releases>> || make devrel
+                if [ <<parameters.build_releases>> ]; then make devrel; fi
           - run:
               name: Build Big Tests
               command: |
@@ -116,7 +116,8 @@ orbs:
         working_directory: ~/app
         parameters:
           platform:
-            type: string
+            type: enum
+            enum: ['centos7', 'debian_stretch']
             description: Platform type
         environment:
           pkg_PLATFORM: <<parameters.platform>>
@@ -137,7 +138,9 @@ orbs:
             type: string
             description: Version of the Erlang package to install
           preset:
-            type: string
+            type: enum
+            enum: [internal_mnesia, mysql_redis, odbc_mssql_mnesia, ldap_mnesia,
+                   elasticsearch_and_cassandra_mnesia, pgsql_mnesia, riak_mnesia]
             description: Preset to run
             default: internal_mnesia
           db:
@@ -226,7 +229,7 @@ workflows:
       - mim/build_and_small_tests:
           name: otp_22_small_tests
           otp: 1:22.0.4-1
-          build_releases: "0"
+          build_releases: false
           context: mongooseim-org
       - mim/dialyzer:
           name: dialyzer
