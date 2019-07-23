@@ -225,7 +225,7 @@ elif [ "$PRESET" == "small_tests" ]; then
   RESULT=$?
   exit ${RESULT}
 else
-  [ x"$TLS_DIST" == xyes ] && enable_tls_dist
+  [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
 fi
 

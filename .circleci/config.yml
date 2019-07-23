@@ -148,9 +148,9 @@ orbs:
             description: Database to use
             default: mnesia
           tls_dist:
-            type: string
+            type: boolean
             description: Erlang distribution with TLS enabled
-            default: "no"
+            default: false
         environment:
           MIX_ENV: test
           PRESET: <<parameters.preset>>
@@ -271,7 +271,7 @@ workflows:
           otp: 1:21.3.8.4-1
           preset: internal_mnesia
           db: mnesia
-          tls_dist: "yes"
+          tls_dist: true
           context: mongooseim-org
           requires:
             - otp_21_3_small_tests

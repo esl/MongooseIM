@@ -11,7 +11,7 @@ else
     SED=sed
 fi
 
-TLS_DIST=${TLS_DIST:-no}
+TLS_DIST=${TLS_DIST:-false}
 START_NODES=${START_NODES:-true}
 
 DEFAULT_DEV_NODES="mim1 mim2 mim3 fed1 reg1"

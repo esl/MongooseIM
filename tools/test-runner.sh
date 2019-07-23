@@ -292,7 +292,7 @@ BUILD_TESTS=true
 BUILD_MIM=true
 START_NODES=true
 STOP_NODES=true
-TLS_DIST=no
+TLS_DIST=false
 
 SELECTED_TESTS=()
 STOP_SCRIPT=false
@@ -449,7 +449,7 @@ case $key in
 
     --tls-dist)
         shift # past argument
-        TLS_DIST=yes
+        TLS_DIST=true
     ;;
 
     --verbose)
