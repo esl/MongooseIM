@@ -15,7 +15,7 @@ echo "Uploading test results to s3"
 echo $(s3_url ${CT_REPORTS})
 
 
-# XXX please, reduce number of files
+
 FILE_COUNT=$(find "${CT_REPORTS}" -type f | wc -l)
 echo "Uploading $FILE_COUNT files"
 ls $CT_REPORTS
