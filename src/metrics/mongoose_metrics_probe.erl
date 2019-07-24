@@ -40,7 +40,6 @@
 
 -record(state, {
     callback_module :: atom(),
-    datapoints = [] :: [datapoint()],
     data = #{} :: #{datapoint() => integer()},
     ref :: reference() | undefined
 }).
@@ -54,8 +53,7 @@ probe_init(_Name, _Type, Opts) ->
               M when is_atom(M) -> M;
               M -> error({invalid_callback_module, M})
           end,
-    {ok, #state{datapoints = Mod:datapoints(),
-                callback_module = Mod,
+    {ok, #state{callback_module = Mod,
                 data = #{}}}.
 
 probe_terminate(_) -> ok.
@@ -63,8 +61,8 @@ probe_terminate(_) -> ok.
 probe_get_value(DPs, #state{data = Data} = S) ->
     {ok, maps:to_list(maps:with(DPs, Data)), S}.
 
-probe_get_datapoints(#state{datapoints = DPs}) ->
-    {ok, DPs}.
+probe_get_datapoints(#state{callback_module = Mod}) ->
+    {ok, Mod:datapoints()}.
 
 probe_update(_, _) ->
     {error, not_supported}.

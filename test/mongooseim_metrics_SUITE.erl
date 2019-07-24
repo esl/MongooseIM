@@ -108,11 +108,11 @@ tcp_connections_detected(_C) ->
 queued_messages_increase(_C) ->
     Pids = [spawn(fun() -> receive die -> ok end end) || _ <- lists:seq(1,5)],
     lists:foreach(fun(Pid) -> Pid ! undefined end, Pids),
-    timer:sleep(60),
-    {ok, L} = mongoose_metrics:get_metric_value(global, processQueueLengths),
-    [Pid ! die || Pid <- Pids],
-    X = proplists:get_value(regular, L),
-    ?assert(X >= 5).
+    {ok, {ok, _L}} = async_helper:wait_until(
+                fun() ->  mongoose_metrics:get_metric_value(global, processQueueLengths) end,
+                {ok, [{fsm, 0}, {regular, 5}, {total, 5}]}
+     ),
+    [Pid ! die || Pid <- Pids].
 
 no_skip_metric(_C) ->
     ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),

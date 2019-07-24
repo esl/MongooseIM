@@ -16,8 +16,6 @@
 -module(mongoose_metrics_probe_queues).
 -behaviour(mongoose_metrics_probe).
 
--include("mongoose_logger.hrl").
-
 -export([sample/0, datapoints/0]).
 
 datapoints() ->
