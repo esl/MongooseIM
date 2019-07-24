@@ -35,9 +35,14 @@ while getopts ":p::s::e::c:" opt; do
 done
 
 source tools/travis-common-vars.sh
-source tools/travis-helpers.sh
 
-if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+if [ ${CIRCLECI} ]; then
+source tools/circleci-helpers.sh
+else
+source tools/travis-helpers.sh
+fi
+
+if [ "${AWS_SECRET_ACCESS_KEY}" ]; then
   CT_REPORTS=$(ct_reports_dir)
 
   echo "Test results will be uploaded to:"
@@ -220,7 +225,7 @@ elif [ "$PRESET" == "small_tests" ]; then
   RESULT=$?
   exit ${RESULT}
 else
-  [ x"$TLS_DIST" == xyes ] && enable_tls_dist
+  [ x"$TLS_DIST" == xtrue ] && enable_tls_dist
   run_tests
 fi
 

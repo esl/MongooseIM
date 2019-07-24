@@ -45,12 +45,6 @@ after_failure:
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
 after_success:
-        # env variables help to distinguish CI builds
-        # It takes less time without gcov
-        - test 1 = "$SKIP_COV" || ./rebar3 codecov analyze
-        - test 1 = "$SKIP_COV" || codecov --disable=gcov --env PRESET
-        - test 1 = "$SKIP_COV" || ./rebar3 coveralls send
-
         - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
             then tools/travis-build-and-push-docker.sh;
           fi
@@ -89,7 +83,7 @@ env:
   matrix:
       # When changing jobs, update EXAMPLES in tools/test-runner.sh
     - PRESET=small_tests RUN_SMALL_TESTS=true SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-    - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=yes
+    - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=true
     - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
     - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
     - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
