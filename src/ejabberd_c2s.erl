@@ -1485,12 +1485,11 @@ terminate(_Reason, StateName, StateData) ->
     case {should_close_session(StateName), StateData#state.authenticated} of
         {false, _} ->
             ok;
-        %% if we are in an state wich have a session established
+        %% if we are in an state which has a session established
         {_, replaced} ->
             ?INFO_MSG("(~w) Replaced session for ~s",
                       [StateData#state.socket,
                        jid:to_binary(StateData#state.jid)]),
-            From = StateData#state.jid,
             StatusEl = #xmlel{name = <<"status">>,
                               children = [#xmlcdata{content = <<"Replaced by new connection">>}]},
             Packet = #xmlel{name = <<"presence">>,
@@ -1529,7 +1528,6 @@ terminate(_Reason, StateName, StateData) ->
                                               StateData#state.resource,
                                               normal);
                 _ ->
-                    From = StateData#state.jid,
                     Packet = #xmlel{name = <<"presence">>,
                                     attrs = [{<<"type">>, <<"unavailable">>}]},
                     Acc0 = element_to_origin_accum(Packet, StateData),
