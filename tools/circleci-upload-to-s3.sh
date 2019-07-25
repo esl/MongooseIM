@@ -30,7 +30,7 @@ aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
 aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
 aws configure set default.region $AWS_DEFAULT_REGION
 
-sudo tools/s3-parallel-put --quiet --processes=64 --put=stupid \
+tools/s3-parallel-put --quiet --processes=64 --put=stupid \
                     --host=s3.$AWS_DEFAULT_REGION.amazonaws.com  --bucket_region=$AWS_DEFAULT_REGION \
                     --bucket=circleci-mim-results --prefix=${CT_REPORTS} ${CT_REPORTS} --grant=public-read
 
