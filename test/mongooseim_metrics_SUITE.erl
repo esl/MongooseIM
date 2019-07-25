@@ -87,11 +87,18 @@ end_per_group(_Name, C) ->
 init_per_testcase(queued_messages_increase, C) ->
     exometer:setopts([global, processQueueLengths], [{sample_interval, 50}]),
     exometer:repair([global, processQueueLengths]),
-    C;
+    PidsFun = fun() -> put('$internal_queue_len', 1),
+                       receive die -> ok
+                       end
+              end,
+    Pids = [spawn(PidsFun) || _ <- lists:seq(1,5)],
+    lists:foreach(fun(Pid) -> Pid ! undefined end, Pids),
+    [{pids, Pids} | C];
 init_per_testcase(_N, C) ->
     C.
 
 end_per_testcase(queued_messages_increase, C) ->
+    [Pid ! die || Pid <- ?config(pids, C)],
     exometer:setopts([global, processQueueLengths], [{sample_interval, 30000}]),
     C;
 end_per_testcase(_N, C) ->
@@ -106,13 +113,13 @@ tcp_connections_detected(_C) ->
     ?assert(X > 0).
 
 queued_messages_increase(_C) ->
-    Pids = [spawn(fun() -> receive die -> ok end end) || _ <- lists:seq(1,5)],
-    lists:foreach(fun(Pid) -> Pid ! undefined end, Pids),
-    {ok, {ok, _L}} = async_helper:wait_until(
-                fun() ->  mongoose_metrics:get_metric_value(global, processQueueLengths) end,
-                {ok, [{fsm, 0}, {regular, 5}, {total, 5}]}
-     ),
-    [Pid ! die || Pid <- Pids].
+    async_helper:wait_until(
+      fun() ->
+              {ok, L} = mongoose_metrics:get_metric_value(global, processQueueLengths),
+              lists:sort(L)
+      end,
+      [{fsm, 5}, {regular, 5}, {total, 10}]
+     ).
 
 no_skip_metric(_C) ->
     ok = mongoose_metrics:create_generic_hook_metric(<<"localhost">>, sm_register_connection_hook),
