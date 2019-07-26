@@ -69,6 +69,7 @@ deps.log
 dialyzer
 configure.out
 ejd-redis.conf
+reg*.log
 fed*.log
 mim*.log
 node*.log
