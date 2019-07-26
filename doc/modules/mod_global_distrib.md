@@ -127,7 +127,7 @@ Global distribution modules expose several per-datacenter metrics that can be us
   A separate timer is maintained for every remote domain.
 * **disabled_gc_interval** (seconds, default: `60`): An interval between disabled endpoints "garbage collection".
   It means that disabled endpoints are periodically verified and if Global Distribution detects that connections is no longer alive, the connection pool is closed completely.
-* **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.
+* **tls_opts** (list, required): Options for TLS connections passed to the `fast_tls` driver.<a name="tls_opts"></a>
   May be set to `false`, in which case all data will be sent via standard TCP connections.
   Otherwise, they should at least include `certfile` and `cafile` options.
 
