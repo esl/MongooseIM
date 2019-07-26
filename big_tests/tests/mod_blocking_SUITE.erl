@@ -47,6 +47,7 @@ groups() ->
          {pushes, [parallel], push_test_cases()},
          {notify, [parallel], notify_test_cases()}
         ],
+%%    G.
     ct_helper:repeat_all_until_all_ok(G).
 
 manage_test_cases() ->
@@ -65,9 +66,10 @@ manage_test_cases() ->
 
 effect_test_cases() ->
     [
-        messages_from_blocked_user_dont_arrive,
-        messages_from_unblocked_user_arrive_again,
-        messages_from_any_blocked_resource_dont_arrive,
+        stanzas_from_blocked_user_dont_arrive,
+        iqs_from_blocked_friends_are_rejected,
+        stanzas_from_unblocked_user_arrive_again,
+        stanzas_from_any_blocked_resource_dont_arrive,
         blocking_doesnt_interfere,
         blocking_propagates_to_resources,
         iq_reply_doesnt_crash_user_process
@@ -225,17 +227,37 @@ invalid_block_request(Config) ->
             privacy_helper:gets_error(User1, <<"modify">>, <<"bad-request">>)
         end).
 
-messages_from_blocked_user_dont_arrive(Config) ->
+stanzas_from_blocked_user_dont_arrive(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
-            message(User2, User1, <<"Hi!">>),
+            %% message is dropped and returns error
+            send_message(User2, User1, <<"Hi!">>),
             client_gets_nothing(User1),
-            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>)
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
+            %% TODO test presence and subscription handling
+            %% iq is rejected
+            send_ping(User2, User1),
+            client_gets_nothing(User1),
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
+            ok
         end).
 
-messages_from_unblocked_user_arrive_again(Config) ->
+iqs_from_blocked_friends_are_rejected(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(User1, User2) ->
+            escalus_story:make_all_clients_friends([User1, User2]),
+            user_blocks(User1, [User2]),
+            escalus_client:wait_for_stanza(User2), % receives unavailable
+            send_ping(User2, User1),
+            client_gets_nothing(User1),
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
+            ok
+        end).
+
+stanzas_from_unblocked_user_arrive_again(Config) ->
     escalus:fresh_story(
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
@@ -244,10 +266,14 @@ messages_from_unblocked_user_arrive_again(Config) ->
             %% when
             user_unblocks(User1, User2),
             %% then
-            message_is_delivered(User2, User1, <<"Hello again!">>)
+            message_is_delivered(User2, User1, <<"Hello again!">>),
+            iq_is_delivered(User2, User1),
+            message_is_delivered(User1, User2, <<"Hello again!">>),
+            iq_is_delivered(User1, User2),
+            ok
         end).
 
-messages_from_any_blocked_resource_dont_arrive(Config) ->
+stanzas_from_any_blocked_resource_dont_arrive(Config) ->
     escalus:fresh_story(
         Config, [{alice, 3}, {bob, 1}],
         fun(User1a, User1b, User1c, User2) ->
@@ -395,7 +421,7 @@ blocker_cant_send_to_blockee(Config) ->
         Config, [{alice, 1}, {bob, 1}],
         fun(User1, User2) ->
             user_blocks(User1, [User2]),
-            message(User1, User2, <<"I'm not talking to you!">>),
+            send_message(User1, User2, <<"I'm not talking to you!">>),
             client_gets_blocking_error(User1)
         end).
 
@@ -627,12 +653,26 @@ user_unblocks_all(User) ->
     escalus_client:send(User, unblock_all_stanza()),
     user_gets_remove_result(User, []).
 
-message(From, To, MsgTxt) ->
+send_message(From, To, MsgTxt) ->
     escalus_client:send(From, escalus_stanza:chat_to(To, MsgTxt)).
+
+send_ping(From, To) ->
+    St = escalus_stanza:ping_request(To),
+    escalus_client:send(From, St).
 
 client_gets_nothing(Client) ->
     ct:sleep(500),
     escalus_assert:has_no_stanzas(Client).
+
+client_gets_stanza(Client, Name, Type) ->
+    St = escalus_client:wait_for_stanza(Client),
+    ?assertEqual(Name, St#xmlel.name),
+    ?assertEqual(Type, exml_query:attr(St, <<"type">>)).
+
+iq_is_delivered(From, To) ->
+    send_ping(From, To),
+    Res = escalus:wait_for_stanza(To),
+    ?assertEqual(<<"iq">>, Res#xmlel.name).
 
 message_is_delivered(From, [To|_] = Tos, MessageText) ->
     BareTo = escalus_utils:jid_to_lower(escalus_client:short_jid(To)),

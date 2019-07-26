@@ -1326,6 +1326,8 @@ handle_routed_iq(_From, To, Acc, #iq{}, StateData) ->
         allow ->
             {allow, Acc1, StateData};
         deny ->
+            {deny, Acc1, StateData};
+        block ->
             {deny, Acc1, StateData}
     end;
 handle_routed_iq(_From, _To, Acc, IQ, StateData)
