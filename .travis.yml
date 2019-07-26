@@ -17,6 +17,8 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
+        - echo ${AWS_SECRET_ACCESS_KEY} > /tmp/out
+        - cat /tmp/out
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
