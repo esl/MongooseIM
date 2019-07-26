@@ -853,15 +853,17 @@ route_message_by_type(_, From, To, Acc, Packet) ->
                         Acc,
                         [From, To, Packet]);
                 false ->
-                    ejabberd_hooks:run_fold(failed_to_store_message,
-                                            LServer,
-                                            Acc,
-                                            [From, Packet])
+                    Acc1 = ejabberd_hooks:run_fold(failed_to_store_message,
+                                                   LServer,
+                                                   Acc,
+                                                   [From, Packet]),
+                    {stop, Acc2} = bounce_offline_message(Acc1, From, To, Packet),
+                    Acc2
+
             end;
         _ ->
-            {Acc1, Err} = jlib:make_error_reply(
-                Acc, Packet, mongoose_xmpp_errors:service_unavailable()),
-            ejabberd_router:route(To, From, Acc1, Err)
+            {stop, Acc2} = bounce_offline_message(Acc, From, To, Packet),
+            Acc2
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

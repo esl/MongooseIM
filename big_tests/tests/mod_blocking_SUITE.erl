@@ -79,6 +79,7 @@ offline_test_cases() ->
     [
         messages_after_relogin,
         messages_arrive_after_unblock_and_relogin,
+        messages_and_iqs_to_offline_users_are_rejected,
         blocking_and_relogin_many,
         clear_list_relogin
     ].
@@ -365,6 +366,21 @@ messages_arrive_after_unblock_and_relogin(Config) ->
         fun(User1, User2) ->
             message_is_delivered(User2, [User1], <<"Hey bob, are you there?">>)
         end).
+
+messages_and_iqs_to_offline_users_are_rejected(Config) ->
+    escalus:fresh_story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(User1, User2) ->
+            user_blocks(User1, [User2]),
+            mongoose_helper:logout_user(Config, User1),
+            %% message is dropped and returns error
+            send_message(User2, User1, <<"Hi!">>),
+            privacy_helper:gets_error(User2, <<"cancel">>, <<"service-unavailable">>),
+            %% TODO test presence and subscription handling
+            %% iq is rejected anyway because the guy is offline
+            ok
+        end).
+
 
 blocking_and_relogin_many(Config) ->
     %% given
