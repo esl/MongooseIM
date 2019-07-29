@@ -158,7 +158,7 @@ connect(Addr, Port, Opts, Timeout) ->
 -spec tcp_to_tls(socket_state(), list()) -> ejabberd_tls:tls_socket().
 tcp_to_tls(#socket_state{receiver = Receiver}, TLSOpts) ->
     SanitizedTLSOpts = case lists:keyfind(protocol_options, 1, TLSOpts) of
-        false -> TLSOpts;
+        false -> [{protocol_options, "no_sslv2|no_sslv3|no_tlsv1|no_tlsv1_1"} | TLSOpts];
         {_, ProtoOpts} ->
             NewProtoOpts = {protocol_options, string:join(ProtoOpts, "|")},
             lists:keyreplace(protocol_options, 1, TLSOpts, NewProtoOpts)
