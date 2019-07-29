@@ -70,14 +70,18 @@
 -spec tcp_to_tls(inet:socket(), Opts::list()) -> {ok, socket()} | {error, any()}.
 tcp_to_tls(TCPSocket, Opts) ->
     Module = proplists:get_value(tls_module, Opts, fast_tls),
-    NewOpts = proplists:delete(tls_module, Opts),
-    case Module:tcp_to_tls(TCPSocket, NewOpts) of
+    NewOpts1 = proplists:delete(tls_module, Opts),
+    NewOpts2 = case proplists:get_value(ciphers, NewOpts1) of
+                   undefined -> [{ciphers, "TLSv1.2:TLSv1.3"} | NewOpts1];
+                   _ -> NewOpts1
+               end,
+    case Module:tcp_to_tls(TCPSocket, NewOpts2) of
         {ok, TLSSocket} ->
-            HasCert = has_peer_cert(NewOpts),
+            HasCert = has_peer_cert(NewOpts2),
             {ok, #ejabberd_tls_socket{tls_module = Module,
                                       tcp_socket = TCPSocket,
                                       tls_socket = TLSSocket,
-                                      tls_opts   = NewOpts,
+                                      tls_opts   = NewOpts2,
                                       has_cert   = HasCert}};
         Error -> Error
     end.

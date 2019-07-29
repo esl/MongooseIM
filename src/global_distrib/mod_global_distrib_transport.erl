@@ -37,8 +37,12 @@ wrap(Socket, [connect | false]) ->
     wrap(Socket, false);
 wrap(Socket, false) ->
     {ok, #?MODULE{transport = gen_tcp, socket = Socket}};
-wrap(Socket, Opts) ->
-    case fast_tls:tcp_to_tls(Socket, Opts) of
+wrap(Socket, Opts0) ->
+    Opts1 = case proplists:get_value(ciphers, Opts0) of
+                undefined -> [{ciphers, "TLSv1.2:TLSv1.3"} | Opts0];
+                _ -> Opts0
+            end,
+    case fast_tls:tcp_to_tls(Socket, Opts1) of
         {ok, TLSSocket} -> {ok, #?MODULE{transport = fast_tls, socket = TLSSocket}};
         Error -> Error
     end.
