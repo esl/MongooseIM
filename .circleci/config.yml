@@ -13,8 +13,9 @@ orbs:
             name: Install Erlang
             command: |
               wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb
+              sudo killall -9 apt-get || true && \
               sudo dpkg -i erlang-solutions_1.0_all.deb
-              sudo killall -9 apt-get || true && \ sudo apt-get update && \
+              sudo apt-get update && \
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
       fetch_packages:
         steps:
