@@ -154,7 +154,7 @@ base_groups() ->
          {node_config, [parallel], node_config_tests()},
          {node_affiliations, [parallel], node_affiliations_tests()},
          {manage_subscriptions, [parallel], manage_subscriptions_tests()},
-         {collection, [parallel], collection_tests()},
+         {collection, [], collection_tests()},
          {collection_config, [parallel], collection_config_tests()},
          {debug_calls, [parallel], debug_calls_tests()},
          {pubsub_item_publisher_option, [parallel], pubsub_item_publisher_option_tests()},
