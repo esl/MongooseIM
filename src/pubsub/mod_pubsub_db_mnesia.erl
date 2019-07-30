@@ -656,7 +656,7 @@ del_state(#pubsub_state{ stateid = {LJID, Nidx}, subscriptions = Subs }) ->
     {ok, mod_pubsub:pubsubState()}.
 get_state(Nidx, LJID, LockKind) ->
     StateId = {LJID, Nidx},
-    case catch mnesia:read(pubsub_state, StateId, LockKind) of
+    case mnesia:read(pubsub_state, StateId, LockKind) of
         [#pubsub_state{} = State] -> {ok, State};
         _ -> {ok, #pubsub_state{stateid = StateId}}
     end.
