@@ -54,7 +54,7 @@ groups() ->
            test_hidden_component_disco_in_different_region,
            test_pm_with_disconnection_on_other_server,
            test_pm_with_graceful_reconnection_to_different_server,
-           test_pm_with_ungraceful_reconnection_to_different_server,
+%%           test_pm_with_ungraceful_reconnection_to_different_server, % PR #2391
            test_global_disco,
            test_component_unregister,
            test_update_senders_host,
