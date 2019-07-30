@@ -6,6 +6,7 @@
 -include("muc_light.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("exml/include/exml.hrl").
+-include_lib("escalus/include/escalus_xmlns.hrl").
 
 -import(escalus_ejabberd, [rpc/3]).
 -import(distributed_helper, [mim/0,
@@ -104,11 +105,21 @@ assert_archive_element({{affiliations, Affiliations}, Stanza}) ->
 assert_archive_element({{muc_message, Room, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(muc_light_room_jid(Room, Sender)),
     #forwarded_message{message_body = Body,
-                       delay_from = FromJid} = Stanza;
+                       delay_from = FromJid,
+                       message_xs = XS} = Stanza,
+    assert_valid_muc_roles_in_user_x(XS);
 assert_archive_element({{message, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(escalus_utils:get_jid(Sender)),
     #forwarded_message{message_body = Body, delay_from = FromJid} = Stanza.
 
+assert_valid_muc_roles_in_user_x([#xmlel{ attrs = [{<<"xmlns">>, ?NS_MUC_USER}] } = XUser | _]) ->
+    Item = exml_query:subelement(XUser, <<"item">>),
+    muc_helper:assert_valid_affiliation(exml_query:attr(Item, <<"affiliation">>)),
+    muc_helper:assert_valid_role(exml_query:attr(Item, <<"role">>));
+assert_valid_muc_roles_in_user_x([_ | RXs]) ->
+    assert_valid_muc_roles_in_user_x(RXs);
+assert_valid_muc_roles_in_user_x([]) ->
+    ok.
 
 muc_light_room_jid(Room, User) ->
     RoomJid = room_bin_jid(Room),
