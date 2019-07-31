@@ -642,9 +642,10 @@ decode_affiliations(IQResult) ->
 
 pubsub_node() -> pubsub_node(1).
 pubsub_node(Num) ->
-    {pubsub_tools:node_addr(), <<"node_",
-                                 (integer_to_binary(Num))/binary, "_",
-                                 (base64:encode(crypto:strong_rand_bytes(6)))/binary>>}.
+    Name = <<"node_", (integer_to_binary(Num))/binary, "_",
+             (base64:encode(crypto:strong_rand_bytes(6)))/binary>>,
+    SanitizedName = binary:replace(Name, <<"/">>, <<".">>, [global]),
+    {pubsub_tools:node_addr(), SanitizedName}.
 
 domain() ->
     ct:get_config({hosts, mim, domain}).
