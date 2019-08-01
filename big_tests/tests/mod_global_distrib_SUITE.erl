@@ -54,7 +54,7 @@ groups() ->
            test_hidden_component_disco_in_different_region,
            test_pm_with_disconnection_on_other_server,
            test_pm_with_graceful_reconnection_to_different_server,
-%%           test_pm_with_ungraceful_reconnection_to_different_server, % PR #2391
+           test_pm_with_ungraceful_reconnection_to_different_server,
            test_global_disco,
            test_component_unregister,
            test_update_senders_host,
@@ -907,6 +907,7 @@ refresh_node(NodeName, Config) ->
 connect_from_spec(UserSpec, Config) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
     escalus_story:send_initial_presence(User),
+              escalus:wait_for_stanza(User),
     escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
     User.
 
