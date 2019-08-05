@@ -39,7 +39,7 @@ You only need to declare running `ejabberd_c2s`, to have the other 2 modules sta
 * `certfile` (string, default: no certfile will be used) - Path to the X509 PEM file with a certificate and a private key (not protected by a password).
   If the certificate is signed by an intermediate CA, you should specify here the whole CA chain by concatenating all public keys together and appending the private key after that.
 * `cafile` (string, default: no CA file will be used) - Path to the X509 PEM file with a CA chain that will be used to verify clients. Won't have any effect if `verify_peer` is not enabled.
-* `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires valid `cafile`.
+* `verify_peer` (default: disabled) - Enforces verification of a client certificate. Requires a valid `cafile`.
 * `dhfile` (string, default: no DH file will be used) - Path to the Diffie Hellman parameter file
 
 #### `fast_tls` - specific options
