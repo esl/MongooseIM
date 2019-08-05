@@ -245,7 +245,7 @@ should_fail_with_tlsv1_1(Config) ->
 
 should_fail_with(Config, Protocol) ->
     %% Connection process is spawned with a link so besides the crash itself,
-    %% we will receive exit signal. We don't want to terminate the test due to this.
+    %%   we will receive an exit signal. We don't want to terminate the test due to this.
     %% TODO: Investigate if this behaviour is not a ticking bomb which may affect other test cases.
     process_flag(trap_exit, true),
     %% GIVEN
