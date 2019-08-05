@@ -16,7 +16,7 @@
   0},
  {<<"escalus">>,
   {git,"https://github.com/esl/escalus.git",
-       {ref,"58b2487abc08c33e5828aa856c133ff446da5d62"}},
+       {ref,"66e25b838d936bb160723259b096b800ccb6f88e"}},
   0},
  {<<"esip">>,{pkg,<<"esip">>,<<"1.0.29">>},0},
  {<<"exml">>,
