@@ -79,7 +79,6 @@ suite() ->
 %%--------------------------------------------------------------------
 
 init_per_suite(Config0) ->
-
     catch mongoose_push_mock:stop(),
     mongoose_push_mock:start(Config0),
     Port = mongoose_push_mock:port(),
@@ -101,26 +100,18 @@ end_per_suite(Config) ->
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
-init_per_group(inbox_msg_notifications, Config) ->
-    rpc(mod_muc_light_db_backend, force_clear, []);
-
-init_per_group(_, Config) ->
+init_per_group(G, Config0) ->
     %% Some cleaning up
-    rpc(mod_muc_light_db_backend, force_clear, []),
-
+    Config = dynamic_modules:save_modules(domain(), Config0),
+    dynamic_modules:ensure_modules(domain(), required_modules(G)),
+    catch rpc(mod_muc_light_db_backend, force_clear, []),
     Config.
-
-end_per_group(inbox_msg_notifications, Config) ->
-    escalus_ejabberd:rpc(mod_inbox_utils, clear_inbox, [domain()]),
-    dynamic_modules:stop(domain(), mod_inbox),
-    Config;
 
 end_per_group(_, Config) ->
+    dynamic_modules:restore_modules(domain(), Config),
     Config.
 
-init_per_testcase(CaseName, Config0) ->
-    Config1 = escalus_fresh:create_users(Config0, [{bob, 1}, {alice, 1}, {kate, 1}]),
-    Config = [{case_name, CaseName} | Config1],
+init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 end_per_testcase(CaseName, Config) ->
@@ -483,6 +474,9 @@ h2_req(Conn, Method, Path, Body) ->
             {error, Reason}
     end.
 
+required_modules(_) ->
+    required_modules().
+
 required_modules() ->
     [
         {mod_pubsub, [
@@ -507,7 +501,7 @@ required_modules() ->
     ].
 
 inbox_opts() ->
-    [{aff_changes, false},
+    [{aff_changes, true},
      {remove_on_kicked, true},
      {groupchat, [muclight]},
      {markers, [displayed]}].
