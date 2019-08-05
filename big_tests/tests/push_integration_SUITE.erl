@@ -31,8 +31,7 @@
 all() ->
     [
         {group, pm_msg_notifications},
-        {group, muclight_msg_notifications},
-        {group, inbox_msg_notifications}
+        {group, muclight_msg_notifications}
     ].
 
 groups() ->
@@ -45,7 +44,11 @@ groups() ->
            pm_msg_notify_on_fcm_w_click_action,
            pm_msg_notify_on_apns_silent,
            pm_msg_notify_on_fcm_silent,
-           pm_msg_notify_on_apns_w_topic
+           pm_msg_notify_on_apns_w_topic,
+           inbox_msg_unread_count_apns,
+           inbox_msg_unread_count_fcm,
+           inbox_msg_reset_unread_count_apns,
+           inbox_msg_reset_unread_count_fcm
           ]},
          {muclight_msg_notifications, [parallel],
           [
@@ -55,18 +58,12 @@ groups() ->
            muclight_msg_notify_on_fcm_w_click_action,
            muclight_msg_notify_on_apns_silent,
            muclight_msg_notify_on_fcm_silent,
-           muclight_msg_notify_on_w_topic
-          ]},
-         {inbox_msg_notifications, [parallel],
-          [
-           inbox_msg_unread_count_apns,
-           inbox_msg_unread_count_fcm,
+           muclight_msg_notify_on_w_topic,
            muclight_inbox_msg_unread_count_apns,
            muclight_inbox_msg_unread_count_fcm,
-           inbox_msg_reset_unread_count_apns,
-           inbox_msg_reset_unread_count_fcm
-          ]
-         }
+           muclight_aff_change_fcm,
+           muclight_aff_change_apns
+          ]}
         ],
     G.
 
@@ -352,6 +349,44 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
     ok
         end).
 
+muclight_aff_change(Config, Service, EnableOpts) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}, {kate, 1}, {bob, 1}],
+      fun(Alice, Kate, Bob) ->
+              Room = fresh_room_name(),
+              RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, []),
+              KateJid = inbox_helper:to_bare_lower(Kate),
+
+              when_muc_light_affiliations_are_set(Alice, Room, [{Kate, member}]),
+              muc_light_helper:verify_aff_bcast([{Kate, member}, {Alice, owner}], [{Kate, member}]),
+
+              KateToken = enable_push_for_user(Kate, Service, EnableOpts),
+
+              SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
+              Notification = wait_for_push_request(KateToken),
+              assert_push_notification(Notification, Service, EnableOpts, SenderJID,
+                                       [{body, <<"First!">>}, {unread_count, 2}, {badge, 2}]),
+
+              when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
+              escalus:wait_for_stanza(Alice),
+              escalus:wait_for_stanza(Bob),
+
+              muclight_conversation(Alice, RoomJID, <<"Second!">>),
+              escalus:wait_for_stanza(Alice),
+              escalus:wait_for_stanza(Bob),
+
+              Notification2 = wait_for_push_request(KateToken),
+              assert_push_notification(Notification2, Service, EnableOpts, RoomJID,
+                                       [{body, <<>>}, {unread_count, 3}, {badge, 3}]),
+
+              Notification3 = wait_for_push_request(KateToken),
+              assert_push_notification(Notification3, Service, EnableOpts, SenderJID,
+                                       [{body, <<"Second!">>}, {unread_count, 4}, {badge, 3}]),
+
+            ok
+      end).
+
+
 muclight_msg_notify_on_apns_no_click_action(Config) ->
     muclight_msg_notify_on_apns(Config, []).
 
@@ -373,7 +408,11 @@ muclight_msg_notify_on_apns_silent(Config) ->
 muclight_msg_notify_on_w_topic(Config) ->
     muclight_msg_notify_on_apns(Config, [{<<"topic">>, <<"some_topic">>}]).
 
+muclight_aff_change_fcm(Config) ->
+    muclight_aff_change(Config, <<"fcm">>, [{<<"silent">>, <<"true">>}]).
 
+muclight_aff_change_apns(Config) ->
+    muclight_aff_change(Config, <<"apns">>, [{<<"silent">>, <<"true">>}]).
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
