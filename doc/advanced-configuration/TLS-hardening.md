@@ -9,7 +9,7 @@ Large part of the logic is implemented in Erlang but it calls OpenSSL API for so
 The latter is a community-maintained driver, which is implemented as NIFs (native C code).
 It uses OpenSSL API for all operations.
 
-Most MongooseIM components use TLS library provided by OTP.
+Most MongooseIM components use the TLS library provided by OTP.
 However, some of them choose to integrate with `fast_tls` library instead.
 The former one is used primarily by MIM dependencies, while the latter is used only by MIM modules.
 
