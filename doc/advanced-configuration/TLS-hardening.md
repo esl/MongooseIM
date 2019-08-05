@@ -65,7 +65,7 @@ The list below enumerates all components that use Fast TLS and describes how to 
 * `ejabberd_c2s` - main user session abstraction + XMPP over TCP listener
     * Please consult the respective section in [Listener modules](Listener-modules.md#c2s-ciphers).
 * `ejabberd_s2s_in` - incoming S2S connections (XMPP Federation)
-    * Please consult respective section in [Listener modules](Listener-modules.md#s2s-ciphers).
+    * Please consult the respective section in [Listener modules](Listener-modules.md#s2s-ciphers).
 * `ejabberd_s2s_out` - outgoing S2S connections (XMPP Federation)
     * Please check [the documentation](../Advanced-configuration.md#s2s-ciphers) for `s2s_ciphers` option.
 * `mod_global_distrib` - Global Distribution module
