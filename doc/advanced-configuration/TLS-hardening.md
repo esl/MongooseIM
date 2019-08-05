@@ -63,7 +63,7 @@ By default, MongooseIM sets this option to `TLSv1.2:TLSv1.3` for each component.
 The list below enumerates all components that use Fast TLS and describes how to change this string.
 
 * `ejabberd_c2s` - main user session abstraction + XMPP over TCP listener
-    * Please consult respective section in [Listener modules](Listener-modules.md#c2s-ciphers).
+    * Please consult the respective section in [Listener modules](Listener-modules.md#c2s-ciphers).
 * `ejabberd_s2s_in` - incoming S2S connections (XMPP Federation)
     * Please consult respective section in [Listener modules](Listener-modules.md#s2s-ciphers).
 * `ejabberd_s2s_out` - outgoing S2S connections (XMPP Federation)
