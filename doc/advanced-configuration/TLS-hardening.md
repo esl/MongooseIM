@@ -33,7 +33,7 @@ It is still possible to enable earlier versions, however it is strongly discoura
 ## OTP TLS hardening
 
 Protocol list for OTP TLS is set via the `protocol_version` environment variable.
-It's an Erlang runtime variable, so it is not configured in OS but rather in `app.config` file.
+It's an Erlang runtime variable, so it is not configured in the OS but rather in the`app.config` file.
 It may be found in `etc/` folder inside MongooseIM release and in `[repository root]/rel/files/`.
 
 In order to change the list, please find the following lines:
