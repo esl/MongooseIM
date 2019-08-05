@@ -642,7 +642,7 @@ openssl_client_can_use_cipher(Cipher, Port) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
           " -cipher " "\"" ++ Cipher ++ "\" 2>&1",
-    {done, ReturnCode, Result} = erlsh:oneliner(Cmd),
+    {done, ReturnCode, _Result} = erlsh:oneliner(Cmd),
     0 == ReturnCode.
 
 restore_ejabberd_node(Config) ->
