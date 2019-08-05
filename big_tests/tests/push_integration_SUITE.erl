@@ -21,7 +21,7 @@
          then_archive_response_is/3]).
 
 -import(escalus_ejabberd, [rpc/3]).
--import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/2]).
+-import(push_helper, [enable_stanza/3, become_unavailable/1, become_available/3, become_available/2]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration

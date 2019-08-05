@@ -8,7 +8,7 @@
 -export([enable_stanza/2, enable_stanza/3, enable_stanza/4,
          disable_stanza/1, disable_stanza/2]).
 
--export([become_unavailable/1, become_available/2]).
+-export([become_unavailable/1, become_available/3, become_available/2]).
 
 -export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
@@ -66,9 +66,11 @@ become_unavailable(Client) ->
     {ok, _} = wait_for_user_offline(Client).
 
 become_available(Client, NumberOfUnreadMessages) ->
+    become_available(Client, NumberOfUnreadMessages, 5000).
+become_available(Client, NumberOfUnreadMessages, Timeout) ->
     escalus:send(Client, escalus_stanza:presence(<<"available">>)),
     Preds = [ is_presence | lists:duplicate(NumberOfUnreadMessages, is_message) ],
-    Stanzas = escalus:wait_for_stanzas(Client, NumberOfUnreadMessages + 1),
+    Stanzas = escalus:wait_for_stanzas(Client, NumberOfUnreadMessages + 1, Timeout),
     escalus:assert_many(Preds, Stanzas),
     {ok, true} = wait_for_user_online(Client).
 
