@@ -285,6 +285,9 @@ stop_cowboy() ->
 execute_request(Host, Path, Method, Headers, Body) ->
     {ok, Pid} = fusco:start_link(Host, []),
     fusco:request(Pid, Path, Method, Headers, Body, 5000).
+    % We do not disconnect with:
+    % fusco:disconnect(Pid)
+    % due to https://github.com/ninenines/cowboy/issues/1397
 
 assert_status_code(Response, Code) ->
     case is_status_code(Response, Code) of
