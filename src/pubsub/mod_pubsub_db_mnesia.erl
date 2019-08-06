@@ -230,11 +230,7 @@ get_state(Nidx, LJID) ->
 -spec get_states(Nidx :: mod_pubsub:nodeIdx()) ->
     {ok, [mod_pubsub:pubsubState()]}.
 get_states(Nidx) ->
-    States = case catch mnesia:match_object(
-                          #pubsub_state{stateid = {'_', Nidx}, _ = '_'}) of
-                 List when is_list(List) -> List;
-                 _ -> []
-             end,
+    States = mnesia:match_object(#pubsub_state{stateid = {'_', Nidx}, _ = '_'}),
     {ok, States}.
 
 -spec get_states_by_lus(LJID :: jid:ljid()) ->
@@ -660,7 +656,7 @@ del_state(#pubsub_state{ stateid = {LJID, Nidx}, subscriptions = Subs }) ->
     {ok, mod_pubsub:pubsubState()}.
 get_state(Nidx, LJID, LockKind) ->
     StateId = {LJID, Nidx},
-    case catch mnesia:read(pubsub_state, StateId, LockKind) of
+    case mnesia:read(pubsub_state, StateId, LockKind) of
         [#pubsub_state{} = State] -> {ok, State};
         _ -> {ok, #pubsub_state{stateid = StateId}}
     end.
