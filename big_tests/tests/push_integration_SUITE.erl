@@ -7,7 +7,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("inbox.hrl").
 
--define(MUCHOST,                        <<"muclight.@HOST@">>).
+-define(MUCHOST, <<"muclight.localhost">>).
 
 
 
@@ -292,14 +292,14 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
               Notification = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
-                                       [{body, <<"First!">>}, {unread_count, 2}, {badge, 2}]),
+                                       [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
 
               muclight_conversation(Alice, RoomJID, <<"Second!">>),
               escalus:wait_for_stanza(Alice),
 
               Notification2 = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
-                                       [{body, <<"Second!">>}, {unread_count, 3}, {badge, 2}]),
+                                       [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
 
               timer:sleep(1000),
               become_available(Kate, 0),
@@ -307,7 +307,7 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               muclight_conversation(Alice, RoomJID, <<"Third!">>),
               escalus:wait_for_stanza(Kate),
               escalus:wait_for_stanza(Alice),
-              inbox_helper:check_inbox(Kate, [#conv{unread = 4, from = SenderJID, to = KateJid, content = <<"Third!">>}]),
+              inbox_helper:check_inbox(Kate, [#conv{unread = 3, from = SenderJID, to = KateJid, content = <<"Third!">>}]),
             ok
       end).
 
@@ -386,17 +386,18 @@ muclight_aff_change(Config, Service, EnableOpts) ->
 %%
               Notification = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
-                                       [{body, <<"First!">>}, {unread_count, 2}, {badge, 2}]),
+                                       [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
 %%
               {_, Aff} = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
               then_muc_light_affiliations_are_received_by([Alice, Bob], {Room, Aff}),
               escalus:wait_for_stanza(Alice),
+
               {_, B2, M2} = when_muc_light_message_is_sent(Alice, Room, <<"Second!">>, <<"M2">>),
               then_muc_light_message_is_received_by([Alice, Bob], {Room, B2, M2}),
 
               Notification2 = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
-                                       [{body, <<"Second!">>}, {unread_count, 4}, {badge, 2}]),
+                                       [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
 
             ok
       end).
