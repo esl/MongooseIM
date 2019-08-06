@@ -368,8 +368,7 @@ muclight_aff_change(Config, Service, EnableOpts) ->
                                        [{body, <<"First!">>}, {unread_count, 2}, {badge, 2}]),
 
               when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
-              escalus:wait_for_stanza(Alice),
-              escalus:wait_for_stanza(Bob),
+              muc_light_helper:verify_aff_bcast([{Bob, member}, {Alice, owner}], [{Bob, member}]),
 
               muclight_conversation(Alice, RoomJID, <<"Second!">>),
               escalus:wait_for_stanza(Alice),
@@ -535,7 +534,7 @@ required_modules() ->
         ]},
         {mod_muc_light, [
             {host, binary_to_list(?MUCHOST)},
-            {backend, rdbms},
+            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
             {rooms_in_rosters, true}
         ]},
         {mod_inbox, inbox_opts()}
