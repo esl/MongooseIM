@@ -395,12 +395,8 @@ muclight_aff_change(Config, Service, EnableOpts) ->
               then_muc_light_message_is_received_by([Alice, Bob], {Room, B2, M2}),
 
               Notification2 = wait_for_push_request(KateToken),
-              assert_push_notification(Notification2, Service, EnableOpts, RoomJID,
-                                       [{body, <<>>}, {unread_count, 3}, {badge, 3}]),
-
-              Notification3 = wait_for_push_request(KateToken),
-              assert_push_notification(Notification3, Service, EnableOpts, SenderJID,
-                                       [{body, <<"Second!">>}, {unread_count, 4}, {badge, 3}]),
+              assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
+                                       [{body, <<"Second!">>}, {unread_count, 4}, {badge, 2}]),
 
             ok
       end).
