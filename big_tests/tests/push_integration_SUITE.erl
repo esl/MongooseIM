@@ -31,7 +31,9 @@
 all() ->
     [
         {group, pm_msg_notifications},
-        {group, muclight_msg_notifications}
+        {group, muclight_msg_notifications},
+        {group, pm_notifications_with_inbox},
+        {group, groupchat_notifications_with_inbox}
     ].
 
 groups() ->
@@ -44,11 +46,7 @@ groups() ->
            pm_msg_notify_on_fcm_w_click_action,
            pm_msg_notify_on_apns_silent,
            pm_msg_notify_on_fcm_silent,
-           pm_msg_notify_on_apns_w_topic,
-           inbox_msg_unread_count_apns,
-           inbox_msg_unread_count_fcm,
-           inbox_msg_reset_unread_count_apns,
-           inbox_msg_reset_unread_count_fcm
+           pm_msg_notify_on_apns_w_topic
           ]},
          {muclight_msg_notifications, [parallel],
           [
@@ -58,11 +56,21 @@ groups() ->
            muclight_msg_notify_on_fcm_w_click_action,
            muclight_msg_notify_on_apns_silent,
            muclight_msg_notify_on_fcm_silent,
-           muclight_msg_notify_on_w_topic,
+           muclight_msg_notify_on_w_topic
+          ]},
+         {groupchat_notifications_with_inbox, [parallel],
+          [
            muclight_inbox_msg_unread_count_apns,
            muclight_inbox_msg_unread_count_fcm,
            muclight_aff_change_fcm,
            muclight_aff_change_apns
+          ]},
+         {pm_notifications_with_inbox, [parallel],
+          [
+           inbox_msg_unread_count_apns,
+           inbox_msg_unread_count_fcm,
+           inbox_msg_reset_unread_count_apns,
+           inbox_msg_reset_unread_count_fcm
           ]}
         ],
     G.
@@ -98,12 +106,19 @@ end_per_suite(Config) ->
     mongoose_push_mock:stop(),
     escalus:end_per_suite(Config).
 
-init_per_group(G, Config0) ->
+init_per_group(G, Config) when G =:= pm_notifications_with_inbox;
+                                G =:= groupchat_notifications_with_inbox ->
+    case mongoose_helper:is_rdbms_enabled(domain()) of
+        true ->
+            init_modules(G, Config);
+        _ ->
+            {skip, require_rdbms}
+    end;
+init_per_group(G, Config) ->
     %% Some cleaning up
-    Config = dynamic_modules:save_modules(domain(), Config0),
-    dynamic_modules:ensure_modules(domain(), required_modules(G)),
+    C = init_modules(G, Config),
     catch rpc(mod_muc_light_db_backend, force_clear, []),
-    Config.
+    C.
 
 end_per_group(_, Config) ->
     dynamic_modules:restore_modules(domain(), Config),
@@ -330,7 +345,7 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
             Notification = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"apns">>,
-                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 2}, {badge, 2}]),
+                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}]),
     ok
         end).
 
@@ -345,7 +360,7 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
             Notification = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"fcm">>,
-                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 2}, {badge, 2}]),
+                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}]),
     ok
         end).
 
@@ -357,22 +372,27 @@ muclight_aff_change(Config, Service, EnableOpts) ->
               RoomJID = muc_light_helper:given_muc_light_room(Room, Alice, []),
               KateJid = inbox_helper:to_bare_lower(Kate),
 
-              when_muc_light_affiliations_are_set(Alice, Room, [{Kate, member}]),
-              muc_light_helper:verify_aff_bcast([{Kate, member}, {Alice, owner}], [{Kate, member}]),
+              {_, Affiliations} = when_muc_light_affiliations_are_set(Alice, Room, [{Kate, member}]),
+              then_muc_light_affiliations_are_received_by([Alice, Kate], {Room, Affiliations}),
+              escalus:wait_for_stanza(Alice),
 
               KateToken = enable_push_for_user(Kate, Service, EnableOpts),
 
-              SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
+              Bare = bare_jid(Alice),
+              SenderJID = <<RoomJID/binary, "/", Bare/binary>>,
+
+              {Room, Body, M1} = when_muc_light_message_is_sent(Alice, Room, <<"First!">>, <<"M1">>),
+              then_muc_light_message_is_received_by([Alice], {Room, Body, M1}),
+%%
               Notification = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
                                        [{body, <<"First!">>}, {unread_count, 2}, {badge, 2}]),
-
-              when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
-              muc_light_helper:verify_aff_bcast([{Bob, member}, {Alice, owner}], [{Bob, member}]),
-
-              muclight_conversation(Alice, RoomJID, <<"Second!">>),
+%%
+              {_, Aff} = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
+              then_muc_light_affiliations_are_received_by([Alice, Bob], {Room, Aff}),
               escalus:wait_for_stanza(Alice),
-              escalus:wait_for_stanza(Bob),
+              {_, B2, M2} = when_muc_light_message_is_sent(Alice, Room, <<"Second!">>, <<"M2">>),
+              then_muc_light_message_is_received_by([Alice, Bob], {Room, B2, M2}),
 
               Notification2 = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, RoomJID,
@@ -514,6 +534,16 @@ h2_req(Conn, Method, Path, Body) ->
             {error, Reason}
     end.
 
+init_modules(G, Config) ->
+    Modules = required_modules(G),
+    C = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(domain(), Modules),
+    C.
+
+
+required_modules(G) when G =:= pm_notifications_with_inbox;
+                         G =:= groupchat_notifications_with_inbox->
+    [{mod_inbox, inbox_opts()}|required_modules()];
 required_modules(_) ->
     required_modules().
 
@@ -536,12 +566,11 @@ required_modules() ->
             {host, binary_to_list(?MUCHOST)},
             {backend, mongoose_helper:mnesia_or_rdbms_backend()},
             {rooms_in_rosters, true}
-        ]},
-        {mod_inbox, inbox_opts()}
+        ]}
     ].
 
 inbox_opts() ->
-    [{aff_changes, true},
+    [{aff_changes, false},
      {remove_on_kicked, true},
      {groupchat, [muclight]},
      {markers, [displayed]}].
