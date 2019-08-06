@@ -91,15 +91,16 @@ http_requests(_Config) ->
     Method = "GET",
     Headers = [],
     Body = [],
+    NumOfReqs = 50,
 
     %% When
     Codes = [begin
                 Response = execute_request(Host, Path, Method, Headers, Body),
                 to_status_code(Response)
-            end || _ <- lists:seq(1, 50)],
+            end || _ <- lists:seq(1, NumOfReqs)],
 
     %% Then
-    ExpectedCodes = lists:duplicate(50, 200), %% 50 times code 200
+    ExpectedCodes = lists:duplicate(NumOfReqs, 200), %% NumOfReqs times code 200
     case Codes of
         ExpectedCodes ->
             ok;
@@ -108,8 +109,8 @@ http_requests(_Config) ->
                       codes => Codes,
                       expected_codes => ExpectedCodes})
     end,
-    assert_cowboy_handler_calls(dummy_http_handler, init, 50),
-    assert_cowboy_handler_calls(dummy_http_handler, terminate, 50).
+    assert_cowboy_handler_calls(dummy_http_handler, init, NumOfReqs),
+    assert_cowboy_handler_calls(dummy_http_handler, terminate, NumOfReqs).
 
 ws_request_bad_protocol(_Config) ->
     %% Given
@@ -284,7 +285,6 @@ stop_cowboy() ->
 execute_request(Host, Path, Method, Headers, Body) ->
     {ok, Pid} = fusco:start_link(Host, []),
     Response = fusco:request(Pid, Path, Method, Headers, Body, 5000),
-    fusco:disconnect(Pid),
     Response.
 
 assert_status_code(Response, Code) ->
