@@ -284,8 +284,7 @@ stop_cowboy() ->
 
 execute_request(Host, Path, Method, Headers, Body) ->
     {ok, Pid} = fusco:start_link(Host, []),
-    Response = fusco:request(Pid, Path, Method, Headers, Body, 5000),
-    Response.
+    fusco:request(Pid, Path, Method, Headers, Body, 5000).
 
 assert_status_code(Response, Code) ->
     case is_status_code(Response, Code) of
