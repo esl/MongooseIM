@@ -48,6 +48,9 @@ etc/mongooseim.cfg:
 
 devrel: $(DEVNODES)
 
+print_devnodes:
+	@echo $(DEVNODES)
+
 $(DEVNODES): certs configure.out rel/vars.config
 	@echo "building $@"
 	(. ./configure.out && \
