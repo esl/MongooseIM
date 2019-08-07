@@ -26,7 +26,9 @@ orbs:
               sudo apt-get install unixodbc-dev -y && \
               sudo apt-get install unixodbc -y && \
               sudo apt-get install tdsodbc -y && \
-              sudo apt-get install python-pip -y
+              sudo apt-get update python && \
+              sudo apt-get install python-pip -y \
+              python --version
     jobs:
       build_and_small_tests:
         parallelism: 1
