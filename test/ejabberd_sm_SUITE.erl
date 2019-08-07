@@ -78,7 +78,7 @@ init_redis_group(true, Config) ->
                   Self ! ready,
                   receive stop -> ok end
           end),
-    receive ready -> ok end,
+    receive ready -> ok after timer:seconds(30) -> ct:fail(test_helper_not_ready) end,
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
