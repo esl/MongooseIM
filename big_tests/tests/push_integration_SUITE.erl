@@ -7,7 +7,7 @@
 -include_lib("exml/include/exml.hrl").
 -include_lib("inbox.hrl").
 
--define(MUCHOST, <<"muclight.localhost">>).
+-define(MUCLIGHTHOST, <<"muclight.localhost">>).
 
 
 
@@ -339,7 +339,6 @@ muclight_msg_notify_on_apns(Config, EnableOpts) ->
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
             RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
-            timer:sleep(5000),
             DeviceToken = enable_push_for_user(Bob, <<"apns">>, EnableOpts),
 
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
@@ -354,7 +353,6 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
         Config, [{alice, 1}, {bob, 1}, {kate, 1}],
         fun(Alice, Bob, _Kate) ->
             RoomJID = muc_light_helper:given_muc_light_room(fresh_room_name(), Alice, [{Bob, member}]),
-            timer:sleep(5000),
             DeviceToken = enable_push_for_user(Bob, <<"fcm">>, EnableOpts),
 
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
@@ -538,34 +536,32 @@ init_modules(G, Config) ->
     C.
 
 
-required_modules(G) when G =:= pm_notifications_with_inbox;
-                         G =:= groupchat_notifications_with_inbox->
+required_modules(pm_notifications_with_inbox) ->
     [{mod_inbox, inbox_opts()}|required_modules()];
-required_modules(_) ->
-    required_modules().
+required_modules(groupchat_notifications_with_inbox)->
+    [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}|required_modules()];
+required_modules(pm_msg_notifications) ->
+    required_modules();
+required_modules(muclight_msg_notifications) ->
+    [{mod_muc_light, muc_light_opts()}|required_modules()].
 
 required_modules() ->
     [
-        {mod_pubsub, [
-            {plugins, [<<"dag">>, <<"push">>]},
-            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-            {nodetree, <<"dag">>},
-            {host, "pubsub.@HOST@"}
-        ]},
-        {mod_push_service_mongoosepush, [
-            {pool_name, mongoose_push_http},
-            {api_version, "v2"}
-        ]},
-        {mod_push, [
-            {backend, mnesia}
-        ]},
-        {mod_muc_light, [
-            {host, binary_to_list(?MUCHOST)},
-            {backend, mongoose_helper:mnesia_or_rdbms_backend()},
-            {rooms_in_rosters, true}
-        ]}
+     {mod_pubsub, [{plugins, [<<"dag">>, <<"push">>]},
+                   {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+                   {nodetree, <<"dag">>},
+                   {host, "pubsub.@HOST@"}]},
+     {mod_push_service_mongoosepush, [{pool_name, mongoose_push_http},
+                                      {api_version, "v2"}]},
+     {mod_push, [{backend, mnesia}]}
     ].
 
+muc_light_opts() ->
+    [
+     {host, binary_to_list(?MUCLIGHTHOST)},
+     {backend, mongoose_helper:mnesia_or_rdbms_backend()},
+     {rooms_in_rosters, true}
+    ].
 inbox_opts() ->
     [{aff_changes, false},
      {remove_on_kicked, true},
