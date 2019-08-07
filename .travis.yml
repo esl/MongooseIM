@@ -24,7 +24,6 @@ before_install:
         - git config --global url."git://github".insteadOf https://github
 install:
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
-        - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
           ## Certs are needed by some tests in small_tests
         - test 1 = "$SKIP_COMPILE" || make certs
         - test 1 = "$SKIP_RELEASE" || ./tools/build-releases.sh
