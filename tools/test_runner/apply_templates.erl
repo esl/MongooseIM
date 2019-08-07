@@ -12,7 +12,8 @@ main([NodeAtom, BuildDirAtom]) ->
     RelDir = BuildDir ++ "/rel/mongooseim",
     Templates = templates(RelDir),
     log("Templates:~n~p~n", [Templates]),
-    Vars = overlay_vars(NodeAtom),
+    Vars0 = overlay_vars(NodeAtom),
+    Vars = Vars0#{output_dir => list_to_binary(RelDir)},
     log("Vars:~n~p~n", [Vars]),
     [render_template(In, Out, Vars) || {In, Out} <- Templates],
     erlang:halt().
