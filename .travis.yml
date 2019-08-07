@@ -27,7 +27,7 @@ install:
         - test 1 = "$SKIP_COMPILE" || ./rebar3 compile
           ## Certs are needed by some tests in small_tests
         - test 1 = "$SKIP_COMPILE" || make certs
-        - test 1 = "$SKIP_RELEASE" || make devrel
+        - test 1 = "$SKIP_RELEASE" || ./tools/build-releases.sh
         - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
         - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
 before_script:
