@@ -24,7 +24,7 @@
 %%%
 %%%----------------------------------------------------------------------
 
--module(scram).
+-module(mongoose_scram).
 
 -author('stephen.roettger@googlemail.com').
 
@@ -130,7 +130,7 @@ password_to_scram(#scram{} = Password, _) ->
 password_to_scram(Password, IterationCount) ->
     Salt = crypto:strong_rand_bytes(?SALT_LENGTH),
     SaltedPassword = salted_password(Password, Salt, IterationCount),
-    StoredKey = stored_key(scram:client_key(SaltedPassword)),
+    StoredKey = stored_key(client_key(SaltedPassword)),
     ServerKey = server_key(SaltedPassword),
     #scram{storedkey = base64:encode(StoredKey),
            serverkey = base64:encode(ServerKey),
