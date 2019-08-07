@@ -582,6 +582,9 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
     escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
 
 test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
+%% This tests the feature which has not been implemented (yet?) by mod_global_distrib
+%% It is susceptible to a race condition, however it is very unlikely to occur
+%% See PR #2392
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
     EveSpec = escalus_fresh:create_fresh_user(Config, eve),
     EveSpec2 = lists:keystore(port, 1, EveSpec, {port, 5222}),
@@ -907,6 +910,7 @@ refresh_node(NodeName, Config) ->
 connect_from_spec(UserSpec, Config) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
     escalus_story:send_initial_presence(User),
+    escalus:wait_for_stanza(User),
     escalus_connection:set_filter_predicate(User, fun(S) -> not escalus_pred:is_presence(S) end),
     User.
 
