@@ -19,10 +19,8 @@
 ## Enable kernel poll and a few async threads
 +K true
 +A 5
-+P 10000000
 
-## Increase number of concurrent ports/sockets
--env ERL_MAX_PORTS 250000
+{{highload_vm_args}}
 
 ## Tweak GC to run more often
 -env ERL_FULLSWEEP_AFTER 2
