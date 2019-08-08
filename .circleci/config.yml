@@ -82,7 +82,7 @@ orbs:
           - run:
               name: Install Releases
               command: |
-                if [ <<parameters.build_releases>> ]; then make devrel; fi
+                if [ <<parameters.build_releases>> ]; then ./tools/build-releases.sh ; fi
           - run:
               name: Build Big Tests
               command: |
