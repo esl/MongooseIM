@@ -7,6 +7,8 @@
 # Env variables:
 # - VERBOSE=0 (default) - hide command output, forward output into file
 # - VERBOSE=1 - forward command output to console and into file
+set -e
+
 TOOLS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 OUT_FILE="$1"
@@ -28,7 +30,14 @@ echo "LOG: $OUT_ABSNAME/$OUT_BASENAME"
 echo ""
 
 if [ "$VERBOSE" = "1" ]; then
-    $@ 2>&1 | tee "$OUT_FILE" || exit 1
+    # Returns the same error as $@
+    echo "" > "$OUT_FILE"
+    tail -f "$OUT_FILE" &
+    tail_pid=$!
+    exit_code=0
+    $@ 2>&1 > "$OUT_FILE" || exit_code=$?
+    kill $tail_pid
+    exit $exit_code
 else
     $@ > "$OUT_FILE" 2>&1 || (cat "$OUT_FILE"; exit 1)
 fi
