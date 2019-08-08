@@ -147,6 +147,8 @@ run_tests() {
   echo "Running big tests (big_tests)"
   echo "############################"
 
+  rm -f /tmp/ct_summary
+
   time ${TOOLS}/start-nodes.sh || { echo "Failed to start MongooseIM nodes"; return 1; }
 
   maybe_pause_before_test
@@ -180,6 +182,12 @@ run_tests() {
     [ $BIG_STATUS -ne 0 ]   && echo "    big tests failed - missing suites (error code: $BIG_STATUS)"
     [ $LOG_STATUS -ne 0 ]   && echo "    log contains errors"
     print_running_nodes
+  fi
+
+  if [ -f /tmp/ct_summary ]; then
+      echo "Failed big cases:"
+      cat /tmp/ct_summary
+      echo ""
   fi
 
   # Do not stop nodes if big tests failed
