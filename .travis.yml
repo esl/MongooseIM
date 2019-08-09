@@ -23,9 +23,10 @@ before_install:
         # Always use git protocol for github - tiny optimization
         - git config --global url."git://github".insteadOf https://github
 install:
-        - test 1 = "$SKIP_COMPILE" || ./tools/cache-build.sh restore
-        - test 1 = "$SKIP_BUILD_TESTS" || ./tools/cache-tests.sh restore
-        - test 1 = "$SKIP_COMPILE" || ./tools/cache-certs.sh restore
+        # Make full build for Cron builds
+        - test cron = "$TRAVIS_EVENT_TYPE" -o 1 = "$SKIP_COMPILE"     || ./tools/cache-build.sh restore
+        - test cron = "$TRAVIS_EVENT_TYPE" -o 1 = "$SKIP_BUILD_TESTS" || ./tools/cache-tests.sh restore
+        - test cron = "$TRAVIS_EVENT_TYPE" -o 1 = "$SKIP_COMPILE"     || ./tools/cache-certs.sh restore
         - test 1 = "$SKIP_COMPILE" || travis_retry ./rebar3 get-deps
           ## Certs are needed by some tests in small_tests
         - test 1 = "$SKIP_COMPILE" || make certs
