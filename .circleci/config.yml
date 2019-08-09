@@ -28,7 +28,7 @@ orbs:
               sudo apt-get install tdsodbc -y && \
               sudo apt-get install python-pip -y
     jobs:
-      build_and_small_tests:
+      build:
         parallelism: 1
         machine:
           image: ubuntu-1604:201903-01
@@ -44,7 +44,6 @@ orbs:
         environment:
           SKIP_RELEASE: 1
           SKIP_COV: 0
-          PRESET: small_tests
         working_directory: ~/app
 
         steps:
@@ -69,16 +68,11 @@ orbs:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
               paths:
                 - ~/.cache/rebar3
-                - _build/default/lib
           - run: ./rebar3 compile
           - run:
               name: Make Certs
               command: |
                 make certs
-          - run:
-              name: Run Small Tests
-              command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s true
           - run:
               name: Install Releases
               command: |
@@ -110,6 +104,42 @@ orbs:
               name: Run Dialyzer
               command: |
                 KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
+
+      small_tests:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          otp:
+            type: string
+            description: Version of the Erlang package to install
+        steps:
+          - checkout
+          - fetch_packages
+          - install_erlang:
+              otp: <<parameters.otp>>
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Run Small Tests
+              command: |
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+          - run:
+              name: Upload results
+              when: always
+              command: |
+                  tools/circleci-prepare-log-dir.sh
+                  if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+
                 
       package:
         parallelism: 1
@@ -225,20 +255,30 @@ workflows:
           name: debian_stretch
           platform: debian_stretch
           context: mongooseim-org
-      - mim/build_and_small_tests:
-          name: otp_21_3_small_tests
+      - mim/build:
+          name: otp_21_3
           otp: 1:21.3.8.4-1
           context: mongooseim-org
-      - mim/build_and_small_tests:
-          name: otp_22_small_tests
+      - mim/build:
+          name: otp_22
           otp: 1:22.0.4-1
           context: mongooseim-org
+      - mim/small_tests:
+          name: small_tests_21_3
+          otp: 1:21.3.8.4-1
+          context: mongooseim-org
+          requires:
+            - otp_21_3
+      - mim/small_tests:
+          name: small_tests_22
+          otp: 1:22.0.4-1
+          context: mongooseim-org
+          requires:
+            - otp_22
       - mim/dialyzer:
           name: dialyzer
           otp: 1:22.0.4-1
           context: mongooseim-org
-          requires:
-            - otp_22_small_tests
       - mim/big_tests:
           name: mysql_redis
           otp: 1:21.3.8.4-1
@@ -246,7 +286,7 @@ workflows:
           db: mysql
           context: mongooseim-org
           requires:
-            - otp_21_3_small_tests
+            - otp_21_3
       - mim/big_tests:
           name: mssql_mnesia
           otp: 1:22.0.4-1
@@ -254,7 +294,7 @@ workflows:
           db: mssql
           context: mongooseim-org
           requires:
-            - otp_22_small_tests
+            - otp_22
       - mim/big_tests:
           name: ldap_mnesia
           otp: 1:22.0.4-1
@@ -262,7 +302,7 @@ workflows:
           db: mnesia
           context: mongooseim-org
           requires:
-            - otp_22_small_tests
+            - otp_22
       - mim/big_tests:
           name: internal_mnesia
           otp: 1:22.0.4-1
@@ -271,7 +311,7 @@ workflows:
           tls_dist: true
           context: mongooseim-org
           requires:
-            - otp_22_small_tests
+            - otp_22
       - mim/big_tests:
           name: elasticsearch_and_cassandra
           otp: 1:22.0.4-1
@@ -279,7 +319,7 @@ workflows:
           db: "elasticsearch cassandra"
           context: mongooseim-org
           requires:
-            - otp_22_small_tests
+            - otp_22
       - mim/big_tests:
           name: pgsql_mnesia
           otp: 1:21.3.8.4-1
@@ -287,7 +327,7 @@ workflows:
           db: pgsql
           context: mongooseim-org
           requires:
-            - otp_21_3_small_tests
+            - otp_21_3
       - mim/big_tests:
           name: riak_mnesia
           otp: 1:21.3.8.4-1
@@ -295,4 +335,4 @@ workflows:
           db: riak
           context: mongooseim-org
           requires:
-            - otp_21_3_small_tests
+            - otp_21_3
