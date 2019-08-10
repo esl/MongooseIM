@@ -10,6 +10,9 @@ set -e
 # We use BASE and DEV_NODES_ARRAY variables from here
 source tools/travis-common-vars.sh
 
+# This script adds a marker into logs, so we would know which lines are new
+START_NODES_DATE=$(date)
+
 async_helper() {
   local ret_val=0 output=""
   output="$("$@")" || ret_val="$?"
@@ -26,11 +29,26 @@ wait_for_pids() {
   done
 }
 
+print_logs() {
+    echo "Print logs for $1"
+    # Show only extra lines by matching from the marker, set in start_node function in this script
+
+    # Match from TERMINATE till the end of file example:
+    # sed -n -e '/TERMINATE/,$p'
+    # https://stackoverflow.com/questions/7103531/how-to-get-the-part-of-file-after-the-line-that-matches-grep-expression-first
+    cat _build/$1/rel/mongooseim/log/erlang.log.1 | "$SED" -n -e '/start_node '"$START_NODES_DATE"'/,$p' | "$SED" -e 's/^/[erlang.log.1]    /'
+}
+
 # Starts node in background
 # First argument is node directory name
 # Does not fail if the node is already running (but prints a message)
 # Fails if release for the node is not compiled
 start_node() {
+  mkdir -p _build/$1/rel/mongooseim/log
+  # Make a marker to know which lines are new
+  # We would not handle log rotation though
+  echo "start_node $START_NODES_DATE" >> _build/$1/rel/mongooseim/log/erlang.log.1 || true
+
   echo -n "${1} start: "
   ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl start && echo ok || echo failed
 }
@@ -49,7 +67,12 @@ check_node() {
 # Fails if the node does not appear after 1 minute
 wait_for_node() {
   echo "waiting for ${1}: "
-  check_node "$1" || { echo "not started"; return 1;}
+  exit_code=0
+  check_node "$1" || exit_code="$?"
+  if [ $exit_code -ne 0 ]; then
+      echo "Node $1 not running"
+      print_logs $1
+  fi
   ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl status
 }
 

@@ -16,7 +16,7 @@ source tools/travis-common-vars.sh
 # Fails if release for the node is not compiled
 stop_node() {
   echo -n "${1} stop: "
-  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl stop && echo ok || echo failed
+  ${BASE}/_build/${1}/rel/mongooseim/bin/mongooseimctl force_stop && echo ok
 }
 
 async_helper() {
