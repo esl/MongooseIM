@@ -33,6 +33,7 @@ install:
         - test 1 = "$SKIP_RELEASE" || ./tools/build-releases.sh
         - test 1 = "$SKIP_BUILD_TESTS" || tools/travis-build-tests.sh
         - test 1 = "$SKIP_COV" || travis_retry pip install --user codecov
+          # Update cache if needed and if build step succeded.
         - test 1 = "$SKIP_COMPILE" || ./tools/cache-build.sh store
         - test 1 = "$SKIP_BUILD_TESTS" || ./tools/cache-tests.sh store
         - test 1 = "$SKIP_COMPILE" || ./tools/cache-certs.sh store
