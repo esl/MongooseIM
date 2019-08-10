@@ -69,7 +69,7 @@ init_per_group(redis, Config) ->
 
 init_redis_group(true, Config) ->
     Self = self(),
-    spawn(fun() ->
+    proc_lib:spawn(fun() ->
                   register(test_helper, self()),
                   mongoose_wpool:ensure_started(),
                   % This would be started via outgoing_pools in normal case
@@ -78,7 +78,7 @@ init_redis_group(true, Config) ->
                   Self ! ready,
                   receive stop -> ok end
           end),
-    receive ready -> ok end,
+    receive ready -> ok after timer:seconds(30) -> ct:fail(test_helper_not_ready) end,
     [{backend, ejabberd_sm_redis} | Config];
 init_redis_group(_, _) ->
     {skip, "redis not running"}.
@@ -454,8 +454,19 @@ n(Node) ->
 
 
 is_redis_running() ->
-    [] =/= os:cmd("ps aux | grep '[r]edis'").
-
+    case eredis:start_link() of
+        {ok, Client} ->
+            Result = eredis:q(Client, [<<"PING">>], 5000),
+            eredis:stop(Client),
+            case Result of
+                {ok,<<"PONG">>} ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            false
+    end.
 
 try_to_reproduce_race_condition(Config) ->
     SID = {p1_time_compat:timestamp(), self()},
