@@ -186,9 +186,9 @@ dead_pool_is_restarted(_C) ->
     {PoolName, KillingSwitch} = start_killable_pool(Size, kill_and_restart),
     %% set the switch to kill every new worker
     set_killing_switch(KillingSwitch, true),
+    Pids = [whereis(wpool_pool:worker_name(PoolName, I)) || I <- lists:seq(1, Size)],
     %% kill existing workers so they will be restarted
-    [erlang:exit(whereis(wpool_pool:worker_name(PoolName, I)), kill) ||
-     I <- lists:seq(1, Size)],
+    [erlang:exit(Pid, kill) || Pid <- Pids, Pid =/= undefined],
 
     wait_until_pool_is_dead(PoolName),
     %% set the switch to stop killing workers
