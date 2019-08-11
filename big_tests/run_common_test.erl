@@ -270,7 +270,8 @@ enable_preset_on_node(Node, PresetVars, HostVars) ->
     NewVars = lists:foldl(fun ({Var, Val}, Acc) ->
                               lists:keystore(Var, 1, Acc, {Var, Val})
                           end, Default, PresetVars),
-    NewCfgFile = bbmustache:render(Template, NewVars, [{key_type, atom}]),
+    Tmp = bbmustache:render(Template, NewVars, [{key_type, atom}]),
+    NewCfgFile = bbmustache:render(Tmp, NewVars, [{key_type, atom}]),
     ok = call(Node, file, write_file, [CfgFile, NewCfgFile]),
     call(Node, application, stop, [mongooseim]),
     call(Node, application, start, [mongooseim]),

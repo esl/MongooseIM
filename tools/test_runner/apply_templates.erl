@@ -53,7 +53,9 @@ erts_templates(RelDir) ->
 
 render_template(In, Out, Vars) ->
     {ok, BinIn} = file:read_file(In),
-    BinOut = bbmustache:render(BinIn, Vars, render_opts()),
+    %% Do render twice to allow templates in variables
+    BinTmp = bbmustache:render(BinIn, Vars, render_opts()),
+    BinOut = bbmustache:render(BinTmp, Vars, render_opts()),
     case file:write_file(Out, BinOut) of
         ok ->
             ok;
