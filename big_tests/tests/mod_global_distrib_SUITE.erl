@@ -103,7 +103,8 @@ groups() ->
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},
      {require, europe_node2, {hosts, mim2, node}},
-     {require, asia_node, {hosts, reg, node}} |
+     {require, asia_node, {hosts, reg, node}},
+     {require, c2s_port, {hosts, mim, c2s_port}} |
      escalus:suite()].
 
 %%--------------------------------------------------------------------
