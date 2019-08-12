@@ -301,14 +301,14 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
                                        [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
 
-              timer:sleep(1000),
-              become_available(Kate, 0),
-
+              mongoose_helper:wait_until(fun() ->
+                                                 become_available(Kate, 1)
+                                         end, true,
+                                         #{sleep_time => 500, time_left => timer:seconds(20), name => available}),
               muclight_conversation(Alice, RoomJID, <<"Third!">>),
               escalus:wait_for_stanza(Kate),
               escalus:wait_for_stanza(Alice),
-              inbox_helper:check_inbox(Kate, [#conv{unread = 3, from = SenderJID, to = KateJid, content = <<"Third!">>}]),
-            ok
+              inbox_helper:check_inbox(Kate, [#conv{unread = 3, from = SenderJID, to = KateJid, content = <<"Third!">>}])
       end).
 
 send_private_message(Sender, Recipient) ->
@@ -358,8 +358,7 @@ muclight_msg_notify_on_fcm(Config, EnableOpts) ->
             SenderJID = muclight_conversation(Alice, RoomJID, <<"Heyah!">>),
             Notification = wait_for_push_request(DeviceToken),
             assert_push_notification(Notification, <<"fcm">>,
-                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}]),
-    ok
+                                     EnableOpts, SenderJID, [{body, <<"Heyah!">>}, {unread_count, 1}, {badge, 1}])
         end).
 
 muclight_aff_change(Config, Service, EnableOpts) ->
@@ -381,11 +380,11 @@ muclight_aff_change(Config, Service, EnableOpts) ->
 
               {Room, Body, M1} = when_muc_light_message_is_sent(Alice, Room, <<"First!">>, <<"M1">>),
               then_muc_light_message_is_received_by([Alice], {Room, Body, M1}),
-%%
+
               Notification = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
                                        [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
-%%
+
               {_, Aff} = when_muc_light_affiliations_are_set(Alice, Room, [{Bob, member}]),
               then_muc_light_affiliations_are_received_by([Alice, Bob], {Room, Aff}),
               escalus:wait_for_stanza(Alice),
@@ -395,9 +394,8 @@ muclight_aff_change(Config, Service, EnableOpts) ->
 
               Notification2 = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
-                                       [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
+                                       [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}])
 
-            ok
       end).
 
 
