@@ -39,11 +39,22 @@ Persistent Data:
 * RDBMS - MongooseIM has a strong backend support for relational databases.
  Reliable and battle proven, they are a great choice for regular MongooseIM use cases and features like `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Never loose your data.
+ Use MySQL, MariaDB, PostgreSQL, or MS SQL Server.
 
 * Riak KV - If you're planning to deploy a massive cluster, consider Riak KV as a potential storage backend solution.
  It offers high availability and fault tolerance which is excatly what you need for your distributed MongooseIM architecture.
  Use Riak KV with `privacy lists`, `vcards`, `roster`, `private storage`, `last activity` and `message archive`.
  Erlang Solutions commercially supports Riak KV.
+
+* Cassandra - Only for MAM (Message Archive Management).
+
+* ElasticSearch - Only for MAM (Message Archive Management).
+
+
+User Data:
+
+* LDAP -  Used for: users, shared rosters, vCards
+
 
 # RDBMS
 
