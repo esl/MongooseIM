@@ -63,11 +63,9 @@ modify_config_file(Node, CfgVarsToChange, Config) ->
     {ok, CfgTemplate} = rpc(Node, file, read_file, [node_cfg(Node, template, Config)]),
     {ok, CfgVars} = rpc(Node, file, consult, [node_cfg(Node, vars, Config)]),
     UpdatedCfgVars = update_config_variables(CfgVarsToChange, CfgVars),
-    CfgTemplateList = binary_to_list(CfgTemplate),
-    Dict = dict:from_list(UpdatedCfgVars),
     %% Render twice to replace variables inside variables
-    UpdatedCfgFileTmp = mustache:render(CfgTemplateList, Dict),
-    UpdatedCfgFile = mustache:render(UpdatedCfgFileTmp, Dict),
+    UpdatedCfgFileTmp = bbmustache:render(CfgTemplate, UpdatedCfgVars, [{key_type, atom}]),
+    UpdatedCfgFile = bbmustache:render(UpdatedCfgFileTmp, UpdatedCfgVars, [{key_type, atom}]),
     ok = rpc(Node, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
 
 update_config_variables(CfgVarsToChange, CfgVars) ->
