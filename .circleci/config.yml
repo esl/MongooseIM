@@ -226,7 +226,7 @@ orbs:
                 sudo pip install codecov && codecov
                 ./rebar3 codecov analyze
                 codecov --disable=gcov --env PRESET
-                ./rebar3 coveralls send
+                ./rebar3 coveralls send || true
           - run:
               name: Build Failed - Logs
               when: on_fail
