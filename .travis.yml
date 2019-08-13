@@ -17,6 +17,7 @@ addons:
         # used in MUC + s2s tests combination
         - muc.localhost
 before_install:
+        - nohup ./tools/travis-pull-db.sh > travis-pull-db.log 2>&1 < /dev/null &
         # Do not execute this step, if environment variable SKIP_RELEASE is "1"
         # Configure is a part of release creation
         - test 1 = "$SKIP_RELEASE" || tools/configure $REL_CONFIG
@@ -57,6 +58,7 @@ after_success:
           fi
 
 after_script:
+        - cat travis-pull-db.log
         # Upload logs to s3 for debugging
         - test 1 = "$SKIP_REPORT_UPLOAD" ||
             tools/travis-prepare-log-dir.sh
