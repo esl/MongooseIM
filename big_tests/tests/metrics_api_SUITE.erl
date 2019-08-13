@@ -100,7 +100,7 @@ end_per_testcase(CaseName, Config) ->
 message_flow(Config) ->
     case metrics_helper:all_metrics_are_global(Config) of
         true -> katt_helper:run(metrics_only_global, Config,
-                                [{port, ct:get_config({hosts, mim, metrics_rest_port2})}]);
+                                [{port, ct:get_config({hosts, mim2, metrics_rest_port})}]);
         _ -> katt_helper:run(metrics, Config)
     end.
 
@@ -313,7 +313,7 @@ fetch_global_spiral_values(Counter, Config) ->
 
 fetch_global_counter_values(Blueprint, Counter, Config) ->
     ParamsBase = case metrics_helper:all_metrics_are_global(Config) of
-                     true -> [{port, ct:get_config({hosts, mim, metrics_rest_port2})}];
+                     true -> [{port, ct:get_config({hosts, mim2, metrics_rest_port})}];
                      _ -> []
                  end,
     Params = [{metric, atom_to_list(Counter)} | ParamsBase],
