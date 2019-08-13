@@ -5,6 +5,7 @@
 -export([test_dir/1]).
 -export([ct_run_dir/1]).
 -export([ct_run_dir_in_browser/1]).
+-export([data_dir/2]).
 
 %% Path transformation
 -export([canonicalize_path/1]).
@@ -13,11 +14,11 @@
 repo_dir(Config) ->
     get_env_var("REPO_DIR").
 
-%% @doc Get `test.disabled/ejabberd_tests/' directory
+%% @doc Get `big_tests/' directory
 test_dir(Config) ->
     get_env_var("TEST_DIR").
 
-%% @doc Returns`test.disabled/ejabberd_tests/ct_report/ct_run.*' directory
+%% @doc Returns`big_tests/ct_report/ct_run.*' directory
 %% Run it from a test case functions only (not group or suite functions)
 ct_run_dir(Config) ->
     PrivDir = proplists:get_value(priv_dir, Config),
@@ -45,3 +46,7 @@ get_env_var(VarName) ->
         Value ->
             Value
     end.
+
+%% Hand-made data_dir from Common Tests
+data_dir(SuiteName, Config) ->
+    filename:join([test_dir(Config), "tests", atom_to_list(SuiteName) ++ "_data"]).

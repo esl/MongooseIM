@@ -145,7 +145,7 @@ tests_to_run(TestSpec) ->
     TestSpecFile = atom_to_list(TestSpec),
     [
      {spec, TestSpecFile}
-    ].
+    ] ++ ct_opts().
 
 save_count(Test, Configs) ->
     Repeat = case proplists:get_value(repeat, Test) of
@@ -599,4 +599,15 @@ anaylyze_groups_runs(LatestCTRun) ->
       {error, Error} ->
             error_logger:error_msg("Error reading all_groups.summary: ~p~n", [Error]),
             undefined
+    end.
+
+
+ct_opts() ->
+    %% Tell Common Tests that it should not compile any more files
+    %% (they are compiled by rebar)
+    case os:getenv("SKIP_AUTO_COMPILE") of
+        "true" ->
+            [{auto_compile, false}];
+        _ ->
+            []
     end.

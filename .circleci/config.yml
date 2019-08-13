@@ -159,7 +159,7 @@ orbs:
           - run:
               name: Build package
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
       big_tests:
         parallelism: 1
         machine:

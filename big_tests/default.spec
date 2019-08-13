@@ -87,6 +87,7 @@
 %% * ensure preset value is passed to ct Config
 %% * check server's purity after SUITE
 {ct_hooks, [ct_groups_summary_hook, ct_tty_hook, ct_mongoose_hook, ct_progress_hook,
+            ct_mim_config_hook,
             ct_markdown_errors_hook,
             {ct_mongoose_log_hook, [ejabberd_node, ejabberd_cookie]},
             {ct_mongoose_log_hook, [ejabberd2_node, ejabberd_cookie]}
