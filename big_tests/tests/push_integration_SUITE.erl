@@ -295,23 +295,18 @@ muclight_inbox_msg_unread_count(Config, Service, EnableOpts) ->
               KateToken = enable_push_for_user(Kate, Service, EnableOpts),
 
               SenderJID = muclight_conversation(Alice, RoomJID, <<"First!">>),
+              escalus:wait_for_stanza(Alice),
               Notification = wait_for_push_request(KateToken),
               assert_push_notification(Notification, Service, EnableOpts, SenderJID,
                                        [{body, <<"First!">>}, {unread_count, 1}, {badge, 1}]),
 
               muclight_conversation(Alice, RoomJID, <<"Second!">>),
-
+              escalus:wait_for_stanza(Alice),
               Notification2 = wait_for_push_request(KateToken),
               assert_push_notification(Notification2, Service, EnableOpts, SenderJID,
                                        [{body, <<"Second!">>}, {unread_count, 2}, {badge, 1}]),
 
-              mongoose_helper:wait_until(fun() ->
-                                                 become_available(Kate, 0)
-                                         end,
-                                         {ok, true},
-                                         #{sleep_time => 50,
-                                           time_left => timer:seconds(1),
-                                           name => available}),
+              {ok, true} = become_available(Kate, 0),
 
               muclight_conversation(Alice, RoomJID, <<"Third!">>),
               escalus:wait_for_stanza(Kate),
