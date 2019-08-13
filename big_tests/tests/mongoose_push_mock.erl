@@ -42,10 +42,6 @@ init(Req, State) ->
     {ok, Body, Req2} = cowboy_req:read_body(Req),
     [{_, Subscriber}] = ets:lookup(mongoose_push_mock_subscribers, Token),
     Subscriber ! {push_request, Token, Body},
-
     Req3 = cowboy_req:reply(204, #{}, <<>>, Req2),
     {ok, Req3, State}.
-
-
-
 
