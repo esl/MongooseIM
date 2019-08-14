@@ -128,7 +128,7 @@ message_altered_by_filter_local_packet_hook(Config) ->
         end).
 
 acc_test_helper_code(Config) ->
-    Dir = proplists:get_value(data_dir, Config),
+    Dir = proplists:get_value(mim_data_dir, Config),
     F = filename:join(Dir, "acc_test_helper.erl"),
     {ok, Code} = file:read_file(F),
     binary_to_list(Code).

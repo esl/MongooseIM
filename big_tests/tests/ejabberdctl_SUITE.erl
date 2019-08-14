@@ -110,7 +110,7 @@ suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
 init_per_suite(Config) ->
-    Cwd0 = escalus_config:get_config(data_dir, Config),
+    Cwd0 = escalus_config:get_config(mim_data_dir, Config),
     CwdTokens = string:tokens(Cwd0, "/"),
     Cwd =  [$/ | string:join(lists:sublist(CwdTokens, 1, length(CwdTokens)-2), "/")],
     TemplatePath = Cwd ++ "/roster.template",
