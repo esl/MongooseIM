@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Environment variable DB is used by this script.
-# If DB is undefined, than this script does nothing.
+# If DB is undefined, then this script does nothing.
 
 # Docker for Mac should be used on Mac (not docker-machine!)
 # https://store.docker.com/editions/community/docker-ce-desktop-mac
