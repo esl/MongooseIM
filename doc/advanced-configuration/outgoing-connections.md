@@ -11,7 +11,7 @@ The interface for outgoing connections management was unified and is now availab
 * `rdbms` - pool of connections to an RDBMS database
 * `rabbit` - pool of connections to a RabbitMQ server
 * `ldap` - pool of connections to an LDAP server
-* `generic` - pool of generic workers not assosiated directly with a particular connection (SNS, PushNotifications)
+* `generic` - pool of generic workers not associated directly with a particular connection (SNS, PushNotifications)
 
 All the above pools are managed by [inaka/worker_pool](https://github.com/inaka/worker_pool) library.
 
@@ -513,7 +513,7 @@ To configure a pool of connections to an LDAP server, use the following syntax:
 
 ### Connection options
 
-The following options can be specify in the `ConnectionOptions` list:
+The following options can be specified in the `ConnectionOptions` list:
 
 * **servers**
     * **Description:** List of IP addresses or DNS names of your LDAP servers. They are tried sequentially until the connection succeeds.

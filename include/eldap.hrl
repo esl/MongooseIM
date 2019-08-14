@@ -40,16 +40,3 @@
 
 -record(eldap_entry, {object_name = <<>> :: iodata(),
                       attributes = []    :: [{iodata(), [iodata()]}]}).
-
--type tlsopts() :: #{encrypt := tls | none,
-                     options => list()}.
-
--record(eldap_config, {servers = [] :: [iodata()],
-                       backups = [] :: [iodata()],
-                       tls_options :: tlsopts(),
-                       port = ?LDAP_PORT :: inet:port_number(),
-                       dn = <<"">> :: iodata(),
-                       password = <<"">> :: iodata(),
-                       base = <<"">> :: iodata(),
-                       deref = neverDerefAliases :: neverDerefAliases | derefInSearching |
-                       derefFindingBaseObj | derefAlways}).
