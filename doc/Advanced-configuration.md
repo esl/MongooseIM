@@ -138,57 +138,6 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
       Requires redis pool defined in `outgoing_pools`: <br/> `{redis, global, default, ..., ...}`.
       See [redis section in outgoing connections doc](./advanced-configuration/outgoing-connections.md#redis-connection-setup)
 
-### LDAP Connection
-* **ldap_servers**
-    * **Description:** List of IP addresses or DNS names of your LDAP servers.
-    * **Values:** `[Servers, ...]`
-    * **Default:**  no default value. This option is required when setting up an LDAP connection.
-
-* **ldap_encrypt**
-    * **Description:** Enable connection encryption with your LDAP server.
-        The value tls enables encryption by using LDAP over SSL. Note that STARTTLS encryption is not supported.
-    * **Values:** `none`, `tls`
-    * **Default:** `none`
-
-* **ldap_tls_verify** This option specifies whether to verify LDAP server certificate or not when TLS is enabled.
-    When `hard` is enabled mongooseim doesn’t proceed if a certificate is invalid.
-    When `soft` is enabled mongooseim proceeds even if the check fails.
-    `False` means no checks are performed.
-    * **Values:** `soft`, `hard`, `false`
-    * **Default:** `false`
-
-* **ldap_tls_cacertfile**
-    * **Description:** Path to a file containing PEM encoded CA certificates.
-    * **Values:** Path
-    * **Default:** This option is needed (and required) when TLS verification is enabled.
-
-* **ldap_tls_depth**
-    * **Description:**  Specifies the maximum verification depth when TLS verification is enabled.
-         i.e. how far in a chain of certificates the verification process can proceed before the verification is considered to fail.
-         Peer certificate = 0, CA certificate = 1, higher level CA certificate = 2, etc. The value 2 means that a chain can at most contain peer cert, CA cert, next CA cert, and an additional CA cert.
-    * **Values:** Integer
-    * **Default:** 1
-
-* **ldap_port**
-    * **Description:** Port to connect to your LDAP server.
-    * **Values:** Integer
-    * **Default:** 389 if encryption is disabled. 636 if encryption is enabled.
-
-* **ldap_rootdn**
-    * **Description:** Bind DN
-    * **Values:** String
-    * **Default:** empty string which is `anonymous connection`
-
-* **ldap_password**
-    * **Description:** Bind password
-    * **Values:** String
-    * **Default:** empty string
-
-* **ldap_deref**
-    * **Description:** Whether or not to dereference aliases
-    * **Values:** `never`, `always`, `finding`, `searching`
-    * **Default:** `never`
-
 ### Authentication
 
 * **auth_method** (local)
@@ -216,7 +165,7 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`jwt` backend options](authentication-backends/JWT-authentication-module.md#configuration-options)
 
-* `ldap` backend options are not yet a part of `auth_opt` tuple, so [these parameters](authentication-backends/LDAP-authentication-module.md#configuration-options) are top-level keys in `mongooseim.cfg` file.
+        * [`ldap` backend options](authentication-backends/LDAP-authentication-module.md#configuration-options)
 
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
@@ -240,7 +189,7 @@ The table below shows the supported SASL mechanisms for each authentication back
 | rdbms     |         x        |         x         |         x        |                      |                     |
 | external  |         x        |                   |                  |                      |                     |
 | anonymous |         x        |         x         |         x        |           x          |                     |
-| ldap      |         x        |                   |                  |                      |                     |
+| ldap      |         x        |                   |                  |                      |          x          |
 | jwt       |         x        |                   |                  |                      |                     |
 | riak      |         x        |         x         |         x        |                      |                     |
 | http      |         x        |         x         |         x        |                      |                     |

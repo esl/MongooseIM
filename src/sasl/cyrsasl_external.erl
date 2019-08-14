@@ -77,12 +77,18 @@ do_mech_step(Creds, User) ->
             {error, Error};
         {ok, Name} ->
             NewCreds = mongoose_credentials:extend(Creds, [{username, Name}]),
-            ejabberd_auth:authorize(NewCreds)
+            authorize(NewCreds)
+    end.
+
+authorize(Creds) ->
+    case ejabberd_auth:authorize(Creds) of
+        {ok, NewCreds} -> {ok, NewCreds};
+        {error, not_authorized} -> {error, <<"not-authorized">>}
     end.
 
 check_auth_req([], CommonName, <<"">>, Server) ->
     case ejabberd_auth:get_opt(Server, cyrsasl_external, standard) of
-       use_common_name when is_binary(CommonName) ->
+        use_common_name when is_binary(CommonName) ->
             {ok, CommonName};
         _ ->
             {error, <<"not-authorized">>}
