@@ -145,7 +145,7 @@ tests_to_run(TestSpec) ->
     TestSpecFile = atom_to_list(TestSpec),
     [
      {spec, TestSpecFile}
-    ].
+    ] ++ ct_opts().
 
 save_count(Test, Configs) ->
     Repeat = case proplists:get_value(repeat, Test) of
@@ -206,6 +206,7 @@ preset_names(Presets) ->
 
 do_run_quick_test(Test, CoverOpts) ->
     prepare_cover(Test, CoverOpts),
+    load_test_modules(Test),
     Result = ct:run_test(Test),
     case Result of
         {error, Reason} ->
@@ -218,6 +219,7 @@ do_run_quick_test(Test, CoverOpts) ->
 
 run_config_test({Name, Variables}, Test, N, Tests) ->
     enable_preset(Name, Variables, Test, N, Tests),
+    load_test_modules(Test),
     Result = ct:run_test([{label, Name} | Test]),
     case Result of
         {error, Reason} ->
@@ -599,4 +601,49 @@ anaylyze_groups_runs(LatestCTRun) ->
       {error, Error} ->
             error_logger:error_msg("Error reading all_groups.summary: ~p~n", [Error]),
             undefined
+    end.
+
+
+ct_opts() ->
+    %% Tell Common Tests that it should not compile any more files
+    %% (they are compiled by rebar)
+    case os:getenv("SKIP_AUTO_COMPILE") of
+        "true" ->
+            [{auto_compile, false}];
+        _ ->
+            []
+    end.
+
+
+%% Common Tests does not try to use code autoloading feature
+%% for loading suites.
+%% So, if we want to use SKIP_AUTO_COMPILE, we need to put tests, where Common tests
+%% can find it. Or we can load modules instead (what we do here).
+load_test_modules(Opts) ->
+    Spec = proplists:get_value(spec, Opts),
+    %% Read test spec properties
+    Props = read_file(Spec),
+    Modules = lists:usort(test_modules(Props)),
+    [try_load_module(M) || M <- Modules].
+
+test_modules([H|T]) when is_tuple(H) ->
+    test_modules_list(tuple_to_list(H)) ++ test_modules(T);
+test_modules([_|T]) ->
+    test_modules(T);
+test_modules([]) ->
+    [].
+
+test_modules_list([suites, _, Suite|_]) ->
+    [Suite];
+test_modules_list([groups, _, Suite|_]) ->
+    [Suite];
+test_modules_list([cases, _, Suite|_]) ->
+    [Suite];
+test_modules_list(_) ->
+    [].
+
+try_load_module(Module) ->
+    case code:is_loaded(Module) of
+        true -> already_loaded;
+        _ -> code:load_file(Module)
     end.

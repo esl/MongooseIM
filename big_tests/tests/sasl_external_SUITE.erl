@@ -343,7 +343,7 @@ generate_certs(C) ->
     [{certs, maps:from_list(Certs)} | C].
 
 generate_cert(C, #{cn := User} = CertSpec) ->
-    ConfigTemplate = filename:join(?config(data_dir, C), "openssl-user.cnf"),
+    ConfigTemplate = filename:join(?config(mim_data_dir, C), "openssl-user.cnf"),
     {ok, Template} = file:read_file(ConfigTemplate),
     XMPPAddrs = maps:get(xmpp_addrs, CertSpec, undefined),
     TemplateValues = prepare_template_values(User, XMPPAddrs),
@@ -367,7 +367,7 @@ generate_ca_signed_cert(C, User, UserConfig, UserKey ) ->
     {done, 0, _Output} = erlsh:run(Cmd),
 
     UserCert = filename:join(?config(priv_dir, C), User ++ "_cert.pem"),
-    SignCmd = filename:join(?config(data_dir, C), "sign_cert.sh"),
+    SignCmd = filename:join(?config(mim_data_dir, C), "sign_cert.sh"),
     Cmd2 = [SignCmd, "--req", UserCsr, "--out", UserCert],
     LogFile = filename:join(?config(priv_dir, C), User ++ "signing.log"),
     SSLDir = filename:join([path_helper:repo_dir(C), "tools", "ssl"]),

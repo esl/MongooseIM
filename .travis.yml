@@ -43,7 +43,7 @@ before_script:
         - if [ $PRESET = 'ldap_mnesia' ]; then sudo tools/travis-setup-ldap.sh; fi
         - if [ $PRESET = 'mysql_redis' ]; then sudo tools/travis-setup-rmq.sh; fi
 script:
-    - KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
+    - SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 tools/travis-test.sh -p $PRESET -s $RUN_SMALL_TESTS
 
 after_failure:
         - cat `ls -1 -d -t apps/ejabberd/logs/ct_run* | head -1`/apps.ejabberd.logs/run.*/suite.log
