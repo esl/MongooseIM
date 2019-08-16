@@ -103,7 +103,7 @@ orbs:
           - run:
               name: Run Dialyzer
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p dialyzer_only -s false
 
       small_tests:
         parallelism: 1
@@ -132,7 +132,7 @@ orbs:
           - run:
               name: Run Small Tests
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
           - run:
               name: Upload results
               when: always
@@ -159,7 +159,7 @@ orbs:
           - run:
               name: Build package
               command: |
-                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
+                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p pkg -s false
       big_tests:
         parallelism: 1
         machine:
@@ -217,7 +217,7 @@ orbs:
           - run:
               name: Run Big Tests
               command: |
-                KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+                SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
           - run:
               name: Coverage
               when: on_success
