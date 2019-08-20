@@ -489,7 +489,7 @@ receive_n_muc_messages(User, N) ->
 
 test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
@@ -516,8 +516,10 @@ test_component_on_one_host(Config) ->
 test_components_in_different_regions(_Config) ->
     ComponentCommonConfig = [{host, <<"localhost">>}, {password, <<"secret">>},
                              {server, <<"localhost">>}, {component, <<"test_service">>}],
-    Component1Config = [{port, 8888}, {component, <<"service1">>} | ComponentCommonConfig],
-    Component2Config = [{port, 9990}, {component, <<"service2">>} | ComponentCommonConfig],
+    Comp1Port = ct:get_config({hosts, mim, service_port}),
+    Comp2Port = ct:get_config({hosts, reg, service_port}),
+    Component1Config = [{port, Comp1Port}, {component, <<"service1">>} | ComponentCommonConfig],
+    Component2Config = [{port, Comp2Port}, {component, <<"service2">>} | ComponentCommonConfig],
 
     {Comp1, Addr1, _Name1} = component_helper:connect_component(Component1Config),
     {Comp2, Addr2, _Name2} = component_helper:connect_component(Component2Config),
@@ -552,7 +554,7 @@ test_hidden_component_disco_in_different_region(Config) ->
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     component_helper:disconnect_component(Comp, Addr),
@@ -735,7 +737,7 @@ test_global_disco(Config) ->
 
 test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     ?assertMatch({ok, _}, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
@@ -853,7 +855,7 @@ wait_for_node(Node,Jid) ->
 test_update_senders_host_by_ejd_service(Config) ->
     %% Connects to europe_node1
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
@@ -1216,3 +1218,6 @@ connect_steps_with_sm() ->
 
 bare_client(Client) ->
     Client#client{jid = escalus_utils:get_short_jid(Client)}.
+
+service_port() ->
+    ct:get_config({hosts, mim, service_port}).
