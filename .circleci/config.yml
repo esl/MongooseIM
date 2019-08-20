@@ -23,6 +23,7 @@ orbs:
             name: Install basic packages
             command: |
               sudo killall -9 apt-get || true && \
+              sudo apt-get update && \
               sudo apt-get install unixodbc-dev -y && \
               sudo apt-get install unixodbc -y && \
               sudo apt-get install tdsodbc -y && \
