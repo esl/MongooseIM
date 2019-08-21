@@ -1568,8 +1568,7 @@ reroute_unacked_messages(StateData) ->
 %%%----------------------------------------------------------------------
 
 fix_message_from_user(#xmlel{attrs = Attrs} = El0, Lang) ->
-    % do some cryptic preparation on xmlel
-    NewEl1 = jlib:remove_attr(<<"xmlns">>, jlib:remove_delay_tags(El0)),
+    NewEl1 = jlib:remove_delay_tags(El0),
     case xml:get_attr_s(<<"xml:lang">>, Attrs) of
         <<>> ->
             case Lang of

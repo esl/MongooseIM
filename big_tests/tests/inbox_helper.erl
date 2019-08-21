@@ -356,12 +356,18 @@ given_conversations_between(From, ToList) ->
                         Ord = integer_to_binary(N),
                         ToClient = lists:nth(N, ToList),
                         Body = <<"Msg ", Ord/binary>>,
-                        Msg = escalus_stanza:chat_to(ToClient, Body),
+                        Msg0 = escalus_stanza:chat_to(ToClient, Body),
+                        Msg = escalus_stanza:setattr(Msg0, <<"xmlns">>, ?NS_JABBER_CLIENT),
                         escalus:send(From, Msg),
                         Incoming = escalus:wait_for_stanza(ToClient),
                         escalus:assert(is_chat_message, Incoming),
+                        VerifyXMLNSFun
+                            = fun(_, InnerMsg) ->
+                                      ?NS_JABBER_CLIENT = exml_query:attr(InnerMsg, <<"xmlns">>)
+                              end,
                         NewConv = #conv{ from = From, to = ToClient,
-                                         content = Body, time_after = server_side_time() },
+                                         content = Body, time_after = server_side_time(),
+                                         verify = VerifyXMLNSFun },
                         Convs#{
                           From := [NewConv#conv{ unread = 0 } | FromConvs],
                           ToClient => [NewConv#conv{ unread = 1 }]
