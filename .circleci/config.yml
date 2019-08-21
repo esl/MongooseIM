@@ -23,6 +23,7 @@ orbs:
             name: Install basic packages
             command: |
               sudo killall -9 apt-get || true && \
+              sudo apt-get update && \
               sudo apt-get install unixodbc-dev -y && \
               sudo apt-get install unixodbc -y && \
               sudo apt-get install tdsodbc -y && \
@@ -247,6 +248,7 @@ workflows:
   version: 2
   build_and_test:
     jobs:
+      # ============= PACKAGES =============
       - mim/package:
           name: centos7
           platform: centos7
@@ -255,57 +257,63 @@ workflows:
           name: debian_stretch
           platform: debian_stretch
           context: mongooseim-org
+      # ============= BASE BUILDS =============
+      - mim/build:
+          name: otp_20_3
+          otp: 1:20.3.8.22-1
+          context: mongooseim-org
       - mim/build:
           name: otp_21_3
-          otp: 1:21.3.8.4-1
+          otp: 1:21.3.8.6-1
           context: mongooseim-org
       - mim/build:
           name: otp_22
-          otp: 1:22.0.4-1
+          otp: 1:22.0.7-1
           context: mongooseim-org
+      # ============= SMALL TESTS =============
+      - mim/small_tests:
+          name: small_tests_20_3
+          otp: 1:20.3.8.22-1
+          context: mongooseim-org
+          requires:
+            - otp_20_3
       - mim/small_tests:
           name: small_tests_21_3
-          otp: 1:21.3.8.4-1
+          otp: 1:21.3.8.6-1
           context: mongooseim-org
           requires:
             - otp_21_3
       - mim/small_tests:
           name: small_tests_22
-          otp: 1:22.0.4-1
+          otp: 1:22.0.7-1
           context: mongooseim-org
           requires:
             - otp_22
+      # ============= DIALYZER =============
       - mim/dialyzer:
           name: dialyzer
-          otp: 1:22.0.4-1
+          otp: 1:22.0.7-1
           context: mongooseim-org
+      # ============= MOST RECENT VERSION TESTS =============
       - mim/big_tests:
           name: mysql_redis
-          otp: 1:21.3.8.4-1
+          otp: 1:22.0.7-1
           preset: mysql_redis
           db: mysql
           context: mongooseim-org
           requires:
-            - otp_21_3
+            - otp_22
       - mim/big_tests:
           name: mssql_mnesia
-          otp: 1:22.0.4-1
+          otp: 1:22.0.7-1
           preset: odbc_mssql_mnesia
           db: mssql
           context: mongooseim-org
           requires:
             - otp_22
       - mim/big_tests:
-          name: ldap_mnesia
-          otp: 1:22.0.4-1
-          preset: ldap_mnesia
-          db: mnesia
-          context: mongooseim-org
-          requires:
-            - otp_22
-      - mim/big_tests:
           name: internal_mnesia
-          otp: 1:22.0.4-1
+          otp: 1:22.0.7-1
           preset: internal_mnesia
           db: mnesia
           tls_dist: true
@@ -314,25 +322,36 @@ workflows:
             - otp_22
       - mim/big_tests:
           name: elasticsearch_and_cassandra
-          otp: 1:22.0.4-1
+          otp: 1:22.0.7-1
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
           context: mongooseim-org
           requires:
             - otp_22
       - mim/big_tests:
+          name: riak_mnesia
+          otp: 1:22.0.7-1
+          preset: riak_mnesia
+          db: riak
+          context: mongooseim-org
+          requires:
+            - otp_22
+      # ============= 1 VERSION OLDER TESTS =============
+      - mim/big_tests:
           name: pgsql_mnesia
-          otp: 1:21.3.8.4-1
+          otp: 1:21.3.8.6-1
           preset: pgsql_mnesia
           db: pgsql
           context: mongooseim-org
           requires:
             - otp_21_3
+      # ============= 2 VERSIONS OLDER TESTS =============
       - mim/big_tests:
-          name: riak_mnesia
-          otp: 1:21.3.8.4-1
-          preset: riak_mnesia
-          db: riak
+          name: ldap_mnesia
+          otp: 1:20.3.8.22-1
+          preset: ldap_mnesia
+          db: mnesia
           context: mongooseim-org
           requires:
-            - otp_21_3
+            - otp_20_3
+

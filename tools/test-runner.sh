@@ -76,29 +76,29 @@ Script examples:
     Disables big tests and cover
 
 ./tools/test-runner.sh --skip-big-tests
-    Travis build job 1
+    Travis build job with small tests
 
 ./tools/test-runner.sh --skip-small-tests --db redis --tls-dist --preset internal_mnesia
-    Travis build job 2
+    Travis build job with internal_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis mysql --preset mysql_redis
-    Travis build job 3
+    Travis build job with mysql_redis
 
 ./tools/test-runner.sh --skip-small-tests --db redis mssql --preset odbc_mssql_mnesia
-    Travis build job 4
+    Travis build job with odbc_mssql_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis ldap --preset ldap_mnesia
-    Travis build job 5
+    Travis build job with ldap_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db redis elasticsearch cassandra --preset elasticsearch_and_cassandra_mnesia -- mam mongoose_cassandra mongoose_elasticsearch
-    Travis build job 6
+    Travis MAM-only build job with elasticsearch_and_cassandra_mnesia
     Separator -- between presets and suites
 
 ./tools/test-runner.sh --db redis pgsql --preset pgsql_mnesia
-    Travis build job 8
+    Travis build job with pgsql_mnesia
 
 ./tools/test-runner.sh --db redis riak --preset riak_mnesia
-    Travis build job 9
+    Travis build job with riak_mnesia
 
 ./tools/test-runner.sh --skip-small-tests --db mysql --preset mysql_mnesia --skip-stop-nodes -- mam
     Runs mam_SUITE with MySQL

@@ -53,7 +53,7 @@ after_failure:
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
 after_success:
-        - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ] && [ $TRAVIS_OTP_RELEASE = "20.3" ];
+        - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ];
             then tools/travis-build-and-push-docker.sh;
           fi
 
@@ -77,9 +77,7 @@ services:
 
 branches:
         only:
-                - deps_upgrade_erl_22
                 - master
-                - stable
                 - /^rel\-\d+\.\d+$/
                 - /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
 
@@ -92,28 +90,23 @@ env:
   matrix:
       # When changing jobs, update EXAMPLES in tools/test-runner.sh
     - PRESET=small_tests RUN_SMALL_TESTS=true SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-    - PRESET=internal_mnesia DB=mnesia REL_CONFIG=with-all TLS_DIST=true
-    - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG=with-odbc
-    - PRESET=ldap_mnesia DB=mnesia REL_CONFIG=with-none
+    - PRESET=internal_mnesia DB=mnesia REL_CONFIG="with-all" TLS_DIST=true RUN_SMALL_TESTS=true
+    - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG="with-odbc"
+    - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis with-amqp_client"
+    - PRESET=riak_mnesia DB=riak REL_CONFIG="with-riak"
+    - PRESET=ldap_mnesia DB=mnesia REL_CONFIG="with-none"
     - PRESET=elasticsearch_and_cassandra_mnesia DB="elasticsearch cassandra"
       REL_CONFIG="with-elasticsearch with-cassandra" TESTSPEC=mam.spec
       ELASTICSEARCH_VERSION=5.6.9 CASSANDRA_VERSION=3.9
+    - PRESET=dialyzer_only SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
       # In case you want to test with another ODBC driver, uncomment this
       # - PRESET=odbc_pgsql_mnesia DB=pgsql REL_CONFIG=with-odbc
 
 
 matrix:
   include:
-    - otp_release: 22.0
-      env: PRESET=dialyzer_only
-           SKIP_RELEASE=1 SKIP_BUILD_TESTS=1 SKIP_COV=1 SKIP_REPORT_UPLOAD=1
     - otp_release: 21.3
-      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql with-jingle-sip"
-           RUN_SMALL_TESTS=true
-    - otp_release: 21.3
-      env: PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis with-amqp_client"
-    - otp_release: 21.3
-      env: PRESET=riak_mnesia DB=riak REL_CONFIG="with-riak with-jingle-sip" RUN_SMALL_TESTS=true
+      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql"
     - language: generic
       env: PRESET=pkg pkg_PLATFORM=centos7
            SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
