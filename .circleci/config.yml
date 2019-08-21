@@ -15,7 +15,6 @@ orbs:
               wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb
               sudo killall -9 apt-get || true && \
               sudo dpkg -i erlang-solutions_1.0_all.deb
-              sudo apt-get update && \
               sudo apt-get install -y esl-erlang=<<parameters.otp>>
       fetch_packages:
         steps:
@@ -49,6 +48,7 @@ orbs:
 
         steps:
           - checkout
+          - fetch_packages
           - install_erlang:
               otp: <<parameters.otp>>
           - run:
@@ -59,7 +59,6 @@ orbs:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           - restore_cache:
               key: deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
-          - fetch_packages
           - run:
               name: Get deps
               command: |
@@ -195,9 +194,9 @@ orbs:
           REDIS_VERSION: 3.2.10
         steps:
           - checkout
+          - fetch_packages
           - install_erlang:
               otp: <<parameters.otp>>
-          - fetch_packages
           - run:
               name: Prepare for cache
               command: |
