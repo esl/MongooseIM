@@ -130,6 +130,7 @@ if [ "$db" = 'mysql' ]; then
         --health-cmd='mysqladmin ping --silent' \
         -p 3306:3306 --name=mongooseim-mysql \
         mysql --default-authentication-plugin=mysql_native_password
+    tools/wait_for_healthcheck.sh mongooseim-mysql
 
 elif [ "$db" = 'pgsql' ]; then
     # If you see "certificate verify failed" error in Mongoose logs, try:
