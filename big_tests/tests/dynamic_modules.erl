@@ -4,6 +4,7 @@
 
 -export([save_modules/2, ensure_modules/2, restore_modules/2]).
 -export([stop/2, stop/3, start/3, start/4, restart/3, stop_running/2, start_running/1]).
+-export([stop_service/1, start_service/2]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -66,6 +67,24 @@ start(Node, Domain, Mod, Args) ->
     case escalus_rpc:call(Node, gen_mod, start_module, [Domain, Mod, Args], 5000, Cookie) of
         {badrpc, Reason} ->
             ct:fail("Cannot start module ~p reason ~p", [Mod, Reason]);
+        R -> R
+    end.
+
+stop_service(Mod) ->
+    Node = escalus_ct:get_config(ejabberd_node),
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    case escalus_rpc:call(Node, mongoose_service, stop_service, [Mod], 5000, Cookie) of
+        {badrpc, Reason} ->
+            ct:fail("Cannot stop service ~p reason ~p", [Mod, Reason]);
+        R -> R
+    end.
+
+start_service(Mod, Args) ->
+    Node = escalus_ct:get_config(ejabberd_node),
+    Cookie = escalus_ct:get_config(ejabberd_cookie),
+    case escalus_rpc:call(Node, mongoose_service, start_service, [Mod, Args], 5000, Cookie) of
+        {badrpc, Reason} ->
+            ct:fail("Cannot start service ~p reason ~p", [Mod, Reason]);
         R -> R
     end.
 

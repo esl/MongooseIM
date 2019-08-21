@@ -17,10 +17,10 @@
 %% Description: Administration commands for MUC Light
 %%==============================================================================
 
--module(mod_muc_light_commands).
+-module(service_muc_light_commands).
 
--behaviour(gen_mod).
--export([start/2, stop/1]).
+-behaviour(mongoose_service).
+-export([start/1, stop/0]).
 
 -export([create_unique_room/4]).
 -export([create_identifiable_room/5]).
@@ -40,10 +40,10 @@
 %% `gen_mod' callbacks
 %%--------------------------------------------------------------------
 
-start(_, _) ->
+start(_) ->
     mongoose_commands:register(commands()).
 
-stop(_) ->
+stop() ->
     mongoose_commands:unregister(commands()).
 
 

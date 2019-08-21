@@ -1,10 +1,9 @@
--module(mod_commands).
+-module(service_commands).
 -author('bartlomiej.gorny@erlang-solutions.com').
 
--behaviour(gen_mod).
+-behaviour(mongoose_service).
 
--export([start/0, stop/0,
-         start/2, stop/1,
+-export([start/1, stop/0,
          register/3,
          unregister/2,
          registered_commands/0,
@@ -29,14 +28,11 @@
 -include("jlib.hrl").
 -include("mongoose_rsm.hrl").
 
-start() ->
+start(_) ->
     mongoose_commands:register(commands()).
 
 stop() ->
     mongoose_commands:unregister(commands()).
-
-start(_, _) -> start().
-stop(_) -> stop().
 
 %%%
 %%% mongoose commands

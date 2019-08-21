@@ -17,10 +17,10 @@
 %% Description: Administration commands for Mult-user Chat (MUC)
 %%==============================================================================
 
--module(mod_muc_commands).
+-module(service_muc_commands).
 
 -behaviour(gen_mod).
--export([start/2, stop/1]).
+-export([start/1, stop/0]).
 
 -export([create_instant_room/4]).
 -export([invite_to_room/5]).
@@ -31,10 +31,10 @@
 -include("jlib.hrl").
 -include("mod_muc_room.hrl").
 
-start(_, _) ->
+start(_) ->
     mongoose_commands:register(commands()).
 
-stop(_) ->
+stop() ->
     mongoose_commands:unregister(commands()).
 
 commands() ->
