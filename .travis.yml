@@ -90,7 +90,7 @@ env:
   matrix:
       # When changing jobs, update EXAMPLES in tools/test-runner.sh
     - PRESET=small_tests RUN_SMALL_TESTS=true SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
-    - PRESET=internal_mnesia DB=mnesia REL_CONFIG="with-all" TLS_DIST=true RUN_SMALL_TESTS=true
+    - PRESET=internal_mnesia DB=mnesia REL_CONFIG="with-all" TLS_DIST=true
     - PRESET=odbc_mssql_mnesia DB=mssql REL_CONFIG="with-odbc"
     - PRESET=mysql_redis DB=mysql REL_CONFIG="with-mysql with-redis with-amqp_client"
     - PRESET=riak_mnesia DB=riak REL_CONFIG="with-riak"
@@ -106,7 +106,7 @@ env:
 matrix:
   include:
     - otp_release: 21.3
-      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql"
+      env: PRESET=pgsql_mnesia DB=pgsql REL_CONFIG="with-pgsql" RUN_SMALL_TESTS=true
     - language: generic
       env: PRESET=pkg pkg_PLATFORM=centos7
            SKIP_COMPILE=1 SKIP_RELEASE=1 SKIP_BUILD_TESTS=1
