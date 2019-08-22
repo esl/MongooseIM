@@ -4,6 +4,8 @@ set -e
 source tools/travis-common-vars.sh
 LDAP_ROOTPASS=mongooseim_secret
 
+NAME=mongooseim-ldap
+
 LDAP_ROOT="cn=admin,dc=esl,dc=com"
 LDAP_DOMAIN="esl.com"
 LDAP_ORGANISATION="Erlang Solutions"
@@ -29,12 +31,12 @@ EOL
 cp tools/ssl/mongooseim/{cert,key}.pem "$LDAP_CERT_DIR"
 cp tools/ssl/ca/cacert.pem "$LDAP_CERT_DIR"
 
-docker rm -f mongooseim-ldap || echo "Skip removing previous container"
+docker rm -f $NAME || echo "Skip removing previous container"
 # Host on non-standard higher ports 3389 and 3636 to avoid problems with lower ports
 # Default LDAP ports are 389 (TCP) and 636 (TLS)
 
 docker run -d \
-    --name mongooseim-ldap \
+    --name $NAME \
     -p 3389:389 \
     -p 3636:636 \
     -e LDAP_DOMAIN="$LDAP_DOMAIN" \
