@@ -94,7 +94,7 @@ DB_CONF_DIR=${TOOLS}/db_configs/$db
 
 
 if [ "$db" = 'mysql' ]; then
-    NAME=mongooseim-mysql
+    NAME=$(db_name mysql)
     echo "Configuring mysql"
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
@@ -121,7 +121,7 @@ if [ "$db" = 'mysql' ]; then
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then
-    NAME=mongooseim-pgsql
+    NAME=$(db_name pgsql)
     # If you see "certificate verify failed" error in Mongoose logs, try:
     # Inside tools/ssl/:
     # make clean && make
@@ -144,7 +144,7 @@ elif [ "$db" = 'pgsql' ]; then
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
 
 elif [ "$db" = 'riak' ]; then
-    NAME=mongooseim-riak
+    NAME=$(db_name riak)
     echo "Configuring Riak with SSL"
     docker rm -f $NAME || echo "Skip removing previous container"
     # Instead of docker run, use "docker create" + "docker start".
@@ -190,8 +190,8 @@ elif [ "$db" = 'riak' ]; then
     # docker exec -t $NAME bash -c 'tail -f /var/log/riak/*'
 
 elif [ "$db" = 'cassandra' ]; then
-    NAME=mongooseim-cassandra
-    PROXY_NAME=mongooseim-cassandra-proxy
+    NAME=$(db_name cassandra)
+    PROXY_NAME=$(db_name cassandra-proxy)
     docker image pull cassandra:${CASSANDRA_VERSION}
     docker rm -f $NAME $PROXY_NAME || echo "Skip removing previous container"
 
@@ -246,7 +246,7 @@ elif [ "$db" = 'cassandra' ]; then
 elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
     ELASTICSEARCH_PORT=9200
-    NAME=mongooseim-elasticsearch
+    NAME=$(db_name elasticsearch)
 
     echo $ELASTICSEARCH_IMAGE
     docker image pull $ELASTICSEARCH_IMAGE
@@ -273,7 +273,7 @@ elif [ "$db" = 'elasticsearch' ]; then
         echo "Failed to put MUC mapping into ElasticSearch"
 
 elif [ "$db" = 'mssql' ]; then
-    NAME=mongooseim-mssql
+    NAME=$(db_name mssql)
     # LICENSE STUFF, IMPORTANT
     #
     # SQL Server Developer edition

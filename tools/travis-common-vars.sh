@@ -54,3 +54,8 @@ function mount_ro_volume
 {
     echo "-v $1:$2:ro"
 }
+
+function db_name
+{
+    echo mongooseim-$1
+}

@@ -4,7 +4,7 @@ set -e
 source tools/travis-common-vars.sh
 LDAP_ROOTPASS=mongooseim_secret
 
-NAME=mongooseim-ldap
+NAME=$(db_name ldap)
 
 LDAP_ROOT="cn=admin,dc=esl,dc=com"
 LDAP_DOMAIN="esl.com"
