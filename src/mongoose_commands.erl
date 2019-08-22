@@ -242,7 +242,7 @@ list(U, Category, Action) ->
     list(U, Category, Action, any).
 
 %% @doc List commands, available for this user, filtered by category, action and subcategory
--spec list(caller(), binary() | any, atom(), binary() | any) -> [t()].
+-spec list(caller(), binary() | any, atom(), binary() | any | undefined) -> [t()].
 list(U, Category, Action, SubCategory) ->
     CL = command_list(Category, Action, SubCategory),
     lists:filter(fun(C) -> is_available_for(U, C) end, CL).

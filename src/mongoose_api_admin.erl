@@ -108,9 +108,11 @@ terminate(_Reason, _Req, _State) ->
     ok.
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+delete_resource(Req, #http_api_state{command_category = Category,
+                                     command_subcategory = SubCategory,
+                                     bindings = B} = State) ->
     Arity = length(B),
-    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>)),
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"DELETE">>), SubCategory),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"DELETE">>, Command, Req, State).
 
@@ -153,8 +155,10 @@ get_control_creds(#http_api_state{auth = Creds}) ->
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
-    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>)),
+to_json(Req, #http_api_state{command_category = Category,
+                             command_subcategory = SubCategory,
+                             bindings = B} = State) ->
+    Cmds = mongoose_commands:list(admin, Category, method_to_action(<<"GET">>), SubCategory),
     Arity = length(B),
     [Command] = [C || C <- Cmds, mongoose_commands:arity(C) == Arity],
     process_request(<<"GET">>, Command, Req, State).

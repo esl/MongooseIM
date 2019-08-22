@@ -96,9 +96,11 @@ is_authorized(Req, State) ->
     do_authorize(AuthDetails, Req, State).
 
 %% @doc Called for a method of type "DELETE"
-delete_resource(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+delete_resource(Req, #http_api_state{command_category = Category,
+                                     command_subcategory = SubCategory,
+                                     bindings = B} = State) ->
     Arity = length(B),
-    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"DELETE">>)),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"DELETE">>), SubCategory),
     [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(<<"DELETE">>, Command, Req, State).
 
@@ -107,22 +109,26 @@ delete_resource(Req, #http_api_state{command_category = Category, bindings = B} 
 %%--------------------------------------------------------------------
 
 %% @doc Called for a method of type "GET"
-to_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+to_json(Req, #http_api_state{command_category = Category,
+                             command_subcategory = SubCategory,
+                             bindings = B} = State) ->
     Arity = length(B),
-    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"GET">>)),
+    Cmds = mongoose_commands:list(user, Category, method_to_action(<<"GET">>), SubCategory),
     [Command] = [C || C <- Cmds, arity(C) == Arity],
     mongoose_api_common:process_request(<<"GET">>, Command, Req, State).
 
 
 %% @doc Called for a method of type "POST" and "PUT"
-from_json(Req, #http_api_state{command_category = Category, bindings = B} = State) ->
+from_json(Req, #http_api_state{command_category = Category,
+                               command_subcategory = SubCategory,
+                               bindings = B} = State) ->
     Method = cowboy_req:method(Req),
     case parse_request_body(Req) of
         {error, _R}->
             error_response(bad_request, ?BODY_MALFORMED, Req, State);
         {Params, _} ->
         Arity = length(B) + length(Params),
-        Cmds = mongoose_commands:list(user, Category, method_to_action(Method)),
+        Cmds = mongoose_commands:list(user, Category, method_to_action(Method), SubCategory),
         case [C || C <- Cmds, arity(C) == Arity] of
             [Command] ->
                 process_request(Method, Command, {Params, Req}, State);
