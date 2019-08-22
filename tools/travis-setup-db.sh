@@ -197,7 +197,7 @@ elif [ "$db" = 'riak' ]; then
     export RIAK_ADMIN="docker exec mongooseim-riak riak-admin"
     tools/setup_riak
     # Use this command to read Riak's logs if something goes wrong
-    # docker exec -it mongooseim-riak bash -c 'tail -f /var/log/riak/*'
+    # docker exec -t mongooseim-riak bash -c 'tail -f /var/log/riak/*'
 
 elif [ "$db" = 'cassandra' ]; then
     docker image pull cassandra:${CASSANDRA_VERSION}
@@ -243,7 +243,7 @@ elif [ "$db" = 'cassandra' ]; then
     TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
     for cql_file in $MIM_SCHEMA $TEST_SCHEMA; do
         echo "Apply ${cql_file}"
-        docker run -it $RM_FLAG -e SSL_CERTFILE=/cacert.pem         \
+        docker run -t $RM_FLAG -e SSL_CERTFILE=/cacert.pem         \
 	               $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/cacert.pem")  \
                        $(mount_ro_volume "${cql_file}" "/cassandra.cql")           \
                        --link mongooseim-cassandra:cassandra        \
@@ -334,13 +334,13 @@ elif [ "$db" = 'mssql' ]; then
     tools/wait_for_healthcheck.sh mongoose-mssql
     tools/wait_for_service.sh mongoose-mssql 1433
 
-    docker exec -it mongoose-mssql \
+    docker exec -t mongoose-mssql \
         /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
         -Q "CREATE DATABASE ejabberd"
-    docker exec -it mongoose-mssql \
+    docker exec -t mongoose-mssql \
         /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
         -Q "ALTER DATABASE ejabberd SET READ_COMMITTED_SNAPSHOT ON"
-    docker exec -it mongoose-mssql \
+    docker exec -t mongoose-mssql \
         /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
         -i mongoose.sql
 
