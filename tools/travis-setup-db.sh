@@ -7,7 +7,6 @@
 # https://store.docker.com/editions/community/docker-ce-desktop-mac
 
 set -e
-TOOLS=`dirname $0`
 
 source tools/travis-common-vars.sh
 
@@ -17,7 +16,7 @@ MYSQL_DIR=/etc/mysql/conf.d
 
 PGSQL_ODBC_CERT_DIR=~/.postgresql
 
-SSLDIR=${BASE}/${TOOLS}/ssl
+SSLDIR=${TOOLS}/ssl
 
 # Don't need it for travis for speed up
 RM_FLAG=" --rm "
@@ -103,7 +102,7 @@ mkdir -p "$SQL_TEMP_DIR" "$SQL_DATA_DIR"
 function setup_db(){
 db=${1:-none}
 echo "Setting up db: $db"
-DB_CONF_DIR=${BASE}/${TOOLS}/db_configs/$db
+DB_CONF_DIR=${TOOLS}/db_configs/$db
 
 
 if [ "$db" = 'mysql' ]; then
@@ -124,7 +123,7 @@ if [ "$db" = 'mysql' ]; then
         -e MYSQL_PASSWORD=mongooseim_secret \
 	$(mount_ro_volume ${DB_CONF_DIR}/mysql.cnf ${MYSQL_DIR}/mysql.cnf) \
         $(mount_ro_volume ${MIM_PRIV_DIR}/mysql.sql /docker-entrypoint-initdb.d/mysql.sql) \
-	$(mount_ro_volume ${BASE}/${TOOLS}/docker-setup-mysql.sh /docker-entrypoint-initdb.d/docker-setup-mysql.sh) \
+	$(mount_ro_volume ${TOOLS}/docker-setup-mysql.sh /docker-entrypoint-initdb.d/docker-setup-mysql.sh) \
 	$(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
@@ -149,7 +148,7 @@ elif [ "$db" = 'pgsql' ]; then
            -e SQL_TEMP_DIR=/tmp/sql \
            $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
            $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/postgresql/data) \
-           $(mount_ro_volume ${BASE}/${TOOLS}/docker-setup-postgres.sh /docker-entrypoint-initdb.d/docker-setup-postgres.sh) \
+           $(mount_ro_volume ${TOOLS}/docker-setup-postgres.sh /docker-entrypoint-initdb.d/docker-setup-postgres.sh) \
            -p 5432:5432 --name=mongooseim-pgsql postgres
     mkdir -p ${PGSQL_ODBC_CERT_DIR}
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt

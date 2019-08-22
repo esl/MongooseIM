@@ -10,6 +10,8 @@ else
     BASE=`readlink -f ${TOOLS}/..`
     SED=sed
 fi
+# Make it full
+TOOLS="$BASE/tools"
 
 TLS_DIST=${TLS_DIST:-false}
 START_NODES=${START_NODES:-true}
