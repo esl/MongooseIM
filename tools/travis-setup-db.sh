@@ -64,7 +64,7 @@ function install_odbc_ini
 Driver      = /usr/lib/x86_64-linux-gnu/odbc/libtdsodbc.so
 Setup       = /usr/lib/x86_64-linux-gnu/odbc/libtdsS.so
 Server      = 127.0.0.1
-Port        = 1433
+Port        = $MSSQL_PORT
 Database    = ejabberd
 Username    = sa
 Password    = mongooseim_secret+ESL123
@@ -95,6 +95,7 @@ DB_CONF_DIR=${TOOLS}/db_configs/$db
 
 if [ "$db" = 'mysql' ]; then
     NAME=$(db_name mysql)
+    MYSQL_PORT=${MYSQL_PORT:-3306}
     echo "Configuring mysql"
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
@@ -116,12 +117,13 @@ if [ "$db" = 'mysql' ]; then
 	$(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
-        -p 3306:3306 --name=$NAME \
+        -p $MYSQL_PORT:3306 --name=$NAME \
         mysql --default-authentication-plugin=mysql_native_password
     tools/wait_for_healthcheck.sh $NAME
 
 elif [ "$db" = 'pgsql' ]; then
     NAME=$(db_name pgsql)
+    PGSQL_PORT=${PGSQL_PORT:-5432}
     # If you see "certificate verify failed" error in Mongoose logs, try:
     # Inside tools/ssl/:
     # make clean && make
@@ -139,12 +141,15 @@ elif [ "$db" = 'pgsql' ]; then
            $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
            $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/postgresql/data) \
            $(mount_ro_volume ${TOOLS}/docker-setup-postgres.sh /docker-entrypoint-initdb.d/docker-setup-postgres.sh) \
-           -p 5432:5432 --name=$NAME postgres
+           -p $PGSQL_PORT:5432 --name=$NAME postgres
     mkdir -p ${PGSQL_ODBC_CERT_DIR}
     cp ${SSLDIR}/ca/cacert.pem ${PGSQL_ODBC_CERT_DIR}/root.crt
 
 elif [ "$db" = 'riak' ]; then
     NAME=$(db_name riak)
+    # Expose for setup_riak script
+    export RIAK_PORT=${RIAK_PORT:-8098}
+    RIAK_PB_PORT=${RIAK_PB_PORT:-8087}
     echo "Configuring Riak with SSL"
     docker rm -f $NAME || echo "Skip removing previous container"
     # Instead of docker run, use "docker create" + "docker start".
@@ -154,7 +159,7 @@ elif [ "$db" = 'riak' ]; then
     # - we want to change it
     # - container starting code runs sed on it and gets IO error,
     #   if it's a volume
-    time docker create -p 8087:8087 -p 8098:8098 \
+    time docker create -p $RIAK_PB_PORT:8087 -p $RIAK_PORT:8098 \
         -e DOCKER_RIAK_BACKEND=leveldb \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
         --name=$NAME \
@@ -192,6 +197,8 @@ elif [ "$db" = 'riak' ]; then
 elif [ "$db" = 'cassandra' ]; then
     NAME=$(db_name cassandra)
     PROXY_NAME=$(db_name cassandra-proxy)
+    CASSANDRA_PROXY_API_PORT=${CASSANDRA_PROXY_API_PORT:-9191}
+    CASSANDRA_PORT=${CASSANDRA_PORT:-9042}
     docker image pull cassandra:${CASSANDRA_VERSION}
     docker rm -f $NAME $PROXY_NAME || echo "Skip removing previous container"
 
@@ -216,7 +223,7 @@ elif [ "$db" = 'cassandra' ]; then
                --entrypoint "/entry.sh"          \
                cassandra:${CASSANDRA_VERSION}    \
                "${init_opts[@]}"
-    tools/wait_for_service.sh $NAME 9042 || docker logs $NAME
+    tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
     # Start TCP proxy
     CASSANDRA_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $NAME)
@@ -224,8 +231,8 @@ elif [ "$db" = 'cassandra' ]; then
     cp ${DB_CONF_DIR}/proxy/zazkia-routes.json "$SQL_TEMP_DIR/"
     $SED -i "s/\"service-hostname\": \".*\"/\"service-hostname\": \"$CASSANDRA_IP\"/g" "$SQL_TEMP_DIR/zazkia-routes.json"
     docker run -d                               \
-               -p 9042:9042                     \
-               -p 9191:9191                     \
+               -p $CASSANDRA_PORT:9042                   \
+               -p $CASSANDRA_PROXY_API_PORT:9191         \
                $(mount_ro_volume "$SQL_TEMP_DIR" /data)  \
                --name=$PROXY_NAME \
                emicklei/zazkia
@@ -245,7 +252,7 @@ elif [ "$db" = 'cassandra' ]; then
 
 elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
-    ELASTICSEARCH_PORT=9200
+    ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
     NAME=$(db_name elasticsearch)
 
     echo $ELASTICSEARCH_IMAGE
@@ -261,7 +268,7 @@ elif [ "$db" = 'elasticsearch' ]; then
            --name $NAME \
            $ELASTICSEARCH_IMAGE
     echo "Waiting for ElasticSearch to start listening on port"
-    tools/wait_for_service.sh $NAME $ELASTICSEARCH_PORT || docker logs $NAME
+    tools/wait_for_service.sh $NAME 9200 || docker logs $NAME
 
     ELASTICSEARCH_URL=http://localhost:$ELASTICSEARCH_PORT
     ELASTICSEARCH_PM_MAPPING="$(pwd)/priv/elasticsearch/pm.json"
@@ -274,6 +281,7 @@ elif [ "$db" = 'elasticsearch' ]; then
 
 elif [ "$db" = 'mssql' ]; then
     NAME=$(db_name mssql)
+    MSSQL_PORT=${MSSQL_PORT:-1433}
     # LICENSE STUFF, IMPORTANT
     #
     # SQL Server Developer edition
@@ -315,8 +323,8 @@ elif [ "$db" = 'mssql' ]; then
     #
     # Otherwise we get an error in logs
     # Error 87(The parameter is incorrect.) occurred while opening file '/var/opt/mssql/data/master.mdf'
-    docker run -d -p 1433:1433                                  \
-               --name=$NAME                            \
+    docker run -d -p $MSSQL_PORT:1433                           \
+               --name=$NAME                                     \
                -e "ACCEPT_EULA=Y"                               \
                -e "SA_PASSWORD=mongooseim_secret+ESL123"        \
                $(mount_ro_volume "$(pwd)/priv/mssql2012.sql" "/mongoose.sql")  \

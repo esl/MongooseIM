@@ -35,10 +35,13 @@ docker rm -f $NAME || echo "Skip removing previous container"
 # Host on non-standard higher ports 3389 and 3636 to avoid problems with lower ports
 # Default LDAP ports are 389 (TCP) and 636 (TLS)
 
+LDAP_PORT=${LDAP_PORT:-3389}
+LDAP_SECURE_PORT=${LDAP_SECURE_PORT:-3636}
+
 docker run -d \
     --name $NAME \
-    -p 3389:389 \
-    -p 3636:636 \
+    -p $LDAP_PORT:389 \
+    -p $LDAP_SECURE_PORT:636 \
     -e LDAP_DOMAIN="$LDAP_DOMAIN" \
     -e LDAP_ADMIN_PASSWORD="$LDAP_ROOTPASS" \
     -e LDAP_ORGANISATION="$LDAP_ORGANISATION" \
