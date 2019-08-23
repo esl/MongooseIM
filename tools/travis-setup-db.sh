@@ -99,7 +99,7 @@ if [ "$db" = 'mysql' ]; then
     echo "Configuring mysql"
     # TODO We should not use sudo
     sudo -n service mysql stop || echo "Failed to stop mysql"
-    docker rm -f $NAME || echo "Skip removing previous container"
+    docker rm -v -f $NAME || echo "Skip removing previous container"
     cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
     openssl rsa -in ${SSLDIR}/mongooseim/key.pem -out ${SQL_TEMP_DIR}/fake_key.pem
     chmod a+r ${SQL_TEMP_DIR}/fake_key.pem
@@ -130,7 +130,7 @@ elif [ "$db" = 'pgsql' ]; then
     # Than rerun the script to create a new docker container.
     echo "Configuring postgres with SSL"
     sudo -n service postgresql stop || echo "Failed to stop psql"
-    docker rm -f $NAME || echo "Skip removing previous container"
+    docker rm -v -f $NAME || echo "Skip removing previous container"
     cp ${SSLDIR}/mongooseim/cert.pem ${SQL_TEMP_DIR}/fake_cert.pem
     cp ${SSLDIR}/mongooseim/key.pem ${SQL_TEMP_DIR}/fake_key.pem
     cp ${DB_CONF_DIR}/postgresql.conf ${SQL_TEMP_DIR}/.
@@ -151,7 +151,7 @@ elif [ "$db" = 'riak' ]; then
     export RIAK_PORT=${RIAK_PORT:-8098}
     RIAK_PB_PORT=${RIAK_PB_PORT:-8087}
     echo "Configuring Riak with SSL"
-    docker rm -f $NAME || echo "Skip removing previous container"
+    docker rm -v -f $NAME || echo "Skip removing previous container"
     # Instead of docker run, use "docker create" + "docker start".
     # So we can prepare our container.
     # We use HEALTHCHECK here, check "docker ps" to get healthcheck status.
@@ -200,7 +200,7 @@ elif [ "$db" = 'cassandra' ]; then
     CASSANDRA_PROXY_API_PORT=${CASSANDRA_PROXY_API_PORT:-9191}
     CASSANDRA_PORT=${CASSANDRA_PORT:-9042}
     docker image pull cassandra:${CASSANDRA_VERSION}
-    docker rm -f $NAME $PROXY_NAME || echo "Skip removing previous container"
+    docker rm -v -f $NAME $PROXY_NAME || echo "Skip removing previous container"
 
     opts="$(docker inspect -f '{{range .Config.Entrypoint}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
     opts+="$(docker inspect -f '{{range .Config.Cmd}}{{println}}{{.}}{{end}}' cassandra:${CASSANDRA_VERSION})"
@@ -257,7 +257,7 @@ elif [ "$db" = 'elasticsearch' ]; then
 
     echo $ELASTICSEARCH_IMAGE
     docker image pull $ELASTICSEARCH_IMAGE
-    docker rm -f  $NAME || echo "Skip removing previous container"
+    docker rm -v -f $NAME || echo "Skip removing previous container"
 
     echo "Starting ElasticSearch $ELASTICSEARCH_VERSION from Docker container"
     docker run -d $RM_FLAG \
@@ -303,7 +303,7 @@ elif [ "$db" = 'mssql' ]; then
     # > a third party the results of any benchmark test of the software.
 
     # SCRIPTING STUFF
-    docker rm -f $NAME || echo "Skip removing previous container"
+    docker rm -v -f $NAME || echo "Skip removing previous container"
     docker volume rm -f $NAME-data || echo "Skip removing previous volume"
     #
     # MSSQL wants secure passwords
