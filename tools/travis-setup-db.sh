@@ -191,6 +191,7 @@ elif [ "$db" = 'riak' ]; then
     # Use riak-admin from inside the container
     export RIAK_ADMIN="docker exec $NAME riak-admin"
     tools/setup_riak
+    tools/wait_for_service.sh $NAME 8087
     # Use this command to read Riak's logs if something goes wrong
     # docker exec -t $NAME bash -c 'tail -f /var/log/riak/*'
 
