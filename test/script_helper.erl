@@ -40,7 +40,7 @@ read(Port, Buffer) ->
             erlang:error(#{ reason => script_has_terminated,
                             exit_status => ExitStatus,
                             data_received => Buffer })
-    after 2000 ->
+    after 5000 ->
         erlang:error(#{ reason => timeout,
                         data_received => Buffer })
     end.
@@ -60,7 +60,7 @@ read(Port, Buffer, ExpectedLen) ->
                             data_received => Buffer,
                             received_len => byte_size(Buffer),
                             expected_len => ExpectedLen })
-    after 2000 ->
+    after 5000 ->
               erlang:error(#{ reason => timeout,
                               data_received => Buffer,
                               received_len => byte_size(Buffer),
