@@ -99,7 +99,7 @@ c2s_is_killed_when_too_many_messages_in_the_queue(_) ->
                 fun(go_to_sleep, StateName, ProcState) ->
                         Self ! c2s_going_to_sleep,
                         ct:pal("going to sleep"),
-                        timer:sleep(2000),
+                        receive continue -> ok end,
                         {next_state, StateName, ProcState};
                    (Event, StateName, ProcState) ->
                         meck:passthrough([Event, StateName, ProcState])
@@ -112,10 +112,7 @@ c2s_is_killed_when_too_many_messages_in_the_queue(_) ->
 
     p1_fsm_old:send_all_state_event(C2SPid, go_to_sleep),
 
-    receive
-        c2s_going_to_sleep ->
-            ok
-    end,
+    receive c2s_going_to_sleep -> ok end,
 
     meck:unload(ejabberd_c2s),
 
@@ -126,18 +123,18 @@ c2s_is_killed_when_too_many_messages_in_the_queue(_) ->
 
     [p1_fsm_old:send_all_state_event(C2SPid, {event, I}) ||
      I <- lists:seq(1, MaxQueueSize + 1)],
+    C2SPid ! continue,
 
     receive
-        {'DOWN', Ref, process, C2SPid,
-         {process_limit,{max_queue, AllMessages}}} ->
+        {'DOWN', Ref, process, C2SPid, {process_limit,{max_queue, AllMessages}}} ->
             ct:pal("C2S dead due to message_queue_length=~p, max allowed was ~p",
                    [AllMessages, MaxQueueSize]);
         Msg ->
             ct:fail("Other msg: ~p", [Msg])
     after timer:seconds(5) ->
-              ct:fail(timeout_waiting_for_c2s_exit)
+              {message_queue_len, N} = process_info(C2SPid, message_queue_len),
+              ct:fail("timeout waiting c2s exit, with message_queue_len = ~p", [N])
     end,
-
     ok.
 
 last_stanza() ->
