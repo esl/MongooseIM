@@ -111,10 +111,10 @@ if [ "$db" = 'mysql' ]; then
         -e MYSQL_DATABASE=ejabberd \
         -e MYSQL_USER=ejabberd \
         -e MYSQL_PASSWORD=mongooseim_secret \
-	$(mount_ro_volume ${DB_CONF_DIR}/mysql.cnf ${MYSQL_DIR}/mysql.cnf) \
+    $(mount_ro_volume ${DB_CONF_DIR}/mysql.cnf ${MYSQL_DIR}/mysql.cnf) \
         $(mount_ro_volume ${MIM_PRIV_DIR}/mysql.sql /docker-entrypoint-initdb.d/mysql.sql) \
-	$(mount_ro_volume ${TOOLS}/docker-setup-mysql.sh /docker-entrypoint-initdb.d/docker-setup-mysql.sh) \
-	$(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
+    $(mount_ro_volume ${TOOLS}/docker-setup-mysql.sh /docker-entrypoint-initdb.d/docker-setup-mysql.sh) \
+    $(mount_ro_volume ${SQL_TEMP_DIR} /tmp/sql) \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/mysql) \
         --health-cmd='mysqladmin ping --silent' \
         -p $MYSQL_PORT:3306 --name=$NAME \
@@ -163,11 +163,11 @@ elif [ "$db" = 'riak' ]; then
         -e DOCKER_RIAK_BACKEND=leveldb \
         -e DOCKER_RIAK_CLUSTER_SIZE=1 \
         --name=$NAME \
-	$(mount_ro_volume "${DB_CONF_DIR}/advanced.config" "/etc/riak/advanced.config") \
-	$(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/etc/riak/cert.pem") \
-	$(mount_ro_volume "${SSLDIR}/mongooseim/key.pem" "/etc/riak/key.pem") \
-	$(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/etc/riak/ca/cacertfile.pem") \
-	$(mount_ro_volume "$TOOLS/setup_riak.escript" "/setup_riak.escript") \
+        $(mount_ro_volume "${DB_CONF_DIR}/advanced.config" "/etc/riak/advanced.config") \
+        $(mount_ro_volume "${SSLDIR}/mongooseim/cert.pem" "/etc/riak/cert.pem") \
+        $(mount_ro_volume "${SSLDIR}/mongooseim/key.pem" "/etc/riak/key.pem") \
+        $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/etc/riak/ca/cacertfile.pem") \
+        $(mount_ro_volume "$TOOLS/setup_riak.escript" "/setup_riak.escript") \
         $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/riak) \
         --health-cmd='riak-admin status' \
         "michalwski/docker-riak:1.0.6" \
@@ -217,11 +217,16 @@ elif [ "$db" = 'cassandra' ]; then
 
     docker_entry="${DB_CONF_DIR}/docker_entry.sh"
 
+    MIM_SCHEMA=$(pwd)/priv/cassandra.cql
+    TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
+
     docker run -d                                \
                -e MAX_HEAP_SIZE=128M             \
                -e HEAP_NEWSIZE=64M               \
-	       $(mount_ro_volume "${SSLDIR}" "/ssl") \
-	       $(mount_ro_volume "${docker_entry}" "/entry.sh") \
+               $(mount_ro_volume "${SSLDIR}" "/ssl") \
+               $(mount_ro_volume "${docker_entry}" "/entry.sh") \
+               $(mount_ro_volume "$MIM_SCHEMA" "/schemas/mim.cql") \
+               $(mount_ro_volume "$TEST_SCHEMA" "/schemas/test.cql") \
                $(data_on_volume -v ${SQL_DATA_DIR}:/var/lib/cassandra) \
                --name=$NAME       \
                --entrypoint "/entry.sh"          \
@@ -242,17 +247,34 @@ elif [ "$db" = 'cassandra' ]; then
                emicklei/zazkia
     tools/wait_for_service.sh $PROXY_NAME 9042 || docker logs $PROXY_NAME
 
-    MIM_SCHEMA=$(pwd)/priv/cassandra.cql
-    TEST_SCHEMA=$(pwd)/big_tests/tests/mongoose_cassandra_SUITE_data/schema.cql
-    for cql_file in $MIM_SCHEMA $TEST_SCHEMA; do
-        echo "Apply ${cql_file}"
-        docker run -t $RM_FLAG -e SSL_CERTFILE=/cacert.pem         \
-	               $(mount_ro_volume "${SSLDIR}/ca/cacert.pem" "/cacert.pem")  \
-                       $(mount_ro_volume "${cql_file}" "/cassandra.cql")           \
-                       --link $NAME:cassandra        \
-                       cassandra:${CASSANDRA_VERSION}               \
-                       sh -c 'exec cqlsh "$CASSANDRA_PORT_9042_TCP_ADDR" --ssl -f /cassandra.cql'
+    CQLSH_DEBUG=""
+    if [ "${VERBOSE:-0}" = "1" ]; then
+        CQLSH_DEBUG=" --debug "
+    fi
+
+    function cqlsh
+    {
+        docker exec \
+        -e SSL_CERTFILE=/ssl/ca/cacert.pem \
+        "$NAME" \
+        cqlsh "127.0.0.1" --ssl $CQLSH_DEBUG "$@"
+    }
+
+    while ! cqlsh -e 'describe cluster' ; do
+        echo "Waiting for cassandra"
+        sleep 1
     done
+
+    # Apply schemas
+    echo "Apply Cassandra schema"
+    # For some reason, "cqlsh -f" does not create schema and no error is reported.
+    cqlsh -e "source '/schemas/mim.cql'"
+    cqlsh -e "source '/schemas/test.cql'"
+    echo "Verify Cassandra schema"
+    # Would fail with reason and exit code 2:
+    # <stdin>:1:InvalidRequest: Error from server: code=2200 [Invalid query] message="unconfigured table mam_config"
+    cqlsh -e "select * from mongooseim.mam_config;"
+    echo "Cassandra setup done"
 
 elif [ "$db" = 'elasticsearch' ]; then
     ELASTICSEARCH_IMAGE=docker.elastic.co/elasticsearch/elasticsearch:$ELASTICSEARCH_VERSION
