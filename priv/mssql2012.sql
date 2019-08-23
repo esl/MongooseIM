@@ -1,5 +1,4 @@
-﻿USE [ejabberd]
-GO
+﻿GO
 CREATE TABLE [dbo].[test_types](
     [unicode] [nvarchar](max),
     [binary_data_8k] [varbinary](8000),
@@ -593,36 +592,4 @@ GO
 ALTER TABLE [dbo].[vcard_search] ADD  DEFAULT (N'') FOR [lusername]
 GO
 ALTER TABLE [dbo].[vcard_search] ADD  DEFAULT (N'') FOR [server]
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.last' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'last'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_config' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_config'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_message'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_muc_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_muc_message'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.mam_server_user' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'mam_server_user'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.offline_message' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'offline_message'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_default_list' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_default_list'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_list' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_list'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.privacy_list_data' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'privacy_list_data'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.private_storage' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'private_storage'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.roster_version' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'roster_version'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rostergroups' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rostergroups'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.rosterusers' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'rosterusers'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.users' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'users'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.vcard' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'vcard'
-GO
-EXEC sys.sp_addextendedproperty @name=N'MS_SSMA_SOURCE', @value=N'ejabberd.vcard_search' , @level0type=N'SCHEMA',@level0name=N'dbo', @level1type=N'TABLE',@level1name=N'vcard_search'
 GO

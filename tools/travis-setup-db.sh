@@ -335,15 +335,7 @@ elif [ "$db" = 'mssql' ]; then
     tools/wait_for_healthcheck.sh $NAME
     tools/wait_for_service.sh $NAME 1433
 
-    docker exec -t $NAME \
-        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
-        -Q "CREATE DATABASE ejabberd"
-    docker exec -t $NAME \
-        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
-        -Q "ALTER DATABASE ejabberd SET READ_COMMITTED_SNAPSHOT ON"
-    docker exec -t $NAME \
-        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "mongooseim_secret+ESL123" \
-        -i mongoose.sql
+    tools/setup-mssql-database.sh
 
     install_odbc_ini
 
