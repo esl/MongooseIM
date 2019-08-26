@@ -25,6 +25,7 @@ all_metrics_list() ->
      no_skip_metric,
      subscriptions_initialised,
      tcp_connections_detected,
+     tcp_metric_varies_with_tcp_variations,
      up_time_positive,
      queued_messages_increase
     ].
@@ -84,6 +85,11 @@ end_per_group(_Name, C) ->
     meck:unload(),
     C.
 
+init_per_testcase(CN, C) when tcp_connections_detected =:= CN;
+                              tcp_metric_varies_with_tcp_variations =:= CN ->
+    exometer:setopts([global, tcpPortsUsed], [{sample_interval, 50}]),
+    exometer:repair([global, tcpPortsUsed]),
+    C;
 init_per_testcase(queued_messages_increase, C) ->
     exometer:setopts([global, processQueueLengths], [{sample_interval, 50}]),
     exometer:repair([global, processQueueLengths]),
@@ -99,7 +105,6 @@ init_per_testcase(_N, C) ->
 
 end_per_testcase(queued_messages_increase, C) ->
     [Pid ! die || Pid <- ?config(pids, C)],
-    exometer:setopts([global, processQueueLengths], [{sample_interval, 30000}]),
     C;
 end_per_testcase(_N, C) ->
     C.
@@ -108,9 +113,24 @@ up_time_positive(_C) ->
     {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, nodeUpTime),
     ?assert(X > 0).
 
+get_new_tcp_metric_value(OldValue) ->
+    Validator = fun(NewValue) -> OldValue =/= NewValue end,
+    {ok, {ok, [{value, X}]}} = async_helper:wait_until(
+      fun() -> mongoose_metrics:get_metric_value(global, tcpPortsUsed) end,
+      true, #{validator => Validator, sleep_time => 30, time_left => 500}
+     ),
+    X.
+
 tcp_connections_detected(_C) ->
-    {ok, [{value, X}]} = mongoose_metrics:get_metric_value(global, tcpPortsUsed),
-    ?assert(X > 0).
+    get_new_tcp_metric_value({ok, []}).
+
+tcp_metric_varies_with_tcp_variations(_C) ->
+    X = get_new_tcp_metric_value({ok, []}),
+    {ok, Socket} = gen_tcp:listen(1805, []),
+    Y = get_new_tcp_metric_value({ok, [{value, X}]}),
+    ?assert(Y == X + 1),
+    gen_tcp:close(Socket),
+    X = get_new_tcp_metric_value({ok, [{value, Y}]}).
 
 queued_messages_increase(_C) ->
     async_helper:wait_until(
