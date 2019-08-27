@@ -59,6 +59,7 @@ clustering_two_tests() ->
      leave_unsuccessful,
      leave_but_no_cluster,
      join_twice,
+     leave_using_rpc,
      leave_twice].
 
 clustering_three_tests() ->
@@ -287,6 +288,18 @@ join_twice(Config) ->
     distributed_helper:verify_result(Node2, add),
     ?eq(0, OpCode1),
     ?ne(0, OpCode2).
+
+leave_using_rpc(Config) ->
+    %% given
+    Node1 = mim(),
+    Node2 = mim2(),
+    add_node_to_cluster(Node2, Config),
+    %% when
+    Result = distributed_helper:rpc(Node1, ejabberd_admin, leave_cluster, [], timer:seconds(30)),
+    ct:pal("leave_using_rpc result ~p~n", [Result]),
+    %% then
+    distributed_helper:verify_result(Node2, remove),
+    ok.
 
 leave_twice(Config) ->
     %% given
