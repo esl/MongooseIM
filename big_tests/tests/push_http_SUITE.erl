@@ -155,7 +155,7 @@ push_to_many(Config) ->
 start_pool() ->
     Pool = {http, host, http_pool,
             [{strategy, random_worker}, {call_timeout, 5000}, {workers, 20}],
-            [{path_prefix, "/"}, {http_opts, []}, {server, "http://localhost:8000"}]},
+            [{path_prefix, "/"}, {http_opts, []}, {server, http_notifications_host()}]},
     ejabberd_node_utils:call_fun(mongoose_wpool,
                                  start_configured_pools,
                                  [[Pool], [<<"localhost">>]]),
@@ -164,6 +164,12 @@ start_pool() ->
 stop_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]),
     ok.
+
+http_notifications_port() ->
+    ct:get_config({hosts, mim, http_notifications_port}).
+
+http_notifications_host() ->
+    "http://localhost:" ++ integer_to_list(http_notifications_port()).
 
 %%--------------------------------------------------------------------
 %% Libs
@@ -202,7 +208,7 @@ got_push(Type, N, Res) ->
 
 start_http_listener() ->
     Pid = self(),
-    http_helper:start(8000, '_', fun(Req) -> process_notification(Req, Pid) end).
+    http_helper:start(http_notifications_port(), '_', fun(Req) -> process_notification(Req, Pid) end).
 
 stop_http_listener() ->
     http_helper:stop().
