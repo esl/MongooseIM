@@ -58,7 +58,7 @@ docker run -d \
 n=0
 until [ $n -ge 10 ]
 do
-    echo "Q" | openssl s_client -connect localhost:3636 \
+    echo "Q" | openssl s_client -connect localhost:$LDAP_SECURE_PORT \
                        -cert tools/ssl/mongooseim/cert.pem -key tools/ssl/mongooseim/key.pem \
                        -CAfile tools/ssl/ca/cacert.pem && break
     n=$[$n+1]
