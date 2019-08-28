@@ -35,6 +35,12 @@ docker rm -v -f $NAME || echo "Skip removing previous container"
 # Host on non-standard higher ports 3389 and 3636 to avoid problems with lower ports
 # Default LDAP ports are 389 (TCP) and 636 (TLS)
 
+for i in "$LDAP_CERT_DIR/"*; do
+    echo "Print $i"
+    cat "$i"
+    echo ""
+done
+
 LDAP_PORT=${LDAP_PORT:-3389}
 LDAP_SECURE_PORT=${LDAP_SECURE_PORT:-3636}
 
