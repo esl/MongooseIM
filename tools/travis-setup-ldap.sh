@@ -28,7 +28,7 @@ objectClass: organizationalUnit
 ou: users
 EOL
 
-cp tools/ssl/mongooseim/{cert,key}.pem "$LDAP_CERT_DIR"
+cp tools/ssl/mongooseim/{cert,key,dh_server}.pem "$LDAP_CERT_DIR"
 cp tools/ssl/ca/cacert.pem "$LDAP_CERT_DIR"
 
 docker rm -v -f $NAME || echo "Skip removing previous container"
@@ -48,13 +48,16 @@ docker run -d \
     -e LDAP_TLS_CRT_FILENAME=cert.pem \
     -e LDAP_TLS_KEY_FILENAME=key.pem \
     -e LDAP_TLS_CA_CRT_FILENAME=cacert.pem \
+    -e LDAP_TLS_DH_PARAM_FILENAME=dh_server.pem \
     $(data_on_volume -v "$LDAP_CONFIG_DIR:/etc/ldap/slapd.d") \
     $(data_on_volume -v "$LDAP_DATA_DIR:/var/lib/ldap") \
     $(mount_ro_volume "$LDAP_SCHEMAS_DIR" /container/service/slapd/assets/config/bootstrap/ldif/custom/) \
     $(mount_ro_volume "$LDAP_CERT_DIR" /container/service/slapd/assets/certs/) \
+    --health-cmd='ldapwhoami -x' \
     osixia/openldap:1.2.4 \
     --copy-service
 
+echo "Waiting for ldap"
 n=0
 until [ $n -ge 10 ]
 do
@@ -64,3 +67,5 @@ do
     n=$[$n+1]
     sleep 15
 done
+
+./tools/wait_for_healthcheck.sh "$NAME"

@@ -34,7 +34,7 @@ all: mongooseim/cert.pem mongooseim/key.pem \
 # Speed is useful for fake certificates
 # https://security.stackexchange.com/questions/95178/diffie-hellman-parameters-still-calculating-after-24-hours
 %/dh_server.pem:
-	openssl dhparam -outform PEM -out $@ 1024 -dsaparam
+	openssl dhparam -outform PEM -out $@ 2048 -dsaparam
 
 %/index.txt:
 	mkdir -p $(@D)
