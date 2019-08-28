@@ -33,8 +33,12 @@ all: mongooseim/cert.pem mongooseim/key.pem \
 # It speeds up generation of dhparam
 # Speed is useful for fake certificates
 # https://security.stackexchange.com/questions/95178/diffie-hellman-parameters-still-calculating-after-24-hours
+#
+# Certs generated with -dsaparam don't work with our slapd container though.
+# So, let's remove the option for now.
+# https://bugs.launchpad.net/ubuntu/+source/openldap/+bug/1724285
 %/dh_server.pem:
-	openssl dhparam -outform PEM -out $@ 2048 -dsaparam
+	openssl dhparam -outform PEM -out $@ 1024
 
 %/index.txt:
 	mkdir -p $(@D)
