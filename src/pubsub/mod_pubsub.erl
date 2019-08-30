@@ -44,7 +44,6 @@
 -module(mod_pubsub).
 -behaviour(gen_mod).
 -behaviour(gen_server).
--behaviour(gdpr).
 -behaviour(mongoose_packet_handler).
 -author('christophe.romain@process-one.net').
 
@@ -257,28 +256,15 @@ process_packet(Acc, From, To, El, #state{server_host = ServerHost, access = Acce
 %% GDPR callback
 %%====================================================================
 
--spec get_personal_data(Username :: jid:user(), Server :: jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
-get_personal_data(Username, Server) ->
-     LUser = jid:nodeprep(Username),
-     LServer = jid:nodeprep(Server),
-     Backends = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
-     Payloads = get_personal_data_group(LUser, LServer, Backends, get_user_payloads),
-     Nodes = get_personal_data_group(LUser, LServer, Backends, get_user_nodes),
-     Subscriptions = get_personal_data_group(LUser, LServer, Backends, get_user_subscriptions),
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
+     Payloads = mod_pubsub_db_backend:get_user_payloads(LUser, LServer),
+     Nodes = mod_pubsub_db_backend:get_user_nodes(LUser, LServer),
+     Subscriptions = mod_pubsub_db_backend:get_user_subscriptions(LUser, LServer),
 
      [{pubsub_payloads, ["node_name", "item_id", "payload"], Payloads},
       {pubsub_nodes, ["node_name", "type"], Nodes},
-      {pubsub_subscriptions, ["node_name"], Subscriptions}].
-
-get_personal_data_group(LUser, LServer, Backends, FunctionName) ->
-    lists:flatmap(fun(B) -> try B:FunctionName(LUser, LServer) of
-                                Result when is_list(Result) -> Result;
-                                _ -> []
-                            catch
-                                _:_ -> []
-                            end
-                  end, Backends).
+      {pubsub_subscriptions, ["node_name"], Subscriptions} | Acc].
 
 %%====================================================================
 %% gen_server callbacks
@@ -377,7 +363,8 @@ hooks() ->
      {roster_in_subscription, in_subscription, 50},
      {roster_out_subscription, out_subscription, 50},
      {remove_user, remove_user, 50},
-     {anonymous_purge_hook, remove_user, 50}
+     {anonymous_purge_hook, remove_user, 50},
+     {get_personal_data, get_personal_data, 50}
     ].
 
 pep_hooks() ->
@@ -879,25 +866,20 @@ remove_user(Acc, User, Server) ->
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
+    Host = host(LServer),
+    lists:foreach(fun(PType) ->
+                          remove_user_per_plugin_safe(LUser, LServer, plugin(PType))
+                  end, plugins(Host)).
 
-    BackendModules = mongoose_lib:find_behaviour_implementations(mod_pubsub_db),
-    PluginModules = mongoose_lib:find_behaviour_implementations(gen_pubsub_node),
-    % The line below will currently lead to unnecessary DB selects,
-    % because plugins don't really filter DB data by type.
-    % TODO: This should be optimised during GDPR load tests.
-    [ remove_user_per_backend_and_plugin_safe(LUser, LServer, Plugin, Backend)
-      || Plugin <- PluginModules, Backend <- BackendModules ],
-    ok.
-
-remove_user_per_backend_and_plugin_safe(LUser, LServer, Plugin, Backend) ->
+remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
     try
-        plugin_call(Plugin, remove_user, [LUser, LServer, Backend])
+        plugin_call(Plugin, remove_user, [LUser, LServer])
     catch
         Class:Reason ->
             StackTrace = erlang:get_stacktrace(),
             ?WARNING_MSG("event=cannot_delete_pubsub_user,"
-                         "luser=~s,lserver=~s,backend=~p,class=~p,reason=~p,stacktrace=~p",
-                         [LUser, LServer, Backend, Class, Reason, StackTrace])
+                         "luser=~s,lserver=~s,class=~p,reason=~p,stacktrace=~p",
+                         [LUser, LServer, Class, Reason, StackTrace])
     end.
 
 handle_call(server_host, _From, State) ->

@@ -63,7 +63,7 @@
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
--import(muc_light_helper, [room_bin_jid/1, stanza_destroy_room/1]).
+-import(muc_light_helper, [room_bin_jid/1]).
 
 -define(ROOM, <<"tt1">>).
 
@@ -80,10 +80,8 @@ suite() ->
 all() ->
     [
      {group, retrieve_personal_data},
-     {group, retrieve_personal_data_with_mods_disabled},
      {group, retrieve_negative},
-     {group, remove_personal_data},
-     {group, remove_personal_data_with_mods_disabled}
+     {group, remove_personal_data}
     ].
 
 groups() ->
@@ -114,16 +112,6 @@ groups() ->
                                           retrieve_created_pubsub_nodes,
                                           retrieve_all_pubsub_data
                                          ]},
-     {retrieve_personal_data_with_mods_disabled, [], [
-                                                      retrieve_vcard,
-                                                      {group, retrieve_personal_data_inbox},
-                                                      retrieve_offline,
-                                                      retrieve_logs,
-                                                      retrieve_roster,
-                                                      {group, retrieve_personal_data_pubsub},
-                                                      retrieve_multiple_private_xmls,
-                                                      {group, retrieve_personal_data_mam}
-                                                     ]},
      {retrieve_personal_data_private_xml, [], [
                                                retrieve_private_xml,
                                                dont_retrieve_other_user_private_xml,
@@ -143,7 +131,6 @@ groups() ->
      {retrieve_personal_data_mam_cassandra, [], all_mam_testcases()},
      {retrieve_personal_data_mam_elasticsearch, [], all_mam_testcases()},
      {remove_personal_data, [], removal_testcases()},
-     {remove_personal_data_with_mods_disabled, [], removal_testcases()},
      {remove_personal_data_inbox, [], [remove_inbox, remove_inbox_muclight, remove_inbox_muc]},
      {remove_personal_data_mam, [], [
                                      {group, remove_personal_data_mam_rdbms},
@@ -202,7 +189,6 @@ all_mam_testcases() ->
 
 init_per_suite(Config) ->
     Config1 = [{{ejabberd_cwd, mim()}, get_mim_cwd()} | dynamic_modules:save_modules(domain(), Config)],
-    gdpr_removal_for_disabled_modules(true),
     muc_helper:load_muc(muc_domain()),
     escalus:init_per_suite(Config1).
 
@@ -210,18 +196,8 @@ end_per_suite(Config) ->
     delete_files(),
     dynamic_modules:restore_modules(domain(), Config),
     escalus_fresh:clean(),
-    gdpr_removal_for_disabled_modules(false),
     escalus:end_per_suite(Config).
 
-gdpr_removal_for_disabled_modules(Flag) ->
-    mongoose_helper:successful_rpc(ejabberd_config, add_global_option, [gdpr_removal_for_disabled_modules, Flag]).
-
-init_per_group(GN, Config) when GN =:= retrieve_personal_data;
-                                GN =:= remove_personal_data ->
-    lists:keystore(disable_module, 1, Config, {disable_module, false});
-init_per_group(GN, Config) when GN =:= retrieve_personal_data_with_mods_disabled;
-                                GN =:= remove_personal_data_with_mods_disabled->
-    lists:keystore(disable_module, 1, Config, {disable_module, true});
 init_per_group(GN, Config) when GN =:= remove_personal_data_mam_rdbms;
                                 GN =:= retrieve_personal_data_mam_rdbms ->
     try_backend_for_mam(Config, rdbms);
@@ -246,7 +222,6 @@ init_per_group(_GN, Config) ->
 
 end_per_group(_GN, Config) ->
     Config.
-
 
 try_backend_for_mam( Config,Backend) ->
     case is_backend_enabled(Backend) of
@@ -480,7 +455,6 @@ retrieve_vcard(Config) ->
                                 "vcard" => [{contains, "Alice"},
                                             {contains, "Ecila"}] }
                             ],
-            maybe_stop_and_unload_module(mod_vcard, mod_vcard_backend, Config),
             retrieve_and_validate_personal_data(
               Alice, Config, "vcard", ExpectedHeader, ExpectedItems)
         end).
@@ -491,25 +465,15 @@ remove_vcard(Config) ->
         AliceSetResultStanza
             = escalus:send_and_wait(Alice, escalus_stanza:vcard_update(AliceFields)),
         escalus:assert(is_iq_result, AliceSetResultStanza),
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-
-        maybe_stop_and_unload_module(mod_vcard, mod_vcard_backend, Config),
+        
         {0, _} = unregister(Alice, Config),
 
-        mongoose_helper:wait_until(
-            fun() ->
-                mongoose_helper:successful_rpc(mod_vcard, get_personal_data,
-                    [AliceU, AliceS])
-            end, [{vcard,["jid","vcard"],[]}])
+        assert_personal_data_via_rpc(Alice, [{vcard,["jid","vcard"],[]}])
 
         end).
 
 remove_private(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-
         %% Add some private data for Alice
         Element = #xmlel{name = <<"item">>,
                          attrs = [{<<"xmlns">>, <<"alice:private_remove:ns">>}],
@@ -519,33 +483,20 @@ remove_private(Config) ->
         escalus:assert(is_iq_result, SetPrivateResult),
 
         %% Verify the data is stored
-        mongoose_helper:wait_until(
-            fun() ->
-                mongoose_helper:successful_rpc(mod_private, get_personal_data,
-                    [AliceU, AliceS])
-            end, [{private, ["ns","xml"],
+        assert_personal_data_via_rpc(Alice, [{private, ["ns","xml"],
                    [{<<"alice:private_remove:ns">>,
                      <<"<item xmlns='alice:private_remove:ns'>Something to declare</item>">>}]}]),
-
-        maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
 
         %% Remove Alice
         {0, _} = unregister(Alice, Config),
 
         %% Expect Alice's data to be gone
-        mongoose_helper:wait_until(
-            fun() ->
-                mongoose_helper:successful_rpc(mod_private, get_personal_data,
-                    [AliceU, AliceS])
-            end, [{private, ["ns","xml"], []}])
+        assert_personal_data_via_rpc(Alice, [{private, ["ns","xml"], []}])
 
         end).
 
 dont_remove_other_user_private_xml(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-
         %% Add some private data for Alice and Bob
         AliceNS = <<"alice:private:ns">>,
         AliceContent = <<"To be or not to be">>,
@@ -554,17 +505,11 @@ dont_remove_other_user_private_xml(Config) ->
         send_and_assert_private_stanza(Alice, AliceNS, AliceContent),
         send_and_assert_private_stanza(Bob, BobNS, BobContent),
 
-        maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
-
         %% Remove Alice
         {0, _} = unregister(Alice, Config),
 
         %% Expect Alice's data to be gone
-        mongoose_helper:wait_until(
-            fun() ->
-                mongoose_helper:successful_rpc(mod_private, get_personal_data,
-                    [AliceU, AliceS])
-            end, [{private, ["ns","xml"], []}]),
+        assert_personal_data_via_rpc(Alice, [{private, ["ns","xml"], []}]),
 
         %% Verify that Bob's data is left intact
         ExpectedHeader = ["ns", "xml"],
@@ -579,9 +524,6 @@ dont_remove_other_user_private_xml(Config) ->
 
 remove_multiple_private_xmls(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-
         %% Add some private data for Alice for multiple keys
         NSsAndContents = [
                           {<<"alice:private:ns1">>, <<"Some text">>},
@@ -600,8 +542,6 @@ remove_multiple_private_xmls(Config) ->
                          {contains, binary_to_list(Content)}]}
             end, NSsAndContents),
 
-        maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
-
         %% Verify the data is stored
         retrieve_and_validate_personal_data(
           Alice, Config, "private", ExpectedHeader, ExpectedItems),
@@ -610,11 +550,7 @@ remove_multiple_private_xmls(Config) ->
         {0, _} = unregister(Alice, Config),
 
         %% Expect all of Alice's data to be gone
-        mongoose_helper:wait_until(
-        fun() ->
-            mongoose_helper:successful_rpc(mod_private, get_personal_data,
-                [AliceU, AliceS])
-        end, [{private, ["ns","xml"], []}])
+        assert_personal_data_via_rpc(Alice, [{private, ["ns","xml"], []}])
 
      end).
 
@@ -626,7 +562,6 @@ retrieve_roster(Config) ->
             ExpectedItems = [
                              #{ "jid" => [{contains,  BobU}, {contains, BobS}] }
                             ],
-            maybe_stop_and_unload_module(mod_roster, mod_roster_backend, Config),
             retrieve_and_validate_personal_data(
                 Alice, Config, "roster", expected_header(mod_roster), ExpectedItems)
         end).
@@ -640,16 +575,10 @@ remove_roster(Config) ->
                          #{ "jid" => [{contains,  AliceU}, {contains, AliceS}] }
                         ],
 
-        maybe_stop_and_unload_module(mod_roster, mod_roster_backend, Config),
         {0, _} = unregister(Alice, Config),
 
-        mongoose_helper:wait_until(
-            fun() ->
-                mongoose_helper:successful_rpc(mod_roster, get_personal_data,
-                    [AliceU, AliceS])
-            end,
-            [{roster, expected_header(mod_roster), []}]),
-            retrieve_and_validate_personal_data(
+        assert_personal_data_via_rpc(Alice, [{roster, expected_header(mod_roster), []}]),
+        retrieve_and_validate_personal_data(
                 Bob, Config, "roster", expected_header(mod_roster), ExpectedItems)
 
         end).
@@ -672,9 +601,6 @@ retrieve_mam_pm(Config) ->
                                 #{"message" => [{contains, Msg3}], "from" => [{jid, AliceJID}]},
                                 #{"message" => [{contains, Msg2}], "from" => [{jid, BobJID}]}
                             ],
-
-            BackendModule = choose_mam_backend(Config, mam),
-            maybe_stop_and_unload_module(mod_mam, BackendModule, Config),
 
             retrieve_and_validate_personal_data(
                 Alice, Config, "mam_pm", ExpectedHeader, ExpectedItems, ["from", "message"]),
@@ -711,9 +637,6 @@ retrieve_mam_muc(Config) ->
 
         ExpectedItemsBob = [#{"message" => [{contains, binary_to_list(Body3)}]}],
 
-        BackendModule = choose_mam_backend(Config, mam_muc),
-        maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
-
         AliceDir = retrieve_all_personal_data(Alice, Config),
         BobDir = retrieve_all_personal_data(Bob, Config),
         KateDir = retrieve_all_personal_data(Kate, Config),
@@ -748,11 +671,6 @@ retrieve_mam_muc_private_msg(Config) ->
                                       "from" => [{jid, escalus_client:full_jid(Alice)}]}],
             PMExpectedItemsBob = [#{"message" => [{contains, binary_to_list(PMBody)}],
                                     "from" => [{jid, PrivAddrAlice}]}],
-
-            MamBackends = choose_mam_backend(Config, mam),
-            MamMucBackends = choose_mam_backend(Config, mam_muc),
-            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
-            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),
@@ -799,11 +717,6 @@ retrieve_mam_muc_store_pm(Config) ->
             mam_helper:wait_for_room_archive_size(Domain, Room, 3),
             mam_helper:wait_for_archive_size(Kate, 4),
             [mam_helper:wait_for_archive_size(User, 5) || User <- [Alice, Bob]],
-
-            MamBackends = choose_mam_backend(Config, mam),
-            MamMucBackends = choose_mam_backend(Config, mam_muc),
-            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
-            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
 
             AliceDir = retrieve_all_personal_data(Alice, Config),
             BobDir = retrieve_all_personal_data(Bob, Config),
@@ -870,21 +783,9 @@ remove_mam_pm(Config) ->
                                 #{"message" => [{contains, Msg2}], "from" => [{jid, BobJID}]}
                             ],
 
-            BackendModule = choose_mam_backend(Config, mam),
-            maybe_stop_and_unload_module(mod_mam, BackendModule, Config),
             {0, _} = unregister(Alice, Config),
 
-            AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-            AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-
-            %% We use wait_until here, because the deletion in ElasticSearch
-            %% sometimes is applied with a delay (i.e. immediately after successful deletion
-            %% the data retrieval still returned valid entries)
-            mongoose_helper:wait_until(
-              fun() ->
-                      mongoose_helper:successful_rpc(mod_mam, get_personal_data,
-                                                     [AliceU, AliceS])
-              end, [{mam_pm, ExpectedHeader, []}]),
+            assert_personal_data_via_rpc(Alice, [{mam_pm, ExpectedHeader, []}]),
 
             retrieve_and_validate_personal_data(
                 Bob, Config, "mam_pm", ExpectedHeader, ExpectedItems, ["from", "message"])
@@ -912,9 +813,6 @@ retrieve_mam_muc_light(Config) ->
                                   #{"message" => [{contains, binary_to_list(Body2)}]}],
 
             ExpectedItemsBob = [#{"message" => [{contains, binary_to_list(Body3)}]}],
-
-            BackendModule = choose_mam_backend(Config, mam_muc),
-            maybe_stop_and_unload_module(mod_mam_muc, BackendModule, Config),
 
             retrieve_and_validate_personal_data(
                 Alice, Config, "mam_muc", ["id", "message"], ExpectedItemsAlice, ["message"]),
@@ -945,12 +843,6 @@ retrieve_mam_pm_and_muc_light_dont_interfere(Config) ->
             escalus:send(Bob, escalus_stanza:chat_to(Alice, BodyPmBob)),
 
             [mam_helper:wait_for_archive_size(User, 2) || User <- [Alice, Bob]],
-
-
-            MamBackends = choose_mam_backend(Config, mam),
-            MamMucBackends = choose_mam_backend(Config, mam_muc),
-            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
-            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
 
             false = mongoose_helper:successful_rpc(mod_mam_meta, get_mam_module_opt,
                                                    [domain(), mod_mam, archive_groupchats, undefined]),
@@ -999,11 +891,6 @@ retrieve_mam_pm_and_muc_light_interfere(Config) ->
 
             [mam_helper:wait_for_archive_size(User, 5) || User <- [Alice, Bob]],
             mam_helper:wait_for_archive_size(Kate, 3),
-
-            MamBackends = choose_mam_backend(Config, mam),
-            MamMucBackends = choose_mam_backend(Config, mam_muc),
-            maybe_stop_and_unload_module(mod_mam, MamBackends, Config),
-            maybe_stop_and_unload_module(mod_mam_muc, MamMucBackends, Config),
 
             true = mongoose_helper:successful_rpc(mod_mam_meta, get_mam_module_opt,
                                                    [domain(), mod_mam, archive_groupchats, undefined]),
@@ -1069,8 +956,6 @@ retrieve_offline(Config) ->
                     "timestamp" => [{validate, fun validate_datetime/1}]}
             end, Expected),
 
-            maybe_stop_and_unload_module(mod_offline, mod_offline_backend, Config),
-
             retrieve_and_validate_personal_data(
               Alice, Config, "offline", ExpectedHeader, ExpectedItems, ["packet"])
         end).
@@ -1093,14 +978,10 @@ remove_offline(Config) ->
                                                      [AliceU, AliceS, 10])
               end, 3),
 
-            maybe_stop_and_unload_module(mod_offline, mod_offline_backend, Config),
             {0, _} = unregister(Alice, Config),
 
-            mongoose_helper:wait_until(
-                fun() ->
-                    mongoose_helper:successful_rpc(mod_offline, get_personal_data,
-                        [AliceU, AliceS])
-                end, [{offline, ["timestamp","from", "to", "packet"],[]}])
+            assert_personal_data_via_rpc(
+              Alice, [{offline, ["timestamp","from", "to", "packet"],[]}])
         end).
 
 retrieve_pubsub_payloads(Config) ->
@@ -1121,7 +1002,6 @@ retrieve_pubsub_payloads(Config) ->
                          pubsub_payloads_row_map(NodeName1, "Item3", StringItem3),
                          pubsub_payloads_row_map(NodeName2, "OtherItem", StringOther)],
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         retrieve_and_validate_personal_data(Alice, Config, "pubsub_payloads",
                                             ["node_name", "item_id", "payload"],
                                             ExpectedItems, ["item_id"])
@@ -1190,20 +1070,12 @@ remove_pubsub_subscriptions(Config) ->
             pubsub_tools:create_node(Alice, Node, []),
             pubsub_tools:subscribe(Bob, Node, []),
 
-            BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
-            BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
-            maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
             {0, _} = unregister(Bob, Config),
 
-            mongoose_helper:wait_until(
-                fun() ->
-                    mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
-                        [BobU, BobS])
-                end,
-                [{pubsub_payloads,["node_name","item_id","payload"],[]},
-                 {pubsub_nodes,["node_name","type"],[]},
-                 {pubsub_subscriptions,["node_name"],[]}]
-             )
+            assert_personal_data_via_rpc(Bob,
+                                         [{pubsub_payloads,["node_name","item_id","payload"],[]},
+                                          {pubsub_nodes,["node_name","type"],[]},
+                                          {pubsub_subscriptions,["node_name"],[]}])
         end).
 
 retrieve_pubsub_subscriptions(Config) ->
@@ -1222,20 +1094,12 @@ remove_pubsub_dont_remove_flat_pubsub_node(Config) ->
         Node1 = {_,NodeName} = pubsub_tools:pubsub_node(1),
         pubsub_tools:create_nodes([{Alice, Node1, []}]),
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         {0, _} = unregister(Alice, Config),
 
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-        mongoose_helper:wait_until(
-          fun() ->
-                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
-                                                 [AliceU, AliceS])
-          end,
-          [{pubsub_payloads,["node_name","item_id","payload"],[]},
-           {pubsub_nodes,["node_name","type"],[[NodeName, <<"flat">>]]},
-           {pubsub_subscriptions,["node_name"],[]}]
-         )
+        assert_personal_data_via_rpc(Alice,
+                                     [{pubsub_payloads,["node_name","item_id","payload"],[]},
+                                      {pubsub_nodes,["node_name","type"],[[NodeName, <<"flat">>]]},
+                                      {pubsub_subscriptions,["node_name"],[]}])
         end).
 
 remove_pubsub_push_node(Config) ->
@@ -1257,19 +1121,11 @@ remove_pubsub_push_node(Config) ->
         escalus:send(Bob, PublishIQ),
         escalus:assert(is_iq_result, escalus:wait_for_stanza(Bob)),
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         {0, _} = unregister(Alice, Config),
 
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-        mongoose_helper:wait_until(
-          fun() ->
-                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
-                                                 [AliceU, AliceS])
-          end,
-          [{pubsub_payloads,["node_name","item_id","payload"],[]},
-           {pubsub_nodes,["node_name","type"],[]},
-           {pubsub_subscriptions,["node_name"],[]}])
+        assert_personal_data_via_rpc(Alice, [{pubsub_payloads,["node_name","item_id","payload"],[]},
+                                             {pubsub_nodes,["node_name","type"],[]},
+                                             {pubsub_subscriptions,["node_name"],[]}])
         end).
 
 remove_pubsub_pep_node(Config) ->
@@ -1281,20 +1137,11 @@ remove_pubsub_pep_node(Config) ->
                       {Alice, PepNode, []}
                      ]),
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         {0, _} = unregister(Alice, Config),
 
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-        mongoose_helper:wait_until(
-          fun() ->
-                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
-                                                 [AliceU, AliceS])
-          end,
-          [{pubsub_payloads,["node_name","item_id","payload"],[]},
-           {pubsub_nodes,["node_name","type"],[]},
-           {pubsub_subscriptions,["node_name"],[]}]
-         )
+        assert_personal_data_via_rpc(Alice, [{pubsub_payloads,["node_name","item_id","payload"],[]},
+                                             {pubsub_nodes,["node_name","type"],[]},
+                                             {pubsub_subscriptions,["node_name"],[]}])
         end).
 
 remove_pubsub_dont_remove_node_when_only_publisher(Config) ->
@@ -1305,20 +1152,12 @@ remove_pubsub_dont_remove_node_when_only_publisher(Config) ->
         AffChange = [{Bob, <<"publish-only">>}],
         pubsub_tools:set_affiliations(Alice, Node1, AffChange, []),
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         {0, _} = unregister(Bob, Config),
 
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
-        mongoose_helper:wait_until(
-          fun() ->
-                  mongoose_helper:successful_rpc(mod_pubsub, get_personal_data,
-                                                 [AliceU, AliceS])
-          end,
-          [{pubsub_payloads,["node_name","item_id","payload"],[]},
-           {pubsub_nodes,["node_name","type"],[[NodeName, <<"flat">>]]},
-           {pubsub_subscriptions,["node_name"],[]}]
-         )
+        assert_personal_data_via_rpc(Alice,
+                                     [{pubsub_payloads,["node_name","item_id","payload"],[]},
+                                      {pubsub_nodes,["node_name","type"],[[NodeName, <<"flat">>]]},
+                                      {pubsub_subscriptions,["node_name"],[]}])
         end).
 
 remove_pubsub_all_data(Config) ->
@@ -1358,25 +1197,24 @@ remove_pubsub_all_data(Config) ->
         pubsub_tools:publish(Bob, BobToNode3, Node3, [{with_payload, {true, BinItem4}}]),
         pubsub_tools:receive_item_notification(Alice, BobToNode3, Node3, []),
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         {0, _} = unregister(Alice, Config),
 
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
         [{pubsub_payloads,["node_name","item_id","payload"], AlicePayloads},
          {pubsub_nodes,["node_name","type"], AliceNodes},
-         {pubsub_subscriptions, ["node_name"], []}] = mongoose_helper:successful_rpc(mod_pubsub, get_personal_data, [AliceU, AliceS]),
+         {pubsub_subscriptions, ["node_name"], []}]
+            = get_personal_data_via_rpc(
+                Alice, [pubsub_payloads, pubsub_nodes, pubsub_subscriptions]),
         XmlBinItem1 = exml:to_binary(BinItem1),
         XmlBinItem2 = exml:to_binary(BinItem2),
         [[Name1, AliceToNode1, XmlBinItem1],
          [Name2, AliceToNode2, XmlBinItem2]] = lists:sort(AlicePayloads),
         [[Name1, <<"flat">>], [Name2, <<"flat">>]] = lists:sort(AliceNodes),
 
-        BobU = escalus_utils:jid_to_lower(escalus_client:username(Bob)),
-        BobS = escalus_utils:jid_to_lower(escalus_client:server(Bob)),
         [{pubsub_payloads,["node_name","item_id","payload"], Payloads},
          {pubsub_nodes,["node_name","type"], Nodes},
-         {pubsub_subscriptions, ["node_name"], Subs}] = mongoose_helper:successful_rpc(mod_pubsub, get_personal_data, [BobU, BobS]),
+         {pubsub_subscriptions, ["node_name"], Subs}]
+            = get_personal_data_via_rpc(
+                Bob, [pubsub_payloads, pubsub_nodes, pubsub_subscriptions]),
         XmlBinItem3 = exml:to_binary(BinItem3),
         XmlBinItem4 = exml:to_binary(BinItem4),
         [[Name1, BobToNode1, XmlBinItem3],
@@ -1404,7 +1242,6 @@ retrieve_all_pubsub_data(Config) ->
         pubsub_tools:receive_item_notification(Bob, <<"Item2">>, Node2, []),
         pubsub_tools:publish(Bob, <<"Item3">>, Node1, [{with_payload, {true, BinItem3}}]),
 
-        maybe_stop_and_unload_module(mod_pubsub, mod_pubsub_db_backend, Config),
         %% Bob has one subscription, one node created and one payload sent
         retrieve_and_validate_personal_data(
             Bob, Config, "pubsub_subscriptions", ["node_name"],
@@ -1487,7 +1324,6 @@ retrieve_multiple_private_xmls(Config) ->
                                  {contains, binary_to_list(Content)}]}
                 end, NSsAndContents),
 
-            maybe_stop_and_unload_module(mod_private, mod_private_backend, Config),
             retrieve_and_validate_personal_data(
               Alice, Config, "private", ExpectedHeader, ExpectedItems)
         end).
@@ -1583,14 +1419,9 @@ remove_inbox(Config) ->
 
             ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
 
-            maybe_stop_and_unload_module(mod_inbox, mod_inbox_backend, Config),
             {0, _} = unregister(Alice, Config),
 
-            mongoose_helper:wait_until(
-              fun() ->
-                      mongoose_helper:successful_rpc(mod_inbox, get_personal_data,
-                                                     [AliceU, AliceS])
-              end, [{inbox, ExpectedHeader, []}]),
+            assert_personal_data_via_rpc(Alice, [{inbox, ExpectedHeader, []}]),
 
             ExpectedBobItems = [
                              #{ "content" => [{contains, Body}],
@@ -1604,8 +1435,6 @@ remove_inbox(Config) ->
 
 remove_inbox_muclight(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
         Domain = muclight_domain(),
         Room = <<"ttt2">>,
         muc_light_helper:given_muc_light_room(Room, Alice, [{Bob, member}]),
@@ -1617,7 +1446,6 @@ remove_inbox_muclight(Config) ->
         ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
 
         muc_light_helper:user_leave(Room, Bob, [{Alice, owner}]),
-        maybe_stop_and_unload_module(mod_inbox, mod_inbox_backend, Config),
         {0, _} = unregister(Alice, Config),
 
         %% MUC Light affiliations are also stored in inbox
@@ -1626,14 +1454,10 @@ remove_inbox_muclight(Config) ->
                                 "unread_count" => "3" }
                            ],
 
-         retrieve_and_validate_personal_data(
+        retrieve_and_validate_personal_data(
            Bob, Config, "inbox", ExpectedHeader, ExpectedBobItems),
 
-        mongoose_helper:wait_until(
-          fun() ->
-                  mongoose_helper:successful_rpc(mod_inbox, get_personal_data,
-                                                 [AliceU, AliceS])
-          end, [{inbox, ExpectedHeader, []}]),
+        assert_personal_data_via_rpc(Alice, [{inbox, ExpectedHeader, []}]),
 
         timer:sleep(5000),
         StanzaDestroy = escalus_stanza:to(escalus_stanza:iq_set(?NS_MUC_LIGHT_DESTROY, []),
@@ -1644,8 +1468,6 @@ remove_inbox_muclight(Config) ->
 
 remove_inbox_muc(Config) ->
     escalus:fresh_story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
-        AliceU = escalus_utils:jid_to_lower(escalus_client:username(Alice)),
-        AliceS = escalus_utils:jid_to_lower(escalus_client:server(Alice)),
         {ok, Room} = given_fresh_muc_room(Alice#client.props, []),
 
         Users = [Alice, Bob],
@@ -1662,15 +1484,10 @@ remove_inbox_muc(Config) ->
 
         ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
 
-        maybe_stop_and_unload_module(mod_inbox, mod_inbox_backend, Config),
         {0, _} = unregister(Alice, Config),
 
         escalus:wait_for_stanza(Bob),
-        mongoose_helper:wait_until(
-        fun() ->
-                mongoose_helper:successful_rpc(mod_inbox, get_personal_data,
-                                               [AliceU, AliceS])
-        end, [{inbox, ExpectedHeader, []}]),
+        assert_personal_data_via_rpc(Alice, [{inbox, ExpectedHeader, []}]),
 
         ExpectedBobItems = [#{
                                 "content" => [{contains, Msg}],
@@ -1734,31 +1551,24 @@ muc_domain() ->
     Domain = inbox_helper:domain(),
     <<"muc.", Domain/binary>>.
 
-maybe_stop_and_unload_module(Module, Backends, Config) when is_list(Backends)->
-    case proplists:get_value(disable_module, Config) of
-        true ->
-            dynamic_modules:stop(domain(), Module),
-            [delete_backend(B) || B <- Backends];
-        _ ->
-            ok
-    end;
-maybe_stop_and_unload_module(Module, BackendProxy, Config) ->
-    maybe_stop_and_unload_module(Module, [BackendProxy], Config).
+assert_personal_data_via_rpc(Client, ExpectedPersonalDataEntries) ->
+    ExpectedKeys = [ Key || {Key, _, _} <- ExpectedPersonalDataEntries ],
 
-delete_backend(BackendProxy)->
-    try
-        dynamic_modules:stop(domain(), BackendProxy),
-        mongoose_helper:successful_rpc(code, purge, [BackendProxy]),
-        mongoose_helper:successful_rpc(code, delete, [BackendProxy]),
-        false = mongoose_helper:successful_rpc(code, is_loaded, [BackendProxy])
-    catch
-        C:R ->
-            ct:fail(#{ class => C,
-                       reason => R,
-                       stacktrace => erlang:get_stacktrace(),
-                       event => cannot_delete_backend,
-                       backend => BackendProxy })
-    end.
+    %% We use wait_until here, because e.g. the deletion in ElasticSearch
+    %% sometimes is applied with a delay (i.e. immediately after successful deletion
+    %% the data retrieval still returned valid entries)
+    mongoose_helper:wait_until(
+            fun() ->
+                get_personal_data_via_rpc(Client, ExpectedKeys)
+            end, ExpectedPersonalDataEntries).
+
+get_personal_data_via_rpc(Client, ExpectedKeys) ->
+    ClientU = escalus_utils:jid_to_lower(escalus_client:username(Client)),
+    ClientS = escalus_utils:jid_to_lower(escalus_client:server(Client)),
+    AllPersonalData = mongoose_helper:successful_rpc(
+                        service_admin_extra_gdpr, get_data_from_modules, [ClientU, ClientS]),
+    %% We don't use lists:filter/2 because this line also ensures order
+    [ lists:keyfind(Key, 1, AllPersonalData) || Key <- ExpectedKeys ].
 
 retrieve_and_validate_personal_data(User, Config, FilePrefix, ExpectedHeader, ExpectedItems) ->
     Dir = retrieve_all_personal_data(User, Config),
@@ -1982,21 +1792,6 @@ validate_time1(Time) ->
 
 check_list(List) ->
     lists:all(fun({V, L}) -> I = list_to_integer(V), I >= 0 andalso I < L end, List).
-
-choose_mam_backend(Config, mam) ->
-    case proplists:get_value(mam_backend, Config) of
-        rdbms -> [mod_mam_rdbms_arch, mod_mam_rdbms_prefs, mod_mam_rdbms_user, mod_mam_cache_user];
-        riak -> mod_mam_riak_timed_arch_yz;
-        cassandra -> [mod_mam_cassandra_arch, mod_mam_cassandra_prefs, mod_mam_cassandra_arch_params];
-        elasticsearch -> mod_mam_elasticsearch_arch
-    end;
-choose_mam_backend(Config, mam_muc) ->
-    case proplists:get_value(mam_backend, Config) of
-        rdbms -> [mod_mam_muc_rdbms_arch, mod_mam_rdbms_user, mod_mam_cache_user];
-        riak -> mod_mam_riak_timed_arch_yz;
-        cassandra -> [mod_mam_muc_cassandra_arch, mod_mam_muc_cassandra_arch_params];
-        elasticsearch -> mod_mam_muc_elasticsearch_arch
-    end.
 
 expected_header(mod_roster) -> ["jid", "name", "subscription",
                               "ask", "groups", "askmessage", "xs"].

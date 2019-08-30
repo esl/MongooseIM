@@ -14,9 +14,9 @@
                           Params :: map()) -> Result when
       Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
--callback get_mam_pm_gdpr_data(jid:user(), jid:server()) -> {ok, mam_pm_gdpr_data()}.
+-callback get_mam_pm_gdpr_data(mam_pm_gdpr_data(), jid:jid()) -> mam_pm_gdpr_data().
 
--callback get_mam_muc_gdpr_data(jid:user(), jid:server()) -> {ok, mam_muc_gdpr_data()}.
+-callback get_mam_muc_gdpr_data(mam_muc_gdpr_data(), jid:jid()) -> mam_muc_gdpr_data().
 
 -callback remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
 

@@ -2,11 +2,12 @@
 
 -include("ejabberd_commands.hrl").
 -include("mongoose_logger.hrl").
+-include("jlib.hrl").
 
 -export([commands/0, retrieve_all/3]).
 
 % Exported for RPC call
--export([retrieve_logs/2]).
+-export([retrieve_logs/2, get_data_from_modules/2]).
 
 -define(CMD_TIMEOUT, 300000).
 
@@ -27,6 +28,10 @@ retrieve_all(Username, Domain, ResultFilePath) ->
     case user_exists(Username, Domain) of
         true ->
             DataFromModules = get_data_from_modules(Username, Domain),
+            % The contract is that we create personal data files only when there are any items
+            % returned for the data group.
+            DataToWrite = lists:filter(fun({_, _, Items}) -> Items /= [] end, DataFromModules),
+
             TmpDir = make_tmp_dir(),
 
             CsvFiles = lists:map(
@@ -36,7 +41,7 @@ retrieve_all(Username, Domain, ResultFilePath) ->
                     to_csv_file(FileName, Schema, Entries, TmpDir),
                     binary_to_list(FileName)
                 end,
-                DataFromModules),
+                DataToWrite),
 
             LogFiles = get_all_logs(Username, Domain, TmpDir),
             
@@ -52,27 +57,10 @@ retrieve_all(Username, Domain, ResultFilePath) ->
 %%%                       Private funs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec modules_with_personal_data() -> [module()].
-modules_with_personal_data() ->
-    mongoose_lib:find_behaviour_implementations(gdpr).
-
--spec get_data_from_modules(jid:user(), jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
+-spec get_data_from_modules(jid:user(), jid:server()) -> gdpr:personal_data().
 get_data_from_modules(Username, Domain) ->
-    Modules = modules_with_personal_data(),
-    lists:flatmap(fun(M) -> try_get_data_from_module(M, Username, Domain) end, Modules).
-
-try_get_data_from_module(Module, Username, Domain) ->
-    try Module:get_personal_data(Username, Domain) of
-        [{_, _, []}] -> [];
-        Val -> Val
-    catch
-        C:R ->
-            ?WARNING_MSG("event=cannot_retrieve_personal_data,"
-                         "module=~p,class=~p,reason=~p,stacktrace=~p",
-                         [Module, C, R, erlang:get_stacktrace()]),
-            []
-    end.
+    JID = jid:make(Username, Domain, <<>>),
+    ejabberd_hooks:run_fold(get_personal_data, JID#jid.lserver, [], [JID]).
 
 -spec to_csv_file(CsvFilename :: binary(), gdpr:schema(), gdpr:entities(), file:name()) -> ok.
 to_csv_file(Filename, DataSchema, DataRows, TmpDir) ->

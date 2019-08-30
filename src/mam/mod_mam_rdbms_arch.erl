@@ -113,16 +113,15 @@ stop(Host) ->
             ok
     end.
 
--spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
-get_mam_pm_gdpr_data(User, Host) ->
-    case mod_mam_rdbms_user:get_archive_id(Host,User) of
-        undefined -> {ok, []};
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, #jid{ user = User, server = Server, lserver = LServer } = UserJid) ->
+    case mod_mam:archive_id(Server, User) of
+        undefined -> [];
         ArchiveID ->
-            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
-            UserJid = jid:make(User, Host, <<"">>),
-            {ok, [{BMessID, gdpr_decode_jid(Host, UserJid, FromJID), gdpr_decode_packet(Host, SDataRaw)}
-                  || {BMessID, FromJID, SDataRaw} <- Rows]}
+            {selected, Rows} = extract_gdpr_messages(LServer, ArchiveID),
+            [{BMessID, gdpr_decode_jid(LServer, UserJid, FromJID),
+              gdpr_decode_packet(LServer, SDataRaw)} || {BMessID, FromJID, SDataRaw} <- Rows] ++ Acc
     end.
 
 %% ----------------------------------------------------------------------
@@ -139,6 +138,7 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 
@@ -153,6 +153,7 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 

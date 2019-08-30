@@ -103,6 +103,7 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
 
@@ -120,6 +121,7 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE,
                           purge_multiple_messages, 50),
+    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
 
@@ -324,15 +326,14 @@ lookup_messages(Host, RoomID, RoomJID = #jid{},
     {ok, {TotalCount, Offset,
           rows_to_uniform_format(MessageRows, Host, RoomJID)}}.
 
--spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
-get_mam_muc_gdpr_data(Username, Host) ->
-    case mod_mam_rdbms_user:get_archive_id(Host, Username) of
-        undefined -> {ok, []};
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(Acc, #jid{ user = User, server = Host }) ->
+    case mod_mam:archive_id(Host, User) of
+        undefined -> Acc;
         ArchiveID ->
             {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
-            {ok, [{BMessID, gdpr_decode_packet(Host, SDataRaw)}
-                  || {BMessID,  SDataRaw} <- Rows]}
+            [{BMessID, gdpr_decode_packet(Host, SDataRaw)} || {BMessID,  SDataRaw} <- Rows] ++ Acc
     end.
 
 -spec after_id(ID :: escaped_message_id(), Filter :: filter()) -> filter().
