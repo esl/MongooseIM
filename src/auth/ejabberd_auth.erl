@@ -539,11 +539,20 @@ remove_user(User, Server) ->
 do_remove_user(LUser, LServer) when LUser =:= error; LServer =:= error ->
     error;
 do_remove_user(LUser, LServer) ->
-    [M:remove_user(LUser, LServer) || M <- auth_modules(LServer)],
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => LServer,
-                              element => undefined }),
-    ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]).
+    AuthModules = auth_modules(LServer),
+    RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules ],
+    case lists:any(fun(El) -> El == ok end, RemoveResult) of
+        true ->
+            Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                      lserver => LServer,
+                                      element => undefined }),
+            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
+            ok;
+        false ->
+            ?ERROR_MSG("event=backends_disallow_user_removal,user=~s,server=~s,backends=~p",
+                       [LUser, LServer, AuthModules]),
+            {error, not_allowed}
+    end.
 
 %% @doc Try to remove user if the provided password is correct.
 %% The removal is attempted in each auth method provided:

@@ -174,7 +174,7 @@ archive_size(Server, User)
     archive_size(Host, ArcID, ArcJID).
 
 
--spec archive_id(jid:server(), jid:user()) -> integer().
+-spec archive_id(jid:server(), jid:user()) -> integer() | undefined.
 archive_id(Server, User)
   when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
