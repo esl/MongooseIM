@@ -55,6 +55,7 @@ pages:
       - 'Metrics backend': 'rest-api/Metrics-backend.md'
       - 'Administration backend': 'rest-api/Administration-backend.md'
   - 'Operation and maintenance':
+      - 'GDPR considerations': 'operation-and-maintenance/gdpr-considerations.md'
       - 'Cluster management considerations': 'operation-and-maintenance/Cluster-management-considerations.md'
       - 'Cluster configuration and node management': 'operation-and-maintenance/Cluster-configuration-and-node-management.md'
       - 'Logging & monitoring': 'operation-and-maintenance/Logging-&-monitoring.md'
