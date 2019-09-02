@@ -66,7 +66,7 @@
 %% exports for hooks
 -export([presence_probe/4, caps_recognised/4,
          in_subscription/6, out_subscription/5,
-         on_user_offline/5, remove_user/2, remove_user/3,
+         on_user_offline/5, remove_user/3,
          disco_local_identity/5, disco_local_features/5,
          disco_local_items/5, disco_sm_identity/5,
          disco_sm_features/5, disco_sm_items/5, handle_pep_authorization_response/1]).
@@ -860,16 +860,13 @@ unsubscribe_user_per_plugin(Host, Entity, BJID, PType) ->
 %%
 
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Host = host(LServer),
     lists:foreach(fun(PType) ->
                           remove_user_per_plugin_safe(LUser, LServer, plugin(PType))
-                  end, plugins(Host)).
+                  end, plugins(Host)),
+    Acc.
 
 remove_user_per_plugin_safe(LUser, LServer, Plugin) ->
     try

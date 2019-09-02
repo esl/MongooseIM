@@ -19,7 +19,7 @@
 
 -export([start/2, stop/1, deps/2]).
 -export([process_iq/4, user_send_packet/4, filter_packet/1,
-         inbox_unread_count/2, remove_user/2, remove_user/3]).
+         inbox_unread_count/2, remove_user/3]).
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
@@ -211,13 +211,10 @@ filter_packet({From, To, Acc, Packet}) ->
     {From, To, Acc, Packet}.
 
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_inbox_backend:clear_inbox(LUser, LServer).
+    mod_inbox_backend:clear_inbox(LUser, LServer),
+    Acc.
 
 -spec maybe_process_message(Host :: host(),
                             From :: jid:jid(),

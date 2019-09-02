@@ -20,8 +20,6 @@
          set_prefs/7,
          remove_archive/4]).
 
--export([remove_mam_pm_gdpr_data/2]).
-
 -export([prepared_queries/0]).
 
 -include("mongoose.hrl").
@@ -197,11 +195,6 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _UserID, UserJID) ->
                                              get_prefs_query, Params),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    UserJID = jid:make(User, Server, <<>>),
-    remove_archive(UserJID).
 
 -spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().

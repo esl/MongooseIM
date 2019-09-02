@@ -42,7 +42,7 @@
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
-         remove_user/1,
+         remove_user/2, % for tests
          remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/3]).
@@ -574,10 +574,12 @@ remove_old_messages(Host, Days) ->
 %% #rh
 
 remove_user(Acc, User, Server) ->
-    remove_user(jid:make(User, Server, <<>>)),
+    remove_user(User, Server),
     Acc.
 
-remove_user(#jid{ luser = LUser, lserver = LServer }) ->
+remove_user(User, Server) ->
+    LUser = jid:nodeprep(User),
+    LServer = jid:nameprep(Server),
     mod_offline_backend:remove_user(LUser, LServer).
 
 %% Warn senders that their messages have been discarded:

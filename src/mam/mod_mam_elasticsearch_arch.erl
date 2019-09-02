@@ -31,7 +31,7 @@
 -export([remove_archive/4]).
 -export([archive_size/4]).
 
--export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
@@ -127,11 +127,6 @@ do_lookup_messages(_Result, Host, Params) ->
 archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     archive_size(SearchQuery).
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ lserver = Host } = OwnerJid = jid:make(User, Server, <<>>),
-    remove_archive(Host, OwnerJid).
 
 -spec remove_archive(Acc :: mongoose_acc:t(),
                      Host :: jid:server(),

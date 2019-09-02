@@ -24,7 +24,7 @@
 -export([prepared_queries/0]).
 
 %gdpr
--export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -200,12 +200,6 @@ remove_archive_offsets_query_cql() ->
 
 select_for_removal_query_cql() ->
     "SELECT DISTINCT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ lserver = Host } = UserJID = jid:make(User, Server, <<>>),
-    remove_archive(Host, UserJID),
-    ok.
 
 remove_archive(Acc, Host, _UserID, UserJID) ->
     remove_archive(Host, UserJID),

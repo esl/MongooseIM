@@ -56,8 +56,7 @@
          out_subscription/5,
          set_items/3,
          set_roster_entry/4,
-         remove_user/1,
-         remove_user/2,
+         remove_user/2, % for tests
          remove_user/3,
          remove_from_roster/2,
          get_jid_info/4,
@@ -862,10 +861,6 @@ remove_test_user(User, Server) ->
 
 get_user_rosters_length(User, Server) ->
     length(get_roster_old(User, Server)).
-
-% GDPR
-remove_user(#jid{ user = User, server = Server }) ->
-    remove_user(User, Server).
 
 %% Used only by tests
 remove_user(User, Server) ->

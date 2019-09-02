@@ -24,7 +24,7 @@
          lookup_messages/3,
          remove_archive/4]).
 
--export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2]).
 
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
@@ -470,12 +470,6 @@ row_to_message_id({BMessID, _, _}) ->
 
 
 %% Removals
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    ArcID = mod_mam_rdbms_user:get_archive_id(Server, User),
-    remove_archive(jid:nameprep(Server), ArcID),
-    ok.
 
 -spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),

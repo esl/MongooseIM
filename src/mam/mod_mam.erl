@@ -47,7 +47,6 @@
 %% ejabberd handlers
 -export([process_mam_iq/4,
          user_send_packet/4,
-         remove_user/2,
          remove_user/3,
          filter_packet/1,
          determine_amp_strategy/5,
@@ -326,16 +325,11 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
-%% This one is a hook handler...
+%% hook handler
 -spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
-
-%% ... while this one is a GDPR callback
--spec remove_user(jid:user(), jid:server()) -> ok.
-remove_user(User, Server) ->
-    delete_archive(Server, User).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...

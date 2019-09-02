@@ -32,8 +32,7 @@
 -export([start/2,
          stop/1,
          process_sm_iq/4,
-         remove_user/3,
-         remove_user/2]).
+         remove_user/3]).
 
 -export([get_personal_data/2]).
 
@@ -113,14 +112,11 @@ stop(Host) ->
 %% Handlers
 
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    mod_private_backend:remove_user(LUser, LServer).
+    R = mod_private_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},

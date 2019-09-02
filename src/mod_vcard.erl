@@ -61,7 +61,6 @@
 -export([process_local_iq/4,
          process_sm_iq/4,
          get_local_features/5,
-         remove_user/2,
          remove_user/3,
          set_vcard/3]).
 
@@ -401,13 +400,10 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
 
 %% #rh
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    mod_vcard_backend:remove_user(LUser, LServer).
+    mod_vcard_backend:remove_user(LUser, LServer),
+    Acc.
                 
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->

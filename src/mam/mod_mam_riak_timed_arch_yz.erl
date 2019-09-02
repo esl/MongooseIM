@@ -44,7 +44,7 @@
 -export([create_obj/6, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
--export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
@@ -373,11 +373,6 @@ get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
     SearchOpts = [],
     {ok, _Cnt, _, MsgIds} = fold_archive(fun get_msg_id_key/3, Query, SearchOpts, []),
     get_messages(LServer, MsgIds).
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ lserver = Host } = ArchiveJID = jid:make(User, Server, <<>>),
-    remove_archive(Host, ArchiveJID).
 
 remove_archive(Acc, Host, _ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveJID),
