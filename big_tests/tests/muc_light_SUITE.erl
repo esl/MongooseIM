@@ -19,6 +19,7 @@
          disco_rooms_created_page_infinity/1,
          disco_rooms_rsm/1,
          rooms_in_rosters/1,
+         rooms_in_rosters_doesnt_break_disco_info/1,
          no_roomname_in_schema_doesnt_break_disco_and_roster/1,
          unauthorized_stanza/1
     ]).
@@ -139,6 +140,7 @@ groups() ->
                                disco_rooms_empty_page_infinity,
                                disco_rooms_empty_page_1,
                                rooms_in_rosters,
+                               rooms_in_rosters_doesnt_break_disco_info,
                                no_roomname_in_schema_doesnt_break_disco_and_roster,
                                unauthorized_stanza
                               ]},
@@ -404,6 +406,22 @@ rooms_in_rosters(Config) ->
             ProperName = exml_query:attr(Item, <<"name">>),
             ProperVer = ver(1),
             ProperVer = exml_query:path(Item, [{element, <<"version">>}, cdata])
+        end).
+
+rooms_in_rosters_doesnt_break_disco_info(Config) ->
+    escalus:story(Config, [{alice, 1}], fun(Alice) ->
+            % Verify that room is in roster
+            escalus:send(Alice, escalus_stanza:roster_get()),
+            RosterResult = escalus:wait_for_stanza(Alice),
+            [RosterItem] = exml_query:paths(
+                       RosterResult, [{element, <<"query">>}, {element, <<"item">>}]),
+            RoomJID = room_bin_jid(?ROOM),
+            RoomJID = exml_query:attr(RosterItem, <<"jid">>),
+
+            % Verify that disco#info doesn't crash when rooms are in roster
+            DiscoStanza = escalus_stanza:disco_info(escalus_client:short_jid(Alice)),
+            IQRes = escalus:send_iq_and_wait_for_result(Alice, DiscoStanza),
+            escalus:assert(is_iq_result, IQRes)
         end).
 
 no_roomname_in_schema_doesnt_break_disco_and_roster(Config) ->
