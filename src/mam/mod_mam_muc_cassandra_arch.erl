@@ -546,7 +546,7 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
 -spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_muc_gdpr_data().
 get_mam_muc_gdpr_data(Acc, Jid) ->
-    BinJid = jid:to_binary(Jid),
+    BinJid = jid:to_binary(jid:to_lower(Jid)),
     PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
     FilterMap = #{from_jid  => BinJid},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),

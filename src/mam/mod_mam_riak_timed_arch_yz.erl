@@ -368,8 +368,8 @@ get_mam_muc_gdpr_data(Acc, JID) ->
     [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Messages] ++ Acc.
 
 get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
-    BareJidBin = jid:to_binary(BareJid),
-    Query = <<"msg_owner_jid_register:", BareJidBin/binary, " AND mam_type_register:", Type/binary>>,
+    BareLJidBin = jid:to_binary(jid:to_lower(BareJid)),
+    Query = <<"msg_owner_jid_register:", BareLJidBin/binary, " AND mam_type_register:", Type/binary>>,
     SearchOpts = [],
     {ok, _Cnt, _, MsgIds} = fold_archive(fun get_msg_id_key/3, Query, SearchOpts, []),
     get_messages(LServer, MsgIds).

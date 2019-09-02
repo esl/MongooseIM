@@ -444,7 +444,7 @@ row_to_message_id(#{id := MsgID}) ->
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
 get_mam_pm_gdpr_data(Acc, JID) ->
-    BinJID = jid:to_binary(JID),
+    BinJID = jid:to_binary(jid:to_lower(JID)),
     FilterMap = #{user_jid => BinJID, with_jid => <<"">>},
     Rows = fetch_user_messages(pool_name(), JID, FilterMap),
     Messages = lists:map(fun rows_to_gdpr_mam_message/1, Rows),
