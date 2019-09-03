@@ -1,6 +1,5 @@
 In this short guide we will set MongooseIM up and get users chatting right away.
-This will guide also you through basic operation, and validation.
-Training and getting to know MongooseIM is the goal here.
+The goal is to get to know MongooseIM, set it up, go through basic operations and validation.
 
 Warning: This setup is not intended for production.
 
@@ -8,9 +7,9 @@ Note: This procedure has been tested on an Ubuntu 18.04.x LTS.
 
 ## Installation
 
-We recommand, you install mongooseIM binaries from a package Erlang Solutions delivers.
+We recommend, you install mongooseIM binaries from a package Erlang Solutions delivers.
 
-Alternatively, check out our tutorial [How to build MongooseIM from source code](How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
+Alternatively, check out our tutorial on [How to build MongooseIM from source code](How-to-build.md) for an introduction to compiling, building and testing MongooseIM.
 
 ### Download a package
 
@@ -37,9 +36,9 @@ sudo rpm -i mongooseim_[version here].rpm
 
 ## Running MongooseIM
 
-Warning: MongooseIM will use its default database Mnesia, which is faster and simpler to setup, but not intended for production purposes regarding persistent data.
+Warning: MongooseIM will use its default database - Mnesia, which is faster and simpler to setup, but not intended for production purposes when it comes to persistent data.
 
-Note: It is possible at anytime to use external databases, check at the end of this guide.
+Note: It is possible at anytime to use external databases. For more information see the end of this guide.
 
 The following command will start the MongooseIM server:
 ```bash
@@ -69,7 +68,7 @@ mongooseimctl live
 ```
 This will allow you to better detect and understand the errors in the configuration.
 When MongooseIM is properly running, the Erlang shell/console is then shown.
-Just type twice Control-C to exit, the server will then be shut down.
+Just type Control-C twice to exit, the server will then be shut down.
 
 For running MongooseIM in a non-interactive way within a supervision system (e.g. systemd), it is recommended to use the foreground mode:
 ```bash
@@ -101,7 +100,7 @@ mongooseimctl register_identified bob localhost 12345678
 mongooseimctl register_identified carol localhost abc123
 mongooseimctl register_identified dan localhost dan
 ```
-Warning: The password is entered manually on the command line, a history is accessible to the command line users. This method is not recommended for production use, you may prefer for example LDAP.
+Warning: The password is entered manually in the command line and history is accessible to the command line users. This method is not recommended for production use, you may prefer for example LDAP.
 
 You can check that it has correctly been created:
 ```bash
@@ -248,7 +247,7 @@ mongooseimctl live
 
 ## Using an XMPP/Jabber client/app
 
-The following steps uses the registered users on the MongooseIM server, done above.
+The following steps use the registered users on the MongooseIM server, done above.
 
 Users that are registered on your server can now add their accounts in a chat application like Gajim (specifying either the server’s IP address or domain name), and start chatting!
 
@@ -256,7 +255,7 @@ Users that are registered on your server can now add their accounts in a chat ap
 
 Gajim is available on Ubuntu, CentOS & Windows.
 
-Warning: Gajim has an obsolete UX. However, it is still well maintained, and has console that is extremely useful for debugging and testing/validation purposes at the XMPP protocol level.
+Warning: Gajim has an obsolete UX. However, it is still well maintained, and has a console that is extremely useful for debugging and testing/validation purposes at the XMPP protocol level.
 
 1. Launch Gajim. Ignore the window with Plugin updates.
 2. Go to Edit -> Accounts.
@@ -317,7 +316,7 @@ mongooseimctl get_vcard alice localhost FN
 
 ## Summary
 
-Now you have the minimum knowledge: you know how to simply deploy MongooseIM, configure some basic features, check/verify a few useful items, validate it both on the client side and server side, and manipulate a few good practices.
+Now you have the minimum knowledge: you know how to deploy MongooseIM, configure some basic features, check/verify a few useful items, validate it both on the client and server side, and utilize a few good practices.
 
 ### Summary: command line
 
