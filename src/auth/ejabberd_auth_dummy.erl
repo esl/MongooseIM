@@ -59,33 +59,33 @@ check_password(_User, _Server, _Password, _Digest, _DigestGen) ->
 %% @spec (User::string(), Server::string(), Password::string()) ->
 %%       ok | {error, invalid_jid}
 set_password(_User, _Server, _Password) ->
-    not_supported.
+    ok.
 
 %% @spec (User, Server, Password) -> {atomic, ok} | {atomic, exists} | {error, invalid_jid} | {aborted, Reason}
 try_register(_User, _Server, _Password) ->
-    not_supported.
+    ok.
 
 %% Get all registered users in Mnesia
 dirty_get_registered_users() ->
-    not_supported.
+    [].
 
 get_vh_registered_users(_Server) ->
-    not_supported.
+    [].
 
 get_vh_registered_users(_Server, _) ->
-    not_supported.
+    [].
 
 get_vh_registered_users_number(_Server) ->
-    not_supported.
+    0.
 
 get_vh_registered_users_number(_Server, _) ->
-    not_supported.
+    0.
 
 get_password(_User, _Server) ->
     <<>>.
 
 get_password_s(_User, _Server) ->
-    not_supported.
+    <<>>.
 
 %% @spec (User, Server) -> true | false | {error, Error}
 does_user_exist(_User, _Server) ->
@@ -95,13 +95,13 @@ does_user_exist(_User, _Server) ->
 %% @doc Remove user.
 %% Note: it returns ok even if there was some problem removing the user.
 remove_user(_User, _Server) ->
-    not_supported.
+    ok.
 
 %% @spec (User, Server, Password) -> ok | not_exists | not_allowed | bad_request
 %% @doc Remove user if the provided password is correct.
 remove_user(_User, _Server, _Password) ->
     %% in fact not_supported
-    bad_request.
+    ok.
 
 supports_password_type(_, plain) -> true;
 supports_password_type(_, _) -> false.
