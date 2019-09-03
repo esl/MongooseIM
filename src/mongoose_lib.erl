@@ -1,6 +1,5 @@
 -module(mongoose_lib).
 
--export([find_behaviour_implementations/1]).
 -export([log_if_backend_error/4]).
 %% Maps
 -export([maps_append/3]).
@@ -10,30 +9,6 @@
 
 -include("mongoose.hrl").
 
-%% ------------------------------------------------------------------
-%% Behaviour util
-%% ------------------------------------------------------------------
-
-%% WARNING! For simplicity, this function searches only MongooseIM code dir
--spec find_behaviour_implementations(Behaviour :: module()) -> [module()].
-find_behaviour_implementations(Behaviour) ->
-    LookupFN = fun() -> {ok, find_implementations(Behaviour)} end,
-    {ok, Modules} = service_cache:lookup({behaviour, Behaviour}, LookupFN),
-    Modules.
-
-find_implementations(Behaviour) ->
-    {ok, EbinFiles} = file:list_dir(code:lib_dir(mongooseim, ebin)),
-    Mods = [ list_to_atom(filename:rootname(File))
-             || File <- EbinFiles, filename:extension(File) == ".beam" ],
-    lists:filter(fun(M) ->
-                         try lists:keyfind([Behaviour], 2, M:module_info(attributes)) of
-                             {behavior, _} -> true;
-                             {behaviour, _} -> true;
-                             _ -> false
-                         catch
-                             _:_ -> false
-                         end
-                 end, Mods).
 %% ------------------------------------------------------------------
 %% Logging
 %% ------------------------------------------------------------------

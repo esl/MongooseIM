@@ -29,7 +29,7 @@
 
 -behaviour(mongoose_service).
 
--export([start/1, stop/0, deps/0]).
+-export([start/1, stop/0]).
 
 -define(SUBMODS, [node, accounts, sessions, vcard, roster, last,
                   private, stanza, stats, gdpr
@@ -39,8 +39,6 @@
 %%%
 %%% gen_mod
 %%%
-
-deps() -> [service_cache].
 
 start(Opts) ->
     Submods = gen_mod:get_opt(submods, Opts, ?SUBMODS),

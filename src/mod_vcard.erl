@@ -37,7 +37,6 @@
 -xep([{xep, 55}, {version, "1.3"}]).
 -behaviour(gen_mod).
 -behaviour(gen_server).
--behaviour(gdpr).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -62,7 +61,6 @@
 -export([process_local_iq/4,
          process_sm_iq/4,
          get_local_features/5,
-         remove_user/2,
          remove_user/3,
          set_vcard/3]).
 
@@ -128,25 +126,17 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(jid:user(), jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     Jid = jid:to_binary({LUser, LServer}),
     Schema = ["jid", "vcard"],
-    Entries = lists:flatmap(fun(B) ->
-        try B:get_vcard(LUser, LServer) of
-            {ok, Record} ->
-                SerializedRecords = exml:to_binary(Record),
-                [{Jid, SerializedRecords}];
-            _ -> []
-        catch
-            _:_ ->
-                []
-        end
-                            end, mongoose_lib:find_behaviour_implementations(mod_vcard)),
-    [{vcard, Schema, Entries}].
+    Entries = case mod_vcard_backend:get_vcard(LUser, LServer) of
+                  {ok, Record} ->
+                      SerializedRecords = exml:to_binary(Record),
+                      [{Jid, SerializedRecords}];
+                  _ -> []
+              end,
+    [{vcard, Schema, Entries} | Acc].
 
 -spec default_search_fields() -> list().
 default_search_fields() ->
@@ -261,7 +251,8 @@ hook_handlers() ->
      {anonymous_purge_hook, ?MODULE, remove_user,        50},
      {disco_local_features, ?MODULE, get_local_features, 50},
      {host_config_update,   ?MODULE, config_change,      50},
-     {set_vcard,            ?MODULE, set_vcard,          50}].
+     {set_vcard,            ?MODULE, set_vcard,          50},
+     {get_personal_data,    ?MODULE, get_personal_data,  50}].
 
 handle_call(get_state, _From, State) ->
     {reply, {ok, State}, State};
@@ -409,24 +400,11 @@ get_local_features(Acc, _From, _To, Node, _Lang) ->
 
 %% #rh
 remove_user(Acc, User, Server) ->
-    remove_user(User, Server),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nodeprep(Server),
-    lists:foreach(fun(B) ->
-        try
-            B:remove_user(LUser, LServer)
-        catch
-            E:R ->
-                Stack = erlang:get_stacktrace(),
-                ?WARNING_MSG("issue=remove_user_failed "
-                "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end, mongoose_lib:find_behaviour_implementations(mod_vcard)).
-
+    mod_vcard_backend:remove_user(LUser, LServer),
+    Acc.
+                
 %% react to "global" config change
 config_change(Acc, Host, ldap, _NewConfig) ->
     case mod_vcard_backend:backend() of

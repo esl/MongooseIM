@@ -24,7 +24,7 @@
 -export([prepared_queries/0]).
 
 %gdpr
--export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2]).
 
 %% ----------------------------------------------------------------------
 %% Imports
@@ -94,6 +94,7 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 stop_pm(Host) ->
@@ -106,6 +107,7 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -198,12 +200,6 @@ remove_archive_offsets_query_cql() ->
 
 select_for_removal_query_cql() ->
     "SELECT DISTINCT user_jid, with_jid FROM mam_message WHERE user_jid = ?".
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ lserver = Host } = UserJID = jid:make(User, Server, <<>>),
-    remove_archive(Host, UserJID),
-    ok.
 
 remove_archive(Acc, Host, _UserID, UserJID) ->
     remove_archive(Host, UserJID),
@@ -439,18 +435,14 @@ row_to_uniform_format(#{from_jid := FromJID, message := Msg, id := MsgID}) ->
 row_to_message_id(#{id := MsgID}) ->
     MsgID.
 
--spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
-get_mam_pm_gdpr_data(Username, Host) ->
-    ensure_params_loaded(Host),
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Host),
-    Jid = jid:make({LUser, LServer, <<>>}),
-    BinJid = jid:to_binary(Jid),
-    FilterMap = #{user_jid => BinJid, with_jid => <<"">>},
-    Rows = fetch_user_messages(pool_name(), Jid, FilterMap),
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, JID) ->
+    BinJID = jid:to_binary(jid:to_lower(JID)),
+    FilterMap = #{user_jid => BinJID, with_jid => <<"">>},
+    Rows = fetch_user_messages(pool_name(), JID, FilterMap),
     Messages = lists:map(fun rows_to_gdpr_mam_message/1, Rows),
-    {ok, Messages}.
+    Messages ++ Acc.
 
 rows_to_gdpr_mam_message(#{message := Data, id:= Id, from_jid:=FromJid}) ->
     {Id, FromJid, exml:to_binary(stored_binary_to_packet(Data))}.

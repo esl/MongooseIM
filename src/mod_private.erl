@@ -28,13 +28,11 @@
 -author('alexey@process-one.net').
 
 -behaviour(gen_mod).
--behaviour(gdpr).
 
 -export([start/2,
          stop/1,
          process_sm_iq/4,
-         remove_user/3,
-         remove_user/2]).
+         remove_user/3]).
 
 -export([get_personal_data/2]).
 
@@ -79,38 +77,16 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(jid:user(), jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["ns", "xml"],
-    %% TODO: Replace separate `mod_private_mysql` backend with a switch for `rdbms` one
-    %% or simply always use dedicated queries when the RDBMS backend type is `mysql`
-    %%
-    %% We remove `mod_private_mysql` from the list because calling all possible backends resulted
-    %% in duplicate entries with RDBMS.
-    Backends = mongoose_lib:find_behaviour_implementations(mod_private) -- [mod_private_mysql],
-    Entries =
-    lists:flatmap(fun(B) ->
-                          get_personal_data_from_backend(B, LUser, LServer)
-                  end, Backends),
-    [{private, Schema, Entries}].
-
-get_personal_data_from_backend(Backend, LUser, LServer) ->
-    try
-        NSs = Backend:get_all_nss(LUser, LServer),
-        lists:map(
-          fun(NS) ->
-                  { NS, exml:to_binary(Backend:multi_get_data(LUser, LServer, [{NS, default}])) }
-          end, NSs)
-    catch
-        C:R ->
-            ?WARNING_MSG("event=cannot_retrieve_personal_data,"
-                         "backend=~p,class=~p,reason=~p,stacktrace=~p",
-                         [Backend, C, R, erlang:get_stacktrace()]),
-            []
-    end.
+    NSs = mod_private_backend:get_all_nss(LUser, LServer),
+    Entries = lists:map(
+                fun(NS) ->
+                        Data = mod_private_backend:multi_get_data(LUser, LServer, [{NS, default}]),
+                        { NS, exml:to_binary(Data) }
+                end, NSs),
+    [{private, Schema, Entries} | Acc].
 
 %% ------------------------------------------------------------------
 %% gen_mod callbacks
@@ -121,12 +97,14 @@ start(Host, Opts) ->
     IQDisc = gen_mod:get_opt(iqdisc, Opts, one_queue),
     ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE,
                                   ?MODULE, process_sm_iq, IQDisc).
 
 stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
+    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_PRIVATE).
 
 
@@ -134,24 +112,11 @@ stop(Host) ->
 %% Handlers
 
 remove_user(Acc, User, Server) ->
-    R = remove_user(User, Server),
-    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
-    Acc.
-
-remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
-    lists:foreach(fun(B) ->
-        try
-            B:remove_user(LUser, LServer)
-        catch
-            E:R ->
-                Stack = erlang:get_stacktrace(),
-                ?WARNING_MSG("issue=remove_user_failed "
-                "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end, mongoose_lib:find_behaviour_implementations(mod_private)).
+    R = mod_private_backend:remove_user(LUser, LServer),
+    mongoose_lib:log_if_backend_error(R, ?MODULE, ?LINE, {Acc, User, Server}),
+    Acc.
 
 process_sm_iq(
         From = #jid{luser = LUser, lserver = LServer},

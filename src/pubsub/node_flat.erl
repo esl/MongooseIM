@@ -50,7 +50,7 @@
          get_items_if_authorised/3, get_items/3, get_item/7,
          get_item/2, set_item/1, get_item_name/3, node_to_path/1,
          path_to_node/1, can_fetch_item/2, is_subscribed/1,
-         should_delete_when_owner_removed/0, remove_user/3]).
+         should_delete_when_owner_removed/0, remove_user/2]).
 
 based_on() ->  none.
 
@@ -686,38 +686,37 @@ is_subscribed(Subscriptions) ->
 make_subid() ->
     mongoose_bin:gen_from_timestamp().
 
-remove_user(LUser, LServer, Backend) ->
-    Backend:dirty(fun() -> 
+remove_user(LUser, LServer) ->
+    mod_pubsub_db_backend:dirty(fun() -> 
                           LJID = {LUser, LServer, <<>>},
-                          Backend:delete_user_subscriptions(LJID),
-                          NodesAndAffs = Backend:find_nodes_by_affiliated_user(LJID),
+                          mod_pubsub_db_backend:delete_user_subscriptions(LJID),
+                          NodesAndAffs = mod_pubsub_db_backend:find_nodes_by_affiliated_user(LJID),
                           %% We don't broadcast node deletion notifications to subscribers because:
                           %% * PEP nodes do not broadcast anything upon deletion
                           %% * Push nodes do not have (should not have) any subscribers
                           %% * Remaining nodes are not deleted when the owner leaves
                           lists:foreach(
                             fun(NodeAffPair) ->
-                                    remove_user_by_affiliation_and_node(NodeAffPair, LJID, Backend)
+                                    remove_user_by_affiliation_and_node(NodeAffPair, LJID)
                             end, NodesAndAffs)
                   end, #{}).
 
 -spec remove_user_by_affiliation_and_node(NodeAffPair :: {mod_pubsub:pubsubNode(),
                                                           mod_pubsub:affiliation()},
-                                          LJID :: jid:ljid(),
-                                          Backend :: module()) ->
+                                          LJID :: jid:ljid()) ->
     any().
-remove_user_by_affiliation_and_node({#pubsub_node{ id = Nidx } = Node, owner}, LJID, Backend) ->
+remove_user_by_affiliation_and_node({#pubsub_node{ id = Nidx } = Node, owner}, LJID) ->
     case mod_pubsub:plugin_call(mod_pubsub:plugin(Node#pubsub_node.type),
                                 should_delete_when_owner_removed, []) of
         {result, true} ->
             % Oh my, we do have a mess in the API, don't we?
             % delete_node removes actual node structure
             % del_node removes node's items and states (affs and subs)
-            Backend:delete_node(Node),
-            Backend:del_node(Nidx);
+            mod_pubsub_db_backend:delete_node(Node),
+            mod_pubsub_db_backend:del_node(Nidx);
         _ ->
-            Backend:set_affiliation(Nidx, LJID, none)
+            mod_pubsub_db_backend:set_affiliation(Nidx, LJID, none)
     end;
-remove_user_by_affiliation_and_node({#pubsub_node{ id = Nidx }, _}, LJID, Backend) ->
-    Backend:set_affiliation(Nidx, LJID, none).
+remove_user_by_affiliation_and_node({#pubsub_node{ id = Nidx }, _}, LJID) ->
+    mod_pubsub_db_backend:set_affiliation(Nidx, LJID, none).
 

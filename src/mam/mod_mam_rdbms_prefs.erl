@@ -19,8 +19,6 @@
          set_prefs/7,
          remove_archive/4]).
 
--export([remove_mam_pm_gdpr_data/2]).
-
 -import(mongoose_rdbms,
         [escape_string/1,
          escape_integer/1,
@@ -234,12 +232,6 @@ get_prefs({GlobalDefaultMode, _, _}, Host, UserID, _ArcJID) ->
        "WHERE user_id=", use_escaped_integer(SUserID)]),
     decode_prefs_rows(Rows, GlobalDefaultMode, [], []).
 
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    ArcID = mod_mam_rdbms_user:get_archive_id(Server, User),
-    remove_archive(jid:nameprep(Server), ArcID),
-    ok.
 
 -spec remove_archive(mongoose_acc:t(), jid:server(), mod_mam:archive_id(), jid:jid()) ->
     mongoose_acc:t().

@@ -24,7 +24,7 @@
          lookup_messages/3,
          remove_archive/4]).
 
--export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2]).
 
 %% Called from mod_mam_rdbms_async_writer
 -export([prepare_message/8, prepare_insert/2]).
@@ -113,16 +113,15 @@ stop(Host) ->
             ok
     end.
 
--spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
-get_mam_pm_gdpr_data(User, Host) ->
-    case mod_mam_rdbms_user:get_archive_id(Host,User) of
-        undefined -> {ok, []};
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, #jid{ user = User, server = Server, lserver = LServer } = UserJid) ->
+    case mod_mam:archive_id(Server, User) of
+        undefined -> [];
         ArchiveID ->
-            {selected, Rows} = extract_gdpr_messages(Host, ArchiveID),
-            UserJid = jid:make(User, Host, <<"">>),
-            {ok, [{BMessID, gdpr_decode_jid(Host, UserJid, FromJID), gdpr_decode_packet(Host, SDataRaw)}
-                  || {BMessID, FromJID, SDataRaw} <- Rows]}
+            {selected, Rows} = extract_gdpr_messages(LServer, ArchiveID),
+            [{BMessID, gdpr_decode_jid(LServer, UserJid, FromJID),
+              gdpr_decode_packet(LServer, SDataRaw)} || {BMessID, FromJID, SDataRaw} <- Rows] ++ Acc
     end.
 
 %% ----------------------------------------------------------------------
@@ -139,6 +138,7 @@ start_pm(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 
@@ -153,6 +153,7 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 
@@ -469,12 +470,6 @@ row_to_message_id({BMessID, _, _}) ->
 
 
 %% Removals
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    ArcID = mod_mam_rdbms_user:get_archive_id(Server, User),
-    remove_archive(jid:nameprep(Server), ArcID),
-    ok.
 
 -spec remove_archive(Acc :: mongoose_acc:t(), Host :: jid:server(),
                      ArchiveID :: mod_mam:archive_id(),

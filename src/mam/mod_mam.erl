@@ -47,14 +47,12 @@
 %% ejabberd handlers
 -export([process_mam_iq/4,
          user_send_packet/4,
-         remove_user/2,
          remove_user/3,
          filter_packet/1,
          determine_amp_strategy/5,
          sm_filter_offline_message/4]).
 
 %% gdpr callbacks
--behaviour(gdpr).
 -export([get_personal_data/2]).
 
 %%private
@@ -149,22 +147,11 @@
 %% ----------------------------------------------------------------------
 %% API
 
--spec get_personal_data(jid:user(), jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
-get_personal_data(Username, Server) ->
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ lserver = LServer } = JID) ->
     Schema = ["id", "from", "message"],
-    Entries = lists:flatmap(
-        fun(B) ->
-            try B:get_mam_pm_gdpr_data(Username, Server) of
-                {ok, GdprData} ->
-                    GdprData;
-                _ -> []
-            catch
-                _:_ ->
-                    []
-            end
-        end, mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)),
-    [{mam_pm, Schema, Entries}].
+    Entries = ejabberd_hooks:run_fold(get_mam_pm_gdpr_data, LServer, [], [JID]),
+    [{mam_pm, Schema, Entries} | Acc].
 
 -spec delete_archive(jid:server(), jid:user()) -> 'ok'.
 delete_archive(Server, User)
@@ -186,7 +173,7 @@ archive_size(Server, User)
     archive_size(Host, ArcID, ArcJID).
 
 
--spec archive_id(jid:server(), jid:user()) -> integer().
+-spec archive_id(jid:server(), jid:user()) -> integer() | undefined.
 archive_id(Server, User)
   when is_binary(Server), is_binary(User) ->
     ArcJID = jid:make(User, Server, <<>>),
@@ -205,7 +192,6 @@ start(Host, Opts) ->
        " It will default to `false` in one of future releases."
        " Please check the mod_mam documentation for more details.", []),
 
-    ejabberd_users:start(Host),
     %% `parallel' is the only one recommended here.
     IQDisc = gen_mod:get_opt(iqdisc, Opts, parallel), %% Type
     mod_disco:register_feature(Host, ?NS_MAM_03),
@@ -224,6 +210,7 @@ start(Host, Opts) ->
     ejabberd_hooks:add(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:add(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
     ejabberd_hooks:add(sm_filter_offline_message, Host, ?MODULE, sm_filter_offline_message, 50),
+    ejabberd_hooks:add(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, lookup], histogram),
     mongoose_metrics:ensure_metric(Host, [Host, modMamLookups, simple], spiral),
     mongoose_metrics:ensure_metric(Host, [backends, ?MODULE, archive], histogram),
@@ -240,6 +227,7 @@ stop(Host) ->
     ejabberd_hooks:delete(remove_user, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(anonymous_purge_hook, Host, ?MODULE, remove_user, 50),
     ejabberd_hooks:delete(amp_determine_strategy, Host, ?MODULE, determine_amp_strategy, 20),
+    ejabberd_hooks:delete(get_personal_data, Host, ?MODULE, get_personal_data, 50),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_03),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_04),
     gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_MAM_06),
@@ -337,28 +325,11 @@ filter_packet({From, To=#jid{luser=LUser, lserver=LServer}, Acc, Packet}) ->
 process_incoming_packet(From, To, Packet) ->
     handle_package(incoming, true, To, From, From, Packet).
 
-%% This one is a hook handler...
+%% hook handler
 -spec remove_user(mongoose_acc:t(), jid:user(), jid:server()) -> mongoose_acc:t().
 remove_user(Acc, User, Server) ->
     delete_archive(Server, User),
     Acc.
-
-%% ... while this one is a GDPR callback
--spec remove_user(jid:user(), jid:server()) -> ok.
-remove_user(User, Server) ->
-    Backends = mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_archive)
-    ++ mongoose_lib:find_behaviour_implementations(ejabberd_gen_mam_prefs),
-    lists:foreach(fun(B) ->
-        try
-            B:remove_mam_pm_gdpr_data(User, Server)
-        catch
-            E:R ->
-                Stack = erlang:get_stacktrace(),
-                ?WARNING_MSG("issue=remove_user_failed "
-                "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end, Backends).
 
 sm_filter_offline_message(_Drop=false, _From, _To, Packet) ->
     %% If ...

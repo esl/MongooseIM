@@ -31,7 +31,7 @@
 -export([remove_archive/4]).
 -export([archive_size/4]).
 
--export([get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_pm_gdpr_data/2]).
 
 -include("mongoose.hrl").
 -include("mongoose_rsm.hrl").
@@ -55,22 +55,17 @@ stop(Host) ->
     ejabberd_hooks:delete(hooks(Host)),
     ok.
 
--spec get_mam_pm_gdpr_data(jid:user(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
-get_mam_pm_gdpr_data(User, Host) ->
-    Owner = jid:make(User, Host, <<"">>),
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, Owner) ->
     BinOwner = mod_mam_utils:bare_jid(Owner),
     Filter = #{term => #{owner => BinOwner}},
     Sorting = #{mam_id => #{order => asc}},
-    SearchQuery = #{query => #{bool => #{filter => Filter}},
-                    sort => Sorting},
-    case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
-        {ok, #{<<"hits">> := #{<<"hits">> := Hits}}} ->
-            Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
-            {ok, Messages};
-        {error, _} ->
-            {ok, []}
-    end.
+    SearchQuery = #{query => #{bool => #{filter => Filter}}, sort => Sorting},
+    {ok, #{<<"hits">> := #{<<"hits">> := Hits}}}
+        = mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery),
+    Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
+    Messages ++ Acc.
 
 %%-------------------------------------------------------------------
 %% ejabberd_gen_mam_archive callbacks
@@ -133,11 +128,6 @@ archive_size(_Size, _Host, _ArchiveId, OwnerJid) ->
     SearchQuery = build_search_query(#{owner_jid => OwnerJid}),
     archive_size(SearchQuery).
 
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ lserver = Host } = OwnerJid = jid:make(User, Server, <<>>),
-    remove_archive(Host, OwnerJid).
-
 -spec remove_archive(Acc :: mongoose_acc:t(),
                      Host :: jid:server(),
                      ArchiveId :: mod_mam:archive_id(),
@@ -166,7 +156,8 @@ hooks(Host) ->
     [{mam_archive_message, Host, ?MODULE, archive_message, 50},
      {mam_lookup_messages, Host, ?MODULE, lookup_messages, 50},
      {mam_archive_size, Host, ?MODULE, archive_size, 50},
-     {mam_remove_archive, Host, ?MODULE, remove_archive, 50}].
+     {mam_remove_archive, Host, ?MODULE, remove_archive, 50},
+     {get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50}].
 
 -spec make_document_id(binary(), mod_mam:message_id()) -> binary().
 make_document_id(Owner, MessageId) ->

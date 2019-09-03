@@ -44,7 +44,7 @@
 -export([create_obj/6, read_archive/7, bucket/1,
          list_mam_buckets/0, remove_bucket/1]).
 
--export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2, remove_mam_pm_gdpr_data/2]).
+-export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
 
@@ -86,13 +86,15 @@ start_chat_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_archive_message, Host, ?MODULE, archive_message, 50),
     ejabberd_hooks:add(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50).
+    ejabberd_hooks:add(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50).
 
 start_muc_archive(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50),
     ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50).
+    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50).
 
 stop(Host) ->
     case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
@@ -113,6 +115,7 @@ stop_chat_archive(Host) ->
     ejabberd_hooks:delete(mam_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_lookup_messages, Host, ?MODULE, lookup_messages_muc, 50),
     ejabberd_hooks:delete(mam_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
 stop_muc_archive(Host) ->
@@ -120,6 +123,7 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
     ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
     ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
+    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
 %% LocJID - archive owner's JID
@@ -351,32 +355,24 @@ get_message2(Host, MsgId, Bucket, Key) ->
         _ ->
             []
     end.
--spec get_mam_pm_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_pm_gdpr_data()}.
-get_mam_pm_gdpr_data(Username, Host) ->
-    Messages = get_mam_gdpr_data(Username, Host, <<"pm">>),
-    {ok, [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages]}.
+-spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_pm_gdpr_data().
+get_mam_pm_gdpr_data(Acc, OwnerJid) ->
+    Messages = get_mam_gdpr_data(OwnerJid, <<"pm">>),
+    [{Id, jid:to_binary(Jid), exml:to_binary(Packet)} || {Id, Jid, Packet} <- Messages] ++ Acc.
 
--spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
-get_mam_muc_gdpr_data(Username, Host) ->
-    Messages = get_mam_gdpr_data(Username, Host, <<"muc">>),
-    {ok, [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Messages]}.
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(Acc, JID) ->
+    Messages = get_mam_gdpr_data(JID, <<"muc">>),
+    [{MsgId, exml:to_binary(Packet)} || {MsgId, _, Packet} <- Messages] ++ Acc.
 
-get_mam_gdpr_data(Username, Host, Type) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Host),
-    BareJid = jid:make({LUser, LServer, <<>>}),
-    BareJidBin = jid:to_binary(BareJid),
-    Query = <<"msg_owner_jid_register:", BareJidBin/binary, " AND mam_type_register:", Type/binary>>,
+get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
+    BareLJidBin = jid:to_binary(jid:to_lower(BareJid)),
+    Query = <<"msg_owner_jid_register:", BareLJidBin/binary, " AND mam_type_register:", Type/binary>>,
     SearchOpts = [],
     {ok, _Cnt, _, MsgIds} = fold_archive(fun get_msg_id_key/3, Query, SearchOpts, []),
-    get_messages(Host, MsgIds).
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    #jid{ lserver = Host } = ArchiveJID = jid:make(User, Server, <<>>),
-    remove_archive(Host, ArchiveJID).
+    get_messages(LServer, MsgIds).
 
 remove_archive(Acc, Host, _ArchiveID, ArchiveJID) ->
     remove_archive(Host, ArchiveJID),

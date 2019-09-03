@@ -39,7 +39,6 @@
 -xep([{xep, 83}, {version, "1.0"}]).
 -xep([{xep, 93}, {version, "1.2"}]).
 -behaviour(gen_mod).
--behaviour(gdpr).
 
 -export([start/2,
          stop/1,
@@ -57,7 +56,7 @@
          out_subscription/5,
          set_items/3,
          set_roster_entry/4,
-         remove_user/2,
+         remove_user/2, % for tests
          remove_user/3,
          remove_from_roster/2,
          get_jid_info/4,
@@ -166,25 +165,12 @@
 %% gdpr callback
 %%--------------------------------------------------------------------
 
--spec get_personal_data(jid:user(), jid:server()) ->
-    [{gdpr:data_group(), gdpr:schema(), gdpr:entries()}].
-get_personal_data(Username, Server) ->
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nameprep(Server),
+-spec get_personal_data(gdpr:personal_data(), jid:jid()) -> gdpr:personal_data().
+get_personal_data(Acc, #jid{ luser = LUser, lserver = LServer }) ->
     Schema = ["jid", "name", "subscription", "ask", "groups", "askmessage", "xs"],
-    Records =
-        lists:flatmap(fun(B) ->
-            try B:get_roster(LUser, LServer) of
-                Entries when is_list(Entries) -> Entries;
-                _ -> []
-            catch
-                C:R ->
-                    log_get_personal_data_warning(B, C, R, erlang:get_stacktrace()),
-                    []
-            end
-                      end, mongoose_lib:find_behaviour_implementations(mod_roster)),
+    Records = mod_roster_backend:get_roster(LUser, LServer),
     SerializedRecords = lists:map(fun roster_record_to_gdpr_entry/1, Records),
-    [{roster, Schema, SerializedRecords}].
+    [{roster, Schema, SerializedRecords} | Acc].
 
 roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
                                      subscription = Subscription, ask = Ask, groups = Groups,
@@ -198,10 +184,6 @@ roster_record_to_gdpr_entry(#roster{ jid = JID, name = Name,
      AskMessage,
      << <<(exml:to_binary(X))>> || X <- XS >>
     ].
-
-log_get_personal_data_warning(Backend, Class, Reason, StackTrace) ->
-    ?WARNING_MSG("event=cannot_retrieve_personal_data,backend=~p,class=~p,reason=~p,stacktrace=~p",
-                 [Backend, Class, Reason, StackTrace]).
 
 %%--------------------------------------------------------------------
 %% mod_roster's callbacks
@@ -239,7 +221,8 @@ hooks(Host) ->
      {roster_get_jid_info, Host, ?MODULE, get_jid_info, 50},
      {remove_user, Host, ?MODULE, remove_user, 50},
      {anonymous_purge_hook, Host, ?MODULE, remove_user, 50},
-     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50}].
+     {roster_get_versioning_feature, Host, ?MODULE, get_versioning_feature, 50},
+     {get_personal_data, Host, ?MODULE, get_personal_data, 50}].
 
 get_roster_entry(LUser, LServer, Jid) ->
     mod_roster_backend:get_roster_entry(jid:nameprep(LUser), LServer, jid_arg_to_lower(Jid)).
@@ -890,17 +873,7 @@ remove_user(Acc, User, Server) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     Acc1 = try_send_unsubscription_to_rosteritems(Acc, LUser, LServer),
-    lists:foreach(fun(Backend) ->
-        try
-            Backend:remove_user(LUser, LServer)
-        catch
-            Class:Reason ->
-                StackTrace = erlang:get_stacktrace(),
-                ?WARNING_MSG("event=cannot_delete_personal_data,"
-                "backend=~p,class=~p,reason=~p,stacktrace=~p",
-                    [Backend, Class, Reason, StackTrace])
-        end
-                  end, mongoose_lib:find_behaviour_implementations(mod_roster)),
+    mod_roster_backend:remove_user(LUser, LServer),
     Acc1.
 
 try_send_unsubscription_to_rosteritems(Acc, LUser, LServer) ->

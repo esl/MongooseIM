@@ -98,6 +98,7 @@ start_muc(Host, _Opts) ->
     ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
     ejabberd_hooks:add(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:add(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages, 50),
+    ejabberd_hooks:add(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
 stop_muc(Host) ->
@@ -113,6 +114,7 @@ stop_muc(Host) ->
     ejabberd_hooks:delete(mam_muc_purge_single_message, Host, ?MODULE, purge_single_message, 50),
     ejabberd_hooks:delete(mam_muc_purge_multiple_messages, Host, ?MODULE, purge_multiple_messages,
                           50),
+    ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
 %% ----------------------------------------------------------------------
@@ -541,28 +543,16 @@ purge_multiple_messages(_Result, Host, RoomID, RoomJID, Borders,
      || #{id := Id} <- Rows],
     ok.
 
--spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
-get_mam_muc_gdpr_data(Username, Host) ->
-    ensure_params_loaded(Host),
-    LUser = jid:nodeprep(Username),
-    LServer = jid:nodeprep(Host),
-    Jid = jid:make({LUser, LServer, <<>>}),
-    BinJid = jid:to_binary(Jid),
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(Acc, Jid) ->
+    BinJid = jid:to_binary(jid:to_lower(Jid)),
     PoolName = mod_mam_muc_cassandra_arch_params:pool_name(),
     FilterMap = #{from_jid  => BinJid},
     Rows = fetch_user_messages(PoolName, Jid, FilterMap),
-    Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))} || #{message := Data, id:= Id} <- Rows],
-    {ok, Messages}.
-
-
-ensure_params_loaded(Host) ->
-    case code:is_loaded(mod_mam_muc_cassandra_arch_params) of
-        false ->
-            Params = mod_mam_meta:get_mam_module_configuration(Host, ?MODULE, []),
-            compile_params_module(Params);
-        _ -> ok
-    end.
+    Messages = [{Id, exml:to_binary(stored_binary_to_packet(Data))}
+                || #{message := Data, id:= Id} <- Rows],
+    Messages ++ Acc.
 
 %% Offset is not supported
 %% Each record is a tuple of form

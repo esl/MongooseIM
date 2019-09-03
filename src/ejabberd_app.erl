@@ -66,6 +66,7 @@ start(normal, _Args) ->
     %% but some outgoing_pools should be started only with ejabberd_sup already running
     ejabberd_sm:start(),
     ejabberd_rdbms:start(),
+    lists:foreach(fun ejabberd_users:start/1, ?MYHOSTS),
     ejabberd_auth:start(),
     cyrsasl:start(),
     start_services(),
@@ -90,6 +91,7 @@ prep_stop(State) ->
     mongoose_subhosts:stop(),
     broadcast_c2s_shutdown(),
     timer:sleep(5000),
+    lists:foreach(fun ejabberd_users:stop/1, ?MYHOSTS),
     mongoose_wpool:stop(),
     mongoose_metrics:remove_all_metrics(),
     State.

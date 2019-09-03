@@ -59,10 +59,9 @@ stop(Host) ->
 %%-------------------------------------------------------------------
 %% ejabberd_gen_mam_archive callbacks
 %%-------------------------------------------------------------------
--spec get_mam_muc_gdpr_data(jid:username(), jid:server()) ->
-    {ok, ejabberd_gen_mam_archive:mam_muc_gdpr_data()}.
-get_mam_muc_gdpr_data(User, Host) ->
-    Source = jid:make(User, Host, <<"">>),
+-spec get_mam_muc_gdpr_data(ejabberd_gen_mam_archive:mam_muc_gdpr_data(), jid:jid()) ->
+    ejabberd_gen_mam_archive:mam_muc_gdpr_data().
+get_mam_muc_gdpr_data(Acc, Source) ->
     BinSource = mod_mam_utils:bare_jid(Source),
     Filter = #{term => #{from_jid => BinSource}},
     Sorting = #{mam_id => #{order => asc}},
@@ -71,9 +70,9 @@ get_mam_muc_gdpr_data(User, Host) ->
     case mongoose_elasticsearch:search(?INDEX_NAME, ?TYPE_NAME, SearchQuery) of
         {ok, #{<<"hits">> := #{<<"hits">> := Hits}}} ->
             Messages = lists:map(fun hit_to_gdpr_mam_message/1, Hits),
-            {ok, Messages};
+            Messages ++ Acc;
         {error, _} ->
-            {ok, []}
+            Acc
     end.
 
 archive_message(_Result, Host, MessageId, _UserId, RoomJid, FromJID, SourceJid, _Dir, Packet) ->
@@ -158,7 +157,8 @@ hooks(Host) ->
     [{mam_muc_archive_message, Host, ?MODULE, archive_message, 50},
      {mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50},
      {mam_muc_archive_size, Host, ?MODULE, archive_size, 50},
-     {mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50}].
+     {mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50},
+     {get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50}].
 
 -spec make_document_id(binary(), mod_mam:message_id()) -> binary().
 make_document_id(Room, MessageId) ->

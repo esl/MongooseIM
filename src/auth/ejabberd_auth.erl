@@ -539,36 +539,19 @@ remove_user(User, Server) ->
 do_remove_user(LUser, LServer) when LUser =:= error; LServer =:= error ->
     error;
 do_remove_user(LUser, LServer) ->
-    [M:remove_user(LUser, LServer) || M <- auth_modules(LServer)],
-    Acc = mongoose_acc:new(#{ location => ?LOCATION,
-                              lserver => LServer,
-                              element => undefined }),
-    ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
-    %% We need to take care about cleaning the data in modules that are currently disabled.
-    %% Might duplicate Module:remove_user/2 calls for enabled modules
-    maybe_gdpr_remove_user_from_all_modules(LUser, LServer),
-    ok.
-
-maybe_gdpr_remove_user_from_all_modules(LUser, LServer) ->
-    case is_gdpr_support_for_disabled_modules() of
-        true->
-            Modules = mongoose_lib:find_behaviour_implementations(gdpr),
-            lists:foreach(fun(M) -> try_remove_user_from_module(M, LUser, LServer) end, Modules);
-        _ -> ok
-     end.
-
--spec is_gdpr_support_for_disabled_modules() -> boolean().
-is_gdpr_support_for_disabled_modules() ->
-    case ejabberd_config:get_global_option(gdpr_removal_for_disabled_modules) of
-        true -> true;
-        _ -> false
-    end.
-
-try_remove_user_from_module(Module, LUser, LServer) ->
-    try
-        Module:remove_user(LUser, LServer)
-    catch
-        _:_ -> []
+    AuthModules = auth_modules(LServer),
+    RemoveResult = [M:remove_user(LUser, LServer) || M <- AuthModules ],
+    case lists:any(fun(El) -> El == ok end, RemoveResult) of
+        true ->
+            Acc = mongoose_acc:new(#{ location => ?LOCATION,
+                                      lserver => LServer,
+                                      element => undefined }),
+            ejabberd_hooks:run_fold(remove_user, LServer, Acc, [LUser, LServer]),
+            ok;
+        false ->
+            ?ERROR_MSG("event=backends_disallow_user_removal,user=~s,server=~s,backends=~p",
+                       [LUser, LServer, AuthModules]),
+            {error, not_allowed}
     end.
 
 %% @doc Try to remove user if the provided password is correct.

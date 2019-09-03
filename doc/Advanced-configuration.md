@@ -35,13 +35,6 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 * **override_global, override_local, override_acls** - optional
     * **Description:** Will cause MongooseIM to erase all global/local/acl options in database respectively. This ensures that ALL settings of a specific type will be reloaded on startup.
 
-### GDPR related
-
-* **gdpr_removal_for_disabled_modules**
-    * **Description:** Whether or not try to remove data from modules that are disabled during GDPR removal procedure.
-    * **Values:** `true`, `false`
-    * **Default:** `false`
-
 ### Debugging
 
 * **loglevel** (local)

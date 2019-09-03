@@ -32,7 +32,6 @@
 -xep([{xep, 22}, {version, "1.4"}]).
 -xep([{xep, 85}, {version, "2.1"}]).
 -behaviour(gen_mod).
--behaviour(gdpr).
 
 %% gen_mod handlers
 -export([start/2, stop/1]).
@@ -43,7 +42,7 @@
          get_sm_features/5,
          remove_expired_messages/1,
          remove_old_messages/2,
-         remove_user/2,
+         remove_user/2, % for tests
          remove_user/3,
          determine_amp_strategy/5,
          amp_failed_event/3]).
@@ -151,6 +150,8 @@ start(Host, Opts) ->
                        ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:add(failed_to_store_message, Host,
                        ?MODULE, amp_failed_event, 30),
+    ejabberd_hooks:add(get_personal_data, Host,
+                       ?MODULE, get_personal_data, 50),
     ok.
 
 stop(Host) ->
@@ -168,6 +169,8 @@ stop(Host) ->
                           ?MODULE, determine_amp_strategy, 30),
     ejabberd_hooks:delete(failed_to_store_message, Host,
                           ?MODULE, amp_failed_event, 30),
+    ejabberd_hooks:delete(get_personal_data, Host,
+                          ?MODULE, get_personal_data, 50),
     stop_worker(Host),
     ok.
 
@@ -519,22 +522,16 @@ pop_messages(LUser, LServer) ->
             Other
     end.
 
-get_personal_data(Username, Server) ->
-    AllMessages = lists:flatmap(fun(B) ->
-        try B:fetch_messages(Username, Server) of
-            {ok, Messages} ->
-                Messages;
-            _ -> []
-        catch
-            _:_ ->
-                []
-        end end, mongoose_lib:find_behaviour_implementations(mod_offline)),
-    [{offline, ["timestamp", "from", "to", "packet"], offline_messages_to_gdpr_format(AllMessages)}].
+get_personal_data(Acc, #jid{ user = User, server = Server }) ->
+    {ok, Messages} = mod_offline_backend:fetch_messages(User, Server),
+    [ {offline, ["timestamp", "from", "to", "packet"],
+       offline_messages_to_gdpr_format(Messages)} | Acc].
 
 offline_messages_to_gdpr_format(MsgList) ->
     [offline_msg_to_gdpr_format(Msg) || Msg <- MsgList].
 
-offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From, to = To, packet = Packet}) ->
+offline_msg_to_gdpr_format(#offline_msg{timestamp = Timestamp, from = From,
+                                        to = To, packet = Packet}) ->
     NowUniversal = calendar:now_to_universal_time(Timestamp),
     {UTCTime, UTCDiff} = jlib:timestamp_to_iso(NowUniversal, utc),
     UTC = list_to_binary(UTCTime ++ UTCDiff),
@@ -582,18 +579,8 @@ remove_user(Acc, User, Server) ->
 
 remove_user(User, Server) ->
     LUser = jid:nodeprep(User),
-    LServer = jid:nodeprep(Server),
-    lists:foreach(fun(B) ->
-        try
-            B:remove_user(LUser, LServer)
-        catch
-            E:R ->
-                Stack = erlang:get_stacktrace(),
-                ?WARNING_MSG("issue=remove_user_failed "
-                "reason=~p:~p "
-                "stacktrace=~1000p ", [E, R, Stack]),
-                ok
-        end end, mongoose_lib:find_behaviour_implementations(mod_offline)).
+    LServer = jid:nameprep(Server),
+    mod_offline_backend:remove_user(LUser, LServer).
 
 %% Warn senders that their messages have been discarded:
 discard_warn_sender(Acc, Msgs) ->

@@ -22,8 +22,6 @@
          set_prefs/7,
          remove_archive/4]).
 
--export([remove_mam_pm_gdpr_data/2]).
-
 -include("mongoose.hrl").
 -include("jlib.hrl").
 -include_lib("exml/include/exml.hrl").
@@ -205,11 +203,6 @@ get_prefs({GlobalDefaultMode, _, _}, _Host, _ArcID, ArcJID) ->
             NeverJIDs = jids(ArcJID, NRules),
             {DefaultMode, AlwaysJIDs, NeverJIDs}
     end.
-
--spec remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
-remove_mam_pm_gdpr_data(User, Server) ->
-    ArcJID = jid:make(User, Server, <<>>),
-    remove_archive(ArcJID).
 
 remove_archive(Acc, _Host, _ArcID, ArcJID) ->
     remove_archive(ArcJID),

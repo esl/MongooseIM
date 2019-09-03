@@ -139,9 +139,15 @@ run(Hook, Host, Args) ->
 %% The result of a call is used as Val for the next call.
 %% If a call returns 'stop', no more calls are performed and 'stopped' is returned.
 %% If a call returns {stop, NewVal}, no more calls are performed and NewVal is returned.
+-spec run_fold(Hook :: atom(), Val :: term(), Args :: [term()]) -> term() | stopped.
 run_fold(Hook, Val, Args) ->
     run_fold(Hook, global, Val, Args).
 
+-spec run_fold(Hook :: atom(),
+               Host :: global | jid:server(),
+               Val :: term(),
+               Args :: [term()]) ->
+    term() | stopped.
 run_fold(Hook, Host, Val, Args) ->
     case ets:lookup(hooks, {Hook, Host}) of
         [{_, Ls}] ->

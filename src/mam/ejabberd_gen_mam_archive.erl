@@ -14,15 +14,12 @@
                           Params :: map()) -> Result when
       Result :: {ok, mod_mam:lookup_result()} | {error, 'policy-violation'}.
 
--callback get_mam_pm_gdpr_data(jid:user(), jid:server()) -> {ok, mam_pm_gdpr_data()}.
+-callback get_mam_pm_gdpr_data(mam_pm_gdpr_data(), jid:jid()) -> mam_pm_gdpr_data().
 
--callback get_mam_muc_gdpr_data(jid:user(), jid:server()) -> {ok, mam_muc_gdpr_data()}.
-
--callback remove_mam_pm_gdpr_data(jid:user(), jid:server()) -> ok.
+-callback get_mam_muc_gdpr_data(mam_muc_gdpr_data(), jid:jid()) -> mam_muc_gdpr_data().
 
 -optional_callbacks([get_mam_pm_gdpr_data/2,
-                     get_mam_muc_gdpr_data/2,
-                     remove_mam_pm_gdpr_data/2]).
+                     get_mam_muc_gdpr_data/2]).
 
 -type purge_single_message_result() :: ok | {error, 'not-allowed' | 'not-found' | term()}.
 
