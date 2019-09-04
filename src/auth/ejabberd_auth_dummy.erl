@@ -27,9 +27,6 @@
 
 -include("mongoose.hrl").
 
--define(iol2b(L), iolist_to_binary(L)).
--define(l2b(L), list_to_binary(L)).
-
 %%%----------------------------------------------------------------------
 %%% API
 %%%----------------------------------------------------------------------
@@ -65,7 +62,6 @@ set_password(_User, _Server, _Password) ->
 try_register(_User, _Server, _Password) ->
     ok.
 
-%% Get all registered users in Mnesia
 dirty_get_registered_users() ->
     [].
 
