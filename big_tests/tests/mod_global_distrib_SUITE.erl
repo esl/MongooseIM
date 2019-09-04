@@ -229,9 +229,22 @@ init_per_testcase(CaseName, Config)
     hide_node(europe_node2, Config),
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
+init_per_testcase(test_pm_with_graceful_reconnection_to_different_server = CN, Config) ->
+    EveSpec = escalus_fresh:freshen_spec(Config, eve),
+    escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    escalus:init_per_testcase(CN, [{evespec_mim, EveSpec} |Config]);
+init_per_testcase(test_pm_with_ungraceful_reconnection_to_different_server = CN, Config) ->
+    EveSpec = escalus_fresh:create_fresh_user(Config, eve),
+    EveSpec2 = lists:keystore(port, 1, EveSpec, {port, 5222}),
+    escalus:create_users(Config, [{eve, EveSpec2}]),
+    escalus:init_per_testcase(CN, [{evespec_reg, EveSpec}, {evespec_mim, EveSpec2} |Config]);
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(test_pm_with_graceful_reconnection_to_different_server = CN, Config) ->
+    EveSpec = ?config(evespec_mim, Config),
+    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
        CaseName == test_muc_conversation_history ->
@@ -550,8 +563,7 @@ test_pm_with_disconnection_on_other_server(Config) ->
       end).
 
 test_pm_with_graceful_reconnection_to_different_server(Config) ->
-    EveSpec = escalus_fresh:freshen_spec(Config, eve),
-    escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    EveSpec = ?config(evespec_mim, Config),
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
@@ -578,17 +590,15 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Asia!">>], AgainFromEve)
-      end),
-    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]).
+      end).
 
 test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
 %% This tests the feature which has not been implemented (yet?) by mod_global_distrib
 %% It is susceptible to a race condition, however it is very unlikely to occur
 %% See PR #2392
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
-    EveSpec = escalus_fresh:create_fresh_user(Config, eve),
-    EveSpec2 = lists:keystore(port, 1, EveSpec, {port, 5222}),
-    escalus:create_users(Config, [{eve, EveSpec2}]),
+    EveSpec = ?config(evespec_reg, Config),
+    EveSpec2 = ?config(evespec_mim, Config),
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
