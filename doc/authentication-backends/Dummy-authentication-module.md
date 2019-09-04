@@ -1,7 +1,7 @@
 ## Overview
 
 The purpose of this module is to make it possible to authenticate a user without
-a need of real authentication. In other words, using this module allows to
+the need for real authentication. In other words, using this module allows to
 connect any user to the server without providing any password,
 certificate, etc.
 
