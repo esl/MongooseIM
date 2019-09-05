@@ -52,11 +52,6 @@ after_failure:
         - tail -100 _build/mim1/rel/mongooseim/log/ejabberd.log
         - tail -100 _build/mim2/rel/mongooseim/log/ejabberd.log
 
-after_success:
-        - if [ -n "${DOCKERHUB_PASS}" ] && [ $PRESET = 'internal_mnesia' ];
-            then tools/travis-build-and-push-docker.sh;
-          fi
-
 after_script:
         - cat travis-pull-db.log
         # Upload logs to s3 for debugging

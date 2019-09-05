@@ -1,30 +1,23 @@
 #!/bin/bash
 
-./tools/configure with-all
-make rel
-
-MIM_TAR_FULL_NAME=mongooseim-$TRAVIS_BRANCH.OTP-$TRAVIS_OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+MIM_TAR_FULL_NAME=mongooseim-$CIRCLE_BRANCH.OTP-$OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
 MONGOOSE_TGZ=mongooseim.tar.gz
 
 BUILD_PATH=_build/prod/rel/mongooseim
 
-tar -cjh --transform="s,${BUILD_PATH},mongooseim-${TRAVIS_BRANCH},S" -f ${MIM_TAR_FULL_NAME} ${BUILD_PATH}
+tar -cjh --transform="s,${BUILD_PATH},mongooseim-${CIRCLE_BRANCH},S" -f ${MIM_TAR_FULL_NAME} ${BUILD_PATH}
 tar czh --transform="s,${BUILD_PATH},mongooseim,S" -f $MONGOOSE_TGZ ${BUILD_PATH}
 
 export BUILDS=`pwd`
 
-DOCKERHUB_TAG=${TRAVIS_BRANCH}
+DOCKERHUB_TAG=${CIRCLE_BRANCH}
 VERSION=`tools/generate_vsn.sh`
 GIT_REF=`git rev-parse --short HEAD`
 
-if [ ${TRAVIS_PULL_REQUEST} != 'false' ]; then
-    DOCKERHUB_TAG="PR-${TRAVIS_PULL_REQUEST}"
-elif [ ${TRAVIS_BRANCH} == 'master' ]; then
+if [ -n ${CIRCLE_PR_NUMBER} ]; then
+    DOCKERHUB_TAG="PR-${CIRCLE_PR_NUMBER}"
+elif [ ${CIRCLE_BRANCH} == 'master' ]; then
     DOCKERHUB_TAG="latest";
-fi
-
-if [ ${TRAVIS_EVENT_TYPE} == 'cron' ]; then
-    DOCKERHUB_TAG=${VERSION};
 fi
 
 echo "Tag: ${DOCKERHUB_TAG}"
@@ -43,6 +36,6 @@ docker build -f Dockerfile.member -t ${IMAGE_TAG} \
 	     --build-arg VERSION=${VERSION} \
 	     .
 
-docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
+#docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PASS}
 
-docker push ${IMAGE_TAG}
+#docker push ${IMAGE_TAG}
