@@ -381,7 +381,7 @@ workflows:
           otp: 1:22.0.7-1
           context: mongooseim-org
           requires:
-              otp_22
+              - otp_22
               #            - ldap_mnesia
               #            - pgsql_mnesia
               #            - riak_mnesia
