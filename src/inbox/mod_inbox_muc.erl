@@ -13,6 +13,9 @@
 
 -export([update_inbox_for_muc/1, start/1, stop/1]).
 
+%% For test purposes only
+-export([handle_outgoing_message/4, handle_incoming_message/4]).
+
 %% User jid example is "alice@localhost"
 -type user_jid() :: jid:jid().
 %% Receiver's host in lowercase
@@ -23,7 +26,7 @@
 
 start(Host) ->
     ejabberd_hooks:add(update_inbox_for_muc, Host, ?MODULE, update_inbox_for_muc, 90),
-    % TODO check ooptions: if system messages stored ->
+    % TODO check options: if system messages stored ->
     % add hook handler for system messages on hook ie. invitation_sent
     ok.
 
