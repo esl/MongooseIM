@@ -14,9 +14,7 @@ DOCKERHUB_TAG=${CIRCLE_BRANCH}
 VERSION=`tools/generate_vsn.sh`
 GIT_REF=`git rev-parse --short HEAD`
 
-if [ -n ${CIRCLE_PR_NUMBER} ]; then
-    DOCKERHUB_TAG="PR-${CIRCLE_PR_NUMBER}"
-elif [ ${CIRCLE_BRANCH} == 'master' ]; then
+if [ ${CIRCLE_BRANCH} == 'master' ]; then
     DOCKERHUB_TAG="latest";
 fi
 
