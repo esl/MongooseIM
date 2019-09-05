@@ -254,6 +254,7 @@ orbs:
         environment:
             OTP_RELEASE: <<parameters.otp>>
         steps:
+          - checkout
           - run:
               name: Prepare for cache
               command: |
