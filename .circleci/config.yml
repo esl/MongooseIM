@@ -36,10 +36,10 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
-          build_releases:
+          build_prod:
             type: boolean
-            description: Flag to build release or not
-            default: true
+            description: When enabled, prod release will be generated besides the dev ones
+            default: false
 
         environment:
           SKIP_RELEASE: 1
@@ -74,9 +74,12 @@ orbs:
               command: |
                 make certs
           - run:
-              name: Install Releases
+              name: Generate development releases
+              command: ./tools/build-releases.sh
+          - run:
+              name: Generate prod release
               command: |
-                if [ <<parameters.build_releases>> ]; then ./tools/build-releases.sh ; fi
+                if [ <<parameters.build_prod>> ]; then make rel; fi
           - run:
               name: Build Big Tests
               command: |
@@ -248,20 +251,19 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
-            type: string
-            description: Version of the Erlang package to use for Docker image
         environment:
-            OTP_RELEASE: <<parameters.otp>>
         steps:
           - checkout
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
           - run:
               name: Execute Docker image build and upload
               command: tools/circle-build-and-push-docker.sh
@@ -291,6 +293,7 @@ workflows:
       - mim/build:
           name: otp_22
           otp: 1:22.0.7-1
+          build_prod: true
           context: mongooseim-org
           #      # ============= SMALL TESTS =============
           #      - mim/small_tests:
@@ -379,7 +382,6 @@ workflows:
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - mim/docker_image:
           name: docker_build_and_ship
-          otp: 1:22.0.7-1
           context: mongooseim-org
           requires:
               - otp_22

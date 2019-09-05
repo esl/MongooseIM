@@ -1,11 +1,11 @@
 #!/bin/bash
 
-MIM_TAR_FULL_NAME=mongooseim-$CIRCLE_BRANCH.OTP-$OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
+#MIM_TAR_FULL_NAME=mongooseim-$CIRCLE_BRANCH.OTP-$OTP_RELEASE.$(lsb_release -is | tr "A-Z" "a-z").$(lsb_release -rs).$(uname -m).tar.bz2
 MONGOOSE_TGZ=mongooseim.tar.gz
 
 BUILD_PATH=_build/prod/rel/mongooseim
 
-tar -cjh --transform="s,${BUILD_PATH},mongooseim-${CIRCLE_BRANCH},S" -f ${MIM_TAR_FULL_NAME} ${BUILD_PATH}
+#tar -cjh --transform="s,${BUILD_PATH},mongooseim-${CIRCLE_BRANCH},S" -f ${MIM_TAR_FULL_NAME} ${BUILD_PATH}
 tar czh --transform="s,${BUILD_PATH},mongooseim,S" -f $MONGOOSE_TGZ ${BUILD_PATH}
 
 export BUILDS=`pwd`
