@@ -251,6 +251,9 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package installed
         environment:
         steps:
           - checkout
@@ -383,6 +386,7 @@ workflows:
       - mim/docker_image:
           name: docker_build_and_ship
           context: mongooseim-org
+          otp_package: 1:22.0.7-1
           requires:
               - otp_22
               #            - ldap_mnesia
