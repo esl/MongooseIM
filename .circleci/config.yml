@@ -5,7 +5,7 @@ orbs:
     commands:
       install_erlang:
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
         steps:
@@ -13,7 +13,7 @@ orbs:
             name: Install Erlang
             command: |
               sudo killall -9 apt-get || true && \
-              sudo apt-get install -y esl-erlang=<<parameters.otp>>
+              sudo apt-get install -y esl-erlang=<<parameters.otp_package>>
       fetch_packages:
         steps:
         - run:
@@ -33,7 +33,7 @@ orbs:
         machine:
           image: ubuntu-1604:201903-01
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
           build_prod:
@@ -50,11 +50,11 @@ orbs:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           - restore_cache:
@@ -95,14 +95,14 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
         steps:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Run Dialyzer
               command: |
@@ -114,18 +114,18 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
         steps:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
@@ -169,7 +169,7 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
           preset:
@@ -199,11 +199,11 @@ orbs:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
@@ -260,7 +260,7 @@ orbs:
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
@@ -287,45 +287,45 @@ workflows:
         #      # ============= BASE BUILDS =============
         #      - mim/build:
         #          name: otp_20_3
-        #          otp: 1:20.3.8.22-1
+        #          otp_package: 1:20.3.8.22-1
         #          context: mongooseim-org
         #      - mim/build:
         #          name: otp_21_3
-        #          otp: 1:21.3.8.6-1
+        #          otp_package: 1:21.3.8.6-1
         #          context: mongooseim-org
       - mim/build:
           name: otp_22
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           build_prod: true
           context: mongooseim-org
           #      # ============= SMALL TESTS =============
           #      - mim/small_tests:
           #          name: small_tests_20_3
-          #          otp: 1:20.3.8.22-1
+          #          otp_package: 1:20.3.8.22-1
           #          context: mongooseim-org
           #          requires:
           #            - otp_20_3
           #      - mim/small_tests:
           #          name: small_tests_21_3
-          #          otp: 1:21.3.8.6-1
+          #          otp_package: 1:21.3.8.6-1
           #          context: mongooseim-org
           #          requires:
           #            - otp_21_3
           #      - mim/small_tests:
           #          name: small_tests_22
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          context: mongooseim-org
           #          requires:
           #            - otp_22
           #      # ============= DIALYZER =============
           #      - mim/dialyzer:
           #          name: dialyzer
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          context: mongooseim-org
           #      # ============= MOST RECENT VERSION TESTS =============
           #      - mim/big_tests:
           #          name: mysql_redis
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          preset: mysql_redis
           #          db: mysql
           #          context: mongooseim-org
@@ -333,7 +333,7 @@ workflows:
           #            - otp_22
           #      - mim/big_tests:
           #          name: mssql_mnesia
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          preset: odbc_mssql_mnesia
           #          db: mssql
           #          context: mongooseim-org
@@ -341,7 +341,7 @@ workflows:
           #            - otp_22
           #      - mim/big_tests:
           #          name: internal_mnesia
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          preset: internal_mnesia
           #          db: mnesia
           #          tls_dist: true
@@ -350,7 +350,7 @@ workflows:
           #            - otp_22
           #      - mim/big_tests:
           #          name: elasticsearch_and_cassandra
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          preset: elasticsearch_and_cassandra_mnesia
           #          db: "elasticsearch cassandra"
           #          context: mongooseim-org
@@ -358,7 +358,7 @@ workflows:
           #            - otp_22
           #      - mim/big_tests:
           #          name: riak_mnesia
-          #          otp: 1:22.0.7-1
+          #          otp_package: 1:22.0.7-1
           #          preset: riak_mnesia
           #          db: riak
           #          context: mongooseim-org
@@ -367,7 +367,7 @@ workflows:
           #      # ============= 1 VERSION OLDER TESTS =============
           #      - mim/big_tests:
           #          name: pgsql_mnesia
-          #          otp: 1:21.3.8.6-1
+          #          otp_package: 1:21.3.8.6-1
           #          preset: pgsql_mnesia
           #          db: pgsql
           #          context: mongooseim-org
@@ -376,7 +376,7 @@ workflows:
           #      # ============= 2 VERSIONS OLDER TESTS =============
           #      - mim/big_tests:
           #          name: ldap_mnesia
-          #          otp: 1:20.3.8.22-1
+          #          otp_package: 1:20.3.8.22-1
           #          preset: ldap_mnesia
           #          db: mnesia
           #          context: mongooseim-org
