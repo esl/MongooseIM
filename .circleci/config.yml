@@ -260,7 +260,7 @@ orbs:
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp_package_package>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
