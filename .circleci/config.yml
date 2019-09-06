@@ -114,6 +114,8 @@ orbs:
           otp:
             type: string
             description: Version of the Erlang package to install
+        environment:
+          PRESET: small_tests
         steps:
           - checkout
           - fetch_packages
@@ -134,13 +136,22 @@ orbs:
               command: |
                 SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p small_tests -s true
           - run:
+              name: Coverage
+              when: on_success
+              command: |
+                echo "Success!"
+                sudo pip install codecov && codecov
+                ./rebar3 codecov analyze
+                codecov --disable=gcov --env PRESET
+                ./rebar3 coveralls send || true
+          - run:
               name: Upload results
               when: always
               command: |
                   tools/circleci-prepare-log-dir.sh
                   if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
 
-                
+
       package:
         parallelism: 1
         machine:
