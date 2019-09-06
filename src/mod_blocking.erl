@@ -61,7 +61,7 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     %% collect needed data
     #jid{luser = LUser, lserver = LServer} = From,
     #xmlel{name = BType} = SubEl,
-    Type = binary_to_existing_atom(BType, latin1),
+    Type = parse_command_type(BType),
     Usrs = exml_query:paths(SubEl, [{element, <<"item">>}, {attr, <<"jid">>}]),
     CurrList = case mod_privacy_backend:get_privacy_list(LUser, LServer, <<"blocking">>) of
                   {ok, List} ->
@@ -78,6 +78,9 @@ process_iq_set(Acc, From, _To, #iq{xmlns = ?NS_BLOCKING, sub_el = SubEl}) ->
     mongoose_acc:set(hook, result, Res1, Acc2);
 process_iq_set(Val, _, _, _) ->
     Val.
+
+parse_command_type(<<"block">>) -> block;
+parse_command_type(<<"unblock">>) -> unblock.
 
 %% @doc Set IQ must do the following:
 %% * get / create a dedicated privacy list (we call it "blocking")

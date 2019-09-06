@@ -1353,8 +1353,23 @@ all_metrics() ->
      {get, affiliations},
      {set, affiliations}].
 
+iq_action_to_metric_name(<<"create">>) -> create;
+iq_action_to_metric_name(<<"publish">>) -> publish;
+iq_action_to_metric_name(<<"retract">>) -> retract;
+iq_action_to_metric_name(<<"subscribe">>) -> subscribe;
+iq_action_to_metric_name(<<"unsubscribe">>) -> unsubscribe;
+iq_action_to_metric_name(<<"items">>) -> items;
+iq_action_to_metric_name(<<"options">>) -> options;
+iq_action_to_metric_name(<<"configure">>) -> configure;
+iq_action_to_metric_name(<<"default">>) -> default;
+iq_action_to_metric_name(<<"delete">>) -> delete;
+iq_action_to_metric_name(<<"purge">>) -> purge;
+iq_action_to_metric_name(<<"subscriptions">>) -> subscriptions;
+iq_action_to_metric_name(<<"affiliations">>) -> affiliations.
+
+
 metric_name(IQType, Name, MetricSuffix) when is_binary(Name) ->
-    NameAtom = binary_to_existing_atom(Name, utf8),
+    NameAtom = iq_action_to_metric_name(Name),
     metric_name(IQType, NameAtom, MetricSuffix);
 metric_name(IQType, Name, MetricSuffix) when is_atom(Name) ->
     [pubsub, IQType, Name, MetricSuffix].

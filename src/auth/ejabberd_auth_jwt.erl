@@ -89,7 +89,7 @@ check_password(LUser, LServer, Password) ->
               {env, Var} -> list_to_binary(os:getenv(Var))
           end,
     BinAlg = ejabberd_auth:get_opt(LServer, jwt_algorithm),
-    Alg = binary_to_atom(stringprep:tolower(BinAlg), latin1),
+    Alg = binary_to_atom(stringprep:tolower(BinAlg), utf8),
     case jwerl:verify(Password, Alg, Key) of
         {ok, TokenData} ->
             UserKey = ejabberd_auth:get_opt(LServer, jwt_username_key),
