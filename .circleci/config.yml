@@ -79,6 +79,8 @@ orbs:
           - run:
               name: Generate prod release
               command: |
+                # We cannot reuse releases generated in the previous step, because they are
+                # built with dev_mode enabled (so they use symlinks for deps)
                 if [ <<parameters.build_prod>> ]; then make rel; fi
           - run:
               name: Build Big Tests
@@ -275,129 +277,128 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-        #      # ============= PACKAGES =============
-        #      - mim/package:
-        #          name: centos7
-        #          platform: centos7
-        #          context: mongooseim-org
-        #      - mim/package:
-        #          name: debian_stretch
-        #          platform: debian_stretch
-        #          context: mongooseim-org
-        #      # ============= BASE BUILDS =============
-        #      - mim/build:
-        #          name: otp_20_3
-        #          otp_package: 1:20.3.8.22-1
-        #          context: mongooseim-org
-        #      - mim/build:
-        #          name: otp_21_3
-        #          otp_package: 1:21.3.8.6-1
-        #          context: mongooseim-org
+      # ============= PACKAGES =============
+      - mim/package:
+          name: centos7
+          platform: centos7
+          context: mongooseim-org
+      - mim/package:
+          name: debian_stretch
+          platform: debian_stretch
+          context: mongooseim-org
+      # ============= BASE BUILDS =============
+      - mim/build:
+          name: otp_20_3
+          otp_package: 1:20.3.8.22-1
+          context: mongooseim-org
+      - mim/build:
+          name: otp_21_3
+          otp_package: 1:21.3.8.6-1
+          context: mongooseim-org
       - mim/build:
           name: otp_22
           otp_package: 1:22.0.7-1
           build_prod: true
           context: mongooseim-org
-          #      # ============= SMALL TESTS =============
-          #      - mim/small_tests:
-          #          name: small_tests_20_3
-          #          otp_package: 1:20.3.8.22-1
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_20_3
-          #      - mim/small_tests:
-          #          name: small_tests_21_3
-          #          otp_package: 1:21.3.8.6-1
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_21_3
-          #      - mim/small_tests:
-          #          name: small_tests_22
-          #          otp_package: 1:22.0.7-1
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_22
-          #      # ============= DIALYZER =============
-          #      - mim/dialyzer:
-          #          name: dialyzer
-          #          otp_package: 1:22.0.7-1
-          #          context: mongooseim-org
-          #      # ============= MOST RECENT VERSION TESTS =============
-          #      - mim/big_tests:
-          #          name: mysql_redis
-          #          otp_package: 1:22.0.7-1
-          #          preset: mysql_redis
-          #          db: mysql
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_22
-          #      - mim/big_tests:
-          #          name: mssql_mnesia
-          #          otp_package: 1:22.0.7-1
-          #          preset: odbc_mssql_mnesia
-          #          db: mssql
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_22
-          #      - mim/big_tests:
-          #          name: internal_mnesia
-          #          otp_package: 1:22.0.7-1
-          #          preset: internal_mnesia
-          #          db: mnesia
-          #          tls_dist: true
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_22
-          #      - mim/big_tests:
-          #          name: elasticsearch_and_cassandra
-          #          otp_package: 1:22.0.7-1
-          #          preset: elasticsearch_and_cassandra_mnesia
-          #          db: "elasticsearch cassandra"
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_22
-          #      - mim/big_tests:
-          #          name: riak_mnesia
-          #          otp_package: 1:22.0.7-1
-          #          preset: riak_mnesia
-          #          db: riak
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_22
-          #      # ============= 1 VERSION OLDER TESTS =============
-          #      - mim/big_tests:
-          #          name: pgsql_mnesia
-          #          otp_package: 1:21.3.8.6-1
-          #          preset: pgsql_mnesia
-          #          db: pgsql
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_21_3
-          #      # ============= 2 VERSIONS OLDER TESTS =============
-          #      - mim/big_tests:
-          #          name: ldap_mnesia
-          #          otp_package: 1:20.3.8.22-1
-          #          preset: ldap_mnesia
-          #          db: mnesia
-          #          context: mongooseim-org
-          #          requires:
-          #            - otp_20_3
+      # ============= SMALL TESTS =============
+      - mim/small_tests:
+          name: small_tests_20_3
+          otp_package: 1:20.3.8.22-1
+          context: mongooseim-org
+          requires:
+            - otp_20_3
+      - mim/small_tests:
+          name: small_tests_21_3
+          otp_package: 1:21.3.8.6-1
+          context: mongooseim-org
+          requires:
+            - otp_21_3
+      - mim/small_tests:
+          name: small_tests_22
+          otp_package: 1:22.0.7-1
+          context: mongooseim-org
+          requires:
+            - otp_22
+      # ============= DIALYZER =============
+      - mim/dialyzer:
+          name: dialyzer
+          otp_package: 1:22.0.7-1
+          context: mongooseim-org
+      # ============= MOST RECENT VERSION TESTS =============
+      - mim/big_tests:
+          name: mysql_redis
+          otp_package: 1:22.0.7-1
+          preset: mysql_redis
+          db: mysql
+          context: mongooseim-org
+          requires:
+            - otp_22
+      - mim/big_tests:
+          name: mssql_mnesia
+          otp_package: 1:22.0.7-1
+          preset: odbc_mssql_mnesia
+          db: mssql
+          context: mongooseim-org
+          requires:
+            - otp_22
+      - mim/big_tests:
+          name: internal_mnesia
+          otp_package: 1:22.0.7-1
+          preset: internal_mnesia
+          db: mnesia
+          tls_dist: true
+          context: mongooseim-org
+          requires:
+            - otp_22
+      - mim/big_tests:
+          name: elasticsearch_and_cassandra
+          otp_package: 1:22.0.7-1
+          preset: elasticsearch_and_cassandra_mnesia
+          db: "elasticsearch cassandra"
+          context: mongooseim-org
+          requires:
+            - otp_22
+      - mim/big_tests:
+          name: riak_mnesia
+          otp_package: 1:22.0.7-1
+          preset: riak_mnesia
+          db: riak
+          context: mongooseim-org
+          requires:
+            - otp_22
+      # ============= 1 VERSION OLDER TESTS =============
+      - mim/big_tests:
+          name: pgsql_mnesia
+          otp_package: 1:21.3.8.6-1
+          preset: pgsql_mnesia
+          db: pgsql
+          context: mongooseim-org
+          requires:
+            - otp_21_3
+      # ============= 2 VERSIONS OLDER TESTS =============
+      - mim/big_tests:
+          name: ldap_mnesia
+          otp_package: 1:20.3.8.22-1
+          preset: ldap_mnesia
+          db: mnesia
+          context: mongooseim-org
+          requires:
+            - otp_20_3
       # ============= DOCKER IMAGE BUILD & UPLOAD =============
       - mim/docker_image:
           name: docker_build_and_ship
           context: mongooseim-org
           otp_package: 1:22.0.7-1
           requires:
-              - otp_22
-              #            - ldap_mnesia
-              #            - pgsql_mnesia
-              #            - riak_mnesia
-              #            - elasticsearch_and_cassandra
-              #            - internal_mnesia
-              #            - mysql_redis
-              #            - odbc_mssql_mnesia
-              #            - dialyzer
-              #            - small_tests_22
-              #            - small_tests_21_3
-              #            - small_tests_20_3
-              #
+            - ldap_mnesia
+            - pgsql_mnesia
+            - riak_mnesia
+            - elasticsearch_and_cassandra
+            - internal_mnesia
+            - mysql_redis
+            - odbc_mssql_mnesia
+            - dialyzer
+            - small_tests_22
+            - small_tests_21_3
+            - small_tests_20_3
+

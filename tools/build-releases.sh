@@ -2,7 +2,6 @@
 # Env variable:
 # - DEV_NODES - a list of releases to build
 #
-# By default all releases are built
 # When DEV_NODES is empty, all development releases are built
 
 # Use bash "strict mode"
