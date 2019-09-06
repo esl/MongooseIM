@@ -396,7 +396,7 @@ workflows:
             - elasticsearch_and_cassandra
             - internal_mnesia
             - mysql_redis
-            - odbc_mssql_mnesia
+            - mssql_mnesia
             - dialyzer
             - small_tests_22
             - small_tests_21_3
