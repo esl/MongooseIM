@@ -92,13 +92,8 @@ direction(From, To) ->
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 handle_outgoing_message(Host, Room, To, Packet) ->
-    Markers = mod_inbox_utils:get_reset_markers(Host),
-    case mod_inbox_utils:if_chat_marker_get_id(Packet, Markers) of
-        undefined ->
-            mod_inbox_utils:write_to_sender_inbox(Host, To, Room, Packet);
-        Id ->
-            mod_inbox_utils:reset_unread_count(To, Room, Id)
-    end.
+    maybe_reset_unread_count(Host, To, Room, Packet),
+    maybe_write_to_inbox(Host, To, Room, Packet, fun write_to_sender_inbox/4).
 
 -spec handle_incoming_message(Host, Room, To, Packet) -> term() when
       Host :: receiver_host(),
@@ -106,14 +101,19 @@ handle_outgoing_message(Host, Room, To, Packet) ->
       To :: receiver_bare_user_jid(),
       Packet :: packet().
 handle_incoming_message(Host, Room, To, Packet) ->
-    Markers = mod_inbox_utils:get_reset_markers(Host),
-    case mod_inbox_utils:has_chat_marker(Packet, Markers) of
-        true ->
-            %% don't store chat markers in inbox
-            ok;
-        false ->
-            mod_inbox_utils:write_to_receiver_inbox(Host, Room, To, Packet)
-    end.
+    maybe_write_to_inbox(Host, Room, To, Packet, fun write_to_receiver_inbox/4).
+
+maybe_reset_unread_count(Host, User, Room, Packet) ->
+    mod_inbox_utils:maybe_reset_unread_count(Host, User, Room, Packet).
+
+maybe_write_to_inbox(Host, User, Remote, Packet, WriteF) ->
+    mod_inbox_utils:maybe_write_to_inbox(Host, User, Remote, Packet, WriteF).
+
+write_to_sender_inbox(Server, User, Remote, Packet) ->
+    mod_inbox_utils:write_to_sender_inbox(Server, User, Remote, Packet).
+
+write_to_receiver_inbox(Server, User, Remote, Packet) ->
+    mod_inbox_utils:write_to_receiver_inbox(Server, User, Remote, Packet).
 
 %% @doc Check, that the host is served by MongooseIM.
 %% A local host can be used to fire hooks or write into database on this node.
