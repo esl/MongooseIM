@@ -192,4 +192,4 @@ unload_meck() ->
     meck:unload([mod_inbox_utils, gen_mod]).
 
 chat_markers() ->
-    [<<"displayed">>, <<"acknowledged">>, <<"received">>].
+    mod_inbox_utils:all_chat_markers().
