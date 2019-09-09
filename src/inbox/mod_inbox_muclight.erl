@@ -35,8 +35,7 @@ handle_outgoing_message(Host, User, Room, Packet) ->
                               Remote :: jid:jid(),
                               Packet :: packet()) -> any().
 handle_incoming_message(Host, RoomUser, Remote, Packet) ->
-    AllMarkers = [<<"received">>, <<"displayed">>, <<"acknowledged">>],
-    case mod_inbox_utils:has_chat_marker(Packet, AllMarkers) of
+    case mod_inbox_utils:has_chat_marker(Packet) of
         true ->
             %% don't store chat markers in inbox
             ok;
