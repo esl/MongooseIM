@@ -5,7 +5,7 @@ orbs:
     commands:
       install_erlang:
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
         steps:
@@ -13,7 +13,7 @@ orbs:
             name: Install Erlang
             command: |
               sudo killall -9 apt-get || true && \
-              sudo apt-get install -y esl-erlang=<<parameters.otp>>
+              sudo apt-get install -y esl-erlang=<<parameters.otp_package>>
       fetch_packages:
         steps:
         - run:
@@ -33,13 +33,13 @@ orbs:
         machine:
           image: ubuntu-1604:201903-01
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
-          build_releases:
+          build_prod:
             type: boolean
-            description: Flag to build release or not
-            default: true
+            description: When enabled, prod release will be generated besides the dev ones
+            default: false
 
         environment:
           SKIP_RELEASE: 1
@@ -50,11 +50,11 @@ orbs:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               key: build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
           - restore_cache:
@@ -74,9 +74,14 @@ orbs:
               command: |
                 make certs
           - run:
-              name: Install Releases
+              name: Generate development releases
+              command: ./tools/build-releases.sh
+          - run:
+              name: Generate prod release
               command: |
-                if [ <<parameters.build_releases>> ]; then ./tools/build-releases.sh ; fi
+                # We cannot reuse releases generated in the previous step, because they are
+                # built with dev_mode enabled (so they use symlinks for deps)
+                if [ <<parameters.build_prod>> ]; then make rel; fi
           - run:
               name: Build Big Tests
               command: |
@@ -92,14 +97,14 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
         steps:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Run Dialyzer
               command: |
@@ -111,18 +116,18 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
         steps:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
@@ -166,7 +171,7 @@ orbs:
           image: ubuntu-1604:201903-01
         working_directory: ~/app
         parameters:
-          otp:
+          otp_package:
             type: string
             description: Version of the Erlang package to install
           preset:
@@ -196,11 +201,11 @@ orbs:
           - checkout
           - fetch_packages
           - install_erlang:
-              otp: <<parameters.otp>>
+              otp_package: <<parameters.otp_package>>
           - run:
               name: Prepare for cache
               command: |
-                ./tools/circleci-otp-to-str.sh <<parameters.otp>> > otp_version
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
           - restore_cache:
               keys:
                 - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
@@ -242,6 +247,31 @@ orbs:
               command: |
                   tools/circleci-prepare-log-dir.sh
                   if [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then tools/circleci-upload-to-s3.sh; fi
+      docker_image:
+        parallelism: 1
+        machine:
+          image: ubuntu-1604:201903-01
+        working_directory: ~/app
+        parameters:
+          otp_package:
+            type: string
+            description: Version of the Erlang package installed
+        environment:
+        steps:
+          - checkout
+          - run:
+              name: Prepare for cache
+              command: |
+                ./tools/circleci-otp-to-str.sh <<parameters.otp_package>> > otp_version
+          - restore_cache:
+              keys:
+                - build-cache-{{ .Branch }}-{{ .Revision }}--{{ checksum "otp_version" }}
+          - restore_cache:
+              keys:
+                - deps-cache--{{ checksum "rebar.lock" }}--{{ checksum "big_tests/rebar.lock" }}--{{ checksum "otp_version" }}
+          - run:
+              name: Execute Docker image build and upload
+              command: tools/circle-build-and-push-docker.sh
 
 workflows:
   version: 2
@@ -259,44 +289,45 @@ workflows:
       # ============= BASE BUILDS =============
       - mim/build:
           name: otp_20_3
-          otp: 1:20.3.8.22-1
+          otp_package: 1:20.3.8.22-1
           context: mongooseim-org
       - mim/build:
           name: otp_21_3
-          otp: 1:21.3.8.6-1
+          otp_package: 1:21.3.8.6-1
           context: mongooseim-org
       - mim/build:
           name: otp_22
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
+          build_prod: true
           context: mongooseim-org
       # ============= SMALL TESTS =============
       - mim/small_tests:
           name: small_tests_20_3
-          otp: 1:20.3.8.22-1
+          otp_package: 1:20.3.8.22-1
           context: mongooseim-org
           requires:
             - otp_20_3
       - mim/small_tests:
           name: small_tests_21_3
-          otp: 1:21.3.8.6-1
+          otp_package: 1:21.3.8.6-1
           context: mongooseim-org
           requires:
             - otp_21_3
       - mim/small_tests:
           name: small_tests_22
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           context: mongooseim-org
           requires:
             - otp_22
       # ============= DIALYZER =============
       - mim/dialyzer:
           name: dialyzer
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           context: mongooseim-org
       # ============= MOST RECENT VERSION TESTS =============
       - mim/big_tests:
           name: mysql_redis
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           preset: mysql_redis
           db: mysql
           context: mongooseim-org
@@ -304,7 +335,7 @@ workflows:
             - otp_22
       - mim/big_tests:
           name: mssql_mnesia
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           preset: odbc_mssql_mnesia
           db: mssql
           context: mongooseim-org
@@ -312,7 +343,7 @@ workflows:
             - otp_22
       - mim/big_tests:
           name: internal_mnesia
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           preset: internal_mnesia
           db: mnesia
           tls_dist: true
@@ -321,7 +352,7 @@ workflows:
             - otp_22
       - mim/big_tests:
           name: elasticsearch_and_cassandra
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           preset: elasticsearch_and_cassandra_mnesia
           db: "elasticsearch cassandra"
           context: mongooseim-org
@@ -329,7 +360,7 @@ workflows:
             - otp_22
       - mim/big_tests:
           name: riak_mnesia
-          otp: 1:22.0.7-1
+          otp_package: 1:22.0.7-1
           preset: riak_mnesia
           db: riak
           context: mongooseim-org
@@ -338,7 +369,7 @@ workflows:
       # ============= 1 VERSION OLDER TESTS =============
       - mim/big_tests:
           name: pgsql_mnesia
-          otp: 1:21.3.8.6-1
+          otp_package: 1:21.3.8.6-1
           preset: pgsql_mnesia
           db: pgsql
           context: mongooseim-org
@@ -347,10 +378,27 @@ workflows:
       # ============= 2 VERSIONS OLDER TESTS =============
       - mim/big_tests:
           name: ldap_mnesia
-          otp: 1:20.3.8.22-1
+          otp_package: 1:20.3.8.22-1
           preset: ldap_mnesia
           db: mnesia
           context: mongooseim-org
           requires:
             - otp_20_3
+      # ============= DOCKER IMAGE BUILD & UPLOAD =============
+      - mim/docker_image:
+          name: docker_build_and_ship
+          context: mongooseim-org
+          otp_package: 1:22.0.7-1
+          requires:
+            - ldap_mnesia
+            - pgsql_mnesia
+            - riak_mnesia
+            - elasticsearch_and_cassandra
+            - internal_mnesia
+            - mysql_redis
+            - mssql_mnesia
+            - dialyzer
+            - small_tests_22
+            - small_tests_21_3
+            - small_tests_20_3
 
