@@ -65,9 +65,5 @@ xeplist:
 install: configure.out rel
 	@. ./configure.out && tools/install
 
-cover_report: /tmp/mongoose_combined.coverdata
-	$(RUN) erl -noshell -pa _build/default/lib/*/ebin \
-			-eval 'ecoveralls:travis_ci("$?"), init:stop()'
-
 elvis:
 	rebar3 as lint lint
