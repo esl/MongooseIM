@@ -1,5 +1,5 @@
 # MongooseIM platform
-[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest) [![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
+[![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM) [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest) [![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM) [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
 * Home: [http://github.com/esl/MongooseIM](http://github.com/esl/MongooseIM)
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
@@ -8,7 +8,7 @@
 
 ## Get to know MongooseIM
 
-MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations. 
+MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations.
 
 <img align="left" src="MongooseIM_logo.png" alt="MongooseIM platform's logo" style="padding-right: 20px;"/>
 
@@ -63,9 +63,9 @@ For a quick start just download:
 Check out our test results:
 
 * Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
-* Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
+* Code coverage: [https://codecov.io/gh/esl/MongooseIM](https://codecov.io/gh/esl/MongooseIM)
 * Continuous Load Testing: [http://tide.erlang-solutions.com/](http://tide.erlang-solutions.com/)
-* Load test history:  
+* Load test history:
   ![Load test history](https://tide.erlang-solutions.com/charts/bidaily_last_year.png)
 
 

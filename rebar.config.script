@@ -35,19 +35,6 @@ fun() ->
         end
 end,
 
-MaybeConfigureCoveralls =
-fun(Config) ->
-case os:getenv("CI") of
-    "true" ->
-        Token = os:getenv("COVERALLS_REPO_TOKEN"),
-        JobId   = os:getenv("CIRCLE_BUILD_NUM"),
-        CONFIG1 = lists:keystore(coveralls_service_job_id, 1, CONFIG, {coveralls_service_job_id, JobId}),
-        lists:keystore(coveralls_repo_token, 1, CONFIG1, {coveralls_repo_token, Token});
-    _ ->
-        Config
-end
-end,
-
 DevAppsToInclude =
 fun() ->
         case os:getenv("DEVNODE") of
@@ -84,6 +71,5 @@ MaybeFIPSSupport = fun(Config) ->
     end
 end,
 
-Config0 = MaybeConfigureCoveralls(CONFIG),
-Config1 = SetupIncludedApps(Config0, EnvApps),
+Config1 = SetupIncludedApps(CONFIG, EnvApps),
 MaybeFIPSSupport(Config1).

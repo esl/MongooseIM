@@ -2,7 +2,6 @@
 
 [![Build Status](https://travis-ci.org/esl/MongooseIM.svg?branch=master)](https://travis-ci.org/esl/MongooseIM)
 [![Documentation Status](https://readthedocs.org/projects/mongooseim/badge/?version=latest)](https://mongooseim.readthedocs.org/en/latest/?badge=latest)
-[![Coverage Status](https://img.shields.io/coveralls/esl/MongooseIM.svg)](https://coveralls.io/r/esl/MongooseIM?branch=master)
 [![codecov](https://codecov.io/gh/esl/MongooseIM/branch/master/graph/badge.svg)](https://codecov.io/gh/esl/MongooseIM)
 [![GitHub release](https://img.shields.io/github/release/esl/MongooseIM.svg)](https://github.com/esl/MongooseIM/releases)
 
@@ -13,8 +12,8 @@
 * Product page: [https://www.erlang-solutions.com/products/mongooseim.html](https://www.erlang-solutions.com/products/mongooseim.html)
 * Documentation: [https://mongooseim.readthedocs.org/](https://mongooseim.readthedocs.org/)
 
-## Get to know MongooseIM 
-MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations. 
+## Get to know MongooseIM
+MongooseIM is a robust and efficient chat (or instant messaging) platform aimed at large installations.
 
 <img align="left" src="doc/MongooseIM_logo.png" alt="MongooseIM platform's logo"/>
 
@@ -56,7 +55,7 @@ Check out our test results:
 * Continuous integration: [https://travis-ci.org/esl/MongooseIM](https://travis-ci.org/esl/MongooseIM)
 * Code coverage: [https://coveralls.io/github/esl/MongooseIM](https://coveralls.io/github/esl/MongooseIM)
 * Continuous Load Testing: [https://tide.erlang-solutions.com/](https://tide.erlang-solutions.com/)
-* Load test history:  
+* Load test history:
   ![Load test history](https://tide.erlang-solutions.com/charts/bidaily_last_year.png)
 
 
@@ -79,7 +78,7 @@ Latest releases:
 * [1.6.1](https://mongooseim.readthedocs.io/en/1.6.1/)
 * [1.6.0](https://mongooseim.readthedocs.io/en/1.6.0/)
 
- 
+
 **MongooseIM documentation highligts:**
 
 When developing new features/modules, please make sure you add basic documentation to the 'doc/' directory, and add a link to your document in 'doc/README.md.'
@@ -94,7 +93,7 @@ When developing new features/modules, please make sure you add basic documentati
 * [REST API](https://mongooseim.readthedocs.io/en/latest/rest-api/Client-frontend/). Explore MongooseIM features using our REST API and [Swagger documentation](https://mongooseim.readthedocs.io/en/latest/swagger/index.html).
 * [Operation and maintenance](https://mongooseim.readthedocs.io/en/latest/operation-and-maintenance/Cluster-management-considerations/). See what to consider when building, monitoring, testing and distributing MongooseIM clusters.
 * [Server developer's guide](doc/developers-guide/Testing-MongooseIM.md). Get all the information you need to expand MongooseIM platform.
-    
+
 
 ## Participate!
 
