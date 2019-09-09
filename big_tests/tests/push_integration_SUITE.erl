@@ -454,7 +454,10 @@ enable_push_for_user(User, Service, EnableOpts) ->
 
     DeviceToken = gen_token(),
 
-    pubsub_tools:create_node(User, Node, [{type, <<"push">>}]),
+    Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
+                     {<<"pubsub#publish_model">>, <<"publishers">>}],
+    pubsub_tools:create_node(User, Node, [{type, <<"push">>},
+                                          {config, Configuration}]),
     escalus:send(User, enable_stanza(PubsubJID, NodeName,
                                      [{<<"service">>, Service},
                                       {<<"device_id">>, DeviceToken}] ++ EnableOpts)),
@@ -544,10 +547,10 @@ required_modules(pm_notifications_with_inbox) ->
     [{mod_inbox, inbox_opts()}|required_modules()];
 required_modules(groupchat_notifications_with_inbox)->
     [{mod_inbox, inbox_opts()}, {mod_muc_light, muc_light_opts()}|required_modules()];
-required_modules(pm_msg_notifications) ->
-    required_modules();
 required_modules(muclight_msg_notifications) ->
-    [{mod_muc_light, muc_light_opts()}|required_modules()].
+    [{mod_muc_light, muc_light_opts()}|required_modules()];
+required_modules(_) ->
+    required_modules().
 
 required_modules() ->
     [

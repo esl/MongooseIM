@@ -62,7 +62,7 @@ features() ->
 
 publish_item(ServerHost, Nidx, Publisher, Model, _MaxItems, _ItemId, _ItemPublisher, Payload,
              PublishOptions) ->
-    Affiliation = mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Publisher)),
+    {ok, Affiliation} = mod_pubsub_db_backend:get_affiliation(Nidx, jid:to_lower(Publisher)),
     ElPayload = [El || #xmlel{} = El <- Payload],
 
     case is_allowed_to_publish(Model, Affiliation) of

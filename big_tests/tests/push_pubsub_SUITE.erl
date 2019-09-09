@@ -27,7 +27,8 @@ groups() ->
          {pubsub_publish, [], [
                                publish_fails_with_invalid_item,
                                publish_fails_with_no_options,
-                               publish_succeeds_with_valid_options
+                               publish_succeeds_with_valid_options,
+                               push_node_can_be_configured_to_whitelist_publishers
                               ]},
          {rest_integration_v2, [], [
                                     rest_service_called_with_correct_path_v2,
@@ -186,6 +187,41 @@ publish_succeeds_with_valid_options(Config) ->
             PublishIQ = publish_iq(Alice, Node, Content, Options),
             escalus:send(Alice, PublishIQ),
             escalus:assert(is_iq_result, escalus:wait_for_stanza(Alice)),
+
+            ok
+
+        end).
+
+push_node_can_be_configured_to_whitelist_publishers(Config) ->
+    escalus:story(
+        Config, [{alice, 1}, {bob, 1}],
+        fun(Alice, Bob) ->
+            Node = pubsub_node(),
+            Configuration = [{<<"pubsub#access_model">>, <<"whitelist">>},
+                             {<<"pubsub#publish_model">>, <<"publishers">>}],
+            pubsub_tools:create_node(Alice, Node, [{type, <<"push">>},
+                                                   {config, Configuration}]),
+
+            ActiveConfig = pubsub_tools:get_configuration(Alice, Node, []),
+            ?assertMatch({_, _, <<"whitelist">>}, lists:keyfind(<<"pubsub#access_model">>, 1, ActiveConfig)),
+            ?assertMatch({_, _, <<"publishers">>}, lists:keyfind(<<"pubsub#publish_model">>, 1, ActiveConfig)),
+
+            Content = [
+                {<<"message-count">>, <<"1">>},
+                {<<"last-message-sender">>, <<"senderId">>},
+                {<<"last-message-body">>, <<"message body">>}
+            ],
+
+            Options = [
+                {<<"device_id">>, <<"sometoken">>},
+                {<<"service">>, <<"apns">>}
+            ],
+
+            PublishIQ = publish_iq(Bob, Node, Content, Options),
+            escalus:send(Bob, PublishIQ),
+            escalus:assert(is_error, [<<"auth">>, <<"forbidden">>],
+                           escalus:wait_for_stanza(Bob)),
+
 
             ok
 
