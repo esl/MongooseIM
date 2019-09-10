@@ -41,6 +41,7 @@
          leave_room/3,
          make_members/3,
          mark_last_muclight_message/2,
+         mark_last_muclight_message/3,
          nick/1,
          verify_is_none_aff_change/2,
          wait_for_groupchat_msg/1
