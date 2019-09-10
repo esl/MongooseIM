@@ -3,4 +3,4 @@
 docker run -d \
        --name mongooseim-rmq \
        -p 5672:5672 \
-       rabbitmq:3.7
+       rabbitmq:3.7.16
