@@ -42,10 +42,10 @@
 %%====================================================================
 
 %% Missing options won't have any <value/> elements
-%% TODO: Right now 
+%% TODO: Right now
 -spec make_sub_xform(Options :: mod_pubsub:subOptions()) -> {ok, exml:element()}.
 make_sub_xform(Options) ->
-    XFields = [make_field_xml(OptDefinition, Options) || OptDefinition <- sub_form_options()], 
+    XFields = [make_field_xml(OptDefinition, Options) || OptDefinition <- sub_form_options()],
     {ok, make_sub_xform_xml(XFields)}.
 
 %% The list of options returned by this function may be a subset of the options schema.
@@ -76,7 +76,7 @@ make_sub_xform_xml(XFields) ->
 make_field_xml({VarName, Key, #{ label := Label, form_type := FormType } = VarProps}, Options) ->
     ChoicesEls = make_choices_xml(VarProps),
     ValEls = make_values_xml(Key, Options, VarProps),
-    
+
     #xmlel{name = <<"field">>,
            attrs = [{<<"var">>, VarName}, {<<"type">>, FormType}, {<<"label">>, Label}],
            children = ChoicesEls ++ ValEls}.
@@ -139,7 +139,7 @@ sub_form_options() ->
          label =>  <<"Whether an entity wants to receive an XMPP message body"
                      " in addition to the payload format">>
        }},
-     
+
      {<<"pubsub#show-values">>, show_values,
       #{ form_type => <<"list-multi">>,
          possible_choices => [{<<"away">>, <<"Away">>},
@@ -150,15 +150,16 @@ sub_form_options() ->
          data_type => list,
          label => <<"The presence states for which an entity wants to receive notifications">>
        }},
-     
+
      {<<"pubsub#subscription_type">>, subscription_type,
       #{ form_type => <<"list-single">>,
          possible_choices => [{<<"items">>, <<"Receive notification of new items only">>},
                              {<<"nodes">>, <<"Receive notification of new nodes only">>}],
-         data_type => atom,
+         data_type => {custom, #{ from_binaries => fun convert_sub_type_from_binary/1,
+                                  to_binaries => fun convert_sub_type_to_binary/1 }},
          label => <<"Type of notification to receive">>
        }},
-     
+
      {<<"pubsub#subscription_depth">>, subscription_depth,
       #{ form_type => <<"list-single">>,
          possible_choices => [{<<"1">>, <<"Receive notification from direct child nodes only">>},
@@ -204,9 +205,7 @@ convert_value_from_binaries([Bin], integer) ->
 convert_value_from_binaries([Bin], datetime) ->
     jlib:datetime_binary_to_timestamp(Bin);
 convert_value_from_binaries(Bins, list) when is_list(Bins) ->
-    Bins;
-convert_value_from_binaries([Bin], atom) ->
-    binary_to_existing_atom(Bin, utf8).
+    Bins.
 
 -spec convert_value_to_binaries(Value :: any(), field_data_type()) -> [binary()].
 convert_value_to_binaries(Value, {custom, #{ to_binaries := ConvertToBinaryFun }}) ->
@@ -218,9 +217,7 @@ convert_value_to_binaries(Value, integer) ->
 convert_value_to_binaries(Value, datetime) ->
     jlib:now_to_utc_binary(Value);
 convert_value_to_binaries(Value, list) when is_list(Value) ->
-    Value;
-convert_value_to_binaries(Value, atom) ->
-    atom_to_binary(Value, utf8).
+    Value.
 
 convert_bool_from_binary(<<"0">>) -> false;
 convert_bool_from_binary(<<"1">>) -> true;
@@ -236,3 +233,8 @@ convert_sub_depth_from_binary([DepthBin]) -> binary_to_integer(DepthBin).
 convert_sub_depth_to_binary(all) -> [<<"all">>];
 convert_sub_depth_to_binary(Depth) -> [integer_to_binary(Depth)].
 
+convert_sub_type_from_binary(<<"items">>) -> items;
+convert_sub_type_from_binary(<<"nodes">>) -> nodes.
+
+convert_sub_type_to_binary(items) -> <<"items">>;
+convert_sub_type_to_binary(nodes) -> <<"nodes">>.

@@ -391,8 +391,11 @@ lookup_recent_messages(ArcJID, WithJID, Before, Limit) ->
     L.
 
 subscription(Caller, Other, Action) ->
-    Act = binary_to_existing_atom(Action, latin1),
+    Act = decode_action(Action),
     run_subscription(Act, jid:from_binary(Caller), jid:from_binary(Other)).
+
+decode_action(<<"subscribe">>) -> subscribe;
+decode_action(<<"subscribed">>) -> subscribed.
 
 -spec run_subscription(subscribe | subscribed, jid:jid(), jid:jid()) -> ok.
 run_subscription(Type, CallerJid, OtherJid) ->
