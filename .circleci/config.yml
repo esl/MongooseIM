@@ -233,6 +233,7 @@ orbs:
               name: Run Big Tests
               command: |
                 SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+              no_output_timeout: 40m
           - run:
               name: Coverage
               when: on_success
