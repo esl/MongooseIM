@@ -11,8 +11,8 @@ This page describes what GDPR implies in terms of server management.
 * vCard - The entire content of the subject's vCard.
 * private XML storage - All items stored by the subject will be removed.
 * publish-subscribe
-    * retrieval: all subject's payloads, nodes created by him and all of his subscriptions.
-    * removal: subject's subscriptions, push and PEP nodes (with their data included).
+    * retrieval: all subject's subscriptions and nodes (with their payloads included). 
+    * removal: subject's subscriptions, push and PEP nodes (with their data included). 
 
 ## GDPR CLI commands
 
