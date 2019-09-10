@@ -75,7 +75,7 @@ handle_system_message(Host, Room, Remote, Packet) ->
         invite->
             handle_invitation_message(Host, Room, Remote, Packet);
         other ->
-            ?DEBUG("event=unknown_system_message_for_mod_inbox_muclight,stanza='~p'", [Packet]),
+            ?DEBUG("event=irrelevant_system_message_for_mod_inbox_muclight,stanza='~p'", [Packet]),
             ok
     end.
 
