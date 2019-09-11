@@ -1,7 +1,7 @@
 ### Module Description
 
-`Inbox` is an experimental feature implemented as a few seperate modules.
-To use it, enable mod_inbox in the config file.
+`Inbox` is an experimental feature implemented as a few separate modules.
+To use it, enable mod\_inbox in the config file.
 
 ### Options
 
@@ -135,7 +135,7 @@ Alice receives:
 
 Inbox query result IQ stanza returns the following values:
 
-* `count`: the number of all conversations (if `hidden_unread` value was set
+* `count`: the total number of conversations (if `hidden_read` value was set
   to true, this value will be equal to `active_conversations`)
 * `unread-messages`: total number of unread messages from all
   conversations
