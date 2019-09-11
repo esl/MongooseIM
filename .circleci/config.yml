@@ -20,6 +20,8 @@ orbs:
             name: Install basic packages
             command: |
               sudo killall -9 apt-get || true && \
+              sudo sed -i 's#archive.ubuntu.com/ubuntu#ftp.heanet.ie/pub/ubuntu#g' /etc/apt/sources.list && \
+              sudo sed -i 's#security.ubuntu.com/ubuntu#ftp.heanet.ie/pub/ubuntu#g' /etc/apt/sources.list && \
               wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb && \
               sudo dpkg -i erlang-solutions_1.0_all.deb && \
               sudo apt-get update && \
