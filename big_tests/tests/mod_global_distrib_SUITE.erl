@@ -415,42 +415,55 @@ test_muc_conversation_history(Config0) ->
               RoomAddr = muc_helper:room_address(RoomJid),
 
               escalus:send(Alice, muc_helper:stanza_muc_enter_room(RoomJid, AliceUsername)),
-              escalus:wait_for_stanza(Alice),
+              %% We don't care about presences from Alice, escalus would filter them out
+              wait_for_subject(Alice),
 
-              lists:foreach(fun(I) ->
-                                    Msg = <<"test-", (integer_to_binary(I))/binary>>,
-                                    escalus:send(Alice, escalus_stanza:groupchat_to(RoomAddr, Msg))
-                            end, lists:seq(1, 3)),
+              send_n_muc_messages(Alice, RoomAddr, 3),
+
               %% Ensure that the messages are received by the room
               %% before trying to login Eve.
               %% Otherwise, Eve would receive some messages from history and
               %% some as regular groupchat messages.
-              escalus:wait_for_stanzas(Alice, 3),
+              receive_n_muc_messages(Alice, 3),
 
               EveUsername = escalus_utils:get_username(Eve),
               escalus:send(Eve, muc_helper:stanza_muc_enter_room(RoomJid, EveUsername)),
 
-              AlicePresence = escalus:wait_for_stanza(Eve),
-              escalus:assert(is_presence, AlicePresence),
-              ?assertEqual(muc_helper:room_address(RoomJid, AliceUsername),
-                           exml_query:attr(AlicePresence, <<"from">>)),
+              wait_for_muc_presence(Eve, RoomJid, AliceUsername),
+              wait_for_muc_presence(Eve, RoomJid, EveUsername),
 
-              MyRoomPresence = escalus:wait_for_stanza(Eve),
-              escalus:assert(is_presence, MyRoomPresence),
-              ?assertEqual(muc_helper:room_address(RoomJid, EveUsername),
-                           exml_query:attr(MyRoomPresence, <<"from">>)),
-
-              lists:foreach(fun(J) ->
-                                    Msg = <<"test-", (integer_to_binary(J))/binary>>,
-                                    Stanza = escalus:wait_for_stanza(Eve),
-                                    escalus:assert(is_groupchat_message, [Msg], Stanza)
-                            end, lists:seq(1, 3)),
-
-              Subject = escalus:wait_for_stanza(Eve),
-              escalus:assert(is_groupchat_message, Subject),
-              ?assertNotEqual(undefined, exml_query:subelement(Subject, <<"subject">>))
+              %% XEP-0045: After sending the presence broadcast (and only after doing so),
+              %% the service MAY then send discussion history, the room subject,
+              %% live messages, presence updates, and other in-room traffic.
+              receive_n_muc_messages(Eve, 3),
+              wait_for_subject(Eve)
       end),
     muc_helper:destroy_room(Config).
+
+wait_for_muc_presence(User, RoomJid, FromNickname) ->
+    Presence = escalus:wait_for_stanza(User),
+    escalus:assert(is_presence, Presence),
+    escalus:assert(is_stanza_from, [muc_helper:room_address(RoomJid, FromNickname)], Presence),
+    ok.
+
+wait_for_subject(User) ->
+    Subject = escalus:wait_for_stanza(User),
+    escalus:assert(is_groupchat_message, Subject),
+    ?assertNotEqual(undefined, exml_query:subelement(Subject, <<"subject">>)),
+    ok.
+
+send_n_muc_messages(User, RoomAddr, N) ->
+    lists:foreach(fun(I) ->
+                          Msg = <<"test-", (integer_to_binary(I))/binary>>,
+                          escalus:send(User, escalus_stanza:groupchat_to(RoomAddr, Msg))
+                  end, lists:seq(1, N)).
+
+receive_n_muc_messages(User, N) ->
+    lists:foreach(fun(J) ->
+                          Msg = <<"test-", (integer_to_binary(J))/binary>>,
+                          Stanza = escalus:wait_for_stanza(User),
+                          escalus:assert(is_groupchat_message, [Msg], Stanza)
+                            end, lists:seq(1, N)).
 
 test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
