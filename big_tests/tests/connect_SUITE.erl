@@ -644,7 +644,8 @@ return_proper_stream_error_if_service_is_not_hidden(_Config) ->
     escalus_connection:receive_stanza(Connection, #{ assert => is_stream_start }),
     StreamErrorAssertion = {is_stream_error, [<<"xml-not-well-formed">>, <<>>]},
     escalus_connection:receive_stanza(Connection, #{ assert => StreamErrorAssertion }),
-    false = escalus_connection:is_connected(Connection).
+    %% Sometimes escalus needs a moment to report the connection as closed
+    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Connection) end, false).
 
 close_connection_if_service_type_is_hidden(_Config) ->
     % GIVEN the option to hide service name is enabled
