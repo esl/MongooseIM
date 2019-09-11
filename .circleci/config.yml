@@ -20,6 +20,8 @@ orbs:
             name: Install basic packages
             command: |
               sudo killall -9 apt-get || true && \
+              sudo sed -i 's#archive.ubuntu.com/ubuntu#ftp.heanet.ie/pub/ubuntu#g' /etc/apt/sources.list && \
+              sudo sed -i 's#security.ubuntu.com/ubuntu#ftp.heanet.ie/pub/ubuntu#g' /etc/apt/sources.list && \
               wget https://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb && \
               sudo dpkg -i erlang-solutions_1.0_all.deb && \
               sudo apt-get update && \
@@ -233,6 +235,7 @@ orbs:
               name: Run Big Tests
               command: |
                 SKIP_AUTO_COMPILE=true KEEP_COVER_RUNNING=1 ./tools/travis-test.sh -p $PRESET -s false
+              no_output_timeout: 40m
           - run:
               name: Coverage
               when: on_success
