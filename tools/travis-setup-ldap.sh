@@ -27,7 +27,6 @@ function write_init_entries
 cat > "$LDAP_SCHEMAS_DIR/init_entries$1.ldif" << EOL
 dn: ou=Users$1,dc=esl,dc=com
 objectClass: organizationalUnit
-ou: users
 EOL
 }
 
