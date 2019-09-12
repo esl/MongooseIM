@@ -617,7 +617,7 @@ non_reset_marker_should_not_affect_inbox(Config) ->
         %% Mike has one unread message
         check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = MsgBody}]),
         ChatMarker = escalus_stanza:chat_marker(Kate, <<"received">>, MsgId),
-        %% Mike sends "displayed" chat marker but 'id' field is wrong
+        %% Mike sends "received" chat marker, which is not a reset_marker
         escalus:send(Mike, ChatMarker),
         CM = escalus:wait_for_stanza(Kate),
         escalus:assert(is_message, CM),
@@ -737,11 +737,10 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
         KateJid = inbox_helper:to_bare_lower(Kate),
         RoomJid = room_bin_jid(?ROOM_MARKERS2),
         AliceRoomJid = <<RoomJid/binary,"/", AliceJid/binary>>,
-        Id = <<"markerId">>,
         Msg = <<"marker time!">>,
         % %% WHEN DONE
         Stanza1 = escalus_stanza:set_id(
-          escalus_stanza:groupchat_to(RoomJid, Msg), Id),
+          escalus_stanza:groupchat_to(RoomJid, Msg), escalus_stanza:id()),
         escalus:send(Alice, Stanza1),
         R0 = escalus:wait_for_stanza(Alice),
         R1 = escalus:wait_for_stanza(Bob),
@@ -750,16 +749,8 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
         escalus:assert(is_groupchat_message, R1),
         escalus:assert(is_groupchat_message, R2),
         % %% AND MARKED WRONG
-        BobChatMarkerWOType = escalus_stanza:chat_marker(RoomJid,<<"received">>, Id),
-        BobChatMarker = escalus_stanza:setattr(BobChatMarkerWOType, <<"type">>, <<"groupchat">>),
-        escalus:send(Bob, BobChatMarker),
-        muc_helper:foreach_recipient([Alice, Bob, Kate], fun(Marker) ->
-          true = escalus_pred:is_chat_marker(<<"received">>, Id, Marker) end),
-        KateChatMarkerWOType = escalus_stanza:chat_marker(RoomJid,<<"acknowledged">>, Id),
-        KateChatMarker = escalus_stanza:setattr(KateChatMarkerWOType, <<"type">>, <<"groupchat">>),
-        escalus:send(Bob, KateChatMarker),
-        muc_helper:foreach_recipient([Alice, Bob, Kate], fun(Marker) ->
-          true = escalus_pred:is_chat_marker(<<"acknowledged">>, Id, Marker) end),
+        inbox_helper:mark_last_muclight_message(Bob, [Alice, Bob, Kate], <<"received">>),
+        inbox_helper:mark_last_muclight_message(Kate, [Alice, Bob, Kate], <<"acknowledged">>),
         % %% THEN
         %% Alice has 0 unread messages because she was the sender
         check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid,
@@ -1126,7 +1117,7 @@ non_reset_marker_should_not_affect_muc_inbox(Config) ->
         %% Alice have one conv with 1 unread message
         check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}],
                     #{}, #{case_sensitive => true}),
-        %% Kate has 0 unread messages
+        %% Kate has 1 unread messages
         check_inbox(Kate, [#conv{unread = 1, from = BobRoomJid, to = KateJid, content = Msg}],
                     #{}, #{case_sensitive => true})
       end).

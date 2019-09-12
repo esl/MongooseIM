@@ -17,7 +17,6 @@
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
 -export([maybe_reset_unread_count/4,
-         reset_unread_count/3,
          maybe_write_to_inbox/5,
          write_to_sender_inbox/4,
          write_to_receiver_inbox/4,
@@ -26,14 +25,12 @@
          get_reset_markers/1,
          if_chat_marker_get_id/2,
          has_chat_marker/1,
-         has_chat_marker/2,
          fill_from_attr/2,
          wrapper_id/0,
          get_option_write_aff_changes/1,
          get_option_remove_on_kicked/1,
          reset_marker_to_bin/1,
-         get_inbox_unread/2,
-         all_chat_markers/0
+         get_inbox_unread/2
         ]).
 
 -spec maybe_reset_unread_count(Server :: host(),
@@ -46,7 +43,7 @@ maybe_reset_unread_count(Server, User, Remote, Packet) ->
         undefined ->
             ok;
         Id ->
-            mod_inbox_utils:reset_unread_count(User, Remote, Id)
+            reset_unread_count(User, Remote, Id)
     end.
 
 -spec reset_unread_count(User :: jid:jid(),
@@ -125,7 +122,7 @@ if_chat_marker_get_id(Packet, Marker) ->
 
 -spec has_chat_marker(Packet :: exml:element()) -> boolean().
 has_chat_marker(Packet) ->
-    has_chat_marker(Packet, mod_inbox_utils:all_chat_markers()).
+    has_chat_marker(Packet, all_chat_markers()).
 
 -spec has_chat_marker(Packet :: exml:element(), list(marker())) -> boolean().
 has_chat_marker(Packet, Markers) ->
