@@ -1,3 +1,13 @@
+# [MongooseIM 3.4.1](https://github.com/esl/MongooseIM/releases/tag/3.4.1) - 2019-09-12
+
+## Highlights
+
+Patch release mitigating [ERL-944](https://bugs.erlang.org/browse/ERL-944)
+
+### Fixed
+
+- Vulnerability related to `erlang:binary_to_existing_atom` with `latin1` encoding (#2445)
+
 # [MongooseIM 3.4.0](https://github.com/esl/MongooseIM/releases/tag/3.4.0) - 2019-06-26
 
 ## Highlights
@@ -146,8 +156,8 @@
 - [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222018-11-21..2019-03-12%22+)
 - [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2018-11-20&to=2019-03-12&type=c)
 
-## Special thanks to our contributors: 
-- @sstrigler 
+## Special thanks to our contributors:
+- @sstrigler
 - @getong
 - @cogentParadigm
 
@@ -163,7 +173,7 @@
 
 ### Added
 
-- Improvements in `mod_inbox`: 
+- Improvements in `mod_inbox`:
   - User can show only active/all conversations (#2017)
   - Inbox IQ result stanza provides a total unread messages count and an active conversation count (#2047, #2056)
   - If an inbox query is malformed, a descriptive error is returned (#2052)
@@ -174,8 +184,8 @@
 - Self-signed certificates may be used with `fast_tls` driver (#2102)
 - `mongoose_bin` module unifies random strings generation API (#2000)
 - Modules may specify "optional" dependencies to enforce the startup order (but not the startup itself) (#2029)
-- Switchable RDBMS backend for `mod_pubsub` - experimental (#2122, #2113, #2129, #2131, #2134) 
-- Changing MUC Light room configurations is possible via REST API (#2030) 
+- Switchable RDBMS backend for `mod_pubsub` - experimental (#2122, #2113, #2129, #2131, #2134)
+- Changing MUC Light room configurations is possible via REST API (#2030)
 - New Message Archive Management metrics for async writers (#2023)
 - New Makefile target to check code style with Elvis (#2111)
 
@@ -224,13 +234,13 @@
 - Backend proxy modules are loaded only once (#1438)
 - Node cleaners are no longer crashing (#2135)
 - Test runner
-  - Tests are counted properly on macOS (#2004) 
+  - Tests are counted properly on macOS (#2004)
   - Appropriate error is returned, when there are no test nodes. (#2004)
   - Improved test specs generation and autocompletion (#2036)
 - Minor fixes (#2010, #2046, #2069, #2086, #2123)
 - `rebar3` release generation with OTP 21 (update to 3.6.1) (#2037)
 - `NkSERVICE` cache dir configuration works as expected now (#2058)
-- Dialyzer job on Travis runs with Erlang/OTP 21 and returns no errors (#2075) 
+- Dialyzer job on Travis runs with Erlang/OTP 21 and returns no errors (#2075)
 
 ### Other
 
