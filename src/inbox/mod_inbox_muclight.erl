@@ -75,7 +75,7 @@ handle_system_message(Host, Room, Remote, Packet) ->
         invite->
             handle_invitation_message(Host, Room, Remote, Packet);
         other ->
-            ?DEBUG("event=unknown_system_message_for_mod_inbox_muclight,stanza='~p'", [Packet]),
+            ?DEBUG("event=irrelevant_system_message_for_mod_inbox_muclight,stanza='~p'", [Packet]),
             ok
     end.
 
@@ -133,13 +133,14 @@ write_to_inbox(Server, RoomUser, Remote, _Sender, Packet) ->
 %% Predicate funs
 
 %% check if sender is just 'roomname@muclight.domain' with no resource
+%% TODO: Replace sender domain check with namespace check - current logic won't handle all cases!
 -spec  is_system_message(Sender :: jid:jid(),
                          Receiver :: jid:jid(),
                          Packet :: exml:element()) -> boolean().
 is_system_message(Sender, Receiver, Packet) ->
     ReceiverDomain = Receiver#jid.lserver,
-    MUCLightDomain = list_to_binary(gen_mod:get_module_opt(ReceiverDomain, mod_muc_light,
-                                                           host, undefined)),
+    MUCLightDomain = gen_mod:get_module_opt_subhost(ReceiverDomain, mod_muc_light,
+                                                    mod_muc_light:default_host()),
     case {Sender#jid.lserver, Sender#jid.lresource} of
         {MUCLightDomain, <<>>} ->
             true;

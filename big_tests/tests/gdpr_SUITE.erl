@@ -1445,10 +1445,13 @@ remove_inbox_muclight(Config) ->
 
         ExpectedHeader = ["jid", "content", "unread_count", "timestamp"],
 
-        muc_light_helper:user_leave(Room, Bob, [{Alice, owner}]),
         {0, _} = unregister(Alice, Config),
 
         %% MUC Light affiliations are also stored in inbox
+        %% 1. Added to the room
+        %% 2. Message
+        %% 3. Aff change: Alice -> none, Bob -> owner
+        %% Writing aff changes to inbox is enabled by default
         ExpectedBobItems = [#{
                                 "jid" => [{contains, <<Room/binary, $@, Domain/binary>>}],
                                 "unread_count" => "3" }

@@ -179,7 +179,7 @@ is_rdbms_enabled(Host) ->
 
 required_modules() ->
     [
-     {mod_muc_light, [{host, binary_to_list(muclight_domain())},
+     {mod_muc_light, [{host, binary_to_list(muclight_config_domain())},
                       {backend, rdbms}]},
      {mod_inbox, inbox_opts()}
     ].
@@ -192,6 +192,10 @@ inbox_opts() ->
 
 muclight_domain() ->
     Domain = inbox_helper:domain(),
+    <<"muclight.", Domain/binary>>.
+
+muclight_config_domain() ->
+    Domain = <<"@HOST@">>,
     <<"muclight.", Domain/binary>>.
 
 muc_domain() ->
