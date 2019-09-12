@@ -64,7 +64,7 @@ The minimal [mod_pubsub][]'s configuration looks as follows:
 
 ```erlang
 {mod_pubsub, [
-    {plugins, [<<"push">>]}}
+    {plugins, [<<"push">>]}
 ]}.
 ```
 
