@@ -22,11 +22,21 @@ echo "LDAP_ROOT_DIR=$LDAP_ROOT_DIR"
 
 mkdir -p "$LDAP_SCHEMAS_DIR" "$LDAP_DATA_DIR" "$LDAP_CONFIG_DIR" "$LDAP_CERT_DIR"
 
-cat > "$LDAP_SCHEMAS_DIR/init_entries.ldif" << EOL
-dn: ou=Users,dc=esl,dc=com
+function write_init_entries
+{
+cat > "$LDAP_SCHEMAS_DIR/init_entries$1.ldif" << EOL
+dn: ou=Users$1,dc=esl,dc=com
 objectClass: organizationalUnit
 ou: users
 EOL
+}
+
+write_init_entries
+
+# Make Users1, Users2, ... Users10 OU-s, which can be used for parallel jobs
+for i in {1..10}; do
+    write_init_entries $i
+done
 
 cp tools/ssl/mongooseim/{cert,key,dh_server}.pem "$LDAP_CERT_DIR"
 cp tools/ssl/ca/cacert.pem "$LDAP_CERT_DIR"
