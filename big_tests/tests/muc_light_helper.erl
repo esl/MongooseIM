@@ -110,7 +110,9 @@ assert_archive_element({{muc_message, Room, Sender, Body}, Stanza}) ->
     assert_valid_muc_roles_in_user_x(XS);
 assert_archive_element({{message, Sender, Body}, Stanza}) ->
     FromJid = escalus_utils:jid_to_lower(escalus_utils:get_jid(Sender)),
-    #forwarded_message{message_body = Body, delay_from = FromJid} = Stanza.
+    #forwarded_message{message_body = Body, delay_from = FromJid} = Stanza;
+assert_archive_element({{chat_marker, Type}, Stanza}) ->
+    #forwarded_message{chat_marker = Type} = Stanza.
 
 assert_valid_muc_roles_in_user_x([#xmlel{ attrs = [{<<"xmlns">>, ?NS_MUC_USER}] } = XUser | _]) ->
     Item = exml_query:subelement(XUser, <<"item">>),

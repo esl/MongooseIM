@@ -634,9 +634,10 @@ report_issue(Reason, Stacktrace, Issue, #jid{lserver = LServer, luser = LUser}, 
     ?ERROR_MSG("issue=~p, server=~p, user=~p, reason=~p, iq=~p, stacktrace=~p",
                [Issue, LServer, LUser, Reason, IQ, Stacktrace]).
 
--spec is_archivable_message(Host :: ejabberd:lserver(), Dir :: incoming | outgoing,
+-spec is_archivable_message(MUCHost :: ejabberd:lserver(), Dir :: incoming | outgoing,
                             Packet :: exml:element()) -> boolean().
-is_archivable_message(Host, Dir, Packet) ->
+is_archivable_message(MUCHost, Dir, Packet) ->
+    {ok, Host} = mongoose_subhosts:get_host(MUCHost),
     {M, F} = mod_mam_params:is_archivable_message_fun(?MODULE, Host),
     ArchiveChatMarkers = mod_mam_params:archive_chat_markers(?MODULE, Host),
     erlang:apply(M, F, [?MODULE, Dir, Packet, ArchiveChatMarkers]).

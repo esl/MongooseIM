@@ -62,7 +62,8 @@
     message_type   :: binary() | undefined,
     message_body   :: binary() | undefined,
     message_xs = [] :: [#xmlel{}],
-    has_x_user_element :: boolean()
+    has_x_user_element :: boolean(),
+    chat_marker    :: binary() | undefined
 }).
 
 -record(result_iq, {

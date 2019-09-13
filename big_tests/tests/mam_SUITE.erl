@@ -99,6 +99,8 @@
          muc_light_simple/1,
          muc_light_shouldnt_modify_pm_archive/1,
          muc_light_stored_in_pm_if_allowed_to/1,
+         muc_light_chat_markers_are_archived_if_enabled/1,
+         muc_light_chat_markers_are_not_archived_if_disabled/1,
          messages_filtered_when_prefs_default_policy_is_always/1,
          messages_filtered_when_prefs_default_policy_is_never/1,
          messages_filtered_when_prefs_default_policy_is_roster/1,
@@ -430,7 +432,9 @@ muc_light_cases() ->
     [
      muc_light_simple,
      muc_light_shouldnt_modify_pm_archive,
-     muc_light_stored_in_pm_if_allowed_to
+     muc_light_stored_in_pm_if_allowed_to,
+     muc_light_chat_markers_are_archived_if_enabled,
+     muc_light_chat_markers_are_not_archived_if_disabled
     ].
 
 muc_rsm_cases() ->
@@ -594,9 +598,9 @@ init_per_group(muc06, Config) ->
     [{props, mam06_props()}, {with_rsm, true}|Config];
 
 init_per_group(muc_configurable_archiveid, Config) ->
-    Config ++ [{params_backup, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam_muc])}];
+    [backup_module_opts(mod_mam_muc) | Config];
 init_per_group(configurable_archiveid, Config) ->
-    [{params_backup, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam])} | Config];
+    [backup_module_opts(mod_mam) | Config];
 
 init_per_group(muc_rsm_all, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{N, 1} || N <- user_names()]),
@@ -621,6 +625,13 @@ init_per_group(Group, ConfigIn) ->
             [{basic_group, B}, {configuration, C} | init_state(C, B, Config1)]
     end.
 
+backup_module_opts(Module) ->
+    {{params_backup, Module}, rpc_apply(gen_mod, get_module_opts, [host(), mod_mam_muc])}.
+
+restore_module_opts(Module, Config) ->
+    ParamsB = proplists:get_value({params_backup, Module}, Config),
+    rpc_apply(gen_mod, set_module_opts, [host(), Module, ParamsB]).
+
 do_init_per_group(C, ConfigIn) ->
     Config0 = create_users(ConfigIn),
     case C of
@@ -642,15 +653,10 @@ end_per_group(G, Config) when G == rsm_all; G == nostore;
     G == archived; G == mam_metrics ->
       Config;
 end_per_group(muc_configurable_archiveid, Config) ->
-    ParamsB = proplists:get_value(params_backup, Config),
-    lists:foreach(fun({Key, Value}) ->
-                          rpc_apply(gen_mod, set_module_opt, [host(), mod_mam, Key, Value])
-                  end,
-                  ParamsB),
+    restore_module_opts(mod_mam_muc, Config),
     Config;
 end_per_group(configurable_archiveid, Config) ->
-    ParamsB = proplists:get_value(params_backup, Config),
-    rpc_apply(gen_mod, set_module_opts, [host(), mod_mam, ParamsB]),
+    restore_module_opts(mod_mam, Config),
     Config;
 end_per_group(muc_rsm_all, Config) ->
     destroy_room(Config);
@@ -984,6 +990,14 @@ init_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config) ->
     true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, true]),
     clean_archives(Config),
     escalus:init_per_testcase(C, [{archive_groupchats_backup, OrigVal} | Config]);
+init_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, ConfigIn) ->
+    Config1 = [backup_module_opts(mod_mam_muc) | ConfigIn],
+    rpc_apply(gen_mod, set_module_opt, [host(), mod_mam_muc, archive_chat_markers, true]),
+    escalus:init_per_testcase(C, Config1);
+init_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, ConfigIn) ->
+    Config1 = [backup_module_opts(mod_mam_muc) | ConfigIn],
+    rpc_apply(gen_mod, set_module_opt, [host(), mod_mam_muc, archive_chat_markers, false]),
+    escalus:init_per_testcase(C, Config1);
 init_per_testcase(C=archive_chat_markers, Config) ->
     Config1 = escalus_fresh:create_users(Config, [{alice, 1}, {bob, 1}]),
     escalus:init_per_testcase(C, Config1);
@@ -1055,6 +1069,12 @@ end_per_testcase(C = muc_light_stored_in_pm_if_allowed_to, Config0) ->
     {value, {_, OrigVal}, Config1} = lists:keytake(archive_groupchats_backup, 1, Config0),
     true = rpc(mim(), gen_mod, set_module_opt, [host(), mod_mam, archive_groupchats, OrigVal]),
     escalus:end_per_testcase(C, Config1);
+end_per_testcase(C = muc_light_chat_markers_are_archived_if_enabled, Config) ->
+    restore_module_opts(mod_mam_muc, Config),
+    escalus:end_per_testcase(C, Config);
+end_per_testcase(C = muc_light_chat_markers_are_not_archived_if_disabled, Config) ->
+    restore_module_opts(mod_mam_muc, Config),
+    escalus:end_per_testcase(C, Config);
 end_per_testcase(CaseName, Config) ->
     escalus:end_per_testcase(CaseName, Config).
 
@@ -1588,6 +1608,57 @@ muc_light_stored_in_pm_if_allowed_to(Config) ->
             then_archive_response_is(Alice, [AliceAffEvent, MessageEvent], Config),
             when_archive_query_is_sent(Bob, undefined, Config),
             then_archive_response_is(Bob, [BobAffEvent, MessageEvent], Config)
+        end).
+
+muc_light_chat_markers_are_archived_if_enabled(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = <<"testroom_markers">>,
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            %% Alice sends 3 chat markers
+            MessageID = <<"some-fake-id">>,
+            RoomJID = muc_light_helper:room_bin_jid(Room),
+            lists:foreach(
+              fun(Type) ->
+                      Marker1 = escalus_stanza:chat_marker(RoomJID, Type, MessageID),
+                      Marker2 = escalus_stanza:setattr(Marker1, <<"type">>, <<"groupchat">>),
+                      escalus:send(Alice, Marker2),
+                      escalus:wait_for_stanza(Alice),
+                      escalus:wait_for_stanza(Bob)
+              end, [<<"received">>, <<"displayed">>, <<"acknowledged">>]),
+
+            maybe_wait_for_archive(Config),
+            when_archive_query_is_sent(Bob, muc_light_helper:room_bin_jid(Room), Config),
+            ExpectedResponse = [
+                                {create, [{Alice, owner}, {Bob, member}]},
+                                {chat_marker, <<"received">>},
+                                {chat_marker, <<"displayed">>},
+                                {chat_marker, <<"acknowledged">>}
+                               ],
+            then_archive_response_is(Bob, ExpectedResponse, Config)
+        end).
+
+muc_light_chat_markers_are_not_archived_if_disabled(Config) ->
+    escalus:story(Config, [{alice, 1}, {bob, 1}], fun(Alice, Bob) ->
+            Room = <<"testroom_no_markers">>,
+            given_muc_light_room(Room, Alice, [{Bob, member}]),
+
+            %% Alice sends 3 chat markers
+            MessageID = <<"some-fake-id">>,
+            RoomJID = muc_light_helper:room_bin_jid(Room),
+            lists:foreach(
+              fun(Type) ->
+                      Marker1 = escalus_stanza:chat_marker(RoomJID, Type, MessageID),
+                      Marker2 = escalus_stanza:setattr(Marker1, <<"type">>, <<"groupchat">>),
+                      escalus:send(Alice, Marker2),
+                      escalus:wait_for_stanza(Alice),
+                      escalus:wait_for_stanza(Bob)
+              end, [<<"received">>, <<"displayed">>, <<"acknowledged">>]),
+
+            maybe_wait_for_archive(Config),
+            when_archive_query_is_sent(Bob, muc_light_helper:room_bin_jid(Room), Config),
+            ExpectedResponse = [{create, [{Alice, owner}, {Bob, member}]}],
+            then_archive_response_is(Bob, ExpectedResponse, Config)
         end).
 
 retrieve_form_fields(ConfigIn) ->
