@@ -21,7 +21,7 @@
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3, successful_rpc/4]).
--export([logout_user/2]).
+-export([logout_user/2, logout_user/3]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
@@ -225,14 +225,18 @@ successful_rpc(Node, Module, Function, Args) ->
             Result
     end.
 
+logout_user(Config, User) ->
+    Node = ct:get_config({hosts, mim, node}),
+    logout_user(Config, User, Node).
+
 %% This function is a version of escalus_client:stop/2
 %% that ensures that c2s process is dead.
 %% This allows to avoid race conditions.
-logout_user(Config, User) ->
+logout_user(Config, User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    Result = successful_rpc(ejabberd_sm, get_session_pid,
+    Result = successful_rpc(Node, ejabberd_sm, get_session_pid,
                             [Username, Server, Resource]),
     case Result of
         none ->
