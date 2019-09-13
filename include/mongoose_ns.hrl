@@ -101,5 +101,6 @@
 
 %% Erlang Solutions custom extension - inbox feature
 -define(NS_ESL_INBOX,      <<"erlang-solutions.com:xmpp:inbox:0">>).
+-define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 
 -endif.

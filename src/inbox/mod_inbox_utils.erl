@@ -17,6 +17,7 @@
 %%%%%%%%%%%%%%%%%%%
 %% DB Operations shared by mod_inbox_one2one and mod_inbox_muclight
 -export([maybe_reset_unread_count/4,
+         reset_unread_count/3,
          maybe_write_to_inbox/5,
          write_to_sender_inbox/4,
          write_to_receiver_inbox/4,
@@ -46,14 +47,14 @@ maybe_reset_unread_count(Server, User, Remote, Packet) ->
             reset_unread_count(User, Remote, Id)
     end.
 
--spec reset_unread_count(User :: jid:jid(),
-                         Remote :: jid:jid(),
-                         MsgId :: id()) -> ok.
-reset_unread_count(User, Remote, MsgId) ->
+-spec reset_unread_count(jid:jid(),
+                         jid:jid(),
+                         non_neg_integer() | id()) -> ok.
+reset_unread_count(User, Remote, MsgidOrCount) ->
     FromUsername = User#jid.luser,
     Server = User#jid.lserver,
     ToBareJid = jid:to_binary(jid:to_bare(Remote)),
-    ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgId).
+    ok = mod_inbox_backend:reset_unread(FromUsername, Server, ToBareJid, MsgidOrCount).
 
 -spec write_to_sender_inbox(Server :: host(),
                             Sender :: jid:jid(),

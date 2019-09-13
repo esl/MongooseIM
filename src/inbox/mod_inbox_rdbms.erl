@@ -145,19 +145,24 @@ set_inbox_incr_unread(Username, Server, ToBareJid, Content, MsgId, Timestamp) ->
 -spec reset_unread(User :: binary(),
                    Server :: binary(),
                    BareJid :: binary(),
-                   MsgId :: binary()) -> ok.
-reset_unread(Username, Server, ToBareJid, MsgId) ->
+                   binary() | non_neg_integer()) -> ok.
+reset_unread(Username, Server, ToBareJid, MsgidOrCount) ->
     LUsername = jid:nodeprep(Username),
     LServer = jid:nameprep(Server),
     LToBareJid = jid:nameprep(ToBareJid),
-    Res = reset_inbox_unread_rdbms(LUsername, LServer, LToBareJid, MsgId),
+    Res = reset_inbox_unread_rdbms(LUsername, LServer, LToBareJid, MsgidOrCount),
     check_result(Res).
 
 -spec reset_inbox_unread_rdbms(Username :: jid:luser(),
                                Server :: jid:lserver(),
                                ToBareJid :: binary(),
                                MsgId :: binary()) -> mongoose_rdbms:query_result().
-reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) ->
+reset_inbox_unread_rdbms(Username, Server, ToBareJid, Count) when is_integer(Count) ->
+    mongoose_rdbms:sql_query(Server, ["update inbox set unread_count=", esc_int(Count),
+        " where luser=", esc_string(Username),
+        " and lserver=", esc_string(Server),
+        " and remote_bare_jid=", esc_string(ToBareJid), ";"]);
+reset_inbox_unread_rdbms(Username, Server, ToBareJid, MsgId) when is_binary(MsgId) ->
     mongoose_rdbms:sql_query(Server, ["update inbox set unread_count=0 where luser=",
         esc_string(Username), " and lserver=", esc_string(Server), " and remote_bare_jid=",
         esc_string(ToBareJid), " and msg_id=", esc_string(MsgId), ";"]).

@@ -18,8 +18,13 @@
 -export([get_personal_data/2]).
 
 -export([start/2, stop/1, deps/2]).
--export([process_iq/4, user_send_packet/4, filter_packet/1,
-         inbox_unread_count/2, remove_user/3]).
+-export([process_iq/4,
+         process_iq_conversation/4,
+         user_send_packet/4,
+         filter_packet/1,
+         inbox_unread_count/2,
+         remove_user/3
+        ]).
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
@@ -123,7 +128,10 @@ start(Host, Opts) ->
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(hooks(Host)),
     store_bin_reset_markers(Host, FullOpts),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX,
+                                  ?MODULE, process_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION,
+                                  ?MODULE, process_iq_conversation, IQDisc).
 
 
 -spec stop(Host :: jid:server()) -> ok.
@@ -156,6 +164,36 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.
+
+-spec process_iq_conversation(From :: jid:jid(),
+                              To :: jid:jid(),
+                              Acc :: mongoose_acc:t(),
+                              IQ :: jlib:iq()) ->
+    {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+process_iq_conversation(From, _To, Acc,
+                        #iq{type = set,
+                            xmlns = ?NS_ESL_INBOX_CONVERSATION,
+                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
+    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza).
+
+maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
+    MaybeCount = reset_stanza_extract_count(ResetStanza),
+    MaybeJid = reset_stanza_extract_interlocutor_jid(ResetStanza),
+    case {MaybeCount, MaybeJid} of
+        {{error, Msg}, _} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        {_, {error, Msg}} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        {Count, InterlocutorJID} ->
+            process_reset_stanza(From, Acc, IQ, ResetStanza, Count, InterlocutorJID)
+    end.
+
+process_reset_stanza(From, Acc, IQ, _ResetStanza, Count, InterlocutorJID) ->
+    ok = mod_inbox_utils:reset_unread_count(From, InterlocutorJID, Count),
+    {Acc, IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"reset">>,
+                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
+                                 children = []}]}}.
 
 -spec forward_messages(List :: list(inbox_res()),
                        QueryId :: id(),
@@ -461,6 +499,32 @@ get_message_type(Msg) ->
             groupchat;
         _ ->
             one2one
+    end.
+
+reset_stanza_extract_count(ResetStanza) ->
+    MaybeCount = xml:get_tag_attr(<<"count">>, ResetStanza),
+    case MaybeCount of
+        false -> {error, invalid_field_value(<<"count">>, <<"No Count Provided">>)};
+        {value, Value} ->
+            case catch binary_to_integer(Value) of
+                {'EXIT', _} ->
+                    {error, invalid_field_value(<<"count">>, <<"Invalid integer">>)};
+                Val when Val < 0 ->
+                    {error, invalid_field_value(<<"count">>, <<"Invalid integer">>)};
+                Val -> Val
+            end
+    end.
+
+reset_stanza_extract_interlocutor_jid(ResetStanza) ->
+    MaybeJid = xml:get_tag_attr(<<"jid">>, ResetStanza),
+    case MaybeJid of
+        false ->
+            {error, invalid_field_value(<<"jid">>, <<"No Interlocutor JID provided">>)};
+        {value, Value} ->
+            case jid:from_binary(Value) of
+                error -> {error, invalid_field_value(<<"jid">>, <<"Not a valid JID">>)};
+                JID -> JID
+            end
     end.
 
 -spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
