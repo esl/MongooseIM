@@ -13,18 +13,20 @@
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
          get_inbox/2, get_inbox/3,
+         reset_inbox/2, reset_inbox/3,
          get_result_el/2,
          get_inbox_form_stanza/0,
          make_inbox_stanza/0,
          make_inbox_stanza/1,
          make_inbox_stanza/2,
-         make_reset_inbox_stanza/1,
+         make_reset_inbox_stanza/2,
          get_error_message/1,
          inbox_ns/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
          assert_invalid_inbox_form_value_error/3,
+         assert_invalid_reset_inbox_form/5,
          assert_message_content/3
         ]).
 % 1-1 helpers
@@ -251,25 +253,72 @@ make_inbox_stanza(GetParams, Verify) ->
                       children = [make_inbox_form(GetParams, Verify)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
--spec make_reset_inbox_stanza(jid:jid() | escalus:client() | atom() | binary() | string()) ->
-    exml:element().
-make_reset_inbox_stanza(InterlocutorJid) ->
-    make_reset_inbox_stanza(InterlocutorJid, 0).
+
+-spec reset_inbox(
+        escalus:client(),
+        jid:jid() | escalus:client() | atom() | binary() | string()) -> ok.
+reset_inbox(From, To) ->
+    reset_inbox(From, To, 0).
+
+-spec reset_inbox(
+        escalus:client(),
+        jid:jid() | escalus:client() | atom() | binary() | string(),
+        non_neg_integer()) -> ok.
+reset_inbox(From, To, Count) ->
+        ResetStanza = make_reset_inbox_stanza(To, Count),
+        escalus:send(From, ResetStanza),
+        Result = escalus:wait_for_stanza(From),
+        ?assert(escalus_pred:is_iq_result(ResetStanza, Result)),
+        ?assertNotEqual(undefined, exml_query:path(Result, [{element_with_ns, <<"reset">>,
+                                                             ?NS_ESL_INBOX_CONVERSATION}])).
 
 -spec make_reset_inbox_stanza(jid:jid() | escalus:client() | atom() | binary() | string(),
                               non_neg_integer() ) -> exml:element().
 make_reset_inbox_stanza(#jid{} = InterlocutorJid, Count) ->
     make_reset_inbox_stanza(jid:to_binary(jid:to_bare(InterlocutorJid)), Count);
+make_reset_inbox_stanza(InterlocutorJid, Count) when is_integer(Count) ->
+    make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid), integer_to_binary(Count));
 make_reset_inbox_stanza(InterlocutorJid, Count) ->
     escalus_stanza:iq(
       <<"set">>,
       [#xmlel{name = <<"reset">>,
               attrs = [
                        {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
-                       {<<"jid">>, escalus_utils:get_short_jid(InterlocutorJid)},
-                       {<<"count">>, integer_to_binary(Count)}
-                      ],
-              children = []}]).
+                       {<<"jid">>, InterlocutorJid},
+                       {<<"count">>, Count}
+                      ]}]).
+
+make_invalid_reset_inbox_stanza(undefined, undefined) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}]}]);
+make_invalid_reset_inbox_stanza(undefined, Count) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"count">>, Count}
+                      ]}]);
+make_invalid_reset_inbox_stanza(JID, undefined) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"jid">>, JID}
+                      ]}]);
+make_invalid_reset_inbox_stanza(JID, Count) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"jid">>, JID},
+                       {<<"count">>, Count}
+                      ]}]).
+
 
 -spec check_jid_fun(IsCaseSensitive :: boolean(), CheckResource :: boolean()) -> jid_verify_fun().
 check_jid_fun(true, true) ->
@@ -594,13 +643,18 @@ send_and_mark_msg(From, To) ->
     escalus:send(To, ChatMarker),
     Msg.
 
+assert_invalid_reset_inbox_form(From, To, Count, Field, Value) ->
+    ResetStanza = make_invalid_reset_inbox_stanza(To, Count),
+    assert_invalid_form(From, ResetStanza, Field, Value).
+
 assert_invalid_inbox_form_value_error(User, Field, Value) ->
     Stanza = inbox_helper:make_inbox_stanza( #{ Field => Value }, false),
+    assert_invalid_form(User, Stanza, Field, Value).
+
+assert_invalid_form(User, Stanza, Field, Value) ->
     escalus:send(User, Stanza),
     [ResIQ] = escalus:wait_for_stanzas(User, 1),
     escalus_pred:is_iq_error(ResIQ),
-    FieldRes = <<"field=",Field/binary>>,
-    ValueRes = <<"value=", Value/binary>>,
     ErrorMsg = get_error_message(ResIQ),
     assert_message_content(ErrorMsg, Field, Value).
 
