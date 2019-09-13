@@ -504,13 +504,17 @@ get_message_type(Msg) ->
 reset_stanza_extract_count(ResetStanza) ->
     MaybeCount = xml:get_tag_attr(<<"count">>, ResetStanza),
     case MaybeCount of
-        false -> {error, invalid_field_value(<<"count">>, <<"No Count Provided">>)};
+        false ->
+            ?DEBUG("event=invalid_inbox_form_field,field=count,value=not_provided", []),
+            {error, invalid_field_value(<<"count">>, <<"No Count Provided">>)};
         {value, Value} ->
             case catch binary_to_integer(Value) of
                 {'EXIT', _} ->
-                    {error, invalid_field_value(<<"count">>, <<"Invalid integer">>)};
+                    ?DEBUG("event=invalid_inbox_form_field,field=count,value=~c", [Value]),
+                    {error, invalid_field_value(<<"count">>, Value)};
                 Val when Val < 0 ->
-                    {error, invalid_field_value(<<"count">>, <<"Invalid integer">>)};
+                    ?DEBUG("event=invalid_inbox_form_field,field=count,value=~c", [Value]),
+                    {error, invalid_field_value(<<"count">>, Value)};
                 Val -> Val
             end
     end.
@@ -522,7 +526,9 @@ reset_stanza_extract_interlocutor_jid(ResetStanza) ->
             {error, invalid_field_value(<<"jid">>, <<"No Interlocutor JID provided">>)};
         {value, Value} ->
             case jid:from_binary(Value) of
-                error -> {error, invalid_field_value(<<"jid">>, <<"Not a valid JID">>)};
+                error ->
+                    ?ERROR_MSG("event=invalid_inbox_form_field,field=jid,value=~s", [Value]),
+                    {error, invalid_field_value(<<"jid">>, Value)};
                 JID -> JID
             end
     end.
