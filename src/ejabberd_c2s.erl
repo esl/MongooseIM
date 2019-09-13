@@ -41,7 +41,8 @@
          get_subscribed/1,
          send_filtered/5,
          broadcast/4,
-         store_session_info/5]).
+         store_session_info/5,
+         get_info/1]).
 
 %% gen_fsm callbacks
 -export([init/1,
@@ -91,6 +92,9 @@ socket_type() ->
 %% @doc Return Username, Resource and presence information
 get_presence(FsmRef) ->
     p1_fsm_old:sync_send_all_state_event(FsmRef, get_presence, 1000).
+
+get_info(FsmRef) ->
+    p1_fsm_old:sync_send_all_state_event(FsmRef, get_info, 5000).
 
 
 -spec get_aux_field(Key :: aux_key(),
@@ -994,6 +998,8 @@ handle_sync_event(get_presence, _From, StateName, StateData) ->
 
     Reply = {User, Resource, Show, Status},
     fsm_reply(Reply, StateName, StateData);
+handle_sync_event(get_info, _From, StateName, StateData) ->
+    {reply, make_c2s_info(StateData), StateName, StateData};
 handle_sync_event(get_subscribed, _From, StateName, StateData) ->
     Subscribed = gb_sets:to_list(StateData#state.pres_f),
     {reply, Subscribed, StateName, StateData};
@@ -3243,3 +3249,6 @@ hibernate() ->
 -spec maybe_hibernate(state()) -> hibernate | infinity | pos_integer().
 maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
 maybe_hibernate(#state{hibernate_after = HA}) -> HA.
+
+make_c2s_info(StateData = #state{stream_mgmt_buffer_size = SMBufSize}) ->
+    #{stream_mgmt_buffer_size => SMBufSize}.

@@ -547,16 +547,21 @@ resume_session_state_stop_c2s(Config) ->
     escalus_connection:get_stanza(Alice, presence),
 
     escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    %% Ack presence
     escalus_connection:send(Alice, escalus_stanza:sm_ack(1)),
 
     escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
+
+    %% get pid of c2s
+    {ok, C2SPid} = get_session_pid(AliceSpec, escalus_client:resource(Alice)),
+    %% Wait c2s process to process our presence ack.
+    %% Otherwise, we can receive two initial presences sometimes.
+    wait_for_c2s_unacked_count(C2SPid, 1),
 
     % kill alice connection
     escalus_connection:kill(Alice),
     % session should be alive
     1 = length(get_user_alive_resources(AliceSpec)),
-    %% get pid of c2s and stop him !
-    {ok, C2SPid} = get_session_pid(AliceSpec, escalus_client:resource(Alice)),
     rpc(mim(), ejabberd_c2s, stop, [C2SPid] ),
     wait_for_c2s_state_change(C2SPid, resume_session),
 
@@ -955,6 +960,14 @@ assert_no_offline_msgs() ->
 wait_for_c2s_state_change(C2SPid, NewStateName) ->
     mongoose_helper:wait_until(fun() -> get_c2s_state(C2SPid) end, NewStateName, 
                                 #{name => get_c2s_state, time_left => timer:seconds(5)}).
+
+wait_for_c2s_unacked_count(C2SPid, Count) ->
+    mongoose_helper:wait_until(fun() -> get_c2s_unacked_count(C2SPid) end, Count,
+                                #{name => get_c2s_state, time_left => timer:seconds(5)}).
+
+get_c2s_unacked_count(C2SPid) ->
+     Info = rpc(mim(), ejabberd_c2s, get_info, [C2SPid]),
+     maps:get(stream_mgmt_buffer_size, Info).
 
 assert_c2s_state(C2SPid, StateName) ->
     StateName = get_c2s_state(C2SPid).
