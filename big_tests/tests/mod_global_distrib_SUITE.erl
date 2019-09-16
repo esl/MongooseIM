@@ -236,7 +236,7 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 init_user_eve(Config) ->
-    %% Register Eve in fed cluster
+    %% Register Eve in reg cluster
     EveSpec = escalus_fresh:create_fresh_user(Config, eve),
     MimPort = ct:get_config({hosts, mim, c2s_port}),
     EveSpec2 = lists:keystore(port, 1, EveSpec, {port, MimPort}),
@@ -246,10 +246,11 @@ init_user_eve(Config) ->
 
 end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
                                   CN == test_pm_with_ungraceful_reconnection_to_different_server ->
-    EveSpec = ?config(evespec_mim, Config),
-    %% Unregister from mim cluster
-    %% escalus_fresh would unregister from fed cluster
-    escalus_users:delete_users(Config, [{eve, EveSpec}]),
+    MimEveSpec = ?config(evespec_mim, Config),
+    %% Clean Eve from reg cluster
+    escalus_fresh:clean(),
+    %% Clean Eve from mim cluster
+    escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
@@ -630,33 +631,58 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               StepsWithSM = [start_stream, stream_features, maybe_use_ssl,
                              authenticate, bind, session, stream_resumption],
 
-              {ok, Eve0, _} = escalus_connection:start(EveSpec, StepsWithSM),
-              Eve = Eve0#client{jid = common_helper:get_bjid(EveSpec)},
+              {ok, Eve, _} = escalus_connection:start(EveSpec, StepsWithSM),
               escalus_story:send_initial_presence(Eve),
               escalus_client:wait_for_stanza(Eve),
 
               %% Stop connection and wait for process to die
               EveNode = ct:get_config({hosts, reg, node}),
-              mongoose_helper:logout_user(Config, Eve0, EveNode),
+              C2sPid = mongoose_helper:get_session_pid(Eve, EveNode),
+              ok = rpc(asia_node, sys, suspend, [C2sPid]),
 
-              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
+              BareEve = Eve#client{jid = common_helper:get_bjid(EveSpec)},
+              escalus_client:send(Alice, chat_with_seqnum(BareEve, <<"Hi from Europe1!">>)),
 
+              %% We don't ack "Hi from Europe1!"
+
+              %% Yes, C2sPid receives the message
+              timer:sleep(3000),
+
+              %% Time to do bad nasty things with our socket, so once our process wakes up,
+              %% it SHOULD detect a dead socket
+              escalus_connection:kill(Eve),
+
+              %% Connect another one, we hope the message would be rerouted
               NewEve = connect_from_spec(EveSpec2, Config),
-              %% TODO: This basically makes it way less likely to fail. Fix some day.
-              timer:sleep(500),
 
-              escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
+              %% Yes, NewEve is registered
+              timer:sleep(3000),
+
+              %% Trigger rerouting
+              ok = rpc(asia_node, sys, resume, [C2sPid]),
+              C2sPid ! resume_timeout,
+
+              %% Let C2sPid to process the message and reroute (and die finally, poor little thing)
+              timer:sleep(3000),
+
+              escalus_client:send(Alice, chat_with_seqnum(BareEve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
-              FirstFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
-              SecondFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
-              AgainFromEve = escalus_client:wait_for_stanza(Alice),
+
+              FirstFromAlice = escalus_client:wait_for_stanza(NewEve),
+              SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
+              FromEve = escalus_client:wait_for_stanza(Alice),
 
               [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
 
               escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
-              escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
+              escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve),
+
+              timer:sleep(3000),
+
+              escalus_assert:has_no_stanzas(Alice),
+              escalus_assert:has_no_stanzas(NewEve)
           end).
 
 test_global_disco(Config) ->

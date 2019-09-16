@@ -25,6 +25,7 @@
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
+-export([get_session_pid/2]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -236,8 +237,7 @@ logout_user(Config, User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    Result = successful_rpc(Node, ejabberd_sm, get_session_pid,
-                            [Username, Server, Resource]),
+    Result = get_session_pid(User, Node),
     case Result of
         none ->
             %% This case can be a side effect of some error, you should
@@ -336,3 +336,11 @@ inject_module(Node, Module, reload) ->
     {Mod, Bin, File} = code:get_object_code(Module),
     successful_rpc(Node, code, load_binary, [Mod, File, Bin]).
 
+
+
+get_session_pid(User, Node) ->
+    Resource = escalus_client:resource(User),
+    Username = escalus_client:username(User),
+    Server = escalus_client:server(User),
+    successful_rpc(Node, ejabberd_sm, get_session_pid,
+                            [Username, Server, Resource]).
