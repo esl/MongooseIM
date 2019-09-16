@@ -419,6 +419,9 @@ group_chat_message_received_event_properly_formatted(Config) ->
               %% GIVEN users in room
               escalus:send(Alice, muc_helper:stanza_muc_enter_room(Room, nick(Alice))),
               escalus:send(Bob, muc_helper:stanza_muc_enter_room(Room, nick(Bob))),
+              % wait for all room stanzas to be processed
+              escalus:wait_for_stanzas(Alice, 3),
+              escalus:wait_for_stanzas(Bob, 3),
               %% GIVEN Room subscription to Rabbit
               % We subscribe to RMQ now and not earlier to avoid messages other
               % than the one we are testing, `Message` from Bob to Room, like
