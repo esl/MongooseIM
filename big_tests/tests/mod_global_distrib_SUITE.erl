@@ -229,9 +229,8 @@ init_per_testcase(CaseName, Config)
     hide_node(europe_node2, Config),
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
-init_per_testcase(test_pm_with_graceful_reconnection_to_different_server = CN, Config) ->
-    escalus:init_per_testcase(CN, init_user_eve(Config));
-init_per_testcase(test_pm_with_ungraceful_reconnection_to_different_server = CN, Config) ->
+init_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
+                                   CN == test_pm_with_ungraceful_reconnection_to_different_server ->
     escalus:init_per_testcase(CN, init_user_eve(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
