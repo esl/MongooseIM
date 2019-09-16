@@ -83,4 +83,4 @@ do
     sleep 15
 done
 
-./tools/wait_for_healthcheck.sh "$NAME"
+./tools/wait_for_healthcheck.sh "$NAME" || { docker logs $NAME; exit 1; }
