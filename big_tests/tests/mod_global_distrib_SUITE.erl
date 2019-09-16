@@ -643,10 +643,10 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               BareEve = Eve#client{jid = common_helper:get_bjid(EveSpec)},
               escalus_client:send(Alice, chat_with_seqnum(BareEve, <<"Hi from Europe1!">>)),
 
-              %% We don't ack "Hi from Europe1!"
+              %% We don't ack "Hi from Europe1!", fyi
 
-              %% Yes, C2sPid receives the message
-              timer:sleep(3000),
+              %% Wait for route message to be queued in c2s message queue
+              mongoose_helper:wait_for_route_message_count(C2sPid, 1),
 
               %% Time to do bad nasty things with our socket, so once our process wakes up,
               %% it SHOULD detect a dead socket
@@ -656,18 +656,16 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               NewEve = connect_from_spec(EveSpec2, Config),
 
               %% Yes, NewEve is registered
-              timer:sleep(3000),
 
               %% Trigger rerouting
               ok = rpc(asia_node, sys, resume, [C2sPid]),
               C2sPid ! resume_timeout,
 
               %% Let C2sPid to process the message and reroute (and die finally, poor little thing)
-              timer:sleep(3000),
+              mongoose_helper:wait_for_pid_to_die(C2sPid),
 
               escalus_client:send(Alice, chat_with_seqnum(BareEve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
-
 
               FirstFromAlice = escalus_client:wait_for_stanza(NewEve),
               SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
@@ -677,12 +675,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
 
               escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
-              escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve),
-
-              timer:sleep(3000),
-
-              escalus_assert:has_no_stanzas(Alice),
-              escalus_assert:has_no_stanzas(NewEve)
+              escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve)
           end).
 
 test_global_disco(Config) ->

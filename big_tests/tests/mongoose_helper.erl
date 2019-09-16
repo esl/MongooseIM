@@ -26,6 +26,8 @@
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
 -export([get_session_pid/2]).
+-export([wait_for_route_message_count/2]).
+-export([wait_for_pid_to_die/1]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -344,3 +346,21 @@ get_session_pid(User, Node) ->
     Server = escalus_client:server(User),
     successful_rpc(Node, ejabberd_sm, get_session_pid,
                             [Username, Server, Resource]).
+
+
+wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
+    mongoose_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
+
+count_route_messages(C2sPid) when is_pid(C2sPid) ->
+     {messages, Messages} = rpc:pinfo(C2sPid, messages),
+     length([Route || Route <- Messages, is_tuple(Route), route =:= element(1, Route)]).
+
+wait_for_pid_to_die(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    %% Wait for pid to die
+    receive
+        {'DOWN', MonitorRef, _, _, _} ->
+            ok
+        after 10000 ->
+            ct:fail({wait_for_pid_to_die_failed, Pid})
+    end.
