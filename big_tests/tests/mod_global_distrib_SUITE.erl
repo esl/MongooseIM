@@ -237,14 +237,19 @@ init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
 init_user_eve(Config) ->
+    %% Register Eve in fed cluster
     EveSpec = escalus_fresh:create_fresh_user(Config, eve),
     MimPort = ct:get_config({hosts, mim, c2s_port}),
     EveSpec2 = lists:keystore(port, 1, EveSpec, {port, MimPort}),
+    %% Register Eve in mim cluster
     escalus:create_users(Config, [{eve, EveSpec2}]),
-    [{evespec_reg, EveSpec}, {evespec_mim, EveSpec2} |Config].
+    [{evespec_reg, EveSpec}, {evespec_mim, EveSpec2} | Config].
 
-end_per_testcase(test_pm_with_graceful_reconnection_to_different_server = CN, Config) ->
+end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
+                                  CN == test_pm_with_ungraceful_reconnection_to_different_server ->
     EveSpec = ?config(evespec_mim, Config),
+    %% Unregister from mim cluster
+    %% escalus_fresh would unregister from fed cluster
     escalus_users:delete_users(Config, [{eve, EveSpec}]),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
@@ -580,16 +585,16 @@ test_pm_with_disconnection_on_other_server(Config) ->
 test_pm_with_graceful_reconnection_to_different_server(Config) ->
     EveSpec = ?config(evespec_reg, Config),
     EveSpec2 = ?config(evespec_mim, Config),
-    escalus:fresh_story_with_config(
+    escalus:fresh_story(
       Config, [{alice, 1}],
-      fun(FreshConfig, Alice) ->
+      fun(Alice) ->
               Eve = connect_from_spec(EveSpec, Config),
 
               escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
               %% Stop connection and wait for process to die
               EveNode = ct:get_config({hosts, reg, node}),
-              mongoose_helper:logout_user(FreshConfig, Eve, EveNode),
+              mongoose_helper:logout_user(Config, Eve, EveNode),
 
               FromEve = escalus_client:wait_for_stanza(Alice),
 
@@ -620,10 +625,9 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
     EveSpec = ?config(evespec_reg, Config),
     EveSpec2 = ?config(evespec_mim, Config),
-    try
-        escalus:fresh_story(
-          Config, [{alice, 1}],
-          fun(Alice) ->
+    escalus:fresh_story(
+      Config, [{alice, 1}],
+      fun(Alice) ->
               StepsWithSM = [start_stream, stream_features, maybe_use_ssl,
                              authenticate, bind, session, stream_resumption],
 
@@ -632,7 +636,9 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus_story:send_initial_presence(Eve),
               escalus_client:wait_for_stanza(Eve),
 
-              escalus_connection:kill(Eve),
+              %% Stop connection and wait for process to die
+              EveNode = ct:get_config({hosts, reg, node}),
+              mongoose_helper:logout_user(Config, Eve0, EveNode),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
 
@@ -644,12 +650,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
               FirstFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
-              SecondFromAlice = try escalus_client:wait_for_stanza(NewEve, timer:seconds(10))
-                                catch
-                                    error:timeout_when_waiting_for_stanza ->
-                                        ct:log("Eve had received ~p~n", [FirstFromAlice]),
-                                        throw(global_distrib_issue)
-                                end,
+              SecondFromAlice = escalus_client:wait_for_stanza(NewEve, timer:seconds(10)),
               AgainFromEve = escalus_client:wait_for_stanza(Alice),
 
               [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
@@ -657,11 +658,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
               escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
               escalus:assert(is_chat_message, [<<"Hi from Asia!">>], AgainFromEve)
-          end)
-    catch
-        throw:global_distrib_issue -> {skip, "Test skipped, failure is known and not relevant"}
-    end.
-
+          end).
 
 test_global_disco(Config) ->
     escalus:fresh_story(
