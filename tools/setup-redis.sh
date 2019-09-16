@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 source tools/travis-common-vars.sh
 NAME=$(db_name redis)
