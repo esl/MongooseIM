@@ -230,20 +230,22 @@ init_per_testcase(CaseName, Config)
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(test_pm_with_graceful_reconnection_to_different_server = CN, Config) ->
-    EveSpec = escalus_fresh:freshen_spec(Config, eve),
-    escalus:create_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
-    escalus:init_per_testcase(CN, [{evespec_mim, EveSpec} |Config]);
+    escalus:init_per_testcase(CN, init_user_eve(Config));
 init_per_testcase(test_pm_with_ungraceful_reconnection_to_different_server = CN, Config) ->
-    EveSpec = escalus_fresh:create_fresh_user(Config, eve),
-    EveSpec2 = lists:keystore(port, 1, EveSpec, {port, 5222}),
-    escalus:create_users(Config, [{eve, EveSpec2}]),
-    escalus:init_per_testcase(CN, [{evespec_reg, EveSpec}, {evespec_mim, EveSpec2} |Config]);
+    escalus:init_per_testcase(CN, init_user_eve(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+init_user_eve(Config) ->
+    EveSpec = escalus_fresh:create_fresh_user(Config, eve),
+    MimPort = ct:get_config({hosts, mim, c2s_port}),
+    EveSpec2 = lists:keystore(port, 1, EveSpec, {port, MimPort}),
+    escalus:create_users(Config, [{eve, EveSpec2}]),
+    [{evespec_reg, EveSpec}, {evespec_mim, EveSpec2} |Config].
+
 end_per_testcase(test_pm_with_graceful_reconnection_to_different_server = CN, Config) ->
     EveSpec = ?config(evespec_mim, Config),
-    escalus_users:delete_users(Config, [{eve, [{port, 5222} | EveSpec]}]),
+    escalus_users:delete_users(Config, [{eve, EveSpec}]),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
@@ -576,8 +578,8 @@ test_pm_with_disconnection_on_other_server(Config) ->
       end).
 
 test_pm_with_graceful_reconnection_to_different_server(Config) ->
-    EveSpec = escalus_fresh:freshen_spec(Config, eve),
-    escalus:create_users(Config, [{eve, [{port, ct:get_config(c2s_port)} | EveSpec]}]),
+    EveSpec = ?config(evespec_reg, Config),
+    EveSpec2 = ?config(evespec_mim, Config),
     escalus:fresh_story_with_config(
       Config, [{alice, 1}],
       fun(FreshConfig, Alice) ->
@@ -592,7 +594,7 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               FromEve = escalus_client:wait_for_stanza(Alice),
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
-              NewEve = connect_from_spec([{port, 5222} | EveSpec], Config),
+              NewEve = connect_from_spec(EveSpec2, Config),
               %% TODO: This basically makes it way less likely to fail. Fix some day.
               timer:sleep(500),
 
