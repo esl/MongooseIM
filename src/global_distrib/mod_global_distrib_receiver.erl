@@ -58,8 +58,7 @@ start_link(Ref, Socket, ranch_tcp, Opts) ->
 
 -spec start(Host :: jid:lserver(), Opts :: proplists:proplist()) -> any().
 start(Host, Opts0) ->
-    {local_host, LocalHost} = lists:keyfind(local_host, 1, Opts0),
-    Opts = [{endpoints, [{LocalHost, 5555}]} | Opts0],
+    Opts = prepare_opts(Opts0),
     mod_global_distrib_utils:start(?MODULE, Host, Opts, fun start/0).
 
 -spec stop(Host :: jid:lserver()) -> any().
@@ -118,6 +117,14 @@ terminate(_Reason, State) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+prepare_opts(Opts0) ->
+    case lists:keyfind(local_host, 1, Opts0) of
+        {local_host, LocalHost} ->
+            [{endpoints, [{LocalHost, 5555}]} | Opts0];
+        _ ->
+            error({missing_option, local_host}, [Opts0])
+    end.
 
 -spec start() -> any().
 start() ->

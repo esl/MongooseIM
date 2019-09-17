@@ -897,7 +897,8 @@ enable_new_endpoint_on_refresh(Config) ->
 
     {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
-    NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
+    ExtraPort = get_port(reg, gd_extra_endpoint_port),
+    NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
 
     {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
@@ -908,7 +909,8 @@ enable_new_endpoint_on_refresh(Config) ->
     [] = Enabled1 -- Enabled2.
 
 disable_endpoint_on_refresh(Config) ->
-    enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
+    ExtraPort = get_port(reg, gd_extra_endpoint_port),
+    enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
 
     get_connection(europe_node1, <<"reg1">>),
 
@@ -969,27 +971,36 @@ closed_connection_is_removed_from_disabled(_Config) ->
     {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     % Will drop connections and prevent them from reconnecting
-    restart_receiver(asia_node, [listen_endpoint(10001)]),
+    restart_receiver(asia_node, [listen_endpoint(get_port(reg, gd_supplementary_endpoint_port))]),
 
     mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
                                {[], [], []},
                               #{name => get_outgoing_connections}).
 
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
 
+get_port(Host, Param) ->
+    case ct:get_config({hosts, Host, Param}) of
+        Port when is_integer(Port) ->
+            Port;
+        Other ->
+            ct:fail({get_port_failed, Host, Param, Other})
+    end.
+
 get_hosts() ->
     [
-     {europe_node1, "localhost.bis", 5555},
-     {europe_node2, "localhost.bis", 6666},
-     {asia_node, "reg1", 7777}
+     {europe_node1, "localhost.bis", get_port(mim, gd_endpoint_port)},
+     {europe_node2, "localhost.bis", get_port(mim2, gd_endpoint_port)},
+     {asia_node, "reg1", get_port(reg, gd_endpoint_port)}
     ].
 
 listen_endpoint(NodeName) when is_atom(NodeName) ->
     {_, _, Port} = lists:keyfind(NodeName, 1, get_hosts()),
     listen_endpoint(Port);
-listen_endpoint(Port) ->
+listen_endpoint(Port) when is_integer(Port) ->
     {{127, 0, 0, 1}, Port}.
 
 rpc(NodeName, M, F, A) ->
@@ -1077,7 +1088,7 @@ redis_query(Node, Query) ->
 %% Used in test_advertised_endpoints_override_endpoints testcase.
 advertised_endpoints() ->
     [
-     {fake_domain(), 7777}
+     {fake_domain(), get_port(reg, gd_endpoint_port)}
     ].
 
 fake_domain() ->
