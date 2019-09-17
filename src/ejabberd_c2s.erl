@@ -2752,8 +2752,9 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
                                        stream_mgmt_ack_freq = AckFreq,
                                        stream_mgmt_resume_timeout = ResumeTimeout});
         {?NS_STREAM_MGNT_3, _, _} ->
-            %% already on, ignore
-            fsm_next_state(NextState, StateData);
+            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
+            send_trailer(StateData),
+            {stop, normal, StateData};
         {_, _, _} ->
             %% invalid namespace
             send_element_from_server_jid(StateData, mongoose_xmpp_errors:invalid_namespace()),
