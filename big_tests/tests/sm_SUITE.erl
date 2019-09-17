@@ -43,6 +43,7 @@ parallel_test_cases() ->
      server_returns_failed_after_start,
      server_returns_failed_after_auth,
      server_enables_resumption,
+     client_enables_sm_twice_fails,
      basic_ack,
      h_ok_before_session,
      h_ok_after_session_enabled_before_session,
@@ -177,6 +178,17 @@ server_returns_failed(Config, ConnActions) ->
     escalus:assert(is_sm_failed, [<<"unexpected-request">>],
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
+client_enables_sm_twice_fails(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = connection_steps_to_session(),
+    {ok, Alice, Features} = escalus_connection:start(AliceSpec, Steps),
+    escalus_session:stream_management(Alice, Features),
+    escalus_connection:send(Alice, escalus_stanza:enable_sm()),
+    escalus:assert(is_sm_failed, [<<"unexpected-request">>],
+                   escalus_connection:get_stanza(Alice, enable_sm_failed)),
+    escalus:assert(is_stream_end,
+                   escalus_connection:get_stanza(Alice, enable_sm_failed)),
+    false = escalus_connection:is_connected(Alice).
 
 basic_ack(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
