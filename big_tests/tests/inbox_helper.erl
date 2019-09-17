@@ -25,6 +25,7 @@
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
+         assert_has_no_stanzas/1,
          assert_invalid_inbox_form_value_error/3,
          assert_invalid_reset_inbox_form/4,
          assert_message_content/3
@@ -610,6 +611,11 @@ send_and_mark_msg(From, To) ->
     ChatMarker = escalus_stanza:chat_marker(From, <<"displayed">>, MsgId),
     escalus:send(To, ChatMarker),
     Msg.
+
+assert_has_no_stanzas(UsersList) when is_list(UsersList) ->
+    lists:foreach(fun(User) -> ?assertNot(escalus_client:has_stanzas(User)) end, UsersList);
+assert_has_no_stanzas(User) ->
+    ?assertNot(escalus_client:has_stanzas(User)).
 
 assert_invalid_reset_inbox_form(From, To, Field, Value) ->
     ResetStanza = make_reset_inbox_stanza(To),

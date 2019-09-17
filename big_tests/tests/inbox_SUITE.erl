@@ -595,7 +595,7 @@ reset_unread_counter_with_reset_stanza(Config) ->
         %% Now Mike asks for inbox second time. He has 0 unread messages now
         check_inbox(Mike, [#conv{unread = 0, from = Kate, to = Mike, content = <<"Hi mike">>}]),
         %% Kate should not be receiving this stanza
-        ?assertNot(escalus_client:has_stanzas(Kate))
+        inbox_helper:assert_has_no_stanzas(Kate)
       end).
 
 reset_unread_counter_and_show_only_unread(Config) ->
@@ -825,12 +825,7 @@ groupchat_markers_one_reset_reset_stanza(Config) ->
         MsgStanza = escalus_stanza:set_id(
           escalus_stanza:groupchat_to(RoomJid, <<"marker time!">>), <<"some_ID">>),
         escalus:send(Alice, MsgStanza),
-        R0 = escalus:wait_for_stanza(Alice),
-        R1 = escalus:wait_for_stanza(Bob),
-        R2 = escalus:wait_for_stanza(Kate),
-        escalus:assert(is_groupchat_message, R0),
-        escalus:assert(is_groupchat_message, R1),
-        escalus:assert(is_groupchat_message, R2),
+        inbox_helper:wait_for_groupchat_msg([Alice, Bob, Kate]),
         % verify that Bob has the message on inbox
         check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid,
                                 to = BobJid, content = <<"marker time!">>}]),
@@ -847,9 +842,7 @@ groupchat_markers_one_reset_reset_stanza(Config) ->
         check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid,
                                  to = KateJid, content = <<"marker time!">>}]),
         %% And nobody received any other stanza
-        ?assertNot(escalus_client:has_stanzas(Alice)),
-        ?assertNot(escalus_client:has_stanzas(Bob)),
-        ?assertNot(escalus_client:has_stanzas(Kate))
+        inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
       end).
 
 %% this test combines options:
@@ -1242,9 +1235,7 @@ unread_count_is_reset_after_sending_reset_stanza(Config) ->
         %% Kate has 0 unread messages
         check_inbox(Kate, [#conv{unread = 0, from = BobRoomJid, to = KateJid, content = Msg}],
                     #{}, #{case_sensitive => true}),
-        ?assertNot(escalus_client:has_stanzas(Alice)),
-        ?assertNot(escalus_client:has_stanzas(Bob)),
-        ?assertNot(escalus_client:has_stanzas(Kate))
+        inbox_helper:assert_has_no_stanzas([Alice, Bob, Kate])
       end).
 
 private_messages_are_handled_as_one2one(Config) ->
