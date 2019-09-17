@@ -25,9 +25,6 @@
          returns_error_when_bad_form_field_hidden_read_sent/1,
          returns_error_when_bad_reset_field_jid/1,
          returns_error_when_no_reset_field_jid/1,
-         returns_error_when_bad_reset_field_count/1,
-         returns_error_when_negative_reset_field_count/1,
-         returns_error_when_no_reset_field_count/1,
          returns_error_when_unknown_field_sent/1
         ]).
 -export([msg_sent_stored_in_inbox/1,
@@ -80,7 +77,7 @@
                        clear_inbox_all/0,
                        given_conversations_between/2,
                        assert_invalid_inbox_form_value_error/3,
-                       assert_invalid_reset_inbox_form/5
+                       assert_invalid_reset_inbox_form/4
                       ]).
 
 -define(ROOM, <<"testroom1">>).
@@ -124,9 +121,6 @@ groups() ->
            returns_error_when_bad_form_field_hidden_read_sent,
            returns_error_when_bad_reset_field_jid,
            returns_error_when_no_reset_field_jid,
-           returns_error_when_bad_reset_field_count,
-           returns_error_when_negative_reset_field_count,
-           returns_error_when_no_reset_field_count,
            returns_error_when_unknown_field_sent
           ]},
          {one_to_one, [sequence],
@@ -405,32 +399,13 @@ returns_error_when_bad_form_field_hidden_read_sent(Config) ->
 returns_error_when_bad_reset_field_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_reset_inbox_form(
-        Alice, <<"$@/">>, <<"0">>, <<"jid">>, <<"$@/">>)
+        Alice, <<"$@/">>, <<"jid">>, <<"$@/">>)
     end).
 
 returns_error_when_no_reset_field_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
       assert_invalid_reset_inbox_form(
-        Alice, undefined, <<"0">>, <<"jid">>, <<"No Interlocutor JID provided">>)
-    end).
-
-
-returns_error_when_bad_reset_field_count(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-      assert_invalid_reset_inbox_form(
-        Alice, <<"bob@localhost">>, <<"bad_count">>, <<"count">>, <<"bad_count">>)
-    end).
-
-returns_error_when_negative_reset_field_count(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-      assert_invalid_reset_inbox_form(
-        Alice, <<"bob@localhost">>, <<"-1">>, <<"count">>, <<"-1">>)
-    end).
-
-returns_error_when_no_reset_field_count(Config) ->
-    escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-      assert_invalid_reset_inbox_form(
-        Alice, <<"bob@localhost">>, undefined, <<"count">>, <<"No Count Provided">>)
+        Alice, undefined, <<"jid">>, <<"No Interlocutor JID provided">>)
     end).
 
 
@@ -615,12 +590,6 @@ reset_unread_counter_with_reset_stanza(Config) ->
 
         %% Mike has one unread message
         check_inbox(Mike, [#conv{unread = 1, from = Kate, to = Mike, content = <<"Hi mike">>}]),
-        %% Mike sends "reset" stanza with high counter
-        inbox_helper:reset_inbox(Mike, Kate, 10),
-        %% Now Mike asks for inbox second time. He has 10 unread messages now
-        check_inbox(Mike, [#conv{unread = 10, from = Kate, to = Mike, content = <<"Hi mike">>}]),
-        %% Kate should not be receiving this stanza
-        ?assertNot(escalus_client:has_stanzas(Kate)),
         %% Mike sends "reset" stanza
         inbox_helper:reset_inbox(Mike, Kate),
         %% Now Mike asks for inbox second time. He has 0 unread messages now
@@ -866,23 +835,8 @@ groupchat_markers_one_reset_reset_stanza(Config) ->
         check_inbox(Bob, [#conv{unread = 1, from = AliceRoomJid,
                                 to = BobJid, content = <<"marker time!">>}]),
         % %% AND WHEN SEND RESET FOR ROOM
-        % %% THEN INBOX IS RESET FOR BOB, WITHOUT FORWARDING
-        inbox_helper:reset_inbox(Bob, RoomJid, 10),
-        %% Bob has 10 unread messages because he reset his counter
-        check_inbox(Bob, [#conv{unread = 10, from = AliceRoomJid,
-                                to = BobJid, content = <<"marker time!">>}]),
-        %% Alice has 0 unread messages because she was the sender
-        check_inbox(Alice, [#conv{unread = 0, from = AliceRoomJid,
-                                  to = AliceJid, content = <<"marker time!">>}]),
-        %% Kate still has unread message
-        check_inbox(Kate, [#conv{unread = 1, from = AliceRoomJid,
-                                 to = KateJid, content = <<"marker time!">>}]),
-        %% And nobody received any other stanza
-        ?assertNot(escalus_client:has_stanzas(Alice)),
-        ?assertNot(escalus_client:has_stanzas(Bob)),
-        ?assertNot(escalus_client:has_stanzas(Kate)),
-
         inbox_helper:reset_inbox(Bob, RoomJid),
+        % %% THEN INBOX IS RESET FOR BOB, WITHOUT FORWARDING
         %% Bob has 0 unread messages because he reset his counter
         check_inbox(Bob, [#conv{unread = 0, from = AliceRoomJid,
                                 to = BobJid, content = <<"marker time!">>}]),
@@ -1275,29 +1229,14 @@ unread_count_is_reset_after_sending_reset_stanza(Config) ->
         escalus:send(Bob, Stanza),
         inbox_helper:wait_for_groupchat_msg(Users),
         % %% AND WHEN SEND RESET FOR ROOM
-        % %% THEN INBOX IS RESET FOR KATE, WITHOUT FORWARDING
-        inbox_helper:reset_inbox(Kate, RoomAddr, 10),
-        [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
-        BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
-        %% Bob has 0 unread messages
-        check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg}],
-                    #{}, #{case_sensitive => true}),
-        %% Alice has one conv with 1 unread message
-        check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}],
-                    #{}, #{case_sensitive => true}),
-        %% Kate has 10 unread messages
-        check_inbox(Kate, [#conv{unread = 10, from = BobRoomJid, to = KateJid, content = Msg}],
-                    #{}, #{case_sensitive => true}),
-        ?assertNot(escalus_client:has_stanzas(Alice)),
-        ?assertNot(escalus_client:has_stanzas(Bob)),
-        ?assertNot(escalus_client:has_stanzas(Kate)),
         inbox_helper:reset_inbox(Kate, RoomAddr),
+
         [AliceJid, BobJid, KateJid] = lists:map(fun inbox_helper:to_bare_lower/1, Users),
         BobRoomJid = muc_helper:room_address(Room, inbox_helper:nick(Bob)),
         %% Bob has 0 unread messages
         check_inbox(Bob, [#conv{unread = 0, from = BobRoomJid, to = BobJid, content = Msg}],
                     #{}, #{case_sensitive => true}),
-        %% Alice has one conv with 1 unread message
+        %% Alice have one conv with 1 unread message
         check_inbox(Alice, [#conv{unread = 1, from = BobRoomJid, to = AliceJid, content = Msg}],
                     #{}, #{case_sensitive => true}),
         %% Kate has 0 unread messages

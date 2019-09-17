@@ -85,16 +85,14 @@ An inbox can be reset at will using the stanza
 
 ```xml
 <iq type='set'>
-    <reset xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='interlocutor_bare_jid' count='X'/>
+    <reset xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='interlocutor_bare_jid'/>
 </iq>
 ```
 
-Where `jid` is the bare jid of the interlocutor whose inbox wants to be reset,
-and `count` is the value that wants to be set, which will most often be zero.
-
-Regardless of the count value that is being set, the last message stored in
-inbox is not changed by the usage of this stanza. That is, nor this stanza nor
-anything given within will be stored; only the inbox `unread_count` changes.
+Where `jid` is the bare jid of the interlocutor whose inbox wants to be reset.
+This action does not change the last message stored in inbox; that is, nor this
+stanza nor anything given within will be stored; only the inbox `unread_count`
+changes to zero.
 
 Resetting the inbox count by this stanza will also skip the forwarding of
 messages. While a typical chat marker will be forwarded to the interlocutor(s),

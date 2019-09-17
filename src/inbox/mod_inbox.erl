@@ -177,19 +177,15 @@ process_iq_conversation(From, _To, Acc,
     maybe_process_reset_stanza(From, Acc, IQ, ResetStanza).
 
 maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
-    MaybeCount = reset_stanza_extract_count(ResetStanza),
-    MaybeJid = reset_stanza_extract_interlocutor_jid(ResetStanza),
-    case {MaybeCount, MaybeJid} of
-        {{error, Msg}, _} ->
+    case reset_stanza_extract_interlocutor_jid(ResetStanza) of
+        {error, Msg} ->
             {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
-        {_, {error, Msg}} ->
-            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
-        {Count, InterlocutorJID} ->
-            process_reset_stanza(From, Acc, IQ, ResetStanza, Count, InterlocutorJID)
+        InterlocutorJID ->
+            process_reset_stanza(From, Acc, IQ, ResetStanza, InterlocutorJID)
     end.
 
-process_reset_stanza(From, Acc, IQ, _ResetStanza, Count, InterlocutorJID) ->
-    ok = mod_inbox_utils:reset_unread_count(From, InterlocutorJID, Count),
+process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
+    ok = mod_inbox_utils:reset_unread_count(From, InterlocutorJID, 0),
     {Acc, IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
                                  attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
@@ -499,24 +495,6 @@ get_message_type(Msg) ->
             groupchat;
         _ ->
             one2one
-    end.
-
-reset_stanza_extract_count(ResetStanza) ->
-    MaybeCount = xml:get_tag_attr(<<"count">>, ResetStanza),
-    case MaybeCount of
-        false ->
-            ?DEBUG("event=invalid_inbox_form_field,field=count,value=not_provided", []),
-            {error, invalid_field_value(<<"count">>, <<"No Count Provided">>)};
-        {value, Value} ->
-            case catch binary_to_integer(Value) of
-                {'EXIT', _} ->
-                    ?DEBUG("event=invalid_inbox_form_field,field=count,value=~c", [Value]),
-                    {error, invalid_field_value(<<"count">>, Value)};
-                Val when Val < 0 ->
-                    ?DEBUG("event=invalid_inbox_form_field,field=count,value=~c", [Value]),
-                    {error, invalid_field_value(<<"count">>, Value)};
-                Val -> Val
-            end
     end.
 
 reset_stanza_extract_interlocutor_jid(ResetStanza) ->
