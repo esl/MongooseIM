@@ -59,6 +59,7 @@ clustering_two_tests() ->
      leave_unsuccessful,
      leave_but_no_cluster,
      join_twice,
+     leave_using_rpc,
      leave_twice].
 
 clustering_three_tests() ->
@@ -184,6 +185,15 @@ one_to_one_message(ConfigIn) ->
 %%--------------------------------------------------------------------
 
 set_master_test(ConfigIn) ->
+    Host = ct:get_config({hosts, mim, domain}),
+    Node1 = ct:get_config({hosts, mim, node}),
+    Node2 = ct:get_config({hosts, mim2, node}),
+
+    %% To ensure that passwd table exists.
+    %% We also need at least two nodes for set_master to work.
+    catch distributed_helper:rpc(Node1, ejabberd_auth_internal, start, [Host]),
+    catch distributed_helper:rpc(Node2, ejabberd_auth_internal, start, [Host]),
+
     TableName = passwd,
     NodeList =  rpc_call(mnesia, system_info, [running_db_nodes]),
     ejabberdctl("set_master", ["self"], ConfigIn),
@@ -278,6 +288,18 @@ join_twice(Config) ->
     distributed_helper:verify_result(Node2, add),
     ?eq(0, OpCode1),
     ?ne(0, OpCode2).
+
+leave_using_rpc(Config) ->
+    %% given
+    Node1 = mim(),
+    Node2 = mim2(),
+    add_node_to_cluster(Node2, Config),
+    %% when
+    Result = distributed_helper:rpc(Node1, ejabberd_admin, leave_cluster, [], timer:seconds(30)),
+    ct:pal("leave_using_rpc result ~p~n", [Result]),
+    %% then
+    distributed_helper:verify_result(Node2, remove),
+    ok.
 
 leave_twice(Config) ->
     %% given
