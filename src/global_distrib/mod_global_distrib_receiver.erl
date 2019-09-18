@@ -84,10 +84,17 @@ init({Ref, RawSocket, _Opts}) ->
 %%--------------------------------------------------------------------
 
 handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State) ->
-    ok = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
+    SetOptsResult = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
     {ok, Data} = mod_global_distrib_transport:recv_data(Socket, RawData),
     NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
-    {noreply, NewState};
+    case SetOptsResult of
+        ok ->
+            {noreply, NewState};
+        {error, closed} ->
+            {stop, normal, NewState};
+        _ ->
+            {stop, {setopts_failed, SetOptsResult}, NewState}
+    end;
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
