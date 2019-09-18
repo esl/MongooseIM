@@ -24,7 +24,7 @@ mkdir -p "$LDAP_SCHEMAS_DIR" "$LDAP_DATA_DIR" "$LDAP_CONFIG_DIR" "$LDAP_CERT_DIR
 
 function write_init_entries
 {
-cat > "$LDAP_SCHEMAS_DIR/init_entries$1.ldif" << EOL
+    cat > "$LDAP_SCHEMAS_DIR/init_entries$1.ldif" << EOL
 dn: ou=Users$1,dc=esl,dc=com
 objectClass: organizationalUnit
 EOL

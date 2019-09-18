@@ -96,9 +96,9 @@ wait_until_bucket_type_status(Type, ExpectedStatus, Node) ->
     ok = wait_until(F, 30, 100).
 
 
-%% @doc Retry `Fun' until it returns `Retry' times, waiting `Delay'
-%% milliseconds between retries. This is our eventual consistency bread
-%% and butter
+%% @doc Retry `Fun' until it returns true.
+%% Repeat maximum `Retry' times.
+%% Wait `Delay' milliseconds between retries.
 wait_until(Fun, Retry, Delay) when Retry > 0 ->
     Res = Fun(),
     case Res of
