@@ -185,7 +185,7 @@ maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
     end.
 
 process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
-    ok = mod_inbox_utils:reset_unread_count(From, InterlocutorJID, 0),
+    ok = mod_inbox_utils:reset_unread_count_to_zero(From, InterlocutorJID),
     {Acc, IQ#iq{type = result,
                 sub_el = [#xmlel{name = <<"reset">>,
                                  attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
