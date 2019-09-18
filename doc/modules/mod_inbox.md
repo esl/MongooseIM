@@ -81,7 +81,7 @@ Server:
 
 ### Reseting inbox
 
-An inbox can be reset at will using the stanza
+You can reset the inbox with the following stanza:
 
 ```xml
 <iq type='set'>
@@ -89,15 +89,15 @@ An inbox can be reset at will using the stanza
 </iq>
 ```
 
-Where `jid` is the bare jid of the interlocutor whose inbox wants to be reset.
-This action does not change the last message stored in inbox; that is, nor this
-stanza nor anything given within will be stored; only the inbox `unread_count`
-changes to zero.
+Here `jid` is the bare jid of the user whose inbox we want to reset. This action
+does not change the last message stored in inbox; meaning that neither this
+stanza nor anything given within will be stored; the only change is the inbox
+`unread_count` is set to zero.
 
-Resetting the inbox count by this stanza will also skip the forwarding of
-messages. While a typical chat marker will be forwarded to the interlocutor(s),
-(including the case of a big groupchat with thousands of participants!), this
-reset stanza will not.
+Resetting the inbox count will also skip the forwarding of messages. While a
+typical chat marker will be forwarded to the interlocutor(s), (including the
+case of a big groupchat with thousands of participants!), this reset stanza will
+not.
 
 ### Example Request
 

@@ -48,7 +48,7 @@
          advanced_groupchat_stored_in_all_inbox/1,
          groupchat_markers_one_reset/1,
          non_reset_marker_should_not_affect_muclight_inbox/1,
-         groupchat_markers_one_reset_reset_stanza/1,
+         groupchat_reset_stanza_resets_inbox/1,
          create_groupchat/1,
          create_groupchat_no_affiliation_stored/1,
          leave_and_remove_conversation/1,
@@ -77,7 +77,7 @@
                        clear_inbox_all/0,
                        given_conversations_between/2,
                        assert_invalid_inbox_form_value_error/3,
-                       assert_invalid_reset_inbox_form/4
+                       assert_invalid_reset_inbox/4
                       ]).
 
 -define(ROOM, <<"testroom1">>).
@@ -148,7 +148,7 @@ groups() ->
            advanced_groupchat_stored_in_all_inbox,
            groupchat_markers_one_reset,
            non_reset_marker_should_not_affect_muclight_inbox,
-           groupchat_markers_one_reset_reset_stanza,
+           groupchat_reset_stanza_resets_inbox,
            create_groupchat,
            create_groupchat_no_affiliation_stored,
            leave_and_remove_conversation,
@@ -262,11 +262,11 @@ init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
     muc_light_helper:create_room(?ROOM_MARKERS2, muclight_domain(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
     escalus:init_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
-init_per_testcase(groupchat_markers_one_reset_reset_stanza, Config) ->
+init_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
     clear_inbox_all(),
     muc_light_helper:create_room(?ROOM_MARKERS_RESET, muclight_domain(), alice, [bob, kate],
                                  Config, muc_light_helper:ver(1)),
-    escalus:init_per_testcase(groupchat_markers_one_reset_reset_stanza, Config);
+    escalus:init_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
 init_per_testcase(leave_and_remove_conversation, Config) ->
     clear_inbox_all(),
     muc_light_helper:create_room(?ROOM2, muclight_domain(), alice, [bob, kate],
@@ -314,10 +314,10 @@ end_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
     escalus:end_per_testcase(non_reset_marker_should_not_affect_muclight_inbox, Config);
-end_per_testcase(groupchat_markers_one_reset_reset_stanza, Config) ->
+end_per_testcase(groupchat_reset_stanza_resets_inbox, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
-    escalus:end_per_testcase(groupchat_markers_one_reset_reset_stanza, Config);
+    escalus:end_per_testcase(groupchat_reset_stanza_resets_inbox, Config);
 end_per_testcase(leave_and_remove_conversation, Config) ->
     clear_inbox_all(),
     inbox_helper:restore_inbox_option(Config),
@@ -398,13 +398,13 @@ returns_error_when_bad_form_field_hidden_read_sent(Config) ->
 
 returns_error_when_bad_reset_field_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-      assert_invalid_reset_inbox_form(
+      assert_invalid_reset_inbox(
         Alice, <<"$@/">>, <<"jid">>, <<"$@/">>)
     end).
 
 returns_error_when_no_reset_field_jid(Config) ->
     escalus:fresh_story(Config, [{alice, 1}], fun(Alice) ->
-      assert_invalid_reset_inbox_form(
+      assert_invalid_reset_inbox(
         Alice, undefined, <<"jid">>, <<"No Interlocutor JID provided">>)
     end).
 
@@ -813,7 +813,7 @@ non_reset_marker_should_not_affect_muclight_inbox(Config) ->
                                  to = KateJid, content = Msg}])
       end).
 
-groupchat_markers_one_reset_reset_stanza(Config) ->
+groupchat_reset_stanza_resets_inbox(Config) ->
     escalus:story(Config, [{alice, 1}, {bob, 1}, {kate, 1}], fun(Alice, Bob, Kate) ->
         % %% WITH
         AliceJid = inbox_helper:to_bare_lower(Alice),

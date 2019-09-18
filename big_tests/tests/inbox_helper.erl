@@ -27,7 +27,7 @@
          timestamp_from_item/1,
          assert_has_no_stanzas/1,
          assert_invalid_inbox_form_value_error/3,
-         assert_invalid_reset_inbox_form/4,
+         assert_invalid_reset_inbox/4,
          assert_message_content/3
         ]).
 % 1-1 helpers
@@ -267,8 +267,7 @@ reset_inbox(From, To) ->
         ?assertNotEqual(undefined, exml_query:path(Result, [{element_with_ns, <<"reset">>,
                                                              ?NS_ESL_INBOX_CONVERSATION}])).
 
--spec make_reset_inbox_stanza(
-        undefined | jid:jid() | escalus:client() | atom() | string() | binary()) -> exml:element().
+-spec make_reset_inbox_stanza(undefined | escalus:client() | binary()) -> exml:element().
 make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
     escalus_stanza:iq(
       <<"set">>,
@@ -284,8 +283,6 @@ make_reset_inbox_stanza(undefined) ->
               attrs = [
                        {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}
                       ]}]);
-make_reset_inbox_stanza(#jid{} = InterlocutorJid) ->
-    make_reset_inbox_stanza(jid:to_binary(jid:to_bare(InterlocutorJid)));
 make_reset_inbox_stanza(InterlocutorJid) ->
     make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid)).
 
@@ -617,7 +614,7 @@ assert_has_no_stanzas(UsersList) when is_list(UsersList) ->
 assert_has_no_stanzas(User) ->
     ?assertNot(escalus_client:has_stanzas(User)).
 
-assert_invalid_reset_inbox_form(From, To, Field, Value) ->
+assert_invalid_reset_inbox(From, To, Field, Value) ->
     ResetStanza = make_reset_inbox_stanza(To),
     assert_invalid_form(From, ResetStanza, Field, Value).
 

@@ -498,11 +498,10 @@ get_message_type(Msg) ->
     end.
 
 reset_stanza_extract_interlocutor_jid(ResetStanza) ->
-    MaybeJid = xml:get_tag_attr(<<"jid">>, ResetStanza),
-    case MaybeJid of
-        false ->
+    case exml_query:attr(ResetStanza, <<"jid">>) of
+        undefined ->
             {error, invalid_field_value(<<"jid">>, <<"No Interlocutor JID provided">>)};
-        {value, Value} ->
+        Value ->
             case jid:from_binary(Value) of
                 error ->
                     ?ERROR_MSG("event=invalid_inbox_form_field,field=jid,value=~s", [Value]),
