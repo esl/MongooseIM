@@ -10,6 +10,8 @@ else
     BASE=`readlink -f ${TOOLS}/..`
     SED=sed
 fi
+# Make it full
+TOOLS="$BASE/tools"
 
 TLS_DIST=${TLS_DIST:-false}
 START_NODES=${START_NODES:-true}
@@ -51,4 +53,9 @@ function mktempdir
 function mount_ro_volume
 {
     echo "-v $1:$2:ro"
+}
+
+function db_name
+{
+    echo mongooseim-$1
 }
