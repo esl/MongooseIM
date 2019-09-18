@@ -250,7 +250,11 @@ end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_di
     %% Clean Eve from reg cluster
     escalus_fresh:clean(),
     %% Clean Eve from mim cluster
-    escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]),
+    %% For shared databases (i.e. mysql, pgsql...),
+    %% removing from one cluster would remove from all clusters.
+    %% For mnesia auth backend we need to call removal from each cluster.
+    %% That's why there is a catch here.
+    catch escalus_users:delete_users(Config, [{mim_eve, MimEveSpec}]),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
