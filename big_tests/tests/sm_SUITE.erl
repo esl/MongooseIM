@@ -45,6 +45,7 @@ parallel_test_cases() ->
      server_enables_resumption,
      client_enables_sm_twice_fails_with_correct_error_stanza,
      session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza,
+     session_resumed_and_old_session_dead_doesnt_route_error_to_new_session,
      basic_ack,
      h_ok_before_session,
      h_ok_after_session_enabled_before_session,
@@ -193,20 +194,32 @@ client_enables_sm_twice_fails_with_correct_error_stanza(Config) ->
 
 session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza(Config) ->
     %% GIVEN USER WITH STREAM RESUMPTION ENABLED
-    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
-    Steps = connection_steps_to_enable_stream_resumption(),
-    {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
-    SMID = proplists:get_value(smid, Props),
-    SMH = escalus_connection:get_sm_h(Alice),
+    {Alice, AliceSpec, SMID, SMH} =
+        get_stream_resumption_enabled_fresh_user_smid_and_h(Config, alice),
     %% WHEN USER RESUMES SESSION FROM NEW CLIENT
     Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
     {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+    process_initial_stanza(Alice2),
     %% THEN: Old session is gracefully closed with the correct error stanza
     escalus:assert(is_stream_error, [<<"conflict">>, <<>>],
                    escalus_connection:get_stanza(Alice, close_old_stream)),
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, close_old_stream)),
     false = escalus_connection:is_connected(Alice),
+    true = escalus_connection:is_connected(Alice2),
+    escalus_connection:stop(Alice2).
+
+session_resumed_and_old_session_dead_doesnt_route_error_to_new_session(Config) ->
+    %% GIVEN USER WITH STREAM RESUMPTION ENABLED
+    {Alice, AliceSpec, SMID, SMH} =
+        get_stream_resumption_enabled_fresh_user_smid_and_h(Config, alice),
+    %% WHEN FIRST SESSION DIES AND USER RESUMES FROM NEW CLIENT
+    escalus_connection:kill(Alice),
+    Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+    process_initial_stanza(Alice2),
+    %% THEN new session does not have any message rerouted
+    false = escalus_client:has_stanzas(Alice2),
     true = escalus_connection:is_connected(Alice2),
     escalus_connection:stop(Alice2).
 
@@ -936,6 +949,19 @@ messages_are_properly_flushed_during_resumption(Config) ->
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
+
+get_stream_resumption_enabled_fresh_user_smid_and_h(Config, UserAtom) ->
+    UserSpec = escalus_fresh:create_fresh_user(Config, UserAtom),
+    Steps = connection_steps_to_enable_stream_resumption(),
+    {ok, User = #client{props = Props}, _} = escalus_connection:start(UserSpec, Steps),
+    process_initial_stanza(User),
+    SMID = proplists:get_value(smid, Props),
+    SMH = escalus_connection:get_sm_h(User),
+    {User, UserSpec, SMID, SMH}.
+
+process_initial_stanza(User) ->
+    escalus:send(User, escalus_stanza:presence(<<"available">>)),
+    escalus:assert(is_presence, escalus:wait_for_stanza(User)).
 
 discard_offline_messages(Config, UserName) ->
     discard_offline_messages(Config, UserName, 1).
