@@ -84,17 +84,7 @@ init({Ref, RawSocket, _Opts}) ->
 %%--------------------------------------------------------------------
 
 handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = State) ->
-    SetOptsResult = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
-    {ok, Data} = mod_global_distrib_transport:recv_data(Socket, RawData),
-    NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
-    case SetOptsResult of
-        ok ->
-            {noreply, NewState};
-        {error, closed} ->
-            {stop, normal, NewState};
-        _ ->
-            {stop, {setopts_failed, SetOptsResult}, NewState}
-    end;
+    do_setopts_and_receive_data(Socket, Buffer, RawData, State);
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
@@ -155,6 +145,28 @@ stop() ->
 -spec opt(Key :: atom()) -> term().
 opt(Key) ->
     mod_global_distrib_utils:opt(?MODULE, Key).
+
+do_setopts_and_receive_data(Socket, Buffer, RawData, State) ->
+    SetOptsResult = mod_global_distrib_transport:setopts(Socket, [{active, once}]),
+    case SetOptsResult of
+        ok ->
+            do_receive_data(Socket, Buffer, RawData, State);
+        {error, closed} ->
+            {stop, normal, State};
+        _ ->
+            {stop, {setopts_failed, SetOptsResult}, State}
+    end.
+
+do_receive_data(Socket, Buffer, RawData, State) ->
+    case mod_global_distrib_transport:recv_data(Socket, RawData) of
+         {ok, Data} ->
+            NewState = handle_buffered(State#state{buffer = <<Buffer/binary, Data/binary>>}),
+            {noreply, NewState};
+        {error, closed} ->
+            {stop, normal, State};
+        Other ->
+            {stop, {recv_data_failed, Other}, State}
+    end.
 
 -spec handle_data(Data :: binary(), state()) -> state().
 handle_data(BinHost, State = #state{host = undefined}) ->
