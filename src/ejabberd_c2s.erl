@@ -1513,6 +1513,10 @@ terminate(_Reason, StateName, StateData) ->
             presence_broadcast(Acc1, StateData#state.pres_i, StateData),
             reroute_unacked_messages(StateData);
         {_, resumed} ->
+            StreamConflict = mongoose_xmpp_errors:stream_conflict(
+                               StateData#state.lang, <<"Resumed by new connection">>),
+            maybe_send_element_from_server_jid_safe(StateData, StreamConflict),
+            maybe_send_trailer_safe(StateData),
             ?INFO_MSG("(~w) Stream ~p resumed for ~s",
                       [StateData#state.socket,
                        StateData#state.stream_mgmt_id,
