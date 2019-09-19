@@ -13,17 +13,21 @@
          foreach_check_inbox/4,
          check_inbox/2, check_inbox/4,
          get_inbox/2, get_inbox/3,
+         reset_inbox/2,
          get_result_el/2,
          get_inbox_form_stanza/0,
          make_inbox_stanza/0,
          make_inbox_stanza/1,
          make_inbox_stanza/2,
+         make_reset_inbox_stanza/1,
          get_error_message/1,
          inbox_ns/0,
          reload_inbox_option/2, reload_inbox_option/3,
          restore_inbox_option/1,
          timestamp_from_item/1,
+         assert_has_no_stanzas/1,
          assert_invalid_inbox_form_value_error/3,
+         assert_invalid_reset_inbox/4,
          assert_message_content/3
         ]).
 % 1-1 helpers
@@ -56,6 +60,7 @@
 -import(muc_light_helper, [lbin/1]).
 
 -define(NS_ESL_INBOX, <<"erlang-solutions.com:xmpp:inbox:0">>).
+-define(NS_ESL_INBOX_CONVERSATION, <<"erlang-solutions.com:xmpp:inbox:0#conversation">>).
 -define(ROOM, <<"testroom1">>).
 -define(ROOM2, <<"testroom2">>).
 -define(ROOM3, <<"testroom3">>).
@@ -139,7 +144,6 @@ process_inbox_message(Client, Message, #conv{unread = Unread, from = From, to = 
                                              content = Content, verify = Fun}, JIDVerifyFun) ->
     FromJid = ensure_conv_binary_jid(From),
     ToJid = ensure_conv_binary_jid(To),
-    Unread = get_unread_count(Message),
     escalus:assert(is_message, Message),
     Unread = get_unread_count(Message),
     [InnerMsg] = get_inner_msg(Message),
@@ -250,6 +254,37 @@ make_inbox_stanza(GetParams, Verify) ->
                       children = [make_inbox_form(GetParams, Verify)]},
     GetIQ#xmlel{children = [QueryTag]}.
 
+
+-spec reset_inbox(
+        escalus:client(),
+        jid:jid() | escalus:client() | atom() | binary() | string())
+        -> ok.
+reset_inbox(From, To) ->
+        ResetStanza = make_reset_inbox_stanza(To),
+        escalus:send(From, ResetStanza),
+        Result = escalus:wait_for_stanza(From),
+        ?assert(escalus_pred:is_iq_result(ResetStanza, Result)),
+        ?assertNotEqual(undefined, exml_query:path(Result, [{element_with_ns, <<"reset">>,
+                                                             ?NS_ESL_INBOX_CONVERSATION}])).
+
+-spec make_reset_inbox_stanza(undefined | escalus:client() | binary()) -> exml:element().
+make_reset_inbox_stanza(InterlocutorJid) when is_binary(InterlocutorJid) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION},
+                       {<<"jid">>, InterlocutorJid}
+                      ]}]);
+make_reset_inbox_stanza(undefined) ->
+    escalus_stanza:iq(
+      <<"set">>,
+      [#xmlel{name = <<"reset">>,
+              attrs = [
+                       {<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}
+                      ]}]);
+make_reset_inbox_stanza(InterlocutorJid) ->
+    make_reset_inbox_stanza(escalus_utils:get_short_jid(InterlocutorJid)).
 
 -spec check_jid_fun(IsCaseSensitive :: boolean(), CheckResource :: boolean()) -> jid_verify_fun().
 check_jid_fun(true, true) ->
@@ -574,13 +609,23 @@ send_and_mark_msg(From, To) ->
     escalus:send(To, ChatMarker),
     Msg.
 
+assert_has_no_stanzas(UsersList) when is_list(UsersList) ->
+    lists:foreach(fun(User) -> ?assertNot(escalus_client:has_stanzas(User)) end, UsersList);
+assert_has_no_stanzas(User) ->
+    ?assertNot(escalus_client:has_stanzas(User)).
+
+assert_invalid_reset_inbox(From, To, Field, Value) ->
+    ResetStanza = make_reset_inbox_stanza(To),
+    assert_invalid_form(From, ResetStanza, Field, Value).
+
 assert_invalid_inbox_form_value_error(User, Field, Value) ->
     Stanza = inbox_helper:make_inbox_stanza( #{ Field => Value }, false),
+    assert_invalid_form(User, Stanza, Field, Value).
+
+assert_invalid_form(User, Stanza, Field, Value) ->
     escalus:send(User, Stanza),
     [ResIQ] = escalus:wait_for_stanzas(User, 1),
     escalus_pred:is_iq_error(ResIQ),
-    FieldRes = <<"field=",Field/binary>>,
-    ValueRes = <<"value=", Value/binary>>,
     ErrorMsg = get_error_message(ResIQ),
     assert_message_content(ErrorMsg, Field, Value).
 

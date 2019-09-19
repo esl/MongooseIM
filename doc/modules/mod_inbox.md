@@ -1,7 +1,7 @@
 ### Module Description
 
-`Inbox` is an experimental feature implemented as a few seperate modules.
-To use it, enable mod_inbox in the config file.
+`Inbox` is an experimental feature implemented as a few separate modules.
+To use it, enable mod\_inbox in the config file.
 
 ### Options
 
@@ -79,6 +79,26 @@ Server:
 </iq>
 ```
 
+### Reseting inbox
+
+You can reset the inbox with the following stanza:
+
+```xml
+<iq type='set'>
+    <reset xmlns='erlang-solutions.com:xmpp:inbox:0#conversation' jid='interlocutor_bare_jid'/>
+</iq>
+```
+
+Here `jid` is the bare jid of the user whose inbox we want to reset. This action
+does not change the last message stored in inbox; meaning that neither this
+stanza nor anything given within will be stored; the only change is the inbox
+`unread_count` is set to zero.
+
+Resetting the inbox count will also skip the forwarding of messages. While a
+typical chat marker will be forwarded to the interlocutor(s), (including the
+case of a big groupchat with thousands of participants!), this reset stanza will
+not.
+
 ### Example Request
 
 ```
@@ -135,7 +155,7 @@ Alice receives:
 
 Inbox query result IQ stanza returns the following values:
 
-* `count`: the number of all conversations (if `hidden_unread` value was set
+* `count`: the total number of conversations (if `hidden_read` value was set
   to true, this value will be equal to `active_conversations`)
 * `unread-messages`: total number of unread messages from all
   conversations

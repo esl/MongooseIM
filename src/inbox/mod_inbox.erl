@@ -18,8 +18,13 @@
 -export([get_personal_data/2]).
 
 -export([start/2, stop/1, deps/2]).
--export([process_iq/4, user_send_packet/4, filter_packet/1,
-         inbox_unread_count/2, remove_user/3]).
+-export([process_iq/4,
+         process_iq_conversation/4,
+         user_send_packet/4,
+         filter_packet/1,
+         inbox_unread_count/2,
+         remove_user/3
+        ]).
 -export([clear_inbox/2]).
 
 -callback init(Host, Opts) -> ok when
@@ -123,7 +128,10 @@ start(Host, Opts) ->
     lists:member(muc, MucTypes) andalso mod_inbox_muc:start(Host),
     ejabberd_hooks:add(hooks(Host)),
     store_bin_reset_markers(Host, FullOpts),
-    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX, ?MODULE, process_iq, IQDisc).
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX,
+                                  ?MODULE, process_iq, IQDisc),
+    gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_ESL_INBOX_CONVERSATION,
+                                  ?MODULE, process_iq_conversation, IQDisc).
 
 
 -spec stop(Host :: jid:server()) -> ok.
@@ -156,6 +164,32 @@ process_iq(From, _To, Acc, #iq{type = set, id = QueryId, sub_el = QueryEl} = IQ)
             Res = IQ#iq{type = result, sub_el = [build_result_iq(List)]},
             {Acc, Res}
     end.
+
+-spec process_iq_conversation(From :: jid:jid(),
+                              To :: jid:jid(),
+                              Acc :: mongoose_acc:t(),
+                              IQ :: jlib:iq()) ->
+    {stop, mongoose_acc:t()} | {mongoose_acc:t(), jlib:iq()}.
+process_iq_conversation(From, _To, Acc,
+                        #iq{type = set,
+                            xmlns = ?NS_ESL_INBOX_CONVERSATION,
+                            sub_el = #xmlel{name = <<"reset">>} = ResetStanza} = IQ) ->
+    maybe_process_reset_stanza(From, Acc, IQ, ResetStanza).
+
+maybe_process_reset_stanza(From, Acc, IQ, ResetStanza) ->
+    case reset_stanza_extract_interlocutor_jid(ResetStanza) of
+        {error, Msg} ->
+            {Acc, IQ#iq{type = error, sub_el = [mongoose_xmpp_errors:bad_request(<<"en">>, Msg)]}};
+        InterlocutorJID ->
+            process_reset_stanza(From, Acc, IQ, ResetStanza, InterlocutorJID)
+    end.
+
+process_reset_stanza(From, Acc, IQ, _ResetStanza, InterlocutorJID) ->
+    ok = mod_inbox_utils:reset_unread_count_to_zero(From, InterlocutorJID),
+    {Acc, IQ#iq{type = result,
+                sub_el = [#xmlel{name = <<"reset">>,
+                                 attrs = [{<<"xmlns">>, ?NS_ESL_INBOX_CONVERSATION}],
+                                 children = []}]}}.
 
 -spec forward_messages(List :: list(inbox_res()),
                        QueryId :: id(),
@@ -461,6 +495,19 @@ get_message_type(Msg) ->
             groupchat;
         _ ->
             one2one
+    end.
+
+reset_stanza_extract_interlocutor_jid(ResetStanza) ->
+    case exml_query:attr(ResetStanza, <<"jid">>) of
+        undefined ->
+            {error, invalid_field_value(<<"jid">>, <<"No Interlocutor JID provided">>)};
+        Value ->
+            case jid:from_binary(Value) of
+                error ->
+                    ?ERROR_MSG("event=invalid_inbox_form_field,field=jid,value=~s", [Value]),
+                    {error, invalid_field_value(<<"jid">>, Value)};
+                JID -> JID
+            end
     end.
 
 -spec clear_inbox(Username :: jid:luser(), Server :: host()) -> inbox_write_res().
