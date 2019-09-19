@@ -43,7 +43,8 @@ parallel_test_cases() ->
      server_returns_failed_after_start,
      server_returns_failed_after_auth,
      server_enables_resumption,
-     client_enables_sm_twice_fails,
+     client_enables_sm_twice_fails_with_correct_error_stanza,
+     session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza,
      basic_ack,
      h_ok_before_session,
      h_ok_after_session_enabled_before_session,
@@ -178,7 +179,7 @@ server_returns_failed(Config, ConnActions) ->
     escalus:assert(is_sm_failed, [<<"unexpected-request">>],
                    escalus_connection:get_stanza(Alice, enable_sm_failed)).
 
-client_enables_sm_twice_fails(Config) ->
+client_enables_sm_twice_fails_with_correct_error_stanza(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     Steps = connection_steps_to_session(),
     {ok, Alice, Features} = escalus_connection:start(AliceSpec, Steps),
@@ -189,6 +190,25 @@ client_enables_sm_twice_fails(Config) ->
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, enable_sm_failed)),
     false = escalus_connection:is_connected(Alice).
+
+session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza(Config) ->
+    %% GIVEN USER WITH STREAM RESUMPTION ENABLED
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = connection_steps_to_enable_stream_resumption(),
+    {ok, Alice = #client{props = Props}, _} = escalus_connection:start(AliceSpec, Steps),
+    SMID = proplists:get_value(smid, Props),
+    SMH = escalus_connection:get_sm_h(Alice),
+    %% WHEN USER RESUMES SESSION FROM NEW CLIENT
+    Steps2 = connection_steps_to_stream_resumption(SMID, SMH),
+    {ok, Alice2, _} = escalus_connection:start(AliceSpec, Steps2),
+    %% THEN: Old session is gracefully closed with the correct error stanza
+    escalus:assert(is_stream_error, [<<"conflict">>, <<>>],
+                   escalus_connection:get_stanza(Alice, close_old_stream)),
+    escalus:assert(is_stream_end,
+                   escalus_connection:get_stanza(Alice, close_old_stream)),
+    false = escalus_connection:is_connected(Alice),
+    true = escalus_connection:is_connected(Alice2),
+    escalus_connection:stop(Alice2).
 
 basic_ack(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
