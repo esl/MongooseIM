@@ -298,9 +298,19 @@ client_acks_more_than_sent(Config) ->
     AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
     {ok, Alice, _} = escalus_connection:start(AliceSpec),
     escalus:send(Alice, escalus_stanza:sm_ack(5)),
-    escalus:assert(is_stream_error, [<<"policy-violation">>,
-                                     <<"h attribute too big">>],
-                   escalus:wait_for_stanza(Alice)).
+    StreamErrorStanza = escalus:wait_for_stanza(Alice),
+    %% Assert "undefined-condition" children
+    escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], StreamErrorStanza),
+    %% Assert "handled-count-too-high" children with correct attributes
+    HandledCountSubElement = exml_query:path(StreamErrorStanza,
+                                             [{element_with_ns,
+                                               <<"handled-count-too-high">>,
+                                               <<"urn:xmpp:sm:3">>}]),
+    <<"5">> = exml_query:attr(HandledCountSubElement, <<"h">>),
+    <<"0">> = exml_query:attr(HandledCountSubElement, <<"send-count">>),
+    %% Assert graceful stream end
+    escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
+    false = escalus_connection:is_connected(Alice).
 
 too_many_unacked_stanzas(Config) ->
     {Bob, _} = given_fresh_user(Config, bob),
