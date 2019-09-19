@@ -2805,17 +2805,20 @@ stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
             maybe_send_element_from_server_jid_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
-        throw:{policy_violation, Reason} ->
-            PolicyViolation = mongoose_xmpp_errors:policy_violation(SD#state.lang, Reason),
-            maybe_send_element_from_server_jid_safe(SD, PolicyViolation),
+        throw:{undefined_condition, H, OldAcked} ->
+            #xmlel{children = [UndefCond, Text]} = ErrorStanza0
+                = mongoose_xmpp_errors:undefined_condition(
+                    SD#state.lang, <<"You acknowledged more stanzas that what has been sent">>),
+            HandledCountField = sm_handled_count_too_high_stanza(H, OldAcked),
+            ErrorStanza = ErrorStanza0#xmlel{children = [UndefCond, HandledCountField, Text]},
+            maybe_send_element_from_server_jid_safe(SD, ErrorStanza),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD}
     end.
 
 do_handle_ack(Handled, OldAcked, Buffer, BufferSize, SD) ->
     ToDrop = calc_to_drop(Handled, OldAcked),
-    ToDrop > BufferSize andalso throw({policy_violation,
-                                       <<"h attribute too big">>}),
+    ToDrop > BufferSize andalso throw({undefined_condition, Handled, OldAcked}),
     {Dropped, NewBuffer} = drop_last(ToDrop, Buffer),
     NewSize = BufferSize - Dropped,
     SD#state{stream_mgmt_out_acked = Handled,
@@ -3136,6 +3139,13 @@ defer_resource_constraint_check(#state{stream_mgmt_constraint_check_tref = undef
     State#state{stream_mgmt_constraint_check_tref = TRef};
 defer_resource_constraint_check(State)->
     State.
+
+-spec sm_handled_count_too_high_stanza(non_neg_integer(), non_neg_integer()) -> exml:element().
+sm_handled_count_too_high_stanza(Handled, OldAcked) ->
+    #xmlel{name = <<"handled-count-too-high">>,
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3},
+                    {<<"h">>, integer_to_binary(Handled)},
+                    {<<"send-count">>, integer_to_binary(OldAcked)}]}.
 
 -spec sasl_success_stanza(any()) -> exml:element().
 sasl_success_stanza(ServerOut) ->
