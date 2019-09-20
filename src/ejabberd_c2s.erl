@@ -2956,7 +2956,6 @@ flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
     re_route_packets(Buffer).
 
 re_route_packets(Buffer) ->
-    %% TODO add delayed on it?
     [ejabberd_router:route(From, To, Packet)
      || {From, To, Packet} <- lists:reverse(Buffer)],
     ok.
@@ -3112,8 +3111,7 @@ maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Time
         <<"headline">> ->
             PacketTuple;
         _ ->
-            %% TODO: ?MYNAME (or server taken from c2s state) not <<"localhost">>
-            {F, T, add_timestamp(Timestamp, <<"localhost">>, Packet)}
+            {F, T, add_timestamp(Timestamp, ?MYNAME, Packet)}
     end;
 maybe_add_timestamp(Packet, _Timestamp) ->
     Packet.
