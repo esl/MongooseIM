@@ -252,9 +252,16 @@ maybe_add_arcid_elems(To, MessID, Packet, AddStanzaid) ->
         _ -> Packet
     end.
 
-maybe_log_deprecation(_IQ) ->
-    %% Left for future deprecations
-    ok.
+maybe_log_deprecation(IQ) ->
+    case IQ#iq.xmlns of
+        ?NS_MAM_03 ->
+            Msg = "MongooseIM has received MAM 0.3 request. This version is deprecated and won't"
+                  " be supported by the next MongooseIM release."
+                  " Please update your client application.",
+            mongoose_deprecations:log(mam03, Msg, [{log_level, warning}]);
+        _ ->
+            ok
+    end.
 
 %% @doc Return true, if the first element points on `By'.
 -spec is_arcid_elem_for(ElemName :: binary(), exml:element(), By :: binary()) -> boolean().
