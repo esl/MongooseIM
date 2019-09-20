@@ -2805,6 +2805,12 @@ stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
             maybe_send_element_from_server_jid_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
+        error:badarg ->
+            PolicyViolationErr = mongoose_xmpp_errors:policy_violation(
+                                   SD#state.lang, <<"Invalid h attribute">>),
+            maybe_send_element_from_server_jid_safe(SD, PolicyViolationErr),
+            maybe_send_trailer_safe(SD),
+            {stop, normal, SD};
         throw:{undefined_condition, H, OldAcked} ->
             #xmlel{children = [UndefCond, Text]} = ErrorStanza0
                 = mongoose_xmpp_errors:undefined_condition(
