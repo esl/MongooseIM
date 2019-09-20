@@ -51,6 +51,7 @@ parallel_test_cases() ->
      h_ok_after_session_enabled_before_session,
      h_ok_after_session_enabled_after_session,
      h_ok_after_a_chat,
+     h_non_given_closes_stream_gracefully,
      resend_unacked_on_reconnection,
      session_established,
      wait_for_resumption,
@@ -292,6 +293,20 @@ h_ok_after_a_chat(ConfigIn) ->
         escalus:assert(is_sm_ack, [3], escalus:wait_for_stanza(Alice)),
         %% Ack, so that unacked messages don't go into offline store.
         escalus:send(Alice, escalus_stanza:sm_ack(3 + NDiscarded))
+    end).
+
+h_non_given_closes_stream_gracefully(ConfigIn) ->
+    AStanza = #xmlel{name = <<"a">>,
+               attrs = [{<<"xmlns">>, <<"urn:xmpp:sm:3">>}]},
+    Config = escalus_users:update_userspec(ConfigIn, alice,
+                                           stream_management, true),
+    escalus:fresh_story(Config, [{alice,1}], fun(Alice) ->
+        %% Ack, so that unacked messages don't go into offline store.
+        escalus:send(Alice, AStanza),
+        escalus:assert(is_stream_error,
+                       [<<"policy-violation">>, <<>>],
+                       escalus:wait_for_stanza(Alice)),
+        escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end))
     end).
 
 client_acks_more_than_sent(Config) ->
