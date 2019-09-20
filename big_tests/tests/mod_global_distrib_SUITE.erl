@@ -690,6 +690,17 @@ do_test_pm_with_ungraceful_reconnection_to_different_server(Config0, BeforeResum
               %% Connect another one, we hope the message would be rerouted
               NewEve = connect_from_spec(EveSpec2, Config),
 
+              %% We receive presence BEFORE session is registered in ejabberd_sm.
+              %% So, to ensure that we processed do_open_session completely, let's send a "ping".
+              %% by calling the c2s process.
+              %% That call would only return, when all messages in erlang message queue
+              %% are processed.
+              EveNode2 = ct:get_config({hosts, mim, node}),
+              mongoose_helper:wait_until(fun() -> is_pid(mongoose_helper:get_session_pid(NewEve, EveNode2)) end, true,
+                                         #{name => wait_for_session}),
+              C2sPid2 = mongoose_helper:get_session_pid(NewEve, EveNode2),
+              rpc:call(node(C2sPid2), ejabberd_c2s, get_info, [C2sPid2]),
+
               BeforeResume(),
 
               %% Trigger rerouting
