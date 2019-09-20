@@ -687,8 +687,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
         Steps = connection_steps_to_authenticate(),
         {ok, Alice, _} = escalus_connection:start(AliceSpec, Steps),
         Resumed = try_to_resume_stream(Alice, SMID, 30),
-        escalus:assert(is_stream_error, [<<"policy-violation">>,
-                                         <<"h attribute too big">>], Resumed),
+        escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
 
         [] = get_user_present_resources(AliceSpec),
         [] = get_sid_by_stream_id(SMID),
