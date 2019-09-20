@@ -4,6 +4,9 @@ It enables a service to store all user messages for one-to-one chats as well as 
 It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.html) for paging.
 It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
 
+MongooseIM is compatible with MAM 0.4-0.6.
+Version 0.3 is deprecated and won't be supported by the next release.
+
 Configure MAM with different storage backends:
 
 * RDBMS (databases like MySQL, PostgreSQL, MS SQL Server)
@@ -103,7 +106,7 @@ These options will only have effect when the `rdbms` backend is used:
 
 Servers SHOULD NOT archive messages that do not have a `<body/>` child tag. Servers SHOULD NOT archive delayed messages.
 
-From MAM v0.3 onwards it is expected that all messages that hold meaningful content, rather than state changes such as Chat State Notifications, are archived.
+By default, all messages that hold meaningful content, rather than state changes such as Chat State Notifications, are archived.
 
 #### Archiving chat markers
 
