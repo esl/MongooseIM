@@ -55,6 +55,8 @@ groups() ->
            test_pm_with_disconnection_on_other_server,
            test_pm_with_graceful_reconnection_to_different_server,
            test_pm_with_ungraceful_reconnection_to_different_server,
+           test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first,
+           test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first,
            test_global_disco,
            test_component_unregister,
            test_update_senders_host,
@@ -153,6 +155,10 @@ init_per_group(advertised_endpoints, Config) ->
     init_per_group(advertised_endpoints_generic,
                [{add_advertised_endpoints,
                  [{asia_node, advertised_endpoints()}]} | Config]);
+init_per_group(mod_global_distrib, Config) ->
+    %% Disable mod_global_distrib_mapping_redis refresher
+    RedisExtraConfig = [{refresh_after, 3600}],
+    init_per_group(mod_global_distrib_generic, [{redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(_, Config0) ->
     Config2 =
         lists:foldl(
@@ -230,7 +236,9 @@ init_per_testcase(CaseName, Config)
     muc_helper:load_muc(<<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
-                                   CN == test_pm_with_ungraceful_reconnection_to_different_server ->
+                                   CN == test_pm_with_ungraceful_reconnection_to_different_server;
+                                   CN == test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first;
+                                   CN == test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first ->
     escalus:init_per_testcase(CN, init_user_eve(Config));
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
@@ -245,7 +253,9 @@ init_user_eve(Config) ->
     [{evespec_reg, EveSpec}, {evespec_mim, EveSpec2} | Config].
 
 end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
-                                  CN == test_pm_with_ungraceful_reconnection_to_different_server ->
+                                  CN == test_pm_with_ungraceful_reconnection_to_different_server;
+                                  CN == test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first;
+                                  CN == test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first ->
     MimEveSpec = ?config(evespec_mim, Config),
     %% Clean Eve from reg cluster
     escalus_fresh:clean(),
@@ -620,20 +630,46 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
               escalus:assert(is_chat_message, [<<"Hi again from Asia!">>], AgainFromEve)
           end).
 
-test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
-%% This tests the feature which has not been implemented (yet?) by mod_global_distrib
-%% It is susceptible to a race condition, however it is very unlikely to occur
+%% Refresh logic can cause two possible behaviours.
+%% We test both behaviours here (plus no refresh case)
 %% See PR #2392
+test_pm_with_ungraceful_reconnection_to_different_server(Config) ->
+    %% No refresh
+    BeforeResume = fun() -> ok end,
+    AfterCheck = fun(Alice, NewEve) ->
+            user_receives(NewEve, [<<"Hi from Europe1!">>, <<"Hi again from Europe1!">>]),
+            user_receives(Alice, [<<"Hi from Europe!">>])
+         end,
+    do_test_pm_with_ungraceful_reconnection_to_different_server(Config, BeforeResume, AfterCheck).
+
+test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first(Config) ->
+    %% Same as no refresh
+    BeforeResume = fun() -> refresh_hosts([reg, mim]) end,
+    AfterCheck = fun(Alice, NewEve) ->
+            user_receives(NewEve, [<<"Hi from Europe1!">>, <<"Hi again from Europe1!">>]),
+            user_receives(Alice, [<<"Hi from Europe!">>])
+         end,
+    do_test_pm_with_ungraceful_reconnection_to_different_server(Config, BeforeResume, AfterCheck).
+
+test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first(Config) ->
+    %% Asia node overrides Europe value with the older ones,
+    %% so we loose some messages during rerouting :(
+    BeforeResume = fun() -> refresh_hosts([mim, reg]) end,
+    AfterCheck = fun(Alice, NewEve) ->
+            user_receives(NewEve, [<<"Hi again from Europe1!">>]),
+            user_receives(Alice, [<<"Hi from Europe!">>])
+         end,
+    do_test_pm_with_ungraceful_reconnection_to_different_server(Config, BeforeResume, AfterCheck).
+
+%% Reconnect Eve from asia (reg cluster) to europe (mim)
+do_test_pm_with_ungraceful_reconnection_to_different_server(Config0, BeforeResume, AfterCheck) ->
     Config = escalus_users:update_userspec(Config0, eve, stream_management, true),
     EveSpec = ?config(evespec_reg, Config),
     EveSpec2 = ?config(evespec_mim, Config),
     escalus:fresh_story(
       Config, [{alice, 1}],
       fun(Alice) ->
-              StepsWithSM = [start_stream, stream_features, maybe_use_ssl,
-                             authenticate, bind, session, stream_resumption],
-
-              {ok, Eve, _} = escalus_connection:start(EveSpec, StepsWithSM),
+              {ok, Eve, _} = escalus_connection:start(EveSpec, connect_steps_with_sm()),
               escalus_story:send_initial_presence(Eve),
               escalus_client:wait_for_stanza(Eve),
 
@@ -642,10 +678,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               C2sPid = mongoose_helper:get_session_pid(Eve, EveNode),
               ok = rpc(asia_node, sys, suspend, [C2sPid]),
 
-              BareEve = Eve#client{jid = common_helper:get_bjid(EveSpec)},
-              escalus_client:send(Alice, chat_with_seqnum(BareEve, <<"Hi from Europe1!">>)),
-
-              %% We don't ack "Hi from Europe1!", fyi
+              escalus_client:send(Alice, chat_with_seqnum(bare_client(Eve), <<"Hi from Europe1!">>)),
 
               %% Wait for route message to be queued in c2s message queue
               mongoose_helper:wait_for_route_message_count(C2sPid, 1),
@@ -657,7 +690,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               %% Connect another one, we hope the message would be rerouted
               NewEve = connect_from_spec(EveSpec2, Config),
 
-              %% Yes, NewEve is registered
+              BeforeResume(),
 
               %% Trigger rerouting
               ok = rpc(asia_node, sys, resume, [C2sPid]),
@@ -666,18 +699,10 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config0) ->
               %% Let C2sPid to process the message and reroute (and die finally, poor little thing)
               mongoose_helper:wait_for_pid_to_die(C2sPid),
 
-              escalus_client:send(Alice, chat_with_seqnum(BareEve, <<"Hi again from Europe1!">>)),
-              escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
+              escalus_client:send(Alice, chat_with_seqnum(bare_client(Eve), <<"Hi again from Europe1!">>)),
+              escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi from Europe!">>)),
 
-              FirstFromAlice = escalus_client:wait_for_stanza(NewEve),
-              SecondFromAlice = escalus_client:wait_for_stanza(NewEve),
-              FromEve = escalus_client:wait_for_stanza(Alice),
-
-              [FromAlice, AgainFromAlice] = order_by_seqnum([FirstFromAlice, SecondFromAlice]),
-
-              escalus:assert(is_chat_message, [<<"Hi from Europe1!">>], FromAlice),
-              escalus:assert(is_chat_message, [<<"Hi again from Europe1!">>], AgainFromAlice),
-              escalus:assert(is_chat_message, [<<"Hi from Asia!">>], FromEve)
+              AfterCheck(Alice, NewEve)
           end).
 
 test_global_disco(Config) ->
@@ -1152,3 +1177,30 @@ refresh_mappings(NodeName, Config) ->
 trigger_rebalance(NodeName, DestinationDomain) ->
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
+
+user_receives(User, Bodies) ->
+    ExpectedLength = length(Bodies),
+    Messages = escalus_client:wait_for_stanzas(User, ExpectedLength),
+    SortedMessages = order_by_seqnum(Messages),
+    case length(Messages) of
+        ExpectedLength ->
+            Checks = [escalus_pred:is_chat_message(Body, Stanza) || {Body, Stanza} <- lists:zip(Bodies, SortedMessages)],
+            case lists:all(fun(Check) -> Check end, Checks) of
+                true ->
+                    ok;
+                false ->
+                    ct:fail({user_receives_failed, {wanted, Bodies}, {received, SortedMessages}, {check, Checks}})
+            end;
+        _ ->
+            ct:fail({user_receives_not_enough, {wanted, Bodies}, {received, SortedMessages}})
+    end.
+
+refresh_hosts(Hosts) ->
+   [rpc:call(ct:get_config({hosts, Host, node}), mod_global_distrib_mapping_redis, refresh, []) || Host <- Hosts].
+
+connect_steps_with_sm() ->
+    [start_stream, stream_features, maybe_use_ssl,
+     authenticate, bind, session, stream_resumption].
+
+bare_client(Client) ->
+    Client#client{jid = escalus_utils:get_short_jid(Client)}.
