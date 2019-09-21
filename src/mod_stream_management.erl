@@ -1,5 +1,5 @@
 -module(mod_stream_management).
--xep([{xep, 198}, {version, "1.3"}]).
+-xep([{xep, 198}, {version, "1.6"}]).
 -behaviour(gen_mod).
 
 %% `gen_mod' callbacks
@@ -21,12 +21,16 @@
 
 %% API for `ejabberd_c2s'
 -export([register_smid/2,
-         get_sid/1]).
+         get_sid/1,
+         register_stale_smid_h/2,
+         remove_stale_smid_h/1
+        ]).
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
 -record(sm_session, {smid, sid}).
+-record(stream_mgmt_stale_h, {smid, h}).
 
 %%
 %% `gen_mod' callbacks
@@ -40,7 +44,11 @@ start(Host, _Opts) ->
     mnesia:create_table(sm_session, [{ram_copies, [node()]},
                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
-    mnesia:add_table_copy(sm_session, node(), ram_copies).
+    mnesia:add_table_copy(sm_session, node(), ram_copies),
+    mnesia:create_table(stream_mgmt_stale_h,
+                        [{ram_copies, [node()]},
+                         {attributes, record_info(fields, stream_mgmt_stale_h)}]),
+    mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies).
 
 stop(Host) ->
     ?INFO_MSG("mod_stream_management stopping", []),
@@ -134,6 +142,18 @@ get_sid(SMID) ->
             [SID];
         [] ->
             []
+    end.
+
+register_stale_smid_h(SMID, H) ->
+    mnesia:sync_dirty(fun mnesia:write/1,
+                      [#stream_mgmt_stale_h{smid = SMID, h = H}]).
+
+remove_stale_smid_h(SMID) ->
+    case mnesia:dirty_read(stream_mgmt_stale_h, SMID) of
+        [] ->
+            ok;
+        [#stream_mgmt_stale_h{} = StaleSMID] ->
+            mnesia:sync_dirty(fun mnesia:delete_object/1, [StaleSMID])
     end.
 
 %%
