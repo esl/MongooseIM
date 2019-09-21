@@ -704,7 +704,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
 
         [] = get_user_present_resources(AliceSpec),
-        [] = get_sid_by_stream_id(SMID),
+        smid_not_found = get_sid_by_stream_id(SMID),
         escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end).
 

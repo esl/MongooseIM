@@ -679,8 +679,7 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
     end.
 
 check_compression_auth(El, NextState, StateData) ->
-    Auth = StateData#state.authenticated,
-    case Auth of
+    case StateData#state.authenticated of
         false ->
             send_element_from_server_jid(StateData, compress_setup_failed()),
             fsm_next_state(NextState, StateData);
@@ -2767,7 +2766,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
     end.
 
 enable_stream_resumption(SD) ->
-    SMID = make_smid(),
+    SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
               undefined -> {p1_time_compat:timestamp(), self()};
               RSID -> RSID
@@ -2775,9 +2774,6 @@ enable_stream_resumption(SD) ->
     ok = mod_stream_management:register_smid(SMID, SID),
     {SD#state{stream_mgmt_id = SMID, sid = SID},
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
-
-make_smid() ->
-    base64:encode(crypto:strong_rand_bytes(21)).
 
 maybe_unexpected_sm_request(NextState, El, StateData) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
@@ -2879,10 +2875,13 @@ stream_mgmt_enabled(ExtraAttrs) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
 
 stream_mgmt_failed(Reason) ->
+    stream_mgmt_failed(Reason, []).
+
+stream_mgmt_failed(Reason, Attrs) ->
     ReasonEl = #xmlel{name = Reason,
                       attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
     #xmlel{name = <<"failed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}],
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3} | Attrs],
            children = [ReasonEl]}.
 
 stream_mgmt_ack(NIncoming) ->
@@ -2999,15 +2998,15 @@ maybe_resume_session(NextState, El, StateData) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           xml:get_tag_attr_s(<<"previd">>, El)} of
         {?NS_STREAM_MGNT_3, SMID} ->
-            MaybeSID = mod_stream_management:get_sid(SMID),
-            do_resume_session(SMID, El, MaybeSID, StateData);
+            FromSMID = mod_stream_management:get_session_from_smid(SMID),
+            do_resume_session(SMID, El, FromSMID, StateData);
         {InvalidNS, _} ->
             ?INFO_MSG("ignoring <resume/> element "
                       "with invalid namespace ~s~n", [InvalidNS]),
             fsm_next_state(NextState, StateData)
     end.
 
-do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) ->
+do_resume_session(SMID, El, {_, Pid}, #state{server = Server} = StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
         SID = {p1_time_compat:timestamp(), self()},
@@ -3054,13 +3053,17 @@ do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) -
         end
     catch
         _:_ ->
-            ?WARNING_MSG("resumption error (invalid response from ~p)~n",
-                         [Pid]),
+            ?WARNING_MSG("resumption error (invalid response from ~p)~n", [Pid]),
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
-do_resume_session(SMID, _El, [], StateData) ->
+do_resume_session(SMID, _El, H, StateData) when is_integer(H) ->
+    ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
+    send_element_from_server_jid(
+      StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
+    fsm_next_state(wait_for_feature_after_auth, StateData);
+do_resume_session(SMID, _El, smid_not_found, StateData) ->
     ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).

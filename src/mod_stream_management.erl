@@ -20,11 +20,17 @@
          set_resume_timeout/1]).
 
 %% API for `ejabberd_c2s'
--export([register_smid/2,
+-export([
+         make_smid/0,
+         get_session_from_smid/1,
          get_sid/1,
+         get_stale_h/1,
+         register_smid/2,
          register_stale_smid_h/2,
          remove_stale_smid_h/1
         ]).
+
+-type smid() :: base64:ascii_binary().
 
 -include("mongoose.hrl").
 -include("jlib.hrl").
@@ -127,6 +133,34 @@ set_resume_timeout(ResumeTimeout) ->
 %% API for `ejabberd_c2s'
 %%
 
+-spec make_smid() -> smid().
+make_smid() ->
+    base64:encode(crypto:strong_rand_bytes(21)).
+
+%% Getters
+-spec get_session_from_smid(SMID :: smid()) ->
+    ejabberd_sm:sid() | non_neg_integer() | smid_not_found.
+get_session_from_smid(SMID) ->
+    case get_sid(SMID) of
+        {_,_} = SID -> SID;
+        smid_not_found -> get_stale_h(SMID)
+    end.
+
+-spec get_sid(SMID :: smid()) -> ejabberd_sm:sid() | smid_not_found.
+get_sid(SMID) ->
+    case mnesia:dirty_read(sm_session, SMID) of
+        [#sm_session{sid = SID}] -> SID;
+        [] -> smid_not_found
+    end.
+
+-spec get_stale_h(SMID :: smid()) -> non_neg_integer() | smid_not_found.
+get_stale_h(SMID) ->
+    case mnesia:dirty_read(stream_mgmt_stale_h, SMID) of
+        [#stream_mgmt_stale_h{h = H}] -> H;
+        [] -> smid_not_found
+    end.
+
+%% Setters
 register_smid(SMID, SID) ->
     try
         mnesia:sync_dirty(fun mnesia:write/1,
@@ -134,14 +168,6 @@ register_smid(SMID, SID) ->
         ok
     catch exit:Reason ->
               {error, Reason}
-    end.
-
-get_sid(SMID) ->
-    case mnesia:dirty_read(sm_session, SMID) of
-        [#sm_session{sid = SID}] ->
-            [SID];
-        [] ->
-            []
     end.
 
 register_stale_smid_h(SMID, H) ->
