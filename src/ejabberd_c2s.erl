@@ -2791,35 +2791,42 @@ maybe_unexpected_sm_request(NextState, El, StateData) ->
     end.
 
 stream_mgmt_handle_ack(NextState, El, #state{} = SD) ->
-    try
-        {ns, ?NS_STREAM_MGNT_3} = {ns, xml:get_tag_attr_s(<<"xmlns">>, El)},
-        Handled = binary_to_integer(xml:get_tag_attr_s(<<"h">>, El)),
-        NSD = #state{} = do_handle_ack(Handled,
-                                       SD#state.stream_mgmt_out_acked,
-                                       SD#state.stream_mgmt_buffer,
-                                       SD#state.stream_mgmt_buffer_size,
-                                       SD),
-        fsm_next_state(NextState, NSD)
-    catch
-        error:{badmatch, {ns, _}} ->
+    case {exml_query:attr(El, <<"xmlns">>), stream_mgmt_parse_h(El)} of
+        {NS, _} when NS =/= ?NS_STREAM_MGNT_3 ->
             maybe_send_element_from_server_jid_safe(SD, mongoose_xmpp_errors:invalid_namespace()),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
-        error:badarg ->
+        {_, invalid_h_attribute} ->
             PolicyViolationErr = mongoose_xmpp_errors:policy_violation(
                                    SD#state.lang, <<"Invalid h attribute">>),
             maybe_send_element_from_server_jid_safe(SD, PolicyViolationErr),
             maybe_send_trailer_safe(SD),
             {stop, normal, SD};
-        throw:{undefined_condition, H, OldAcked} ->
-            #xmlel{children = [UndefCond, Text]} = ErrorStanza0
-                = mongoose_xmpp_errors:undefined_condition(
-                    SD#state.lang, <<"You acknowledged more stanzas that what has been sent">>),
-            HandledCountField = sm_handled_count_too_high_stanza(H, OldAcked),
-            ErrorStanza = ErrorStanza0#xmlel{children = [UndefCond, HandledCountField, Text]},
-            maybe_send_element_from_server_jid_safe(SD, ErrorStanza),
-            maybe_send_trailer_safe(SD),
-            {stop, normal, SD}
+        {_, Handled} ->
+            try
+                NSD = #state{} = do_handle_ack(Handled,
+                                               SD#state.stream_mgmt_out_acked,
+                                               SD#state.stream_mgmt_buffer,
+                                               SD#state.stream_mgmt_buffer_size,
+                                               SD),
+                fsm_next_state(NextState, NSD)
+            catch
+                throw:{undefined_condition, H, OldAcked} ->
+                    #xmlel{children = [UndefCond, Text]} = ErrorStanza0
+                    = mongoose_xmpp_errors:undefined_condition(
+                        SD#state.lang, <<"You acknowledged more stanzas that what has been sent">>),
+                    HandledCountField = sm_handled_count_too_high_stanza(H, OldAcked),
+                    ErrorStanza = ErrorStanza0#xmlel{children = [UndefCond, HandledCountField, Text]},
+                    maybe_send_element_from_server_jid_safe(SD, ErrorStanza),
+                    maybe_send_trailer_safe(SD),
+                    {stop, normal, SD}
+            end
+    end.
+
+stream_mgmt_parse_h(El) ->
+    case catch binary_to_integer(exml_query:attr(El, <<"h">>)) of
+        H when is_integer(H) -> H;
+        _ -> invalid_h_attribute
     end.
 
 do_handle_ack(Handled, OldAcked, Buffer, BufferSize, SD) ->
