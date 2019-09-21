@@ -70,6 +70,7 @@ parallel_manual_ack_test_cases() ->
     [client_acks_more_than_sent,
      too_many_unacked_stanzas,
      resend_unacked_after_resume_timeout,
+     resume_expired_session_returns_correct_h,
      resume_session_state_send_message,
      resume_session_state_stop_c2s,
      server_requests_ack_after_session,
@@ -554,6 +555,37 @@ resend_unacked_after_resume_timeout(Config) ->
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice).
 
+resume_expired_session_returns_correct_h(Config) ->
+    %% connect bob and alice
+    {Bob, _, _, _} =
+        get_stream_resumption_enabled_fresh_user_smid_and_h(Config, bob),
+    {Alice, AliceSpec, SMID, SMH} =
+        get_stream_resumption_enabled_fresh_user_smid_and_h(Config, alice),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    %% Bob sends a message to Alice, and Alice receives it but doesn't acknowledge
+    escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
+    escalus:wait_for_stanza(Alice),
+    %% kill alice connection
+    escalus_connection:kill(Alice),
+    %% ensure there is no session
+    wait_until_disconnected(AliceSpec),
+    0 = length(get_user_alive_resources(AliceSpec)),
+    %% alice comes back, but too late, so resumption doesn't work,
+    %% but she receives the previous h = 1 anyway
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_authenticate()),
+    escalus_connection:send(NewAlice, escalus_stanza:resume(SMID, SMH)),
+    FailedResumption = escalus_connection:get_stanza(NewAlice, failed_resumption),
+    <<"1">> = exml_query:attr(FailedResumption, <<"h">>),
+    %% And we can continue with bind and session
+    escalus_session:session(escalus_session:bind(NewAlice)),
+    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    Stanzas = [escalus_connection:get_stanza(NewAlice, msg),
+               escalus_connection:get_stanza(NewAlice, msg)],
+    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)], Stanzas),
+    escalus_connection:stop(Bob),
+    escalus_connection:stop(NewAlice).
+
+
 resume_session_state_send_message(Config) ->
     ConnSteps = connection_steps_to_session(),
 
@@ -968,6 +1000,7 @@ messages_are_properly_flushed_during_resumption(Config) ->
         RecvMsg = escalus:wait_for_stanza(Alice2),
         escalus:assert(is_chat_message, [MsgBody], RecvMsg)
       end).
+
 
 %%--------------------------------------------------------------------
 %% Helpers
