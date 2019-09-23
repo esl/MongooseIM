@@ -60,7 +60,9 @@ clustering_two_tests() ->
      leave_but_no_cluster,
      join_twice,
      leave_using_rpc,
-     leave_twice].
+     leave_twice,
+     join_twice_using_rpc,
+     join_twice_in_parallel_using_rpc].
 
 clustering_three_tests() ->
     [cluster_of_three,
@@ -149,7 +151,9 @@ end_per_testcase(CaseName, Config) when CaseName == join_successful_prompt
                                    orelse CaseName == join_successful_force
                                    orelse CaseName == leave_unsuccessful_prompt
                                    orelse CaseName == leave_unsuccessful_force
-                                   orelse CaseName == join_twice ->
+                                   orelse CaseName == join_twice
+                                   orelse CaseName == join_twice_using_rpc
+                                   orelse CaseName == join_twice_in_parallel_using_rpc ->
     Node2 = mim2(),
     remove_node_from_cluster(Node2, Config),
     escalus:end_per_testcase(CaseName, Config);
@@ -288,6 +292,39 @@ join_twice(Config) ->
     distributed_helper:verify_result(Node2, add),
     ?eq(0, OpCode1),
     ?ne(0, OpCode2).
+
+%% This function checks that it's ok to call mongoose_cluster:join/1 twice
+join_twice_using_rpc(Config) ->
+    %% given
+    Node1 = mim(),
+    Node2 = mim2(),
+    Timeout = timer:seconds(60),
+    %% when
+    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
+    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
+    %% then
+    distributed_helper:verify_result(Node2, add),
+    ok.
+
+%% Check, that global transaction allows to run only one cluster operation at the time.
+%% It should technically behave the same way as join_twice_using_rpc test (i.e. not fail).
+join_twice_in_parallel_using_rpc(Config) ->
+    %% given
+    Node1 = mim(),
+    Node2 = mim2(),
+    Timeout = timer:seconds(60),
+    %% when
+    Pid1 = proc_lib:spawn_link(fun() ->
+        ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout)
+        end),
+    Pid2 = proc_lib:spawn_link(fun() ->
+        ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout)
+        end),
+    %% then
+    distributed_helper:verify_result(Node2, add),
+    wait_for_process_to_stop(Pid1, Timeout),
+    wait_for_process_to_stop(Pid2, Timeout),
+    ok.
 
 leave_using_rpc(Config) ->
     %% given
@@ -431,3 +468,6 @@ have_node_in_mnesia(Node1, Node2, ShouldBe) ->
     DbNodes1 = distributed_helper:rpc(Node1, mnesia, system_info, [db_nodes]),
     ?assertEqual(ShouldBe, lists:member(Node2, DbNodes1)).
 
+wait_for_process_to_stop(Pid, Timeout) ->
+    erlang:monitor(process, Pid),
+    receive {'DOWN', _, process, Pid, _} -> ok after Timeout -> ct:fail(wait_for_process_to_stop_timeout) end.
