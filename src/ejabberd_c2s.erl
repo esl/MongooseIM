@@ -2895,12 +2895,13 @@ buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
     S;
 buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
     S;
-buffer_out_stanza(Packet, #state{stream_mgmt_buffer = Buffer,
+buffer_out_stanza(Packet, #state{server = Server,
+                                 stream_mgmt_buffer = Buffer,
                                  stream_mgmt_buffer_size = BufferSize,
                                  stream_mgmt_buffer_max = BufferMax} = S) ->
     NewSize = BufferSize + 1,
     Timestamp = os:timestamp(),
-    NPacket = maybe_add_timestamp(Packet, Timestamp),
+    NPacket = maybe_add_timestamp(Packet, Timestamp, Server),
 
     NS = case is_buffer_full(NewSize, BufferMax) of
              true ->
@@ -3116,7 +3117,7 @@ handover_session(SD) ->
                    stream_mgmt_buffer = NewBuffer},
     {stop, normal, {ok, NSD}, NSD}.
 
-maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp) ->
+maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Timestamp, Server) ->
     Type = xml:get_tag_attr_s(<<"type">>, Packet),
     case Type of
         <<"error">> ->
@@ -3124,9 +3125,9 @@ maybe_add_timestamp({F, T, #xmlel{name= <<"message">>}=Packet}=PacketTuple, Time
         <<"headline">> ->
             PacketTuple;
         _ ->
-            {F, T, add_timestamp(Timestamp, ?MYNAME, Packet)}
+            {F, T, add_timestamp(Timestamp, Server, Packet)}
     end;
-maybe_add_timestamp(Packet, _Timestamp) ->
+maybe_add_timestamp(Packet, _Timestamp, _Server) ->
     Packet.
 
 add_timestamp({_, _, Micro} = TimeStamp, Server, Packet) ->
@@ -3276,5 +3277,5 @@ hibernate() ->
 maybe_hibernate(#state{hibernate_after = 0}) -> hibernate();
 maybe_hibernate(#state{hibernate_after = HA}) -> HA.
 
-make_c2s_info(StateData = #state{stream_mgmt_buffer_size = SMBufSize}) ->
+make_c2s_info(_StateData = #state{stream_mgmt_buffer_size = SMBufSize}) ->
     #{stream_mgmt_buffer_size => SMBufSize}.
