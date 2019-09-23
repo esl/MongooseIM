@@ -4,7 +4,7 @@
 setup() ->
     meck:new(ejabberd_sm),
     meck:expect(ejabberd_sm, close_session,
-                fun(_SID, _User, _Server, _Resource, _Reason) -> ok end),
+                fun(Acc, _SID, _User, _Server, _Resource, _Reason) -> Acc end),
     meck:expect(ejabberd_sm, open_session, fun(_, _, _, _, _) -> [] end),
 
     meck:new(ejabberd_socket),
