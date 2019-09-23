@@ -21,10 +21,13 @@
 -export([kick_everyone/0]).
 -export([ensure_muc_clean/0]).
 -export([successful_rpc/3, successful_rpc/4]).
--export([logout_user/2]).
+-export([logout_user/2, logout_user/3]).
 -export([wait_until/2, wait_until/3, wait_for_user/3]).
 
 -export([inject_module/1, inject_module/2, inject_module/3]).
+-export([get_session_pid/2]).
+-export([wait_for_route_message_count/2]).
+-export([wait_for_pid_to_die/1]).
 
 -import(distributed_helper, [mim/0,
                              rpc/4]).
@@ -225,15 +228,18 @@ successful_rpc(Node, Module, Function, Args) ->
             Result
     end.
 
+logout_user(Config, User) ->
+    Node = ct:get_config({hosts, mim, node}),
+    logout_user(Config, User, Node).
+
 %% This function is a version of escalus_client:stop/2
 %% that ensures that c2s process is dead.
 %% This allows to avoid race conditions.
-logout_user(Config, User) ->
+logout_user(Config, User, Node) ->
     Resource = escalus_client:resource(User),
     Username = escalus_client:username(User),
     Server = escalus_client:server(User),
-    Result = successful_rpc(ejabberd_sm, get_session_pid,
-                            [Username, Server, Resource]),
+    Result = get_session_pid(User, Node),
     case Result of
         none ->
             %% This case can be a side effect of some error, you should
@@ -332,3 +338,29 @@ inject_module(Node, Module, reload) ->
     {Mod, Bin, File} = code:get_object_code(Module),
     successful_rpc(Node, code, load_binary, [Mod, File, Bin]).
 
+
+
+get_session_pid(User, Node) ->
+    Resource = escalus_client:resource(User),
+    Username = escalus_client:username(User),
+    Server = escalus_client:server(User),
+    successful_rpc(Node, ejabberd_sm, get_session_pid,
+                            [Username, Server, Resource]).
+
+
+wait_for_route_message_count(C2sPid, ExpectedCount) when is_pid(C2sPid), is_integer(ExpectedCount) ->
+    mongoose_helper:wait_until(fun() -> count_route_messages(C2sPid) end, ExpectedCount, #{name => has_route_message}).
+
+count_route_messages(C2sPid) when is_pid(C2sPid) ->
+     {messages, Messages} = rpc:pinfo(C2sPid, messages),
+     length([Route || Route <- Messages, is_tuple(Route), route =:= element(1, Route)]).
+
+wait_for_pid_to_die(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    %% Wait for pid to die
+    receive
+        {'DOWN', MonitorRef, _, _, _} ->
+            ok
+        after 10000 ->
+            ct:fail({wait_for_pid_to_die_failed, Pid})
+    end.

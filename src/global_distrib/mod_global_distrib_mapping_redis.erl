@@ -30,6 +30,8 @@
          put_domain/2, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0, get_public_domains/0, get_hosts/0]).
 
+-export([refresh/0]).
+
 -export([init/1, handle_info/2]).
 
 %% Only for debug & tests!
@@ -128,6 +130,12 @@ init(RefreshAfter) ->
     {ok, RefreshAfter}.
 
 handle_info(refresh, RefreshAfter) ->
+    refresh(),
+    ?DEBUG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
+    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
+    {noreply, RefreshAfter}.
+
+refresh() ->
     ?DEBUG("event=refreshing_own_hosts", []),
     refresh_hosts(),
     ?DEBUG("event=refreshing_own_nodes", []),
@@ -140,9 +148,7 @@ handle_info(refresh, RefreshAfter) ->
     refresh_domains(),
     ?DEBUG("event=refreshing_own_public_domains", []),
     refresh_public_domains(),
-    ?DEBUG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
-    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
-    {noreply, RefreshAfter}.
+    ok.
 
 %%--------------------------------------------------------------------
 %% Helpers
