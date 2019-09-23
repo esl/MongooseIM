@@ -73,19 +73,43 @@ sm() ->
     #xmlel{name = <<"sm">>,
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
+-spec remove_smid(Acc, SID, JID, Info, Reason) -> Acc1 when
+      Acc :: mongoose_acc:t(),
+      SID :: ejabberd_sm:sid(),
+      JID :: undefined | jid:jid(),
+      Info :: undefined | [any()],
+      Reason :: undefined | ejabberd_sm:close_reason(),
+      Acc1 :: mongoose_acc:t().
 remove_smid(Acc, SID, _JID, _Info, _Reason) ->
-    case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of
+    H = mongoose_acc:get(stream_mgmt, h, undefined, Acc),
+    MaybeSMID = case mnesia:dirty_index_read(sm_session, SID, #sm_session.sid) of
         [] ->
             ok;
-        [#sm_session{} = SMSession] ->
-            mnesia:sync_dirty(fun mnesia:delete_object/1, [SMSession])
+        [#sm_session{smid = SMID} = SMSession] ->
+            mnesia:sync_dirty(
+              fun() ->
+                      mnesia:delete_object(SMSession),
+                      case H of
+                          undefined ->
+                              ok;
+                          _ ->
+                              mnesia:write(#stream_mgmt_stale_h{smid = SMID, h = H})
+                      end
+              end),
+            SMID
     end,
-    Acc.
+    mongoose_acc:set(stream_mgmt, smid, MaybeSMID, Acc).
 
 -spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
-    remove_smid(Acc, SID, undefined, undefined, undefined).
+    Acc1 = remove_smid(Acc, SID, undefined, undefined, undefined),
+    MaybeSMID = mongoose_acc:get(stream_mgmt, smid, Acc1),
+    case MaybeSMID of
+        ok -> ok;
+        _ -> remove_stale_smid_h(MaybeSMID)
+    end,
+    Acc.
 
 %%
 %% `mongooseim.cfg' options (don't use outside of tests)

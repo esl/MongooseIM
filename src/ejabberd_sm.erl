@@ -34,7 +34,7 @@
          route/3,
          route/4,
          open_session/5, open_session/6,
-         close_session/5,
+         close_session/6,
          store_info/4,
          check_in_subscription/6,
          bounce_offline_message/4,
@@ -42,7 +42,7 @@
          get_user_resources/2,
          set_presence/8,
          unset_presence/7,
-         close_session_unset_presence/6,
+         close_session_unset_presence/7,
          get_unique_sessions_number/0,
          get_total_sessions_number/0,
          get_node_sessions_number/0,
@@ -204,13 +204,15 @@ open_session(SID, User, Server, Resource, Priority, Info) ->
                        [SID, JID, Info]),
     ReplacedPIDs.
 
--spec close_session(SID, User, Server, Resource, Reason) -> ok when
+-spec close_session(Acc, SID, User, Server, Resource, Reason) -> Acc1 when
+      Acc :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       User :: jid:user(),
       Server :: jid:server(),
       Resource :: jid:resource(),
-      Reason :: close_reason().
-close_session(SID, User, Server, Resource, Reason) ->
+      Reason :: close_reason(),
+      Acc1 :: mongoose_acc:t().
+close_session(Acc, SID, User, Server, Resource, Reason) ->
     LUser = jid:nodeprep(User),
     LServer = jid:nameprep(Server),
     LResource = jid:resourceprep(Resource),
@@ -222,8 +224,8 @@ close_session(SID, User, Server, Resource, Reason) ->
            end,
     ejabberd_gen_sm:delete_session(sm_backend(), SID, LUser, LServer, LResource),
     JID = jid:make(User, Server, Resource),
-    ejabberd_hooks:run(sm_remove_connection_hook, JID#jid.lserver,
-                       [SID, JID, Info, Reason]).
+    ejabberd_hooks:run_fold(sm_remove_connection_hook, JID#jid.lserver, Acc,
+                            [SID, JID, Info, Reason]).
 
 -spec store_info(jid:user(), jid:server(), jid:resource(),
                  {any(), any()}) -> {ok, {any(), any()}} | {error, offline}.
@@ -364,17 +366,19 @@ unset_presence(Acc, SID, User, Server, Resource, Status, Info) ->
                         jid:resourceprep(Resource), Status]).
 
 
--spec close_session_unset_presence(SID, User, Server, Resource, Status, Reason) -> ok when
+-spec close_session_unset_presence(Acc, SID, User, Server, Resource, Status, Reason) -> Acc1 when
+      Acc :: mongoose_acc:t(),
       SID :: 'undefined' | sid(),
       User :: jid:user(),
       Server :: jid:server(),
       Resource :: jid:resource(),
       Status :: any(),
-      Reason :: close_reason().
-close_session_unset_presence(SID, User, Server, Resource, Status, Reason) ->
-    close_session(SID, User, Server, Resource, Reason),
+      Reason :: close_reason(),
+      Acc1 :: mongoose_acc:t().
+close_session_unset_presence(Acc, SID, User, Server, Resource, Status, Reason) ->
+    close_session(Acc, SID, User, Server, Resource, Reason),
     LServer = jid:nameprep(Server),
-    ejabberd_hooks:run(unset_presence_hook, LServer,
+    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
                        [jid:nodeprep(User), LServer,
                         jid:resourceprep(Resource), Status]).
 

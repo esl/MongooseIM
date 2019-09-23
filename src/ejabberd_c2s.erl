@@ -1487,6 +1487,9 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %%----------------------------------------------------------------------
 -spec terminate(Reason :: any(), statename(), state()) -> ok.
 terminate(_Reason, StateName, StateData) ->
+    InitialAcc0 = mongoose_acc:new(
+             #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
+    Acc = mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0),
     case {should_close_session(StateName), StateData#state.authenticated} of
         {false, _} ->
             ok;
@@ -1502,6 +1505,7 @@ terminate(_Reason, StateName, StateData) ->
                             children = [StatusEl]},
             Acc0 = element_to_origin_accum(Packet, StateData),
             ejabberd_sm:close_session_unset_presence(
+              Acc,
               StateData#state.sid,
               StateData#state.user,
               StateData#state.server,
@@ -1531,7 +1535,8 @@ terminate(_Reason, StateName, StateData) ->
                        pres_a = EmptySet,
                        pres_i = EmptySet,
                        pres_invis = false} ->
-                    ejabberd_sm:close_session(StateData#state.sid,
+                    ejabberd_sm:close_session(Acc,
+                                              StateData#state.sid,
                                               StateData#state.user,
                                               StateData#state.server,
                                               StateData#state.resource,
@@ -1541,6 +1546,7 @@ terminate(_Reason, StateName, StateData) ->
                                     attrs = [{<<"type">>, <<"unavailable">>}]},
                     Acc0 = element_to_origin_accum(Packet, StateData),
                     ejabberd_sm:close_session_unset_presence(
+                      Acc,
                       StateData#state.sid,
                       StateData#state.user,
                       StateData#state.server,
@@ -3107,7 +3113,10 @@ stream_mgmt_resumed(SMID, Handled) ->
 handover_session(SD) ->
     %% Assert Stream Management is on; otherwise this should not be called.
     true = SD#state.stream_mgmt,
-    ejabberd_sm:close_session(SD#state.sid,
+    Acc = mongoose_acc:new(
+             #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
+    ejabberd_sm:close_session(Acc,
+                              SD#state.sid,
                               SD#state.user,
                               SD#state.server,
                               SD#state.resource,
