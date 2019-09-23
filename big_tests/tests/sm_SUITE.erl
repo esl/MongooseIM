@@ -191,7 +191,7 @@ client_enables_sm_twice_fails_with_correct_error_stanza(Config) ->
                    escalus_connection:get_stanza(Alice, enable_sm_failed)),
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, enable_sm_failed)),
-    wait_until_client_disconnects(Alice).
+    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
 
 session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza(Config) ->
     %% GIVEN USER WITH STREAM RESUMPTION ENABLED
@@ -206,7 +206,7 @@ session_resumed_then_old_session_is_closed_gracefully_with_correct_error_stanza(
                    escalus_connection:get_stanza(Alice, close_old_stream)),
     escalus:assert(is_stream_end,
                    escalus_connection:get_stanza(Alice, close_old_stream)),
-    wait_until_client_disconnects(Alice),
+    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)),
     true = escalus_connection:is_connected(Alice2),
     escalus_connection:stop(Alice2).
 
@@ -301,7 +301,6 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
     Config = escalus_users:update_userspec(ConfigIn, alice,
                                            stream_management, true),
     escalus:fresh_story(Config, [{alice,1}], fun(Alice) ->
-        %% Ack, so that unacked messages don't go into offline store.
         escalus:send(Alice, AStanza),
         escalus:assert(is_stream_error,
                        [<<"policy-violation">>, <<>>],
@@ -325,7 +324,7 @@ client_acks_more_than_sent(Config) ->
     <<"0">> = exml_query:attr(HandledCountSubElement, <<"send-count">>),
     %% Assert graceful stream end
     escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
-    wait_until_client_disconnects(Alice).
+    true = escalus_connection:wait_for_close(Alice,timer:seconds(5)).
 
 too_many_unacked_stanzas(Config) ->
     {Bob, _} = given_fresh_user(Config, bob),
@@ -1066,10 +1065,6 @@ extract_state_name(SysStatus) ->
 wait_until_disconnected(UserSpec) ->
     mongoose_helper:wait_until(fun() -> get_user_alive_resources(UserSpec) =:= [] end, true,
                                #{name => get_user_alive_resources}).
-
-wait_until_client_disconnects(Client) ->
-    mongoose_helper:wait_until(fun() -> escalus_connection:is_connected(Client)
-                               end, false, #{name => client_disconnected}).
 
 monitor_session(Client) ->
     UserSpec = Client#client.props,
