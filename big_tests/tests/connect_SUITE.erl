@@ -310,8 +310,8 @@ clients_can_connect_with_advertised_ciphers(Config) ->
 
 'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'(Config) ->
     Port = case ?config(tls_module, Config) of
-               just_tls -> 5263; %mim3 secondary_c2s port
-               fast_tls -> 5233  %mim2 secondary_c2s port
+               just_tls -> ct:get_config({hosts, mim3, secondary_c2s_port});
+               fast_tls -> ct:get_config({hosts, mim2, secondary_c2s_port})
            end,
     Config1 = [{c2s_port, Port} | Config],
     CiphersStr = os:cmd("openssl ciphers 'ECDHE-RSA-AES256-GCM-SHA384'"),

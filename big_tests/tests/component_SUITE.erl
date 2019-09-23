@@ -100,7 +100,7 @@ init_per_group(xep0114_tcp, Config) ->
 init_per_group(xep0114_ws, Config) ->
     WSOpts = [{transport, escalus_ws},
               {wspath, <<"/ws-xmpp">>},
-              {wslegacy, true} | common(Config, 5280)],
+              {wslegacy, true} | common(Config, ct:get_config({hosts, mim, cowboy_port}))],
     Config1 = get_components(WSOpts, Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->

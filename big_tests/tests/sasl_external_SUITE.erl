@@ -406,7 +406,7 @@ generate_user(C, User, Transport) ->
 transport_specific_options(escalus_tcp) ->
     [{starttls, required}];
 transport_specific_options(_) ->
-     [{port, 5285},
+     [{port, ct:get_config({hosts, mim, cowboy_secure_port})},
       {ssl, true}].
 
 prepare_template_values(User, XMPPAddrsIn) ->
