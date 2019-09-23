@@ -74,6 +74,11 @@ client_charset = UTF-8
 EOL
 }
 
+function riak_solr_is_up
+{
+    docker exec $1 curl 'http://localhost:8093/internal_solr/mam/admin/ping?wt=json' | grep '"status":"OK"'
+}
+
 # Stores all the data needed by the container
 SQL_ROOT_DIR="$(mktempdir mongoose_sql_root)"
 echo "SQL_ROOT_DIR is $SQL_ROOT_DIR"
@@ -178,6 +183,8 @@ elif [ "$db" = 'riak' ]; then
     docker cp "$NAME:/etc/riak/riak.conf" "$TEMP_RIAK_CONF"
     # Enable search
     $SED -i "s/^search = \(.*\)/search = on/" "$TEMP_RIAK_CONF"
+    # Solr is sloow on travis
+    $SED -i "s/^search.solr.start_timeout = \(.*\)/search.solr.start_timeout = 2m/" "$TEMP_RIAK_CONF"
     # Enable ssl by appending settings from riak.conf.ssl
     cat "${DB_CONF_DIR}/riak.conf.ssl" >> "$TEMP_RIAK_CONF"
     # Import config back into container
@@ -197,6 +204,15 @@ elif [ "$db" = 'riak' ]; then
     tools/wait_for_service.sh $NAME 8087
     # Use this command to read Riak's logs if something goes wrong
     # docker exec -t $NAME bash -c 'tail -f /var/log/riak/*'
+
+    # Wait for solr
+    for i in {1..30}; do
+        if riak_solr_is_up $NAME; then
+             break
+        fi
+        echo -n "."
+        sleep 1
+    done
 
 elif [ "$db" = 'cassandra' ]; then
     NAME=$(db_name cassandra)
