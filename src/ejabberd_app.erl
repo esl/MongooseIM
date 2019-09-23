@@ -46,6 +46,7 @@ start(normal, _Args) ->
     db_init(),
     application:start(cache_tab),
 
+    warning_if_pre_21_2_otp(),
     translate:start(),
     acl:start(),
     ejabberd_node_id:start(),
@@ -249,3 +250,14 @@ maybe_disable_default_logger() ->
         _E:_R ->
             ok
     end.
+
+warning_if_pre_21_2_otp() ->
+    OTPVsn = erlang:system_info(version),
+    case lists:map(fun erlang:list_to_integer/1, string:split(OTPVsn, ".", all)) < [10, 2] of
+        true ->
+            ?WARNING_MSG("MongooseIM is running on a deprecated OTP version."
+                         " The next release will require at least OTP 21.2.", []);
+        false ->
+            ok
+    end.
+

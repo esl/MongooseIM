@@ -7,7 +7,7 @@ MongooseIM will not connect to MySQL over TLS on OTP 20.3 due to [the MySQL driv
 
 ### Proposed workarounds
 
-* Upgrade OTP to 21.0 or higher.
+* Upgrade OTP to 21.2 or higher.
 * Use unencrypted communication with MySQL.
 
 ## MSSQL connectivity via ODBC

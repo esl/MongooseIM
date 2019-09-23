@@ -96,7 +96,7 @@ tools/configure with-all without-odbc
 tools/configure with-all
 ```
 
-MongooseIM 2.2.x packages are built with OTP 19.3, so they include Jingle/SIP support.
+MongooseIM packages are built with Jingle/SIP support.
 
 ### Options
 
