@@ -7,6 +7,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("escalus/include/escalus_xmlns.hrl").
 
+-import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
 
 %%--------------------------------------------------------------------
 %% Suite configuration
@@ -164,12 +165,6 @@ start_pool() ->
 stop_pool() ->
     ejabberd_node_utils:call_fun(mongoose_wpool, stop, [http, <<"localhost">>, http_pool]),
     ok.
-
-http_notifications_port() ->
-    ct:get_config({hosts, mim, http_notifications_port}).
-
-http_notifications_host() ->
-    "http://localhost:" ++ integer_to_list(http_notifications_port()).
 
 %%--------------------------------------------------------------------
 %% Libs

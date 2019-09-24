@@ -18,6 +18,8 @@
                              require_rpc_nodes/1,
                              rpc/4]).
 
+-import(push_helper, [http_notifications_port/0, http_notifications_host/0]).
+
 %%%===================================================================
 %%% Suite configuration
 %%%===================================================================
@@ -98,12 +100,6 @@ process_notification(Req, Pid) ->
     Req2 = cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, <<"OK">>, Req1),
     Pid ! {got_http_request, Body},
     Req2.
-
-http_notifications_port() ->
-    ct:get_config({hosts, mim, http_notifications_port}).
-
-http_notifications_host() ->
-    "http://localhost:" ++ integer_to_list(http_notifications_port()).
 
 %%%===================================================================
 %%% offline tests

@@ -12,6 +12,8 @@
 
 -export([ns_push/0, ns_pubsub_pub_options/0, push_form_type/0, make_form/1]).
 
+-export([http_notifications_port/0, http_notifications_host/0]).
+
 -import(distributed_helper, [mim/0,
                              rpc/4]).
 
@@ -109,3 +111,10 @@ wait_for_user_offline(Client) ->
                                end,
                                true,
                                #{time_left => timer:seconds(20), name => is_offline}).
+
+
+http_notifications_port() ->
+    ct:get_config({hosts, mim, http_notifications_port}).
+
+http_notifications_host() ->
+    "http://localhost:" ++ integer_to_list(http_notifications_port()).
