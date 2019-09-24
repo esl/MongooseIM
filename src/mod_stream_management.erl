@@ -163,25 +163,27 @@ make_smid() ->
 
 %% Getters
 -spec get_session_from_smid(SMID :: smid()) ->
-    ejabberd_sm:sid() | non_neg_integer() | smid_not_found.
+    {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found}.
 get_session_from_smid(SMID) ->
     case get_sid(SMID) of
-        {_,_} = SID -> SID;
-        smid_not_found -> get_stale_h(SMID)
+        {sid, SID} -> {sid, SID};
+        {error, smid_not_found} -> get_stale_h(SMID)
     end.
 
--spec get_sid(SMID :: smid()) -> ejabberd_sm:sid() | smid_not_found.
+-spec get_sid(SMID :: smid()) ->
+    {sid, ejabberd_sm:sid()} | {error, smid_not_found}.
 get_sid(SMID) ->
     case mnesia:dirty_read(sm_session, SMID) of
-        [#sm_session{sid = SID}] -> SID;
-        [] -> smid_not_found
+        [#sm_session{sid = SID}] -> {sid, SID};
+        [] -> {error, smid_not_found}
     end.
 
--spec get_stale_h(SMID :: smid()) -> non_neg_integer() | smid_not_found.
+-spec get_stale_h(SMID :: smid()) ->
+    {stale_h, non_neg_integer()} | {error, smid_not_found}.
 get_stale_h(SMID) ->
     case mnesia:dirty_read(stream_mgmt_stale_h, SMID) of
-        [#stream_mgmt_stale_h{h = H}] -> H;
-        [] -> smid_not_found
+        [#stream_mgmt_stale_h{h = H}] -> {stale_h, H};
+        [] -> {error, smid_not_found}
     end.
 
 %% Setters

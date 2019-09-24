@@ -376,9 +376,9 @@ unset_presence(Acc, SID, User, Server, Resource, Status, Info) ->
       Reason :: close_reason(),
       Acc1 :: mongoose_acc:t().
 close_session_unset_presence(Acc, SID, User, Server, Resource, Status, Reason) ->
-    close_session(Acc, SID, User, Server, Resource, Reason),
     LServer = jid:nameprep(Server),
-    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc,
+    Acc1 = close_session(Acc, SID, User, LServer, Resource, Reason),
+    ejabberd_hooks:run_fold(unset_presence_hook, LServer, Acc1,
                        [jid:nodeprep(User), LServer,
                         jid:resourceprep(Resource), Status]).
 

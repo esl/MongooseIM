@@ -106,13 +106,13 @@ stream_management(_Config) ->
     {U, S, R, _JID, SID} = get_fake_session(),
     SMID = <<"123">>,
     mod_stream_management:register_smid(SMID, SID),
-    SID = mod_stream_management:get_sid(SMID),
+    {sid, SID} = mod_stream_management:get_sid(SMID),
     Acc = mongoose_acc:new(
             #{location => ?LOCATION,
               lserver => S,
               element => undefined}),
     ejabberd_hooks:run_fold(session_cleanup, ?HOST, Acc, [U, S, R, SID]),
-    smid_not_found = mod_stream_management:get_sid(SMID).
+    {error, smid_not_found} = mod_stream_management:get_sid(SMID).
 
 local(_Config) ->
     ejabberd_local:start_link(),

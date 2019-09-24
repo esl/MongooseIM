@@ -3012,7 +3012,13 @@ maybe_resume_session(NextState, El, StateData) ->
             fsm_next_state(NextState, StateData)
     end.
 
-do_resume_session(SMID, El, {_, Pid}, #state{server = Server} = StateData) ->
+-spec do_resume_session(SMID, El, FromSMID, StateData) -> NewState when
+      SMID :: mod_stream_management:smid(),
+      El :: exml:element(),
+      FromSMID :: {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found},
+      StateData :: state(),
+      NewState :: tuple().
+do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
         SID = {p1_time_compat:timestamp(), self()},
@@ -3064,12 +3070,12 @@ do_resume_session(SMID, El, {_, Pid}, #state{server = Server} = StateData) ->
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
-do_resume_session(SMID, _El, H, StateData) when is_integer(H) ->
+do_resume_session(SMID, _El, {stale_h, H}, StateData) when is_integer(H) ->
     ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
     send_element_from_server_jid(
       StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
     fsm_next_state(wait_for_feature_after_auth, StateData);
-do_resume_session(SMID, _El, smid_not_found, StateData) ->
+do_resume_session(SMID, _El, {error, smid_not_found}, StateData) ->
     ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
