@@ -119,6 +119,10 @@ init_per_suite(Config) ->
     Config1 = ejabberd_node_utils:init(Node, Config),
     Config2 = escalus:init_per_suite([{ctl_auth_mods, AuthMods},
                                         {roster_template, TemplatePath} | Config1]),
+    %% dump_and_load requires at least one mnesia table
+    %% ensure, that passwd table is available
+    Host = ct:get_config({hosts, mim, domain}),
+    catch rpc_call(ejabberd_auth_internal, start, [Host]),
     escalus:create_users(Config2, escalus:get_users([alice, mike, bob, kate])).
 
 end_per_suite(Config) ->
@@ -972,10 +976,14 @@ dump_and_load(Config) ->
     TableName = passwd,
     %% Table passwd should not be empty
     TableSize = rpc_call(mnesia, table_info, [TableName, size]),
-    {_, 0} = ejabberdctl("dump", [FileName], Config),
+    {DumpReturns, 0} = ejabberdctl("dump", [FileName], Config),
+    ct:log("DumpReturns ~p", [DumpReturns]),
+    {ok, DumpData} = rpc_call(file, consult, [FileName]),
+    ct:log("DumpData ~p", [DumpData]),
     rpc_call(mnesia, clear_table, [TableName]),
     0 = rpc_call(mnesia, table_info, [TableName, size]),
     {R, 0} = ejabberdctl("load", [FileName], Config),
+    ct:log("LoadReturns ~p", [R]),
     {match, _} = re:run(R, ".+"),
     TableSize = rpc_call(mnesia, table_info, [TableName, size]).
 
