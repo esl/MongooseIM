@@ -20,6 +20,9 @@
 %% Next time the node starts, it will connect to other members automatically.
 -spec join(node()) -> ok.
 join(ClusterMember) ->
+    node_trans(fun() -> do_join(ClusterMember) end).
+
+do_join(ClusterMember) ->
     ?INFO_MSG("join ~p", [ClusterMember]),
     with_app_stopped(mongooseim,
                      fun () ->
@@ -34,6 +37,9 @@ join(ClusterMember) ->
 %% Remaining members will remove this node from the cluster Mnesia schema.
 -spec leave() -> ok.
 leave() ->
+    node_trans(fun() -> do_leave() end).
+
+do_leave() ->
     ?INFO_MSG("leave", []),
     with_app_stopped(mongooseim,
                      fun () ->
@@ -47,6 +53,9 @@ leave() ->
 %% The removing node must be down
 -spec remove_from_cluster(node()) -> ok.
 remove_from_cluster(Node) ->
+    node_trans(fun() -> do_remove_from_cluster(Node) end).
+
+do_remove_from_cluster(Node) ->
     NodeAlive = is_node_alive(Node),
     NodeAlive andalso error({node_is_alive, Node}),
     remove_dead_from_cluster(Node).
@@ -187,3 +196,6 @@ with_app_stopped(App, F) ->
     after
         Running andalso application:start(App)
     end.
+
+node_trans(F) ->
+    global:trans({{mongoose_cluster_op, node()}, self()}, F).
