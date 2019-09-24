@@ -103,11 +103,12 @@ cleanup(Node) ->
                          ['$_']}]),
                 lists:foreach(fun(#session{ usr = {U, S, R}, sid = SID }) ->
                                       mnesia:delete({session, SID}),
-                                      ejabberd_hooks:run_fold(session_cleanup, S,
-                                                              mongoose_acc:new(
-                                                                #{location => ?LOCATION,
-                                                                  lserver => S,
-                                                                  element => undefined}),
+                                      Acc = mongoose_acc:new(
+                                              #{location => ?LOCATION,
+                                                lserver => S,
+                                                element => undefined}),
+                                      ejabberd_hooks:run_fold(session_cleanup,
+                                                              S, Acc,
                                                               [U, S, R, SID])
                               end, Es)
 
