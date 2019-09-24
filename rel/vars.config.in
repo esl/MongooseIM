@@ -7,7 +7,7 @@
 {cowboy_secure_port, 5285}.
 
 % These need to be defined before https://github.com/erlware/relx/pull/747 is merged
-{secondary_c2s_port, ""}.
+{c2s_tls_port, ""}.
 {service_port, ""}.
 {kicking_service_port, ""}.
 {hidden_service_port, ""}.
