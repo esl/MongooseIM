@@ -115,7 +115,6 @@ notifications:
     webhooks:
         # trigger Buildtime Trend Service to parse Travis CI log
         - https://buildtimetrend.herokuapp.com/travis
-        - https://tide.erlang-solutions.com/api/travis_ci/events
     on_start: always
 
 cache:
