@@ -1,6 +1,7 @@
 -module(mongoose_cleanup_SUITE).
 
 -include_lib("eunit/include/eunit.hrl").
+-include("mongoose.hrl").
 
 -export([all/0,
          init_per_suite/1, end_per_suite/1,
@@ -16,7 +17,6 @@
 
 -define(HOST, <<"localhost">>).
 -define(NS_CC_2, <<"urn:xmpp:carbons:2">>).
--define(LOCATION, {?MODULE, ?FUNCTION_NAME, ?LINE}).
 
 %% -----------------------------------------------------
 %% CT callbacks

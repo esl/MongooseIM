@@ -3071,12 +3071,12 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData
     end;
 
 do_resume_session(SMID, _El, {stale_h, H}, StateData) when is_integer(H) ->
-    ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
+    ?INFO_MSG("Previous session with stream id ~p timed out with h=~p~n", [SMID, H]),
     send_element_from_server_jid(
       StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
     fsm_next_state(wait_for_feature_after_auth, StateData);
 do_resume_session(SMID, _El, {error, smid_not_found}, StateData) ->
-    ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
+    ?INFO_MSG("no previous session with stream id ~p~n", [SMID]),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
 

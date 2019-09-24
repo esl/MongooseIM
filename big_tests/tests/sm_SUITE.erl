@@ -569,7 +569,6 @@ resume_expired_session_returns_correct_h(Config) ->
     escalus_connection:kill(Alice),
     %% ensure there is no session
     wait_until_disconnected(AliceSpec),
-    0 = length(get_user_alive_resources(AliceSpec)),
     %% alice comes back, but too late, so resumption doesn't work,
     %% but she receives the previous h = 1 anyway
     {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_authenticate()),
