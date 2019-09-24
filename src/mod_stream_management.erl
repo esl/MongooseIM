@@ -202,16 +202,16 @@ register_smid(SMID, SID) ->
     end.
 
 register_stale_smid_h(SMID, H) ->
-    mnesia:sync_dirty(fun mnesia:write/1,
-                      [#stream_mgmt_stale_h{smid = SMID, h = H}]).
+    try
+        mnesia:sync_dirty(fun mnesia:write/1,
+                          [#stream_mgmt_stale_h{smid = SMID, h = H}])
+    catch exit:Reason ->
+              {error, Reason}
+    end.
+
 
 remove_stale_smid_h(SMID) ->
-    case mnesia:dirty_read(stream_mgmt_stale_h, SMID) of
-        [] ->
-            ok;
-        [#stream_mgmt_stale_h{} = StaleSMID] ->
-            mnesia:sync_dirty(fun mnesia:delete_object/1, [StaleSMID])
-    end.
+    mnesia:dirty_delete(stream_mgmt_stale_h, SMID).
 
 %%
 %% Helpers
