@@ -234,7 +234,11 @@ init_per_testcase(CaseName, Config)
     %% For now it's easier to hide node2
     %% TODO: Do it right at some point!
     hide_node(europe_node2, Config),
+    %% Load muc on mim node
     muc_helper:load_muc(<<"muc.localhost">>),
+    RegNode = ct:get_config({hosts, reg, node}),
+    %% Wait for muc.localhost to become visible from reg node
+    wait_for_domain(RegNode, <<"muc.localhost">>),
     escalus:init_per_testcase(CaseName, Config);
 init_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_different_server;
                                    CN == test_pm_with_ungraceful_reconnection_to_different_server;
@@ -1232,3 +1236,10 @@ bare_client(Client) ->
 
 service_port() ->
     ct:get_config({hosts, mim, service_port}).
+
+wait_for_domain(Node, Domain) ->
+    F = fun() ->
+        {ok, Domains} = rpc:call(Node, mod_global_distrib_mapping, all_domains, []),
+        lists:member(Domain, Domains)
+        end,
+    mongoose_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
