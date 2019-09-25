@@ -331,10 +331,7 @@ init([_Host, GCOpts]) ->
     GeriatricAge = proplists:get_value(gc_geriatric, GCOpts, 60000),
     State = #state{gc_repeat_after = RepeatAfter,
                    gc_geriatric = GeriatricAge},
-     case RepeatAfter of
-         never -> ignore;
-         _ when is_integer(RepeatAfter) ->  {ok, State, RepeatAfter}
-     end.
+    {ok, State, RepeatAfter}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.

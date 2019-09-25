@@ -17,6 +17,7 @@
 
 -import(escalus_stanza, [setattr/3]).
 
+-define(BIG_BIG_BIG_TIMEOUT, 30000000000).
 -define(SHORT_RESUME_TIMEOUT, 3).
 -define(SMALL_SM_BUFFER, 3).
 
@@ -157,12 +158,12 @@ register_some_smid_h(Config) ->
     [{smid_test, [S1, S2, S3]} | Config].
 
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
-    Config2 = set_gc_parameters(never, never, Config),
+    Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
     rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
     escalus:init_per_testcase(CN, Config2);
 init_per_testcase(gc_repeat_after_never_means_no_cleaning = CN, Config) ->
-    Config2 = set_gc_parameters(never, 1, Config),
+    Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?SHORT_RESUME_TIMEOUT, Config),
     Config3 = register_some_smid_h(Config2),
     escalus:init_per_testcase(CN, Config3);
 init_per_testcase(gc_repeat_after_timeout_does_clean = CN, Config) ->
