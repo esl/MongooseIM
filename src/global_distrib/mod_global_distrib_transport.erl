@@ -47,7 +47,7 @@ wrap(Socket, Opts0) ->
         Error -> Error
     end.
 
--spec setopts(t(), Opts :: proplists:proplist()) -> ok.
+-spec setopts(t(), Opts :: proplists:proplist()) -> ok | {error, term()}.
 setopts(#?MODULE{transport = gen_tcp, socket = Socket}, Opts) ->
     inet:setopts(Socket, Opts);
 setopts(#?MODULE{transport = fast_tls, socket = Socket}, Opts) ->
