@@ -202,7 +202,7 @@ The table below shows the supported SASL mechanisms for each authentication back
          {http, host, auth, [], [{server, "127.0.0.1"}]}
 ```
 
-### RDMBS connection setup
+### RDBMS connection setup
 
 RDBMS connection pools are set using [outgoing connections configuration](./advanced-configuration/outgoing-connections.md).
 There are some additional options that influence all database connections in the server:
