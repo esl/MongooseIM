@@ -35,8 +35,14 @@ start_link(Server) ->
 
 -spec get_connection(Server :: jid:lserver()) -> {ok, pid()} | {error, not_available}.
 get_connection(Server) ->
-    case catch mod_global_distrib_server_mgr:get_connection(Server) of
-        {'EXIT', {noproc, _}} ->
+    try mod_global_distrib_server_mgr:get_connection(Server)
+        %% Possible issues:
+        %% - {'EXIT', {noproc, _}}
+        %%  - {case_clause,{'EXIT',{no_connections...
+    catch Class:Reason ->
+            Stacktrace = erlang:get_stacktrace(),
+            ?ERROR_MSG("even=get_gd_connection_failed server=~ts reason=~p:~p stacktrace=~1000p",
+                       [Server, Class, Reason, Stacktrace]),
             %% May be caused by missing server_sup or missing connection manager
             %% The former occurs when a process tries to send a message to Server
             %% for the first time.
@@ -49,9 +55,7 @@ get_connection(Server) ->
             %%
             %% TODO: Write a test for it, once we establish a good way to reproduce
             %%       race conditions in tests!
-            {error, not_available};
-        Result ->
-            Result
+            {error, not_available}
     end.
 
 -spec is_available(Server :: jid:lserver()) -> boolean().
