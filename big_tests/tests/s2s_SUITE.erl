@@ -224,7 +224,7 @@ successful_external_auth_with_valid_cert(Config) ->
                       {from_server, "localhost_bis"},
                       {requested_name, <<"localhost">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],
@@ -241,7 +241,7 @@ only_messages_from_authenticated_domain_users_are_accepted(Config) ->
                       {from_server, "localhost_bis"},
                       {requested_name, <<"localhost">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],
@@ -274,7 +274,7 @@ auth_with_valid_cert_fails_when_requested_name_is_not_in_the_cert(Config) ->
                       {from_server, "some_not_in_cert_domain"},
                       {requested_name, <<"some_not_in_cert_domain">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],
@@ -296,7 +296,7 @@ auth_with_valid_cert_fails_for_other_mechanism_than_external(Config) ->
                       {from_server, "localhost"},
                       {requested_name, <<"localhost">>},
                       {starttls, required},
-                      {port, ct:get_config({hosts, fed, s2s_port})},
+                      {port, ct:get_config({hosts, fed, incoming_s2s_port})},
                       {ssl_opts, [{certfile, CertFile},
                                   {keyfile, KeyFile}]}
                      ],

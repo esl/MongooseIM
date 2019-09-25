@@ -149,7 +149,7 @@ init_per_group(tls, Config) ->
     JoeSpec2 = {?SECURE_USER, lists:keystore(ssl, 1, JoeSpec, {ssl, true})},
     NewUsers = lists:keystore(?SECURE_USER, 1, Users, JoeSpec2),
     Config2 = lists:keystore(escalus_users, 1, Config, {escalus_users, NewUsers}),
-    [{c2s_port, 5222} | Config2];
+    [{c2s_port, ct:get_config({hosts, mim, c2s_port})} | Config2];
 init_per_group(feature_order, Config) ->
     config_ejabberd_node_tls(Config, fun mk_value_for_compression_config_pattern/0),
     ejabberd_node_utils:restart_application(mongooseim),
@@ -310,8 +310,8 @@ clients_can_connect_with_advertised_ciphers(Config) ->
 
 'clients_can_connect_with_ECDHE-RSA-AES256-GCM-SHA384_only'(Config) ->
     Port = case ?config(tls_module, Config) of
-               just_tls -> 5263; %mim3 secondary_c2s port
-               fast_tls -> 5233  %mim2 secondary_c2s port
+               just_tls -> ct:get_config({hosts, mim3, c2s_tls_port});
+               fast_tls -> ct:get_config({hosts, mim2, c2s_tls_port})
            end,
     Config1 = [{c2s_port, Port} | Config],
     CiphersStr = os:cmd("openssl ciphers 'ECDHE-RSA-AES256-GCM-SHA384'"),
@@ -624,7 +624,7 @@ replaced_session_cannot_terminate(Config) ->
 
 c2s_port(Config) ->
     case ?config(c2s_port, Config) of
-        undefined -> 5223;
+        undefined -> ct:get_config({hosts, mim, c2s_tls_port});
         Value -> Value
     end.
 

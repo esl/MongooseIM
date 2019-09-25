@@ -121,18 +121,30 @@ connect_component_subdomain(Component) ->
     connect_component(Component, component_start_stream_subdomain).
 
 spec(component_on_2, Config) ->
-    [{component, <<"yet_another_service">>}] ++ common(Config, 8899);
+    [{component, <<"yet_another_service">>}] ++ common(Config, mim2_service_port());
 spec(component_duplicate, Config) ->
-    [{component, <<"another_service">>}] ++ common(Config, 8899);
+    [{component, <<"another_service">>}] ++ common(Config, mim2_service_port());
 spec(hidden_component, Config) ->
-    [{component, <<"hidden_component">>}] ++ common(Config, 8189);
+    [{component, <<"hidden_component">>}] ++ common(Config, hidden_service_port());
 spec(kicking_component, Config) ->
-    [{component, <<"kicking_component">>}] ++ common(Config, 8666);
+    [{component, <<"kicking_component">>}] ++ common(Config, kicking_service_port());
 spec(Other, Config) ->
     [name(Other) | proplists:get_value(Other, Config, [])].
 
 common(Config) ->
-    common(Config, 8888).
+    common(Config, service_port()).
+
+service_port() ->
+    ct:get_config({hosts, mim, service_port}).
+
+kicking_service_port() ->
+    ct:get_config({hosts, mim, kicking_service_port}).
+
+hidden_service_port() ->
+    ct:get_config({hosts, mim, hidden_service_port}).
+
+mim2_service_port() ->
+    ct:get_config({hosts, mim2, service_port}).
 
 common(_Config, Port) ->
     [{server, ct:get_config({hosts, mim, domain})},

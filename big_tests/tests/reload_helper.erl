@@ -18,8 +18,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([modify_config_file/3,
-         backup_ejabberd_config_file/2,
+-export([backup_ejabberd_config_file/2,
          restore_ejabberd_config_file/2,
          reload_through_ctl/2,
          restart_ejabberd_node/1]).
@@ -58,16 +57,6 @@ verify_reload_output(ReloadCmd, OutputStr) ->
             error(config_reload_failed, [OutputStr])
     end.
 
-modify_config_file(Node, CfgVarsToChange, Config) ->
-    CurrentCfgPath = node_cfg(Node, current, Config),
-    {ok, CfgTemplate} = rpc(Node, file, read_file, [node_cfg(Node, template, Config)]),
-    {ok, CfgVars} = rpc(Node, file, consult, [node_cfg(Node, vars, Config)]),
-    UpdatedCfgVars = update_config_variables(CfgVarsToChange, CfgVars),
-    CfgTemplateList = binary_to_list(CfgTemplate),
-    UpdatedCfgFile = mustache:render(CfgTemplateList,
-                                     dict:from_list(UpdatedCfgVars)),
-    ok = rpc(Node, file, write_file, [CurrentCfgPath, UpdatedCfgFile]).
-
 update_config_variables(CfgVarsToChange, CfgVars) ->
     lists:foldl(fun({Var, Val}, Acc) ->
                         lists:keystore(Var, 1, Acc,{Var, Val})
@@ -76,11 +65,7 @@ update_config_variables(CfgVarsToChange, CfgVars) ->
 node_cfg(N, current, C) ->
     filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg");
 node_cfg(N, backup, C)  ->
-    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg.bak");
-node_cfg(_N, template, C) ->
-    filename:join(path_helper:repo_dir(C), "rel/files/mongooseim.cfg");
-node_cfg(N, vars, C) ->
-    filename:join(path_helper:repo_dir(C), "rel/vars.config").
+    filename:join(ejabberd_node_utils:node_cwd(N, C), "etc/mongooseim.cfg.bak").
 
 node_ctl(N, C) ->
     filename:join(ejabberd_node_utils:node_cwd(N, C), "bin/mongooseimctl").

@@ -13,7 +13,8 @@ test/tests/.#
 test/tests/#
 test/ct_report
 **/.rebar
-*.swp
+# Ignore vim swap files
+.*.sw*
 *~
 contrib/extract_translations/extract_translations.beam
 src/*.beam

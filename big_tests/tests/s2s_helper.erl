@@ -27,12 +27,12 @@ suite(Config) ->
 init_s2s(Config) ->
     Node1S2SCertfile = rpc(mim(), ejabberd_config, get_local_option, [s2s_certfile]),
     Node1S2SUseStartTLS = rpc(mim(), ejabberd_config, get_local_option, [s2s_use_starttls]),
-    Node1S2SPort = ct:get_config({hosts, mim, s2s_port}),
+    Node1S2SPort = ct:get_config({hosts, mim, incoming_s2s_port}),
     [Node1S2SListener] = get_listener_opts(mim(), Node1S2SPort),
 
     Node2S2SCertfile = rpc(fed(), ejabberd_config, get_local_option, [s2s_certfile]),
     Node2S2SUseStartTLS = rpc(fed(), ejabberd_config, get_local_option, [s2s_use_starttls]),
-    Node2S2SPort = ct:get_config({hosts, fed, s2s_port}),
+    Node2S2SPort = ct:get_config({hosts, fed, incoming_s2s_port}),
     [Node2S2SListener] = get_listener_opts(fed(), Node2S2SPort),
     S2S = #s2s_opts{node1_s2s_certfile = Node1S2SCertfile,
                     node1_s2s_use_starttls = Node1S2SUseStartTLS,

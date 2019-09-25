@@ -23,8 +23,7 @@
 -include_lib("exml/include/exml_stream.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--import(reload_helper, [modify_config_file/3,
-                        backup_ejabberd_config_file/2,
+-import(reload_helper, [backup_ejabberd_config_file/2,
                         restore_ejabberd_config_file/2,
                         reload_through_ctl/2,
                         restart_ejabberd_node/1]).
@@ -101,7 +100,7 @@ init_per_group(xep0114_tcp, Config) ->
 init_per_group(xep0114_ws, Config) ->
     WSOpts = [{transport, escalus_ws},
               {wspath, <<"/ws-xmpp">>},
-              {wslegacy, true} | common(Config, 5280)],
+              {wslegacy, true} | common(Config, ct:get_config({hosts, mim, cowboy_port}))],
     Config1 = get_components(WSOpts, Config),
     escalus:create_users(Config1, escalus:get_users([alice, bob]));
 init_per_group(subdomain, Config) ->
@@ -528,7 +527,7 @@ add_domain(Config) ->
     Node = default_node(Config),
     Hosts = {hosts, "[\"localhost\", \"sogndal\"]"},
     backup_ejabberd_config_file(Node, Config),
-    modify_config_file(Node, [Hosts], Config),
+    ejabberd_node_utils:modify_config_file([Hosts], Config),
     reload_through_ctl(Node, Config),
     ok.
 

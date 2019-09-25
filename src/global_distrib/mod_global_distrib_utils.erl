@@ -156,7 +156,7 @@ create_ets(Name, Type) ->
 
 -spec resolve_endpoints([{inet:ip_address() | string(), inet:port_number()}]) ->
                                [endpoint()].
-resolve_endpoints(Endpoints) ->
+resolve_endpoints(Endpoints) when is_list(Endpoints) ->
     lists:flatmap(fun resolve_endpoint/1, Endpoints).
 
 resolve_endpoint({Addr, _Port} = E) when is_tuple(Addr) ->

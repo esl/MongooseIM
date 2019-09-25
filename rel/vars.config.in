@@ -1,17 +1,28 @@
+{node_name, "mongooseim@localhost"}.
+
+{c2s_port, 5222}.
+{outgoing_s2s_port, 5269}.
+{incoming_s2s_port, 5269}.
+{cowboy_port, 5280}.
+{cowboy_secure_port, 5285}.
+
+% These need to be defined before https://github.com/erlware/relx/pull/747 is merged
+{c2s_tls_port, ""}.
+{service_port, ""}.
+{kicking_service_port, ""}.
+{hidden_service_port, ""}.
+{http_api_endpoint_port, ""}.
+{http_api_old_endpoint_port, ""}.
+{http_api_client_endpoint_port, ""}.
+
 {hosts, "[\"localhost\"]"}.
 {host_config, ""}.
 {auth_ldap, ""}.
 {s2s_addr, "%% { {s2s_addr, \"example-host.net\"}, { {127,0,0,1}, 5269 } }."}.
 {s2s_default_policy, deny}.
-{outgoing_s2s_port, 5269}.
-{node_name, "mongooseim@localhost"}.
 % More processes and more ports.
 % But it increases memory usage.
 {highload_vm_args, "+P 10000000 -env ERL_MAX_PORTS 250000"}.
-{ejabberd_c2s_port, 5222}.
-{ejabberd_s2s_in_port, 5269}.
-{cowboy_port, 5280}.
-{cowboy_port_secure, 5285}.
 {mod_amp, ""}.
 {ejabberd_service, ",{8888, ejabberd_service, [\n"
                  "                {access, all},\n"

@@ -103,7 +103,8 @@ groups() ->
 suite() ->
     [{require, europe_node1, {hosts, mim, node}},
      {require, europe_node2, {hosts, mim2, node}},
-     {require, asia_node, {hosts, reg, node}} |
+     {require, asia_node, {hosts, reg, node}},
+     {require, c2s_port, {hosts, mim, c2s_port}} |
      escalus:suite()].
 
 %%--------------------------------------------------------------------
@@ -488,7 +489,7 @@ receive_n_muc_messages(User, N) ->
 
 test_component_on_one_host(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
@@ -515,8 +516,10 @@ test_component_on_one_host(Config) ->
 test_components_in_different_regions(_Config) ->
     ComponentCommonConfig = [{host, <<"localhost">>}, {password, <<"secret">>},
                              {server, <<"localhost">>}, {component, <<"test_service">>}],
-    Component1Config = [{port, 8888}, {component, <<"service1">>} | ComponentCommonConfig],
-    Component2Config = [{port, 9990}, {component, <<"service2">>} | ComponentCommonConfig],
+    Comp1Port = ct:get_config({hosts, mim, service_port}),
+    Comp2Port = ct:get_config({hosts, reg, service_port}),
+    Component1Config = [{port, Comp1Port}, {component, <<"service1">>} | ComponentCommonConfig],
+    Component2Config = [{port, Comp2Port}, {component, <<"service2">>} | ComponentCommonConfig],
 
     {Comp1, Addr1, _Name1} = component_helper:connect_component(Component1Config),
     {Comp2, Addr2, _Name2} = component_helper:connect_component(Component2Config),
@@ -551,7 +554,7 @@ test_hidden_component_disco_in_different_region(Config) ->
 
 test_component_disconnect(Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     component_helper:disconnect_component(Comp, Addr),
@@ -734,7 +737,7 @@ test_global_disco(Config) ->
 
 test_component_unregister(_Config) ->
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
     ?assertMatch({ok, _}, rpc(europe_node1, mod_global_distrib_mapping, for_domain,
@@ -852,7 +855,7 @@ wait_for_node(Node,Jid) ->
 test_update_senders_host_by_ejd_service(Config) ->
     %% Connects to europe_node1
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
-                       {port, 8888}, {component, <<"test_service">>}],
+                       {port, service_port()}, {component, <<"test_service">>}],
 
     {Comp, Addr, _Name} = component_helper:connect_component(ComponentConfig),
 
@@ -894,7 +897,8 @@ enable_new_endpoint_on_refresh(Config) ->
 
     {Enabled1, _Disabled1, Pools1} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
-    NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
+    ExtraPort = get_port(reg, gd_extra_endpoint_port),
+    NewEndpoint = enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
 
     {Enabled2, _Disabled2, Pools2} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
@@ -905,7 +909,8 @@ enable_new_endpoint_on_refresh(Config) ->
     [] = Enabled1 -- Enabled2.
 
 disable_endpoint_on_refresh(Config) ->
-    enable_extra_endpoint(asia_node, europe_node1, 10000, Config),
+    ExtraPort = get_port(reg, gd_extra_endpoint_port),
+    enable_extra_endpoint(asia_node, europe_node1, ExtraPort, Config),
 
     get_connection(europe_node1, <<"reg1">>),
 
@@ -966,27 +971,36 @@ closed_connection_is_removed_from_disabled(_Config) ->
     {[], [_], [_]} = get_outgoing_connections(europe_node1, <<"reg1">>),
 
     % Will drop connections and prevent them from reconnecting
-    restart_receiver(asia_node, [listen_endpoint(10001)]),
+    restart_receiver(asia_node, [listen_endpoint(get_port(reg, gd_supplementary_endpoint_port))]),
 
     mongoose_helper:wait_until(fun() -> get_outgoing_connections(europe_node1, <<"reg1">>) end,
                                {[], [], []},
                               #{name => get_outgoing_connections}).
 
+
 %%--------------------------------------------------------------------
 %% Test helpers
 %%--------------------------------------------------------------------
 
+get_port(Host, Param) ->
+    case ct:get_config({hosts, Host, Param}) of
+        Port when is_integer(Port) ->
+            Port;
+        Other ->
+            ct:fail({get_port_failed, Host, Param, Other})
+    end.
+
 get_hosts() ->
     [
-     {europe_node1, "localhost.bis", 5555},
-     {europe_node2, "localhost.bis", 6666},
-     {asia_node, "reg1", 7777}
+     {europe_node1, "localhost.bis", get_port(mim, gd_endpoint_port)},
+     {europe_node2, "localhost.bis", get_port(mim2, gd_endpoint_port)},
+     {asia_node, "reg1", get_port(reg, gd_endpoint_port)}
     ].
 
 listen_endpoint(NodeName) when is_atom(NodeName) ->
     {_, _, Port} = lists:keyfind(NodeName, 1, get_hosts()),
     listen_endpoint(Port);
-listen_endpoint(Port) ->
+listen_endpoint(Port) when is_integer(Port) ->
     {{127, 0, 0, 1}, Port}.
 
 rpc(NodeName, M, F, A) ->
@@ -1074,7 +1088,7 @@ redis_query(Node, Query) ->
 %% Used in test_advertised_endpoints_override_endpoints testcase.
 advertised_endpoints() ->
     [
-     {fake_domain(), 7777}
+     {fake_domain(), get_port(reg, gd_endpoint_port)}
     ].
 
 fake_domain() ->
@@ -1215,3 +1229,6 @@ connect_steps_with_sm() ->
 
 bare_client(Client) ->
     Client#client{jid = escalus_utils:get_short_jid(Client)}.
+
+service_port() ->
+    ct:get_config({hosts, mim, service_port}).

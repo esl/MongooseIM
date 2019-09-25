@@ -840,7 +840,8 @@ connect_to_sse(User) ->
     %% Disable HTTP/2 on the client side:
     GunOpts = #{protocols => [http]},
     ShotGunOpts = #{gun_opts => GunOpts},
-    {ok, Conn} = shotgun:open("localhost", 8089, https, ShotGunOpts),
+    Port = ct:get_config({hosts, mim, http_api_client_endpoint_port}),
+    {ok, Conn} = shotgun:open("localhost", Port, https, ShotGunOpts),
     Me = self(),
     EventFun = fun(State, Ref, Bin) ->
         Me ! {sse, State, Ref, Bin}

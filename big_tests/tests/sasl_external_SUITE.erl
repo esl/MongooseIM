@@ -317,6 +317,7 @@ self_signed_cert_is_allowed_with(EscalusTransport, C) ->
 no_cert_fails_to_authenticate(_C) ->
     UserSpec = [{username, <<"no_cert_user">>},
 		{server, <<"localhost">>},
+        {port, ct:get_config({hosts, mim, c2s_port})},
 		{password, <<"break_me">>},
 		{resource, <<>>}, %% Allow the server to generate the resource
 		{auth, {escalus_auth, auth_sasl_external}},
@@ -399,12 +400,13 @@ generate_user(C, User, Transport) ->
 	      {transport, Transport},
 	      {ssl_opts, [{certfile, maps:get(cert, UserCert)},
 			  {keyfile, maps:get(key, UserCert)}]}],
-    Common ++ transport_specific_options(Transport).
+    Common ++ transport_specific_options(Transport)
+    ++ [{port, ct:get_config({hosts, mim, c2s_port})}].
 
 transport_specific_options(escalus_tcp) ->
     [{starttls, required}];
 transport_specific_options(_) ->
-     [{port, 5285},
+     [{port, ct:get_config({hosts, mim, cowboy_secure_port})},
       {ssl, true}].
 
 prepare_template_values(User, XMPPAddrsIn) ->
