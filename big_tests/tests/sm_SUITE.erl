@@ -17,7 +17,7 @@
 
 -import(escalus_stanza, [setattr/3]).
 
--define(BIG_BIG_BIG_TIMEOUT, 30000000000).
+-define(BIG_BIG_BIG_TIMEOUT, 3600).
 -define(SHORT_RESUME_TIMEOUT, 3).
 -define(SMALL_SM_BUFFER, 3).
 
@@ -37,7 +37,7 @@ groups() ->
          {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
          {stale_h, [], stale_h_test_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}],
-    ct_helper:repeat_all_until_all_ok(G).
+    G.
 
 parallel_test_cases() ->
     [server_announces_sm,

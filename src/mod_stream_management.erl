@@ -90,6 +90,7 @@ maybe_start_stale_h(Host, Opts) ->
         {false, []} ->
             ok;
         {true, GCOpts} ->
+            ?INFO_MSG("stream_mgmt_stale_h starting", []),
             mnesia:create_table(stream_mgmt_stale_h,
                                 [{ram_copies, [node()]},
                                  {attributes, record_info(fields, stream_mgmt_stale_h)}]),
