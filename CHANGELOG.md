@@ -529,7 +529,7 @@ Special thanks to our contributors: @andrewvmail @igors !
 
 ## Fixed
 
-- Fix RDMBS backoff calculation (#1394)
+- Fix RDBMS backoff calculation (#1394)
 - URL escaping and reporting in `mod_http_upload` (#1391)
 - Fixed Unicode support in the MAM full text search with a Riak backend (#1407)
 - Authentication crash with SASL PLAIN and an invalid password (#1433)
