@@ -321,6 +321,7 @@ Now you have the minimum knowledge: you know how to deploy MongooseIM, configure
 ### Summary: command line
 
 You know `mongooseimctl`, with commands such as:
+
 * `start`, `restart`, `stop`, `status`, `live`, `foreground`
 * `get_loglevel`
 * `register_identified`, `check_account`, `registered_users`, `unregister`
@@ -338,6 +339,7 @@ You know basic entries in files:
 ### Summary: client/app
 
 In an app, you know how to:
+
 * connect
 * chat with another user
 * create/join groupchats
@@ -347,6 +349,7 @@ In an app, you know how to:
 ## Go further
 
 For the next steps, we now encourage you to:
+
 1. Deploy it as a single node, on a publicly accessible server, with a real routable domain name with its certificate
 1. Add an RDBMS for persistent data, and LDAP for user directory
 1. Enable message history with MAM (Message Archive Management)
