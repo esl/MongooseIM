@@ -1,22 +1,10 @@
 -module(mod_stream_management).
 -xep([{xep, 198}, {version, "1.6"}]).
 -behaviour(gen_mod).
--behaviour(gen_server).
-
--include_lib("stdlib/include/ms_transform.hrl").
 
 %% `gen_mod' callbacks
 -export([start/2,
          stop/1]).
-
-%% Internal exports
--export([start_link/2]).
-%% gen_server callbacks
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2
-        ]).
 
 %% `ejabberd_hooks' handlers
 -export([add_sm_feature/2,
@@ -52,20 +40,9 @@
 -include("mongoose.hrl").
 -include("jlib.hrl").
 
--record(state,
-        {gc_repeat_after :: non_neg_integer(),
-         gc_geriatric :: non_neg_integer()
-        }).
-
 -record(sm_session,
         {smid :: smid(),
          sid :: ejabberd_sm:sid()
-        }).
-
--record(stream_mgmt_stale_h,
-        {smid :: smid(),
-         h :: non_neg_integer(),
-         stamp :: non_neg_integer()
         }).
 
 %%
@@ -81,22 +58,8 @@ start(Host, Opts) ->
                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
     mnesia:add_table_copy(sm_session, node(), ram_copies),
-    maybe_start_stale_h(Host, Opts),
+    mod_stream_management_stale_h:maybe_start(Host, Opts),
     ok.
-
-maybe_start_stale_h(Host, Opts) ->
-    StaleOpts = gen_mod:get_opt(stale_h, Opts, {false, []}),
-    case StaleOpts of
-        {false, []} ->
-            ok;
-        {true, GCOpts} ->
-            ?INFO_MSG("stream_mgmt_stale_h starting", []),
-            mnesia:create_table(stream_mgmt_stale_h,
-                                [{ram_copies, [node()]},
-                                 {attributes, record_info(fields, stream_mgmt_stale_h)}]),
-            mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies),
-            start_cleaner(Host, GCOpts)
-    end.
 
 stop(Host) ->
     ?INFO_MSG("mod_stream_management stopping", []),
@@ -105,10 +68,8 @@ stop(Host) ->
     ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
     StaleOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}),
     case StaleOpts of
-        {false, []} ->
-            ok;
-        {true, _GCOpts} ->
-            stop_cleaner(?MODULE)
+        {false, []} -> ok;
+        {true, _GCOpts} -> mod_stream_management_stale_h:stop()
     end.
 
 %%
@@ -276,11 +237,7 @@ get_sid(SMID) ->
 get_stale_h(SMID) ->
     case gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}) of
         {false, []} -> {error, smid_not_found};
-        {true, _} ->
-            case mnesia:dirty_read(stream_mgmt_stale_h, SMID) of
-                [#stream_mgmt_stale_h{h = H}] -> {stale_h, H};
-                [] -> {error, smid_not_found}
-            end
+        {true, _} -> mod_stream_management_stale_h:read_stale_h(SMID)
     end.
 
 %% Setters
@@ -296,74 +253,14 @@ register_smid(SMID, SID) ->
 register_stale_smid_h(SMID, H) ->
     case gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}) of
         {false, []} -> ok;
-        {true, _} ->
-            try
-                Stamp = timestamp_to_seconds(erlang:timestamp()),
-                mnesia:dirty_write(
-                  #stream_mgmt_stale_h{
-                     smid = SMID, h = H, stamp = Stamp})
-            catch exit:Reason ->
-                      {error, Reason}
-            end
+        {true, _} -> mod_stream_management_stale_h:write_stale_h(SMID, H)
     end.
 
 remove_stale_smid_h(SMID) ->
     case gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}) of
         {false, []} -> ok;
-        {true, _} -> mnesia:dirty_delete(stream_mgmt_stale_h, SMID)
+        {true, _} -> mod_stream_management_stale_h:delete_stale_h(SMID)
     end.
-
-%%
-%% gen_server
-start_cleaner(Host, Opts) ->
-    ChildSpec = {?MODULE,
-                 {?MODULE, start_link, [Host, Opts]},
-                 permanent, 5000, worker, [?MODULE]},
-    ejabberd_sup:start_child(ChildSpec).
-
-stop_cleaner(Proc) ->
-    ejabberd_sup:stop_child(Proc).
-
-start_link(Host, Opts) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Host, Opts], []).
-
-init([_Host, GCOpts]) ->
-    RepeatAfter = proplists:get_value(gc_repeat_after, GCOpts, 1800),
-    GeriatricAge = proplists:get_value(gc_geriatric, GCOpts, 3600),
-    State = #state{gc_repeat_after = RepeatAfter,
-                   gc_geriatric = GeriatricAge},
-    {ok, State, RepeatAfter}.
-
-handle_call(Msg, _From, State) ->
-    ?WARNING_MSG("unexpected message ~p", [Msg]),
-    {reply, ok, State}.
-
-handle_cast(Msg, State) ->
-    ?WARNING_MSG("unexpected message ~p", [Msg]),
-    {noreply, State}.
-
-handle_info(timeout, #state{gc_repeat_after = RepeatAfter,
-                            gc_geriatric = GeriatricAge} = State) ->
-    TimeToDie = timestamp_to_seconds(erlang:timestamp()) + GeriatricAge,
-    ets:select_delete(
-      stream_mgmt_stale_h,
-      ets:fun2ms(
-        fun(#stream_mgmt_stale_h{stamp=S}) when S < TimeToDie -> true end
-       )
-     ),
-    {noreply, State, RepeatAfter};
-handle_info(Info, #state{gc_repeat_after = RepeatAfter,
-                          gc_geriatric = _GeriatricAge} = State) ->
-    ?WARNING_MSG("unexpected message ~p", [Info]),
-    {noreply, State, RepeatAfter}.
-
-%%
-%% Helpers
-%%
--spec timestamp_to_seconds(erlang:timestamp()) -> non_neg_integer().
-timestamp_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
-    MegaSecs * 1000000 + Secs.
-
 
 %% copy-n-paste from gen_mod.erl
 -record(ejabberd_module, {module_host, opts}).
