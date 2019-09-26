@@ -205,8 +205,8 @@ set_resume_timeout(ResumeTimeout) ->
 
 -spec get_gc_repeat_after(pos_integer()) -> pos_integer().
 get_gc_repeat_after(Default) ->
-    S = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case S of
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
+    case MaybeModOpts of
         {true, GCOpts} ->
             proplists:get_value(gc_repeat_after, GCOpts, Default);
         _ -> Default
@@ -214,8 +214,8 @@ get_gc_repeat_after(Default) ->
 
 -spec set_gc_repeat_after(pos_integer()) -> boolean().
 set_gc_repeat_after(ResumeTimeout) ->
-    S = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case S of
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
+    case MaybeModOpts of
         {true, GCOpts} ->
             NewGCOpts = lists:keystore(gc_repeat_after, 1, GCOpts,
                                        {gc_repeat_after, ResumeTimeout}),
@@ -226,8 +226,8 @@ set_gc_repeat_after(ResumeTimeout) ->
 
 -spec get_gc_geriatric(pos_integer()) -> pos_integer().
 get_gc_geriatric(Default) ->
-    S = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case S of
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
+    case MaybeModOpts of
         {true, GCOpts} ->
             proplists:get_value(gc_geriatric, GCOpts, Default);
         _ -> Default
@@ -235,8 +235,8 @@ get_gc_geriatric(Default) ->
 
 -spec set_gc_geriatric(pos_integer()) -> boolean().
 set_gc_geriatric(ResumeTimeout) ->
-    S = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case S of
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
+    case MaybeModOpts of
         {true, GCOpts} ->
             NewGCOpts = lists:keystore(gc_geriatric, 1, GCOpts,
                                        {gc_geriatric, ResumeTimeout}),
@@ -298,10 +298,10 @@ register_stale_smid_h(SMID, H) ->
         {false, []} -> ok;
         {true, _} ->
             try
-                Stamp = now_to_seconds(erlang:timestamp()),
-                mnesia:sync_dirty(fun mnesia:write/1,
-                                  [#stream_mgmt_stale_h{
-                                      smid = SMID, h = H, stamp = Stamp}])
+                Stamp = timestamp_to_seconds(erlang:timestamp()),
+                mnesia:dirty_write(
+                  #stream_mgmt_stale_h{
+                     smid = SMID, h = H, stamp = Stamp})
             catch exit:Reason ->
                       {error, Reason}
             end
@@ -334,15 +334,17 @@ init([_Host, GCOpts]) ->
                    gc_geriatric = GeriatricAge},
     {ok, State, RepeatAfter}.
 
-handle_call(_Request, _From, State) ->
+handle_call(Msg, _From, State) ->
+    ?WARNING_MSG("unexpected message ~p", [Msg]),
     {reply, ok, State}.
 
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?WARNING_MSG("unexpected message ~p", [Msg]),
     {noreply, State}.
 
 handle_info(timeout, #state{gc_repeat_after = RepeatAfter,
                             gc_geriatric = GeriatricAge} = State) ->
-    TimeToDie = now_to_seconds(erlang:timestamp()) + GeriatricAge,
+    TimeToDie = timestamp_to_seconds(erlang:timestamp()) + GeriatricAge,
     ets:select_delete(
       stream_mgmt_stale_h,
       ets:fun2ms(
@@ -350,15 +352,16 @@ handle_info(timeout, #state{gc_repeat_after = RepeatAfter,
        )
      ),
     {noreply, State, RepeatAfter};
-handle_info(_Info, #state{gc_repeat_after = RepeatAfter,
+handle_info(Info, #state{gc_repeat_after = RepeatAfter,
                           gc_geriatric = _GeriatricAge} = State) ->
+    ?WARNING_MSG("unexpected message ~p", [Info]),
     {noreply, State, RepeatAfter}.
 
 %%
 %% Helpers
 %%
--spec now_to_seconds(erlang:timestamp()) -> non_neg_integer().
-now_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
+-spec timestamp_to_seconds(erlang:timestamp()) -> non_neg_integer().
+timestamp_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs * 1000000 + Secs.
 
 

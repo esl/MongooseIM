@@ -148,14 +148,14 @@ set_gc_parameters(RepeatAfter, Geriatric, Config) ->
       domain(), stream_management_with_stale_h(RepeatAfter, Geriatric)),
     Config2.
 
+register_smid(IntSmidId) ->
+    S = {SMID = make_smid(), IntSmidId},
+    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [SMID, IntSmidId]),
+    S.
+
 register_some_smid_h(Config) ->
-    S1 = {SMID1 = make_smid(), 1},
-    S2 = {SMID2 = make_smid(), 2},
-    S3 = {SMID3 = make_smid(), 3},
-    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [SMID1, 1]),
-    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [SMID2, 2]),
-    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [SMID3, 3]),
-    [{smid_test, [S1, S2, S3]} | Config].
+    TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
+    [{smid_test, TestSmids} | Config].
 
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
     Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
@@ -179,8 +179,8 @@ init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
-end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_h,
-                                  CN =:= gc_repeat_after_never_means_no_cleaning,
+end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_h;
+                                  CN =:= gc_repeat_after_never_means_no_cleaning;
                                   CN =:= gc_repeat_after_timeout_does_clean
                                    ->
     dynamic_modules:stop(domain(), ?MOD_SM),
