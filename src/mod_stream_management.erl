@@ -328,8 +328,8 @@ start_link(Host, Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Host, Opts], []).
 
 init([_Host, GCOpts]) ->
-    RepeatAfter = proplists:get_value(gc_repeat_after, GCOpts, 30000),
-    GeriatricAge = proplists:get_value(gc_geriatric, GCOpts, 60000),
+    RepeatAfter = proplists:get_value(gc_repeat_after, GCOpts, 1800),
+    GeriatricAge = proplists:get_value(gc_geriatric, GCOpts, 3600),
     State = #state{gc_repeat_after = RepeatAfter,
                    gc_geriatric = GeriatricAge},
     {ok, State, RepeatAfter}.
