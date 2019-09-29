@@ -7,7 +7,7 @@ while the management of the session tables and configuration is implemented in
 
 ### In `ejabberd_c2s`
 
-The record `#state{}` in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
+The record `#smgc_state{}` in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
 
 ```erlang
 stream_mgmt = false, %% whether SM is enabled, used in pattern matching inside `ejabberd_c2s`
@@ -26,11 +26,11 @@ stream_mgmt_constraint_check_tref, %% another ref() for a timeout, this time for
 
 ### In `mod_stream_management`
 
-This module is just a "starter", to supply the configuration values to new client connections. It
+This module is just a "starter", to provide the configuration values to new client connections. It
 also provides a basic session table API and adds a new stream feature.
 
-At a bare minimum, this module keeps the config values in its `gen_mod` records, and it keeps a
-mnesia table defined as follows:
+At a bare minimum, this module keeps the config values in its `gen_mod` records, and keeps a mnesia
+table defined as follows:
 
 ```erlang
 -record(sm_session,
@@ -39,15 +39,15 @@ mnesia table defined as follows:
         }).
 ```
 
-Where `smid` is a unique identifier — in this case a random binary, and `sid` is an opaque session
+where `smid` is a unique identifier — in this case a random binary, and `sid` is an opaque session
 identifier from `ejabberd_sm`, which is needed to find the previous session we want to resume from.
 This module implements hooks that run on connection removals and session cleanups, in order to clean
 records from a dying session; and it also implements registration callbacks, used in `ejabberd_c2s`
 when a session is registered for resumption.
 
-In order to be compliant with the XEP version 1.6, where a server can do the best effort to give the
-user the value of the server's `<h>` when a session timed out and cannot be resumed anymore, there's
-a second optional table:
+XEP version 1.6 requires the server to attempt giving the user the value of the server's `<h>` when
+a session timed out and cannot be resumed anymore. To be compliant with it, there's a second
+optional table:
 
 ```erlang
 -record(stream_mgmt_stale_h,
@@ -61,9 +61,9 @@ This table is created, together with a `gen_server` responsible for cleaning up 
 `stale_h` is set to true with the proper garbage collection configuration. Then, when removing a
 record from the `sm_session` table (which happens when the state of the previous session is also
 dropped), a new record is added to this new table with the `smid` and `h` values of the dropped
-session, together with a timestamp. Then, when a new session attempting resumption queries
-`mod_stream_management` for the data behind a `smid`, `mod_stream_management` can answer one of the
-following:
+session, together with a timestamp. Next, when a new session attempting resumption queries
+`mod_stream_management` for the data behind a `smid`, `mod_stream_management` can answer with one of
+the following:
 
 ```erlang
 {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found}.
