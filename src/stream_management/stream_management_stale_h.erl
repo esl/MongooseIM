@@ -1,10 +1,10 @@
--module(mod_stream_management_stale_h).
+-module(stream_management_stale_h).
 -behaviour(gen_server).
 
 -include("mongoose.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
 
--record(state,
+-record(smgc_state,
         {gc_repeat_after :: non_neg_integer(),
          gc_geriatric :: non_neg_integer()
         }).
@@ -17,15 +17,16 @@
 
 -export([read_stale_h/1,
          write_stale_h/2,
-         delete_stale_h/1
+         delete_stale_h/1,
+         clear_table/1
         ]).
 
--export([maybe_start/2,
+-export([maybe_start/1,
          stop/0
         ]).
 
 %% Internal exports
--export([start_link/2]).
+-export([start_link/1]).
 %% gen_server callbacks
 -export([init/1,
          handle_call/3,
@@ -49,10 +50,8 @@ read_stale_h(SMID) ->
     ok | {error, any()}.
 write_stale_h(SMID, H) ->
     try
-        Stamp = timestamp_to_seconds(erlang:timestamp()),
-        mnesia:dirty_write(
-          #stream_mgmt_stale_h{
-             smid = SMID, h = H, stamp = Stamp})
+        Stamp = erlang:system_time(seconds),
+        mnesia:dirty_write(#stream_mgmt_stale_h{smid = SMID, h = H, stamp = Stamp})
     catch exit:Reason ->
               {error, Reason}
     end.
@@ -69,23 +68,23 @@ delete_stale_h(SMID) ->
 
 %%
 %% gen_server
-maybe_start(Host, Opts) ->
-    StaleOpts = gen_mod:get_opt(stale_h, Opts, {false, []}),
-    case StaleOpts of
-        {false, []} ->
+maybe_start(Opts) ->
+    StaleOpts = gen_mod:get_opt(stale_h, Opts, [{enabled, false}]),
+    case proplists:get_value(enabled, StaleOpts, false) of
+        false ->
             ok;
-        {true, GCOpts} ->
-            ?INFO_MSG("stream_mgmt_stale_h starting", []),
+        true ->
+            ?INFO_MSG("event=stream_mgmt_stale_h_start", []),
             mnesia:create_table(stream_mgmt_stale_h,
                                 [{ram_copies, [node()]},
                                  {attributes, record_info(fields, stream_mgmt_stale_h)}]),
             mnesia:add_table_copy(stream_mgmt_stale_h, node(), ram_copies),
-            start_cleaner(Host, GCOpts)
+            start_cleaner(StaleOpts)
     end.
 
-start_cleaner(Host, Opts) ->
+start_cleaner(Opts) ->
     ChildSpec = {?MODULE,
-                 {?MODULE, start_link, [Host, Opts]},
+                 {?MODULE, start_link, [Opts]},
                  permanent, 5000, worker, [?MODULE]},
     ejabberd_sup:start_child(ChildSpec).
 
@@ -93,44 +92,34 @@ stop() ->
     ejabberd_sup:stop_child(?MODULE).
 
 
-start_link(Host, Opts) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Host, Opts], []).
+start_link(Opts) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Opts], []).
 
-init([_Host, GCOpts]) ->
-    RepeatAfter = proplists:get_value(gc_repeat_after, GCOpts, 1800),
-    GeriatricAge = proplists:get_value(gc_geriatric, GCOpts, 3600),
-    State = #state{gc_repeat_after = RepeatAfter,
-                   gc_geriatric = GeriatricAge},
+init([GCOpts]) ->
+    RepeatAfter = proplists:get_value(stale_h_repeat_after, GCOpts, 1800),
+    GeriatricAge = proplists:get_value(stale_h_geriatric, GCOpts, 3600),
+    State = #smgc_state{gc_repeat_after = RepeatAfter,
+                        gc_geriatric = GeriatricAge},
     {ok, State, RepeatAfter}.
 
 handle_call(Msg, _From, State) ->
-    ?WARNING_MSG("unexpected message ~p", [Msg]),
+    ?WARNING_MSG("event=unexpected_handle_call message=~p", [Msg]),
     {reply, ok, State}.
 
 handle_cast(Msg, State) ->
-    ?WARNING_MSG("unexpected message ~p", [Msg]),
+    ?WARNING_MSG("event=unexpected_handle_cast message=~p", [Msg]),
     {noreply, State}.
 
-handle_info(timeout, #state{gc_repeat_after = RepeatAfter,
-                            gc_geriatric = GeriatricAge} = State) ->
-    TimeToDie = timestamp_to_seconds(erlang:timestamp()) + GeriatricAge,
-    ets:select_delete(
-      stream_mgmt_stale_h,
-      ets:fun2ms(
-        fun(#stream_mgmt_stale_h{stamp=S}) when S < TimeToDie -> true end
-       )
-     ),
+handle_info(timeout, #smgc_state{gc_repeat_after = RepeatAfter,
+                                 gc_geriatric = GeriatricAge} = State) ->
+    clear_table(GeriatricAge),
     {noreply, State, RepeatAfter};
-handle_info(Info, #state{gc_repeat_after = RepeatAfter,
-                          gc_geriatric = _GeriatricAge} = State) ->
-    ?WARNING_MSG("unexpected message ~p", [Info]),
+handle_info(Info, #smgc_state{gc_repeat_after = RepeatAfter,
+                              gc_geriatric = _GeriatricAge} = State) ->
+    ?WARNING_MSG("event=unexpected_handle_info info=~p", [Info]),
     {noreply, State, RepeatAfter}.
 
-%%
-%% Helpers
-%%
--spec timestamp_to_seconds(erlang:timestamp()) -> non_neg_integer().
-timestamp_to_seconds({MegaSecs, Secs, _MicroSecs}) ->
-    MegaSecs * 1000000 + Secs.
-
-
+clear_table(GeriatricAge) ->
+    TimeToDie = erlang:system_time(seconds) + GeriatricAge,
+    MS = ets:fun2ms(fun(#stream_mgmt_stale_h{stamp=S}) when S < TimeToDie -> true end),
+    ets:select_delete(stream_mgmt_stale_h, MS).

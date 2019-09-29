@@ -79,13 +79,13 @@ And `ejabberd_c2s` will pattern-match and act accordingly.
 * `resume_timeout` (default: 600): Timeout for the session resumption. Sessions will be removed
   after the specified number of seconds.
 * `stale_h`: enable keeping old server's `<h>` values after the resumption timed out. Defaults to
-  `{false, []}`. When enabled, parameters for the garbage collection of these tables have to be
-  provided, for example as `{true, [{gc_repeat_after, 1800}, {gc_geriatric, 3600}]}` — 1800 for
-  `gc_repeat_after` and 3600 for `gc_geriatric` are the defaults.
-  - `gc_repeat_after`: How often the garbage collection will run in the background to clean this
+  `[{enabled, false}]`. When enabled, parameters for the garbage collection of these tables should
+  be provided, for example as `[{enabled, true}, {stale_h_repeat_after, 1800}, {stale_h_geriatric,
+  3600}]` — 1800 for `stale_h_repeat_after` and 3600 for `stale_h_geriatric` are the defaults.
+  - `stale_h_repeat_after`: How often the garbage collection will run in the background to clean this
     table. Defaults to 1800 seconds (half an hour).
-  - `gc_geriatric`: The maximum lifespan of a record in memory. After this, they will be chased for
-    cleanup. Defaults to 3600 seconds (one hour).
+  - `stale_h_geriatric`: The maximum lifespan of a record in memory. After this, they will be chased
+    for cleanup. Defaults to 3600 seconds (one hour).
 
 ### Example Configuration
 
@@ -93,8 +93,9 @@ And `ejabberd_c2s` will pattern-match and act accordingly.
   {mod_stream_management, [{buffer_max, 30},
                            {ack_freq, 1},
                            {resume_timeout, 600}
-                           {stale_h, {true, [{gc_repeat_after, 1800},
-                                             {gc_geriatric, 3600}]}
+                           {stale_h, [{enabled, true},
+                                      {stale_h_repeat_after, 1800},
+                                      {stale_h_geriatric, 3600}]}
                           ]},
 ```
 

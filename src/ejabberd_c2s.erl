@@ -678,14 +678,11 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
 
     end.
 
+check_compression_auth(_El, NextState, StateData = #state{authenticated = false}) ->
+    send_element_from_server_jid(StateData, compress_setup_failed()),
+    fsm_next_state(NextState, StateData);
 check_compression_auth(El, NextState, StateData) ->
-    case StateData#state.authenticated of
-        false ->
-            send_element_from_server_jid(StateData, compress_setup_failed()),
-            fsm_next_state(NextState, StateData);
-        _ ->
-            check_compression_method(El, NextState, StateData)
-    end.
+    check_compression_method(El, NextState, StateData).
 
 check_compression_method(El, NextState, StateData) ->
     case exml_query:path(El, [{element, <<"method">>}, cdata]) of
@@ -3065,18 +3062,18 @@ do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData
         end
     catch
         _:_ ->
-            ?WARNING_MSG("resumption error (invalid response from ~p)~n", [Pid]),
+            ?WARNING_MSG("event=resumption_error reason=invalid_response pid=~p", [Pid]),
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
 do_resume_session(SMID, _El, {stale_h, H}, StateData) when is_integer(H) ->
-    ?INFO_MSG("Previous session with stream id ~p timed out with h=~p~n", [SMID, H]),
+    ?INFO_MSG("event=resumption_error reason=session_resumption_timed_out smid=~p h=~p", [SMID, H]),
     send_element_from_server_jid(
       StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
     fsm_next_state(wait_for_feature_after_auth, StateData);
 do_resume_session(SMID, _El, {error, smid_not_found}, StateData) ->
-    ?INFO_MSG("no previous session with stream id ~p~n", [SMID]),
+    ?INFO_MSG("event=resumption_error reason=no_previous_session_for_smid smid=~p", [SMID]),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
 

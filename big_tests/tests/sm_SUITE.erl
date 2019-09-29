@@ -98,8 +98,9 @@ stream_management_with_stale_h(RepeatAfter, Geriatric) ->
     [
      {ack_freq, 1},
      {resume_timeout, ?SHORT_RESUME_TIMEOUT},
-     {stale_h, {true, [{gc_repeat_after, RepeatAfter},
-                       {gc_geriatric, Geriatric}]}}]}].
+     {stale_h, [{enabled, true},
+                {stale_h_repeat_after, RepeatAfter},
+                {stale_h_geriatric, Geriatric}]}]}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -643,7 +644,7 @@ resume_expired_session_returns_correct_h(Config) ->
     escalus_connection:stop(NewAlice).
 
 gc_repeat_after_never_means_no_cleaning(Config) ->
-    true = rpc(mim(), ?MOD_SM, set_gc_repeat_after, [never]),
+    true = rpc(mim(), ?MOD_SM, set_stale_h_repeat_after, [?BIG_BIG_BIG_TIMEOUT]),
     [{SMID1, _}, {SMID2, _}, {SMID3, _}] = ?config(smid_test, Config),
     {stale_h, 1} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID1]),
     {stale_h, 2} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID2]),

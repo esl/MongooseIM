@@ -18,10 +18,10 @@
          set_ack_freq/1,
          get_resume_timeout/1,
          set_resume_timeout/1,
-         get_gc_repeat_after/1,
-         set_gc_repeat_after/1,
-         get_gc_geriatric/1,
-         set_gc_geriatric/1
+         get_stale_h_repeat_after/1,
+         set_stale_h_repeat_after/1,
+         get_stale_h_geriatric/1,
+         set_stale_h_geriatric/1
         ]).
 
 %% API for `ejabberd_c2s'
@@ -58,7 +58,7 @@ start(Host, Opts) ->
                                      {attributes, record_info(fields, sm_session)}]),
     mnesia:add_table_index(sm_session, sid),
     mnesia:add_table_copy(sm_session, node(), ram_copies),
-    mod_stream_management_stale_h:maybe_start(Host, Opts),
+    stream_management_stale_h:maybe_start(Opts),
     ok.
 
 stop(Host) ->
@@ -66,10 +66,10 @@ stop(Host) ->
     ejabberd_hooks:delete(sm_remove_connection_hook, Host, ?MODULE, remove_smid, 50),
     ejabberd_hooks:delete(c2s_stream_features, Host, ?MODULE, add_sm_feature, 50),
     ejabberd_hooks:delete(session_cleanup, Host, ?MODULE, session_cleanup, 50),
-    StaleOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}),
-    case StaleOpts of
-        {false, []} -> ok;
-        {true, _GCOpts} -> mod_stream_management_stale_h:stop()
+    StaleOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+    case proplists:get_value(enabled, StaleOpts, false) of
+        false -> ok;
+        true -> stream_management_stale_h:stop()
     end.
 
 %%
@@ -164,48 +164,36 @@ set_resume_timeout(ResumeTimeout) ->
     set_module_opt(?MYNAME, ?MODULE, resume_timeout, ResumeTimeout).
 
 
--spec get_gc_repeat_after(pos_integer()) -> pos_integer().
-get_gc_repeat_after(Default) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
+-spec get_stale_h_opt(Opt :: atom(), Def :: pos_integer()) -> pos_integer().
+get_stale_h_opt(Option, Default) ->
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+    proplists:get_value(Option, MaybeModOpts, Default).
+
+-spec get_stale_h_repeat_after(pos_integer()) -> pos_integer().
+get_stale_h_repeat_after(Default) ->
+    get_stale_h_opt(stale_h_repeat_after, Default).
+
+-spec get_stale_h_geriatric(pos_integer()) -> pos_integer().
+get_stale_h_geriatric(Default) ->
+    get_stale_h_opt(stale_h_geriatric, Default).
+
+-spec set_stale_h_opt(Option :: atom(), Value :: pos_integer()) -> boolean().
+set_stale_h_opt(Option, Value) ->
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
     case MaybeModOpts of
-        {true, GCOpts} ->
-            proplists:get_value(gc_repeat_after, GCOpts, Default);
-        _ -> Default
+        [] -> false;
+        GCOpts ->
+            NewGCOpts = lists:keystore(Option, 1, GCOpts, {Option, Value}),
+            set_module_opt(?MYNAME, ?MODULE, stale_h, NewGCOpts)
     end.
 
--spec set_gc_repeat_after(pos_integer()) -> boolean().
-set_gc_repeat_after(ResumeTimeout) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case MaybeModOpts of
-        {true, GCOpts} ->
-            NewGCOpts = lists:keystore(gc_repeat_after, 1, GCOpts,
-                                       {gc_repeat_after, ResumeTimeout}),
-            NewStaleOpts = {true, NewGCOpts},
-            set_module_opt(?MYNAME, ?MODULE, stale_h, NewStaleOpts);
-        _ -> false
-    end.
+-spec set_stale_h_repeat_after(pos_integer()) -> boolean().
+set_stale_h_repeat_after(ResumeTimeout) ->
+    set_stale_h_opt(stale_h_repeat_after, ResumeTimeout).
 
--spec get_gc_geriatric(pos_integer()) -> pos_integer().
-get_gc_geriatric(Default) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case MaybeModOpts of
-        {true, GCOpts} ->
-            proplists:get_value(gc_geriatric, GCOpts, Default);
-        _ -> Default
-    end.
-
--spec set_gc_geriatric(pos_integer()) -> boolean().
-set_gc_geriatric(ResumeTimeout) ->
-    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, undefined),
-    case MaybeModOpts of
-        {true, GCOpts} ->
-            NewGCOpts = lists:keystore(gc_geriatric, 1, GCOpts,
-                                       {gc_geriatric, ResumeTimeout}),
-            NewStaleOpts = {true, NewGCOpts},
-            set_module_opt(?MYNAME, ?MODULE, stale_h, NewStaleOpts);
-        _ -> false
-    end.
-
+-spec set_stale_h_geriatric(pos_integer()) -> boolean().
+set_stale_h_geriatric(GeriatricAge) ->
+    set_stale_h_opt(stale_h_geriatric, GeriatricAge).
 
 %%
 %% API for `ejabberd_c2s'
@@ -235,9 +223,10 @@ get_sid(SMID) ->
 -spec get_stale_h(SMID :: smid()) ->
     {stale_h, non_neg_integer()} | {error, smid_not_found}.
 get_stale_h(SMID) ->
-    case gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}) of
-        {false, []} -> {error, smid_not_found};
-        {true, _} -> mod_stream_management_stale_h:read_stale_h(SMID)
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+    case proplists:get_value(enabled, MaybeModOpts, false) of
+        false -> {error, smid_not_found};
+        true -> stream_management_stale_h:read_stale_h(SMID)
     end.
 
 %% Setters
@@ -251,15 +240,17 @@ register_smid(SMID, SID) ->
     end.
 
 register_stale_smid_h(SMID, H) ->
-    case gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}) of
-        {false, []} -> ok;
-        {true, _} -> mod_stream_management_stale_h:write_stale_h(SMID, H)
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+    case proplists:get_value(enabled, MaybeModOpts, false) of
+        false -> ok;
+        true -> stream_management_stale_h:write_stale_h(SMID, H)
     end.
 
 remove_stale_smid_h(SMID) ->
-    case gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, {false, []}) of
-        {false, []} -> ok;
-        {true, _} -> mod_stream_management_stale_h:delete_stale_h(SMID)
+    MaybeModOpts = gen_mod:get_module_opt(?MYNAME, ?MODULE, stale_h, []),
+    case proplists:get_value(enabled, MaybeModOpts, false) of
+        false -> ok;
+        true -> stream_management_stale_h:delete_stale_h(SMID)
     end.
 
 %% copy-n-paste from gen_mod.erl
