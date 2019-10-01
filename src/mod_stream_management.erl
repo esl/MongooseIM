@@ -96,12 +96,7 @@ remove_smid(Acc, SID, _JID, _Info, _Reason) ->
 -spec session_cleanup(Acc :: map(), LUser :: jid:luser(), LServer :: jid:lserver(),
                       LResource :: jid:lresource(), SID :: ejabberd_sm:sid()) -> any().
 session_cleanup(Acc, _LUser, _LServer, _LResource, SID) ->
-    Acc1 = do_remove_smid(Acc, SID),
-    case mongoose_acc:get(stream_mgmt, smid, Acc1) of
-        {error, smid_not_found} -> ok;
-        {ok, SMID} -> remove_stale_smid_h(SMID)
-    end,
-    Acc.
+    do_remove_smid(Acc, SID).
 
 -spec do_remove_smid(Acc, SID) -> Acc1 when
       Acc :: mongoose_acc:t(),
