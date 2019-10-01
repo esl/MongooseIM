@@ -5,7 +5,37 @@ Most of the logic regarding session resumption and acknowledgement is implemente
 while the management of the session tables and configuration is implemented in
 `mod_stream_management`.
 
-### In `ejabberd_c2s`
+### Options
+
+* `buffer_max` (default: 100): Buffer size for messages yet to be acknowledged.
+* `ack_freq` (default: 1): Frequency of ack requests sent from the server to the client, e.g. 1
+  means a request after each stanza, 3 means a request after each 3 stanzas.
+* `resume_timeout` (default: 600): Timeout for the session resumption. Sessions will be removed
+  after the specified number of seconds.
+* `stale_h`: enable keeping old server's `<h>` values after the resumption timed out. Defaults to
+  `[{enabled, false}]`. When enabled, parameters for the garbage collection of these tables should
+  be provided, for example as `[{enabled, true}, {stale_h_repeat_after, 1800}, {stale_h_geriatric,
+  3600}]` — 1800 for `stale_h_repeat_after` and 3600 for `stale_h_geriatric` are the defaults.
+  - `stale_h_repeat_after`: How often the garbage collection will run in the background to clean this
+    table. Defaults to 1800 seconds (half an hour).
+  - `stale_h_geriatric`: The maximum lifespan of a record in memory. After this, they will be chased
+    for cleanup. Defaults to 3600 seconds (one hour).
+
+### Example Configuration
+
+```
+  {mod_stream_management, [{buffer_max, 30},
+                           {ack_freq, 1},
+                           {resume_timeout, 600}
+                           {stale_h, [{enabled, true},
+                                      {stale_h_repeat_after, 1800},
+                                      {stale_h_geriatric, 3600}]}
+                          ]},
+```
+
+### Implementation details
+
+#### In `ejabberd_c2s`
 
 The record `#smgc_state{}` in the `ejabberd_c2s` `gen_fsm` server keeps fields like:
 
@@ -24,7 +54,7 @@ stream_mgmt_resumed_from, %% a ejabberd_sm:sid() to keep identifiying the old se
 stream_mgmt_constraint_check_tref, %% another ref() for a timeout, this time for buffer_full check
 ```
 
-### In `mod_stream_management`
+#### In `mod_stream_management`
 
 This module is just a "starter", to provide the configuration values to new client connections. It
 also provides a basic session table API and adds a new stream feature.
@@ -70,32 +100,4 @@ the following:
 ```
 
 And `ejabberd_c2s` will pattern-match and act accordingly.
-
-### Options
-
-* `buffer_max` (default: 100): Buffer size for messages yet to be acknowledged.
-* `ack_freq` (default: 1): Frequency of ack requests sent from the server to the client, e.g. 1
-  means a request after each stanza, 3 means a request after each 3 stanzas.
-* `resume_timeout` (default: 600): Timeout for the session resumption. Sessions will be removed
-  after the specified number of seconds.
-* `stale_h`: enable keeping old server's `<h>` values after the resumption timed out. Defaults to
-  `[{enabled, false}]`. When enabled, parameters for the garbage collection of these tables should
-  be provided, for example as `[{enabled, true}, {stale_h_repeat_after, 1800}, {stale_h_geriatric,
-  3600}]` — 1800 for `stale_h_repeat_after` and 3600 for `stale_h_geriatric` are the defaults.
-  - `stale_h_repeat_after`: How often the garbage collection will run in the background to clean this
-    table. Defaults to 1800 seconds (half an hour).
-  - `stale_h_geriatric`: The maximum lifespan of a record in memory. After this, they will be chased
-    for cleanup. Defaults to 3600 seconds (one hour).
-
-### Example Configuration
-
-```
-  {mod_stream_management, [{buffer_max, 30},
-                           {ack_freq, 1},
-                           {resume_timeout, 600}
-                           {stale_h, [{enabled, true},
-                                      {stale_h_repeat_after, 1800},
-                                      {stale_h_geriatric, 3600}]}
-                          ]},
-```
 
