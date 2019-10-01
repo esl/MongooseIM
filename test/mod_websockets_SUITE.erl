@@ -30,7 +30,8 @@ subprotocol_header_tests() ->
      do_not_agree_to_other_subprotocol].
 
 timeout_tests() ->
-    [connection_is_closed_after_idle_timeout].
+    [connection_is_closed_after_idle_timeout,
+     client_ping_frame_resets_idle_timeout].
 
 init_per_suite(C) ->
     setup(),
@@ -126,6 +127,23 @@ connection_is_closed_after_idle_timeout(_Config) ->
     inet:setopts(Socket, [{active, true}]),
     Closed = wait_for_close(Socket),
     ?eq(Closed, ok).
+
+client_ping_frame_resets_idle_timeout(_Config) ->
+    #{socket := Socket} = ws_handshake(#{extra_headers => [<<"sec-websocket-protocol: xmpp\r\n">>]}),
+    Now = os:system_time(millisecond),
+    inet:setopts(Socket, [{active, true}]),
+    WaitBeforePingFrame = (?IDLE_TIMEOUT) div 2,
+    timer:sleep(WaitBeforePingFrame),
+    %%Masked ping frame
+    Ping = << 1:1, 0:3, 9:4, 1:1, 0:39 >>,
+    ok = gen_tcp:send(Socket, Ping),
+    Closed = wait_for_close(Socket),
+    ?eq(Closed, ok),
+    End = os:system_time(millisecond),
+    %%Below we check if the time difference between now and the moment
+    %%the WebSocket was established is bigger then the the ?IDLE_TIMEOUT plus initial wait time
+    %%This shows that the connection was not killed after the first ?IDLE_TIMEOUT
+    ?assert(End - Now > ?IDLE_TIMEOUT + WaitBeforePingFrame).
 
 wait_for_close(Socket) ->
     receive
