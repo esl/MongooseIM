@@ -186,6 +186,7 @@ end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_
                                   CN =:= gc_repeat_after_timeout_does_clean
                                    ->
     dynamic_modules:stop(domain(), ?MOD_SM),
+    rpc(mim(), ejabberd_sup, stop_child, [stream_management_stale_h]),
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->

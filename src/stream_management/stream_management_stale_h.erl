@@ -89,8 +89,7 @@ start_cleaner(Opts) ->
     ejabberd_sup:start_child(ChildSpec).
 
 stop() ->
-    ejabberd_sup:stop_child(?MODULE).
-
+    ok.
 
 start_link(Opts) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Opts], []).
