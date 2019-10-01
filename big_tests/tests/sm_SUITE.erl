@@ -37,7 +37,8 @@ groups() ->
          {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
          {stale_h, [], stale_h_test_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}],
-    G.
+    ct_helper:repeat_all_until_all_ok(G).
+
 
 parallel_test_cases() ->
     [server_announces_sm,
