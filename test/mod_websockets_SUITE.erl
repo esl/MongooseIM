@@ -7,10 +7,14 @@
 -define(IP, {127, 0, 0, 1}).
 -define(FAST_PING_RATE, 500).
 -define(NEW_TIMEOUT, 1200).
+%The timeout is long enough to pass all test cases for ping interval settings
+%using NEW_TIMEOUT value. In these tests we wait for at most 2 pings.
+%The 300ms is just an additional overhead
+-define(IDLE_TIMEOUT, ?NEW_TIMEOUT * 2 + 300).
 
 
 all() ->
-    ping_tests() ++ subprotocol_header_tests().
+    ping_tests() ++ subprotocol_header_tests() ++ timeout_tests().
 
 ping_tests() ->
     [ping_test,
@@ -25,12 +29,21 @@ subprotocol_header_tests() ->
      do_not_agree_to_missing_subprotocol,
      do_not_agree_to_other_subprotocol].
 
-init_per_testcase(_, C) ->
+timeout_tests() ->
+    [connection_is_closed_after_idle_timeout].
+
+init_per_suite(C) ->
     setup(),
     C.
 
-end_per_testcase(_, C) ->
+end_per_suite(_) ->
     teardown(),
+    ok.
+
+init_per_testcase(_, C) ->
+    C.
+
+end_per_testcase(_, C) ->
     C.
 
 setup() ->
@@ -54,7 +67,8 @@ setup() ->
             {max_connections, 1024},
             {modules, [{"_", "/http-bind", mod_bosh},
                        {"_", "/ws-xmpp", mod_websockets,
-                        [{timeout, 600000}, {ping_rate, ?FAST_PING_RATE}]}]}],
+                        [{timeout, ?IDLE_TIMEOUT},
+                         {ping_rate, ?FAST_PING_RATE}]}]}],
     ejabberd_cowboy:start_listener({?PORT, ?IP, tcp}, Opts).
 
 
@@ -77,15 +91,14 @@ set_ping_test(_Config) ->
     #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
     %% When
     mod_websockets:set_ping(InternalSocket, ?NEW_TIMEOUT),
-    ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + 1000),
+    WaitMargin = 300,
+    ok = wait_for_ping(Socket1, 0 , ?NEW_TIMEOUT + WaitMargin),
     %% Im waiting too less time!
-    ErrorTimeout = wait_for_ping(Socket1, 0, 700),
-    ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 1000),
-    %% now I wait enough time
-    Resp1 = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT + 200),
-    %% then
-    ?eq(ok, Resp1),
-    ?eq({error, timeout}, ErrorTimeout).
+    TooShort = 700,
+    ErrorTimeout = wait_for_ping(Socket1, 0, TooShort),
+    ?eq({error, timeout}, ErrorTimeout),
+    %% now I'm wait the remaining time (and some margin)
+    ok = wait_for_ping(Socket1, 0, ?NEW_TIMEOUT - TooShort + WaitMargin).
 
 disable_ping_test(_Config) ->
     #{socket := Socket1, internal_socket := InternalSocket} = ws_handshake(),
@@ -107,6 +120,21 @@ disable_and_set(_Config) ->
     %% then
     ?eq(ErrorTimeout, {error, timeout}),
     ?eq(Resp1, ok).
+
+connection_is_closed_after_idle_timeout(_Config) ->
+    #{socket := Socket} = ws_handshake(),
+    inet:setopts(Socket, [{active, true}]),
+    Closed = wait_for_close(Socket),
+    ?eq(Closed, ok).
+
+wait_for_close(Socket) ->
+    receive
+        {tcp_closed, Socket} ->
+            ok
+    after ?IDLE_TIMEOUT + 500 ->
+              timeout
+    end.
+
 
 ws_handshake() ->
     ws_handshake(#{}).
