@@ -367,7 +367,8 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
         escalus:assert(is_stream_error,
                        [<<"policy-violation">>, <<>>],
                        escalus:wait_for_stanza(Alice)),
-        escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end))
+        escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
+        true = escalus_connection:wait_for_close(Alice,timer:seconds(5))
     end).
 
 client_acks_more_than_sent(Config) ->
