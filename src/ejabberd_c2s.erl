@@ -678,15 +678,11 @@ maybe_do_compress(El = #xmlel{name = Name, attrs = Attrs}, NextState, StateData)
 
     end.
 
+check_compression_auth(_El, NextState, StateData = #state{authenticated = false}) ->
+    send_element_from_server_jid(StateData, compress_setup_failed()),
+    fsm_next_state(NextState, StateData);
 check_compression_auth(El, NextState, StateData) ->
-    Auth = StateData#state.authenticated,
-    case Auth of
-        false ->
-            send_element_from_server_jid(StateData, compress_setup_failed()),
-            fsm_next_state(NextState, StateData);
-        _ ->
-            check_compression_method(El, NextState, StateData)
-    end.
+    check_compression_method(El, NextState, StateData).
 
 check_compression_method(El, NextState, StateData) ->
     case exml_query:path(El, [{element, <<"method">>}, cdata]) of
@@ -1488,6 +1484,9 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 %%----------------------------------------------------------------------
 -spec terminate(Reason :: any(), statename(), state()) -> ok.
 terminate(_Reason, StateName, StateData) ->
+    InitialAcc0 = mongoose_acc:new(
+             #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
+    Acc = mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0),
     case {should_close_session(StateName), StateData#state.authenticated} of
         {false, _} ->
             ok;
@@ -1503,6 +1502,7 @@ terminate(_Reason, StateName, StateData) ->
                             children = [StatusEl]},
             Acc0 = element_to_origin_accum(Packet, StateData),
             ejabberd_sm:close_session_unset_presence(
+              Acc,
               StateData#state.sid,
               StateData#state.user,
               StateData#state.server,
@@ -1532,7 +1532,8 @@ terminate(_Reason, StateName, StateData) ->
                        pres_a = EmptySet,
                        pres_i = EmptySet,
                        pres_invis = false} ->
-                    ejabberd_sm:close_session(StateData#state.sid,
+                    ejabberd_sm:close_session(Acc,
+                                              StateData#state.sid,
                                               StateData#state.user,
                                               StateData#state.server,
                                               StateData#state.resource,
@@ -1542,6 +1543,7 @@ terminate(_Reason, StateName, StateData) ->
                                     attrs = [{<<"type">>, <<"unavailable">>}]},
                     Acc0 = element_to_origin_accum(Packet, StateData),
                     ejabberd_sm:close_session_unset_presence(
+                      Acc,
                       StateData#state.sid,
                       StateData#state.user,
                       StateData#state.server,
@@ -2766,7 +2768,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
     end.
 
 enable_stream_resumption(SD) ->
-    SMID = make_smid(),
+    SMID = mod_stream_management:make_smid(),
     SID = case SD#state.sid of
               undefined -> {p1_time_compat:timestamp(), self()};
               RSID -> RSID
@@ -2774,9 +2776,6 @@ enable_stream_resumption(SD) ->
     ok = mod_stream_management:register_smid(SMID, SID),
     {SD#state{stream_mgmt_id = SMID, sid = SID},
      stream_mgmt_enabled([{<<"id">>, SMID}, {<<"resume">>, <<"true">>}])}.
-
-make_smid() ->
-    base64:encode(crypto:strong_rand_bytes(21)).
 
 maybe_unexpected_sm_request(NextState, El, StateData) ->
     case xml:get_tag_attr_s(<<"xmlns">>, El) of
@@ -2878,10 +2877,13 @@ stream_mgmt_enabled(ExtraAttrs) ->
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}] ++ ExtraAttrs}.
 
 stream_mgmt_failed(Reason) ->
+    stream_mgmt_failed(Reason, []).
+
+stream_mgmt_failed(Reason, Attrs) ->
     ReasonEl = #xmlel{name = Reason,
                       attrs = [{<<"xmlns">>, ?NS_STANZAS}]},
     #xmlel{name = <<"failed">>,
-           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}],
+           attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3} | Attrs],
            children = [ReasonEl]}.
 
 stream_mgmt_ack(NIncoming) ->
@@ -2998,15 +3000,21 @@ maybe_resume_session(NextState, El, StateData) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           xml:get_tag_attr_s(<<"previd">>, El)} of
         {?NS_STREAM_MGNT_3, SMID} ->
-            MaybeSID = mod_stream_management:get_sid(SMID),
-            do_resume_session(SMID, El, MaybeSID, StateData);
+            FromSMID = mod_stream_management:get_session_from_smid(SMID),
+            do_resume_session(SMID, El, FromSMID, StateData);
         {InvalidNS, _} ->
             ?INFO_MSG("ignoring <resume/> element "
                       "with invalid namespace ~s~n", [InvalidNS]),
             fsm_next_state(NextState, StateData)
     end.
 
-do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) ->
+-spec do_resume_session(SMID, El, FromSMID, StateData) -> NewState when
+      SMID :: mod_stream_management:smid(),
+      El :: exml:element(),
+      FromSMID :: {sid, ejabberd_sm:sid()} | {stale_h, non_neg_integer()} | {error, smid_not_found},
+      StateData :: state(),
+      NewState :: tuple().
+do_resume_session(SMID, El, {sid, {_, Pid}}, #state{server = Server} = StateData) ->
     try
         {ok, OldState} = p1_fsm_old:sync_send_event(Pid, resume),
         SID = {p1_time_compat:timestamp(), self()},
@@ -3053,14 +3061,18 @@ do_resume_session(SMID, El, [{_, Pid}], #state{ server = Server } = StateData) -
         end
     catch
         _:_ ->
-            ?WARNING_MSG("resumption error (invalid response from ~p)~n",
-                         [Pid]),
+            ?WARNING_MSG("event=resumption_error reason=invalid_response pid=~p", [Pid]),
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
             fsm_next_state(wait_for_feature_after_auth, StateData)
     end;
 
-do_resume_session(SMID, _El, [], StateData) ->
-    ?WARNING_MSG("no previous session with stream id ~p~n", [SMID]),
+do_resume_session(SMID, _El, {stale_h, H}, StateData) when is_integer(H) ->
+    ?INFO_MSG("event=resumption_error reason=session_resumption_timed_out smid=~p h=~p", [SMID, H]),
+    send_element_from_server_jid(
+      StateData, stream_mgmt_failed(<<"item-not-found">>, [{<<"h">>, integer_to_binary(H)}])),
+    fsm_next_state(wait_for_feature_after_auth, StateData);
+do_resume_session(SMID, _El, {error, smid_not_found}, StateData) ->
+    ?INFO_MSG("event=resumption_error reason=no_previous_session_for_smid smid=~p", [SMID]),
     send_element_from_server_jid(StateData, stream_mgmt_failed(<<"item-not-found">>)),
     fsm_next_state(wait_for_feature_after_auth, StateData).
 
@@ -3103,7 +3115,10 @@ stream_mgmt_resumed(SMID, Handled) ->
 handover_session(SD) ->
     %% Assert Stream Management is on; otherwise this should not be called.
     true = SD#state.stream_mgmt,
-    ejabberd_sm:close_session(SD#state.sid,
+    Acc = mongoose_acc:new(
+             #{location => ?LOCATION, lserver => SD#state.server, element => undefined}),
+    ejabberd_sm:close_session(Acc,
+                              SD#state.sid,
                               SD#state.user,
                               SD#state.server,
                               SD#state.resource,

@@ -125,7 +125,12 @@ cleanup(Node) ->
                           %% Add possible removed ":" from encoded SID
                           SID = binary_to_term(ejabberd_binary:join(SIDEncoded, <<":">>)),
                           delete_session(SID, U, S, R),
-                          ejabberd_hooks:run(session_cleanup, S, [U, S, R, SID])
+                          Acc = mongoose_acc:new(
+                                  #{location => ?LOCATION,
+                                    lserver => S,
+                                    element => undefined}),
+                          ejabberd_hooks:run_fold(session_cleanup, S, Acc,
+                                                  [U, S, R, SID])
                   end, Hashes).
 
 

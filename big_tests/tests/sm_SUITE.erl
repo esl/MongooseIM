@@ -17,6 +17,7 @@
 
 -import(escalus_stanza, [setattr/3]).
 
+-define(BIG_BIG_BIG_TIMEOUT, 3600).
 -define(SHORT_RESUME_TIMEOUT, 3).
 -define(SMALL_SM_BUFFER, 3).
 
@@ -27,14 +28,17 @@
 all() ->
     [{group, parallel},
      {group, parallel_manual_ack_freq_1},
+     {group, stale_h},
      server_requests_ack_freq_2
      ].
 
 groups() ->
     G = [{parallel, [parallel], parallel_test_cases()},
          {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
+         {stale_h, [], stale_h_test_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}],
     ct_helper:repeat_all_until_all_ok(G).
+
 
 parallel_test_cases() ->
     [server_announces_sm,
@@ -77,9 +81,27 @@ parallel_manual_ack_test_cases() ->
      server_requests_ack
      ].
 
+stale_h_test_cases() ->
+    [
+     resume_expired_session_returns_correct_h,
+     gc_repeat_after_never_means_no_cleaning,
+     gc_repeat_after_timeout_does_clean
+    ].
 
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
+
+domain() ->
+    ct:get_config({hosts, mim, domain}).
+
+stream_management_with_stale_h(RepeatAfter, Geriatric) ->
+  [{mod_stream_management,
+    [
+     {ack_freq, 1},
+     {resume_timeout, ?SHORT_RESUME_TIMEOUT},
+     {stale_h, [{enabled, true},
+                {stale_h_repeat_after, RepeatAfter},
+                {stale_h_geriatric, Geriatric}]}]}].
 
 %%--------------------------------------------------------------------
 %% Init & teardown
@@ -98,12 +120,15 @@ end_per_suite(Config) ->
     escalus_fresh:clean(),
     escalus:end_per_suite(NewConfig1).
 
+
 init_per_group(manual_ack_freq_long_session_timeout, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(parallel_manual_ack_freq_1, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
     rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
+    escalus_users:update_userspec(Config, alice, manual_ack, true);
+init_per_group(stale_h, Config) ->
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(_GroupName, Config) ->
     Config.
@@ -118,6 +143,35 @@ end_per_group(parallel_manual_ack_freq_1, Config) ->
 end_per_group(_GroupName, Config) ->
     Config.
 
+
+set_gc_parameters(RepeatAfter, Geriatric, Config) ->
+    Config2 = dynamic_modules:save_modules(domain(), Config),
+    dynamic_modules:ensure_modules(
+      domain(), stream_management_with_stale_h(RepeatAfter, Geriatric)),
+    Config2.
+
+register_smid(IntSmidId) ->
+    S = {SMID = make_smid(), IntSmidId},
+    ok = rpc(mim(), ?MOD_SM, register_stale_smid_h, [SMID, IntSmidId]),
+    S.
+
+register_some_smid_h(Config) ->
+    TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
+    [{smid_test, TestSmids} | Config].
+
+init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
+    Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
+    rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
+    true = rpc(mim(), ?MOD_SM, set_ack_freq, [1]),
+    escalus:init_per_testcase(CN, Config2);
+init_per_testcase(gc_repeat_after_never_means_no_cleaning = CN, Config) ->
+    Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?SHORT_RESUME_TIMEOUT, Config),
+    Config3 = register_some_smid_h(Config2),
+    escalus:init_per_testcase(CN, Config3);
+init_per_testcase(gc_repeat_after_timeout_does_clean = CN, Config) ->
+    Config2 = set_gc_parameters(?SHORT_RESUME_TIMEOUT, ?SHORT_RESUME_TIMEOUT, Config),
+    Config3 = register_some_smid_h(Config2),
+    escalus:init_per_testcase(CN, Config3);
 init_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [2]),
     escalus:init_per_testcase(CN, Config);
@@ -127,6 +181,14 @@ init_per_testcase(replies_are_processed_by_resumed_session = CN, Config) ->
 init_per_testcase(CaseName, Config) ->
     escalus:init_per_testcase(CaseName, Config).
 
+end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_h;
+                                  CN =:= gc_repeat_after_never_means_no_cleaning;
+                                  CN =:= gc_repeat_after_timeout_does_clean
+                                   ->
+    dynamic_modules:stop(domain(), ?MOD_SM),
+    rpc(mim(), ejabberd_sup, stop_child, [stream_management_stale_h]),
+    dynamic_modules:restore_modules(domain(), Config),
+    escalus:end_per_testcase(CN, Config);
 end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
     escalus:end_per_testcase(CN, Config);
@@ -305,7 +367,8 @@ h_non_given_closes_stream_gracefully(ConfigIn) ->
         escalus:assert(is_stream_error,
                        [<<"policy-violation">>, <<>>],
                        escalus:wait_for_stanza(Alice)),
-        escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end))
+        escalus:assert(is_stream_end, escalus_connection:get_stanza(Alice, stream_end)),
+        true = escalus_connection:wait_for_close(Alice,timer:seconds(5))
     end).
 
 client_acks_more_than_sent(Config) ->
@@ -554,6 +617,49 @@ resend_unacked_after_resume_timeout(Config) ->
     escalus_connection:stop(Bob),
     escalus_connection:stop(NewAlice).
 
+resume_expired_session_returns_correct_h(Config) ->
+    %% connect bob and alice
+    {Bob, _, _, _} =
+        get_stream_resumption_enabled_fresh_user_smid_and_h(Config, bob),
+    {Alice, AliceSpec, SMID, SMH} =
+        get_stream_resumption_enabled_fresh_user_smid_and_h(Config, alice),
+    escalus:assert(is_sm_ack_request, escalus_connection:get_stanza(Alice, ack)),
+    %% Bob sends a message to Alice, and Alice receives it but doesn't acknowledge
+    escalus_connection:send(Bob, escalus_stanza:chat_to(common_helper:get_bjid(AliceSpec), <<"msg-1">>)),
+    escalus:wait_for_stanza(Alice),
+    %% kill alice connection
+    escalus_connection:kill(Alice),
+    %% ensure there is no session
+    wait_until_disconnected(AliceSpec),
+    %% alice comes back, but too late, so resumption doesn't work,
+    %% but she receives the previous h = 1 anyway
+    {ok, NewAlice, _} = escalus_connection:start(AliceSpec, connection_steps_to_authenticate()),
+    escalus_connection:send(NewAlice, escalus_stanza:resume(SMID, SMH)),
+    FailedResumption = escalus_connection:get_stanza(NewAlice, failed_resumption),
+    <<"1">> = exml_query:attr(FailedResumption, <<"h">>),
+    %% And we can continue with bind and session
+    escalus_session:session(escalus_session:bind(NewAlice)),
+    escalus_connection:send(NewAlice, escalus_stanza:presence(<<"available">>)),
+    Stanzas = [escalus_connection:get_stanza(NewAlice, msg),
+               escalus_connection:get_stanza(NewAlice, msg)],
+    escalus_new_assert:mix_match([is_presence, is_chat(<<"msg-1">>)], Stanzas),
+    escalus_connection:stop(Bob),
+    escalus_connection:stop(NewAlice).
+
+gc_repeat_after_never_means_no_cleaning(Config) ->
+    true = rpc(mim(), ?MOD_SM, set_stale_h_repeat_after, [?BIG_BIG_BIG_TIMEOUT]),
+    [{SMID1, _}, {SMID2, _}, {SMID3, _}] = ?config(smid_test, Config),
+    {stale_h, 1} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID1]),
+    {stale_h, 2} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID2]),
+    {stale_h, 3} = rpc(mim(), ?MOD_SM, get_session_from_smid, [SMID3]).
+gc_repeat_after_timeout_does_clean(Config) ->
+    [{SMID1, _} | _ ] = ?config(smid_test, Config),
+    mongoose_helper:wait_until(fun() ->
+                                       rpc(mim(), ?MOD_SM, get_stale_h, [SMID1])
+                               end,
+                               {error, smid_not_found},
+                               #{name => smid_garbage_collected}).
+
 resume_session_state_send_message(Config) ->
     ConnSteps = connection_steps_to_session(),
 
@@ -704,7 +810,7 @@ resume_session_with_wrong_h_does_not_leak_sessions(Config) ->
         escalus:assert(is_stream_error, [<<"undefined-condition">>, <<>>], Resumed),
 
         [] = get_user_present_resources(AliceSpec),
-        [] = get_sid_by_stream_id(SMID),
+        {error, smid_not_found} = get_sid_by_stream_id(SMID),
         escalus_connection:wait_for_close(Alice, timer:seconds(5))
     end).
 
@@ -969,6 +1075,7 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus:assert(is_chat_message, [MsgBody], RecvMsg)
       end).
 
+
 %%--------------------------------------------------------------------
 %% Helpers
 %%--------------------------------------------------------------------
@@ -1177,3 +1284,5 @@ wait_for_session({LU, LS, LR} = LJID, Retries, SleepTime) ->
             ok
     end.
 
+make_smid() ->
+    base64:encode(crypto:strong_rand_bytes(21)).

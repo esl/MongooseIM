@@ -327,7 +327,8 @@ set_test_case_meck(MaxUserSessions) ->
     meck:new(acl, []),
     meck:expect(acl, match_rule, fun(_, _, _) -> MaxUserSessions end),
     meck:new(ejabberd_hooks, []),
-    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end).
+    meck:expect(ejabberd_hooks, run, fun(_, _, _) -> ok end),
+    meck:expect(ejabberd_hooks, run_fold, fun(_, _, Acc, _) -> Acc end).
 
 set_test_case_meck_unique_count_crash(Backend) ->
     F = get_fun_for_unique_count(Backend),
