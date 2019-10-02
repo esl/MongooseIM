@@ -29,6 +29,7 @@ all() ->
     [{group, parallel},
      {group, parallel_manual_ack_freq_1},
      {group, stale_h},
+     {group, stream_mgmt_disabled},
      server_requests_ack_freq_2
      ].
 
@@ -36,6 +37,7 @@ groups() ->
     G = [{parallel, [parallel], parallel_test_cases()},
          {parallel_manual_ack_freq_1, [parallel], parallel_manual_ack_test_cases()},
          {stale_h, [], stale_h_test_cases()},
+         {stream_mgmt_disabled, [], stream_mgmt_disabled_cases()},
          {manual_ack_freq_long_session_timeout, [parallel], [preserve_order]}],
     ct_helper:repeat_all_until_all_ok(G).
 
@@ -88,6 +90,12 @@ stale_h_test_cases() ->
      gc_repeat_after_timeout_does_clean
     ].
 
+stream_mgmt_disabled_cases() ->
+    [
+     no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt,
+     no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption
+    ].
+
 suite() ->
     require_rpc_nodes([mim]) ++ escalus:suite().
 
@@ -130,9 +138,16 @@ init_per_group(parallel_manual_ack_freq_1, Config) ->
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stale_h, Config) ->
     escalus_users:update_userspec(Config, alice, manual_ack, true);
+init_per_group(stream_mgmt_disabled, Config) ->
+    Config2 = dynamic_modules:save_modules(domain(), Config),
+    rpc(mim(), gen_mod, stop_module, [domain(), ?MOD_SM]),
+    rpc(mim(), mnesia, delete_table, [sm_session]),
+    escalus_users:update_userspec(Config2, alice, manual_ack, true);
 init_per_group(_GroupName, Config) ->
     Config.
 
+end_per_group(stream_mgmt_disabled, Config) ->
+    dynamic_modules:restore_modules(domain(), Config);
 end_per_group(manual_ack_freq_long_session_timeout, Config) ->
     true = rpc(mim(), ?MOD_SM, set_ack_freq, [never]),
     Config;
@@ -159,6 +174,11 @@ register_some_smid_h(Config) ->
     TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
     [{smid_test, TestSmids} | Config].
 
+init_per_testcase(no_crash_if_stream_mgmt_disabled = CN, Config) ->
+    Config2 = dynamic_modules:save_modules(domain(), Config),
+    rpc(mim(), gen_mod, stop_module, [domain(), ?MOD_SM]),
+    rpc(mim(), mnesia, delete_table, [sm_session]),
+    escalus:init_per_testcase(CN, Config2);
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
     Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
     rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
@@ -187,6 +207,9 @@ end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_
                                    ->
     dynamic_modules:stop(domain(), ?MOD_SM),
     rpc(mim(), ejabberd_sup, stop_child, [stream_management_stale_h]),
+    dynamic_modules:restore_modules(domain(), Config),
+    escalus:end_per_testcase(CN, Config);
+end_per_testcase(no_crash_if_stream_mgmt_disabled = CN, Config) ->
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
@@ -1075,6 +1098,26 @@ messages_are_properly_flushed_during_resumption(Config) ->
         escalus:assert(is_chat_message, [MsgBody], RecvMsg)
       end).
 
+no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = connection_steps_to_session(),
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
+    %% Should not crash anything!
+    escalus_connection:send(Alice, escalus_stanza:enable_sm()),
+    % escalus_connection:send(Alice, escalus_stanza:enable_sm([resume])),
+    Response = escalus_connection:get_stanza(Alice, service_unavailable),
+    escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
+    escalus_connection:stop(Alice).
+
+no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption(Config) ->
+    AliceSpec = escalus_fresh:create_fresh_user(Config, alice),
+    Steps = connection_steps_to_session(),
+    {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
+    %% Should not crash anything!
+    escalus_connection:send(Alice, escalus_stanza:enable_sm([resume])),
+    Response = escalus_connection:get_stanza(Alice, service_unavailable),
+    escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
+    escalus_connection:stop(Alice).
 
 %%--------------------------------------------------------------------
 %% Helpers
