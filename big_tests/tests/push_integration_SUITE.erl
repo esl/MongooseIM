@@ -246,16 +246,19 @@ inbox_msg_reset_unread_count_fcm(Config) ->
 
 inbox_msg_unread_count(Config, Service, EnableOpts) ->
     escalus:fresh_story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
+      Config, [{bob, 1}, {alice, 1}, {kate, 1}],
+      fun(Bob, Alice, Kate) ->
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
               send_private_message(Alice, Bob),
+              check_notification(DeviceToken, 1),
+              send_private_message(Kate, Bob),
               check_notification(DeviceToken, 1),
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 2),
               send_private_message(Alice, Bob),
-              check_notification(DeviceToken, 3)
-
+              check_notification(DeviceToken, 3),
+              send_private_message(Kate, Bob),
+              check_notification(DeviceToken, 2)
       end).
 
 inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->
