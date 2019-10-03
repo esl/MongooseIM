@@ -2,6 +2,8 @@
 -mode(compile).
 
 main(_) ->
+    %% Set current directory to script directory
+    file:set_cwd(filename:dirname(escript:script_name())),
     Cookie = riak,
     io:format("~nsetup_riak START~n", []),
     {ok, _} = net_kernel:start([node_name(setup_riak)]),
@@ -39,6 +41,9 @@ local_ip_v4() ->
     ]).
 
 setup_riak_node(RiakNode) ->
+    application:ensure_all_started(inets),
+    setup_schemas(),
+    setup_indexes(),
     setup_access(RiakNode),
     setup_types(RiakNode).
 
@@ -109,4 +114,80 @@ wait_until(Fun, Retry, Delay) when Retry > 0 ->
         _ ->
             timer:sleep(Delay),
             wait_until(Fun, Retry-1, Delay)
+    end.
+
+
+setup_schemas() ->
+    do_put_file("/search/schema/vcard", "vcard_search_schema.xml"),
+    do_put_file("/search/schema/mam", "mam_search_schema.xml"),
+    wait_for_code("/search/schema/vcard", 200),
+    wait_for_code("/search/schema/mam", 200),
+    ok.
+
+setup_indexes() ->
+    do_put_json("/search/index/vcard", "{\"schema\":\"vcard\"}"),
+    do_put_json("/search/index/mam", "{\"schema\":\"mam\"}"),
+    wait_for_code("/search/index/vcard", 200),
+    wait_for_code("/search/index/mam", 200),
+    ok.
+
+wait_for_code(Path, Code) ->
+    F = fun() -> check_result_code(do_get(Path), Code) end,
+    ok = wait_until(F, 10, 2000).
+
+do_get(Path) ->
+    Url = riak_url(Path),
+    Headers = [],
+    Request = {Url, Headers},
+    %% request(Method, Request, HTTPOptions, Options)
+    Result = httpc:request(get, Request, [], []),
+    io:format("GET to ~p returns:~n~p~n", [Path, Result]),
+    Result.
+
+do_put_file(Path, File) ->
+    Url = riak_url(Path),
+    Headers = [],
+    ContentType = "application/xml",
+    Body = get_body_from_file(File),
+    Request = {Url, Headers, ContentType, Body},
+    %% request(Method, Request, HTTPOptions, Options)
+    Result = httpc:request(put, Request, [], []),
+    io:format("~nPUT to ~p returns:~n~p~n", [Path, Result]),
+    Result.
+
+do_put_json(Path, JsonBody) ->
+    Url = riak_url(Path),
+    Headers = [],
+    ContentType = "application/json",
+    Request = {Url, Headers, ContentType, JsonBody},
+    %% request(Method, Request, HTTPOptions, Options)
+    Result = httpc:request(put, Request, [], []),
+    io:format("~nPUT to ~p returns:~n~p~n", [Path, Result]),
+    Result.
+
+check_result_code({ok, {{_HttpVer, Code, _Reason}, _Headers, _Body}}, Code) ->
+    true;
+check_result_code(Result, Code) ->
+    false.
+
+riak_url(Path) ->
+    riak_host() ++ Path.
+
+riak_host() ->
+    "http://localhost:" ++ integer_to_list(riak_port()).
+
+riak_port() ->
+    case os:getenv("RIAK_PORT") of
+        false ->
+            8098;
+        Value ->
+            list_to_integer(Value)
+    end.
+
+get_body_from_file(File) ->
+    case file:read_file(File) of
+        {ok, Bin} ->
+            binary_to_list(Bin);
+        {error, Reason} ->
+            error({get_body_from_file_failed, Reason, File})
     end.
