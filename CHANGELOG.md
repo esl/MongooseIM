@@ -1,3 +1,90 @@
+# [MongooseIM 3.5.0](https://github.com/esl/MongooseIM/releases/tag/3.5.0) - 2019-10-03
+
+## Highlights
+
+- Reworked LDAP layer
+- New method of resetting Inbox
+- OTP < 21.2 support is deprecated
+
+## All changes
+
+### Added
+
+- A new dedicated stanza for resetting the Inbox (#2452)
+- New metrics:
+  - `clusterSize`, as seen by each MIM node individually (#2322)
+  - `tcpPortsUsed` (#2359, #2374)
+
+### Changed
+
+- Multiple improvements in the LDAP layer (#2388)
+  - They are now configured like the other outgoing connections.
+  - LDAP+TLS support.
+  - LDAP authentication backend may be used with SASL EXTERNAL
+- GDPR removal and retrieval do not query disabled backends and modules anymore (#2435)
+- Push notifications are no longer sent for messages with empty body (#2394)
+- Stream Management implementation has been updated to match XEP-0198 v1.6 (#2468, #2472)
+- Deprecations:
+  - OTP older than 21.2 (#2465)
+  - XEP-0313 Message Archive Management v0.3 (#2466)
+  - TLS older than 1.2 (#2377)
+- Dependencies update (#2351)
+  - `lager`: 3.7.0
+  - `cowboy`: 2.6.3
+  - `jiffy`: 1.0.1
+  - `uuid`: 1.7.5
+  - `fast_tls`: 1.1.1
+  - `mysql`: 1.5.0
+  - `cache_tab`: 1.0.19
+  - `stringprep`: 1.0.16
+  - `meck`: 0.8.13
+  - `recon`: 2.5.0
+  - `erlcloud`: 3.2.7
+  - `observer_cli`: 1.5.0
+  - `amqp_client`: 3.7.15
+  - `eredis`: 1.2.0
+  - `riakc`: 2.5.3 - no change here but downloaded from a repo now (#2397)
+- Clustering operations are now protected by a global transaction (#2470)
+- Client XML namespace is no longer stripped in the messages received from a client (#2423)
+- `mongooseimctl` script is more robust (#2409)
+- `scram` module has been renamed to `mongoose_scram` (#2401)
+
+### Fixed
+
+- `binary_to_atom` vulnerability (#2444)
+- `push` PubSub node implementation had a bug in the affiliation check (#2438)
+- The unread messages count for push notifications was retrieved improperly and triggered an error (#2481)
+- Chat markers were improperly handled by Inbox (#2449)
+- It is again possible to configure an idle connection timeout for Websockets (#2480)
+- MUC Light role is now properly archived (#2268)
+- Chat markers are now properly stored by the MUC archive (#2271)
+- Inbox recognises MUC Light system messages more reliably (#2290)
+- `disco#info` request no longer causes a crash when `rooms_in_rosters` is enabled (#2354)
+- Mnesia backend for PubSub used to break the transaction restart logic in some operations (#2390)
+- Some REST commands were unusable due to a bug in REST implementation (#2426)
+
+### Other
+
+- Added CircleCI integration (#2372, #2382, #2383, #2414, #2419, #2422, #2439, #2441, #2446, #2447, #2462, #2463)
+- CI stabilisation (#2378, #2389, #2392, #2393, #2395, #2396, #2404, #2428, #2429, #2431, #2434, #2437, #2453, #2454, #2455, #2469, #2473, #2474)
+- Test improvements and refactoring (#2351, #2381, #2398, #2399, #2403, #2408, #2411, #2417, #2418, #2421, #2424, #2432, #2457, #2458, #2459, #2475)
+- Documentation updates (#2247, #2356, #2357, #2376, #2416, #2420, #2436, #2450, #2478, #2479)
+- Reduced resource consumption for dev releases (#2400)
+- New dev nodes are templated from existing one(s) if possible (#2407)
+- Updated `.gitignore` file with new rules for logs (#2385)
+
+## Commits, merged PRs and closed issues
+
+- [List of merged PRs](https://github.com/esl/MongooseIM/pulls?q=is%3Apr+is%3Amerged+milestone%3A3.5.0)
+- [List of closed issues](https://github.com/esl/MongooseIM/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aclosed+closed%3A%222019-06-27..2019-10-03%22+)
+- [Repository history for this release](https://github.com/esl/MongooseIM/graphs/contributors?from=2019-06-27&to=2019-10-03&type=c)
+
+## Special thanks to our contributors:
+- @cgrtrifork
+- @Nyco
+- @navneetgupta
+- @jzskca
+
 # [MongooseIM 3.4.1](https://github.com/esl/MongooseIM/releases/tag/3.4.1) - 2019-09-12
 
 ## Highlights
