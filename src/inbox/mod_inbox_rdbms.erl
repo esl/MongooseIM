@@ -23,7 +23,7 @@
          remove_inbox/3,
          clear_inbox/1,
          clear_inbox/2,
-         get_inbox_unread/2]).
+         get_inbox_unread/3]).
 
 %% For specific backends
 -export([esc_string/1, esc_int/1]).
@@ -69,10 +69,13 @@ get_inbox_rdbms(LUser, LServer, #{ order := Order } = Params) ->
     mongoose_rdbms:sql_query(LServer, Query).
 
 
-get_inbox_unread(Username, Server) ->
+get_inbox_unread(Username, Server, InterlocutorJID) ->
+    RemBareJIDBin = jid:to_binary(jid:to_lus(InterlocutorJID)),
     Res = mongoose_rdbms:sql_query(Server,
                                    ["select unread_count from inbox "
                                     "WHERE luser=", esc_string(Username),
+                                      "AND lserver=", esc_string(Server),
+                                      "AND remote_bare_jid=", esc_string(RemBareJIDBin),
                                     ";"]),
     {ok, Val} = check_result(Res),
     %% We read unread_count value when the message is sent and is not yet in receiver inbox

@@ -246,16 +246,33 @@ inbox_msg_reset_unread_count_fcm(Config) ->
 
 inbox_msg_unread_count(Config, Service, EnableOpts) ->
     escalus:fresh_story(
-      Config, [{bob, 1}, {alice, 1}],
-      fun(Bob, Alice) ->
+      Config, [{bob, 1}, {alice, 1}, {kate, 1}],
+      fun(Bob, Alice, Kate) ->
+              % In this test Bob is the only recipient of all messages
               DeviceToken = enable_push_for_user(Bob, Service, EnableOpts),
+             
+              % We're going to interleave messages from Alice and Kate to ensure
+              % that their unread counts don't leak to each other's notifications
+
+              % We send a first message from Alice, unread counts in convs.: Alice 1, Kate 0
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 1),
+
+              % We send a first message from Kate, unread counts in convs.: Alice 1, Kate 1
+              send_private_message(Kate, Bob),
+              check_notification(DeviceToken, 1),
+              
+              % Now a second message from Alice, unread counts in convs.: Alice 2, Kate 1
               send_private_message(Alice, Bob),
               check_notification(DeviceToken, 2),
+              
+              % And one more from Alice, unread counts in convs.: Alice 3, Kate 1
               send_private_message(Alice, Bob),
-              check_notification(DeviceToken, 3)
+              check_notification(DeviceToken, 3),
 
+              % Time for Kate again, unread counts in convs.: Alice 3, Kate 2
+              send_private_message(Kate, Bob),
+              check_notification(DeviceToken, 2)
       end).
 
 inbox_msg_reset_unread_count(Config, Service, EnableOpts) ->

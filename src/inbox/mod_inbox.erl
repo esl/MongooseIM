@@ -73,9 +73,10 @@
                       Username :: jid:luser(),
                       Server :: jid:lserver().
 
--callback get_inbox_unread(Username, Server) -> {ok, integer()} when
+-callback get_inbox_unread(Username, Server, InterlocutorJID) -> {ok, integer()} when
                       Username :: jid:luser(),
-                      Server :: jid:lserver().
+                      Server :: jid:lserver(),
+                      InterlocutorJID :: jid:jid().
 
 -type get_inbox_params() :: #{
         start => erlang:timestamp(),
@@ -398,7 +399,8 @@ get_inbox_unread(Value, Acc, _) when is_integer(Value) ->
 get_inbox_unread(undefined, Acc, To) ->
 %% TODO this value should be bound to a stanza reference inside Acc
     {User, Host} = jid:to_lus(To),
-    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host),
+    InterlocutorJID = mongoose_acc:from_jid(Acc),
+    {ok, Count} = mod_inbox_utils:get_inbox_unread(User, Host, InterlocutorJID),
     mongoose_acc:set(inbox, unread_count, Count, Acc).
 
 hooks(Host) ->
