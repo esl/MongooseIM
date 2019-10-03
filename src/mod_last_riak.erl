@@ -98,7 +98,8 @@ set_last_info(LUser, LServer, Timestamp, Status) ->
 remove_user(LUser, LServer) ->
     mongoose_riak:delete(bucket_type(LServer), LUser).
 
-bucket_type(LServer) -> {<<"last">>, LServer}.
+bucket_type(LServer) ->
+    {gen_mod:get_module_opt(LServer, mod_last, bucket_type, <<"last">>), LServer}.
 
 -spec infinity() -> non_neg_integer().
 infinity() ->

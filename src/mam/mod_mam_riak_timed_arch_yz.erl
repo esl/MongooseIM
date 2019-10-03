@@ -41,15 +41,12 @@
 -export([key/3]).
 
 %% For tests only
--export([create_obj/6, read_archive/7, bucket/1,
-         list_mam_buckets/0, remove_bucket/1]).
+-export([create_obj/6, read_archive/8, bucket/2,
+         list_mam_buckets/1, remove_bucket/1]).
 
 -export([get_mam_muc_gdpr_data/2, get_mam_pm_gdpr_data/2]).
 
 -type yearweeknum() :: {non_neg_integer(), 1..53}.
-
--define(YZ_SEARCH_INDEX, <<"mam">>).
--define(MAM_BUCKET_TYPE, <<"mam_yz">>).
 
 -define(DUMMY_LOOKUP_PARAMETERS, #{with_jid => undefined,
                                    owner_jid => undefined,
@@ -126,6 +123,12 @@ stop_muc_archive(Host) ->
     ejabberd_hooks:delete(get_mam_muc_gdpr_data, Host, ?MODULE, get_mam_muc_gdpr_data, 50),
     ok.
 
+yz_search_index(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, search_index, <<"mam">>).
+
+mam_bucket_type(Host) ->
+    gen_mod:get_module_opt(Host, ?MODULE, bucket_type, <<"mam_yz">>).
+
 %% LocJID - archive owner's JID
 %% RemJID - interlocutor's JID
 %% SrcJID - "Real" sender JID
@@ -175,38 +178,39 @@ lookup_messages_muc(Result, Host, #{with_jid := WithJID} = Params) ->
     lookup_messages(Result, Host, Params#{with_jid => WithJIDMuc}).
 
 
-archive_size(_Size, _Host, _ArchiveID, ArchiveJID) ->
+archive_size(_Size, Host, _ArchiveID, ArchiveJID) ->
     OwnerJID = mod_mam_utils:bare_jid(ArchiveJID),
     RemoteJID = undefined,
     {MsgIdStartNoRSM, MsgIdEndNoRSM} =
         mod_mam_utils:calculate_msg_id_borders(undefined, undefined, undefined),
     F = fun get_msg_id_key/3,
-    {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
+    {TotalCount, _} = read_archive(Host, OwnerJID, RemoteJID,
                                    MsgIdStartNoRSM, MsgIdEndNoRSM, undefined,
                                    [{rows, 1}], F),
     TotalCount.
 
 %% use correct bucket for given date
 
--spec bucket(calendar:date() | yearweeknum() | integer()) ->
+-spec bucket(jid:server(), calendar:date() | yearweeknum() | integer()) ->
                     {binary(), binary()} | undefined.
-bucket(MsgId) when is_integer(MsgId) ->
+bucket(Host, MsgId) when is_integer(MsgId) ->
     {MicroSec, _} = mod_mam_utils:decode_compact_uuid(MsgId),
     MsgNow = mod_mam_utils:microseconds_to_now(MicroSec),
     {MsgDate, _} = calendar:now_to_datetime(MsgNow),
-    bucket(MsgDate);
-bucket({_, _, _} = Date) ->
-    bucket(calendar:iso_week_number(Date));
-bucket({Year, Week}) ->
+    bucket(Host, MsgDate);
+bucket(Host, {_, _, _} = Date) ->
+    bucket(Host, calendar:iso_week_number(Date));
+bucket(Host, {Year, Week}) ->
     YearBin = integer_to_binary(Year),
     WeekNumBin = integer_to_binary(Week),
-    {?MAM_BUCKET_TYPE, <<"mam_", YearBin/binary, "_", WeekNumBin/binary>>};
-bucket(_) ->
+    {mam_bucket_type(Host), <<"mam_", YearBin/binary, "_", WeekNumBin/binary>>};
+bucket(_Host, _) ->
     undefined.
 
-list_mam_buckets() ->
-    {ok, Buckets} = riakc_pb_socket:list_buckets(mongoose_riak:get_worker(), ?MAM_BUCKET_TYPE),
-    [{?MAM_BUCKET_TYPE, Bucket} || Bucket <- Buckets].
+list_mam_buckets(Host) ->
+    Type = mam_bucket_type(Host),
+    {ok, Buckets} = riakc_pb_socket:list_buckets(mongoose_riak:get_worker(), Type),
+    [{Type, Bucket} || Bucket <- Buckets].
 
 
 remove_bucket(Bucket) ->
@@ -232,7 +236,7 @@ archive_message(Host, MessID, LocJID, RemJID, SrcJID, OwnerJID, Packet, Type) ->
     MsgId = integer_to_binary(MessID),
     Key = key(LocalJID, RemoteJID, MsgId),
 
-    Bucket = bucket(MessID),
+    Bucket = bucket(Host, MessID),
 
     RiakMap = create_obj(Host, MsgId, SourceJID, BareOwnerJID, Packet, Type),
     case mongoose_riak:update_type(Bucket, Key, riakc_map:to_op(RiakMap)) of
@@ -295,7 +299,7 @@ do_lookup_messages(Host, Params) ->
     End = maps:get(end_ts, Params),
     SearchText = maps:get(search_text, Params),
     {MsgIdStart, MsgIdEnd} = mod_mam_utils:calculate_msg_id_borders(RSM, Borders, Start, End),
-    {TotalCountFullQuery, Result} = read_archive(OwnerJID, RemoteJID,
+    {TotalCountFullQuery, Result} = read_archive(Host, OwnerJID, RemoteJID,
                                                  MsgIdStart, MsgIdEnd, SearchText,
                                                  SearchOpts, F),
 
@@ -306,11 +310,11 @@ do_lookup_messages(Host, Params) ->
         _ ->
             {MsgIdStartNoRSM, MsgIdEndNoRSM} =
             mod_mam_utils:calculate_msg_id_borders(Borders, Start, End),
-            {TotalCount, _} = read_archive(OwnerJID, RemoteJID,
+            {TotalCount, _} = read_archive(Host, OwnerJID, RemoteJID,
                                            MsgIdStartNoRSM, MsgIdEndNoRSM, SearchText,
                                            [{rows, 1}], F),
             Offset = calculate_offset(RSM, TotalCountFullQuery, length(SortedKeys),
-                                      {OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
+                                      {Host, OwnerJID, RemoteJID, MsgIdStartNoRSM, SearchText}),
             {ok, {TotalCount, Offset, get_messages(Host, SortedKeys)}}
     end.
 
@@ -327,9 +331,9 @@ add_offset(_, Opts) ->
 
 calculate_offset(#rsm_in{direction = before}, TotalCount, PageSize, _) ->
     TotalCount - PageSize;
-calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Owner, Remote, MsgIdStart, SearchText})
+calculate_offset(#rsm_in{direction = aft, id = Id}, _, _, {Host, Owner, Remote, MsgIdStart, SearchText})
   when Id /= undefined ->
-    {Count, _} = read_archive(Owner, Remote, MsgIdStart, Id, SearchText,
+    {Count, _} = read_archive(Host, Owner, Remote, MsgIdStart, Id, SearchText,
                               [{rows, 1}], fun get_msg_id_key/3),
     Count;
 calculate_offset(#rsm_in{direction = undefined, index = Index}, _, _, _) when is_integer(Index) ->
@@ -371,7 +375,7 @@ get_mam_gdpr_data(#jid{ lserver = LServer } = BareJid, Type) ->
     BareLJidBin = jid:to_binary(jid:to_lower(BareJid)),
     Query = <<"msg_owner_jid_register:", BareLJidBin/binary, " AND mam_type_register:", Type/binary>>,
     SearchOpts = [],
-    {ok, _Cnt, _, MsgIds} = fold_archive(fun get_msg_id_key/3, Query, SearchOpts, []),
+    {ok, _Cnt, _, MsgIds} = fold_archive(LServer, fun get_msg_id_key/3, Query, SearchOpts, []),
     get_messages(LServer, MsgIds).
 
 remove_archive(Acc, Host, _ArchiveID, ArchiveJID) ->
@@ -390,9 +394,10 @@ remove_archive(Host, ArchiveJID) ->
             ok
     end.
 
-remove_chunk(_Host, ArchiveJID, Acc) ->
+remove_chunk(Host, ArchiveJID, Acc) ->
     KeyFiletrs = key_filters(mod_mam_utils:bare_jid(ArchiveJID)),
-    fold_archive(fun delete_key_fun/3,
+    fold_archive(Host,
+                 fun delete_key_fun/3,
                  KeyFiletrs,
                  [{rows, 50}, {sort, <<"msg_id_register asc">>}], Acc).
 
@@ -416,7 +421,8 @@ key(LocalJID, RemoteJID, MsgId) ->
 decode_key(KeyBinary) ->
     binary:split(KeyBinary, <<"/">>, [global]).
 
--spec read_archive(binary() | undefined,
+-spec read_archive(jid:server(),
+                   binary() | undefined,
                    binary() | undefined,
                    term(),
                    term(),
@@ -424,9 +430,9 @@ decode_key(KeyBinary) ->
                    [term()],
                    fun()) ->
                           {integer(), list()} | {error, term()}.
-read_archive(OwnerJID, WithJID, Start, End, SearchText, SearchOpts, Fun) ->
+read_archive(Host, OwnerJID, WithJID, Start, End, SearchText, SearchOpts, Fun) ->
     KeyFilters = key_filters(OwnerJID, WithJID, Start, End, SearchText),
-    {ok, Cnt, _, NewAcc} = fold_archive(Fun, KeyFilters, SearchOpts, []),
+    {ok, Cnt, _, NewAcc} = fold_archive(Host, Fun, KeyFilters, SearchOpts, []),
     {Cnt, NewAcc}.
 
 
@@ -436,8 +442,8 @@ sort_messages(Msgs) ->
               end,
     lists:sort(SortFun, Msgs).
 
-fold_archive(Fun, Query, SearchOpts, InitialAcc) ->
-    Result = mongoose_riak:search(?YZ_SEARCH_INDEX, Query, SearchOpts),
+fold_archive(Host, Fun, Query, SearchOpts, InitialAcc) ->
+    Result = mongoose_riak:search(yz_search_index(Host), Query, SearchOpts),
     case Result of
         {ok, {search_results, [], _, Count}} ->
             {ok, Count, 0, InitialAcc};

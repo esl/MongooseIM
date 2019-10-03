@@ -167,7 +167,7 @@ pop_msg(Key, LUser, LServer, To) ->
 
 -spec bucket_type(jid:lserver()) -> {binary(), jid:lserver()}.
 bucket_type(LServer) ->
-    {<<"offline">>, LServer}.
+    {gen_mod:get_module_opt(LServer, mod_offline, bucket_type, <<"offline">>), LServer}.
 
 -spec key(binary(), integer()) -> binary().
 key(LUser, TimestampInt) ->
