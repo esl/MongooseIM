@@ -619,8 +619,19 @@ test_pm_with_graceful_reconnection_to_different_server(Config) ->
 
               FromEve = escalus_client:wait_for_stanza(Alice),
 
+              %% Pause Alice until Eve is reconnected
+              AliceNode = ct:get_config({hosts, mim, node}),
+              C2sPid = mongoose_helper:get_session_pid(Alice, AliceNode),
+              ok = rpc(asia_node, sys, suspend, [C2sPid]),
+
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi from Europe1!">>)),
+
               NewEve = connect_from_spec(EveSpec2, Config),
+              EveNode2 = ct:get_config({hosts, mim, node}),
+              wait_for_registration(NewEve, EveNode2),
+
+              ok = rpc(asia_node, sys, resume, [C2sPid]),
+
 
               escalus_client:send(Alice, chat_with_seqnum(Eve, <<"Hi again from Europe1!">>)),
               escalus_client:send(NewEve, escalus_stanza:chat_to(Alice, <<"Hi again from Asia!">>)),
@@ -696,17 +707,8 @@ do_test_pm_with_ungraceful_reconnection_to_different_server(Config0, BeforeResum
 
               %% Connect another one, we hope the message would be rerouted
               NewEve = connect_from_spec(EveSpec2, Config),
-
-              %% We receive presence BEFORE session is registered in ejabberd_sm.
-              %% So, to ensure that we processed do_open_session completely, let's send a "ping".
-              %% by calling the c2s process.
-              %% That call would only return, when all messages in erlang message queue
-              %% are processed.
               EveNode2 = ct:get_config({hosts, mim, node}),
-              mongoose_helper:wait_until(fun() -> is_pid(mongoose_helper:get_session_pid(NewEve, EveNode2)) end, true,
-                                         #{name => wait_for_session}),
-              C2sPid2 = mongoose_helper:get_session_pid(NewEve, EveNode2),
-              rpc:call(node(C2sPid2), ejabberd_c2s, get_info, [C2sPid2]),
+              wait_for_registration(NewEve, EveNode2),
 
               BeforeResume(),
 
@@ -1244,3 +1246,15 @@ wait_for_domain(Node, Domain) ->
         lists:member(Domain, Domains)
         end,
     mongoose_helper:wait_until(F, true, #{name => {wait_for_domain, Node, Domain}}).
+
+%% We receive presence BEFORE session is registered in ejabberd_sm.
+%% So, to ensure that we processed do_open_session completely, let's send a "ping".
+%% by calling the c2s process.
+%% That call would only return, when all messages in erlang message queue
+%% are processed.
+wait_for_registration(Client, Node) ->
+    mongoose_helper:wait_until(fun() -> is_pid(mongoose_helper:get_session_pid(Client, Node)) end, true,
+                               #{name => wait_for_session}),
+    C2sPid = mongoose_helper:get_session_pid(Client, Node),
+    rpc:call(node(C2sPid), ejabberd_c2s, get_info, [C2sPid]),
+    ok.
