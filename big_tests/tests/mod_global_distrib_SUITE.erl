@@ -198,6 +198,8 @@ init_per_group(_, Config0) ->
           Config0,
           get_hosts()),
 
+    wait_for_listeners_to_appear(),
+
     {SomeNode, _, _} = hd(get_hosts()),
     NodesKey = rpc(SomeNode, mod_global_distrib_mapping_redis, nodes_key, []),
     [{nodes_key, NodesKey}, {escalus_user_db, xmpp} | Config2].
@@ -1011,8 +1013,7 @@ listen_endpoint(Port) when is_integer(Port) ->
 
 rpc(NodeName, M, F, A) ->
     Node = ct:get_config(NodeName),
-    Cookie = escalus_ct:get_config(ejabberd_cookie),
-    escalus_rpc:call(Node, M, F, A, timer:seconds(30), Cookie).
+    mongoose_helper:successful_rpc(Node, M, F, A, timer:seconds(30)).
 
 hide_node(NodeName, Config) ->
     NodesKey = ?config(nodes_key, Config),
@@ -1258,3 +1259,24 @@ wait_for_registration(Client, Node) ->
     C2sPid = mongoose_helper:get_session_pid(Client, Node),
     rpc:call(node(C2sPid), ejabberd_c2s, get_info, [C2sPid]),
     ok.
+
+
+wait_for_listeners_to_appear() ->
+    [wait_for_can_connect_to_port(Port) || Port <- receiver_ports(get_hosts())].
+
+receiver_ports(Hosts) ->
+    lists:map(fun({_NodeName, _LocalHost, ReceiverPort}) -> ReceiverPort end, Hosts).
+
+wait_for_can_connect_to_port(Port) ->
+    Opts = #{time_left => timer:seconds(30), sleep_time => 1000, name => {can_connect_to_port, Port}},
+    mongoose_helper:wait_until(fun() -> can_connect_to_port(Port) end, true, Opts).
+
+can_connect_to_port(Port) ->
+    case gen_tcp:connect("127.0.0.1", Port, []) of
+        {ok, Sock} ->
+            gen_tcp:close(Sock),
+            true;
+        Other ->
+            ct:pal("can_connect_to_port port=~p result=~p", [Port, Other]),
+            false
+    end.
