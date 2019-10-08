@@ -43,7 +43,7 @@ all() ->
     ].
 
 groups() ->
-    G = [{mod_global_distrib, [shuffle],
+    G = [{mod_global_distrib, [],
           [
            test_pm_between_users_at_different_locations,
            test_pm_between_users_before_available_presence,
@@ -78,14 +78,14 @@ groups() ->
            % TODO: Add checks for other mapping refreshes
            refresh_nodes
           ]},
-         {multi_connection, [shuffle],
+         {multi_connection, [],
           [
            test_in_order_messages_on_multiple_connections,
            test_muc_conversation_history,
            test_in_order_messages_on_multiple_connections_with_bounce,
            test_messages_bounced_in_order
           ]},
-         {rebalancing, [shuffle],
+         {rebalancing, [],
           [
            enable_new_endpoint_on_refresh,
            disable_endpoint_on_refresh,
@@ -134,7 +134,7 @@ init_per_group(start_checks, Config) ->
     Config;
 init_per_group(multi_connection, Config) ->
     ExtraConfig = [{resend_after_ms, 20000}, {connections_per_endpoint, 100}],
-    init_per_group(multi_connection_generic, [{extra_config, ExtraConfig} | Config]);
+    init_per_group_generic([{extra_config, ExtraConfig} | Config]);
 init_per_group(invalidation, Config) ->
     Config1 = init_per_group(invalidation_generic, Config),
     NodeBin = <<"fake_node@localhost">>,
@@ -145,22 +145,25 @@ init_per_group(rebalancing, Config) ->
     ExtraConfig = [{endpoint_refresh_interval, 3600},
                    {disabled_gc_interval, 1}],
     RedisExtraConfig = [{refresh_after, 3600}],
-    init_per_group(rebalancing_generic, [{extra_config, ExtraConfig},
-                                         {redis_extra_config, RedisExtraConfig} | Config]);
+    init_per_group_generic([{extra_config, ExtraConfig},
+                            {redis_extra_config, RedisExtraConfig} | Config]);
 init_per_group(advertised_endpoints, Config) ->
     lists:foreach(fun({NodeName, _, _}) ->
                           Node = ct:get_config(NodeName),
                           mongoose_helper:inject_module(Node, ?MODULE, reload)
                   end, get_hosts()),
     mock_inet_on_each_node(),
-    init_per_group(advertised_endpoints_generic,
+    init_per_group_generic(
                [{add_advertised_endpoints,
                  [{asia_node, advertised_endpoints()}]} | Config]);
 init_per_group(mod_global_distrib, Config) ->
     %% Disable mod_global_distrib_mapping_redis refresher
     RedisExtraConfig = [{refresh_after, 3600}],
-    init_per_group(mod_global_distrib_generic, [{redis_extra_config, RedisExtraConfig} | Config]);
-init_per_group(_, Config0) ->
+    init_per_group_generic([{redis_extra_config, RedisExtraConfig} | Config]);
+init_per_group(_, Config) ->
+    init_per_group_generic(Config).
+
+init_per_group_generic(Config0) ->
     Config2 =
         lists:foldl(
           fun({NodeName, LocalHost, ReceiverPort}, Config1) ->
@@ -208,15 +211,18 @@ end_per_group(advertised_endpoints, Config) ->
     Pids = ?config(meck_handlers, Config),
     unmock_inet(Pids),
     escalus_fresh:clean(),
-    Config;
+    end_per_group_generic(Config);
 end_per_group(start_checks, Config) ->
     escalus_fresh:clean(),
     Config;
 end_per_group(invalidation, Config) ->
     redis_query(europe_node1, [<<"HDEL">>, ?config(nodes_key, Config),
                             ?config(node_to_expire, Config)]),
-    end_per_group(invalidation_generic, Config);
+    end_per_group_generic(Config);
 end_per_group(_, Config) ->
+    end_per_group_generic(Config).
+
+end_per_group_generic(Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
               CurrentMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
