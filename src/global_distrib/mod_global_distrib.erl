@@ -119,7 +119,7 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
                     Acc2 = remove_metadata(Acc1, target_host_override),
                     %% KNOWN ISSUE: will crash loudly if there are no connections available
                     %% TODO: Discuss behaviour in such scenario
-                    Worker = get_bound_connection(TargetHost),
+                    Worker = get_bound_connection_noisy(TargetHost, FPacket),
                     mod_global_distrib_sender:send(Worker, {From, To, Acc2, Packet}),
                     drop
             end;
@@ -145,6 +145,15 @@ maybe_initialize_metadata(Acc) ->
             put_metadata(Acc2, origin, opt(local_host));
         _ ->
             Acc
+    end.
+
+get_bound_connection_noisy(TargetHost, FPacket) ->
+    try get_bound_connection(TargetHost)
+    catch Class:Reason ->
+              Stacktrace = erlang:get_stacktrace(),
+              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
+                           [TargetHost, Class, Reason, FPacket, Stacktrace]),
+              erlang:raise(Class, Reason, Stacktrace)
     end.
 
 -spec get_bound_connection(Server :: jid:lserver()) -> pid().
