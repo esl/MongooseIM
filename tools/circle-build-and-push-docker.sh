@@ -8,10 +8,10 @@ tar czh --transform="s,${BUILD_PATH},mongooseim,S" -f $MONGOOSE_TGZ ${BUILD_PATH
 
 export BUILDS=`pwd`
 
-# We use commit hash by default, because branch name may contain characters
-# that are illegal for Docker tags, e.g. '/'.
-DOCKERHUB_TAG=${CIRCLE_SHA1}
+# We use output of generate_vsn, because it does not contain illegal characters, returns
+# git tag when building from tag itself, and is unique in any other case
 VERSION=`tools/generate_vsn.sh`
+DOCKERHUB_TAG=${VERSION}
 GIT_REF=`git rev-parse --short HEAD`
 GIT_COMMIT_MSG=`git log --format=%B -n 1 HEAD`
 
