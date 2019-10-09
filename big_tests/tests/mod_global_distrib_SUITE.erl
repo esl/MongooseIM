@@ -244,6 +244,9 @@ init_per_testcase(CaseName, Config)
     %% For now it's easier to hide node2
     %% TODO: Do it right at some point!
     hide_node(europe_node2, Config),
+    %% Ensure, that old connections to europe_node2 are down
+    {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
+    trigger_rebalance(asia_node, EuropeHost),
     %% Load muc on mim node
     muc_helper:load_muc(<<"muc.localhost">>),
     RegNode = ct:get_config({hosts, reg, node}),
