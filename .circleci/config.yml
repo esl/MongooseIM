@@ -286,7 +286,7 @@ orbs:
 
 filters: &all_tags
   tags:
-    only: /.*/
+    only: /^\d+\.\d+\.\d+([a-z0-9\-\+])*/
 
 workflows:
   version: 2
