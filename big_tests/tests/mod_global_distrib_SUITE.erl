@@ -117,6 +117,7 @@ init_per_suite(Config) ->
         {{ok, _}, {ok, _}} ->
             ok = rpc(europe_node2, mongoose_cluster, join, [ct:get_config(europe_node1)]),
 
+            enable_logging(),
             % We have to pass [no_opts] because [] is treated as string and converted
             % automatically to <<>>
             escalus:init_per_suite([{add_advertised_endpoints, []},
@@ -127,6 +128,7 @@ init_per_suite(Config) ->
     end.
 
 end_per_suite(Config) ->
+    disable_logging(),
     rpc(europe_node2, mongoose_cluster, leave, []),
     escalus:end_per_suite(Config).
 
@@ -1286,3 +1288,16 @@ can_connect_to_port(Port) ->
             ct:pal("can_connect_to_port port=~p result=~p", [Port, Other]),
             false
     end.
+
+
+enable_logging() ->
+    mim_loglevel:enable_logging(test_hosts(), custom_loglevels()).
+
+disable_logging() ->
+    mim_loglevel:disable_logging(test_hosts(), custom_loglevels()).
+
+custom_loglevels() ->
+    %% for "s2s connection to muc.localhost not found" debugging
+    [{ejabberd_s2s, debug}].
+
+test_hosts() -> [mim, mim2, reg].
