@@ -872,6 +872,7 @@ wait_for_node(Node,Jid) ->
                                  name => rpc}).
 
 test_update_senders_host_by_ejd_service(Config) ->
+    refresh_hosts([mim, mim2, reg]),
     %% Connects to europe_node1
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, service_port()}, {component, <<"test_service">>}],
