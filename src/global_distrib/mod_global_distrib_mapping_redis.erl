@@ -116,7 +116,12 @@ get_public_domains() ->
 
 -spec get_endpoints(Host :: jid:lserver()) -> {ok, [mod_global_distrib_utils:endpoint()]}.
 get_endpoints(Host) ->
-    Nodes = [_ | _] = get_nodes(Host), %% TODO: error: unknown host
+    Nodes = get_nodes(Host),
+    get_endpoints_for_nodes(Host, Nodes).
+
+get_endpoints_for_nodes(_Host, []) ->
+    {ok, []};
+get_endpoints_for_nodes(Host, Nodes) ->
     EndpointKeys = [endpoints_key(Host, Node) || Node <- Nodes],
     {ok, BinEndpoints} = q([<<"SUNION">> | EndpointKeys]),
     {ok, lists:map(fun binary_to_endpoint/1, BinEndpoints)}.
