@@ -47,7 +47,6 @@ groups() ->
           [
            test_pm_between_users_at_different_locations,
            test_pm_between_users_before_available_presence,
-           test_muc_conversation_on_one_host,
            test_component_disconnect,
            test_component_on_one_host,
            test_components_in_different_regions,
@@ -57,10 +56,13 @@ groups() ->
            test_pm_with_ungraceful_reconnection_to_different_server,
            test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first,
            test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first,
-           test_global_disco,
            test_component_unregister,
            test_update_senders_host,
-           test_update_senders_host_by_ejd_service
+           test_update_senders_host_by_ejd_service,
+
+           %% with node 2 disabled
+           test_muc_conversation_on_one_host,
+           test_global_disco
            %% TODO: Add test case fo global_distrib_addr option
           ]},
          {hosts_refresher, [],
@@ -81,9 +83,11 @@ groups() ->
          {multi_connection, [],
           [
            test_in_order_messages_on_multiple_connections,
-           test_muc_conversation_history,
            test_in_order_messages_on_multiple_connections_with_bounce,
-           test_messages_bounced_in_order
+           test_messages_bounced_in_order,
+
+           %% with node 2 disabled
+           test_muc_conversation_history
           ]},
          {rebalancing, [],
           [
@@ -244,9 +248,6 @@ init_per_testcase(CaseName, Config)
     %% For now it's easier to hide node2
     %% TODO: Do it right at some point!
     hide_node(europe_node2, Config),
-    %% Ensure, that old connections to europe_node2 are down
-    {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
-    trigger_rebalance(asia_node, EuropeHost),
     %% Load muc on mim node
     muc_helper:load_muc(<<"muc.localhost">>),
     RegNode = ct:get_config({hosts, reg, node}),
