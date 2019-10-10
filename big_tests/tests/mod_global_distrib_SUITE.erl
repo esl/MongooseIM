@@ -1210,6 +1210,8 @@ restart_receiver(NodeName, NewEndpoints) ->
              [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
 
 trigger_rebalance(NodeName, DestinationDomain) ->
+    %% To ensure that the manager exists, otherwise we can get noproc error in the force_refresh call
+    rpc(NodeName, mod_global_distrib_outgoing_conns_sup, ensure_server_started, [DestinationDomain]),
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
 
