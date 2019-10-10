@@ -204,6 +204,10 @@ init([{SockMod, Socket}, Opts]) ->
     TLSOpts = verify_opts(Verify) ++ TLSOpts1,
     [ssl_crl_cache:insert({file, CRL}) || CRL <- proplists:get_value(crlfiles, Opts, [])],
     IP = peerip(SockMod, Socket),
+    StreamMgmtConfig = case gen_mod:is_loaded(?MYNAME, mod_stream_management) of
+                            true -> false;
+                            _ -> disabled
+                        end,
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
         true ->
@@ -233,7 +237,9 @@ init([{SockMod, Socket}, Opts]) ->
                                          shaper         = Shaper,
                                          ip             = IP,
                                          lang           = default_language(),
-                                         hibernate_after= HibernateAfter},
+                                         hibernate_after= HibernateAfter,
+                                         stream_mgmt    = StreamMgmtConfig
+                                        },
              ?C2S_OPEN_TIMEOUT}
     end.
 
@@ -1486,7 +1492,10 @@ print_state(State = #state{pres_t = T, pres_f = F, pres_a = A, pres_i = I}) ->
 terminate(_Reason, StateName, StateData) ->
     InitialAcc0 = mongoose_acc:new(
              #{location => ?LOCATION, lserver => StateData#state.server, element => undefined}),
-    Acc = mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0),
+    Acc = case StateData#state.stream_mgmt of
+              true -> mongoose_acc:set(stream_mgmt, h, StateData#state.stream_mgmt_in, InitialAcc0);
+              _ -> InitialAcc0
+          end,
     case {should_close_session(StateName), StateData#state.authenticated} of
         {false, _} ->
             ok;
@@ -1605,7 +1614,8 @@ send_text(StateData, Text) ->
     (StateData#state.sockmod):send(StateData#state.socket, Text).
 
 -spec maybe_send_element_from_server_jid_safe(state(), El :: exml:element()) -> any().
-maybe_send_element_from_server_jid_safe(#state{stream_mgmt = false} = State, El) ->
+maybe_send_element_from_server_jid_safe(#state{stream_mgmt = StreamMgmt} = State, El)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     send_element_from_server_jid(State, El);
 maybe_send_element_from_server_jid_safe(State, El) ->
     case catch send_element_from_server_jid(State, El) of
@@ -1678,7 +1688,8 @@ send_header(StateData, Server, Version, Lang) ->
     send_text(StateData, Header).
 
 -spec maybe_send_trailer_safe(State :: state()) -> any().
-maybe_send_trailer_safe(#state{stream_mgmt = false} = State) ->
+maybe_send_trailer_safe(#state{stream_mgmt = StreamMgmt} = State)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     send_trailer(State);
 maybe_send_trailer_safe(StateData) ->
     catch send_trailer(StateData).
@@ -2730,10 +2741,10 @@ bounce_csi_buffer(#state{csi_buffer = []}) ->
     ok;
 bounce_csi_buffer(#state{csi_buffer = Buffer}) ->
     re_route_packets(Buffer).
+
 %%%----------------------------------------------------------------------
 %%% XEP-0198: Stream Management
 %%%----------------------------------------------------------------------
-
 maybe_enable_stream_mgmt(NextState, El, StateData) ->
     case {xml:get_tag_attr_s(<<"xmlns">>, El),
           StateData#state.stream_mgmt,
@@ -2756,8 +2767,12 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
                                        stream_mgmt_buffer_max = BufferMax,
                                        stream_mgmt_ack_freq = AckFreq,
                                        stream_mgmt_resume_timeout = ResumeTimeout});
-        {?NS_STREAM_MGNT_3, _, _} ->
+        {?NS_STREAM_MGNT_3, true, _} ->
             send_element_from_server_jid(StateData, stream_mgmt_failed(<<"unexpected-request">>)),
+            send_trailer(StateData),
+            {stop, normal, StateData};
+        {?NS_STREAM_MGNT_3, disabled, _} ->
+            send_element_from_server_jid(StateData, jlib:make_error_reply(El, mongoose_xmpp_errors:service_unavailable())),
             send_trailer(StateData),
             {stop, normal, StateData};
         {_, _, _} ->
@@ -2841,8 +2856,8 @@ calc_to_drop(Handled, OldAcked) when Handled >= OldAcked ->
 calc_to_drop(Handled, OldAcked) ->
     Handled + ?STREAM_MGMT_H_MAX - OldAcked + 1.
 
-maybe_send_sm_ack(?NS_STREAM_MGNT_3, false, _NIncoming,
-                  NextState, StateData) ->
+maybe_send_sm_ack(?NS_STREAM_MGNT_3, StreamMgmt, _NIncoming, NextState, StateData)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     ?WARNING_MSG("received <r/> but stream management is off!", []),
     fsm_next_state(NextState, StateData);
 maybe_send_sm_ack(?NS_STREAM_MGNT_3, true, NIncoming,
@@ -2854,7 +2869,8 @@ maybe_send_sm_ack(_, _, _, _NextState, StateData) ->
     send_trailer(StateData),
     {stop, normal, StateData}.
 
-maybe_increment_sm_incoming(false, StateData) ->
+maybe_increment_sm_incoming(StreamMgmt, StateData)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     StateData;
 maybe_increment_sm_incoming(true, StateData) ->
     Incoming = StateData#state.stream_mgmt_in,
@@ -2892,7 +2908,8 @@ stream_mgmt_ack(NIncoming) ->
                     {<<"h">>, integer_to_binary(NIncoming)}]}.
 
 -spec buffer_out_stanza(packet(), state()) -> state().
-buffer_out_stanza(_Packet, #state{stream_mgmt = false} = S) ->
+buffer_out_stanza(_Packet, #state{stream_mgmt = StreamMgmt} = S)
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     S;
 buffer_out_stanza(_Packet, #state{stream_mgmt_buffer_max = no_buffer} = S) ->
     S;
@@ -2949,7 +2966,8 @@ get_ack_freq() ->
 get_resume_timeout() ->
     mod_stream_management:get_resume_timeout(?STREAM_MGMT_RESUME_TIMEOUT).
 
-maybe_send_ack_request(Acc, #state{stream_mgmt = false}) ->
+maybe_send_ack_request(Acc, #state{stream_mgmt = StreamMgmt})
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     Acc;
 maybe_send_ack_request(Acc, #state{stream_mgmt_ack_freq = never}) ->
     Acc;
@@ -2965,7 +2983,8 @@ stream_mgmt_request() ->
     #xmlel{name = <<"r">>,
            attrs = [{<<"xmlns">>, ?NS_STREAM_MGNT_3}]}.
 
-flush_stream_mgmt_buffer(#state{stream_mgmt = false}) ->
+flush_stream_mgmt_buffer(#state{stream_mgmt = StreamMgmt})
+  when StreamMgmt =:= false; StreamMgmt =:= disabled ->
     false;
 flush_stream_mgmt_buffer(#state{stream_mgmt_buffer = Buffer}) ->
     re_route_packets(Buffer).
