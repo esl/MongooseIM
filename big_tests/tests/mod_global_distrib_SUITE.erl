@@ -139,7 +139,8 @@ end_per_suite(Config) ->
 init_per_group(start_checks, Config) ->
     Config;
 init_per_group(multi_connection, Config) ->
-    ExtraConfig = [{resend_after_ms, 20000}, {connections_per_endpoint, 100}],
+    ExtraConfig = [{resend_after_ms, 20000},
+                   {connections_per_endpoint, 100}],
     init_per_group_generic([{extra_config, ExtraConfig} | Config]);
 init_per_group(invalidation, Config) ->
     Config1 = init_per_group(invalidation_generic, Config),
@@ -1303,6 +1304,8 @@ disable_logging() ->
 
 custom_loglevels() ->
     %% for "s2s connection to muc.localhost not found" debugging
-    [{ejabberd_s2s, debug}].
+    [{ejabberd_s2s, debug},
+    %% for debugging event=refreshing_own_data_done
+     {mod_global_distrib_mapping_redis, debug}].
 
 test_hosts() -> [mim, mim2, reg].
