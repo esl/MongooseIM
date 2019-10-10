@@ -194,12 +194,7 @@ init_per_group_generic(Config0) ->
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
                   true = rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
 
-                  EjdSupChildren = rpc(NodeName, supervisor, which_children, [ejabberd_sup]),
-                  {_, MapperPid, _ , _} = lists:keyfind(
-                                            mod_global_distrib_redis_refresher, 1, EjdSupChildren),
-
                   [
-                   {{mapper_pid, NodeName}, MapperPid},
                    {{old_mods, NodeName}, OldMods},
                    {{resume_timeout, NodeName}, ResumeTimeout} |
                    Config1
@@ -289,18 +284,18 @@ end_per_testcase(CN, Config) when CN == test_pm_with_graceful_reconnection_to_di
 end_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
        CaseName == test_muc_conversation_history ->
-    refresh_node(europe_node2, Config),
+    refresh_mappings(europe_node2, "by_end_per_testcase,testcase=" ++ atom_to_list(CaseName), Config),
     muc_helper:unload_muc(),
     generic_end_per_testcase(CaseName, Config);
 end_per_testcase(test_update_senders_host_by_ejd_service = CN, Config) ->
-    refresh_node(europe_node1, Config),
+    refresh_mappings(europe_node1, "by_end_per_testcase,testcase=" ++ atom_to_list(CN), Config),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CN, Config) when CN == enable_new_endpoint_on_refresh;
                                   CN == disable_endpoint_on_refresh;
                                   CN == wait_for_connection;
                                   CN == closed_connection_is_removed_from_disabled ->
     restart_receiver(asia_node),
-    refresh_mappings(asia_node, Config),
+    refresh_mappings(asia_node, "by_end_per_testcase,testcase=" ++ atom_to_list(CN), Config),
     generic_end_per_testcase(CN, Config);
 end_per_testcase(CaseName, Config) ->
     generic_end_per_testcase(CaseName, Config).
@@ -677,7 +672,7 @@ test_pm_with_ungraceful_reconnection_to_different_server(Config) ->
 
 test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first(Config) ->
     %% Same as no refresh
-    BeforeResume = fun() -> refresh_hosts([reg, mim]) end,
+    BeforeResume = fun() -> refresh_hosts([reg, mim], "by_test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_first") end,
     AfterCheck = fun(Alice, NewEve) ->
             user_receives(NewEve, [<<"Hi from Europe1!">>, <<"Hi again from Europe1!">>]),
             user_receives(Alice, [<<"Hi from Europe!">>])
@@ -687,7 +682,7 @@ test_pm_with_ungraceful_reconnection_to_different_server_with_asia_refreshes_fir
 test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first(Config) ->
     %% Asia node overrides Europe value with the older ones,
     %% so we loose some messages during rerouting :(
-    BeforeResume = fun() -> refresh_hosts([mim, reg]) end,
+    BeforeResume = fun() -> refresh_hosts([mim, reg], "by_test_pm_with_ungraceful_reconnection_to_different_server_with_europe_refreshes_first") end,
     AfterCheck = fun(Alice, NewEve) ->
             user_receives(NewEve, [<<"Hi again from Europe1!">>]),
             user_receives(Alice, [<<"Hi from Europe!">>])
@@ -779,7 +774,7 @@ refresh_nodes(Config) ->
     NodesKey = ?config(nodes_key, Config),
     NodeBin = ?config(node_to_expire, Config),
     redis_query(europe_node1, [<<"HSET">>, NodesKey, NodeBin, <<"0">>]),
-    refresh_mappings(europe_node1, Config),
+    refresh_mappings(europe_node1, "by_refresh_nodes", Config),
     {ok, undefined} = redis_query(europe_node1, [<<"HGET">>, NodesKey, NodeBin]).
 
 test_in_order_messages_on_multiple_connections(Config) ->
@@ -874,7 +869,7 @@ wait_for_node(Node,Jid) ->
                                  name => rpc}).
 
 test_update_senders_host_by_ejd_service(Config) ->
-    refresh_hosts([mim, mim2, reg]),
+    refresh_hosts([mim, mim2, reg], "by_test_update_senders_host_by_ejd_service"),
     %% Connects to europe_node1
     ComponentConfig = [{server, <<"localhost">>}, {host, <<"localhost">>}, {password, <<"secret">>},
                        {port, service_port()}, {component, <<"test_service">>}],
@@ -975,7 +970,7 @@ wait_for_connection(Config) ->
         2000 -> ok
     end,
 
-    refresh_mappings(asia_node, Config),
+    refresh_mappings(asia_node, "by_wait_for_connection", Config),
     trigger_rebalance(europe_node1, <<"reg1">>),
 
     receive
@@ -1033,9 +1028,6 @@ hide_node(NodeName, Config) ->
     NodesKey = ?config(nodes_key, Config),
     NodeBin = atom_to_binary(ct:get_config(NodeName), latin1),
     {ok, <<"1">>} = redis_query(europe_node1, [<<"HDEL">>, NodesKey, NodeBin]).
-
-refresh_node(NodeName, Config) ->
-    ?config({mapper_pid, NodeName}, Config) ! refresh.
 
 connect_from_spec(UserSpec, Config) ->
     {ok, User} = escalus_client:start(Config, UserSpec, <<"res1">>),
@@ -1182,7 +1174,7 @@ enable_extra_endpoint(ListenNode, SenderNode, Port, Config) ->
     NewEndpoint = {{127, 0, 0, 1}, Port},
 
     restart_receiver(ListenNode, [NewEndpoint, OriginalEndpoint]),
-    refresh_mappings(ListenNode, Config),
+    refresh_mappings(ListenNode, "by_enable_extra_endpoint,port=" ++ integer_to_list(Port), Config),
     trigger_rebalance(SenderNode, <<"reg1">>),
 
     NewEndpoint.
@@ -1217,10 +1209,6 @@ restart_receiver(NodeName, NewEndpoints) ->
     {ok, _} = rpc(NodeName, gen_mod, reload_module,
              [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
 
-refresh_mappings(NodeName, Config) ->
-    ?config({mapper_pid, NodeName}, Config) ! refresh,
-    timer:sleep(1000).
-
 trigger_rebalance(NodeName, DestinationDomain) ->
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
@@ -1242,8 +1230,16 @@ user_receives(User, Bodies) ->
             ct:fail({user_receives_not_enough, {wanted, Bodies}, {received, SortedMessages}})
     end.
 
-refresh_hosts(Hosts) ->
-   [rpc:call(ct:get_config({hosts, Host, node}), mod_global_distrib_mapping_redis, refresh, []) || Host <- Hosts].
+
+%% Reason is a string
+%% NodeName is asia_node, europe_node2, ... in a format used by this suite.
+refresh_mappings(NodeName, Reason, _Config) when is_list(Reason) ->
+    rpc(NodeName, mod_global_distrib_mapping_redis, refresh, [Reason]).
+
+%% Hosts is a list of test hosts from config
+refresh_hosts(Hosts, Reason) ->
+   [rpc:call(ct:get_config({hosts, Host, node}), mod_global_distrib_mapping_redis, refresh, [Reason]) || Host <- Hosts].
+
 
 connect_steps_with_sm() ->
     [start_stream, stream_features, maybe_use_ssl,

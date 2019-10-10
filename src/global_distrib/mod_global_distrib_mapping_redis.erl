@@ -30,7 +30,7 @@
          put_domain/2, get_domain/1, delete_domain/1,
          get_endpoints/1, get_domains/0, get_public_domains/0, get_hosts/0]).
 
--export([refresh/0]).
+-export([refresh/0, refresh/1]).
 
 -export([init/1, handle_info/2]).
 
@@ -131,16 +131,23 @@ get_endpoints_for_nodes(Host, Nodes) ->
 %%--------------------------------------------------------------------
 
 init(RefreshAfter) ->
-    handle_info(refresh, RefreshAfter),
+    refresh_and_schedule_next("initial_autorefresh", RefreshAfter),
     {ok, RefreshAfter}.
 
 handle_info(refresh, RefreshAfter) ->
-    refresh(),
-    ?INFO_MSG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
-    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
+    refresh_and_schedule_next("autorefresh", RefreshAfter),
     {noreply, RefreshAfter}.
 
 refresh() ->
+    refresh("reason_unknown").
+
+refresh_and_schedule_next(Reason, RefreshAfter) ->
+    Reason2 = Reason ++ ",next_refresh_in=" ++ integer_to_list(RefreshAfter),
+    refresh(Reason2),
+    erlang:send_after(timer:seconds(RefreshAfter), self(), refresh).
+
+-spec refresh(Reason :: string()) -> ok.
+refresh(Reason) ->
     ?DEBUG("event=refreshing_own_hosts", []),
     refresh_hosts(),
     ?DEBUG("event=refreshing_own_nodes", []),
@@ -153,6 +160,7 @@ refresh() ->
     refresh_domains(),
     ?DEBUG("event=refreshing_own_public_domains", []),
     refresh_public_domains(),
+    ?INFO_MSG("event=refreshing_own_data_done,reason=~ts", [Reason]),
     ok.
 
 %%--------------------------------------------------------------------
