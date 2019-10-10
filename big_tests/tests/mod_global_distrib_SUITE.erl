@@ -600,7 +600,9 @@ test_location_disconnect(Config) ->
           end)
     after
         rpc(asia_node, application, start, [ranch]),
-        rpc(asia_node, application, start, [mongooseim])
+        rpc(asia_node, application, start, [mongooseim]),
+        %% stream_start failed workaround
+        wait_for_user_able_to_connect(Config, eve)
     end.
 
 test_pm_with_disconnection_on_other_server(Config) ->
@@ -1310,3 +1312,22 @@ custom_loglevels() ->
      {mod_global_distrib_outgoing_conns_sup, info}].
 
 test_hosts() -> [mim, mim2, reg].
+
+wait_for_user_able_to_connect(Config, Username) ->
+    Spec = escalus_users:get_userspec(Config, Username),
+    mongoose_helper:wait_until(fun() -> connect_user(Spec) end,
+                               ok,
+                               #{time_left => timer:seconds(30),
+                                 sleep_time => timer:seconds(1),
+                                 name => wait_for_user_able_to_connect}).
+
+connect_user(Spec) ->
+    Result = escalus_connection:start(Spec, [start_stream, stream_features]),
+    handle_connect_user(Spec, Result).
+
+handle_connect_user(Spec, {ok, Client, _}) ->
+    escalus_connection:stop(Client),
+    ok;
+handle_connect_user(Spec, Other) ->
+    ct:pal("handle_connect_user:failed~n    Spec=~p~n    ConnectResult=~p~n", [Spec, Other]),
+    failed_to_connect.
