@@ -14,6 +14,8 @@
 %% limitations under the License.
 %%==============================================================================
 
+%% Routing worker
+
 -module(mod_global_distrib_worker).
 -author('konrad.zemek@erlang-solutions.com').
 

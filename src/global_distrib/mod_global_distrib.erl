@@ -14,6 +14,7 @@
 %% limitations under the License.
 %%==============================================================================
 
+%% Intercepts filter_packet hook with maybe_reroute callback.
 -module(mod_global_distrib).
 -author('konrad.zemek@erlang-solutions.com').
 
@@ -29,6 +30,7 @@
 
 %%--------------------------------------------------------------------
 %% gen_mod API
+%% See "gen_mod logic" block below in this file
 %%--------------------------------------------------------------------
 
 -spec deps(Host :: jid:server(), Opts :: proplists:proplist()) -> gen_mod:deps_list().
@@ -43,6 +45,11 @@ start(Host, Opts0) ->
 -spec stop(Host :: jid:lserver()) -> any().
 stop(Host) ->
     mod_global_distrib_utils:stop(?MODULE, Host, fun stop/0).
+
+
+%%--------------------------------------------------------------------
+%% public functions
+%%--------------------------------------------------------------------
 
 -spec get_metadata(mongoose_acc:t(), Key :: term(), Default :: term()) -> Value :: term().
 get_metadata(Acc, Key, Default) ->
@@ -85,8 +92,8 @@ maybe_reroute({#jid{ luser = SameUser, lserver = SameServer } = _From,
     %% from unacked SM buffer, leading to an error, while a brand new, shiny Eve
     %% on mim1 was waiting.
     FPacket;
-maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
-    Acc = maybe_initialize_metadata(Acc0),
+maybe_reroute({From, To, _, Packet} = FPacket) ->
+    Acc = maybe_initialize_metadata(FPacket),
     {ok, ID} = find_metadata(Acc, id),
     LocalHost = opt(local_host),
     GlobalHost = opt(global_host),
@@ -95,10 +102,11 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
     TargetHostOverride = get_metadata(Acc, target_host_override, undefined),
     case lookup_recipients_host(TargetHostOverride, To, LocalHost, GlobalHost) of
         {ok, LocalHost} ->
+            %% Continue routing with initalized metadata
             ejabberd_hooks:run(mod_global_distrib_known_recipient, GlobalHost,
                                [From, To, LocalHost]),
-            ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter",
-                   [ID, jid:to_binary(From), jid:to_binary(To)]),
+            ?DEBUG("Routing global message id=~s from=~s to=~s to local datacenter local_host=~ts",
+                   [ID, jid:to_binary(From), jid:to_binary(To), LocalHost]),
             {ok, TTL} = find_metadata(Acc, ttl),
             mongoose_metrics:update(global, ?GLOBAL_DISTRIB_DELIVERED_WITH_TTL, TTL),
             {From, To, Acc, Packet};
@@ -108,24 +116,26 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
                                GlobalHost, [From, To, TargetHost]),
             case find_metadata(Acc, ttl) of
                 {ok, 0} ->
-                    ?INFO_MSG("event=ttl_zero,id=~s,from=~s,to=~s,found_at=~s",
+                    %% Just continue routing
+                    ?INFO_MSG("event=ttl_zero gd_id=~s from=~s to=~s found_at=~s",
                            [ID, jid:to_binary(From), jid:to_binary(To), TargetHost]),
                     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_STOP_TTL_ZERO, 1),
                     FPacket;
                 {ok, TTL} ->
-                    ?DEBUG("Rerouting global message id=~s from=~s to=~s to ~s (TTL: ~B)",
+                    %% Forward stanza to remote cluster using global distribution
+                    ?DEBUG("event=rerouting_global_message gd_id=~s from=~s to=~s to target_host=~s ttl=~B",
                            [ID, jid:to_binary(From), jid:to_binary(To), TargetHost, TTL]),
                     Acc1 = put_metadata(Acc, ttl, TTL - 1),
                     Acc2 = remove_metadata(Acc1, target_host_override),
                     %% KNOWN ISSUE: will crash loudly if there are no connections available
                     %% TODO: Discuss behaviour in such scenario
-                    Worker = get_bound_connection_noisy(TargetHost, FPacket),
+                    Worker = get_bound_connection_noisy(TargetHost, ID, FPacket),
                     mod_global_distrib_sender:send(Worker, {From, To, Acc2, Packet}),
                     drop
             end;
 
         error ->
-            ?DEBUG("Unable to route global message id=~s from=~s to=~s: "
+            ?DEBUG("Unable to route global message gd_id=~s from=~s to=~s: "
                    "user not found in the routing table",
                    [ID, jid:to_binary(From), jid:to_binary(To)]),
             ejabberd_hooks:run_fold(mod_global_distrib_unknown_recipient,
@@ -136,40 +146,51 @@ maybe_reroute({From, To, Acc0, Packet} = FPacket) ->
 %% Helpers
 %%--------------------------------------------------------------------
 
--spec maybe_initialize_metadata(mongoose_acc:t()) -> mongoose_acc:t().
-maybe_initialize_metadata(Acc) ->
+-spec maybe_initialize_metadata({jid:jid(), jid:jid(), mongoose_acc:t(), exml:element()}) -> mongoose_acc:t().
+maybe_initialize_metadata({From, To, Acc, Packet}) ->
     case find_metadata(Acc, origin) of
         {error, undefined} ->
             Acc1 = put_metadata(Acc, ttl, opt(message_ttl)),
-            Acc2 = put_metadata(Acc1, id , uuid:uuid_to_string(uuid:get_v4(), binary_standard)),
+            ID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+            Acc2 = put_metadata(Acc1, id, ID),
+            ?DEBUG("event=gd_init_metadata gd_id=~s from=~p to=~p stanza=~p", [ID, From, To, Packet]),
             put_metadata(Acc2, origin, opt(local_host));
         _ ->
             Acc
     end.
 
-get_bound_connection_noisy(TargetHost, FPacket) ->
-    try get_bound_connection(TargetHost)
+get_bound_connection_noisy(TargetHost, GDID, FPacket) ->
+    try get_bound_connection(TargetHost, GDID)
     catch Class:Reason ->
               Stacktrace = erlang:get_stacktrace(),
-              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
-                           [TargetHost, Class, Reason, FPacket, Stacktrace]),
+              ?ERROR_MSG("event=gd_get_process_for_failed server=~ts gd_id=~s reason=~p:~1000p  packet=~1000p stacktrace=~1000p",
+                           [TargetHost, GDID, Class, Reason, FPacket, Stacktrace]),
               erlang:raise(Class, Reason, Stacktrace)
     end.
 
--spec get_bound_connection(Server :: jid:lserver()) -> pid().
-get_bound_connection(Server) ->
-    get_bound_connection(Server, get({connection, Server})).
+-spec get_bound_connection(Server :: jid:lserver(), binary()) -> pid().
+get_bound_connection(Server, GDID) when is_binary(GDID) ->
+    get_bound_connection(Server, GDID, get({connection, Server})).
 
--spec get_bound_connection(Server :: jid:lserver(), pid() | undefined) -> pid().
-get_bound_connection(Server, undefined) ->
+-spec get_bound_connection(Server :: jid:lserver(), term(), pid() | undefined) -> pid().
+get_bound_connection(Server, GDID, undefined) ->
     Pid = mod_global_distrib_sender:get_process_for(Server),
     put({connection, Server}, Pid),
+    ?DEBUG("event=new_bound_connection server=~ts gd_id=~s pid=~p", [Server, GDID, Pid]),
     Pid;
-get_bound_connection(Server, Pid) when is_pid(Pid) ->
+get_bound_connection(Server, GDID, Pid) when is_pid(Pid) ->
     case is_process_alive(Pid) of
-        false -> get_bound_connection(Server, undefined);
-        true -> Pid
+        false ->
+            ?DEBUG("event=dead_bound_connection server=~ts gd_id=~s pid=~p", [Server, GDID, Pid]),
+            get_bound_connection(Server, GDID, undefined);
+        true ->
+            ?DEBUG("event=reuse_bound_connection server=~ts gd_id=~s pid=~p", [Server, GDID, Pid]),
+            Pid
     end.
+
+%%--------------------------------------------------------------------
+%% gen_mod logic
+%%--------------------------------------------------------------------
 
 -spec deps(Opts :: proplists:proplist()) -> gen_mod:deps_list().
 deps(Opts) ->
@@ -196,6 +217,8 @@ start() ->
 -spec stop() -> any().
 stop() ->
     ejabberd_hooks:delete(filter_packet, global, ?MODULE, maybe_reroute, 99).
+
+%%--------------------------------------------------------------------
 
 -spec lookup_recipients_host(TargetHost :: binary() | undefined,
                              To :: jid:jid(),

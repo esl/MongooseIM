@@ -42,6 +42,7 @@ start_link(Endpoint, Server) ->
     gen_server:start_link(?MODULE, [Endpoint, Server], []).
 
 init([{Addr, Port}, Server]) ->
+    ?DEBUG("event=outgoing_gd_connection remote_server=~ts address=~1000p:~p pid=~p", [Server, Addr, Port, self()]),
     process_flag(trap_exit, true),
     MetricServer = mod_global_distrib_utils:binary_to_metric_atom(Server),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_SENT(MetricServer), spiral),

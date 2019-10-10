@@ -1309,7 +1309,11 @@ custom_loglevels() ->
      {mod_global_distrib_mapping_redis, info},
     %% to know if connection is already started or would be started
     %% event=outgoing_conn_start_progress
-     {mod_global_distrib_outgoing_conns_sup, info}].
+     {mod_global_distrib_outgoing_conns_sup, info},
+    %% to debug bound connection issues
+     {mod_global_distrib, debug},
+    %% to know all new connections pids
+     {mod_global_distrib_connection, debug}].
 
 test_hosts() -> [mim, mim2, reg].
 
