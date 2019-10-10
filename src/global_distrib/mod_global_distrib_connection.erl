@@ -63,8 +63,8 @@ init([{Addr, Port}, Server]) ->
                     peer = mod_global_distrib_transport:peername(Socket)}}
     catch
         error:{badmatch, Reason}:StackTrace ->
-            ?ERROR_MSG("Connection to ~p failed: ~p~n~p",
-                       [{Addr, Port}, Reason, StackTrace]),
+            ?ERROR_MSG("event=gd_connection_failed server=~ts address=~p:~p reason=~1000p stacktrace=~1000p",
+                       [Server, Addr, Port, Reason, StackTrace]),
             {stop, normal}
     end.
 
