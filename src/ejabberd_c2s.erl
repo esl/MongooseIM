@@ -2772,7 +2772,7 @@ maybe_enable_stream_mgmt(NextState, El, StateData) ->
             send_trailer(StateData),
             {stop, normal, StateData};
         {?NS_STREAM_MGNT_3, disabled, _} ->
-            send_element_from_server_jid(StateData, jlib:make_error_reply(El, mongoose_xmpp_errors:service_unavailable())),
+            send_element_from_server_jid(StateData, stream_mgmt_failed(<<"feature-not-implemented">>)),
             send_trailer(StateData),
             {stop, normal, StateData};
         {_, _, _} ->

@@ -1106,7 +1106,7 @@ no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt(Config) ->
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
     % escalus_connection:send(Alice, escalus_stanza:enable_sm([resume])),
     Response = escalus_connection:get_stanza(Alice, service_unavailable),
-    escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
+    escalus:assert(is_sm_failed, [<<"feature-not-implemented">>], Response),
     escalus_connection:stop(Alice).
 
 no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption(Config) ->
@@ -1116,7 +1116,7 @@ no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt_with_resumption
     %% Should not crash anything!
     escalus_connection:send(Alice, escalus_stanza:enable_sm([resume])),
     Response = escalus_connection:get_stanza(Alice, service_unavailable),
-    escalus_assert:is_error(Response, <<"cancel">>, <<"service-unavailable">>),
+    escalus:assert(is_sm_failed, [<<"feature-not-implemented">>], Response),
     escalus_connection:stop(Alice).
 
 %%--------------------------------------------------------------------
