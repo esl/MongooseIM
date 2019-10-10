@@ -136,7 +136,7 @@ init(RefreshAfter) ->
 
 handle_info(refresh, RefreshAfter) ->
     refresh(),
-    ?DEBUG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
+    ?INFO_MSG("event=refreshing_own_data_done,next_refresh_in=~p", [RefreshAfter]),
     erlang:send_after(timer:seconds(RefreshAfter), self(), refresh),
     {noreply, RefreshAfter}.
 

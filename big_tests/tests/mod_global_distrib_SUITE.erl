@@ -1306,6 +1306,6 @@ custom_loglevels() ->
     %% for "s2s connection to muc.localhost not found" debugging
     [{ejabberd_s2s, debug},
     %% for debugging event=refreshing_own_data_done
-     {mod_global_distrib_mapping_redis, debug}].
+     {mod_global_distrib_mapping_redis, info}].
 
 test_hosts() -> [mim, mim2, reg].
