@@ -604,9 +604,7 @@ test_location_disconnect(Config) ->
           end)
     after
         rpc(asia_node, application, start, [ranch]),
-        rpc(asia_node, application, start, [mongooseim]),
-        %% stream_start failed workaround
-        wait_for_user_able_to_connect(Config, eve)
+        rpc(asia_node, application, start, [mongooseim])
     end.
 
 test_pm_with_disconnection_on_other_server(Config) ->
@@ -784,6 +782,8 @@ refresh_nodes(Config) ->
     {ok, undefined} = redis_query(europe_node1, [<<"HGET">>, NodesKey, NodeBin]).
 
 test_in_order_messages_on_multiple_connections(Config) ->
+    %% stream_start failed workaround
+    wait_for_user_able_to_connect(Config, eve),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
@@ -803,6 +803,8 @@ test_in_order_messages_on_multiple_connections(Config) ->
       end).
 
 test_in_order_messages_on_multiple_connections_with_bounce(Config) ->
+    %% stream_start failed workaround
+    wait_for_user_able_to_connect(Config, eve),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
@@ -822,6 +824,8 @@ test_in_order_messages_on_multiple_connections_with_bounce(Config) ->
       end).
 
 test_messages_bounced_in_order(Config) ->
+    %% stream_start failed workaround
+    wait_for_user_able_to_connect(Config, eve),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
