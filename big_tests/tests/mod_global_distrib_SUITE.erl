@@ -187,15 +187,22 @@ init_per_group_generic(Config0) ->
                             {resend_after_ms, 500}]),
                   Opts = maybe_add_advertised_endpoints(NodeName, Opts0, Config1),
 
-                  OldMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
+                  %% To reduce load when sending many messages
+                  VirtHosts = [<<"localhost">>, <<"localhost.bis">>],
+                  ModulesToStop = [mod_offline, mod_privacy, mod_roster],
+
+                  OldMods = save_modules(NodeName, VirtHosts),
+
                   rpc(NodeName, gen_mod_deps, start_modules,
                       [<<"localhost">>, [{mod_global_distrib, Opts}]]),
-                  rpc(NodeName, gen_mod, stop_module, [<<"localhost">>, mod_offline]),
+
+                  [rpc(NodeName, gen_mod, stop_module, [VirtHost, Mod]) || Mod <- ModulesToStop, VirtHost <- VirtHosts],
+
                   ResumeTimeout = rpc(NodeName, mod_stream_management, get_resume_timeout, [1]),
                   true = rpc(NodeName, mod_stream_management, set_resume_timeout, [1]),
 
+                  OldMods ++
                   [
-                   {{old_mods, NodeName}, OldMods},
                    {{resume_timeout, NodeName}, ResumeTimeout} |
                    Config1
                   ]
@@ -227,9 +234,8 @@ end_per_group(_, Config) ->
 end_per_group_generic(Config) ->
     lists:foreach(
       fun({NodeName, _, _}) ->
-              CurrentMods = rpc(NodeName, gen_mod, loaded_modules_with_opts, [<<"localhost">>]),
-              rpc(NodeName, gen_mod_deps, replace_modules,
-                  [<<"localhost">>, CurrentMods, ?config({old_mods, NodeName}, Config)]),
+              VirtHosts = [<<"localhost">>, <<"localhost.bis">>],
+              [restore_modules(NodeName, VirtHost, Config) || VirtHost <- VirtHosts],
 
               rpc(NodeName, mod_stream_management, set_resume_timeout,
                   [?config({resume_timeout, NodeName}, Config)])
@@ -782,8 +788,6 @@ refresh_nodes(Config) ->
     {ok, undefined} = redis_query(europe_node1, [<<"HGET">>, NodesKey, NodeBin]).
 
 test_in_order_messages_on_multiple_connections(Config) ->
-    %% stream_start failed workaround
-    wait_for_user_able_to_connect(Config, eve),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
@@ -803,8 +807,6 @@ test_in_order_messages_on_multiple_connections(Config) ->
       end).
 
 test_in_order_messages_on_multiple_connections_with_bounce(Config) ->
-    %% stream_start failed workaround
-    wait_for_user_able_to_connect(Config, eve),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
@@ -824,8 +826,6 @@ test_in_order_messages_on_multiple_connections_with_bounce(Config) ->
       end).
 
 test_messages_bounced_in_order(Config) ->
-    %% stream_start failed workaround
-    wait_for_user_able_to_connect(Config, eve),
     escalus:fresh_story(
       Config, [{alice, 1}, {eve, 1}],
       fun(Alice, Eve) ->
@@ -1325,21 +1325,18 @@ custom_loglevels() ->
 
 test_hosts() -> [mim, mim2, reg].
 
-wait_for_user_able_to_connect(Config, Username) ->
-    Spec = escalus_users:get_userspec(Config, Username),
-    mongoose_helper:wait_until(fun() -> connect_user(Spec) end,
-                               ok,
-                               #{time_left => timer:seconds(30),
-                                 sleep_time => timer:seconds(1),
-                                 name => wait_for_user_able_to_connect}).
 
-connect_user(Spec) ->
-    Result = escalus_connection:start(Spec, [start_stream, stream_features]),
-    handle_connect_user(Spec, Result).
+loaded_modules_with_opts(NodeName, VirtHost) ->
+    rpc(NodeName, gen_mod, loaded_modules_with_opts, [VirtHost]).
 
-handle_connect_user(Spec, {ok, Client, _}) ->
-    escalus_connection:stop(Client),
-    ok;
-handle_connect_user(Spec, Other) ->
-    ct:pal("handle_connect_user:failed~n    Spec=~p~n    ConnectResult=~p~n", [Spec, Other]),
-    failed_to_connect.
+save_modules(NodeName, VirtHosts) ->
+    [{{old_mods, NodeName, VirtHost}, loaded_modules_with_opts(NodeName, VirtHost)} || VirtHost <- VirtHosts].
+
+restore_modules(NodeName, VirtHost, Config) ->
+    CurrentMods = loaded_modules_with_opts(NodeName, VirtHost),
+    case ?config({old_mods, NodeName, VirtHost}, Config) of
+        OldMods when is_list(OldMods) ->
+            rpc(NodeName, gen_mod_deps, replace_modules, [VirtHost, CurrentMods, OldMods]);
+        Other ->
+            ct:fail({replace_modules_failed, NodeName, VirtHost, Other})
+    end.
