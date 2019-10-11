@@ -247,7 +247,7 @@ init_per_testcase(CaseName, Config)
     %% There would be no new connections to europe_node2, but there can be some old ones.
     %% We need to disconnect previous connections.
     {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
-    trigger_rebalance(asia_node, EuropeHost),
+    trigger_rebalance(asia_node, list_to_binary(EuropeHost)),
     %% Load muc on mim node
     muc_helper:load_muc(<<"muc.localhost">>),
     RegNode = ct:get_config({hosts, reg, node}),
@@ -904,7 +904,7 @@ test_update_senders_host_by_ejd_service(Config) ->
 
               hide_node(europe_node1, Config),
               {_, EuropeHost, _} = lists:keyfind(europe_node1, 1, get_hosts()),
-              trigger_rebalance(asia_node, EuropeHost),
+              trigger_rebalance(asia_node, list_to_binary(EuropeHost)),
 
               escalus:send(Eve, escalus_stanza:chat_to(Addr, <<"hi">>)),
               escalus:wait_for_stanza(Comp),
@@ -1215,9 +1215,9 @@ restart_receiver(NodeName, NewEndpoints) ->
     {ok, _} = rpc(NodeName, gen_mod, reload_module,
              [<<"localhost">>, mod_global_distrib_receiver, NewOpts]).
 
-trigger_rebalance(NodeName, DestinationDomain) ->
+trigger_rebalance(NodeName, DestinationDomain) when is_binary(DestinationDomain) ->
     %% To ensure that the manager exists, otherwise we can get noproc error in the force_refresh call
-    rpc(NodeName, mod_global_distrib_outgoing_conns_sup, ensure_server_started, [DestinationDomain]),
+    ok = rpc(NodeName, mod_global_distrib_outgoing_conns_sup, ensure_server_started, [DestinationDomain]),
     rpc(NodeName, mod_global_distrib_server_mgr, force_refresh, [DestinationDomain]),
     timer:sleep(1000).
 

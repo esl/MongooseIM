@@ -185,7 +185,7 @@ nodes_key() ->
     nodes_key(LocalHost).
 
 -spec nodes_key(Host :: jid:lserver()) -> binary().
-nodes_key(Host) ->
+nodes_key(Host) when is_binary(Host) ->
     <<Host/binary, "#{nodes}">>.
 
 -spec endpoints_key() -> binary().

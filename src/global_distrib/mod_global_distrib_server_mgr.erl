@@ -61,7 +61,7 @@
 %%--------------------------------------------------------------------
 
 -spec start_link(Server :: jid:lserver(), ServerSup :: pid()) -> {ok, pid()} | {error, any()}.
-start_link(Server, ServerSup) ->
+start_link(Server, ServerSup) when is_binary(Server) ->
     Name = mod_global_distrib_utils:server_to_mgr_name(Server),
     gen_server:start_link({local, Name}, ?MODULE, [Server, ServerSup], []).
 
