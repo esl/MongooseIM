@@ -160,6 +160,8 @@ Retaining the default layout is recommended so that the experienced MongooseIM u
 
         * [`ldap` backend options](authentication-backends/LDAP-authentication-module.md#configuration-options)
 
+        * Riak backend support `bucket_type` option (default is <<"users">>)
+
 * **sasl_mechanisms** (local)
     * **Description:** Specifies a list of allowed SASL mechanisms. It affects the methods announced during stream negotiation and is enforced eventually (user can't pick mechanism not listed here but available in the source code).
     * **Warning:** This list is still filtered by [auth backends capabilities](#authentication-backend-capabilities)

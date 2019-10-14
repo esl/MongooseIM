@@ -20,6 +20,12 @@ It can sometimes become quite a heavyweight feature, so there is an option to di
              ]}
 ```
 
+##### Riak-specific options
+
+* `bucket_type` (default `<<"rosters">>`) - Riak bucket type.
+
+* `version_bucket_type` (default `<<"roster_versions">>`) - Riak bucket type for versions information
+
 ### Metrics
 
 If you'd like to learn more about metrics in MongooseIM, please visit [MongooseIM metrics](../operation-and-maintenance/Mongoose-metrics.md) page.

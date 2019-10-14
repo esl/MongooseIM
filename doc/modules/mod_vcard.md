@@ -30,6 +30,12 @@ This module provides support for vCards, as specified in [XEP-0054: vcard-temp](
 
 * `ldap_binary_search_fields` (list of binaries, default: `[]`): A list of search fields, which values should be Base64-encoded by MongooseIM before sending to LDAP.
 
+##### Riak-specific options
+
+* `bucket_type` (default `<<"vcard">>`) - Riak bucket type.
+
+* `search_index` (default `<<"vcard">>`) - Riak index name.
+
 ### Example Configuration
 ```
 {mod_vcard, [ {allow_return_all, true},

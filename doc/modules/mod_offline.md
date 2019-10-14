@@ -8,6 +8,10 @@ Although `mod_offline` may be sufficient in some cases, it is preferable to use 
 * `access_max_user_messages` (atom, default: `max_user_offline_messages`): Access Rule to use for limiting the storage size per user.
 * `backend` (atom, default: `mnesia`): Storage backend. Currently `mnesia`, `rdbms` and `riak` are supported. 
 
+##### Riak-specific options
+
+* `bucket_type` (default `<<"offline">>`) - Riak bucket type.
+
 ### Example Configuration
 ```
 {mod_offline, [{access_max_user_messages, max_user_offline_messages}]},
