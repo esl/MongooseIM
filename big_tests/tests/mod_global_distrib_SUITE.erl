@@ -403,6 +403,12 @@ test_pm_between_users_before_available_presence(Config) ->
     escalus_client:stop(Config1, Eve).
 
 test_two_way_pm(Alice, Eve) ->
+    %% Ensure that users are properly registered
+    %% Otherwise you can get "Unable to route global message... user not found in the routing table"
+    %% error, because "escalus_client:start" can return before SM registration is completed.
+    wait_for_registration(Alice, ct:get_config({hosts, mim, node})),
+    wait_for_registration(Eve, ct:get_config({hosts, reg, node})),
+
     escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
     escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
 
