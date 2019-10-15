@@ -133,6 +133,7 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     disable_logging(),
+    escalus_fresh:clean(),
     rpc(europe_node2, mongoose_cluster, leave, []),
     escalus:end_per_suite(Config).
 
@@ -191,7 +192,7 @@ init_per_group_generic(Config0) ->
 
                   %% To reduce load when sending many messages
                   VirtHosts = [<<"localhost">>, <<"localhost.bis">>],
-                  ModulesToStop = [mod_offline, mod_privacy, mod_roster],
+                  ModulesToStop = [mod_offline, mod_privacy, mod_roster, mod_last],
 
                   OldMods = save_modules(NodeName, VirtHosts),
 
@@ -242,8 +243,7 @@ end_per_group_generic(Config) ->
               rpc(NodeName, mod_stream_management, set_resume_timeout,
                   [?config({resume_timeout, NodeName}, Config)])
       end,
-      get_hosts()),
-    escalus_fresh:clean().
+      get_hosts()).
 
 init_per_testcase(CaseName, Config)
   when CaseName == test_muc_conversation_on_one_host; CaseName == test_global_disco;
