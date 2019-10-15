@@ -165,16 +165,30 @@ handle_info(refresh, State) ->
                  [] -> refresh_connections(State);
                  _ -> State % May occur if we are in the middle of force_refresh
              end,
+    case State#state.pending_endpoints == State2#state.pending_endpoints of
+        true ->
+            ok;
+        _ ->
+            ?INFO_MSG("event=gd_mgr_refresh refresh_interval=~p pending_endpoints_before=~p pending_endpoints_after=~p",
+                      [State#state.refresh_interval, State#state.pending_endpoints, State2#state.pending_endpoints])
+    end,
     schedule_refresh(State2),
     {noreply, State2};
 handle_info(disabled_gc, #state{ disabled = Disabled } = State) ->
-    lists:foreach(
+    StoppedEndpoints = lists:flatmap(
       fun(#endpoint_info{ endpoint = Endpoint, conn_pool_ref = ConnPool }) ->
               case catch cpool:get_connection(ConnPool, no_wait_for_reconnect) of
-                  {'EXIT', {no_connections, _}} -> stop_disabled(Endpoint, State);
-                  _OK -> ok
+                  {'EXIT', {no_connections, _}} -> stop_disabled(Endpoint, State), [Endpoint];
+                  _OK -> []
               end
       end, Disabled),
+    case StoppedEndpoints of
+        [] ->
+            ok;
+        _ ->
+            ?INFO_MSG("event=gd_mgr_disabled_gc stopped_endpoints=~p gc_interval=~p",
+                      [StoppedEndpoints, State#state.gc_interval])
+    end,
     schedule_gc(State),
     {noreply, State};
 handle_info(process_pending_get, #state{ enabled = [] } = State) ->
