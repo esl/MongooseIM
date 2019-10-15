@@ -37,6 +37,7 @@
     waiting_for :: header | non_neg_integer(),
     buffer = <<>> :: binary(),
     host :: undefined | atom(),
+    conn_id = <<>> :: binary(),
     peer :: tuple() | unknown
 }).
 
@@ -88,8 +89,8 @@ handle_info({tcp, _Socket, RawData}, #state{socket = Socket, buffer = Buffer} = 
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _Socket, Reason}, State) ->
-    ?ERROR_MSG("event=incoming_global_distrib_socket_error,reason='~p',peer='~p'",
-               [Reason, State#state.peer]),
+    ?ERROR_MSG("event=incoming_global_distrib_socket_error,reason='~p',peer='~p', conn_id=~ts",
+               [Reason, State#state.peer, State#state.conn_id]),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_ERRORED(State#state.host), 1),
     {stop, {error, Reason}, State};
 handle_info(Msg, State) ->
@@ -105,8 +106,9 @@ handle_call(_Message, _From, _State) ->
 code_change(_Version, State, _Extra) ->
     {ok, State}.
 
-terminate(_Reason, State) ->
-    ?WARNING_MSG("event=incoming_global_distrib_socket_closed,peer='~p'", [State#state.peer]),
+terminate(Reason, State) ->
+    ?WARNING_MSG("event=incoming_global_distrib_socket_closed,peer='~p', host=~p, reason=~p conn_id=~ts",
+                 [State#state.peer, State#state.host, Reason, State#state.conn_id]),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_CLOSED(State#state.host), 1),
     catch mod_global_distrib_transport:close(State#state.socket),
     ignore.
@@ -169,7 +171,9 @@ do_receive_data(Socket, Buffer, RawData, State) ->
     end.
 
 -spec handle_data(Data :: binary(), state()) -> state().
-handle_data(BinHost, State = #state{host = undefined}) ->
+handle_data(GdStart, State = #state{host = undefined}) ->
+    {ok, #xmlel{name = <<"gd_start">>, attrs = Attrs}} = exml:parse(GdStart),
+    #{<<"server">> := BinHost, <<"conn_id">> := ConnId} = maps:from_list(Attrs),
     Host = mod_global_distrib_utils:binary_to_metric_atom(BinHost),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_MESSAGES_RECEIVED(Host), spiral),
     mod_global_distrib_utils:ensure_metric(?GLOBAL_DISTRIB_TRANSFER_TIME(Host), histogram),
@@ -179,9 +183,10 @@ handle_data(BinHost, State = #state{host = undefined}) ->
       ?GLOBAL_DISTRIB_INCOMING_ERRORED(Host), spiral),
     mod_global_distrib_utils:ensure_metric(
       ?GLOBAL_DISTRIB_INCOMING_CLOSED(Host), spiral),
-    mongoose_metrics:init_subscriptions(),
     mongoose_metrics:update(global, ?GLOBAL_DISTRIB_INCOMING_FIRST_PACKET(Host), 1),
-    State#state{host = Host};
+    ?INFO_MSG("event=gd_incoming_connection server=~ts conn_id=~ts",
+              [BinHost, ConnId]),
+    State#state{host = Host, conn_id = ConnId};
 handle_data(Data, State = #state{host = Host}) ->
     <<ClockTime:64, BinFromSize:16, _/binary>> = Data,
     TransferTime = erlang:system_time(microsecond) - ClockTime,
