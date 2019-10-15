@@ -204,10 +204,6 @@ init([{SockMod, Socket}, Opts]) ->
     TLSOpts = verify_opts(Verify) ++ TLSOpts1,
     [ssl_crl_cache:insert({file, CRL}) || CRL <- proplists:get_value(crlfiles, Opts, [])],
     IP = peerip(SockMod, Socket),
-    StreamMgmtConfig = case gen_mod:is_loaded(?MYNAME, mod_stream_management) of
-                            true -> false;
-                            _ -> disabled
-                        end,
     %% Check if IP is blacklisted:
     case is_ip_blacklisted(IP) of
         true ->
@@ -237,8 +233,7 @@ init([{SockMod, Socket}, Opts]) ->
                                          shaper         = Shaper,
                                          ip             = IP,
                                          lang           = default_language(),
-                                         hibernate_after= HibernateAfter,
-                                         stream_mgmt    = StreamMgmtConfig
+                                         hibernate_after= HibernateAfter
                                         },
              ?C2S_OPEN_TIMEOUT}
     end.
@@ -272,8 +267,12 @@ wait_for_stream(closed, StateData) ->
 
 handle_stream_start({xmlstreamstart, _Name, Attrs}, #state{} = S0) ->
     Server = jid:nameprep(xml:get_attr_s(<<"to">>, Attrs)),
+    StreamMgmtConfig = case gen_mod:is_loaded(Server, mod_stream_management) of
+                            true -> false;
+                            _ -> disabled
+                        end,
     Lang = get_xml_lang(Attrs),
-    S = S0#state{server = Server, lang = Lang},
+    S = S0#state{server = Server, lang = Lang, stream_mgmt = StreamMgmtConfig},
     case {xml:get_attr_s(<<"xmlns:stream">>, Attrs),
           lists:member(Server, ?MYHOSTS)} of
         {?NS_STREAM, true} ->

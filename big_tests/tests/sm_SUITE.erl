@@ -140,7 +140,7 @@ init_per_group(stale_h, Config) ->
     escalus_users:update_userspec(Config, alice, manual_ack, true);
 init_per_group(stream_mgmt_disabled, Config) ->
     Config2 = dynamic_modules:save_modules(domain(), Config),
-    rpc(mim(), gen_mod, stop_module, [domain(), ?MOD_SM]),
+    dynamic_modules:stop(domain(), ?MOD_SM),
     rpc(mim(), mnesia, delete_table, [sm_session]),
     escalus_users:update_userspec(Config2, alice, manual_ack, true);
 init_per_group(_GroupName, Config) ->
@@ -174,11 +174,6 @@ register_some_smid_h(Config) ->
     TestSmids = lists:map(fun register_smid/1, lists:seq(1, 3)),
     [{smid_test, TestSmids} | Config].
 
-init_per_testcase(no_crash_if_stream_mgmt_disabled = CN, Config) ->
-    Config2 = dynamic_modules:save_modules(domain(), Config),
-    rpc(mim(), gen_mod, stop_module, [domain(), ?MOD_SM]),
-    rpc(mim(), mnesia, delete_table, [sm_session]),
-    escalus:init_per_testcase(CN, Config2);
 init_per_testcase(resume_expired_session_returns_correct_h = CN, Config) ->
     Config2 = set_gc_parameters(?BIG_BIG_BIG_TIMEOUT, ?BIG_BIG_BIG_TIMEOUT, Config),
     rpc(mim(), ?MOD_SM, set_resume_timeout, [?SHORT_RESUME_TIMEOUT]),
@@ -207,9 +202,6 @@ end_per_testcase(CN, Config) when CN =:= resume_expired_session_returns_correct_
                                    ->
     dynamic_modules:stop(domain(), ?MOD_SM),
     rpc(mim(), ejabberd_sup, stop_child, [stream_management_stale_h]),
-    dynamic_modules:restore_modules(domain(), Config),
-    escalus:end_per_testcase(CN, Config);
-end_per_testcase(no_crash_if_stream_mgmt_disabled = CN, Config) ->
     dynamic_modules:restore_modules(domain(), Config),
     escalus:end_per_testcase(CN, Config);
 end_per_testcase(server_requests_ack_freq_2 = CN, Config) ->
@@ -1104,7 +1096,6 @@ no_crash_if_stream_mgmt_disabled_but_client_requests_stream_mgmt(Config) ->
     {ok, Alice, _Features} = escalus_connection:start(AliceSpec, Steps),
     %% Should not crash anything!
     escalus_connection:send(Alice, escalus_stanza:enable_sm()),
-    % escalus_connection:send(Alice, escalus_stanza:enable_sm([resume])),
     Response = escalus_connection:get_stanza(Alice, service_unavailable),
     escalus:assert(is_sm_failed, [<<"feature-not-implemented">>], Response),
     escalus_connection:stop(Alice).
