@@ -20,7 +20,6 @@
 
 -export([archive_size/4,
          archive_message/9,
-         archive_message_muc/9,
          lookup_messages/3,
          remove_archive/4]).
 
@@ -67,28 +66,7 @@
 
 -spec start(jid:server(), _) -> 'ok'.
 start(Host, Opts) ->
-    case lists:keyfind(hand_made_partitions, 1, Opts) of
-        false -> ok;
-        _ ->
-            ?ERROR_MSG("hand_made_partitions option for mod_mam_rdbms_arch is "
-                       "no longer supported", []),
-            error(hand_made_partitions_not_supported)
-    end,
-
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            start_pm(Host, Opts);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            ?ERROR_MSG("muc option is deprecated for mod_mam_rdbms_arch backend, "
-                       "mod_mam_muc_rdbms_arch should be used instead",[]),
-            start_muc(Host, Opts);
-        false ->
-            ok
-    end,
+    start_pm(Host, Opts),
 
     prepare_insert(insert_mam_message, 1),
     mongoose_rdbms:prepare(mam_archive_size, mam_message, [user_id],
@@ -100,18 +78,7 @@ start(Host, Opts) ->
 
 -spec stop(jid:server()) -> ok.
 stop(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, pm, false) of
-        true ->
-            stop_pm(Host);
-        false ->
-            ok
-    end,
-    case gen_mod:get_module_opt(Host, ?MODULE, muc, false) of
-        true ->
-            stop_muc(Host);
-        false ->
-            ok
-    end.
+    stop_pm(Host).
 
 -spec get_mam_pm_gdpr_data(ejabberd_gen_mam_archive:mam_pm_gdpr_data(), jid:jid()) ->
     ejabberd_gen_mam_archive:mam_pm_gdpr_data().
@@ -156,38 +123,6 @@ stop_pm(Host) ->
     ejabberd_hooks:delete(get_mam_pm_gdpr_data, Host, ?MODULE, get_mam_pm_gdpr_data, 50),
     ok.
 
-
-%% ----------------------------------------------------------------------
-%% Add hooks for mod_mam_muc
-
--spec start_muc(jid:server(), _) -> 'ok'.
-start_muc(Host, _Opts) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:add(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50)
-    end,
-    ejabberd_hooks:add(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:add(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:add(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
--spec stop_muc(binary()) -> 'ok'.
-stop_muc(Host) ->
-    case gen_mod:get_module_opt(Host, ?MODULE, no_writer, false) of
-        true ->
-            ok;
-        false ->
-            ejabberd_hooks:delete(mam_muc_archive_message, Host, ?MODULE, archive_message_muc, 50)
-    end,
-    ejabberd_hooks:delete(mam_muc_archive_size, Host, ?MODULE, archive_size, 50),
-    ejabberd_hooks:delete(mam_muc_lookup_messages, Host, ?MODULE, lookup_messages, 50),
-    ejabberd_hooks:delete(mam_muc_remove_archive, Host, ?MODULE, remove_archive, 50),
-    ok.
-
-
 %% ----------------------------------------------------------------------
 %% Internal functions and callbacks
 
@@ -210,14 +145,6 @@ index_hint_sql(Host) ->
         _ ->
             ""
     end.
-
-
--spec archive_message_muc(_Result, Host :: jid:server(),
-                          MessID :: mod_mam:message_id(), UserID :: mod_mam:archive_id(),
-                          LocJID :: jid:jid(), RemJID :: jid:jid(),
-                          SrcJID :: jid:jid(), Dir :: atom(), Packet :: any()) -> ok.
-archive_message_muc(Result, Host, MessID, UserID, LocJID, _RemJID, SrcJID, Dir, Packet) ->
-    archive_message(Result, Host, MessID, UserID, LocJID, SrcJID, SrcJID, Dir, Packet).
 
 
 -spec archive_message(_Result, Host :: jid:server(),

@@ -31,6 +31,7 @@
          stanza_to_room/2,
          start_room/5]).
 
+%% TODO: Split into modules like mam_stanza, mam_pred etc.
 -export([
          rpc_apply/3,
          get_prop/2,

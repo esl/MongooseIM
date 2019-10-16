@@ -644,7 +644,7 @@ end_per_group(Group, Config) ->
 init_modules(rdbms, muc_light, Config) ->
     Config1 = init_modules_for_muc_light(rdbms, Config),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
-    init_module(host(), mod_mam_rdbms_arch, [muc, pm]),
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     Config1;
 init_modules(BT = riak_timed_yz_buckets, muc_light, Config) ->
     dynamic_modules:start(host(), mod_muc_light, [{host, binary_to_list(muc_light_host())}]),
@@ -662,13 +662,13 @@ init_modules(elasticsearch, muc_all, Config) ->
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms, muc_all, Config) ->
-    init_module(host(), mod_mam_rdbms_arch, [muc]),
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
     Config;
 init_modules(rdbms_simple, muc_all, Config) ->
-    init_module(host(), mod_mam_muc_rdbms_arch, [muc, rdbms_simple_opts()]),
+    init_module(host(), mod_mam_muc_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [muc]),
     init_module(host(), mod_mam_rdbms_user, [muc, pm]),
     init_module(host(), mod_mam_muc, [{host, muc_domain(Config)}]),
@@ -723,13 +723,13 @@ init_modules(BackendType, muc_light, Config) ->
     Config1;
 init_modules(rdbms, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_simple, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, rdbms_simple_opts()]),
+    init_module(host(), mod_mam_rdbms_arch, [rdbms_simple_opts()]),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
@@ -753,34 +753,34 @@ init_modules(elasticsearch, C, Config) ->
     Config;
 init_modules(rdbms_async, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_rdbms_async_writer, [pm, {flush_interval, 1}]), % 1ms
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_async_pool, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_mnesia, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     Config;
 init_modules(rdbms_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
     Config;
 init_modules(rdbms_async_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm, no_writer]),
+    init_module(host(), mod_mam_rdbms_arch, [no_writer]),
     init_module(host(), mod_mam_rdbms_async_pool_writer, [pm, {flush_interval, 1}]), %% 1ms
     init_module(host(), mod_mam_rdbms_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
@@ -788,7 +788,7 @@ init_modules(rdbms_async_cache, C, Config) ->
     Config;
 init_modules(rdbms_mnesia_cache, C, Config) ->
     init_module(host(), mod_mam, addin_mam_options(C, Config)),
-    init_module(host(), mod_mam_rdbms_arch, [pm]),
+    init_module(host(), mod_mam_rdbms_arch, []),
     init_module(host(), mod_mam_mnesia_prefs, [pm]),
     init_module(host(), mod_mam_rdbms_user, [pm]),
     init_module(host(), mod_mam_cache_user, [pm]),
