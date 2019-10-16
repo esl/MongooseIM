@@ -39,7 +39,6 @@
          is_riak_enabled/1,
          is_cassandra_enabled/0,
          is_cassandra_enabled/1,
-         is_elasticsearch_enabled/0,
          is_elasticsearch_enabled/1,
          is_mam_possible/1,
          respond_iq/1,
