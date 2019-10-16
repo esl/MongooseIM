@@ -411,8 +411,8 @@ test_two_way_pm(Alice, Eve) ->
     wait_for_registration(Alice, ct:get_config({hosts, mim, node})),
     wait_for_registration(Eve, ct:get_config({hosts, reg, node})),
 
-    escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi from Europe1!">>)),
-    escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi from Asia!">>)),
+    escalus_client:send(Alice, escalus_stanza:chat_to(Eve, <<"Hi to Eve from Europe1!">>)),
+    escalus_client:send(Eve, escalus_stanza:chat_to(Alice, <<"Hi to Alice from Asia!">>)),
 
     FromAlice = escalus_client:wait_for_stanza(Eve, timer:seconds(15)),
     FromEve = escalus_client:wait_for_stanza(Alice, timer:seconds(15)),
@@ -420,9 +420,9 @@ test_two_way_pm(Alice, Eve) ->
     AliceJid = escalus_client:full_jid(Alice),
     EveJid = escalus_client:full_jid(Eve),
 
-    escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi from Europe1!">>],
+    escalus:assert(is_chat_message_from_to, [AliceJid, EveJid, <<"Hi to Eve from Europe1!">>],
                    FromAlice),
-    escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi from Asia!">>],
+    escalus:assert(is_chat_message_from_to, [EveJid, AliceJid, <<"Hi to Alice from Asia!">>],
                    FromEve).
 
 test_muc_conversation_on_one_host(Config0) ->
@@ -1333,7 +1333,10 @@ custom_loglevels() ->
     %% to check if gc or refresh is triggered
      {mod_global_distrib_server_mgr, info},
    %% To debug incoming connections
-     {mod_global_distrib_receiver, info}].
+     {mod_global_distrib_receiver, info},
+   %% to debug global session set/delete
+     {mod_global_distrib_mapping, debug}
+    ].
 
 test_hosts() -> [mim, mim2, reg].
 
