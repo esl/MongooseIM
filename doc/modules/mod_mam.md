@@ -5,7 +5,6 @@ It uses [XEP-0059: Result Set Management](http://xmpp.org/extensions/xep-0059.ht
 It is a highly customizable module, that requires some skill and knowledge to operate properly and efficiently.
 
 MongooseIM is compatible with MAM 0.4-0.6.
-Version 0.3 is deprecated and won't be supported by the next release.
 
 Configure MAM with different storage backends:
 
