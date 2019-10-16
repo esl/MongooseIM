@@ -33,10 +33,13 @@
 
 %% TODO: Split into modules like mam_stanza, mam_pred etc.
 -export([
+         backend/0,
          rpc_apply/3,
          get_prop/2,
          is_riak_enabled/1,
+         is_cassandra_enabled/0,
          is_cassandra_enabled/1,
+         is_elasticsearch_enabled/0,
          is_elasticsearch_enabled/1,
          is_mam_possible/1,
          respond_iq/1,
@@ -947,6 +950,45 @@ nick_to_jid(UserName, Config) when is_atom(UserName) ->
 make_jid(U, S, R) ->
     rpc_apply(jid, make, [U, S, R]).
 
+-spec backend() -> rdbms | riak | cassandra | false.
+backend() ->
+    Funs = [fun maybe_rdbms/1, fun maybe_riak/1, fun maybe_cassandra/1],
+    determine_backend(host(), Funs).
+
+determine_backend(_, []) ->
+    disabled;
+determine_backend(Host, [F | Rest]) ->
+    case F(Host) of
+        false ->
+            determine_backend(Host, Rest);
+        Result ->
+            Result
+    end.
+
+maybe_rdbms(Host) ->
+    case mongoose_helper:is_rdbms_enabled(Host) of
+        true ->
+            rdbms;
+        _ ->
+            false
+    end.
+
+maybe_riak(Host) ->
+    case is_riak_enabled(Host) of
+        true ->
+            riak;
+        _ ->
+            false
+    end.
+
+maybe_cassandra(Host) ->
+    case is_cassandra_enabled(Host) of
+        true ->
+            cassandra;
+        _ ->
+            false
+    end.
+
 is_mam_possible(Host) ->
     mongoose_helper:is_rdbms_enabled(Host) orelse is_riak_enabled(Host) orelse
     is_cassandra_enabled(Host) orelse is_elasticsearch_enabled(Host).
@@ -962,7 +1004,6 @@ is_riak_enabled(_Host) ->
 
 is_cassandra_enabled(_) ->
     is_cassandra_enabled().
-
 
 is_cassandra_enabled() ->
     rpc(mim(), mongoose_wpool, is_configured, [cassandra]).
